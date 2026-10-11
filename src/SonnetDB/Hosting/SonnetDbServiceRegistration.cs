@@ -279,6 +279,9 @@ internal static class SonnetDbServiceRegistration
             MaxWalBytes = options.MaxWalBytes,
             MaxOverlayEntries = options.MaxOverlayEntries,
             MaxSnapshotOverlayEntries = options.MaxSnapshotOverlayEntries,
+            MaxConcurrentStateReads = options.MaxConcurrentStateReads,
+            MaxQueuedStateReads = options.MaxQueuedStateReads,
+            StateReadWaitTimeoutMilliseconds = options.StateReadWaitTimeoutMilliseconds,
             IndexRebuildMaxWalBytes = options.IndexRebuildMaxWalBytes,
             IndexRebuildMaxOverlayEntries = options.IndexRebuildMaxOverlayEntries,
         };

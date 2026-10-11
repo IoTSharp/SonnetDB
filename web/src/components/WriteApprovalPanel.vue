@@ -31,6 +31,14 @@
           <div><dt>操作数量</dt><dd>{{ plan.items.length }} 项</dd></div>
           <div><dt>写入 / 危险</dt><dd>{{ plan.writeCount }} / {{ plan.dangerCount }}</dd></div>
           <div><dt>暂存时间</dt><dd>{{ formatTime(plan.createdAt) }}</dd></div>
+          <div v-if="plan.impact"><dt>影响范围</dt><dd>{{ plan.impact }}</dd></div>
+          <div v-if="plan.risk"><dt>风险</dt><dd>{{ plan.risk }}</dd></div>
+          <div><dt>请求 ID</dt><dd>{{ plan.requestId }}</dd></div>
+          <div v-if="plan.serverState"><dt>服务器终态</dt><dd>{{ plan.serverState }}</dd></div>
+          <div v-if="plan.auditSource"><dt>审计来源</dt><dd>{{ plan.auditSource }}</dd></div>
+          <div v-if="outcome?.operationId"><dt>操作 ID</dt><dd>{{ outcome.operationId }}</dd></div>
+          <div v-if="outcome?.serverState"><dt>服务器终态</dt><dd>{{ outcome.serverState }}</dd></div>
+          <div v-if="outcome?.auditSource"><dt>审计来源</dt><dd>{{ outcome.auditSource }}</dd></div>
         </dl>
 
         <div class="write-approval__items">
@@ -49,7 +57,10 @@
           <n-checkbox v-if="plan.dangerous" v-model:checked="dangerConfirmed">
             我已核对目标范围和参数，了解该操作可能修改或删除数据。
           </n-checkbox>
-          <n-text v-if="stale" depth="3">预览已过期，请重新生成后再执行。</n-text>
+          <n-text v-if="stale || plan.state === 'stale'" depth="3">{{ plan.staleReason || '预览已过期，请重新生成后再执行。' }}</n-text>
+          <n-text v-if="outcome && (outcome.state === 'unknown' || outcome.state === 'pending')" depth="3">
+            执行结果待核对；请先查询服务器终态或审计，再重新预览和审批，系统不会自动重试。
+          </n-text>
           <span class="write-approval__spacer" />
           <n-button size="small" secondary :disabled="busy" @click="$emit('cancel')">返回编辑</n-button>
           <n-button
@@ -64,13 +75,13 @@
             size="small"
             secondary
             :loading="dryRunBusy"
-            :disabled="stale || busy"
+            :disabled="stale || plan.state === 'stale' || busy || Boolean(outcome)"
             @click="$emit('dry-run')"
           >{{ plan.dryRunLabel }}</n-button>
           <n-button
             size="small"
             type="primary"
-            :disabled="busy || stale || (plan.dangerous && !dangerConfirmed)"
+            :disabled="busy || stale || plan.state === 'stale' || Boolean(outcome) || (plan.dangerous && !dangerConfirmed)"
             :loading="busy"
             @click="$emit('confirm')"
           >
@@ -87,7 +98,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NButton, NCheckbox, NSpace, NTag, NText } from 'naive-ui';
 import { ShieldCheck, TriangleAlert, X } from 'lucide-vue-next';
-import { approvalSeverityTagType, type WriteApprovalPlan } from '@/utils/writeApproval';
+import {
+  approvalSeverityTagType,
+  type WriteApprovalOutcome,
+  type WriteApprovalPlan,
+} from '@/utils/writeApproval';
 
 const props = defineProps<{
   plan: WriteApprovalPlan;
@@ -95,6 +110,7 @@ const props = defineProps<{
   busy?: boolean;
   dryRunBusy?: boolean;
   abortable?: boolean;
+  outcome?: WriteApprovalOutcome | null;
 }>();
 
 const emit = defineEmits<{

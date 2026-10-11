@@ -1,0 +1,20 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "ProcessIdentityCount": 94,
+  "OwnedLive": 0,
+  "RemovedEntries": 5091,
+  "TempRemoved": true,
+  "SharedCachesRemoved": false,
+  "UserFilesRemoved": false,
+  "ElapsedSeconds": 7.5213481,
+  "FirstBuildRootPid": 91004,
+  "FirstBuildRootLive": false,
+  "RetainedHelperDirectory": "D:\\source\\SonnetDB\\artifacts\\parallel-20261002",
+  "RetainedHelperFiles": [
+    "Run-Bounded.ps1",
+    "Collect-Evidence.ps1",
+    "Cleanup-Task.ps1",
+    "task-root.txt"
+  ],
+  "HelperDeletionRejection": "Automatic approval review rejected the deletion command: blocked by policy. Files retained; no alternate deletion attempted."
+}

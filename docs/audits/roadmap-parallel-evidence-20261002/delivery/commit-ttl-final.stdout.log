@@ -1,0 +1,4 @@
+[codex/roadmap-parallel-20261002 1cb54f97] fix(sql): 对 TTL 文档查询执行有界物化准入
+ 9 files changed, 629 insertions(+), 36 deletions(-)
+ create mode 100644 docs/benchmarks/m42-document-ttl-result-bounds.md
+ create mode 100644 tests/SonnetDB.Core.Tests/Sql/DocumentTtlSelectMaterializationBudgetTests.cs

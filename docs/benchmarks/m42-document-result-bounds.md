@@ -25,12 +25,12 @@ var result = SqlExecutor.Execute(database, null,
 
 排序（包括排序后 LIMIT）、聚合/GROUP BY/HAVING、窗口、JOIN、DISTINCT、集合运算、派生表/CTE/Document 视图、标量/EXISTS/IN 子查询、全文/向量函数和用户函数回调在读取候选前拒绝。Document 集合不能经关系查询树或关系 DML 的子查询进入该路径。默认无预算的调用继续保留原排序、聚合、索引、全文与向量能力；本切片没有扩展 Document DML 预算支持范围。
 
-存在 TTL 索引的集合在预算调用中提前拒绝。既有 `Get`/`ScanAfter` 会先全量扫描并持久删除过期文档，不能将这种读取冒充为有界、失败不修改数据的 SELECT。预算只读辅助在集合锁内再次确认没有 TTL 索引并跳过回收，避免预检后并发添加 TTL 索引时绕过约束；默认无预算调用仍保留 TTL 回收行为。
+2026-10-02 的[TTL 增量](m42-document-ttl-result-bounds.md)允许预算 raw SELECT 读取 TTL 集合：按根查询固定时刻、锁内最新 schema 逐文档判断过期，过期候选推进游标但不执行 WHERE、分页或投影，不计结果保留预算。预算读取及冷开跳过过期文档回收，EXPLAIN 不调用默认全量统计；默认无预算调用保留原 TTL 回收行为。派生索引初始化及底层工作集仍有独立边界。
 
 字节估算复用既有合同：每行 `64 + 8 × 列数 + 值载荷`。NULL 计 1、固定 SQL 标量计 24、字符串计 `24 + 2 × UTF-16 长度`；全文 JSON、对象/数组 JSON 及标量 JSON 字符串均计费。例如投影 `id='d0000'` 和 `text='雪😀'` 的估算为 `64 + 16 + (24 + 10) + (24 + 6) = 144`，144 允许而 143 拒绝。共享查询/数据库内存预留继续约束结果保留。
 
 ## 验证与未完成门禁
 
-定向过滤器为 `FullyQualifiedName~DocumentSelectMaterializationBudgetTests`，既有文档能力回归为 `FullyQualifiedName~SqlExecutorDocumentTests`；关系及 measurement 预算回归分别为 `FullyQualifiedName~SqlMaterializationBudgetTests` 和 `FullyQualifiedName~SqlMeasurementMaterializationBudgetTests`。新测试经过真实 Core SQL 入口验证 4096 文档的小预算读取前沿、字节等号、过滤/分页、全文 JSON 载荷、LIMIT 0、单 ID 读取、稀疏及大小写敏感 JSON 投影、标量表达式、路径索引存在时的过滤、LIMIT 后错误行、提前拒绝、TTL/用户回调拒绝、EXPLAIN ANALYZE 根计费、取消/截止时间、失败预留释放、持久重开和默认排序/聚合。最终测试结果见本轮统一验证记录；这里不将待运行测试写作通过证据。
+定向过滤器为 `FullyQualifiedName~DocumentSelectMaterializationBudgetTests`，既有文档能力回归为 `FullyQualifiedName~SqlExecutorDocumentTests`；关系及 measurement 预算回归分别为 `FullyQualifiedName~SqlMaterializationBudgetTests` 和 `FullyQualifiedName~SqlMeasurementMaterializationBudgetTests`。新测试经过真实 Core SQL 入口验证 4096 文档的小预算读取前沿、字节等号、过滤/分页、全文 JSON 载荷、LIMIT 0、单 ID 读取、稀疏及大小写敏感 JSON 投影、标量表达式、路径索引存在时的过滤、LIMIT 后错误行、提前拒绝、用户回调拒绝及 TTL 增量可见性、EXPLAIN ANALYZE 根计费、取消/截止时间、失败预留释放、持久重开和默认排序/聚合。最终测试结果见本轮统一验证记录；这里不将待运行测试写作通过证据。
 
 该切片治理 SQL 输出行保留，**不保证 CLR heap 的精确硬上限、存储工作集硬上限、快照一致性或首行延迟**。底层 KV 扫描仍可能复制/排序覆盖层、持有段及索引工作集；当前文档 JSON 解码、JSON DOM 与标量求值可产生一次性分配。一文档本身可大于预算，只有投影完成后的保留准入有预算合同；不将结果预算冒称单文档输入上限。分页游标不在扫描期间锁定整个集合，保留原 API 的并发读取边界。固定目标硬件 heap/首字节、断连压力、端到端流式输出、TTL 有界回收及完整 SQL-002/M42 外部门禁仍未闭环。

@@ -1,0 +1,60 @@
+name: Workbench Preview P07 evidence review
+run-name: P07 candidate ${{ inputs.candidate_number }} evidence review
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_number:
+        description: Frozen candidate number; no package rebuild or publication
+        required: true
+        type: string
+      prepare_run:
+        description: Completed successful prepare run from this same tooling commit
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: workbench-preview-p07-${{ inputs.candidate_number }}
+  cancel-in-progress: false
+jobs:
+  collect:
+    name: Collect original evidence and review decision
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Preserve immutable repository bytes on Windows
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Collect original gates and package receipts without publication
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+          PREPARE_RUN: ${{ inputs.prepare_run }}
+        run: ./eng/workbench-preview/Invoke-P07.ps1 -Number $env:CANDIDATE_NUMBER -PrepareRun $env:PREPARE_RUN -Output "$env:RUNNER_TEMP/p07-review"
+      - name: Retain original evidence and NOT_READY decisions
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workbench-preview-p07-${{ inputs.candidate_number }}
+          path: |
+            ${{ runner.temp }}/p07-review/*.json
+            ${{ runner.temp }}/p07-review/*.log
+            ${{ runner.temp }}/p07-review/originals/
+            ${{ runner.temp }}/p07-review/prepare-proof/
+            ${{ runner.temp }}/p07-review/release-gates/
+            ${{ runner.temp }}/p07-review/owned/
+          if-no-files-found: error
+          retention-days: 30

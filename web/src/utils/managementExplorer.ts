@@ -13,6 +13,12 @@ import type {
   SchemaResponse,
   TableInfo,
 } from '@/api/schema';
+import {
+  createGraphResourceDescriptor,
+  createMqResourceDescriptor,
+  createResourceDescriptor,
+  type ResourceDescriptor,
+} from '@/management-core/resourceDescriptor';
 
 export type ExplorerModel =
   | 'measurement'
@@ -44,6 +50,8 @@ export interface ExplorerItem {
   meta: string;
   title: string;
   className: string;
+  /** 统一的数据库资源身份与逻辑/物理边界。 */
+  resource: ResourceDescriptor;
   payload:
     | MeasurementInfo
     | TableInfo
@@ -126,6 +134,84 @@ export function normalizeActiveExplorerKey(
   if (management.graphs.some((graph) => `graph:${graph.name}` === key)) return key;
   if (key === 'backup-status' && dbSchema.backupStatus) return key;
   return firstExplorerKey(dbSchema, management);
+}
+
+/**
+ * 将旧 SQL 深链接中的 model/node 投影回 Explorer 的数据库本地 legacy key。
+ *
+ * 路由中的 node 保留资源原名（包括大小写与冒号），而 Explorer 对带模型
+ * 前缀的资源使用兼容 key。未知或缺失的 node 按既有 Explorer 首项规则回退。
+ */
+export function explorerKeyFromRoute(
+  model: string | undefined,
+  node: string | undefined,
+  dbSchema: SchemaResponse,
+  management: ManagementExplorerInfo = emptyManagementInfo(),
+): string {
+  if (!model || !node) return normalizeActiveExplorerKey('', dbSchema, management);
+
+  let key: string | undefined;
+  switch (model) {
+    case 'measurement':
+      key = dbSchema.measurements?.find((measurement) => measurement.name === node)?.name;
+      break;
+    case 'table': {
+      const table = dbSchema.tables?.find((item) => item.name === node || `table:${item.name}` === node);
+      key = table ? `table:${table.name}` : undefined;
+      break;
+    }
+    case 'document': {
+      const collection = dbSchema.documentCollections?.find((item) => item.name === node || `document:${item.name}` === node);
+      key = collection ? `document:${collection.name}` : undefined;
+      break;
+    }
+    case 'kv': {
+      const keyspace = management.kvKeyspaces.find((item) => item === node || `kv:${item}` === node);
+      key = keyspace ? `kv:${keyspace}` : undefined;
+      break;
+    }
+    case 'mq': {
+      const topic = management.mqTopics.find((item) => item.topic === node || `mq:${item.topic}` === node);
+      key = topic ? `mq:${topic.topic}` : undefined;
+      break;
+    }
+    case 'vector': {
+      const index = management.vectorIndexes.find((item) =>
+        `${item.measurement}.${item.column}` === node
+        || `vector:${item.measurement}:${item.column}` === node);
+      key = index ? `vector:${index.measurement}:${index.column}` : undefined;
+      break;
+    }
+    case 'fulltext': {
+      const index = management.fullTextIndexes.find((item) =>
+        `${item.collection}.${item.name}` === node
+        || `fulltext:${item.collection}:${item.name}` === node);
+      key = index ? `fulltext:${index.collection}:${index.name}` : undefined;
+      break;
+    }
+    case 'bucket': {
+      const bucket = management.buckets.find((item) => item.name === node || `bucket:${item.name}` === node);
+      key = bucket ? `bucket:${bucket.name}` : undefined;
+      break;
+    }
+    case 'graph': {
+      const graph = management.graphs.find((item) => item.name === node || `graph:${item.name}` === node);
+      key = graph ? `graph:${graph.name}` : undefined;
+      break;
+    }
+    case 'index': {
+      const index = dbSchema.indexes?.find((item) => item.name === node || item.id === node);
+      key = index?.id;
+      break;
+    }
+    case 'backup':
+      if (dbSchema.backupStatus && (node === 'Backup status' || node === 'backup-status')) key = 'backup-status';
+      break;
+    default:
+      break;
+  }
+
+  return normalizeActiveExplorerKey(key ?? '', dbSchema, management);
 }
 
 export function firstExplorerKey(dbSchema: SchemaResponse, management: ManagementExplorerInfo): string {
@@ -226,6 +312,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: measurement.name,
         model: 'measurement',
         name: measurement.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'measurement',
+          name: measurement.name,
+          key: measurement.name,
+          legacyKey: measurement.name,
+        }),
         meta: measurementMeta(measurement),
         title: measurementMeta(measurement),
         className: 'schema-item--measurement',
@@ -240,6 +333,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `table:${table.name}`,
         model: 'table',
         name: table.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'table',
+          name: table.name,
+          key: `table:${table.name}`,
+          legacyKey: `table:${table.name}`,
+        }),
         meta: tableMeta(table),
         title: tableMeta(table),
         className: 'schema-item--table',
@@ -254,6 +354,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `document:${collection.name}`,
         model: 'document',
         name: collection.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'document',
+          name: collection.name,
+          key: `document:${collection.name}`,
+          legacyKey: `document:${collection.name}`,
+        }),
         meta: documentCollectionMeta(collection),
         title: documentCollectionMeta(collection),
         className: 'schema-item--document',
@@ -268,6 +375,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `kv:${keyspace}`,
         model: 'kv',
         name: keyspace,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'kv',
+          name: keyspace,
+          key: `kv:${keyspace}`,
+          legacyKey: `kv:${keyspace}`,
+        }),
         meta: 'keyspace',
         title: 'KV keyspace',
         className: 'schema-item--kv',
@@ -282,6 +396,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: index.id,
         model: 'index',
         name: index.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'index',
+          name: index.name,
+          key: index.id,
+          legacyKey: index.id,
+        }),
         meta: indexMeta(index),
         title: indexMeta(index),
         className: 'schema-item--index',
@@ -296,6 +417,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `vector:${index.measurement}:${index.column}`,
         model: 'vector',
         name: `${index.measurement}.${index.column}`,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'vector',
+          name: `${index.measurement}.${index.column}`,
+          key: `vector:${index.measurement}:${index.column}`,
+          legacyKey: `vector:${index.measurement}:${index.column}`,
+        }),
         meta: vectorIndexMeta(index),
         title: vectorIndexMeta(index),
         className: 'schema-item--vector',
@@ -310,6 +438,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `fulltext:${index.collection}:${index.name}`,
         model: 'fulltext',
         name: `${index.collection}.${index.name}`,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'fulltext',
+          name: `${index.collection}.${index.name}`,
+          key: `fulltext:${index.collection}:${index.name}`,
+          legacyKey: `fulltext:${index.collection}:${index.name}`,
+        }),
         meta: fullTextIndexMeta(index),
         title: fullTextIndexMeta(index),
         className: 'schema-item--fulltext',
@@ -324,6 +459,7 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `mq:${topic.topic}`,
         model: 'mq',
         name: topic.topic,
+        resource: createMqResourceDescriptor(dbNode.name, topic.topic),
         meta: mqTopicMeta(topic),
         title: mqTopicMeta(topic),
         className: 'schema-item--mq',
@@ -338,6 +474,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `bucket:${bucket.name}`,
         model: 'bucket',
         name: bucket.name,
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'bucket',
+          name: bucket.name,
+          key: `bucket:${bucket.name}`,
+          legacyKey: `bucket:${bucket.name}`,
+        }),
         meta: `${bucket.objectCount ?? 0} objects · ${bucket.totalBytes ?? 0} bytes`,
         title: `${bucket.objectCount ?? 0} objects · ${bucket.totalBytes ?? 0} bytes`,
         className: 'schema-item--bucket',
@@ -352,6 +495,7 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: `graph:${graph.name}`,
         model: 'graph',
         name: graph.name,
+        resource: createGraphResourceDescriptor(dbNode.name, graph.name, `graph:${graph.name}`),
         meta: `format v${graph.recordFormatVersion}`,
         title: `storage ${graph.storageId}`,
         className: 'schema-item--graph',
@@ -369,6 +513,13 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         key: 'backup-status',
         model: 'backup',
         name: 'Backup status',
+        resource: createResourceDescriptor({
+          database: dbNode.name,
+          model: 'backup',
+          name: 'backup-status',
+          key: 'backup-status',
+          legacyKey: 'backup-status',
+        }),
         meta: backupMeta(dbNode.backupStatus),
         title: backupMeta(dbNode.backupStatus),
         className: 'schema-item--backup',

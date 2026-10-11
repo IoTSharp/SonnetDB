@@ -502,18 +502,24 @@ internal sealed class KvDiskState : IDisposable
     public KvValueEntry Read(KvDiskIndexEntry entry)
         => Read(entry, CancellationToken.None);
 
-    public KvValueEntry Read(KvDiskIndexEntry entry, CancellationToken cancellationToken)
+    /// <summary>按位置读取并校验 payload；维护读取使用独立预算。</summary>
+    public KvValueEntry Read(KvDiskIndexEntry entry, CancellationToken cancellationToken, bool maintenanceRead = false)
     {
         AddReadReference();
         try
         {
-            using KvDiskReadBudget.ReadLease readLease = _readBudget.Acquire(cancellationToken);
-            byte[] value = new byte[entry.ValueLength];
-            ReadStartedTestHook?.Invoke();
-            long readStarted = SonnetDbMeter.StartKvStateReadTiming();
-            int bytesRead = ReadExactAt(value, entry.ValueOffset);
-            readLease.RecordRead(bytesRead);
-            SonnetDbMeter.RecordKvStateRead(readStarted, bytesRead);
+            byte[] value;
+            int bytesRead;
+            using (KvDiskReadBudget.ReadLease readLease = _readBudget.Acquire(cancellationToken, maintenanceRead))
+            {
+                value = new byte[entry.ValueLength];
+                ReadStartedTestHook?.Invoke();
+                long readStarted = SonnetDbMeter.StartKvStateReadTiming();
+                bytesRead = ReadExactAt(value, entry.ValueOffset);
+                readLease.RecordRead(bytesRead);
+                SonnetDbMeter.RecordKvStateRead(readStarted, bytesRead);
+            }
+            // CRC 计算保留 state 生命周期，但不占用稀缺物理读许可。
             if (bytesRead < entry.ValueLength)
                 throw new InvalidDataException("KV state entry value is truncated.");
 

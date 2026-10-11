@@ -1,0 +1,50 @@
+{
+  "Name": "format-2",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 118.2717692,
+  "Processes": [
+    {
+      "ProcessId": 58904,
+      "ParentProcessId": 65900,
+      "CreationDate": "2026-10-02T20:20:28.525759+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" fb06a3e0-b226-4fbd-bb8b-9bddcfc3511d zh-CN"
+    },
+    {
+      "ProcessId": 65900,
+      "ParentProcessId": 91728,
+      "CreationDate": "2026-10-02T20:20:27.538213+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 66180,
+      "ParentProcessId": 91728,
+      "CreationDate": "2026-10-02T20:20:27.337783+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 66424,
+      "ParentProcessId": 58904,
+      "CreationDate": "2026-10-02T20:20:28.53276+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 91728,
+      "ParentProcessId": 84888,
+      "CreationDate": "2026-10-02T20:20:27.331075+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    }
+  ],
+  "CleanedProcesses": []
+}

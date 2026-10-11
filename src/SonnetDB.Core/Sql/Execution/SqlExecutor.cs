@@ -2310,8 +2310,16 @@ public static class SqlExecutor
     {
         if (!SqlRowRetentionBudget.HasExecutionBudget)
             return;
-        if (statement.TableValuedFunction is not null || statement.GraphTable is not null)
-            throw new NotSupportedException("SQL 物化预算不支持表值函数或 Graph 查询源。");
+        if (GraphSqlExecutor.IsGraphSelect(statement))
+        {
+            GraphSqlExecutor.ValidateMaterializationSupported(tsdb, statement);
+            return;
+        }
+        if (statement.TableValuedFunction is not null)
+        {
+            SqlTableFunctionMaterialization.Validate(tsdb, statement);
+            return;
+        }
         if (statement.FromSubquery is null && !string.IsNullOrEmpty(statement.Measurement))
         {
             if (tsdb.Tables.Catalog.TryGet(statement.Measurement) is null

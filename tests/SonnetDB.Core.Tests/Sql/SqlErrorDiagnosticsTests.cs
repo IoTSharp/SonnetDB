@@ -1,4 +1,5 @@
 using SonnetDB.Exceptions;
+using SonnetDB.Routines;
 using SonnetDB.Sql;
 using SonnetDB.Tables;
 using Xunit;
@@ -10,6 +11,20 @@ namespace SonnetDB.Core.Tests.Sql;
 /// </summary>
 public sealed class SqlErrorDiagnosticsTests
 {
+    /// <summary>验证物理读过载具有可供客户端重试识别的稳定诊断。</summary>
+    [Fact]
+    public void Map_PhysicalReadOverload_PreservesRetryableCode()
+    {
+        var mapped = SqlErrorMapper.Map(new KvReadOverloadedException("物理读取繁忙。"), "select");
+        Assert.Equal(KvReadOverloadedException.Code, mapped.Code);
+        Assert.Equal("select", mapped.Operation);
+        Assert.Contains("退避", mapped.Hint, StringComparison.Ordinal);
+        var wrapped = new RoutineExecutionException(
+            SqlRoutineRuntime.GetErrorCode(new KvReadOverloadedException("物理读取繁忙。")),
+            "触发器事务读取繁忙。");
+        Assert.Equal(KvReadOverloadedException.Code, SqlErrorMapper.Map(wrapped, "insert").Code);
+    }
+
     [Fact]
     public void Parse_InvalidClause_ExposesStableCodePositionOperationAndHint()
     {

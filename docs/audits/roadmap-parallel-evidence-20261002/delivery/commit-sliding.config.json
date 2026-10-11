@@ -1,0 +1,11 @@
+{
+  "TaskRoot": "C:\\Temp\\sdb-delivery-9bdceac1",
+  "Name": "commit-sliding",
+  "Executable": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "Arguments": [
+    "commit",
+    "-m",
+    "feat(streaming): 实现持久滑动窗口与提交恢复"
+  ],
+  "TimeoutSeconds": 90
+}

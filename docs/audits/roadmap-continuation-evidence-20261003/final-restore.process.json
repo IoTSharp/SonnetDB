@@ -1,0 +1,1444 @@
+{
+  "name": "final-restore",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "--disable-parallel"
+  ],
+  "timeoutSeconds": 600,
+  "maxPolls": 301,
+  "owner": {
+    "pid": 64972,
+    "created": "2026-10-03T05:12:46.3917970Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 64040,
+    "created": "2026-10-03T05:12:47.6996190Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+    "parent": 64972
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 8.737701,
+  "samples": [
+    {
+      "elapsedSeconds": 2.6572281,
+      "chains": [
+        [
+          {
+            "pid": 79944,
+            "created": "2026-10-03T05:12:48.1909420Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 54464
+          },
+          {
+            "pid": 54464,
+            "created": "2026-10-03T05:12:48.1794740Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 86664,
+            "created": "2026-10-03T05:12:47.7077640Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 75760,
+            "created": "2026-10-03T05:12:48.4289020Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 30768
+          },
+          {
+            "pid": 30768,
+            "created": "2026-10-03T05:12:48.4219270Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89552,
+            "created": "2026-10-03T05:12:48.1908980Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 14548
+          },
+          {
+            "pid": 14548,
+            "created": "2026-10-03T05:12:48.1794420Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 29612,
+            "created": "2026-10-03T05:12:48.7178660Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 14548,
+            "created": "2026-10-03T05:12:48.1794420Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 30768,
+            "created": "2026-10-03T05:12:48.4219270Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 33632,
+            "created": "2026-10-03T05:12:48.7277800Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 29612
+          },
+          {
+            "pid": 29612,
+            "created": "2026-10-03T05:12:48.7178660Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56748,
+            "created": "2026-10-03T05:12:49.1003850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 71756,
+            "created": "2026-10-03T05:12:48.4519950Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49768,
+            "created": "2026-10-03T05:12:49.1856680Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 86000
+          },
+          {
+            "pid": 86000,
+            "created": "2026-10-03T05:12:49.1760450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54552,
+            "created": "2026-10-03T05:12:48.7582600Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 36540
+          },
+          {
+            "pid": 36540,
+            "created": "2026-10-03T05:12:48.7480830Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54464,
+            "created": "2026-10-03T05:12:48.1794740Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 36540,
+            "created": "2026-10-03T05:12:48.7480830Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 22508,
+            "created": "2026-10-03T05:12:49.1077820Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 56748
+          },
+          {
+            "pid": 56748,
+            "created": "2026-10-03T05:12:49.1003850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 86000,
+            "created": "2026-10-03T05:12:49.1760450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37716,
+            "created": "2026-10-03T05:12:48.4589400Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 71756
+          },
+          {
+            "pid": 71756,
+            "created": "2026-10-03T05:12:48.4519950Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 6.7071628,
+      "chains": [
+        [
+          {
+            "pid": 79944,
+            "created": "2026-10-03T05:12:48.1909420Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 54464
+          },
+          {
+            "pid": 54464,
+            "created": "2026-10-03T05:12:48.1794740Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 76828,
+            "created": "2026-10-03T05:12:50.1614810Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 80180,
+            "created": "2026-10-03T05:12:50.5820870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 47380,
+            "created": "2026-10-03T05:12:50.6940940Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 15420,
+            "created": "2026-10-03T05:12:50.8286590Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 35388
+          },
+          {
+            "pid": 35388,
+            "created": "2026-10-03T05:12:50.8196450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 87152,
+            "created": "2026-10-03T05:12:50.7042370Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 47380
+          },
+          {
+            "pid": 47380,
+            "created": "2026-10-03T05:12:50.6940940Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 62740,
+            "created": "2026-10-03T05:12:49.4346290Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 87864
+          },
+          {
+            "pid": 87864,
+            "created": "2026-10-03T05:12:49.4255230Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 46356,
+            "created": "2026-10-03T05:12:49.6920090Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 86664,
+            "created": "2026-10-03T05:12:47.7077640Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 75760,
+            "created": "2026-10-03T05:12:48.4289020Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 30768
+          },
+          {
+            "pid": 30768,
+            "created": "2026-10-03T05:12:48.4219270Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 78884,
+            "created": "2026-10-03T05:12:50.9438740Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 45860
+          },
+          {
+            "pid": 45860,
+            "created": "2026-10-03T05:12:50.9332850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 75696,
+            "created": "2026-10-03T05:12:49.7012690Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 46356
+          },
+          {
+            "pid": 46356,
+            "created": "2026-10-03T05:12:49.6920090Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89244,
+            "created": "2026-10-03T05:12:50.5888260Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 80180
+          },
+          {
+            "pid": 80180,
+            "created": "2026-10-03T05:12:50.5820870Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 36260,
+            "created": "2026-10-03T05:12:49.5792210Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 47004
+          },
+          {
+            "pid": 47004,
+            "created": "2026-10-03T05:12:49.5688900Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 89552,
+            "created": "2026-10-03T05:12:48.1908980Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 14548
+          },
+          {
+            "pid": 14548,
+            "created": "2026-10-03T05:12:48.1794420Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 87864,
+            "created": "2026-10-03T05:12:49.4255230Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 58088,
+            "created": "2026-10-03T05:12:50.1694720Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 76828
+          },
+          {
+            "pid": 76828,
+            "created": "2026-10-03T05:12:50.1614810Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56476,
+            "created": "2026-10-03T05:12:49.9351580Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 45380
+          },
+          {
+            "pid": 45380,
+            "created": "2026-10-03T05:12:49.9270320Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 47004,
+            "created": "2026-10-03T05:12:49.5688900Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 29612,
+            "created": "2026-10-03T05:12:48.7178660Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 6980,
+            "created": "2026-10-03T05:12:50.2086690Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 51380,
+            "created": "2026-10-03T05:12:49.3262790Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 46404
+          },
+          {
+            "pid": 46404,
+            "created": "2026-10-03T05:12:49.3185250Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 76644,
+            "created": "2026-10-03T05:12:50.2085820Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 45380,
+            "created": "2026-10-03T05:12:49.9270320Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 14548,
+            "created": "2026-10-03T05:12:48.1794420Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 30768,
+            "created": "2026-10-03T05:12:48.4219270Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 45860,
+            "created": "2026-10-03T05:12:50.9332850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 63428,
+            "created": "2026-10-03T05:12:50.2197380Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 6980
+          },
+          {
+            "pid": 6980,
+            "created": "2026-10-03T05:12:50.2086690Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 33632,
+            "created": "2026-10-03T05:12:48.7277800Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 29612
+          },
+          {
+            "pid": 29612,
+            "created": "2026-10-03T05:12:48.7178660Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 56748,
+            "created": "2026-10-03T05:12:49.1003850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 71756,
+            "created": "2026-10-03T05:12:48.4519950Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 49768,
+            "created": "2026-10-03T05:12:49.1856680Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 86000
+          },
+          {
+            "pid": 86000,
+            "created": "2026-10-03T05:12:49.1760450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54552,
+            "created": "2026-10-03T05:12:48.7582600Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 36540
+          },
+          {
+            "pid": 36540,
+            "created": "2026-10-03T05:12:48.7480830Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 35388,
+            "created": "2026-10-03T05:12:50.8196450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 46404,
+            "created": "2026-10-03T05:12:49.3185250Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 54464,
+            "created": "2026-10-03T05:12:48.1794740Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 35512,
+            "created": "2026-10-03T05:12:49.8406860Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 11724
+          },
+          {
+            "pid": 11724,
+            "created": "2026-10-03T05:12:49.8321750Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 36540,
+            "created": "2026-10-03T05:12:48.7480830Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 22508,
+            "created": "2026-10-03T05:12:49.1077820Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 56748
+          },
+          {
+            "pid": 56748,
+            "created": "2026-10-03T05:12:49.1003850Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 11724,
+            "created": "2026-10-03T05:12:49.8321750Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 86000,
+            "created": "2026-10-03T05:12:49.1760450Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 67760,
+            "created": "2026-10-03T05:12:50.2197760Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 76644
+          },
+          {
+            "pid": 76644,
+            "created": "2026-10-03T05:12:50.2085820Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 37716,
+            "created": "2026-10-03T05:12:48.4589400Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 71756
+          },
+          {
+            "pid": 71756,
+            "created": "2026-10-03T05:12:48.4519950Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false",
+            "parent": 64040
+          },
+          {
+            "pid": 64040,
+            "created": "2026-10-03T05:12:47.6996190Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --disable-parallel",
+            "parent": 64972
+          },
+          {
+            "pid": 64972,
+            "created": "2026-10-03T05:12:46.3917970Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name final-restore -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('restore','SonnetDB.slnx','--disable-parallel') -TimeoutSeconds 600\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

@@ -1,62 +1,108 @@
 using SonnetDB.Diagnostics;
+using SonnetDB.Exceptions;
 
 namespace SonnetDB.Kv;
 
-/// <summary>
-/// 限制同一嵌入式数据库内 KV state 文件的并发随机读。
-/// </summary>
-/// <remarks>
-/// 许可只覆盖实际的 RandomAccess 读取，不覆盖 keyspace 锁、CRC 或调用方消费；
-/// 因此慢调用方不会占住数据库写锁，也不会把结果缓冲计入 I/O 并发额度。
-/// </remarks>
+/// <summary>限制同一管理器下各 keyspace 的随机读并发和请求等待，另保留一个 checkpoint 读取槽。</summary>
+/// <remarks>许可只覆盖实际 I/O；CRC 与调用方消费不会占用物理读槽。</remarks>
 internal sealed class KvDiskReadBudget : IDisposable
 {
     internal const int DefaultMaxConcurrentReads = 8;
-
+    internal const int DefaultMaxQueuedReads = 64;
+    internal const int DefaultReadWaitTimeoutMilliseconds = 5000;
+    internal const int DefaultMaintenanceReadWaitTimeoutMilliseconds = 120_000;
     private readonly SemaphoreSlim _permits;
+    private readonly SemaphoreSlim _maintenancePermit = new(1, 1);
     private readonly object _lifecycleSync = new();
     private int _activeReads;
     private int _queuedReads;
+    private int _maintenanceActiveReads;
+    private int _maintenanceQueuedReads;
     private int _peakConcurrentReads;
     private int _stateReferences;
+    private int _keyspaceReferences;
     private bool _ownerReleased;
     private bool _semaphoreDisposed;
     private long _completedReads;
     private long _completedBytes;
     private long _canceledWaits;
+    private long _rejectedReads;
+    private long _timedOutWaits;
 
-    internal KvDiskReadBudget(int maxConcurrentReads)
+    /// <summary>创建有界请求预算；维护槽不计入请求并发额度。</summary>
+    internal KvDiskReadBudget(int maxConcurrentReads,
+        int maxQueuedReads = DefaultMaxQueuedReads, TimeSpan? readWaitTimeout = null,
+        TimeSpan? maintenanceReadWaitTimeout = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrentReads);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxQueuedReads);
+        var timeout = readWaitTimeout ?? TimeSpan.FromMilliseconds(DefaultReadWaitTimeoutMilliseconds);
+        if (timeout < TimeSpan.Zero || timeout.TotalMilliseconds > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(readWaitTimeout));
+        var maintenanceTimeout = maintenanceReadWaitTimeout
+            ?? TimeSpan.FromMilliseconds(DefaultMaintenanceReadWaitTimeoutMilliseconds);
+        if (maintenanceTimeout < TimeSpan.Zero || maintenanceTimeout.TotalMilliseconds > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(maintenanceReadWaitTimeout));
         MaxConcurrentReads = maxConcurrentReads;
+        MaxQueuedReads = maxQueuedReads;
+        ReadWaitTimeout = timeout;
+        MaintenanceReadWaitTimeout = maintenanceTimeout;
         _permits = new SemaphoreSlim(maxConcurrentReads, maxConcurrentReads);
     }
 
     internal int MaxConcurrentReads { get; }
-
+    internal int MaxQueuedReads { get; }
+    internal TimeSpan ReadWaitTimeout { get; }
+    internal TimeSpan MaintenanceReadWaitTimeout { get; }
     internal int ActiveReads => Volatile.Read(ref _activeReads);
-
     internal int QueuedReads => Volatile.Read(ref _queuedReads);
-
+    internal int MaintenanceActiveReads => Volatile.Read(ref _maintenanceActiveReads);
+    internal int MaintenanceQueuedReads => Volatile.Read(ref _maintenanceQueuedReads);
     internal int PeakConcurrentReads => Volatile.Read(ref _peakConcurrentReads);
-
     internal long CompletedReads => Interlocked.Read(ref _completedReads);
-
     internal long CompletedBytes => Interlocked.Read(ref _completedBytes);
-
     internal long CanceledWaits => Interlocked.Read(ref _canceledWaits);
+    internal long RejectedReads => Interlocked.Read(ref _rejectedReads);
+    internal long TimedOutWaits => Interlocked.Read(ref _timedOutWaits);
 
+    /// <summary>保留 state 生命周期，允许现有快照在数据库关闭后完成读取。</summary>
     internal void AddStateReference()
+    {
+        lock (_lifecycleSync)
+        {
+            ThrowIfSemaphoreDisposedLocked();
+            if (_ownerReleased && _keyspaceReferences == 0)
+                throw new ObjectDisposedException(nameof(KvDiskReadBudget));
+            _stateReferences = checked(_stateReferences + 1);
+        }
+    }
+
+    /// <summary>保留 keyspace 完整生命周期，使管理器关闭后的在途 checkpoint 能验证临时 state。</summary>
+    internal IDisposable AcquireKeyspaceReference()
     {
         lock (_lifecycleSync)
         {
             ThrowIfSemaphoreDisposedLocked();
             if (_ownerReleased)
                 throw new ObjectDisposedException(nameof(KvDiskReadBudget));
-            _stateReferences = checked(_stateReferences + 1);
+            _keyspaceReferences = checked(_keyspaceReferences + 1);
+            return new KeyspaceLease(this);
         }
     }
 
+    /// <summary>在 keyspace 的延迟关闭完成后释放生命周期引用。</summary>
+    private void ReleaseKeyspaceReference()
+    {
+        lock (_lifecycleSync)
+        {
+            if (_keyspaceReferences <= 0)
+                throw new InvalidOperationException("KV disk read budget keyspace 引用计数无效。");
+            _keyspaceReferences--;
+            TryDisposeSemaphoreLocked();
+        }
+    }
+
+    /// <summary>释放 state 引用，必要时关闭预算。</summary>
     internal void ReleaseStateReference()
     {
         lock (_lifecycleSync)
@@ -68,21 +114,48 @@ internal sealed class KvDiskReadBudget : IDisposable
         }
     }
 
-    internal ReadLease Acquire(CancellationToken cancellationToken)
+    /// <summary>取得请求或维护许可；请求过载不会占用或拒绝维护槽。</summary>
+    internal ReadLease Acquire(CancellationToken cancellationToken, bool maintenanceRead = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        SemaphoreSlim permits = maintenanceRead ? _maintenancePermit : _permits;
         lock (_lifecycleSync)
         {
             ThrowIfSemaphoreDisposedLocked();
-            Interlocked.Increment(ref _queuedReads);
+            if (_ownerReleased && _stateReferences == 0 && _keyspaceReferences == 0)
+                throw new ObjectDisposedException(nameof(KvDiskReadBudget));
+            // 只有真正等待的请求才占有界队列名额。
+            if (permits.Wait(0))
+                return ActivateReadLocked(maintenanceRead);
+            if (!maintenanceRead && _queuedReads >= MaxQueuedReads)
+            {
+                Interlocked.Increment(ref _rejectedReads);
+                SonnetDbMeter.KvStateReadRejected.Add(1, new KeyValuePair<string, object?>("reason", "queue_full"));
+                throw new KvReadOverloadedException("KV 物理读取等待队列已满。");
+            }
+            ChangeQueuedReadsLocked(maintenanceRead, 1);
         }
+
         long waitStarted = SonnetDbMeter.StartKvStateReadWaitTiming();
-        int active = 0;
         try
         {
-            _permits.Wait(cancellationToken);
-            active = Interlocked.Increment(ref _activeReads);
-            UpdatePeak(active);
+            if (maintenanceRead)
+            {
+                // 维护等待独立的有限期限，不套用请求队列容量或请求等待期限。
+                if (!permits.Wait(MaintenanceReadWaitTimeout, cancellationToken))
+                {
+                    SonnetDbMeter.KvStateReadMaintenanceTimeouts.Add(1);
+                    throw new TimeoutException("KV checkpoint 维护读取等待超过独立时限。");
+                }
+            }
+            else if (!permits.Wait(ReadWaitTimeout, cancellationToken))
+            {
+                Interlocked.Increment(ref _timedOutWaits);
+                SonnetDbMeter.KvStateReadRejected.Add(1, new KeyValuePair<string, object?>("reason", "wait_timeout"));
+                throw new KvReadOverloadedException("KV 物理读取等待超过有界时限。");
+            }
+            lock (_lifecycleSync)
+                return ActivateReadLocked(maintenanceRead);
         }
         catch (OperationCanceledException)
         {
@@ -91,47 +164,62 @@ internal sealed class KvDiskReadBudget : IDisposable
         }
         finally
         {
-            Interlocked.Decrement(ref _queuedReads);
+            lock (_lifecycleSync)
+            {
+                // 转为活跃读后才移出队列，Dispose 无法提前关闭许可。
+                ChangeQueuedReadsLocked(maintenanceRead, -1);
+                TryDisposeSemaphoreLocked();
+            }
             SonnetDbMeter.RecordKvStateReadWait(waitStarted);
-            // A successful wait increments active before this point, so a concurrent
-            // owner Dispose cannot close the semaphore before the returned lease exists.
-            TryDisposeSemaphore();
         }
-
-        return new ReadLease(this);
     }
 
-    private void UpdatePeak(int active)
+    /// <summary>登记活跃读取，避免等待、释放和关闭之间的竞态。</summary>
+    private ReadLease ActivateReadLocked(bool maintenanceRead)
     {
-        while (true)
-        {
-            int observed = Volatile.Read(ref _peakConcurrentReads);
-            if (active <= observed)
-                return;
-            if (Interlocked.CompareExchange(ref _peakConcurrentReads, active, observed) == observed)
-                return;
-        }
+        if (maintenanceRead)
+            _maintenanceActiveReads++;
+        else
+            _peakConcurrentReads = Math.Max(_peakConcurrentReads, ++_activeReads);
+        SonnetDbMeter.KvStateReadActive.Add(1, ReadKindTag(maintenanceRead));
+        return new ReadLease(this, maintenanceRead);
     }
 
-    private void Release(int bytesRead, bool completed)
+    /// <summary>更新排队数量及低基数指标。</summary>
+    private void ChangeQueuedReadsLocked(bool maintenanceRead, int delta)
+    {
+        if (maintenanceRead)
+            _maintenanceQueuedReads += delta;
+        else
+            _queuedReads += delta;
+        SonnetDbMeter.KvStateReadQueued.Add(delta, ReadKindTag(maintenanceRead));
+    }
+
+    /// <summary>只区分请求与维护，避免数据库名和文件路径使指标维度膨胀。</summary>
+    private static KeyValuePair<string, object?> ReadKindTag(bool maintenanceRead)
+        => new("kind", maintenanceRead ? "maintenance" : "request");
+
+    /// <summary>归还许可，并在同一临界区维护生命周期计数。</summary>
+    private void Release(int bytesRead, bool completed, bool maintenanceRead)
     {
         if (completed)
         {
             Interlocked.Increment(ref _completedReads);
             Interlocked.Add(ref _completedBytes, bytesRead);
         }
-
         lock (_lifecycleSync)
         {
-            Interlocked.Decrement(ref _activeReads);
-            _permits.Release();
-            // Keep the active-count decrement and permit return in the same
-            // lifecycle critical section so owner disposal cannot close the
-            // semaphore between those two operations.
+            if (maintenanceRead)
+                _maintenanceActiveReads--;
+            else
+                _activeReads--;
+            SonnetDbMeter.KvStateReadActive.Add(-1, ReadKindTag(maintenanceRead));
+            (maintenanceRead ? _maintenancePermit : _permits).Release();
             TryDisposeSemaphoreLocked();
         }
     }
 
+    /// <summary>释放所有者；现有 state 和读租约继续保持许可存活。</summary>
     public void Dispose()
     {
         lock (_lifecycleSync)
@@ -141,42 +229,51 @@ internal sealed class KvDiskReadBudget : IDisposable
         }
     }
 
-    private void TryDisposeSemaphore()
-    {
-        lock (_lifecycleSync)
-            TryDisposeSemaphoreLocked();
-    }
-
+    /// <summary>在所有引用、请求和维护读取结束后关闭信号量。</summary>
     private void TryDisposeSemaphoreLocked()
     {
-        if (_semaphoreDisposed
-            || !_ownerReleased
-            || _stateReferences != 0
-            || Volatile.Read(ref _activeReads) != 0
-            || Volatile.Read(ref _queuedReads) != 0)
-        {
+        if (_semaphoreDisposed || !_ownerReleased || _stateReferences != 0 || _keyspaceReferences != 0
+            || _activeReads != 0 || _queuedReads != 0
+            || _maintenanceActiveReads != 0 || _maintenanceQueuedReads != 0)
             return;
-        }
-
         _semaphoreDisposed = true;
         _permits.Dispose();
+        _maintenancePermit.Dispose();
     }
 
+    /// <summary>拒绝使用已关闭的预算。</summary>
     private void ThrowIfSemaphoreDisposedLocked()
     {
         if (_semaphoreDisposed)
             throw new ObjectDisposedException(nameof(KvDiskReadBudget));
     }
 
-    /// <summary>持有一个随机读许可；释放时必须只调用一次。</summary>
+    /// <summary>以幂等租约覆盖 keyspace 与延迟 checkpoint 的存活区间。</summary>
+    private sealed class KeyspaceLease(KvDiskReadBudget owner) : IDisposable
+    {
+        private KvDiskReadBudget? _owner = owner;
+
+        /// <summary>仅归还一次 keyspace 生命周期引用。</summary>
+        public void Dispose()
+            => Interlocked.Exchange(ref _owner, null)?.ReleaseKeyspaceReference();
+    }
+
+    /// <summary>持有一个读取许可，允许幂等释放。</summary>
     internal sealed class ReadLease : IDisposable
     {
         private KvDiskReadBudget? _owner;
+        private readonly bool _maintenanceRead;
         private int _bytesRead;
         private bool _completed;
 
-        internal ReadLease(KvDiskReadBudget owner) => _owner = owner;
+        /// <summary>记录预算及读取类型。</summary>
+        internal ReadLease(KvDiskReadBudget owner, bool maintenanceRead)
+        {
+            _owner = owner;
+            _maintenanceRead = maintenanceRead;
+        }
 
+        /// <summary>记录一次实际读取的完成字节数。</summary>
         internal void RecordRead(int bytesRead)
         {
             ArgumentOutOfRangeException.ThrowIfNegative(bytesRead);
@@ -188,10 +285,11 @@ internal sealed class KvDiskReadBudget : IDisposable
             _completed = true;
         }
 
+        /// <summary>仅归还一次许可。</summary>
         public void Dispose()
         {
             KvDiskReadBudget? owner = Interlocked.Exchange(ref _owner, null);
-            owner?.Release(_bytesRead, _completed);
+            owner?.Release(_bytesRead, _completed, _maintenanceRead);
         }
     }
 }

@@ -1,0 +1,47 @@
+{
+  "releaseStatus": "NOT_READY",
+  "candidate": "candidate-10",
+  "kind": "immutable-preview-acceptance-audit-addendum",
+  "schemaVersion": 1,
+  "correctedAudit": {
+    "signalCount": 0,
+    "sha256": "3d74c8466776500a995239c62fbcba4f5407f95f600648ab46b3ec869df67dfe",
+    "receiptCount": 20,
+    "identityCount": 337,
+    "remainingListeners": 0,
+    "liveMatches": 0,
+    "status": "PASS",
+    "path": "artifacts/m47-p05-20261011/final-delivery-process-audit-v2.json",
+    "temporaryDirectoriesReclaimed": 24,
+    "scriptSha256": "d1528f9244a12dec6c9c5e919d8df83c3761c735928a0b8a5219a707c8fa69a8"
+  },
+  "remaining": [
+    "P06",
+    "P07",
+    "P08"
+  ],
+  "installedAuditUnchanged": {
+    "receiptCount": 20,
+    "identityCount": 268,
+    "timeWindowFilterUsed": false,
+    "numericPidsAllAbsent": true
+  },
+  "version": "4.5.0-preview.1.10",
+  "packageSource": "54eefc816f133a805b0d38f0cbe930d2c17650b6",
+  "packageUnchanged": true,
+  "originalEmptyWindow": {
+    "path": "artifacts/m47-p05-20261011/final-delivery-process-audit.json",
+    "sha256": "cb6cf9bec50b3dce25da94cc27b3e132498ef8b350fc0f74a410e5436501e6ae",
+    "rawStatusPreserved": "PASS",
+    "notAcceptanceEvidence": true,
+    "effectiveStatus": "FAIL_EMPTY_WINDOW"
+  },
+  "originalFreezeSha256": "554d1f07b1a322ccaff944cc9dc50370b6bb83bc3f02697e7108ae1c28487af0",
+  "published": false,
+  "correction": "Preserve UTC timestamp strings during JSON parsing, then parse DateTimeOffset; require nonempty lower-bounded receipt and identity sets.",
+  "micro": {
+    "path": "artifacts/m47-p05-20261011/audit-datekind-micro.json",
+    "sha256": "391859a1f2d933bfbde38e037f68730099f678d4e72e0196d39b422228a0d10b"
+  },
+  "acceptanceCommit": "6b90fcfe54e2ced1ea141bdb297e50f13c80a18c"
+}

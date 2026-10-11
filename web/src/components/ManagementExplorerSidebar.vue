@@ -340,6 +340,10 @@ const modelGroups = ref<Record<string, boolean>>({});
 
 function activeGroup(): string {
   const key = props.activeExplorerKey;
+  const database = props.databaseTree.find((node) => node.name === props.targetDb);
+  const group = database ? props.explorerGroups(database)
+    .find((candidate) => candidate.items.some((item) => item.key === key)) : undefined;
+  if (group) return group.key;
   if (key.startsWith('table:')) return 'tables';
   if (key.startsWith('document:')) return 'documents';
   if (key.startsWith('kv:')) return 'kv';

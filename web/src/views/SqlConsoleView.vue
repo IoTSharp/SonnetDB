@@ -78,6 +78,8 @@
           :connection-options="connectionOptions"
           :studio-bridge-available="studioBridgeAvailable"
           :native-server-status="nativeServerStatus"
+          :native-server-presentation="nativeServerPresentation"
+          :studio-active-identity="studioActiveIdentity"
           :native-server-busy="nativeServerBusy"
           :native-data-root="nativeDataRoot"
           :connection-health-busy="connectionHealthBusy"
@@ -103,6 +105,7 @@
         v-model:active-tab-id="activeTabId"
         v-model:sql="sql"
         :tabs="sqlConsole.tabs"
+        :closed-tabs="sqlConsole.closedTabs"
         :active-tab="activeTab"
         :target-db="targetDb"
         :current-schema="currentSchema"
@@ -118,6 +121,8 @@
         :file-name="sqlDraftTitle()"
         @create-tab="createTab"
         @close-tab="closeTab"
+        @reopen-closed-tab="reopenClosedTab"
+        @discard-closed-tab="discardClosedTab"
         @run="run"
         @explain="explainSql"
         @format="formatSql"
@@ -248,6 +253,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
+import { useRoute } from 'vue-router';
 import AsyncWorkbenchLoading from '@/components/AsyncWorkbenchLoading.vue';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
@@ -275,6 +281,13 @@ import {
   useSqlConsoleStore,
 } from '@/stores/sqlConsole';
 import { useWorkbenchHistoryStore } from '@/stores/workbenchHistory';
+import {
+  createGraphResourceDescriptor,
+  createMqResourceDescriptor,
+  createResourceDescriptor,
+  type ResourceDescriptor,
+} from '@/management-core/resourceDescriptor';
+import { explorerKeyFromRoute } from '@/utils/managementExplorer';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 
 const asyncWorkbenchOptions = { loadingComponent: AsyncWorkbenchLoading, delay: 120, suspensible: false };
@@ -323,6 +336,7 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const sqlConsole = useSqlConsoleStore();
 const workbenchHistory = useWorkbenchHistoryStore();
+const route = useRoute();
 const message = useMessage();
 const explorerCollapsed = ref(false);
 const globalHistoryVisible = ref(false);
@@ -366,6 +380,8 @@ const {
   connectionForm,
   studioBridgeAvailable,
   nativeServerStatus,
+  nativeServerPresentation,
+  studioActiveIdentity,
   nativeServerBusy,
   nativeDataRoot,
   connectionHealthBusy,
@@ -546,31 +562,130 @@ const selectedGraph = computed(() => {
 });
 
 const activeObjectIdentity = computed(() => {
+  if (activeWorkbenchTool.value === 'trajectory') {
+    return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory', resource: null };
+  }
+  // Object descriptors are database-scoped. During initial connection setup
+  // (or on the control plane) keep the empty workbench state without creating
+  // a synthetic resource identity.
+  if (!targetDb.value || targetDb.value === CONTROL_PLANE_KEY) return null;
+
   switch (activeWorkbenchTool.value) {
     case 'measurement':
-      return { label: selectedMeasurement.value?.name ?? 'Measurement', key: selectedMeasurement.value?.name ?? 'measurement' };
+      if (!selectedMeasurement.value) return null;
+      return {
+        label: selectedMeasurement.value.name,
+        key: selectedMeasurement.value.name,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'measurement',
+          name: selectedMeasurement.value.name,
+          key: selectedMeasurement.value.name,
+          legacyKey: selectedMeasurement.value.name,
+        }),
+      };
     case 'table':
-      return { label: selectedTable.value?.name ?? '关系表', key: selectedTable.value ? `table:${selectedTable.value.name}` : 'table' };
+      if (!selectedTable.value) return null;
+      return {
+        label: selectedTable.value.name,
+        key: `table:${selectedTable.value.name}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'table',
+          name: selectedTable.value.name,
+          key: `table:${selectedTable.value.name}`,
+          legacyKey: `table:${selectedTable.value.name}`,
+        }),
+      };
     case 'document':
-      return { label: selectedDocumentCollection.value?.name ?? '文档集合', key: selectedDocumentCollection.value ? `document:${selectedDocumentCollection.value.name}` : 'document' };
+      if (!selectedDocumentCollection.value) return null;
+      return {
+        label: selectedDocumentCollection.value.name,
+        key: `document:${selectedDocumentCollection.value.name}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'document',
+          name: selectedDocumentCollection.value.name,
+          key: `document:${selectedDocumentCollection.value.name}`,
+          legacyKey: `document:${selectedDocumentCollection.value.name}`,
+        }),
+      };
     case 'kv':
-      return { label: selectedKvKeyspace.value || 'KV Keyspace', key: selectedKvKeyspace.value ? `kv:${selectedKvKeyspace.value}` : 'kv' };
+      if (!selectedKvKeyspace.value) return null;
+      return {
+        label: selectedKvKeyspace.value,
+        key: `kv:${selectedKvKeyspace.value}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'kv',
+          name: selectedKvKeyspace.value,
+          key: `kv:${selectedKvKeyspace.value}`,
+          legacyKey: `kv:${selectedKvKeyspace.value}`,
+        }),
+      };
     case 'mq':
-      return { label: selectedMqTopic.value || 'MQ Topic', key: selectedMqTopic.value ? `mq:${selectedMqTopic.value}` : 'mq' };
+      if (!selectedMqTopic.value) return null;
+      return {
+        label: selectedMqTopic.value,
+        key: `mq:${selectedMqTopic.value}`,
+        resource: createMqTabResourceDescriptor(targetDb.value, selectedMqTopic.value),
+      };
     case 'vector': {
       const index = selectedVectorIndex.value;
-      return { label: index ? `${index.measurement}.${index.column}` : '向量索引', key: index ? vectorIndexKey(index) : 'vector' };
+      if (!index) return null;
+      const key = vectorIndexKey(index);
+      return {
+        label: `${index.measurement}.${index.column}`,
+        key,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'vector',
+          name: `${index.measurement}.${index.column}`,
+          key,
+          legacyKey: key,
+        }),
+      };
     }
     case 'fulltext': {
       const index = selectedFullTextIndex.value;
-      return { label: index ? `${index.collection}.${index.name}` : '全文索引', key: index ? fullTextIndexKey(index) : 'fulltext' };
+      if (!index) return null;
+      const key = fullTextIndexKey(index);
+      return {
+        label: `${index.collection}.${index.name}`,
+        key,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'fulltext',
+          name: `${index.collection}.${index.name}`,
+          key,
+          legacyKey: key,
+        }),
+      };
     }
     case 'bucket':
-      return { label: selectedObjectBucket.value || '对象桶', key: selectedObjectBucket.value ? `bucket:${selectedObjectBucket.value}` : 'bucket' };
+      if (!selectedObjectBucket.value) return null;
+      return {
+        label: selectedObjectBucket.value,
+        key: `bucket:${selectedObjectBucket.value}`,
+        resource: createResourceDescriptor({
+          database: targetDb.value,
+          model: 'bucket',
+          name: selectedObjectBucket.value,
+          key: `bucket:${selectedObjectBucket.value}`,
+          legacyKey: `bucket:${selectedObjectBucket.value}`,
+        }),
+      };
     case 'graph':
-      return { label: selectedGraph.value || '属性图', key: selectedGraph.value ? `graph:${selectedGraph.value}` : 'graph' };
-    case 'trajectory':
-      return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory' };
+      if (!selectedGraph.value) return null;
+      return {
+        label: selectedGraph.value,
+        key: `graph:${selectedGraph.value}`,
+        resource: createGraphResourceDescriptor(
+          targetDb.value,
+          selectedGraph.value,
+          `graph:${selectedGraph.value}`,
+        ),
+      };
     default:
       return null;
   }
@@ -583,6 +698,7 @@ const workspaceTabs = computed<StudioWorkspaceTab[]>(() => [
     tool: 'sql' as WorkbenchTool,
     db: tab.db,
     objectKey: tab.id,
+    resourceIdentity: undefined,
     closable: sqlConsole.tabs.length > 1,
   })),
   ...objectWorkspaceTabs.value,
@@ -685,6 +801,10 @@ function objectTabId(tool: WorkbenchTool, db: string, objectKey: string): string
   return `object:${tool}:${db}:${objectKey}`;
 }
 
+function createMqTabResourceDescriptor(database: string, topic: string): ResourceDescriptor {
+  return createMqResourceDescriptor(database, topic);
+}
+
 function selectWorkspaceTab(id: string): void {
   if (id.startsWith('sql:')) {
     sqlConsole.activateTab(id.slice('sql:'.length));
@@ -697,6 +817,17 @@ function selectWorkspaceTab(id: string): void {
   if (tab.db && targetDb.value !== tab.db) targetDb.value = tab.db;
   activeExplorerKey.value = tab.objectKey;
   setWorkbenchTool(tab.tool);
+}
+
+function reopenClosedTab(id: string): void {
+  const tab = sqlConsole.reopenTab(id);
+  if (!tab) return;
+  setWorkbenchTool('sql');
+  void loadSchema(tab.db);
+}
+
+function discardClosedTab(id: string): void {
+  sqlConsole.discardClosedTab(id);
 }
 
 function closeWorkspaceTab(id: string): void {
@@ -868,6 +999,113 @@ function selectGraph(graph: string): void {
   setWorkbenchTool('graph');
 }
 
+// A legacy tool/model/node URL identifies the Explorer item by its display
+// name. Apply that selection once after the active database has both schema
+// and management metadata; route-only links still do not execute SQL.
+const routeSelectionToken = ref('');
+// A database-bearing link must wait until the database list has been loaded.
+// This prevents the initial active/default database from resolving the node
+// while the requested database is still unknown.
+const routeDatabaseListReady = ref(false);
+// Tracks the database query value already applied for this connection. A
+// user changing the Explorer database must not be redirected by the same URL;
+// only a new query value or a fresh database-list load can drive selection.
+const routeDatabaseSelectionToken = ref('');
+
+function routeDatabaseQuery(): string | undefined {
+  const value = route.query.database;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function applyRouteDatabaseSelection(): 'missing' | 'pending' | 'valid' | 'invalid' {
+  const requested = routeDatabaseQuery();
+  if (!requested) {
+    routeDatabaseSelectionToken.value = '';
+    return 'missing';
+  }
+  if (!routeDatabaseListReady.value) return 'pending';
+  if (!databases.value.includes(requested)) return 'invalid';
+  if (routeDatabaseSelectionToken.value !== requested) {
+    routeDatabaseSelectionToken.value = requested;
+    routeSelectionToken.value = '';
+    if (targetDb.value !== requested) selectDatabase(requested);
+  }
+  return 'valid';
+}
+
+watch(
+  [
+    () => route.query.tool,
+    () => route.query.model,
+    () => route.query.node,
+    () => route.query.database,
+    targetDb,
+    databases,
+    routeDatabaseListReady,
+    currentSchemaResponse,
+    () => (targetDb.value ? managementByDb.value[targetDb.value] : undefined),
+  ],
+  ([toolValue, modelValue, nodeValue, _databaseValue, db, _databases, dbListReady, dbSchema, management]) => {
+    const rawModel = typeof modelValue === 'string' ? modelValue : undefined;
+    const tool = typeof toolValue === 'string' ? toolValue : undefined;
+    const model = rawModel ?? (tool && [
+      'measurement', 'table', 'document', 'kv', 'mq', 'vector', 'fulltext', 'bucket', 'graph', 'index', 'backup',
+    ].includes(tool) ? tool : undefined);
+    const node = typeof nodeValue === 'string' ? nodeValue : undefined;
+    const requestedDatabase = routeDatabaseQuery();
+    if (!model) {
+      if (!requestedDatabase) {
+        routeDatabaseSelectionToken.value = '';
+      } else if (!dbListReady) {
+        return;
+      } else if (!_databases.includes(requestedDatabase)) {
+        routeDatabaseSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        routeSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+      } else if (routeDatabaseSelectionToken.value !== requestedDatabase) {
+        routeDatabaseSelectionToken.value = requestedDatabase;
+        if (db !== requestedDatabase) selectDatabase(requestedDatabase);
+      }
+      routeSelectionToken.value = '';
+      return;
+    }
+
+    if (requestedDatabase && !dbListReady) return;
+    if (requestedDatabase) {
+      if (!_databases.includes(requestedDatabase)) {
+        // An unknown database must not resolve its node against the active
+        // database's first item. Keep the active/default database intact and
+        // leave Explorer selection untouched until the URL is corrected.
+        routeDatabaseSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        routeSelectionToken.value = `invalid-db\u0000${requestedDatabase}`;
+        return;
+      }
+      if (routeDatabaseSelectionToken.value !== requestedDatabase) {
+        routeDatabaseSelectionToken.value = requestedDatabase;
+        routeSelectionToken.value = '';
+        if (db !== requestedDatabase) {
+          selectDatabase(requestedDatabase);
+          return;
+        }
+      } else if (db !== requestedDatabase) {
+        // The URL database was already applied. A later targetDb change came
+        // from the user, so preserve that choice instead of forcing the URL
+        // database. Keep evaluating the model/node against the current db;
+        // this lets a browser navigation that only changes model/node resolve
+        // in the manually selected database and safely fall back locally.
+        routeSelectionToken.value = '';
+      }
+    }
+
+    if (!db || db === CONTROL_PLANE_KEY || !dbSchema || !management) return;
+
+    const token = `${requestedDatabase ?? ''}\u0000${db}\u0000${model}\u0000${node ?? ''}`;
+    if (routeSelectionToken.value === token) return;
+    routeSelectionToken.value = token;
+    activeExplorerKey.value = explorerKeyFromRoute(model, node, dbSchema, management);
+  },
+  { immediate: true },
+);
+
 watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, db]) => {
   if (tool === 'sql' || !identity) return;
   if (identity.key !== tool) {
@@ -882,6 +1120,11 @@ watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, d
     tool,
     db,
     objectKey: identity.key,
+    resourceIdentity: identity.resource ? {
+      database: identity.resource.database,
+      resource: identity.resource,
+      legacyKey: identity.resource.legacyKey,
+    } : undefined,
     closable: true,
   };
   if (existing >= 0) {
@@ -904,19 +1147,28 @@ watch(targetDb, (db) => {
   }
 }, { immediate: false });
 
-watch(() => connections.activeProfileId, async () => {
+watch([() => connections.activeProfileId, () => connections.activeBaseUrl], async (_profile, _previous, onCleanup) => {
+  let cancelled = false;
+  onCleanup(() => { cancelled = true; });
   auth.setApiBaseUrl(connections.activeBaseUrl);
+  routeSelectionToken.value = '';
+  routeDatabaseSelectionToken.value = '';
+  routeDatabaseListReady.value = false;
   resetExplorerCache();
   if (connections.activeDatabase) {
     targetDb.value = connections.activeDatabase;
   }
   await reloadDbs();
+  if (cancelled) return;
+  routeDatabaseListReady.value = true;
+  applyRouteDatabaseSelection();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     expandedDatabases.value = {
       ...expandedDatabases.value,
       [targetDb.value]: true,
     };
     await loadSchema(targetDb.value, true);
+    if (cancelled) return;
     expandedDatabases.value = {
       ...expandedDatabases.value,
       [targetDb.value]: true,
@@ -954,11 +1206,14 @@ onMounted(async () => {
   handleWorkbenchResize();
   const bridgeReady = await connections.connectStudioBridge();
   if (bridgeReady) {
+    if (connections.studioActiveIdentity) targetDb.value = connections.activeDatabase;
     auth.setApiBaseUrl(connections.activeBaseUrl);
     await refreshNativeServerStatus();
   }
   void refreshConnectionHealth();
   await reloadDbs();
+  routeDatabaseListReady.value = true;
+  applyRouteDatabaseSelection();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     await loadSchema(targetDb.value, true);
     expandedDatabases.value = {

@@ -1,0 +1,17 @@
+{
+  "Name": "commit-ttl",
+  "Executable": [
+    "C:\\Program Files\\Git\\cmd\\git.exe",
+    "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd\\git.exe"
+  ],
+  "Arguments": [
+    "commit",
+    "-m",
+    "fix(sql): 对 TTL 文档查询执行有界物化准入"
+  ],
+  "ExitCode": -1,
+  "Failure": "调用“Start”并传入“0”个参数时发生异常：“An error occurred trying to start process 'C:\\Program Files\\Git\\cmd\\git.exe C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd\\git.exe' with working directory 'D:\\source\\SonnetDB'. 系统找不到指定的文件。”",
+  "DurationSeconds": 0.0223579,
+  "Processes": [],
+  "CleanedProcesses": []
+}

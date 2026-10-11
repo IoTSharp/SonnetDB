@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using SonnetDB.Diagnostics;
 using SonnetDB.Exceptions;
 using SonnetDB.Kv;
@@ -20,6 +21,7 @@ public sealed partial class TableManager : IDisposable
     private readonly object _schemaSync;
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
+    private readonly KvDiskReadBudget _diskReadBudget;
     private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Action<string, string>? _schemaMutationGuard;
     private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
@@ -42,6 +44,9 @@ public sealed partial class TableManager : IDisposable
 
     /// <summary>仅供测试确认多张关系表的冷开阶段能够并行进入。</summary>
     internal Action<string>? WarmUpBeforeOpenTestHook { get; set; }
+
+    /// <summary>供跨表读取回归观测管理器共享的请求与维护预算。</summary>
+    internal KvDiskReadBudget DiskReadBudget => _diskReadBudget;
 
     /// <summary>
     /// 初始化表管理器。
@@ -88,6 +93,11 @@ public sealed partial class TableManager : IDisposable
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadExisting(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
+        // 每个管理器只创建一个预算，避免各关系表独立限流后放大总读取并发。
+        _diskReadBudget = new KvDiskReadBudget(
+            _kvOptions.MaxConcurrentStateReads,
+            _kvOptions.MaxQueuedStateReads,
+            TimeSpan.FromMilliseconds(_kvOptions.StateReadWaitTimeoutMilliseconds));
         try
         {
             foreach (var undo in TableTransactionJournal.ReadPending(TransactionJournalPath))
@@ -101,8 +111,14 @@ public sealed partial class TableManager : IDisposable
         }
         catch
         {
-            foreach (var store in _stores.Values) store.Dispose();
-            _stores.Clear();
+            try
+            {
+                DisposeStoresAndBudgetLocked();
+            }
+            catch
+            {
+                // 恢复失败是原始原因；逐表关闭已全部尝试，预算所有权也已经释放。
+            }
             throw;
         }
     }
@@ -1332,10 +1348,39 @@ public sealed partial class TableManager : IDisposable
                 return;
 
             _disposed = true;
-            foreach (var store in _stores.Values)
-                store.Dispose();
-            _stores.Clear();
+            DisposeStoresAndBudgetLocked();
         }
+    }
+
+    /// <summary>逐表尝试关闭并释放共享预算所有权，现有快照持有的 state 租约继续有效。</summary>
+    private void DisposeStoresAndBudgetLocked()
+    {
+        List<Exception>? failures = null;
+        try
+        {
+            foreach (var store in _stores.Values)
+            {
+                try
+                {
+                    store.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                }
+            }
+        }
+        finally
+        {
+            _stores.Clear();
+            // 只释放管理器所有权；预算在全部 state 与在途读取结束后才关闭信号量。
+            _diskReadBudget.Dispose();
+        }
+
+        if (failures?.Count == 1)
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is not null)
+            throw new AggregateException("关闭关系表存储失败，所有表的关闭均已尝试。", failures);
     }
 
     private TableStore OpenStoreLocked(TableSchema schema)
@@ -1352,7 +1397,7 @@ public sealed partial class TableManager : IDisposable
     private TableStore CreateStore(TableSchema schema)
     {
         string tableDirectory = TableDirectory(schema.Name);
-        var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions);
+        var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions, _diskReadBudget);
         try
         {
             return new TableStore(schema, kv, _statisticsRefreshBudget);

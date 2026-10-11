@@ -1,0 +1,50 @@
+{
+  "Name": "format-3",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 114.0945269,
+  "Processes": [
+    {
+      "ProcessId": 92532,
+      "ParentProcessId": 81560,
+      "CreationDate": "2026-10-02T20:23:29.86381+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 81560,
+      "ParentProcessId": 87232,
+      "CreationDate": "2026-10-02T20:23:29.683033+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 60888,
+      "ParentProcessId": 81560,
+      "CreationDate": "2026-10-02T20:23:29.689387+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 54852,
+      "ParentProcessId": 87660,
+      "CreationDate": "2026-10-02T20:23:30.769143+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 87660,
+      "ParentProcessId": 92532,
+      "CreationDate": "2026-10-02T20:23:30.764047+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" 571bf17d-28ea-40a6-9df7-d1ec333fc5b5 zh-CN"
+    }
+  ],
+  "CleanedProcesses": []
+}

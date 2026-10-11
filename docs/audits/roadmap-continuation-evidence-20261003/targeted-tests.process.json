@@ -1,0 +1,1445 @@
+{
+  "name": "targeted-tests",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--filter",
+    "FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc",
+    "--logger",
+    "trx;LogFileName=targeted-tests.trx",
+    "--results-directory",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003"
+  ],
+  "timeoutSeconds": 300,
+  "maxPolls": 151,
+  "owner": {
+    "pid": 86392,
+    "created": "2026-10-03T04:58:07.4317230Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 44188,
+    "created": "2026-10-03T04:58:09.0637970Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+    "parent": 86392
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 47.1972516,
+  "samples": [
+    {
+      "elapsedSeconds": 3.3191257,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 7.1854583,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 10.9478693,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 14.7520089,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 18.4888199,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 22.2238385,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 26.0115926,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 29.8565393,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 33.6238631,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 37.4211068,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 41.1528287,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    },
+    {
+      "elapsedSeconds": 44.8445101,
+      "chains": [
+        [
+          {
+            "pid": 42852,
+            "created": "2026-10-03T04:58:10.1306360Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 28452
+          },
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 28452,
+            "created": "2026-10-03T04:58:10.1210540Z",
+            "command": "\"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.deps.json\" --port 56045 --endpoint 127.0.0.1:056045 --role client --parentprocessid 64268 --telemetryoptedin false",
+            "parent": 64268
+          },
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 83228,
+            "created": "2026-10-03T04:58:09.0731320Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 64268,
+            "created": "2026-10-03T04:58:09.8383000Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc\" --logger:\"trx;LogFileName=targeted-tests.trx\" --resultsDirectory:D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003 D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:44188_e4cad5c5-81aa-4731-a077-4cfb63229314",
+            "parent": 44188
+          },
+          {
+            "pid": 44188,
+            "created": "2026-10-03T04:58:09.0637970Z",
+            "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc --logger trx;LogFileName=targeted-tests.trx --results-directory D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003",
+            "parent": 86392
+          },
+          {
+            "pid": 86392,
+            "created": "2026-10-03T04:58:07.4317230Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name targeted-tests -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('test','tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj','-c','Release','--no-build','--no-restore','--filter','FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~FileStreamingTaskRunnerTests|FullyQualifiedName~CdcStreamingBridgeTopologyTests|FullyQualifiedName~CdcStreamingTaskJourneyTests|FullyQualifiedName~SqlMeasurementMaterializationBudgetTests|FullyQualifiedName~Streaming|FullyQualifiedName~Cdc','--logger','trx;LogFileName=targeted-tests.trx','--results-directory','D:\\source\\SonnetDB\\docs\\audits\\roadmap-continuation-evidence-20261003') -TimeoutSeconds 300\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

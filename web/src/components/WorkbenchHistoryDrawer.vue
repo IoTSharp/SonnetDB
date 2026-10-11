@@ -35,7 +35,7 @@
               <div class="workbench-history-entry__title">
                 <n-space size="small" align="center" :wrap="true">
                   <n-tag size="tiny" :type="statusType(entry.status)" :bordered="false">
-                    {{ entry.status }}
+                    {{ statusLabel(entry.status) }}
                   </n-tag>
                   <n-tag size="tiny" :bordered="false">
                     {{ entry.kind }}
@@ -44,7 +44,7 @@
                 <strong>{{ entry.title }}</strong>
               </div>
               <n-button
-                v-if="entry.command"
+                v-if="entry.command && entry.status !== 'unknown' && !entry.sensitive"
                 size="tiny"
                 secondary
                 @click="$emit('select', entry)"
@@ -56,7 +56,18 @@
               {{ formatTime(entry.createdAt) }} · {{ entry.connectionName || 'connection' }} / {{ entry.database || 'system' }}
             </n-text>
             <p class="workbench-history-entry__summary">{{ entry.summary || entry.action }}</p>
-            <code v-if="entry.command">{{ entry.command }}</code>
+            <n-alert
+              v-if="entry.status === 'unknown'"
+              type="warning"
+              :show-icon="false"
+              class="workbench-history-entry__unknown"
+            >
+              结果待核对；历史记录只保留上下文，不会自动重放写操作。
+            </n-alert>
+            <n-text v-else-if="entry.sensitive" depth="3" class="workbench-history-entry__redacted">
+              敏感载荷已隐藏，不能从历史恢复。
+            </n-text>
+            <code v-else-if="entry.command">{{ entry.command }}</code>
           </article>
         </n-scrollbar>
       </div>
@@ -70,6 +81,7 @@ import {
   NButton,
   NDrawer,
   NDrawerContent,
+  NAlert,
   NEmpty,
   NInput,
   NPopconfirm,
@@ -115,6 +127,7 @@ const statusOptions = [
   { label: '失败', value: 'error' },
   { label: '预检', value: 'dry-run' },
   { label: '已取消', value: 'cancelled' },
+  { label: '待核对', value: 'unknown' },
 ];
 
 const filteredEntries = computed(() => {
@@ -138,7 +151,16 @@ function statusType(status: WorkbenchHistoryStatus): 'success' | 'error' | 'warn
   if (status === 'success') return 'success';
   if (status === 'error') return 'error';
   if (status === 'dry-run') return 'warning';
+  if (status === 'unknown') return 'warning';
   return 'default';
+}
+
+function statusLabel(status: WorkbenchHistoryStatus): string {
+  if (status === 'success') return '成功';
+  if (status === 'error') return '失败';
+  if (status === 'dry-run') return '预检';
+  if (status === 'cancelled') return '已取消';
+  return '待核对';
 }
 
 function formatTime(value: number): string {
@@ -218,6 +240,15 @@ function formatTime(value: number): string {
   color: var(--sndb-ink-soft);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.workbench-history-entry__unknown {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.workbench-history-entry__redacted {
+  font-size: 12px;
 }
 
 .workbench-history-entry code {

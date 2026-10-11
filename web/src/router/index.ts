@@ -2,13 +2,15 @@ import { createRouter, createWebHistory } from 'vue-router';
 import WelcomeView from '@/views/WelcomeView.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
+import { validatedLoginRedirect } from '@/utils/workbenchNavigation';
+import { previewEnabled, previewRouteAllowed } from '@/preview/policy';
 
 const SetupView = () => import('@/views/SetupView.vue');
 const LoginView = () => import('@/views/LoginView.vue');
 const AutoLoginView = () => import('@/views/AutoLoginView.vue');
-const AppShell = () => import('@/views/AppShell.vue');
-const DashboardView = () => import('@/views/DashboardView.vue');
-const SqlConsoleView = () => import('@/views/SqlConsoleView.vue');
+const AppShell = previewEnabled ? () => import('@/preview/PreviewShell.vue') : () => import('@/views/AppShell.vue');
+const DashboardView = previewEnabled ? () => import('@/preview/PreviewOverview.vue') : () => import('@/views/DashboardView.vue');
+const SqlConsoleView = previewEnabled ? () => import('@/preview/PreviewWorkbench.vue') : () => import('@/views/SqlConsoleView.vue');
 const EventsView = () => import('@/views/EventsView.vue');
 const MonitoringView = () => import('@/views/MonitoringView.vue');
 const UsersView = () => import('@/views/UsersView.vue');
@@ -19,10 +21,10 @@ const CopilotTestView = () => import('@/views/CopilotTestView.vue');
 const CopilotOAuthCallbackView = () => import('@/views/CopilotOAuthCallbackView.vue');
 const RagManagementView = () => import('@/views/RagManagementView.vue');
 const ModbusView = () => import('@/views/ModbusView.vue');
-const AboutView = () => import('@/views/AboutView.vue');
+const AboutView = previewEnabled ? () => import('@/preview/PreviewAbout.vue') : () => import('@/views/AboutView.vue');
 
 const router = createRouter({
-  history: createWebHistory('/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     // 产品官网首页（匿名可访问，单 SPA 单 base）
     { path: '/', name: 'home', component: WelcomeView, meta: { anon: true, marketing: true } },
@@ -33,6 +35,7 @@ const router = createRouter({
     // 首次安装 / 登录页面（匿名，但纳入 /admin 命名空间）
     { path: '/admin/setup', name: 'setup', component: SetupView, meta: { anon: true } },
     { path: '/admin/login', name: 'login', component: LoginView, meta: { anon: true } },
+    { path: '/admin/preview-unavailable', name: 'preview-unavailable', component: () => import('@/preview/PreviewUnavailable.vue'), meta: { anon: true } },
     { path: '/admin/auto-login', name: 'auto-login', component: AutoLoginView, meta: { anon: true } },
     { path: '/admin/copilot/oauth/callback', name: 'copilot-oauth-callback', component: CopilotOAuthCallbackView, meta: { anon: true } },
 
@@ -44,6 +47,19 @@ const router = createRouter({
       redirect: { name: 'dashboard' },
       children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
+        // M47 module entry aliases keep the seven-module rail stable while
+        // landing on the currently implemented page for each module.
+        { path: 'overview', name: 'overview', redirect: { name: 'dashboard' } },
+        { path: 'workbench', name: 'workbench', redirect: { name: 'sql' } },
+        { path: 'observe', name: 'observe', redirect: { name: 'monitoring' } },
+        // Data-flow pages are still represented by the existing Modbus view;
+        // this route is an explicit compatibility landing, not a new page.
+        { path: 'flows', name: 'flows', redirect: { name: 'modbus' }, meta: { admin: true } },
+        { path: 'ai', name: 'ai', redirect: { name: 'rag' } },
+        { path: 'govern', name: 'govern', redirect: { name: 'users' }, meta: { admin: true } },
+        // Settings currently lands on the existing About view until planned
+        // preference/server-host pages receive their own production routes.
+        { path: 'settings', name: 'settings', redirect: { name: 'about' } },
         { path: 'studio', redirect: { name: 'sql' } },
         { path: 'sql', name: 'sql', component: SqlConsoleView },
         { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },
@@ -64,6 +80,8 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (previewEnabled && to.name === 'preview-unavailable') return true;
+  if (previewEnabled && to.name !== 'preview-unavailable' && !previewRouteAllowed(to.name, to.query)) return { name: 'preview-unavailable' };
   // A dedicated popup callback must not load database credentials or setup state.
   if (to.name === 'copilot-oauth-callback') return true;
 
@@ -79,7 +97,7 @@ router.beforeEach(async (to) => {
     await setup.ensureLoaded();
   } catch {
     if (to.meta.app) {
-      return { name: 'login' };
+      return { name: 'login', query: { redirect: to.fullPath } };
     }
     return true;
   }
@@ -97,7 +115,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'login' && auth.isAuthenticated) {
-    return { name: 'dashboard' };
+    return validatedLoginRedirect(to.query.redirect, router) ?? { name: 'dashboard' };
   }
 
   if (to.meta.app && !auth.isAuthenticated) {

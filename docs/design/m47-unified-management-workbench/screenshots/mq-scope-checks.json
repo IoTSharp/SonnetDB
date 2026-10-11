@@ -1,0 +1,42 @@
+{
+  "mqScopeChecks": [
+    {
+      "task": "概览",
+      "logicalContext": true
+    },
+    {
+      "task": "消息",
+      "logicalContext": true,
+      "physicalContext": true,
+      "characters": 499
+    },
+    {
+      "task": "消费者组",
+      "logicalContext": true,
+      "physicalContext": true,
+      "characters": 196
+    },
+    {
+      "task": "配置",
+      "logicalContext": true,
+      "physicalContext": true,
+      "characters": 200
+    },
+    {
+      "task": "恢复边界",
+      "logicalContext": true,
+      "physicalContext": true,
+      "restoreScope": "实例共享Store；保留factory上下文"
+    },
+    {
+      "task": "DLQ · 能力依赖",
+      "logicalContext": true,
+      "physicalContext": true
+    },
+    {
+      "task": "审计",
+      "logicalContext": true,
+      "physicalContext": true
+    }
+  ]
+}

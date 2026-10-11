@@ -1,0 +1,1124 @@
+{
+  "schemaVersion": 1,
+  "kind": "scope-and-source-freeze",
+  "milestone": "M47-P01",
+  "frozenOn": "2026-10-10",
+  "timeZone": "Asia/Shanghai",
+  "scopeStatus": "FROZEN",
+  "releaseStatus": "NOT_READY",
+  "isArtifactManifest": false,
+  "defaultAction": "DENY_UNLISTED",
+  "candidate": {
+    "id": "candidate-01",
+    "sourceCommit": "c40fa670e3a170c5fac8cefa181d618631862270",
+    "sourceTree": "7dd085919b51875e00f15807702e06fe0c47b670",
+    "version": "4.5.0-preview.1.1",
+    "reservedTag": "workbench-preview-1.1",
+    "tagCreated": false,
+    "state": "COMMITTED_SOURCE_BASELINE_NOT_RELEASE_READY",
+    "builtArtifacts": [],
+    "localHeadAndOriginMainVerified": true,
+    "liveRemoteCheckInP01": false,
+    "parentPushReceipt": "artifacts/workbench-preview-submit-20261010-01a12429/delivery.json",
+    "excludesDirtyWorkingTree": true,
+    "requiresSuccessorForImplementation": true,
+    "submodules": [
+      {
+        "path": "extensions/IoTSharp.CoAP.NET",
+        "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+      },
+      {
+        "path": "extensions/MQTTnet.AspNetCore.Routing",
+        "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+      }
+    ]
+  },
+  "versionPolicy": {
+    "template": "4.5.0-preview.1.N",
+    "tagTemplate": "workbench-preview-1.N",
+    "monotonicallyIncreasingCandidate": true,
+    "immutableSourceAndInputsAndBytes": true,
+    "onSourceOrPackagingOrBytesChange": "NEW_CANDIDATE_FILE_AND_NEW_N",
+    "tagMoveAllowed": false,
+    "overwriteAssetsAllowed": false,
+    "vTagPublicationAllowed": false
+  },
+  "components": [
+    {
+      "assemblyVersionDefault": "0.0.0.0",
+      "id": "server",
+      "injection": "Version",
+      "releaseVersion": "4.5.0-preview.1.1",
+      "source": "Directory.Build.props",
+      "sourceVersion": "0.0.0-dev",
+      "distribution": "REQUIRED",
+      "fileVersionDefault": "0.0.0.0",
+      "actualBuiltVersion": null
+    },
+    {
+      "distribution": "REQUIRED_EMBEDDED_SAME_CANDIDATE",
+      "sourceVersion": "0.1.0",
+      "source": "web/package.json",
+      "actualBuiltVersion": null,
+      "injection": "P04 manifest and embedded identity required",
+      "id": "web",
+      "releaseVersion": "4.5.0-preview.1.1"
+    },
+    {
+      "distribution": "DEFERRED",
+      "sourceVersion": "0.0.0-dev",
+      "source": "src/SonnetDB.Studio/SonnetDB.Studio.csproj",
+      "existingReleaseIsCandidate": false,
+      "id": "studio",
+      "releaseVersion": null
+    },
+    {
+      "distribution": "DEFERRED",
+      "sourceVersion": "0.4.1",
+      "source": "extensions/sonnetdb-vscode/package.json",
+      "existingReleaseIsCandidate": false,
+      "id": "vscode",
+      "releaseVersion": null
+    }
+  ],
+  "targets": {
+    "requiredRids": [
+      "win-x64"
+    ],
+    "requiredOperatingSystems": [
+      "Windows 11 x64"
+    ],
+    "browserFamilies": [
+      "Edge",
+      "Chrome"
+    ],
+    "actualBrowserVersions": null,
+    "browserVersionEvidenceOwner": "M47-P05",
+    "serverBuild": "NativeAOT",
+    "deferred": [
+      "linux-x64",
+      "linux-arm64",
+      "win-arm64",
+      "win-x86",
+      "macOS",
+      "other-Windows-versions",
+      "mobile-browsers"
+    ],
+    "compatibility": "EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER",
+    "legacyServerCompatibility": "NOT_ACCEPTED"
+  },
+  "deployment": {
+    "mode": "portable-server-with-embedded-web",
+    "host": "loopback-only",
+    "sameOrigin": true,
+    "basePath": "/",
+    "adminEntry": "/admin",
+    "authentication": "username-password-login-then-Bearer",
+    "authStorage": "localStorage:sndb.auth",
+    "credentialStoreClaim": false,
+    "optionalListeners": "DISABLED",
+    "shippedCredentialsAllowed": false,
+    "bootstrap": "fresh-setup-UI",
+    "data": "isolated-test-directory",
+    "remoteProxyDockerServiceInstall": "DEFERRED",
+    "authorizationLayers": [
+      "HTTP-role",
+      "database-grant"
+    ],
+    "grantLevels": [
+      "None",
+      "Read",
+      "Write",
+      "Admin"
+    ],
+    "serverApisRemovedByUiProfile": false,
+    "sandboxSecurityClaim": false
+  },
+  "actions": [
+    {
+      "id": "session",
+      "entry": "/admin",
+      "allow": [
+        "setup",
+        "login",
+        "select-authorized-database",
+        "logout",
+        "login-again",
+        "about"
+      ],
+      "permission": "session",
+      "maximumRowsOrElements": null,
+      "historicalEvidence": [],
+      "deferred": [
+        "auto-login",
+        "cross-origin",
+        "credential-import"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "sql.read",
+      "entry": "/admin/app/sql",
+      "allow": [
+        "single-select",
+        "read-only-show",
+        "read-only-describe",
+        "explain"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26-WB37-relevant-reads"
+      ],
+      "deferred": [
+        "free-sql-write",
+        "control-plane",
+        "multiple-statements"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "relation.read",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "schema",
+        "page",
+        "filter",
+        "sort",
+        "previous-next"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 200,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "ddl",
+        "indexes",
+        "foreign-keys"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "relation.insert.one",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "stage-single-scalar-row",
+        "preview",
+        "approve-once",
+        "submit-once",
+        "readback"
+      ],
+      "permission": "write",
+      "maximumRowsOrElements": 1,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "update",
+        "delete",
+        "batch",
+        "ddl",
+        "replay-unknown"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "measurement.read",
+      "entry": "/admin/app/sql?tool=measurement",
+      "allow": [
+        "schema",
+        "bounded-time-points"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 500,
+      "historicalEvidence": [
+        "WB31"
+      ],
+      "deferred": [
+        "write",
+        "ingest",
+        "import",
+        "ddl",
+        "maintenance"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "document.read",
+      "entry": "/admin/app/sql?tool=document",
+      "allow": [
+        "collections",
+        "schema",
+        "find-page",
+        "cursor-next-page"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26"
+      ],
+      "deferred": [
+        "count",
+        "aggregate",
+        "distinct",
+        "advanced",
+        "write"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "kv.read",
+      "entry": "/admin/app/sql?tool=kv",
+      "allow": [
+        "keyspaces",
+        "prefix-scan",
+        "inspect-current-key"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB29"
+      ],
+      "deferred": [
+        "cas",
+        "ttl",
+        "atomic-number",
+        "write",
+        "delete"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "fulltext.read",
+      "entry": "/admin/app/sql?tool=fulltext",
+      "allow": [
+        "indexes",
+        "lexical-search",
+        "hit-preview"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB28"
+      ],
+      "deferred": [
+        "import",
+        "index-write",
+        "maintenance",
+        "advanced-query"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "vector.read",
+      "entry": "/admin/app/sql?tool=vector",
+      "allow": [
+        "index-metadata",
+        "numeric-vector-search"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB32",
+        "WB33"
+      ],
+      "deferred": [
+        "embedding",
+        "profile",
+        "write",
+        "maintenance",
+        "semantic-quality-claim"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "object.read",
+      "entry": "/admin/app/sql?tool=bucket",
+      "allow": [
+        "buckets",
+        "object-list-window",
+        "metadata",
+        "range-preview"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB37"
+      ],
+      "deferred": [
+        "full-download",
+        "upload",
+        "multipart",
+        "presign",
+        "semantic-search",
+        "bucket-export"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "mq.read",
+      "entry": "/admin/app/sql?tool=mq",
+      "allow": [
+        "topic-metadata",
+        "topic-stats",
+        "explicit-offset-browse"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB34"
+      ],
+      "deferred": [
+        "auto-poll",
+        "publish",
+        "consume",
+        "ack",
+        "nack",
+        "retention-edit"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "graph.read.beta",
+      "entry": "/admin/app/sql?tool=graph",
+      "allow": [
+        "metadata",
+        "bounded-vertex-edge-preview"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB35",
+        "WB36"
+      ],
+      "deferred": [
+        "write",
+        "import",
+        "export",
+        "maintenance",
+        "arbitrary-traversal"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    },
+    {
+      "id": "result.window",
+      "entry": "allowed-result-views",
+      "allow": [
+        "current-authorized-window-export",
+        "cancel",
+        "truncation-status",
+        "error-status"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "model-specific-local-contracts"
+      ],
+      "deferred": [
+        "backup",
+        "unloaded-pages",
+        "revoked-payload",
+        "graph-file-export",
+        "object-download"
+      ],
+      "status": "IN_SCOPE_PENDING_ACCEPTANCE",
+      "candidateAcceptance": "NOT_RUN",
+      "enforcement": "INCOMPLETE_BLOCKS_RELEASE"
+    }
+  ],
+  "budgets": {
+    "status": "FROZEN_TARGETS_NOT_PROVEN",
+    "owner": "M47-P03",
+    "timeoutMilliseconds": 30000,
+    "concurrentReadsPerActiveOperation": 1,
+    "defaultMaximumRows": 1000,
+    "smallerModelLimitsTakePrecedence": true,
+    "maximumResponseBodyBytes": 4194304,
+    "maximumRetainedResultBytes": 4194304,
+    "maximumExportBytes": 4194304,
+    "maximumSqlOrInsertInputUtf8Bytes": 65536,
+    "inspectorBytes": 4096,
+    "noAutomaticUnboundedPaging": true,
+    "enforceBeforeFullMaterialization": true,
+    "browserCancelProvesServerStop": false,
+    "cancellationProvesRollback": false
+  },
+  "entryControls": [
+    {
+      "owners": [
+        "M47-P03"
+      ],
+      "allowedModules": [
+        "overview-summary",
+        "workbench-allowlist",
+        "settings-about"
+      ],
+      "scope": "seven-module navigation, routes, aliases, URL/query and restored tabs",
+      "disabledModules": [
+        "observe",
+        "flows",
+        "ai",
+        "govern"
+      ],
+      "id": "C01",
+      "status": "NOT_IMPLEMENTED"
+    },
+    {
+      "status": "NOT_IMPLEMENTED",
+      "scope": "per-model action and dispatch allowlist; unknown defaults deny; SQL read-only",
+      "id": "C02",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "NOT_ACCEPTED",
+      "scope": "single-row single approval, permission/context binding, terminal state and no unknown replay",
+      "id": "C03",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "NOT_ACCEPTED",
+      "scope": "identity/revocation clearing, direct requests and resource budgets",
+      "id": "C04",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "NOT_IMPLEMENTED",
+      "scope": "embedded profile/version/manifest and mismatch/cache rejection",
+      "id": "C05",
+      "owners": [
+        "M47-P04",
+        "M47-P05"
+      ]
+    },
+    {
+      "status": "NOT_IMPLEMENTED",
+      "scope": "separate assembly and exact asset publication allowlist",
+      "id": "D01",
+      "owners": [
+        "M47-P04",
+        "M47-P06"
+      ]
+    }
+  ],
+  "mcp": {
+    "sourceInventoryOnly": true,
+    "endpoint": "/mcp/{db}",
+    "transport": "HTTP stateless",
+    "typedContract": "1.0",
+    "typedCompatibility": "1.x extend-only",
+    "browserDirectProtocolConstant": "2025-11-25",
+    "actualNegotiatedProtocol": null,
+    "tools": [
+      "list_databases",
+      "query_sql",
+      "list_measurements",
+      "describe_measurement",
+      "sample_rows",
+      "explain_sql",
+      "docs_search",
+      "skill_search",
+      "skill_load"
+    ],
+    "resources": [
+      "measurements",
+      "measurement_schema",
+      "database_stats"
+    ],
+    "sourceToolsReadOnly": true,
+    "browserDirectSourceBudgets": {
+      "maximumToolPages": 16,
+      "maximumDiscoveredTools": 128,
+      "maximumResultBytes": 65536
+    },
+    "previewUiOnboarding": "DEFERRED",
+    "externalModelDataEgress": "NOT_IN_SCOPE"
+  },
+  "preservedSemantics": [
+    "SQL original spelling and quoted exact match",
+    "Graph Beta",
+    "MQ database+Topic logical identity and instance .system/mq persistence",
+    "single-database backup excludes instance MQ",
+    "one approval one submission",
+    "cancel is not rollback",
+    "unknown write is not replayed"
+  ],
+  "distribution": {
+    "channel": "GitHub standalone prerelease",
+    "implementation": "NOT_IMPLEMENTED",
+    "prerelease": true,
+    "latest": false,
+    "workflowProposal": ".github/workflows/workbench-preview-publish.yml",
+    "workflowExists": false,
+    "trigger": "manual after P07 and P08 authorization",
+    "exactPublicAssets": [
+      "sonnetdb-workbench-web-4.5.0-preview.1.1-win-x64.zip",
+      "sonnetdb-workbench-web-4.5.0-preview.1.1-manifest.json",
+      "sonnetdb-workbench-web-4.5.0-preview.1.1-SHA256SUMS.txt",
+      "sonnetdb-workbench-web-4.5.0-preview.1.1-notes.md"
+    ],
+    "exactSetRequired": true,
+    "unexpectedAssets": "REJECT",
+    "standaloneStaticZipAllowed": false,
+    "deferredAssets": [
+      "Studio ZIP/MSI",
+      "VSIX",
+      "SDK",
+      "full bundle",
+      "NuGet",
+      "CLI",
+      "connectors",
+      "Docker images",
+      "MSI",
+      "DEB",
+      "RPM",
+      "Linux/ARM archives"
+    ],
+    "actionsValidationArtifactsArePublicAllowlist": false,
+    "existingPublishWorkflow": {
+      "includesVsix": false,
+      "vTag": "NuGet plus public full GitHub assets",
+      "includesStudio": true,
+      "allowedForPreviewPublication": false,
+      "dispatch": "full validation artifacts"
+    }
+  },
+  "gates": {
+    "authoritativePolicy": "eng/release-readiness-policy.ps1",
+    "weakeningAllowed": false,
+    "requiredWorkbenchJobCount": 5,
+    "finalSourceAndVersionAndLatestAttemptRequired": true,
+    "workflowSnapshot": [
+      {
+        "workflow": "ci.yml",
+        "jobs": [
+          "Build & Test (ubuntu-latest)",
+          "Build & Test (windows-latest)",
+          "Format Check",
+          "AOT Publish (ubuntu-latest)",
+          "AOT Publish (windows-latest)",
+          "AOT Publish (ubuntu-24.04-arm)"
+        ],
+        "artifacts": [
+          "test-results-ubuntu-latest",
+          "test-results-windows-latest",
+          "aot-linux-x64",
+          "aot-linux-arm64",
+          "aot-win-x64"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Build & Test (ubuntu-latest)": [
+            "Build",
+            "Test",
+            "Test release gate contracts"
+          ],
+          "Build & Test (windows-latest)": [
+            "Build",
+            "Test",
+            "Test release gate contracts"
+          ],
+          "Format Check": [
+            "Format check"
+          ],
+          "AOT Publish (ubuntu-latest)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ],
+          "AOT Publish (windows-latest)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ],
+          "AOT Publish (ubuntu-24.04-arm)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "codeql.yml",
+        "jobs": [
+          "Analyze (csharp)"
+        ],
+        "artifacts": [],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Analyze (csharp)": [
+            "Build",
+            "Analyze code and upload results"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "jobs": [
+          "Build Docs"
+        ],
+        "artifacts": [],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Build Docs": [
+            "Build static site"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "jobs": [
+          "Server management contracts",
+          "Web Admin and Studio bridge",
+          "Studio desktop host",
+          "VS Code HTTP consumer",
+          "VS Code Extension Host"
+        ],
+        "artifacts": [
+          "management-contract-results",
+          "studio-host-results",
+          "sonnetdb-vscode-vsix"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Server management contracts": [
+            "Test multi-model management contracts"
+          ],
+          "Web Admin and Studio bridge": [
+            "Build Web Admin",
+            "Run management workbench smoke"
+          ],
+          "Studio desktop host": [
+            "Test Studio host contracts"
+          ],
+          "VS Code HTTP consumer": [
+            "Test SQL language server",
+            "Run extension consumer smoke",
+            "Package VS Code extension"
+          ],
+          "VS Code Extension Host": [
+            "Run Extension Host smoke"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "parity.yml",
+        "jobs": [
+          "Parity (light, ubuntu-latest)",
+          "Parity (full, ubuntu-latest)"
+        ],
+        "artifacts": [
+          "parity-light-reports",
+          "parity-full-reports"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Parity (light, ubuntu-latest)": [
+            "Start parity stack",
+            "Run parity gates",
+            "Run reliability gates",
+            "Gate parity result"
+          ],
+          "Parity (full, ubuntu-latest)": [
+            "Start parity stack",
+            "Run parity gates",
+            "Run reliability gates",
+            "Gate parity result"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "document-soak.yml",
+        "jobs": [
+          "soak"
+        ],
+        "artifacts": [
+          "document-soak-*-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "soak": [
+            "Run Document Store profile",
+            "Audit capacity evidence contract"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "jobs": [
+          "soak"
+        ],
+        "artifacts": [
+          "ecosystem-soak-*-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "soak": "Run ecosystem profile"
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "jobs": [
+          "GitHub-hosted capacity validation"
+        ],
+        "artifacts": [
+          "m19-hosted-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "GitHub-hosted capacity validation": [
+            "Validate strict capacity verifier contracts",
+            "Run all four scaled specialized profiles",
+            "Record hosted hardware, scale and evidence boundary"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "jobs": [
+          "evidence"
+        ],
+        "artifacts": [
+          "m39-trigger-v2-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "evidence": [
+            "Run golden journey and commit failure tests",
+            "Run real process-kill replay test",
+            "Run REST and Frame routine contracts",
+            "Run M39 cost and rollback report"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "publish.yml",
+        "jobs": [
+          "NuGet Packages",
+          "Release Bundles (linux-x64)",
+          "Release Bundles (win-x64)"
+        ],
+        "artifacts": [
+          "nuget-packages-4.5.0-preview.1.1",
+          "release-4.5.0-preview.1.1-linux-x64",
+          "release-4.5.0-preview.1.1-win-x64",
+          "insert-returning-contract-4.5.0-preview.1.1-linux-x64",
+          "insert-returning-contract-4.5.0-preview.1.1-win-x64"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "NuGet Packages": [
+            "Pack NuGet packages"
+          ],
+          "Release Bundles (linux-x64)": [
+            "Build bundles and installers",
+            "Verify bundle network defaults with the NativeAOT Server",
+            "Verify installed INSERT RETURNING contract and published compatibility"
+          ],
+          "Release Bundles (win-x64)": [
+            "Build bundles and installers",
+            "Verify bundle network defaults with the NativeAOT Server",
+            "Verify installed INSERT RETURNING contract and published compatibility"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "jobs": [
+          "Connectors (linux-x64)",
+          "Connectors (win-x64)",
+          "Connectors (win-x86)"
+        ],
+        "artifacts": [
+          "connectors-4.5.0-preview.1.1-linux-x64",
+          "connectors-4.5.0-preview.1.1-win-x64",
+          "connectors-4.5.0-preview.1.1-win-x86"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "Connectors (linux-x64)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ],
+          "Connectors (win-x64)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ],
+          "Connectors (win-x86)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "jobs": [
+          "Build, Verify and Publish Docker Image"
+        ],
+        "artifacts": [
+          "docker-validation"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "Build, Verify and Publish Docker Image": [
+            "Build image for local verification",
+            "Verify container startup, readiness and embedded Admin UI"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      }
+    ],
+    "existingArtifactValidationRetained": true,
+    "scheduledParitySevenDays": {
+      "replacesLightFull": false,
+      "blocking": false,
+      "independentObservation": true
+    },
+    "realJourneyAndPackageGates": [
+      "M47-P03",
+      "M47-P04",
+      "M47-P05",
+      "M47-P06",
+      "M47-P07"
+    ],
+    "historicalSmoke": {
+      "runId": "37731752397",
+      "rootCause": "UNKNOWN",
+      "sourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+      "otherFourJobs": "success",
+      "owner": "M47-P02",
+      "recheckedInP01": false,
+      "webJob": "failure"
+    },
+    "candidateProductTesting": "NOT_RUN",
+    "candidateRemoteReadiness": "NOT_RUN",
+    "actualPublicationAuthorized": false
+  },
+  "sourceInventory": [
+    {
+      "path": "Directory.Build.props",
+      "gitBlob": "f8c104f46b867d9d69a481fc0930a1c2a2b4fe09"
+    },
+    {
+      "path": "Directory.Packages.props",
+      "gitBlob": "111f3e29e9b524cfba11307a53381f4adb958500"
+    },
+    {
+      "path": "global.json",
+      "gitBlob": "1e7fdfa95fd6615c9270c5c82a23b734d4cc8c59"
+    },
+    {
+      "path": ".gitmodules",
+      "gitBlob": "ea5c02c2f85f948ceba897c05f137b6f5a9ce61e"
+    },
+    {
+      "path": "web/package.json",
+      "gitBlob": "44f05ae5732a0c482f083eac4f0840e6becf3a2d"
+    },
+    {
+      "path": "web/package-lock.json",
+      "gitBlob": "ae21e3e194155c7e835b8917984005209b879230"
+    },
+    {
+      "path": "web/vite.config.ts",
+      "gitBlob": "594becf771038b968c21fa3544f8416b10688ad8"
+    },
+    {
+      "path": "src/SonnetDB/SonnetDB.csproj",
+      "gitBlob": "92aa77f4998bfa07d68ed0751aadd30c5cdf3c6e"
+    },
+    {
+      "path": "src/SonnetDB.Studio/SonnetDB.Studio.csproj",
+      "gitBlob": "904b992ebae0ea6c9900ae2dce3137ac59714637"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/package.json",
+      "gitBlob": "ca06a2dd529d98d09f3d44d743c1eea9bea8d294"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/package-lock.json",
+      "gitBlob": "41f496e5d600ec41af2a93fc318ec0b75cc145ab"
+    },
+    {
+      "path": "web/src/router/index.ts",
+      "gitBlob": "a4ff169b1746ea57629d8ece4d8bd1e3fdd86eb5"
+    },
+    {
+      "path": "web/src/views/AppShell.vue",
+      "gitBlob": "c2777fca84859e1b5a4b5a98f99a75e2205cf928"
+    },
+    {
+      "path": "web/src/views/SqlConsoleView.vue",
+      "gitBlob": "6b86967eb52e52e31134b9711b2cf7967a65b3cb"
+    },
+    {
+      "path": "web/src/composables/useSqlWorkbenchChrome.ts",
+      "gitBlob": "15985df7b9fd03031a4d65270387835d2563cd65"
+    },
+    {
+      "path": "web/src/management-core/capabilityRegistry.ts",
+      "gitBlob": "8ef1fddbb0a249e11373fab0f2f6b0fe116b7534"
+    },
+    {
+      "path": "web/src/stores/auth.ts",
+      "gitBlob": "3c8b65c7d790bf4d6a403710fadd4c831466ec64"
+    },
+    {
+      "path": "web/src/api/client.ts",
+      "gitBlob": "0a41f108cecff0aca59821f5fb6e999e1a86f972"
+    },
+    {
+      "path": "web/src/copilot/browserDirectMcp.ts",
+      "gitBlob": "3c8cfd1fa830612cc6954ae6c3e2aefc78cb7b6f"
+    },
+    {
+      "path": "web/src/components/RelationalTableWorkbench.vue",
+      "gitBlob": "be4af22dffe78d00761540e12b2cb6f99a68fab3"
+    },
+    {
+      "path": "web/src/components/MeasurementWorkbench.vue",
+      "gitBlob": "f111535596077810a0e245c3d7516a4bf0e8412b"
+    },
+    {
+      "path": "web/src/components/DocumentCollectionWorkbench.vue",
+      "gitBlob": "7de2d1bc7369fb801fd831784fa7db2f3810652a"
+    },
+    {
+      "path": "web/src/components/KvKeyspaceWorkbench.vue",
+      "gitBlob": "6af58c145ae3f35af3f34a21952b0593e51d1dfc"
+    },
+    {
+      "path": "web/src/components/FullTextSearchWorkbench.vue",
+      "gitBlob": "da02b65ff98e02ffe95f8dbe13f328cdd7d664c2"
+    },
+    {
+      "path": "web/src/components/VectorSearchWorkbench.vue",
+      "gitBlob": "8f5a48076b5ac1dd03afa4547c7e79a2320123e3"
+    },
+    {
+      "path": "web/src/components/ObjectBucketWorkbench.vue",
+      "gitBlob": "b9a7d517f7d2fa538aa46dfcec55cdc6c35d5cac"
+    },
+    {
+      "path": "web/src/components/SonnetMqWorkbench.vue",
+      "gitBlob": "1e196d296114089ad34b91469fc8397b6eeca59b"
+    },
+    {
+      "path": "web/src/components/GraphWorkbench.vue",
+      "gitBlob": "8a1c3b52f6d44f098e53d438f1145e0c45adac0f"
+    },
+    {
+      "path": "src/SonnetDB/Auth/BearerAuthMiddleware.cs",
+      "gitBlob": "42453d0cc00756042a2144614d2443615b32573b"
+    },
+    {
+      "path": "src/SonnetDB/Auth/DatabasePermission.cs",
+      "gitBlob": "1702870f46dfd22d24049b6f9a75409ea88fcf57"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs",
+      "gitBlob": "c5817531d22995d4a649d89596d92187d210bec1"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/SonnetDbEndpoints.cs",
+      "gitBlob": "c6850fc68629b0c4025b0108c46c88a4a15a9244"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs",
+      "gitBlob": "dfee11467198e5af668d60139e095c31b3ae2ad3"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpResults.cs",
+      "gitBlob": "039aaeacb65af79008a24f10879d47df5a6981b3"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpTools.cs",
+      "gitBlob": "17775355d22b9aceace552aabcd389fbc95d1e9c"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpResources.cs",
+      "gitBlob": "e43c49f0e08bb217d8248d55cfd33a833e851fd8"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/SonnetDbServiceRegistration.cs",
+      "gitBlob": "ed8df1bdd83acebc94c162d04db58c2bcbab860a"
+    },
+    {
+      "path": ".github/workflows/publish.yml",
+      "gitBlob": "f1b0a79a43122fcc66d18bea9b2313c9d925fd46"
+    },
+    {
+      "path": ".github/workflows/connectors-release.yml",
+      "gitBlob": "f278b290a20544efc7693adaa81f05c8e5f8681e"
+    },
+    {
+      "path": ".github/workflows/docker-publish.yml",
+      "gitBlob": "e135b748b890494097e2c441b65a4dba43b57eb3"
+    },
+    {
+      "path": ".github/workflows/management-workbench-smoke.yml",
+      "gitBlob": "f09eee5770d3fc931511f160c77840e96a053554"
+    },
+    {
+      "path": "eng/release.ps1",
+      "gitBlob": "078ccf2ae38a88844004cc6cad0523ad280e7f5d"
+    },
+    {
+      "path": "eng/release-readiness-policy.ps1",
+      "gitBlob": "031754b323ba9d6c2f1efa1337d06ed89068f8b6"
+    },
+    {
+      "path": "eng/verify-release-readiness.ps1",
+      "gitBlob": "c68ed1c47679104cdf87786a66183e3ae6fdb4e6"
+    },
+    {
+      "path": "eng/verify-release-artifacts.ps1",
+      "gitBlob": "5ffa1809d87745f6829379338c5277251b0f3776"
+    },
+    {
+      "path": "eng/set-release-network-defaults.ps1",
+      "gitBlob": "a3f5bf1797bfc3371caaaf7d707d9b337a93fb84"
+    }
+  ]
+}

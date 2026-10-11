@@ -137,6 +137,13 @@ internal static class ServerOptionsBinder
             options.Kv.MaxSnapshotOverlayEntries,
             1,
             50_000_000);
+        options.Kv.MaxConcurrentStateReads = Math.Clamp(options.Kv.MaxConcurrentStateReads, 1, 256);
+        options.Kv.MaxQueuedStateReads = Math.Clamp(
+            options.Kv.MaxQueuedStateReads,
+            0,
+            4096);
+        options.Kv.StateReadWaitTimeoutMilliseconds = Math.Clamp(
+            options.Kv.StateReadWaitTimeoutMilliseconds, 1, 120_000);
         options.Kv.MaxWalBytes = Math.Clamp(
             options.Kv.MaxWalBytes,
             1024L * 1024,

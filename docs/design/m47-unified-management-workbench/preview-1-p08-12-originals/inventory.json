@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M47-P08",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "publicationToolingCommit": "8a24edab4a00f82c40912248fa37fdbe1de4bb3a",
+  "runId": "38155325276",
+  "releaseId": 409754336,
+  "files": [
+    {
+      "file": "publication.json",
+      "storageFile": "publication.json.gz",
+      "encoding": "gzip",
+      "size": 1441,
+      "sha256": "1011054f9cce376c9a28c84f1748f78c56c0724afa8e21fb2dc8bc9d688d1da5",
+      "originalPath": "artifacts/m47-p07-close-20261011/publication12-draftid-evidence/publish.json"
+    },
+    {
+      "file": "publication-owned.json",
+      "storageFile": "publication-owned.json.gz",
+      "encoding": "gzip",
+      "size": 995,
+      "sha256": "ad1e0814e3a0e1ad8193a2e1b84280c77af96e621644085a660144a0d7230f9b",
+      "originalPath": "artifacts/m47-p07-close-20261011/publication12-draftid-evidence/owned/publish.result.json"
+    },
+    {
+      "file": "publication-gate.json",
+      "storageFile": "publication-gate.json.gz",
+      "encoding": "gzip",
+      "size": 659,
+      "sha256": "23d4b454a853cb1e39f5bb7a031b057b8230f1ef314d614444bbb08e2972a751",
+      "originalPath": "artifacts/m47-p07-close-20261011/prepare12-draftid-publish-evidence/gate.json"
+    },
+    {
+      "file": "publication-run.json",
+      "storageFile": "publication-run.json.gz",
+      "encoding": "gzip",
+      "size": 12183,
+      "sha256": "d4fc6ecde658d5af3a6292a40e66199830494a5c72af214176d903386a093fa2",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/completed.json"
+    },
+    {
+      "file": "publication-jobs.json",
+      "storageFile": "publication-jobs.json.gz",
+      "encoding": "gzip",
+      "size": 7077,
+      "sha256": "6b45bb7ff22d8d20e1fbadba846290d4d5fe2b3944649863ece1f96e07904804",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/jobs.json"
+    },
+    {
+      "file": "publication-artifacts.json",
+      "storageFile": "publication-artifacts.json.gz",
+      "encoding": "gzip",
+      "size": 2177,
+      "sha256": "e22ea2a5b55716189a5afcf0279110c801a4302fd6534a889183b12f74965bee",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/artifacts.json"
+    },
+    {
+      "file": "publication-download.json",
+      "storageFile": "publication-download.json.gz",
+      "encoding": "gzip",
+      "size": 1338,
+      "sha256": "21adb693d0963968d80cb38b57c0e4dcaac3ac0726e66a882c8b79467dc9541d",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/download.json"
+    },
+    {
+      "file": "approval-request.json",
+      "storageFile": "approval-request.json.gz",
+      "encoding": "gzip",
+      "size": 503,
+      "sha256": "6ce76fbbb57e7e8b853c166e741d3d814d1091869d1838f70e4cad104a5702ca",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/approval-request.json"
+    },
+    {
+      "file": "approval-response.json",
+      "storageFile": "approval-response.json.gz",
+      "encoding": "gzip",
+      "size": 3874,
+      "sha256": "848def46e050be1b5e533a3e51a960a7e838775d47f29eaebe5b4ce34f5fc95a",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/approval-response.json"
+    },
+    {
+      "file": "approval-environment.json",
+      "storageFile": "approval-environment.json.gz",
+      "encoding": "gzip",
+      "size": 1534,
+      "sha256": "87a7f8764672560dde9214b4d2bf16f17ffa52a3dc21f43287d5bb4b3f1d61e9",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-publish12-draftid/approval-environment.json"
+    },
+    {
+      "file": "independent-publication.json",
+      "storageFile": "independent-publication.json.gz",
+      "encoding": "gzip",
+      "size": 3467,
+      "sha256": "2c69c1c3527e105bddc8da700428f7951c7081159790633de246a7f81fe5b490",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid.json"
+    },
+    {
+      "file": "public-download.json",
+      "storageFile": "public-download.json.gz",
+      "encoding": "gzip",
+      "size": 7079,
+      "sha256": "4c36e5346a8eaf9ef527a28ed258b99af4f9ff57ae0882a6026152a3a9d4c0fb",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-download/public-download.json"
+    },
+    {
+      "file": "public-byte-verification.json",
+      "storageFile": "public-byte-verification.json.gz",
+      "encoding": "gzip",
+      "size": 1409,
+      "sha256": "74e99ad1fcaa8adf743dd5835a5cc5f164757625fdcfe8148993563f5d8dd8d4",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-download/verified-public.json"
+    },
+    {
+      "file": "public-first-run.json",
+      "storageFile": "public-first-run.json.gz",
+      "encoding": "gzip",
+      "size": 824,
+      "sha256": "ffc24efd99e23aa9f82440cb2d583653c3e805dba3b062e15cec1a5ae3395164",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-first-run/public-first-run.json"
+    },
+    {
+      "file": "public-journey.json",
+      "storageFile": "public-journey.json.gz",
+      "encoding": "gzip",
+      "size": 122290,
+      "sha256": "4026b56a1a12b7916d27eee227eda0f5d54db8406c922a3fad637ed95485823d",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-first-run/first/first-journey.json"
+    },
+    {
+      "file": "public-normal-stop.json",
+      "storageFile": "public-normal-stop.json.gz",
+      "encoding": "gzip",
+      "size": 1235,
+      "sha256": "eaa8e6a55f4c8f90fb0cfe95e06a04d74ea7fd7b1c79695ea573c43ad3aa0486",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-first-run/first/result.json"
+    },
+    {
+      "file": "public-browser-owned.json",
+      "storageFile": "public-browser-owned.json.gz",
+      "encoding": "gzip",
+      "size": 1424,
+      "sha256": "3a15291f541a2c1779c5b93d015d4aa1d71f12cc135bd3745bf098474e677fb1",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/public-first-run/first/browser-first.result.json"
+    },
+    {
+      "file": "public-download-owned.json",
+      "storageFile": "public-download-owned.json.gz",
+      "encoding": "gzip",
+      "size": 1292,
+      "sha256": "df75adb641c4fb563a8e2d4e529e931171b31715b00d1763f7b206d8eaf83b77",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/owned/download.result.json"
+    },
+    {
+      "file": "public-first-run-owned.json",
+      "storageFile": "public-first-run-owned.json.gz",
+      "encoding": "gzip",
+      "size": 1405,
+      "sha256": "dd13c6f2e9679b7cb28073920864938391ec4f5d99f4cd8d395197c9857bc284",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-public12/owned/first-run.result.json"
+    },
+    {
+      "file": "completed-process-audit.json",
+      "storageFile": "completed-process-audit.json.gz",
+      "encoding": "gzip",
+      "size": 24029,
+      "sha256": "08921dd653840c7b26a11dc91bac5d7b373cd0cb9e7537e693c87f367befa737",
+      "originalPath": "artifacts/m47-p07-close-20261011/before-final-docs12-process-audit.json"
+    },
+    {
+      "file": "runtime-cleanup.json",
+      "storageFile": "runtime-cleanup.json.gz",
+      "encoding": "gzip",
+      "size": 491,
+      "sha256": "5731a70923076749d8addc14eccea17b04e281b1653bb6a20fd82fe4c2dbed3b",
+      "originalPath": "artifacts/m47-p07-close-20261011/public-runtime-cleanup12.json"
+    },
+    {
+      "file": "independent-completion.json",
+      "storageFile": "independent-completion.json.gz",
+      "encoding": "gzip",
+      "size": 3486,
+      "sha256": "a21a79b34ed2307d2da2cd8c7466000268e5f03c406aae5b38301cabae5c5afd",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-p08-completion12.json"
+    },
+    {
+      "file": "remote-release.json",
+      "storageFile": "remote-release.json.gz",
+      "encoding": "gzip",
+      "size": 16685,
+      "sha256": "41523d55d3f9441322c0cf194d01f408ee05c8dc4428fc4f65190a87b229a837",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/release.json"
+    },
+    {
+      "file": "remote-assets.json",
+      "storageFile": "remote-assets.json.gz",
+      "encoding": "gzip",
+      "size": 6898,
+      "sha256": "62c2640e7156b3ae60f096fca5541899953cb8bafb6cb2506c763b5a4736b606",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/assets.json"
+    },
+    {
+      "file": "remote-tag.json",
+      "storageFile": "remote-tag.json.gz",
+      "encoding": "gzip",
+      "size": 391,
+      "sha256": "0e20b1a7997677a0f7e1b3d8a57e29f2675299c47fff0f9f3d8707066c05f896",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/tag.json"
+    },
+    {
+      "file": "remote-latest.json",
+      "storageFile": "remote-latest.json.gz",
+      "encoding": "gzip",
+      "size": 96825,
+      "sha256": "0f883befaf6a9a1e3827d243fe3571dbebe716d269a66d2b67a7c241f7368602",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/latest.json"
+    },
+    {
+      "file": "remote-run.json",
+      "storageFile": "remote-run.json.gz",
+      "encoding": "gzip",
+      "size": 12183,
+      "sha256": "d4fc6ecde658d5af3a6292a40e66199830494a5c72af214176d903386a093fa2",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/run.json"
+    },
+    {
+      "file": "remote-environment.json",
+      "storageFile": "remote-environment.json.gz",
+      "encoding": "gzip",
+      "size": 1534,
+      "sha256": "87a7f8764672560dde9214b4d2bf16f17ffa52a3dc21f43287d5bb4b3f1d61e9",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-publication12-draftid-api/environment.json"
+    },
+    {
+      "file": "historical-observer.json",
+      "storageFile": "historical-observer.json.gz",
+      "encoding": "gzip",
+      "size": 32387,
+      "sha256": "926ed34315c5ab409bdfb5e3a99325a98cd4b609a8a701b2a34fa26e6c6e52b5",
+      "originalPath": "artifacts/m47-p07-close-20261011/historical-observer12.json"
+    }
+  ],
+  "boundary": "Published Windows x64 Web Admin plus matching NativeAOT R1 preview. Public-package real UI acceptance used synthetic data and explicit browser fault injection on this recorded host. One earlier auxiliary CI observer retains its original zero byte/ENOSPC terminal UNKNOWN; its recorded identities are currently absent or distinct. Studio/VS Code, clean machine, production and formal 4.5 release acceptance remain separate."
+}

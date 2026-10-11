@@ -1,0 +1,76 @@
+{
+  "baseline": "4ad6c47ddd327d6a66f7ecdb34b0f20ec59e41da",
+  "branch": "codex/roadmap-parallel-next-20261003",
+  "checkedAt": "2026-10-03T04:31:06.1565172Z",
+  "trial": true,
+  "scope": "M42 direct measurement KNN, document vector_search and JSON-file TVF cumulative materialization admission",
+  "newCases": {
+    "knn": 44,
+    "documentVector": 43,
+    "jsonFile": 46,
+    "sharedPreflight": 11,
+    "journey": 2,
+    "total": 146
+  },
+  "tests": [
+    {
+      "name": "targeted-final",
+      "total": 467,
+      "passed": 467,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "153B40B7EE0A3AFC3ACDC8AD24BA9BAA2CF905CB73E26DC7EBE491A7833E1EE8"
+    }
+  ],
+  "runs": [
+    {
+      "name": "aot-journey",
+      "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+      "exitCode": 0,
+      "reason": "exited",
+      "elapsedSeconds": 4.1586427,
+      "timeoutSeconds": 60,
+      "finalSnapshotAvailable": true,
+      "remainingCount": 0,
+      "rootCimIdentityCaptured": false,
+      "recordSha256": "1EB9008C75382F9442F9407401A09FB370D11351DE8619098124C8B9965F8E42"
+    }
+  ],
+  "aotBinary": {
+    "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261003\\aot\\SonnetDB.CdcStreamingJourney.exe",
+    "sha256": "AE9CED4478642B78585B62E2FED1851ACB167D6E222F26274699CA07C35B36C7",
+    "bytes": 29140992,
+    "localOnly": true
+  },
+  "resourceAudit": {
+    "recordedIdentities": 1,
+    "currentSnapshotAvailable": true,
+    "snapshotScope": "trial_current_launcher_only",
+    "matchingLiveRecordedIdentities": [],
+    "remainingCount": 0,
+    "shortCommands": "Commands which exited before CIM captured the root have launch/exit records, not full CIM ownership proof.",
+    "exclusiveMcpStarted": false,
+    "temporary": {
+      "task": "roadmap-parallel-next-20261003",
+      "path": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261003",
+      "ownershipMarker": "ownership.json",
+      "purpose": "NativeAOT local verification",
+      "status": "retained_policy_rejected",
+      "deletionExecuted": false,
+      "reason": "Automatic approval review rejected exec_command before launch: blocked by policy",
+      "attempt": "Validate ownership and exact file names, delete three known files individually, remove empty folders without recursive deletion",
+      "oldTemporaryPath": "D:\\source\\SonnetDB\\.codex-temp\\parallel-next-20261002",
+      "oldTemporaryStatus": "retained_untouched",
+      "bypassAttempted": false
+    },
+    "nativeTemporaryDirectoryExists": true,
+    "oldTemporaryDirectoryExists": true
+  },
+  "sourceManifest": [
+    {
+      "path": "samples/SonnetDB.CdcStreamingJourney/SqlBudgetJourney.cs",
+      "sha256": "D3FDDE798B46338A75E1715BC44C7413E9728B5CB65CFD53BC4DB6D12777293F"
+    }
+  ],
+  "boundary": "Local contracts and orderly reopen only. No remote parity, fixed hardware, whole-heap, real model quality, long-run or production evidence."
+}

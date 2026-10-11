@@ -4,6 +4,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Exceptions;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
@@ -132,6 +133,23 @@ public sealed class SonnetDbMeterTests : IDisposable
         public void RecordObservable() => _listener.RecordObservableInstruments();
 
         public void Dispose() => _listener.Dispose();
+    }
+
+    /// <summary>验证物理读活跃数能归零，过载按固定原因计数。</summary>
+    [Fact]
+    public void PhysicalReadBudget_RecordsActiveAndRejectedWithoutLeakingGauges()
+    {
+        using var collector = new MetricCollector();
+        using var budget = new KvDiskReadBudget(1, maxQueuedReads: 0);
+        using var request = budget.Acquire(CancellationToken.None);
+        using var maintenance = budget.Acquire(CancellationToken.None, maintenanceRead: true);
+        Assert.Equal(2, collector.LongSum("sonnetdb.kv.state.read.active"));
+        Assert.Throws<KvReadOverloadedException>(() => budget.Acquire(CancellationToken.None));
+        Assert.Equal(1, collector.LongSum("sonnetdb.kv.state.read.rejected"));
+        request.Dispose();
+        maintenance.Dispose();
+        Assert.Equal(0, collector.LongSum("sonnetdb.kv.state.read.active"));
+        Assert.Equal(0, collector.LongSum("sonnetdb.kv.state.read.queued"));
     }
 
     [Fact]

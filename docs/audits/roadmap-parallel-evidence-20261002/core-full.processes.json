@@ -1,0 +1,72 @@
+{
+  "Name": "core-full",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "test",
+    "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+    "-c",
+    "Release",
+    "--no-build",
+    "--no-restore",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "--logger",
+    "trx;LogFileName=core-full.trx",
+    "--results-directory",
+    "C:\\Temp\\sdbp-81bfff26\\results",
+    "--blame-hang-timeout",
+    "3m",
+    "--blame-hang-dump-type",
+    "mini",
+    "-m:1",
+    "-nodeReuse:false"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 438.4089435,
+  "Processes": [
+    {
+      "ProcessId": 12528,
+      "ParentProcessId": 74536,
+      "CreationDate": "2026-10-02T19:17:19.751038+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 42088,
+      "ParentProcessId": 62124,
+      "CreationDate": "2026-10-02T19:17:18.328673+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-build --no-restore --artifacts-path C:\\Temp\\sdbp-81bfff26\\a --logger trx;LogFileName=core-full.trx --results-directory C:\\Temp\\sdbp-81bfff26\\results --blame-hang-timeout 3m --blame-hang-dump-type mini -m:1 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 89616,
+      "ParentProcessId": 42912,
+      "CreationDate": "2026-10-02T19:17:20.178349+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 74536,
+      "ParentProcessId": 50648,
+      "CreationDate": "2026-10-02T19:17:19.73993+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.runtimeconfig.json\" --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.deps.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\datacollector.dll\" --port 59580 --parentprocessid 50648 "
+    },
+    {
+      "ProcessId": 50648,
+      "ParentProcessId": 42088,
+      "CreationDate": "2026-10-02T19:17:19.2894+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\vstest.console.dll\" --testAdapterPath:C:\\Users\\mysti\\.nuget\\packages\\coverlet.collector\\10.0.1\\build\\net10.0\\ --framework:\".NETCoreApp,Version=v10.0\" --logger:\"trx;LogFileName=core-full.trx\" --resultsDirectory:C:\\Temp\\sdbp-81bfff26\\results C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll --logger:Console;Verbosity=minimal --Blame:\"CollectHangDump;HangDumpType=mini;TestTimeout=3m\" --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:42088_0ca2fac2-309d-4fe6-9e10-1d2feced02c8"
+    },
+    {
+      "ProcessId": 42912,
+      "ParentProcessId": 50648,
+      "CreationDate": "2026-10-02T19:17:20.168299+08:00",
+      "CommandLine": "\"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\testhost.exe\"  --runtimeconfig \"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.runtimeconfig.json\" --depsfile \"C:\\Temp\\sdbp-81bfff26\\a\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.deps.json\" --port 64800 --endpoint 127.0.0.1:064800 --role client --parentprocessid 50648 --datacollectionport 64799 --telemetryoptedin false"
+    },
+    {
+      "ProcessId": 26844,
+      "ParentProcessId": 42088,
+      "CreationDate": "2026-10-02T19:17:18.337839+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

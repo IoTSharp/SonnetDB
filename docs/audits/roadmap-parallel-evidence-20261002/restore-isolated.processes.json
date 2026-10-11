@@ -1,0 +1,42 @@
+{
+  "Name": "restore-isolated",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 11.5755076,
+  "Processes": [
+    {
+      "ProcessId": 93148,
+      "ParentProcessId": 34136,
+      "CreationDate": "2026-10-02T18:55:19.041226+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 34136,
+      "ParentProcessId": 78200,
+      "CreationDate": "2026-10-02T18:55:19.033372+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 78200,
+      "ParentProcessId": 62428,
+      "CreationDate": "2026-10-02T18:55:18.446091+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx --artifacts-path C:\\Temp\\sdbp-81bfff26\\a -m:2 -nodeReuse:false"
+    },
+    {
+      "ProcessId": 26208,
+      "ParentProcessId": 78200,
+      "CreationDate": "2026-10-02T18:55:18.454597+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

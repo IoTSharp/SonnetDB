@@ -266,29 +266,45 @@ internal static class DocumentSqlExecutor
 
     internal static void ValidateMaterializationSupported(DocumentCollectionSchema schema, SelectStatement statement)
     {
-        if (statement.OrderByList.Count != 0 || statement.GroupBy.Count != 0
+        if (statement.OrderByList.Count > 1 || statement.GroupBy.Count != 0
             || statement.Having is not null || statement.Distinct || statement.IsRecursive
             || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
             || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0
             || statement.TableValuedFunction is not null || statement.GraphTable is not null)
         {
             throw new NotSupportedException(
-                "Document SQL 物化预算仅支持直接 raw SELECT、标量及 JSON 投影、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
+                "Document SQL 物化预算仅支持直接 raw SELECT、标量及 JSON 投影、WHERE、ORDER BY 和 LIMIT/OFFSET；聚合、窗口、JOIN、去重及嵌套查询尚不支持。");
         }
-        // 既有读取会先全量物化并删除过期文档；不能将该路径冒充为只读有界扫描。
-        if (schema.Indexes.Any(static index => index.IsTtl))
-            throw new NotSupportedException("Document SQL 物化预算尚不支持读取时全量回收的 TTL 集合。");
-
         ValidateAliasReferences(statement);
         foreach (SelectItem projection in statement.Projections)
             ValidateBudgetedScalar(projection.Expression, allowStar: true);
         ValidateBudgetedScalar(statement.Where);
         _ = BuildProjections(statement.Projections);
+        ValidateBudgetedOrderBy(statement);
         if (statement.Pagination is { } pagination)
         {
             _ = pagination.Offset;
             _ = pagination.Fetch;
         }
+    }
+
+    private static OrderBySpec? GetBudgetedOrderBy(SelectStatement statement)
+    {
+        IReadOnlyList<OrderBySpec> orderBy = statement.OrderByList;
+        return orderBy.Count == 0 ? null : orderBy[0];
+    }
+
+    private static void ValidateBudgetedOrderBy(SelectStatement statement)
+    {
+        OrderBySpec? orderBy = GetBudgetedOrderBy(statement);
+        if (orderBy is null)
+            return;
+
+        if (orderBy.Expression is not IdentifierExpression)
+            throw new NotSupportedException("Document SQL 物化预算的 ORDER BY 仅支持结果列名。");
+
+        Projection[] projections = BuildProjections(statement.Projections);
+        _ = ResolveOrderByColumn(projections.Select(static projection => projection.ColumnName).ToArray(), orderBy);
     }
 
     private static void ValidateBudgetedScalar(SqlExpression? expression, bool allowStar = false)
@@ -360,8 +376,11 @@ internal static class DocumentSqlExecutor
         Tsdb tsdb, SelectStatement statement, DocumentCollectionSchema schema)
     {
         long startedAt = Stopwatch.GetTimestamp();
+        long visibleAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        ThrowIfBudgetedCancelled(startedAt);
         Projection[] projections = BuildProjections(statement.Projections);
         string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
+        OrderBySpec? orderBy = GetBudgetedOrderBy(statement);
         var rows = new List<IReadOnlyList<object?>>();
         int? fetch = statement.Pagination?.Fetch;
         if (fetch == 0)
@@ -369,16 +388,17 @@ internal static class DocumentSqlExecutor
 
         int offset = statement.Pagination?.Offset ?? 0;
         int skipped = 0;
+        bool blockingSort = orderBy is not null;
         var store = tsdb.Documents.Open(schema.Name);
         var matchScores = new Dictionary<string, double>(StringComparer.Ordinal);
         SqlExecutionTelemetry.RecordAccessPath("document_budgeted_scan");
-        foreach (DocumentRow row in EnumerateBudgetedRows(store, statement.Where, startedAt))
+        foreach (DocumentRow row in EnumerateBudgetedRows(store, statement.Where, startedAt, visibleAtUnixMs))
         {
             ThrowIfBudgetedCancelled(startedAt);
-            SqlExecutionTelemetry.RecordCandidateAndExaminedRows(1);
+            SqlExecutionTelemetry.RecordExaminedRows(1);
             if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
-            if (skipped < offset)
+            if (!blockingSort && skipped < offset)
             {
                 skipped++;
                 continue;
@@ -394,21 +414,34 @@ internal static class DocumentSqlExecutor
             ThrowIfBudgetedCancelled(startedAt);
             SqlRowRetentionBudget.RetainForExecution(output);
             rows.Add(output);
-            if (fetch is { } limit && rows.Count >= limit)
+            if (!blockingSort && fetch is { } limit && rows.Count >= limit)
                 break;
         }
-        return new SelectExecutionResult(columns, rows);
+
+        var result = new SelectExecutionResult(columns, rows);
+        if (!blockingSort)
+            return result;
+
+        ThrowIfBudgetedCancelled(startedAt);
+        result = ApplyBudgetedOrderBy(result, orderBy, startedAt);
+        ThrowIfBudgetedCancelled(startedAt);
+        return ApplyPagination(result, statement.Pagination);
     }
 
     private static IEnumerable<DocumentRow> EnumerateBudgetedRows(
-        DocumentCollectionStore store, SqlExpression? where, long startedAt)
+        DocumentCollectionStore store, SqlExpression? where, long startedAt, long visibleAtUnixMs)
     {
         if (TryExtractId(where, out string id))
         {
             ThrowIfBudgetedCancelled(startedAt);
-            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId: null, id);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(
+                afterId: null, visibleAtUnixMs, out bool expired, id);
             if (page.Count != 0)
-                yield return page[0];
+            {
+                SqlExecutionTelemetry.RecordCandidateRows(1);
+                if (!expired)
+                    yield return page[0];
+            }
             yield break;
         }
 
@@ -417,12 +450,16 @@ internal static class DocumentSqlExecutor
         for (int read = 0; read < int.MaxValue; read++)
         {
             ThrowIfBudgetedCancelled(startedAt);
-            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(afterId);
+            IReadOnlyList<DocumentRow> page = store.ReadForSqlMaterialization(
+                afterId, visibleAtUnixMs, out bool expired);
             if (page.Count == 0)
                 yield break;
             DocumentRow row = page[0];
             afterId = row.Id;
-            yield return row;
+            SqlExecutionTelemetry.RecordCandidateRows(1);
+            // 过期行仍推进游标并计入读取统计，但不求值 WHERE、OFFSET 或投影。
+            if (!expired)
+                yield return row;
         }
         throw new InvalidOperationException("Document SQL 扫描候选文档数量超过 Int32 上限。");
     }
@@ -643,6 +680,24 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(statement);
+
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            ValidateMaterializationSupported(schema, statement);
+            // 默认 planner 的 Count/Get 会全量回收 TTL；预算解释不为估算启动扫描。
+            return new DocumentQueryPlan(
+                "document_budgeted_scan",
+                IndexName: null,
+                EstimatedCandidateRows: 0,
+                EstimatedOutputRows: 0,
+                FilterPushdown: false,
+                FilterPushdownFields: Array.Empty<string>(),
+                ResidualFilterFields: statement.Where is null ? Array.Empty<string>() : ["where"],
+                SortUsesIndex: false,
+                ProjectionCoveredByIndex: false,
+                Candidates: Array.Empty<DocumentQueryPlanCandidate>(),
+                GapReason: "materialization_budget_cardinality_unknown");
+        }
 
         var store = tsdb.Documents.Open(schema.Name);
         if (TryExtractMatch(schema, statement.Where, statement.Pagination) is { } match)
@@ -2139,26 +2194,42 @@ internal static class DocumentSqlExecutor
         if (orderBy is null)
             return result;
 
-        if (orderBy.Expression is not IdentifierExpression { Name: var name })
-            throw new InvalidOperationException("文档集合 ORDER BY 当前仅支持结果列名。");
-
-        int columnIndex = -1;
-        for (int i = 0; i < result.Columns.Count; i++)
-        {
-            if (string.Equals(result.Columns[i], name, StringComparison.Ordinal))
-            {
-                columnIndex = i;
-                break;
-            }
-        }
-
-        if (columnIndex < 0)
-            throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{name}'。");
+        int columnIndex = ResolveOrderByColumn(result.Columns, orderBy);
 
         var rows = orderBy.Direction == SortDirection.Descending
             ? result.Rows.OrderByDescending(row => row[columnIndex], ScalarComparer.Instance).ToArray()
             : result.Rows.OrderBy(row => row[columnIndex], ScalarComparer.Instance).ToArray();
         return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private static SelectExecutionResult ApplyBudgetedOrderBy(
+        SelectExecutionResult result,
+        OrderBySpec? orderBy,
+        long startedAt)
+    {
+        if (orderBy is null)
+            return result;
+
+        int columnIndex = ResolveOrderByColumn(result.Columns, orderBy);
+        var comparer = new BudgetedScalarComparer(startedAt, orderBy.Direction == SortDirection.Descending);
+        var rows = result.Rows.OrderBy(row => row[columnIndex], comparer).ToArray();
+        return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private static int ResolveOrderByColumn(
+        IReadOnlyList<string> columns,
+        OrderBySpec orderBy)
+    {
+        if (orderBy.Expression is not IdentifierExpression { Name: var name })
+            throw new InvalidOperationException("文档集合 ORDER BY 当前仅支持结果列名。");
+
+        for (int i = 0; i < columns.Count; i++)
+        {
+            if (string.Equals(columns[i], name, StringComparison.Ordinal))
+                return i;
+        }
+
+        throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{name}'。");
     }
 
     private static SelectExecutionResult ApplyPagination(SelectExecutionResult result, PaginationSpec? pagination)
@@ -2484,6 +2555,25 @@ internal static class DocumentSqlExecutor
             if (y is null)
                 return 1;
             return CompareScalar(x, y) ?? 0;
+        }
+    }
+
+    private sealed class BudgetedScalarComparer : IComparer<object?>
+    {
+        private readonly long _startedAt;
+        private readonly bool _descending;
+
+        public BudgetedScalarComparer(long startedAt, bool descending)
+        {
+            _startedAt = startedAt;
+            _descending = descending;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            ThrowIfBudgetedCancelled(_startedAt);
+            int result = ScalarComparer.Instance.Compare(x, y);
+            return _descending ? -result : result;
         }
     }
 }

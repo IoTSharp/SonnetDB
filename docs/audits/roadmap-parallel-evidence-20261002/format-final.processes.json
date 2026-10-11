@@ -1,0 +1,50 @@
+{
+  "Name": "format-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 199.3340025,
+  "Processes": [
+    {
+      "ProcessId": 18072,
+      "ParentProcessId": 71492,
+      "CreationDate": "2026-10-02T19:18:45.069727+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec --depsfile \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.deps.json\" --runtimeconfig \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.runtimeconfig.json\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools/dotnet-format/dotnet-format.dll\" SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 85216,
+      "ParentProcessId": 18072,
+      "CreationDate": "2026-10-02T19:18:46.602288+08:00",
+      "CommandLine": "\"dotnet.exe\" --roll-forward LatestMajor \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\DotnetTools\\dotnet-format\\BuildHost-netcore\\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll\" cf0ca6ff-d323-417f-bff1-8a7e58a2e5e0 zh-CN"
+    },
+    {
+      "ProcessId": 51508,
+      "ParentProcessId": 85216,
+      "CreationDate": "2026-10-02T19:18:46.611713+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 71492,
+      "ParentProcessId": 57884,
+      "CreationDate": "2026-10-02T19:18:44.801518+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/"
+    },
+    {
+      "ProcessId": 73640,
+      "ParentProcessId": 71492,
+      "CreationDate": "2026-10-02T19:18:44.811326+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

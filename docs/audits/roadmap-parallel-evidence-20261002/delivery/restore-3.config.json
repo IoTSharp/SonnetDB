@@ -1,0 +1,10 @@
+{
+  "TaskRoot": "C:\\Temp\\sdb-delivery-9bdceac1",
+  "Name": "restore-3",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx"
+  ],
+  "TimeoutSeconds": 300
+}
