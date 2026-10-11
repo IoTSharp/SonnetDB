@@ -73,3 +73,15 @@ Microsoft 2026官方再分发清单已取得，明确包含VC/redist中的未修
 ## 原草稿ID读取修复后的P07工具复验通过（2026-10-12）
 
 用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具67b263b431d0b23a565546a90bf74da00d4f22d7已通过94项合同、完整restore/原CI format并正常提交推送；真实prepare 38154883708/P07 38155021627均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11708600894/digest sha256:b6f21ea9e50eeefc5cb0cf2e53ed77d585302fe9823b0e463dff5b4402e0f136。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；原publish38151505875失败、409754336空草稿保持；恢复发行和公开首跑未完成。
+
+## M47-P07、M47-P08候选12实际收尾完成（2026-10-12，Asia/Shanghai）
+
+P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁、8/8验收全部通过。P08实际publish 38155325276 attempt1 success，工具8a24edab4a00f82c40912248fa37fdbe1de4bb3a、已审分发工具67b263b431d0b23a565546a90bf74da00d4f22d7；maikebing按用户允许自批的明确决定实际批准原环境24006677696，无管理员绕过。沿原tag/Release409754336完成精确四附件公开，Release 409754336/tag workbench-preview-1.12/published 2026-10-11T16:27:58Z，[下载页面](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)；tag不可变指向5bcd3b811f2dae5005fc28fd70f6ff934e454c7a。原notes/manifest/ZIP及四附件SHA与冻结distribution完全一致，preview/prerelease且未成为latest。
+
+独立核三份发布Actions archive size/digest、两个发布前实时完整P07/原verifier、原Release/四asset ID/digest、tag/notes/latest/审批环境全部通过；真实匿名HTTP页面、四附件、三行checksum/290项ZIP库存及NativeAOT/Web身份通过。匿名公开下载包Chrome/Edge本机首跑26条全部PASS，真实UI登录/权限、预算导出/单行审批与明确故障注入分列，正常Ctrl+C/Server退出0、Job清理通过。172回执/1573身份独立核零活精确身份/零5080或5081监听；任务包副本、合成数据和浏览器profiles已回收，原四下载物、回执、导出及全部旧失败保留。
+
+这是冻结Windows x64 Web Admin+匹配NativeAOT R1预览的公开交付；Studio/VS Code、干净机器、其它宿主、生产与SonnetDB4.5正式版不由本结果推断。243依赖许可输入与Community用户资格沿冻结记录，不是Microsoft资格认证。新[P08机器记录](preview-1-p08-12.json)及[无损原文库存](preview-1-p08-12-originals/inventory.json)绑定实际ID/SHA；原候选10/11、旧禁止自批评审/用户覆盖决定、EOF/空行失败和所有FAIL/UNKNOWN保持。
+
+本次收尾docs及HANDOFF自有增量将在最终完整restore/原CI format/default cached whitespace通过后精确提交并正常推codex/m47-preview12-release；最终SHA/tree及独立远端回读以delivery.json为准。冻结source/main/parity-results与外来dirty保持，workbench PAUSED；没有新的工作树/智能体、跨聊天、生产部署或服务安装。P07/P08范围已完成。
+
+早期辅助CI observer watch-ci12-b曾因ENOSPC留下0字节terminal，原状态/当时回收仍UNKNOWN。初次严格审计因此拒绝，未补写旧PASS；新独立审计逐原六文件SHA限定该历史例外，核原root/controller及非空ledger当前身份已不存在或不同创建/命令/父链，同时核全部完整回执及公开首跑零残留。此观察不补授该旧任务成功或未记录子进程证明；无损历史原文与初次拒绝纳入P08库存。

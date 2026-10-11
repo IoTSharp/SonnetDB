@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
 - M47-P07 候选12真实放行完成：原十二同源workflow及八项验收全部通过，prepare/P07原artifact和三归档digest、18原文、10+5工具库存独立核验；P08四附件及精确请求已冻结，按用户决定允许maikebing发起并实际审批，变更工具真实prepare/P07复验12/12、8/8通过，未公开发布/匿名首跑。

@@ -1,6 +1,6 @@
 # ROADMAP — SonnetDB 4.5
 
-更新日期：2026-10-11（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12已通过 P07 放行门禁；P08实际发布、匿名下载和公开包首跑仍待完成。
+更新日期：2026-10-12（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
 
 根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
 
@@ -14,8 +14,8 @@
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | **候选12 P04通过**：4.5.0-preview.1.12/source5bcd3b81、38145580702 attempt1 success，290项库存/hash/NativeAOT身份独立通过；旧失败保留。 |
 | 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | **候选12本机R1实物通过**：四阶段37记录、五类拒绝、快照恢复/导出和17回执244身份非空审计通过；[冻结记录](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)。 |
 | 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | **候选12真实四附件prepare通过**：独立原archive digest、附件/ZIP核验PASS；[分发冻结](docs/design/m47-unified-management-workbench/preview-1-distribution-12.json)保持原P04包字节。 |
-| 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | **P07 READY，12/12原门禁、8/8验收通过**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，真实prepare/P07与独立原artifact/hash核验通过；P08新工具P07通过，待实际发布。 |
-| 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | **精确发布请求已准备；新工具P07复验通过，待实际发布**：[P08请求](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing必审并允许自批、管理员不可绕过，公开发行/匿名下载/首跑NOT_RUN。 |
+| 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | **✅ 完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 |
+| 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | **✅ 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 |
 
 具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。P01候选01来源固定为 `c40fa670e3a170c5fac8cefa181d618631862270`，保留版本 `4.5.0-preview.1.1`；仅为已提交实现起点，未构建/验收/打标签。后续代码、配置或打包变更须新增候选与版本，不覆盖该清单、不用 dirty 工作树发包。首版限定 win-x64 同源环回 Web＋Server；旧 `workbench` 定时保持 `PAUSED`。 后继候选02已绑定修复提交 `ed4f48242c5d5b4e7e16861504d03cc845146402` 与保留版本 4.5.0-preview.1.2；本地验收通过，未打包/推送/发布，P07须重核最终候选的全部门禁。
 
@@ -77,7 +77,7 @@
 | **44** | **AI 应用与可治理推理** | **📋** | 预测/异常、证据 RAG、模型治理、可恢复推理任务与真实效果门禁。 |
 | **45** | **聚合与持续计算深化** | **🚧** | 扩展分组支持矩阵，补通用state、更新删除修正、增量物化/rollup与批流等价。 |
 | **46** | **存储编码与执行成本优化** | **📋** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
-| **47** | **统一数据库管理工作台与三面发布** | **🚧 / Preview 1未放行** | 先按P01～P08收口Web预览，再补Studio/VS Code；正式版共享合同、九模型完整权限/预算/恢复、AI/MCP与逐页矩阵继续验收。已完成切片见CHANGELOG。 |
+| **47** | **统一数据库管理工作台与三面发布** | **🚧 / Web Preview 1已发布** | P01～P08 Web预览已收尾，再补Studio/VS Code；正式版共享合同、九模型完整权限/预算/恢复、AI/MCP与逐页矩阵继续验收。已完成切片见CHANGELOG。 |
 
 M22 保持上层应用候选；样例验证通用合同，行业规则不直接内置引擎。M0~M13、M15~M18、M21、M23/M24/M26/M28/M30~M34/M37/M38 及其它完成代码范围只在 CHANGELOG 追溯。
 
@@ -182,8 +182,8 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 | **M47-P04 / P0** | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
 | **M47-P05 / P0** | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
 | **M47-P06 / P0** | **本地说明/四附件/限定手动分发合同完成**：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
-| **M47-P07 / P0** | **P07 READY，12/12原门禁、8/8验收通过**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，真实prepare/P07与独立原artifact/hash核验通过；P08新工具P07通过，待实际发布。 | 原十二完整同源码门禁与八项验收通过；旧candidate10/11未放行记录保持；只适用于冻结R1预览。 |
-| **M47-P08 / 发布** | **精确发布请求已准备；新工具P07复验通过，待实际发布**：[P08请求](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing必审并允许自批、管理员不可绕过，公开发行/匿名下载/首跑NOT_RUN。 | maikebing发起并实际环境审批、一次发布、匿名四附件/ZIP及真实首跑全部通过才完成。 |
+| **M47-P07 / P0** | **✅ 完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 | 原完整同source门禁和验收已通过，公开交付见P08。 |
+| **M47-P08 / 发布** | **✅ 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 | 预览、源码、四附件及原审批/回读/首跑无损证据全部归档，M47三面正式验收继续。 |
 
 现有发布验证读取 [release-readiness policy](eng/release-readiness-policy.ps1)：Workbench 五个 job 及要求的 artifact，CI/Format/AOT、适用 CodeQL、Parity light/full、soak/容量合同和发布/连接器等检查按原 policy 执行。排除首版 Studio 或 VS Code 下载物，不等于可以跳过其既有基础 CI job。七天 scheduled Parity 保持独立非阻断观察，不将其误设为首个 Web 预览必须等待七天，也不把缩规模验证当固定硬件/生产证据。
 
