@@ -1875,3 +1875,11 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 本次收尾docs及HANDOFF自有增量将在最终完整restore/原CI format/default cached whitespace通过后精确提交并正常推codex/m47-preview12-release；最终SHA/tree及独立远端回读以delivery.json为准。冻结source/main/parity-results与外来dirty保持，workbench PAUSED；没有新的工作树/智能体、跨聊天、生产部署或服务安装。P07/P08范围已完成。
 
 早期辅助CI observer watch-ci12-b曾因ENOSPC留下0字节terminal，原状态/当时回收仍UNKNOWN。初次严格审计因此拒绝，未补写旧PASS；新独立审计逐原六文件SHA限定该历史例外，核原root/controller及非空ledger当前身份已不存在或不同创建/命令/父链，同时核全部完整回执及公开首跑零残留。此观察不补授该旧任务成功或未记录子进程证明；无损历史原文与初次拒绝纳入P08库存。
+
+## M47-P07/P08 收尾提交与主分支集成（2026-10-12，Asia/Shanghai）
+
+用户在完成预览发布后明确要求提交推送，并追加要求合并到主分支。接续 codex/m47-preview12-release 的 a6ac8a8e0626ec6cd15d11d0fe9f2dd48444ed82；实时 ls-remote 已核 release 分支相同，main 为 d2027ba73e82edfc72f94c6744e068e9b0f09e63，且是本次收尾的祖先，可以普通快进合入。P07/P08 的源码、公开发布与验收证据沿此前完成记录；本轮只追加此交接，准确提交、最终 restore/原 CI format、main 推送和独立回读以 artifacts/m47-p07-close-20261011/merge-main-20261012-delivery.json 及 checks/merge-main-* 的真实收据为准。
+
+仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
+
+固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
