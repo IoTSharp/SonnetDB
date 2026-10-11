@@ -1687,3 +1687,28 @@ P04收据数量纠正：上段“12项/12CI”是文档统计笔误；实际CI e
 继任候选10/4.5.0-preview.1.10新增编号一致性、AOT source-generated身份读取/端点、Web挂载前5秒/4096字节身份核验与每Preview请求同版本/SHA约束；Server build为0警告/0错误、Web类型与24组包合同通过，只是本地证据，新SHA干净CI及最终实际包P05尚待后继收据。独占隐藏控制台Ctrl+C停止与Job清理分开取证，禁止把强制终止称正常关闭。
 
 共享文档HEAD+owned暂存，HANDOFF独占追加/fsync并核原字节前缀；博客/M42/WB97/WB98及三VSCode外来改动与parity-results保留。最终提交前全restore/原CI Format/cached whitespace须通过。R1七模型延期、NOT_READY、原P02事故/旧cleanup=false/UNKNOWN及Workbench/WB98 PAUSED保持。P06～P08未执行，无tag/公开Release/安装服务/部署生产/恢复自动化/重启编辑器/跨聊天外发或子智能体。
+
+
+## M47-P05本轮范围纠正与停止（2026-10-11，Asia/Shanghai）
+
+本轮可见用户消息仅提供AGENTS.md和环境，没有明确要求执行P05。智能体误把上轮交接的下一项当成本轮任务；前段“本轮授权P05实际包本机验收、必要修复、新候选重包及owned提交正常推送”是错误的授权描述，不能作为后续操作授权。已实际提交并正常推送54eefc816f133a805b0d38f0cbe930d2c17650b6，远端main独立回读一致；启动候选10/4.5.0-preview.1.10 CI38104431383 attempt1。用户现已收到范围纠正与澄清问题；在明确答复前停止新增产品写入、部署、P05实际候选10旅程及后续提交/推送。
+
+已取得的证据如实保留：候选09首次设置/管理员UI登录/About与Chrome R1读取/导出/审批/撤权/unknown/断连路径局部PASS，真实旧请求头返回200而预期428，故仍FAIL；旧candidate08元数据未覆盖。执行器原Response.status错误、隐藏控制台cleanup=false及其后通过的独占Ctrl+C最小试验都保留，不改旧结论。源码Server build 0警告/0错误、Web类型、24组包合同、17 Preview合同与最终完整restore/原CI format/staged whitespace通过。通过这些检查不证明候选10实物P05完成。
+
+证据artifacts/m47-p05-20261011。原三VSCode脚本hash、既有HANDOFF字节前缀和外来博客/M42/WB97/WB98 dirty保持；parity-results远端仍0e48b753da7eab8ebd9651d405ddb58e3bef01c8。产品NOT_READY、R1七模型专用读取延期、原事故/FAIL/UNKNOWN/cleanup=false保留，Workbench/WB98自动化未恢复。没有公开tag/Release、安装服务、生产部署、重启编辑器、跨聊天外发或子智能体。
+
+本段只纠正交接事实，不纳入提交，因为本轮没有P05提交/推送授权。下一会话必须先读取用户对具体任务的答复；不得把这里的下一步再当作授权。候选10CI只读回读可保留；不得重复dispatch或复用不同字节资产的版本。未删除/回滚已经推送的提交，也不移动保护分支。
+
+## M47-P05用户明确接续与候选10实物验收完成（2026-10-11，Asia/Shanghai）
+
+用户对具体澄清问题直接回复“继续完成 P05”；本次按该明确授权继续实际包验收、必要工具修正、owned提交和正常推送。上段范围纠正与所有历史失败保持，不回写为曾获授权。
+
+实读candidate10/4.5.0-preview.1.10/run38104431383 attempt1整体success，来源54eefc816f133a805b0d38f0cbe930d2c17650b6/tree0083fd496dbdac25019aee058651c821dac0c336；11CI命令全部PASS/cleanupComplete=true，实际NativeAOT283.47秒/28身份/0IL-AOT告警。三资产在artifacts/m47-p05-20261011/delivery-10；ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed，279entry/hash、NativePE/ProductVersion、编译Web身份与VerifyOnly独立PASS。候选09旧包/旧metadata/200错配失败不覆盖。
+
+suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保留，不称正常停止。仅journey验收工具改为等实际INSERT HTTP200/完整NDJSON affected1再独立回读；包字节不变。新suite-10-b总95.93秒PASS，Windows11家庭中文版x64/build26300、Chrome150.0.7871.115、Edge155.0.4283.45；first26/reopen5/rollback4/legacy2项及五类启动拒绝通过。真实UI密码登录/About、授权SQL/关系/measurement、1000行截断/导出、单行审批/取消、Read403、撤权/token/offline清载荷、unknown仅1次真实提交不重放、迟到读丢弃、实际428与旧原生Server拒登录分别取证。原API夹具/合成数据/三类故障注入分列，不能冒称生产业务或Server扫描停止。
+
+四次原生Server实际Ctrl+C退出0且正常stop后Job空/0强制身份；61文件快照逐SHA复制与同候选恢复通过，原审批行仍在/快照后行不存在，旧Server只用全新legacy数据，不开candidate10数据。独立audit核20Job收据/268记录身份、0live/0监听/0signal，两真实JSON下载各1000行/22835bytes；ACL finally恢复原捕获对象，独立无Deny/写探针通过，但原SDDL未持久记录不宣称逐字比较。仅marker归属且绝对路径核验的临时包/合成数据/快照/profile回收；原资产/日志/截图/导出/FAIL等收据保留。
+
+不可变preview-1-candidate-10.json和P05报告已冻结实际包/CI/工具/hash/用户旅程及限界。P05仅本机解压包R1完成、NOT_READY；七模型延期/原事故/cleanup=false/UNKNOWN不变，无干净Windows安装/崩溃恢复/任意升级降级/生产验证。下一顺序P06说明/限制/反馈/升级回退及四附件分发，P07同候选原发布门禁/许可条款，P08另获明确授权后公开发布。workbench自动化实读仍PAUSED；无tag/公开Release/生产部署/安装服务/重启编辑器/跨聊天外发或子智能体。
+
+共享ROADMAP保留working-tree外来五列状态，index只取HEAD四列加owned进展；CHANGELOG/queue同样HEAD加owned，HANDOFF独占追加/fsync核原前缀，范围纠正与本段纳入owned交接。三VSCode脚本hash、博客/M42/WB97/WB98外来dirty与parity-results保留。最终树提交前须再次完整restore/原CI同级Format/cached whitespace并通过；随后正常push并独立核remote main与parity-results，最终SHA与回执见Git/本片checks，不把计划写成门禁已通过。

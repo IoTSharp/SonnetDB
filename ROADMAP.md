@@ -1,6 +1,6 @@
 # ROADMAP — SonnetDB 4.5
 
-更新日期：2026-10-10（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，当前发布状态为 `NOT_READY`。
+更新日期：2026-10-11（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，当前发布状态为 `NOT_READY`。
 
 根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
 
@@ -12,7 +12,7 @@
 | 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
 | 3 | M47-P03 | 首版真实登录、授权、预算和终态 | **R1本地完成；完整模式四片307通过/25原skip**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；KV/measurement视口渲染与完整/选中导出回归通过；[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**。[P04报告](docs/design/m47-unified-management-workbench/preview-1-p04-packaging.md)。[候选09](docs/design/m47-unified-management-workbench/preview-1-candidate-09.json)/4.5.0-preview.1.9；NOT_READY。 |
-| 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | 实物验收进行中：候选09发现candidate字段错配及缺运行时身份核验；[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)，候选10新SHA重包后重验，NOT_READY。 |
+| 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | **本机R1实物验收完成**：[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)、[候选10](docs/design/m47-unified-management-workbench/preview-1-candidate-10.json)/4.5.0-preview.1.10；Chrome/Edge、正常重开/同候选回退/错配拒绝通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | P01～P05；📋。文档描述实际发行范围；如需限定发布资产，补独立可审查的分发切片。 |
 | 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | P02～P06；📋。保存真实 workflow/job/step/artifact 结果，不降低原 gate。 |
 | 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | P07 全部必选通过且取得实际发布授权；⏳。上传、公开可下载与运行验收分别记。 |

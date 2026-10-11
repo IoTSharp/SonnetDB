@@ -1,4 +1,4 @@
-# Workbench Preview 1 当前执行入口（2026-10-10）
+# Workbench Preview 1 当前执行入口（2026-10-11）
 
 **当前唯一执行路线是根 [ROADMAP：Workbench Preview 1](../../../ROADMAP.md#workbench-preview-1)。** 已完成切片和原路线状态表见 [CHANGELOG归档](../../../CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；本文件下方WB记录保留为原始历史证据，不继续按旧“下一片”或任务次数派单。
 
@@ -9,8 +9,8 @@
 | 1 | M47-P01 | **范围冻结完成，产品NOT_READY**：[范围/控制](preview-1-scope.md)、[候选01清单](preview-1-candidate-01.json)、[独立分发](preview-1-distribution.md)。来源c40fa670完整SHA与保留版本4.5.0-preview.1.1绑定，入口控制/组包/上传器尚未实现。 |
 | 2 | M47-P02 | **本地完成**：[修复与验证](preview-1-p02-smoke.md)、[候选02](preview-1-candidate-02.json)，来源 `ed4f48242c5d5b4e7e16861504d03cc845146402` / 4.5.0-preview.1.2；307fixture、12宿主、448合同和build通过，25默认skip分列。远端门禁NOT_RUN，原失败/安全事件保留。 |
 | 3 | M47-P03 | **R1本地完成；完整模式四片307通过/25原skip**：[入口/验证报告](preview-1-p03-controls.md)、[范围修订](preview-1-p03-scope-revision.md)。开放SQL/关系/时序子集，七模型专用读取延期；KV/measurement视口渲染、末尾行选择和导出回归通过；[候选04](preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
-| 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；P05～P08未执行，NOT_READY。 |
-| 5 | M47-P05 | 实物验收进行中：[候选09错配修复与P05报告](preview-1-p05-installed-journey.md)；候选10新SHA干净重包后重验，NOT_READY。 |
+| 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；候选10的P05结果见下一项，P06～P08待验，NOT_READY。 |
+| 5 | M47-P05 | **本机R1实物验收完成**：[报告](preview-1-p05-installed-journey.md)、[候选10](preview-1-candidate-10.json)/4.5.0-preview.1.10，源码54eefc81/CI38104431383；实际Chrome/Edge、导出/审批/撤权/错配/正常重开/隔离快照回退通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | P01～P05后：预览说明、限制/反馈/回退和必要的限定资产分发切片。 |
 | 7 | M47-P07 | P02～P06后：同候选完整提交/CI/发行物/真实旅程门禁放行，不降低现有policy。 |
 | 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |

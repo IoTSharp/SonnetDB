@@ -190,7 +190,15 @@ try {
       assert.ok(!(await sql(`SELECT * FROM "DeviceID_Main" WHERE "DeviceID" = ${2002 + suffix}`)).includes(`P05-cancelled-${browser}`));
       const baseline = traffic.length;
       await stage(2001 + suffix, `P05-approved-${browser}`);
+      const submitted = page.waitForResponse(response => {
+        const request = response.request();
+        return new URL(response.url()).pathname === `/v1/db/${db}/sql`
+          && request.method() === 'POST' && /INSERT/u.test(request.postData() ?? '');
+      }, { timeout: 15_000 });
       await page.getByRole('button', { name: /确认执行 1 项操作/u }).click();
+      const response = await submitted;
+      assert.equal(response.status(), 200);
+      assert.ok((await response.text()).includes('"recordsAffected":1'));
       await expect(page.getByRole('dialog')).toHaveCount(0);
       assert.ok((await sql(`SELECT * FROM "DeviceID_Main" WHERE "DeviceID" = ${2001 + suffix}`)).includes(`P05-approved-${browser}`));
       return { cancelledRowAbsent: true, confirmedRowsAffected: 1, requestEvents: traffic.length - baseline };
