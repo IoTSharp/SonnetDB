@@ -1921,3 +1921,10 @@ PR #213 原失败是 readiness 观察没有发出取消；测试 harness 为同�
 早期阶段拒绝来自 ConvertFrom-Json 自动解析 ISO 日期后又经本地文本/DateTime.Parse 导致 UTC 偏移 8 小时；原拒绝与 windows-ci-deadline-correction.json 保留。日期现用 -DateKind String 与 DateTimeOffset 比较，实际没有发生阶段超时。每个命令最多 600 秒，验证 20 分钟、实现 30 分钟、单 dotnet 根/2CPU、禁共享编译和节点重用、取消文件与 Job finally 回收约束保持；未安装工具、使用 Graphify、按进程名终止或回收共享文件。
 
 下一步主会话先独立核六路径哈希、非空 TRX 与精确进程身份，再在最终待提交树执行完整 restore 和原 CI Format Check，精确暂存六路径后提交/普通推送独立稳定性 PR；实际远端 Windows/Linux CI 通过后才继续刷新依赖 PR。保留全部旧 FAIL/UNKNOWN，不把本次测试局部通过写为整体 CI 修复完成。
+
+## Windows CI 新 head 物理过载 HTTP 预算修正（2026-10-12，Asia/Shanghai）
+
+PR #268 新 head 0a07216e2cf1e040b7f47763b8621aeb974174a3 的真实 Windows CI 38170049113 失败于 PhysicalReadOverloadTests 的 5 秒 HttpClient.Timeout，未取得 HTTP 响应；此前三项稳定性修复不作为这个新失败已解决的证据。原日志及失败保持。本测试仅验证实际请求管线把 KvReadOverloadedException 映射为 503、Retry-After=1秒和两个稳定错误码，没有生产响应时延合同；只把该测试 client 的有界请求预算改为15秒，全部错误映射断言、15秒启动/关闭边界及真实Kestrel保持，不改Server或默认生产超时。本次需实际定向TRX、最终完整restore/原CI Format Check通过后提交推回独立PR #277；此处尚未取得验证或新CI结果。
+
+#214 已实时回读 MERGED/a299a3fcc42de494145be74a8ee451aedeec4249；SkiaSharp 配对提交2d3342935e69e2421136b8ce236a2cae512894a8已推#215，Windows native64/64及最终restore/format通过，Linux/AOT新CI待核。#220 b1344188已PR #278，123/19实际回归；#273 c2b5c030已刷新main并推PR #276，12实际回归及最终两轮完整门禁通过。独立PR #274/#275旧headCI已全通过但HANDOFF追加与新main冲突，需准确刷新和新head验证；不能绕过冲突或把旧headCI赋给新提交。#221/#270/前端#217正在隔离实现，#270原18FAIL与必要Core LIKE修正保持，正式NuGet/消费者验收未完成。canonical同方法134项status/共享文档diffSHA完全相同、index空，parity/冻结发布与PAUSED自动化保持。
+同轮读取 PR #265 新 head 74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 的真实 Windows CI38170203167，失败发生在 dispatcher 测试的 OpenAsync/100ms 建立持久订阅阶段，尚未进入锁故障确认。Options 是持久化合同，不能给首次打开临时设置另一组预算。仅该测试的 false 分支存储预算改为2000ms、dispatcher总预算10秒，true分支原5000ms存储/300msdispatcher保持；两个分支共用15秒调用者取消，WaitAsync使用该令牌，额外断言调用者未取消，避免把外层WaitAsync TimeoutException误认为生产存储超时。稳定DeliveryId/Checkpoint=-1/重开后同批次/PendingCount=1的真实故障和恢复断言保持。生产配置不改、未增加重试/跳过；原FAIL保留，需实际完整dispatcher类回归及最终树重跑完整restore/原format后才追加提交到PR #277。先前物理HTTP定向1/1与restore已通过，它们不替代此新增代码后的完整门禁。

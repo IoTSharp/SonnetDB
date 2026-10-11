@@ -463,6 +463,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- Windows CI：持久订阅确认故障用例为初始存储提供合理有界预算，独立区分真实存储超时、dispatcher总预算和调用者取消，保留持久批次恢复断言。
+- Windows CI：物理读取过载 HTTP 映射用例为冷启动共享主机提供 15 秒有界请求预算，保留真实 503、Retry-After 和错误码断言；不改变服务端过载或生产超时配置。
 - **Windows CI 时间与并发断言（2026-10-12）**：缓存端到端用例核对后台/手动清理竞争后的物理过期项，独立精确删除计数用例关闭后台维护；进程取消用例用专用线程和有界 readiness 观测保留原执行/整树回收断言，空流窗口用例保留真正的操作超时与超时后恢复验证。仅调整测试，不修改生产逻辑。
 - M47-P07 分发/P07调用层改读真实Job收据的status/exitCode/cleanupComplete，拒绝失败和未清理；修正新PowerShell进程未设置或残留LASTEXITCODE导致实际prepare完成却误报失败，6项真实进程包装合同通过（仅合成controller）。
 - **M47-P03 KV及时序预览渲染收尾（2026-10-10）**：KV及时序点表/监控结果表使用虚拟滚动，避免500～1000行同时挂载导致原30秒旅程或5秒点击超时；保留全部已加载数据及KV1000/measurement500条上限、cursor截断、原值导出与权限合同，验证末尾行选择和筛选后的选中导出。P03按[R1本地验收](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)完成；七模型专用读取仍延期，发行/实物/远端门禁与NOT_READY保持。
