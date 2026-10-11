@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
