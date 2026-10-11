@@ -1678,3 +1678,12 @@ P03代码已本地提交 faa03a018c77afff4ffe3db5cac50a5a78e874cf；不可变pre
 
 
 P04收据数量纠正：上段“12项/12CI”是文档统计笔误；实际CI evidence为11项命令回执，均PASS/cleanupComplete=true，候选09机器记录的11项列表一直正确，P04报告已改为11项。真实publish/ZIP/hash/导入及P05～P08边界不变。四个CRT实际FileVersion/ProductVersion均14.51.36247.0，登记redist版本14.51.36231分别记录，不混用。
+
+
+## M47-P05候选09实物缺口与候选10源码（2026-10-11，Asia/Shanghai）
+
+本轮授权P05实际包本机验收、必要修复、新候选重包及owned提交正常推送。候选09三资产/279库存/hash独立回读保持，解压Start-Preview -VerifyOnly通过；首次setup与管理员用户名密码登录UI实测通过。包内candidate却为candidate-08，启动器未核此字段，且Web无运行中Server身份核验；原包及原P04证据不覆盖。第一轮本片工具在fixture API使用错误Response.status调用，原FAIL与cleanupComplete=true保留，不冒称产品故障或完整旅程。
+
+继任候选10/4.5.0-preview.1.10新增编号一致性、AOT source-generated身份读取/端点、Web挂载前5秒/4096字节身份核验与每Preview请求同版本/SHA约束；Server build为0警告/0错误、Web类型与24组包合同通过，只是本地证据，新SHA干净CI及最终实际包P05尚待后继收据。独占隐藏控制台Ctrl+C停止与Job清理分开取证，禁止把强制终止称正常关闭。
+
+共享文档HEAD+owned暂存，HANDOFF独占追加/fsync并核原字节前缀；博客/M42/WB97/WB98及三VSCode外来改动与parity-results保留。最终提交前全restore/原CI Format/cached whitespace须通过。R1七模型延期、NOT_READY、原P02事故/旧cleanup=false/UNKNOWN及Workbench/WB98 PAUSED保持。P06～P08未执行，无tag/公开Release/安装服务/部署生产/恢复自动化/重启编辑器/跨聊天外发或子智能体。

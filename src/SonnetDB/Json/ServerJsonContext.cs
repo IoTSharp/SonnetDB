@@ -22,6 +22,7 @@ namespace SonnetDB.Json;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false)]
 [JsonSerializable(typeof(SqlRequest))]
+[JsonSerializable(typeof(WorkbenchPreviewIdentity))]
 [JsonSerializable(typeof(RagManagementRequest))]
 [JsonSerializable(typeof(RagManagementProfile))]
 [JsonSerializable(typeof(RagManagementProfiles))]

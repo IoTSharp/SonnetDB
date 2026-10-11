@@ -17,7 +17,7 @@ function removeOwned(root) {
 }
 test('R1 profile accepts only its new version and keeps seven model deferrals', () => {
   validateProfile(profile, profile.version);
-  for (const mutation of [p => p.version = '4.5.0-preview.1.4', p => p.profile = 'full', p => p.rid = 'linux-x64',
+  for (const mutation of [p => p.candidate = 'candidate-09', p => p.version = '4.5.0-preview.1.4', p => p.profile = 'full', p => p.rid = 'linux-x64',
     p => p.deferredModels.pop(), p => p.releaseStatus = 'READY', p => p.budgets.timeoutMilliseconds = 30001,
     p => p.targets.requiredOperatingSystems.push('Windows 10'), p => p.targets.compatibility = 'ANY_SERVER',
     p => p.actions.find(a => a.status.startsWith('DEFERRED')).allow.push('read')]) {

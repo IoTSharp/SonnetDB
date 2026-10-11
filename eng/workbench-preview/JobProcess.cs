@@ -40,6 +40,12 @@ public sealed class JobProcess : IDisposable
     [DllImport("kernel32.dll", SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle,uint milliseconds);
     [DllImport("kernel32.dll", SetLastError=true)] static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", SetLastError=true)] static extern bool AttachConsole(uint pid);
+    [DllImport("kernel32.dll", SetLastError=true)] static extern bool FreeConsole();
+    [DllImport("kernel32.dll", SetLastError=true)] static extern bool SetConsoleCtrlHandler(IntPtr handler,bool add);
+    [DllImport("kernel32.dll", SetLastError=true)] static extern bool GenerateConsoleCtrlEvent(uint type,uint group);
+    [DllImport("kernel32.dll", SetLastError=true)] static extern uint GetConsoleProcessList([Out] uint[] processes,uint count);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentProcessId();
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern IntPtr CreateFileW(string path,uint access,uint share,ref SA attributes,uint creation,uint flags,IntPtr template);
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessW(string app,StringBuilder command,IntPtr pa,IntPtr ta,bool inherit,uint flags,IntPtr env,string cwd,ref SIX startup,out PI info);
     [DllImport("kernel32.dll", SetLastError=true)] static extern bool InitializeProcThreadAttributeList(IntPtr list,int count,int flags,ref IntPtr size);
@@ -59,6 +65,7 @@ public sealed class JobProcess : IDisposable
         public IntPtr handle;
     }
     IntPtr job,root,thread;
+    readonly bool privateConsole;
     readonly Dictionary<uint,Identity> identities = new();
     readonly Dictionary<uint,string> deferred = new();
     /// <summary>进程退出期间暂不可读取身份的观察次数。</summary>
@@ -85,7 +92,8 @@ public sealed class JobProcess : IDisposable
         return result.Append('\\',slashes*2).Append('"').ToString();
     }
     /// <summary>创建挂起根，先加入当前 Job，调用 Start 后才允许执行。</summary>
-    public JobProcess(string exe,string[] args,string cwd,string stdout,string stderr) {
+    public JobProcess(string exe,string[] args,string cwd,string stdout,string stderr,bool privateConsole=false) {
+        this.privateConsole=privateConsole;
         IntPtr attributes=IntPtr.Zero,handleArray=IntPtr.Zero;
         var files=new List<IntPtr>(); bool initialized=false,assigned=false;
         try {
@@ -104,7 +112,7 @@ public sealed class JobProcess : IDisposable
             handleArray=Marshal.AllocHGlobal(IntPtr.Size*3);
             for(int i=0;i<3;i++) Marshal.WriteIntPtr(handleArray,i*IntPtr.Size,files[i]);
             Check(UpdateProcThreadAttribute(attributes,0,new IntPtr(0x20002),handleArray,new IntPtr(IntPtr.Size*3),IntPtr.Zero,IntPtr.Zero));
-            var startup=new SIX { si=new SI { cb=Marshal.SizeOf<SIX>(),flags=0x100,input=files[2],output=files[0],error=files[1] }, attributes=attributes };
+            var startup=new SIX { si=new SI { cb=Marshal.SizeOf<SIX>(),flags=privateConsole?0x101:0x100,show=0,input=files[2],output=files[0],error=files[1] }, attributes=attributes };
             var command=new StringBuilder(Quote(exe)); foreach(string arg in args) command.Append(' ').Append(Quote(arg));
             // Root cannot execute or spawn before assignment succeeds.
             // DETACHED_PROCESS avoids an unnecessary console host and its
@@ -112,7 +120,7 @@ public sealed class JobProcess : IDisposable
             // pwsh can exit without evaluating -File when detached from the
             // console subsystem. CREATE_NO_WINDOW retains console semantics
             // without displaying a window; containment remains identical.
-            uint flags=exe.EndsWith("pwsh.exe",StringComparison.OrdinalIgnoreCase) ? 0x08080004u : 0x0008000Cu;
+            uint flags=privateConsole ? 0x00080014u : exe.EndsWith("pwsh.exe",StringComparison.OrdinalIgnoreCase) ? 0x08080004u : 0x0008000Cu;
             Check(CreateProcessW(exe,command,IntPtr.Zero,IntPtr.Zero,true,flags,IntPtr.Zero,cwd,ref startup,out PI info));
             root=info.process; thread=info.thread; RootPid=info.pid;
             Check(AssignProcessToJobObject(job,root)); assigned=true;
@@ -127,6 +135,24 @@ public sealed class JobProcess : IDisposable
             if(handleArray!=IntPtr.Zero) Marshal.FreeHGlobal(handleArray);
             foreach(var file in files) CloseHandle(file);
         }
+    }
+    /// <summary>只向本 Job 创建的独占隐藏控制台发送 Ctrl+C，拒绝附加共享控制台的调用方。</summary>
+    public void InterruptRoot() {
+        if(!privateConsole || RootExited) throw new InvalidOperationException("No live private console root.");
+        Check(IsProcessInJob(root,job,out bool member));
+        if(!member) throw new InvalidOperationException("Root no longer belongs to this Job.");
+        // PowerShell may allocate a console even with CREATE_NO_WINDOW. Only
+        // detach when it contains this task controller alone; shared consoles
+        // and oversized/unknown membership fail closed.
+        var consoleMembers=new uint[256];
+        uint count=GetConsoleProcessList(consoleMembers,256);
+        if(count>0) {
+            if(count!=1 || consoleMembers[0]!=GetCurrentProcessId()) throw new InvalidOperationException("Controller console is shared.");
+            Check(FreeConsole());
+        }
+        Check(AttachConsole(RootPid));
+        try { Check(SetConsoleCtrlHandler(IntPtr.Zero,true)); Check(GenerateConsoleCtrlEvent(0,0)); }
+        finally { Check(FreeConsole()); }
     }
     /// <summary>恢复已经入 Job 的根线程。</summary>
     public void Start() { Check(ResumeThread(thread)!=uint.MaxValue); CloseHandle(thread); thread=IntPtr.Zero; }

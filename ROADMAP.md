@@ -12,7 +12,7 @@
 | 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
 | 3 | M47-P03 | 首版真实登录、授权、预算和终态 | **R1本地完成；完整模式四片307通过/25原skip**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；KV/measurement视口渲染与完整/选中导出回归通过；[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**。[P04报告](docs/design/m47-unified-management-workbench/preview-1-p04-packaging.md)。[候选09](docs/design/m47-unified-management-workbench/preview-1-candidate-09.json)/4.5.0-preview.1.9；NOT_READY。 |
-| 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | P04；📋。验证安装后的资源和真实 Server，开发服务器运行不替代。 |
+| 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | 实物验收进行中：候选09发现candidate字段错配及缺运行时身份核验；[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)，候选10新SHA重包后重验，NOT_READY。 |
 | 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | P01～P05；📋。文档描述实际发行范围；如需限定发布资产，补独立可审查的分发切片。 |
 | 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | P02～P06；📋。保存真实 workflow/job/step/artifact 结果，不降低原 gate。 |
 | 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | P07 全部必选通过且取得实际发布授权；⏳。上传、公开可下载与运行验收分别记。 |

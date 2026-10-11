@@ -51,6 +51,7 @@ export function verifyInventory(actual, expected) {
 }
 export function validateProfile(profile, version) {
   requireThat(/^4\.5\.0-preview\.1\.[1-9]\d*$/u.test(version) && profile.version === version, 'Version mismatch');
+  requireThat(profile.candidate === `candidate-${version.split('.').at(-1).padStart(2, '0')}`, 'Candidate/version mismatch');
   requireThat(profile.profile === 'preview-1' && profile.scopeRevision === 'R1' && profile.rid === 'win-x64', 'Profile/RID mismatch');
   requireThat(profile.releaseStatus === 'NOT_READY', 'Premature release approval');
   requireThat(JSON.stringify(profile.targets?.requiredOperatingSystems) === JSON.stringify(['Windows 11 x64'])

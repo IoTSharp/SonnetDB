@@ -108,6 +108,8 @@ async function send(config: InternalAxiosRequestConfig, signal: AbortSignal, gen
     if (value !== null && (!Number.isSafeInteger(Number(value)) || Number(value) < 1 || Number(value) > 1000)) throw new Error('请求窗口超过 Preview 上限。');
   }
   headers.set('X-SonnetDB-Workbench-Profile', 'preview-1');
+  if (import.meta.env.VITE_WORKBENCH_VERSION) headers.set('X-SonnetDB-Workbench-Version', import.meta.env.VITE_WORKBENCH_VERSION);
+  if (import.meta.env.VITE_WORKBENCH_SOURCE_COMMIT) headers.set('X-SonnetDB-Workbench-Source', import.meta.env.VITE_WORKBENCH_SOURCE_COMMIT);
   headers.set('X-SonnetDB-Workbench-Action', action);
   let response: Response;
   let bytes: Uint8Array;
@@ -126,6 +128,11 @@ async function send(config: InternalAxiosRequestConfig, signal: AbortSignal, gen
     throw new Error('写入状态未知。');
   }
   if ([401, 403].includes(response.status)) clearPreviewSession('凭据失效或权限不足；旧载荷已清除。请重新登录或选择数据库。', true);
+  if (response.status === 428) {
+    localStorage.removeItem('sndb.auth');
+    clearPreviewSession('Server/Web Preview 版本不匹配；旧载荷与审批已清除，请重新加载匹配包。', true);
+    throw new Error('Preview 版本不匹配。');
+  }
   let result: unknown;
   if (config.responseType === 'blob') result = new Blob([bytes], { type: response.headers.get('content-type') ?? '' });
   else if (config.responseType === 'arraybuffer') result = bytes.buffer;

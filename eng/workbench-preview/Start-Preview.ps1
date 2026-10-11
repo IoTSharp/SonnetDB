@@ -5,6 +5,7 @@ $watch = [Diagnostics.Stopwatch]::StartNew()
 $identity = Get-Content (Join-Path $PSScriptRoot 'preview-1.json') -Raw | ConvertFrom-Json
 $inventory = Get-Content (Join-Path $PSScriptRoot 'package-inventory.json') -Raw | ConvertFrom-Json
 $web = Get-Content (Join-Path $PSScriptRoot 'wwwroot/workbench-preview.json') -Raw | ConvertFrom-Json
+if ($identity.candidate -cne ('candidate-' + $identity.version.Split('.')[-1].PadLeft(2, '0')) -or $web.candidate -cne $identity.candidate) { throw 'Preview candidate/version mismatch.' }
 if ($identity.profile -cne 'preview-1' -or $identity.scopeRevision -cne 'R1' -or $identity.version -cne $inventory.version -or $identity.sourceCommit -cne $inventory.sourceCommit -or $web.version -cne $identity.version -or $web.sourceCommit -cne $identity.sourceCommit -or $web.profile -cne $identity.profile) { throw 'Preview identity mismatch.' }
 if ($inventory.files.Count -gt 5000) { throw 'Inventory budget exceeded.' }
 $expected = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

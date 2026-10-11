@@ -10,7 +10,7 @@
 | 2 | M47-P02 | **本地完成**：[修复与验证](preview-1-p02-smoke.md)、[候选02](preview-1-candidate-02.json)，来源 `ed4f48242c5d5b4e7e16861504d03cc845146402` / 4.5.0-preview.1.2；307fixture、12宿主、448合同和build通过，25默认skip分列。远端门禁NOT_RUN，原失败/安全事件保留。 |
 | 3 | M47-P03 | **R1本地完成；完整模式四片307通过/25原skip**：[入口/验证报告](preview-1-p03-controls.md)、[范围修订](preview-1-p03-scope-revision.md)。开放SQL/关系/时序子集，七模型专用读取延期；KV/measurement视口渲染、末尾行选择和导出回归通过；[候选04](preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
 | 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；P05～P08未执行，NOT_READY。 |
-| 5 | M47-P05 | P04后：验证实际包的首次部署、用户旅程、停止重开/回退。 |
+| 5 | M47-P05 | 实物验收进行中：[候选09错配修复与P05报告](preview-1-p05-installed-journey.md)；候选10新SHA干净重包后重验，NOT_READY。 |
 | 6 | M47-P06 | P01～P05后：预览说明、限制/反馈/回退和必要的限定资产分发切片。 |
 | 7 | M47-P07 | P02～P06后：同候选完整提交/CI/发行物/真实旅程门禁放行，不降低现有policy。 |
 | 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |
