@@ -151,6 +151,9 @@ internal static class SqlExpressionFormatter
                     .Append((literal.StringValue ?? string.Empty).Replace("'", "''", StringComparison.Ordinal))
                     .Append('\'');
                 break;
+            case SqlLiteralKind.Blob:
+                builder.Append("X'").Append(Convert.ToHexString(literal.BlobValue.Span)).Append('\'');
+                break;
             default:
                 throw new NotSupportedException($"CHECK 约束暂不支持字面量 '{literal.Kind}'。");
         }

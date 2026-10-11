@@ -106,7 +106,7 @@ internal static class ParameterBinder
             float f => f.ToString("R", CultureInfo.InvariantCulture),
             double d => d.ToString("R", CultureInfo.InvariantCulture),
             decimal m => m.ToString(CultureInfo.InvariantCulture),
-            byte[] bytes => "'" + Convert.ToBase64String(bytes) + "'",
+            byte[] bytes => "X'" + Convert.ToHexString(bytes) + "'",
             Guid guid => "'" + guid.ToString("D", CultureInfo.InvariantCulture) + "'",
             DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)

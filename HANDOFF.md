@@ -1907,3 +1907,14 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+
+## Issue #271 BLOB 参数查询实现与本地证据（2026-10-12，Asia/Shanghai）
+
+隔离分支 codex/issue271-binary-predicate 从 a299a3fc 实现 #271；本次只拥有八个 SQL/ADO 生产路径、两个新测试文件、CHANGELOG 和本交接，共 12 路径。嵌入式 byte[] 参数保留类型并复制为 BLOB 字面量，远程使用严格 X'HEX'；普通和关联等值按字节内容比较，原字符串语义和未定义的 BLOB 排序拒绝保持，PK/二级索引及 EXISTS 访问路径继续使用 typed literal。未修改 EF 类型映射、行/键/索引 codec、生产 JSON、依赖或存储格式；#272 的独立变更不在本分支。
+
+47/47 Core 合同及相关既有回归、3/3 EF 嵌入式/真实 REST/精确 h2c、60/60 既有 EF provider 回归通过，共 110 项不同测试。实际 ADO 拦截确认 SndbCommand、DbType.Binary 与 byte[]，覆盖独立等值、关联 Any/SequenceEqual、空/高位/不同长度/不同用户/DBNull、65,536 字节、索引/EXISTS 执行指标、更新/删除/事务回滚及实际 Server stop/dispose/reopen。最终 EF 私有字段命名和 Reset 排版修改后，主智能体授权第四且最后一次构建，三项 EF 测试再次通过；既有 60 项回归在此前相同生产 DLL 上运行。本次没有第五次构建。
+
+首次新 Core 测试 8/10 通过，两项 INSERT 夹具遗漏列列表的失败 TRX/日志保留，修正夹具后的 47/47 记录独立存在；日期读取、PowerShell true 语法及 LASTEXITCODE 调用检查的历史 shell 误报也保留说明。五次 Windows Job 全部 cleanupComplete=true；独立核 42 个 ledger/root/controller 身份的 PID、创建时间、完整命令、父链及任务归属，没有匹配存活身份。五个仅本任务使用的 i271-* TEMP 在绝对路径、owner JSON 和有界库存核验后各一次删除并确认不存在；#270/#272 旧拒绝删除目录保持。原 HANDOFF 字节前缀不改。
+
+证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-271-*.json/.trx/.log；最后 freeze 绑定 12 路径与 DLL SHA。执行智能体不操作 index/commit/push/GitHub；主智能体接下来复核冻结范围、最终完整 restore/原 CI Format Check，再精确提交推送和处理 PR/issue。正式修复包、公开消费、NativeAOT 发布、SQLite 包对照、实际 ABP Passkey/A06/BookStore 及最大支持 BLOB 长度仍为独立 NOT_RUN/UNKNOWN；这些源代码与真实本地 Server 测试不关闭外部验收。

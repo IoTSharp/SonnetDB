@@ -15,7 +15,7 @@ namespace SonnetDB.Sql;
 /// </para>
 /// <para>
 /// CLR 值 → 字面量的类型映射与旧 ADO <c>ParameterBinder.FormatLiteral</c> 语义一致：
-/// <c>DateTime</c>/<c>DateTimeOffset</c> → Unix 毫秒整数；<c>byte[]</c> → Base64 字符串字面量（BLOB 列自行解码）；
+/// <c>DateTime</c>/<c>DateTimeOffset</c> → Unix 毫秒整数；<c>byte[]</c> → 保留类型的二进制内容快照；
 /// <c>GeoPoint</c> → <see cref="GeoPointLiteralExpression"/>；<c>float[]</c> / <c>Memory&lt;float&gt;</c> /
 /// <c>ReadOnlyMemory&lt;float&gt;</c> → <see cref="VectorLiteralExpression"/>；数值/布尔/字符串/null 各归对应字面量。
 /// </para>
@@ -462,8 +462,7 @@ public static class SqlParameterBinder
             case ReadOnlyMemory<float> vector:
                 return ToVectorLiteral(vector.Span);
             case byte[] bytes:
-                // BLOB：以 Base64 字符串字面量承载，BLOB 列执行时自行 Convert.FromBase64String 解码。
-                return LiteralExpression.String(Convert.ToBase64String(bytes));
+                return LiteralExpression.Blob(bytes);
             case Guid g:
                 return LiteralExpression.String(g.ToString("D", CultureInfo.InvariantCulture));
             case GeoPoint geo:

@@ -27,9 +27,11 @@ public enum SqlLiteralKind
     Float,
     /// <summary>字符串字面量。</summary>
     String,
+    /// <summary>二进制字面量。</summary>
+    Blob,
 }
 
-/// <summary>字面量表达式：包装 NULL / Boolean / Integer / Float / String。</summary>
+/// <summary>字面量表达式：包装 NULL / Boolean / Integer / Float / String / Blob。</summary>
 /// <param name="Kind">字面量类别。</param>
 /// <param name="StringValue">字符串字面量内容（仅当 <see cref="Kind"/> 为 <see cref="SqlLiteralKind.String"/>）。</param>
 /// <param name="IntegerValue">整数值（仅当 <see cref="Kind"/> 为 <see cref="SqlLiteralKind.Integer"/>）。</param>
@@ -42,6 +44,9 @@ public sealed record LiteralExpression(
     double FloatValue = 0,
     bool BooleanValue = false) : SqlExpression
 {
+    /// <summary>二进制内容快照，仅用于 <see cref="SqlLiteralKind.Blob"/>。</summary>
+    public ReadOnlyMemory<byte> BlobValue { get; init; }
+
     /// <summary>构造 NULL 字面量。</summary>
     public static LiteralExpression Null() => new(SqlLiteralKind.Null);
     /// <summary>构造布尔字面量。</summary>
@@ -52,6 +57,14 @@ public sealed record LiteralExpression(
     public static LiteralExpression Float(double value) => new(SqlLiteralKind.Float, FloatValue: value);
     /// <summary>构造字符串字面量。</summary>
     public static LiteralExpression String(string value) => new(SqlLiteralKind.String, StringValue: value);
+    /// <summary>复制二进制内容并构造字面量，避免后续参数修改污染已绑定的表达式。</summary>
+    /// <param name="value">二进制内容。</param>
+    /// <returns>拥有独立内容快照的二进制字面量。</returns>
+    public static LiteralExpression Blob(byte[] value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new(SqlLiteralKind.Blob) { BlobValue = value.ToArray() };
+    }
 }
 
 /// <summary>显式类型转换表达式，例如 <c>CAST(value AS INT)</c>。</summary>

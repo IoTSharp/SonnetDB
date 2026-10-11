@@ -4054,6 +4054,21 @@ public sealed class SqlParser
                 return inner;
             case TokenKind.LeftBracket:
                 return ParseVectorLiteral();
+            case TokenKind.IdentifierLiteral when !token.IsQuotedIdentifier
+                && string.Equals(token.Text, "x", StringComparison.OrdinalIgnoreCase)
+                && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromHexString(Current.Text);
+                }
+                catch (FormatException)
+                {
+                    throw Error("BLOB 字面量必须包含偶数个十六进制字符");
+                }
+                Advance();
+                return LiteralExpression.Blob(bytes);
             case TokenKind.IdentifierLiteral when string.Equals(Current.Text, "point", StringComparison.OrdinalIgnoreCase):
                 return ParsePointLiteralOrFunctionCall();
             case TokenKind.KeywordTime:

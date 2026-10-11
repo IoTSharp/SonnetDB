@@ -5422,6 +5422,11 @@ internal static class TableSqlExecutor
         if (left is null || right is null)
             return null;
 
+        // 二进制等值只比较内容，不为相等查询要求未定义的 BLOB 排序合同。
+        if (left is byte[] && right is byte[]
+            && binary.Operator is SqlBinaryOperator.Equal or SqlBinaryOperator.NotEqual)
+            return binary.Operator == SqlBinaryOperator.Equal ? ValuesEqual(left, right) : !ValuesEqual(left, right);
+
         int? compare = CompareScalar(left, right);
 
         return binary.Operator switch
@@ -5864,6 +5869,7 @@ internal static class TableSqlExecutor
         SqlLiteralKind.Integer => literal.IntegerValue,
         SqlLiteralKind.Float => literal.FloatValue,
         SqlLiteralKind.String => literal.StringValue,
+        SqlLiteralKind.Blob => literal.BlobValue.ToArray(),
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
     };
 
@@ -6371,6 +6377,7 @@ internal static class TableSqlExecutor
         SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.String => literal.StringValue ?? string.Empty,
+        SqlLiteralKind.Blob => "X'" + Convert.ToHexString(literal.BlobValue.Span) + "'",
         _ => literal.Kind.ToString(),
     };
 

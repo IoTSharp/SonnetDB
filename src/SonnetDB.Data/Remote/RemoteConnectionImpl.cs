@@ -1405,6 +1405,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             case LiteralExpression { Kind: SqlLiteralKind.String } literal:
                 sql.Append(ParameterBinder.FormatLiteral(literal.StringValue ?? string.Empty));
                 return;
+            case LiteralExpression { Kind: SqlLiteralKind.Blob } literal:
+                sql.Append(ParameterBinder.FormatLiteral(literal.BlobValue.ToArray()));
+                return;
             case DurationLiteralExpression duration:
                 sql.Append(duration.Milliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 return;
