@@ -32,7 +32,15 @@ export async function publish(api, { seal, sealBytes, delivery, context, environ
   verifyDirectory(delivery, seal);
   const notes = fs.readFileSync(path.join(delivery, `sonnetdb-workbench-web-${seal.version}-notes.md`), 'utf8');
   const tag = await api('GET', `git/ref/tags/${seal.tag}`);
-  const existing = await api('GET', `releases/tags/${seal.tag}`);
+  const byTag = await api('GET', `releases/tags/${seal.tag}`);
+  let existing = byTag;
+  if (context.recovery) {
+    const id = context.recovery.releaseId;
+    requireThat(Number.isSafeInteger(id) && id > 0, 'Original recovery release ID required');
+    // The tag endpoint selects published releases; recover a draft by its frozen original ID.
+    existing = await api('GET', `releases/${id}`);
+    requireThat(existing?.id === id && (!byTag || byTag.id === id), 'Original recovery release ID/tag mismatch');
+  }
   let release;
   if (tag) {
     let target = tag.object;

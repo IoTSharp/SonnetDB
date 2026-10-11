@@ -38,7 +38,7 @@
   "tagObservedAbsent": false,
   "releaseObservedAbsent": false,
   "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "status": "READY_FOR_AUTHORIZED_PUBLISH",
+  "status": "ORIGINAL_DRAFT_ID_LOOKUP_FIX_REVIEW_PENDING",
   "workflowRequest": {
     "workflow": "workbench-preview-publish.yml",
     "ref": "codex/m47-preview12-release",
@@ -64,7 +64,7 @@
     "acceptedWorkflowGates": 12
   },
   "reviewedDistributorCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
-  "nextAction": "maikebing dispatches this exact frozen request once, then explicitly approves its original pending environment deployment. Independently verify anonymous assets and public-package first run.",
+  "nextAction": "Re-review original release ID lookup; recover exact unchanged empty draft with existing frozen authorization and actual maikebing approval.",
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
     "credentialActor": "maikebing",
@@ -87,5 +87,13 @@
     "path": "docs/design/m47-unified-management-workbench/preview-1-p08-recovery-12.json",
     "sha256": "bb0f8e4dfde4830ae77f3589c502808d6bcaa6e08248e0b3cd599024ebef09d0",
     "releaseId": 409754336
+  },
+  "failedRecovery": {
+    "runId": "38154076242",
+    "toolingCommit": "0ae92b0cab5b4b9c766625c9b9dc5271378735e1",
+    "status": "REFUSED",
+    "mutationStarted": false,
+    "error": "Partial existing remote state; reconcile without mutation",
+    "receiptSha256": "4db7a3a486c462eeb81509102cd06488eb7b96a7aa69c1cc4ed5d0a56bf884f6"
   }
 }

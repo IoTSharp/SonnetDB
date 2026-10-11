@@ -43,7 +43,7 @@ function remote(f,opts={}) {
   const api=async(method,payload,body,accept)=>{calls.push({method,payload,body});if(opts.fail===payload&&method!=='GET')throw new Error('UNKNOWN_FIXTURE');
     if(payload.startsWith('git/ref/tags/'))return tag;
     if(payload==='git/refs'){tag={object:{type:'commit',sha:body.sha}};return tag;}
-    if(payload.startsWith('releases/tags/'))return release;
+    if(payload.startsWith('releases/tags/'))return release?.draft === true ? null : release;
     if(payload==='releases'&&method==='POST'){release={...body,id:1,html_url:'fixture'};return release;}
     if(payload.startsWith('upload/')){const name=decodeURIComponent(payload.split('name=')[1]);const a={id:assets.length+1,name,size:body.length,state:'uploaded'};assets.push(a);return a;}
     if(payload==='releases/1/assets?per_page=100')return assets;
@@ -147,6 +147,7 @@ test('explicit original empty draft recovery retains tag and release IDs and upl
   await publish(r.api, r.ctx);
   assert.equal(r.ctx.record.status, 'PUBLISHED_API_READBACK'); assert.equal(r.ctx.record.releaseId, 1);
   assert.equal(r.ctx.record.originalTagRetained, true); assert.equal(r.ctx.record.recovery, true);
+  assert.ok(r.calls.some(c => c.method === 'GET' && c.payload === 'releases/1'));
   assert.equal(r.calls.filter(c => c.payload === 'git/refs' || (c.payload === 'releases' && c.method === 'POST')).length, 0);
   assert.equal(r.calls.filter(c => c.payload.startsWith('upload/')).length, 4);
 }));
