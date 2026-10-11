@@ -1907,3 +1907,17 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+## 线上闭环执行：GH-Issue #270 LIKE 参数转义修复交接（2026-10-12，Asia/Shanghai）
+
+执行智能体 issues_delivery 在授权的 online-delivery 工作树、codex/issue270-like-escaping 分支、基线 a299a3fcc42de494145be74a8ee451aedeec4249 上完成实现与定向验证；主智能体独占索引、提交、推送和 GitHub 写操作。原四路径之外，主智能体明确授权 LikePatternMatcher.cs 与既有 SqlStringFunctionTests.cs，共六路径含本 HANDOFF 与 CHANGELOG；原 D:/source/SonnetDB dirty/index 不参与本交付。
+
+EF Contains/StartsWith/EndsWith 的运行时参数按反斜杠、百分号、下划线顺序生成三层 REPLACE，并在 LIKE 前检查原参数 IS NOT NULL，以免 CONCAT 将 NULL 当空串。常量与运行时参数均保持字面语义与参数化。首次完整 EF 用例暴露核心 matcher 把文本中的 % 先按普通字符匹配、丢失通配符回溯状态；最小修复仅将未转义 % 分支提前，普通 SQL LIKE 的通配符及反斜杠转义合同保持。
+
+历史初始 EF 小样 5/5 PASS；首次完整 EF 为 42/60 PASS、18 FAIL，原 TRX、日志、实际 DLL 哈希与诊断保留，不把小样替代完整结果。最终树核心极小回归 3/3、独立边界 26/26、原 EF 完整用例复验 60/60 PASS，共 89 个定向用例通过。EF 其中本地 42、真实 Kestrel REST 9、Frame HTTP/2 h2c 9，验证实际列表、Count、OrderBy/Skip(1)/Take(2)、非空参数原值及传输协议；所有数据集含可空 Name=NULL。此结果不是公开包消费者、外部生产服务或独立 NativeAOT 发布验收。
+
+最终生产/两个测试目录 Core DLL SHA 相同：6D2E0399D5D62F84C46591C429A5511F940C4EC4A26AED45CB7B1372A69B4C5E；生产/EF 测试目录 Provider DLL SHA 相同：0EC4937D7465B3AC27B750695505F0446668722E17B8480510A29B2044665808。最终四个源码/测试哈希绑定 issue-270-final-pre-test-source.json。没有新依赖、生产 JSON 变更、反射序列化、unsafe 或警告压制。
+
+五个有界 Windows Job 均 cleanupComplete=true，48 个完整身份独立核零精确活跃。五个专属 TEMP 根路径、owner=issues_delivery、issue=270、owner.json SHA 及所有 reparse 检查通过，共 10 个文件、8,271 字节；自动审批两次拒绝 Remove-Item 删除命令，仅返回 blocked by policy，两次均未执行。按主智能体决定保留五目录与拒绝收据，不更换 API/shell 绕过；精确绝对路径和字节规模见 issue-270-temp-preserved-inventory-r2.json，清理尾项状态 BLOCKED_AUTOMATIC_APPROVAL_REVIEW。旧测试 FAIL、所有日志/TRX/spec/身份与诊断继续保留。
+
+交付证据固定在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery；原 HANDOFF 539062 字节和 SHA 57DC84FE4D487FA253E3B2EE09C8A970BD61C7E80F6114DBAE9021073AFA5FDF 保持原字节前缀，仅以 UTF-8 无 BOM、LF 追加本段。下一步由主智能体复核六路径冻结 diff 与源文件哈希，在最终待提交工作树执行完整 restore 和原 CI Format Check，通过后精确提交、推送及 PR。完整解决方案 restore/format 当前 ROOT_PENDING；正式修复包、公开包消费者升级和独立 NativeAOT 发布均 NOT_RUN，Issue #270 继续开放，不把源码和本地/真实测试 PASS 写成正式发布完成。

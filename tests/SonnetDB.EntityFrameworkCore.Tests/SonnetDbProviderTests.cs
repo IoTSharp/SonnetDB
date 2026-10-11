@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -748,6 +749,265 @@ public sealed class SonnetDbProviderTests : IDisposable
             .OrderBy(item => item.Id)
             .Select(item => item.Id)
             .ToArrayAsync());
+    }
+
+    /// <summary>以原问题三字符及组合、NULL 小样验证参数转义与实际列表/计数。</summary>
+    [Theory]
+    [InlineData("%", 1L)]
+    [InlineData("_", 3L)]
+    [InlineData("\\", 5L)]
+    [InlineData("\\%_", 5L)]
+    [InlineData(null, 0L)]
+    public async Task Query_StringPatternEscapingSmoke_PreservesLiteralAndNullParameters(string? pattern, long expectedId)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var interceptor = new ReaderCommandCaptureInterceptor();
+        using var context = new NullableDeviceContext(
+            new DbContextOptionsBuilder<NullableDeviceContext>()
+                .UseSonnetDB($"Data Source={_root}")
+                .AddInterceptors(interceptor)
+                .Options);
+        await context.Database.EnsureCreatedAsync(deadline.Token);
+        Device[] devices =
+        [
+            new() { Id = 1, Name = "100% Real" },
+            new() { Id = 2, Name = "100X Real" },
+            new() { Id = 3, Name = "A_B" },
+            new() { Id = 4, Name = "AXB" },
+            new() { Id = 5, Name = pattern == "\\%_" ? "\\%_" : "path\\name" },
+        ];
+        context.Devices.AddRange(devices);
+        await context.SaveChangesAsync(deadline.Token);
+        context.ChangeTracker.Clear();
+
+        var query = context.Devices.Where(item => item.Name.Contains(pattern!));
+        var ids = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(deadline.Token);
+
+        Assert.Equal(expectedId == 0 ? [] : new[] { expectedId }, ids);
+        Assert.Equal(ids.Length, await query.CountAsync(deadline.Token));
+        if (pattern is not null)
+        {
+            Assert.Contains(interceptor.ParameterValues, value => Equals(value, pattern));
+        }
+    }
+
+    /// <summary>实际执行三种方法的常量/参数、字面特殊字符、Unicode、空串和 NULL。</summary>
+    [Theory]
+    [InlineData(nameof(string.Contains), "%", false)]
+    [InlineData(nameof(string.Contains), "%", true)]
+    [InlineData(nameof(string.Contains), "_", false)]
+    [InlineData(nameof(string.Contains), "_", true)]
+    [InlineData(nameof(string.Contains), "\\", false)]
+    [InlineData(nameof(string.Contains), "\\", true)]
+    [InlineData(nameof(string.Contains), "\\%_", false)]
+    [InlineData(nameof(string.Contains), "\\%_", true)]
+    [InlineData(nameof(string.Contains), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.Contains), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.Contains), "", false)]
+    [InlineData(nameof(string.Contains), "", true)]
+    [InlineData(nameof(string.Contains), null, false)]
+    [InlineData(nameof(string.Contains), null, true)]
+    [InlineData(nameof(string.StartsWith), "%", false)]
+    [InlineData(nameof(string.StartsWith), "%", true)]
+    [InlineData(nameof(string.StartsWith), "_", false)]
+    [InlineData(nameof(string.StartsWith), "_", true)]
+    [InlineData(nameof(string.StartsWith), "\\", false)]
+    [InlineData(nameof(string.StartsWith), "\\", true)]
+    [InlineData(nameof(string.StartsWith), "\\%_", false)]
+    [InlineData(nameof(string.StartsWith), "\\%_", true)]
+    [InlineData(nameof(string.StartsWith), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.StartsWith), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.StartsWith), "", false)]
+    [InlineData(nameof(string.StartsWith), "", true)]
+    [InlineData(nameof(string.StartsWith), null, false)]
+    [InlineData(nameof(string.StartsWith), null, true)]
+    [InlineData(nameof(string.EndsWith), "%", false)]
+    [InlineData(nameof(string.EndsWith), "%", true)]
+    [InlineData(nameof(string.EndsWith), "_", false)]
+    [InlineData(nameof(string.EndsWith), "_", true)]
+    [InlineData(nameof(string.EndsWith), "\\", false)]
+    [InlineData(nameof(string.EndsWith), "\\", true)]
+    [InlineData(nameof(string.EndsWith), "\\%_", false)]
+    [InlineData(nameof(string.EndsWith), "\\%_", true)]
+    [InlineData(nameof(string.EndsWith), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.EndsWith), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.EndsWith), "", false)]
+    [InlineData(nameof(string.EndsWith), "", true)]
+    [InlineData(nameof(string.EndsWith), null, false)]
+    [InlineData(nameof(string.EndsWith), null, true)]
+    public async Task Query_StringPatterns_LiteralSemanticsMatchListCountAndPage(
+        string method, string? pattern, bool constant)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var interceptor = new ReaderCommandCaptureInterceptor();
+        using var context = new NullableDeviceContext(
+            new DbContextOptionsBuilder<NullableDeviceContext>()
+                .UseSonnetDB($"Data Source={_root}")
+                .AddInterceptors(interceptor)
+                .Options);
+        await context.Database.EnsureCreatedAsync(deadline.Token);
+        var devices = CreateLiteralPatternDevices();
+        context.Devices.AddRange(devices);
+        await context.SaveChangesAsync(deadline.Token);
+        context.ChangeTracker.Clear();
+
+        await AssertLiteralPatternQueryAsync(
+            context.Devices, devices, method, pattern, constant, interceptor, deadline.Token);
+    }
+
+    /// <summary>通过真实 Kestrel REST/Frame HTTP2 执行三种方法的特殊字符列表、计数和分页。</summary>
+    [Theory]
+    [InlineData(nameof(string.Contains), "%", "rest")]
+    [InlineData(nameof(string.Contains), "%", "frame-http2")]
+    [InlineData(nameof(string.Contains), "_", "rest")]
+    [InlineData(nameof(string.Contains), "_", "frame-http2")]
+    [InlineData(nameof(string.Contains), "\\", "rest")]
+    [InlineData(nameof(string.Contains), "\\", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "%", "rest")]
+    [InlineData(nameof(string.StartsWith), "%", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "_", "rest")]
+    [InlineData(nameof(string.StartsWith), "_", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "\\", "rest")]
+    [InlineData(nameof(string.StartsWith), "\\", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "%", "rest")]
+    [InlineData(nameof(string.EndsWith), "%", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "_", "rest")]
+    [InlineData(nameof(string.EndsWith), "_", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "\\", "rest")]
+    [InlineData(nameof(string.EndsWith), "\\", "frame-http2")]
+    public async Task RemoteQuery_StringPatterns_LiteralSemanticsMatchListCountAndPage(
+        string method, string pattern, string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var dataRoot = Path.Combine(_root, "remote-patterns");
+        var requests = new ConcurrentQueue<(string Method, string Protocol)>();
+        var frameHttp2 = protocol == "frame-http2";
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
+            {
+                DataRoot = dataRoot,
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string> { ["ef-patterns-admin"] = ServerRoles.Admin },
+            },
+            extraArgs: frameHttp2 ? ["--Kestrel:Endpoints:Http:Protocols=Http2"] : null);
+        app.Use(async (httpContext, next) =>
+        {
+            requests.Enqueue((httpContext.Request.Method, httpContext.Request.Protocol));
+            await next(httpContext);
+        });
+
+        try
+        {
+            await app.StartAsync(deadline.Token);
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = Assert.Single(addresses.Addresses);
+            var interceptor = new ReaderCommandCaptureInterceptor();
+            using var context = new NullableDeviceContext(
+                new DbContextOptionsBuilder<NullableDeviceContext>()
+                    .UseSonnetDB(
+                        $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/ef_patterns;" +
+                        "Token=ef-patterns-admin;Timeout=15" +
+                        (frameHttp2 ? ";Protocol=frame-http2" : string.Empty))
+                    .AddInterceptors(interceptor)
+                    .Options);
+            await context.Database.EnsureCreatedAsync(deadline.Token);
+            var devices = CreateLiteralPatternDevices();
+            context.Devices.AddRange(devices);
+            await context.SaveChangesAsync(deadline.Token);
+            context.ChangeTracker.Clear();
+            requests.Clear();
+
+            await AssertLiteralPatternQueryAsync(
+                context.Devices, devices, method, pattern, constant: false, interceptor, deadline.Token);
+
+            var observed = requests.ToArray();
+            Assert.NotEmpty(observed);
+            Assert.All(observed, request =>
+            {
+                Assert.Equal("POST", request.Method);
+                Assert.Equal(frameHttp2 ? "HTTP/2" : "HTTP/1.1", request.Protocol);
+            });
+        }
+        finally
+        {
+            using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await app.StopAsync(cleanupDeadline.Token);
+        }
+    }
+
+    private static Device[] CreateLiteralPatternDevices() =>
+    [
+        new() { Id = 1, Name = "100% Real" },
+        new() { Id = 2, Name = "100X Real" },
+        new() { Id = 3, Name = "A_B" },
+        new() { Id = 4, Name = "AXB" },
+        new() { Id = 5, Name = "path\\name" },
+        new() { Id = 6, Name = "%leading" },
+        new() { Id = 7, Name = "trailing%" },
+        new() { Id = 8, Name = "_leading" },
+        new() { Id = 9, Name = "trailing_" },
+        new() { Id = 10, Name = "\\leading" },
+        new() { Id = 11, Name = "trailing\\" },
+        new() { Id = 12, Name = "\\%_" },
+        new() { Id = 13, Name = "泵_%\\😀设备" },
+        new() { Id = 14, Name = string.Empty },
+        new() { Id = 15, Name = null! },
+    ];
+
+    private static IQueryable<Device> CreateLiteralPatternQuery(
+        IQueryable<Device> source, string method, string? pattern, bool constant)
+    {
+        if (!constant)
+        {
+            return method switch
+            {
+                nameof(string.Contains) => source.Where(item => item.Name.Contains(pattern!)),
+                nameof(string.StartsWith) => source.Where(item => item.Name.StartsWith(pattern!)),
+                nameof(string.EndsWith) => source.Where(item => item.Name.EndsWith(pattern!)),
+                _ => throw new ArgumentOutOfRangeException(nameof(method)),
+            };
+        }
+
+        var item = Expression.Parameter(typeof(Device), "item");
+        var predicate = Expression.Call(
+            Expression.Property(item, nameof(Device.Name)),
+            typeof(string).GetMethod(method, [typeof(string)])!,
+            Expression.Constant(pattern, typeof(string)));
+        return source.Where(Expression.Lambda<Func<Device, bool>>(predicate, item));
+    }
+
+    private static async Task AssertLiteralPatternQueryAsync(
+        IQueryable<Device> source,
+        Device[] devices,
+        string method,
+        string? pattern,
+        bool constant,
+        ReaderCommandCaptureInterceptor interceptor,
+        CancellationToken cancellationToken)
+    {
+        var expected = devices.Where(item => item.Name is not null && pattern is not null && (method switch
+        {
+            nameof(string.Contains) => item.Name.Contains(pattern, StringComparison.Ordinal),
+            nameof(string.StartsWith) => item.Name.StartsWith(pattern, StringComparison.Ordinal),
+            nameof(string.EndsWith) => item.Name.EndsWith(pattern, StringComparison.Ordinal),
+            _ => throw new ArgumentOutOfRangeException(nameof(method)),
+        })).OrderBy(item => item.Id).Select(item => item.Id).ToArray();
+        var query = CreateLiteralPatternQuery(source, method, pattern, constant);
+        interceptor.Reset();
+        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(cancellationToken);
+
+        Assert.Equal(expected, actual);
+        if (!constant && !string.IsNullOrEmpty(pattern))
+        {
+            Assert.Contains(interceptor.ParameterValues, value => Equals(value, pattern));
+        }
+
+        Assert.Equal(expected.Length, await query.CountAsync(cancellationToken));
+        Assert.Equal(
+            expected.Skip(1).Take(2),
+            await query.OrderBy(item => item.Id).Skip(1).Take(2).Select(item => item.Id).ToArrayAsync(cancellationToken));
     }
 
     /// <summary>
