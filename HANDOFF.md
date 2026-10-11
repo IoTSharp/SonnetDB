@@ -1967,3 +1967,20 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 所有原失败、非空 TRX、stdout/stderr、每个 Job 的 PID/启动时间/父链/命令行、实际 DLL hash/version、两个根授权增补及同 DLL 交接保留在 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\aggregate-cast-254。最后七收据精确 UTC 身份审计 PASS，48 kernel 身份/7 controllers、0 live/unknown。仅本阶段已核 marker、绝对路径、无 reparse 和无存活进程的长/短专属 TEMP 有界回收；旧 trigonometry policy 拒绝对象与其他阶段文件未触及。HANDOFF 原字节前缀保持，新增段 UTF-8 无 BOM/LF。
 
 实现仅七路径、index 空，执行者未暂存/提交/推送/变更分支或 GitHub。主会话下一步独立核 aggregate-cast-final-tree.json 的最终七路径与实际测试/进程/回收证据，在最终树执行完整 solution restore 和原 CI Format Check，通过后精确暂存提交并处理远端交付。此处未预写上述完整门禁、提交/PR 或全量 CI 通过；正式 NuGet 发包与 Chloe Provider 真实验收仍 NOT_RUN，不能由本地和真实 REST/h2c 定向测试推定完成。
+
+
+## GH-Issue #235 精确 Decimal 参数与原数值文本（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-delivery 的 codex/issue235-exact-decimal-parameters，原基线 1f38728f；主智能体正常合入 #254/80f960e3 后新 HEAD 为 282d29ee8f2c662da7b76b1d5dd1f7ffab4b123a。21 个 own 代码/测试路径原文安全保存后恢复，20 源 SHA 与保存时一致，RelationalSelectExecutor 自动合入并复核继承的 CAST/Wrap 修改；stash 25a9d50021385308f5572dc98de96a0c19243ac2 及根备份保留。本阶段没有修改继承的 RemoteExecutionResult 或 WrapValueAsLiteral，HANDOFF 使用新 HEAD 的完整字节前缀后追加。
+
+ADO Decimal 参数使用 typed Decimal AST，远程使用 DECIMAL '不变量文本'；普通 Float/Double 参数使用显式 FLOAT，原 Int64 词法和 measurement 字段语义保持。DECIMAL 目标写入、CAST、比较、IN 索引候选与算术使用原浮点 token 文本，按真实 System.Decimal 96 位范围精确解析，拒绝舍入、1e-29 下溢和溢出，支持可表示的 29 位值。未扩大无小数点整数的 Int64 词法合同。文本/表达式遍历有明确长度、节点、深度、墙钟与取消边界。重算仅允许纯数值常量，UDF、列引用和子查询保留首次结果；无 child 修改时复用原 AST。
+
+新增 Decimal 类型可达既有泛参数入口，因此对信息目录、measurement SELECT/字段/混合 JOIN、共享投影、文档、文档向量、Hybrid 权重、JSON 文件与空间剪枝的最小 dispatch 明确恢复旧 Decimal 到 Double 行为，没有给这些模型新增原生 Decimal。TableInSubquery 只追加 Decimal 投影名称格式。生产改动共 19 路径，加两个新测试、CHANGELOG 与本 HANDOFF 共 23 路径；不改 JSON DTO/serializer、依赖、二进制行/键/索引 codec 或文件格式。
+
+最终第三且最后一次构建 Core 实际 221/221，含新 Decimal 合同 22 项、计数型 UDF Decimal/Double 两个对照（四语句均每行一次）、真实 measurement 写/读/维表 JOIN、Document/JSON 文件/vector_search/Hybrid 参数与 #254/#271 等既有回归；真实 ADO embedded/REST/精确 h2c 三项 3/3，原金额正负、nullable、28/29 位值、Max/Min、参数与 raw 比较/批量、事务 rollback/commit、GetValue/GetDecimal/类型及实际 Server stop/dispose/reopen 均通过。同 EF 产物旧 provider 60/60；共 284 项不同测试。首最小 1/1 与首 56/56 为较早源码证据，保留但不重复加总，也不代替后加入的兼容/UDF 回归。没有第四次构建。
+
+五个 Windows Job 全部 cleanupComplete=true，独立审计 58 个 ledger/root/controller 身份的 PID、创建 UTC、完整命令、父链与任务归属，0 matching active；五个 i235-* TEMP 在 owner/路径、2048 项/8 深度/60 秒库存边界和无 reparse 检查后各一次回收，原清理 JSON 与 stdout 保留。旧 #270/#272 拒绝对象、共享缓存、根 source dirty、parity-results、冻结 tag 与 PAUSED 自动化未触及。证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-235-*。
+
+首次 HANDOFF 追加守卫使用 PowerShell 不支持的 ReadOnlySpan 字节比较，在实际写入前失败；改用原/当前 SHA256 与长度检查后追加，原失败单列保留。TEMP stdout 的 dictionary Measure-Object 汇总 itemCount 为 null，逐根库存的真实 itemCount 以及 removed=true 均存在；未据该汇总空值推断库存或回收。此两项辅助脚本结果不改变五个 Job 与实际测试证据。
+
+执行智能体未暂存、提交、推送或 GitHub 写入，index 仍空；下一步由根独立核 23 路径、最终 DLL/TRX/进程/库存绑定，执行最终完整 solution restore 与原 CI Format Check，之后精确提交/推送及远端交付。声明 DECIMAL(p,s) 值约束归 #264、reader 精度/scale 元数据归 #241；原 CAST 字符串与字符串写入的转换合同未扩。正式修复 NuGet/Server、Chloe/FreeSql 正式包真实 CRUD、NativeAOT 发布和外部消费者验收仍 NOT_RUN/UNKNOWN，当前源码与真实本地 Server 定向通过不关闭这些外部条件。

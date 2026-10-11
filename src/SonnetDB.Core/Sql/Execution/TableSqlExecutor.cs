@@ -2215,7 +2215,8 @@ internal static class TableSqlExecutor
                 : null;
         }
 
-        var evaluated = EvaluateScalar(assignment.Value, schema, row);
+        var evaluated = EvaluateScalar(assignment.Column.DataType == TableColumnType.Decimal
+            ? SqlScalarOperations.InDecimalContext(assignment.Value) : assignment.Value, schema, row);
         return ConvertTableValue(evaluated, assignment.Column);
     }
 
@@ -2679,7 +2680,9 @@ internal static class TableSqlExecutor
             object? value;
             try
             {
-                value = expression switch
+                var valueExpression = column.DataType == TableColumnType.Decimal
+                    ? SqlScalarOperations.InDecimalContext(expression) : expression;
+                value = valueExpression switch
                 {
                     LiteralExpression literal => EvaluateLiteral(literal),
                     UnaryExpression
@@ -5418,6 +5421,12 @@ internal static class TableSqlExecutor
         var left = EvaluateScalar(binary.Left, schema, row);
         var right = EvaluateScalar(binary.Right, schema, row);
 
+        if (left is decimal || right is decimal)
+        {
+            left = SqlScalarOperations.ExactDecimalConstant(binary.Left, left);
+            right = SqlScalarOperations.ExactDecimalConstant(binary.Right, right);
+        }
+
         // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
         if (left is null || right is null)
             return null;
@@ -5454,7 +5463,7 @@ internal static class TableSqlExecutor
         var sawNull = false;
         foreach (var item in expression.Values)
         {
-            var candidate = EvaluateScalar(item, schema, row);
+            var candidate = EvaluateScalar(value is decimal ? SqlScalarOperations.InDecimalContext(item) : item, schema, row);
             if (value is null || candidate is null)
             {
                 sawNull = true;
@@ -5476,7 +5485,8 @@ internal static class TableSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
-            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.Operand, schema, row), cast.TargetType),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateScalar(cast.TargetType == SqlDataType.Decimal
+                ? SqlScalarOperations.InDecimalContext(cast.Operand) : cast.Operand, schema, row), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             MaterializedSubqueryValueExpression materialized => materialized.Value,
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
@@ -5584,6 +5594,11 @@ internal static class TableSqlExecutor
     {
         var leftValue = EvaluateScalar(binary.Left, schema, row);
         var rightValue = EvaluateScalar(binary.Right, schema, row);
+        if (leftValue is decimal || rightValue is decimal)
+        {
+            leftValue = SqlScalarOperations.ExactDecimalConstant(binary.Left, leftValue);
+            rightValue = SqlScalarOperations.ExactDecimalConstant(binary.Right, rightValue);
+        }
         return SqlScalarOperations.EvaluateArithmetic(binary.Operator, leftValue, rightValue);
     }
 
@@ -5596,6 +5611,8 @@ internal static class TableSqlExecutor
 
     private static object? ConvertTableValue(SqlExpression expression, TableColumn column)
     {
+        if (column.DataType == TableColumnType.Decimal)
+            expression = SqlScalarOperations.InDecimalContext(expression);
         var value = expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
@@ -5618,17 +5635,20 @@ internal static class TableSqlExecutor
     }
 
     private static object? EvaluateAndConvertDefault(SqlExpression expression, TableColumn column)
-        => ConvertTableValue(EvaluateDefaultExpression(expression), column);
+        => ConvertTableValue(EvaluateDefaultExpression(column.DataType == TableColumnType.Decimal
+            ? SqlScalarOperations.InDecimalContext(expression) : expression), column);
 
     private static object? EvaluateAndConvertSchemaDefault(SqlExpression expression, TableColumn column)
-        => ConvertTableValueForSchemaChange(EvaluateDefaultExpression(expression), column);
+        => ConvertTableValueForSchemaChange(EvaluateDefaultExpression(column.DataType == TableColumnType.Decimal
+            ? SqlScalarOperations.InDecimalContext(expression) : expression), column);
 
     private static object? EvaluateDefaultExpression(SqlExpression expression)
     {
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
-            CastExpression cast => SqlCastOperations.Convert(EvaluateDefaultExpression(cast.Operand), cast.TargetType),
+            CastExpression cast => SqlCastOperations.Convert(EvaluateDefaultExpression(cast.TargetType == SqlDataType.Decimal
+                ? SqlScalarOperations.InDecimalContext(cast.Operand) : cast.Operand), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
                 SqlScalarOperations.Negate(EvaluateDefaultExpression(unary.Operand)),
@@ -5868,6 +5888,7 @@ internal static class TableSqlExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue,
         SqlLiteralKind.Integer => literal.IntegerValue,
         SqlLiteralKind.Float => literal.FloatValue,
+        SqlLiteralKind.Decimal => literal.DecimalValue,
         SqlLiteralKind.String => literal.StringValue,
         SqlLiteralKind.Blob => literal.BlobValue.ToArray(),
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
@@ -5882,6 +5903,7 @@ internal static class TableSqlExecutor
     {
         SqlLiteralKind.Integer => checked(-literal.IntegerValue),
         SqlLiteralKind.Float => -literal.FloatValue,
+        SqlLiteralKind.Decimal => -literal.DecimalValue,
         _ => throw new InvalidOperationException("一元负号只能用于数值字面量。"),
     };
 
@@ -6376,6 +6398,7 @@ internal static class TableSqlExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
         SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
+        SqlLiteralKind.Decimal => literal.DecimalValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.String => literal.StringValue ?? string.Empty,
         SqlLiteralKind.Blob => "X'" + Convert.ToHexString(literal.BlobValue.Span) + "'",
         _ => literal.Kind.ToString(),

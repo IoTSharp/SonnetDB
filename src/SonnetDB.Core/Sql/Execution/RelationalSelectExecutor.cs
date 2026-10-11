@@ -4141,6 +4141,7 @@ internal static partial class RelationalSelectExecutor
             {
                 SqlLiteralKind.Integer => TableColumnType.Int64,
                 SqlLiteralKind.Float => TableColumnType.Float64,
+                SqlLiteralKind.Decimal => TableColumnType.Decimal,
                 SqlLiteralKind.Boolean => TableColumnType.Boolean,
                 SqlLiteralKind.String => TableColumnType.String,
                 SqlLiteralKind.Blob => TableColumnType.Blob,
@@ -4419,6 +4420,12 @@ internal static partial class RelationalSelectExecutor
         var left = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope, memo);
         var right = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope, memo);
 
+        if (left is decimal || right is decimal)
+        {
+            left = SqlScalarOperations.ExactDecimalConstant(binary.Left, left);
+            right = SqlScalarOperations.ExactDecimalConstant(binary.Right, right);
+        }
+
         // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
         if (left is null || right is null)
             return null;
@@ -4493,7 +4500,8 @@ internal static partial class RelationalSelectExecutor
         else
         {
             matched = expression.Values.Any(item => Matches(
-                EvaluateScalar(tsdb, item, columns, row, outerScope, memo)));
+                EvaluateScalar(tsdb, value is decimal ? SqlScalarOperations.InDecimalContext(item) : item,
+                    columns, row, outerScope, memo)));
         }
 
         if (!matched && sawNull)
@@ -4552,7 +4560,8 @@ internal static partial class RelationalSelectExecutor
         {
             LiteralExpression literal => EvaluateLiteral(literal),
             CastExpression cast => SqlCastOperations.Convert(
-                EvaluateScalar(tsdb, cast.Operand, columns, row, outerScope, memo), cast.TargetType),
+                EvaluateScalar(tsdb, cast.TargetType == SqlDataType.Decimal
+                    ? SqlScalarOperations.InDecimalContext(cast.Operand) : cast.Operand, columns, row, outerScope, memo), cast.TargetType),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => GetColumnValue(columns, row, identifier, outerScope),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo)),
@@ -4602,6 +4611,11 @@ internal static partial class RelationalSelectExecutor
     {
         var leftValue = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope, memo);
         var rightValue = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope, memo);
+        if (leftValue is decimal || rightValue is decimal)
+        {
+            leftValue = SqlScalarOperations.ExactDecimalConstant(binary.Left, leftValue);
+            rightValue = SqlScalarOperations.ExactDecimalConstant(binary.Right, rightValue);
+        }
         return SqlScalarOperations.EvaluateArithmetic(binary.Operator, leftValue, rightValue);
     }
 
@@ -5644,6 +5658,7 @@ internal static partial class RelationalSelectExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue,
         SqlLiteralKind.Integer => literal.IntegerValue,
         SqlLiteralKind.Float => literal.FloatValue,
+        SqlLiteralKind.Decimal => literal.DecimalValue,
         SqlLiteralKind.String => literal.StringValue,
         SqlLiteralKind.Blob => literal.BlobValue.ToArray(),
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
@@ -5749,6 +5764,7 @@ internal static partial class RelationalSelectExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
         SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
+        SqlLiteralKind.Decimal => literal.DecimalValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.String => literal.StringValue ?? string.Empty,
         SqlLiteralKind.Blob => "X'" + Convert.ToHexString(literal.BlobValue.Span) + "'",
         _ => literal.Kind.ToString(),

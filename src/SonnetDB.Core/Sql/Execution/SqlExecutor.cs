@@ -2708,6 +2708,7 @@ public static class SqlExecutor
             SqlLiteralKind.Boolean => literal.BooleanValue,
             SqlLiteralKind.Integer => literal.IntegerValue,
             SqlLiteralKind.Float => literal.FloatValue,
+            SqlLiteralKind.Decimal => (double)literal.DecimalValue,
             SqlLiteralKind.String => literal.StringValue,
             _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
         };
@@ -3051,6 +3052,7 @@ public static class SqlExecutor
         {
             SqlLiteralKind.Integer => LiteralExpression.Integer(-literal.IntegerValue),
             SqlLiteralKind.Float => LiteralExpression.Float(-literal.FloatValue),
+            SqlLiteralKind.Decimal => LiteralExpression.Decimal(-literal.DecimalValue),
             _ => throw new InvalidOperationException(
                 $"列 '{columnName}' 的 VALUES 只支持对数值字面量使用一元负号，实际为 {literal.Kind}。"),
         };
@@ -3108,6 +3110,7 @@ public static class SqlExecutor
         return literal.Kind switch
         {
             SqlLiteralKind.Float => FieldValue.FromDouble(literal.FloatValue),
+            SqlLiteralKind.Decimal => FieldValue.FromDouble((double)literal.DecimalValue),
             SqlLiteralKind.Integer => FieldValue.FromLong(literal.IntegerValue),
             SqlLiteralKind.Boolean => FieldValue.FromBool(literal.BooleanValue),
             SqlLiteralKind.String => FieldValue.FromString(literal.StringValue!),
@@ -3123,6 +3126,7 @@ public static class SqlExecutor
                 return literal.Kind switch
                 {
                     SqlLiteralKind.Float => FieldValue.FromDouble(literal.FloatValue),
+                    SqlLiteralKind.Decimal => FieldValue.FromDouble((double)literal.DecimalValue),
                     SqlLiteralKind.Integer => FieldValue.FromDouble(literal.IntegerValue),
                     _ => throw TypeMismatch(column, literal.Kind),
                 };
@@ -3131,6 +3135,7 @@ public static class SqlExecutor
                 {
                     SqlLiteralKind.Integer => FieldValue.FromLong(literal.IntegerValue),
                     SqlLiteralKind.Float => FieldValue.FromDouble(literal.FloatValue),
+                    SqlLiteralKind.Decimal => FieldValue.FromDouble((double)literal.DecimalValue),
                     _ => throw TypeMismatch(column, literal.Kind),
                 };
             case FieldType.Boolean:

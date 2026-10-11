@@ -442,7 +442,7 @@ public static class SqlParameterBinder
             case double d:
                 return LiteralExpression.Float(d);
             case decimal m:
-                return LiteralExpression.Float((double)m);
+                return LiteralExpression.Decimal(m);
             case DateTime dt:
                 // Unspecified 视为 UTC，与关系表 DateTime 列绑定语义一致。
                 var utc = dt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) : dt.ToUniversalTime();

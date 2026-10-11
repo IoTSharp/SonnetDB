@@ -103,9 +103,9 @@ internal static class ParameterBinder
             short i16 => i16.ToString(CultureInfo.InvariantCulture),
             int i32 => i32.ToString(CultureInfo.InvariantCulture),
             long i64 => i64.ToString(CultureInfo.InvariantCulture),
-            float f => f.ToString("R", CultureInfo.InvariantCulture),
-            double d => d.ToString("R", CultureInfo.InvariantCulture),
-            decimal m => m.ToString(CultureInfo.InvariantCulture),
+            float f => "FLOAT '" + f.ToString("R", CultureInfo.InvariantCulture) + "'",
+            double d => "FLOAT '" + d.ToString("R", CultureInfo.InvariantCulture) + "'",
+            decimal m => "DECIMAL '" + m.ToString(CultureInfo.InvariantCulture) + "'",
             byte[] bytes => "X'" + Convert.ToHexString(bytes) + "'",
             Guid guid => "'" + guid.ToString("D", CultureInfo.InvariantCulture) + "'",
             DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified

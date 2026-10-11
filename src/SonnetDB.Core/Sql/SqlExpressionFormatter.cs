@@ -144,7 +144,10 @@ internal static class SqlExpressionFormatter
                 builder.Append(literal.IntegerValue.ToString(CultureInfo.InvariantCulture));
                 break;
             case SqlLiteralKind.Float:
-                builder.Append(literal.FloatValue.ToString("R", CultureInfo.InvariantCulture));
+                builder.Append(literal.NumericText ?? literal.FloatValue.ToString("R", CultureInfo.InvariantCulture));
+                break;
+            case SqlLiteralKind.Decimal:
+                builder.Append("DECIMAL '").Append(literal.DecimalValue.ToString(CultureInfo.InvariantCulture)).Append('\'');
                 break;
             case SqlLiteralKind.String:
                 builder.Append('\'')
