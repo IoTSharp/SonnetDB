@@ -3977,6 +3977,12 @@ internal static partial class RelationalSelectExecutor
                         return expression;
                     return unary with { Operand = operand };
                 }
+            case CastExpression cast:
+                {
+                    var operand = InlineAggregates(
+                        tsdb, cast.Operand, columns, group, outerScope, memo, allIntegralByAggregate);
+                    return ReferenceEquals(operand, cast.Operand) ? expression : cast with { Operand = operand };
+                }
             case FunctionCallExpression scalarCall when !scalarCall.IsStar:
                 {
                     var args = new SqlExpression[scalarCall.Arguments.Count];
@@ -4033,7 +4039,7 @@ internal static partial class RelationalSelectExecutor
         }
     }
 
-    private static LiteralExpression WrapValueAsLiteral(object? value)
+    private static SqlExpression WrapValueAsLiteral(object? value)
     {
         return value switch
         {
@@ -4045,7 +4051,9 @@ internal static partial class RelationalSelectExecutor
             byte by => LiteralExpression.Integer(by),
             double d => LiteralExpression.Float(d),
             float f => LiteralExpression.Float(f),
-            decimal m => LiteralExpression.Float((double)m),
+            // AST 没有 Decimal 字面量；复用已有显式转换，避免聚合结果先降为 Double。
+            decimal m => new CastExpression(
+                LiteralExpression.String(m.ToString(CultureInfo.InvariantCulture)), SqlDataType.Decimal),
             string str => LiteralExpression.String(str),
             _ => throw new InvalidOperationException(
                 $"HAVING 内联聚合结果类型 '{value.GetType().Name}' 暂不支持。"),
