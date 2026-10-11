@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "source": "preserved-installed-package-receipts",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "candidateRecordSha256": "3e1ec4a06f5d617ecf7f4b88a01f47c15d27bb4295bd5e4dda7f8f5566d0b014",
+  "acceptanceAuditSha256": "bc7040cfbc58e17a9ef1bc8c82cc48d0116bdf36a5c4fbe9fd8b8229b7c92086",
+  "files": [
+    {
+      "file": "first-journey.json",
+      "size": 122664,
+      "sha256": "29bd93b1c278c2979a94f6db97f3efe43c12d0fc0ebe902b9f9cf923d57bdb25",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/first/first-journey.json",
+      "storageFile": "first-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "first-result.json",
+      "size": 1193,
+      "sha256": "20790cad0b1d17130446cd8f7e641ca148c908bc3d1f5b50296ff51bb731b6df",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/first/result.json",
+      "storageFile": "first-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "reopen-journey.json",
+      "size": 13813,
+      "sha256": "83163aff7e16217117bf085564dac4152e671992258c4e1a9f177fc86dbabb1c",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/reopen/reopen-journey.json",
+      "storageFile": "reopen-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "reopen-result.json",
+      "size": 1192,
+      "sha256": "387cf27ff4b7753d173627dc57e0d27fb21bd283dde443607249ea78d1e1bd3d",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/reopen/result.json",
+      "storageFile": "reopen-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "rollback-journey.json",
+      "size": 13584,
+      "sha256": "eaa76620182db22a73ddd500510f570d5d6020777276ebe65afc8521e34473f3",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/rollback/rollback-journey.json",
+      "storageFile": "rollback-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "rollback-result.json",
+      "size": 1212,
+      "sha256": "c5246477f972ed683e7614ebfb2b7b7951d3554b811b01b270399f41940693b1",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/normal/rollback/result.json",
+      "storageFile": "rollback-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "legacy-journey.json",
+      "size": 2421,
+      "sha256": "1bdef8f4a56eb20e3c64ccf7f096f00d24fb317f072502ad28eefa8096efa21f",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/legacy/legacy/legacy-journey.json",
+      "storageFile": "legacy-journey.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "legacy-result.json",
+      "size": 1305,
+      "sha256": "b34d2425ba2c895ac278305cb620b00c63ccd5db84f92b0d525366e114eb4734",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/legacy/legacy/result.json",
+      "storageFile": "legacy-result.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "installed-suite.json",
+      "size": 1664,
+      "sha256": "c6d193e2d216bd05ef7bab9ac50265f63c1d0b696b0ce8b634afdb35c622ba19",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite-12/suite.json",
+      "storageFile": "installed-suite.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "installed-audit.json",
+      "size": 3956,
+      "sha256": "bc3a8ec59a6504817e3424b845efc1c10b61320b575f28b118b38c20c9ab669c",
+      "originalPath": "artifacts/m47-p07-close-20261011/installed-independent-audit.json",
+      "storageFile": "installed-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "corrected-audit.json",
+      "size": 3956,
+      "sha256": "bc3a8ec59a6504817e3424b845efc1c10b61320b575f28b118b38c20c9ab669c",
+      "originalPath": "artifacts/m47-p07-close-20261011/installed-independent-audit.json",
+      "storageFile": "corrected-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-empty-window-audit.json",
+      "size": 454,
+      "sha256": "cb6cf9bec50b3dce25da94cc27b3e132498ef8b350fc0f74a410e5436501e6ae",
+      "originalPath": "artifacts/m47-p05-20261011/final-delivery-process-audit.json",
+      "storageFile": "original-empty-window-audit.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-build-run.json",
+      "size": 12240,
+      "sha256": "eabc142a3f2509cccebd86ce6e3902c7f88608ab549f8922ce9b5b1a9855ca4e",
+      "originalPath": "artifacts/m47-p07-close-20261011/build-watch12/completed.json",
+      "storageFile": "original-build-run.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "original-build-artifacts.json",
+      "size": 1484,
+      "sha256": "eb23e3b7457f21b0488ab7cd8b977f75ec2aa9261361754a4c13f312230a62ca",
+      "originalPath": "artifacts/m47-p07-close-20261011/build-artifacts12/artifacts.json",
+      "storageFile": "original-build-artifacts.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "dependency-licenses-original.json",
+      "size": 123966,
+      "sha256": "c13b8c253c2c902eb400d04bd9bdb54c3537cc20e3f38492ae9b2b2e4f281711",
+      "originalPath": "artifacts/m47-p07-close-20261011/unpacked-4.5.0-preview.1.12/dependency-licenses.json",
+      "storageFile": "dependency-licenses-original.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "license-review.json",
+      "size": 4839,
+      "sha256": "f947d9cde2d47acdfbdb40ebe162a562b973f843b190e102c37cc3fbb65e77d4",
+      "originalPath": "artifacts/m47-p07-close-20261011/license-review-12.json",
+      "storageFile": "license-review.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "license-primary-sources.json",
+      "size": 8301,
+      "sha256": "db51149dd555f73e532d8aa4d6c1037b4c07cb53453c94b730195dcfdaadab81",
+      "originalPath": "artifacts/m47-p07-20261011/license-exact/sources.json",
+      "storageFile": "license-primary-sources.json.gz",
+      "encoding": "gzip"
+    },
+    {
+      "file": "microsoft-primary-documents.json",
+      "size": 2112,
+      "sha256": "8bb5587acc66199823cca406d93a6deac8debcfb06c95ce9b8e78c43de424cac",
+      "originalPath": "artifacts/m47-p07-close-20261011/unpacked-4.5.0-preview.1.12/microsoft-license-provenance.json",
+      "storageFile": "microsoft-primary-documents.json.gz",
+      "encoding": "gzip"
+    }
+  ],
+  "excluded": "No credentials, environment/spec files or screenshots. Candidate10 empty-window audit is excluded historical evidence; original candidate11 publish failure remains preserved separately. Historical license-primary-sources supplies upstream notices; actual candidate12 license review and package provenance supply current version/hash bindings."
+}

@@ -1,0 +1,16 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Name": "format-final",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "format",
+    "SonnetDB.slnx",
+    "--verify-no-changes",
+    "--no-restore",
+    "--severity",
+    "warn",
+    "--exclude",
+    "extensions/"
+  ],
+  "TimeoutSeconds": 600
+}

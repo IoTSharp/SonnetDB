@@ -1,0 +1,2959 @@
+{
+  "schemaVersion": 1,
+  "kind": "preview-controls-source-freeze",
+  "milestone": "M47-P03",
+  "frozenOn": "2026-10-10",
+  "timeZone": "Asia/Shanghai",
+  "scopeStatus": "R1_PREVIEW_LOCAL_ACCEPTED_FULL_MODE_REGRESSION_PARTIAL_SEVEN_MODEL_READS_DEFERRED",
+  "releaseStatus": "NOT_READY",
+  "isArtifactManifest": false,
+  "defaultAction": "DENY_UNLISTED",
+  "candidate": {
+    "id": "candidate-03",
+    "sourceCommit": "faa03a018c77afff4ffe3db5cac50a5a78e874cf",
+    "sourceTree": "45928275cb21a24c0c2b4a6cf4479cf17c856e1d",
+    "version": "4.5.0-preview.1.3",
+    "reservedTag": "workbench-preview-1.3",
+    "tagCreated": false,
+    "state": "COMMITTED_SOURCE_P03_R1_PREVIEW_PASS_FULL_MODE_PARTIAL_REMOTE_GATES_NOT_RUN",
+    "builtArtifacts": [],
+    "localHeadAndOriginMainVerified": false,
+    "excludesDirtyWorkingTree": true,
+    "requiresSuccessorForImplementation": true,
+    "submodules": [
+      {
+        "path": "extensions/IoTSharp.CoAP.NET",
+        "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+      },
+      {
+        "path": "extensions/MQTTnet.AspNetCore.Routing",
+        "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+      }
+    ],
+    "sourceCommittedLocally": true,
+    "remoteVerification": "NOT_RUN"
+  },
+  "versionPolicy": {
+    "template": "4.5.0-preview.1.N",
+    "tagTemplate": "workbench-preview-1.N",
+    "monotonicallyIncreasingCandidate": true,
+    "immutableSourceAndInputsAndBytes": true,
+    "onSourceOrPackagingOrBytesChange": "NEW_CANDIDATE_FILE_AND_NEW_N",
+    "tagMoveAllowed": false,
+    "overwriteAssetsAllowed": false,
+    "vTagPublicationAllowed": false
+  },
+  "components": [
+    {
+      "assemblyVersionDefault": "0.0.0.0",
+      "id": "server",
+      "injection": "Version",
+      "releaseVersion": "4.5.0-preview.1.3",
+      "source": "Directory.Build.props",
+      "sourceVersion": "0.0.0-dev",
+      "distribution": "REQUIRED",
+      "fileVersionDefault": "0.0.0.0",
+      "actualBuiltVersion": null
+    },
+    {
+      "distribution": "REQUIRED_EMBEDDED_SAME_CANDIDATE",
+      "sourceVersion": "0.1.0",
+      "source": "web/package.json",
+      "actualBuiltVersion": null,
+      "injection": "P04 manifest and embedded identity required",
+      "id": "web",
+      "releaseVersion": "4.5.0-preview.1.3"
+    },
+    {
+      "distribution": "DEFERRED",
+      "sourceVersion": "0.0.0-dev",
+      "source": "src/SonnetDB.Studio/SonnetDB.Studio.csproj",
+      "existingReleaseIsCandidate": false,
+      "id": "studio",
+      "releaseVersion": null
+    },
+    {
+      "distribution": "DEFERRED",
+      "sourceVersion": "0.4.1",
+      "source": "extensions/sonnetdb-vscode/package.json",
+      "existingReleaseIsCandidate": false,
+      "id": "vscode",
+      "releaseVersion": null
+    }
+  ],
+  "targets": {
+    "requiredRids": [
+      "win-x64"
+    ],
+    "requiredOperatingSystems": [
+      "Windows 11 x64"
+    ],
+    "browserFamilies": [
+      "Edge",
+      "Chrome"
+    ],
+    "actualBrowserVersions": null,
+    "browserVersionEvidenceOwner": "M47-P05",
+    "serverBuild": "NativeAOT",
+    "deferred": [
+      "linux-x64",
+      "linux-arm64",
+      "win-arm64",
+      "win-x86",
+      "macOS",
+      "other-Windows-versions",
+      "mobile-browsers"
+    ],
+    "compatibility": "EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER",
+    "legacyServerCompatibility": "NOT_ACCEPTED"
+  },
+  "deployment": {
+    "mode": "portable-server-with-embedded-web",
+    "host": "loopback-only",
+    "sameOrigin": true,
+    "basePath": "/",
+    "adminEntry": "/admin",
+    "authentication": "username-password-login-then-Bearer",
+    "authStorage": "localStorage:sndb.auth",
+    "credentialStoreClaim": false,
+    "optionalListeners": "DISABLED",
+    "shippedCredentialsAllowed": false,
+    "bootstrap": "fresh-setup-UI",
+    "data": "isolated-test-directory",
+    "remoteProxyDockerServiceInstall": "DEFERRED",
+    "authorizationLayers": [
+      "HTTP-role",
+      "database-grant"
+    ],
+    "grantLevels": [
+      "None",
+      "Read",
+      "Write",
+      "Admin"
+    ],
+    "serverApisRemovedByUiProfile": false,
+    "sandboxSecurityClaim": false
+  },
+  "actions": [
+    {
+      "id": "session",
+      "entry": "/admin",
+      "allow": [
+        "setup",
+        "login",
+        "select-authorized-database",
+        "logout",
+        "login-again",
+        "about"
+      ],
+      "permission": "session",
+      "maximumRowsOrElements": null,
+      "historicalEvidence": [],
+      "deferred": [
+        "auto-login",
+        "cross-origin",
+        "credential-import"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "sql.read",
+      "entry": "/admin/app/sql",
+      "allow": [
+        "single-budget-supported-select",
+        "explain-select",
+        "show-tables",
+        "show-measurements",
+        "describe-table",
+        "describe-measurement"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26-WB37-relevant-reads"
+      ],
+      "deferred": [
+        "free-sql-write",
+        "control-plane",
+        "multiple-statements"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "relation.read",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "schema",
+        "page",
+        "filter",
+        "sort",
+        "previous-next"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 200,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "ddl",
+        "indexes",
+        "foreign-keys"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "relation.insert.one",
+      "entry": "/admin/app/sql?tool=table",
+      "allow": [
+        "stage-single-scalar-row",
+        "preview",
+        "approve-once",
+        "submit-once",
+        "readback"
+      ],
+      "permission": "write",
+      "maximumRowsOrElements": 1,
+      "historicalEvidence": [
+        "WB27"
+      ],
+      "deferred": [
+        "update",
+        "delete",
+        "batch",
+        "ddl",
+        "replay-unknown"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "measurement.read",
+      "entry": "/admin/app/sql?tool=measurement",
+      "allow": [
+        "schema",
+        "bounded-time-points"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 500,
+      "historicalEvidence": [
+        "WB31"
+      ],
+      "deferred": [
+        "write",
+        "ingest",
+        "import",
+        "ddl",
+        "maintenance"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    },
+    {
+      "id": "document.read",
+      "entry": "/admin/app/sql?tool=document",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB26"
+      ],
+      "deferred": [
+        "count",
+        "aggregate",
+        "distinct",
+        "advanced",
+        "write",
+        "collections",
+        "schema",
+        "find-page",
+        "cursor-next-page"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "kv.read",
+      "entry": "/admin/app/sql?tool=kv",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB29"
+      ],
+      "deferred": [
+        "cas",
+        "ttl",
+        "atomic-number",
+        "write",
+        "delete",
+        "keyspaces",
+        "prefix-scan",
+        "inspect-current-key"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "fulltext.read",
+      "entry": "/admin/app/sql?tool=fulltext",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB28"
+      ],
+      "deferred": [
+        "import",
+        "index-write",
+        "maintenance",
+        "advanced-query",
+        "indexes",
+        "lexical-search",
+        "hit-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "vector.read",
+      "entry": "/admin/app/sql?tool=vector",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 100,
+      "historicalEvidence": [
+        "WB32",
+        "WB33"
+      ],
+      "deferred": [
+        "embedding",
+        "profile",
+        "write",
+        "maintenance",
+        "semantic-quality-claim",
+        "index-metadata",
+        "numeric-vector-search"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "object.read",
+      "entry": "/admin/app/sql?tool=bucket",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB37"
+      ],
+      "deferred": [
+        "full-download",
+        "upload",
+        "multipart",
+        "presign",
+        "semantic-search",
+        "bucket-export",
+        "buckets",
+        "object-list-window",
+        "metadata",
+        "range-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "mq.read",
+      "entry": "/admin/app/sql?tool=mq",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB34"
+      ],
+      "deferred": [
+        "auto-poll",
+        "publish",
+        "consume",
+        "ack",
+        "nack",
+        "retention-edit",
+        "topic-metadata",
+        "topic-stats",
+        "explicit-offset-browse"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "graph.read.beta",
+      "entry": "/admin/app/sql?tool=graph",
+      "allow": [],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "WB35",
+        "WB36"
+      ],
+      "deferred": [
+        "write",
+        "import",
+        "export",
+        "maintenance",
+        "arbitrary-traversal",
+        "metadata",
+        "bounded-vertex-edge-preview"
+      ],
+      "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+      "candidateAcceptance": "NOT_ACCEPTED",
+      "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+    },
+    {
+      "id": "result.window",
+      "entry": "allowed-result-views",
+      "allow": [
+        "current-authorized-window-export",
+        "cancel",
+        "truncation-status",
+        "error-status"
+      ],
+      "permission": "read",
+      "maximumRowsOrElements": 1000,
+      "historicalEvidence": [
+        "model-specific-local-contracts"
+      ],
+      "deferred": [
+        "backup",
+        "unloaded-pages",
+        "revoked-payload",
+        "graph-file-export",
+        "object-download"
+      ],
+      "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+      "candidateAcceptance": "LOCAL_R1_PASS",
+      "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+    }
+  ],
+  "budgets": {
+    "status": "ENFORCED_AND_LOCALLY_VERIFIED_FOR_R1_SUBSET",
+    "owner": "M47-P03",
+    "timeoutMilliseconds": 30000,
+    "concurrentReadsPerActiveOperation": 1,
+    "defaultMaximumRows": 1000,
+    "smallerModelLimitsTakePrecedence": true,
+    "maximumResponseBodyBytes": 4194304,
+    "maximumRetainedResultBytes": 4194304,
+    "maximumExportBytes": 4194304,
+    "maximumSqlOrInsertInputUtf8Bytes": 65536,
+    "inspectorBytes": 4096,
+    "noAutomaticUnboundedPaging": true,
+    "enforceBeforeFullMaterialization": true,
+    "browserCancelProvesServerStop": false,
+    "cancellationProvesRollback": false,
+    "maximumServerMaterializedRows": 10000,
+    "maximumServerEstimatedMaterializedBytes": 4194304,
+    "maximumSchemaResourceColumnAndPrimaryKeyItems": 1000,
+    "maximumRegisteredDatabasesForPreview": 1000,
+    "retainedBudgetAccounting": "CONSERVATIVE_CUMULATIVE_UNTIL_EXPLICIT_CONTEXT_CLEAR",
+    "physicalHeapHardLimit": false
+  },
+  "entryControls": [
+    {
+      "owners": [
+        "M47-P03"
+      ],
+      "allowedModules": [
+        "overview-summary",
+        "workbench-allowlist",
+        "settings-about"
+      ],
+      "scope": "seven-module navigation, routes, aliases, URL/query and restored tabs",
+      "disabledModules": [
+        "observe",
+        "flows",
+        "ai",
+        "govern"
+      ],
+      "id": "C01",
+      "status": "LOCAL_PASS_SCOPE_R1"
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "per-model action and dispatch allowlist; unknown defaults deny; SQL read-only",
+      "id": "C02",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "single-row single approval, permission/context binding, terminal state and no unknown replay",
+      "id": "C03",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "LOCAL_PASS_SCOPE_R1",
+      "scope": "identity/revocation clearing, direct requests and resource budgets",
+      "id": "C04",
+      "owners": [
+        "M47-P03"
+      ]
+    },
+    {
+      "status": "NOT_IMPLEMENTED",
+      "scope": "embedded profile/version/manifest and mismatch/cache rejection",
+      "id": "C05",
+      "owners": [
+        "M47-P04",
+        "M47-P05"
+      ]
+    },
+    {
+      "status": "NOT_IMPLEMENTED",
+      "scope": "separate assembly and exact asset publication allowlist",
+      "id": "D01",
+      "owners": [
+        "M47-P04",
+        "M47-P06"
+      ]
+    }
+  ],
+  "mcp": {
+    "sourceInventoryOnly": true,
+    "endpoint": "/mcp/{db}",
+    "transport": "HTTP stateless",
+    "typedContract": "1.0",
+    "typedCompatibility": "1.x extend-only",
+    "browserDirectProtocolConstant": "2025-11-25",
+    "actualNegotiatedProtocol": null,
+    "tools": [
+      "list_databases",
+      "query_sql",
+      "list_measurements",
+      "describe_measurement",
+      "sample_rows",
+      "explain_sql",
+      "docs_search",
+      "skill_search",
+      "skill_load"
+    ],
+    "resources": [
+      "measurements",
+      "measurement_schema",
+      "database_stats"
+    ],
+    "sourceToolsReadOnly": true,
+    "browserDirectSourceBudgets": {
+      "maximumToolPages": 16,
+      "maximumDiscoveredTools": 128,
+      "maximumResultBytes": 65536
+    },
+    "previewUiOnboarding": "DEFERRED",
+    "externalModelDataEgress": "NOT_IN_SCOPE"
+  },
+  "preservedSemantics": [
+    "SQL original spelling and quoted exact match",
+    "Graph Beta",
+    "MQ database+Topic logical identity and instance .system/mq persistence",
+    "single-database backup excludes instance MQ",
+    "one approval one submission",
+    "cancel is not rollback",
+    "unknown write is not replayed"
+  ],
+  "distribution": {
+    "channel": "GitHub standalone prerelease",
+    "implementation": "NOT_IMPLEMENTED",
+    "prerelease": true,
+    "latest": false,
+    "workflowProposal": ".github/workflows/workbench-preview-publish.yml",
+    "workflowExists": false,
+    "trigger": "manual after P07 and P08 authorization",
+    "exactPublicAssets": [
+      "sonnetdb-workbench-web-4.5.0-preview.1.3-win-x64.zip",
+      "sonnetdb-workbench-web-4.5.0-preview.1.3-manifest.json",
+      "sonnetdb-workbench-web-4.5.0-preview.1.3-SHA256SUMS.txt",
+      "sonnetdb-workbench-web-4.5.0-preview.1.3-notes.md"
+    ],
+    "exactSetRequired": true,
+    "unexpectedAssets": "REJECT",
+    "standaloneStaticZipAllowed": false,
+    "deferredAssets": [
+      "Studio ZIP/MSI",
+      "VSIX",
+      "SDK",
+      "full bundle",
+      "NuGet",
+      "CLI",
+      "connectors",
+      "Docker images",
+      "MSI",
+      "DEB",
+      "RPM",
+      "Linux/ARM archives"
+    ],
+    "actionsValidationArtifactsArePublicAllowlist": false,
+    "existingPublishWorkflow": {
+      "includesVsix": false,
+      "vTag": "NuGet plus public full GitHub assets",
+      "includesStudio": true,
+      "allowedForPreviewPublication": false,
+      "dispatch": "full validation artifacts"
+    }
+  },
+  "gates": {
+    "authoritativePolicy": "eng/release-readiness-policy.ps1",
+    "weakeningAllowed": false,
+    "requiredWorkbenchJobCount": 5,
+    "finalSourceAndVersionAndLatestAttemptRequired": true,
+    "workflowSnapshot": [
+      {
+        "workflow": "ci.yml",
+        "jobs": [
+          "Build & Test (ubuntu-latest)",
+          "Build & Test (windows-latest)",
+          "Format Check",
+          "AOT Publish (ubuntu-latest)",
+          "AOT Publish (windows-latest)",
+          "AOT Publish (ubuntu-24.04-arm)"
+        ],
+        "artifacts": [
+          "test-results-ubuntu-latest",
+          "test-results-windows-latest",
+          "aot-linux-x64",
+          "aot-linux-arm64",
+          "aot-win-x64"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Build & Test (ubuntu-latest)": [
+            "Build",
+            "Test",
+            "Test release gate contracts"
+          ],
+          "Build & Test (windows-latest)": [
+            "Build",
+            "Test",
+            "Test release gate contracts"
+          ],
+          "Format Check": [
+            "Format check"
+          ],
+          "AOT Publish (ubuntu-latest)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ],
+          "AOT Publish (windows-latest)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ],
+          "AOT Publish (ubuntu-24.04-arm)": [
+            "Publish SonnetDB.Cli (Native AOT)",
+            "Publish SonnetDB (Native AOT)",
+            "Run image codec smoke (Native AOT)"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "codeql.yml",
+        "jobs": [
+          "Analyze (csharp)"
+        ],
+        "artifacts": [],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Analyze (csharp)": [
+            "Build",
+            "Analyze code and upload results"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "jobs": [
+          "Build Docs"
+        ],
+        "artifacts": [],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Build Docs": [
+            "Build static site"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "jobs": [
+          "Server management contracts",
+          "Web Admin and Studio bridge",
+          "Studio desktop host",
+          "VS Code HTTP consumer",
+          "VS Code Extension Host"
+        ],
+        "artifacts": [
+          "management-contract-results",
+          "studio-host-results",
+          "sonnetdb-vscode-vsix"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Server management contracts": [
+            "Test multi-model management contracts"
+          ],
+          "Web Admin and Studio bridge": [
+            "Build Web Admin",
+            "Run Web Admin contract tests",
+            "Run management workbench smoke"
+          ],
+          "Studio desktop host": [
+            "Test Studio host contracts"
+          ],
+          "VS Code HTTP consumer": [
+            "Test SQL language server",
+            "Run extension consumer smoke",
+            "Package VS Code extension"
+          ],
+          "VS Code Extension Host": [
+            "Run Extension Host smoke"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "parity.yml",
+        "jobs": [
+          "Parity (light, ubuntu-latest)",
+          "Parity (full, ubuntu-latest)"
+        ],
+        "artifacts": [
+          "parity-light-reports",
+          "parity-full-reports"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "Parity (light, ubuntu-latest)": [
+            "Start parity stack",
+            "Run parity gates",
+            "Run reliability gates",
+            "Gate parity result"
+          ],
+          "Parity (full, ubuntu-latest)": [
+            "Start parity stack",
+            "Run parity gates",
+            "Run reliability gates",
+            "Gate parity result"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "document-soak.yml",
+        "jobs": [
+          "soak"
+        ],
+        "artifacts": [
+          "document-soak-*-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "soak": [
+            "Run Document Store profile",
+            "Audit capacity evidence contract"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "jobs": [
+          "soak"
+        ],
+        "artifacts": [
+          "ecosystem-soak-*-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "soak": "Run ecosystem profile"
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "jobs": [
+          "GitHub-hosted capacity validation"
+        ],
+        "artifacts": [
+          "m19-hosted-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "GitHub-hosted capacity validation": [
+            "Validate strict capacity verifier contracts",
+            "Run all four scaled specialized profiles",
+            "Record hosted hardware, scale and evidence boundary"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "jobs": [
+          "evidence"
+        ],
+        "artifacts": [
+          "m39-trigger-v2-*"
+        ],
+        "dispatchOnly": false,
+        "requiredSteps": {
+          "evidence": [
+            "Run golden journey and commit failure tests",
+            "Run real process-kill replay test",
+            "Run REST and Frame routine contracts",
+            "Run M39 cost and rollback report"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "publish.yml",
+        "jobs": [
+          "NuGet Packages",
+          "Release Bundles (linux-x64)",
+          "Release Bundles (win-x64)"
+        ],
+        "artifacts": [
+          "nuget-packages-4.5.0-preview.1.3",
+          "release-4.5.0-preview.1.3-linux-x64",
+          "release-4.5.0-preview.1.3-win-x64",
+          "insert-returning-contract-4.5.0-preview.1.3-linux-x64",
+          "insert-returning-contract-4.5.0-preview.1.3-win-x64"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "NuGet Packages": [
+            "Pack NuGet packages"
+          ],
+          "Release Bundles (linux-x64)": [
+            "Build bundles and installers",
+            "Verify bundle network defaults with the NativeAOT Server",
+            "Verify installed INSERT RETURNING contract and published compatibility"
+          ],
+          "Release Bundles (win-x64)": [
+            "Build bundles and installers",
+            "Verify bundle network defaults with the NativeAOT Server",
+            "Verify installed INSERT RETURNING contract and published compatibility"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "jobs": [
+          "Connectors (linux-x64)",
+          "Connectors (win-x64)",
+          "Connectors (win-x86)"
+        ],
+        "artifacts": [
+          "connectors-4.5.0-preview.1.3-linux-x64",
+          "connectors-4.5.0-preview.1.3-win-x64",
+          "connectors-4.5.0-preview.1.3-win-x86"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "Connectors (linux-x64)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ],
+          "Connectors (win-x64)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ],
+          "Connectors (win-x86)": [
+            "Build and package connectors",
+            "Verify connector package inventory and native entries"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "jobs": [
+          "Build, Verify and Publish Docker Image"
+        ],
+        "artifacts": [
+          "docker-validation"
+        ],
+        "dispatchOnly": true,
+        "requiredSteps": {
+          "Build, Verify and Publish Docker Image": [
+            "Build image for local verification",
+            "Verify container startup, readiness and embedded Admin UI"
+          ]
+        },
+        "candidateEvidence": "NOT_RUN"
+      }
+    ],
+    "existingArtifactValidationRetained": true,
+    "scheduledParitySevenDays": {
+      "replacesLightFull": false,
+      "blocking": false,
+      "independentObservation": true
+    },
+    "realJourneyAndPackageGates": [
+      "M47-P03",
+      "M47-P04",
+      "M47-P05",
+      "M47-P06",
+      "M47-P07"
+    ],
+    "historicalSmoke": {
+      "runId": "37731752397",
+      "rootCause": "FIXTURE_ENVIRONMENT_COLLECTION_AND_STUDIO_CONTRACTS",
+      "sourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+      "otherFourJobs": "success",
+      "owner": "M47-P02",
+      "recheckedInP01": false,
+      "webJob": "failure",
+      "recheckedInP02": true,
+      "unresolvedHistoricalFlaky": "Object harness navigation passed retry; not claimed fixed"
+    },
+    "candidateProductTesting": "LOCAL_P03_R1_REAL_SERVER_AND_BROWSER_PASS_FULL_MODE_KV_TIMEOUT_UNRESOLVED_CHROME_MEASUREMENT_TIMEOUT_RETAINED",
+    "candidateRemoteReadiness": "NOT_RUN",
+    "actualPublicationAuthorized": false,
+    "candidate01Smoke": {
+      "runId": "38031369602",
+      "attempt": 1,
+      "sourceCommit": "c40fa670e3a170c5fac8cefa181d618631862270",
+      "webJob": "failure",
+      "otherFourJobs": "success",
+      "inheritedAsCandidate02Pass": false,
+      "inheritedAsCandidate03Pass": false
+    }
+  },
+  "sourceInventory": [
+    {
+      "path": "Directory.Build.props",
+      "gitBlob": "f8c104f46b867d9d69a481fc0930a1c2a2b4fe09"
+    },
+    {
+      "path": "Directory.Packages.props",
+      "gitBlob": "111f3e29e9b524cfba11307a53381f4adb958500"
+    },
+    {
+      "path": "global.json",
+      "gitBlob": "1e7fdfa95fd6615c9270c5c82a23b734d4cc8c59"
+    },
+    {
+      "path": ".gitmodules",
+      "gitBlob": "ea5c02c2f85f948ceba897c05f137b6f5a9ce61e"
+    },
+    {
+      "path": "web/package.json",
+      "gitBlob": "c93dfc0fa50454b671a2ee5ef9d14e99ea340cee"
+    },
+    {
+      "path": "web/package-lock.json",
+      "gitBlob": "ae21e3e194155c7e835b8917984005209b879230"
+    },
+    {
+      "path": "web/vite.config.ts",
+      "gitBlob": "594becf771038b968c21fa3544f8416b10688ad8"
+    },
+    {
+      "path": "src/SonnetDB/SonnetDB.csproj",
+      "gitBlob": "92aa77f4998bfa07d68ed0751aadd30c5cdf3c6e"
+    },
+    {
+      "path": "src/SonnetDB.Studio/SonnetDB.Studio.csproj",
+      "gitBlob": "904b992ebae0ea6c9900ae2dce3137ac59714637"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/package.json",
+      "gitBlob": "ca06a2dd529d98d09f3d44d743c1eea9bea8d294"
+    },
+    {
+      "path": "extensions/sonnetdb-vscode/package-lock.json",
+      "gitBlob": "41f496e5d600ec41af2a93fc318ec0b75cc145ab"
+    },
+    {
+      "path": "web/src/router/index.ts",
+      "gitBlob": "c86ce202ea6e92948bf5fa40902323ad87de810b"
+    },
+    {
+      "path": "web/src/views/AppShell.vue",
+      "gitBlob": "c2777fca84859e1b5a4b5a98f99a75e2205cf928"
+    },
+    {
+      "path": "web/src/views/SqlConsoleView.vue",
+      "gitBlob": "6b86967eb52e52e31134b9711b2cf7967a65b3cb"
+    },
+    {
+      "path": "web/src/composables/useSqlWorkbenchChrome.ts",
+      "gitBlob": "15985df7b9fd03031a4d65270387835d2563cd65"
+    },
+    {
+      "path": "web/src/management-core/capabilityRegistry.ts",
+      "gitBlob": "8ef1fddbb0a249e11373fab0f2f6b0fe116b7534"
+    },
+    {
+      "path": "web/src/stores/auth.ts",
+      "gitBlob": "321e0d739c17e18f96ddadb15cd053de127c7b52"
+    },
+    {
+      "path": "web/src/api/client.ts",
+      "gitBlob": "744341ee6e31fe3feb7b14183dfbe6aeda2848b9"
+    },
+    {
+      "path": "web/src/copilot/browserDirectMcp.ts",
+      "gitBlob": "3c8cfd1fa830612cc6954ae6c3e2aefc78cb7b6f"
+    },
+    {
+      "path": "web/src/components/RelationalTableWorkbench.vue",
+      "gitBlob": "9c5712fcf5a0520b325bf316409b2439e6c6f805"
+    },
+    {
+      "path": "web/src/components/MeasurementWorkbench.vue",
+      "gitBlob": "f111535596077810a0e245c3d7516a4bf0e8412b"
+    },
+    {
+      "path": "web/src/components/DocumentCollectionWorkbench.vue",
+      "gitBlob": "7de2d1bc7369fb801fd831784fa7db2f3810652a"
+    },
+    {
+      "path": "web/src/components/KvKeyspaceWorkbench.vue",
+      "gitBlob": "6af58c145ae3f35af3f34a21952b0593e51d1dfc"
+    },
+    {
+      "path": "web/src/components/FullTextSearchWorkbench.vue",
+      "gitBlob": "da02b65ff98e02ffe95f8dbe13f328cdd7d664c2"
+    },
+    {
+      "path": "web/src/components/VectorSearchWorkbench.vue",
+      "gitBlob": "8f5a48076b5ac1dd03afa4547c7e79a2320123e3"
+    },
+    {
+      "path": "web/src/components/ObjectBucketWorkbench.vue",
+      "gitBlob": "b9a7d517f7d2fa538aa46dfcec55cdc6c35d5cac"
+    },
+    {
+      "path": "web/src/components/SonnetMqWorkbench.vue",
+      "gitBlob": "1e196d296114089ad34b91469fc8397b6eeca59b"
+    },
+    {
+      "path": "web/src/components/GraphWorkbench.vue",
+      "gitBlob": "8a1c3b52f6d44f098e53d438f1145e0c45adac0f"
+    },
+    {
+      "path": "src/SonnetDB/Auth/BearerAuthMiddleware.cs",
+      "gitBlob": "42453d0cc00756042a2144614d2443615b32573b"
+    },
+    {
+      "path": "src/SonnetDB/Auth/DatabasePermission.cs",
+      "gitBlob": "1702870f46dfd22d24049b6f9a75409ea88fcf57"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs",
+      "gitBlob": "65afcabda0896fef6fead5bb725738fc045be733"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/SonnetDbEndpoints.cs",
+      "gitBlob": "c6850fc68629b0c4025b0108c46c88a4a15a9244"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs",
+      "gitBlob": "dfee11467198e5af668d60139e095c31b3ae2ad3"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpResults.cs",
+      "gitBlob": "039aaeacb65af79008a24f10879d47df5a6981b3"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpTools.cs",
+      "gitBlob": "17775355d22b9aceace552aabcd389fbc95d1e9c"
+    },
+    {
+      "path": "src/SonnetDB/Mcp/SonnetDbMcpResources.cs",
+      "gitBlob": "e43c49f0e08bb217d8248d55cfd33a833e851fd8"
+    },
+    {
+      "path": "src/SonnetDB/Hosting/SonnetDbServiceRegistration.cs",
+      "gitBlob": "ed8df1bdd83acebc94c162d04db58c2bcbab860a"
+    },
+    {
+      "path": ".github/workflows/publish.yml",
+      "gitBlob": "f1b0a79a43122fcc66d18bea9b2313c9d925fd46"
+    },
+    {
+      "path": ".github/workflows/connectors-release.yml",
+      "gitBlob": "f278b290a20544efc7693adaa81f05c8e5f8681e"
+    },
+    {
+      "path": ".github/workflows/docker-publish.yml",
+      "gitBlob": "e135b748b890494097e2c441b65a4dba43b57eb3"
+    },
+    {
+      "path": ".github/workflows/management-workbench-smoke.yml",
+      "gitBlob": "1aa87e5f71915f4461aa72f42cc4feb571802053"
+    },
+    {
+      "path": "eng/release.ps1",
+      "gitBlob": "078ccf2ae38a88844004cc6cad0523ad280e7f5d"
+    },
+    {
+      "path": "eng/release-readiness-policy.ps1",
+      "gitBlob": "031754b323ba9d6c2f1efa1337d06ed89068f8b6"
+    },
+    {
+      "path": "eng/verify-release-readiness.ps1",
+      "gitBlob": "c68ed1c47679104cdf87786a66183e3ae6fdb4e6"
+    },
+    {
+      "path": "eng/verify-release-artifacts.ps1",
+      "gitBlob": "5ffa1809d87745f6829379338c5277251b0f3776"
+    },
+    {
+      "path": "eng/set-release-network-defaults.ps1",
+      "gitBlob": "a3f5bf1797bfc3371caaaf7d707d9b337a93fb84"
+    },
+    {
+      "path": "web/playwright.config.ts",
+      "gitBlob": "b0ac88e84bb0de227b9f6a02177c2bad5cbc6217"
+    },
+    {
+      "path": "web/playwright.smoke.config.ts",
+      "gitBlob": "e424693a0d62451d8f82061111266c994e025a1f"
+    },
+    {
+      "path": "web/e2e/copilot-browser-direct.spec.ts",
+      "gitBlob": "c9077805ca5813fb5f81d34ca5ec9aac06570511"
+    },
+    {
+      "path": "web/e2e/management-workbenches.spec.ts",
+      "gitBlob": "5286d36837a2cb2fc4a846db4e3e48b01e0dd525"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "gitBlob": "f296bb11d0411f9dd7f300da6f7263aa474433a4"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/ControlPlaneEndpoints.cs",
+      "gitBlob": "7bd8c56ce986cb99a702d86f497d832053ee47db"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Routes/DatabaseEndpoints.cs",
+      "gitBlob": "78da684c91a4b41820196733139facbaa78e9103"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Support/EndpointRequestSupport.cs",
+      "gitBlob": "88b52e9279f497297872f03878911e4f89db9d79"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Support/WorkbenchPreviewMetadata.cs",
+      "gitBlob": "ca79db6c16dfc3b8547a25580ff141de789685e2"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Support/WorkbenchPreviewSql.cs",
+      "gitBlob": "7eb4d4382d73af5e4fde54d780eaa36d92af1bba"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/WorkbenchPreviewEndpointTests.cs",
+      "gitBlob": "8b79e18dcdaf81bb26842005b1393ebfc6561a30"
+    },
+    {
+      "path": "web/e2e/preview-real.spec.ts",
+      "gitBlob": "bed9db58b12f25445c32c49618753884e2afd350"
+    },
+    {
+      "path": "web/src/api/sql.ts",
+      "gitBlob": "dad30a3521efdf29e5ba57e6754602dc0914e07e"
+    },
+    {
+      "path": "web/src/components/WorkbenchSectionTabs.vue",
+      "gitBlob": "fc60da49ab233b069b1623d11cb09763464d7c95"
+    },
+    {
+      "path": "web/src/preview/policy.ts",
+      "gitBlob": "b87ca8bfae8e51ecf0fa9cd4802e8aeba5549963"
+    },
+    {
+      "path": "web/src/preview/PreviewAbout.vue",
+      "gitBlob": "8f0a6c31e6335242fcf1649b3de238eb6015bc96"
+    },
+    {
+      "path": "web/src/preview/PreviewOverview.vue",
+      "gitBlob": "70c4da07f306f867ab71253a57d610a5dbf2647a"
+    },
+    {
+      "path": "web/src/preview/PreviewShell.vue",
+      "gitBlob": "511c177c9582fce27a10059d4c12e86ad0fd1163"
+    },
+    {
+      "path": "web/src/preview/PreviewUnavailable.vue",
+      "gitBlob": "b330f91fda750320c469ef602cf78ee815de3625"
+    },
+    {
+      "path": "web/src/preview/PreviewWorkbench.vue",
+      "gitBlob": "c60dd748ccf466eaed519a2342c1c4623008e484"
+    },
+    {
+      "path": "web/src/preview/session.ts",
+      "gitBlob": "e52a957c1405b981caa0036c282273ea6eb240f7"
+    },
+    {
+      "path": "web/src/preview/transport.ts",
+      "gitBlob": "02f23e87de7f785b7de002d8f2337c5aa618e902"
+    },
+    {
+      "path": "web/src/stores/connections.ts",
+      "gitBlob": "8e841b169c0ea729586cdf37f7bd5e05ced70344"
+    },
+    {
+      "path": "web/src/stores/workbenchHistory.ts",
+      "gitBlob": "4c0d240f693289a44295d47e899d50884ec00a93"
+    },
+    {
+      "path": "web/src/utils/resultExport.ts",
+      "gitBlob": "02b6727f8c23167c65da920379bf8ebe263e1210"
+    },
+    {
+      "path": "web/src/views/LoginView.vue",
+      "gitBlob": "a1727dc93a296d28defd774bf0936d5a822f49c7"
+    },
+    {
+      "path": "web/tests/preview-policy.test.mjs",
+      "gitBlob": "7a7ec227d16842fc60dc781be9264390062e9086"
+    },
+    {
+      "path": "web/tests/relational-workbench-migration.test.mjs",
+      "gitBlob": "a3cda6c75ffa7ef16e5962d806700bfad9562166"
+    },
+    {
+      "path": "web/tests/studio-host-client-contract.test.mjs",
+      "gitBlob": "5cac6545cf45fe725ffa6b667bb786d33f0e5e52"
+    },
+    {
+      "path": "web/tests/workbench-navigation-auth.test.mjs",
+      "gitBlob": "d500dd5f0e52f526c6bbb296cc5d79b6c0a10a19"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-p03-controls.md",
+      "gitBlob": "34ccb2b51bfad751766fe7b856e431ea7c015ee0"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md",
+      "gitBlob": "7a3e7f58b6b781dc6daca5784077a800a02decd9"
+    },
+    {
+      "path": "HANDOFF.md",
+      "gitBlob": "78cb1cf055411c9f5a7e3b1a646baaa8dce67fef"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/validation-report.md",
+      "gitBlob": "d5c02ce4dbf5c724797bc77a511086ac0be3a363"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/work-queue.md",
+      "gitBlob": "6b04cc5a1f3cb981b8d4225ee515368883fb0394"
+    },
+    {
+      "path": "ROADMAP.md",
+      "gitBlob": "6e9af8b999c1733eab6c8d2fa768820926e86f42"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "gitBlob": "5f25c3cbb727a8a76bb8730f2d4ade0bdbcad6bc"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-scope.md",
+      "gitBlob": "a0048cf33c629572ba43ac0c2ccf8a06af204a8d"
+    }
+  ],
+  "predecessor": {
+    "id": "candidate-02",
+    "sourceCommit": "ed4f48242c5d5b4e7e16861504d03cc845146402",
+    "version": "4.5.0-preview.1.2",
+    "manifest": "docs/design/m47-unified-management-workbench/preview-1-candidate-02.json",
+    "manifestSha256": "c7d04afd255f031e7cac10fb55df2bc6cbe0fa642b36543ff783966565ef97a0",
+    "immutable": true
+  },
+  "localValidation": {
+    "status": "LOCAL_P03_R1_PREVIEW_PASS_FULL_MODE_PARTIAL",
+    "sourceCommit": "faa03a018c77afff4ffe3db5cac50a5a78e874cf",
+    "report": "docs/design/m47-unified-management-workbench/preview-1-p03-controls.md",
+    "overallP03Acceptance": "PARTIAL_FULL_MODE_KV_TIMEOUT_UNRESOLVED",
+    "sourceInputBinding": "CURRENT_COMMITTED_BLOBS_AND_VERIFIED_WORKTREE_SHA256",
+    "sourceInputs": [
+      {
+        "path": ".editorconfig",
+        "sha256": "A0D105CBCB460754013D13C1345EB60AC3EBF5B777DCA46F4EA57C4EA61704A8",
+        "gitBlob": "538fa01e996232d81483dec873cf7190ae9e2090"
+      },
+      {
+        "path": ".github/workflows/management-workbench-smoke.yml",
+        "sha256": "4016E9349D45AC376AF879324A5AB7C594E1ADDDC428D346061B24C2283A9DC6",
+        "gitBlob": "1aa87e5f71915f4461aa72f42cc4feb571802053"
+      },
+      {
+        "path": "Directory.Build.props",
+        "sha256": "AC640EB261E93A746B6664270F30138D0B89A46EF0C302B6CF582FBF7B5656D3",
+        "gitBlob": "f8c104f46b867d9d69a481fc0930a1c2a2b4fe09"
+      },
+      {
+        "path": "Directory.Packages.props",
+        "sha256": "E55726EEE0A4BED72EA22E3E34CF197379817EDBA3AAD094300A1A8F0929C71C",
+        "gitBlob": "111f3e29e9b524cfba11307a53381f4adb958500"
+      },
+      {
+        "path": "SonnetDB.slnx",
+        "sha256": "F60BBBB7374DAD5DD270168A7E81896211BD44A8A3017DA62A8C3C64A67FE812",
+        "gitBlob": "444dc23f737a3af6db254b04ecb573116220db30"
+      },
+      {
+        "path": "eng/release-readiness-policy.ps1",
+        "sha256": "CC88E7E35E221D6DB95599E92BD8B66B4738FD8D3EDB5F4CD576A1CE12158C6F",
+        "gitBlob": "031754b323ba9d6c2f1efa1337d06ed89068f8b6"
+      },
+      {
+        "path": "global.json",
+        "sha256": "6E0590C24E13F9792D37FA5AE42438F3E8775BC5A69D5926887C48AA8CAB639A",
+        "gitBlob": "1e7fdfa95fd6615c9270c5c82a23b734d4cc8c59"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/AiEndpointHandler.cs",
+        "sha256": "6BFDFC8B528A5135FC054F373D4ED3AF699A2BE4E3B6ED214C255DBABD4472B0",
+        "gitBlob": "b0f08b7f093e3913f3dce19d4f87cbd4a6398c9c"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/BulkIngestEndpointHandler.cs",
+        "sha256": "1C990C9726CAB0B4289F9899C4F33BAA841B8B1B04047568A6E6860906581ED7",
+        "gitBlob": "fe690d0b323cbfe7712047e07450eadb38cfc27c"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/CopilotChatEndpointHandler.cs",
+        "sha256": "628EFEFB961AD89E568495079527E76D8D2F190D54F329C86DE76085EF05D1D0",
+        "gitBlob": "b3397976993f345a2925ee5295224c4b1c14cc48"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/CopilotServerRelayRunStore.cs",
+        "sha256": "C2947E02B193EA73FEE1D9F49373CB31C4B5FB0DA8DE483045E088BF5DA3BE6B",
+        "gitBlob": "1b620b0f3c92b26411c5435b5e9ca313d68e0a6c"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/CopilotStateEndpointHandler.cs",
+        "sha256": "BD637485EB1394AE2C9B010F4A57B706871BF80ABAC02BF30365242BF3CF654A",
+        "gitBlob": "ff4d7ca382552a9855f8ffa87ef6de2314febdc2"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+        "sha256": "31ED4C72F3B780819EA4C1143EB0E005BCE053B2218D2C18CC4B923F369486D5",
+        "gitBlob": "bf3453d631422588e62764d4c4391e47895630b9"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/FrameStreamEndpointHandler.cs",
+        "sha256": "CD50A6AA986D4165A95951A98ED056853FE93CF5CC56275F49A3559EEFF96FE0",
+        "gitBlob": "127d5407894449418a741b892f964e7ce4ac4318"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/GeoEndpointHandler.cs",
+        "sha256": "582B7D868D209F392DC66FFD01AF9AAC06AAA5772C7BD323C02A57EDBF36F2BF",
+        "gitBlob": "5f5c7515c3e0e41cb30094b8f7497c69cc8de673"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/InfluxLineProtocolEndpointHandler.cs",
+        "sha256": "37F7CA4CD67074C65F879E7D55CE4C6ECFA76C69D40B0B6CE09258C0CDD55791",
+        "gitBlob": "a384dd4d17fdbdc400c4339184f8e03d29b5b8c7"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/MaintenanceEndpointHandler.cs",
+        "sha256": "12C8840331E66B2B737ECE140AB1F88FBD741746C8208FC0F330B2B7C57A8FF9",
+        "gitBlob": "73a68d5da566b9cd7d254d0ecd3ba01a3f708f9c"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/ObjectStorageEndpointHandler.cs",
+        "sha256": "AD1FCD677952935F5A1805BCBD876B5486A305DF76D009C53E195D14E942EB08",
+        "gitBlob": "db9316392c895f545045f82e8d94b3f118a9b71d"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/PrometheusRemoteWriteEndpointHandler.cs",
+        "sha256": "B4BE6118EE6104B0027B4D48F763C4EB65CF7273D7F019FECCC5EFE429A49F96",
+        "gitBlob": "4e34f68ff213b1423f985f62325b0d99edd014dd"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/SchemaEndpointHandler.cs",
+        "sha256": "B59861AFBB880F42F3722BA4FEAE6CE259D31CF9A1F530775090DBA6775D7A41",
+        "gitBlob": "89cf1828d6caeb4f443178db5d9ec9fa5e7541de"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+        "sha256": "CFD3F6C0A179B7E9BF1E98B7DE49F4BBC3A08C8670A6F2453D18BEC831EE7684",
+        "gitBlob": "f296bb11d0411f9dd7f300da6f7263aa474433a4"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/SseEndpointHandler.cs",
+        "sha256": "1DED51EB6323F887B20D5993182F57AA59382F4D1AE6B3F068FA5B1B12946321",
+        "gitBlob": "4ccd88689482a6f643ce114658550532f4cba796"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/ControlPlaneEndpoints.cs",
+        "sha256": "389DA54578C84A38E4B587C9D42E20D510AFD62058EB9647BFD5A9DA45504B47",
+        "gitBlob": "7bd8c56ce986cb99a702d86f497d832053ee47db"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/CopilotEndpoints.cs",
+        "sha256": "5E4A92C01E8C32CE89ADE6940DEDC2ADE74D684E0849E7157BD570DE3CD65005",
+        "gitBlob": "c310dd975c729805fe7c2be44963c2b743dce2b9"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/DatabaseEndpoints.cs",
+        "sha256": "69A0C7F5BB08DBC79326FBF697A704E257FEC1E3EEB3893C3B1BCA2B28745FC8",
+        "gitBlob": "78da684c91a4b41820196733139facbaa78e9103"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/DiagnosticsEndpoints.cs",
+        "sha256": "68160C92E9CD13BDE5B4B55AD810A315B07B1F3528CBE48023D62A82F7D0F836",
+        "gitBlob": "2f7275c81c80ecc66b7f0fb234a5b1f1be5c327a"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/DocumentEndpoints.cs",
+        "sha256": "4DA1E18A526A428BD6C823077654DDE437AE0A1FC0F2A8A7C348BA5933CF409D",
+        "gitBlob": "07e40396ba6ff716fdaba6f926883b7fc76c55e7"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/FrameEndpoints.cs",
+        "sha256": "058D59818A526440F70E2844A794E60F8E70B59EC70F3B4820FA7031260F7033",
+        "gitBlob": "2236697885276398dfe3ede8061a4450577f4e37"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/GraphEndpoints.cs",
+        "sha256": "4433437493690AE9B019482D969709443DABAFFA54A0F2F9AAD958D21DAF0C8E",
+        "gitBlob": "4e44b81445cf3bba5cd8886374d64b1dc06a09be"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/GraphOperationsEndpoints.cs",
+        "sha256": "9905FDA6609ADBCAC043E842EFC099B70378F56CF96FE2152BC3EB465E343B31",
+        "gitBlob": "1c02e7e616c1fefed4da8087565c2707374cdc74"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/HealthEndpoints.cs",
+        "sha256": "7E9B05948E360E5D0E2BF306B38B122085D4F6255560FF8239270B09D2FE7951",
+        "gitBlob": "aff9da4653cfa06abdc48747d3f59055ccb940a8"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/IngestionEndpoints.cs",
+        "sha256": "D629C86C6EFC621635E8926BF1F4FBC22F08A0A32D141FF8883E0358311C8841",
+        "gitBlob": "2af26268c3ae8256e3fe140f92336900f09420d1"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/KeyValueAtomicEndpoints.cs",
+        "sha256": "D9B9448E59180D8040B92275B58646AA3A3D983C23FA2FD62416C3723E28B5B4",
+        "gitBlob": "30601585afb15f30bf16a4245c2997ce7b01c7f5"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/KeyValueDiagnosticsEndpoints.cs",
+        "sha256": "88CFA5805754B219EAE0F6F2A1D87E95578F743077EA99D2A15F16E576A07D51",
+        "gitBlob": "b48a6a69d10e88e91ebddffffcfaddbd869366de"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/KeyValueEndpoints.cs",
+        "sha256": "0500D8359687E265FC899CFC074FDD550DF402AD1465F4955FD882493D8C0245",
+        "gitBlob": "bf9c47b1df8847294fd588017233f2eebcc8dfa9"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs",
+        "sha256": "9B080E8B40293B7253058C8DD1C9974685B45170A28533721290C4C4DBF289CB",
+        "gitBlob": "dfee11467198e5af668d60139e095c31b3ae2ad3"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/MessageQueueEndpoints.cs",
+        "sha256": "21E702F4352375C091443FAE7D9127856D621952CBABDDDA0AF2994D5324F564",
+        "gitBlob": "cc2d1b192c63e9254cd360fe9e406c669bf7ae12"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/ModbusEndpoints.cs",
+        "sha256": "E0A7B413AA58F1A7E725562BC9638C8CB896AD95C22CFAC0BCE668FC86AF595A",
+        "gitBlob": "0cc8c0a5b6b7e843098bf8d0d93ce3dc1df9f9a6"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/ObjectStorageEndpoints.cs",
+        "sha256": "F325DEA365777D6A4B16AB8EF8565E9472AD51F6916072A8EC7EBCF26681F9E8",
+        "gitBlob": "5150cd667f34d14e02996835c96d1c7b0ee0b285"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/RagManagementEndpoints.cs",
+        "sha256": "BE85AC62908F702C4B584E157FFEDFEABF660CF9ADDB33FEAB95B3FC4E43BF56",
+        "gitBlob": "85da17987c25a3dc35dd0cb1f8a841faa664fc16"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SemanticEmbeddingEndpoints.cs",
+        "sha256": "29196E07D825B314366E9B53078B1BF97B9F0111FDCBA79A20C4FF6D3D2B7491",
+        "gitBlob": "508eb75103a5f9c648f8822c197a5e73e5d1ba14"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SemanticSearchEndpoints.cs",
+        "sha256": "5409637A5992614B907314B011230FC90DE080901DC3A17A5EFFCAAF9105BAAB",
+        "gitBlob": "15d77404ce5a1c48065f6d938a9cb8fa325b0813"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs",
+        "sha256": "CDA857838A5403E3A9EEB8EEAD438BC2CE17C36D79EB20F383FE7BB28D52BCEF",
+        "gitBlob": "65afcabda0896fef6fead5bb725738fc045be733"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SonnetDbEndpoints.cs",
+        "sha256": "D9A4749302D5FE955BB6865B542A58F04DC3CF4D3892914D26870AA38DF5F55D",
+        "gitBlob": "c6850fc68629b0c4025b0108c46c88a4a15a9244"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SqlEndpoints.cs",
+        "sha256": "91AFB527B2F045A5CD7762162CE9AAE5F7EDA5875C159C7D05B6D023D91B57D6",
+        "gitBlob": "a64c115586193a7bff44b2b05ce129002504b98c"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/SystemAboutEndpoints.cs",
+        "sha256": "842BE4A542C1C6B317CB98037F2E690CDE7B01B6F4C9AB4BEECB2518299C6BC9",
+        "gitBlob": "b3e706a836e7b4bea1742c027a0bff9fd6344d17"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Routes/WebEndpoints.cs",
+        "sha256": "935872056B62E09A23ABF9A014BFF91E066482ABB4CE3198901B315F7F1CF956",
+        "gitBlob": "0d17e75f0d375fb45a10c99a703466d9229266b4"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Support/EndpointIngestUtils.cs",
+        "sha256": "247EA03013DF1B9275D145F74C43CFF83E979004C72AB3310562A5DEF9EB758D",
+        "gitBlob": "577f54cdea419b953f95b43701344357bb9dbea8"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Support/EndpointRequestSupport.cs",
+        "sha256": "C6A41CD0FAD5A417CC737EEC45D48D152B53D094DE511ACC8FF151D663FE2B0F",
+        "gitBlob": "88b52e9279f497297872f03878911e4f89db9d79"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Support/WorkbenchPreviewMetadata.cs",
+        "sha256": "A5AEC16F064B9BA9C909CCCD5AB750985288242940A4913FC5531C216CFC1D0F",
+        "gitBlob": "ca79db6c16dfc3b8547a25580ff141de789685e2"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Support/WorkbenchPreviewSql.cs",
+        "sha256": "CE46CD2BAF8F7C0F1278B86C7A3D537A62DB1896786CDB4F45E072B95F2B82D9",
+        "gitBlob": "7eb4d4382d73af5e4fde54d780eaa36d92af1bba"
+      },
+      {
+        "path": "src/SonnetDB/SonnetDB.csproj",
+        "sha256": "92F39A25A82782E632881C6A3B8F655E4D86D2297F0BC85D9CAE0591CE97F83C",
+        "gitBlob": "92aa77f4998bfa07d68ed0751aadd30c5cdf3c6e"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/WorkbenchPreviewEndpointTests.cs",
+        "sha256": "037E2C57565B2DE33D4F6838693027F4AA2F0D3D5136DE868FDEF6DC7AAC79C6",
+        "gitBlob": "8b79e18dcdaf81bb26842005b1393ebfc6561a30"
+      },
+      {
+        "path": "web/.gitignore",
+        "sha256": "843D6652A999A7D1C7898B9E5C5DF8BA8670830274D5B1E4C642D76FE675FA34",
+        "gitBlob": "c16619ec311bdb4c973704d83167ffb967fa51cb"
+      },
+      {
+        "path": "web/README.md",
+        "sha256": "D8E208EC6DCB47E54211D7A64644ADF44764A37EE5CD408B3A5705E4A9589AC8",
+        "gitBlob": "e645e7c671e4d4b7ae0e849ee6d431b5496b7454"
+      },
+      {
+        "path": "web/e2e/capture-docs-screenshots.mjs",
+        "sha256": "A40481A142BE4F2F735F0A69E7DC00B12576CA29C14DC90312B66CC644239E23",
+        "gitBlob": "c6768d537cbe6343b25f5dae3148d68e0493b9a0"
+      },
+      {
+        "path": "web/e2e/copilot-browser-direct.spec.ts",
+        "sha256": "C73B1ACBEBE7E25D4340040ED0B0D46636B045A03350F1254E1D2BBC4A524D94",
+        "gitBlob": "c9077805ca5813fb5f81d34ca5ec9aac06570511"
+      },
+      {
+        "path": "web/e2e/copilot-oauth-core.spec.ts",
+        "sha256": "5D2013538322F9D9F257EC6828331D0C949E2ED36F47E3AA6E021D94134021A6",
+        "gitBlob": "297d710c6b72a451923033f71167712d339d9af4"
+      },
+      {
+        "path": "web/e2e/copilot-oauth.spec.ts",
+        "sha256": "837236BDD778C2235E558D5F6507F2AAF2CA13721E6944E2EF43A6A9D045F095",
+        "gitBlob": "cbd18f0f80b505bc5c077beec53a13255bfbe96d"
+      },
+      {
+        "path": "web/e2e/copilot-public-protocol.spec.ts",
+        "sha256": "ECD72207D9938AACDA502EFEC063D9546E1C9DD88209AF290A9E333EA48DF0D7",
+        "gitBlob": "f6d86f5a8ffa9508e9a001cd3f20660f0ef13f6e"
+      },
+      {
+        "path": "web/e2e/copilot-runtime.spec.ts",
+        "sha256": "7F3005382B76886E427C5DD0CF7A31D661CD62B2F1C345D0CBBF07E02D0B3503",
+        "gitBlob": "5ef70052431788dff513afccd9cdf544a4a478a0"
+      },
+      {
+        "path": "web/e2e/copilot-studio-native.spec.ts",
+        "sha256": "20C409608BBFFFDAC7698F59D1882D0D55F993BCD61A66F8821868C1CDA5526D",
+        "gitBlob": "f5c0305f72bcc324c1cb19b772e8f37594c6f3d7"
+      },
+      {
+        "path": "web/e2e/document-real-permission.spec.ts",
+        "sha256": "498940313C247EB0476E367EC380ED35392AD6BE175A70D1C6EA3FBCF39B7D89",
+        "gitBlob": "b1c847ee4735c14ac4ec7a7af4c2a6fefdd5635f"
+      },
+      {
+        "path": "web/e2e/document-recovery-budget.spec.ts",
+        "sha256": "441B2EB55C1BCF7910CB6E8921EDC003DC50197404F685FE1636EB871054D81B",
+        "gitBlob": "fb2f33af33b0985fc97385f97ac9fcfec84b77dc"
+      },
+      {
+        "path": "web/e2e/fixtures/copilotOAuthHarness.ts",
+        "sha256": "52B6C3A43D510E4CE24E4B42BCF84E99E8812A1F4B30BB9EF399BE9A246EB9F5",
+        "gitBlob": "f2e5d282a7dd8671b0dfcfe95e1bc4e7b367b704"
+      },
+      {
+        "path": "web/e2e/fixtures/studio-managed-local-library.json",
+        "sha256": "BD3489884F164BD675BF138B32BBD549B11F5E993AF1FA2FC76367385BC16487",
+        "gitBlob": "ea4180a564a9b365b26333b3ba22386819c4be58"
+      },
+      {
+        "path": "web/e2e/fulltext-real-permission.spec.ts",
+        "sha256": "B9F7531FCE06B72010CCCCF1A217AC272860BC06AAA17EF1ECA57A10193A3F0C",
+        "gitBlob": "4e078f262521b1e6aaa5cec5f1fed2780195c9df"
+      },
+      {
+        "path": "web/e2e/fulltext-workbench-migration.spec.ts",
+        "sha256": "95FDC23DECC7F8A08A9549743F0B9DF49DE9549C3183E8D385A428BDA64B860B",
+        "gitBlob": "723e52ffd7f60a481bc7f6c1837dc99b4dad0423"
+      },
+      {
+        "path": "web/e2e/graph-real-permission.spec.ts",
+        "sha256": "318A8D44235A55176E373F9E04B3A647DD2864B541185C68BD156775261BCDB3",
+        "gitBlob": "222215ebd40d457e7e7aca503941b94652470726"
+      },
+      {
+        "path": "web/e2e/graph-workbench-migration.spec.ts",
+        "sha256": "13D3BF224931DA9DFF2A757CE58715B5EF30980E0830C3B01C6F3C1ED509DEB8",
+        "gitBlob": "150f421db0f6e9170133898331267b73c3c11b6e"
+      },
+      {
+        "path": "web/e2e/kv-atomic-real.spec.ts",
+        "sha256": "344C28377474FDC268B98ECC751C6C30241D3879B38013617C2D888D44248DA2",
+        "gitBlob": "d5a0d2be0292a6bd76cae7d6ee78675f606a5bb1"
+      },
+      {
+        "path": "web/e2e/kv-real-permission.spec.ts",
+        "sha256": "20869B3AC30F03385B1EA9FF6DA38D4E111E17F8365D6DDF81E0847643D5FF77",
+        "gitBlob": "c308d7a2931d822c92508515d18f7fbd5abbc47c"
+      },
+      {
+        "path": "web/e2e/kv-workbench-migration.spec.ts",
+        "sha256": "31B7698951956839BC9AB7FB9D1F519A00054E6294964A50A15943AF8888C7E9",
+        "gitBlob": "83cdca7d6936560d567d7a19e87f2630f4575a6c"
+      },
+      {
+        "path": "web/e2e/management-workbenches.spec.ts",
+        "sha256": "A70C00A1B574541090E050A417DC33FC26B8007ED5B2EDF0775CF62422A709C4",
+        "gitBlob": "5286d36837a2cb2fc4a846db4e3e48b01e0dd525"
+      },
+      {
+        "path": "web/e2e/measurement-real-permission.spec.ts",
+        "sha256": "6D322275A9A4A7215005CEDB145B0D4C66CB116BE5DBB4ACEAE66F9114E79514",
+        "gitBlob": "043eef3c761934aaf362a92bcf72ee4224a0f239"
+      },
+      {
+        "path": "web/e2e/measurement-workbench-migration.spec.ts",
+        "sha256": "9010CBC23D30BCE4832D69D0C0902E933DA23111A0030B78FB856905FCE7F803",
+        "gitBlob": "bf41ac68d8c9c17dbe5ac61062d2d2b9c5e8dcd1"
+      },
+      {
+        "path": "web/e2e/mq-real-permission.spec.ts",
+        "sha256": "776768CD5680F7C7888A1745FDE3AA6179A5937B8D5F9A06565BCB1A36E8713B",
+        "gitBlob": "806a5be49a44f8f50a7a9324695056bc2053b203"
+      },
+      {
+        "path": "web/e2e/mq-workbench-migration.spec.ts",
+        "sha256": "7853BA4EFB8194AB728917536268F61759DDD46C1E3C53AD73E781FBEEAA99DD",
+        "gitBlob": "3aaf0fcc9d6740bf8743160ff4e9c529d10209f8"
+      },
+      {
+        "path": "web/e2e/object-real-permission.spec.ts",
+        "sha256": "9EF343C4C268E60686FE5EC488EF833E3C4B87A80A848324CD9484D62EDBBA5D",
+        "gitBlob": "664e80ef62524d9718202ff49e172c50b230b85e"
+      },
+      {
+        "path": "web/e2e/object-workbench-migration.spec.ts",
+        "sha256": "282D1B5CCBBA96B71149582EF38602A6325F77E4361B22CB1BB7C64E78FC66AA",
+        "gitBlob": "570698f7e643bc597547bd480364ffd0bffd4d08"
+      },
+      {
+        "path": "web/e2e/object-write-terminal.spec.ts",
+        "sha256": "2D1B116C37B7C8C8AA267F987759072C63BC470204C12398CFECDA629F2108D0",
+        "gitBlob": "e53f20313e9205de580800a2423b4bafcaf1a866"
+      },
+      {
+        "path": "web/e2e/preview-real.spec.ts",
+        "sha256": "F336D1372B90EC9FA8BE02D2C58873507DDB34D2DF8F11E9D4F7B88484B5C036",
+        "gitBlob": "bed9db58b12f25445c32c49618753884e2afd350"
+      },
+      {
+        "path": "web/e2e/relational-real-permission.spec.ts",
+        "sha256": "5F9C09D5A1D8D83E9E2CFAF59554B776397A632AC9FEC8ABDC21FE8928BA0DFB",
+        "gitBlob": "5887a8ad900b1454eea085d97c797e0da453490f"
+      },
+      {
+        "path": "web/e2e/relational-workbench-migration.spec.ts",
+        "sha256": "1824D9FFE94582260E3E49DE7CF125D6F896BFDAC358BDEB5ABAB2503E0F00E6",
+        "gitBlob": "4d09f8359b864ec99269566f56d10fffd182edb0"
+      },
+      {
+        "path": "web/e2e/run-document-real.mjs",
+        "sha256": "94B2BE8D629D4995178D40CFBB93FF374DAD5014C8AF4ED005A3E601AA6FDAF5",
+        "gitBlob": "265a3031bd27cad2b1ed21e0c64d918f208eea25"
+      },
+      {
+        "path": "web/e2e/run-fulltext-real.mjs",
+        "sha256": "5B17ED6E64EF29AF2079E993DB39697763FEC0ACA179C81A3546C9B6DB4CC2F8",
+        "gitBlob": "8150c07c3b0d7ed0b9f3b6ca265365018bf1542f"
+      },
+      {
+        "path": "web/e2e/run-graph-real.mjs",
+        "sha256": "D4691F9339B386824D5EA602C956FA03DACE9BFCBDD6F1805717696FAFB00DA8",
+        "gitBlob": "214f4914fe6a8158c93099b35e7e07113aa7a805"
+      },
+      {
+        "path": "web/e2e/run-kv-real.mjs",
+        "sha256": "583E30D7BB5CF818541CF19794E29A24DDEE7DFEB968BE70CB81EDA800B6D5EE",
+        "gitBlob": "cffd1305e0792e07fa65ccc6d1d2788a62c4b3a7"
+      },
+      {
+        "path": "web/e2e/run-measurement-real.mjs",
+        "sha256": "7F6B62FEAB99B936DE1C26129C2462354E7929644981716B94EC72EE6443A632",
+        "gitBlob": "0faf0b5b98133584030e524bca1421102266febd"
+      },
+      {
+        "path": "web/e2e/run-mq-real.mjs",
+        "sha256": "E69644D19088C257DFFFF693DB2CEE3F18648C5E26C9F39FD58B2A58A8F82A17",
+        "gitBlob": "4212cd9c091d3d13291aade59e8a2f1e8274845d"
+      },
+      {
+        "path": "web/e2e/run-object-real.mjs",
+        "sha256": "5C2611A4AFC4F2C2527A85CB99D70615FA1D1387802C90C75B4D2FE4494087CD",
+        "gitBlob": "b60aed6b7ad2fabbdc4656357ccef442d2dffd16"
+      },
+      {
+        "path": "web/e2e/run-playwright.mjs",
+        "sha256": "305156E4162FAE3E216B52969E543EBBC094F1B47358D9A897CE2BD03DD3948E",
+        "gitBlob": "097d1a4f2f9f606722a8716b0261fe9bed6b6b8a"
+      },
+      {
+        "path": "web/e2e/run-relation-real.mjs",
+        "sha256": "8752D960F50CB3499C4308343B3B1484AADD9DBC3029D750FD626F857F9DDA9A",
+        "gitBlob": "08095869e6b866022e11ff6b99b7fa922fb9ea38"
+      },
+      {
+        "path": "web/e2e/run-studio-native-dialog-real.mjs",
+        "sha256": "078EB0F272543F7932896C80909CF723F8F9CB63B5929B2E73800E08436AB5B9",
+        "gitBlob": "90067af59fc7043b825f75f239245a5f948b58c5"
+      },
+      {
+        "path": "web/e2e/run-studio-native-real.mjs",
+        "sha256": "AC17C2FDDA98C7A63B8D23EB462BDC9644BE90BBD6D5C3C8D4C071563D8A04A7",
+        "gitBlob": "950ecddcbe23919b703e09ef770dd262a3ce3036"
+      },
+      {
+        "path": "web/e2e/run-vector-real.mjs",
+        "sha256": "3B53ED26DDCCDE992DAF30BD3C4C2DEACC1234C5FFEBCDADC1B0C63A72A38589",
+        "gitBlob": "16029dae908e40a4f8de762e04f5c3062c2e1deb"
+      },
+      {
+        "path": "web/e2e/run-workbench-real.mjs",
+        "sha256": "05A2F0D93BDE40D649503389C7728CEC4F22EF58A690E6104ED94EA194F2ADC4",
+        "gitBlob": "9e211dd9ce089d918cd9d13cdb4b90ef525fb26d"
+      },
+      {
+        "path": "web/e2e/setup.spec.ts",
+        "sha256": "CE8052122D4078DF43A976A4A9FC66B1B3F426110D99A036DBBB8424E9B2BA72",
+        "gitBlob": "4216f45b23b3a1d35bf84ed95627e9e0586e0330"
+      },
+      {
+        "path": "web/e2e/studio-host-client.spec.ts",
+        "sha256": "B4E536B83611ED780118916CBC4BF6FB8E6E168CE210CFC1FE47113B3BC8B025",
+        "gitBlob": "0c64735410f2dc152d1416cff4bf5428324c1f9e"
+      },
+      {
+        "path": "web/e2e/studio-native-cim-observation.fixture.ps1",
+        "sha256": "2D6208104DB302209D87FEC3FDDBB9721233ACF7F3EA40BE3DAB7DEB20C89DBA",
+        "gitBlob": "74682faee12c7cae649af4fd160fd6df37f9c327"
+      },
+      {
+        "path": "web/e2e/studio-native-cim-observation.test.mjs",
+        "sha256": "EED13A3BCE0C15349C053A0BB78E581765C0475D1097709F854C18E4E19606C3",
+        "gitBlob": "3fefacbf67a2b52b9d2d5b7429f43d49c0d5353d"
+      },
+      {
+        "path": "web/e2e/studio-native-database-preparation.test.mjs",
+        "sha256": "C93B37B31B061EBE8B2659D760F7F0E662AFD657FB6B1FE005D09A05E944D297",
+        "gitBlob": "888fa1d1f76da89ec6555481c7e7170f73a3996d"
+      },
+      {
+        "path": "web/e2e/studio-native-database-scenario.mjs",
+        "sha256": "3C92B9B52BF0D21319C9790FADA6033727FBD3E2DF1833254AC3E56F51D915CA",
+        "gitBlob": "e21952f534cd1058d5a994a8c4bf2057466c2903"
+      },
+      {
+        "path": "web/e2e/studio-native-database-scenario.test.mjs",
+        "sha256": "8C6672E64906130E6CBF8469C316E14831587EC828739858114A3112610A93CA",
+        "gitBlob": "7a56827dd4d0b98fd2a672bfa8a17c88d3f134d5"
+      },
+      {
+        "path": "web/e2e/studio-native-evidence.mjs",
+        "sha256": "FE363018A89F89F28CED7C67025F20F1DFFDEEC9C72E30264BD0E7CCDA0EAE70",
+        "gitBlob": "6f6ab3bb559f57e6b548a55cf8fd095563a5b16e"
+      },
+      {
+        "path": "web/e2e/studio-native-evidence.test.mjs",
+        "sha256": "BAE703B06F65FA85AD64828E60505A467DABFFFE96F920DB334280F6578D6531",
+        "gitBlob": "112fcf912c225c4650245e5623c2333ec9ee5a3a"
+      },
+      {
+        "path": "web/e2e/studio-native-helper-statistics.test.mjs",
+        "sha256": "649A0A9761DF555D3D4FD512B99D5137D8505CE556AA8C35357AE06A5FD74FB5",
+        "gitBlob": "ddcbb147cf9d020b8dfa323490bcfacdd6ea96c0"
+      },
+      {
+        "path": "web/e2e/studio-native-library-observation.mjs",
+        "sha256": "6FB528A0A4830E4BDF56C5A11032F7474AC27F1F1FF2068C324954988162C5BB",
+        "gitBlob": "7efabe9c3517a5bb0bbd8da3d906c01062f8b261"
+      },
+      {
+        "path": "web/e2e/studio-native-library-observation.test.mjs",
+        "sha256": "BCF3DBCB76F61A3F4F0D6634CB5F4E558A56B4826B110A1A8F4E461238ACB8C7",
+        "gitBlob": "6d909cd2ee7af900ee9f4fdba22e5e28e93b1ce1"
+      },
+      {
+        "path": "web/e2e/studio-native-process.ps1",
+        "sha256": "46A4BA89B9C0D5B63B19364EDF36F8810526E4C19F617831EF6A296DE68BA705",
+        "gitBlob": "c1e5bc57f7a3c5cfa2399091914c7af1c563d453"
+      },
+      {
+        "path": "web/e2e/studio-native-selection-precondition.test.mjs",
+        "sha256": "01767E1BF1BCCF8B12AD1D9E429BA2C987DC697572552EE9021035AC41FE1750",
+        "gitBlob": "3908014e59af94edadec18ab9dc897a1bda4156b"
+      },
+      {
+        "path": "web/e2e/vector-real-permission.spec.ts",
+        "sha256": "9205CC03DD7D3D5BE9D80085EEED92AAF12E2472464A0C976299B4A579F24FD1",
+        "gitBlob": "06b02c642c2be0c65acb175149cc896d776ee1c9"
+      },
+      {
+        "path": "web/e2e/vector-workbench-migration.spec.ts",
+        "sha256": "CAFB964C3380D9408850599D2E560C965EB48B9454C5B04E69319FB4118F43AE",
+        "gitBlob": "d10fa78b2cd19e31e597a629bca95301de61699a"
+      },
+      {
+        "path": "web/e2e/vscode-workbench-navigation.spec.ts",
+        "sha256": "DB66775B0E3ECFEE65A459B35DB1060A0CC41CAB346180157A835CBD3571E334",
+        "gitBlob": "79814141ea691a73ac1c9308e075960d392164e5"
+      },
+      {
+        "path": "web/env.d.ts",
+        "sha256": "B33451956D66CF7DA10F42E133868B3E57C9628EB05D3A74C91888FD8292BC71",
+        "gitBlob": "c7d857c0d88042d89972e0034c8dda3efd45ce42"
+      },
+      {
+        "path": "web/index.html",
+        "sha256": "E8DA7B0AB03968525EF00C1DA19DDFF425DCFE89AF789EEFA9BADC49E6CAA1B8",
+        "gitBlob": "ee784e0c802f6e9967baafc379cadf390dc748de"
+      },
+      {
+        "path": "web/package-lock.json",
+        "sha256": "E078D9922AFDE2E8E759662E8D2475CE84FF40EA10C8B9D1AB3CA4FA05C2AFAE",
+        "gitBlob": "ae21e3e194155c7e835b8917984005209b879230"
+      },
+      {
+        "path": "web/package.json",
+        "sha256": "7C53EF70E6D4946D0FE57B51421F2FC62430029BB7328CF8D7BCBA2D10F3D65D",
+        "gitBlob": "c93dfc0fa50454b671a2ee5ef9d14e99ea340cee"
+      },
+      {
+        "path": "web/playwright.config.ts",
+        "sha256": "C5DA5DA4F5E94C337F77DEE9C275E4D621A6D8705BCF13CFEE3BC9A2AA11449E",
+        "gitBlob": "b0ac88e84bb0de227b9f6a02177c2bad5cbc6217"
+      },
+      {
+        "path": "web/playwright.smoke.config.ts",
+        "sha256": "A61E2FA125A4202A2D790D94B1808BDDC6DCBB3F1EBEAD8E1134DE99DB9CA8A4",
+        "gitBlob": "e424693a0d62451d8f82061111266c994e025a1f"
+      },
+      {
+        "path": "web/public/favicon.ico",
+        "sha256": "69979ECB87F8C699C51E2F80D476F28CEAA5EFBBAE257FFB4B807815A6ED484A",
+        "gitBlob": "4ad7f3a2f52bbd85c137a735ccaee103cda08802"
+      },
+      {
+        "path": "web/public/favicon.png",
+        "sha256": "180698189799D38B92228C4E8815DAE9FE279322D425DE375DBD3EB470110FDA",
+        "gitBlob": "4d3e4b200ce0a7126a7de11cc0ab27a7a59a2742"
+      },
+      {
+        "path": "web/public/favicon.svg",
+        "sha256": "14533010E1F30B7948013B6AD9073E5F0A95046AB3A171A3A9C1961FBDF6B967",
+        "gitBlob": "20fcd3bd0bcf3d1644457e5b975bfea5c97c8197"
+      },
+      {
+        "path": "web/public/qr-group.png",
+        "sha256": "D8490E0681BDF246C4C1A55BEC7AADBB066C446007CD8BC488BA06EC532DE41C",
+        "gitBlob": "f9e1d816cdc4ba824f39acc6ee16f1d93d5e6921"
+      },
+      {
+        "path": "web/public/qr-group.svg",
+        "sha256": "85E8B532747115CA590497C9324F9A9D92C9859814F8BF768628965FF6061447",
+        "gitBlob": "6449f476d56db16d4a4dec75e3bdb34fc14c1c6a"
+      },
+      {
+        "path": "web/src/App.vue",
+        "sha256": "5A654E29B2D3E3524992A8FFFFA4821C21D409F2420DF2BB06F18284F869E706",
+        "gitBlob": "38e4ae99fcb4612525296efe25510f1ad89616d6"
+      },
+      {
+        "path": "web/src/api/about.ts",
+        "sha256": "059CBCDE9D4286F3C5F79B51A3265EE08B16460655F7B9615F3145790BB516C6",
+        "gitBlob": "c8894191688c609536c5cef6242934d2b71a237a"
+      },
+      {
+        "path": "web/src/api/ai.ts",
+        "sha256": "05C7C973F5E0F00CD45A54EC2D4688341D9AF5D54698833F4D52BE4570A82440",
+        "gitBlob": "fbd4ac25f03ce1fbfd9d627a832ae6f8c73e27ae"
+      },
+      {
+        "path": "web/src/api/client.ts",
+        "sha256": "9E42D309AC68546C9246D5F4E8AB9A4F23FB4BFF4A4983BDC4CFE4A6A9A2A9B6",
+        "gitBlob": "744341ee6e31fe3feb7b14183dfbe6aeda2848b9"
+      },
+      {
+        "path": "web/src/api/copilot.ts",
+        "sha256": "3FEB7B1F6A7CB8C432F3CAB6BCD353B8A1669665BE594719400A3E2D5FD3C048",
+        "gitBlob": "c63f40b9dfc7506d3c507397418a03f1f633242a"
+      },
+      {
+        "path": "web/src/api/copilotKnowledge.ts",
+        "sha256": "5C60B46CFED99880CFF5A7B1FD48834129977E14D893D4967718431B55A12C0F",
+        "gitBlob": "3bd70f00c3c41a94c7305d49f4453b6ac5668ef8"
+      },
+      {
+        "path": "web/src/api/diagnostics.ts",
+        "sha256": "7786E8D7073E00EFBBB11D8ED2DC322CC12EC0A2F1E25BD2C11DA99D4F2B1E8C",
+        "gitBlob": "3220ea8df0a0273882b1b928e115f7d43dd7569e"
+      },
+      {
+        "path": "web/src/api/documents.ts",
+        "sha256": "54C4157472633CE07B83D229C6D33840657CFE7BF708879151D19F6BC8D5381D",
+        "gitBlob": "678c84cb1807bfb861197be497f6f9523e3f0c4b"
+      },
+      {
+        "path": "web/src/api/events.ts",
+        "sha256": "668F536F0C3D1B5F7C2793EF1E6B1CE23E9A4D575EF8CA4CC31C52AD20E1078A",
+        "gitBlob": "552102342e6b74fb7027aae7858d276c1c24be1d"
+      },
+      {
+        "path": "web/src/api/fulltext.ts",
+        "sha256": "48EA989751BCE15AA676D6B900001B2D141460EC2F0B2122BA2F18787D3E4E6D",
+        "gitBlob": "cb5b8e010f96119b9a8633fe8095dcdec62d5c70"
+      },
+      {
+        "path": "web/src/api/geo.ts",
+        "sha256": "8ED39EBD1D602460ED221B87012E8EAE4C0B237C07B04ED9524E044000E6FE96",
+        "gitBlob": "adb49b62141a24e992fb0adb232d25acb9379522"
+      },
+      {
+        "path": "web/src/api/graphs.ts",
+        "sha256": "BCD955DAB4D90B1B77CDE5EA27301FD03F8FBCBB16974682C765D4295A226DCB",
+        "gitBlob": "f9f4e95a92e12111ed3dd78b42d397d1949f70da"
+      },
+      {
+        "path": "web/src/api/health.ts",
+        "sha256": "2668D2B05F6302D32567206A3961FBE074AF783113A4F7E3C940006C047EDB5F",
+        "gitBlob": "a304945a2a64e5cddeb0915101bf5709bc7f3ab2"
+      },
+      {
+        "path": "web/src/api/kv.ts",
+        "sha256": "319EA336858FEC87553630A3E5208F051A4FC6F4B668C16D46497812A7EE6763",
+        "gitBlob": "aed0bff072d384bdf9cf755f7f5a9428a8d3ff19"
+      },
+      {
+        "path": "web/src/api/management.ts",
+        "sha256": "BEDB5141D781DD01CCA54A4310935EA00DA876DF75497906E9C0AD2109E7BC3E",
+        "gitBlob": "1bbd9aa0b0690617d33c48267cbd4230044f708e"
+      },
+      {
+        "path": "web/src/api/metrics.ts",
+        "sha256": "D7C6554931169CB610B84C50F67D97C6379402F5150CFEBEA892A0B20041A58C",
+        "gitBlob": "382c7740cf0a79fea6ca8ea0eb60e6cbe6b8c8b6"
+      },
+      {
+        "path": "web/src/api/modbus.ts",
+        "sha256": "E90992068E800FC23AF2E01BE5FADE56028DA814FA86998EF9B3219B1C975B39",
+        "gitBlob": "a1a1adc26862a2b4efb3e56b6ee7ebd8fd763cf7"
+      },
+      {
+        "path": "web/src/api/mq.ts",
+        "sha256": "7AC2C57CF9B375BFF68771EBA6A996DAC7135EFA8D0D3D277697C55CC80115B7",
+        "gitBlob": "d09818304b09ae4d23dd8f90144b3df994de095a"
+      },
+      {
+        "path": "web/src/api/objectStorage.ts",
+        "sha256": "DAFA0E30441E05817B729D5E827E2415AAAD1DAB365665F25136D7D89D65F7EE",
+        "gitBlob": "7603e9f6061d261823190e8ad5aeffaf48dc7814"
+      },
+      {
+        "path": "web/src/api/ragManagement.ts",
+        "sha256": "6B8CDF553529E8F703B358EC49F84D5FA18A0AA6482D24F023611B95F422A17B",
+        "gitBlob": "ae89122bb39c9f78d0141e070eb13c207da2cfee"
+      },
+      {
+        "path": "web/src/api/schema.ts",
+        "sha256": "0BB20C872ABA8BDD7615D34489B5034184FD7599409C159946AC78A0A8221C6E",
+        "gitBlob": "bf35ba1ca9f43defb80718a1f338532e6899e1f4"
+      },
+      {
+        "path": "web/src/api/semanticSearch.ts",
+        "sha256": "998C597DDE55E30648F0C4F5DCE8186F001316A9EB2C61759DF2DEDA82B527C6",
+        "gitBlob": "75d4611c23a78b96d71c21fff9b3fc9bd45c272b"
+      },
+      {
+        "path": "web/src/api/server.ts",
+        "sha256": "162BB403D851E3051C9D4415D93F2F490EDFB313D850FC573A7BC7CF685301E9",
+        "gitBlob": "562ee69dec1586924543e5144768efdcaf4fccd6"
+      },
+      {
+        "path": "web/src/api/setup.ts",
+        "sha256": "1EB39A340A64423008B765FD046A0B956346FE2532083847CB8CD9E9F3342631",
+        "gitBlob": "7183fcda485f1ab34a6d6ea8efdaae683793b32c"
+      },
+      {
+        "path": "web/src/api/sql.ts",
+        "sha256": "D9550A1471CF13A0E8CDD78C415BFC98351FF3CE486692D2681CAA37FEACC43E",
+        "gitBlob": "dad30a3521efdf29e5ba57e6754602dc0914e07e"
+      },
+      {
+        "path": "web/src/api/sqlFormat.ts",
+        "sha256": "7B847BDF719E016C1EE498C39CAB30B8E866882E38D36AFBDC1DF30182952CA7",
+        "gitBlob": "22d047d54180c76db3942842070d6fd24ddd03fc"
+      },
+      {
+        "path": "web/src/api/sqlMeta.ts",
+        "sha256": "E7F2E493D750E944D82B39CFB6A1996C0E762630FDA81291802EF5807D48276D",
+        "gitBlob": "364f95f6d325263c86dadc3b5d65c28a32d12f3b"
+      },
+      {
+        "path": "web/src/api/sqlSplit.ts",
+        "sha256": "5DC82E3E78CFA1865C1AD042BB2E708D06A6FD363ACCC7A8A3F642654B269A27",
+        "gitBlob": "b3cd8fa8c21585e05bd6acc00e7e270f83f10384"
+      },
+      {
+        "path": "web/src/api/studioNativeBridge.ts",
+        "sha256": "E1AF0CBC0620FA34B576A804B859FCED3CD6931C28E2DD2550BC3A457DD52043",
+        "gitBlob": "dab795856b238c0448c55ca5040eb01751898c3f"
+      },
+      {
+        "path": "web/src/api/vector.ts",
+        "sha256": "35B1C838DA22544D49EA894DAE4CA63C3270493E5EF6B8CB792A8ADDFE82A996",
+        "gitBlob": "2d0272977178fead15e91e331407b209185fbe62"
+      },
+      {
+        "path": "web/src/components/AsyncWorkbenchLoading.vue",
+        "sha256": "A058358027196C23BDF9DF495CEECD11E6C85997519E85E73B67075A94B70F07",
+        "gitBlob": "f213274d703b3c93e0031ab42b9ce2f5751e6d00"
+      },
+      {
+        "path": "web/src/components/BrandLogo.vue",
+        "sha256": "1B9D311CDBA4060A5E7BDAB72E846EC627140E4517340576A0F4AABB001CDB84",
+        "gitBlob": "929f18009284b781083619942ac8a8d4b3678195"
+      },
+      {
+        "path": "web/src/components/CopilotDock.vue",
+        "sha256": "7F4E67E501DB3FD743BD4198871B7FA88B1BF5DEE34B121EBCB336442DCDD418",
+        "gitBlob": "aadb3a79341ce40c9abef1044b0b6fbd467fe266"
+      },
+      {
+        "path": "web/src/components/CreateDatabaseDialog.vue",
+        "sha256": "9EEF1ABC0CFC783A7D5C9C533618D199908A613607DF5BA3B19CA9B73EA7A0BA",
+        "gitBlob": "7b45e11a996db1405fa62dbcdca36a3b11ca7c1f"
+      },
+      {
+        "path": "web/src/components/DocumentAdvancedWorkbench.vue",
+        "sha256": "48053E9DC8AA8E670486B99490A4E6845C28C044F287581762D236C37B18E719",
+        "gitBlob": "14c05007d03ad5815f23e6b63c7af3bcc006acdf"
+      },
+      {
+        "path": "web/src/components/DocumentCollectionWorkbench.vue",
+        "sha256": "12DC89E6AF1D5AA9C8E50B8F47E67A342781AFE1302909A619C427B752CD5BCC",
+        "gitBlob": "7de2d1bc7369fb801fd831784fa7db2f3810652a"
+      },
+      {
+        "path": "web/src/components/FullTextSearchWorkbench.vue",
+        "sha256": "DE24E1A8D97944F551C967001F8F130A22370B5E45BD065F12E63AED65547007",
+        "gitBlob": "da02b65ff98e02ffe95f8dbe13f328cdd7d664c2"
+      },
+      {
+        "path": "web/src/components/GraphWorkbench.vue",
+        "sha256": "9C2127E4E6998D415A385FBFBE3D6F49EE0E0C4A95EFA8C6F868CDD3F122FE78",
+        "gitBlob": "8a1c3b52f6d44f098e53d438f1145e0c45adac0f"
+      },
+      {
+        "path": "web/src/components/KvKeyspaceWorkbench.vue",
+        "sha256": "6FDB899F4ACD89393EB110BEFB8018BE61A025191C246A7FB85923A0A74047ED",
+        "gitBlob": "6af58c145ae3f35af3f34a21952b0593e51d1dfc"
+      },
+      {
+        "path": "web/src/components/ManagementExplorerSidebar.vue",
+        "sha256": "F2292B90F2417DB0EF38AA0C4D506A39E3BD944AF498C0AA89AD1721AE974095",
+        "gitBlob": "0a12bba171128f36833cfd200796b8ce4e6b27d3"
+      },
+      {
+        "path": "web/src/components/MeasurementWorkbench.vue",
+        "sha256": "04C52C5D18D8C62D6CAC3BD291849003945D08FE0DBFFD2186FB3071B512C05F",
+        "gitBlob": "f111535596077810a0e245c3d7516a4bf0e8412b"
+      },
+      {
+        "path": "web/src/components/ObjectBucketWorkbench.vue",
+        "sha256": "E7F69951E8984ADE9408AEDA5492DE0F7A2214829D45C18E171325F1A26200FC",
+        "gitBlob": "b9a7d517f7d2fa538aa46dfcec55cdc6c35d5cac"
+      },
+      {
+        "path": "web/src/components/ReadinessStatus.vue",
+        "sha256": "BC5A88B3A849B2771C69F1408845F386944A168C2EBC1D3A91407CB49D4F373B",
+        "gitBlob": "2afd38c3ec72dbd33d6867e411d44c986f86b024"
+      },
+      {
+        "path": "web/src/components/RelationalDdlExport.vue",
+        "sha256": "7CC749143885C143D534AB5BED5DE1D379C1F853251D4D74DE5E02AD226844B7",
+        "gitBlob": "07e8bb45e9735611ef78052b0f5539f188cc0722"
+      },
+      {
+        "path": "web/src/components/RelationalErDiagram.vue",
+        "sha256": "4323B287040B968DF31FBF78F2BC049C4C97ECB02F503A5A5AB82F229145C83D",
+        "gitBlob": "19549f51f772faff81bead405bf350b42b75625e"
+      },
+      {
+        "path": "web/src/components/RelationalImportExport.vue",
+        "sha256": "5A1B1D87ECF418BB0518007FACEB5908C22339CDF7F36C0871E7BCF0BBE4F3BB",
+        "gitBlob": "a44c7915bdbdce0413d9a30f2a937563a16d167c"
+      },
+      {
+        "path": "web/src/components/RelationalIndexManager.vue",
+        "sha256": "086FEF784DBCB2E1CBD172915DB6FD04DA8A016F3E3999E6F8B8BAB1E6CD6DD9",
+        "gitBlob": "6c437b8b38ee48a1aa934a0c6219567d8b864ff7"
+      },
+      {
+        "path": "web/src/components/RelationalSchemaDesigner.vue",
+        "sha256": "95C17B834C7512EAF5D438283BA2A8427171021E1099814272B916DF5DFE442D",
+        "gitBlob": "49958f68570108d8b17c51c45679fcc18c47bb9c"
+      },
+      {
+        "path": "web/src/components/RelationalTableWorkbench.vue",
+        "sha256": "D4C9543869D0F76013A7E57ED471ADF7CD1565B2AFA673028F5FF515C388C6AD",
+        "gitBlob": "9c5712fcf5a0520b325bf316409b2439e6c6f805"
+      },
+      {
+        "path": "web/src/components/RemoteConnectionDialog.vue",
+        "sha256": "EB30CBA656A107B442BF74F3FA5552B0AFB84C265C284329D3F2BEA1EA472356",
+        "gitBlob": "7130337dd00631061020f9b4bde147ca7c5963a5"
+      },
+      {
+        "path": "web/src/components/ResultMapPreview.vue",
+        "sha256": "7426C36898BCDD93CE5AB7C3D2A592D198A28E373CB59A65B27F600327E687BB",
+        "gitBlob": "e9dc84f88fa200d454c5ff609318b30e10cb412e"
+      },
+      {
+        "path": "web/src/components/SlowQueryDrawer.vue",
+        "sha256": "3943348EFFB90A44A27F5A105FAF25C0B8DCBD76C6CA40DA5DEFCB910E1EDF28",
+        "gitBlob": "b08ce6a04649f8b46e1aa947fda1b62584097eaf"
+      },
+      {
+        "path": "web/src/components/SonnetMqWorkbench.vue",
+        "sha256": "CB1A56365F765B51AAF7124DADA9E66F0912229E74FB56803196FA6F9247ABF6",
+        "gitBlob": "1e196d296114089ad34b91469fc8397b6eeca59b"
+      },
+      {
+        "path": "web/src/components/SqlEditor.vue",
+        "sha256": "2428DBCE0028EE78181F14D6F3991EFE514E798E607B9E9C355874B2C939EAE0",
+        "gitBlob": "b0b18c64d088481ade995e4feea83f391f8a4483"
+      },
+      {
+        "path": "web/src/components/SqlQueryWorkspace.vue",
+        "sha256": "208889CB2BE71F601F7C53047623FF250451D75266CE30C2A4C591B8DE081405",
+        "gitBlob": "7ed03e5308ee4f2076ef1d8c47288f28a1b350b8"
+      },
+      {
+        "path": "web/src/components/SqlResultChart.vue",
+        "sha256": "8F2BAD12E4675D2F5AA8FE22B3E4955AB0BF5C78709591678FB8E12EB47CFEFB",
+        "gitBlob": "dd2b83ce84dae2a54e5dacfa135264e01f8b29f5"
+      },
+      {
+        "path": "web/src/components/SqlResultPanel.vue",
+        "sha256": "AE9E0ED53C4B1C7128040654456F114F54788334B8600DD0287DF89EFD162436",
+        "gitBlob": "fbd16a7aeacec347cc76164bc6d7f8cfdfbf6296"
+      },
+      {
+        "path": "web/src/components/SqlWorkbenchHeader.vue",
+        "sha256": "D51489579120D9B2F2A4D4C6578A97E69D64FCB6A8332B9EC6A985A01859BC74",
+        "gitBlob": "9cdb4a6de41313557027966b72d6143aa433c7e0"
+      },
+      {
+        "path": "web/src/components/StudioWorkspaceTabs.vue",
+        "sha256": "B8185D93780D5B034BDD3B82DB60AF9445E43B193CB3F1C634F3CBB6075543FB",
+        "gitBlob": "560837c4e9cfd8f99bf6e4510840d2ca6675450a"
+      },
+      {
+        "path": "web/src/components/VectorSearchWorkbench.vue",
+        "sha256": "122655A5E3011D908327839D4463C4882CA6DFD2120A6AD08481C826AB3B03DC",
+        "gitBlob": "8f5a48076b5ac1dd03afa4547c7e79a2320123e3"
+      },
+      {
+        "path": "web/src/components/VisualExplainNode.vue",
+        "sha256": "0C6D59A761EDC16D7932C3CA98E950B0D869EF7EB298C39B1B0A5F010BE12D4D",
+        "gitBlob": "5a9d409655f4115b9607b23790bb948659fbb0e2"
+      },
+      {
+        "path": "web/src/components/VisualExplainPanel.vue",
+        "sha256": "D54563856A487AD17E7A264943D29280DA43990DE8E5B5D9EEB8CF1977414778",
+        "gitBlob": "cca67a553fec5a1e8fa581338cf4bad675e0b824"
+      },
+      {
+        "path": "web/src/components/WorkbenchHistoryDrawer.vue",
+        "sha256": "B54031BEF2DB5D2DEAC14C12F37C957941736429CBBD17183FC48C8B6BCC33DA",
+        "gitBlob": "5be014541e1bfd89d8d1329b7e7aae96e08ad75a"
+      },
+      {
+        "path": "web/src/components/WorkbenchResultPanel.vue",
+        "sha256": "A808746D9A953F3C1E451EED45CF95B65AD3D011E32FE195D54CA4934B247CED",
+        "gitBlob": "fb10eb3133fc14b1ff532d1f7d0a37270439c9da"
+      },
+      {
+        "path": "web/src/components/WorkbenchSectionTabs.vue",
+        "sha256": "DEE9C38417B9B4E29905272A5E5446A6023D5E60EF2F5A51EC70C4C4091C1A8C",
+        "gitBlob": "fc60da49ab233b069b1623d11cb09763464d7c95"
+      },
+      {
+        "path": "web/src/components/WriteApprovalPanel.vue",
+        "sha256": "190FACE12E879523BFDF033DAED5E9436A8979678A0B90D2604BBBAAE6B92C3F",
+        "gitBlob": "b583733a67c44c0cdf853ceacf125fbd4a3f0a83"
+      },
+      {
+        "path": "web/src/components/sonnetdb-dialect.ts",
+        "sha256": "6F83845952BE468B2761C2BEDF07AF5CE5EC7212C4CEAE8A433A53854AEDF568",
+        "gitBlob": "e33f9a702d2c2803369325237a6ad967245b20e3"
+      },
+      {
+        "path": "web/src/composables/useMapTileSettings.ts",
+        "sha256": "B46C51C2EDE0301DE18320FD1FBE46F094217D5E50C449FB215E6FD04E3C94A5",
+        "gitBlob": "0bbee84407b4437a73a1099bc510e86983d9b267"
+      },
+      {
+        "path": "web/src/composables/useSqlExecution.ts",
+        "sha256": "F7B33DE618246C7427C13C4B7FF85EFBEC2E6D401129BDBC4A7FB5BDF655E23A",
+        "gitBlob": "010715b7f7b107d627c8da563f65a5fea09c672a"
+      },
+      {
+        "path": "web/src/composables/useSqlExplorer.ts",
+        "sha256": "43D018CCAC3465184B6ACD3FED8E8CF0FD20DCB0A515B1A008EDBF7EC8746039",
+        "gitBlob": "938d7cc5b075321619b29a70b923095d013d7e17"
+      },
+      {
+        "path": "web/src/composables/useSqlExplorerRouting.ts",
+        "sha256": "1B7791129F0E97A9524962A59321AA8262E19BD76124C3B2C64943101F6E775E",
+        "gitBlob": "031f15f78a238be2baac33c417a21408b74d4d03"
+      },
+      {
+        "path": "web/src/composables/useSqlMaintenance.ts",
+        "sha256": "92649E150CB45EB00E5047877BD706EAA925625776D78D6C73C45B7E9EC09DED",
+        "gitBlob": "2c95aff4480771f164681e883def0f7c4c10aa39"
+      },
+      {
+        "path": "web/src/composables/useSqlWorkbenchChrome.ts",
+        "sha256": "47FCDF7B3084A91B2232A0D01DE668D907C1AE573E398DF2992FBA122A7A807D",
+        "gitBlob": "15985df7b9fd03031a4d65270387835d2563cd65"
+      },
+      {
+        "path": "web/src/copilot/browserDirect.ts",
+        "sha256": "857DC7496D303E1533BFC6B58B42649AA0B44EDE934C3CF2C6043C4DC4B384FE",
+        "gitBlob": "401ed67d08b7700d5acc123177421771b0a6eba0"
+      },
+      {
+        "path": "web/src/copilot/browserDirectEntry.ts",
+        "sha256": "FF925F32B5531CE63B17DAA6B1EEB266FF6A396C4E9ADAAF646D79DEB06720FB",
+        "gitBlob": "d8f9e21a515a80a1718d64a26ea01fbf355874d5"
+      },
+      {
+        "path": "web/src/copilot/browserDirectMcp.ts",
+        "sha256": "196A27AC5C4BC0D4A810FF3F111E52ED0237D4B4B29255D59EFE9D6B63DF66C0",
+        "gitBlob": "3c8cfd1fa830612cc6954ae6c3e2aefc78cb7b6f"
+      },
+      {
+        "path": "web/src/copilot/browserDirectOAuth.ts",
+        "sha256": "A9A3FA627BD27A49B37C4C84FB4D9A71644B717D600D64F2608B553E931D3BB6",
+        "gitBlob": "b6a381849a50860fc5fb8ff04115ebcedc4d20cc"
+      },
+      {
+        "path": "web/src/copilot/publicRuntimeProtocol.ts",
+        "sha256": "6A80531766DFDF01095EA0A4439D07BD1BB6CE513E369FF7531FC1CD2FD86D04",
+        "gitBlob": "4072cfa812dff6634825e43d45a69f0ae0af1ed4"
+      },
+      {
+        "path": "web/src/copilot/runtime.ts",
+        "sha256": "0272829C4E0528292DF5E08067CCEE1202E61368EAA6227A8D90FB315A766EE2",
+        "gitBlob": "4eae0e0d10ca1b006178723f51ad26bf685e97ad"
+      },
+      {
+        "path": "web/src/copilot/starters.ts",
+        "sha256": "18B089D9F1BB4084EBA52679EEC32B8988950B83B725DEA2E2C54B70A22D53FD",
+        "gitBlob": "8458d5921563862694a78fadcd08e58a9480511e"
+      },
+      {
+        "path": "web/src/copilot/studioNative.ts",
+        "sha256": "A175136717517DC83EDD74267EB474F131038FD62EDB3B3F0163B2D0CF1870DB",
+        "gitBlob": "097afaf2ff23402c68f292ea32624529d8052c59"
+      },
+      {
+        "path": "web/src/main.ts",
+        "sha256": "CF48A54259043B656FDDCF1855B4E999360045DC07CE46A9677FA85498BC4CA6",
+        "gitBlob": "cff6c884a0d707767904637547d02e21f07a02cc"
+      },
+      {
+        "path": "web/src/management-core/capabilityRegistry.ts",
+        "sha256": "3C010CF4B463F646705D89AFC5DAD93DD6A147A05BF8FFC1C82DCB3152D0D947",
+        "gitBlob": "8ef1fddbb0a249e11373fab0f2f6b0fe116b7534"
+      },
+      {
+        "path": "web/src/management-core/index.ts",
+        "sha256": "A8A4D621049F22A500CBCA1F83DCA0F3B4808836A1B1A261F9E85523BAFABC43",
+        "gitBlob": "0ee8afd86bc67734c650c528acdf92de018ea71a"
+      },
+      {
+        "path": "web/src/management-core/resourceDescriptor.ts",
+        "sha256": "9307C80F0CF6EB69272EB14D298D8A07365E6C434877A71FC7C21CF2C4B80A04",
+        "gitBlob": "cd08714e2291f97136f75f54557bf77e50c04615"
+      },
+      {
+        "path": "web/src/preview/PreviewAbout.vue",
+        "sha256": "5DB2F785D1E89B14B0C6B0AAA9F9C6C9BD7971C2B4E4EA690825D94C6E658A67",
+        "gitBlob": "8f0a6c31e6335242fcf1649b3de238eb6015bc96"
+      },
+      {
+        "path": "web/src/preview/PreviewOverview.vue",
+        "sha256": "D9CCD9A8167A36645D67E5A6DB0316B918D5237A8A7E5E57FB4B4EFB3E8C1D09",
+        "gitBlob": "70c4da07f306f867ab71253a57d610a5dbf2647a"
+      },
+      {
+        "path": "web/src/preview/PreviewShell.vue",
+        "sha256": "7CE99B0928EFC5D04AFC50B37EA97D5638C4974EFD8EBBA366411D23FDF559E4",
+        "gitBlob": "511c177c9582fce27a10059d4c12e86ad0fd1163"
+      },
+      {
+        "path": "web/src/preview/PreviewUnavailable.vue",
+        "sha256": "08277191A3B51FFB862A426AE72ABFF531F4A164CC2C14419DA1C6266D615C0E",
+        "gitBlob": "b330f91fda750320c469ef602cf78ee815de3625"
+      },
+      {
+        "path": "web/src/preview/PreviewWorkbench.vue",
+        "sha256": "A135C40731DBFBAC346AD91F14D38478FB99A3DA158E3FB7F5A168056FCC991C",
+        "gitBlob": "c60dd748ccf466eaed519a2342c1c4623008e484"
+      },
+      {
+        "path": "web/src/preview/policy.ts",
+        "sha256": "77106902A23B09873AECCE62A26C8186B765F71C1F35163956BCBCC1BBC6B55B",
+        "gitBlob": "b87ca8bfae8e51ecf0fa9cd4802e8aeba5549963"
+      },
+      {
+        "path": "web/src/preview/session.ts",
+        "sha256": "1A3EDDE81CA320FCFB2E4D4CA7C136A54BFC506BC052D8A70BA31F91E96351DE",
+        "gitBlob": "e52a957c1405b981caa0036c282273ea6eb240f7"
+      },
+      {
+        "path": "web/src/preview/transport.ts",
+        "sha256": "AA436211D7D9C449B34D1CB4D2966575195BCE7653D0ECBEC9DAD2A9AA26FE32",
+        "gitBlob": "02f23e87de7f785b7de002d8f2337c5aa618e902"
+      },
+      {
+        "path": "web/src/router/index.ts",
+        "sha256": "9CD93EABE3713CC04616FF70944F33960E7A4973B5BD993C6CF675D574039E40",
+        "gitBlob": "c86ce202ea6e92948bf5fa40902323ad87de810b"
+      },
+      {
+        "path": "web/src/stores/auth.ts",
+        "sha256": "018C3CEDB9582427260F7977EADF900784A7B84A50354D4AA4A313FE648FBC85",
+        "gitBlob": "321e0d739c17e18f96ddadb15cd053de127c7b52"
+      },
+      {
+        "path": "web/src/stores/connections.ts",
+        "sha256": "D5057ABE03464A6FCD4D5E6F4537ADB29D1E08BFB1BC651741FECD3BE54424BC",
+        "gitBlob": "8e841b169c0ea729586cdf37f7bd5e05ced70344"
+      },
+      {
+        "path": "web/src/stores/copilotSessions.ts",
+        "sha256": "50E5878F79D064ACD1760E049695CC430DA492647AD0EE133CF352F9722444CC",
+        "gitBlob": "ece90180fef33b886a59028e3bedb38facc6f561"
+      },
+      {
+        "path": "web/src/stores/events.ts",
+        "sha256": "4789B6740ED050B0F37787F0534DEF04C20648B33D0980D83307884B04DB36E1",
+        "gitBlob": "2c9a88393d690cdf602471bdcb6f07555b736aeb"
+      },
+      {
+        "path": "web/src/stores/setup.ts",
+        "sha256": "91838D463BDF7CA59A76553D39478F924B553CD7ABDA63D51569C7C69A3E1490",
+        "gitBlob": "c203c2389be9e829df14a4eca6fdfdfeabfc7b6c"
+      },
+      {
+        "path": "web/src/stores/sqlConsole.ts",
+        "sha256": "59E8D6710917A7143C2364FCE9A018ED943946CE1FCEBCC204B3C4FE26B4837B",
+        "gitBlob": "c5d324fb682addba9e1e68335837964f2236e4a4"
+      },
+      {
+        "path": "web/src/stores/workbenchHistory.ts",
+        "sha256": "49542CC24E5E569977110A6526E17943F7A68384382209B7C3BC4772F4453551",
+        "gitBlob": "4c0d240f693289a44295d47e899d50884ec00a93"
+      },
+      {
+        "path": "web/src/styles.css",
+        "sha256": "7F05D561D1EDF7718EF52EB190E1C9FB6B80532533CF30E3706758003865070C",
+        "gitBlob": "658f538cc89f5dac79952fb2c70f429a922a837f"
+      },
+      {
+        "path": "web/src/styles/studio-workbench.css",
+        "sha256": "A9B26F8407823ACC28E2207281E55E9156FC239F0A6C1DA2ADD56B0C8F2617C4",
+        "gitBlob": "1f9722f0f63d323d848c6c60ef793bd3902f90ce"
+      },
+      {
+        "path": "web/src/utils/explainPlan.ts",
+        "sha256": "7095CDDECAECB15187DEB626F5823503F82474DF88F7CED30944246F0837A434",
+        "gitBlob": "e4f160aab24a1058f01ed25a661f946e88ef9c0d"
+      },
+      {
+        "path": "web/src/utils/geoTransforms.ts",
+        "sha256": "D6C32E67418A8ABFB9D884033FA14E26A4AE2AC57F9CF51B6EC209FC76DF8ABA",
+        "gitBlob": "ff592b2d49938c15738157f0bbb4b2a388517c3f"
+      },
+      {
+        "path": "web/src/utils/managementExplorer.ts",
+        "sha256": "C1120B2156F2E784AEA2AF91301813713534B818665963491E70479EAF98AE32",
+        "gitBlob": "1802305ac00da0747b4d796ba3ed0b99ff18aae2"
+      },
+      {
+        "path": "web/src/utils/mapTiles.ts",
+        "sha256": "F2E6F2BDB812A51DA14B10ACAD0C5674C8C3803FF1EECB194E7B3B271FC385EC",
+        "gitBlob": "44796c99598291f608ca027f0e85b1c78feb19ee"
+      },
+      {
+        "path": "web/src/utils/measurementImport.ts",
+        "sha256": "AF16DFD59CB2F880B8D22C71E37EA565ABEDFD0672DA65BCB4506AA1C93CE216",
+        "gitBlob": "c9aaec1f7176002bb190adf6fe548fef07875722"
+      },
+      {
+        "path": "web/src/utils/relationalImportExport.ts",
+        "sha256": "56ADFB50AFCF0BFFFB868B287A1109F18B5AE5C5983E71B3A69030FA02EC01AA",
+        "gitBlob": "7f1b711013e40032e14ecafc212204959b72afc6"
+      },
+      {
+        "path": "web/src/utils/resultExport.ts",
+        "sha256": "4E63CD3585E465CB9239D2F9BE13C0B7A29841DA6CE7C940543A30BB48F10050",
+        "gitBlob": "02b6727f8c23167c65da920379bf8ebe263e1210"
+      },
+      {
+        "path": "web/src/utils/sqlValue.ts",
+        "sha256": "88B3085868B3F2773CF5CDB618A4229FD53DC62F9A8C3C1690F4BA9CAE44E53F",
+        "gitBlob": "154dc86643686fddcca081b625c95154af63106c"
+      },
+      {
+        "path": "web/src/utils/sqlWorkbench.ts",
+        "sha256": "65E369C9EB65ECCACE0140AC4E3853563A71A47421624BFD0A77C0AF4A1152AF",
+        "gitBlob": "c912b61f186b9e08221cbddc01c2c85f301f923d"
+      },
+      {
+        "path": "web/src/utils/workbenchNavigation.ts",
+        "sha256": "CE22C9CB50E04ECAF202DF89596329879E0D57F4F8F4FBECFA378DF91B8B771C",
+        "gitBlob": "3a31dfc36ac219c8bc1f2f49e9250a87238a035f"
+      },
+      {
+        "path": "web/src/utils/writeApproval.ts",
+        "sha256": "F547A89E9541B45100965B98D6E15F267A5E729C5F5909FB2BAC8EF55717B044",
+        "gitBlob": "ff26cf60ed599e3ba0c499e36ceee689cc08b579"
+      },
+      {
+        "path": "web/src/views/AboutView.vue",
+        "sha256": "1DF3A2597F048CE826A7EB35B4537B66AC96E524D9409BB15F7200700A70A320",
+        "gitBlob": "e4f7920b50688ef57410116b0a785fa85ab3acd2"
+      },
+      {
+        "path": "web/src/views/AiSettingsView.vue",
+        "sha256": "00270CEE2DB3F0832DA629DC67AF39F1364704D3CC431707FE4AD375C89968BA",
+        "gitBlob": "b1925c6eaf031cc7006e8bb4163a54a2310844f4"
+      },
+      {
+        "path": "web/src/views/AppShell.vue",
+        "sha256": "3E4E3CABD9BEDA388819AC21B1EF51FAFA608A7F72E3A914D6EBD20CB4C8D943",
+        "gitBlob": "c2777fca84859e1b5a4b5a98f99a75e2205cf928"
+      },
+      {
+        "path": "web/src/views/AutoLoginView.vue",
+        "sha256": "F8F622243126F954610266125CDB2FF87C49DC744FB5D8819BD892C8BCBE0C99",
+        "gitBlob": "1510c1d41fb6ffd232f390a4f6f56ba54eb8ddc5"
+      },
+      {
+        "path": "web/src/views/CopilotOAuthCallbackView.vue",
+        "sha256": "A85292719E763F35D4E59D54E953C377D1521D84E970B6DDA6B1358E859D122B",
+        "gitBlob": "8ab7350594f367ec6f28a93b8ff94a282386cf04"
+      },
+      {
+        "path": "web/src/views/CopilotTestView.vue",
+        "sha256": "C62DF5DB1ED1D05EE0BB75FDB08FDEB65B926DD1947FEA37508FA7EDCDA47B47",
+        "gitBlob": "b4fdec2ec5aab984fedfb4d5c8bbeed3899226a5"
+      },
+      {
+        "path": "web/src/views/DashboardView.vue",
+        "sha256": "74631E67D96D14BADA664C9E478422CF8CE76D0ADA451F85B0D273C667F89E25",
+        "gitBlob": "e1a53687c54a76d3ad39c0478ac45d874f7cbd9d"
+      },
+      {
+        "path": "web/src/views/DatabasesView.vue",
+        "sha256": "8AF7DCB5576317594E5CC30C2E365242A65D38A9C03FE8D4946B96CC509B4229",
+        "gitBlob": "18818b916acefddb702954d0aac7657c9da600de"
+      },
+      {
+        "path": "web/src/views/EventsView.vue",
+        "sha256": "1353086C237F2517FB973A162E739D6EBDB958E4E2E473D91729D86D45664247",
+        "gitBlob": "e239a157a4a72af5ae56fe10010e1be73ba1d366"
+      },
+      {
+        "path": "web/src/views/GrantsView.vue",
+        "sha256": "AF5B73B3454BA15E22B45E8FDAF4AD5A68D7837FB9B9D321DD64FAD193766D78",
+        "gitBlob": "24e71814390cbf99860ec2458eeca15a7d0034b6"
+      },
+      {
+        "path": "web/src/views/LoginView.vue",
+        "sha256": "D92465EA2695A66A61CF55B50415EB7977B323842B1059F85AE773199F81DD41",
+        "gitBlob": "a1727dc93a296d28defd774bf0936d5a822f49c7"
+      },
+      {
+        "path": "web/src/views/ModbusView.vue",
+        "sha256": "EBB293573F95443014970F80FAC5D2F2523E7629442DEA9F9DE41CAC859EB541",
+        "gitBlob": "2ff25998a3a558d9df820713194840b6363838d2"
+      },
+      {
+        "path": "web/src/views/MonitoringView.vue",
+        "sha256": "A1E10C9A64C7ECC97566E566623EB75ADA2F2E63DF6BACF1523672CE62FE899D",
+        "gitBlob": "b44c94d270228cf4a9af36d2803762bebfd4cee0"
+      },
+      {
+        "path": "web/src/views/RagManagementView.vue",
+        "sha256": "13785F3D1378CABBD95D6D84E7568DED2A8E86AB2496C132F7EAB6D5A9C92D57",
+        "gitBlob": "0547ea4f355e190ae567a4812a53a4aa82eea626"
+      },
+      {
+        "path": "web/src/views/SetupView.vue",
+        "sha256": "802D9C6C2B226B27A7447CD66035FEA5C72F6236A01E36DA5C20EDE4B18DE7B3",
+        "gitBlob": "9ff91a6d2fb723d8455166ec51d0bca7358256d0"
+      },
+      {
+        "path": "web/src/views/SqlConsoleView.vue",
+        "sha256": "18255697445783EF4C49D9E2A3CA1FA4168400368CCE4E5495034E6D5E24FDDC",
+        "gitBlob": "6b86967eb52e52e31134b9711b2cf7967a65b3cb"
+      },
+      {
+        "path": "web/src/views/TokensView.vue",
+        "sha256": "7E2759DC6B1491530FC7B1D221B3D78763D8D7A401157A17205A90B277DE3F0B",
+        "gitBlob": "e499dc09ed9d67edc0c4f0a0df80ee6613df4a54"
+      },
+      {
+        "path": "web/src/views/TrajectoryMap.vue",
+        "sha256": "3E53D828AF0FF221D985D22400218CBB5572191998F2D424BF088B2E77467FEC",
+        "gitBlob": "1c3def072eaefb32ab53ba998de5b1f4533ebb6e"
+      },
+      {
+        "path": "web/src/views/UsersView.vue",
+        "sha256": "BFAE60A31349FFA0B96FB1F3AB8F82977077D16F9B54BFE058C11CDF87BF1C2B",
+        "gitBlob": "9d3f2ef1052ddef42e7843deb3e287100b420355"
+      },
+      {
+        "path": "web/src/views/WelcomeView.vue",
+        "sha256": "C8A383F34E75643BB141798582F4387BF4314EA3E20B6D5379E6386C3AAC02ED",
+        "gitBlob": "afd39bf6b70dc1a873603bc831fba00ff64e486a"
+      },
+      {
+        "path": "web/tests/document-workbench-migration.test.mjs",
+        "sha256": "7520624D1461C1A0F7851698D7B6B0E9B83F72F863A035BB4F57CE2803DD651C",
+        "gitBlob": "2b9402356aba6041adde911869272ad5f3ee82da"
+      },
+      {
+        "path": "web/tests/explorer-database-route-selection.test.mjs",
+        "sha256": "3299BEDBFD7E519503F9C566D21928102712FEEC0ACBA6F496476A8810820BE1",
+        "gitBlob": "ede44bfb184e86c78ec7185a38e94ce0cb069afc"
+      },
+      {
+        "path": "web/tests/explorer-route-selection.test.mjs",
+        "sha256": "F1CBA17DF07598EE4408A993A2F2CA0FFF6E25801123D9EE24CC8D1A5A77E89C",
+        "gitBlob": "9f4259378a0caf38ed3a54075950e3e426c1328e"
+      },
+      {
+        "path": "web/tests/explorer-routing-compat.test.mjs",
+        "sha256": "FC23172BCB7F5ACC170EC7C31F54B378B00548C49B24E84B28A9DB3C8BED902E",
+        "gitBlob": "8a94e45cecd34d617f78b39e9204b04b6a0d3bb1"
+      },
+      {
+        "path": "web/tests/fulltext-workbench-migration.test.mjs",
+        "sha256": "26E207B2FFC1F982B64B64B91BE4741BFFF522DB1E5DC8EE69405D699DBBD848",
+        "gitBlob": "0b54926fe2b25080c834a5eef4bc90216b2264a6"
+      },
+      {
+        "path": "web/tests/graph-workbench-migration.test.mjs",
+        "sha256": "86E4E1EB6B4C8BF03851EBB99ECFEA9B7448A4A946EA1022DE7CA9EFA63033E0",
+        "gitBlob": "03034fc5f7618133f19ecd190b81c84f85d22a82"
+      },
+      {
+        "path": "web/tests/graph-workflow.test.mjs",
+        "sha256": "6101E9D2845F18636F5AE786A7D1300CE2C68ADC60672738C97CDEA3A0B7C8FA",
+        "gitBlob": "35eb666332dbb67febd72599eb48a77858844523"
+      },
+      {
+        "path": "web/tests/kv-workbench-migration.test.mjs",
+        "sha256": "6BC5A458A08243EC702B16C4418CA60949620A8E94F50EC4B87AE926CD7B8D91",
+        "gitBlob": "9cd62e9762f96b6a467e827e7a1be62b9dbe23d9"
+      },
+      {
+        "path": "web/tests/kv-workflow.test.mjs",
+        "sha256": "BBD18E14075C460B70D08B93F4C5608EB967FD914E9F7D72C581BD416E1655BD",
+        "gitBlob": "d8f68b91dca634e1f256bf89ddd9f3ad55fd337a"
+      },
+      {
+        "path": "web/tests/m47-ai-mcp-state-contract.test.mjs",
+        "sha256": "CA50467FA489661BFF31D72F438BBAD38A15CDE411024A6D5B80BEE27B5BEF90",
+        "gitBlob": "87ad07c471b1c14d9c6e3baed43d508ba168c1d0"
+      },
+      {
+        "path": "web/tests/m47-global-flow-state-contract.test.mjs",
+        "sha256": "5C84D8696B8DC50DE74BF2D09666FDCBBB90C56ED82A0CA9CEA2AEB6590E1ED5",
+        "gitBlob": "9ef34d7ffb89efac0c3ca7a1998ccbf9f115b9ef"
+      },
+      {
+        "path": "web/tests/m47-global-page-state-contract.test.mjs",
+        "sha256": "04E501D30DB39900ED3A5B498DEA146636C790111911BAB2F4D49DD150ED8980",
+        "gitBlob": "dec5dd171122d4ef3328c0cb7ecf235ba763c55e"
+      },
+      {
+        "path": "web/tests/m47-governance-state-contract.test.mjs",
+        "sha256": "8947CB851CEB345AD645A24C4665DC9614F27028C70A957198BD93F8E13838AC",
+        "gitBlob": "bc652354283b8af2da012537eeeca244bd25c8a2"
+      },
+      {
+        "path": "web/tests/m47-observe-flow-state-contract.test.mjs",
+        "sha256": "BC7001A1449CE2CC6E1B59AA66E092202A4C9F2290FF96C245FD913C1563E8DD",
+        "gitBlob": "bd144dfcee7bb227a6489248d5aac84ad2ab60ee"
+      },
+      {
+        "path": "web/tests/m47-page-state-contract.test.mjs",
+        "sha256": "8778DB29A26217656B61DA5ED4D436A4ECF5EEFDF40F6D51FBCBA00A58363CC0",
+        "gitBlob": "3b842eefc96b569f65a01bb64d60de035111946d"
+      },
+      {
+        "path": "web/tests/m47-settings-state-contract.test.mjs",
+        "sha256": "E6C7E9B852B01610F0E04E2B201233017B1EE86A52BF564AA4804AEF3E27A465",
+        "gitBlob": "3bc4649d8b304417dde49387d068997fa7f05dab"
+      },
+      {
+        "path": "web/tests/management-core-contract.test.mjs",
+        "sha256": "DAC56EEEDC65A0EF1C7014E1C4678036497E80BF2EF355C54752461D3F10E3D5",
+        "gitBlob": "ae2a5b5beb9c04256a7ce416dfd20d6e7acd0ade"
+      },
+      {
+        "path": "web/tests/management-explorer-compat.test.mjs",
+        "sha256": "C409706CDC9029E4D2E7C729C97D01017ACADD9C968B64EB7B9E64E3E15882B6",
+        "gitBlob": "60bad806e035eaad0e1969987a484f09c7cdbc01"
+      },
+      {
+        "path": "web/tests/measurement-workbench-migration.test.mjs",
+        "sha256": "636D3191CA8571F8ADDD29308790F18FA08F7E95497EC978D9D1DA11F0DAD7F9",
+        "gitBlob": "d80de7d37f6a50f8395b525cbdac2c39dfe75e2f"
+      },
+      {
+        "path": "web/tests/mq-workbench-migration.test.mjs",
+        "sha256": "E3478A943DB1C11719742ECCD3C60BA701D910A626DF6F790EDC36087132676E",
+        "gitBlob": "dd5dcf948bf140369d521001f34e87a552f07172"
+      },
+      {
+        "path": "web/tests/navigation-compat.test.mjs",
+        "sha256": "94EA35F2E94313D593BF181B1C745C51322F7F806B872BAD0CF05B04A19A1AC7",
+        "gitBlob": "49ef6fdd7536e6426ca384e3621b5d0c8c24c728"
+      },
+      {
+        "path": "web/tests/object-workbench-migration.test.mjs",
+        "sha256": "BF2ECCF68F2DEC9AF08C57B5CA8AF5B76F0A7CEF278F772452B24CF3432DA4B7",
+        "gitBlob": "dafd4cd992aaa84ddbcf159ef3eebf23ec70fc3c"
+      },
+      {
+        "path": "web/tests/preview-policy.test.mjs",
+        "sha256": "D1A1275A4AAF6817CC8CFE8B5C136B59930DC436A0D00F7893B5B792969898D5",
+        "gitBlob": "7a7ec227d16842fc60dc781be9264390062e9086"
+      },
+      {
+        "path": "web/tests/rag-management.test.mjs",
+        "sha256": "6A27B8963920155977F30512088932EA870B49CEF3078BBF2A7862A82967A3CA",
+        "gitBlob": "f387324ea0eaf8fff394cbe6492dfa03f7923711"
+      },
+      {
+        "path": "web/tests/relational-workbench-migration.test.mjs",
+        "sha256": "EC44FB4DF2E411B93CACA4794E1CF4F6959380D7FC9662EA7ECADE44F09225F6",
+        "gitBlob": "a3cda6c75ffa7ef16e5962d806700bfad9562166"
+      },
+      {
+        "path": "web/tests/sql-workflow.test.mjs",
+        "sha256": "7C5459B8FA2F003844BADCB54045B68478413941D3FBE6FEC4B6BA65975E65E6",
+        "gitBlob": "b5103fe078fd006f5bb753537bc538d5e4512345"
+      },
+      {
+        "path": "web/tests/studio-host-client-contract.test.mjs",
+        "sha256": "15A856F104226019F4524F97987295965831430BA754088E0AD4F21B275A5913",
+        "gitBlob": "5cac6545cf45fe725ffa6b667bb786d33f0e5e52"
+      },
+      {
+        "path": "web/tests/vector-workbench-migration.test.mjs",
+        "sha256": "7162DB04D03B2481C83A4935C4FFA30BE171741DA4F043A58CD23854F46DEF06",
+        "gitBlob": "e6d733088748ef0fc83c22a2fc0ce681214b74ac"
+      },
+      {
+        "path": "web/tests/wb05-approval-unknown.test.mjs",
+        "sha256": "FAE1B6DC13A78C5C3326DAD985C79867C13FDDED4C1B57D13CF8585214464698",
+        "gitBlob": "c79c234b8fbbcf72d8e4b03cc2eca1da2e48b312"
+      },
+      {
+        "path": "web/tests/wb05-results-drafts-history.test.mjs",
+        "sha256": "402554A58F77F2959D6EF7F54783C9ADAAA520CDCEB584BD743D1EC57AEBAC98",
+        "gitBlob": "8caf066657a4957175cb6a50690a0dc2e2660958"
+      },
+      {
+        "path": "web/tests/wb05-sql-unknown-integration.test.mjs",
+        "sha256": "E9D8847C6C07DF9E1519031BDFA14166986AA24C8A0917A2E7141B934DF88B3E",
+        "gitBlob": "953e0bcdae43046df6cd644df589c166e15721ab"
+      },
+      {
+        "path": "web/tests/workbench-navigation-auth.test.mjs",
+        "sha256": "4AF30F04362A2C23D3FE7673C08BC19A22E931B0438A72F92D8A6229B473AAB8",
+        "gitBlob": "d500dd5f0e52f526c6bbb296cc5d79b6c0a10a19"
+      },
+      {
+        "path": "web/tests/workbench-real-runner-audit.test.mjs",
+        "sha256": "3D9FF2476E6A9B92073BF7AABCB81BC37F448F84E0B088D49DA608A12B22FA8E",
+        "gitBlob": "6b88555defffd3a3888eba88f2c4b04df9de0124"
+      },
+      {
+        "path": "web/tests/workbench-resource-tab-identity.test.mjs",
+        "sha256": "318897F5FAEA31C50932A34ADC1C9807944D7C8FED7CA38C727EB152EF10240B",
+        "gitBlob": "f2e2144bf398c94c6e5f97456a8c87f7a25bd0dc"
+      },
+      {
+        "path": "web/tests/workbench-shell-migration.test.mjs",
+        "sha256": "5F2708F04AD907C34C207341CE41EC007BBDDF9EA41C9E44794EA29738E30AC2",
+        "gitBlob": "e0d27e8cdb729064f37f43a14db27e65d78188a0"
+      },
+      {
+        "path": "web/tsconfig.json",
+        "sha256": "69A65C04F4E63EAB3B8BA812E91AC94737B87E0ED211EB00A6FC156CCFBFC6E8",
+        "gitBlob": "a57c88815a72e066fb93fbd04a8eb2f18dc2f098"
+      },
+      {
+        "path": "web/tsconfig.node.json",
+        "sha256": "F49EF24E097144FECC29F677361CB45B2019E1BCC0DBA54BAB083760F7DF6200",
+        "gitBlob": "3adda81a1ce0bda41fc82b9e6d70aa2f68069060"
+      },
+      {
+        "path": "web/vite.config.ts",
+        "sha256": "EE7A975A92509F443B620AD69B5AD84AF4C00537A3BB9590D9A019CCBE9A3CE0",
+        "gitBlob": "594becf771038b968c21fa3544f8416b10688ad8"
+      }
+    ],
+    "evidenceDirectories": [
+      "artifacts/m47-p03-20261010"
+    ],
+    "results": {
+      "receipts": {
+        "web-typecheck-04": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 27.1330806
+        },
+        "web-build-04": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 23.5731063
+        },
+        "node-contracts-04": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 169.2566487
+        },
+        "server-tests-06": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 109.5591012
+        },
+        "real-08": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 37.5770395
+        },
+        "studio-host": {
+          "status": "PASS",
+          "cleanupComplete": true,
+          "elapsedSeconds": 55.054979
+        }
+      },
+      "node": {
+        "passed": 465,
+        "failed": 0
+      },
+      "realServer": {
+        "passed": 19,
+        "failed": 0
+      },
+      "realBrowser": {
+        "passed": 12,
+        "failed": 0
+      },
+      "fixture": {
+        "collected": 332,
+        "originalIdsTitlesFilesPreserved": true,
+        "shardStats": [
+          {
+            "name": "smoke-shard-1",
+            "startTime": "2026-10-10T09:59:38.346Z",
+            "duration": 27232.122,
+            "expected": 89,
+            "skipped": 0,
+            "unexpected": 0,
+            "flaky": 0
+          },
+          {
+            "name": "smoke-shard-2-v2",
+            "startTime": "2026-10-10T10:06:49.753Z",
+            "duration": 300381.901,
+            "expected": 64,
+            "skipped": 13,
+            "unexpected": 2,
+            "flaky": 0
+          },
+          {
+            "name": "smoke-shard-3",
+            "startTime": "2026-10-10T10:13:38.070Z",
+            "duration": 370902.127,
+            "expected": 86,
+            "skipped": 0,
+            "unexpected": 2,
+            "flaky": 0
+          },
+          {
+            "name": "smoke-shard-4",
+            "startTime": "2026-10-10T10:21:10.396Z",
+            "duration": 327752.631,
+            "expected": 63,
+            "skipped": 12,
+            "unexpected": 1,
+            "flaky": 0
+          }
+        ],
+        "mergedCurrentSource": {
+          "passed": 306,
+          "skipped": 25,
+          "unresolved": [
+            {
+              "id": "26cdaf9f2840bd70efea-f0a93c8653a24d8625ce",
+              "file": "kv-workbench-migration.spec.ts",
+              "title": "fixture cursor pagination caps accumulated preview at 1000 and rejects an overreturned cursor",
+              "status": "unexpected"
+            }
+          ]
+        },
+        "singleRunAllGreen": false,
+        "originalFailuresRetained": true
+      },
+      "studioHost": {
+        "passed": 12,
+        "failed": 0,
+        "fixtureOnly": true
+      },
+      "sourceInputs": 297,
+      "sourceHashesUnchanged": true,
+      "cleanup": {
+        "originalError": "smoke-current-diagnostic",
+        "complete": false,
+        "laterRecordedIdentityAudit": "current-diagnostic-later-identity-audit.json",
+        "recordedPidsAbsent": 23,
+        "editorRecovery": "NOT_VERIFIED"
+      }
+    },
+    "shortSummary": "最终Preview类型检查与Vite构建通过，Node合同465/465、真实Kestrel 19/19及真实浏览器12/12；额外StudioHost夹具12/12。完整模式332项与原收集逐项一致，合并本轮不同浏览器的补充证据为306通过、25原skip、1项KV分页超时未决；不是单次全绿，Chrome measurement点击超时也保留。一次清理ERROR/cleanup=false保留，后续仅核到该批23个记录PID不存在，不升级为原Job清空或编辑器恢复证明。",
+    "fixtureFailuresRetained": [
+      {
+        "id": "26cdaf9f2840bd70efea-f0a93c8653a24d8625ce",
+        "file": "kv-workbench-migration.spec.ts",
+        "title": "fixture cursor pagination caps accumulated preview at 1000 and rejects an overreturned cursor",
+        "status": "unexpected"
+      },
+      {
+        "id": "94433016ba77c6715d56-de6c2566138e7c762ea7",
+        "file": "document-recovery-budget.spec.ts",
+        "title": "database ABA does not let an earlier recovery response unlock a new denial",
+        "status": "unexpected"
+      },
+      {
+        "id": "d10ad20da6b09dcf54de-01d25e40969aa450ad3b",
+        "file": "measurement-workbench-migration.spec.ts",
+        "title": "501 returned point rows are capped to500 before visible mapping and current JSON export",
+        "status": "unexpected"
+      },
+      {
+        "id": "d10ad20da6b09dcf54de-ebb64310d568a5f417d2",
+        "file": "measurement-workbench-migration.spec.ts",
+        "title": "501 returned monitor rows are capped to500 before chart/grid with the original monitor target preserved",
+        "status": "unexpected"
+      },
+      {
+        "id": "1d0c23100b26532b8155-0c5aced8b4e04e351cd9",
+        "file": "object-workbench-migration.spec.ts",
+        "title": "list clamps request 1..1000, truncates before mapping and caps accumulated preview without reusing skipped cursor",
+        "status": "unexpected"
+      }
+    ],
+    "priorCandidatePassesReused": false,
+    "remoteGates": "NOT_RUN",
+    "releaseStatus": "NOT_READY",
+    "packageOrInstallationAcceptance": "NOT_RUN",
+    "executionBoundary": "SUSPENDED_ROOT_NON_BREAKAWAY_WINDOWS_JOB_RETAINED_HANDLES_ONE_ORIGINAL_CLEANUP_ERROR_RETAINED_WITH_LATER_RECORDED_IDENTITY_ABSENCE_ONLY",
+    "editorRecovery": "NOT_VERIFIED",
+    "historicalFailuresAndProcessIncidentRetained": true
+  },
+  "scopeRevision": {
+    "id": "R1",
+    "document": "docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md",
+    "reason": "Dedicated seven-model endpoints have not proven Server scan/materialization budgets; refuse rather than relax limits.",
+    "originalNineModelAcceptance": "NOT_COMPLETE",
+    "originalCandidatesMutated": false,
+    "nativeTokenExpiry": "NOT_APPLICABLE_USERSTORE_HAS_NO_EXPIRY_FIELD_REAL_REVOCATION_401_VERIFIED",
+    "about": "Static product and scope summary; no host hardware capture."
+  }
+}

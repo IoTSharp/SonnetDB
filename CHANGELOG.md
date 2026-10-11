@@ -6,7 +6,182 @@
 本文件记录已发生的实现或文档变更；`[Unreleased]` 表示已经实现但尚未归入发布版本的变更，不单独证明已合入远程分支或发布。未来工作放在 [ROADMAP.md](ROADMAP.md)，从本文件移出的旧 Planned 草案保存在[历史计划归档](docs/audits/historical-plans-from-changelog.md)。历史条目中的阶段状态、测试数量和性能数字只适用于其当时声明的范围，不能直接当作当前版本或生产门禁的结论；2026-09-05 的[核查记录](docs/audits/changelog-verification-20260905.md)列出已确认的问题和仍缺失的证据。
 
 ## [Unreleased]
+
 ### Added
+- M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
+- M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
+- M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
+- M47-P07 候选12真实放行完成：原十二同源workflow及八项验收全部通过，prepare/P07原artifact和三归档digest、18原文、10+5工具库存独立核验；P08四附件及精确请求已冻结，按用户决定允许maikebing发起并实际审批，变更工具真实prepare/P07复验12/12、8/8通过，未公开发布/匿名首跑。
+- M47-P07 候选12实物冻结：干净P04/290项库存、四阶段37记录、五类拒绝及17回执/244身份审计通过；243依赖原文与Community/微软分发输入审查通过。冻结新四附件和18份无损原文，真实远端prepare/P07整体放行仍待验，P08未发布。
+- M47-P07 继任候选12：恢复已发布 4.0 的构造/解构/表工厂及废弃 WAL 回收入口，启用已发布 4.0.0 包兼容基线；修正 P07 实物 manifest 依赖库存路径。候选11的真实构建、许可审查和发布预检失败保持，源码修复须新候选及完整同源验收。
+- M47-P07 继任候选11：精确升级 Mapbox JSON lint 2.0.3，使用自有 Vue 指令替换发出的 vdirs 代码并核最终 chunk 库存；入包微软原条款、Community 资格来源和显式启动同意，P07 收集绑定实际依赖库存。469 项 Web、86 项发布工具及七项许可合同通过；新包实测与十二同源门禁尚待执行，原候选10不改。
+- M47-P08：实现发布逐写ID日志、匿名四附件/ZIP回读与真实首跑入口，配置maikebing审批/禁止自批及管理员绕过；五项许可原通知准备、86项Node与补件/脱敏合同通过。候选10及原P07保持NOT_READY，许可/八项同源门禁未闭环，未公开发布或执行公开包首跑；[报告](docs/design/m47-unified-management-workbench/preview-1-p08-publication.md)与机器记录分列证据。
+- M47-P07 完成候选10真实prepare/P07原证据收集与未放行评审：run38116860908/38117134746成功、7/8验收通过；原发布门禁4/12通过、8项缺同源码运行与11项运行时许可条件仍阻断，机器记录绑定真实artifact/hash/tooling，产品NOT_READY，P08未执行。
+- M47-P07：新增同候选原门禁/安装收据与许可评审收集入口，精确冻结原证据和工具SHA；修正Windows分发checkout换行漂移。初审4/12工作流、许可NOT_READY，P08仍须独立授权。
+- **M47-P06预览说明与独立分发（2026-10-11）**：候选10包外说明、限制/回退/反馈及四附件hash补记；新增默认只读prepare的手动入口、同source/run/attempt/库存核验、P07原完整verifier及P08人工环境授权、显式四附件上传和未知效果只读对账。35项本地合成合同、实际279ZIP库存及身份校验通过，原候选/三资产不变；[P06报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)分列证据。P07/P08未验，NOT_READY，未tag/公开Release。
+- **M47-P05候选10实物验收（2026-10-11）**：来源54eefc81 / 4.5.0-preview.1.10，干净CI38104431383、279项库存/hash及NativeAOT版本独立通过；实际Chrome/Edge密码登录、R1查询/1000行导出/单行审批、撤权/unknown/错配拒绝、正常Ctrl+C重开与61文件同候选快照回退通过。验收工具等待真实写响应后独立回读，原过早回读FAIL保留；[报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)及[不可变候选10](docs/design/m47-unified-management-workbench/preview-1-candidate-10.json)分列实物/夹具/故障注入与清理边界。P06～P08待验，NOT_READY；未公开发布。
+- **M47-P05实物错配修复（2026-10-11）**：候选09原包首次设置已实测；发现包内candidate编号滞后及缺运行时Server/Web身份核验，保留原包/失败收据，补candidate/version检查、source-generated身份端点、编译Web挂载前核验和Preview请求版本/SHA约束。继任候选10须新SHA干净CI重包；[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)分列实际包、工具错误与待验门禁，NOT_READY。
+- **M47-P04独立预览组包器（2026-10-11）**：新增手动、只读构建CI与来源/版本/profile绑定的win-x64 NativeAOT Server＋同源Web组包器，精确库存/ZIP哈希、实际版本、工具依赖和许可证清单；24项本地合同通过。候选09真实NativeAOT/ZIP/版本/依赖闭包独立PASS；候选05～08原CI失败保留，[P04报告](docs/design/m47-unified-management-workbench/preview-1-p04-packaging.md)分列证据；P05～P08未执行，NOT_READY。
+- **M47-P03 Preview入口与安全结果（2026-10-10）**：显式preview-1外壳、路由/动作白名单、真实HTTP角色与数据库grant核权、一次关系表单行参数化审批、撤权/取消/身份切换清载荷、unknown不重放和有界SQL/schema/导出。依[P03范围修订R1](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)明确延期七模型专用读取；[本地验证](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)不替代发行物/远端门禁，产品仍NOT_READY，候选03在代码提交后冻结。
+- **M47-P01 首版范围与候选冻结（2026-10-10）**：记录已提交候选 `c40fa670e3a170c5fac8cefa181d618631862270`、保留版本 `4.5.0-preview.1.1`、win-x64 同源环回 Web＋Server、九模型受限读取和关系表单行审批插入白名单；新增[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)及[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)。核实 Publish 的 Studio/全套资产默认行为，冻结不经 v* 的独立 prerelease 和精确附件集合，保留原12个workflow/五个Workbench job与artifact门禁。仅完成范围合同，入口限制/打包分发实现及候选真实验收归P02～P07，产品仍NOT_READY，未构建/打标签/发布。
+- 记录 WB83 preflight helper6秒与Host命令20秒的独立边界、首次ports helper等待关联及PID重复调用缺口，冻结保持原权限/预算的JS逐调用观察合同（WB84；尚未实施）。
+- **M47 WB83 VS Code 独立真实窗口检查点**：复用既有stop/history/elapsed合同，冻结新窗口并取得preflight helper_deadline失败及四条真实stop诊断；原cleanup失败与未知边界保留，未验收Query/history/Code旅程。
+
+- **M47 WB82 VS Code stop阶段诊断（2026-10-09）**：在既有三脚本增加最多384 attempt与已接受candidate/helper关联、固定JS/PS阶段及退出/结果类别；非法/缺失/getter/观察异常归unknown，原权限/异常/校验/三门禁保持。新增13项模拟测试，唯一文件88/88，0实际Host/产品build，原失败原因保持未知。
+
+- **M47 WB81 VS Code stop诊断合同（2026-10-09）**：追溯原stop-verification回调拒绝与缺失的helper关联，冻结三脚本固定阶段/结果观察及模拟验收范围；原FAIL、终止权限与现有测试保持，未增加实际运行或产品功能。
+
+- **M47 WB80 本机Native恢复证据（2026-10-09）**：增加独立证据入口，唯一真实Studio旅程通过A/B选择、双桌面、B被动恢复/真实查询和两次正常关闭；严格清理零fallback。复用旧Release，未新增恢复功能或产品build；原失败、Server优雅关停及三宿主/安装/AOT等边界分列。
+
+- **M47 WB78 连接库安全字段观察（2026-10-09）**：Native诊断在原有受管JSON读取中记录固定字段类别与未知数量，最多两对象、各32字段、8条记录与100ms协作时限；不保存未知名字/值、不放宽disk拒绝或进程权限。14项新合同及60项回归通过，合成终态保留失败；真实宿主另验。
+
+- **M47 WB77 Native 接续窗口（2026-10-09）**：记录唯一新根移交、新有界合同与独立证据入口；旧WB76预算发布失败保留，task-local wrapper修复及真实旅程分别验收，不改变生产身份、恢复、正常关闭或回收合同。
+
+- **M47 WB76 新 Native 窗口入口（2026-10-09）**：增加固定证据目录及对应标签，单列 .62 文件前置与实际运行时观察；仅 runner metadata，保留原查询、缓存、身份、预算及正常关闭／回收合同。源码逆投影证明其它字节不变，真实旅程结果另见 WB76 报告，不把已获取的最新代码或既有源码测试当作恢复通过。
+
+- **M47 WB75 本地集成窗口（2026-10-08）**：记录隐藏.git元数据修复和真实不提交预演、固定15路径/owned HANDOFF与完整最终树门禁；已有Native CIM六源和38/14/41验收继承，旧WB74失败不升级。最终本地提交结果以WB75收据为准，提交后暂停。
+
+- **M47 WB74 owned 本地集成守卫（2026-10-08）**：绑定 shared HANDOFF 完整冻结前缀、明确 owned 工作段与 private blob/index，只允许未暂存尾追加；拒绝中间插入和提交内容变化。沿用已验收 Native CIM 六源，不重跑源测试或真实旅程，原 WB73 集成失败及退出限界保留。
+
+- **M47 WB73 Native CIM 本地验收（2026-10-08）**：验收已有阶段观测，PS micro/Node micro 各1/1、修复后 PS14/14、Node41/41。首次 full 的空结果 mock 失败及原 WB72 singleton/过期失败保留；仅夹具 bare-return 窄修，0actual/产品构建，最终 owned 集成以本片收据为准。
+
+- **M47 WB72 Native CIM 阶段观测（2026-10-08）**：仅观察现有 snapshot 查询，四阶段/160 槽/有界结果数、单调耗时与 100ms 记账停止上限，同 envelope 安全投影；原 cache/预算/权限/运行时行为保持。静态独审与修复后 PS micro 1/1 通过，原 singleton 微试语义失败保留；完整验收未运行，过期窗口关闭，0 actual/产品构建。
+
+- **M47 WB71 Native运行时/快照合同（2026-10-08）**：新增绑定原.53 prerequisite与实际.62 CDP HTTP version的合同报告，区分coarseCDP标签、ownership snapshot与逐查询时序缺口；没有运行时选择绑定/根因或恢复完成的新声明。0sourcechange/actual/产品build/Node重测，后续阶段耗时观察尚未实现。
+
+- **M47 WB68 Native选库普通异库准备（2026-10-08）**：真实runner显式启用单次独立B控件准备，仅在首次A已active且新鲜守卫成立时执行，ack/DOM/disk完成后重读原A守卫；默认同值/unknown拒绝、原A→B恢复旅程与预算保持。新增17项、本地Node60/60与micro1/1通过，0actual/产品build，不声明真实数据库恢复已验收。
+
+- **M47 WB67 Native helper统计保留（2026-10-08）**：保留同helper success/error的既有CIM查询数、缓存PID数与内部耗时至当前record/compact，非法或缺失为unknown，不新增采集或动作权限；新增15项、本地Node31/31及纯PS输出夹具通过。原业务结果/错误、预算/身份/回收门禁及真实恢复失败边界保持。
+
+- **M47 WB66 Native helper预算合同（2026-10-08）**：新增实际协议/调用链、墙钟与CIM/cache/fresh回收预算核查报告，明确20.19s拒绝与160数量上限、内外计时和既有统计丢弃边界；独立28项复核通过。仅文档，0actual/test/产品build，不升级原恢复/退出/cleanup失败。
+
+- **M47 WB65 Studio普通选库前置（2026-10-08）**：在原A/B点击前有界核普通DOM异库与活动身份一致，目标已活动或unknown明确拒绝且0点击/0ack轮询；保留原七fresh PUT谓词及完整恢复/正常退出门禁。最终43项本地合同（原32必要夹具适配+新增11），0actual/0build/0安装；旧失败与三宿主边界保持。
+
+- **M47 WB64 Studio真实选库失败检查点（2026-10-08）**：新增独立runner metadata准入并复用9个runtime/source SHA完成唯一实际观察；A PUT200 seq6/request43未越过pre-click双barrier6/57，DOM匹配A、30次轮询7658ms，后续恢复阶段未执行。原normalExit/cleanupProven均false与helper预算失败保留，根精确归属回收另证；0新build/0定向测试，不计三宿主恢复完成。
+
+- **M47 WB63 Studio选库失败观察（2026-10-08）**：点击前同步保留请求/响应双barrier，失败时投影既有候选的七项固定谓词及普通DOM计数/身份布尔；保存原轮询调用数与实际耗时，不导出任意文本/SQL/凭据，观察故障继续抛出原异常对象。32项本地合同通过，0actual/0build；原真实恢复失败、第二桌面与B查询未验收的结论保持。
+
+- **M47 WB62 Studio seed失败观察（2026-10-08）**：新增仅seed失败的有界脱敏流式观察，保留原HTTP错误和现有权限/退出门禁；23项合同与源码复核通过。唯一真实运行越过修正seed门禁，但A选库fresh ack验收失败（实际A PUT200已保存，失败barrier未留存），第二桌面与B查询未执行；回收通过不能计正常退出或恢复完成。
+
+- **M47 WB-61 Studio 数据库恢复验收入口（2026-10-07）**：复用实际 NativeWebApp/WebView2 runner，新增普通 A→B 选库、公开 PUT/磁盘对拍、两次桌面启动恢复及 B 查询的独立场景和 14 项合同测试；双请求/响应序号阻止旧 ack，候选进程完整验证后才取得回收权限。唯一实际运行在夹具建表 HTTP400 处失败，选库/重启/查询未执行；已修正夹具原生 STRING/主键语法但未再实跑，不能计数据库恢复或三宿主完成。
+
+- **木垒现场只读验收（2026-10-08）**：归档当前 ARM64 配置/挂载、六个索引定义、真实倒序分页及 48/48 读取放大比、REST 预览边界和三图对象完整读取/SHA-256 的 5 个已完成子项；证据绑定现场 `6a8d82d2`，不替代 M41/M42/M36 的整体性能、容量、恢复或长稳门禁。见[现场报告](docs/audits/mulei-field-readonly-verification-20261008.md)。
+
+- **ASP.NET Core MVC + Identity 样例**：以 `SonnetDB.EntityFrameworkCore` 替换 SQL Server Provider，保留默认 Identity 配置、上下文、控制器和视图；提供 SonnetDB 专属初始迁移和独立 MVC / Identity 集成测试，覆盖账户流程、TOTP、并发与关联存储。Provider 补齐事务提交阶段的 EF 保存异常及字符串 `MaxLength` 检查约束，核心允许现有长度函数用于 CHECK。
+
+- **开源中国文章补发账本（2026-10-07）**：保存 142 篇渠道复核稿、逐篇博客/动弹回执、4.0.0 新闻审核状态与每日续发进度；通用发布和对账脚本迁入全局 `publish-oschina` 技能，项目只保留稿件、账本与接续说明。动弹失败独立记录，已有 ID 或未知请求阻止重复创建。
+
+- **M47 WB-42 真实VS Code查询诊断（2026-10-07）**：新增独立Host入口和隔离真实Server/Code runner，复用现有当前语句/选区/EXPLAIN命令；最终syntax/TypeScript和既有Node20/20通过。第二实跑当前语句两行、选区一行及原列/SQL/database生成payload与独立真实reference一致；EXPLAIN断言及process audit失败、history未运行，完整旅程未通过。首preflight parent-chain超时有据修为有界snapshot lookup，原两失败/缺证据保持；根两单PIDfallback、端口/282对象runtime回收另列，不能计正常退出/UI/分页/三宿主完成。完整门禁和八文件本地提交见M47记录。
+
+- **M47 WB-41 SQL原生文件诊断（2026-10-07）**：新增显式sql-dialogs薄入口，复用Ctrl+O/Ctrl+S与生产bridge/picker；四phase按真实OS ack、DTO、普通DOM与磁盘bytes/hash独立验收，保有界等待/48文件/终态门禁。Syntax通过；首actual真实Open POST后桌面工具未看到picker且激活失败，60秒无ack超时，余三phase未运行，不能称对话框或正常退出通过。六失败终态与9归属fallback/四端口/三runtime回收、根失败checkpoint/独立复核保留；生产/旧默认生命周期不改，最终八文件完整门禁和本地提交见M47记录，整体三宿主仍未闭环。
+
+- **M47 WB-39 原生烟测终态与普通关闭（2026-10-07）**：诊断入口请求普通可见Studio、以有界.NET主窗刷新及fresh任务身份执行CloseMainWindow；新增schema2进程身份/父链去重与独立normal-exit/cleanup/detail/result写入，保512KiB/凭据门禁并为结果保留3秒，失败不得PASS。16纯内存故障注入与语法检查通过；第二真实run本机宽窗退出0/signalnull、四端口/旧新Server身份释放、零fallback与五terminal保存通过。首轮根monitor超时/缺终态与WB-38原失败保留，生产不改、构建产物hash复用单列；最终完整门禁/十文件本地提交见M47记录，默认窄窗/对话框/安装/AOT/三宿主整体另验。
+
+- **M47 WB-38 Studio原生诊断入口（2026-10-07）**：新增实际Studio/WebView2 CDP附着runner与PowerShell7进程身份helper；本机宽窗native bootstrap、Managed Local Health/Stop/Start及旧/新Server归属已有真实局部证据。三次实跑全部保留失败：默认窗Health隐藏、正常关闭窗口句柄未发现、终态process-events超512KiB落盘中断等仍待接续；不称完整生命周期通过。Web build、Server/Studio Release和根回收审计通过，生产未改；最终完整restore/原级别format及本地八文件提交见M47验证记录，安装/对话框/AOT/三宿主整体另验。
+
+- **M47 WB-37 Object真实Web证据（2026-10-07）**：新增隔离runner薄入口和三正常旅程；接续首run3/3补100/51 continuation/151原DTO/当前51截断结果、206 Range4096与正常Download8192、一次text审批PUT200/管理员独立Get与history1、旧审批REVOKE403/管理员404/批准值保持和READ重授同tokenSchema200六tabs锁存。Blob不可观察body明确null；三JSON335381字节/manifest核验，初始三失败/耗尽budget与未知reset保留。生产/共享runner不改，完整独立复核、最终restore/原级别format与八文件本地提交见M47验证记录；Multipart/恢复/Server预算/三宿主/发行物另验。
+
+- **M47 WB-35 Graph真实Web证据（2026-10-07）**：新增复用隔离runner的Graph薄入口和三旅程，普通READ核实际Canvas250/10/1000、typed vertex、独立snapshot JSON导出10/1000及原身份history；普通WRITE一次审批取得单vertex Upsert sequence/isDuplicate终态与管理员Get/version+1；旧审批REVOKE403清画布/overview/编辑器/可见import草稿并在READ重授/同tokenSchema200保持锁存。真实第三轮3/3、Node27/27、全Web327/327、Graph fixture16/16/build通过，前两轮正常控件定位/数字提交失败记录保留；三JSON811899字节/manifest核验。Graph Beta、完整Int64/edge/import/维护及三宿主继续另验，恰满顶点预算的导出截断候选缺口留下一片；最终完整restore/原级别format为提交前置，实际见M47验证记录。
+
+- **M47 WB-34 MQ真实Web证据（2026-10-07）**：新增复用隔离runner的MQ薄入口与三旅程；普通READ fromOffset0/100的100/51当前JSONL/原身份history、WRITE正常Publish201/Ack200一次审批与管理员对拍、旧Publisher审批REVOKE403清载荷/草稿/审批且READ重授/同tokenSchema200仍锁存。真实首轮3/3、Node22/22、全Web327/327、MQ fixture16/16/build通过，三JSON195806字节/manifest核验；生产/API/Server/共享runner不改，真实冒号Topic400、无实际文件导入、实例恢复/Server预算/三宿主未闭环边界单列。独立复核和最终完整restore/原级别format为本地提交前置，实际结果见M47验证记录。
+
+- **M47 WB-32 Vector真实Web证据（2026-10-07）**：新增复用隔离runner的Vector入口与三条真实旅程，READ身份raw L2 Top-K20/100、原名metadata、当前JSON/CSV与history逐项对拍；Search撤权403清外层载荷，重授READ/同tokenSchema200仍锁存。独立SQL403仅锁当前Measurement子页，外层旧Vector命中保留、子页重挂载可能丢锁的缺口明确留待下一片。真实首轮3/3、全Web321/321、Vector fixture10/10、Web/Server Release构建通过；成功三JSON/manifest独立落盘，最终完整restore/format为本地提交前置。不计Profile、显式恢复、Recall、Server预算或三宿主整体完成。
+
+- **M47 WB-31 Measurement真实Web旅程（2026-10-06）**：补100/500/61当前窗口与JSON/CSV、普通WRITE两点逐INSERT终态、真实撤权审批/monitor锁存四旅程PASS；共享真实runner分开身份遍历与有界日志，保留完整父链与安全双错，Node10/10、全Web321/321、Document真实3/3通过。成功证据独立复核通过，最终完整restore/format作为本地提交放行条件，实际门禁/提交见M47验证记录；根预算时区错误及失败记录保留；不计完整写终态/Server预算或三宿主完成。
+
+- **M47 WB-30 Measurement 客户端隔离（2026-10-06）**：现有点读取、目标监控、文件导入及审批统一精确401/403锁存与脱敏，清载荷/草稿且readonly程序入口禁写；连接/auth/原名/Schema同步代际隔离迟返、同结构Schema刷新与旧finally，原审批一次消费，已派取消记原身份unknown。点与监控先截断至500行，auto最多12轮/60秒，导入准入1000语句/10批/60秒；正常100+1停止后新审批兼容。Node16/16、全Web311/311、Chrome fixture20/20、旧Measurement/Vector子页8/8与build通过，既有Kestrel SQL预览兼容3/3单列；新UI真实Server权限、完整写终态/Int64、Server预算及三宿主/发行物另验。
+
+- **M47 WB-29 KV 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的KV入口与三条Chrome→Kestrel旅程，验证Scan100/opaque cursor尾51、Get原值/安全版本与当前已加载JSONL逐行对拍；普通数据库WRITE身份经三次正常审批取得NX成功、NX未应用影响0及交换实际版本/原身份历史，管理员Get独立核验。实际REVOKE拒绝旧导入审批403，重授READ/同tokenSchema刷新仍锁存不重放。真实首轮3/3、Node17/17、全Web300/300、Chrome fixture12/12和build通过，三份成功JSON与SHA256 manifest独立落盘。生产组件/Server/共享runner不改；完整atomic/Int64/TTL/CAS、瞬时结果表展示、显式恢复、Server预算与三宿主/发行物另验。
+
+- **M47 WB-28 FullText 真实 Web 旅程（2026-10-06）**：新增复用隔离真实runner的FullText入口和三条Chrome→Kestrel旅程，验证Top-K20/100、精确文档/Analyzer、当前结果导出与原身份历史，数据库Admin一次批准同步重建完整终态，以及实际撤权403后重授READ/同token刷新仍锁存不重放。三份成功响应/下载/history证据与SHA256 manifest独立落盘且拒写凭据；真实3/3、Node15/15、全Web300/300、Chrome fixture8/8与build通过。生产组件/Server不改；首run错误WRITE授权失败、显式恢复、typed全文分页/服务端预算和三宿主/发行物边界见M47验证记录。
+
+- **M47 WB-27 Relation 真实 Web 事务与权限（2026-10-06）**：新增本机隔离Kestrel/Vite/Chrome分页/当前结果导出、两条审批插入完整终态、COMMIT唯一键冲突与实际撤权403锁存旅程。返回编辑保留暂存并提供重新预览/显式丢弃，隐藏审批不可确认；完整成功事务使用COMMIT权威影响数，避免两行误报四行，失败或缺失COMMIT不把暂存计为持久写入。抽出共享真实runner并保留Document兼容入口。Relation真实3/3、Document真实回归3/3、Node20/20、全Web300/300、Chrome fixture12/12与build通过；失败记录、显式恢复、完整权限/SQL矩阵、Server预算、三宿主与发行物边界见M47验证记录。
+
+- **M47 WB-26 Document 真实 Web 权限与输出预算（2026-10-06）**：新增隔离本机 Kestrel/Vite/Chrome 旅程，使用普通用户的真实撤权、拒写、重新授 READ 与显式 Find100 恢复，并核对实际响应、下载与历史。修正 Distinct 的真实请求兼容：空IDs省略，显式IDs保留；请求最多1000项，小于1000的预览用哨兵证明截断，恰1000项满窗明确完整性未知，保留真实响应终态且不虚构分页。真实Web→Kestrel3/3、Node21/21、全Web295/295、Chrome fixture11/11与build通过；其它宿主、登录UI/readonly props、安装、AOT、扫描/物化/字节预算及发布证据分开，范围和失败记录见 M47 验证记录。
+
+- **M47 WB-25 Object 写终态与一次审批消费（2026-10-06）**：补 Object 写执行器的审批快照一次消费、最多1000项批次和60秒客户端新操作启动窗口；冻结写入输入并核验对象/桶/Multipart/语义响应的目标与必要字段，批删逐项匹配批准 key，明确失败与传输/缺失/损坏终态的 unknown 分开记录并保留已确认影响数量。DELETE/删桶/Multipart abort 校验 HTTP 204，单对象 DELETE 校验 delete-marker、version-id、ETag；已证明的 Multipart 写终态不被伴随刷新拒绝推翻。Node32/32、全Web292/292、Vite build、新 Chrome fixture5/5、既有 Object 浏览器4/4、真实 Kestrel Object4/4+Multipart2/2通过；真实新UI权限、完整传输/资源预算、三宿主、安装与发布仍独立验收。
+
+- **M47 WB-24 Object 读取隔离与有界预览（2026-10-06）**：复用既有桶浏览、版本、治理、Multipart 和图片语义；补六态、readonly 程序/按钮门禁及全读取路径401/403载荷/URL/草稿/审批清理与锁存。实际连接/API/认证、桶、prefix/token、选中key/version和请求代际隔离迟返、ABA与卸载；审批及native/Web文件选择器绑定原身份。列表先截断再映射，每页及累计最多1000，拒绝错误目标/不前进token且超返不复用跳项游标；Range先校验安全整数和真实206声明区间/版本，再slice至请求/声明长度/4096字节后读取格式化。专属Node20/20、全Web280/280、Chrome15/15、既有浏览器4/4、TypeScript/Vite、独立复核和既有真实Kestrel兼容4/4通过；写终态/一次消费、完整语义/Multipart与服务端预算、新UI真实权限、真实OS对话框及三宿主仍独立验收。
+
+- **M47 WB-23 Graph 权限与有界画布（2026-10-06）**：Graph Beta 工作台消费能力矩阵并锁存 401/403，清理画布、诊断、元素、导入与维护审批载荷；只读保留浏览、元素读取与导出，写入/导入/维护入口均受门禁。请求绑定数据库、Graph、端点、认证和连接代际，隔离迟返、ABA、卸载并支持分派前取消；画布客户端按 10～1000 总元素预算先截断并保留边端点，Inspector 限制 32 项/4096 字符。元素数字 ID/版本超出安全整数时拒绝读取或写审批，维护 staged/paused/applying 不记完成，未知终态不重放。专属 Node **27/27**、全 Web **260/260**、Graph Chrome **16/16**、既有 Graph 浏览器 **3/3**、TypeScript/Vite 与真实 Kestrel Graph 兼容 **4/4** 通过；fixture/UI 与真实服务证据分开，完整 Int64 字符串、真实新 UI 权限/恢复及三宿主仍待独立验收。
+
+- **M47 WB-22 MQ 权限与有界预览（2026-10-06）**：复用发布、Ack、JSONL、真实 offset 分页和监控；补六态、readonly、401/403 载荷/草稿/审批清理与锁存，实际 Topic/连接/认证同步代际隔离迟返和 fallback ABA。审批一次消费，按每项原 Topic/消费者组验证终态，缺失或传输异常记 unknown 且不重放；不安全整数 offset 禁止 Ack/分页/Seek。Browse 每窗最多1000条、先截断后映射，Inspector最多格式化4096原始字节与有界header，完整已加载JSONL保留。Seek最多25窗/60秒；自动监控最多12轮/60秒且只取消自身请求。专属Node22/22、全Web240/240、TypeScript/Vite、Chrome夹具16/16、既有MQ浏览器3/3和独立复核通过；既有真实Kestrel兼容2/2单列。完整Base64解码/传输/总堆预算、读取恢复、新UI真实Server权限、三宿主/安装/AOT/发布仍独立验收。
+
+- **M47 WB-21 KV 权限与有界预览（2026-10-06）**：复用游标、JSONL、NX/XX、交换/删除与精确版本；新增六态和只读门禁，Scan/Stats/Get/Write 的401/403锁存并清值、统计、游标、结果、写草稿与审批。同身份刷新、空数据库/profile/端点/keyspace往返不解锁；快照与同步代际隔离迟返/ABA，真实Axios分派前取消取得本地adapter证据。扫描累计/Get最多1000项，先截断再映射，超返不复用跳过未保留项的cursor；Inspector最多格式化4096原始字节，完整原值仅用于已加载记录的round-trip导出，不预填截断写草稿。unknown历史保留未知且不重放。专属Node17/17、既有KV12/12、全Web218/218、TypeScript/Vite、Chrome夹具12/12与独立复核通过；既有真实Kestrel兼容6/6单列。完整Base64解码/传输与总堆预算、atomic全响应、真实新客户端权限/恢复及三宿主/安装/AOT/发布仍独立验收。
+
+- **M47 WB-20 Vector Workbench 兼容切片（2026-10-06）**：保留数据库/measurement/column 原名和旧 key，原始检索冻结连接、实际 API、认证、Schema 与查询参数，隔离迟返/ABA/卸载。401/403 清命中、metadata、解析向量和结果，保留用户输入；空 Schema 往返与同身份刷新保持权限锁存。严格有限数值/已知维度，Top-K 1～100 先截断后显示/导出与历史；距离标 Distance。缺索引 Profile 时拒绝隐式文本 embedding，数据子页复用 Measurement 并传递门禁/代际重建。专属 Node17/17、全Web201/201、TypeScript/Vite、Chrome夹具10/10、既有导入回归1/1与独立复核通过；既有真实Kestrel HTTP兼容3/3单列。真实权限/读取恢复、Profile/模型质量、服务端资源预算及三宿主/安装/AOT/发布仍独立验收。
+
+- **M47 WB-19 FullText Workbench 兼容切片（2026-10-06）**：复用检索、Analyzer、导入与索引维护审批，绑定数据库/集合/索引原名和连接/认证代际，隔离迟返与卸载。HTTP401/403清命中/文档/Token/结果和写草稿，保留检索输入；只读保留查询/Analyzer/导出并阻止写入。Top-K沿用1～100，先截断后读取文档和导出，历史记录预览完整性；重建/导入一次审批且后续批次绑定原目标，重建校验真实同步终态，未知终态不重放。专属Node15/15、全Web184/184、TypeScript/Vite、Chrome夹具8/8及独立复核通过；既有真实Kestrel HTTP兼容4/4单列。真实Server新客户端权限/写终态旅程、安全读取恢复、服务端资源预算及三宿主/安装/AOT/发布继续独立验收，详情见 M47 验证记录。
+
+- **M47 WB-18 Document 读取恢复与高级预览（2026-10-06）**：本地 401/403 锁存后提供显式全新 Find100 验证；失败、会话/资源 ABA、Schema 刷新、外部无权限和卸载隔离迟返，旧草稿与审批不恢复或重放。权限及恢复错误正文不进入页面/历史。Aggregate 保留用户 pipeline 并追加末尾 1001 项输出上限；Distinct 按 1～1000 所选上限多取一个哨兵值，先截断再格式化/导出，历史记录实际预览数与完整性，清除旧 Find 游标。专属 Node 18/18、全 Web 169/169、TypeScript/Vite 与独立复核通过；浏览器结果见 M47 验证记录。既有真实 Kestrel HTTP 回归 3/3 作为独立兼容证据，新恢复/1001 请求的真实 Server 旅程、扫描/中间物化/字节预算、Advanced 子页及三宿主/安装/AOT/发布仍单列。
+
+- **M47 WB-17 Relation Table Workbench 迁移（2026-10-06）**：复用既有分页、行编辑、设计器与审批，补数据库/表原名身份和六态；SELECT 预览最多 200 行，连接/端点/会话/Schema 变化及卸载隔离迟返。HTTP 403 清载荷并锁存权限态；只读保留浏览、结果导出和纯 DDL，写子工作台受限。审批展示值及前后差异、绑定原上下文且仅确认一次；缺终态、损坏响应、传输异常及 HTTP 408/5xx 记 unknown，不重放旧审批。实际 SQL API/Axios 异步发送取消已取本地 adapter 证据；专属 Node 15/15、全 Web 161/161、TypeScript/Vite、Chrome 夹具 12/12 与独立复核通过；修复满页分页按钮被 Copilot 悬浮入口遮挡。真实 Server 权限、物化/字节预算、完整三宿主、安装、AOT 和发布继续独立验收。
+
+- **M47 WB-16 VS Code→Web 导航与认证证据（2026-10-06）**：登录返回统一校验内部管理路由并保留目标数据库/资源；显式 `SONNETDB_WEB_BASE_PATH` 联动 Vite 资产、路由、初始 API、本地连接及 SSE，默认根部署保持兼容。资源树按真实条目匹配活动分组，修复 `table:` 索引 id 错误展开 Tables 的问题。专属 Node 9/9、全 Web 146/146、扩展 Node 20/20、根/代理两次 TypeScript/Vite 构建、浏览器两部署各17/17及独立复核通过；本机真实 Extension Host 调用13节点命令并在外部开启边界捕获链接。九模型/index/backup、原名/冒号、跨库同名MQ、导航字段白名单及草稿不执行已取本地证据；Measurement/Relation既有只读预览单列。真实Server认证/权限、实际代理部署、远程SSE、同origin跨部署存储隔离、VSIX与发布仍独立验收。
+
+- **M47 WB-15 Studio 客户端宿主合同（2026-10-06）**：现有 Web 工作区消费 WB-13 的宿主/profile/端点/数据库原名身份与生命周期；完整合同确认后才开放 Managed Local 操作，external/unknown 保留 Health 并拒绝 Start/Stop。初始化、状态、保存和目录对话框隔离迟返与 A→B→A，端点变化同步认证上下文；连接保存串行、只消费匹配的宿主身份且不产生回授 PUT。专属 Node 10/10、全 Web 137/137、Studio 三类定向 40/40、TypeScript/Vite、StudioNative 浏览器夹具 8/8与独立复核通过。真实 Server 权限、WebView2/干净 Windows、安装升级卸载及三宿主发布继续独立验收。
+
+- **M47 三宿主会话交接与后续队列（2026-10-06）**：WB-12/13/14分别保存本地验证与独立提交；HANDOFF顶部集中记录真实哈希、风险边界与唯一写入归属，路线图区分本地切片和完整验收，队列列出WB-15～WB-18。用户确认的新会话已创建，同一个每30分钟workbench heartbeat转移并回读核实；旧会话最后交接提交后停止写入，三宿主整体研发继续，未push/发布/部署。
+
+- **M47 WB-12 Document Workbench 迁移（2026-10-06）**：保留 database/collection 原名和旧入口，补五区锚点与六态、无权限载荷清理、只读写门禁；查询/文件picker丢弃旧目标响应，审批绑定原连接/数据库/集合，导入冻结模式与项目。Find预览最多1000文档；同身份Schema刷新保留停止进度与逐项错误，101项导入停止、旧文件失败和桥接握手竞态均有回归。专属Node10/10、全Web127/127、TypeScript/Vite、Document浏览器7/7与独立复核通过；403后显式恢复、Aggregate/Distinct预算、真实Server权限及三宿主整体旅程仍待补。
+
+- **M47 WB-14 VS Code Workbench 资源入口（2026-10-06）**：新增 `sonnetdb.openWorkbench` 命令与 Explorer 上下文入口，将九模型、index/backup 投影到保留 database、原名/大小写与 legacy key 的资源身份；MQ database + Topic / instance `.system/mq`、Graph Beta 不变。链接保留部署子路径，只含 database/model/tool/node，不携带凭据或 SQL、不自动执行。TypeScript、Node20/20与明确本机 Code.exe 的真实 Extension Host 注册 smoke通过；浏览器最终认证/权限/回选、VSIX和三宿主全旅程仍待独立证据。
+
+- **M47 WB-13 Studio 宿主合同（2026-10-06）**：既有 `/connections` bridge 返回 `studio-desktop`、canonical profile/端点与数据库原名身份，连接库拒绝相对、非 HTTP(S)、凭据、query/fragment URL，保留部署子路径；既有 `/server/status` 增加进程归属、生命周期与 `canStop` 派生字段，外部实例不能由 Studio 停止。source-generated JSON、无 Token 落盘和 GUID 临时保存回收保持；Release 定向 34/34 与独立差异复核通过。Web 客户端消费、干净 Windows/WebView2、安装和三宿主发布仍待独立验收。
+
+- **博客园系列核查与自动发布队列（2026-10-05）**：新增 `docs/blogs/publishing-state.json`、事实复核记录和 135–142 八篇当前能力文章，覆盖九模型、SQL 名称大小写、KV/文档、SonnetMQ/流处理、typed MCP/RAG、语义图片检索、M47 工作台和性能证据边界；旧 001–134 底稿起初在缺少博客园 URL/postId 时暂停发布，再按下述公开记录回填，避免重复发布。Codex 项目自动化 `sonnetdb` 已配置为 Asia/Shanghai 每日 11:00 串行发布最多两篇，只有收到明确 URL 或 postId 才回填 `published`。发布状态依据实际博客园记录；数据库生产发布门禁仍按独立证据验收。
+
+- **博客园即时发布（2026-10-05）**：135《SonnetDB 当前能力全景：九种原生模型与一套数据库目录》已发布到[博客园](https://www.cnblogs.com/IoTSharp/p/23202291)，136《SonnetDB SQL 名称大小写合同：原名、双引号与安全迁移》已发布到[博客园](https://www.cnblogs.com/IoTSharp/p/23202334)；状态与审计事件已回填，发布计划新增 ✅/🕒/❓ 标记列。
+
+- **博客园历史对账与后续选题（2026-10-05）**：公开账号 9 页记录确认 001–075 的历史发布链接，075 为历史原稿；另登记 10 篇多模型专题，076–134 保留待核对。新增 143–202 共 60 个选题、14 个系列及事实来源，自动化在队列不足时先核实写稿，按每日两篇总额度发布并同步标题链接、表情与事件；未完成正文的选题不进入发布队列。
+
+- **M47 管理工作台设计评审包（2026-10-05）**：新增完整导航、M29 五区外壳、共享对话框/提示、页面任务规范与静态 HTML 原型，规划覆盖七一级、30 个全局页面、九模型及 166 个任务页签（模型任务 60 个）；明确数据库索引/备份节点、MQ 数据库逻辑命名空间与实例共享日志、Graph Beta、三宿主和旧入口兼容边界。九模型统一数据库资源树，物理存储范围不直接决定导航。按用户要求先评审全菜单/导航与共享框架，再逐页细化，用户确认原型后才进入生产实现。本条记录设计文档与原型交付，不代表生产前端、真实 Server、安装、Extension Host 或三面发布证据通过。见[设计评审包](docs/design/m47-unified-management-workbench/README.md)。
+- **M47 WB-01 原型交互闭环（2026-10-05）**：设计原型补齐工作区页签 active 可见性、内存草稿标记与关闭后保留、对话框焦点恢复、箭头/Home/End 键盘导航、窄屏动作门禁和错误/规划状态的“检查并重试”边界；桌面与 390px Playwright 证据仅覆盖静态原型，不代表生产前端或真实服务能力。
+- **M47 WB-02 首批页面状态合同（2026-10-05）**：为 SQL、KV、SonnetMQ、对象 Bucket、Graph Beta 五页补充 capabilities、状态矩阵、空态、专用字段和主动作，并把合同注入对应任务页；其余页面和真实宿主接线仍待后续批次。
+- **M47 WB-02B 下一批模型状态合同（2026-10-05）**：为时序 Measurement、关系表、JSON 文档、向量索引和全文索引补充 capabilities、六态 stateMatrix、专用字段与边界说明，并把页级合同注入全部对应任务页；新增 Node 静态合同测试 2/2。保留 SQL 名称、TAG/FIELD、JSON 属性键、显式向量 Profile、hash fallback 与全文任务证据边界；仅为 REVIEW_DRAFT 原型设计，不代表真实 Server、权限、质量、三宿主或生产迁移验收。
+- **M47 WB-02C 全局页面状态合同（2026-10-05）**：为数据库目录、连接管理、SQL Notebook、执行历史和性能指标补充 capabilities、六态 stateMatrix、规范专用字段与任务注入；连接测试明确拆分 URL/健康、认证、数据库/对象权限和能力检查，Notebook 保持全规划且不自动执行，历史恢复不重放，指标示例不等于采样或质量/成本证据。Node 静态合同测试 3/3；仅为 REVIEW_DRAFT 原型设计，不代表真实 Server、权限、三宿主或生产迁移验收。
+- **M47 WB-02D 观测与数据流状态合同（2026-10-05）**：为实时事件、慢查询、告警规则、运行时诊断和 Modbus TCP 补充 capabilities、六态 stateMatrix、规范专用字段与任务注入；明确视图暂停不暂停服务器、慢查询恢复不重跑、告警与诊断仍规划且不发通知/伪造健康、Modbus Runtime/Pending/Audit 与审批边界。Node 静态合同测试 3/3；仅为 REVIEW_DRAFT 原型设计，不代表真实 Server、权限、现场写入、三宿主或生产迁移验收。
+- **M47 WB-02E 工作台与数据流状态合同（2026-10-05）**：为实例概览、最近工作区、导入任务、对象传输和任务与位点补充 capabilities、六态 stateMatrix、规范专用字段与任务注入；保留 MQ `scope=database` / `persistenceScope=instance` / `.system/mq` 单库备份边界、工作区恢复不重放、无持久 resume 需重新选文件、服务器 checksum/complete/abort/取消终态，以及 generation/revision/offset/object version 分离。Node 静态合同测试 3/3、WB-02B/C/D 联合 8/8；仅为 REVIEW_DRAFT 原型设计，不代表真实 Server、权限、现场写入、三宿主或生产迁移验收。
+- **M47 WB-02F AI 与 MCP 状态合同（2026-10-05）**：为 AI Connect、Copilot/Provider、RAG 管理和工具权限与外发补充 capabilities、六态 stateMatrix、规范专用字段与任务注入；保留 typed Streamable HTTP 与规划中的 stdio bridge/配置向导边界、真实模型质量/成本与 usage 独立证据、RAG profile/generation/revision 续跑合同、默认只读工具、权限交集、显式数据外发和凭据不外发。Node 静态合同测试 3/3、WB-02B/C/D/E 联合 14/14；仅为 REVIEW_DRAFT 原型设计，不代表真实 MCP/tools/list、Provider、模型质量、权限、三宿主或生产迁移验收。
+- **M47 WB-02G 治理页面状态合同（2026-10-05）**：为用户、数据库授权、访问 Token、审批与审计、数据库备份与恢复补充 capabilities、六态 stateMatrix、规范专用字段与任务注入；保持控制平面与数据库权限分开、MQ database grant/实例共享 Store、Token 一次性明文、审批服务器终态/错误不重试、本地草稿与服务端审计分离、单库备份不覆盖共享 `.system/mq`。Node 静态合同测试 3/3、WB-02B–F 联合 17/17；仅为 REVIEW_DRAFT 原型设计，不代表真实权限、Token、审批执行、灾备或生产迁移验收。
+- **M47 WB-02H 设置与发布页面状态合同（2026-10-05）**：为偏好、实例配置、Studio 宿主、能力/发布矩阵和关于帮助补充 capabilities、六态 stateMatrix、专用字段与任务注入；保留宿主范围与服务端预算边界、敏感配置脱敏、Web 不伪造 Start/Stop、干净 Windows/Extension Host 安装证据、manifest/签名未就绪不显示 PASS，以及真实发行物版本和诊断摘要预览。Node 静态合同测试 3/3、WB-02B–H 联合回归 20/20；仅为 REVIEW_DRAFT 原型设计，不代表真实 Server、三宿主、安装、发布或生产迁移验收。
+- **M47 WB-03C Explorer 兼容证据（2026-10-05）**：新增静态 Node 合同测试覆盖资源归组、旧 key、原名大小写/冒号、index/backup 特殊资源及 MQ `database + topic` 外层选择上下文；测试使用 `--experimental-vm-modules`，5/5 通过。记录了 index-only 首选 key 缺口与旧 MQ key 需保留数据库上下文的边界，未修改 Explorer 生产源码。
+- **M47 WB-03 资源与能力合同（2026-10-05）**：新增 Web `management-core` 的资源身份、逻辑/物理持久化边界、Graph Beta 标记及纯内存能力注册表；保留原始名称、大小写、冒号和现有 Explorer key，明确 MQ 的 database + topic、实例 `.system/mq` 与单库备份排除边界，并强制通用工厂的 MQ `name === topic` 且 topic 必须显式提供。Node 合同测试 6/6、TypeScript 检查通过。本条仅覆盖静态/内存合同，不代表真实 Server、权限、存储迁移、AOT、三宿主或发布门禁。
+- **M47 WB-04 迁移前导航兼容预检（2026-10-05）**：新增只读静态测试覆盖 `/admin`、`/admin/app`、Studio/databases/trajectory-map legacy redirects、现有路由与管理员边界、7 项基础导航、5 项管理员导航及 secondaryNavigation 管理员条件、setup/auth guard 和 trajectory query→SQL 映射；5/5 通过。生产壳与路由未修改，当前仍等待 `REVIEW_DRAFT` 用户确认，不代表七模块生产迁移或三宿主验收。
+- **M47 WB-04B Explorer→SQL 深链接兼容预检（2026-10-05）**：新增只读静态测试覆盖九模型 `tool/model/node` 深链接、database selection、index/backup legacy fallback、Open-in-SQL allowlist、KV/MQ/Bucket 排除及 route-only 不自动执行；5/5 通过。未修改生产源码，静态证据不代表 Vue 运行时、真实 Server 或生产迁移验收。
+- **M47 设计基线确认并启动 WB-05（2026-10-05）**：用户确认外壳布局、七个一级/二级导航、九模型数据库逻辑资源树、MQ `database + Topic` 与实例 `.system/mq` 边界、Graph Beta、共享流程和六态语义；设计包状态更新为 `CONFIRMED_BASELINE`。WB-05 结果/草稿/历史/审批迁移按两个有界切片启动，逐项验证，不能视为全量生产、真实 Server、三宿主或发布验收。
+- **M47 WB-05 结果/草稿/历史/审批工作流迁移（2026-10-05）**：结果预览统一 10,000 行预算并保留截断/未知终态，SQL 草稿支持关闭后恢复/丢弃且不自动执行；历史新增 `unknown`/完整性字段并对文本、JSON/JSONL 敏感值脱敏；SQL 取消、传输中断和缺少终态不再记录为成功；审批绑定连接、端点、数据库与草稿指纹，失效时要求重新预览/审批，未知结果不自动重试。WB-05 窄测 9/9、Web 回归 94/94、SQL 回归 11/11、共享工作台 Playwright 3/3 通过；仍不代表真实 Server、三宿主、AOT、安装、发布或全量页面迁移验收。
+- **M47 WB-06 生产外壳与七模块导航迁移（2026-10-05）**：生产壳采用唯一的概览、工作台、观测、数据流、AI 与 MCP、治理、设置模块 descriptor，设置置于 rail footer；新增模块兼容 aliases，保留旧 route/guard/trajectory query 与九模型 Explorer/MQ 数据库上下文。flows/govern 保持管理员边界，flows→Modbus、settings→About、ai→RAG 仅为当前实现落点。迁移、兼容与 Explorer 路由测试 13/13，管理 Explorer 5/5，TypeScript 与独立复核通过；不代表真实 Vue runtime、Server、三宿主、AOT、安装、发布或全量页面迁移验收。
+- **M47 WB-07 Explorer 资源身份页签投影（2026-10-05）**：Explorer 的九模型、index 与 backup 节点统一投影 `ResourceDescriptor`；对象页签携带 database/resource/legacyKey 三元身份，保留既有 `tool/model/node` 路由与 route-only 行为。MQ 明确 `database + Topic`、`scope=database`、`persistenceScope=instance`、`.system/mq` 与单库备份排除；Graph 保持 Beta。WB-07 自有测试 5/5、Explorer/路由/壳联合回归 18/18、全 Web Node 回归 102/102、TypeScript/Vite build 和独立复核通过；直接浏览器旧 query 的 `node` 选择仍留待后续切片，不代表真实 Server、权限、三宿主或发布门禁。
+- **M47 WB-08 旧深链接对象回选（2026-10-05）**：新增 `model/node`（及 tool-only）到数据库本地 Explorer legacy key 的精确投影，覆盖九模型、index、backup、大小写/冒号与未知/缺失回退；SQL 工作台在 schema/management 就绪后按 route token 一次性回选，route-only 不执行 SQL，watcher 顺序避免默认首项页签与目标页签重复。自有测试 5/5、定向回归 20/20、全 Web Node 107/107、TypeScript/Vite build 和独立复核通过；URL 无 database 参数仍使用当前 active/default DB，真实 Server、权限、三宿主与发布门禁不在本切片内。
+- **M47 WB-09 深链接数据库上下文（2026-10-05）**：新生成 Explorer 深链接附带可选 `database` query，同时保留旧 `tool/model/node` 形状；SQL 工作台等待数据库列表后，仅对有效数据库选择并回投影对象，缺失/未知数据库回退当前 active/default，database-only 与 token reset 恢复路径可重试，route-only 不执行 SQL。自有测试 4/4、Explorer/路由兼容 10/10、全 Web Node 111/111、TypeScript/Vite build 和独立复核通过；同一旧 URL 下用户手动切库不会被强制切回，但手动切库后只修改该 URL 的 model/node 仍留待后续边界。
+- **M47 WB-10 手动切库后的深链接投影（2026-10-05）**：修复同一旧 `database` URL 下用户手动切换数据库后只改变 `model/node` 仍被旧上下文阻断的问题；新 `database` query 仍优先选择有效库，旧 token 清空后在当前库解析并安全回退，route-only 不自动执行。定向 5/5、Explorer/路由/管理兼容 15/15、全 Web Node 112/112、TypeScript、Vite build、独立复核与 `git diff --check` 通过；代码提交 `ee44d7bb34b0b9a95ae3e7914b82a65021bf97f3`。证据仍不覆盖真实 Server、权限、三宿主、AOT、安装、发布或全量页面迁移。
+- **M47 WB-11 Measurement Workbench（2026-10-05）**：按已确认五区基线迁移 Measurement 页面状态与动作合同，保留现有 measurement 路由、旧深链接、database、原始名称/大小写和旧 key；补齐 normal/empty/error/permission/readonly/longContent 六态、查询/刷新/CSV/JSON 导出、Measurement/关系表监控，以及经 `WriteApprovalPanel` 的写入/删除/导入审批。无权限错误会清理点值、Schema、监控和旧请求并禁用导出，跨数据库同名切换不会让旧响应回写。专属测试 5/5、全 Web Node 117/117、TypeScript、Vite、Measurement Playwright 8/8、`git diff --check` 通过；代码提交 `390ff526`。真实 Server、三宿主、安装、发布和全量九模型验收仍待补。
+- **M45-C01 measurement TAG/time 分组首批（2026-10-04）**：支持 `GROUP BY` TAG 与 `time(duration)` 复合键的裸聚合投影，按时间桶与 TAG 原值稳定排序；稀疏 FIELD 的 COUNT 为 0、其它空聚合为 NULL，Int64 SUM 精确累加且溢出拒绝。FIELD、未知/重复分组键、残差/Geo/HAVING、复合投影与 TAG/多键排序提前拒绝，EXPLAIN 共用校验和名称绑定。覆盖多 TAG/多 series、空输入、flush/reopen、大小写及精度回归；未完成整项 M45-C01、资源预算或持续计算。见[合同](docs/benchmarks/m45-measurement-tag-grouping.md)。
+- SQL 复合倒序范围查询在完整条件、同向排序及有限 `OFFSET/LIMIT` 下使用有序索引早停；保留完整时间并列组、稳定主键排序、取消与读取预算边界。分页遇到字节预算短页会继续续读，达到有界页数仍明确失败，不截断结果。
+
+- 关系表 ONLINE 索引在覆盖层超过在线恢复门槛、尚未达到日常自动检查点预算时，按需只调度一次检查点，防止反复返回等待而无法推进；保留 100,000 项门槛、禁用自动检查点配置和既有失败退避，不对已排队或冻结视图反复强制重排。
+
+- 关系表管理器的全部表共享物理请求读取并发、队列及一个维护读取槽，补齐逐表独立预算会放大整体并发的缺口。关闭逐表收集错误并释放共享所有权，现有快照由 state 租约保护，延迟 checkpoint 由 keyspace 生命周期租约保护；普通 KV 管理器仍独立共享其自身预算，指标汇总多个管理器。
+
+- 关系表冷开索引恢复只实例化主键、已发布及在线待构建索引所需列，跳过无关 JSON、文本和 blob 正文，保留完整布局、定长值域、唯一冲突和 CRC 校验；稳定分页复用不可变原始值数组，减少重复复制。文件格式及普通行读取不变，磁盘键元数据驻留和索引逐项校验仍保留。
+
+- 新增每份管理器预算的物理 KV 请求读服务端并发、队列容量与有限等待配置，以及活跃、排队和拒绝指标。默认并发 8、排队 64、等待 5 秒；过载通过 `kv_read_overloaded` 诊断，未开始响应的 REST 请求返回 503 和一秒重试提示。checkpoint 独立保留一个维护读槽和 120 秒等待时限，保存中途失败时删除未发布的部分 state 文件；CRC 校验前归还 I/O 许可。
+
+- **M42 measurement 排序预算（2026-10-03）**：显式累计物化准入扩展到直接 raw SELECT 多键排序，候选、辅助键和分页输出共用根预算，支持未投影标量字段；默认路径与整体 heap/首行、固定硬件门禁独立保留。见[合同](docs/benchmarks/m42-measurement-order-bounds.md)。
+- **M43 多分区与任务接线（2026-10-03）**：新增 `CdcStreamingBridgeTopology` 有界公平推进和 `FileStreamingTaskRunner` 目录身份校验/自动投递入口；真实 `--topology` 样例核对文档源、未 ACK 窗口去重及独立位点重开。远程拓扑、业务事务和发布门禁继续待补。见[合同](docs/m43-local-task-topology.md)。
+
+- **M42 表值函数物化准入（2026-10-03）**：直接 measurement `knn`、文档 `vector_search` 与文件 `json_each/json_table` 在候选及标量结果保留前使用累计行/估算字节预算；复杂来源和同名注册回调预检拒绝，默认路径保持兼容。文件预算模式逐记录读取，候选替换、排序快照与结果可能重复计费；新增 `--budgets` 真实文件/双模型向量/重开入口。见[合同](docs/benchmarks/m42-table-function-result-bounds.md)与[并行记录](docs/audits/roadmap-parallel-next-20261003.md)。
+- **M42 直接 Graph SQL 物化准入**：直接节点/边与原生固定一跳 GRAPH_TABLE 的标量 WHERE/投影/OFFSET/LIMIT 使用分页候选和累计行/估算字节预算；EXPLAIN/ANALYZE 共用根预算，复杂路径预检拒绝。默认查询、图快照和文件格式保持兼容，整体 heap/首行及远程门禁仍待验证。见[合同](docs/benchmarks/m42-graph-result-bounds.md)。
+- **M43 有界自动订阅投递**：新增显式驱动器，串行回调、成功后 ACK、失败退避与持久次数上限，默认耗尽保留或显式条件 DLQ；超时停止，回调未收敛前保留同对象租约。见[合同](docs/m43-streaming-dispatcher.md)。
+- **M43 CDC→流恢复桥接**：新增单分区 outbox、目标接收凭证和身份/摘要核对，交付证明先于源 ACK；未知且事件已回收的发布明确拒绝推进，保留人工恢复边界。样例新增真实文档 change feed→桥接→自动投递→持久窗口入口；无业务副作用 exactly-once 声明。见[合同](docs/m43-cdc-streaming-bridge.md)及[验证报告](docs/audits/roadmap-parallel-next-20261002.md)。
+- **M42 Document ORDER BY 物化预算（2026-10-02）**：直接文档 raw SELECT 支持单列结果名 `ORDER BY`；阻塞排序先完整扫描并逐行计入 `SqlRowRetentionBudget`，再应用排序与 `LIMIT/OFFSET`，因此 `LIMIT 1` 不能绕过全量排序工作集预算。TTL、冷开、取消和 `EXPLAIN ANALYZE` 保持固定查询时刻与既有未支持边界；聚合、JOIN、多列排序和嵌套来源仍在执行前拒绝。见本轮[验证报告](docs/audits/roadmap-next-three-closure-20261002.md)。
+- **M43 持久会话 COUNT 窗口（2026-10-02）**：新增独立版本化文件聚合器，支持等号仍桥接的不活跃 gap、乱序桥接、watermark/迟到策略、全批原子拒绝、关闭后回收防复活、状态容量/分页/操作时限及提交后 ACK 去重；状态采用 source-generated JSON、SHA-256 和单执行者 lease。真实文件订阅重开、远端传输、掉电和生产门禁仍待补。
+- **M43 持久订阅任务目录（2026-10-02）**：新增有界任务定义目录，保存稳定身份、相对路径、订阅定义和目录 revision，支持 CAS 注册/更新/删除、revision 绑定分页、容量边界、坏 JSON/hash fail closed，并通过真实 `FileStreamingSubscription` 提供状态、暂停和恢复入口。目录不伪造运行状态，不提供分布式租约、自动调度或业务副作用事务。见[任务目录合同](docs/m43-streaming-task-catalog.md)。
+- **M42 TTL 文档 SQL 物化准入（2026-10-02）**：显式预算 raw SELECT 在固定查询时刻逐文档判断 TTL，过期候选推进游标但不计结果保留、不执行过期删除；冷开与预算 EXPLAIN 跳过 TTL 全量回收，TTL 时间计算避免 Int64 相加溢出。派生索引初始化、阻塞查询、整体 heap 及远程预算仍有独立边界，见[合同](docs/benchmarks/m42-document-ttl-result-bounds.md)。
+- **M43 持久滑动窗口（2026-10-02）**：新增显式 size/slide 的 COUNT、精确 decimal 与字符串分组窗口，每事件最多 128 个重叠成员；复用提交后 ACK 与重投去重，按成员处理关闭窗口和整批拒绝。独立 v4 状态保留 v1～v3 读取与原字段哈希，见[合同](docs/m43-sliding-window-contract.md)。
+- **M43 DLQ 本地重放与删除（2026-10-02）**：持久重放身份及领取次数支持重开续处理，条件删除按独立目录 revision、原投递身份和重放回执回收容量，死信序号不复用；旧 v1 严格校验后迁移 v2。业务处理与删除不构成跨目录事务，见[运维合同](docs/m43-streaming-dlq-operations.md)。
+- **M43 滑动窗口与 DLQ 组合恢复验收（2026-10-02）**：真实本地文件旅程覆盖隔离、同一 ReplayId 重开、目标窗口提交后未 ACK 去重和条件删除；并行切片的构建、98 项定向回归、5815 项 Core 回归和强杀恢复证据见[核查报告](docs/audits/roadmap-parallel-20261002.md)，远程及生产门禁仍独立待验。
 - **M42 文档 SQL 物化准入（2026-10-01 第四批）**：直接无 TTL 集合 raw SELECT 按文档 ID 逐条读取，在过滤、OFFSET/LIMIT 和投影后、保留结果前共享累计行/估算字节预算；排序、聚合、搜索、JOIN 和嵌套文档来源在扫描前拒绝。底层 KV 快照和单值解析仍有独立工作集，不承诺整体 heap 上限或远程预算选项。见[合同](docs/benchmarks/m42-document-result-bounds.md)。
 - **M43 持久分组窗口（2026-10-01 第四批）**：显式顶层 JSON string 键按原值分组，支持 COUNT 与精确 decimal 数值聚合、键数/结果数/字节边界、组合游标分页和关闭窗口回收；分组使用独立 v3 状态，旧 COUNT v1/数值 v2 保持原字段与 SHA-256 校验。见[合同](docs/m43-grouped-windows.md)。
 - **M43 持久 DLQ（2026-10-01 第四批）**：耗尽批次可经 delivery ID、revision 和 attempt 条件显式隔离，先保存完整事件与原因再推进确认，重开协调中断提交；有界摘要与事件读取，容量满保留原批次。独立 DLQ 状态不改变订阅 v1~v3；窗口不自动跳过隔离后的位点差距。见[合同](docs/m43-subscription-dead-letter.md)。
@@ -34,11 +209,287 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- 测试侧 `coverlet.collector` 从 10.0.1 升级至 10.1.0，保持私有测试依赖与现有覆盖率采集入口（PR #214，M43 生态验证工具链）。
+
+- **Workbench Preview 1 路线整理（2026-10-10）**：将根 ROADMAP 中已完成的切片、旧状态表和窗口检查点归档；主路线改为范围/候选冻结、Web smoke、真实登录与权限、发行物、实际部署、文档与分发、放行、发布回读八步。同步 README 与旧队列的当前入口；本条仅记录文档整理，没有新产品实现、测试或发布结果。
+
+<a id="roadmap-completed-archive-2026-10-10-workbench"></a>
+
+#### Workbench 与路线完成范围归档（2026-10-10）
+
+核查基线为本地 `78045e8b` 与 [2026-10-10 发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)。以下归档已发生的实现或指定场景证据，不宣布三面整体完成，不新增包版本，也不把 dirty 工具集成记录作已提交交付。剩余任务和 Preview 1 发布顺序只在根 [ROADMAP](ROADMAP.md#workbench-preview-1)维护。
+
+| 已交付范围 | 完成内容 / 证据 | 保留边界 |
+|---|---|---|
+| M47 WB00～WB10 | 设计/原型、资源与能力、导航/Explorer、结果/草稿/历史/审批、外壳和深链接切片 | 设计覆盖不是全部页面生产完成；真实服务与宿主分别验收。 |
+| 九模型页面 WB11～WB25 | Measurement、Relation、Document、FullText、Vector、KV、MQ、Graph、Object 的身份/状态/权限/预览及审批切片 | 不把局部读写/预算合同当完整矩阵；Graph Beta、MQ实例持久化边界保持。 |
+| 九模型真实 Web 旅程 WB26～WB37 | Document26、Relation27、FullText28、KV29、Measurement31、Vector32/33、MQ34、Graph35/36、Object37 的本机真实 Kestrel 明确场景 | 登录 API/token 注入不算真实登录 UI；各自全量权限/恢复/预算、其它宿主与发行物仍开放。WB33 已补 Vector 子页权限上行；WB36 已补 Graph 恰满顶点预算导出。 |
+| Studio WB13/15/39/40/80 | bridge/Managed Local 与 Web消费、本机宽窗和默认/窄窗生命周期；WB80 两次启动、A/B切库、B被动恢复/真实查询和两次正常关闭通过 | WB80复用旧Release；当前候选包来源、OS文件对话框、干净Windows/WebView2、安装升级卸载和Server优雅关闭不由此证明。 |
+| VS Code WB14/16/48/58/59 | 九模型导航/治理深链接、history完成与安全观察、SQL elapsed字段兼容；历史实际查询子集和基础Host证据 | 完整候选 Query/history/退出、向导/分页/Notebook/LSP和新VSIX仍独立待验；不能用局部响应或PID absence升级失败。 |
+| 诊断/证据记录（WB49～WB84 内已提交切片） | 有界身份、cleanup子检查、Native/VS Code诊断合同及对应本地集成/运行记录 | 只归档已提交切片，不称该编号范围全部成功；诊断/工具合同不等于产品宿主旅程，旧失败保留。WB85～WB98 dirty 集成没有提交，不纳入本行已提交范围。 |
+| M45-C01 首批 TAG/time 分组 | 首批代码、SQL/EXPLAIN和定向回归 | 通用分组/state、更新删除修正、批流等价及恢复/预算仍在M45。 |
+| 2026-10-08 木垒只读五子项 | ARM64配置挂载、六索引定义、DESC/OFFSET及读取放大比、REST截断边界、三图读取/内容SHA256 | 绑定现场提交6a8d82d2；跨架构/全部模型客户端、冻结指纹、恢复容量与168小时未完成。 |
+
+##### 未完成集成的记录校正
+
+原 CHANGELOG 顶部 WB97/WB98 的“集成”草稿不再作为 Added 完成交付：WB97-C3 仅 inert micro 通过，restore在dotnet启动前失败；C4及WB98独审超时，最终完整restore/format/commit均未放行。WB96的97项命名测试/语法是本地合同证据，不是一次新实际Host或发行物验收。三脚本pending和所有原失败/收据保留；不为首个Web预览继续默认实施该循环。
+
+下列原文作为迁移时的历史快照保存。包含当时未完成边界、FAILED/UNKNOWN和旧ACTIVE/自动接续措辞，**均不具有当前派单或自动化授权效力**；当前顺序与暂停状态以根ROADMAP/HANDOFF为准。快照只保证原记录可追溯，不把“门禁待验/提交见收据”升格为PASS。
+
+##### 原根路线图开头检查点与规划基线
+
+###### ROADMAP — SonnetDB 4.5
+
+WB84门禁窗口失败闭片（2026-10-09；本会话3/5）：完整restore exit0/naturalExit=true/48.8997354秒且44身份finally absent；Format于10:44:04Z被原600+60秒完整保留时窗守卫拒绝启动，NOT_RUN，未降低门禁/延长10:55Z/新增commit。六自有stage已精确撤回，原proposal/a2a028d9树与审查commitAllowed=false保留；新pending六文档字节、private HEAD+owned HANDOFF及已记录身份fresh退出见artifacts/wb84-vscode-preflight-contract-20261009。提前交接后新本地会话从0/5只接续完整门禁/本地集成，复用已完成调查/独审，不重调查或跑actual/Node/TS/产品build；同一workbench保持ACTIVE30分钟，release和真实目标ID见rollover.json。原WB83FAIL/false/null及全部foreign字节保护；pending变更暂不能提交因为强制Format未运行。
+
+WB84 preflight合同（2026-10-09；本会话第3项）：已核helper6秒与Host命令20秒分立；源码/command/时序支持初始ports helper wait关联推断，内层原因unknown。PID72608前后调用缺immutable关联，原WB83 FAIL/回收false/null不升级。冻结下一JS-only调用ID/phase/timer-vs-abort/close观察，原PS/parser/权限/预算/门禁保持，尚未实施；本片源码/actual/Node/TS/产品build0。六文档完整门禁/本地提交/已记录身份退出与闭合3/5见[报告](docs/design/m47-unified-management-workbench/wb84-vscode-preflight-contract.md)及本片artifacts，同workbench ACTIVE30分钟/本chat。
+
+WB83独立真实窗口（2026-10-09；本会话第2项）：两源只迁移元数据，逆SHA/独审/微试/语法/TS1通过，35输入冻结，Node0/新.NETbuild0。CPU准入首次原3秒超时保留、同条件唯一复核PASS；actual1在preflight helper_deadline FAIL，0phase/history且Code/Host/API null，原五回收flags false、remaining/root/audit=refused/passed/passed。新stop ledger四记录complete（三already_exited/一stopped）仅为诊断；根later24已记录身份0存活/未知、0新stop/delete不升级旧false。精确8路径/完整门禁/本地提交及2/5以[报告](docs/design/m47-unified-management-workbench/wb83-vscode-host-validation.md)和artifacts/wb83-vscode-host-window-20261009为准；下一片有界核preflight helper合同，不盲重actual，三宿主边界保持。
+
+WB82同片必要重验（2026-10-09）：新restore通过，但首format因托管observe-failed被安全中断，原结果UNKNOWN_INTERRUPTED未通过，细因unknown。51已记录身份fresh无存活/未知、2PID复用保留；失败原收据保留。三源码SHA不变/88复用，准确文档后完整restore-retry+原CI format-retry至多一次，只有两新门禁和全身份审计通过才本地提交；同片总预算8/计划5、09:45Z不扩，仍为本会话第1项，关闭后1/5。实际结果见WB82报告及artifacts/wb82-local-integration-20261009。
+
+WB82本地集成接续（2026-10-09；本会话第1项）：释放严格匹配，三最终源码SHA不变，复用88/88而不重实施/重测。旧08:25Z失败闭片保留；新09:45Z窗口的新工具micro/独审、最终九路径完整restore/原CI format、本地commit及已记录身份fresh退出以artifacts/wb82-local-integration-20261009真实收据/Git为准，未取得完整PASS不得提交。本片合计一项，关闭后本会话1/5；0actual/产品build，三宿主与原未知边界不提升。
+
+WB82闭片（2026-10-09；本会话1/5）：三源独审/唯一Node88/88及完整restore通过，Format未运行、无新commit。08:25Z门禁窗口剩余不足，300秒收紧scope接收已过期，未放行；精确撤销自有stage、index空，57已记录身份0自有存活/0unknown、1PID复用保留。已保存真实失败检查点，提前交接优先新窗口完整restore/原format及本地集成，源码未变复用测试，不重做WB81/80；详细事实见WB82报告/artifacts。
+
+WB82（2026-10-09；收尾后本会话1/5）：三脚本新增有界stop attempt/candidate/helper关联、固定JS/PS阶段及helper退出/结果类别；非法/缺失/getter/观察异常或未finish归unknown，原终止权限和三门禁保持。唯一Node88/88（13新、48新场景）与三语法通过，0actual/产品build；完整门禁、本地提交及已记录身份退出见[报告](docs/design/m47-unified-management-workbench/wb82-vscode-stop-diagnostics.md)。WB57原FAIL和未知原因不升级。
+
+WB81（2026-10-09；本会话收尾后5/5）：冻结VS Code stop拒绝的实际证据与下一合同。WB57原16次stop尝试/1次回调拒绝，缺调用与helper结果关联，不能判断OS stop是否执行或具体原因，原FAIL不升级。下一片仅补三脚本固定阶段/关联诊断并做模拟验收，保留全部终止权限，0actual/产品build；详见[报告](docs/design/m47-unified-management-workbench/wb81-vscode-stop-contract.md)。本片提交收尾后按同一workbench ACTIVE30分钟规则滚动接续。
+
+WB80（2026-10-09；本会话收尾后4/5）：唯一新Native实际通过普通A/B、两次桌面启动、被动恢复B、真实查询WB61_B及两次正常CloseMainWindow；四端口释放、零fallback、严格cleanup通过。复用旧Release产物，0产品build，不证明source-to-binary等价或Server优雅关停/恢复；WB77/79原失败保留。本机数据库选择恢复证据及最终本地集成见[报告](docs/design/m47-unified-management-workbench/wb80-native-validation.md)，三宿主、OS文件/安装/ExtensionHost/AOT/硬件/长稳/发布继续分列。
+
+WB79（2026-10-09；本会话收尾后3/5）：真实 C# SaveAsync 落盘与共享 JSON 夹具一致，Studio 连接库定向20/20；disk 校验现接受完整且逐值一致的已知派生身份对，保留旧无派生字段形态、未知字段拒绝及精简投影。Node完整80/80通过；此前C#包装器身份观察FAIL和首次Node中止分别保留，不能追认为已证实的瞬态原因。0Native actual，真实恢复仍未验；最终门禁/精确本地提交及新鲜已记录身份核验见[报告](docs/design/m47-unified-management-workbench/wb79-serialized-library-contract.md)。
+
+WB78（2026-10-09；本会话闭合后2/5）：在WB77本地收尾`25d274ef`后补连接库安全字段类别观察，区分已知存储/派生字段及未知数量，不输出未知名字或值；原disk拒绝和进程门禁保持。新增14项加既有60项合同74/74通过，终态保存保留失败结果，0actual/产品build。最终门禁与精确本地提交见[报告](docs/design/m47-unified-management-workbench/wb78-library-field-observation.md)；实际被拒字段、恢复及正常退出仍未证。
+
+WB77（2026-10-09；闭合后本会话1/5）：wrapper修复/两case微试/独审/micro与语法通过，CPU首次超时后唯一原条件复核通过。唯一Native在第一次A选择前的B preparation磁盘字段守卫失败；fresh PUT/DOM局部通过，恢复未到达、normalExit=false，严格故障cleanup=true。最终门禁与owned本地集成按[接续报告](docs/design/m47-unified-management-workbench/wb77-native-continuation.md)及收据记录；已有14/41/38不重跑、原FAIL不升级，同一workbench仍ACTIVE/每30分钟。
+
+WB76（2026-10-09）：用户要求的远端获取与合并已完成，`main=origin/main=5424b666`、ahead/behind 0/0；同一 workbench heartbeat 已恢复 ACTIVE。新 Native 窗口仅增加固定证据入口及文件前置说明，继承已验 CIM 观测与 PS14/Node41；独审、新鲜资源准入和唯一实际 A/B／双 desktop／B 查询旅程按[WB76 报告](docs/design/m47-unified-management-workbench/wb76-native-actual-window.md)分别记录，尚不声明真实恢复通过。
+
+WB75（2026-10-08）：仅完成已有Native CIM观测的精确本地集成后暂停，修隐藏.git读取并先走真实本机不提交预演，再对新owned树完整restore/原format放行。继承38/14/41、不重跑、不新增actual；旧WB74失败保留。仅原15路径，结果见[WB74/WB75集成报告](docs/design/m47-unified-management-workbench/wb74-owned-handoff-integration.md)与独立收据。heartbeat PAUSED，无push或新切片。
+
+WB74（2026-10-08）：修复本地共享 HANDOFF 的 owned 内容守卫，固定完整工作前缀、精确 owned 段、private blob/index tree 与其它提交路径，仅允许未暂存尾追加。继承 WB73 PS14/Node41，不重测、不改六源，0actual/产品build；原 WB73 集成失败保留。新微试、完整门禁与本地提交以 [WB74 报告](docs/design/m47-unified-management-workbench/wb74-owned-handoff-integration.md) 和独立收据为准；不预填完成。
+
+本文件是 **4.5 版本的主执行路线**：在九种原生模型上强化 AI 应用、通用聚合与持续计算、存储编码和执行成本，并把 Web Admin、Studio 桌面和 VS Code 收敛到一套统一的数据库管理工作台核心，补齐现有能力的远程、恢复、容量、真实质量及三面发布边界。4.5 是规划目标，本文不宣布版本已发布，也不修改当前包版本。
+
+规划基线：2026-10-04，本地提交 `4b004946`；M47 设计基线已于 2026-10-05 获用户确认，生产实现按 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 的有界切片推进。当前 WB-00～WB-34 已按各自本地范围验证，WB-34补MQ新Web真实100/51当前JSONL/history、正常Publish/Ack审批和撤权锁存3/3；Node22/22、全Web327/327、MQ fixture16/16与build通过，冒号Topic400/实例恢复等边界单列；最终独立证据复核、完整门禁及本地提交以队列/证据和git log为准。WB-12 Document 为 `54c78755`、WB-13 Studio合同为 `74835847`、WB-14 VS Code资源导航为 `e7cf2fe5`、WB-15 Studio客户端为 `e1f93a69`、WB-16导航/认证为 `0bb628ad`、WB-17 Relation为 `f1978263`；这些局部状态不等同 M47/U01~U09 全量完成。已完成范围归入 [CHANGELOG 本轮归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)，历史背景见[原归档](docs/roadmap-history.md)。本轮研究、证据复核与文档验证见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)及 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
+
+现有能力事实继续沿用[综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)、[gap catalog](docs/audits/nine-model-gap-catalog-20260905.json)和[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)，结合后续已核实切片判断。已撤回的系统性能原始报告不作为验收依据。
+
+##### 原完成度与剩余边界表（历史快照）
+
+###### 当前完成度一览（2026-10-06）
+
+这张表放在路线图前部，直接区分“本地切片已经完成”和“整个里程碑仍未完成”。`🟢` 只表示表中列出的切片已通过其记录的本地验收；它不会把真实 Server、固定硬件、长期运行、三宿主安装或发布证据一并标记为完成。
+
+| 范围 | 当前状态 | 已完成 / 当前证据 | 尚未完成 |
+|---|---|---|---|
+| M47 WB-00～WB-10 | 🟢 | 设计基线、原型交互/状态合同、资源身份、导航/Explorer 兼容、结果/审批工作流、外壳迁移与深链接切片均已提交；提交哈希和测试见 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md)。 | 全量九模型页面、真实 Server 旅程、Studio/VS Code/安装/发布证据仍待补。 |
+| M47 WB-11/WB-30/WB-31 Measurement Workbench | 🟡 | 原迁移`390ff526`；WB-30补点/monitor/write精确权限锁存、readonly、连接/Schema代际与旧finally隔离、一次审批/原身份unknown，500行先截断、auto12轮/60秒和导入1000语句/10批/60秒。Node16/16、全Web311/311、Chrome fixture20/20、旧Measurement/Vector子页8/8、build与独立复核通过；既有Kestrel SQL预览端点兼容3/3单列；WB-31新UI真实4/4、当前100/500/61与导出、WRITE两点逐INSERT终态、撤权锁存，Document回归3/3、审计Node10/10/全Web321/321及完整成功证据独立复核通过；最终完整门禁为本地提交放行条件，实际结果见验证记录。 | 显式恢复、完整COMMIT/权威影响数/Int64、raw defaults无信号ABA、文件/Server预算、三宿主/安装/AOT/发行物。 |
+| M47 WB-12/WB-18/WB-26 Document Workbench | 🟡 | WB-12身份/六态/隔离与WB-18显式Find100恢复/输出预算已有实现；WB-26补本机新Web→真实Kestrel权限/恢复及Aggregate1001、Distinct501/1000旅程3/3，修空IDs省略与满1000完整性unknown。Node21/21、全Web295/295、Chrome fixture11/11、TypeScript/Vite与独立复核通过。 | 登录UI/routed readonly props、扫描/中间物化/字节/总堆预算、Advanced完整读写、其它九模型真实旅程、三宿主与发行物。 |
+| M47 WB-13 Studio宿主合同 | 🟡 | 真实bridge身份/URL与Managed Local生命周期合同已提交 `74835847`，Release定向34/34；客户端消费由WB-15另验。 | 干净Windows/WebView2、安装与发行物。 |
+| M47 WB-38 Studio原生宿主诊断 | 🚧 / 完整烟测❌ | 新增真实Studio/WebView2诊断runner；宽窗CSS1266×663/DPR1.5下native bootstrap/manifest、正常Health/Stop/Start与old/new Studio-owned Server身份已核验。Web build、Server/Studio Release通过，根89记录身份回收审计无自有存活；生产不改，详细原失败/局部证据及最终门禁见M47验证记录。 | 三run额度耗尽，CloseMainWindow前helper未发现窗口、process-events超512KiB导致终态缺失；完整正常退出未通过。默认/窄窗Health隐藏、OS文件对话框、安装、完整三宿主/NativeAOT/硬件/长稳/发行物另验。 |
+| M47 WB-39 本机宽窗Studio生命周期 | 🟡 | 修诊断普通可见启动/有界主窗发现与独立终态、schema2完整身份去重；16内存故障测试/语法通过，第二真实run普通CloseMainWindow退出0/signalnull、Health/Stop/Start、四端口/旧新Server释放、零fallback/五terminal保存及根63身份回收核验通过。生产不改、旧产物hash复用；首轮root monitor超时/缺文件与WB-38失败保留，最终完整门禁/独立复核/提交见队列。 | 只证本机宽窗，不推断旧windowsHide因果或Server优雅恢复；默认/窄窗Health本机局部证据由WB-40补齐，原生文件对话框、安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT/硬件/长稳/发行物及三宿主整体仍待验。 |
+| M47 WB-40 默认/窄窗Studio Health | 🟡 | 修native响应式身份/状态/Health与现有生命周期入口隐藏；最终fixture12/12零skip、Web/Server/Studio构建通过，两真实native default不传尺寸/CSS946×556与1000×800/CSS652×476（DPR1.5）六geometry/fiveDOM、正常Health/Stop/Start/CloseMainWindow exit0、四端口/零fallback和独立终态通过。Explorer实测已收起；原skip/9-3/首native wrapper失败保留，首run runtime策略拒删而保留，root164身份无自有业务存活与独立复核通过；最终九文件完整门禁/本地提交见队列。 | 展开Explorer、native库database同步/恢复、登录UI/OS文件对话框、安装/升级卸载、完整Studio/VS Code/Extension Host、NativeAOT/硬件/长稳/发行物与整体三宿主未闭环；保留runtime不计完整cleanup。 |
+| M47 WB-41 SQL原生文件诊断 | 🚧 | 显式四phase诊断入口、真实DTO/普通DOM/磁盘与OS独立ack门禁已实现，syntax通过；首actual Open POST观察到，桌面工具无可见picker/激活失败、60秒无ack超时，后三phase NOT_RUN。六失败终态、9核验fallback/四ports/三runtime回收与root失败checkpoint、独立复核保留；生产及旧default不改，最终八文件门禁/提交见队列。 | 四phase真实OS/响应/结果仍未通过；native窗口可观测/正常激活条件须先确认，不盲重跑。不计普通退出、安装/AOT或三宿主整体完成，其它未完成VS Code有界队列仍继续。 |
+| M47 WB-42 真实VS Code只读Query诊断 | 🚧 / 两条局部证据 | 新增独立Host/真实Server runner，syntax/TS与既有Node20/20通过；current两行/selection一行、原列及生成SQL/database与独立真实reference相符，HTTP200。首helper parent2秒超时有据修为一次有界snapshot lookup；两失败原证据保持。根两单PIDfallback、两个端口/282对象runtime回收另验，最终八文件完整门禁/本地提交见队列。 | EXPLAIN第三POST200但断言失败/无phase3载荷，history未运行，Code正常退出/runner cleanup未证；reference preview32与生产{sql}差异、partial discovery29/24与finally回收须先修，不第三跑本片。向导UI/Webview分页/Notebook/LSP/安装/AOT/整体三宿主仍另验。 |
+| M47 WB-43 查询诊断恢复 | 🚧 / 三条局部数据证据 | sql-only参考/安全观察/身份ledger与独立终态已修；TS/语法、纯内存9/9和Node20/20通过。第二真实Host current2/selection1/EXPLAIN45行与独立真实reference逐值一致、POST200；完整实跑仍FAIL/process_audit，原两失败/false保持，根fresh PID与281对象runtime回收另证，最终十文件门禁/本地提交见M47验证记录。 | ledger近256KiB准入与固定合并reason需有界诊断；history/API恢复/Code正常退出未验证，不第三跑本片。生产maxRows、向导UI/DOM分页/Notebook/LSP、安装/AOT/整体三宿主另验。 |
+| M47 WB-44 有界身份ledger/公开历史 | 🚧 / 历史与API局部实证 | 保原门禁压缩external ancestor正文，完整own/连续anchor链与event exact引用/hash保留，missing/changed父拒绝stop；TS/PS7/内存17/17和既有20/20通过。新Host current/selection/EXPLAIN与真实参考同，publichistory3/apiRestored真/清理0已核；完整runner仍FAIL/process_audit，原false保持，root273对象清理另证，最终十文件门禁/提交见验证记录。 | 三个完整identity先验未知拒绝须安全细分，Code正常退出仍未证；不能重复盲跑。生产maxRows、向导/DOM分页/Notebook/LSP、WB41 OS、安装/AOT与三宿主另验。 |
+| M47 WB73 Native CIM 本地验收 | 🟡 / 本地夹具通过、0actual | 新窗口 micro 各1/1、PS14/14与Node41/41，原full空结果mock失败保留，夹具bare-return窄修独审；最终owned树完整门禁/本地提交以WB73收据为准。 | 不升级WB72过期或旧strict/actual失败；下一窗口冻结真实Native准入，恢复/正常退出/三宿主/安装/AOT/硬件/长期仍另验。 |
+| M47 WB72 Native CIM 阶段观测 | 🟡 / 已实现、验收未全 | 四阶段/160槽/结果数/单调时间及100ms记账停止，原查询/cache/预算/权限保持；静态独审与修复PS micro1/1通过，初始micro语义失败保留，0actual。 | 窗口过期失败关闭，本会话1/5；WB73新本地验收窗口完成Node micro/PS14/Node/full restore-format/owned集成，不升级历史失败或真实恢复。 |
+| M47 WB71 Native运行时/snapshot合同 | 🟡 / 静态报告、0actual | 原.62 CDP HTTP成功与.53 prereq文件分列；启动无明确选择绑定，coarseCDP fatal含snapshot，20s总/单CIM20s及四helper统计已核，逐query原因unknown。七路径集成见收据。 | 下一独立WB72冻结既有query阶段耗时观察/夹具，NOT_IMPLEMENTED；不重跑WB70，三宿主/安装/AOT/硬件/长期及旧FAIL保持。 |
+| M47 WB70 Native真实窗口 | ❌ / 唯一actual失败检查点 | CR/LF与五metadata inverse/source syntax、fresh资源准入通过；唯一actual CDP helper13/17/21.537s失败，原恢复/normalExit/cleanupfalse。根18identity/四ports门禁后回收324自有对象另证，六路径集成见收据。 | 下一独立片有界查actual runtime .53/.62选择与helper snapshot合同；WB70不重跑，overall/processIntegrityfalse及旧失败保持，三宿主/安装/AOT/硬件/长期分列。 |
+| M47 WB69 Native资源准入 | 🟡 / 0actual失败检查点 | 五metadata inverse/source syntax、23依赖/九runtime SHA、.NET10三framework/Playwright CDP与四exclusiveports已核；独立source/tools局部通过但180s有效期晚5.894s，actual NOT_RUN。六路径本地集成见收据。 | 下一独立资源窗口先review再fresh gate/单次actual；过程完整性false与旧WB68/67/66/65/64失败保持，三宿主/安装/AOT/硬件/长期分列。 |
+| M47 WB68 普通异库准备 | 🟡 / 本地合同、0actual | runner显式opt-in；首次A已active时最多一次独立B控件准备、完整ack/DOM/disk并重读A守卫，默认及原A→B旅程/关闭/预算保持；Node60/60（新增17）、micro1和源码29/工具27独立检查通过，最终8路径集成见收据。 | 下片先冻结独立native metadata/runtime资源窗口，再验真实恢复/正常退出；旧WB67 numeric退出FAIL、三宿主/安装/AOT/硬件/长期分列。 |
+| M47 WB67 helper三统计保留 | 🟡 / 本地合同、0actual | H→R→E固定安全三标量，unknown不造0；Node31/31（新增15）与两个纯PS输出夹具、源码22/工具v2 26独立检查通过，最终九文件门禁/本地集成见收据。 | 具体慢query/phase仍unknown，不升级旧真实失败；可成立的异库前置与完整恢复/正常退出、三宿主/安装/AOT/硬件/长期另验。 |
+| M47 WB66 helper预算合同 | 🟡 / 本地报告、0actual | 实际协议/关键source range/SHA核验，独立28/28 PASS；20.19s墙钟拒绝，CIM15/cache16非数量耗尽，success统计丢弃已证。六docs完整门禁/本地集成见收据。 | 下一片仅保留existing三安全统计，逐查询原因unknown；旧actual/退出/cleanup与WB65strict失败不升级，真实恢复及三宿主另验。 |
+| M47 WB65 Studio选库前置 | 🟡 / 本地合同、0actual | 普通DOM同值/unknown拒绝与异库身份一致前置；原fresh七谓词/成功链保持。micro1/1、最终43/43（32+11新），旧fixture精确适配新读取；继承WB64终审v2新收据PASS，原FAIL不升级。 | helper采集/缓存/回收预算独立后续；真实A→B/两desktop/B查询/正常关闭未验，超时不证明底层evaluate取消，三宿主/安装/AOT另验。 |
+| M47 WB64 Studio真实选库观察 | 🟡 / 真实FAIL、失败检查点 | 独立runtime SHA与唯一actual：A PUT200 seq6/request43对pre-click barrier6/57，两fresh谓词false、其余五项true；DOM匹配A，30call/7658ms。六终态与执行源码保持，根exact owner资源回收另证；0新build/0定向测试，最终六路径门禁与提交见收据。 | 原normalExit/cleanupProven false，helper预算CIM15/20.19s/cache16失败；B/关闭/第二desktop/恢复/查询未运行。下一片先冻结同值选择fresh前置合同，helper回收另片；WB62历史原因与三宿主/安装/AOT不升级。 |
+| M47 WB63 Studio选库失败观察 | 🟡 / 本地32合同，0actual | 同步pre-click双barrier、至多2次选择记录；至多128既有候选的原七find谓词及有界普通DOM计数/布尔，原error对象保持。实际轮询次数/耗时单列；原30次/250ms/20秒上限与ack/DOM/disk/close不变。最终七路径门禁/本地提交见收据。 | WB62实际A PUT200的拒绝原因仍unknown；不得把20秒上限当耗时。后续一次有界真实运行须绑定新源/runtime/失败检查点；A→B、两desktop、B查询及正常退出仍待验，不盲重跑旧证据。 |
+| M47 WB62 Studio恢复接续 | 🟡 / 本地23合同，真实FAIL | seed有界脱敏观察/原HTTP失败保持、固定证据目录与源码独立PASS；9产品SHA复用，0新build。唯一actual已越过STRING/普通PK双库seed，但A选库fresh PUT验收失败；实际A PUT200存在，失败barrier缺证。9fallback/四ports/481对象回收另证，最终8路径门禁/本地提交见收据。 | WB63已补选择双barrier与候选/DOM观察合同，0新actual，旧原因未证；selections0/launch1、第二desktop/恢复/B查询NOT_RUN，normalExit=false。三宿主/文件/安装/AOT/长期/发布另验。 |
+| M47 WB-61 Studio 数据库恢复验收 | 🟡 / 本地合同，真实旅程FAIL | 独立两desktop场景、双ack barrier与候选身份准入，最终14/14本地合同和Web/Server/Studio构建通过。唯一actual native bootstrap有效，夹具建表HTTP400，9归属fallback/四port/481对象回收另证。最终完整门禁/本地提交以M47收据为准。 | 原TEXT不合原生关系SQL，已修正STRING/普通主键但0新actual；选库、库持久化、第二desktop和B查询均NOT_RUN。须接续真实恢复旅程，登录/对话框/安装及三宿主整体仍未闭环。 |
+| M47 WB-59 VS Code SQL耗时字段兼容 | 🟡 / 本地兼容，真实另验 | 唯一parser补native/legacy→optional elapsedMs；finite非负原值保持，缺失/非法/冲突省略alias，其他metadata保持。唯一TS、新Node5/5及最终九文件完整门禁/本地提交见M47收据，0actual/.NETbuild。 | parsed Raw可能增加alias；WB57原FAIL不升级。真实history/ack、stop-verification及三宿主/安装/AOT继续另验。 |
+| M47 WB-58 公开history/错误通知安全观察 | 🟡 / 本地合同，真实另验 | 原完整await/串行Store及catch fulfilled保持；3phase固定通知/公开history snapshot，原总20命令及final3断言不放宽。必要synthetic ack/deferred与保密测试、唯一TS及九文件完整门禁/本地提交见M47收据，0actual/.NETbuild。 | 不推WB57 history2原因，不授持久ack；elapsed DTO、真实history/stop-verification及三宿主/安装/AOT继续另验。 |
+| M47 WB-57 真实终态三检查 | 🟡 / 三检查到达实证，原旅程/cleanupFAIL | 唯一真实finalChecks refused/passed/refused，原首失败与authority保持；三payload2/1/45对真实reference同。49ledger/64refs/27helper/16原文件冻结，根62PID absent/0新stop/282对象回收及八文件完整门禁/本地提交另列。 | history20/2失败、Host0byte/API恢复unknown、Code/Hostnull/normalfalse、原FAIL/cleanupfalse保持。下一片先冻结history/ack及stop-verification合同，三宿主/安装/AOT另验。 |
+| M47 WB-56 终态三安全检查 | 🟡 / 本地75通过，真实cleanup另验 | 三原同步检查独立执行、首失败保持、三passed且无terminal才proof；fixed finalChecks单读/异常隔离/幂等，syntax与75/75通过，0actual。最终八文件完整门禁/本地提交见M47收据。 | 原WB55 FAIL/false/null及remaining1/blocking7不升级；不新增stop/采样或authority，真实cleanup及三宿主/安装/AOT另验。 |
+| M47 WB-55 真实Query/history/Code | 🟡 / 局部生命周期通过，原严格cleanupFAIL | 唯一actual三query2/1/45与真实reference逐值同，公开history3/HostPASS/API恢复/Code0-signalnull正常退出；3 existing-fresh安全观察、37ledger/43refs/17helper与16原文件完整，根44PID absent/0kill/280对象回收另列。最终八文件完整门禁/本地提交见M47收据。 | 原runner FAIL/unknown reason-type null/cleanupfalse保持；lookup变化不推权限/短命/复用或stop。下一片先冻结blocking/refusal生命周期，DOM/分页/Notebook/LSP/安装/AOT/三宿主另验。 |
+| M47 WB-54 既有fresh安全观察 | 🟡 / 本地67合同通过，真实Host另验 | 仅复用同batch lookup追加有界transition投影；原deadline双guard、failure/authority/ledger/events/stop不变，syntax/source绑定与67/67通过，0actual；原工具与fixture FAIL保留。最终八文件完整门禁/精确提交/post见接续收据。 | 关系不证明权限/短命/复用/stop；WB53 history/Host终态/Code正常退出与原cleanup仍未证，三宿主和发布矩阵另验。 |
+| M47 WB-53 真实Query与snapshot再验证 | 🟡 / 三payload局部通过，原FAIL保留 | 单次current2/selection1/EXPLAIN45逐值对真实reference与POST200一致；actual initial缺parent command与fresh lookup缺项已区分。51ledger/68events/28helper和12项manifest342719B完整；根fresh54PID absent/0新增kill/新runtime292对象回收另列，最终八文件完整门禁/失败检查点提交见收据。 | history/Host终态缺席、API恢复unknown，Code/Host null、原cleanupfalse；缺失原因、正常退出及UI/分页/Notebook/LSP/三宿主另验，不放松原stop。 |
+| M47 WB-52 父链snapshot诊断 | 🟡 / 本地安全合同通过，真实Host待验 | fixed来源/角色/count/presence，未知role/null及同PID单读；最终55/55、syntax/双PS7 AST通过，初53保留。只已有lookup，不改准入/stop/预算或runner；503后旧closed4/14，新窗口续八文件完整门禁/本地提交，0actual/TS/新build。 | WB50采集原因unknown，原FAIL保持；真实三phase/history3/Code退出/cleanup与三宿主另验。 |
+| M47 WB-51 调用时SQL上下文 | 🟡 / 本地合同通过，真实Host待验 | execute首await前捕获SQL字符串，保selection/statement/EXPLAIN/错误/数据库顺序与history ack；最终调用21/21、必要history6/6，同一TS项目初版/v2编译通过，failure cleanup先drain再恢复stub。14wrapper/0actual/0新.NETbuild、最终八文件完整门禁/提交见收据。 | 已证异步漂移风险不等于WB50因果；真实三phase/history3/Code退出、parent snapshot/cleanup与三宿主另验。 |
+| M47 WB-50 真实Query/history窗口 | 🟡 / 实跑失败检查点 | 两源metadata逆投影与syntax/TS通过，唯一actual current2/selection1对reference通过，Host FAIL explain/source、history缺席，runner process_audit/Code与hostOutcome null。新cleanup诊断6identity拒绝/终态残余1；原false、根45PID absent/0kill/280对象回收与五terminal/15原证据绑定分列，最终八文件门禁/提交见M47收据。 | 先诊断前一payload观察与parent snapshot缺失合同，不追加actual或升级旧FAIL；UI/Webview分页/Notebook/LSP/安装/AOT/硬件/长稳/发布及三宿主整体另验。 |
+| M47 WB-49 Cleanup子检查诊断 | 🟡 / 本地合同通过，真实Host待验 | 为既有owned-processes补固定安全subcheck与有界数值，恢复性/终态失败分列；原身份/stop/roots/audit/预算门禁保持。最终46/46、Node syntax/双PS7 AST通过；首44/45夹具失败保留。0actual/0TS/0新.NETbuild，最终九文件门禁/验收/提交见M47收据。 | 旧具体cleanup失败与history20/2因果、Code正常退出未知；真实新窗口/三宿主与安装/AOT/硬件/长稳/发布另验。 |
+| M47 WB-48 Query history完成 | 🟡 / 本地合同验证，真实Host待验 | immutable FIFO/写ack与读屏障、50 pending/持久50条cap、当前失败可观察/队列恢复；真实production command/panel的确定性Memento夹具与唯一TS编译通过，0actual。旧冻结树完整门禁已过；foreign追加后旧窗口未提交，现以新窗口重新冻结/完整门禁与WB48集成，实际见M47记录与git log。 | 尚非旧20/2根因确证；下一片独立cleanup固定安全subcheck后新冻结真实history/Code退出窗口。安装/AOT/硬件/长稳/三宿主另验。 |
+| M47 WB-47 新真实Host窗口 | 🟡 / history失败检查点 | metadata-only、TS/Node/双PS7 AST通过；唯一actual三查询2/1/45行与真实参考同、Host API restored；history20/2失败，Code1/null、runner hostOutcome null。原FAIL与process/runtime false保留；根283对象回收、current tuple/event审计分列，八文件完整门禁/本地提交见M47记录。 | actual1/1已关闭；下一片定位history与独立cleanup失败，不推断旧候选全部恢复或正常退出。向导/DOM分页/Notebook/LSP、OS文件窗口/安装/AOT/硬件/长稳与完整三宿主另验。 |
+| M47 WB-46 有界候选重采 | 🟡 / 合成合同完成，真实Host待验 | 一次fresh批次仅补同PID/creation/parent缺命令，原/fresh完整父链至exact Node anchor不变；12hop/1秒/stop保持，async串行。最终37/37、Node/双PS7 AST与源码复核通过，0actual/0新build；最终九文件门禁/提交见M47记录。 | WB45原FAIL/false/null不改，不承诺旧五candidate全部恢复；新metadata/冻结窗口补history/API与正常Code退出。生产maxRows、向导/DOM分页/Notebook/LSP、WB41 OS与完整三宿主另验。 |
+| M47 WB-45 身份先验安全诊断 | 🟡 / 诊断切片完成，完整实跑❌ | fixed安全subreason/字段/数值与单读getter，不减原identity/ledger/event/stop合同；最终26/26、既有20/20、TS/PS7与源码复核通过。新run五candidate缺commandLine首guard已证；current2/selection1/EXPLAIN45与真实reference相同，原FAIL/false及根279对象回收保持分列，最终十文件门禁/提交见M47记录。 | history/host-result缺、API恢复与正常Code退出未证；两次调用已用尽，不第三跑。缺命令需先设计有界fresh重采/完整anchor合同；旧WB44 unknown不能猜因果。生产maxRows、向导/DOM分页/Notebook/LSP、WB41 OS、安装/AOT与整体三宿主另验。 |
+| M47 WB-14 VS Code资源导航 | 🟡 | 九模型/index/backup资源与Web导航入口已提交 `e7cf2fe5`，Node20/20与本机Extension Host注册检查；浏览器回选/认证夹具由WB-16补证据。 | 真实Server权限、外部OS浏览器交接、VSIX与发布。 |
+| M47 WB-15 Studio客户端 | 🟡 | 宿主身份/lifecycle、保守操作门禁与迟返隔离已提交 `e1f93a69`；Node10/10、全Web137/137、Studio定向40/40、TypeScript/Vite与浏览器夹具8/8。 | 真实Server、WebView2/干净Windows、安装与三宿主全旅程；旧Header与完整Explorer异步组合另验。 |
+| M47 WB-16 导航/认证与部署base | 🟡 | 已提交 `0bb628ad`；登录返回、base/SSE和index分组修复，Node9/9、全Web146/146、两部署浏览器各17/17、根/代理构建、本机真实Host13节点命令调用及独立复核/完整门禁通过。 | 真实Server权限/代理部署、远程SSE、同origin存储隔离、VSIX与三宿主全旅程。 |
+| M47 WB-17/WB-27 Relation Workbench | 🟡 | WB-17迁移 `f1978263`；WB-27新Web→本机Kestrel分页50/200/尾51与当前导出、两insert四终态、COMMIT冲突及撤权403/regrant锁存3/3。返回编辑保留暂存，影响数取COMMIT避免重复；Node20/20、全Web300/300、Chrome fixture12/12、共享runner Document真实3/3、build与独立复核通过。 | 显式安全恢复、完整权限/SQL名称矩阵、物化/字节/总堆预算、完整九模型/三宿主、登录UI/readonly props、安装/AOT/发布。 |
+| M47 WB-19/WB-28 FullText Workbench | 🟡 | WB-19迁移已有；WB-28新Web→本机Kestrel Top-K20/100/当前导出、数据库Admin同步重建151权威终态、撤权403/regrant READ锁存真实3/3，成功证据独立落盘及SHA256核验。Node15/15、全Web300/300、Chrome fixture8/8、TypeScript/Vite与独立复核通过；生产组件/Server不改。 | 显式读取恢复、完整权限矩阵/typed全文分页/facet/highlight、服务端扫描/物化/字节/堆预算、登录UI/readonly props、完整三宿主和发行物。 |
+| M47 WB-20/WB-32/WB-33 Vector Workbench | 🟡 | 原名/六态、请求快照/迟返隔离、Top-K100与Profile缺失门禁已有切片。WB-32补真实READ L2 Top-K20/100、当前JSON/CSV/history与Search403；WB-33修当前child拒绝typed上行、原目标/render generation/authority校验及父载荷清理，Schema/auth/重挂/空身份ABA保持锁，旧拒绝不锁新上下文。Node39/39、全Web327/327、Vector/Measurement fixture13/13与20/20、build及新UI真实首轮3/3通过；三JSON/manifest核验，最终独立复核/完整门禁及提交见证据。 | 索引Profile、显式恢复、Server预算、子页完整写终态、Recall/模型质量、三宿主与发行物。 |
+| M47 WB-21/WB-29 KV Workbench | 🟡 | WB-21原名/六态/锁存/readonly与1000项/4096字节预览已有；WB-29新Web→本机Kestrel首轮3/3，真实Scan100/opaque cursor尾51、Get/当前JSONL，普通WRITE三审批NX成功/未应用影响0/交换版本history与管理员Get对拍，撤权403/regrant READ锁存。Node17/17、全Web300/300、Chrome fixture12/12与build通过，三成功JSON/manifest独立落盘，生产组件/Server不改。 | 显式恢复、完整权限/atomic/Int64/TTL/CAS、瞬时原子结果表展示、Base64解码/传输/字节/堆预算、三宿主和发行物。 |
+| M47 WB-22/WB-34 MQ Workbench | 🟡 | WB-22原名/六态/权限/一次审批/有界预览与Seek/auto已有；WB-34新增普通READ100/51当前JSONL/history、正常WRITE Publish201 offset151/Ack200 nextOffset1与管理员对拍、旧审批REVOKE403清载荷/READ重授及同tokenSchema200锁存真实首轮3/3。Node22/22、全Web327/327、MQ fixture16/16/build和源码复核通过，三JSON195806字节/manifest核验；成功独立复核、最终完整门禁与提交见证据。 | 冒号Topic真实400不支持、真实文件导入/显式恢复、Int64/Nack全矩阵、metadata/解码/传输/堆/Server预算、实例恢复、三宿主和发行物。 |
+| M47 WB-23 Graph Workbench | 🟡 / Graph Beta | 权限锁存、只读浏览/元素读取/导出、请求代际隔离、客户端 10～1000 总元素画布预算、32项/4096字符 Inspector、safe-number ID 门禁及维护终态校验完成本地切片；Node27/27、Graph Chrome16/16、既有浏览器3/3、真实Kestrel兼容4/4及独立复核通过。 | 完整 Graph Int64 字符串身份、真实新 UI 权限/恢复、服务端长期预算、三宿主、AOT、固定硬件和发行物。 |
+| M47 WB-24/WB-25/WB-37 Object Workbench | 🟡 | WB-24读取锁存/代际/readonly与1000列表/4096 Range，WB-25写终态已有；WB-37接续首run新Web真实3/3：151原DTO/100+51 continuation/当前51截断结果、206 Range4096/Download8192与history，普通text一次审批PUT200/69字节完整DTO及管理员GET/list/history1，旧审批REVOKE403/admin404/先前值保持和READ重授同tokenSchema200六tabs锁存。三JSON335381字节/manifest及独立源码复核通过，完整成功复核/最终门禁/本地提交见证据。 | 初始三失败与未知reset保留；Blob body unavailable/null不计raw上传字节观测。完整语义/Multipart/Server预算/显式恢复/OS对话框/三宿主/安装/发行物另验。 |
+| M47 U01～U05 | 🚧 | 设计、首批共享合同、结果/审批语义及 Web Admin 页面切片已有局部实现。 | 完整九模型适配器、分页/取消/离线组合、真实权限与全量生产旅程。 |
+| M47 U06～U08、U10 | 📋 | 已记录规划边界和退出条件。 | Studio、VS Code、WorkBuddy/stdio bridge、manifest/签名/插件安全尚未启动完整验收。 |
+| M45-C01 首批实现 | 🟡 | TAG/time 分组首批代码、SQL/EXPLAIN 合同和定向回归已完成。 | C02～C09、更新/删除修正、增量物化、恢复预算及真实性能证据。 |
+| M44、M46 及其余 4.5 必选包 | 📋 | 已有设计专题、现存底座和验收边界记录。 | 计划中的 AI 应用、编码/成本优化及对应真实质量、容量、恢复和发布验收尚未启动或未闭环。 |
+
+历史上已经完成且不再作为当前待办的范围，请看 [CHANGELOG 完成归档](CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)；路线图下方的“里程碑总览”保留每个里程碑的剩余交付。
+
+##### 原M47设计、实施状态与三面边界（历史快照）
+
+###### Milestone 47 — 统一数据库管理工作台与三面发布（UI）
+
+M47 将 Web Admin、Studio 桌面和 VS Code 扩展规划为“一套核心、三个宿主、三个发布物”。共用资源上下文、九模型能力矩阵、设计令牌、Explorer、Workspace、结果平面、Inspector、History、Approval、MCP/AI onboarding 和验证夹具；宿主分别承载完整治理、原生桌面和开发者 Remote-first 子集。M29 的已有工作台与原型是实现基线，M47 不重新包装已完成的页面为新功能。
+
+对照学习范围包括 dbx、Tabularis、DBeaver、DataGrip、pgAdmin、MongoDB Compass、RedisInsight、Kafka UI/RabbitMQ Management、Milvus Attu/Qdrant Console、Kibana/OpenSearch、MinIO Console 和 Neo4j Browser。逐模型、三面边界、发布形态、MCP/插件安全和原型目录见 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。
+
+**M47 设计基线已确认，生产迁移按切片执行。** 外壳、七个一级/二级导航、九模型数据库逻辑资源树、共享对话框/状态和 MQ `database + Topic` 身份已确认；当前 [设计评审包](docs/design/m47-unified-management-workbench/README.md) 仍记录逐页像素与三宿主证据边界。规划覆盖七一级（概览/工作台/观测/数据流/AI 与 MCP/治理/设置）、30 个全局页面、九模型和 166 个任务页签（模型任务 60 个），不等同逐页生产完成。MQ 逻辑作用域在数据库资源树内，物理持久化为实例 `.system/mq`；单库备份不覆盖共享 MQ。
+
+| ID | 优先级 / 范围 | 交付与退出条件 |
+|---|---|---|
+| M47-U01 | P0 | 竞品矩阵、完整菜单/导航、五区外壳、共享对话框/提示、九模型能力矩阵、三面边界和资源合同设计；先取得用户原型确认，再逐页细化与生产实现，不重复声明 M29 已实现内容。 |
+| M47-U02 | P0 | `management-core` 规划与首批实现：typed API/MCP client、资源类型、能力/状态/权限/结果/审批合同、设计令牌；三个宿主各消费一个真实共享合同。 |
+| M47-U03 | P0 | 统一 Explorer、Workspace、Result Plane、Inspector、History；九模型上下文一致，分页、取消、截断、离线和局部失败语义一致。 |
+| M47-U04 | P0 | 九模型 adapter 和模型专用工作台：measurement、relational、document、KV、MQ、vector、full-text、object、Graph Beta；正常/空/错/只读/长内容状态可验证。 |
+| M47-U05 | P0 | Web Admin 完整治理工作台：查询、编辑、导入导出、索引/策略维护、监控、审批、审计和九模型真实旅程闭环。 |
+| M47-U06 | P0 | Studio 桌面宿主：同一 Web Admin 资源、native bridge、Managed Local、原生文件对话框以及干净 Windows/WebView2/升级卸载/端口/进程回收证据。 |
+| M47-U07 | P1 | VS Code 开发者面：连接向导、可复用 Query/Notebook、分页结果、LSP/EXPLAIN、稳定宿主 Chat/MCP 能力或保留自有 Copilot WebView，并可深链接转交治理面。 |
+| M47-U08 | P1 | WorkBuddy/Claude/Cursor/Codex AI Connect：现有 HTTP MCP、`sonnetdb mcp` stdio bridge、配置生成/自检、只读工具、凭据隔离、结果预算和数据外发说明。 |
+| M47-U09 | P1 | M47 原型目录、完整页面/任务规范与三面发布矩阵：共享外壳、查询结果、审批/AI、九模型、Studio、VS Code 原型及正常/空/加载/错/只读/离线/长内容状态；HTML 评审稿、逐页最终视觉与真实宿主证据分别记录。 |
+| M47-U10 | P2 条件 | manifest、签名/哈希、插件/连接器目录、权限撤销、升级/回滚和市场提交流程；先完成核心工作台和安全评审再启动。 |
+
+###### M47 实施状态索引（2026-10-06）
+
+状态只反映当前本地证据：`🟢` 已完成本地切片，`🚧` 仍有实现或验收，`🟡` 指定切片完成但外部/宿主证据待补，`📋` 尚未启动。
+
+| 范围 | 状态 | 当前证据与剩余边界 |
+|---|---|---|
+| WB-00～WB-03C | 🟢 | 设计基线、原型交互/页面合同、资源身份/能力合同与 Explorer 兼容证据已提交；静态/内存证据不等同真实 Server 或三宿主。 |
+| WB-04～WB-04B | 🟢 | 导航与 Explorer→SQL 兼容预检已提交；迁移前证据不等同全量运行时验收。 |
+| WB-05～WB-06 | 🟡 | 结果/草稿/历史/审批和生产外壳/七模块导航已完成本地切片；全量模型、真实宿主、安装、发布仍待补。 |
+| WB-07～WB-10 | 🟢 | Explorer 资源身份、旧深链接回选、database 上下文及手动切库投影已提交并通过 Web 回归。 |
+| WB-11 Measurement Workbench | 🟡 | 用户已确认页面基线；状态、动作、旧路由和 UI 证据已通过本地验证，提交为 `390ff526`。真实 Server、三宿主、安装、发布和全量九模型证据仍待补。 |
+| WB-12/WB-18/WB-26 Web Admin Document Workbench | 🟡 | WB-12 `54c78755`、WB-18 `1d9465fb`为既有基线；WB-26取得本机新Web→真实Kestrel权限/Find100恢复、Aggregate1001→1000及Distinct501→500/1000unknown真实3/3，Node21/21、全Web295/295、fixture11/11与build通过。空IDs省略且显式IDs保留；登录UI/readonly props、Server预算、Advanced完整读写及三宿主另验，提交以最终完整门禁为前提，实际哈希见git log。 |
+| WB-13 SonnetDB Studio 宿主合同 | 🟡 | 宿主身份/URL与Managed Local生命周期合同已提交 `74835847`，定向34/34、独立复核和完整提交门禁通过；Web消费由WB-15另验，干净Windows/WebView2、安装与发行物证据仍待补。 |
+| WB-14 VS Code Workbench 合同 | 🟡 | 九模型资源/深链接入口已提交 `e7cf2fe5`，原名与旧key保留，Node20/20、本机Extension Host、独立复核与完整门禁通过；WB-16补浏览器回选/认证夹具，真实Server权限和VSIX仍另验。 |
+| WB-15 Studio Web客户端合同消费 | 🟡 | 已提交 `e1f93a69`；宿主原名身份、完整生命周期、保守操作门禁、初始化/状态/保存迟返与目录ABA隔离；Node10/10、全Web137/137、Studio定向40/40、TypeScript/Vite、浏览器夹具8/8、独立复核和完整提交门禁通过；真实Server/桌面安装及三宿主整体仍另验。 |
+| WB-16 VS Code→Web导航/认证 | 🟡 | 已提交 `0bb628ad`；九模型/index/backup最终回选、登录返回、显式base/SSE、同名MQ及index分组收口；Node9/9、全Web146/146、根/代理构建、浏览器各17/17、真实Host13节点命令调用、独立复核与完整门禁通过。真实Server/代理部署/远程SSE/同origin存储隔离/VSIX另验。 |
+| WB-17 Relation Table Workbench | 🟡 | 已提交 `f1978263`；Node15/15、全Web161/161、TypeScript/Vite、Chrome12/12、既有设计器2/2、独立复核及完整代码门禁通过；readonly浏览/结果导出/纯DDL，HTTP403清载荷锁存，缺终态/断连/408/5xx为unknown。真实Server权限、预算、三宿主与发行物另验。 |
+| WB-19 FullText Workbench | 🟡 | 已提交 `2f9a5477`；原名/六态/Top-K100、载荷清理与一次审批终态，Node15/15、全Web184/184、Chrome8/8和既有真实Kestrel兼容4/4。新客户端权限/写旅程、恢复、预算与三宿主另验。 |
+| WB-20 Vector Workbench | 🟡 | 原名/六态、参数/身份快照、空Schema权限锁存、严格维度/Top-K100和子页门禁；Node17/17、全Web201/201、Chrome10/10、导入1/1和既有真实Kestrel兼容3/3。Profile、真实权限/恢复、服务端预算、子页写终态与三宿主另验；本轮提交哈希见git log。 |
+| WB-21/WB-29 KV Workbench | 🟡 | 原名/权限锁存/readonly与有界预览已有；新Web→本机Kestrel首轮3/3补游标/Get/当前JSONL、NX成功/未应用影响0/交换实际版本+history、撤权403后READ/同token刷新锁存。Node17/17、全Web300/300、Chrome fixture12/12和build通过，成功JSON+manifest独立落盘；完整atomic/恢复/资源预算与三宿主另验，实际提交见git log。 |
+| WB-22 MQ Workbench | 🟡 | 原名/六态、锁存/readonly、实际Topic同步代际、一次审批与unknown、Browse1000/Inspector4096、Seek25窗/60秒和自动采样12轮/60秒；Node22/22、全Web240/240、Chrome16/16+既有3/3、真实Kestrel兼容2/2。真实新UI权限/恢复、完整metadata/资源预算和三宿主另验；本轮提交哈希见git log。 |
+| WB-23/WB-35/WB-36 Graph Workbench | 🟡 / Graph Beta | 原名/六态、401/403锁存、readonly与请求隔离、有界画布/Inspector及safe-number门禁已有；WB-35真实Canvas250/10/1000、typed vertex、独立snapshot JSON导出/history、单vertex Upsert/version+1与REVOKE锁存取得3/3，Node27/27、全Web327/327、fixture16/16/build为该片证据。WB-36旧DLL正常导出151实际truncatedfalse定向失败后，两行修复精确顶点预算边哨兵；GraphEndpointTests17/17含8例新Kestrel矩阵、Server Release/trim-AOT分析0警告错误、修复后真实Web3/3/四JSON1015208字节manifest通过。完整最终门禁与本地提交见git log；完整Int64/edge/import/维护/显式恢复、通用Server预算、NativeAOT发布及三宿主另验。 |
+| M47-U01～U03 | 🟡 | 设计、首批合同和共享结果/审批语义已有局部实现；三个宿主真实消费、完整分页/离线/取消证据仍待补。 |
+| M47-U04～U05 | 🚧 | 九模型专用工作台和 Web Admin 仍按页面切片迁移；WB-11 是其中一个页面样板，不代表整包完成。 |
+| M47-U06～U08 | 📋 | Studio、VS Code、WorkBuddy/stdio bridge 与配置自检尚未形成完整真实宿主验收。 |
+| M47-U09 | 🟡 | 原型目录、页面规范与发布矩阵已提交；逐页最终视觉、三面真实旅程和发布证据仍待补。 |
+| M47-U10 | 📋 | 条件项，尚未启动。 |
+
+逐个 WB 的文件归属、测试数量、提交哈希和剩余边界以 [Workbench 队列](docs/design/m47-unified-management-workbench/work-queue.md) 与 [HANDOFF](HANDOFF.md) 为准；本表用于路线图快速查看，不能替代两份交接记录。
+
+M47 的代码边界是“共享合同和组件优先、宿主适配器隔离”：不把 VS Code 变成完整 Web Admin，不改变九模型存储语义、SQL 名称合同、MCP 只读边界或 M29 的写审批规则。三面分别产出 Web 静态资源、Studio 安装包和 VSIX，但使用同一版本、MCP contract version、能力清单和兼容矩阵。任何一个宿主未通过自己的安装、Electron/Extension Host 或真实 Server 旅程，不能把三面整体标为发布完成。
+
+##### 原木垒现场已完成五子项
+
+2026-10-08 木垒现场只读核验已完成 5 个明确子项：当前 ARM64 配置/挂载、六个索引定义、真实 DESC/OFFSET 及 48/48 实际读取放大比、REST 默认完整与恰好 N/超 N 截断边界、真实流水三图完整读取/内容 SHA-256。见[完成清单及原始证据](docs/audits/mulei-field-readonly-verification-20261008.md)。这些子项标记为 ✅；证据绑定现场提交 `6a8d82d2`，冻结语料/现网规范化指纹对账、跨架构、全部模型/客户端、恢复/容量与 168 小时仍待验，表中整体边界继续保留。
+
+##### 原README中的Workbench切片检查点（历史快照）
+
+WB-48本地history集成已提交 `fa7b9528`，6项合同与完整restore/format通过。WB-49补既有query cleanup的固定安全子检查诊断，最终46/46故障合同、Node syntax/双PS7 AST通过，不放松身份/stop/预算，0actual；旧history20/2真实因果、Code正常退出/原cleanup及三宿主整体仍待验，实际本片结果见M47验证记录。
+
+WB-50接续c0475103，仅换隔离metadata；syntax/TS通过，唯一actual当前语句2行与选区1行对真实reference通过，但EXPLAIN来源断言失败、history未运行、Code正常退出未证。原cleanup false保留，新诊断与根当前回收分列；无新.NETbuild，不重做已过合同，详细失败检查点见M47验证记录，三宿主仍未闭环。
+
+WB-51冻结调用时SQL上下文，处理异步token/database等待期间编辑器变化的已证合同风险；最终deferred调用21/21、必要history6/6及同一TS项目初版/v2编译通过，独立复核补测试failure cleanup结算合同。本地stub证据与真实Host因果分列，0actual，原EXPLAIN/history/正常退出与cleanup缺口仍待独立验证。
+
+WB-59修复VS Code SQL耗时字段兼容：唯一parser接受有效native/legacy耗时，缺失、非法或冲突时省略alias；新5项合成client/Panel/history/Webview测试PASS，仅本地metadata证据、0actual，parsed Raw可能增加alias。原WB57真实FAIL保持，最终九文件门禁/提交与三宿主边界详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+
+WB-58补公开Query错误通知和每phase历史安全观察，保持完整await、现有生产吞错提示语义、总20历史命令预算与最终3条历史断言；新合成ack行为验证仅为本地合同，0actual。WB57原真实旅程与cleanup仍FAIL，时长澄清及最终九文件门禁/提交详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)，三宿主继续另验。
+
+WB-57单次真实窗口已观察cleanup三终态检查为refused/passed/refused，证明remaining拒绝后仍执行root和audit检查。三Query载荷2/1/45对真实Server参考一致；history失败且仅2项、Host文件0bytes、Code/Host终态缺席，原runner与cleanup仍FAIL。根当前回收和最终八文件门禁/本地提交另列，详见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)；三宿主仍未闭环。
+
+WB-56修复cleanup终态检查短路：remaining-processes拒绝后仍执行root-identities与audit-failures，保留首失败且只有三项通过才授予proof；新增固定finalChecks安全投影。最终本地75/75与两源syntax通过，0真实Host运行；WB55原FAIL/false/null保持，真实严格cleanup与三宿主仍另验。最终八文件门禁/本地提交见[M47验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+
+WB-55单次真实Query窗口已取得current2/selection1/EXPLAIN45与独立Server参考一致、公开history3、Host PASS/API恢复及Code0正常退出的局部证据。原runner仍FAIL且reason/type null、严格cleanup/runtimefalse保持，三次既有fresh观察不证明缺失原因或stop权限；根当前回收、完整门禁与八文件本地提交另列，详见M47验证记录。三宿主/DOM/分页/Notebook/LSP/安装/AOT尚未闭环。
+
+WB-54在原准入完成后仅复用既有initial/fresh lookup追加安全观察，原deadline、失败和stop权限保持；55既有+12新增本地合同最终67/67、syntax及source绑定通过，原工具/fixture失败分别保留。0真实Host运行，WB53历史/正常退出/原回收仍待独立实证；最终完整门禁与八文件本地提交见M47验证记录，三宿主尚未闭环。
+
+WB-53单次真实窗口的current2/selection1/EXPLAIN45已与独立Server参考逐值一致；history/Host终态缺席，原process audit失败、正常Code退出与原回收仍未证。父链诊断实际区分initial缺command与fresh lookup缺项，但原因unknown；根当前进程/runtime回收另列，失败检查点、完整门禁与本地提交见M47验证记录，三宿主仍未闭环。
+
+WB-52补父链snapshot拒绝的安全来源、角色和presence诊断，未知role保null、同PID单读；最终55/55及syntax/双PS7 AST通过，原身份/stop门禁与runner/Host保持。provider503后已在新窗口接续最终门禁/本地提交，0actual；旧采集原因与真实生命周期仍unknown，局部证据见M47验证记录。
+
+Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS946×556 与652×476（DPR1.5、Explorer已自动收起）均验证身份/状态/Health、Managed Local Health/Stop/Start、普通原生关闭退出0与四端口/进程回收；fixture12/12与最终Web/Server/Studio构建通过。原失败保留，首轮验证runtime删除被策略拒绝而保留，不能计完整清理通过。WB-41新增SQL原生文件诊断入口；首轮真实Open POST后桌面工具未看到picker且激活失败，超时未通过，后三步未运行，失败证据与任务资源回收已核验。WB-42新增真实VS Code查询诊断，当前语句和选区两条生成结果已与真实Server独立参考核对；EXPLAIN/历史及正常退出仍未通过，公开API驱动不等同向导UI或Webview分页。WB-43已对齐sql-only参考与安全诊断，真实current/selection/EXPLAIN三条生成数据均与独立Server参考一致（EXPLAIN45行）；完整实跑仍因进程审计失败，历史/API恢复/正常退出未验证，原失败与根回收证据分别保留。WB-44已在既有门禁下压缩重复外部祖先正文、绑定完整身份ledger与事件引用，定向17/17及既有20/20通过；新真实Host取得三条公开查询历史、API恢复和零清理错误，完整runner仍因三个身份先验未知拒绝而失败，正常Code退出未证，原失败/false与根回收分别保留。WB-45新增固定安全先验诊断，26/26故障测试与既有20/20通过；新实跑五候选缺commandLine，完整runner仍失败，三查询数据与真实参考同而history/API恢复/正常退出未证，原失败及根279对象runtime回收单列，旧unknown不推断。WB-46新增一次有界fresh候选重采，只补同PID/creation/parent缺命令且完整父/anchor不变的候选，保原准入/stop门禁与串行cleanup；37/37合成合同、Node/PS7和独立复核通过，0actual，原失败保持，正常Code退出仍须新窗口验证。WB-47只改实际窗口metadata并完成唯一新实跑：三条查询2/1/45行与真实参考相同，但Host history pickCount20/entryCount2失败，Code退出1，runner hostOutcome仍null；API恢复已在Host文件核验，原process/runtime cleanup false与根283对象当前回收分列，未取得完整旅程或正常退出。原成功门禁保持，actual1/1关闭，下一片先定位history与cleanup各自失败。WB-48补齐query history写ack完成合同：immutable FIFO/50 pending与50条cap、读屏障、失败恢复，查询progress等待持久写完成；确定性Memento/公开API夹具和TS编译通过，0actual；旧窗口最终提交因foreign更新使冻结失效而延后；现接续新窗口重新冻结/完整门禁和集成，实际结果见M47记录与git log，旧20/2真实根因与正常退出、独立cleanup诊断仍待补。展开Explorer、库身份同步/恢复、登录UI、文件对话框、安装/AOT及三宿主整体仍待验，详情见 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。
+
+##### 原WB97/WB98未完成集成草稿（不计完成）
+
+- **M47 WB98 helper observation**：集成VS Code三脚本的有界逐调用ID/phase、已接纳身份、计时/race/close观察及97项合同；复用冻结97/97与三syntax，终止权限和旧失败不变。最终完整restore/原CI format、本地commit及身份收口仅依WB98独立收据；真实Host/OS-stop/M47整体另验。
+- **M47 WB97 helper observation本地集成**：集成VS Code诊断三脚本的有界逐调用ID/phase、已接纳身份、计时/race/close观察与97项合同；复用WB96当前97/97及三语法natural0，保留旧UNKNOWN/真实宿主失败与终止权限。WB97释放超时及WB97-C1实施失败原样保留，新WB97-C4完整门禁（C3 prelaunch CIM失败原样保留）及本地提交按独立收据（C2独审超时原样保留）；无新Host运行或产品构建。
+
+##### 当前主路线
+
+已归档条目的后续验收、发布步骤及延期清单以 [根ROADMAP](ROADMAP.md#workbench-preview-1)为准；本归档不会发布新版本或恢复旧自动化。
+
+
+- **M47 WB70 Native真实窗口失败检查点（2026-10-08）**：runner唯一CR修LF及独立metadata/source/runtime准入；唯一actual在WebView2 loopback CDP helper预算失败，未证明A/B恢复，原actual/normalExit/cleanupfalse保留。明确prerequisite .53与actual .62差异，根18identity fresh门禁后仅回收324自有临时对象；0新build/Node重测，局部门禁/本地集成见收据，整体过程缺口不升级。
+- WB69：冻结 Studio Native 数据库恢复的新 metadata/runtime 窗口，复用普通异库准备与 helper 统计；依赖/端口预检通过但独立复核超出 180 秒准入有效期，保留 0 actual 失败检查点，不声明真实恢复通过。
+- **4.5 路线规划与完成范围整理（2026-10-03）**：根 `ROADMAP.md` 增加 M44 AI 应用与可治理推理、M45 聚合与持续计算深化、M46 存储编码与执行成本优化，并沿用既有九模型、资源、恢复与真实证据队列；同步总索引和三个研究专题。新增功能均为规划，不是本条目已实现功能；TsFile 不纳入路线。下表归档的是此前已发生的实现与对应证据，未提升远程、容量、真实模型或长期状态。
+
+<a id="roadmap-completed-archive-2026-10-03-45"></a>
+
+**4.5 路线整理时归档的已完成范围（2026-10-03）**
+
+本轮从根路线图移出完成范围的详细列表，按当前切片汇总，避免重新派单。原始实现条目仍保留在本文件 `[Unreleased]` 及[2026-09-21 归档](#roadmap-completed-archive-2026-09-21)，不重复宣布发布。核查基线为 `4b004946`；静态事实、原始 TRX/摘要与源码哈希复核见[规划核查记录](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)。
+
+| 已完成范围 | 归档的实际交付与依据 | 继续保留的边界 |
+|---|---|---|
+| M27 #340 BrowserDirect / StudioNative / ServerRelay | OAuth/PKCE 获取入口、原生宿主本地合同、relay journal/单执行者/live follow/失败重放及双进程 smoke；沿用 [Browser 报告](docs/audits/m27-browser-oauth-closure-20260923.md)、[Studio 报告](docs/audits/m27-studio-native-closure-20260923.md)、[Relay 报告](docs/audits/relay-multi-instance-closure-20260923.md)。 | 真实 IdP、provider/模型质量、双网部署、WebView2/Studio 实机和生产接管未由本轮验证。 |
+| GH-Issue #177/#180/#193/#196 的已交付子集 | 关系 JOIN、JSON 查询、关系 VECTOR/GEOPOINT 类型边界，以及参数化 measurement INNER JOIN/排序/分页和能力预检；沿用 [SQL 交付记录](docs/audits/sql-provider-closure-20260923.md)与 [measurement JOIN 记录](docs/audits/measurement-join-196-closure-20260923.md)。 | 历史推送/关闭仅按报告当日记录，本轮未重新查询 GitHub；不等同全部 SQL 或固定硬件完成。 |
+| M42 覆盖索引与 REST/Web 预览 | index-only、快照/取消/回表边界、预览截断元数据与单表早停；依据[覆盖索引合同](docs/benchmarks/m42-covered-index-scans.md)和[SQL 预算合同](docs/benchmarks/m42-sql-result-bounds.md)。 | 默认 REST/Frame/嵌入式全结果、存储工作集、整体 CLR heap 和首行 gate 独立。 |
+| M42 2026-09-30~10-03 物化准入切片 | 关系 SELECT/DML、measurement raw/排序/KNN、文档 raw/TTL/排序、Graph 及直接向量/JSON 文件 TVF 累计行/估算字节；依据[并行实现](docs/audits/roadmap-parallel-implementation-20261001.md)、[TVF 报告](docs/audits/roadmap-parallel-next-20261003.md)和[后续排序报告](docs/audits/roadmap-continuation-20261003.md)。 | 预算只覆盖声明路径，不能称全链路流式、全模型总内存上限或 M42 整项 PASS。 |
+| M43 本地 CDC、窗口与订阅运维 | spool/源捕获/快照增量接收、多分区独立位点、持久滚动/滑动数值与字符串分组、会话 COUNT、暂停/恢复/重试、DLQ、任务目录；依据[第二批](docs/audits/roadmap-four-task-closure-20261001.md)、[第三批](docs/audits/roadmap-three-task-closure-20261001.md)、[第四批](docs/audits/roadmap-next-three-closure-20261001.md)、[滑动/DLQ](docs/audits/roadmap-parallel-20261002.md)和[会话/目录](docs/audits/roadmap-next-three-closure-20261002.md)。 | 文件/本地单执行者合同不升级远程 HA、全部聚合/SQL 增量语义、跨分区业务事务或掉电结论。 |
+| M43 自动投递与 CDC→流接线 | 单分区 outbox/目标接收凭证、有界退避投递、多分区公平桥接、caller-owned 任务运行和真实 `--bridge`/`--topology` 组合重开；依据[桥接报告](docs/audits/roadmap-parallel-next-20261002.md)与[后续报告](docs/audits/roadmap-continuation-20261003.md)。 | 未知结果按核对/交接处理；至少一次与窗口去重不等于任意外部副作用 exactly-once。 |
+| M43 #382~#384/#397/#398/#401 的本地文档/工具范围 | 十四能力/旅程索引、成熟度、发布汇总 verifier、资料草稿及复现索引；已有条目与[总索引](docs/roadmap-total-milestone.md)继续可追溯。 | 原始发布报告、外部提交/收录、公开案例和十四项完整验收尚未闭环。 |
+| 既有基础、M35/M36/M40/M41 的已归档代码范围 | 继续沿用[原归档](#roadmap-completed-archive-2026-09-21)与对应专题；包括时序压缩/聚合、预测/异常/变点、持久摄取、九模型客户端、图和规划器本地合同。 | 本轮不重新证明所有历史声明；真实语义质量、远程、安装、容量、跨架构和长期 gate 留在 4.5 主路线。 |
+
+复核最近两轮完整 Core 原始 TRX 分别为 6072/6072 与 6140/6140，哈希与当轮摘要一致；最近增量记录的 13 个源码哈希与规划基线一致。这是对已有本地证据的只读核查，不是本轮重新运行测试。Server 首轮 69/70 与后续按类 12/12 的历史失败/重跑记录保留，不能重写成从未失败。M42/M43 保持进行中，Graph 保持 Beta，未执行的固定硬件/真实模型/远程/长期项目不移为完成。
+
 - **M42 measurement KNN 候选有界化（2026-10-01）**：扫描时直接进入共享 Top-K 堆，替代 worker 和总结果的全量候选列表；候选入堆前过滤墓碑，复用 SQL worker/工作集预算，传播根取消并按距离、时间戳、序列 ID 稳定排序。ANN 时间窗不足时丢弃该批候选并精确补扫，修复 `k * 8` 溢出。候选保留量为 O(K)，存储页解码、首行和整体 CLR heap 门禁仍未完成。见[合同](docs/benchmarks/m42-measurement-knn-bounds.md)。
 - **GH-Issue #211 SQL 标识符规则**：表、measurement、视图/物化视图与列/TAG/FIELD 保留创建时的拼写，普通引用按 `OrdinalIgnoreCase` 匹配，双引号按 `Ordinal` 精确匹配；禁止新增或重命名为仅大小写不同的同作用域名称。旧 catalog 冲突须显式迁移，普通引用报歧义；设备摄取名称绑定到已保存的 schema 拼写。
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- M47-P07 分发/P07调用层改读真实Job收据的status/exitCode/cleanupComplete，拒绝失败和未清理；修正新PowerShell进程未设置或残留LASTEXITCODE导致实际prepare完成却误报失败，6项真实进程包装合同通过（仅合成controller）。
+- **M47-P03 KV及时序预览渲染收尾（2026-10-10）**：KV及时序点表/监控结果表使用虚拟滚动，避免500～1000行同时挂载导致原30秒旅程或5秒点击超时；保留全部已加载数据及KV1000/measurement500条上限、cursor截断、原值导出与权限合同，验证末尾行选择和筛选后的选中导出。P03按[R1本地验收](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)完成；七模型专用读取仍延期，发行/实物/远端门禁与NOT_READY保持。
+- **M47-P02 Web smoke 修复（2026-10-10）**：修复 logout 的 Vite/Node 环境错用和 Studio 夹具身份/生命周期前置；fixture smoke 与独立真实 Server suite 分开收集，Node 合同成为 CI 必经步骤。相同 236 个输入上 Web build、448 条 Node 合同、307 条 fixture 与 12 条 StudioHost 回归通过；默认 25 条宿主专用 skip、30 条独立 real suite 和远端门禁分列。保留两次历史 CI 失败、原执行器越界清理及本地中断记录，产品仍 NOT_READY；见 [P02 报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。
+
+- **M47 WB79 磁盘派生身份兼容（2026-10-09）**：通过真实C# SaveAsync与Node共用夹具验证实际JSON形态，磁盘校验接受完整且一致的已知派生身份对，保留旧双缺省形态、未知字段拒绝和精简投影；不让磁盘身份代替native ack。C#20/20、Node80/80通过，原包装器失败和首次Node中止分别保留，真实Native恢复另验。
+
+- **M47 WB-59 VS Code SQL耗时字段兼容（2026-10-07）**：唯一parser边界把有效native elapsedMilliseconds或legacy elapsedMs映射为optional规范alias，缺失/非法/冲突省略耗时；保留原metadata，parsed Raw可能增加alias。唯一TS及新5项合成client/Panel/history/Webview测试PASS，仅本地兼容、0actual/新.NETbuild，旧真实FAIL保持；最终九文件完整门禁、本地提交及退出/独立收据分列。
+- **M47 WB-58 公开history/错误通知观察（2026-10-07）**：在现有完整await/串行Store合同上补三phase固定公开通知与history安全快照，20命令总budget及原最终3条断言不放宽；必要synthetic ack拒绝/deferred与保密边界仅本地验证，0actual/新.NETbuild，生产语义/runner保持。完整九文件门禁、本地提交与退出/独立收据另列；纠正WB57阶段55秒与完整outer73.6699466秒措辞，原失败不升级。
+- **M47 WB-57 真实终态三检查（2026-10-07）**：单次真实finalChecks为refused/passed/refused，remaining拒绝后root/audit均执行，原首失败与cleanup false保持；三Query2/1/45对真实参考同，history20picks/2entries失败/Host0bytes/Code及Hostnull不升级。49ledger/64refs/27helper、16原文件/343013B冻结；根62PID absent/0新stop/282runtime对象回收、完整八文件门禁和本地失败检查点提交另列，三宿主/安装/AOT/发布另验。
+- **M47 WB-56 终态安全门禁（2026-10-07）**：三个原同步cleanup终态检查独立执行，拒绝不跳过后续检查，首terminalFailure保留，仅三passed且无terminal才proof；固定finalChecks单读安全投影，本地75/75（67+8）和两源syntax通过、0actual。WB55原FAIL/false/null与旧证据保持，完整八文件门禁/精确本地提交见M47收据；真实cleanup、三宿主/安装/AOT/发布另验。
+- **M47 WB-55 真实Query与transition再验证（2026-10-07）**：metadata-only新独立窗口三query2/1/45逐值对真实reference、公开history3/HostPASS/API恢复/Code0正常退出局部通过；原runner FAIL/reason-type null/严格cleanupfalse保持。3 existing_fresh parent观察不授stop或推因果，37ledger/43refs/17helper及16原证据冻结，根44PID absent/0kill/280新runtime对象回收单列；原准备/actual/checkpoint拒绝保留，最终八文件完整门禁与精确本地提交见M47收据，三宿主/发布另验。
+- **M47 WB-54 既有fresh父观察（2026-10-07）**：原准入后仅复用source/fresh追加有界安全transition投影，沿原deadline双guard，原失败/authority/ledger/events/stop不改；55既有+12新增最终67/67、syntax与source绑定通过。原0启动工具失败及66/67非法ISO fixture失败保留，只修finite创建夹具；0actual，WB53真实Host/history/退出/原cleanup与三宿主仍另验，最终完整门禁与精确八文件本地提交见接续收据。
+- **M47 WB-53 真实Query与父链诊断再验证（2026-10-07）**：仅迁移runner/Host隔离metadata，单次真实current2/selection1/EXPLAIN45与独立参考逐值一致；但history/Host终态缺席、原process audit FAIL、Code/Host null与cleanupfalse保持。initial父缺command和fresh lookup缺项只作安全观察，原因unknown；51ledger/68events/28helper及14原证据冻结，根当前54PID absent/0新增kill/新runtime292对象一次回收另列。syntax/唯一TS与最终完整门禁、失败检查点本地提交见收据，不计完整Host或三宿主成功。
+- **M47 WB-52 父链snapshot诊断（2026-10-07）**：拒绝候选补安全initial/fresh、candidate/parent/anchor、有限计数与command presence观察，unknown为null；仅已有lookup、无raw身份/命令/error/hash或新采集，原准入/stop/预算保持。独立复核补未知role坐标与同PID单读，最终55/55（46受影响+9新）、syntax/双PS7 AST通过，初53保留。provider503后旧窗closed4/14，新独立窗口续最终八文件完整门禁/本地提交；runner/Host冻结、0actual/0TS/0新build，不推断WB50原因或三宿主完成。
+- **M47 WB-51 调用时SQL上下文（2026-10-07）**：query/selection/EXPLAIN的SQL读取移到首异步token/database解析之前，保持原SQL与history完成语义；最终deferred编辑器变动合同21/21、必要history6/6，同一TS项目初版/v2编译均通过，失败cleanup先drain再恢复stub。0actual，不将已证调用漂移风险称WB50真实根因，完整门禁及八文件检查点见M47记录；原失败与三宿主边界保持。
+- **M47 WB-50 真实Query再验证（2026-10-07）**：两源仅隔离metadata、五组literal逆投影等于c0475103；syntax/双PS7 AST/唯一TS通过，0新.NETbuild、不重测旧合同。唯一actual current2/selection1对真实reference通过，但Host FAIL explain/source、history缺席，runner FAIL process_audit/Code与hostOutcome null；新cleanup诊断定位3父命令缺失+3快照缺席及终态残余1。原false保持，根45PID当前无存活/0追加kill/280新runtime对象回收与五terminal/15证据SHA分列，完整门禁及八文件本地检查点提交见M47收据；整体三宿主仍未闭环。
+- **M47 WB-49 Cleanup子检查诊断（2026-10-07）**：为既有query runner owned-processes增加固定白名单子检查和有界计数，恢复性与终态失败分列，raw错误/命令/未准入身份不保存；保留原完整身份/stop/根/审计/预算与独立回收/终态门禁。最终46/46故障合同、Node syntax与双PS7 AST通过；首44/45夹具链长问题修复而原失败保留，最终九文件完整restore/原format及本地提交以M47收据为准；0actual，旧history20/2与正常退出/cleanup不转为成功。
+- **M47 WB-48 Query history完成合同（2026-10-07）**：保留历史key/schema/最新50条，immutable FIFO串行持久写、最多50待写、当前错误可观察且后续队列恢复；query/selection/EXPLAIN完成等待写ack，公开历史读等待既有写，showRows/Copilot保持同步且不写query history。deferred Memento与生产command/panel夹具和TS编译通过；0actual，原WB47失败及独立cleanup风险不转为成功，最终十文件完整restore/原format/本地提交见M47记录。
+- **M47 WB-47 真实history失败检查点（2026-10-07）**：仅切换runner/Host实际窗口metadata，TS/Node/双PS7 AST通过；唯一新真实Host的current2/selection1/EXPLAIN45行与独立Server参考一致，Host API恢复，但history pickCount20/entryCount2失败且无history.json。Code退出1、runner hostOutcome=null/完整FAIL，原processCleanupProven/runtimeRemoved=false不改；根fresh无任务存活、端口释放及283个自有runtime对象回收单独保存。原成功门禁保持，actual1/1关闭，八文件完整restore/原format及本地提交见M47记录；未计正常退出、向导/DOM分页或三宿主完成。
+- **M47 WB-46 有界候选重采（2026-10-07）**：仅原有效PID/creation/parent且缺/空own command候选允许每batch一次fresh，完整原/fresh authority与exact Node anchor一致才准入；原始external凭据先验、12hop/1秒/ledger与live stop门禁保持。audit异步串行/cleanup等待，6秒取消仅结束等待不自动kill；最终37/37合成合同、Node/双PS7 AST与独立源码复核通过，exact12准入及direct完整13拒绝已覆盖。0actual/0新build，WB45原FAIL不改，正常Code退出/history/API由新窗口另验；最终九文件完整门禁与本地提交见M47记录，不计三宿主完成。
+
+- **M47 WB-45 身份先验安全诊断（2026-10-07）**：完整身份门禁细分固定subreason/字段/链断点与有界数值，单读getter/异常fallback且拒绝候选不入ledger，原身份/预算/stop合同保持；最终26/26故障测试、既有20/20、TS/PS7语法与独立复核通过。新真实run精确五候选缺commandLine首拒绝点，仍FAIL/process_audit；三查询2/1/45行与真实参考同，但history/API恢复/Code正常退出未证。原false及根279对象runtime回收分别记录，首根preflight参数遗漏保留，两次调用预算已用尽；旧unknown不推断，完整门禁与十文件本地提交见M47记录，不计UI/分页或整体三宿主完成。
+
+- **M47 WB-44 有界身份ledger与公开历史（2026-10-07）**：完整identity/安全文本先验后仅压缩重复外部祖先正文，own及连续父链至exact Node anchor保持，secondary events绑定exact PID/creation和完整command SHA/ledger引用；原全部count/byte门禁保持，stop拒绝missing/changed中间父。纯内存17/17、TS/PS7语法与既有20/20通过；新真实Host三条查询历史/API恢复与零清理错误已核，完整runner仍FAIL/process_audit，三个先验拒绝的具体原因unknown，正常Code退出未证。原失败/false及根273对象runtime回收单列，完整门禁和十文件本地提交见M47记录，不计UI/分页/三宿主整体。
+
+- **M47 WB-43 查询诊断合同与失败证据（2026-10-07）**：真实参考请求与生产对齐为仅 `{sql}`，严格比较前保存有界安全观察；新增身份ledger、独立回收/终态尝试及末status，父链核到仍存活的exact runner anchor。TS/语法、纯内存9/9与既有Node20/20通过；第二真实run当前语句、选区、EXPLAIN45行生成数据与真实参考一致，但进程审计失败，history/API恢复/正常退出未验证。原两失败与false保留，根回收、281对象runtime清理另证；最终十文件完整门禁和本地提交见M47记录，不计分页/UI或三宿主完成。
+- **M47 WB-36 Graph精确导出预算（2026-10-07）**：修复顶点恰满maxElements且仍有边时误报truncated=false；同快照零剩余预算探测一条边，保顶点优先、总元素上限与source-generated JSON。旧DLL真实Web失败观察保留，GraphEndpointTests17/17含8条有界Kestrel回归、Server Release/trim-AOT分析0警告错误、修复后真实Web3/3通过；四JSON1015208字节/manifest核验，最终完整restore/原级别format为提交前置。Graph Beta、NativeAOTpublish、通用资源预算及三宿主整体另验，详见M47验证记录。
 - **GH-Issue #210 批量 schema-on-write 原子性**：`WriteMany` 先在临时计划中完整合并并校验整块 measurement schema，全部通过后先持久化再一次性发布和写入；后续点发生 TAG/FIELD 角色或字段类型冲突时，不再残留前面点推断出的 measurement、新列、类型提升或提前密封的 MemTable。schema 文件保存失败时，单点、批量、显式创建和删除都不会发布未持久化的内存 schema。
 - `DROP MEASUREMENT` 增加持久化删除意图和启动重放：schema 删除后若段、VECTOR 替换记录或 series catalog 清理失败，同名重建会被阻止，重启后按已提交 schema 决定完成清理；新段、替换 manifest 和 catalog 在删除意图移除前按顺序持久化。受管理的 measurement catalog 在审计回调内也不能直接修改。
 - 修复发布就绪门禁将当前手动发布 workflow 误判为自身预检，以及 GitHub Pages 的 `upload-pages-artifact` 不作为持久 Actions artifact 导致稳定发布被阻断的问题。
@@ -395,6 +846,10 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **M47 WB-40 默认/窄窗 Studio Health（2026-10-07）**：native toolbar在≤1100换行、≤720保留身份/title、状态、Health和现有Start/Stop，沿用原脚本/权限/事件合同与非native断点。最终StudioNative fixture12/12、Web/Server/Studio构建及本机真实default CSS946×556/narrow652×476（DPR1.5、Explorer自动收起）正常生命周期/CloseMainWindow exit0/四端口/零fallback/独立终态与复核通过；原skip、9/3和首native monitor失败保留，首run runtime删除被策略拒绝而保留，不计cleanup PASS。最终九文件完整门禁/本地提交见M47记录；展开Explorer、库身份同步/恢复、对话框/安装/AOT和三宿主整体另验。
+
+- **M47 WB-33 Vector子页权限上行与父锁存（2026-10-07）**：Measurement当前有效请求精确401/403或SQL拒绝仅发送原数据库、measurement与父渲染代际；Vector核验目标/代际/authority后清旧命中、metadata、结果及子页草稿/审批。继承prop不回路，Schema/auth刷新、重挂与空身份ABA不解锁；旧拒绝不影响新上下文，超时写保留原身份unknown。Node39/39、全Web327/327、Vector/Measurement fixture13/13与20/20、build及真实Vector首轮3/3通过；第三真实旅程证明child SQL403清外层、READ重授/Schema200/重挂不重放。证据/最终完整restore-format见M47记录；不计显式恢复、完整写终态/Server预算或三宿主整体完成。
 
 - **CI 格式检查**：修正 M35/M36 合同、SDK 和测试中的初始化器换行、多余空格及 `using` 顺序，补齐完整格式检查报告中的问题；不改变运行行为。
 

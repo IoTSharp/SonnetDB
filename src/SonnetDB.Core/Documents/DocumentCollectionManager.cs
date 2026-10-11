@@ -757,7 +757,8 @@ public sealed class DocumentCollectionManager : IDisposable
             schema,
             kv,
             index => DocumentFullTextIndexStore.Open(FullTextIndexDirectory(schema.Name, index.Name), index),
-            index => DocumentVectorIndexStore.Open(VectorIndexDirectory(schema.Name, index.Name), index, _kvOptions));
+            index => DocumentVectorIndexStore.Open(VectorIndexDirectory(schema.Name, index.Name), index, _kvOptions),
+            purgeExpiredDocuments: !SqlRowRetentionBudget.HasExecutionBudget);
         _stores[schema.Name] = store;
         return store;
     }

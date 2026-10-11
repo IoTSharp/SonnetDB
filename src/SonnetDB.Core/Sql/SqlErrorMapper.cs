@@ -25,6 +25,11 @@ public static class SqlErrorMapper
 
         return exception switch
         {
+            KvReadOverloadedException overloaded => new SqlErrorInfo(
+                KvReadOverloadedException.Code,
+                overloaded.Message,
+                operation,
+                hint: fallbackHint ?? "物理读取繁忙，请缩小查询范围并在短暂退避后重试。"),
             SqlParseException parse => new SqlErrorInfo(
                 parse.Code,
                 parse.Message,
@@ -51,6 +56,11 @@ public static class SqlErrorMapper
                 exception.Message,
                 operation,
                 hint: fallbackHint ?? "缩小查询范围或增加客户端超时预算后重试。"),
+            RoutineExecutionException routine when routine.Code == KvReadOverloadedException.Code => new SqlErrorInfo(
+                routine.Code,
+                routine.Message,
+                operation,
+                hint: fallbackHint ?? "物理读取繁忙，请缩小查询范围并在短暂退避后重试。"),
             RoutineExecutionException routine when routine.Code == RoutineErrorCodes.Cancelled
                 && routine.InnerException is TimeoutException => new SqlErrorInfo(
                     SqlErrorCodes.Timeout,

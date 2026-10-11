@@ -2,13 +2,17 @@ import { defineStore } from 'pinia';
 import { computed, ref, shallowRef, watch } from 'vue';
 import {
   getStudioNativeBridge,
+  readStudioConnectionIdentity,
+  studioManagedServerPresentation,
   type StudioBridgeManifest,
   type StudioConnectionLibrarySnapshot,
+  type StudioConnectionIdentity,
   type StudioManagedServerStatus,
   type StudioNativeBridgeClient,
 } from '@/api/studioNativeBridge';
 
 export type ConnectionKind = 'managed-local' | 'remote';
+import { previewEnabled } from '@/preview/policy';
 
 export interface ConnectionProfile {
   id: string;
@@ -19,6 +23,12 @@ export interface ConnectionProfile {
   tokenMode: 'current-session';
   createdAt: number;
   updatedAt: number;
+  identity?: {
+    host: 'studio-desktop';
+    profileId: string;
+    baseUrl: string;
+    database: string;
+  };
 }
 
 export type ConnectionHealthState = 'unknown' | 'checking' | 'healthy' | 'unhealthy';
@@ -38,6 +48,7 @@ interface StoredConnectionsState {
 
 const StorageKey = 'sndb.connection.library.v1';
 const LocalProfileId = 'managed-local';
+const DeploymentBasePath = import.meta.env?.BASE_URL ?? '/';
 
 function now(): number {
   return Date.now();
@@ -58,7 +69,7 @@ function normalizeBaseUrl(value: string): string {
   return trimmed.replace(/\/+$/u, '');
 }
 
-function localProfile(baseUrl = '/'): ConnectionProfile {
+function localProfile(baseUrl = DeploymentBasePath): ConnectionProfile {
   const ts = now();
   return {
     id: LocalProfileId,
@@ -75,19 +86,29 @@ function localProfile(baseUrl = '/'): ConnectionProfile {
 function normalizeProfile(input: Partial<ConnectionProfile>, index: number): ConnectionProfile {
   const fallback = localProfile();
   const ts = now();
+  const id = typeof input.id === 'string' && input.id ? input.id : makeId('remote');
+  const storedBaseUrl = typeof input.baseUrl === 'string' ? input.baseUrl : fallback.baseUrl;
+  const baseUrl = normalizeBaseUrl(id === LocalProfileId && input.kind !== 'remote' && !input.identity && storedBaseUrl === '/'
+    ? DeploymentBasePath : storedBaseUrl);
+  const identity = input.identity && input.identity.host === 'studio-desktop'
+    && input.identity.profileId === id && input.identity.baseUrl === baseUrl
+    && input.identity.database === input.defaultDatabase
+    ? input.identity : undefined;
   return {
-    id: typeof input.id === 'string' && input.id ? input.id : makeId('remote'),
+    id,
     name: typeof input.name === 'string' && input.name ? input.name : `Remote ${index + 1}`,
     kind: input.kind === 'remote' ? 'remote' : 'managed-local',
-    baseUrl: normalizeBaseUrl(typeof input.baseUrl === 'string' ? input.baseUrl : fallback.baseUrl),
+    baseUrl,
     defaultDatabase: typeof input.defaultDatabase === 'string' ? input.defaultDatabase : '',
     tokenMode: 'current-session',
     createdAt: typeof input.createdAt === 'number' ? input.createdAt : ts,
     updatedAt: typeof input.updatedAt === 'number' ? input.updatedAt : ts,
+    ...(identity ? { identity } : {}),
   };
 }
 
 function loadState(): StoredConnectionsState {
+  if (previewEnabled) { const profile = localProfile('/'); return { profiles: [profile], activeProfileId: profile.id, activeDatabase: '' }; }
   try {
     const raw = localStorage.getItem(StorageKey);
     if (!raw) {
@@ -118,6 +139,7 @@ function loadState(): StoredConnectionsState {
 }
 
 function saveState(state: StoredConnectionsState): void {
+  if (previewEnabled) return;
   try {
     localStorage.setItem(StorageKey, JSON.stringify(state));
   } catch {
@@ -133,8 +155,13 @@ export const useConnectionsStore = defineStore('connections', () => {
   const studioBridge = shallowRef<StudioNativeBridgeClient | null>(null);
   const studioBridgeManifest = ref<StudioBridgeManifest | null>(null);
   const studioManagedServerStatus = ref<StudioManagedServerStatus | null>(null);
+  const confirmedStudioIdentity = ref<StudioConnectionIdentity | null>(null);
   const profileHealth = ref<Record<string, ConnectionHealth>>({});
   let syncingFromStudioBridge = false;
+  let studioOperationGeneration = 0;
+  let studioConnectionGeneration = 0;
+  let studioSaveTail = Promise.resolve();
+  let lastStudioSnapshotFingerprint = '';
 
   const activeProfile = computed(() =>
     profiles.value.find((profile) => profile.id === activeProfileId.value) ?? profiles.value[0] ?? localProfile());
@@ -143,10 +170,29 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const activeDisplayUrl = computed(() => {
     const baseUrl = activeBaseUrl.value;
-    return baseUrl === '/' ? currentOrigin() : baseUrl;
+    return baseUrl.startsWith('/') ? `${currentOrigin()}${baseUrl === '/' ? '' : baseUrl}` : baseUrl;
   });
 
   const studioBridgeAvailable = computed(() => studioBridge.value !== null);
+  function studioContextVersion(): number {
+    return studioOperationGeneration;
+  }
+  const studioManagedServerPresentationState = computed(() => studioActiveIdentity.value
+    ? studioManagedServerPresentation(studioManagedServerStatus.value)
+    : studioManagedServerPresentation(null));
+  const studioActiveIdentity = computed(() => {
+    const profile = activeProfile.value;
+    const identity = profile.identity;
+    if (!studioBridgeAvailable.value || !identity || identity.host !== 'studio-desktop' || identity.profileId !== profile.id
+      || identity.baseUrl !== profile.baseUrl) return null;
+    return readStudioConnectionIdentity(confirmedStudioIdentity.value, profile, activeDatabase.value);
+  });
+
+  function isStudioContextCurrent(version: number, profileId = activeProfileId.value, database = activeDatabase.value): boolean {
+    return version === studioOperationGeneration
+      && profileId === activeProfileId.value
+      && database === activeDatabase.value;
+  }
 
   function healthFor(id: string): ConnectionHealth {
     return profileHealth.value[id] ?? {
@@ -208,15 +254,17 @@ export const useConnectionsStore = defineStore('connections', () => {
   function setActiveProfile(id: string): void {
     const profile = profiles.value.find((item) => item.id === id);
     if (!profile) return;
+    studioOperationGeneration++;
     activeProfileId.value = profile.id;
     activeDatabase.value = profile.defaultDatabase;
   }
 
   function setActiveDatabase(db: string): void {
+    studioOperationGeneration++;
     activeDatabase.value = db;
     const profile = activeProfile.value;
     const index = profiles.value.findIndex((item) => item.id === profile.id);
-    if (index >= 0 && db && db !== '__control_plane__') {
+    if (index >= 0 && db && db !== '__control_plane__' && profiles.value[index].defaultDatabase !== db) {
       profiles.value[index] = {
         ...profiles.value[index],
         defaultDatabase: db,
@@ -263,6 +311,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     const normalized = normalizeBaseUrl(baseUrl);
     const ts = now();
     const index = profiles.value.findIndex((profile) => profile.id === LocalProfileId);
+    if (index >= 0 && profiles.value[index].baseUrl === normalized) return;
     const next: ConnectionProfile = {
       ...(index >= 0 ? profiles.value[index] : localProfile(normalized)),
       id: LocalProfileId,
@@ -271,6 +320,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       baseUrl: normalized,
       tokenMode: 'current-session',
       updatedAt: ts,
+      identity: undefined,
     };
     if (index >= 0) {
       profiles.value[index] = next;
@@ -280,50 +330,97 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   async function connectStudioBridge(): Promise<boolean> {
+    const generation = ++studioOperationGeneration;
     const bridge = await getStudioNativeBridge();
     if (!bridge) return false;
+    if (generation !== studioOperationGeneration) return false;
 
     studioBridge.value = bridge;
-    const manifest = await bridge.refreshManifest();
-    bridge.manifest = manifest;
-    studioBridgeManifest.value = manifest;
-    studioManagedServerStatus.value = manifest.managedServer;
-
-    const snapshot = await bridge.loadConnections();
-    applyStudioSnapshot(snapshot);
-    return true;
+    try {
+      const manifest = await bridge.refreshManifest();
+      bridge.manifest = manifest;
+      const snapshot = await bridge.loadConnections();
+      if (generation !== studioOperationGeneration) return true;
+      studioBridgeManifest.value = manifest;
+      studioManagedServerStatus.value = manifest.managedServer;
+      applyStudioSnapshot(snapshot);
+      return true;
+    } catch {
+      if (generation === studioOperationGeneration) {
+        studioBridgeManifest.value = null;
+        studioManagedServerStatus.value = null;
+        confirmedStudioIdentity.value = null;
+      }
+      return false;
+    }
   }
 
   async function refreshStudioServerStatus(): Promise<StudioManagedServerStatus | null> {
     if (!studioBridge.value) return null;
-    const status = await studioBridge.value.getServerStatus();
+    const generation = ++studioOperationGeneration;
+    const profileId = activeProfileId.value;
+    let status: StudioManagedServerStatus;
+    try {
+      status = await studioBridge.value.getServerStatus();
+    } catch {
+      if (generation === studioOperationGeneration) studioManagedServerStatus.value = null;
+      return null;
+    }
+    if (generation !== studioOperationGeneration || profileId !== activeProfileId.value) return null;
     studioManagedServerStatus.value = status;
-    if (status.url) setManagedLocalBaseUrl(status.url);
+    if (studioManagedServerPresentation(status).confirmed) setManagedLocalBaseUrl(status.url);
     return status;
   }
 
   async function startStudioManagedServer(dataRoot?: string): Promise<StudioManagedServerStatus | null> {
-    if (!studioBridge.value) return null;
-    const status = await studioBridge.value.startServer({ dataRoot: dataRoot?.trim() || undefined });
+    if (!studioBridge.value || !studioManagedServerPresentationState.value.canStart) return null;
+    const generation = ++studioOperationGeneration;
+    const profileId = activeProfileId.value;
+    let status: StudioManagedServerStatus;
+    try {
+      status = await studioBridge.value.startServer({ dataRoot: dataRoot?.trim() || undefined });
+    } catch {
+      if (generation === studioOperationGeneration) studioManagedServerStatus.value = null;
+      return null;
+    }
+    if (generation !== studioOperationGeneration || profileId !== activeProfileId.value) return null;
     studioManagedServerStatus.value = status;
-    if (status.url) setManagedLocalBaseUrl(status.url);
+    if (studioManagedServerPresentation(status).confirmed) setManagedLocalBaseUrl(status.url);
     return status;
   }
 
   async function openStudioEmbeddedDatabase(path: string): Promise<StudioManagedServerStatus | null> {
-    if (!studioBridge.value) return null;
-    const status = await studioBridge.value.openEmbeddedDatabase(path);
+    if (!studioBridge.value || !studioManagedServerPresentationState.value.canStart) return null;
+    const generation = ++studioOperationGeneration;
+    const profileId = activeProfileId.value;
+    let status: StudioManagedServerStatus;
+    try {
+      status = await studioBridge.value.openEmbeddedDatabase(path);
+    } catch {
+      if (generation === studioOperationGeneration) studioManagedServerStatus.value = null;
+      return null;
+    }
+    if (generation !== studioOperationGeneration || profileId !== activeProfileId.value) return null;
     studioManagedServerStatus.value = status;
-    if (status.url) setManagedLocalBaseUrl(status.url);
+    if (studioManagedServerPresentation(status).confirmed) setManagedLocalBaseUrl(status.url);
     return status;
   }
 
   async function stopStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
-    if (!studioBridge.value) return null;
-    const status = await studioBridge.value.stopServer({
-      dataRoot: studioManagedServerStatus.value?.dataRoot || undefined,
-      url: studioManagedServerStatus.value?.url || undefined,
-    });
+    if (!studioBridge.value || !studioManagedServerPresentationState.value.canStop) return null;
+    const generation = ++studioOperationGeneration;
+    const profileId = activeProfileId.value;
+    let status: StudioManagedServerStatus;
+    try {
+      status = await studioBridge.value.stopServer({
+        dataRoot: studioManagedServerStatus.value?.dataRoot || undefined,
+        url: studioManagedServerStatus.value?.url || undefined,
+      });
+    } catch {
+      if (generation === studioOperationGeneration) studioManagedServerStatus.value = null;
+      return null;
+    }
+    if (generation !== studioOperationGeneration || profileId !== activeProfileId.value) return null;
     studioManagedServerStatus.value = status;
     return status;
   }
@@ -344,6 +441,9 @@ export const useConnectionsStore = defineStore('connections', () => {
         ? snapshot.activeProfileId
         : profiles.value[0].id;
       activeDatabase.value = snapshot.activeDatabase ?? '';
+      const profile = profiles.value.find((item) => item.id === activeProfileId.value);
+      confirmedStudioIdentity.value = profile ? readStudioConnectionIdentity(snapshot.activeIdentity, profile, activeDatabase.value) : null;
+      lastStudioSnapshotFingerprint = snapshotFingerprint(currentState());
       saveState(currentState());
     } finally {
       syncingFromStudioBridge = false;
@@ -352,7 +452,7 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   function currentState(): StoredConnectionsState {
     return {
-      profiles: profiles.value,
+      profiles: profiles.value.map(({ identity: _identity, ...profile }) => ({ ...profile })),
       activeProfileId: activeProfileId.value,
       activeDatabase: activeDatabase.value,
     };
@@ -360,25 +460,55 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   async function saveStudioSnapshot(state: StoredConnectionsState): Promise<void> {
     if (!studioBridge.value || syncingFromStudioBridge) return;
+    const fingerprint = snapshotFingerprint(state);
+    if (fingerprint === lastStudioSnapshotFingerprint) return;
+    lastStudioSnapshotFingerprint = fingerprint;
+    const generation = studioConnectionGeneration;
+    const previousSave = studioSaveTail;
+    let finishSave: () => void = () => {};
+    studioSaveTail = new Promise<void>((resolve) => { finishSave = resolve; });
     try {
-      await studioBridge.value.saveConnections({
+      await previousSave;
+      if (generation !== studioConnectionGeneration || fingerprint !== snapshotFingerprint(currentState())) return;
+      const snapshot = await studioBridge.value.saveConnections({
         profiles: state.profiles,
         activeProfileId: state.activeProfileId,
         activeDatabase: state.activeDatabase,
       });
+      if (generation !== studioConnectionGeneration || fingerprint !== snapshotFingerprint(currentState())) return;
+      syncingFromStudioBridge = true;
+      try {
+        for (const profile of profiles.value) {
+          const remote = snapshot.profiles.find((item) => item.id === profile.id);
+          const identity = readStudioConnectionIdentity(remote?.identity, profile, profile.defaultDatabase);
+          if (identity) profile.identity = identity;
+          else delete profile.identity;
+        }
+        confirmedStudioIdentity.value = readStudioConnectionIdentity(snapshot.activeIdentity, activeProfile.value, activeDatabase.value);
+      } finally { syncingFromStudioBridge = false; }
     } catch {
+      if (generation === studioConnectionGeneration && fingerprint === lastStudioSnapshotFingerprint) lastStudioSnapshotFingerprint = '';
       // 磁盘连接库同步失败时保留浏览器态，避免阻断当前工作流。
-    }
+    } finally { finishSave(); }
+  }
+
+  function snapshotFingerprint(state: StoredConnectionsState): string {
+    return JSON.stringify({
+      profiles: state.profiles,
+      activeProfileId: state.activeProfileId,
+      activeDatabase: state.activeDatabase,
+    });
   }
 
   watch(
     [profiles, activeProfileId, activeDatabase],
     () => {
+      if (!syncingFromStudioBridge) { studioOperationGeneration++; studioConnectionGeneration++; }
       const state = currentState();
       saveState(state);
       void saveStudioSnapshot(state);
     },
-    { deep: true },
+    { deep: true, flush: 'sync' },
   );
 
   return {
@@ -389,8 +519,12 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeBaseUrl,
     activeDisplayUrl,
     studioBridgeAvailable,
+    studioContextVersion,
+    isStudioContextCurrent,
     studioBridgeManifest,
     studioManagedServerStatus,
+    studioManagedServerPresentation: studioManagedServerPresentationState,
+    studioActiveIdentity,
     profileHealth,
     healthFor,
     checkProfileHealth,

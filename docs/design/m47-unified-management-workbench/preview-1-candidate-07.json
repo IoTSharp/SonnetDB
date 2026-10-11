@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "kind": "immutable-failed-preview-build-candidate",
+  "milestone": "M47-P04",
+  "frozenOn": "2026-10-11",
+  "timeZone": "Asia/Shanghai",
+  "releaseStatus": "NOT_READY",
+  "candidate": {
+    "id": "candidate-07",
+    "version": "4.5.0-preview.1.7",
+    "sourceCommit": "9b8c8a7b8fba3ce3485bb982f9a7a951295364a5",
+    "sourceTree": "9c5734caf85c5176b3c9853004639e40b743f9b0",
+    "submodules": [
+      {
+        "path": "extensions/IoTSharp.CoAP.NET",
+        "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+      },
+      {
+        "path": "extensions/MQTTnet.AspNetCore.Routing",
+        "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+      }
+    ],
+    "tagCreated": false,
+    "builtArtifacts": [],
+    "requiresSuccessor": true
+  },
+  "ci": {
+    "runId": "38076686113",
+    "attempt": 1,
+    "conclusion": "failure",
+    "failure": "Exact inventory rejected implicit appsettings.Container.json",
+    "nativeAotPublish": "PASS",
+    "package": "NOT_PRODUCED",
+    "cleanupComplete": true,
+    "nativePublishElapsedSeconds": 401.318245,
+    "evidence": "artifacts/m47-p04-20261011/ci07-failure-final.stdout.log",
+    "nativePublishReceipt": "artifacts/m47-p04-20261011/ci-evidence-07/evidence/native-publish.result.json"
+  },
+  "preservesHistoricalFailures": true
+}

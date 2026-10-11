@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "immutable-failed-preview-build-candidate",
+  "milestone": "M47-P04",
+  "frozenOn": "2026-10-11",
+  "timeZone": "Asia/Shanghai",
+  "releaseStatus": "NOT_READY",
+  "candidate": {
+    "version": "4.5.0-preview.1.5",
+    "tagCreated": false,
+    "builtArtifacts": [],
+    "sourceCommit": "f84e3a6dcede6789fe088dbef4123d8d0c83ef19",
+    "requiresSuccessor": true,
+    "id": "candidate-05",
+    "reservedTag": "workbench-preview-1.5",
+    "sourceTree": "bb1c54a4dfbd50751ad8ddca89dbf198f4d95da0"
+  },
+  "ci": {
+    "nativeAotPublish": "NOT_RUN",
+    "attempt": 1,
+    "evidence": "artifacts/m47-p04-20261011/ci-failure-05.stdout.log",
+    "conclusion": "failure",
+    "failure": "Registered npm CLI not found at assumed Node-adjacent path",
+    "package": "NOT_PRODUCED",
+    "runId": "38075483025"
+  },
+  "predecessor": "candidate-04",
+  "preservesHistoricalFailures": true
+}

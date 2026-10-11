@@ -1,0 +1,1031 @@
+{
+  "pageChecks": [
+    {
+      "id": "summary",
+      "title": "实例概览",
+      "tasks": 3
+    },
+    {
+      "id": "database-catalog",
+      "title": "数据库目录",
+      "tasks": 2
+    },
+    {
+      "id": "connections",
+      "title": "连接管理",
+      "tasks": 3
+    },
+    {
+      "id": "recent",
+      "title": "最近工作区",
+      "tasks": 3
+    },
+    {
+      "id": "sql",
+      "title": "SQL 工作区",
+      "tasks": 3
+    },
+    {
+      "id": "notebook",
+      "title": "SQL Notebook",
+      "tasks": 3
+    },
+    {
+      "id": "history",
+      "title": "执行历史",
+      "tasks": 3
+    },
+    {
+      "id": "metrics",
+      "title": "性能指标",
+      "tasks": 3
+    },
+    {
+      "id": "events",
+      "title": "实时事件",
+      "tasks": 3
+    },
+    {
+      "id": "slow-queries",
+      "title": "慢查询",
+      "tasks": 3
+    },
+    {
+      "id": "alerts",
+      "title": "告警规则",
+      "tasks": 3
+    },
+    {
+      "id": "runtime",
+      "title": "运行时诊断",
+      "tasks": 3
+    },
+    {
+      "id": "modbus",
+      "title": "Modbus TCP",
+      "tasks": 3
+    },
+    {
+      "id": "imports",
+      "title": "导入任务",
+      "tasks": 3
+    },
+    {
+      "id": "transfers",
+      "title": "对象传输",
+      "tasks": 3
+    },
+    {
+      "id": "jobs",
+      "title": "任务与位点",
+      "tasks": 3
+    },
+    {
+      "id": "ai-connect",
+      "title": "AI Connect",
+      "tasks": 5
+    },
+    {
+      "id": "copilot-settings",
+      "title": "Copilot 与 Provider",
+      "tasks": 5
+    },
+    {
+      "id": "rag",
+      "title": "RAG 管理",
+      "tasks": 5
+    },
+    {
+      "id": "tool-permissions",
+      "title": "工具权限与外发",
+      "tasks": 4
+    },
+    {
+      "id": "users",
+      "title": "用户",
+      "tasks": 3
+    },
+    {
+      "id": "grants",
+      "title": "数据库授权",
+      "tasks": 3
+    },
+    {
+      "id": "tokens",
+      "title": "访问 Token",
+      "tasks": 3
+    },
+    {
+      "id": "approvals",
+      "title": "审批与审计",
+      "tasks": 4
+    },
+    {
+      "id": "backup",
+      "title": "数据库备份与恢复",
+      "tasks": 5
+    },
+    {
+      "id": "preferences",
+      "title": "工作台偏好",
+      "tasks": 5
+    },
+    {
+      "id": "server-settings",
+      "title": "实例配置",
+      "tasks": 4
+    },
+    {
+      "id": "studio-host",
+      "title": "Studio 宿主",
+      "tasks": 5
+    },
+    {
+      "id": "capability-matrix",
+      "title": "能力与发布矩阵",
+      "tasks": 4
+    },
+    {
+      "id": "about",
+      "title": "关于与帮助",
+      "tasks": 4
+    },
+    {
+      "id": "measurement",
+      "title": "Telemetry",
+      "tasks": 7
+    },
+    {
+      "id": "table",
+      "title": "Assets",
+      "tasks": 7
+    },
+    {
+      "id": "document",
+      "title": "Manuals",
+      "tasks": 7
+    },
+    {
+      "id": "kv",
+      "title": "DeviceState",
+      "tasks": 6
+    },
+    {
+      "id": "mq",
+      "title": "DeviceEvents",
+      "tasks": 7
+    },
+    {
+      "id": "vector",
+      "title": "ManualEmbeddings.Embedding",
+      "tasks": 6
+    },
+    {
+      "id": "fulltext",
+      "title": "Manuals.SearchIndex",
+      "tasks": 6
+    },
+    {
+      "id": "bucket",
+      "title": "Evidence",
+      "tasks": 7
+    },
+    {
+      "id": "graph",
+      "title": "FactoryTopology",
+      "tasks": 7
+    }
+  ],
+  "taskChecks": [
+    {
+      "id": "summary",
+      "task": "总览",
+      "characters": 277
+    },
+    {
+      "id": "summary",
+      "task": "资源分布",
+      "characters": 175
+    },
+    {
+      "id": "summary",
+      "task": "待处理事项",
+      "characters": 194
+    },
+    {
+      "id": "database-catalog",
+      "task": "可访问数据库",
+      "characters": 192
+    },
+    {
+      "id": "database-catalog",
+      "task": "最近访问",
+      "characters": 148
+    },
+    {
+      "id": "connections",
+      "task": "连接库",
+      "characters": 150
+    },
+    {
+      "id": "connections",
+      "task": "连接测试",
+      "characters": 170
+    },
+    {
+      "id": "connections",
+      "task": "凭据说明",
+      "characters": 168
+    },
+    {
+      "id": "recent",
+      "task": "最近",
+      "characters": 146
+    },
+    {
+      "id": "recent",
+      "task": "已固定",
+      "characters": 141
+    },
+    {
+      "id": "recent",
+      "task": "离线快照",
+      "characters": 138
+    },
+    {
+      "id": "sql",
+      "task": "编辑器",
+      "characters": 171
+    },
+    {
+      "id": "sql",
+      "task": "参数",
+      "characters": 174
+    },
+    {
+      "id": "sql",
+      "task": "查询说明",
+      "characters": 149
+    },
+    {
+      "id": "notebook",
+      "task": "单元",
+      "characters": 148
+    },
+    {
+      "id": "notebook",
+      "task": "大纲",
+      "characters": 108
+    },
+    {
+      "id": "notebook",
+      "task": "版本与导出",
+      "characters": 160
+    },
+    {
+      "id": "history",
+      "task": "查询",
+      "characters": 199
+    },
+    {
+      "id": "history",
+      "task": "模型操作",
+      "characters": 159
+    },
+    {
+      "id": "history",
+      "task": "审批记录",
+      "characters": 162
+    },
+    {
+      "id": "metrics",
+      "task": "吞吐与延迟",
+      "characters": 274
+    },
+    {
+      "id": "metrics",
+      "task": "内存与存储",
+      "characters": 186
+    },
+    {
+      "id": "metrics",
+      "task": "AI 用量",
+      "characters": 220
+    },
+    {
+      "id": "events",
+      "task": "事件流",
+      "characters": 155
+    },
+    {
+      "id": "events",
+      "task": "数据库事件",
+      "characters": 136
+    },
+    {
+      "id": "events",
+      "task": "连接状态",
+      "characters": 129
+    },
+    {
+      "id": "slow-queries",
+      "task": "慢查询列表",
+      "characters": 172
+    },
+    {
+      "id": "slow-queries",
+      "task": "选中 SQL",
+      "characters": 75
+    },
+    {
+      "id": "slow-queries",
+      "task": "解释入口",
+      "characters": 135
+    },
+    {
+      "id": "alerts",
+      "task": "规则",
+      "characters": 156
+    },
+    {
+      "id": "alerts",
+      "task": "评估记录",
+      "characters": 134
+    },
+    {
+      "id": "alerts",
+      "task": "通知路由",
+      "characters": 147
+    },
+    {
+      "id": "runtime",
+      "task": "运行时",
+      "characters": 121
+    },
+    {
+      "id": "runtime",
+      "task": "诊断采集",
+      "characters": 151
+    },
+    {
+      "id": "runtime",
+      "task": "预算与取消",
+      "characters": 140
+    },
+    {
+      "id": "modbus",
+      "task": "运行时",
+      "characters": 171
+    },
+    {
+      "id": "modbus",
+      "task": "待审批写入",
+      "characters": 135
+    },
+    {
+      "id": "modbus",
+      "task": "审计",
+      "characters": 106
+    },
+    {
+      "id": "imports",
+      "task": "任务列表",
+      "characters": 199
+    },
+    {
+      "id": "imports",
+      "task": "字段映射",
+      "characters": 243
+    },
+    {
+      "id": "imports",
+      "task": "校验与错误",
+      "characters": 120
+    },
+    {
+      "id": "transfers",
+      "task": "传输",
+      "characters": 196
+    },
+    {
+      "id": "transfers",
+      "task": "Multipart 会话",
+      "characters": 135
+    },
+    {
+      "id": "transfers",
+      "task": "校验与错误",
+      "characters": 141
+    },
+    {
+      "id": "jobs",
+      "task": "任务索引",
+      "characters": 114
+    },
+    {
+      "id": "jobs",
+      "task": "位点",
+      "characters": 191
+    },
+    {
+      "id": "jobs",
+      "task": "重试与恢复",
+      "characters": 147
+    },
+    {
+      "id": "ai-connect",
+      "task": "连接向导",
+      "characters": 198
+    },
+    {
+      "id": "ai-connect",
+      "task": "配置预览",
+      "characters": 167
+    },
+    {
+      "id": "ai-connect",
+      "task": "工具列表",
+      "characters": 196
+    },
+    {
+      "id": "ai-connect",
+      "task": "自检",
+      "characters": 205
+    },
+    {
+      "id": "ai-connect",
+      "task": "数据外发",
+      "characters": 157
+    },
+    {
+      "id": "copilot-settings",
+      "task": "Provider",
+      "characters": 298
+    },
+    {
+      "id": "copilot-settings",
+      "task": "账号绑定",
+      "characters": 123
+    },
+    {
+      "id": "copilot-settings",
+      "task": "模型目录",
+      "characters": 123
+    },
+    {
+      "id": "copilot-settings",
+      "task": "用量",
+      "characters": 139
+    },
+    {
+      "id": "copilot-settings",
+      "task": "测试",
+      "characters": 118
+    },
+    {
+      "id": "rag",
+      "task": "已发布快照",
+      "characters": 207
+    },
+    {
+      "id": "rag",
+      "task": "持久任务",
+      "characters": 181
+    },
+    {
+      "id": "rag",
+      "task": "派生重建",
+      "characters": 161
+    },
+    {
+      "id": "rag",
+      "task": "退役清理",
+      "characters": 138
+    },
+    {
+      "id": "rag",
+      "task": "审计",
+      "characters": 179
+    },
+    {
+      "id": "tool-permissions",
+      "task": "工具权限",
+      "characters": 162
+    },
+    {
+      "id": "tool-permissions",
+      "task": "结果预算",
+      "characters": 170
+    },
+    {
+      "id": "tool-permissions",
+      "task": "数据外发",
+      "characters": 176
+    },
+    {
+      "id": "tool-permissions",
+      "task": "调用记录",
+      "characters": 141
+    },
+    {
+      "id": "users",
+      "task": "用户列表",
+      "characters": 162
+    },
+    {
+      "id": "users",
+      "task": "选中用户授权",
+      "characters": 121
+    },
+    {
+      "id": "users",
+      "task": "凭据管理",
+      "characters": 95
+    },
+    {
+      "id": "grants",
+      "task": "授权列表",
+      "characters": 165
+    },
+    {
+      "id": "grants",
+      "task": "授权预览",
+      "characters": 170
+    },
+    {
+      "id": "grants",
+      "task": "有效权限",
+      "characters": 128
+    },
+    {
+      "id": "tokens",
+      "task": "Token 列表",
+      "characters": 159
+    },
+    {
+      "id": "tokens",
+      "task": "创建",
+      "characters": 112
+    },
+    {
+      "id": "tokens",
+      "task": "安全说明",
+      "characters": 101
+    },
+    {
+      "id": "approvals",
+      "task": "待处理",
+      "characters": 211
+    },
+    {
+      "id": "approvals",
+      "task": "影响预览",
+      "characters": 201
+    },
+    {
+      "id": "approvals",
+      "task": "执行记录",
+      "characters": 144
+    },
+    {
+      "id": "approvals",
+      "task": "审计",
+      "characters": 161
+    },
+    {
+      "id": "backup",
+      "task": "备份状态",
+      "characters": 131
+    },
+    {
+      "id": "backup",
+      "task": "备份预览",
+      "characters": 125
+    },
+    {
+      "id": "backup",
+      "task": "验证",
+      "characters": 125
+    },
+    {
+      "id": "backup",
+      "task": "恢复预览",
+      "characters": 136
+    },
+    {
+      "id": "backup",
+      "task": "范围说明",
+      "characters": 145
+    },
+    {
+      "id": "preferences",
+      "task": "外观",
+      "characters": 150
+    },
+    {
+      "id": "preferences",
+      "task": "编辑器",
+      "characters": 160
+    },
+    {
+      "id": "preferences",
+      "task": "结果",
+      "characters": 150
+    },
+    {
+      "id": "preferences",
+      "task": "快捷键",
+      "characters": 150
+    },
+    {
+      "id": "preferences",
+      "task": "工作区",
+      "characters": 165
+    },
+    {
+      "id": "server-settings",
+      "task": "服务配置",
+      "characters": 129
+    },
+    {
+      "id": "server-settings",
+      "task": "预算",
+      "characters": 169
+    },
+    {
+      "id": "server-settings",
+      "task": "可观测性",
+      "characters": 151
+    },
+    {
+      "id": "server-settings",
+      "task": "重启影响",
+      "characters": 152
+    },
+    {
+      "id": "studio-host",
+      "task": "宿主状态",
+      "characters": 150
+    },
+    {
+      "id": "studio-host",
+      "task": "Managed Local",
+      "characters": 187
+    },
+    {
+      "id": "studio-host",
+      "task": "文件与凭据",
+      "characters": 151
+    },
+    {
+      "id": "studio-host",
+      "task": "安装与升级",
+      "characters": 152
+    },
+    {
+      "id": "studio-host",
+      "task": "进程生命周期",
+      "characters": 138
+    },
+    {
+      "id": "capability-matrix",
+      "task": "宿主能力",
+      "characters": 215
+    },
+    {
+      "id": "capability-matrix",
+      "task": "契约版本",
+      "characters": 199
+    },
+    {
+      "id": "capability-matrix",
+      "task": "兼容性",
+      "characters": 170
+    },
+    {
+      "id": "capability-matrix",
+      "task": "发布证据",
+      "characters": 191
+    },
+    {
+      "id": "about",
+      "task": "产品信息",
+      "characters": 265
+    },
+    {
+      "id": "about",
+      "task": "指南",
+      "characters": 141
+    },
+    {
+      "id": "about",
+      "task": "快捷键",
+      "characters": 125
+    },
+    {
+      "id": "about",
+      "task": "许可证",
+      "characters": 114
+    },
+    {
+      "id": "measurement",
+      "task": "数据点",
+      "characters": 292
+    },
+    {
+      "id": "measurement",
+      "task": "SQL",
+      "characters": 142
+    },
+    {
+      "id": "measurement",
+      "task": "图表",
+      "characters": 226
+    },
+    {
+      "id": "measurement",
+      "task": "轨迹",
+      "characters": 149
+    },
+    {
+      "id": "measurement",
+      "task": "Schema",
+      "characters": 187
+    },
+    {
+      "id": "measurement",
+      "task": "文件导入",
+      "characters": 251
+    },
+    {
+      "id": "measurement",
+      "task": "保留策略",
+      "characters": 163
+    },
+    {
+      "id": "table",
+      "task": "数据",
+      "characters": 217
+    },
+    {
+      "id": "table",
+      "task": "设计器",
+      "characters": 172
+    },
+    {
+      "id": "table",
+      "task": "索引",
+      "characters": 134
+    },
+    {
+      "id": "table",
+      "task": "ER 图",
+      "characters": 195
+    },
+    {
+      "id": "table",
+      "task": "DDL",
+      "characters": 110
+    },
+    {
+      "id": "table",
+      "task": "导入 / 导出",
+      "characters": 247
+    },
+    {
+      "id": "table",
+      "task": "Explain",
+      "characters": 144
+    },
+    {
+      "id": "document",
+      "task": "Find",
+      "characters": 213
+    },
+    {
+      "id": "document",
+      "task": "文档",
+      "characters": 109
+    },
+    {
+      "id": "document",
+      "task": "Aggregate",
+      "characters": 187
+    },
+    {
+      "id": "document",
+      "task": "索引",
+      "characters": 138
+    },
+    {
+      "id": "document",
+      "task": "Validator",
+      "characters": 138
+    },
+    {
+      "id": "document",
+      "task": "Change Feed",
+      "characters": 242
+    },
+    {
+      "id": "document",
+      "task": "导入 / 导出",
+      "characters": 206
+    },
+    {
+      "id": "kv",
+      "task": "浏览",
+      "characters": 255
+    },
+    {
+      "id": "kv",
+      "task": "值检查器",
+      "characters": 109
+    },
+    {
+      "id": "kv",
+      "task": "TTL",
+      "characters": 133
+    },
+    {
+      "id": "kv",
+      "task": "批量操作",
+      "characters": 194
+    },
+    {
+      "id": "kv",
+      "task": "统计",
+      "characters": 120
+    },
+    {
+      "id": "kv",
+      "task": "操作历史",
+      "characters": 172
+    },
+    {
+      "id": "mq",
+      "task": "概览",
+      "characters": 367
+    },
+    {
+      "id": "mq",
+      "task": "消息",
+      "characters": 439
+    },
+    {
+      "id": "mq",
+      "task": "消费者组",
+      "characters": 160
+    },
+    {
+      "id": "mq",
+      "task": "配置",
+      "characters": 141
+    },
+    {
+      "id": "mq",
+      "task": "恢复边界",
+      "characters": 144
+    },
+    {
+      "id": "mq",
+      "task": "DLQ · 能力依赖",
+      "characters": 145
+    },
+    {
+      "id": "mq",
+      "task": "审计",
+      "characters": 164
+    },
+    {
+      "id": "vector",
+      "task": "Search",
+      "characters": 240
+    },
+    {
+      "id": "vector",
+      "task": "数据 / 导入",
+      "characters": 201
+    },
+    {
+      "id": "vector",
+      "task": "索引参数",
+      "characters": 139
+    },
+    {
+      "id": "vector",
+      "task": "Profile",
+      "characters": 231
+    },
+    {
+      "id": "vector",
+      "task": "命中详情",
+      "characters": 156
+    },
+    {
+      "id": "vector",
+      "task": "质量证据",
+      "characters": 189
+    },
+    {
+      "id": "fulltext",
+      "task": "Search",
+      "characters": 305
+    },
+    {
+      "id": "fulltext",
+      "task": "Analyzer",
+      "characters": 178
+    },
+    {
+      "id": "fulltext",
+      "task": "索引",
+      "characters": 134
+    },
+    {
+      "id": "fulltext",
+      "task": "重建",
+      "characters": 134
+    },
+    {
+      "id": "fulltext",
+      "task": "数据导入",
+      "characters": 179
+    },
+    {
+      "id": "fulltext",
+      "task": "统计",
+      "characters": 94
+    },
+    {
+      "id": "bucket",
+      "task": "浏览",
+      "characters": 260
+    },
+    {
+      "id": "bucket",
+      "task": "预览",
+      "characters": 215
+    },
+    {
+      "id": "bucket",
+      "task": "上传 / 下载",
+      "characters": 223
+    },
+    {
+      "id": "bucket",
+      "task": "Multipart",
+      "characters": 233
+    },
+    {
+      "id": "bucket",
+      "task": "版本与治理",
+      "characters": 272
+    },
+    {
+      "id": "bucket",
+      "task": "图片语义",
+      "characters": 219
+    },
+    {
+      "id": "bucket",
+      "task": "审计",
+      "characters": 196
+    },
+    {
+      "id": "graph",
+      "task": "Canvas",
+      "characters": 136
+    },
+    {
+      "id": "graph",
+      "task": "Schema / 索引",
+      "characters": 201
+    },
+    {
+      "id": "graph",
+      "task": "SQL / PGQ",
+      "characters": 122
+    },
+    {
+      "id": "graph",
+      "task": "受限编辑",
+      "characters": 195
+    },
+    {
+      "id": "graph",
+      "task": "导入 / 导出",
+      "characters": 193
+    },
+    {
+      "id": "graph",
+      "task": "维护",
+      "characters": 149
+    },
+    {
+      "id": "graph",
+      "task": "审计",
+      "characters": 154
+    }
+  ]
+}

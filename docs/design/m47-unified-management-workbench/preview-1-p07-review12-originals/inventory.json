@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "toolingCommit": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
+  "p07RunId": "38148424602",
+  "files": [
+    {
+      "file": "original-review.json",
+      "storageFile": "original-review.json.gz",
+      "encoding": "gzip",
+      "size": 5620,
+      "sha256": "b93aafc0a30c493b2e66f0b3b5df09351c34d40de8e1cd70a7940c68df9f89ab",
+      "originalPath": "artifacts/m47-p07-close-20261011/p0712-evidence/review.json"
+    },
+    {
+      "file": "original-readiness.json",
+      "storageFile": "original-readiness.json.gz",
+      "encoding": "gzip",
+      "size": 3344,
+      "sha256": "9b0d663fa9cf7b5485b5e8e3b03a6dad0f7fabed20d72afc904726f1203f9324",
+      "originalPath": "artifacts/m47-p07-close-20261011/p0712-evidence/release-gates/readiness.json"
+    },
+    {
+      "file": "original-p07-run.json",
+      "storageFile": "original-p07-run.json.gz",
+      "encoding": "gzip",
+      "size": 12144,
+      "sha256": "8dbeb947285f6ceeb8ee55329ca8ba1fad87d2f118760ae583dae4821734c041",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-p0712/completed.json"
+    },
+    {
+      "file": "original-p07-jobs.json",
+      "storageFile": "original-p07-jobs.json.gz",
+      "encoding": "gzip",
+      "size": 2884,
+      "sha256": "71035ee1577ea186ec28d767fca61d9f34bdcc676caaea140e588a5a9e2b6f76",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-p0712/jobs.json"
+    },
+    {
+      "file": "original-p07-artifacts.json",
+      "storageFile": "original-p07-artifacts.json.gz",
+      "encoding": "gzip",
+      "size": 741,
+      "sha256": "6b751f0b73c1e7566db5cc7156087aef68231d10d1cab5d9073e1bb8dd961d65",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-p0712/artifacts.json"
+    },
+    {
+      "file": "original-p07-download.json",
+      "storageFile": "original-p07-download.json.gz",
+      "encoding": "gzip",
+      "size": 584,
+      "sha256": "a036dcc117c0f87f2bceb717348a9d6b2e44a2ba0402e5813ed0052cfe9e892a",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-p0712/download.json"
+    },
+    {
+      "file": "original-prepare-download.json",
+      "storageFile": "original-prepare-download.json.gz",
+      "encoding": "gzip",
+      "size": 943,
+      "sha256": "bbd0cecf9942f9dbe2083f5fd4473ea7c3dd5da7847a4f70695b07e589ebd93c",
+      "originalPath": "artifacts/m47-p07-close-20261011/monitor-prepare12/download.json"
+    },
+    {
+      "file": "original-prepare-controller.json",
+      "storageFile": "original-prepare-controller.json.gz",
+      "encoding": "gzip",
+      "size": 572,
+      "sha256": "f81cb9a5375a77b9b00f49b8a544ee72124e200e5c3af257cf57243732653745",
+      "originalPath": "artifacts/m47-p07-close-20261011/p0712-evidence/prepare-proof/artifact/prepare.json"
+    },
+    {
+      "file": "original-prepare-owned.json",
+      "storageFile": "original-prepare-owned.json.gz",
+      "encoding": "gzip",
+      "size": 993,
+      "sha256": "9b6e4f2d5a86998ead8aaa5d4536bd90b282b0e2b594d5a1881a886d2aa6e04a",
+      "originalPath": "artifacts/m47-p07-close-20261011/p0712-evidence/prepare-proof/artifact/owned/prepare.result.json"
+    },
+    {
+      "file": "independent-verification.json",
+      "storageFile": "independent-verification.json.gz",
+      "encoding": "gzip",
+      "size": 2084,
+      "sha256": "0f45f54e29659491f16308c00cd47df2413a10714f5e77d5fad6a788f7e84f2b",
+      "originalPath": "artifacts/m47-p07-close-20261011/independent-p07-verification12.json"
+    },
+    {
+      "file": "protected-environment.json",
+      "storageFile": "protected-environment.json.gz",
+      "encoding": "gzip",
+      "size": 1533,
+      "sha256": "510073711df8c51a52dfaf3dd4173bc454f3e812dfea72e461d4672a26fbc1b6",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-prerequisites12/environment.json"
+    },
+    {
+      "file": "publication-prerequisites.json",
+      "storageFile": "publication-prerequisites.json.gz",
+      "encoding": "gzip",
+      "size": 2249,
+      "sha256": "f57ca399dcef424e963efbb2a01c5cdd2d2fde69550e142d29166c155035b077",
+      "originalPath": "artifacts/m47-p07-close-20261011/p08-prerequisites12/prerequisites.json"
+    },
+    {
+      "file": "installed-runtime-cleanup.json",
+      "storageFile": "installed-runtime-cleanup.json.gz",
+      "encoding": "gzip",
+      "size": 2565,
+      "sha256": "bd453f51853fa8a19e58f4b7ed646211194f1df9f6ba6443cdb7d20febdb5691",
+      "originalPath": "artifacts/m47-p07-close-20261011/suite12-runtime-cleanup.json"
+    },
+    {
+      "file": "last-gates-complete.json",
+      "storageFile": "last-gates-complete.json.gz",
+      "encoding": "gzip",
+      "size": 507,
+      "sha256": "d007bbb2471d0696e712cab9e3b2d6b0883185f442ccd677cdb2cd1c55696c51",
+      "originalPath": "artifacts/m47-p07-close-20261011/last-gates12-c/completed.json"
+    }
+  ],
+  "boundary": "Unmodified originals and independent verification; no specs, environment secrets or browser profiles. Historical failures remain in their original locations."
+}

@@ -55,7 +55,7 @@
             :key="`${item.key}:${item.label}`"
             type="button"
             class="module-button"
-            :class="{ 'is-active': activeKey === item.key && item.label === activeModuleLabel }"
+            :class="{ 'is-active': activeModuleKey === item.key }"
             :title="item.label"
             @click="onMenu(item.key)"
           >
@@ -70,7 +70,7 @@
             :key="`${item.key}:${item.label}`"
             type="button"
             class="module-button"
-            :class="{ 'is-active': activeKey === item.key }"
+            :class="{ 'is-active': isSecondaryActive(item.key) }"
             :title="item.label"
             @click="onMenu(item.key)"
           >
@@ -133,6 +133,8 @@ interface NavigationItem {
   label: string;
   key: string;
   icon: Component;
+  routeName?: string;
+  requiresAdmin?: boolean;
 }
 
 const auth = useAuthStore();
@@ -154,6 +156,20 @@ const baseNavigation: NavigationItem[] = [
   { label: 'RAG', key: 'rag', icon: Bot },
 ];
 
+// M47 主 rail 使用唯一的七个模块。baseNavigation 仅保留旧标签元数据，供
+// 旧路由/面包屑兼容检查使用，不再直接渲染为一级入口。
+const moduleNavigation: NavigationItem[] = [
+  { label: '概览', key: 'overview', routeName: 'dashboard', icon: LayoutDashboard },
+  { label: '工作台', key: 'workbench', routeName: 'sql', icon: RadioTower },
+  { label: '观测', key: 'observe', routeName: 'monitoring', icon: Activity },
+  // Current landing only: Modbus is admin-only; planned flow pages are not implied.
+  { label: '数据流', key: 'flows', routeName: 'modbus', icon: Network, requiresAdmin: true },
+  { label: 'AI 与 MCP', key: 'ai', routeName: 'rag', icon: Bot },
+  { label: '治理', key: 'govern', routeName: 'users', icon: ShieldCheck, requiresAdmin: true },
+  // Current landing only: About hosts the settings entry until planned pages land.
+  { label: '设置', key: 'settings', routeName: 'about', icon: Settings },
+];
+
 const adminNavigation: NavigationItem[] = [
   { label: 'Modbus', key: 'modbus', icon: Network },
   { label: '用户', key: 'users', icon: Users },
@@ -162,14 +178,15 @@ const adminNavigation: NavigationItem[] = [
   { label: 'Copilot', key: 'ai-settings', icon: Bot },
 ];
 
-const primaryNavigation = computed(() => baseNavigation);
+const primaryNavigation = computed(() => moduleNavigation.filter((item) => item.key !== 'settings' && (!item.requiresAdmin || auth.isSuperuser)));
 const secondaryNavigation = computed(() => [
   ...(auth.isSuperuser ? adminNavigation : []),
-  { label: '设置', key: auth.isSuperuser ? 'ai-settings' : 'dashboard', icon: Settings },
+  ...moduleNavigation.filter((item) => item.key === 'settings'),
   { label: '关于', key: 'about', icon: Info },
 ]);
 
 const titleByKey: Record<string, string> = {
+  ...Object.fromEntries(baseNavigation.map((item) => [item.key, item.label])),
   dashboard: '概览',
   sql: 'Studio',
   events: '事件流',
@@ -196,9 +213,34 @@ const toolLabels: Record<string, string> = {
   trajectory: '轨迹分析',
 };
 
+const routeToModule: Record<string, string> = {
+  overview: 'overview',
+  dashboard: 'overview',
+  workbench: 'workbench',
+  sql: 'workbench',
+  'trajectory-map': 'workbench',
+  observe: 'observe',
+  events: 'observe',
+  monitoring: 'observe',
+  flows: 'flows',
+  modbus: 'flows',
+  ai: 'ai',
+  rag: 'ai',
+  'ai-settings': 'ai',
+  'copilot-test': 'ai',
+  govern: 'govern',
+  users: 'govern',
+  grants: 'govern',
+  tokens: 'govern',
+  settings: 'settings',
+  about: 'settings',
+};
+
 const activeKey = computed(() => (route.name as string | undefined) ?? 'dashboard');
 const activeTitle = computed(() => titleByKey[activeKey.value] ?? 'SonnetDB');
-const activeModuleLabel = computed(() => activeKey.value === 'sql' ? 'Studio' : activeTitle.value.replace('流', ''));
+const activeModuleKey = computed(() => {
+  return routeToModule[activeKey.value] ?? moduleNavigation.find((entry) => entry.routeName === activeKey.value || entry.key === activeKey.value)?.key;
+});
 const activeDatabase = computed(() => {
   const db = sqlConsole.activeTab?.db;
   if (!db || db === CONTROL_PLANE_KEY) return 'system';
@@ -215,7 +257,13 @@ const userOptions: DropdownOption[] = [
 ];
 
 function onMenu(key: string): void {
-  void router.push({ name: key });
+  const module = moduleNavigation.find((item) => item.key === key);
+  void router.push({ name: module?.routeName ?? key });
+}
+
+function isSecondaryActive(key: string): boolean {
+  if (key === 'settings') return activeModuleKey.value === 'settings' && activeKey.value !== 'about';
+  return activeKey.value === key;
 }
 
 function goHome(): void {

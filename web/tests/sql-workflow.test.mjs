@@ -38,8 +38,9 @@ async function loadWorkflow() {
     });
     this.setExport('onScopeDispose', (callback) => disposers.push(callback));
   });
-  const consoleStore = new SyntheticModule(['CONTROL_PLANE_KEY'], function () {
+  const consoleStore = new SyntheticModule(['CONTROL_PLANE_KEY', 'DEFAULT_RESULT_PREVIEW_MAX_ROWS'], function () {
     this.setExport('CONTROL_PLANE_KEY', '__control_plane__');
+    this.setExport('DEFAULT_RESULT_PREVIEW_MAX_ROWS', 10_000);
   });
   const modules = new Map();
   const allowed = new Set([

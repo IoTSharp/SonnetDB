@@ -41,7 +41,26 @@ internal sealed record StudioDesktopActionMessage(string Id);
 internal sealed record StudioConnectionLibrarySnapshot(
     StudioConnectionProfile[] Profiles,
     string ActiveProfileId,
-    string ActiveDatabase);
+    string ActiveDatabase)
+{
+    /// <summary>
+    /// 当前选中连接及数据库的宿主身份；不代表连接健康或数据访问授权。
+    /// </summary>
+    public StudioConnectionIdentity? ActiveIdentity
+        => Profiles?.FirstOrDefault(profile => profile is not null
+            && string.Equals(profile.Id, ActiveProfileId, StringComparison.Ordinal)) is { } profile
+            ? profile.Identity with { Database = ActiveDatabase }
+            : null;
+}
+
+/// <summary>
+/// Studio 宿主内的连接和数据库身份，保留数据库原始拼写与部署子路径。
+/// </summary>
+internal sealed record StudioConnectionIdentity(
+    string Host,
+    string ProfileId,
+    string BaseUrl,
+    string Database);
 
 /// <summary>
 /// Studio 连接库中的单个连接配置；鉴权 token 不落盘。
@@ -54,7 +73,13 @@ internal sealed record StudioConnectionProfile(
     string DefaultDatabase,
     string TokenMode,
     long CreatedAt,
-    long UpdatedAt);
+    long UpdatedAt)
+{
+    /// <summary>
+    /// 该连接配置及默认数据库的派生身份；客户端不能覆盖宿主类型。
+    /// </summary>
+    public StudioConnectionIdentity Identity => new("studio-desktop", Id, BaseUrl, DefaultDatabase);
+}
 
 /// <summary>
 /// 文件对话框过滤器。
@@ -133,7 +158,29 @@ internal sealed record StudioManagedServerStatus(
     string DataRoot,
     string? Error,
     string? MountedDatabasePath = null,
-    string? MountedDatabaseName = null);
+    string? MountedDatabaseName = null)
+{
+    /// <summary>
+    /// 当前目标的进程归属，区分 Studio 子进程、外部实例与未运行目标。
+    /// </summary>
+    public string ProcessOwner => IsRunning ? StartedByStudio ? "studio" : "external" : "none";
+
+    /// <summary>
+    /// 已完成状态查询的生命周期快照；错误信息仍独立保留。
+    /// </summary>
+    public string LifecycleState => (IsRunning, StartedByStudio, Healthy) switch
+    {
+        (false, _, _) => string.IsNullOrEmpty(Error) ? "stopped" : "failed",
+        (true, _, false) => "unhealthy",
+        (true, true, true) => "running",
+        _ => "external-running",
+    };
+
+    /// <summary>
+    /// 仅 Studio 归属且有真实进程 ID 的目标可由该宿主停止。
+    /// </summary>
+    public bool CanStop => IsRunning && StartedByStudio && ProcessId is > 0;
+}
 
 /// <summary>
 /// Studio bridge 使用 source-generated JSON，避免反射序列化入口。
@@ -147,6 +194,7 @@ internal sealed record StudioManagedServerStatus(
 [JsonSerializable(typeof(StudioMenuItem))]
 [JsonSerializable(typeof(StudioDesktopActionMessage))]
 [JsonSerializable(typeof(StudioConnectionLibrarySnapshot))]
+[JsonSerializable(typeof(StudioConnectionIdentity))]
 [JsonSerializable(typeof(StudioConnectionProfile))]
 [JsonSerializable(typeof(StudioFileDialogFilter))]
 [JsonSerializable(typeof(StudioOpenFileRequest))]

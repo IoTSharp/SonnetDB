@@ -45,11 +45,15 @@ public sealed class KvReadSnapshot : IDisposable
     /// 在当前稳定快照内读取精确 key，并返回独立拥有的 key/value 副本。
     /// </summary>
     internal KvEntry? GetEntry(ReadOnlySpan<byte> key)
+        => GetEntry(key, CancellationToken.None);
+
+    /// <summary>使用调用方的取消令牌点查，保留原单参数方法供已有调用方使用。</summary>
+    internal KvEntry? GetEntry(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_state is null, this);
-            return _state.GetEntry(key);
+            return _state.GetEntry(key, cancellationToken);
         }
     }
 
@@ -146,8 +150,14 @@ internal sealed class KvReadSnapshotState
             .GetEnumerator();
     }
 
+    /// <summary>按原调用合同在固定读视图内点查。</summary>
     public KvEntry? GetEntry(ReadOnlySpan<byte> key)
+        => GetEntry(key, CancellationToken.None);
+
+    /// <summary>在固定读视图内点查，磁盘回表继续使用同一个查询取消及物理读取预算。</summary>
+    public KvEntry? GetEntry(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] lookup = key.ToArray();
         KvValueEntry? entry;
         int mutableIndex = FindIndex(_mutableValues, lookup);
@@ -158,7 +168,7 @@ internal sealed class KvReadSnapshotState
             int frozenIndex = FindIndex(_frozenValues, lookup);
             entry = frozenIndex >= 0
                 ? _frozenValues[frozenIndex].Value
-                : _diskLease?.State.Get(key);
+                : _diskLease?.State.Get(key, cancellationToken);
         }
 
         if (entry is null || entry.IsDeleted || entry.IsExpired(ReadTimestampUtc))

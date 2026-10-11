@@ -1,0 +1,14 @@
+{
+  "Name": "commit-ttl-final",
+  "Executable": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "Arguments": [
+    "commit",
+    "-m",
+    "fix(sql): 对 TTL 文档查询执行有界物化准入"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 1.5228553,
+  "Processes": [],
+  "CleanedProcesses": []
+}

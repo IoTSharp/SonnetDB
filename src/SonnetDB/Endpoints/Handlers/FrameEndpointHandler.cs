@@ -333,6 +333,10 @@ internal static class FrameEndpointHandler
         {
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", ex.Message);
         }
+        catch (KvReadOverloadedException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, KvReadOverloadedException.Code, ex.Message);
+        }
         catch (IOException ex)
         {
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
@@ -570,6 +574,7 @@ internal static class FrameEndpointHandler
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
             string code = ex switch
             {
+                KvReadOverloadedException => KvReadOverloadedException.Code,
                 RoutineExecutionException routine => routine.Code,
                 ArgumentException => "bad_request",
                 _ => "sql_error",
@@ -669,7 +674,12 @@ internal static class FrameEndpointHandler
         catch (Exception ex)
         {
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
-            string code = ex is ArgumentException ? "bad_request" : "vector_search_error";
+            string code = ex switch
+            {
+                KvReadOverloadedException => KvReadOverloadedException.Code,
+                ArgumentException => "bad_request",
+                _ => "vector_search_error",
+            };
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
     }
@@ -1158,7 +1168,8 @@ internal static class FrameEndpointHandler
         }
         catch (IOException ex)
         {
-            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "object_storage_io_error", ex.Message);
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                ex is KvReadOverloadedException ? KvReadOverloadedException.Code : "object_storage_io_error", ex.Message);
         }
         finally
         {

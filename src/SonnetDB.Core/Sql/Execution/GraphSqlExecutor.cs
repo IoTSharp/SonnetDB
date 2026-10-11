@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Globalization;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Graphs;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Sql.Execution;
@@ -8,6 +11,8 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>原生属性图 SQL/关系化读取的执行器。</summary>
 internal static class GraphSqlExecutor
 {
+    private const int MaxBudgetedSourceRows = 100_000;
+    private static readonly TimeSpan BudgetedSelectTimeout = TimeSpan.FromMinutes(5);
     private static readonly IReadOnlyList<string> GraphColumns =
     [
         "name", "storage_id", "record_format_version", "created_utc", "sql_contract",
@@ -30,6 +35,125 @@ internal static class GraphSqlExecutor
     internal static bool IsGraphFunction(string name)
         => string.Equals(name, "graph_nodes", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "graph_edges", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>在打开图快照前验证直接图查询的累计物化预算支持范围。</summary>
+    internal static void ValidateMaterializationSupported(Tsdb tsdb, SelectStatement statement)
+    {
+        ValidateBudgetedSelectShape(statement);
+        if (statement.GraphTable is not null)
+        {
+            GraphTableSqlExecutor.ValidateMaterializationSupported(tsdb, statement);
+            return;
+        }
+
+        FunctionCallExpression call = statement.TableValuedFunction
+            ?? throw new NotSupportedException("Graph SQL 物化预算要求直接原生图查询源。");
+        if (!IsGraphFunction(call.Name))
+            throw new NotSupportedException("Graph SQL 物化预算仅支持 graph_nodes/graph_edges 表值函数。");
+        string graphName = ResolveGraphName(call);
+        if (tsdb.Graphs.Catalog.TryGet(graphName) is null)
+            throw new InvalidOperationException($"graph '{graphName}' 不存在。");
+        _ = ToOptionalLabel(call);
+        bool edges = string.Equals(call.Name, "graph_edges", StringComparison.OrdinalIgnoreCase);
+        ValidateBudgetedExpressions(tsdb, statement, SourceColumns(edges));
+    }
+
+    internal static void ValidateBudgetedSelectShape(SelectStatement statement)
+    {
+        if (statement.OrderByList.Count != 0 || statement.GroupBy.Count != 0
+            || statement.Having is not null || statement.Distinct || statement.IsRecursive
+            || statement.JoinClauses.Count != 0 || statement.FromSubquery is not null
+            || statement.CommonTableExpressions.Count != 0 || statement.SetOperationList.Count != 0)
+        {
+            throw new NotSupportedException(
+                "Graph SQL 物化预算仅支持直接原生单源标量 SELECT、WHERE 和 LIMIT/OFFSET；排序、聚合、窗口、去重、JOIN 及嵌套查询尚不支持。");
+        }
+        if (statement.Pagination is { } pagination)
+        {
+            _ = pagination.Offset;
+            _ = pagination.Fetch;
+        }
+    }
+
+    internal static void ValidateBudgetedExpressions(
+        Tsdb tsdb, SelectStatement statement, IReadOnlyList<string> sourceColumns)
+    {
+        bool Exists(IdentifierExpression identifier)
+            => (identifier.Qualifier is null || statement.TableAlias is { } alias
+                && string.Equals(alias, identifier.Qualifier,
+                    identifier.QualifierIsQuoted ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+                && sourceColumns.Contains(identifier.Name,
+                    identifier.IsQuoted ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
+        foreach (SelectItem projection in statement.Projections)
+        {
+            ValidateBudgetedScalar(tsdb, projection.Expression, allowStar: true);
+            if (projection.Expression is not StarExpression)
+                SqlProjectionExpressionEvaluator.Validate(projection.Expression, Exists, "Graph SQL 投影");
+        }
+        ValidateBudgetedScalar(tsdb, statement.Where);
+        if (statement.Where is { } where)
+            SqlProjectionExpressionEvaluator.Validate(where, Exists, "Graph SQL WHERE");
+    }
+
+    internal static void ValidateBudgetedScalar(Tsdb tsdb, SqlExpression? expression, bool allowStar = false)
+    {
+        switch (expression)
+        {
+            case null or LiteralExpression or DurationLiteralExpression or IdentifierExpression:
+                return;
+            case StarExpression when allowStar:
+                return;
+            case CastExpression cast when cast.TargetType is not (SqlDataType.Vector or SqlDataType.GeoPoint):
+                ValidateBudgetedScalar(tsdb, cast.Operand);
+                return;
+            case UnaryExpression unary:
+                ValidateBudgetedScalar(tsdb, unary.Operand);
+                return;
+            case BinaryExpression binary:
+                ValidateBudgetedScalar(tsdb, binary.Left);
+                ValidateBudgetedScalar(tsdb, binary.Right);
+                return;
+            case IsNullExpression isNull:
+                ValidateBudgetedScalar(tsdb, isNull.Operand);
+                return;
+            case InExpression { Subquery: null } membership:
+                ValidateBudgetedScalar(tsdb, membership.Value);
+                foreach (SqlExpression value in membership.Values)
+                    ValidateBudgetedScalar(tsdb, value);
+                return;
+            case CaseExpression conditional:
+                foreach (CaseWhenClause clause in conditional.WhenClauses)
+                {
+                    ValidateBudgetedScalar(tsdb, clause.Condition);
+                    ValidateBudgetedScalar(tsdb, clause.Result);
+                }
+                ValidateBudgetedScalar(tsdb, conditional.Else);
+                return;
+            case FunctionCallExpression function:
+                if (function.Over is not null || function.IsStar
+                    || tsdb.Functions.TryGetScalar(function.Name, out _)
+                    || tsdb.Functions.TryGetAggregate(function.Name, out _)
+                    || tsdb.Functions.TryGetWindow(function.Name, out _)
+                    || !FunctionRegistry.TryGetScalar(function.Name, out _))
+                {
+                    throw new NotSupportedException("Graph SQL 物化预算仅支持内置标量函数；聚合、窗口及用户函数尚不支持。");
+                }
+                foreach (SqlExpression argument in function.Arguments)
+                    ValidateBudgetedScalar(tsdb, argument);
+                return;
+            default:
+                throw new NotSupportedException("Graph SQL 物化预算仅支持标准只读标量；子查询、向量及地理值尚不支持。");
+        }
+    }
+
+    internal static void ThrowIfBudgetedCancelled(long startedAt)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        if (SqlRowRetentionBudget.HasExecutionBudget && Stopwatch.GetElapsedTime(startedAt) >= BudgetedSelectTimeout)
+            throw new RoutineExecutionException(RoutineErrorCodes.Cancelled,
+                "Graph SQL 物化预算查询已超过五分钟执行上限。",
+                new TimeoutException("Graph SQL 物化预算查询已超过五分钟执行上限。"));
+    }
 
     internal static RowsAffectedExecutionResult CreateGraph(Tsdb tsdb, CreateGraphStatement statement)
     {
@@ -379,6 +503,12 @@ internal static class GraphSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+        {
+            ValidateMaterializationSupported(tsdb, statement);
+            if (statement.GraphTable is null)
+                return ExecuteBudgetedRaw(tsdb, statement);
+        }
         if (statement.GraphTable is not null)
             return GraphTableSqlExecutor.Execute(tsdb, statement);
         FunctionCallExpression call = statement.TableValuedFunction
@@ -450,6 +580,69 @@ internal static class GraphSqlExecutor
         }
     }
 
+    private static IReadOnlyList<string> SourceColumns(bool edges)
+        => edges
+            ? ["id", "element_version", "source_id", "target_id", "label_id", "property_count"]
+            : ["id", "element_version", "labels", "property_count"];
+
+    private static SelectExecutionResult ExecuteBudgetedRaw(Tsdb tsdb, SelectStatement statement)
+    {
+        FunctionCallExpression call = statement.TableValuedFunction!;
+        string graphName = ResolveGraphName(call);
+        LabelId? label = ToOptionalLabel(call);
+        bool edges = string.Equals(call.Name, "graph_edges", StringComparison.OrdinalIgnoreCase);
+        long startedAt = Stopwatch.GetTimestamp();
+        SqlExecutionTelemetry.RecordAccessPath(edges ? "graph_edges_budgeted_scan" : "graph_nodes_budgeted_scan");
+        return ApplySelectShape(statement, SourceColumns(edges), PullRows(), "图");
+
+        IEnumerable<IReadOnlyList<object?>> PullRows()
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            using GraphReadSession session = tsdb.Graphs.Open(graphName).BeginRead();
+            var options = new GraphCursorOptions { PageSize = 256, MaxResults = MaxBudgetedSourceRows + 1 };
+            if (edges)
+            {
+                using GraphCursor<GraphEdge> cursor = GraphPlanExecutor.Execute(
+                    session, new GraphEdgeScanPlan(label, Options: options));
+                foreach (GraphEdge edge in ReadBudgetedCursor(cursor, startedAt))
+                    yield return [edge.Id.Value, edge.ElementVersion, edge.SourceId.Value,
+                        edge.TargetId.Value, edge.LabelId.Value, edge.Properties.Count];
+            }
+            else
+            {
+                using GraphCursor<GraphVertex> cursor = GraphPlanExecutor.Execute(
+                    session, new GraphNodeScanPlan(label, Options: options));
+                foreach (GraphVertex vertex in ReadBudgetedCursor(cursor, startedAt))
+                    yield return [vertex.Id.Value, vertex.ElementVersion,
+                        string.Join(',', vertex.Labels.Select(static item => item.Value.ToString(CultureInfo.InvariantCulture))),
+                        vertex.Properties.Count];
+            }
+        }
+    }
+
+    private static IEnumerable<T> ReadBudgetedCursor<T>(GraphCursor<T> cursor, long startedAt) where T : class
+    {
+        int candidates = 0;
+        // 每个非空页至少推进一个结果；结果上限外额外读取一行，避免静默返回截断前缀。
+        for (int pageIndex = 0; pageIndex <= MaxBudgetedSourceRows; pageIndex++)
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            IReadOnlyList<T> page = cursor.ReadNextPage(SqlQueryResources.Current?.CancellationToken ?? default);
+            if (page.Count == 0)
+                yield break;
+            foreach (T item in page)
+            {
+                ThrowIfBudgetedCancelled(startedAt);
+                SqlExecutionTelemetry.RecordCandidateRows(1);
+                SqlExecutionTelemetry.RecordExaminedRows(1);
+                if (++candidates > MaxBudgetedSourceRows)
+                    throw new GraphTraversalLimitExceededException($"Graph SQL 扫描候选超过上限 {MaxBudgetedSourceRows} 行。");
+                yield return item;
+            }
+        }
+        throw new GraphTraversalLimitExceededException("Graph SQL 扫描页数量超过候选行上限。");
+    }
+
     internal static SelectExecutionResult ExplainSelect(SelectStatement statement)
     {
         if (statement.GraphTable is not null)
@@ -457,7 +650,7 @@ internal static class GraphSqlExecutor
         FunctionCallExpression call = statement.TableValuedFunction
             ?? throw new InvalidOperationException("图 EXPLAIN 缺少表值函数调用。");
         bool edges = string.Equals(call.Name, "graph_edges", StringComparison.OrdinalIgnoreCase);
-        return new SelectExecutionResult(
+        return RetainMetadataResult(new SelectExecutionResult(
             ["key", "value"],
             [
                 ["statement_type", "select"],
@@ -466,7 +659,14 @@ internal static class GraphSqlExecutor
                 ["source", edges ? "graph_edges" : "graph_nodes"],
                 ["bounded", true],
                 ["fallback_reason", null],
-            ]);
+            ]));
+    }
+
+    internal static SelectExecutionResult RetainMetadataResult(SelectExecutionResult result)
+    {
+        foreach (IReadOnlyList<object?> row in result.Rows)
+            SqlRowRetentionBudget.RetainForExecution(row);
+        return result;
     }
 
     internal static SelectExecutionResult ApplySelectShape(
@@ -499,6 +699,9 @@ internal static class GraphSqlExecutor
                 columns.Add(item.Alias ?? (item.Expression as IdentifierExpression)?.Name ?? "expression");
             }
         }
+
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+            return ApplyBudgetedSelectShape(statement, sourceRows, columns, lookup, context);
 
         IEnumerable<IReadOnlyList<object?>> ProjectRows()
         {
@@ -570,6 +773,60 @@ internal static class GraphSqlExecutor
         if (fetch is not null)
             paged = paged.Take(fetch.Value);
         return new SelectExecutionResult(columns, paged.ToArray());
+    }
+
+    private static SelectExecutionResult ApplyBudgetedSelectShape(
+        SelectStatement statement,
+        IEnumerable<IReadOnlyList<object?>> sourceRows,
+        IReadOnlyList<string> columns,
+        IReadOnlyDictionary<string, int> lookup,
+        string context)
+    {
+        ValidateBudgetedSelectShape(statement);
+        long startedAt = Stopwatch.GetTimestamp();
+        ThrowIfBudgetedCancelled(startedAt);
+        var rows = new List<IReadOnlyList<object?>>();
+        int? fetch = statement.Pagination?.Fetch;
+        if (fetch == 0)
+            return new SelectExecutionResult(columns, rows);
+        int offset = statement.Pagination?.Offset ?? 0;
+        int skipped = 0;
+        foreach (IReadOnlyList<object?> row in sourceRows)
+        {
+            ThrowIfBudgetedCancelled(startedAt);
+            if (statement.Where is not null
+                && SqlProjectionExpressionEvaluator.Evaluate(statement.Where,
+                    identifier => row[lookup[identifier.Name]], context + " WHERE") is not true)
+                continue;
+            if (skipped < offset)
+            {
+                skipped++;
+                continue;
+            }
+
+            var output = new object?[columns.Count];
+            int ordinal = 0;
+            foreach (SelectItem projection in statement.Projections)
+            {
+                ThrowIfBudgetedCancelled(startedAt);
+                if (projection.Expression is StarExpression)
+                {
+                    foreach (object? value in row)
+                        output[ordinal++] = value;
+                }
+                else
+                {
+                    output[ordinal++] = SqlProjectionExpressionEvaluator.Evaluate(projection.Expression,
+                        identifier => row[lookup[identifier.Name]], context + " 投影");
+                }
+            }
+            SqlRowRetentionBudget.RetainForExecution(output);
+            rows.Add(output);
+            if (fetch is { } limit && rows.Count >= limit)
+                break;
+        }
+        ThrowIfBudgetedCancelled(startedAt);
+        return new SelectExecutionResult(columns, rows);
     }
 
     private static string ResolveGraphName(FunctionCallExpression call)

@@ -1,0 +1,278 @@
+{
+  "Name": "restore-2",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 9.866802,
+  "Processes": [
+    {
+      "ProcessId": 71196,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.860271+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 73776,
+      "ParentProcessId": 76444,
+      "CreationDate": "2026-10-02T20:20:18.238157+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 76444,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.228261+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 25356,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.623242+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 17968,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.403229+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 85072,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:17.468517+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 89432,
+      "ParentProcessId": 46400,
+      "CreationDate": "2026-10-02T20:20:18.238848+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 49648,
+      "ParentProcessId": 68420,
+      "CreationDate": "2026-10-02T20:20:18.969784+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 64064,
+      "ParentProcessId": 84888,
+      "CreationDate": "2026-10-02T20:20:17.447621+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx"
+    },
+    {
+      "ProcessId": 60144,
+      "ParentProcessId": 33600,
+      "CreationDate": "2026-10-02T20:20:18.630228+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 68420,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.961567+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 67704,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.896595+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 66188,
+      "ParentProcessId": 78164,
+      "CreationDate": "2026-10-02T20:20:18.238499+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 31032,
+      "ParentProcessId": 54780,
+      "CreationDate": "2026-10-02T20:20:18.970186+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 54524,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.801355+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 3728,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.228198+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 42952,
+      "ParentProcessId": 71196,
+      "CreationDate": "2026-10-02T20:20:19.871873+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 86116,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.56916+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 33600,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.62212+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 54780,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.961628+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 91180,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.9896+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 48904,
+      "ParentProcessId": 70768,
+      "CreationDate": "2026-10-02T20:20:20.279407+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 57980,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.354777+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 30656,
+      "ParentProcessId": 91060,
+      "CreationDate": "2026-10-02T20:20:19.37555+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 52192,
+      "ParentProcessId": 57980,
+      "CreationDate": "2026-10-02T20:20:19.365397+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 8224,
+      "ParentProcessId": 86528,
+      "CreationDate": "2026-10-02T20:20:19.876835+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 39112,
+      "ParentProcessId": 67704,
+      "CreationDate": "2026-10-02T20:20:19.911437+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 62332,
+      "ParentProcessId": 57776,
+      "CreationDate": "2026-10-02T20:20:18.577568+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 46400,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.228278+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 60728,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.005059+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 78164,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.228451+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 37400,
+      "ParentProcessId": 86116,
+      "CreationDate": "2026-10-02T20:20:18.575345+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 86528,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.867154+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 91060,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.366667+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 83944,
+      "ParentProcessId": 91180,
+      "CreationDate": "2026-10-02T20:20:18.99657+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 1440,
+      "ParentProcessId": 81000,
+      "CreationDate": "2026-10-02T20:20:19.360042+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 57776,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:18.570923+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62492,
+      "ParentProcessId": 17968,
+      "CreationDate": "2026-10-02T20:20:19.411978+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 70768,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:20.267438+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 81000,
+      "ParentProcessId": 64064,
+      "CreationDate": "2026-10-02T20:20:19.351296+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 61216,
+      "ParentProcessId": 54524,
+      "CreationDate": "2026-10-02T20:20:19.810746+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 6132,
+      "ParentProcessId": 25356,
+      "CreationDate": "2026-10-02T20:20:18.630258+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 36052,
+      "ParentProcessId": 60728,
+      "CreationDate": "2026-10-02T20:20:19.014276+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 5256,
+      "ParentProcessId": 3728,
+      "CreationDate": "2026-10-02T20:20:18.237494+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "CleanedProcesses": []
+}

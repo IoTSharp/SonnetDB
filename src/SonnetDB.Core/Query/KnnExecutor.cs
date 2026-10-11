@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Sql.Execution;
@@ -24,6 +26,17 @@ namespace SonnetDB.Query;
 /// </summary>
 internal static class KnnExecutor
 {
+    private static readonly TimeSpan BudgetedSearchTimeout = TimeSpan.FromMinutes(5);
+
+    internal static void ThrowIfBudgetedCancelled(long startedAt)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        if (SqlRowRetentionBudget.HasExecutionBudget && Stopwatch.GetElapsedTime(startedAt) >= BudgetedSearchTimeout)
+            throw new RoutineExecutionException(RoutineErrorCodes.Cancelled,
+                "KNN SQL 物化预算查询已超过五分钟执行上限。",
+                new TimeoutException("KNN SQL 物化预算查询已超过五分钟执行上限。"));
+    }
+
     /// <summary>
     /// 执行 KNN 搜索。
     /// </summary>
@@ -323,6 +336,7 @@ internal static class KnnExecutor
         private readonly SqlQueryResources.SqlOperatorMemoryReservation? _reservation;
         private readonly PriorityQueue<Candidate, Candidate> _heap = new(CandidateComparer.Instance);
         private readonly object _gate = new();
+        private readonly long _materializationStartedAt = Stopwatch.GetTimestamp();
 
         internal BoundedCandidateSet(int limit, string field, TombstoneTable? tombstones,
             CancellationToken cancellationToken = default, SqlQueryResources? resources = null)
@@ -333,7 +347,9 @@ internal static class KnnExecutor
             _field = field;
             _tombstones = tombstones;
             CancellationToken = cancellationToken;
-            _reservation = resources?.CreateReservation();
+            // 执行期累计预算已为候选保留阶段预留共享内存，不能再对同一候选重复预留。
+            // 非 opt-in 调用继续使用既有的 256 字节 Top-K 工作集准入。
+            _reservation = SqlRowRetentionBudget.HasExecutionBudget ? null : resources?.CreateReservation();
         }
 
         internal CancellationToken CancellationToken { get; }
@@ -350,6 +366,8 @@ internal static class KnnExecutor
         internal void Add(double distance, long timestamp, ulong seriesId)
         {
             CancellationToken.ThrowIfCancellationRequested();
+            if (SqlRowRetentionBudget.HasExecutionBudget)
+                ThrowIfBudgetedCancelled(_materializationStartedAt);
             if (_tombstones?.IsCovered(seriesId, _field, timestamp) == true)
                 return;
 
@@ -361,23 +379,41 @@ internal static class KnnExecutor
                 {
                     if (_reservation?.TryReserve(EstimatedBytesPerCandidate) == false)
                         throw new InvalidOperationException("measurement KNN Top-K 候选工作集超过 SQL 共享内存预算。");
+                    RetainMaterializedCandidate(candidate);
                     _heap.Enqueue(candidate, candidate);
                 }
                 else if (Compare(candidate, _heap.Peek()) < 0)
                 {
+                    RetainMaterializedCandidate(candidate);
                     _heap.DequeueEnqueue(candidate, candidate);
                 }
             }
+        }
+
+        private static void RetainMaterializedCandidate(Candidate candidate)
+        {
+            if (SqlRowRetentionBudget.HasExecutionBudget)
+                SqlRowRetentionBudget.RetainForExecution([candidate.Timestamp, candidate.SeriesId, candidate.Distance]);
         }
 
         internal IReadOnlyList<KnnSearchResult> GetResults()
         {
             lock (_gate)
             {
+                // 有序结果数组是独立的保留阶段；先为全部条目准入，再分配数组或消耗堆。
+                if (SqlRowRetentionBudget.HasExecutionBudget)
+                    foreach (var item in _heap.UnorderedItems)
+                    {
+                        CancellationToken.ThrowIfCancellationRequested();
+                        ThrowIfBudgetedCancelled(_materializationStartedAt);
+                        RetainMaterializedCandidate(item.Element);
+                    }
                 var results = new KnnSearchResult[_heap.Count];
                 for (int index = results.Length - 1; index >= 0; index--)
                 {
                     CancellationToken.ThrowIfCancellationRequested();
+                    if (SqlRowRetentionBudget.HasExecutionBudget)
+                        ThrowIfBudgetedCancelled(_materializationStartedAt);
                     var candidate = _heap.Dequeue();
                     results[index] = new KnnSearchResult(candidate.Timestamp, candidate.SeriesId, candidate.Distance);
                 }

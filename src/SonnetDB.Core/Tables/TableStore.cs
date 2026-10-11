@@ -144,6 +144,22 @@ public sealed partial class TableStore : IDisposable
     /// </summary>
     internal long ActiveWalLengthForEvidence => _keyspace.ActiveWalLength;
 
+    /// <summary>供在线索引回归核对自动检查点没有被重复调度。</summary>
+    internal long AutoCheckpointScheduleCount => _keyspace.AutoCheckpointScheduleCount;
+
+    /// <summary>供在线索引回归观察已排队或运行中的自动检查点。</summary>
+    internal bool AutoCheckpointQueued => _keyspace.AutoCheckpointQueued;
+
+    /// <summary>供在线索引回归观察检查点失败及后续恢复。</summary>
+    internal Exception? LastCheckpointException => _keyspace.LastCheckpointException;
+
+    /// <summary>供在线索引回归在冻结与发布阶段建立确定性同步点。</summary>
+    internal Action<KvCheckpointPhase>? CheckpointTestHook
+    {
+        get => _keyspace.CheckpointTestHook;
+        set => _keyspace.CheckpointTestHook = value;
+    }
+
     /// <summary>公开全表扫描累计次数，供访问计划回归测试观测。</summary>
     internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
 
@@ -162,6 +178,9 @@ public sealed partial class TableStore : IDisposable
     /// <summary>测试范围分页是否从上一页索引键继续扫描。</summary>
     internal Action<bool>? RangeScanContinuationTestHook { get; set; }
 
+    /// <summary>测试并列组因页字节预算截页时的续读；生产仍使用原 Int32 字节上限。</summary>
+    internal int? RangeScanPageByteLimitTestOverride { get; set; }
+
     /// <summary>测试普通查询实际解码的关系行数，验证分页完成后是否提前停止。</summary>
     internal Action<int>? RowDecodedTestHook { get; set; }
 
@@ -170,6 +189,10 @@ public sealed partial class TableStore : IDisposable
 
     /// <summary>供 TableManager 在固定顺序下原子捕获多表快照的 rowstore 同步根。</summary>
     internal object SynchronizationRoot => _sync;
+
+    /// <summary>供跨表并发回归在取得物理读取许可后建立确定性同步点。</summary>
+    internal void ConfigureDiskReadTestHook(Action? readStarted)
+        => _keyspace.ConfigureDiskReadTestHook(readStarted);
 
     /// <summary>取得当前 rowstore 的稳定读快照，供一个复合访问路径共享。</summary>
     internal KvReadSnapshot AcquireReadSnapshot()
@@ -1331,12 +1354,16 @@ public sealed partial class TableStore : IDisposable
     /// <param name="equalityPrefixValues">索引连续等值前缀。</param>
     /// <param name="range">等值前缀后范围列的边界。</param>
     /// <param name="candidateLimit">SQL OFFSET 加 LIMIT 得到的候选行数。</param>
+    /// <param name="descending">按范围值降序读取；并列组仍由 SQL 层校正排序。</param>
+    /// <param name="cancellationToken">查询取消或墙钟超时令牌。</param>
     /// <returns>包含分页边界范围值完整并列组的候选行。</returns>
     internal IReadOnlyList<TableRow> GetByIndexRangeThroughValueGroup(
         TableIndex index,
         IReadOnlyList<object?> equalityPrefixValues,
         TableIndexRange range,
-        int candidateLimit)
+        int candidateLimit,
+        bool descending = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(equalityPrefixValues);
@@ -1367,11 +1394,19 @@ public sealed partial class TableStore : IDisposable
         bool boundaryReached = false;
         int pageLimit = candidateLimit == int.MaxValue ? int.MaxValue : candidateLimit + 1;
 
-        foreach (var keyRange in BuildSignedKeyRanges(index, equalityPrefixValues, range, schema))
+        IReadOnlyList<TableIndexKeyRange> keyRanges = BuildSignedKeyRanges(index, equalityPrefixValues, range, schema);
+        for (int rangeIndex = 0; rangeIndex < keyRanges.Count; rangeIndex++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            TableIndexKeyRange keyRange = descending
+                ? keyRanges[keyRanges.Count - 1 - rangeIndex]
+                : keyRanges[rangeIndex];
             byte[] afterKey = [];
-            while (true)
+            bool rangeExhausted = false;
+            // 页容量饱和倍增，32 页足以覆盖 Int32 大小的索引；超过边界明确失败，避免无界续页。
+            for (int pageNumber = 0; pageNumber < 32; pageNumber++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 RangeScanLimitTestHook?.Invoke(pageLimit);
                 RangeScanContinuationTestHook?.Invoke(afterKey.Length != 0);
                 using KvRangeCursor cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
@@ -1380,13 +1415,15 @@ public sealed partial class TableStore : IDisposable
                     StartInclusive = keyRange.StartInclusive,
                     EndExclusive = keyRange.EndExclusive,
                     AfterKey = afterKey,
+                    Descending = descending,
                     PageSize = pageLimit,
-                    MaxPageBytes = int.MaxValue,
+                    MaxPageBytes = RangeScanPageByteLimitTestOverride ?? int.MaxValue,
                 });
-                IReadOnlyList<KvEntry> entries = cursor.ReadNextPage();
+                IReadOnlyList<KvEntry> entries = cursor.ReadNextPage(cancellationToken);
                 foreach (var entry in entries)
                 {
-                    TableRow? row = TryMaterializeIndexEntry(tableSnapshot.Snapshot, schema, entry);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    TableRow? row = TryMaterializeIndexEntry(tableSnapshot.Snapshot, schema, entry, cancellationToken);
                     if (row is null)
                         continue;
 
@@ -1409,12 +1446,18 @@ public sealed partial class TableStore : IDisposable
                     rows.Add(row);
                 }
 
-                if (entries.Count < pageLimit)
+                // 不足一页也可能只是字节预算截页，必须由游标确认范围耗尽。
+                if (cursor.IsExhausted)
+                {
+                    rangeExhausted = true;
                     break;
+                }
 
                 afterKey = entries[^1].Key.ToArray();
                 pageLimit = DoubleRangeScanPageLimit(pageLimit);
             }
+            if (!rangeExhausted)
+                throw new InvalidOperationException("范围并列组续页超过有界读取次数，查询未返回截断结果。");
         }
 
         return rows;
@@ -1502,11 +1545,12 @@ public sealed partial class TableStore : IDisposable
     private static TableRow? TryMaterializeIndexEntry(
         KvReadSnapshot snapshot,
         TableSchema schema,
-        KvEntry entry)
+        KvEntry entry,
+        CancellationToken cancellationToken = default)
     {
         byte[] primaryKey = entry.Value.Span.ToArray();
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-        KvEntry? payload = snapshot.GetEntry(rowKey);
+        KvEntry? payload = snapshot.GetEntry(rowKey, cancellationToken);
         return payload is null
             ? null
             : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), primaryKey);
@@ -2056,20 +2100,41 @@ public sealed partial class TableStore : IDisposable
         return entries;
     }
 
+    /// <summary>按主行修复索引，并仅实例化主键和已发布及待构建索引所需列。</summary>
     private void RebuildIndexesLocked()
     {
         using var budgetScope = _keyspace.EnterIndexRebuildBudgetScope();
+        bool[] materializedColumns = CreateIndexRecoveryProjectionLocked();
         int actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
         // 在线构建的键尚未完整，不参加已发布索引计数，也不能在恢复时被当成垃圾删除。
         if (_onlineIndexBuild is not null && _schema.TryGetIndex(_onlineIndexBuild.Index.Name) is null)
             actualIndexCount -= _keyspace.CountPrefix(TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema)!);
-        int expectedIndexCount = RepairExpectedIndexesLocked(out int addedIndexCount);
+        int expectedIndexCount = RepairExpectedIndexesLocked(materializedColumns, out int addedIndexCount);
 
         // 期望键均已校验或补齐；实际数量相等时不可能再存在额外 stale/orphan 键。
         if (checked(actualIndexCount + addedIndexCount) == expectedIndexCount)
             return;
 
-        RemoveUnexpectedIndexesLocked();
+        RemoveUnexpectedIndexesLocked(materializedColumns);
+    }
+
+    /// <summary>每次恢复按当前 schema 创建投影，包含在线索引列，防止清理时误删其有效条目。</summary>
+    private bool[] CreateIndexRecoveryProjectionLocked()
+    {
+        var materializedColumns = new bool[_schema.Columns.Count];
+        foreach (string columnName in _schema.PrimaryKey)
+            materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
+        foreach (TableIndex index in _schema.Indexes)
+        {
+            foreach (string columnName in index.Columns)
+                materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
+        }
+        if (_onlineIndexBuild is { } pending)
+        {
+            foreach (string columnName in pending.Index.Columns)
+                materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
+        }
+        return materializedColumns;
     }
 
     /// <summary>
@@ -2078,7 +2143,7 @@ public sealed partial class TableStore : IDisposable
     /// </summary>
     /// <param name="addedIndexCount">本次实际补写的缺失索引键数量。</param>
     /// <returns>当前 schema 与全部主行共同要求的索引键数量。</returns>
-    private int RepairExpectedIndexesLocked(out int addedIndexCount)
+    private int RepairExpectedIndexesLocked(bool[] materializedColumns, out int addedIndexCount)
     {
         int added = 0;
         int expectedIndexCount = 0;
@@ -2095,7 +2160,7 @@ public sealed partial class TableStore : IDisposable
             foreach (var rowEntry in rows)
             {
                 var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(rowEntry.Key).ToArray();
-                var row = new TableRow(TableRowCodec.Decode(_schema, rowEntry.Value.Span), primaryKey);
+                var row = new TableRow(TableRowCodec.DecodeProjection(_schema, rowEntry.Value.Span, materializedColumns), primaryKey);
                 var entries = BuildIndexEntries(_schema, row);
                 foreach (var entry in entries)
                 {
@@ -2126,7 +2191,7 @@ public sealed partial class TableStore : IDisposable
 
                 if (persistedValue is not null
                     && desired.UniqueIndex is { } uniqueIndex
-                    && IsLiveUniqueIndexConflictLocked(desired.Entry.Key, persistedValue))
+                    && IsLiveUniqueIndexConflictLocked(desired.Entry.Key, persistedValue, materializedColumns))
                 {
                     throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
                 }
@@ -2144,7 +2209,7 @@ public sealed partial class TableStore : IDisposable
         });
 
         int mutationPageSize = _keyspace.GetIndexRebuildBatchEntryLimit(IndexRepairMutationPageSize);
-        repairSpool.ReplayPages(mutationPageSize, ApplyExpectedIndexRepairPageLocked);
+        repairSpool.ReplayPages(mutationPageSize, entries => ApplyExpectedIndexRepairPageLocked(entries, materializedColumns));
         addedIndexCount = added;
         return expectedIndexCount;
     }
@@ -2154,7 +2219,8 @@ public sealed partial class TableStore : IDisposable
     /// 前页已写入的唯一键通过持久值发现，本页重复键通过有界字典发现。
     /// </summary>
     private void ApplyExpectedIndexRepairPageLocked(
-        IReadOnlyList<TableIndexRepairSpoolEntry> entries)
+        IReadOnlyList<TableIndexRepairSpoolEntry> entries,
+        bool[] materializedColumns)
     {
         var mutations = new List<KvBatchMutation>(entries.Count);
         var pendingUniqueValues = new Dictionary<byte[], byte[]>(KvKeyComparer.Instance);
@@ -2187,7 +2253,7 @@ public sealed partial class TableStore : IDisposable
                 }
 
                 if (persistedValue is not null
-                    && IsLiveUniqueIndexConflictLocked(entry.Key, persistedValue))
+                    && IsLiveUniqueIndexConflictLocked(entry.Key, persistedValue, materializedColumns))
                 {
                     throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
                 }
@@ -2206,14 +2272,14 @@ public sealed partial class TableStore : IDisposable
     /// 单次稳定扫描现有索引，把无主行、未知索引或已不符合当前主行内容的 key 写入临时 spool，
     /// 扫描结束后再按页原子删除，避免删除 tombstone 反复扩大后续分页扫描成本。
     /// </summary>
-    private void RemoveUnexpectedIndexesLocked()
+    private void RemoveUnexpectedIndexesLocked(bool[] materializedColumns)
     {
         using var deleteSpool = new TableIndexRepairSpool();
         _keyspace.ReadStablePrefixPages([(byte)'i'], MaintenanceKeyPageSize, entries =>
         {
             foreach (var entry in entries)
             {
-                if (!IsCurrentIndexEntryLocked(entry))
+                if (!IsCurrentIndexEntryLocked(entry, materializedColumns))
                     deleteSpool.AppendDelete(entry.Key.ToArray());
             }
         });
@@ -2239,7 +2305,7 @@ public sealed partial class TableStore : IDisposable
     }
 
     /// <summary>核对一个现有索引条目是否仍由其指向的当前主行产生。</summary>
-    private bool IsCurrentIndexEntryLocked(KvEntry entry)
+    private bool IsCurrentIndexEntryLocked(KvEntry entry, bool[] materializedColumns)
     {
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
         byte[]? rowPayload = _keyspace.Get(rowKey);
@@ -2247,7 +2313,7 @@ public sealed partial class TableStore : IDisposable
             return false;
 
         var row = new TableRow(
-            TableRowCodec.Decode(_schema, rowPayload),
+            TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
             entry.Value.ToArray());
         return BuildMutationIndexEntries(_schema, row).Any(expected =>
             expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
@@ -2257,7 +2323,7 @@ public sealed partial class TableStore : IDisposable
     /// <summary>
     /// 判断唯一索引当前指向的另一主行是否仍真实产生同一个索引键；无主行或行值已变化均属于可修复 stale 条目。
     /// </summary>
-    private bool IsLiveUniqueIndexConflictLocked(ReadOnlySpan<byte> indexKey, ReadOnlySpan<byte> persistedPrimaryKey)
+    private bool IsLiveUniqueIndexConflictLocked(ReadOnlySpan<byte> indexKey, ReadOnlySpan<byte> persistedPrimaryKey, bool[] materializedColumns)
     {
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(persistedPrimaryKey);
         byte[]? rowPayload = _keyspace.Get(rowKey);
@@ -2265,7 +2331,7 @@ public sealed partial class TableStore : IDisposable
             return false;
 
         var row = new TableRow(
-            TableRowCodec.Decode(_schema, rowPayload),
+            TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
             persistedPrimaryKey.ToArray());
         foreach (var entry in BuildIndexEntries(_schema, row))
         {

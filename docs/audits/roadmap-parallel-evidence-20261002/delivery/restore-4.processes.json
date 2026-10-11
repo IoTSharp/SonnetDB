@@ -1,0 +1,152 @@
+{
+  "Name": "restore-4",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "SonnetDB.slnx"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 8.5710647,
+  "Processes": [
+    {
+      "ProcessId": 84948,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.6512+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 78472,
+      "ParentProcessId": 80276,
+      "CreationDate": "2026-10-02T20:27:37.80638+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore SonnetDB.slnx"
+    },
+    {
+      "ProcessId": 86744,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.615093+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 66452,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.514748+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62556,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.603985+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 90588,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:40.044452+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 90172,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.565371+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 31880,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.224677+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 38760,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.237649+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 89264,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.999679+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 52004,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.514579+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 33392,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:40.003564+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 62028,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.836485+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 72720,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.224641+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 90664,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.967682+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 64836,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:37.82491+08:00",
+      "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "ProcessId": 15256,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.826663+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 61468,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.514549+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 55176,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.873061+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 46996,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.514602+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 92236,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:40.344726+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 61016,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:38.826667+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    },
+    {
+      "ProcessId": 41144,
+      "ParentProcessId": 78472,
+      "CreationDate": "2026-10-02T20:27:39.224318+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.401\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+    }
+  ],
+  "CleanedProcesses": []
+}

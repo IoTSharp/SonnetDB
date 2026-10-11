@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "ownership.json",
+    "Length": 216,
+    "sha256": "324902650037DB8573E5323F6AC4519B4D055ADE9D68EA2BF70C1F944284E797"
+  },
+  {
+    "Name": "SonnetDB.CdcStreamingJourney.exe",
+    "Length": 29417472,
+    "sha256": "FD8861C6CFE6537E671589FBC5A3173BD1038160F06F9669EB984E0896F5B9EB"
+  },
+  {
+    "Name": "SonnetDB.CdcStreamingJourney.pdb",
+    "Length": 77369344,
+    "sha256": "DCC6A28D592144640AB804A0EE3119364FB54EEACC7C68A28DD1A21488456277"
+  },
+  {
+    "Name": "SonnetDB.Core.pdb",
+    "Length": 2551552,
+    "sha256": "83C0F9B3EAB4AA80E52FF638D0974CD86946AFB0552AE0969464DB3F21A00EA1"
+  }
+]

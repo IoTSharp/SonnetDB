@@ -331,7 +331,7 @@ public sealed class SqlMaterializationBudgetTests : IDisposable
     /// <summary>其它模型和系统结果路径在预算模式下明确拒绝。</summary>
     [Theory]
     [InlineData("SELECT * FROM information_schema.tables")]
-    [InlineData("SELECT * FROM json_each('[1,2]')")]
+    [InlineData("SELECT * FROM json_each('missing.json') ORDER BY id")]
     public void Execute_UnsupportedSourceWithBudget_RejectsExplicitly(string sql)
     {
         using Tsdb db = OpenItems(1);
@@ -358,18 +358,18 @@ public sealed class SqlMaterializationBudgetTests : IDisposable
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 
-    /// <summary>EXPLAIN 与 ANALYZE 的 Graph 源在查找目标图之前明确拒绝预算模式。</summary>
+    /// <summary>EXPLAIN 与 ANALYZE 的直接 Graph 源仍在候选读取前拒绝不存在的目标图。</summary>
     [Theory]
     [InlineData("EXPLAIN SELECT * FROM graph_nodes(missing_graph)")]
     [InlineData("EXPLAIN ANALYZE SELECT * FROM graph_nodes(missing_graph)")]
-    public void Execute_ExplainGraphWithBudget_RejectsBeforeTargetDispatch(string sql)
+    public void Execute_ExplainGraphWithMissingTarget_RejectsBeforeCandidateRead(string sql)
     {
         using Tsdb db = Open();
 
-        NotSupportedException error = Assert.Throws<NotSupportedException>(() => Select(db, sql,
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => Select(db, sql,
             new SqlExecutionOptions { MaxMaterializedRows = 100 }));
 
-        Assert.Contains("Graph", error.Message, StringComparison.Ordinal);
+        Assert.Contains("graph", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 

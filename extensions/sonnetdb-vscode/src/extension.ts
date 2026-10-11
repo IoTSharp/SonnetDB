@@ -5,6 +5,7 @@ import { ManagedServerService } from './core/managedServerService';
 import { SonnetDbClient } from './core/sonnetdbClient';
 import { getEditorSql } from './core/sqlContext';
 import { SonnetDbConnectionProfile } from './core/types';
+import { buildWorkbenchUrl, workbenchTargetFromNode } from './core/workbenchResource';
 import { registerRunQueryCommand } from './commands/runQueryCommand';
 import { registerProductivityCommands } from './commands/productivityCommands';
 import { registerSqlCompletionProvider } from './language/sqlCompletionProvider';
@@ -41,6 +42,27 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('sonnetdb.explorer', tree),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.openWorkbench', async (node?: TreeNode) => {
+      try {
+        const target = workbenchTargetFromNode(node);
+        const profile = node && 'profile' in node ? node.profile : getActiveProfile();
+        const database = target?.database ?? (node ? undefined : profile?.defaultDatabase);
+        if (!profile || !database) {
+          void vscode.window.showWarningMessage('Select a SonnetDB database or resource from the Explorer first.');
+          return;
+        }
+        const url = buildWorkbenchUrl(profile.baseUrl, target ?? { database });
+        const opened = await vscode.env.openExternal(vscode.Uri.parse(url));
+        if (!opened) {
+          void vscode.window.showWarningMessage('The SonnetDB Workbench link could not be opened.');
+        }
+      } catch (error) {
+        showCommandError('Workbench navigation failed', error);
+      }
+    }),
   );
 
   context.subscriptions.push(

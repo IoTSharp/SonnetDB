@@ -1,0 +1,77 @@
+{
+  "name": "runner-timeout-final-trial",
+  "runnerSha256": "26B7D14F40B4FE92D64D861D799E0548BF5853217393C8352FA26F263908BB86",
+  "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "arguments": [
+    "-NoProfile",
+    "-Command",
+    "$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12"
+  ],
+  "timeoutSeconds": 2,
+  "maxPolls": 2,
+  "owner": {
+    "pid": 90680,
+    "created": "2026-10-03T03:39:35.2468380Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n$taskScriptTokens = $null\n$taskScriptErrors = $null\n$null = [Management.Automation.Language.Parser]::ParseFile('D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1', [ref]$taskScriptTokens, [ref]$taskScriptErrors)\nif ($taskScriptErrors.Count -gt 0) { throw ($taskScriptErrors | Out-String) }\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-final-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 79664,
+    "created": "2026-10-03T03:39:36.5499790Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+    "parent": 90680
+  },
+  "reason": "timeout",
+  "exitCode": 124,
+  "elapsedSeconds": 7.5040432,
+  "samples": [
+    {
+      "elapsedSeconds": 2.0002944,
+      "chains": []
+    }
+  ],
+  "cleanup": [
+    {
+      "action": "terminated-verified-owned-process",
+      "chain": [
+        {
+          "pid": 50876,
+          "created": "2026-10-03T03:39:36.5626010Z",
+          "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+          "parent": 79664
+        },
+        {
+          "pid": 79664,
+          "created": "2026-10-03T03:39:36.5499790Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+          "parent": 90680
+        },
+        {
+          "pid": 90680,
+          "created": "2026-10-03T03:39:35.2468380Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n$taskScriptTokens = $null\n$taskScriptErrors = $null\n$null = [Management.Automation.Language.Parser]::ParseFile('D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1', [ref]$taskScriptTokens, [ref]$taskScriptErrors)\nif ($taskScriptErrors.Count -gt 0) { throw ($taskScriptErrors | Out-String) }\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-final-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+          "parent": 47744
+        }
+      ]
+    },
+    {
+      "action": "terminated-verified-owned-process",
+      "chain": [
+        {
+          "pid": 79664,
+          "created": "2026-10-03T03:39:36.5499790Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+          "parent": 90680
+        },
+        {
+          "pid": 90680,
+          "created": "2026-10-03T03:39:35.2468380Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n$taskScriptTokens = $null\n$taskScriptErrors = $null\n$null = [Management.Automation.Language.Parser]::ParseFile('D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1', [ref]$taskScriptTokens, [ref]$taskScriptErrors)\nif ($taskScriptErrors.Count -gt 0) { throw ($taskScriptErrors | Out-String) }\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-final-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+          "parent": 47744
+        }
+      ]
+    }
+  ],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

@@ -236,7 +236,7 @@ test('A dispatched old-target KV write retains its identity and stops later writ
     assert.equal(f.history[0].database, 'alpha');
     assert.equal(f.history[0].target, 'sessions');
     assert.equal(f.history[0].recordsAffected, 1);
-    assert.equal(f.history[0].status, 'cancelled');
+    assert.equal(f.history[0].status, 'unknown');
     assert.equal(f.notices.length, 0);
     assert.equal(f.component.latestCommand.value.includes('GET-AND-SET'), false);
   } finally { f.dispose(); }
@@ -252,7 +252,7 @@ test('KV cancellation marks an in-flight write unknown and never replays the dis
     f.component.abortPendingOperations();
     await running;
     assert.equal(f.result().state, 'unknown');
-    assert.equal(f.history[0].status, 'cancelled');
+    assert.equal(f.history[0].status, 'unknown');
     assert.equal(f.component.pendingOperations.value.length, 0);
     await f.component.confirmPendingOperations();
     assert.equal(f.writes().length, 1);
@@ -270,12 +270,14 @@ test('KV partial failure retains completed outcomes and stable rejection codes w
     await settle();
     f.latest('get-and-delete').reject({ response: { status: 403, data: { code: 'forbidden', message: 'Access denied' } } });
     await running;
-    assert.equal(f.component.latestResult.value.rows.length, 2);
-    assert.equal(f.component.latestResult.value.end.recordsAffected, 1);
-    assert.equal(f.result().state, 'failed');
-    assert.equal(f.result().errorCode, 'forbidden');
+    assert.equal(f.component.permissionDenied.value, true);
+    assert.equal(f.component.latestResult.value, null);
+    assert.equal(f.component.rows.value.length, 0);
+    assert.equal(f.component.pendingOperations.value.length, 0);
     assert.equal(f.history[0].recordsAffected, 1);
     assert.equal(f.history[0].status, 'error');
+    assert.match(f.history[0].summary, /forbidden/u);
+    assert.ok(!f.history[0].summary.includes('Access denied'));
     await f.component.confirmPendingOperations();
     assert.equal(f.writes().length, 2);
   } finally { f.dispose(); }

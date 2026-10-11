@@ -6,6 +6,7 @@ using SonnetDB.Coap;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 using SonnetDB.Mqtt;
 
@@ -23,6 +24,47 @@ internal static class SonnetDbRequestPipeline
     /// <param name="serverOptions">运行期服务器配置。</param>
     public static void Configure(WebApplication app, ServerOptions serverOptions)
     {
+        var previewIdentity = WorkbenchPreviewPackage.Load(app.Environment.ContentRootPath);
+        app.MapGet("/workbench-preview/identity", (HttpContext context) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            return previewIdentity is null
+                ? Results.NotFound()
+                : Results.Json(previewIdentity, ServerJsonContext.Default.WorkbenchPreviewIdentity);
+        });
+        app.Use(async (context, next) =>
+        {
+            if (previewIdentity is not null && context.Request.Path.StartsWithSegments("/v1")
+                && context.Request.Headers.ContainsKey("X-SonnetDB-Workbench-Profile")
+                && !WorkbenchPreviewPackage.Matches(context.Request, previewIdentity))
+            {
+                context.Response.StatusCode = StatusCodes.Status428PreconditionRequired;
+                await JsonSerializer.SerializeAsync(context.Response.Body,
+                    new ErrorResponse("preview_identity_mismatch", "Server/Web Preview 版本或源码不匹配，请使用同一完整包。"),
+                    ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
+                return;
+            }
+            await next(context).ConfigureAwait(false);
+        });
+        // 覆盖尚未开始响应的 REST 请求，防止存储过载被误报为未分类 500。
+        app.Use(async (context, next) =>
+        {
+            try
+            {
+                await next(context).ConfigureAwait(false);
+            }
+            catch (KvReadOverloadedException exception) when (!context.Response.HasStarted)
+            {
+                context.Response.Clear();
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                context.Response.Headers.RetryAfter = "1";
+                context.Response.ContentType = "application/json; charset=utf-8";
+                var error = new ErrorResponse(KvReadOverloadedException.Code, exception.Message,
+                    KvReadOverloadedException.Code);
+                await JsonSerializer.SerializeAsync(context.Response.Body, error,
+                    ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
+            }
+        });
         MqttServerBootstrap.ConfigureMiddleware(app, serverOptions);
         CoapServerBootstrap.ConfigureMiddleware(app, serverOptions);
 

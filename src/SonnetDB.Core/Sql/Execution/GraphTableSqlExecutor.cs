@@ -15,6 +15,26 @@ internal static class GraphTableSqlExecutor
     private const int MaxRelationScanRows = 10_000;
     private static readonly TimeSpan MaxRelationScanDuration = TimeSpan.FromMilliseconds(50);
 
+    /// <summary>在生成执行计划和打开图快照前验证原生一跳预算查询。</summary>
+    internal static void ValidateMaterializationSupported(Tsdb tsdb, SelectStatement statement)
+    {
+        GraphSqlExecutor.ValidateBudgetedSelectShape(statement);
+        GraphTableSource source = statement.GraphTable
+            ?? throw new NotSupportedException("GRAPH_TABLE 物化预算要求直接图模式源。");
+        if (source.Path is not null || tsdb.Graphs.PropertyGraphs.TryGet(source.GraphName) is not null
+            || statement.TableValuedFunction is not null)
+            throw new NotSupportedException("GRAPH_TABLE 物化预算仅支持原生固定一跳；关系映射及路径查询尚不支持。");
+        if (tsdb.Graphs.Catalog.TryGet(source.GraphName) is null)
+            throw new InvalidOperationException($"graph '{source.GraphName}' 不存在。");
+        ValidatePathPattern(source);
+        _ = ResolveNativeLabels(tsdb, source);
+        GraphSqlExecutor.ValidateBudgetedScalar(tsdb, source.Predicate);
+        foreach (SelectItem item in source.Columns)
+            GraphSqlExecutor.ValidateBudgetedScalar(tsdb, item.Expression);
+        ValidateNativeExpressions(source, preciseIdentifiers: true);
+        GraphSqlExecutor.ValidateBudgetedExpressions(tsdb, statement, BuildOutputColumns(source.Columns));
+    }
+
     internal static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -28,10 +48,13 @@ internal static class GraphTableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         GraphTableSource source = statement.GraphTable
             ?? throw new InvalidOperationException("GRAPH_TABLE EXPLAIN 缺少 typed source。");
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+            ValidateMaterializationSupported(tsdb, statement);
         EnsureSupportedShape(statement);
         ValidatePathPattern(source);
         GraphTableExecutionPlan plan = CreateExecutionPlan(tsdb, source);
-        return new SelectExecutionResult(["key", "value"], BuildExplainRows(tsdb, source, plan));
+        return GraphSqlExecutor.RetainMetadataResult(
+            new SelectExecutionResult(["key", "value"], BuildExplainRows(tsdb, source, plan)));
     }
 
     internal static SelectExecutionResult ExplainAnalyze(Tsdb tsdb, SelectStatement statement)
@@ -56,13 +79,15 @@ internal static class GraphTableSqlExecutor
         rows.Add(new object?[] { "actual_anchor_access_path", outcome.Plan.NativeAnchor?.AccessPath });
         rows.Add(new object?[] { "actual_anchor_index", outcome.Plan.NativeAnchor?.Index });
         rows.Add(new object?[] { "actual_elapsed_ms", outcome.Metrics.Elapsed.TotalMilliseconds });
-        return new SelectExecutionResult(["key", "value"], rows);
+        return GraphSqlExecutor.RetainMetadataResult(new SelectExecutionResult(["key", "value"], rows));
     }
 
     private static GraphTableExecutionOutcome ExecuteCore(Tsdb tsdb, SelectStatement statement)
     {
         GraphTableSource source = statement.GraphTable
             ?? throw new InvalidOperationException("GRAPH_TABLE SELECT 缺少 typed source。");
+        if (SqlRowRetentionBudget.HasExecutionBudget)
+            ValidateMaterializationSupported(tsdb, statement);
         EnsureSupportedShape(statement);
         ValidatePathPattern(source);
         GraphTableExecutionPlan plan = CreateExecutionPlan(tsdb, source);
@@ -1041,11 +1066,13 @@ internal static class GraphTableSqlExecutor
 
         IEnumerable<IReadOnlyList<object?>> PullRows()
         {
+            long startedAt = Stopwatch.GetTimestamp();
             using GraphReadSession session = tsdb.Graphs.Open(source.GraphName).BeginRead();
             metrics.ReadConsistency = "statement_snapshot";
             metrics.SnapshotSequence = session.Sequence;
             int anchorCount = 0;
             int remainingMatchedRows = MaxMatchedRows;
+            int budgetedExpansions = 0;
             var bindings = new NativeMatchBindings();
             Func<IdentifierExpression, object?> resolveBindings = bindings.Resolve;
             foreach (GraphVertex anchor in EnumerateNativeAnchors(
@@ -1053,9 +1080,10 @@ internal static class GraphTableSqlExecutor
                 source,
                 labels.Left,
                 "GRAPH_TABLE native anchor id",
-                plan.NativeAnchor))
+                plan.NativeAnchor,
+                startedAt))
             {
-                SqlExecutor.ThrowIfCancellationRequested();
+                GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
                 if (++anchorCount > MaxAnchorRows)
                     throw new GraphTraversalLimitExceededException($"GRAPH_TABLE anchor 超过上限 {MaxAnchorRows} 行。");
                 metrics.AnchorRows = checked(metrics.AnchorRows + 1);
@@ -1070,14 +1098,20 @@ internal static class GraphTableSqlExecutor
                             PageSize = 256,
                             MaxResults = Math.Max(1, remainingMatchedRows + 1),
                         }));
-                while (true)
+                for (int pageIndex = 0; pageIndex <= MaxMatchedRows; pageIndex++)
                 {
-                    IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage();
+                    GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
+                    IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage(
+                        SqlQueryResources.Current?.CancellationToken ?? default);
                     if (page.Count == 0)
                         break;
                     metrics.Expansions = checked(metrics.Expansions + page.Count);
                     foreach (GraphExpansion expansion in page)
                     {
+                        GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
+                        if (SqlRowRetentionBudget.HasExecutionBudget && ++budgetedExpansions > MaxMatchedRows)
+                            throw new GraphTraversalLimitExceededException(
+                                $"GRAPH_TABLE 物化预算查询扫描扩展超过上限 {MaxMatchedRows} 行。");
                         GraphVertex? neighbor = session.GetVertex(expansion.NeighborId);
                         if (neighbor is null || !neighbor.Labels.Contains(labels.Right))
                             continue;
@@ -1400,7 +1434,7 @@ internal static class GraphTableSqlExecutor
         }
     }
 
-    private static void ValidateNativeExpressions(GraphTableSource source)
+    private static void ValidateNativeExpressions(GraphTableSource source, bool preciseIdentifiers = false)
     {
         var kinds = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
         {
@@ -1410,7 +1444,15 @@ internal static class GraphTableSqlExecutor
         };
         bool Exists(IdentifierExpression identifier)
             => identifier.Qualifier is not null
+                && (!preciseIdentifiers || !identifier.QualifierIsQuoted
+                    || kinds.ContainsKey(identifier.Qualifier)
+                        && kinds.Keys.Contains(identifier.Qualifier, StringComparer.Ordinal))
                 && kinds.TryGetValue(identifier.Qualifier, out bool vertex)
+                && (!preciseIdentifiers || !identifier.IsQuoted
+                    || string.Equals(identifier.Name,
+                        TryParsePropertyId(identifier.Name, out int propertyId)
+                            ? "property_" + propertyId.ToString(CultureInfo.InvariantCulture)
+                            : identifier.Name.ToLowerInvariant(), StringComparison.Ordinal))
                 && IsNativeColumn(identifier.Name, vertex);
         if (source.Predicate is not null)
             SqlProjectionExpressionEvaluator.Validate(source.Predicate, Exists, "GRAPH_TABLE MATCH WHERE");
@@ -1590,6 +1632,11 @@ internal static class GraphTableSqlExecutor
     {
         foreach (IReadOnlyList<object?> row in rows)
         {
+            if (SqlRowRetentionBudget.HasExecutionBudget)
+            {
+                SqlExecutionTelemetry.RecordCandidateRows(1);
+                SqlExecutionTelemetry.RecordExaminedRows(1);
+            }
             metrics.MatchedRows = checked(metrics.MatchedRows + 1);
             yield return row;
         }
@@ -1708,8 +1755,11 @@ internal static class GraphTableSqlExecutor
         GraphTableSource source,
         LabelId label,
         string idDescription,
-        GraphNativeAnchorAccess? access)
+        GraphNativeAnchorAccess? access,
+        long? budgetedStartedAt = null)
     {
+        long startedAt = budgetedStartedAt ?? Stopwatch.GetTimestamp();
+        GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
         if (TryExtractKeyValues(
             source.Predicate,
             source.LeftVertex.Variable,
@@ -1732,9 +1782,11 @@ internal static class GraphTableSqlExecutor
                     propertyId,
                     propertyValue,
                     new GraphCursorOptions { PageSize = 256, MaxResults = MaxAnchorRows + 1 }));
-            while (true)
+            for (int pageIndex = 0; pageIndex <= MaxAnchorRows; pageIndex++)
             {
-                IReadOnlyList<GraphVertex> page = propertyCursor.ReadNextPage();
+                GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
+                IReadOnlyList<GraphVertex> page = propertyCursor.ReadNextPage(
+                    SqlQueryResources.Current?.CancellationToken ?? default);
                 if (page.Count == 0)
                     yield break;
                 foreach (GraphVertex vertex in page)
@@ -1747,9 +1799,11 @@ internal static class GraphTableSqlExecutor
             new GraphNodeScanPlan(
                 label,
                 Options: new GraphCursorOptions { PageSize = 256, MaxResults = MaxAnchorRows + 1 }));
-        while (true)
+        for (int pageIndex = 0; pageIndex <= MaxAnchorRows; pageIndex++)
         {
-            IReadOnlyList<GraphVertex> page = cursor.ReadNextPage();
+            GraphSqlExecutor.ThrowIfBudgetedCancelled(startedAt);
+            IReadOnlyList<GraphVertex> page = cursor.ReadNextPage(
+                SqlQueryResources.Current?.CancellationToken ?? default);
             if (page.Count == 0)
                 yield break;
             foreach (GraphVertex vertex in page)

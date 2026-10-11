@@ -130,7 +130,9 @@ public sealed record TableCheckConstraint(
                 && function.Arguments.Count == 2
                 && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String })
             || ((string.Equals(function.Name, "lower", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(function.Name, "upper", StringComparison.OrdinalIgnoreCase))
+                    || string.Equals(function.Name, "upper", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(function.Name, "length", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(function.Name, "char_length", StringComparison.OrdinalIgnoreCase))
                 && function.Arguments.Count == 1)
             || (string.Equals(function.Name, "coalesce", StringComparison.OrdinalIgnoreCase)
                 && function.Arguments.Count > 0);

@@ -1,0 +1,110 @@
+{
+  "name": "runner-timeout-trial",
+  "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "arguments": [
+    "-NoProfile",
+    "-Command",
+    "$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12"
+  ],
+  "timeoutSeconds": 2,
+  "maxPolls": 2,
+  "owner": {
+    "pid": 59248,
+    "created": "2026-10-03T03:19:52.1595870Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 81032,
+    "created": "2026-10-03T03:19:54.2670400Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+    "parent": 59248
+  },
+  "reason": "timeout",
+  "exitCode": 124,
+  "elapsedSeconds": 10.2463358,
+  "samples": [
+    {
+      "elapsedSeconds": 2.6620772,
+      "chains": [
+        [
+          {
+            "pid": 81032,
+            "created": "2026-10-03T03:19:54.2670400Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+            "parent": 59248
+          },
+          {
+            "pid": 59248,
+            "created": "2026-10-03T03:19:52.1595870Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+            "parent": 47744
+          }
+        ],
+        [
+          {
+            "pid": 57068,
+            "created": "2026-10-03T03:19:54.2852180Z",
+            "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+            "parent": 81032
+          },
+          {
+            "pid": 81032,
+            "created": "2026-10-03T03:19:54.2670400Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+            "parent": 59248
+          },
+          {
+            "pid": 59248,
+            "created": "2026-10-03T03:19:52.1595870Z",
+            "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+            "parent": 47744
+          }
+        ]
+      ]
+    }
+  ],
+  "cleanup": [
+    {
+      "action": "terminated-verified-owned-process",
+      "chain": [
+        {
+          "pid": 57068,
+          "created": "2026-10-03T03:19:54.2852180Z",
+          "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+          "parent": 81032
+        },
+        {
+          "pid": 81032,
+          "created": "2026-10-03T03:19:54.2670400Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+          "parent": 59248
+        },
+        {
+          "pid": 59248,
+          "created": "2026-10-03T03:19:52.1595870Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+          "parent": 47744
+        }
+      ]
+    },
+    {
+      "action": "terminated-verified-owned-process",
+      "chain": [
+        {
+          "pid": 81032,
+          "created": "2026-10-03T03:19:54.2670400Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -NoProfile -Command \"$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12\"",
+          "parent": 59248
+        },
+        {
+          "pid": 59248,
+          "created": "2026-10-03T03:19:52.1595870Z",
+          "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name runner-timeout-trial -Executable 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' -Arguments @('-NoProfile','-Command','$PSVersionTable.PSVersion.ToString(); Start-Sleep -Seconds 12') -TimeoutSeconds 2\"",
+          "parent": 47744
+        }
+      ]
+    }
+  ],
+  "remaining": []
+}

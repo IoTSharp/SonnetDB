@@ -1,0 +1,12 @@
+{
+  "Name": "smoke",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "--version"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 1.4302878,
+  "Processes": [],
+  "CleanedProcesses": []
+}

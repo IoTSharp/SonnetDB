@@ -1,0 +1,24 @@
+{
+  "Name": "restore-crash",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "restore",
+    "tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj",
+    "--artifacts-path",
+    "C:\\Temp\\sdbp-81bfff26\\a",
+    "-m:2",
+    "-nodeReuse:false"
+  ],
+  "ExitCode": 0,
+  "Failure": null,
+  "DurationSeconds": 4.0655015,
+  "Processes": [
+    {
+      "ProcessId": 5968,
+      "ParentProcessId": 79660,
+      "CreationDate": "2026-10-02T19:25:02.866525+08:00",
+      "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --artifacts-path C:\\Temp\\sdbp-81bfff26\\a -m:2 -nodeReuse:false"
+    }
+  ],
+  "CleanedProcesses": []
+}

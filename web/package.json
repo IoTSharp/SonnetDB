@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test:e2e": "node ./e2e/run-playwright.mjs",
-    "test:e2e:update-screenshots": "node ./e2e/run-playwright.mjs --update-snapshots",
+    "test:contracts": "node --experimental-vm-modules --test --test-concurrency=2 tests/*.test.mjs e2e/*.test.mjs",
+    "test:e2e": "node ./e2e/run-playwright.mjs --config=playwright.smoke.config.ts",
+    "test:e2e:update-screenshots": "node ./e2e/run-playwright.mjs --config=playwright.smoke.config.ts --update-snapshots",
     "docs:screenshots": "node ./e2e/capture-docs-screenshots.mjs"
   },
   "dependencies": {

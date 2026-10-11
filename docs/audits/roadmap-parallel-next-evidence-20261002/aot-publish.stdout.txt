@@ -1,0 +1,7 @@
+  正在确定要还原的项目…
+  已还原 D:\source\SonnetDB\src\SonnetDB.Core\SonnetDB.Core.csproj (用时 284 毫秒)。
+  已还原 D:\source\SonnetDB\samples\SonnetDB.CdcStreamingJourney\SonnetDB.CdcStreamingJourney.csproj (用时 284 毫秒)。
+  SonnetDB.Core -> D:\source\SonnetDB\src\SonnetDB.Core\bin\Release\net10.0\SonnetDB.Core.dll
+  SonnetDB.CdcStreamingJourney -> D:\source\SonnetDB\samples\SonnetDB.CdcStreamingJourney\bin\Release\net10.0\win-x64\SonnetDB.CdcStreamingJourney.dll
+  Generating native code
+  SonnetDB.CdcStreamingJourney -> D:\source\SonnetDB\.codex-temp\parallel-next-20261002\native\

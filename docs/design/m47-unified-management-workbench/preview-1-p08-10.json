@@ -1,0 +1,946 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M47-P08",
+  "kind": "publication-tooling-and-prerequisite-evidence",
+  "repository": "IoTSharp/SonnetDB",
+  "observedUtc": "2026-10-11T12:22:32.619Z",
+  "candidate": "candidate-10",
+  "version": "4.5.0-preview.1.10",
+  "sourceCommit": "54eefc816f133a805b0d38f0cbe930d2c17650b6",
+  "sourceTree": "0083fd496dbdac25019aee058651c821dac0c336",
+  "toolingBaseCommit": "5983ff3fd9925ec9bbfdabe6a50571458a2ae980",
+  "toolingBinding": "Exact source SHA256 inventory; delivery commit is recorded in the local delivery receipt",
+  "distributionSha256": "acb2bf64bb2c76d77a18f924e5d4842e29a703bfd2129e0d0152a79bbfe85d1b",
+  "status": "NOT_READY",
+  "published": false,
+  "publicationDispatched": false,
+  "tagCreated": false,
+  "firstRun": "NOT_RUN",
+  "candidateRebuilt": false,
+  "newVersionConsumed": false,
+  "environment": {
+    "name": "workbench-preview-p08",
+    "id": 24006677696,
+    "requiredReviewer": "maikebing",
+    "reviewerId": 3445167,
+    "preventSelfReview": true,
+    "canAdminsBypass": false,
+    "currentDispatchAccount": "maikebing",
+    "selfReviewConflict": true,
+    "requiredNextIdentity": "A different authorized account must dispatch; maikebing reviews after all gates pass"
+  },
+  "package": {
+    "build": {
+      "runId": "38104431383",
+      "attempt": 1,
+      "artifactId": "11689128428",
+      "artifactDigest": "sha256:87a6bac2b8e3999a251c50ce2247b88d0ba292cc0a8d99c746eec5f60f121a13"
+    },
+    "archiveFiles": 279,
+    "zip": {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.10-win-x64.zip",
+      "size": 46634305,
+      "sha256": "d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed"
+    },
+    "unchanged": true
+  },
+  "licensePreparation": {
+    "status": "FIVE_ORIGINAL_NOTICES_PREPARED_FOR_SUCCESSOR",
+    "dependencies": [
+      {
+        "id": "@css-render/plugin-bem",
+        "version": "0.15.14",
+        "integrity": "sha512-QK513CJ7yEQxm/P3EwsI+d+ha8kSOcjGvD6SevM41neEMxdULE+18iuQK6tEChAWMOQNQPLG/Rw3Khb69r5neg==",
+        "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+        "originalFile": "css-render-LICENSE.txt",
+        "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+        "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+      },
+      {
+        "id": "@css-render/vue3-ssr",
+        "version": "0.15.14",
+        "integrity": "sha512-//8027GSbxE9n3QlD73xFY6z4ZbHbvrOVB7AO6hsmrEzGbg+h2A09HboUyDgu+xsmj7JnvJD39Irt+2D0+iV8g==",
+        "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+        "originalFile": "css-render-LICENSE.txt",
+        "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+        "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+      },
+      {
+        "id": "@vue/devtools-api",
+        "version": "6.6.4",
+        "integrity": "sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==",
+        "gitHead": "df6ab6bb7791a7a525a97990de73b3ea5e9a1941",
+        "originalFile": "vue-devtools-LICENSE.txt",
+        "source": "https://raw.githubusercontent.com/vuejs/vue-devtools/df6ab6bb7791a7a525a97990de73b3ea5e9a1941/LICENSE",
+        "evidence": "Original vue-devtools license at exact published gitHead for devtools-api 6.6.4"
+      },
+      {
+        "id": "css-render",
+        "version": "0.15.14",
+        "integrity": "sha512-9nF4PdUle+5ta4W5SyZdLCCmFd37uVimSjg1evcTqKJCyvCEEj12WKzOSBNak6r4im4J4iYXKH1OWpUV5LBYFg==",
+        "gitHead": "9345145da71707d1d05a99c1d3a6e89315ac0574",
+        "originalFile": "css-render-LICENSE.txt",
+        "source": "https://raw.githubusercontent.com/07akioni/css-render/9345145da71707d1d05a99c1d3a6e89315ac0574/LICENSE",
+        "evidence": "Original license at exact published gitHead; css-render packages share the same fixed monorepo commit"
+      },
+      {
+        "id": "murmurhash-js",
+        "version": "1.0.0",
+        "integrity": "sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw==",
+        "gitHead": "72aabce3f52cb8f16245692a69fd35951e165af0",
+        "originalFile": "murmurhash-js-README.md",
+        "source": "https://registry.npmjs.org/murmurhash-js/-/murmurhash-js-1.0.0.tgz",
+        "evidence": "Full README from integrity-verified published tar"
+      }
+    ],
+    "originals": [
+      {
+        "file": "css-render-LICENSE.txt",
+        "storageFile": "css-render-LICENSE.txt.gz",
+        "encoding": "gzip",
+        "size": 1065,
+        "sha256": "306f57de421d7ef77f7dc145e1234f9c0ec76b710d28769b4d98ef3c4f8a64bd",
+        "storageSha256": "beb5e6ad007193e5e5f2aae6edb2c7d263c57831c6bdaca1f78532ae9f691f26"
+      },
+      {
+        "file": "vue-devtools-LICENSE.txt",
+        "storageFile": "vue-devtools-LICENSE.txt.gz",
+        "encoding": "gzip",
+        "size": 1083,
+        "sha256": "050bbca6960784db52ff387271bf2ecc5cbed7cf8581b415d528a6ecb6585015",
+        "storageSha256": "6c87af1b34cd4f31a42a839cf2fdf247fd5aacc1f04894549308daed27b6aaeb"
+      },
+      {
+        "file": "murmurhash-js-README.md",
+        "storageFile": "murmurhash-js-README.md.gz",
+        "encoding": "gzip",
+        "size": 1941,
+        "sha256": "e137ced8967fc334ec9b5fc5c8500992f9e49d2e9cc0f6e2439e46af2f2481a4",
+        "storageSha256": "1ec6883c988211bb4246b966b4fb6c2a4925a38879ba4870b1d2fe6c5c55de37"
+      }
+    ],
+    "registryTars": [
+      {
+        "uri": "https://registry.npmjs.org/@css-render/plugin-bem/-/plugin-bem-0.15.14.tgz",
+        "name": "npm-0.tgz",
+        "version": "0.15.14",
+        "size": 2000,
+        "status": 200,
+        "sha256": "a3c0342ac1fd6fb5180d1bbb7702e511618f2bc3fb1bdfb06cce19b0e24dd6ed",
+        "id": "@css-render/plugin-bem",
+        "via": "direct",
+        "integrity": "sha512-QK513CJ7yEQxm/P3EwsI+d+ha8kSOcjGvD6SevM41neEMxdULE+18iuQK6tEChAWMOQNQPLG/Rw3Khb69r5neg=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/@css-render/vue3-ssr/-/vue3-ssr-0.15.14.tgz",
+        "name": "npm-1.tgz",
+        "version": "0.15.14",
+        "size": 66874,
+        "status": 200,
+        "sha256": "5fa41373360e464da90d2658e4f5a0f34dfe23f3901f4a897485b437a88c09a5",
+        "id": "@css-render/vue3-ssr",
+        "via": "direct",
+        "integrity": "sha512-//8027GSbxE9n3QlD73xFY6z4ZbHbvrOVB7AO6hsmrEzGbg+h2A09HboUyDgu+xsmj7JnvJD39Irt+2D0+iV8g=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/@mapbox/jsonlint-lines-primitives/-/jsonlint-lines-primitives-2.0.2.tgz",
+        "name": "npm-3.tgz",
+        "version": "2.0.2",
+        "size": 19740,
+        "status": 200,
+        "sha256": "96ce93290857e2bd50880fffd1620305702ad0e2a97a1dca21fa1504b0960540",
+        "id": "@mapbox/jsonlint-lines-primitives",
+        "via": "direct",
+        "integrity": "sha512-rY0o9A5ECsTQRVhv7tL/OyDpGAoUB4tTvLiW1DSzQGq4bvTPhNw1VpSNjDJc5GFZ2XuyOtSWSVN05qOtcD71qQ=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/@vue/devtools-api/-/devtools-api-6.6.4.tgz",
+        "name": "npm-7.tgz",
+        "version": "6.6.4",
+        "size": 7317,
+        "status": 200,
+        "sha256": "635ae91a183f141ae8d3dc82756859632a988946a947626721151fcdf8cfbcc7",
+        "id": "@vue/devtools-api",
+        "via": "direct",
+        "integrity": "sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/css-render/-/css-render-0.15.14.tgz",
+        "name": "npm-8.tgz",
+        "version": "0.15.14",
+        "size": 9062,
+        "status": 200,
+        "sha256": "5f9466c3f40395920477ea00b4e1813785269c9471198113416a58f3186e4195",
+        "id": "css-render",
+        "via": "direct",
+        "integrity": "sha512-9nF4PdUle+5ta4W5SyZdLCCmFd37uVimSjg1evcTqKJCyvCEEj12WKzOSBNak6r4im4J4iYXKH1OWpUV5LBYFg=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/murmurhash-js/-/murmurhash-js-1.0.0.tgz",
+        "name": "npm-10.tgz",
+        "version": "1.0.0",
+        "size": 2544,
+        "status": 200,
+        "sha256": "0807f0738886929c36e3274e6bf0721efe9ba81d6edbe5ad9ec11ab5cb8ecc12",
+        "id": "murmurhash-js",
+        "via": "direct",
+        "integrity": "sha512-TvmkNhkv8yct0SVBSy+o8wYzXjE4Zz3PCesbfs8HiCXXdcTuocApFv11UWlNFWKYsP2okqrhb7JNlSm9InBhIw=="
+      },
+      {
+        "uri": "https://registry.npmjs.org/vdirs/-/vdirs-0.1.8.tgz",
+        "name": "npm-11.tgz",
+        "version": "0.1.8",
+        "size": 3228,
+        "status": 200,
+        "sha256": "530ed8b349c9540147a9a19ff62eeb1d0eb96615e0d505dcdbc598ddd278155f",
+        "id": "vdirs",
+        "via": "direct",
+        "integrity": "sha512-H9V1zGRLQZg9b+GdMk8MXDN2Lva0zx72MPahDKc30v+DtwKjfyOSXWRIX4t2mhDubM1H09gPhWeth/BJWPHGUw=="
+      }
+    ],
+    "unresolvedNpm": [
+      "@mapbox/jsonlint-lines-primitives@2.0.2",
+      "vdirs@0.1.8"
+    ],
+    "microsoft": "Official 2026 redist list obtained; valid publisher entitlement and applicable distributor/end-user protection conditions remain unresolved",
+    "candidate10RuntimeIssuesRetained": 11,
+    "candidate10LicenseStatus": "NOT_READY",
+    "requiresNewCandidateAndVersion": true
+  },
+  "originalRequiredGates": {
+    "status": "NOT_READY",
+    "passed": 4,
+    "total": 12,
+    "workflows": [
+      {
+        "workflow": "ci.yml",
+        "ready": true,
+        "runId": 38104349442,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38104349442",
+        "issues": []
+      },
+      {
+        "workflow": "codeql.yml",
+        "ready": true,
+        "runId": 38104349411,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38104349411",
+        "issues": []
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "ready": true,
+        "runId": 38104349520,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38104349520",
+        "issues": []
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "ready": true,
+        "runId": 38104349494,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38104349494",
+        "issues": []
+      },
+      {
+        "workflow": "parity.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "document-soak.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "publish.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "ready": false,
+        "runId": null,
+        "url": null,
+        "issues": [
+          "No eligible workflow run exists for this commit."
+        ]
+      }
+    ],
+    "scheduledObservation": [
+      {
+        "name": "scheduled-parity-seven-days",
+        "blocking": false,
+        "status": "UNAVAILABLE",
+        "validRunCount": null,
+        "requiredRunCount": 7,
+        "reportPath": "D:\\source\\SonnetDB\\artifacts\\m47-p08-20261011\\live-original-gates-authenticated\\parity-nightly.json",
+        "issues": [
+          {
+            "code": "observation_unavailable",
+            "message": "从 JSON 转换失败，出现错误: After parsing a value an unexpected character was encountered: t. Path 'workflow_runs[2].head_commit.message', line 1, position 27901."
+          }
+        ]
+      }
+    ],
+    "p07FrozenStatus": "NOT_READY",
+    "policyUnchanged": true,
+    "verifierUnchanged": true
+  },
+  "validation": {
+    "node": {
+      "status": "PASS",
+      "tests": 86,
+      "passed": 86,
+      "failed": 0,
+      "skipped": 0,
+      "kind": "LOCAL_SYNTHETIC_CONTRACTS"
+    },
+    "supplemental": {
+      "elapsedSeconds": 0.3428453,
+      "results": [
+        {
+          "kind": "LOCAL_CONTRACT",
+          "status": "PASS",
+          "name": "exact"
+        },
+        {
+          "kind": "LOCAL_CONTRACT",
+          "status": "PASS_EXPECTED_REFUSAL",
+          "name": "wrong-integrity"
+        },
+        {
+          "kind": "LOCAL_CONTRACT",
+          "status": "PASS_EXPECTED_REFUSAL",
+          "name": "missing-dependency"
+        },
+        {
+          "kind": "LOCAL_CONTRACT",
+          "status": "PASS_EXPECTED_REFUSAL",
+          "name": "wrong-version"
+        },
+        {
+          "kind": "LOCAL_CONTRACT",
+          "status": "PASS_EXPECTED_REFUSAL",
+          "name": "build-only"
+        }
+      ],
+      "fixtureRemoved": true
+    },
+    "transportErrors": {
+      "safeReasonsRetained": 2,
+      "sourceSha256": "e9e1695072b22af96012a79efbb6868391976843b451d1bb8dce967cc7fda799",
+      "elapsedSeconds": 0.1805839,
+      "status": "PASS",
+      "kind": "LOCAL_ERROR_REDACTION_AND_URL_REFUSAL_CONTRACT",
+      "unsafeUrlsRejected": 4,
+      "parse": [
+        {
+          "status": "PASS",
+          "path": "eng/workbench-preview/Invoke-P08Readback.ps1",
+          "sha256": "9226101d13e5f8bdec3a7adc2278df3529262e8c5127af9ea861dd471de04b76"
+        },
+        {
+          "status": "PASS",
+          "path": "eng/workbench-preview/Invoke-PublicDownload.ps1",
+          "sha256": "e9e1695072b22af96012a79efbb6868391976843b451d1bb8dce967cc7fda799"
+        },
+        {
+          "status": "PASS",
+          "path": "eng/workbench-preview/Invoke-PublicFirstRun.ps1",
+          "sha256": "18bad1ddb286a94cfa4cc6d00f9d5e554b17af02773bfc60e21ffcf78a1e663d"
+        },
+        {
+          "status": "PASS",
+          "path": "eng/workbench-preview/Add-SupplementalNotices.ps1",
+          "sha256": "93d89e88b83cd053a9332c6bf9d7d79a3dc694fc45b9200dbff6c4fa5d4cf8bf"
+        },
+        {
+          "status": "PASS",
+          "path": "eng/workbench-preview/licenses.ps1",
+          "sha256": "c38d85168961189f5488291cafd043f247cc4c8581f3e8fd106f8a813125859b"
+        }
+      ],
+      "unsafeErrorsRedacted": 3
+    },
+    "publicTransportMicro": {
+      "status": "PASS_REPOSITORY_PAGE_ONLY",
+      "sourceRevision": "Original pre-redaction transport; original source hash retained in raw receipt",
+      "releaseAcceptance": false
+    },
+    "candidate10PublicRequest": {
+      "status": "REFUSED",
+      "httpStatus": 404,
+      "originalJobStatus": "FAIL",
+      "mutationStarted": false,
+      "firstRun": "NOT_RUN"
+    },
+    "publicFirstRun": {
+      "status": "NOT_RUN",
+      "reason": "No released candidate and incomplete license/full-gate prerequisites"
+    }
+  },
+  "preservedFailures": [
+    "environment import failed before any API mutation",
+    "two supplemental regex automatic-variable failures",
+    "anonymous verifier quota failures",
+    "nonblocking scheduled JSON parse failure",
+    "original candidate10 anonymous HTTP 404 Job FAIL",
+    "finalization stopped on wrong workflow filename before shared-document edits; lossless originals reused after hash verification"
+  ],
+  "frozenInputs": [
+    {
+      "path": "eng/release-readiness-policy.ps1",
+      "size": 9212,
+      "sha256": "cc88e7e35e221d6db95599e92bd8b66b4738fd8d3edb5f4cd576a1ce12158c6f"
+    },
+    {
+      "path": "eng/verify-release-readiness.ps1",
+      "size": 7069,
+      "sha256": "03fab766e9387d9ee8795827b8ec6297247e3681c1f699ad04c05826e71a7f8b"
+    },
+    {
+      "path": "eng/workbench-preview/profile.json",
+      "size": 14823,
+      "sha256": "4f82084d9e008e8d782c5758ca55d6c248c2ab25a15ccfa93ee5a9842dcf11bd"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-candidate-10.json",
+      "size": 90073,
+      "sha256": "554d1f07b1a322ccaff944cc9dc50370b6bb83bc3f02697e7108ae1c28487af0"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-candidate-10-acceptance-audit.json",
+      "size": 1747,
+      "sha256": "18b0e9a346cd5cf822347abf76f67f189f4ee9b9bf81668c51255a6710527f98"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-distribution-10.json",
+      "size": 3754,
+      "sha256": "acb2bf64bb2c76d77a18f924e5d4842e29a703bfd2129e0d0152a79bbfe85d1b"
+    },
+    {
+      "path": "docs/design/m47-unified-management-workbench/preview-1-p07-10.json",
+      "size": 11112,
+      "sha256": "3512ebf7d2abde311aeb42134c7ebb3d629bdfa7fcc302f7768c2c5d79dabb48"
+    }
+  ],
+  "toolInventory": [
+    {
+      "path": "eng/workbench-preview/release.mjs",
+      "size": 6567,
+      "sha256": "66757b5f48aeb6c516405fd2f4eec7abbb28a2506c38b3655e98d676bc040769"
+    },
+    {
+      "path": "eng/workbench-preview/dispatch.mjs",
+      "size": 9257,
+      "sha256": "a328c177f424a94b51c4db370c2671549d2430fff8e571269877954608e8f162"
+    },
+    {
+      "path": "eng/workbench-preview/distribution.test.mjs",
+      "size": 17674,
+      "sha256": "646c2a1ab3fac01d887f6929f5c7796ec8250188193fc9b1459ff1713af5f1f3"
+    },
+    {
+      "path": "eng/workbench-preview/licenses.ps1",
+      "size": 5774,
+      "sha256": "c38d85168961189f5488291cafd043f247cc4c8581f3e8fd106f8a813125859b"
+    },
+    {
+      "path": "eng/workbench-preview/public-readback.mjs",
+      "size": 5004,
+      "sha256": "4203613e86c4fa0a311c8eba8c44923692544ffc59c5ecb3c62b8c418726924a"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-PublicDownload.ps1",
+      "size": 8855,
+      "sha256": "e9e1695072b22af96012a79efbb6868391976843b451d1bb8dce967cc7fda799"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-PublicFirstRun.ps1",
+      "size": 4609,
+      "sha256": "18bad1ddb286a94cfa4cc6d00f9d5e554b17af02773bfc60e21ffcf78a1e663d"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-P08Readback.ps1",
+      "size": 1758,
+      "sha256": "9226101d13e5f8bdec3a7adc2278df3529262e8c5127af9ea861dd471de04b76"
+    },
+    {
+      "path": "eng/workbench-preview/Add-SupplementalNotices.ps1",
+      "size": 3772,
+      "sha256": "93d89e88b83cd053a9332c6bf9d7d79a3dc694fc45b9200dbff6c4fa5d4cf8bf"
+    },
+    {
+      "path": "eng/workbench-preview/licenses-supplemental/manifest.json",
+      "size": 3913,
+      "sha256": "4d47aa18398622f1c9d0d5252d8ec17ac8d57467bf469f90d94a20b98fcef5dc"
+    },
+    {
+      "path": "eng/workbench-preview/licenses-supplemental/css-render-LICENSE.txt.gz",
+      "size": 653,
+      "sha256": "beb5e6ad007193e5e5f2aae6edb2c7d263c57831c6bdaca1f78532ae9f691f26"
+    },
+    {
+      "path": "eng/workbench-preview/licenses-supplemental/vue-devtools-LICENSE.txt.gz",
+      "size": 662,
+      "sha256": "6c87af1b34cd4f31a42a839cf2fdf247fd5aacc1f04894549308daed27b6aaeb"
+    },
+    {
+      "path": "eng/workbench-preview/licenses-supplemental/murmurhash-js-README.md.gz",
+      "size": 1060,
+      "sha256": "1ec6883c988211bb4246b966b4fb6c2a4925a38879ba4870b1d2fe6c5c55de37"
+    },
+    {
+      "path": "eng/workbench-preview/distribution.mjs",
+      "size": 11265,
+      "sha256": "00d4c4748fa980363bafe3cd314306b8c985df2ec11a979cc507adcaa333cced"
+    },
+    {
+      "path": "eng/workbench-preview/github-api.mjs",
+      "size": 1273,
+      "sha256": "34a09cac823cddf1382042709090beedc3443b6835ee7be4fc06ac09e7b9b5fc"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-Owned.ps1",
+      "size": 4258,
+      "sha256": "4ef03ee4372be065c934cf26955a43e2a16ac3b47678c2b82fded1df68960a6f"
+    },
+    {
+      "path": "eng/workbench-preview/JobProcess.cs",
+      "size": 17681,
+      "sha256": "b3c06a79dfac703c19d1d51a2a94e2266ddc69522628603c3ab514ca1a565343"
+    },
+    {
+      "path": "eng/workbench-preview/Verify-Distribution.ps1",
+      "size": 2861,
+      "sha256": "153c3600c8f6dea23c40542cb2b8a5d58d251a15527e1d8c670bf969682d3439"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-Journey.ps1",
+      "size": 5864,
+      "sha256": "7231d72a5ef69e7763587106481d9bef80da453b814f6aa14f4c4f9fc6aa911f"
+    },
+    {
+      "path": "eng/workbench-preview/journey.mjs",
+      "size": 22231,
+      "sha256": "4cf1fbf6548b78515e96c9280a7749c7b20806de87fb56c103f066ce146c39e1"
+    },
+    {
+      "path": "eng/workbench-preview/Invoke-Distribution.ps1",
+      "size": 1649,
+      "sha256": "ad7d47c0ca4007a89619beb21189feb1a354b3c1c54c8d6ee3cacb076ff5dea8"
+    },
+    {
+      "path": ".github/workflows/workbench-preview-publish.yml",
+      "size": 5888,
+      "sha256": "9e0f4021c3a40ec15be570024716540b7a76630c4861b3ed6d2914a2b664e40d"
+    }
+  ],
+  "originals": [
+    {
+      "name": "environment-config",
+      "source": "artifacts/m47-p08-20261011/environment-maikebing/result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-config.gz",
+      "encoding": "gzip",
+      "size": 604,
+      "sha256": "4998a528853358aed3a888809e4e0516f4b762300f2d177192dd16850532d9cc",
+      "storedSize": 387,
+      "storageSha256": "f5f94059bac61b96b18fb575dd60f9e0a87ac589f208cc3f4a0fb72ba6566df8"
+    },
+    {
+      "name": "environment-request",
+      "source": "artifacts/m47-p08-20261011/environment-maikebing/request.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-request.gz",
+      "encoding": "gzip",
+      "size": 110,
+      "sha256": "e6a1538735f2c4bc703adc17c78f8031e5fae90320ba5586842f6d5da8d742cc",
+      "storedSize": 108,
+      "storageSha256": "ec8ce03785fff8efb5c7801fa33697bf933ce2c88e02a14da2bd60b6b5db495f"
+    },
+    {
+      "name": "environment-missing-original",
+      "source": "artifacts/m47-p08-20261011/environment-maikebing/before-failure.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-missing-original.gz",
+      "encoding": "gzip",
+      "size": 1494,
+      "sha256": "ca0c14b9f6fdeabdef1dd96ee59b614dc6b123278af317318df9d8b008484876",
+      "storedSize": 808,
+      "storageSha256": "b1e8647d1a87ac0cb949b70953cc985ac3d9bdc807cabb12379679649adab2ab"
+    },
+    {
+      "name": "environment-protected",
+      "source": "artifacts/m47-p08-20261011/environment-no-bypass/result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-protected.gz",
+      "encoding": "gzip",
+      "size": 271,
+      "sha256": "f69295da6340da251e5946b5a7e618e7fe03295641262e6afa98450f20204318",
+      "storedSize": 215,
+      "storageSha256": "75842010e740aeb1c34df941820397a41950ac9716e1c281e5ed8405f032eb7a"
+    },
+    {
+      "name": "environment-protected-request",
+      "source": "artifacts/m47-p08-20261011/environment-no-bypass/request.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-protected-request.gz",
+      "encoding": "gzip",
+      "size": 98,
+      "sha256": "988b30a7ba08520dff935d1f90ec0ce34f80b21fc8926177f4f241c14399fe8a",
+      "storedSize": 110,
+      "storageSha256": "1615540dd21eed7d36a540f7e0a20019d28207e9f09601577e8e1ac8dd731bf3"
+    },
+    {
+      "name": "environment-protected-api",
+      "source": "artifacts/m47-p08-20261011/environment-no-bypass/after.txt",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-protected-api.gz",
+      "encoding": "gzip",
+      "size": 2932,
+      "sha256": "cbb483f2e247359f7120ab5225440a51fdd5df07f76d792303be03b2a80921d5",
+      "storedSize": 1334,
+      "storageSha256": "838e07b149732485aa04a38b0044b6228b53aee18ca58e1dad318852f573fd71"
+    },
+    {
+      "name": "license-primary-sources",
+      "source": "artifacts/m47-p08-20261011/license-primary/sources.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/license-primary-sources.gz",
+      "encoding": "gzip",
+      "size": 5291,
+      "sha256": "17cd0845a0a735dddd117e45b9fb81f6842eab7480e6da39f67841f36b0e85b9",
+      "storedSize": 1892,
+      "storageSha256": "f32f99b9c3e2d283c6cfff17b890c8e6587bdff77a6c12c195a0bb4e7b28a962"
+    },
+    {
+      "name": "license-git-sources",
+      "source": "artifacts/m47-p08-20261011/license-git/sources.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/license-git-sources.gz",
+      "encoding": "gzip",
+      "size": 567,
+      "sha256": "acdba3ffc1fb006ca1c5980c1c721d26b7f6f7f601e78126b772f273ac1c86aa",
+      "storedSize": 309,
+      "storageSha256": "35b6b30cd290b1d40537b2483d7fb73b80c3e0fdb62d2147c50b16e0c6b78eba"
+    },
+    {
+      "name": "mapbox-fixed-tree",
+      "source": "artifacts/m47-p08-20261011/license-git/mapbox-tree.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/mapbox-fixed-tree.gz",
+      "encoding": "gzip",
+      "size": 2038,
+      "sha256": "37bb72ea24baafbb2f5742f50488e9a290223a1a86f554d120bb40f164873d2e",
+      "storedSize": 551,
+      "storageSha256": "9862f54b191eb99b525c8f881944f0539923bc7b9a8415450b29816a8bd5ba15"
+    },
+    {
+      "name": "mapbox-fixed-package",
+      "source": "artifacts/m47-p08-20261011/license-git/mapbox-package.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/mapbox-fixed-package.gz",
+      "encoding": "gzip",
+      "size": 696,
+      "sha256": "502ac8c771ec51c6ecc0674fb469f41d141c2fec095c9d91bbb70c711fc5e689",
+      "storedSize": 364,
+      "storageSha256": "40abfecb22bddd02e56f6c452f5b79ecf8247db962ec1ad756ee7a34cef61b9e"
+    },
+    {
+      "name": "vdirs-fixed-tree-unavailable",
+      "source": "artifacts/m47-p08-20261011/license-git/vdirs-tree-failure.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/vdirs-fixed-tree-unavailable.gz",
+      "encoding": "gzip",
+      "size": 268,
+      "sha256": "e04832f18452d99ab647554d74c990f1d6dc562a02537610221096bfff51c2d1",
+      "storedSize": 226,
+      "storageSha256": "b33b3acf1084c7567e49e3c0f45344df032c48a211cffb0b8899307a4e1c64ca"
+    },
+    {
+      "name": "microsoft-2026-redist-list",
+      "source": "artifacts/m47-p08-20261011/license-primary/microsoft-redist-list.html",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/microsoft-2026-redist-list.gz",
+      "encoding": "gzip",
+      "size": 48844,
+      "sha256": "b87e655284c8143042137e341cc0ed199739708b54768c176768458501e7272f",
+      "storedSize": 12226,
+      "storageSha256": "0bbc7bde48724942110433a56f80e74715a77c7d5f825f0b1d0d1f375b990af4"
+    },
+    {
+      "name": "supplement-preparation-original",
+      "source": "artifacts/m47-p08-20261011/supplement-preparation.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-preparation-original.gz",
+      "encoding": "gzip",
+      "size": 1224,
+      "sha256": "e69d18df9d7f2b0c88def117cd55b8aee19a7d3f023c25df12f6e9b8c4177900",
+      "storedSize": 616,
+      "storageSha256": "9351eaa3d69ae04adba5c8ed0c00408772cf4ff4afb5a385a741926ca6b5d2ed"
+    },
+    {
+      "name": "supplement-copy-final",
+      "source": "artifacts/m47-p08-20261011/supplement-copy-verification-final.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-copy-final.gz",
+      "encoding": "gzip",
+      "size": 3447,
+      "sha256": "6d062dc5841c9efaf63c44b5ed89774b5a33ec8bd0641c04cb32a3f2f8dd867e",
+      "storedSize": 1241,
+      "storageSha256": "97f16ea249976e22b208e0872a2de224361fbda82bca9d8db803b88ec22826fb"
+    },
+    {
+      "name": "supplement-contracts-final",
+      "source": "artifacts/m47-p08-20261011/supplement-contracts-final.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-contracts-final.gz",
+      "encoding": "gzip",
+      "size": 669,
+      "sha256": "b5495b01ee5487316d17c979eb6959da480d281b48169d1c4c2da72f4a508f3c",
+      "storedSize": 229,
+      "storageSha256": "87c3a85a222fb217e645cd5d1a020444c15a9078df5fb1d8d53e1302b4a8c517"
+    },
+    {
+      "name": "transport-errors-final",
+      "source": "artifacts/m47-p08-20261011/transport-errors-final.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/transport-errors-final.gz",
+      "encoding": "gzip",
+      "size": 1248,
+      "sha256": "56ebaac6eca3c96d2028bb297088230731037f8f45086c8220326158dac3186c",
+      "storedSize": 543,
+      "storageSha256": "4af6527214787a264800290fe3b38584e374b8ee541f04d06886fc1ff5e254dd"
+    },
+    {
+      "name": "public-transport-original",
+      "source": "artifacts/m47-p08-20261011/public-transport-micro/result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/public-transport-original.gz",
+      "encoding": "gzip",
+      "size": 991,
+      "sha256": "7f2831eba5c07c63d4c314a0f3f5e7c8cb6bac97da4ace9f3acf2c6737fa9095",
+      "storedSize": 658,
+      "storageSha256": "6bbd88211a6f871c47832860ae2cbc56c25686bec3bff8ef0a9a8d98d7771125"
+    },
+    {
+      "name": "public-candidate10-refusal",
+      "source": "artifacts/m47-p08-20261011/public-candidate10-refusal/public-download.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/public-candidate10-refusal.gz",
+      "encoding": "gzip",
+      "size": 1126,
+      "sha256": "63f7919903f0974abe3746ed97c36faccfbb32b3eaab9aa78eb1a4db0118e9ad",
+      "storedSize": 655,
+      "storageSha256": "789758ce732e62b48e495853190d24ac4969b21122d09012df671df2a0767919"
+    },
+    {
+      "name": "original-gates-first",
+      "source": "artifacts/m47-p08-20261011/live-original-gates/readiness.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/original-gates-first.gz",
+      "encoding": "gzip",
+      "size": 4037,
+      "sha256": "94fea134d49f90686a60fe5643680217bfb7fb40460c2cf8034616973022b667",
+      "storedSize": 1071,
+      "storageSha256": "8a81f0332508b036abef4b7e1a1a69aa7393ab90f8d9e19d87a66215df81a5df"
+    },
+    {
+      "name": "original-gates-authenticated",
+      "source": "artifacts/m47-p08-20261011/live-original-gates-authenticated/readiness.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/original-gates-authenticated.gz",
+      "encoding": "gzip",
+      "size": 3699,
+      "sha256": "d14f41e0c16fd6263537f29a8b4a3879270aa1524cf6f365fba58a27517ebd66",
+      "storedSize": 1021,
+      "storageSha256": "c796ac31f9dd30a9522ef693b2ee746080030f0a6909262de3af762dcb81ae05"
+    },
+    {
+      "name": "node-contracts-final",
+      "source": "artifacts/m47-p08-20261011/checks/p08-node-final-review.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/node-contracts-final.gz",
+      "encoding": "gzip",
+      "size": 1350,
+      "sha256": "fe85927f699ac742abdfb83a1645f11e82546953fa49854fdd5c08b1b5dcaff8",
+      "storedSize": 619,
+      "storageSha256": "670065a0be004df6f82d0890aa03732f565d3ea59ae640e96ca0004fbd970d45"
+    },
+    {
+      "name": "node-contracts-final-output",
+      "source": "artifacts/m47-p08-20261011/checks/p08-node-final-review.stdout.log",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/node-contracts-final-output.gz",
+      "encoding": "gzip",
+      "size": 5810,
+      "sha256": "793f9454785e47f105ec762a97467e56ef99306cb85872df3e165e68ec4e44d2",
+      "storedSize": 2264,
+      "storageSha256": "edf3b1706205cc740196717ae14ccbdc82fb8409dcee909355f0ea421ab67421"
+    },
+    {
+      "name": "supplement-first-failure",
+      "source": "artifacts/m47-p08-20261011/checks/p08-supplement-contracts.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-first-failure.gz",
+      "encoding": "gzip",
+      "size": 1228,
+      "sha256": "3a94b59056852079798e7b76c6b305d12488f024ab0ec73b8acdee03e39e39c5",
+      "storedSize": 588,
+      "storageSha256": "3c2416b5fa5dd0e083e840a46b5140426d5b67cd90def91c49b797dcdfce0576"
+    },
+    {
+      "name": "supplement-second-failure",
+      "source": "artifacts/m47-p08-20261011/checks/p08-supplement-contracts-v2.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-second-failure.gz",
+      "encoding": "gzip",
+      "size": 1234,
+      "sha256": "2e8be13ded2e0c8d64143c59900609a870816c8c980bbd53f5171bea126d8527",
+      "storedSize": 587,
+      "storageSha256": "aa53e58bbb09d555bcfd21549d363251a5df3d0615891fcb8cfec19c02df9b7c"
+    },
+    {
+      "name": "supplement-final-job",
+      "source": "artifacts/m47-p08-20261011/checks/p08-supplement-final.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/supplement-final-job.gz",
+      "encoding": "gzip",
+      "size": 1242,
+      "sha256": "c49a6f5b6ff6aa4abcd1a6d96f7d6d44f393ccf6c7c34c11be81d27cf18c6c26",
+      "storedSize": 586,
+      "storageSha256": "048a9fd7f601bcfab6e0728b458acd860e2f88936e03741b78b75d96885fa8cc"
+    },
+    {
+      "name": "environment-import-failure",
+      "source": "artifacts/m47-p08-20261011/checks/environment-maikebing.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/environment-import-failure.gz",
+      "encoding": "gzip",
+      "size": 1150,
+      "sha256": "5d657ae28958799bed86714d6a65ae902f5507fb4fb424ed273283a612102a71",
+      "storedSize": 566,
+      "storageSha256": "02e8563c239d0627ded407e1ec27ae63ce434c8921c9cc77038ded66f05cca6c"
+    },
+    {
+      "name": "public-refusal-original-job",
+      "source": "artifacts/m47-p08-20261011/checks/public-candidate10-refusal.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/public-refusal-original-job.gz",
+      "encoding": "gzip",
+      "size": 1692,
+      "sha256": "11fd912d8528cf45213c2698cb69389925e9d55df84e1be93708637314781036",
+      "storedSize": 711,
+      "storageSha256": "7e4a0d15d8cd4fe9baee34f2a3889b653cd0f7c16f6e9781ddca804293948c53"
+    },
+    {
+      "name": "finalization-tool-filename-failure",
+      "source": "artifacts/m47-p08-20261011/checks/p08-finalize-record.result.json",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/finalization-tool-filename-failure.gz",
+      "encoding": "gzip",
+      "size": 1144,
+      "sha256": "93a544f6ee296524588a55e65215bb9f703bcdbc8528fbba8ac133305f8466c7",
+      "storedSize": 580,
+      "storageSha256": "b99ef1b1eed2af99d844c4b3b71674e81df731e7e18f299d1cf82bac90a89779"
+    },
+    {
+      "name": "registry-npm-0.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-0.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-0.tgz.gz",
+      "encoding": "gzip",
+      "size": 2000,
+      "sha256": "a3c0342ac1fd6fb5180d1bbb7702e511618f2bc3fb1bdfb06cce19b0e24dd6ed",
+      "storedSize": 2023,
+      "storageSha256": "d6ba14884fefdd0ed45eb19f8d9bbb5d0181a5631786db96b442295e0d24ecaa"
+    },
+    {
+      "name": "registry-npm-1.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-1.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-1.tgz.gz",
+      "encoding": "gzip",
+      "size": 66874,
+      "sha256": "5fa41373360e464da90d2658e4f5a0f34dfe23f3901f4a897485b437a88c09a5",
+      "storedSize": 66780,
+      "storageSha256": "d93734a4abbc8cb34244ae2b808e8ad4ba70c8430b1d51390c3a37565434ceb6"
+    },
+    {
+      "name": "registry-npm-3.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-3.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-3.tgz.gz",
+      "encoding": "gzip",
+      "size": 19740,
+      "sha256": "96ce93290857e2bd50880fffd1620305702ad0e2a97a1dca21fa1504b0960540",
+      "storedSize": 19757,
+      "storageSha256": "a12eb79b9ca15e8e580c828b3efb86cc83fd21fe36fdc2af79fd0d89bebd64f8"
+    },
+    {
+      "name": "registry-npm-7.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-7.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-7.tgz.gz",
+      "encoding": "gzip",
+      "size": 7317,
+      "sha256": "635ae91a183f141ae8d3dc82756859632a988946a947626721151fcdf8cfbcc7",
+      "storedSize": 7340,
+      "storageSha256": "27ba68c74fb5a0ec8a4c4143dd2b7a9f82e23bd95074bcd2bcc44bea3cbe3d5f"
+    },
+    {
+      "name": "registry-npm-8.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-8.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-8.tgz.gz",
+      "encoding": "gzip",
+      "size": 9062,
+      "sha256": "5f9466c3f40395920477ea00b4e1813785269c9471198113416a58f3186e4195",
+      "storedSize": 9076,
+      "storageSha256": "1710aee3a1b808597d53fd843b12e9eed1f49ebd77cc9f236e0edc9c80311cea"
+    },
+    {
+      "name": "registry-npm-10.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-10.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-10.tgz.gz",
+      "encoding": "gzip",
+      "size": 2544,
+      "sha256": "0807f0738886929c36e3274e6bf0721efe9ba81d6edbe5ad9ec11ab5cb8ecc12",
+      "storedSize": 2567,
+      "storageSha256": "b7f464dc5e229ce826191434ab39f7082384fde4c4ebfa197674f93da8a3431a"
+    },
+    {
+      "name": "registry-npm-11.tgz",
+      "source": "artifacts/m47-p08-20261011/license-primary/npm-11.tgz",
+      "file": "docs/design/m47-unified-management-workbench/preview-1-p08-originals-10/registry-npm-11.tgz.gz",
+      "encoding": "gzip",
+      "size": 3228,
+      "sha256": "530ed8b349c9540147a9a19ff62eeb1d0eb96615e0d505dcdbc598ddd278155f",
+      "storedSize": 3251,
+      "storageSha256": "36665885a1433fe56aa31d08aca5aaf710eb56f191e8351fe66dd1e913fb5333"
+    }
+  ],
+  "nextSteps": [
+    "Close two npm original-license gaps and Microsoft entitlement/protection conditions",
+    "Create next unused candidate/version, rebuild at one source SHA and rerun affected package/installed acceptance",
+    "Collect complete original 12-workflow gates and fresh P06/P07 for that same package source",
+    "Freeze exact P08 authorization; a different authorized account dispatches and maikebing approves",
+    "Publish once, reconcile original IDs, verify anonymous four-file download and actual first run, then archive"
+  ],
+  "boundary": "Source/tool contracts and remote environment configuration only. Does not establish public release, clean Windows installation, other hosts, model quality or production acceptance."
+}

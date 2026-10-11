@@ -33,7 +33,7 @@ public sealed record CreateMeasurementStatement(
 /// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时同名表已存在则视为成功。</param>
 /// <param name="ForeignKeys">表级外键声明。</param>
 /// <param name="CheckConstraints">表级检查约束声明。</param>
-public sealed record CreateTableStatement(
+public sealed partial record CreateTableStatement(
     string Name,
     IReadOnlyList<TableColumnDefinition> Columns,
     IReadOnlyList<string> PrimaryKey,
@@ -883,7 +883,7 @@ public sealed record SqlSetOperation(SqlSetOperationKind Kind, SelectStatement Q
 /// <param name="FromSubquery">FROM 子句若为子查询则非 <c>null</c>。</param>
 /// <param name="Joins">JOIN 子句列表；为空集合时表示无 JOIN。</param>
 /// <param name="Unions">兼容旧 API 的 UNION 分支；新代码请使用 <see cref="SetOperations"/>。</param>
-public sealed record SelectStatement(
+public sealed partial record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
     string Measurement,
     SqlExpression? Where,

@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M47-P08",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "tag": "workbench-preview-1.12",
+  "distributionRecord": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-distribution-12.json",
+    "sha256": "da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715"
+  },
+  "attachments": [
+    {
+      "id": 631220832,
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+      "size": 485867,
+      "digest": "sha256:b875653cd318a4bfa2845f07b42a725bfb6a8139e7e350c81afe30ebd507c3fe",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json"
+    },
+    {
+      "id": 631220974,
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-notes.md",
+      "size": 7574,
+      "digest": "sha256:7319b9f4f807175a9e6815191ce5cb4523e77bd3509da0101472990a4fb8b7bb",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-notes.md"
+    },
+    {
+      "id": 631220990,
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt",
+      "size": 359,
+      "digest": "sha256:3b3e30fa82709646b4165ac8c4212f2be5968d49c6053cf2a10330828f93334c",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt"
+    },
+    {
+      "id": 631220884,
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip",
+      "size": 46781896,
+      "digest": "sha256:27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip"
+    }
+  ],
+  "credentialActor": "maikebing",
+  "requiredReviewer": "maikebing",
+  "preventSelfReview": false,
+  "canAdminsBypass": false,
+  "tagObservedAbsent": false,
+  "releaseObservedAbsent": false,
+  "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
+  "status": "COMPLETE",
+  "workflowRequest": {
+    "workflow": "workbench-preview-publish.yml",
+    "ref": "codex/m47-preview12-release",
+    "inputs": {
+      "candidate_number": "12",
+      "operation": "publish",
+      "p08_authorization": "P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715",
+      "p08_recovery_authorization": "P08-RECOVER:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715:409754336:bb0f8e4dfde4830ae77f3589c502808d6bcaa6e08248e0b3cd599024ebef09d0"
+    }
+  },
+  "mutationStarted": true,
+  "publicRelease": "PUBLISHED_AND_INDEPENDENTLY_VERIFIED",
+  "anonymousDownload": {
+    "status": "PASS",
+    "source": "anonymous-public-http",
+    "attachments": 4,
+    "archiveFiles": 290
+  },
+  "publicFirstRun": {
+    "status": "PASS",
+    "browsers": [
+      "chrome",
+      "edge"
+    ],
+    "journeyRecords": 26,
+    "normalStop": true,
+    "serverExitCode": 0,
+    "temporaryFilesCleaned": true
+  },
+  "observedUtc": "2026-10-11T14:34:06.617Z",
+  "boundary": "Published Windows x64 Web Admin plus matching NativeAOT R1 preview. Public-package real UI acceptance used synthetic data and explicit browser fault injection on this recorded host. One earlier auxiliary CI observer retains its original zero byte/ENOSPC terminal UNKNOWN; its recorded identities are currently absent or distinct. Studio/VS Code, clean machine, production and formal 4.5 release acceptance remain separate.",
+  "p07": {
+    "status": "READY",
+    "record": "docs/design/m47-unified-management-workbench/preview-1-p07-12.json",
+    "recordSha256": "0e48d875dd4819ae0bc26b50a53f1ed80a35ba9694a7724d40a9661d29ceafe0",
+    "runId": "38155021627",
+    "acceptedChecks": 8,
+    "acceptedWorkflowGates": 12
+  },
+  "reviewedDistributorCommit": "67b263b431d0b23a565546a90bf74da00d4f22d7",
+  "nextAction": "M47-P07 and M47-P08 are complete for this frozen Windows R1 Web preview. Continue Studio/VS Code and formal release only under their separate remaining acceptance scopes.",
+  "approvalPolicy": {
+    "requiredReviewer": "maikebing",
+    "credentialActor": "maikebing",
+    "preventSelfReview": false,
+    "canAdminsBypass": false,
+    "authority": "Explicit user decision on 2026-10-11",
+    "userStatement": "没必要禁止自批， 这是无理的规定， 我的代码我做主， 我认为可以就可以。",
+    "environmentId": 24006677696
+  },
+  "originalFailedPublication": {
+    "runId": "38151505875",
+    "toolingCommit": "991023ef6fcdc59452e7e51ccb913c578298ca06",
+    "releaseId": 409754336,
+    "status": "UNKNOWN_RECONCILE_ORIGINAL_TAG_RELEASE_IDS_NO_RETRY",
+    "phase": "upload:sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+    "error": "GitHub HTTP 400",
+    "receiptSha256": "e68d47179fa7235ebbcbe026666833c7ee5868bf4479212e819e2040e2d361bf"
+  },
+  "recoveryPlan": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-p08-recovery-12.json",
+    "sha256": "bb0f8e4dfde4830ae77f3589c502808d6bcaa6e08248e0b3cd599024ebef09d0",
+    "releaseId": 409754336
+  },
+  "failedRecovery": {
+    "runId": "38154076242",
+    "toolingCommit": "0ae92b0cab5b4b9c766625c9b9dc5271378735e1",
+    "status": "REFUSED",
+    "mutationStarted": false,
+    "error": "Partial existing remote state; reconcile without mutation",
+    "receiptSha256": "4db7a3a486c462eeb81509102cd06488eb7b96a7aa69c1cc4ed5d0a56bf884f6"
+  },
+  "distributionSha256": "da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715",
+  "runId": "38155325276",
+  "attempt": 1,
+  "releaseId": 409754336,
+  "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12",
+  "publishedAt": "2026-10-11T16:27:58Z",
+  "publicationToolingCommit": "8a24edab4a00f82c40912248fa37fdbe1de4bb3a",
+  "acceptedWorkflowGates": 12,
+  "acceptedChecks": 8,
+  "processAudit": {
+    "status": "PASS",
+    "completedReceipts": 172,
+    "recordedIdentities": 1573,
+    "liveExactIdentities": 0,
+    "listeners": 0,
+    "legacyIncompleteReceipts": 1,
+    "legacyOriginalStatus": "UNKNOWN_ZERO_BYTE_TERMINAL_PRESERVED"
+  },
+  "selfApproval": {
+    "actor": "maikebing",
+    "environmentId": 24006677696,
+    "authorizedByUser": true,
+    "submitted": true,
+    "administratorBypass": false
+  },
+  "completedUtc": "2026-10-11T16:39:53.772Z",
+  "publication": {
+    "status": "API_RELEASE_INDEPENDENTLY_VERIFIED",
+    "candidate": "candidate-12",
+    "version": "4.5.0-preview.1.12",
+    "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "toolingCommit": "8a24edab4a00f82c40912248fa37fdbe1de4bb3a",
+    "reviewedDistributorCommit": "67b263b431d0b23a565546a90bf74da00d4f22d7",
+    "runId": "38155325276",
+    "attempt": 1,
+    "releaseId": 409754336,
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12",
+    "publishedAt": "2026-10-11T16:27:58Z",
+    "tag": "workbench-preview-1.12",
+    "attachments": [
+      {
+        "id": 631220832,
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+        "size": 485867,
+        "digest": "sha256:b875653cd318a4bfa2845f07b42a725bfb6a8139e7e350c81afe30ebd507c3fe",
+        "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json"
+      },
+      {
+        "id": 631220974,
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-notes.md",
+        "size": 7574,
+        "digest": "sha256:7319b9f4f807175a9e6815191ce5cb4523e77bd3509da0101472990a4fb8b7bb",
+        "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-notes.md"
+      },
+      {
+        "id": 631220990,
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt",
+        "size": 359,
+        "digest": "sha256:3b3e30fa82709646b4165ac8c4212f2be5968d49c6053cf2a10330828f93334c",
+        "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt"
+      },
+      {
+        "id": 631220884,
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip",
+        "size": 46781896,
+        "digest": "sha256:27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824",
+        "url": "https://github.com/IoTSharp/SonnetDB/releases/download/workbench-preview-1.12/sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip"
+      }
+    ],
+    "selfApproval": {
+      "actor": "maikebing",
+      "environmentId": 24006677696,
+      "authorizedByUser": true,
+      "submitted": true,
+      "administratorBypass": false
+    },
+    "archiveRecords": [
+      {
+        "kind": "prepare",
+        "id": "11707848462",
+        "name": "preview-distribution-evidence-12",
+        "size": 135430,
+        "digest": "sha256:e63a897209198195d92c68ba3651aadcbb23fde78038fe8f23b9fed2fb742df8",
+        "sha256": "e63a897209198195d92c68ba3651aadcbb23fde78038fe8f23b9fed2fb742df8",
+        "expiresAt": "2027-01-09T16:24:27Z"
+      },
+      {
+        "kind": "delivery",
+        "id": "11707833506",
+        "name": "preview-distribution-12",
+        "size": 46488782,
+        "digest": "sha256:c13cd9a033e48eb21e29ee79937eb94d83a025d90775a571bd6f73221ca0e20b",
+        "sha256": "c13cd9a033e48eb21e29ee79937eb94d83a025d90775a571bd6f73221ca0e20b",
+        "expiresAt": "2027-01-09T16:24:27Z"
+      },
+      {
+        "kind": "publication",
+        "id": "11708517169",
+        "name": "preview-publication-evidence-12",
+        "size": 146688,
+        "digest": "sha256:d833bcf803af3002907df27cf8a5105b2964c57de58fa53114aa7b3699cc2738",
+        "sha256": "d833bcf803af3002907df27cf8a5105b2964c57de58fa53114aa7b3699cc2738",
+        "expiresAt": "2027-01-09T16:24:27Z"
+      }
+    ],
+    "gateRechecks": 2,
+    "acceptedWorkflowGates": 12,
+    "acceptedChecks": 8,
+    "anonymousDownload": "NOT_RUN",
+    "publicFirstRun": "NOT_RUN",
+    "elapsedMilliseconds": 5450
+  }
+}
