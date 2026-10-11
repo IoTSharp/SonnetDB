@@ -8,9 +8,11 @@ namespace SonnetDB.Streaming;
 
 internal sealed class FileStreamingDeadLetterStore
 {
-    private const int FormatVersion = 1;
+    private const int LegacyFormatVersion = 1;
+    private const int FormatVersion = 2;
     private const int MaximumFileBytes = 128 * 1024 * 1024;
     internal const int MaxReasonBytes = 4096;
+    internal const int MaxReplayAttempts = 1_000_000;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly string _directory;
 
@@ -77,18 +79,21 @@ internal sealed class FileStreamingDeadLetterStore
 
         try
         {
-            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                bufferSize: 4096, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
-            if (stream.Length < 1 || stream.Length > MaximumFileBytes)
-                throw new InvalidDataException("持久死信状态文件长度越界。");
-            byte[] bytes = new byte[checked((int)stream.Length)];
-            await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
-            if (await stream.ReadAsync(new byte[1], token).ConfigureAwait(false) != 0)
-                throw new InvalidDataException("持久死信状态文件在读取时发生变化。");
+            byte[] bytes;
+            await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 4096, options: FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                if (stream.Length < 1 || stream.Length > MaximumFileBytes)
+                    throw new InvalidDataException("持久死信状态文件长度越界。");
+                bytes = new byte[checked((int)stream.Length)];
+                await stream.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+                if (await stream.ReadAsync(new byte[1], token).ConfigureAwait(false) != 0)
+                    throw new InvalidDataException("持久死信状态文件在读取时发生变化。");
+            }
+
+            // 迁移会原子替换 state.json；先关闭读取句柄，避免 Windows FileShare.Read 阻止替换。
             ValidateUniqueProperties(bytes, token);
-            FileStreamingDeadLetterEnvelope envelope = JsonSerializer.Deserialize(
-                bytes, FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterEnvelope)
-                ?? throw new InvalidDataException("持久死信状态为空。");
+            (FileStreamingDeadLetterEnvelope envelope, bool migrated) = Decode(bytes, token);
             if (envelope.State is null || envelope.Sha256 is null)
                 throw new InvalidDataException("持久死信状态缺少校验字段。");
             byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(
@@ -102,7 +107,10 @@ internal sealed class FileStreamingDeadLetterStore
                 throw new InvalidDataException("持久死信容量或已保存配置不匹配。");
             }
 
-            return new FileStreamingDeadLetterStore(directory, envelope.State, bytes.Length);
+            var restored = new FileStreamingDeadLetterStore(directory, envelope.State, bytes.Length);
+            if (migrated)
+                await restored.CommitAsync(envelope.State, token).ConfigureAwait(false);
+            return restored;
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or EndOfStreamException or OverflowException)
         {
@@ -116,12 +124,25 @@ internal sealed class FileStreamingDeadLetterStore
             throw new InvalidOperationException("死信隔离意图尚未恢复完成，必须重开订阅。");
         if (State.Records.Length >= State.Options.MaxBatches)
             throw new FileStreamingDeadLetterCapacityException();
+        if (record.Sequence != State.NextSequence)
+            throw new InvalidOperationException("死信隔离序号与目录高水位不匹配。");
         var proposed = State with
         {
             Records = [.. State.Records, record],
             PendingDeliveryId = record.DeliveryId,
+            NextSequence = checked(State.NextSequence + 1),
+            Revision = checked(State.Revision + 1),
         };
         // 容量检查在任何写入前完成；清除 pending 字段的最终状态只会更小。
+        _ = Encode(proposed);
+        return proposed;
+    }
+
+    internal FileStreamingDeadLetterState PrepareOperation(FileStreamingDeadLetterRecord[] records)
+    {
+        if (State.PendingDeliveryId is not null)
+            throw new InvalidOperationException("死信隔离意图尚未恢复完成，必须重开订阅。");
+        var proposed = State with { Records = records, Revision = checked(State.Revision + 1) };
         _ = Encode(proposed);
         return proposed;
     }
@@ -174,6 +195,67 @@ internal sealed class FileStreamingDeadLetterStore
         return bytes;
     }
 
+    private static (FileStreamingDeadLetterEnvelope Envelope, bool Migrated) Decode(byte[] bytes, CancellationToken token)
+    {
+        using JsonDocument document = JsonDocument.Parse(bytes);
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty("state", out JsonElement stateElement)
+            || stateElement.ValueKind != JsonValueKind.Object
+            || !stateElement.TryGetProperty("formatVersion", out JsonElement versionElement)
+            || versionElement.ValueKind != JsonValueKind.Number
+            || !versionElement.TryGetInt32(out int version))
+        {
+            throw new InvalidDataException("持久死信状态缺少格式版本。");
+        }
+
+        if (version == FormatVersion)
+        {
+            return (JsonSerializer.Deserialize(bytes, FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterEnvelope)
+                ?? throw new InvalidDataException("持久死信状态为空。"), false);
+        }
+
+        if (version != LegacyFormatVersion)
+            throw new InvalidDataException($"不支持持久死信状态格式版本 {version}。");
+        LegacyFileStreamingDeadLetterEnvelope legacy = JsonSerializer.Deserialize(
+            bytes, FileStreamingDeadLetterJsonContext.Default.LegacyFileStreamingDeadLetterEnvelope)
+            ?? throw new InvalidDataException("持久死信旧状态为空。");
+        if (legacy.State is null || legacy.Sha256 is null || legacy.State.Options is null
+            || legacy.State.Records is null || legacy.State.Records.Length > 10_000
+            || legacy.State.Records.Length > legacy.State.Options.MaxBatches)
+        {
+            throw new InvalidDataException("持久死信旧状态必需字段或批次数无效。");
+        }
+
+        byte[] legacyBytes = JsonSerializer.SerializeToUtf8Bytes(
+            legacy.State, FileStreamingDeadLetterJsonContext.Default.LegacyFileStreamingDeadLetterState);
+        if (legacy.Sha256 != Convert.ToHexString(SHA256.HashData(legacyBytes)))
+            throw new InvalidDataException("持久死信旧状态 SHA-256 校验失败。");
+        legacy.State.Options.Validate();
+        var records = new FileStreamingDeadLetterRecord[legacy.State.Records.Length];
+        // 最多 10,000 条旧记录；OpenAsync 的操作令牌同时约束墙钟和取消。
+        for (int index = 0; index < records.Length; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            LegacyFileStreamingDeadLetterRecord record = legacy.State.Records[index]
+                ?? throw new InvalidDataException("持久死信旧批次为空。");
+            if (record.Sequence != index + 1L)
+                throw new InvalidDataException("持久死信旧批次序号不连续。");
+            records[index] = new FileStreamingDeadLetterRecord(record.Sequence, record.DeliveryId,
+                record.Attempt, record.Reason, record.CreatedAtUtc, record.ExpectedStateRevision,
+                record.PreviousCheckpoint, record.Checkpoint, record.Events);
+        }
+
+        var migrated = new FileStreamingDeadLetterState(FormatVersion, legacy.State.SubscriptionId,
+            legacy.State.StreamName, legacy.State.Options, records, legacy.State.PendingDeliveryId)
+        {
+            NextSequence = records.Length + 1L,
+            Revision = records.Length,
+        };
+        byte[] migratedBytes = JsonSerializer.SerializeToUtf8Bytes(
+            migrated, FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterState);
+        return (new FileStreamingDeadLetterEnvelope(migrated, Convert.ToHexString(SHA256.HashData(migratedBytes))), true);
+    }
+
     internal static void ValidateReason(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
@@ -194,9 +276,13 @@ internal sealed class FileStreamingDeadLetterStore
         }
 
         state.Options.Validate();
-        if (state.Records.Length > state.Options.MaxBatches)
-            throw new InvalidDataException("持久死信批次数超过配置上限。");
+        if (state.Records.Length > state.Options.MaxBatches || state.NextSequence < 1
+            || state.Revision < state.NextSequence - 1)
+            throw new InvalidDataException("持久死信批次数、序号高水位或目录修订号无效。");
         var deliveryIds = new HashSet<string>(StringComparer.Ordinal);
+        var replayIds = new HashSet<string>(StringComparer.Ordinal);
+        long lastDeadLetterSequence = 0;
+        long minimumRevision = state.NextSequence - 1;
         long lastEventSequence = -1;
         long lastCheckpointRevision = -1;
         long lastStateRevision = -1;
@@ -205,7 +291,8 @@ internal sealed class FileStreamingDeadLetterStore
             token.ThrowIfCancellationRequested();
             FileStreamingDeadLetterRecord record = state.Records[index]
                 ?? throw new InvalidDataException("持久死信批次为空。");
-            if (record.Sequence != index + 1L || !Guid.TryParseExact(record.DeliveryId, "N", out _)
+            if (record.Sequence <= lastDeadLetterSequence || record.Sequence >= state.NextSequence
+                || !Guid.TryParseExact(record.DeliveryId, "N", out _)
                 || !deliveryIds.Add(record.DeliveryId) || record.Attempt != subscriptionOptions.MaxDeliveryAttempts
                 || record.CreatedAtUtc.Offset != TimeSpan.Zero || record.ExpectedStateRevision < 0
                 || record.ExpectedStateRevision <= lastStateRevision
@@ -217,6 +304,18 @@ internal sealed class FileStreamingDeadLetterStore
             }
 
             ValidateReason(record.Reason);
+            if (record.Replay is { } replay)
+            {
+                if (!Guid.TryParseExact(replay.ReplayId, "N", out _) || !replayIds.Add(replay.ReplayId)
+                    || replay.Attempt < 1 || replay.Attempt > MaxReplayAttempts
+                    || replay.LastClaimedAtUtc.Offset != TimeSpan.Zero
+                    || record.DeliveryId == state.PendingDeliveryId)
+                {
+                    throw new InvalidDataException("死信重放身份、领取次数或隔离状态无效。");
+                }
+
+                minimumRevision = checked(minimumRevision + replay.Attempt);
+            }
             record.PreviousCheckpoint.Validate();
             record.Checkpoint.Validate();
             if (record.PreviousCheckpoint.SubscriptionId != definition.SubscriptionId
@@ -254,7 +353,11 @@ internal sealed class FileStreamingDeadLetterStore
             lastEventSequence = previousSequence;
             lastCheckpointRevision = record.Checkpoint.Revision;
             lastStateRevision = record.ExpectedStateRevision;
+            lastDeadLetterSequence = record.Sequence;
         }
+
+        if (state.Revision < minimumRevision)
+            throw new InvalidDataException("死信目录修订号早于已保存的隔离和重放操作。");
 
         if (state.PendingDeliveryId is not null
             && (state.Records.Length == 0 || state.Records[^1].DeliveryId != state.PendingDeliveryId))

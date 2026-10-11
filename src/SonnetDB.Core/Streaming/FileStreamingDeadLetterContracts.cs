@@ -45,7 +45,20 @@ public sealed record FileStreamingDeadLetterSummary(
     int EventCount,
     long FirstEventSequence,
     long LastEventSequence,
-    StreamingSubscriptionCheckpoint Checkpoint);
+    StreamingSubscriptionCheckpoint Checkpoint)
+{
+    /// <summary>生成摘要时独立死信目录的修订号，供重放和删除进行条件更新。</summary>
+    public long DeadLetterRevision { get; init; }
+
+    /// <summary>已领取重放的稳定身份；空值表示尚未领取。</summary>
+    public string? ReplayId { get; init; }
+
+    /// <summary>已持久领取重放的次数；尚未领取时为 0。</summary>
+    public int ReplayAttempt { get; init; }
+
+    /// <summary>最近一次持久领取重放的 UTC 时间；尚未领取时为空。</summary>
+    public DateTimeOffset? LastReplayClaimedAtUtc { get; init; }
+}
 
 /// <summary>原事件及其完整载荷、头、时间和迟到标记的持久死信批次副本。</summary>
 /// <param name="Summary">批次身份、原因和检查点摘要。</param>
@@ -66,6 +79,31 @@ public sealed record FileStreamingDeadLetterReceipt(
     int Attempt,
     StreamingSubscriptionCheckpoint Checkpoint,
     long StateRevision);
+
+/// <summary>已持久领取的本地死信重放批次；业务成功后须使用回执条件显式删除，失败时保留并再次领取。</summary>
+/// <param name="Summary">原死信批次摘要，包含本次领取后的目录修订号和重放身份。</param>
+/// <param name="Events">保留原序号、载荷、头和迟到标记的事件副本，供业务幂等处理。</param>
+public sealed record FileStreamingDeadLetterReplayBatch(
+    FileStreamingDeadLetterSummary Summary,
+    IReadOnlyList<StreamingEvent> Events);
+
+/// <summary>死信批次经条件删除后返回的持久结果；同一序号不会重新分配。</summary>
+/// <param name="Sequence">已删除的死信批次序号。</param>
+/// <param name="DeliveryId">已删除批次的原投递身份。</param>
+/// <param name="ReplayId">完成的重放身份；直接丢弃未领取批次时为空。</param>
+/// <param name="ReplayAttempt">完成的重放领取次数；未领取时为 0。</param>
+/// <param name="DeadLetterRevision">条件删除后的独立死信目录修订号。</param>
+public sealed record FileStreamingDeadLetterDeletionReceipt(
+    long Sequence,
+    string DeliveryId,
+    string? ReplayId,
+    int ReplayAttempt,
+    long DeadLetterRevision);
+
+internal sealed record FileStreamingDeadLetterReplayState(
+    [property: JsonRequired] string ReplayId,
+    [property: JsonRequired] int Attempt,
+    [property: JsonRequired] DateTimeOffset LastClaimedAtUtc);
 
 internal sealed record FileStreamingDeadLetterEvent(
     [property: JsonRequired] string EventId,
@@ -93,7 +131,11 @@ internal sealed record FileStreamingDeadLetterRecord(
     [property: JsonRequired] long ExpectedStateRevision,
     [property: JsonRequired] StreamingSubscriptionCheckpoint PreviousCheckpoint,
     [property: JsonRequired] StreamingSubscriptionCheckpoint Checkpoint,
-    [property: JsonRequired] FileStreamingDeadLetterEvent[] Events);
+    [property: JsonRequired] FileStreamingDeadLetterEvent[] Events)
+{
+    [JsonRequired]
+    public FileStreamingDeadLetterReplayState? Replay { get; init; }
+}
 
 internal sealed record FileStreamingDeadLetterState(
     [property: JsonRequired] int FormatVersion,
@@ -101,10 +143,41 @@ internal sealed record FileStreamingDeadLetterState(
     [property: JsonRequired] string StreamName,
     [property: JsonRequired] FileStreamingDeadLetterOptions Options,
     [property: JsonRequired] FileStreamingDeadLetterRecord[] Records,
-    [property: JsonRequired] string? PendingDeliveryId);
+    [property: JsonRequired] string? PendingDeliveryId)
+{
+    [JsonRequired]
+    public long NextSequence { get; init; } = 1;
+
+    [JsonRequired]
+    public long Revision { get; init; }
+}
 
 internal sealed record FileStreamingDeadLetterEnvelope(
     [property: JsonRequired] FileStreamingDeadLetterState State,
+    [property: JsonRequired] string Sha256);
+
+// v1 的规范化哈希必须使用原字段集合校验，不能用 v2 的默认字段重新签名。
+internal sealed record LegacyFileStreamingDeadLetterRecord(
+    [property: JsonRequired] long Sequence,
+    [property: JsonRequired] string DeliveryId,
+    [property: JsonRequired] int Attempt,
+    [property: JsonRequired] string Reason,
+    [property: JsonRequired] DateTimeOffset CreatedAtUtc,
+    [property: JsonRequired] long ExpectedStateRevision,
+    [property: JsonRequired] StreamingSubscriptionCheckpoint PreviousCheckpoint,
+    [property: JsonRequired] StreamingSubscriptionCheckpoint Checkpoint,
+    [property: JsonRequired] FileStreamingDeadLetterEvent[] Events);
+
+internal sealed record LegacyFileStreamingDeadLetterState(
+    [property: JsonRequired] int FormatVersion,
+    [property: JsonRequired] string SubscriptionId,
+    [property: JsonRequired] string StreamName,
+    [property: JsonRequired] FileStreamingDeadLetterOptions Options,
+    [property: JsonRequired] LegacyFileStreamingDeadLetterRecord[] Records,
+    [property: JsonRequired] string? PendingDeliveryId);
+
+internal sealed record LegacyFileStreamingDeadLetterEnvelope(
+    [property: JsonRequired] LegacyFileStreamingDeadLetterState State,
     [property: JsonRequired] string Sha256);
 
 [JsonSourceGenerationOptions(
@@ -112,4 +185,6 @@ internal sealed record FileStreamingDeadLetterEnvelope(
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
 [JsonSerializable(typeof(FileStreamingDeadLetterEnvelope))]
 [JsonSerializable(typeof(FileStreamingDeadLetterState))]
+[JsonSerializable(typeof(LegacyFileStreamingDeadLetterEnvelope))]
+[JsonSerializable(typeof(LegacyFileStreamingDeadLetterState))]
 internal sealed partial class FileStreamingDeadLetterJsonContext : JsonSerializerContext;

@@ -1,0 +1,12 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "OutputDirectory": "D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-evidence-20261002",
+  "Name": "cleanup-run",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-evidence-20261002\\Cleanup-Task.ps1"
+  ],
+  "TimeoutSeconds": 120
+}

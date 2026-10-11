@@ -1,0 +1,2527 @@
+{
+  "schemaVersion": 1,
+  "kind": "immutable-installed-preview-package-candidate",
+  "milestone": "M47-P07",
+  "frozenOn": "2026-10-11",
+  "timeZone": "Asia/Shanghai",
+  "releaseStatus": "NOT_READY",
+  "scopeStatus": "R1_SEVEN_MODEL_WORKBENCHES_DEFERRED",
+  "candidate": {
+    "id": "candidate-12",
+    "version": "4.5.0-preview.1.12",
+    "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "sourceTree": "2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3",
+    "submodules": [
+      {
+        "path": "extensions/IoTSharp.CoAP.NET",
+        "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+      },
+      {
+        "path": "extensions/MQTTnet.AspNetCore.Routing",
+        "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+      }
+    ],
+    "state": "P04_P05_COMPLETE_P06_P07_REMOTE_REVIEW_PENDING",
+    "tagCreated": false,
+    "reservedTag": "workbench-preview-1.12",
+    "builtArtifacts": [
+      {
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt",
+        "size": 242,
+        "sha256": "57a51dae9f391b2e1c8946b32671225f25026c565ec39bea7514382d7ca4d2d4"
+      },
+      {
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+        "size": 485867,
+        "sha256": "b875653cd318a4bfa2845f07b42a725bfb6a8139e7e350c81afe30ebd507c3fe"
+      },
+      {
+        "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip",
+        "size": 46781896,
+        "sha256": "27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824"
+      }
+    ],
+    "excludesDirtyWorkingTree": true,
+    "sourceInputsCount": 1414,
+    "sourceInputsManifestSha256": "b875653cd318a4bfa2845f07b42a725bfb6a8139e7e350c81afe30ebd507c3fe"
+  },
+  "identity": {
+    "schemaVersion": 1,
+    "candidate": "candidate-12",
+    "version": "4.5.0-preview.1.12",
+    "profile": "preview-1",
+    "scopeRevision": "R1",
+    "releaseStatus": "NOT_READY",
+    "rid": "win-x64",
+    "sourcePredecessor": {
+      "id": "candidate-04",
+      "sourceCommit": "57222f57e4cce324ca054126fd4281ec5e5afec1",
+      "sourceTree": "556185eae4f0daa765bdaf69e4e44fcb98255674",
+      "version": "4.5.0-preview.1.4",
+      "reservedTag": "workbench-preview-1.4",
+      "tagCreated": false,
+      "state": "COMMITTED_SOURCE_P03_R1_LOCAL_COMPLETE_REMOTE_RELEASE_GATES_NOT_VERIFIED",
+      "builtArtifacts": [],
+      "localHeadAndOriginMainVerified": false,
+      "excludesDirtyWorkingTree": true,
+      "requiresSuccessorForImplementation": true,
+      "submodules": [
+        {
+          "path": "extensions/IoTSharp.CoAP.NET",
+          "commit": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc"
+        },
+        {
+          "path": "extensions/MQTTnet.AspNetCore.Routing",
+          "commit": "9e0c8202fc93737b2bbde013ed488d37948ad5c7"
+        }
+      ],
+      "sourceCommittedLocally": true,
+      "remoteVerification": "SOURCE_COMMIT_PUSH_PENDING_AT_FREEZE_FINAL_DELIVERY_VERIFIES_REMOTE"
+    },
+    "actions": [
+      {
+        "id": "session",
+        "entry": "/admin",
+        "allow": [
+          "setup",
+          "login",
+          "select-authorized-database",
+          "logout",
+          "login-again",
+          "about"
+        ],
+        "permission": "session",
+        "maximumRowsOrElements": null,
+        "historicalEvidence": [],
+        "deferred": [
+          "auto-login",
+          "cross-origin",
+          "credential-import"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      },
+      {
+        "id": "sql.read",
+        "entry": "/admin/app/sql",
+        "allow": [
+          "single-budget-supported-select",
+          "explain-select",
+          "show-tables",
+          "show-measurements",
+          "describe-table",
+          "describe-measurement"
+        ],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB26-WB37-relevant-reads"
+        ],
+        "deferred": [
+          "free-sql-write",
+          "control-plane",
+          "multiple-statements"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      },
+      {
+        "id": "relation.read",
+        "entry": "/admin/app/sql?tool=table",
+        "allow": [
+          "schema",
+          "page",
+          "filter",
+          "sort",
+          "previous-next"
+        ],
+        "permission": "read",
+        "maximumRowsOrElements": 200,
+        "historicalEvidence": [
+          "WB27"
+        ],
+        "deferred": [
+          "ddl",
+          "indexes",
+          "foreign-keys"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      },
+      {
+        "id": "relation.insert.one",
+        "entry": "/admin/app/sql?tool=table",
+        "allow": [
+          "stage-single-scalar-row",
+          "preview",
+          "approve-once",
+          "submit-once",
+          "readback"
+        ],
+        "permission": "write",
+        "maximumRowsOrElements": 1,
+        "historicalEvidence": [
+          "WB27"
+        ],
+        "deferred": [
+          "update",
+          "delete",
+          "batch",
+          "ddl",
+          "replay-unknown"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      },
+      {
+        "id": "measurement.read",
+        "entry": "/admin/app/sql?tool=measurement",
+        "allow": [
+          "schema",
+          "bounded-time-points"
+        ],
+        "permission": "read",
+        "maximumRowsOrElements": 500,
+        "historicalEvidence": [
+          "WB31"
+        ],
+        "deferred": [
+          "write",
+          "ingest",
+          "import",
+          "ddl",
+          "maintenance"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      },
+      {
+        "id": "document.read",
+        "entry": "/admin/app/sql?tool=document",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB26"
+        ],
+        "deferred": [
+          "count",
+          "aggregate",
+          "distinct",
+          "advanced",
+          "write",
+          "collections",
+          "schema",
+          "find-page",
+          "cursor-next-page"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "kv.read",
+        "entry": "/admin/app/sql?tool=kv",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB29"
+        ],
+        "deferred": [
+          "cas",
+          "ttl",
+          "atomic-number",
+          "write",
+          "delete",
+          "keyspaces",
+          "prefix-scan",
+          "inspect-current-key"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "fulltext.read",
+        "entry": "/admin/app/sql?tool=fulltext",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 100,
+        "historicalEvidence": [
+          "WB28"
+        ],
+        "deferred": [
+          "import",
+          "index-write",
+          "maintenance",
+          "advanced-query",
+          "indexes",
+          "lexical-search",
+          "hit-preview"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "vector.read",
+        "entry": "/admin/app/sql?tool=vector",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 100,
+        "historicalEvidence": [
+          "WB32",
+          "WB33"
+        ],
+        "deferred": [
+          "embedding",
+          "profile",
+          "write",
+          "maintenance",
+          "semantic-quality-claim",
+          "index-metadata",
+          "numeric-vector-search"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "object.read",
+        "entry": "/admin/app/sql?tool=bucket",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB37"
+        ],
+        "deferred": [
+          "full-download",
+          "upload",
+          "multipart",
+          "presign",
+          "semantic-search",
+          "bucket-export",
+          "buckets",
+          "object-list-window",
+          "metadata",
+          "range-preview"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "mq.read",
+        "entry": "/admin/app/sql?tool=mq",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB34"
+        ],
+        "deferred": [
+          "auto-poll",
+          "publish",
+          "consume",
+          "ack",
+          "nack",
+          "retention-edit",
+          "topic-metadata",
+          "topic-stats",
+          "explicit-offset-browse"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "graph.read.beta",
+        "entry": "/admin/app/sql?tool=graph",
+        "allow": [],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "WB35",
+          "WB36"
+        ],
+        "deferred": [
+          "write",
+          "import",
+          "export",
+          "maintenance",
+          "arbitrary-traversal",
+          "metadata",
+          "bounded-vertex-edge-preview"
+        ],
+        "status": "DEFERRED_R1_SERVER_BUDGET_UNPROVEN",
+        "candidateAcceptance": "NOT_ACCEPTED",
+        "enforcement": "UI_EXPLAINS_DEFERRAL_COMPONENT_NOT_MOUNTED_TRANSPORT_DENIES"
+      },
+      {
+        "id": "result.window",
+        "entry": "allowed-result-views",
+        "allow": [
+          "current-authorized-window-export",
+          "cancel",
+          "truncation-status",
+          "error-status"
+        ],
+        "permission": "read",
+        "maximumRowsOrElements": 1000,
+        "historicalEvidence": [
+          "model-specific-local-contracts"
+        ],
+        "deferred": [
+          "backup",
+          "unloaded-pages",
+          "revoked-payload",
+          "graph-file-export",
+          "object-download"
+        ],
+        "status": "IN_SCOPE_R1_LOCAL_ACCEPTED",
+        "candidateAcceptance": "LOCAL_R1_PASS",
+        "enforcement": "EXPLICIT_PREVIEW_PROFILE_ROUTE_ACTION_TRANSPORT_AUTHORIZATION_AND_SUPPORTED_SERVER_BUDGETS"
+      }
+    ],
+    "budgets": {
+      "status": "ENFORCED_AND_LOCALLY_VERIFIED_FOR_R1_SUBSET",
+      "owner": "M47-P03",
+      "timeoutMilliseconds": 30000,
+      "concurrentReadsPerActiveOperation": 1,
+      "defaultMaximumRows": 1000,
+      "smallerModelLimitsTakePrecedence": true,
+      "maximumResponseBodyBytes": 4194304,
+      "maximumRetainedResultBytes": 4194304,
+      "maximumExportBytes": 4194304,
+      "maximumSqlOrInsertInputUtf8Bytes": 65536,
+      "inspectorBytes": 4096,
+      "noAutomaticUnboundedPaging": true,
+      "enforceBeforeFullMaterialization": true,
+      "browserCancelProvesServerStop": false,
+      "cancellationProvesRollback": false,
+      "maximumServerMaterializedRows": 10000,
+      "maximumServerEstimatedMaterializedBytes": 4194304,
+      "maximumSchemaResourceColumnAndPrimaryKeyItems": 1000,
+      "maximumRegisteredDatabasesForPreview": 1000,
+      "retainedBudgetAccounting": "CONSERVATIVE_CUMULATIVE_UNTIL_EXPLICIT_CONTEXT_CLEAR",
+      "physicalHeapHardLimit": false
+    },
+    "entryControls": [
+      {
+        "owners": [
+          "M47-P03"
+        ],
+        "allowedModules": [
+          "overview-summary",
+          "workbench-allowlist",
+          "settings-about"
+        ],
+        "scope": "seven-module navigation, routes, aliases, URL/query and restored tabs",
+        "disabledModules": [
+          "observe",
+          "flows",
+          "ai",
+          "govern"
+        ],
+        "id": "C01",
+        "status": "LOCAL_PASS_SCOPE_R1"
+      },
+      {
+        "status": "LOCAL_PASS_SCOPE_R1",
+        "scope": "per-model action and dispatch allowlist; unknown defaults deny; SQL read-only",
+        "id": "C02",
+        "owners": [
+          "M47-P03"
+        ]
+      },
+      {
+        "status": "LOCAL_PASS_SCOPE_R1",
+        "scope": "single-row single approval, permission/context binding, terminal state and no unknown replay",
+        "id": "C03",
+        "owners": [
+          "M47-P03"
+        ]
+      },
+      {
+        "status": "LOCAL_PASS_SCOPE_R1",
+        "scope": "identity/revocation clearing, direct requests and resource budgets",
+        "id": "C04",
+        "owners": [
+          "M47-P03"
+        ]
+      },
+      {
+        "status": "PACKAGE_IDENTITY_IMPLEMENTED_P05_PENDING",
+        "scope": "embedded profile/version/manifest and mismatch/cache rejection",
+        "id": "C05",
+        "owners": [
+          "M47-P04",
+          "M47-P05"
+        ]
+      },
+      {
+        "status": "P04_ASSEMBLER_IMPLEMENTED_P06_UPLOADER_PENDING",
+        "scope": "separate assembly and exact asset publication allowlist",
+        "id": "D01",
+        "owners": [
+          "M47-P04",
+          "M47-P06"
+        ]
+      }
+    ],
+    "mcp": {
+      "sourceInventoryOnly": true,
+      "endpoint": "/mcp/{db}",
+      "transport": "HTTP stateless",
+      "typedContract": "1.0",
+      "typedCompatibility": "1.x extend-only",
+      "browserDirectProtocolConstant": "2025-11-25",
+      "actualNegotiatedProtocol": null,
+      "tools": [
+        "list_databases",
+        "query_sql",
+        "list_measurements",
+        "describe_measurement",
+        "sample_rows",
+        "explain_sql",
+        "docs_search",
+        "skill_search",
+        "skill_load"
+      ],
+      "resources": [
+        "measurements",
+        "measurement_schema",
+        "database_stats"
+      ],
+      "sourceToolsReadOnly": true,
+      "browserDirectSourceBudgets": {
+        "maximumToolPages": 16,
+        "maximumDiscoveredTools": 128,
+        "maximumResultBytes": 65536
+      },
+      "previewUiOnboarding": "DEFERRED",
+      "externalModelDataEgress": "NOT_IN_SCOPE"
+    },
+    "preservedSemantics": [
+      "SQL original spelling and quoted exact match",
+      "Graph Beta",
+      "MQ database+Topic logical identity and instance .system/mq persistence",
+      "single-database backup excludes instance MQ",
+      "one approval one submission",
+      "cancel is not rollback",
+      "unknown write is not replayed"
+    ],
+    "deployment": {
+      "mode": "portable-server-with-embedded-web",
+      "host": "loopback-only",
+      "sameOrigin": true,
+      "basePath": "/",
+      "adminEntry": "/admin",
+      "authentication": "username-password-login-then-Bearer",
+      "authStorage": "localStorage:sndb.auth",
+      "credentialStoreClaim": false,
+      "optionalListeners": "DISABLED",
+      "shippedCredentialsAllowed": false,
+      "bootstrap": "fresh-setup-UI",
+      "data": "../data; separate from package",
+      "remoteProxyDockerServiceInstall": "DEFERRED",
+      "authorizationLayers": [
+        "HTTP-role",
+        "database-grant"
+      ],
+      "grantLevels": [
+        "None",
+        "Read",
+        "Write",
+        "Admin"
+      ],
+      "serverApisRemovedByUiProfile": false,
+      "sandboxSecurityClaim": false
+    },
+    "contracts": {
+      "management": "unversioned REST; exact source hashes in manifest",
+      "compatibility": "1.x extend-only",
+      "mcpTyped": "1.0"
+    },
+    "deferredModels": [
+      "document",
+      "kv",
+      "fulltext",
+      "vector",
+      "object",
+      "mq",
+      "graph"
+    ],
+    "targets": {
+      "requiredRids": [
+        "win-x64"
+      ],
+      "requiredOperatingSystems": [
+        "Windows 11 x64"
+      ],
+      "browserFamilies": [
+        "Edge",
+        "Chrome"
+      ],
+      "actualBrowserVersions": null,
+      "browserVersionEvidenceOwner": "M47-P05",
+      "serverBuild": "NativeAOT",
+      "deferred": [
+        "linux-x64",
+        "linux-arm64",
+        "win-arm64",
+        "win-x86",
+        "macOS",
+        "other-Windows-versions",
+        "mobile-browsers"
+      ],
+      "compatibility": "EXACT_SAME_CANDIDATE_AND_VERSION_WEB_SERVER",
+      "legacyServerCompatibility": "NOT_ACCEPTED"
+    },
+    "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "sourceTree": "2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3"
+  },
+  "components": {
+    "server": {
+      "fileVersion": "4.5.0.12",
+      "assemblyVersion": "4.5.0.0",
+      "assemblyVersionEvidence": "publish argument; NativeAOT has no inspectable managed assembly",
+      "productVersion": "4.5.0-preview.1.12+5bcd3b811f2dae5005fc28fd70f6ff934e454c7a"
+    },
+    "web": {
+      "sourceVersion": "0.1.0",
+      "releaseVersion": "4.5.0-preview.1.12",
+      "profile": "preview-1",
+      "embeddedIdentity": "wwwroot/workbench-preview.json",
+      "inventory": [
+        {
+          "path": "wwwroot/assets/AiSettingsView-ChlZdHaJ.css",
+          "size": 800,
+          "sha256": "1b16936fa2080b8bcbadfcdd34dc2fcda9b7c394cc066d7b26d508322510aafa"
+        },
+        {
+          "path": "wwwroot/assets/AiSettingsView-CZAAil3r.js",
+          "size": 9152,
+          "sha256": "0ee046429f04b0fe8cc5b19a02cab919a283f7d185cc0f402fd2f0bd5932601e"
+        },
+        {
+          "path": "wwwroot/assets/AutoLoginView-Bp3w9KS4.js",
+          "size": 1307,
+          "sha256": "5624e4bfaf51e11975a8c22b9957c4889c25f41fbf62c98d6e9fb1556408d64b"
+        },
+        {
+          "path": "wwwroot/assets/AutoLoginView-DcC1RmiK.css",
+          "size": 421,
+          "sha256": "04eaeb2ee5f77d08b98aaf848b8b2bfaf626f4fd4c8d8183e2a82accf8b9c0a5"
+        },
+        {
+          "path": "wwwroot/assets/BrandLogo-B5pTm-_1.css",
+          "size": 723,
+          "sha256": "174550ca8a049a38e558e25a9783a2e09442566084639c13f6129e812405e717"
+        },
+        {
+          "path": "wwwroot/assets/BrandLogo-DpXBqvZJ.js",
+          "size": 1344,
+          "sha256": "a6a2b409ac9eaccbd66a61d051cf71e561e8c25ee31f10d4fc6407758d1a6ce8"
+        },
+        {
+          "path": "wwwroot/assets/connections-CvK_MG7b.js",
+          "size": 16297,
+          "sha256": "c83660cc2bb98ec4c21a37bb35045a3020cb290105ddaf560739fc7521254125"
+        },
+        {
+          "path": "wwwroot/assets/content-l0sNRNKZ.js",
+          "size": 1,
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "path": "wwwroot/assets/CopilotOAuthCallbackView-D7i_2XvM.css",
+          "size": 389,
+          "sha256": "eef6880e10173ab4a2d95d813edae2afa4cd2fee7e84433d402dd40daef75afd"
+        },
+        {
+          "path": "wwwroot/assets/CopilotOAuthCallbackView-YyS9DQS8.js",
+          "size": 3581,
+          "sha256": "0ee928de5b6cc6962f3b72df60b44ac76dddec2ade3209d2087e646bdd0a736a"
+        },
+        {
+          "path": "wwwroot/assets/CopilotTestView-BJBIROj3.js",
+          "size": 7943,
+          "sha256": "52093a3fd5865569d705d614d119935a05b9c993aacf717a1b93ee643fdc80b9"
+        },
+        {
+          "path": "wwwroot/assets/CopilotTestView-HKr38TWn.css",
+          "size": 1717,
+          "sha256": "da0b0471d705a6a10ec86945bfecf857f9c76a876bcc714effbfd9fe376a3176"
+        },
+        {
+          "path": "wwwroot/assets/editor-l0sNRNKZ.js",
+          "size": 1,
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "path": "wwwroot/assets/EventsView-BVVoSLrF.js",
+          "size": 4989,
+          "sha256": "22a79f3d2bc88558128aa8065e7654763bb092d31c1c58f8da7e409276203fe1"
+        },
+        {
+          "path": "wwwroot/assets/GrantsView-D7Itfm57.js",
+          "size": 2839,
+          "sha256": "0bc0112f1f876bff759f211a3000762b2dd13f05e15f4ff0433099e79f620a7a"
+        },
+        {
+          "path": "wwwroot/assets/index-BYHQvRe1.css",
+          "size": 14497,
+          "sha256": "778f936d4507b08b210d7d38440198549c4e84cdf48cecdb85c39c6bf8db1199"
+        },
+        {
+          "path": "wwwroot/assets/index-CbssI_xr.js",
+          "size": 64347,
+          "sha256": "0c5c2eb578d2e29f381a922762f736894d834aa1ac234b36202b062fbec1a9c7"
+        },
+        {
+          "path": "wwwroot/assets/LoginView-BgR51T2A.css",
+          "size": 1610,
+          "sha256": "d66a93fe9e513046470418d04cbefb8e43397399088281a92fc43575d990178f"
+        },
+        {
+          "path": "wwwroot/assets/LoginView-DhAAtWFR.js",
+          "size": 2625,
+          "sha256": "7d694768dcb820e636dd03d506f46d42c21fa55136ad04e7b8d86b907a43536b"
+        },
+        {
+          "path": "wwwroot/assets/MeasurementWorkbench-DVrBuSrm.css",
+          "size": 6735,
+          "sha256": "cb690c6aff9341cb7e92528fbbd3135876f5cdcf0a1b4b382f069b4286785c8c"
+        },
+        {
+          "path": "wwwroot/assets/MeasurementWorkbench-HnYiHGig.js",
+          "size": 40012,
+          "sha256": "75771c682b66400ef711c016c9df52e35c8bfb19d4ba6039dd6768c5cfa6c7a5"
+        },
+        {
+          "path": "wwwroot/assets/ModbusView-9_NWOgNY.js",
+          "size": 10334,
+          "sha256": "17da4dd0776f755e0669c1b5797b3bd16a206840ee509271cedb2e7c2bb8e92d"
+        },
+        {
+          "path": "wwwroot/assets/ModbusView-Di3XsWsn.css",
+          "size": 2747,
+          "sha256": "33dddd3a134b70d6eec0b55f963399bac180c321cde4cb5fae04077eed262160"
+        },
+        {
+          "path": "wwwroot/assets/MonitoringView-DREh3hVn.css",
+          "size": 215,
+          "sha256": "7e9243a7b9165dd78367a578b2a54837e04ed375409282aec7bb572f703a87c8"
+        },
+        {
+          "path": "wwwroot/assets/MonitoringView-OcqesAY3.js",
+          "size": 8484,
+          "sha256": "ec148f45cfabb89161522611e5aaf233e3cd2601c0df407d13d48b8dd61db1d4"
+        },
+        {
+          "path": "wwwroot/assets/naive-4Tf6iEBy.js",
+          "size": 1321749,
+          "sha256": "7ac8551b5289e0f9678e6246373a839841c3d5648ec094a32f64f50bb6249688"
+        },
+        {
+          "path": "wwwroot/assets/PreviewAbout-C3tJrA3n.css",
+          "size": 78,
+          "sha256": "8b51c07b8bf3a31a10c17415b82e2141064ba7b82bca41324010c9f20da99b74"
+        },
+        {
+          "path": "wwwroot/assets/PreviewAbout-C8Zt0mRp.js",
+          "size": 1446,
+          "sha256": "a7c7ae2f84acdb7d0cbd5f51d28848dd71fec972309b52eb4e962a0fd979ce02"
+        },
+        {
+          "path": "wwwroot/assets/PreviewOverview-BiWl9TVj.css",
+          "size": 81,
+          "sha256": "ecee5fcf11424dad08d472f18f571cb772e668398f97c42f262ed7f623308b59"
+        },
+        {
+          "path": "wwwroot/assets/PreviewOverview-C4HY62Fr.js",
+          "size": 919,
+          "sha256": "ca558463b0274ca0cddc6f3bf51cc12543f3bb39d20c4351722cd9f7729b60d9"
+        },
+        {
+          "path": "wwwroot/assets/PreviewShell-BZtCFHiq.css",
+          "size": 884,
+          "sha256": "48364202d53ca4a10c36276f0d06cb81517149bce14919f16148d50df7e2a05f"
+        },
+        {
+          "path": "wwwroot/assets/PreviewShell-PcI0Jaxg.js",
+          "size": 1797,
+          "sha256": "7df17ab27f6e906dc44abf1b342a553aeef61787ad7bf3e1bed1b2449219d552"
+        },
+        {
+          "path": "wwwroot/assets/PreviewUnavailable-BeeaOraD.css",
+          "size": 52,
+          "sha256": "dd6062aae75046b9a7c3f630bda64d1d4db1f1aa5102358e8f5ae59d66102aa7"
+        },
+        {
+          "path": "wwwroot/assets/PreviewUnavailable-E4mDcAe5.js",
+          "size": 582,
+          "sha256": "141d918dd66737e842fc29e080d0cbef45ee90f18bb40abb7b279076c8d40a18"
+        },
+        {
+          "path": "wwwroot/assets/PreviewWorkbench-C6wosGBU.css",
+          "size": 666,
+          "sha256": "26730d53e6f9e7d656216f5a88621575eccf80bd0138c0ed77a40b402efa642e"
+        },
+        {
+          "path": "wwwroot/assets/PreviewWorkbench-C7fv4Aaf.js",
+          "size": 11691,
+          "sha256": "46764dde8d4872c51fc4ea51ffaa2183c3f70554fad9796c1a9aa1b73c55cabd"
+        },
+        {
+          "path": "wwwroot/assets/RagManagementView-B14589fI.css",
+          "size": 1811,
+          "sha256": "67ee573da2c42e0b12254e853cce8b341515ff199d66afcb99f6ea3ea1025488"
+        },
+        {
+          "path": "wwwroot/assets/RagManagementView-xfrpJVfd.js",
+          "size": 16504,
+          "sha256": "a82109851453b01b3e67bab8f366af2f582405be831dce3cab84dfa21144b507"
+        },
+        {
+          "path": "wwwroot/assets/relationalImportExport-B-ehb2io.js",
+          "size": 16796,
+          "sha256": "d44ee1c1821d29850048092c8504a90464384c39e80f66a24d8d9c9f84ce36f6"
+        },
+        {
+          "path": "wwwroot/assets/relationalImportExport-C3RWDU1g.css",
+          "size": 3691,
+          "sha256": "15e8cf4a4dcc7f5758d75b32f4f3215bc92ed944208cbf702bded0199d40e6d2"
+        },
+        {
+          "path": "wwwroot/assets/RelationalTableWorkbench-39YUMHc8.js",
+          "size": 104898,
+          "sha256": "492e51fb4e12df2edb5602272a39d2b96f9094045242cf0ca2f149ae16369d72"
+        },
+        {
+          "path": "wwwroot/assets/RelationalTableWorkbench-BnA2Iq6D.css",
+          "size": 101364,
+          "sha256": "fdc2825362217c7779de67547d88f5bcc52cc4d1eaf64474d30cb27794c1cd97"
+        },
+        {
+          "path": "wwwroot/assets/server-BOd5P7D5.js",
+          "size": 532,
+          "sha256": "5e84e4650b3006350e5f46b870d1b327cefad64d2534a4f62c51d4fc76f75c35"
+        },
+        {
+          "path": "wwwroot/assets/SetupView-Bmgh5UEx.js",
+          "size": 5195,
+          "sha256": "02d2fa624a46da0b1df13d230d8964b9bf3cd1efeacc1cb14a7ed529575ec02e"
+        },
+        {
+          "path": "wwwroot/assets/SetupView-DinQszWy.css",
+          "size": 2439,
+          "sha256": "55c9040ecc7f48c074835b82e241efe63d988e2a6e7b7e288fb2399e89ce8eb4"
+        },
+        {
+          "path": "wwwroot/assets/sql-D-pMWQ9K.js",
+          "size": 4360,
+          "sha256": "d01d223a2c901a9346941bf1a9eabd918a45ab1b3bf185e4f6f69684f5db0ea0"
+        },
+        {
+          "path": "wwwroot/assets/TokensView-D8qFHDPS.js",
+          "size": 5194,
+          "sha256": "da44b2d6c32d7a7192889af310665be1e23d07736f61a5e50d85ac8327165e99"
+        },
+        {
+          "path": "wwwroot/assets/transport-IPuh8kwE.js",
+          "size": 6657,
+          "sha256": "6643ff382b06b6ec1c6615fdb640842dd1957401d66e1a1741794562cc6101d8"
+        },
+        {
+          "path": "wwwroot/assets/UsersView-Dj-muNjf.js",
+          "size": 3659,
+          "sha256": "115b21b04928983f1f8e9b2121ef6b634eef4ca9ac6fa3de3d410f20a43d4be4"
+        },
+        {
+          "path": "wwwroot/assets/visualization-CMX7JeUv.js",
+          "size": 1053118,
+          "sha256": "5191d1a464370592cc80d3cceff11ee82b028ea2aa0f7b900a592af752049f3c"
+        },
+        {
+          "path": "wwwroot/assets/vue-trM8fxk2.js",
+          "size": 110256,
+          "sha256": "e0ce829465d3333a8efe81d9ff65f4fa4c1368ebbfe9a8b76bc4b00c686aaca8"
+        },
+        {
+          "path": "wwwroot/assets/workbenchHistory-BcW2B1KH.js",
+          "size": 356,
+          "sha256": "d197224e9001d9d96d38c5df590ba1ed7a765d3ab607099fc1413415867bd9cc"
+        },
+        {
+          "path": "wwwroot/assets/WriteApprovalPanel-B2j7T21Y.css",
+          "size": 3557,
+          "sha256": "725407b30b00be5db88f91ecb6d5075da7f8ca1ba9f6db952c7aed3fb4c1e4df"
+        },
+        {
+          "path": "wwwroot/assets/WriteApprovalPanel-Cpj2-qyb.js",
+          "size": 7789,
+          "sha256": "126c7d6f157dea8d2278dfb00ea26f8d5a275be592f9c63d5d4979cf4b4aa21f"
+        },
+        {
+          "path": "wwwroot/favicon.ico",
+          "size": 54129,
+          "sha256": "69979ecb87f8c699c51e2f80d476f28ceaa5efbbae257ffb4b807815a6ed484a"
+        },
+        {
+          "path": "wwwroot/favicon.png",
+          "size": 111675,
+          "sha256": "180698189799d38b92228c4e8815dae9fe279322d425de375dbd3eb470110fda"
+        },
+        {
+          "path": "wwwroot/favicon.svg",
+          "size": 1263,
+          "sha256": "62ced43cb2e443509f92218c56e078d3654e464783773a94017e5a5b1a0021d5"
+        },
+        {
+          "path": "wwwroot/index.html",
+          "size": 683,
+          "sha256": "5aa1c4d928034e40a74c0f5eb2d16942a8ef1d167297c06ae9d217c0b1c7cc2a"
+        },
+        {
+          "path": "wwwroot/llms-full.txt",
+          "size": 20194,
+          "sha256": "2a2750ccb83c180d265e41f158e6ea568ccf67391d25fec83eacd75cb9ccea75"
+        },
+        {
+          "path": "wwwroot/llms.txt",
+          "size": 6664,
+          "sha256": "d06e03b26d13f85e8de5db4c268d44a9db7eb88b9a2164829b8e9672acb7451d"
+        },
+        {
+          "path": "wwwroot/qr-group.png",
+          "size": 23051,
+          "sha256": "d8490e0681bdf246c4c1a55bec7aadbb066c446007cd8bc488ba06ec532de41c"
+        },
+        {
+          "path": "wwwroot/qr-group.svg",
+          "size": 67036,
+          "sha256": "85e8b532747115ca590497c9324f9a9d92c9859814f8bf768628965ff6061447"
+        },
+        {
+          "path": "wwwroot/workbench-module-inventory.json",
+          "size": 323735,
+          "sha256": "b29a299a8cce951bd6b8f945b21719475ce013e6a10cfd16a5074dee5feec66a"
+        },
+        {
+          "path": "wwwroot/workbench-preview.json",
+          "size": 14945,
+          "sha256": "1da3d85595daf1d536bf037176fa17a7e4d0678c6658932d6d2a0c56eedf9d89"
+        }
+      ]
+    }
+  },
+  "ci": {
+    "repository": "IoTSharp/SonnetDB",
+    "workflow": "Workbench Preview package",
+    "runId": "38145580702",
+    "attempt": "1",
+    "workflowRef": "IoTSharp/SonnetDB/.github/workflows/workbench-preview-build.yml@refs/heads/codex/m47-preview12-source",
+    "workflowSha": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "conclusion": "success",
+    "commandReceipts": [
+      {
+        "path": "dotnet-info.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 7.1352313
+      },
+      {
+        "path": "micro.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.6756206
+      },
+      {
+        "path": "msvc-registration.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.5336716
+      },
+      {
+        "path": "native-closure-verify.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.5275199
+      },
+      {
+        "path": "native-dependencies.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.5437172
+      },
+      {
+        "path": "native-publish.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 26,
+        "elapsedSeconds": 362.5338763
+      },
+      {
+        "path": "node-contracts.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 1.5485383
+      },
+      {
+        "path": "node-version.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.5423487
+      },
+      {
+        "path": "npm-ci.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 21.3073684
+      },
+      {
+        "path": "npm-version.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 1,
+        "elapsedSeconds": 0.5280105
+      },
+      {
+        "path": "web-build.result.json",
+        "status": "PASS",
+        "cleanupComplete": true,
+        "observedIdentities": 6,
+        "elapsedSeconds": 40.4280526
+      }
+    ],
+    "tools": {
+      "powershell": "7.6.6",
+      "dotnetInfo": ".NET SDK:\r\n Version:           10.0.401\r\n Commit:            e34a38d2ae\r\n Workload version:  10.0.400-manifests.b0700452\r\n MSBuild version:   18.9.11+e34a38d2a\r\n\r\nRuntime Environment:\r\n OS Name:     Windows\r\n OS Version:  10.0.26100\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.401\\\r\n\r\n.NET workloads installed:\r\n [maui-windows]\r\n   Installation Source: VS 18.10.12217.157\r\n   Manifest Version:    10.0.20/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.maui\\10.0.20\\WorkloadManifest.json\r\n   Install Type:              Msi\r\n\r\n [maccatalyst]\r\n   Installation Source: VS 18.10.12217.157\r\n   Manifest Version:    26.5.10301/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.maccatalyst\\26.5.10301\\WorkloadManifest.json\r\n   Install Type:              Msi\r\n\r\n [ios]\r\n   Installation Source: VS 18.10.12217.157\r\n   Manifest Version:    26.5.10301/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.ios\\26.5.10301\\WorkloadManifest.json\r\n   Install Type:              Msi\r\n\r\n [android]\r\n   Installation Source: VS 18.10.12217.157\r\n   Manifest Version:    36.1.69/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.sdk.android\\36.1.69\\WorkloadManifest.json\r\n   Install Type:              Msi\r\n\r\n [wasm-tools]\r\n   Installation Source: VS 18.10.12217.157\r\n   Manifest Version:    10.0.112/10.0.100\r\n   Manifest Path:       C:\\Program Files\\dotnet\\sdk-manifests\\10.0.100\\microsoft.net.workload.mono.toolchain.current\\10.0.112\\WorkloadManifest.json\r\n   Install Type:              Msi\r\n\r\nConfigured to use workload sets when installing new manifests.\r\nNo workload sets are installed. Run \"dotnet workload restore\" to install a workload set.\r\n\r\nHost:\r\n  Version:      10.0.12\r\n  Architecture: x64\r\n  Commit:       95017c711e\r\n\r\n.NET SDKs installed:\r\n  8.0.131 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.206 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n  8.0.425 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.121 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.205 [C:\\Program Files\\dotnet\\sdk]\r\n  9.0.318 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.112 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.204 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.401 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 8.0.31 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 9.0.20 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.12 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 8.0.31 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.20 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.12 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 8.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 8.0.22 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 8.0.31 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 9.0.6 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 9.0.20 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.8 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.12 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  x86   [C:\\Program Files (x86)\\dotnet]\r\n    registered at [HKLM\\SOFTWARE\\dotnet\\Setup\\InstalledVersions\\x86\\InstallLocation]\r\n\r\nEnvironment variables:\r\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\r\n  DOTNET_MULTILEVEL_LOOKUP                 [0]\r\n  DOTNET_NOLOGO                            [1]\r\n  DOTNET_PROCESSOR_COUNT                   [4]\r\n  DOTNET_ROOT                              [C:\\Program Files\\dotnet]\r\n  DOTNET_SKIP_FIRST_TIME_EXPERIENCE        [1]\r\n\r\nglobal.json file:\r\n  D:\\a\\SonnetDB\\SonnetDB\\global.json\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download",
+      "node": "v22.23.3",
+      "npm": "10.9.9",
+      "publishArguments": [
+        "publish",
+        "src/SonnetDB/SonnetDB.csproj",
+        "-c",
+        "Release",
+        "-r",
+        "win-x64",
+        "-p:SonnetDbPublishAot=true",
+        "-p:BuildAdminUi=false",
+        "-p:Version=4.5.0-preview.1.12",
+        "-p:InformationalVersion=4.5.0-preview.1.12+5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+        "-p:IncludeSourceRevisionInInformationalVersion=false",
+        "-p:SourceRevisionId=5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+        "-p:AssemblyVersion=4.5.0.0",
+        "-p:FileVersion=4.5.0.12",
+        "-o",
+        "D:\\a\\_temp\\preview-output\\publish",
+        "/warnaserror",
+        "-m:4"
+      ],
+      "nativeToolchain": {
+        "visualStudio": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise",
+        "runnerImage": "20260925.250.1",
+        "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+        "compilerVersion": "19.51.36260.0",
+        "registeredMsvc": "14.51.36231"
+      },
+      "server": {
+        "fileVersion": "4.5.0.12",
+        "assemblyVersion": "4.5.0.0",
+        "assemblyVersionEvidence": "publish argument; NativeAOT has no inspectable managed assembly",
+        "productVersion": "4.5.0-preview.1.12+5bcd3b811f2dae5005fc28fd70f6ff934e454c7a"
+      }
+    }
+  },
+  "package": {
+    "archiveFiles": 290,
+    "zip": {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip",
+      "size": 46781896,
+      "sha256": "27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824"
+    },
+    "nativeDependencies": {
+      "schemaVersion": 1,
+      "status": "PASS",
+      "ordinaryAndDelayImports": true,
+      "operatingSystemPrerequisite": "Windows 11 x64 with its built-in UCRT and system/API-set libraries",
+      "dynamicLoadCoverage": "Explicit runtime loads outside PE imports are not inferred; P05 runtime journey remains pending",
+      "registration": {
+        "registeredRedistVersion": "14.51.36231",
+        "visualStudio": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise",
+        "directory": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Redist\\MSVC\\14.51.36231\\x64\\Microsoft.VC145.CRT",
+        "versionMetadata": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Auxiliary\\Build\\Microsoft.VCRedistVersion.default.txt"
+      },
+      "redistributed": [
+        {
+          "path": "msvcp140.dll",
+          "size": 643512,
+          "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+          "imports": [
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "vcruntime140_1.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-locale-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-filesystem-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-time-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-environment-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-math-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-utility-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary"
+            }
+          ],
+          "source": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Redist\\MSVC\\14.51.36231\\x64\\Microsoft.VC145.CRT\\msvcp140.dll",
+          "fileVersion": "14.51.36247.0",
+          "productVersion": "14.51.36247.0"
+        },
+        {
+          "path": "vcruntime140.dll",
+          "size": 178616,
+          "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+          "imports": [
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary"
+            }
+          ],
+          "source": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Redist\\MSVC\\14.51.36231\\x64\\Microsoft.VC145.CRT\\vcruntime140.dll",
+          "fileVersion": "14.51.36247.0",
+          "productVersion": "14.51.36247.0"
+        },
+        {
+          "path": "vcruntime140_1.dll",
+          "size": 50112,
+          "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+          "imports": [
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary"
+            }
+          ],
+          "source": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Redist\\MSVC\\14.51.36231\\x64\\Microsoft.VC145.CRT\\vcruntime140_1.dll",
+          "fileVersion": "14.51.36247.0",
+          "productVersion": "14.51.36247.0"
+        },
+        {
+          "path": "msvcp140_1.dll",
+          "size": 35768,
+          "sha256": "206c931bf90fdad8816de3b5e2ef80b2bcaa9406c89ecc05fe6fddffe251e982",
+          "imports": [
+            {
+              "name": "msvcp140.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary"
+            }
+          ],
+          "source": "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Redist\\MSVC\\14.51.36231\\x64\\Microsoft.VC145.CRT\\msvcp140_1.dll",
+          "fileVersion": "14.51.36247.0",
+          "productVersion": "14.51.36247.0"
+        }
+      ],
+      "binaries": [
+        {
+          "path": "libSkiaSharp.dll",
+          "size": 13411640,
+          "sha256": "3deeaa66897fb0c4ebda7d85044702b05b7fbfb380df9ba86dacb82df2171d3d",
+          "imports": [
+            {
+              "name": "ole32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "user32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "fontsub.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "d3d12.dll",
+              "kind": "delay",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "d3dcompiler_47.dll",
+              "kind": "delay",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "libusearch_c.dll",
+          "size": 160768,
+          "sha256": "6a07c3d35a789c02e1722ee778235473bcee6cbf8d2c94a5134d35506c9dd56f",
+          "imports": [
+            {
+              "name": "numkong.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "msvcp140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "vcruntime140_1.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-math-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "numkong.dll",
+          "size": 2169856,
+          "sha256": "3ccd4228de4ba7bd75f92056e9620b1c48e1a8434197ed7adc850bea87d8c464",
+          "imports": [
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "onnxruntime.dll",
+          "size": 16462648,
+          "sha256": "7e39e2bdbba836d98071ef28620735ba36a47c554cf794585269aecc50fab0da",
+          "imports": [
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "advapi32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "msvcp140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "msvcp140_1.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-core-path-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "dbghelp.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "setupapi.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "dxgi.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "vcruntime140_1.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-math-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-locale-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-time-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-filesystem-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "shell32.dll",
+              "kind": "delay",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "onnxruntime_providers_shared.dll",
+          "size": 21816,
+          "sha256": "b9b7ab9e2a8b08ee7ae4a7ac1c8bfd44a741f17ad8d0f764953140a57de0b796",
+          "imports": [
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "SonnetDB.exe",
+          "size": 87273472,
+          "sha256": "95faa3fecd79a8b83501dbc5e2a05b1347b41b786cad8084948b6d85d4152c1c",
+          "imports": [
+            {
+              "name": "advapi32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "bcrypt.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "crypt32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "iphlpapi.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "ncrypt.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "ole32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "ws2_32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-math-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-locale-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "msvcp140.dll",
+          "size": 643512,
+          "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+          "imports": [
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "vcruntime140_1.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-locale-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-filesystem-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-time-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-environment-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-math-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-utility-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "vcruntime140.dll",
+          "size": 178616,
+          "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+          "imports": [
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-stdio-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-convert-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "vcruntime140_1.dll",
+          "size": 50112,
+          "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+          "imports": [
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-string-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        },
+        {
+          "path": "msvcp140_1.dll",
+          "size": 35768,
+          "sha256": "206c931bf90fdad8816de3b5e2ef80b2bcaa9406c89ecc05fe6fddffe251e982",
+          "imports": [
+            {
+              "name": "msvcp140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "vcruntime140.dll",
+              "kind": "ordinary",
+              "resolution": "APP_LOCAL"
+            },
+            {
+              "name": "api-ms-win-crt-heap-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "api-ms-win-crt-runtime-l1-1-0.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            },
+            {
+              "name": "kernel32.dll",
+              "kind": "ordinary",
+              "resolution": "WINDOWS_11_SYSTEM_CONTRACT"
+            }
+          ]
+        }
+      ]
+    },
+    "dependencyCount": 243,
+    "originalLicenseReview": "PASS_EXACT_PACKAGE_INPUT_REVIEW_FULL_P07_PENDING",
+    "licenseInputReview": {
+      "path": "artifacts/m47-p07-close-20261011/license-review-12.json",
+      "size": 4839,
+      "sha256": "f947d9cde2d47acdfbdb40ebe162a562b973f843b190e102c37cc3fbb65e77d4"
+    },
+    "inventoryAndLicensesInManifest": true
+  },
+  "validation": {
+    "nativeAotPublish": "PASS",
+    "aotWarningCount": 0,
+    "exactArchiveHashes": "PASS",
+    "compiledWebVersionSourceProfile": "PASS",
+    "nativeVersionPE": "PASS",
+    "verifyOnly": "PASS",
+    "installedUserJourneyP05": "PASS_R1_ON_RECORDED_WINDOWS_HOST",
+    "normalStopReopen": "PASS",
+    "isolatedSameCandidateSnapshotRestore": "PASS",
+    "oldServerNewDataDowngrade": "NOT_ACCEPTED",
+    "actualStaleHeaderStatus": 428,
+    "olderNativeServerRefusedBeforeLogin": "PASS",
+    "cleanMachineInstall": "NOT_RUN",
+    "crashRecovery": "NOT_RUN",
+    "production": "NOT_RUN"
+  },
+  "installedAcceptance": {
+    "host": {
+      "architecture": "64 位",
+      "caption": "Microsoft Windows 11 家庭版 中文版",
+      "build": "26300"
+    },
+    "browsers": [
+      {
+        "name": "Chrome",
+        "version": "150.0.7871.115"
+      },
+      {
+        "name": "Edge",
+        "version": "155.0.4283.45"
+      }
+    ],
+    "mode": "EXTRACTED_NATIVEAOT_SERVER_SAME_ORIGIN_LOOPBACK_ROOT_PATH",
+    "ports": [
+      {
+        "address": "127.0.0.1",
+        "port": 5080,
+        "protocol": "HTTP"
+      },
+      {
+        "address": "127.0.0.1",
+        "port": 5081,
+        "protocol": "FRAME"
+      }
+    ],
+    "dataKind": "SYNTHETIC_ISOLATED_FIXTURES",
+    "suitePath": "suite-12/suite.json",
+    "suiteSha256": "c6d193e2d216bd05ef7bab9ac50265f63c1d0b696b0ce8b634afdb35c622ba19",
+    "summary": {
+      "records": [
+        {
+          "exitCode": 0,
+          "normalStop": true,
+          "name": "first",
+          "cleanupComplete": true,
+          "status": "PASS"
+        },
+        {
+          "exitCode": 0,
+          "normalStop": true,
+          "name": "reopen",
+          "cleanupComplete": true,
+          "status": "PASS"
+        },
+        {
+          "exitCode": 0,
+          "normalStop": true,
+          "name": "rollback",
+          "cleanupComplete": true,
+          "status": "PASS"
+        },
+        {
+          "olderServerOpenedNewData": false,
+          "sameCandidate": true,
+          "name": "isolated-snapshot-rollback",
+          "restoredFileCount": 61,
+          "status": "PASS"
+        },
+        {
+          "cleanupComplete": true,
+          "name": "wrong-web",
+          "actualExitCode": 1,
+          "status": "PASS_EXPECTED_REFUSAL"
+        },
+        {
+          "cleanupComplete": true,
+          "name": "wrong-server",
+          "actualExitCode": 1,
+          "status": "PASS_EXPECTED_REFUSAL"
+        },
+        {
+          "cleanupComplete": true,
+          "name": "wrong-candidate",
+          "actualExitCode": 1,
+          "status": "PASS_EXPECTED_REFUSAL"
+        },
+        {
+          "cleanupComplete": true,
+          "name": "port-occupied",
+          "actualExitCode": 1,
+          "status": "PASS_EXPECTED_REFUSAL"
+        },
+        {
+          "cleanupComplete": true,
+          "name": "data-permission",
+          "actualExitCode": 1,
+          "status": "PASS_EXPECTED_REFUSAL"
+        },
+        {
+          "exitCode": 0,
+          "normalStop": true,
+          "name": "legacy",
+          "cleanupComplete": true,
+          "status": "PASS"
+        }
+      ],
+      "scope": "R1",
+      "status": "PASS",
+      "p06p08": "NOT_RUN",
+      "releaseStatus": "NOT_READY",
+      "elapsedSeconds": 171.0359707
+    },
+    "phases": [
+      {
+        "phase": "first",
+        "journeyPath": "suite-12/normal/first/first-journey.json",
+        "journeySha256": "29bd93b1c278c2979a94f6db97f3efe43c12d0fc0ebe902b9f9cf923d57bdb25",
+        "resultPath": "suite-12/normal/first/result.json",
+        "resultSha256": "20790cad0b1d17130446cd8f7e641ca148c908bc3d1f5b50296ff51bb731b6df",
+        "stepCount": 26,
+        "records": [
+          {
+            "name": "chrome-first-setup-ui",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1294,
+            "detail": null
+          },
+          {
+            "name": "operator-synthetic-fixtures",
+            "status": "PASS",
+            "evidenceKind": "OPERATOR_API_FIXTURE_PREPARATION",
+            "elapsedMs": 164,
+            "detail": {
+              "database": "P05Db",
+              "tableRows": 1001,
+              "measurementRows": 1,
+              "userGrantLevels": [
+                "Write",
+                "Read"
+              ],
+              "realUiLogin": true
+            }
+          },
+          {
+            "name": "chrome-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 406,
+            "detail": {
+              "browserVersion": "150.0.7871.115",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "chrome-authorized-select-query-truncation-export",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 955,
+            "detail": {
+              "outputLimit": 1000,
+              "exportBytes": 22835,
+              "exportSha256": "2d0e59456294ca31db07780eb9d6eef59cb55a3337a5189ce3abc7a54f6e8af9",
+              "unloadedRowExcluded": true
+            }
+          },
+          {
+            "name": "chrome-relation-and-measurement-reads",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 972,
+            "detail": {
+              "originalTableAndColumnSpelling": true,
+              "measurementRowsVisible": 1
+            }
+          },
+          {
+            "name": "chrome-deferred-models-and-direct-routes",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 896,
+            "detail": {
+              "deferredModels": 7,
+              "dedicatedRequests": 0,
+              "directRoutesRefused": 4
+            }
+          },
+          {
+            "name": "chrome-approval-cancel-then-once-confirm",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1016,
+            "detail": {
+              "cancelledRowAbsent": true,
+              "confirmedRowsAffected": 1,
+              "requestEvents": 3
+            }
+          },
+          {
+            "name": "chrome-readonly-database-grant",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1040,
+            "detail": {
+              "httpRole": "readwrite",
+              "databaseGrant": "Read",
+              "writeStatus": 403
+            }
+          },
+          {
+            "name": "chrome-revoked-grant-clears-approval",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 521,
+            "detail": null
+          },
+          {
+            "name": "chrome-unknown-write-does-not-replay",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_LOSS_INJECTION_AFTER_REAL_SERVER_COMMIT",
+            "elapsedMs": 844,
+            "detail": {
+              "lostResponseAfterRealCommit": true,
+              "writes": 1,
+              "rollbackClaim": false
+            }
+          },
+          {
+            "name": "chrome-cancel-and-database-isolation",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_DELAY_INJECTION_WITH_REAL_RESPONSE",
+            "elapsedMs": 504,
+            "detail": {
+              "discardedLateRead": true,
+              "serverScanStopProven": false
+            }
+          },
+          {
+            "name": "chrome-offline-and-revoked-token-clearing",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1120,
+            "detail": {
+              "revokedTokenExportDownloads": 0,
+              "noAutomaticReconnectWrite": true
+            }
+          },
+          {
+            "name": "chrome-actual-server-rejects-stale-preview-headers",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 2,
+            "detail": {
+              "httpStatus": 428,
+              "actualServerEnforcement": true
+            }
+          },
+          {
+            "name": "chrome-cached-web-identity-mismatch-clears-state",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_IDENTITY_RESPONSE_FAULT_INJECTION",
+            "elapsedMs": 510,
+            "detail": {
+              "authenticationRequestsWhileMismatched": 0,
+              "authCleared": true,
+              "writeReplay": false
+            }
+          },
+          {
+            "name": "edge-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1562,
+            "detail": {
+              "browserVersion": "155.0.4283.45",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "edge-authorized-select-query-truncation-export",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1455,
+            "detail": {
+              "outputLimit": 1000,
+              "exportBytes": 22835,
+              "exportSha256": "2d0e59456294ca31db07780eb9d6eef59cb55a3337a5189ce3abc7a54f6e8af9",
+              "unloadedRowExcluded": true
+            }
+          },
+          {
+            "name": "edge-relation-and-measurement-reads",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1232,
+            "detail": {
+              "originalTableAndColumnSpelling": true,
+              "measurementRowsVisible": 1
+            }
+          },
+          {
+            "name": "edge-deferred-models-and-direct-routes",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1752,
+            "detail": {
+              "deferredModels": 7,
+              "dedicatedRequests": 0,
+              "directRoutesRefused": 4
+            }
+          },
+          {
+            "name": "edge-approval-cancel-then-once-confirm",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1878,
+            "detail": {
+              "cancelledRowAbsent": true,
+              "confirmedRowsAffected": 1,
+              "requestEvents": 4
+            }
+          },
+          {
+            "name": "edge-readonly-database-grant",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 2259,
+            "detail": {
+              "httpRole": "readwrite",
+              "databaseGrant": "Read",
+              "writeStatus": 403
+            }
+          },
+          {
+            "name": "edge-revoked-grant-clears-approval",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1152,
+            "detail": null
+          },
+          {
+            "name": "edge-unknown-write-does-not-replay",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_LOSS_INJECTION_AFTER_REAL_SERVER_COMMIT",
+            "elapsedMs": 1363,
+            "detail": {
+              "lostResponseAfterRealCommit": true,
+              "writes": 1,
+              "rollbackClaim": false
+            }
+          },
+          {
+            "name": "edge-cancel-and-database-isolation",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_DELAY_INJECTION_WITH_REAL_RESPONSE",
+            "elapsedMs": 893,
+            "detail": {
+              "discardedLateRead": true,
+              "serverScanStopProven": false
+            }
+          },
+          {
+            "name": "edge-offline-and-revoked-token-clearing",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1385,
+            "detail": {
+              "revokedTokenExportDownloads": 0,
+              "noAutomaticReconnectWrite": true
+            }
+          },
+          {
+            "name": "edge-actual-server-rejects-stale-preview-headers",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 5,
+            "detail": {
+              "httpStatus": 428,
+              "actualServerEnforcement": true
+            }
+          },
+          {
+            "name": "edge-cached-web-identity-mismatch-clears-state",
+            "status": "PASS",
+            "evidenceKind": "BROWSER_IDENTITY_RESPONSE_FAULT_INJECTION",
+            "elapsedMs": 707,
+            "detail": {
+              "authenticationRequestsWhileMismatched": 0,
+              "authCleared": true,
+              "writeReplay": false
+            }
+          }
+        ],
+        "normalStop": true,
+        "exitCode": 0,
+        "forcedServerTerminations": 0,
+        "cleanupComplete": true
+      },
+      {
+        "phase": "reopen",
+        "journeyPath": "suite-12/normal/reopen/reopen-journey.json",
+        "journeySha256": "83163aff7e16217117bf085564dac4152e671992258c4e1a9f177fc86dbabb1c",
+        "resultPath": "suite-12/normal/reopen/result.json",
+        "resultSha256": "387cf27ff4b7753d173627dc57e0d27fb21bd283dde443607249ea78d1e1bd3d",
+        "stepCount": 5,
+        "records": [
+          {
+            "name": "chrome-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 596,
+            "detail": {
+              "browserVersion": "150.0.7871.115",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "chrome-reopen-confirmed-row-readback",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 439,
+            "detail": {
+              "normalStopReopen": true,
+              "sameCandidateSnapshotRestore": false,
+              "olderServerUsed": false
+            }
+          },
+          {
+            "name": "edge-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1665,
+            "detail": {
+              "browserVersion": "155.0.4283.45",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "edge-reopen-confirmed-row-readback",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 537,
+            "detail": {
+              "normalStopReopen": true,
+              "sameCandidateSnapshotRestore": false,
+              "olderServerUsed": false
+            }
+          },
+          {
+            "name": "operator-post-snapshot-mutation",
+            "status": "PASS",
+            "evidenceKind": "OPERATOR_API_FIXTURE_MUTATION",
+            "elapsedMs": 5,
+            "detail": {
+              "separateMutationAfterSnapshot": true
+            }
+          }
+        ],
+        "normalStop": true,
+        "exitCode": 0,
+        "forcedServerTerminations": 0,
+        "cleanupComplete": true
+      },
+      {
+        "phase": "rollback",
+        "journeyPath": "suite-12/normal/rollback/rollback-journey.json",
+        "journeySha256": "eaa76620182db22a73ddd500510f570d5d6020777276ebe65afc8521e34473f3",
+        "resultPath": "suite-12/normal/rollback/result.json",
+        "resultSha256": "c5246477f972ed683e7614ebfb2b7b7951d3554b811b01b270399f41940693b1",
+        "stepCount": 4,
+        "records": [
+          {
+            "name": "chrome-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 487,
+            "detail": {
+              "browserVersion": "150.0.7871.115",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "chrome-rollback-confirmed-row-readback",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 491,
+            "detail": {
+              "normalStopReopen": false,
+              "sameCandidateSnapshotRestore": true,
+              "olderServerUsed": false
+            }
+          },
+          {
+            "name": "edge-password-login-and-about",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 1324,
+            "detail": {
+              "browserVersion": "155.0.4283.45",
+              "version": "4.5.0-preview.1.12",
+              "source": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+              "profile": "preview-1",
+              "scope": "R1"
+            }
+          },
+          {
+            "name": "edge-rollback-confirmed-row-readback",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 432,
+            "detail": {
+              "normalStopReopen": false,
+              "sameCandidateSnapshotRestore": true,
+              "olderServerUsed": false
+            }
+          }
+        ],
+        "normalStop": true,
+        "exitCode": 0,
+        "forcedServerTerminations": 0,
+        "cleanupComplete": true
+      },
+      {
+        "phase": "legacy",
+        "journeyPath": "suite-12/legacy/legacy/legacy-journey.json",
+        "journeySha256": "1bdef8f4a56eb20e3c64ccf7f096f00d24fb317f072502ad28eefa8096efa21f",
+        "resultPath": "suite-12/legacy/legacy/result.json",
+        "resultSha256": "b34d2425ba2c895ac278305cb620b00c63ccd5db84f92b0d525366e114eb4734",
+        "stepCount": 2,
+        "records": [
+          {
+            "name": "chrome-actual-legacy-server-refused-before-login",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 837,
+            "detail": {
+              "actualOlderServer": "candidate-09",
+              "freshIsolatedData": true,
+              "newerWeb": "4.5.0-preview.1.12",
+              "authenticationRequests": 0
+            }
+          },
+          {
+            "name": "edge-actual-legacy-server-refused-before-login",
+            "status": "PASS",
+            "evidenceKind": "REAL_INSTALLED_UI_AND_SERVER",
+            "elapsedMs": 550,
+            "detail": {
+              "actualOlderServer": "candidate-09",
+              "freshIsolatedData": true,
+              "newerWeb": "4.5.0-preview.1.12",
+              "authenticationRequests": 0
+            }
+          }
+        ],
+        "normalStop": true,
+        "exitCode": 0,
+        "forcedServerTerminations": 0,
+        "cleanupComplete": true
+      }
+    ],
+    "independentAuditPath": "installed-independent-audit.json",
+    "independentAuditSha256": "bc3a8ec59a6504817e3424b845efc1c10b61320b575f28b118b38c20c9ab669c",
+    "independentAudit": {
+      "normalStopsWithoutForcedTermination": 4,
+      "exports": [
+        {
+          "path": "suite-12\\normal\\first\\first-16-window.json",
+          "bytes": 22835,
+          "sha256": "2d0e59456294ca31db07780eb9d6eef59cb55a3337a5189ce3abc7a54f6e8af9",
+          "rows": 1000
+        },
+        {
+          "path": "suite-12\\normal\\first\\first-4-window.json",
+          "bytes": 22835,
+          "sha256": "2d0e59456294ca31db07780eb9d6eef59cb55a3337a5189ce3abc7a54f6e8af9",
+          "rows": 1000
+        }
+      ],
+      "aclVerification": {
+        "denyCount": 0,
+        "currentSddl": "O:S-1-5-21-4258952380-613721812-2286483043-1001G:S-1-5-21-4258952380-613721812-2286483043-1001D:AI(A;OICIID;0x1301bf;;;S-1-5-21-2748248581-3172069788-252259169-3217977555)(A;OICIID;0x1301bf;;;S-1-5-21-1569723084-543104034-1517425394-3287004208)(A;OICIID;0x1301ff;;;S-1-5-21-2593523548-3524664019-1775648172-1831099578)(A;OICIID;0x1301ff;;;S-1-5-21-4258952380-613721812-2286483043-1005)(A;OICIID;0x1301ff;;;S-1-5-21-3298224358-1061324915-815425791-1236145539)(A;OICIID;FA;;;BA)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;0x1301bf;;;AU)(A;OICIIOID;SDGXGWGR;;;AU)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)",
+        "originalSddlRecorded": false,
+        "restorationSource": "suite finally Set-Acl original captured ACL",
+        "writeProbe": "PASS"
+      },
+      "liveMatches": 0,
+      "host": {
+        "architecture": "64 位",
+        "caption": "Microsoft Windows 11 家庭版 中文版",
+        "build": "26300"
+      },
+      "signalCount": 0,
+      "elapsedSeconds": 7.3229128,
+      "receiptCount": 17,
+      "liveCompletedTaskIdentities": 0,
+      "receipts": [
+        {
+          "path": "checks\\suite12.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "checks\\validate-package12.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "checks\\verifyonly12.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "checks\\watch-build12.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\negative-data-permission.result.json",
+          "status": "FAIL",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\negative-port-occupied.result.json",
+          "status": "FAIL",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\negative-wrong-candidate.result.json",
+          "status": "FAIL",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\negative-wrong-server.result.json",
+          "status": "FAIL",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\negative-wrong-web.result.json",
+          "status": "FAIL",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\suite-first.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\suite-legacy.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\suite-reopen.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\suite-rollback.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\normal\\first\\browser-first.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\normal\\reopen\\browser-reopen.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\normal\\rollback\\browser-rollback.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        },
+        {
+          "path": "suite-12\\legacy\\legacy\\browser-legacy.result.json",
+          "status": "PASS",
+          "cleanupComplete": true
+        }
+      ],
+      "status": "PASS",
+      "reusedPidObservationsPreserved": 0,
+      "recordedIdentityCount": 244,
+      "listenersRemaining": 0,
+      "remainingListeners": 0
+    },
+    "harness": [
+      {
+        "path": "eng/workbench-preview/Invoke-P05Suite.ps1",
+        "size": 9365,
+        "sha256": "8687e1e21a57bbd3bc6f2ef631101c95f03417abb234b900904b0e302f0bf352"
+      },
+      {
+        "path": "eng/workbench-preview/Invoke-Journey.ps1",
+        "size": 5864,
+        "sha256": "7231d72a5ef69e7763587106481d9bef80da453b814f6aa14f4c4f9fc6aa911f"
+      },
+      {
+        "path": "eng/workbench-preview/journey.mjs",
+        "size": 22231,
+        "sha256": "4cf1fbf6548b78515e96c9280a7749c7b20806de87fb56c103f066ce146c39e1"
+      },
+      {
+        "path": "eng/workbench-preview/Invoke-Owned.ps1",
+        "size": 4258,
+        "sha256": "4ef03ee4372be065c934cf26955a43e2a16ac3b47678c2b82fded1df68960a6f"
+      },
+      {
+        "path": "eng/workbench-preview/JobProcess.cs",
+        "size": 17681,
+        "sha256": "b3c06a79dfac703c19d1d51a2a94e2266ddc69522628603c3ab514ca1a565343"
+      }
+    ],
+    "faultInjectionBoundary": "Browser response-loss/delay/identity fixtures use actual NativeAOT responses but do not establish physical network fault, crash recovery or semantic quality."
+  },
+  "distribution": {
+    "publicAttachmentSetComplete": false,
+    "releaseNotesP06": "PREPARING",
+    "publicReleaseP08": "NOT_RUN",
+    "published": false,
+    "tagged": false
+  },
+  "remainingGates": [
+    "P06 remote exact four attachment prepare",
+    "P07 original twelve workflows and eight required checks",
+    "P08 approved publication, anonymous download and public-package first run"
+  ],
+  "historicalFailureCandidates": [
+    "candidate-05",
+    "candidate-06",
+    "candidate-07",
+    "candidate-08",
+    "candidate-09",
+    "candidate-10",
+    "candidate-11"
+  ],
+  "historicalFailuresPreserved": true,
+  "automation": "PAUSED",
+  "evidenceRoot": "artifacts/m47-p07-close-20261011",
+  "deliveryValidation": {
+    "zipSha256": "27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824",
+    "nativePEVerified": true,
+    "publicAttachmentSetComplete": false,
+    "unpackedDirectory": "D:\\source\\SonnetDB\\artifacts\\m47-p07-close-20261011\\unpacked-4.5.0-preview.1.12",
+    "elapsedSeconds": 3.1816583,
+    "installedUserJourney": "NOT_RUN",
+    "runId": "38145580702",
+    "compiledWebIdentityVerified": true,
+    "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "version": "4.5.0-preview.1.12",
+    "status": "PASS",
+    "archiveFiles": 290,
+    "attempt": 1,
+    "serverProductVersion": "4.5.0-preview.1.12+5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+    "zipSize": 46781896
+  }
+}

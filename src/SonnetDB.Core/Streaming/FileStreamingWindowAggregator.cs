@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace SonnetDB.Streaming;
 
-/// <summary>为单个本地文件订阅持久化固定 UTC 滚动 COUNT 或显式 decimal 数值窗口及其恢复位点。</summary>
+/// <summary>为单个本地文件订阅持久化固定 UTC 滚动或滑动 COUNT、decimal 数值及分组窗口和恢复位点。</summary>
 /// <remarks>
 /// <para>每个批次的窗口和已应用位点写入同一个原子替换文件，之后才确认订阅。
 /// 窗口提交后未完成确认的最后批次按稳定投递标识和内容校验重试，不重复计数。</para>
@@ -43,7 +43,7 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
 
     /// <summary>创建新的持久窗口聚合器；不会覆盖已存在的状态文件。</summary>
     /// <param name="path">专属于该聚合器的状态文件路径。</param>
-    /// <param name="definition">固定 UTC 滚动窗口定义。</param>
+    /// <param name="definition">固定 UTC 滚动或滑动窗口定义。</param>
     /// <param name="initialCheckpoint">开始消费前已确认的订阅位点；默认从空订阅开始。</param>
     /// <param name="options">容量、单批处理与操作超时边界。</param>
     /// <param name="cancellationToken">取消令牌。</param>
@@ -472,33 +472,35 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
         foreach (StreamingEvent value in events)
         {
             token.ThrowIfCancellationRequested();
-            long startTicks = WindowStart(value.EventTimeUtc);
-            if (IsClosed(WindowEnd(startTicks), _document.WatermarkUtc))
+            List<long> starts = OpenWindowStarts(value, token);
+            if (starts.Count == 0)
             {
-                if (Definition.LateEventPolicy == StreamingWindowLateEventPolicy.Reject)
-                    throw new StreamingLateEventException(value.EventId);
                 dropped = checked(dropped + 1);
                 continue;
             }
 
             decimal numericValue = Definition.NumericField is { } field ? ReadNumericValue(value.Payload, field, token) : 0;
-            if (windows.TryGetValue(startTicks, out long count))
+            foreach (long startTicks in starts)
             {
-                windows[startTicks] = checked(count + 1);
-                if (numericWindows is not null)
+                token.ThrowIfCancellationRequested();
+                if (windows.TryGetValue(startTicks, out long count))
                 {
-                    StreamingWindowNumericAccumulator accumulator = numericWindows[startTicks];
-                    numericWindows[startTicks] = new StreamingWindowNumericAccumulator(
-                        AddExact(accumulator.Sum, numericValue),
-                        Math.Min(accumulator.Min, numericValue), Math.Max(accumulator.Max, numericValue));
+                    windows[startTicks] = checked(count + 1);
+                    if (numericWindows is not null)
+                    {
+                        StreamingWindowNumericAccumulator accumulator = numericWindows[startTicks];
+                        numericWindows[startTicks] = new StreamingWindowNumericAccumulator(
+                            AddExact(accumulator.Sum, numericValue),
+                            Math.Min(accumulator.Min, numericValue), Math.Max(accumulator.Max, numericValue));
+                    }
                 }
-            }
-            else
-            {
-                if (windows.Count >= Options.MaxWindows)
-                    throw new InvalidOperationException("持久窗口容量已满；读取并移除已关闭结果后重试批次。");
-                windows.Add(startTicks, 1);
-                numericWindows?.Add(startTicks, new StreamingWindowNumericAccumulator(numericValue, numericValue, numericValue));
+                else
+                {
+                    if (windows.Count >= Options.MaxWindows)
+                        throw new InvalidOperationException("持久窗口容量已满；读取并移除已关闭结果后重试批次。");
+                    windows.Add(startTicks, 1);
+                    numericWindows?.Add(startTicks, new StreamingWindowNumericAccumulator(numericValue, numericValue, numericValue));
+                }
             }
         }
 
@@ -829,18 +831,26 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
                 || version.ValueKind != JsonValueKind.Number
                 || !version.TryGetInt32(out int formatVersion))
                 throw new InvalidDataException("持久窗口状态缺少格式版本。");
-            if (formatVersion == StreamingWindowDefinition.GroupedFormatVersion)
+            if (formatVersion is StreamingWindowDefinition.GroupedFormatVersion or StreamingWindowDefinition.SlidingFormatVersion)
             {
                 RejectDuplicateGroupedJsonProperties(bytes, token);
-                ValidateGroupedJsonRequiredFields(stateElement);
+                if (formatVersion == StreamingWindowDefinition.SlidingFormatVersion)
+                    ValidateSlidingJsonRequiredFields(stateElement);
+                else
+                    ValidateGroupedJsonRequiredFields(stateElement);
             }
-            if (formatVersion != StreamingWindowDefinition.GroupedFormatVersion
+            if (formatVersion is not (StreamingWindowDefinition.GroupedFormatVersion or StreamingWindowDefinition.SlidingFormatVersion)
                 && (stateElement.TryGetProperty("groupedWindows", out _)
                     || (stateElement.TryGetProperty("definition", out JsonElement rawDefinition)
                         && rawDefinition.ValueKind == JsonValueKind.Object && rawDefinition.TryGetProperty("groupField", out _))
                     || (stateElement.TryGetProperty("options", out JsonElement rawOptions)
                         && rawOptions.ValueKind == JsonValueKind.Object && rawOptions.TryGetProperty("maxGroups", out _))))
                 throw new InvalidDataException("旧版窗口状态不能包含分组字段，即使字段值为空。");
+            if (formatVersion != StreamingWindowDefinition.SlidingFormatVersion
+                && stateElement.TryGetProperty("definition", out JsonElement slidingDefinition)
+                && slidingDefinition.ValueKind == JsonValueKind.Object
+                && slidingDefinition.TryGetProperty("slideMilliseconds", out _))
+                throw new InvalidDataException("旧版窗口状态不能包含滑动步长，即使字段值为空。");
             if (formatVersion == StreamingWindowDefinition.CurrentFormatVersion)
             {
                 LegacyStreamingWindowEnvelope legacy = JsonSerializer.Deserialize(bytes, StreamingWindowJsonContext.Default.LegacyStreamingWindowEnvelope)
@@ -880,12 +890,12 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
 
     private static void ValidateDocument(StreamingWindowDocument document, CancellationToken token)
     {
-        if (document.FormatVersion is not (StreamingWindowDefinition.CurrentFormatVersion or StreamingWindowDefinition.NumericFormatVersion or StreamingWindowDefinition.GroupedFormatVersion)
+        if (document.FormatVersion is not (StreamingWindowDefinition.CurrentFormatVersion or StreamingWindowDefinition.NumericFormatVersion or StreamingWindowDefinition.GroupedFormatVersion or StreamingWindowDefinition.SlidingFormatVersion)
             || document.Definition is null || document.Options is null
             || document.Windows is null || document.AppliedSequence < -1 || document.AppliedRevision < 0
             || document.DroppedLateEvents < 0 || document.WatermarkUtc.Offset != TimeSpan.Zero)
             throw new InvalidDataException("持久窗口恢复状态无效。");
-        bool grouped = document.FormatVersion == StreamingWindowDefinition.GroupedFormatVersion;
+        bool grouped = document.Definition.GroupField is not null;
         if (document.FormatVersion != document.Definition.FormatVersion
             || grouped != (document.GroupedWindows is not null)
             || (grouped && (document.Windows.Count != 0 || document.NumericWindows is not null))
@@ -915,11 +925,12 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
             return;
         }
         long windowTicks = checked(document.Definition.WindowSizeMilliseconds * TimeSpan.TicksPerMillisecond);
+        long alignmentTicks = checked((document.Definition.SlideMilliseconds ?? document.Definition.WindowSizeMilliseconds) * TimeSpan.TicksPerMillisecond);
         foreach ((long startTicks, long count) in document.Windows)
         {
             token.ThrowIfCancellationRequested();
             if (startTicks < DateTime.MinValue.Ticks || startTicks > DateTime.MaxValue.Ticks - windowTicks
-                || (startTicks - DateTime.UnixEpoch.Ticks) % windowTicks != 0 || count < 1)
+                || (startTicks - DateTime.UnixEpoch.Ticks) % alignmentTicks != 0 || count < 1)
                 throw new InvalidDataException("持久窗口边界或 COUNT 无效。");
             if (document.NumericWindows is { } numeric
                 && (!numeric.TryGetValue(startTicks, out StreamingWindowNumericAccumulator? accumulator)
@@ -933,11 +944,12 @@ public sealed partial class FileStreamingWindowAggregator : IAsyncDisposable
     private long WindowStart(DateTimeOffset eventTimeUtc)
     {
         long windowTicks = checked(Definition.WindowSizeMilliseconds * TimeSpan.TicksPerMillisecond);
+        long alignmentTicks = checked((Definition.SlideMilliseconds ?? Definition.WindowSizeMilliseconds) * TimeSpan.TicksPerMillisecond);
         long epochTicks = eventTimeUtc.UtcTicks - DateTime.UnixEpoch.Ticks;
-        long bucket = Math.DivRem(epochTicks, windowTicks, out long remainder);
+        long bucket = Math.DivRem(epochTicks, alignmentTicks, out long remainder);
         if (remainder < 0)
             bucket--;
-        long startTicks = checked(DateTime.UnixEpoch.Ticks + bucket * windowTicks);
+        long startTicks = checked(DateTime.UnixEpoch.Ticks + bucket * alignmentTicks);
         if (startTicks < DateTime.MinValue.Ticks || startTicks > DateTime.MaxValue.Ticks - windowTicks)
             throw new ArgumentOutOfRangeException(nameof(eventTimeUtc), "事件所属完整窗口超出 UTC 可表示范围。");
         return startTicks;

@@ -1,5 +1,5 @@
 <template>
-  <main class="mq-workbench" data-testid="workbench-mq">
+  <main class="mq-workbench" data-testid="workbench-mq" :data-page-state="mqState" :data-database="targetDb" :data-resource-key="`mq:${activeTopic}`">
     <section class="mq-toolbar">
       <div class="mq-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
@@ -11,25 +11,25 @@
         </n-text>
       </div>
 
-      <div class="mq-headline-stats">
+      <div v-if="!permissionDenied" class="mq-headline-stats">
         <span><small>消息</small><strong>{{ formatStat(stats?.messageCount ?? 0) }}</strong></span>
         <span class="is-warning"><small>消费滞后</small><strong>{{ formatStat(totalLag) }}</strong></span>
         <span class="is-success"><small>消费者</small><strong>{{ consumerRows.length }}</strong></span>
       </div>
 
       <div class="mq-toolbar__actions">
-        <n-button type="primary" :disabled="!targetDb" @click="openPublisher">
+        <n-button type="primary" :disabled="!canWrite" @click="openPublisher">
           <template #icon><Send :size="16" /></template>
           发布测试消息
         </n-button>
-        <n-button quaternary title="导入消息文件" :disabled="!targetDb" @click="messageFileInput?.click()">
+        <n-button quaternary title="导入消息文件" :disabled="!canWrite" @click="messageFileInput?.click()">
           <template #icon><Upload :size="17" /></template>
         </n-button>
         <input ref="messageFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="mq-file-input" @change="onMessageFileSelected">
-        <n-button quaternary title="刷新主题" :loading="loading" @click="refreshAll">
+        <n-button quaternary title="刷新主题" :disabled="permissionDenied" :loading="loading" @click="refreshAll">
           <template #icon><RefreshCw :size="17" /></template>
         </n-button>
-        <n-button quaternary title="操作历史" @click="historyVisible = true">
+        <n-button quaternary title="操作历史" :disabled="permissionDenied" @click="historyVisible = true">
           <template #icon><History :size="17" /></template>
         </n-button>
       </div>
@@ -42,8 +42,12 @@
       @update:model-value="activeSection = $event as MqSection"
     />
 
+    <n-alert v-if="permissionDenied" type="warning" class="mq-alert" data-testid="mq-permission">当前身份没有 MQ 访问权限。</n-alert>
+    <n-alert v-else-if="readOnly" type="info" class="mq-alert" data-testid="mq-readonly">当前资源为只读；发布、导入和 Ack 已禁用。</n-alert>
+    <n-text v-if="!permissionDenied" depth="3" class="mq-alert" data-testid="mq-preview-budget">每窗最多 1000 条；{{ previewTruncated ? '超返已截断 truncated；' : '' }}这是有界消息预览。Topic 属于数据库逻辑作用域，持久化位于实例 .system/mq；单库备份不覆盖实例 MQ。</n-text>
+
     <WriteApprovalPanel
-      v-if="previewPlan"
+      v-if="previewPlan && canWrite"
       :plan="previewPlan"
       :busy="confirmBusy"
       @cancel="clearPendingOperations"
@@ -59,7 +63,7 @@
       @close="errorMsg = ''"
     />
 
-    <section v-if="activeSection !== 'messages'" class="mq-monitor" :class="`is-${activeSection}`">
+    <section v-if="!permissionDenied && activeSection !== 'messages'" class="mq-monitor" :class="`is-${activeSection}`">
       <section v-if="activeSection === 'overview' || activeSection === 'consumers'" class="mq-monitor-pane mq-consumer-pane">
         <div class="mq-panel-head mq-panel-head--compact">
           <div>
@@ -101,10 +105,10 @@
           <n-button size="small" secondary :disabled="!canStageAck" @click="stageAckFromForm">
             Stage ack
           </n-button>
-          <n-button size="small" quaternary :disabled="!selectedMessage || !ackConsumerGroup" @click="stageAckSelected">
+          <n-button size="small" quaternary :disabled="!canWrite || !selectedMessage || !isSafeOffset(selectedMessage.offset) || !ackConsumerGroup" @click="stageAckSelected">
             Selected
           </n-button>
-          <n-button size="small" quaternary :disabled="highWaterOffset <= 0 || !ackConsumerGroup" @click="stageAckHighWater">
+          <n-button size="small" quaternary :disabled="!canWrite || !isSafeOffset(highWaterOffset) || highWaterOffset <= 0 || !ackConsumerGroup" @click="stageAckHighWater">
             High-water
           </n-button>
         </div>
@@ -230,7 +234,7 @@
       </section>
     </section>
 
-    <section v-if="activeSection === 'messages'" class="mq-body" :class="{ 'is-inspector-collapsed': inspectorCollapsed }">
+    <section v-if="!permissionDenied && activeSection === 'messages'" class="mq-body" :class="{ 'is-inspector-collapsed': inspectorCollapsed }">
       <section class="mq-message-panel">
         <div class="mq-panel-head mq-panel-head--grid">
           <div>
@@ -248,7 +252,7 @@
 
         <div class="mq-message-tools">
           <n-button secondary :disabled="!activeTopic" @click="autoRefresh = !autoRefresh">
-            {{ autoRefresh ? '暂停消费' : '实时消费' }}
+            {{ autoRefresh ? '停止采样' : '自动采样' }}
           </n-button>
           <n-input-number
             v-model:value="fromOffset"
@@ -268,6 +272,7 @@
           <n-select v-model:value="browseLimit" :options="browseLimitOptions" class="mq-toolbar__limit" />
           <n-button secondary :disabled="!activeTopic" :loading="loadingBrowse" @click="browseFromInput">浏览</n-button>
           <n-button secondary :disabled="!activeTopic || !seekTimeMs" :loading="loadingBrowse" @click="seekByTime">定位时间</n-button>
+          <n-button secondary :disabled="rows.length === 0" data-testid="mq-export-jsonl" @click="exportMessages">导出 JSONL</n-button>
         </div>
 
         <n-data-table
@@ -319,6 +324,7 @@
               <n-button size="tiny" quaternary @click="copyHeaders">Copy</n-button>
             </div>
             <pre>{{ selectedHeadersText }}</pre>
+            <n-text depth="3" data-testid="mq-header-budget">Headers 最多预览 32 项、4096 字符；超限截断 truncated。</n-text>
           </section>
 
           <n-tabs v-model:value="payloadView" type="segment" size="small" class="mq-payload-tabs">
@@ -328,10 +334,11 @@
             <n-tab name="base64" tab="Base64" />
           </n-tabs>
           <pre class="mq-payload-preview">{{ selectedPayloadText }}</pre>
+          <n-text depth="3" data-testid="mq-payload-budget">Payload 仅预览前 4096 原始字节；{{ selectedMessage.byteLength > 4096 ? '超限截断 truncated；' : '' }}JSONL 保留当前窗口完整消息。</n-text>
         </template>
         <n-empty v-else description="Select a message from the browser." />
 
-        <section v-if="publisherVisible" class="mq-publisher">
+        <section v-if="publisherVisible && canWrite" class="mq-publisher">
           <n-text class="mq-section-title mq-section-title--standalone">Publish test message</n-text>
           <n-input v-model:value="publishTopic" size="small" placeholder="Topic" />
           <n-select v-model:value="publishMode" size="small" :options="payloadModeOptions" />
@@ -348,7 +355,7 @@
             placeholder="Payload"
           />
           <n-space size="small" align="center" :wrap="true">
-            <n-button size="small" type="primary" :disabled="!targetDb" @click="stagePublish">
+            <n-button size="small" type="primary" :disabled="!canWrite" @click="stagePublish">
               Stage publish
             </n-button>
             <n-button size="small" secondary :disabled="!selectedMessage" @click="copyPayload">
@@ -359,7 +366,11 @@
       </aside>
     </section>
 
+    <n-button v-if="!permissionDenied" secondary data-testid="mq-open-result" @click="resultVisible = true">打开结果</n-button>
+    <n-drawer v-if="!permissionDenied" v-model:show="resultVisible" :width="760" placement="right">
+    <n-drawer-content title="SonnetMQ operation result" closable>
     <WorkbenchResultPanel
+      inline
       class="mq-result"
       title="SonnetMQ operation result"
       :sql="latestCommand"
@@ -370,8 +381,11 @@
       empty-description="Browse a topic or publish a test message to see results."
       @clear-error="latestResult = null"
     />
+    </n-drawer-content>
+    </n-drawer>
 
     <WorkbenchHistoryDrawer
+      v-if="!permissionDenied"
       v-model:show="historyVisible"
       :active-database="targetDb"
       @select="openHistoryEntry"
@@ -380,7 +394,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, h, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   History,
   MessageSquareMore,
@@ -395,6 +409,8 @@ import {
   NButton,
   NDataTable,
   NDatePicker,
+  NDrawer,
+  NDrawerContent,
   NEmpty,
   NInput,
   NInputNumber,
@@ -409,6 +425,7 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import { fetchMqTopics, type MqTopicInfo } from '@/api/management';
+import { createApiClient } from '@/api/client';
 import {
   ackMqConsumer,
   browseMqMessages,
@@ -432,6 +449,7 @@ import { useConnectionsStore } from '@/stores/connections';
 import {
   useWorkbenchHistoryStore,
   type WorkbenchHistoryEntry,
+  type WorkbenchHistoryCompleteness,
 } from '@/stores/workbenchHistory';
 import {
   createWriteApprovalPlan,
@@ -439,15 +457,20 @@ import {
   type WriteApprovalPlan,
   type WriteApprovalSeverity,
 } from '@/utils/writeApproval';
+import { downloadText, safeFileStem } from '@/utils/resultExport';
 
 const props = withDefaults(defineProps<{
   targetDb: string;
   topic: string;
   topics?: MqTopicInfo[];
   loading?: boolean;
+  readOnly?: boolean;
+  permissionDenied?: boolean;
 }>(), {
   topics: () => [],
   loading: false,
+  readOnly: false,
+  permissionDenied: false,
 });
 
 const emit = defineEmits<{
@@ -458,6 +481,19 @@ const emit = defineEmits<{
 type PayloadView = 'text' | 'json' | 'hex' | 'base64';
 type PayloadKind = 'json' | 'text' | 'binary';
 type MqSection = 'overview' | 'messages' | 'consumers' | 'configuration';
+
+interface MqContext {
+  revision: number;
+  database: string;
+  topic: string;
+  connectionId: string;
+  connectionName: string;
+  baseUrl: string | undefined;
+  profileBaseUrl: string | undefined;
+  token: string | undefined;
+  sourceApi: ReturnType<typeof useAuthStore>['api'];
+  api: ReturnType<typeof useAuthStore>['api'];
+}
 
 interface MqRow {
   topic: string;
@@ -477,7 +513,9 @@ interface PendingOperation {
   detail: string;
   severity: WriteApprovalSeverity;
   command: string;
-  run: () => Promise<OperationOutcome>;
+  context: MqContext;
+  targetTopic: string;
+  run: (signal: AbortSignal) => Promise<OperationOutcome>;
 }
 
 interface OperationOutcome {
@@ -488,6 +526,7 @@ interface OperationOutcome {
   detail: string;
   offset?: number;
   nextOffset?: number;
+  state?: 'completed' | 'failed' | 'unknown';
 }
 
 interface ConsumerRow extends MqConsumerLag {
@@ -506,12 +545,19 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+const MqPreviewMessageBudget = 1000;
+const MqInspectorByteBudget = 4096;
+const permissionLocked = ref(false);
+const permissionDenied = computed(() => Boolean(props.permissionDenied || permissionLocked.value));
+const readOnly = computed(() => Boolean(props.readOnly));
+const canWrite = computed(() => Boolean(!disposed && !permissionDenied.value && !readOnly.value && props.targetDb && !confirmBusy.value));
 
 const localTopics = ref<MqTopicInfo[]>([]);
 const offsets = ref<MqOffsetsResponse | null>(null);
 const stats = ref<MqStatsResponse | null>(null);
 const retention = ref<MqRetentionResponse | null>(null);
 const rows = ref<MqRow[]>([]);
+const previewTruncated = ref(false);
 const selectedOffset = ref<number | null>(null);
 const fromOffset = ref<number | null>(0);
 const browseLimit = ref(100);
@@ -530,11 +576,13 @@ const ackOffset = ref<number | null>(null);
 const autoRefresh = ref(false);
 const trendSamples = ref<TrendSample[]>([]);
 const pendingOperations = ref<PendingOperation[]>([]);
+const runningOperations = ref<PendingOperation[]>([]);
 const confirmBusy = ref(false);
 const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+const resultVisible = ref(false);
 const activeSection = ref<MqSection>('overview');
 const inspectorCollapsed = ref(false);
 const publisherVisible = ref(false);
@@ -562,8 +610,28 @@ const payloadModeOptions: SelectOption[] = [
   { label: 'Base64', value: 'base64' },
 ];
 
-let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let autoRefreshDeadlineTimer: ReturnType<typeof setTimeout> | null = null;
+let autoMonitorController: AbortController | null = null;
 let compactViewport = false;
+let disposed = false;
+let contextRevision = 0;
+let changingContext = false;
+let deniedContext: MqContext | null = null;
+let topicsRequestId = 0;
+let monitorRequestId = 0;
+let browseRequestId = 0;
+let writeRequestId = 0;
+let fileRequestId = 0;
+let topicsController: AbortController | null = null;
+let monitorController: AbortController | null = null;
+let browseController: AbortController | null = null;
+let writeController: AbortController | null = null;
+let autoRefreshGeneration = 0;
+
+const mqState = computed(() => permissionDenied.value ? 'permission' : readOnly.value ? 'readonly'
+  : errorMsg.value ? 'error' : !activeTopic.value || rows.value.length === 0 ? 'empty'
+  : previewTruncated.value || rows.value.length > 100 || (selectedMessage.value?.byteLength ?? 0) > MqInspectorByteBudget ? 'longContent' : 'normal');
 
 const activeTopic = computed(() => props.topic || localTopics.value[0]?.topic || '');
 
@@ -584,8 +652,8 @@ const selectedMessage = computed(() =>
 
 const selectedHeadersText = computed(() => {
   const row = selectedMessage.value;
-  if (!row || Object.keys(row.headers).length === 0) return '{}';
-  return JSON.stringify(row.headers, null, 2);
+  if (!row) return '{}';
+  return formatHeaders(row.headers);
 });
 
 const selectedPayloadText = computed(() => {
@@ -634,7 +702,7 @@ const ackGroupOptions = computed<SelectOption[]>(() => {
 });
 
 const canStageAck = computed(() =>
-  Boolean(activeTopic.value && ackConsumerGroup.value?.trim() && typeof ackOffset.value === 'number' && ackOffset.value >= 0));
+  Boolean(canWrite.value && activeTopic.value && ackConsumerGroup.value?.trim() && isSafeOffset(ackOffset.value)));
 
 const sampleSummary = computed(() => {
   if (trendSamples.value.length < 2) return 'Collect at least two samples to compute rates.';
@@ -710,12 +778,12 @@ const dlqTopic = computed(() =>
   findDlqTopic(activeTopic.value, localTopics.value));
 
 const canPageBack = computed(() =>
-  Boolean(activeTopic.value && (fromOffset.value ?? 0) > retainedStartOffset.value && !loadingBrowse.value));
+  Boolean(!permissionDenied.value && activeTopic.value && isSafeOffset(fromOffset.value) && isSafeOffset(retainedStartOffset.value) && (fromOffset.value ?? 0) > retainedStartOffset.value && !loadingBrowse.value));
 
 const canPageForward = computed(() => {
   if (!activeTopic.value || loadingBrowse.value || rows.value.length === 0) return false;
   const last = rows.value[rows.value.length - 1];
-  return last.offset + 1 < highWaterOffset.value;
+  return !permissionDenied.value && isSafeOffset(last.offset) && isSafeOffset(last.offset + 1) && isSafeOffset(highWaterOffset.value) && last.offset + 1 < highWaterOffset.value;
 });
 
 const messageWindowSummary = computed(() => {
@@ -732,8 +800,10 @@ const pagerText = computed(() =>
     : 'Topic has no retained messages.');
 
 const previewPlan = computed<WriteApprovalPlan | null>(() => {
-  if (pendingOperations.value.length === 0) return null;
-  const items: WriteApprovalItem[] = pendingOperations.value.map((operation) => ({
+  const operations = confirmBusy.value ? runningOperations.value : pendingOperations.value;
+  if (operations.length === 0) return null;
+  const first = operations[0]!;
+  const items: WriteApprovalItem[] = operations.map((operation) => ({
     id: operation.id,
     command: operation.command,
     severity: operation.severity,
@@ -741,9 +811,9 @@ const previewPlan = computed<WriteApprovalPlan | null>(() => {
     detail: operation.detail,
   }));
   return createWriteApprovalPlan({
-    id: `mq_${props.targetDb}_${activeTopic.value || publishTopic.value}_${pendingOperations.value.map((item) => item.id).join('_')}`,
+    id: `mq_${first.context.revision}_${operations.map((item) => item.id).join('_')}`,
     title: 'SonnetMQ staged operations',
-    target: `${props.targetDb}.${activeTopic.value || publishTopic.value || 'topic'}`,
+    target: `${first.context.connectionName}: ${first.context.database} · ${[...new Set(operations.map((item) => item.targetTopic))].join(', ')}`,
     items,
   });
 });
@@ -857,6 +927,7 @@ const consumerColumns = computed<DataTableColumns<ConsumerRow>>(() => [
 ]);
 
 function openPublisher(): void {
+  if (!canWrite.value) return;
   activeSection.value = 'messages';
   inspectorCollapsed.value = false;
   publisherVisible.value = true;
@@ -875,68 +946,98 @@ function rowKey(row: MqRow): number {
 }
 
 function syncLocalTopics(topics: MqTopicInfo[]): void {
+  if (permissionDenied.value || disposed) return;
   localTopics.value = [...topics].sort((a, b) => a.topic.localeCompare(b.topic));
 }
 
 async function refreshAll(): Promise<void> {
+  if (disposed || permissionDenied.value || !props.targetDb) return;
+  let context = captureContext();
   loading.value = true;
   errorMsg.value = '';
   try {
     await refreshTopicList();
-    if (activeTopic.value) {
-      await loadTopicMetadata(activeTopic.value);
+    if (!context.topic && context.revision === contextRevision && !permissionDenied.value) context = captureContext();
+    if (!isCurrentContext(context)) return;
+    if (context.topic) {
+      await loadTopicMetadata(context.topic);
+      if (!isCurrentContext(context)) return;
       await loadMessages(fromOffset.value ?? retainedStartOffset.value, true);
     }
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '刷新 SonnetMQ 工作台失败');
+    if (isCurrentContext(context)) {
+      if (isPermissionError(error)) lockPermission(context);
+      else errorMsg.value = errorToMessage(error, '刷新 SonnetMQ 工作台失败');
+    }
   } finally {
-    loading.value = false;
+    if (context.revision === contextRevision) loading.value = false;
   }
 }
 
 async function refreshTopicList(): Promise<void> {
-  if (!props.targetDb) {
-    localTopics.value = [];
-    return;
+  if (disposed || permissionDenied.value || !props.targetDb) return;
+  const context = captureContext();
+  const requestId = ++topicsRequestId;
+  topicsController?.abort();
+  const controller = topicsController = new AbortController();
+  try {
+    const topics = await fetchMqTopics(context.api, context.database, controller.signal);
+    if (isCurrentContext(context) && requestId === topicsRequestId && !controller.signal.aborted) syncLocalTopics(topics);
+  } catch (error) {
+    if (isCurrentContext(context) && requestId === topicsRequestId && !controller.signal.aborted) {
+      if (isPermissionError(error)) lockPermission(context);
+      else errorMsg.value = errorToMessage(error, '加载 MQ Topics 失败');
+    }
+  } finally {
+    if (topicsController === controller) topicsController = null;
   }
-  const topics = await fetchMqTopics(auth.api, props.targetDb);
-  syncLocalTopics(topics);
 }
 
 async function loadTopicMetadata(topic: string): Promise<void> {
-  if (!props.targetDb || !topic) {
-    stats.value = null;
-    offsets.value = null;
-    retention.value = null;
-    return;
+  if (disposed || permissionDenied.value || !props.targetDb || !topic || topic !== activeTopic.value) return;
+  const context = captureContext();
+  const requestId = ++monitorRequestId;
+  monitorController?.abort();
+  const controller = monitorController = new AbortController();
+  try {
+    const [nextStats, nextOffsets, nextRetention] = await Promise.all([
+      guardMetadata(fetchMqStats(context.api, context.database, context.topic, controller.signal), context, controller),
+      guardMetadata(fetchMqOffsets(context.api, context.database, context.topic, controller.signal), context, controller),
+      guardMetadata(fetchMqRetention(context.api, context.database, context.topic, controller.signal), context, controller),
+    ]);
+    if (!isCurrentContext(context) || requestId !== monitorRequestId || controller.signal.aborted) return;
+    if (nextStats.topic !== context.topic || nextOffsets.topic !== context.topic || nextRetention.topic !== context.topic) {
+      errorMsg.value = 'MQ 元数据目标不匹配，请重新采样。';
+      return;
+    }
+    stats.value = nextStats;
+    offsets.value = nextOffsets;
+    retention.value = nextRetention;
+    if (!ackConsumerGroup.value && nextOffsets.consumers.length > 0) ackConsumerGroup.value = nextOffsets.consumers[0].consumerGroup;
+    if (ackOffset.value === null && isSafeOffset(nextStats.nextOffset)) ackOffset.value = Math.max(0, nextStats.nextOffset - 1);
+    pushTrendSample();
+  } catch (error) {
+    if (isCurrentContext(context) && requestId === monitorRequestId && !controller.signal.aborted) {
+      if (isPermissionError(error)) lockPermission(context);
+      else errorMsg.value = errorToMessage(error, '加载 MQ 元数据失败');
+    }
+  } finally {
+    if (monitorController === controller) monitorController = null;
   }
-  const [nextStats, nextOffsets, nextRetention] = await Promise.all([
-    fetchMqStats(auth.api, props.targetDb, topic),
-    fetchMqOffsets(auth.api, props.targetDb, topic),
-    fetchMqRetention(auth.api, props.targetDb, topic),
-  ]);
-  stats.value = nextStats;
-  offsets.value = nextOffsets;
-  retention.value = nextRetention;
-  if (!ackConsumerGroup.value && nextOffsets.consumers.length > 0) {
-    ackConsumerGroup.value = nextOffsets.consumers[0].consumerGroup;
-  }
-  if (ackOffset.value === null) {
-    ackOffset.value = Math.max(0, nextStats.nextOffset - 1);
-  }
-  pushTrendSample();
 }
 
 async function refreshMonitorOnly(): Promise<void> {
-  if (!activeTopic.value) return;
+  if (disposed || permissionDenied.value || !activeTopic.value || loadingMonitor.value) return;
+  const context = captureContext();
+  const requestId = monitorRequestId + 1;
   loadingMonitor.value = true;
   errorMsg.value = '';
   try {
     await loadTopicMetadata(activeTopic.value);
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '刷新 MQ 监控采样失败');
+    if (isCurrentContext(context)) errorMsg.value = errorToMessage(error, '刷新 MQ 监控采样失败');
   } finally {
-    loadingMonitor.value = false;
+    if (context.revision === contextRevision && requestId === monitorRequestId) loadingMonitor.value = false;
   }
 }
 
@@ -951,30 +1052,30 @@ function stageAckSelected(): void {
 }
 
 function stageAckHighWater(): void {
-  if (!ackConsumerGroup.value || highWaterOffset.value <= 0) return;
+  if (!canWrite.value || !ackConsumerGroup.value || !isSafeOffset(highWaterOffset.value) || highWaterOffset.value <= 0) return;
   stageAck(ackConsumerGroup.value, highWaterOffset.value - 1);
 }
 
 function stageAck(consumerGroup: string, offset: number): void {
+  if (!canWrite.value) return;
   const db = props.targetDb;
   const topic = activeTopic.value;
-  const normalizedGroup = consumerGroup.trim();
-  const normalizedOffset = Math.max(0, Math.trunc(offset));
-  if (!db || !topic || !normalizedGroup) {
-    message.warning('Ack requires a database, topic and consumer group.');
+  if (!db || !topic || !consumerGroup.trim() || !isSafeOffset(offset)) {
+    message.warning('Ack 需要数据库、Topic、消费者组及安全非负整数 offset。');
     return;
   }
-  pendingOperations.value.push({
+  const context = captureContext();
+  enqueueOperation({
     id: makeOperationId('ack'),
     label: 'Ack consumer offset',
-    detail: `${normalizedGroup} · offset ${normalizedOffset}`,
+    detail: `${topic} · ${consumerGroup} · offset ${offset}`,
     severity: 'write',
-    command: `MQ ACK ${topic} GROUP ${normalizedGroup} OFFSET ${normalizedOffset}`,
-    run: async () => {
-      const response = await ackMqConsumer(auth.api, db, topic, {
-        consumerGroup: normalizedGroup,
-        offset: normalizedOffset,
-      });
+    command: `MQ ACK ${topic} GROUP ${consumerGroup} OFFSET ${offset}`,
+    context,
+    targetTopic: topic,
+    run: async (signal) => {
+      const response = await ackMqConsumer(context.api, db, topic, { consumerGroup, offset }, signal);
+      if (response?.topic !== topic || response?.consumerGroup !== consumerGroup || !isSafeOffset(response?.nextOffset)) throw new Error('Missing MQ terminal');
       return {
         action: 'ack',
         target: response.topic,
@@ -991,20 +1092,31 @@ async function browseFromInput(): Promise<void> {
   await loadMessages(fromOffset.value ?? retainedStartOffset.value, true);
 }
 
-async function loadMessages(offset: number, updateResult: boolean, topic = activeTopic.value): Promise<void> {
-  if (!props.targetDb || !topic) return;
+async function loadMessages(offset: number, updateResult: boolean, topic = activeTopic.value, parentSignal?: AbortSignal): Promise<void> {
+  if (disposed || permissionDenied.value || !props.targetDb || !topic || topic !== activeTopic.value) return;
+  if (!isSafeOffset(offset)) { errorMsg.value = 'MQ offset 必须为安全非负整数。'; return; }
+  const context = captureContext();
+  const requestId = ++browseRequestId;
+  browseController?.abort();
+  const controller = browseController = new AbortController();
+  const requestSignal = parentSignal ? AbortSignal.any([controller.signal, parentSignal]) : controller.signal;
   loadingBrowse.value = true;
+  clearRows();
   errorMsg.value = '';
   const started = performance.now();
-  const startOffset = Math.max(0, Math.trunc(offset));
-  const command = `MQ BROWSE ${topic} FROM ${startOffset} LIMIT ${browseLimit.value}`;
+  const startOffset = offset;
+  const limit = boundedBrowseLimit();
+  const command = `MQ BROWSE ${topic} FROM ${startOffset} LIMIT ${limit}`;
   try {
-    await loadTopicMetadata(topic);
-    const response = await browseMqMessages(auth.api, props.targetDb, topic, {
+    const response = await browseMqMessages(context.api, context.database, topic, {
       fromOffset: startOffset,
-      maxCount: browseLimit.value,
-    });
-    rows.value = response.messages.map(mapMessage);
+      maxCount: limit,
+    }, requestSignal);
+    if (!isCurrentContext(context) || requestId !== browseRequestId || requestSignal.aborted) return;
+    const preview = response.messages.slice(0, limit);
+    if (preview.some((item) => item.topic !== context.topic)) { errorMsg.value = 'MQ 消息目标不匹配，请重新浏览。'; return; }
+    rows.value = preview.map(mapMessage);
+    previewTruncated.value = response.messages.length > limit;
     fromOffset.value = startOffset;
     syncSelectedAfterRows();
     const elapsed = performanceElapsed(started);
@@ -1012,72 +1124,98 @@ async function loadMessages(offset: number, updateResult: boolean, topic = activ
     if (updateResult) {
       latestResult.value = resultFromMessages(rows.value, elapsed);
       ranOnce.value = true;
-      recordHistory('success', 'SonnetMQ browse', 'browse', command, `${rows.value.length} messages`, rows.value.length, -1, elapsed);
+      recordHistory('success', 'SonnetMQ browse', 'browse', command, `${rows.value.length} preview messages · 当前 offset 窗口`, rows.value.length, -1, elapsed, context,
+        response.messages.length > limit ? 'truncated' : 'partial');
     }
   } catch (error) {
+    if (!isCurrentContext(context) || requestId !== browseRequestId || requestSignal.aborted) return;
+    if (isPermissionError(error)) { lockPermission(context); return; }
     const elapsed = performanceElapsed(started);
     const msg = errorToMessage(error, '浏览 MQ 消息失败');
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult(msg);
     ranOnce.value = true;
-    recordHistory('error', 'SonnetMQ browse', 'browse', command, msg, 0, 0, elapsed);
+    recordHistory('error', 'SonnetMQ browse', 'browse', command, msg, 0, 0, elapsed, context);
   } finally {
-    loadingBrowse.value = false;
+    if (browseController === controller) browseController = null;
+    if (requestId === browseRequestId && context.revision === contextRevision) loadingBrowse.value = false;
   }
 }
 
 async function nextPage(): Promise<void> {
-  if (rows.value.length === 0) return;
-  await loadMessages(rows.value[rows.value.length - 1].offset + 1, true);
+  if (!canPageForward.value) return;
+  await loadMessages(rows.value[rows.value.length - 1]!.offset + 1, true);
 }
 
 async function previousPage(): Promise<void> {
+  if (!canPageBack.value) return;
   const current = fromOffset.value ?? retainedStartOffset.value;
-  await loadMessages(Math.max(retainedStartOffset.value, current - browseLimit.value), true);
+  await loadMessages(Math.max(retainedStartOffset.value, current - boundedBrowseLimit()), true);
 }
 
 async function seekByTime(): Promise<void> {
-  if (!props.targetDb || !activeTopic.value || !seekTimeMs.value) return;
+  if (disposed || permissionDenied.value || !props.targetDb || !activeTopic.value || seekTimeMs.value === null) return;
+  if (!isSafeOffset(retainedStartOffset.value) || !isSafeOffset(highWaterOffset.value)) { errorMsg.value = 'MQ offset 超出安全整数范围，无法按时间定位。'; return; }
+  const context = captureContext();
+  const requestId = ++browseRequestId;
+  browseController?.abort();
+  const controller = browseController = new AbortController();
   loadingBrowse.value = true;
   errorMsg.value = '';
   const target = seekTimeMs.value;
-  const pageSize = Math.min(1000, Math.max(100, browseLimit.value));
+  const pageSize = boundedBrowseLimit();
+  const highWater = highWaterOffset.value;
   let offset = retainedStartOffset.value;
   let scanned = 0;
   const maxWindows = 25;
+  const deadline = Date.now() + 60_000;
+  const timeout = setTimeout(() => controller.abort(), 60_000);
   try {
-    await loadTopicMetadata(activeTopic.value);
-    for (let i = 0; i < maxWindows && offset < highWaterOffset.value; i += 1) {
-      const response = await browseMqMessages(auth.api, props.targetDb, activeTopic.value, {
+    for (let i = 0; i < maxWindows && offset < highWater && Date.now() < deadline; i += 1) {
+      if (!isCurrentContext(context) || requestId !== browseRequestId || controller.signal.aborted) return;
+      const response = await browseMqMessages(context.api, context.database, context.topic, {
         fromOffset: offset,
         maxCount: pageSize,
-      });
-      const messages = response.messages;
+      }, controller.signal);
+      if (!isCurrentContext(context) || requestId !== browseRequestId || controller.signal.aborted) return;
+      const messages = response.messages.slice(0, pageSize);
       if (messages.length === 0) break;
+      if (messages.some((item) => item.topic !== context.topic || !isSafeOffset(item.offset))) { errorMsg.value = 'MQ 消息目标或 offset 无效，无法定位。'; return; }
       scanned += messages.length;
       const found = messages.find((item) => Date.parse(item.timestampUtc) >= target);
       if (found) {
         seekTimeMs.value = target;
-        await loadMessages(found.offset, true);
-        selectMessage(found.offset);
+        // Keep the Seek deadline alive across its final Browse. Detach the old
+        // controller so starting that Browse does not cancel the parent signal.
+        if (browseController === controller) browseController = null;
+        const finalRequestId = browseRequestId + 1;
+        await loadMessages(found.offset, true, context.topic, controller.signal);
+        if (isCurrentContext(context) && finalRequestId === browseRequestId && !controller.signal.aborted) selectMessage(found.offset);
         return;
       }
       const last = messages[messages.length - 1];
       const lastTime = Date.parse(last.timestampUtc);
       if (Number.isFinite(lastTime) && lastTime >= target) break;
-      offset = last.offset + 1;
+      const next = last.offset + 1;
+      if (!isSafeOffset(next) || next <= offset) { errorMsg.value = 'MQ offset 未安全前进，已停止定位。'; return; }
+      offset = next;
     }
     message.warning(`No message found near that timestamp in the scanned ${scanned} message window.`);
   } catch (error) {
-    errorMsg.value = errorToMessage(error, '按时间定位 MQ 消息失败');
+    if (isCurrentContext(context) && requestId === browseRequestId) {
+      if (isPermissionError(error)) lockPermission(context);
+      else errorMsg.value = errorToMessage(error, '按时间定位 MQ 消息失败');
+    }
   } finally {
-    loadingBrowse.value = false;
+    clearTimeout(timeout);
+    if (browseController === controller) browseController = null;
+    if (context.revision === contextRevision && requestId === browseRequestId) loadingBrowse.value = false;
   }
 }
 
 function selectTopic(topic: string): void {
-  if (!topic) return;
+  if (disposed || permissionDenied.value || !topic) return;
   emit('selectTopic', topic);
   publishTopic.value = topic;
   fromOffset.value = Math.max(0, localTopics.value.find((item) => item.topic === topic)?.nextOffset ?? 0) > 0
@@ -1086,18 +1224,21 @@ function selectTopic(topic: string): void {
 }
 
 function selectMessage(offset: number): void {
+  if (disposed || permissionDenied.value) return;
   selectedOffset.value = offset;
 }
 
 function clearRows(): void {
   rows.value = [];
   selectedOffset.value = null;
+  previewTruncated.value = false;
 }
 
 function stagePublish(): void {
+  if (!canWrite.value) return;
   const db = props.targetDb;
-  const topic = publishTopic.value.trim() || activeTopic.value;
-  if (!db || !topic) {
+  const topic = publishTopic.value || activeTopic.value;
+  if (!db || !topic.trim()) {
     message.warning('Publish requires a database and topic.');
     return;
   }
@@ -1121,19 +1262,23 @@ function stagePublishPayload(
   byteLength: number,
 ): void {
   const db = props.targetDb;
-  if (!db || !topic) return;
+  if (!canWrite.value || !db || !topic.trim()) return;
+  const context = captureContext();
   const stagedHeaders = { ...headers };
-  pendingOperations.value.push({
+  enqueueOperation({
     id: makeOperationId('publish'),
     label: 'Publish',
     detail: `${topic} · ${byteLength} bytes · ${Object.keys(stagedHeaders).length} headers`,
     severity: 'write',
     command: `MQ PUBLISH ${topic} ${byteLength} bytes`,
-    run: async () => {
-      const response = await publishMqMessage(auth.api, db, topic, {
+    context,
+    targetTopic: topic,
+    run: async (signal) => {
+      const response = await publishMqMessage(context.api, db, topic, {
         payload,
         headers: Object.keys(stagedHeaders).length > 0 ? stagedHeaders : null,
-      });
+      }, signal);
+      if (response?.topic !== topic || !isSafeOffset(response?.offset)) throw new Error('Missing MQ terminal');
       return {
         action: 'publish',
         target: response.topic,
@@ -1149,9 +1294,13 @@ function stagePublishPayload(
 async function onMessageFileSelected(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file) return;
+  if (!file || !canWrite.value) { input.value = ''; return; }
+  const context = captureContext();
+  const requestId = ++fileRequestId;
   try {
-    const parsed = parseMessageImport(await file.text());
+    const text = await file.text();
+    if (!isCurrentContext(context) || requestId !== fileRequestId || !canWrite.value) return;
+    const parsed = parseMessageImport(text);
     if (!parsed.ok) {
       errorMsg.value = parsed.message;
       return;
@@ -1163,6 +1312,8 @@ async function onMessageFileSelected(event: Event): Promise<void> {
     activeSection.value = 'messages';
     errorMsg.value = '';
     message.success(`已解析 ${parsed.messages.length} 条消息，确认后按文件顺序发布。`);
+  } catch {
+    if (isCurrentContext(context) && requestId === fileRequestId) errorMsg.value = '消息文件读取失败。';
   } finally {
     input.value = '';
   }
@@ -1179,12 +1330,14 @@ function parseMessageImport(text: string):
       : trimmed.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as unknown);
     const items = Array.isArray(source) ? source : [source];
     if (items.length === 0) return { ok: false, message: '消息导入文件没有记录。' };
+    if (items.length > MqPreviewMessageBudget) return { ok: false, message: '每次最多导入 1000 条消息。' };
     const messages = items.map((item, index) => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) {
         throw new Error(`第 ${index + 1} 条消息必须是 JSON 对象。`);
       }
       const record = item as Record<string, unknown>;
-      const topic = typeof record.topic === 'string' ? record.topic.trim() : '';
+      const topic = typeof record.topic === 'string' ? record.topic : '';
+      if (topic && !topic.trim()) throw new Error('Topic 不能为空白。');
       if (!topic && !activeTopic.value) throw new Error(`第 ${index + 1} 条消息缺少 topic。`);
       let payload = '';
       if (typeof record.payloadBase64 === 'string') {
@@ -1207,29 +1360,55 @@ function parseMessageImport(text: string):
       return { topic, payload, headers };
     });
     return { ok: true, messages };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : '消息文件解析失败。' };
+  } catch {
+    return { ok: false, message: '消息文件格式无效；请检查 Topic、payload 和 headers。' };
   }
 }
 
 async function confirmPendingOperations(): Promise<void> {
-  if (pendingOperations.value.length === 0) return;
+  if (!canWrite.value || confirmBusy.value || pendingOperations.value.length === 0) return;
+  const operations = [...pendingOperations.value];
+  const context = operations[0]!.context;
+  if (!operations.every((operation) => isCurrentContext(operation.context))) { pendingOperations.value = []; return; }
+  const requestId = ++writeRequestId;
+  const controller = writeController = new AbortController();
+  topicsController?.abort();
+  monitorController?.abort();
+  browseController?.abort();
+  loading.value = loadingBrowse.value = loadingMonitor.value = false;
+  pendingOperations.value = [];
+  runningOperations.value = operations;
   confirmBusy.value = true;
   errorMsg.value = '';
-  const operations = [...pendingOperations.value];
   const command = operations.map((operation) => operation.command).join('\n');
   const started = performance.now();
+  const deadline = Date.now() + 60_000;
+  const timeout = setTimeout(() => controller.abort(), 60_000);
+  const outcomes: OperationOutcome[] = [];
   try {
-    const outcomes: OperationOutcome[] = [];
-    for (const operation of operations) {
-      outcomes.push(await operation.run());
+    for (let index = 0; index < Math.min(operations.length, MqPreviewMessageBudget) && Date.now() < deadline; index += 1) {
+      const operation = operations[index]!;
+      if (!isCurrentContext(operation.context) || controller.signal.aborted) break;
+      try {
+        const outcome = await operation.run(controller.signal);
+        const late = !isCurrentContext(operation.context) || controller.signal.aborted;
+        outcomes.push(late ? { action: operation.label, target: operation.targetTopic, succeeded: false, affected: 0,
+          state: 'unknown', detail: '写入结果未知；请核对服务端状态，未自动重试。' } : { ...outcome, state: 'completed' });
+        if (late) break;
+      } catch (error) {
+        const status = (error as { response?: { status?: number } } | null)?.response?.status;
+        const knownFailure = isCurrentContext(operation.context) && typeof status === 'number' && status >= 400 && status < 500 && status !== 408;
+        if (isPermissionError(error) && isCurrentContext(operation.context)) lockPermission(operation.context);
+        outcomes.push({ action: operation.label, target: operation.targetTopic, succeeded: false, affected: 0,
+          state: knownFailure ? 'failed' : 'unknown', detail: knownFailure ? 'MQ 写入被拒绝。' : '写入结果未知；请核对服务端状态，未自动重试。' });
+        break;
+      }
     }
     const elapsed = performanceElapsed(started);
     const affected = outcomes.reduce((sum, item) => sum + item.affected, 0);
-    latestCommand.value = command;
-    latestResult.value = resultFromOutcomes(outcomes, elapsed);
-    ranOnce.value = true;
-    pendingOperations.value = [];
+    const failure = outcomes.find((item) => item.state === 'failed' || item.state === 'unknown');
+    const stopped = outcomes.length < operations.length || controller.signal.aborted;
+    const status = failure?.state === 'failed' ? 'error' : failure || stopped || !isCurrentContext(context) ? 'unknown' : 'success';
     const publishCount = outcomes.filter((item) => item.action === 'publish').length;
     const ackCount = outcomes.filter((item) => item.action === 'ack').length;
     const summary = [
@@ -1237,38 +1416,34 @@ async function confirmPendingOperations(): Promise<void> {
       ackCount > 0 ? `${ackCount} ack` : '',
       `affected ${affected}`,
     ].filter(Boolean).join(' · ');
-    recordHistory('success', 'SonnetMQ operations', 'operation', command, summary, outcomes.length, affected, elapsed);
-    message.success(`Applied ${outcomes.length} MQ operation${outcomes.length === 1 ? '' : 's'}.`);
-    await refreshTopicList();
-    const lastPublished = [...outcomes].reverse().find((outcome) => typeof outcome.offset === 'number');
-    if (lastPublished) {
-      emit('selectTopic', lastPublished.target);
-      publishTopic.value = lastPublished.target;
-      await loadTopicMetadata(lastPublished.target);
-      await loadMessages(lastPublished.offset ?? 0, false, lastPublished.target);
-      selectMessage(lastPublished.offset ?? 0);
-    } else if (activeTopic.value) {
-      await loadTopicMetadata(activeTopic.value);
-    }
-    emit('refreshSchema');
-  } catch (error) {
-    const elapsed = performanceElapsed(started);
-    const msg = errorToMessage(error, '提交 MQ 操作失败');
-    errorMsg.value = msg;
+    recordHistory(status, 'SonnetMQ operations', 'operation', command, `${summary}${failure ? ` · ${failure.detail}` : stopped ? ' · 后续操作未执行' : ''}`,
+      outcomes.length, affected, elapsed, context, status === 'unknown' ? 'unknown' : stopped ? 'partial' : 'complete');
+    if (!isCurrentContext(context) || requestId !== writeRequestId) return;
     latestCommand.value = command;
-    latestResult.value = errorResult(msg);
+    latestResult.value = resultFromOutcomes(outcomes, elapsed);
     ranOnce.value = true;
-    recordHistory('error', 'SonnetMQ operations', 'operation', command, msg, 0, 0, elapsed);
+    errorMsg.value = failure?.detail ?? (stopped ? '后续操作未执行，未重试已派发写入。' : '');
+    if (status === 'success') {
+      publishPayload.value = '';
+      publishHeadersText.value = '';
+      message.success(`Applied ${outcomes.length} MQ operations.`);
+      void refreshAll();
+      emit('refreshSchema');
+    }
   } finally {
-    confirmBusy.value = false;
+    clearTimeout(timeout);
+    if (writeController === controller) writeController = null;
+    if (requestId === writeRequestId && !disposed) { confirmBusy.value = false; runningOperations.value = []; }
   }
 }
 
 function clearPendingOperations(): void {
+  if (confirmBusy.value) return;
   pendingOperations.value = [];
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
+  if (disposed || permissionDenied.value) return;
   latestCommand.value = entry.command;
 }
 
@@ -1279,17 +1454,19 @@ function syncSelectedAfterRows(): void {
 
 function mapMessage(item: MqMessageResponse): MqRow {
   const payload = item.payload ?? '';
-  const kind = classifyPayload(payload);
+  const bytes = base64ToBytes(payload);
+  const preview = bytesToBase64(bytes.subarray(0, MqInspectorByteBudget));
+  const kind = classifyPayload(preview);
   return {
     topic: item.topic,
     offset: item.offset,
     timestampUtc: item.timestampUtc,
     headers: item.headers ?? {},
     payload,
-    byteLength: base64ToBytes(payload).length,
+    byteLength: bytes.length,
     headerCount: Object.keys(item.headers ?? {}).length,
     payloadKind: kind,
-    payloadPreview: previewPayload(payload, kind),
+    payloadPreview: previewPayload(preview, kind),
   };
 }
 
@@ -1318,8 +1495,8 @@ function resultFromMessages(messages: MqRow[], elapsedMs: number): SqlResultSet 
 
 function resultFromOutcomes(outcomes: OperationOutcome[], elapsedMs: number): SqlResultSet {
   return {
-    columns: ['action', 'topic', 'succeeded', 'affected', 'detail'],
-    rows: outcomes.map((item) => [item.action, item.target, item.succeeded, item.affected, item.detail]),
+    columns: ['action', 'topic', 'state', 'succeeded', 'affected', 'detail'],
+    rows: outcomes.map((item) => [item.action, item.target, item.state ?? 'completed', item.succeeded, item.affected, item.detail]),
     end: {
       type: 'end',
       rowCount: outcomes.length,
@@ -1358,13 +1535,13 @@ function parseHeaders(text: string):
       }
       return { ok: true, headers };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : 'Invalid headers JSON.' };
+      return { ok: false, message: 'Invalid headers JSON.' };
     }
   }
   const headers: Record<string, string> = {};
   for (const line of trimmed.split(/\r?\n/g).map((item) => item.trim()).filter(Boolean)) {
     const index = line.indexOf('=');
-    if (index <= 0) return { ok: false, message: `Invalid header line: ${line}` };
+    if (index <= 0) return { ok: false, message: 'Invalid header line; use key=value.' };
     headers[line.slice(0, index).trim()] = line.slice(index + 1).trim();
   }
   return { ok: true, headers };
@@ -1387,8 +1564,8 @@ function encodeDraftPayload(text: string, mode: PayloadView):
     }
     const bytes = new TextEncoder().encode(text);
     return { ok: true, base64: bytesToBase64(bytes), byteLength: bytes.length };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : 'Invalid payload.' };
+  } catch {
+    return { ok: false, message: 'Invalid payload for the selected format.' };
   }
 }
 
@@ -1418,14 +1595,15 @@ function previewPayload(base64: string, kind: PayloadKind): string {
 }
 
 function formatPayload(base64: string, mode: PayloadView): string {
-  if (mode === 'base64') return base64;
-  const bytes = base64ToBytes(base64);
+  const bytes = base64ToBytes(base64).subarray(0, MqInspectorByteBudget);
+  const preview = bytesToBase64(bytes);
+  if (mode === 'base64') return preview;
   if (mode === 'hex') return toHex(bytes);
-  const decoded = tryDecodeUtf8(base64);
+  const decoded = tryDecodeUtf8(preview);
   if (!decoded.ok) return `Binary payload (${bytes.length} bytes). Use Hex or Base64 view.`;
   if (mode === 'json') {
     try {
-      return JSON.stringify(JSON.parse(decoded.text), null, 2);
+      return JSON.stringify(JSON.parse(decoded.text), null, 2).slice(0, MqInspectorByteBudget);
     } catch {
       return decoded.text;
     }
@@ -1566,15 +1744,47 @@ function findDlqTopic(topic: string, topics: MqTopicInfo[]): MqTopicInfo | null 
 
 function startAutoRefresh(): void {
   stopAutoRefresh();
-  if (!autoRefresh.value || !activeTopic.value) return;
-  autoRefreshTimer = setInterval(() => {
-    void refreshMonitorOnly();
-  }, 5_000);
+  if (!autoRefresh.value || !activeTopic.value || disposed || permissionDenied.value) return;
+  const generation = autoRefreshGeneration;
+  const context = captureContext();
+  const deadline = Date.now() + 60_000;
+  autoRefreshDeadlineTimer = setTimeout(() => {
+    if (generation !== autoRefreshGeneration) return;
+    if (autoMonitorController && monitorController === autoMonitorController) autoMonitorController.abort();
+    autoRefresh.value = false;
+  }, 60_000);
+  let rounds = 0;
+  const tick = async (): Promise<void> => {
+    if (generation !== autoRefreshGeneration || !autoRefresh.value || !isCurrentContext(context)) return;
+    if (rounds >= 12 || Date.now() >= deadline) { autoRefresh.value = false; return; }
+    rounds += 1;
+    const previousRequestId = monitorRequestId;
+    const previousController = monitorController;
+    const sampling = refreshMonitorOnly();
+    const ownedController = monitorRequestId !== previousRequestId && monitorController !== previousController
+      ? monitorController : null;
+    if (generation === autoRefreshGeneration && ownedController) autoMonitorController = ownedController;
+    await sampling;
+    if (generation === autoRefreshGeneration && autoMonitorController === ownedController) autoMonitorController = null;
+    if (generation !== autoRefreshGeneration || !autoRefresh.value || !isCurrentContext(context)) return;
+    if (rounds >= 12 || Date.now() >= deadline) { autoRefresh.value = false; return; }
+    autoRefreshTimer = setTimeout(() => { void tick(); }, Math.min(5_000, Math.max(1, deadline - Date.now())));
+  };
+  autoRefreshTimer = setTimeout(() => { void tick(); }, 5_000);
 }
 
 function stopAutoRefresh(): void {
+  autoRefreshGeneration += 1;
+  if (autoMonitorController && monitorController === autoMonitorController) {
+    autoMonitorController.abort();
+    monitorController = null;
+    monitorRequestId += 1;
+    loadingMonitor.value = false;
+  }
+  autoMonitorController = null;
+  if (autoRefreshDeadlineTimer) { clearTimeout(autoRefreshDeadlineTimer); autoRefreshDeadlineTimer = null; }
   if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
+    clearTimeout(autoRefreshTimer);
     autoRefreshTimer = null;
   }
 }
@@ -1588,27 +1798,19 @@ function performanceElapsed(started: number): number {
 }
 
 function errorToMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: unknown; status?: number } }).response;
-    if (response?.data && typeof response.data === 'object') {
-      const data = response.data as Record<string, unknown>;
-      if (typeof data.message === 'string') return data.message;
-      if (typeof data.error === 'string') return data.error;
-    }
-    if (typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
-    }
-  }
+  if (isPermissionError(error)) return '当前身份没有 MQ 访问权限。';
   return fallback;
 }
 
 async function copyPayload(): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   const row = selectedMessage.value;
   if (!row) return;
   await copyText(formatPayload(row.payload, payloadView.value), 'Payload copied');
 }
 
 async function copyHeaders(): Promise<void> {
+  if (disposed || permissionDenied.value) return;
   await copyText(selectedHeadersText.value, 'Headers copied');
 }
 
@@ -1617,12 +1819,12 @@ async function copyText(text: string, success: string): Promise<void> {
     await navigator.clipboard.writeText(text);
     message.success(success);
   } catch {
-    message.warning(text);
+    message.warning('复制失败，请检查剪贴板权限。');
   }
 }
 
 function recordHistory(
-  status: 'success' | 'error',
+  status: 'success' | 'error' | 'unknown',
   title: string,
   action: string,
   command: string,
@@ -1630,15 +1832,17 @@ function recordHistory(
   rowCount: number,
   recordsAffected: number,
   elapsedMs: number,
+  context: MqContext,
+  completeness?: WorkbenchHistoryCompleteness,
 ): void {
   history.record({
     kind: action === 'browse' ? 'query' : 'operation',
     status,
     title,
-    target: activeTopic.value || publishTopic.value,
-    database: props.targetDb,
-    connectionId: connections.activeProfileId,
-    connectionName: connections.activeProfile.name,
+    target: context.topic,
+    database: context.database,
+    connectionId: context.connectionId,
+    connectionName: context.connectionName,
     model: 'mq',
     action,
     command,
@@ -1646,7 +1850,122 @@ function recordHistory(
     rowCount,
     recordsAffected,
     elapsedMs,
+    completeness,
   });
+}
+
+function captureContext(): MqContext {
+  const token = auth.state?.token;
+  const baseUrl = auth.api.defaults.baseURL;
+  const api = markRaw(createApiClient(() => token ?? null));
+  api.defaults.baseURL = baseUrl;
+  return { revision: contextRevision, database: props.targetDb, topic: activeTopic.value,
+    connectionId: connections.activeProfileId, connectionName: connections.activeProfile.name,
+    baseUrl, profileBaseUrl: connections.activeBaseUrl, token, sourceApi: auth.api, api };
+}
+
+function isCurrentContext(context: MqContext): boolean {
+  return !disposed && !permissionDenied.value && context.revision === contextRevision && context.database === props.targetDb
+    && context.topic === activeTopic.value && context.connectionId === connections.activeProfileId
+    && context.profileBaseUrl === connections.activeBaseUrl && context.sourceApi === auth.api
+    && context.baseUrl === auth.api.defaults.baseURL && context.token === auth.state?.token;
+}
+
+function isPermissionError(error: unknown): boolean {
+  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  return status === 401 || status === 403;
+}
+
+async function guardMetadata<T>(request: Promise<T>, context: MqContext, controller: AbortController): Promise<T> {
+  try { return await request; }
+  catch (error) {
+    if (isPermissionError(error) && isCurrentContext(context) && !controller.signal.aborted) lockPermission(context);
+    throw error;
+  }
+}
+
+function cancelRequests(): void {
+  topicsController?.abort();
+  monitorController?.abort();
+  browseController?.abort();
+  writeController?.abort();
+}
+
+function invalidateContext(preserveTopics = false): void {
+  contextRevision += 1;
+  topicsRequestId += 1;
+  monitorRequestId += 1;
+  browseRequestId += 1;
+  fileRequestId += 1;
+  cancelRequests();
+  stopAutoRefresh();
+  autoRefresh.value = false;
+  clearRows();
+  if (!preserveTopics) localTopics.value = [];
+  stats.value = offsets.value = retention.value = null;
+  trendSamples.value = [];
+  latestResult.value = null;
+  latestCommand.value = '';
+  ranOnce.value = false;
+  errorMsg.value = '';
+  pendingOperations.value = [];
+  runningOperations.value = [];
+  confirmBusy.value = false;
+  loading.value = loadingBrowse.value = loadingMonitor.value = false;
+  ackConsumerGroup.value = null;
+  ackOffset.value = null;
+  publishTopic.value = '';
+  publishPayload.value = '';
+  publishHeadersText.value = '';
+  publisherVisible.value = false;
+  fromOffset.value = 0;
+  seekTimeMs.value = null;
+  historyVisible.value = resultVisible.value = false;
+}
+
+function lockPermission(context: MqContext): void {
+  deniedContext = context;
+  permissionLocked.value = true;
+  invalidateContext();
+  errorMsg.value = '当前身份没有 MQ 访问权限。';
+}
+
+function isSafeOffset(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function boundedBrowseLimit(): number {
+  return typeof browseLimit.value === 'number' && Number.isFinite(browseLimit.value)
+    ? Math.max(1, Math.min(MqPreviewMessageBudget, Math.floor(browseLimit.value))) : 100;
+}
+
+function enqueueOperation(operation: PendingOperation): void {
+  if (!canWrite.value || !isCurrentContext(operation.context)) return;
+  if (pendingOperations.value.length >= MqPreviewMessageBudget) { message.warning('每次最多暂存 1000 项操作。'); return; }
+  pendingOperations.value.push(operation);
+}
+
+function formatHeaders(headers: Record<string, string>): string {
+  const preview: Record<string, string> = {};
+  let remaining = 4096;
+  const keys = Object.keys(headers).slice(0, 32);
+  for (const key of keys) {
+    if (remaining <= 0) break;
+    const boundedKey = key.slice(0, remaining);
+    remaining -= boundedKey.length;
+    const value = String(headers[key]).slice(0, remaining);
+    remaining -= value.length;
+    preview[boundedKey] = value;
+  }
+  return JSON.stringify(preview, null, 2).slice(0, 4096);
+}
+
+function exportMessages(): void {
+  if (disposed || permissionDenied.value || rows.value.length === 0) return;
+  const text = rows.value.slice(0, MqPreviewMessageBudget).map((row) => JSON.stringify({
+    topic: row.topic, offset: row.offset, timestampUtc: row.timestampUtc, headers: row.headers, payloadBase64: row.payload,
+  })).join('\n');
+  downloadText(`${safeFileStem(props.targetDb, 'database')}_${safeFileStem(activeTopic.value, 'mq')}.jsonl`, text, 'application/x-ndjson');
 }
 
 watch(
@@ -1654,35 +1973,45 @@ watch(
   (topics) => {
     syncLocalTopics(topics);
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 );
 
 watch(
-  () => [props.targetDb, props.topic] as const,
+  () => [props.targetDb, props.topic, connections.activeProfileId, connections.activeBaseUrl, auth.api,
+    auth.api.defaults.baseURL, auth.state, auth.state?.token, props.permissionDenied, readOnly.value] as const,
   () => {
-    clearRows();
-    stats.value = null;
-    offsets.value = null;
-    retention.value = null;
-    trendSamples.value = [];
-    ackConsumerGroup.value = null;
-    ackOffset.value = null;
-    pendingOperations.value = [];
-    publishTopic.value = activeTopic.value;
-    const topic = activeTopic.value;
-    if (topic) {
-      void loadTopicMetadata(topic).then(() => {
-        fromOffset.value = retainedStartOffset.value;
-        void loadMessages(retainedStartOffset.value, false);
-      }).catch((error: unknown) => {
-        errorMsg.value = errorToMessage(error, '加载 MQ topic 元数据失败');
-      });
-    }
+    changingContext = true;
+    try {
+      invalidateContext();
+      const previous = deniedContext;
+      const changedIdentity = previous && ((props.targetDb && previous.database !== props.targetDb)
+        || (connections.activeProfileId && previous.connectionId !== connections.activeProfileId)
+        || (connections.activeBaseUrl && previous.profileBaseUrl !== connections.activeBaseUrl)
+        || (auth.api.defaults.baseURL && previous.baseUrl !== auth.api.defaults.baseURL));
+      const changedResource = previous && props.topic && previous.topic !== props.topic;
+      if (changedIdentity || changedResource) { permissionLocked.value = false; deniedContext = null; }
+      syncLocalTopics(props.topics);
+      publishTopic.value = activeTopic.value;
+    } finally { changingContext = false; }
+    const revision = contextRevision;
+    void nextTick().then(() => { if (!disposed && !permissionDenied.value && revision === contextRevision) return refreshAll(); });
   },
+  { immediate: true, flush: 'sync' },
 );
 
+watch(activeTopic, (next, previous) => {
+  if (changingContext || disposed || permissionDenied.value || next === previous) return;
+  // The first metadata Topic is still a real read target. Its changes advance
+  // the epoch, but they never count as an explicit resource permission reset.
+  changingContext = true;
+  try { invalidateContext(true); publishTopic.value = next; }
+  finally { changingContext = false; }
+  const revision = contextRevision;
+  void nextTick().then(() => { if (!disposed && !permissionDenied.value && revision === contextRevision) return refreshAll(); });
+}, { flush: 'sync' });
+
 watch(
-  () => [autoRefresh.value, props.targetDb, props.topic] as const,
+  () => autoRefresh.value,
   () => {
     startAutoRefresh();
   },
@@ -1691,12 +2020,12 @@ watch(
 onMounted(() => {
   syncInspectorForViewport();
   window.addEventListener('resize', syncInspectorForViewport);
-  publishTopic.value = activeTopic.value;
-  void refreshAll();
-  startAutoRefresh();
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
+  contextRevision += 1;
+  cancelRequests();
   window.removeEventListener('resize', syncInspectorForViewport);
   stopAutoRefresh();
 });

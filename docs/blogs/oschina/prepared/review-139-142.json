@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "platform": "oschina",
+  "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+  "releasedVersion": {
+    "version": "4.0.0",
+    "url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0",
+    "tagCommit": "827d6cff02dc33aea72d60fcaa1c511d74a0934a",
+    "evidence": "主智能体已核验正式Release，候选文档仍有旧状态；不推断延期门禁通过"
+  },
+  "expectedArticleIds": [
+    "139",
+    "140",
+    "141",
+    "142"
+  ],
+  "frozenArticleIds": [
+    "139",
+    "140",
+    "141",
+    "142"
+  ],
+  "pendingArticleIds": [],
+  "articles": [
+    {
+      "articleId": "139",
+      "title": "SonnetDB typed MCP、Copilot 与 RAG：只读工具如何接入 AI",
+      "sourcePath": "docs/blogs/139-typed-mcp-copilot-rag.md",
+      "preparedPath": "docs/blogs/oschina/prepared/139-typed-mcp-copilot-rag.md",
+      "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+      "sourceSha256": "8b559232eae476f2b1b72b5c347b6ec1f8a5dd6e7b99f8a42801bb7c95253823",
+      "preparedSha256": "3518f4b216222ff20474b5118485332d9232cbfe82856ed96260d2e43b8c2f59",
+      "sourceDocs": [
+        "docs/mcp-contract.md",
+        "docs/studio-copilot-contract.md",
+        "docs/rag-ingestion-core.md",
+        "docs/rag-search-fusion.md",
+        "docs/copilot-rag-migration.md",
+        "docs/copilot-providers.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "核对typed MCP只读合同与完整tools/call示例；区分Copilot提供方/外发、默认legacy与显式RAG、Core有界精确融合；stdio bridge仍规划。",
+      "validation": "人工文档/源码事实核对；原标题/SHA256/HTTPS链接/代码围栏/证据路径验证；未执行SQL/API/浏览器/模型/基准/AOT或发布"
+    },
+    {
+      "articleId": "140",
+      "title": "SonnetDB 语义图片检索续篇：从能运行到可发布的证据边界",
+      "sourcePath": "docs/blogs/140-semantic-image-search-boundary.md",
+      "preparedPath": "docs/blogs/oschina/prepared/140-semantic-image-search-boundary.md",
+      "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+      "sourceSha256": "f23cb8fc6743cd457976a48290a506126f2a060658178b1a89ef5545b1c339d9",
+      "preparedSha256": "6643bf2e6c542b4f5e4495ae01d2cc656dcd9f0c5ec5f3c2622a6406c0943f3c",
+      "sourceDocs": [
+        "docs/semantic-image-search.md",
+        "samples/SonnetDB.SemanticImages/README.md",
+        "src/SonnetDB/Endpoints/Routes/SemanticSearchEndpoints.cs",
+        "src/SonnetDB/SemanticSearch/SemanticImageSearchService.cs",
+        "docs/object-transfer-manager.md",
+        "docs/vector-lifecycle-preflight.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "更正REST输入为text和filter.sourceBucket；核对provider默认关闭、profile隔离、直接摄取与异步任务、过滤ANN/精确回退；不套用RAG整代发布，AOT命令不当实测。",
+      "validation": "人工文档/源码事实核对；原标题/SHA256/HTTPS链接/代码围栏/证据路径验证；未执行SQL/API/浏览器/模型/基准/AOT或发布"
+    },
+    {
+      "articleId": "141",
+      "title": "SonnetDB 统一管理工作台：Web Admin、Studio 与 VS Code 的共同边界",
+      "sourcePath": "docs/blogs/141-m47-unified-workbench-boundary.md",
+      "preparedPath": "docs/blogs/oschina/prepared/141-m47-unified-workbench-boundary.md",
+      "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+      "sourceSha256": "fb8ccbc8face40ace8926b10a80e0c063e49d1fb490c9636e066568cdff67357",
+      "preparedSha256": "50058b4057828fa69cbf85e6ecd2b90ff0f653bf06844c01495228e073aed632",
+      "sourceDocs": [
+        "docs/design/m47-unified-management-workbench/README.md",
+        "docs/design/m47-unified-management-workbench/navigation.md",
+        "docs/design/m47-unified-management-workbench/validation-report.md",
+        "docs/management-tools.md",
+        "ROADMAP.md"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "确认CONFIRMED_BASELINE为设计批准；已有局部切片与三宿主未闭环分开，实例MQ备份/Graph Beta、审批unknown及窗口导出边界明确。",
+      "validation": "人工文档/源码事实核对；原标题/SHA256/HTTPS链接/代码围栏/证据路径验证；未执行SQL/API/浏览器/模型/基准/AOT或发布"
+    },
+    {
+      "articleId": "142",
+      "title": "SonnetDB 性能与可靠性文章怎么写：把数字和证据放在一起",
+      "sourcePath": "docs/blogs/142-reliability-and-benchmark-evidence.md",
+      "preparedPath": "docs/blogs/oschina/prepared/142-reliability-and-benchmark-evidence.md",
+      "sourceCommit": "4e7374eda57bb11d1a75e728768179812a6139ab",
+      "sourceSha256": "0b7172e4ae051cebe69f29bccad01cb7c1aea44042b6af41adf41ae48630ba78",
+      "preparedSha256": "5fa937478af944ed8cf24990cd84fbe5f1d75bf869534170419d05f1e01d4bc5",
+      "sourceDocs": [
+        "docs/performance-reliability-updates.md",
+        "docs/m43-release-evidence.md",
+        "docs/m19-regex-bulk-delete.md",
+        "docs/releases/4.0.0.md",
+        "src/SonnetDB.Core/Storage/Format/SegmentHeader.cs",
+        "src/SonnetDB.Core/Engine/Compaction/CompactionWorker.cs"
+      ],
+      "reviewedAt": "2026-10-07",
+      "status": "ready",
+      "review": "更正compaction pending/committed非全部flush通用标记；区分合成算法Recall与真实模型质量、M43延期与发布事实；删除无完整原始报告的历史结果数值。",
+      "validation": "人工文档/源码事实核对；原标题/SHA256/HTTPS链接/代码围栏/证据路径验证；未执行SQL/API/浏览器/模型/基准/AOT或发布"
+    }
+  ]
+}

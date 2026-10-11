@@ -1,17 +1,7 @@
 import * as vscode from 'vscode';
 import { inferTrajectory } from '../core/geoResult';
+import { QueryHistoryStore } from '../core/queryHistory';
 import { SqlResultSet } from '../core/types';
-
-interface QueryHistoryEntry {
-  id: string;
-  timestamp: number;
-  sql: string;
-  connectionLabel?: string;
-  database?: string;
-  rowCount: number;
-  elapsedMs?: number;
-  failed: boolean;
-}
 
 interface ResultPayload {
   title: string;
@@ -21,26 +11,28 @@ interface ResultPayload {
   raw: unknown;
 }
 
-const QueryHistoryStorageKey = 'sonnetdb.queryHistory';
-
 export class QueryResultPanel {
   private panel: vscode.WebviewPanel | undefined;
   private payload: ResultPayload | undefined;
+  private readonly history: QueryHistoryStore;
 
   public constructor(private readonly context: vscode.ExtensionContext) {
+    this.history = new QueryHistoryStore(context.globalState);
     context.subscriptions.push(vscode.commands.registerCommand('sonnetdb.showQueryHistory', () => this.showHistory()));
   }
 
-  public show(
+  /** 显示 SQL 结果，并等待对应本地历史写入完成。 */
+  public async show(
     result: SqlResultSet,
     sql: string,
     connectionLabel?: string,
     database?: string,
-  ): void {
+  ): Promise<void> {
     this.showResult('SonnetDB Query Result', result, {
       label: 'Query',
       text: sql,
     }, { connectionLabel, database });
+    await this.recordHistory(sql, result, { connectionLabel, database });
   }
 
   public showRows(title: string, columns: string[], rows: unknown[][], raw?: unknown, sourceText?: string): void {
@@ -90,9 +82,6 @@ export class QueryResultPanel {
     }
     this.panel.title = title;
     this.panel.webview.html = this.renderHtml(title, result, source, context, raw);
-    if (source.label === 'Query') {
-      void this.recordHistory(source.text, result, context);
-    }
   }
 
   private async recordHistory(
@@ -100,8 +89,7 @@ export class QueryResultPanel {
     result: SqlResultSet,
     viewContext?: { connectionLabel?: string; database?: string },
   ): Promise<void> {
-    const history = this.context.globalState.get<QueryHistoryEntry[]>(QueryHistoryStorageKey, []);
-    history.unshift({
+    await this.history.append({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       timestamp: Date.now(),
       sql,
@@ -111,11 +99,10 @@ export class QueryResultPanel {
       elapsedMs: result.end?.elapsedMs,
       failed: Boolean(result.error),
     });
-    await this.context.globalState.update(QueryHistoryStorageKey, history.slice(0, 50));
   }
 
   private async showHistory(): Promise<void> {
-    const history = this.context.globalState.get<QueryHistoryEntry[]>(QueryHistoryStorageKey, []);
+    const history = await this.history.read();
     if (history.length === 0) {
       void vscode.window.showInformationMessage('SonnetDB query history is empty.');
       return;

@@ -1,0 +1,9 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Name": "runner-smoke",
+  "Executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "Arguments": [
+    "--version"
+  ],
+  "TimeoutSeconds": 15
+}

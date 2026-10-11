@@ -1,5 +1,7 @@
 # M42 / SQL-002：直接 measurement SELECT 物化预算
 
+2026-10-03 另已补[直接 raw SELECT 多键排序准入](m42-measurement-order-bounds.md)。下文保留首次无排序切片的执行顺序；排序模式先累计准入全部候选及辅助键，再分页，不能沿用无排序早停的收费说明。
+
 2026-10-01 的合同切片将 Core 的显式 `SqlExecutionOptions.MaxMaterializedRows` / `MaxMaterializedBytes` 扩展到直接 measurement 的 raw SELECT。未设置这两项时继续使用原执行路径。它与 REST `previewMaxRows` 的成功截断合同不同：成功结果是完整的 SQL 结果或 SQL 页，`Truncated=false`；超限抛出既有 `InvalidOperationException`，不把前缀作为成功结果返回。
 
 ```csharp

@@ -768,6 +768,7 @@ internal static class SqlRoutineRuntime
 
     internal static string GetErrorCode(Exception exception) => exception switch
     {
+        KvReadOverloadedException => KvReadOverloadedException.Code,
         RoutineExecutionException routine => routine.Code,
         TableTransactionRecoveryException => RoutineErrorCodes.CommitUnknown,
         SonnetDB.Tables.TableConstraintException constraint => constraint.ErrorCode,

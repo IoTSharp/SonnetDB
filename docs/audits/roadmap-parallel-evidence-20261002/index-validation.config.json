@@ -1,0 +1,11 @@
+{
+  "TaskRoot": "C:\\Temp\\sdbp-81bfff26",
+  "Name": "index-validation",
+  "Executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "Arguments": [
+    "-NoProfile",
+    "-File",
+    "D:\\source\\SonnetDB\\eng\\validate-fourteen-capability-index.ps1"
+  ],
+  "TimeoutSeconds": 120
+}

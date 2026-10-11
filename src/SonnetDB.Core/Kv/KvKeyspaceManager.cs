@@ -25,7 +25,10 @@ public sealed class KvKeyspaceManager : IDisposable
         ArgumentNullException.ThrowIfNull(rootDirectory);
         RootDirectory = rootDirectory;
         _options = options ?? KvOptions.Default;
-        _diskReadBudget = new KvDiskReadBudget(_options.MaxConcurrentStateReads);
+        _diskReadBudget = new KvDiskReadBudget(
+            _options.MaxConcurrentStateReads,
+            _options.MaxQueuedStateReads,
+            TimeSpan.FromMilliseconds(_options.StateReadWaitTimeoutMilliseconds));
         Directory.CreateDirectory(KeyspacesDirectory);
     }
 

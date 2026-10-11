@@ -1,0 +1,12 @@
+  SonnetDB.Core -> D:\source\SonnetDB\src\SonnetDB.Core\bin\Release\net10.0\SonnetDB.Core.dll
+  SonnetDB.CdcStreamingJourney -> D:\source\SonnetDB\samples\SonnetDB.CdcStreamingJourney\bin\Release\net10.0\SonnetDB.CdcStreamingJourney.dll
+  SonnetDB.Data -> D:\source\SonnetDB\src\SonnetDB.Data\bin\Release\net10.0\SonnetDB.Data.dll
+  SonnetDB.Cli -> D:\source\SonnetDB\src\SonnetDB.Cli\bin\Release\net10.0\SonnetDB.Cli.dll
+  SonnetDB.Caching.Distributed -> D:\source\SonnetDB\extensions\SonnetDB.Caching.Distributed\bin\Release\net10.0\SonnetDB.Caching.Distributed.dll
+  SonnetDB.Caching.EasyCaching -> D:\source\SonnetDB\extensions\SonnetDB.Caching.EasyCaching\bin\Release\net10.0\SonnetDB.Caching.EasyCaching.dll
+  SonnetDB.Core.Tests -> D:\source\SonnetDB\tests\SonnetDB.Core.Tests\bin\Release\net10.0\SonnetDB.Core.Tests.dll
+D:\source\SonnetDB\tests\SonnetDB.Core.Tests\bin\Release\net10.0\SonnetDB.Core.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+结果文件: D:\source\SonnetDB\.codex-temp\parallel-next-20261002\test-results\targeted-fixed.trx
+
+已通过! - 失败:     0，通过:   136，已跳过:     0，总计:   136，持续时间: 9 s - SonnetDB.Core.Tests.dll (net10.0)

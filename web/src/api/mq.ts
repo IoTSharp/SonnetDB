@@ -81,8 +81,9 @@ export async function fetchMqOffsets(
   api: AxiosInstance,
   db: string,
   topic: string,
+  signal?: AbortSignal,
 ): Promise<MqOffsetsResponse> {
-  const resp = await api.post<MqOffsetsResponse>(mqUrl(db, topic, 'offsets'));
+  const resp = await api.post<MqOffsetsResponse>(mqUrl(db, topic, 'offsets'), undefined, { signal });
   return {
     topic: resp.data.topic,
     nextOffset: resp.data.nextOffset,
@@ -94,8 +95,9 @@ export async function fetchMqStats(
   api: AxiosInstance,
   db: string,
   topic: string,
+  signal?: AbortSignal,
 ): Promise<MqStatsResponse> {
-  const resp = await api.post<MqStatsResponse>(mqUrl(db, topic, 'stats'));
+  const resp = await api.post<MqStatsResponse>(mqUrl(db, topic, 'stats'), undefined, { signal });
   return {
     topic: resp.data.topic,
     messageCount: resp.data.messageCount,
@@ -108,8 +110,9 @@ export async function fetchMqRetention(
   api: AxiosInstance,
   db: string,
   topic: string,
+  signal?: AbortSignal,
 ): Promise<MqRetentionResponse> {
-  const resp = await api.post<MqRetentionResponse>(mqUrl(db, topic, 'retention'));
+  const resp = await api.post<MqRetentionResponse>(mqUrl(db, topic, 'retention'), undefined, { signal });
   return resp.data;
 }
 
@@ -118,8 +121,9 @@ export async function browseMqMessages(
   db: string,
   topic: string,
   request: MqBrowseRequest,
+  signal?: AbortSignal,
 ): Promise<MqBrowseResponse> {
-  const resp = await api.post<MqBrowseResponse>(mqUrl(db, topic, 'browse'), request);
+  const resp = await api.post<MqBrowseResponse>(mqUrl(db, topic, 'browse'), request, { signal });
   return {
     messages: Array.isArray(resp.data.messages) ? resp.data.messages : [],
   };
@@ -130,8 +134,9 @@ export async function publishMqMessage(
   db: string,
   topic: string,
   request: MqPublishRequest,
+  signal?: AbortSignal,
 ): Promise<MqPublishResponse> {
-  const resp = await api.post<MqPublishResponse>(mqUrl(db, topic, 'publish'), request);
+  const resp = await api.post<MqPublishResponse>(mqUrl(db, topic, 'publish'), request, { signal });
   return resp.data;
 }
 
@@ -140,7 +145,8 @@ export async function ackMqConsumer(
   db: string,
   topic: string,
   request: MqAckRequest,
+  signal?: AbortSignal,
 ): Promise<MqAckResponse> {
-  const resp = await api.post<MqAckResponse>(mqUrl(db, topic, 'ack'), request);
+  const resp = await api.post<MqAckResponse>(mqUrl(db, topic, 'ack'), request, { signal });
   return resp.data;
 }

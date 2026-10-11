@@ -18,6 +18,10 @@
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
+## Workbench Web Preview 1（R1，发布准备中）
+
+首个Web预览限定Windows 11 x64、同源环回Web＋匹配NativeAOT Server。候选10已完成本机R1实物验收及四附件准备，产品仍 **NOT_READY**；P07门禁和P08授权发布未完成，暂无该预览公开下载。可评估有界SQL、关系表、measurement和一次授权单行插入；七个专用模型工作台、Studio与VS Code延期。[使用、限制、升级/回退与反馈](docs/design/m47-unified-management-workbench/sonnetdb-workbench-web-4.5.0-preview.1.10-notes.md)和[独立分发状态](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)描述实际范围。
+
 ## 🧩 SonnetDB 是什么
 
 **SonnetDB 是一款多模型数据引擎。**
@@ -225,6 +229,10 @@ code --install-extension iotsharp.sonnetdb-vscode
 ## 📚 深入文档
 
 README 只保留项目概览和最短入门路径，完整说明在专题文档中：
+
+Workbench 正在准备 **Preview 1**：首版优先 Web Admin 与匹配 Server 的已验收子集，发布范围、候选/版本、真实登录与权限、发行物部署及最终门禁按 [根路线图](ROADMAP.md#workbench-preview-1) 的 M47-P01～P08 顺序收口。Studio 与 VS Code 各自通过实物安装/完整宿主旅程后再纳入；当前仍 NOT_READY，未宣布新版本发布。
+
+九模型页面及受限真实服务旅程已有交付，Studio WB80 已取得本机切库/重启恢复和正常关闭证据。现有远端 Web smoke 失败、当前候选包与版本、真实登录/承诺范围，以及桌面安装/原生文件对话框、扩展完整 Query/history/退出仍需分别补证。历史实现与窗口记录见 [CHANGELOG完成归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)，当前判断见 [发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)及[M47原始验证](docs/design/m47-unified-management-workbench/validation-report.md)；旧局部PASS或失败不代替新候选结论。
 
 | 主题 | 文档 |
 | --- | --- |

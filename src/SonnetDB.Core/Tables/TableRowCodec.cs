@@ -66,6 +66,56 @@ internal static class TableRowCodec
         return values;
     }
 
+    /// <summary>完整校验行格式，只实例化索引恢复需要的列，避免解码无关的大文本和二进制字段。</summary>
+    internal static object?[] DecodeProjection(
+        TableSchema schema,
+        ReadOnlySpan<byte> payload,
+        ReadOnlySpan<bool> materializedColumns)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        if (materializedColumns.Length != schema.Columns.Count)
+            throw new ArgumentException("投影列掩码长度必须与表 schema 列数量一致。", nameof(materializedColumns));
+
+        var reader = new SpanReader(payload);
+        var values = new object?[schema.Columns.Count];
+        for (int i = 0; i < schema.Columns.Count; i++)
+        {
+            byte present = reader.ReadByte();
+            if (present == 0)
+                continue;
+            if (present != 1)
+                throw new InvalidDataException($"Table row: invalid null marker {present}.");
+
+            if (materializedColumns[i])
+                values[i] = ReadValue(ref reader, schema.Columns[i]);
+            else
+                SkipUnmaterializedValue(ref reader, schema.Columns[i]);
+        }
+
+        if (!reader.IsEnd)
+            throw new InvalidDataException("Table row: trailing bytes after row payload.");
+        return values;
+    }
+
+    /// <summary>跳过未投影的大字段，定长字段仍沿用解码校验，保留非法 decimal、时间及日期的拒绝行为。</summary>
+    private static void SkipUnmaterializedValue(ref SpanReader reader, TableColumn column)
+    {
+        if (column.DataType is TableColumnType.String or TableColumnType.Json or TableColumnType.Blob)
+        {
+            int length = reader.ReadInt32();
+            if (length < 0)
+            {
+                string kind = column.DataType == TableColumnType.Blob ? "blob" : "string";
+                throw new InvalidDataException($"Table row: invalid {kind} length {length}.");
+            }
+            reader.Skip(length);
+            return;
+        }
+
+        // 定长值分配很小；复用原解码器可确保跳过列不会弱化已有的值域校验。
+        _ = ReadValue(ref reader, column);
+    }
+
     private static int GetPayloadSize(TableColumn column, object value)
         => column.DataType switch
         {

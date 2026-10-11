@@ -1,0 +1,216 @@
+dotnet 运行时版本为 '10.0.12'。
+正在设置工作区“D:\source\SonnetDB\SonnetDB.slnx”中代码文件的格式。
+正在加载工作区。
+项目 SonnetDB.Native 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Native 正在使用 'D:\source\SonnetDB\connectors\c\native\SonnetDB.Native\obj\Debug\net10.0\SonnetDB.Native.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Native 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 run-benchmarks 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 run-benchmarks 正在使用 'D:\source\SonnetDB\eng\benchmarks\run-benchmarks\obj\Debug\net10.0\run-benchmarks.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 run-benchmarks 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 start-benchmark-env 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 start-benchmark-env 正在使用 'D:\source\SonnetDB\eng\benchmarks\start-benchmark-env\obj\Debug\net10.0\start-benchmark-env.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 start-benchmark-env 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 connectors-release 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 connectors-release 正在使用 'D:\source\SonnetDB\eng\tools\connectors-release\obj\Debug\net10.0\connectors-release.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 connectors-release 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 CoAP.NET.SourceGeneration 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 CoAP.NET.SourceGeneration 正在使用 'D:\source\SonnetDB\extensions\IoTSharp.CoAP.NET\CoAP.NET.SourceGeneration\obj\Debug\netstandard2.0\CoAP.NET.SourceGeneration.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 CoAP.NET 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 CoAP.NET 正在使用 'D:\source\SonnetDB\extensions\IoTSharp.CoAP.NET\CoAP.NET\obj\Debug\net10.0\CoAP.NET.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 CoAP.NET 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net8.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net8.0) 正在使用 'D:\source\SonnetDB\extensions\MQTTnet.AspNetCore.Routing\Source\obj\Debug\net8.0\MQTTnet.AspNetCore.Routing.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net8.0) 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_8_default.globalconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net10.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net10.0) 正在使用 'D:\source\SonnetDB\extensions\MQTTnet.AspNetCore.Routing\Source\obj\Debug\net10.0\MQTTnet.AspNetCore.Routing.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing(net10.0) 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing.SourceGeneration 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 MQTTnet.AspNetCore.Routing.SourceGeneration 正在使用 'D:\source\SonnetDB\extensions\MQTTnet.AspNetCore.Routing\SourceGeneration\obj\Debug\netstandard2.0\MQTTnet.AspNetCore.Routing.SourceGeneration.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Caching.Distributed 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Caching.Distributed 正在使用 'D:\source\SonnetDB\extensions\SonnetDB.Caching.Distributed\obj\Debug\net10.0\SonnetDB.Caching.Distributed.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Caching.Distributed 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Caching.EasyCaching 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Caching.EasyCaching 正在使用 'D:\source\SonnetDB\extensions\SonnetDB.Caching.EasyCaching\obj\Debug\net10.0\SonnetDB.Caching.EasyCaching.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Caching.EasyCaching 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Media 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Media 正在使用 'D:\source\SonnetDB\extensions\SonnetDB.Media\obj\Debug\net10.0\SonnetDB.Media.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Media 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.CdcStreamingJourney 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.CdcStreamingJourney 正在使用 'D:\source\SonnetDB\samples\SonnetDB.CdcStreamingJourney\obj\Debug\net10.0\SonnetDB.CdcStreamingJourney.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.CdcStreamingJourney 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.DocumentQuickstart 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.DocumentQuickstart 正在使用 'D:\source\SonnetDB\samples\SonnetDB.DocumentQuickstart\obj\Debug\net10.0\SonnetDB.DocumentQuickstart.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.DocumentQuickstart 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.EcosystemSample 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.EcosystemSample 正在使用 'D:\source\SonnetDB\samples\SonnetDB.EcosystemSample\obj\Debug\net10.0\SonnetDB.EcosystemSample.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.EcosystemSample 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.IndustrialDiagnostics 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.IndustrialDiagnostics 正在使用 'D:\source\SonnetDB\samples\SonnetDB.IndustrialDiagnostics\obj\Debug\net10.0\SonnetDB.IndustrialDiagnostics.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.IndustrialDiagnostics 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.KvQuickstart 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.KvQuickstart 正在使用 'D:\source\SonnetDB\samples\SonnetDB.KvQuickstart\obj\Debug\net10.0\SonnetDB.KvQuickstart.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.KvQuickstart 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.MediaSegments 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.MediaSegments 正在使用 'D:\source\SonnetDB\samples\SonnetDB.MediaSegments\obj\Debug\net10.0\SonnetDB.MediaSegments.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.MediaSegments 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.SemanticImages 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.SemanticImages 正在使用 'D:\source\SonnetDB\samples\SonnetDB.SemanticImages\obj\Debug\net10.0\SonnetDB.SemanticImages.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.SemanticImages 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Cli 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Cli 正在使用 'D:\source\SonnetDB\src\SonnetDB.Cli\obj\Debug\net10.0\SonnetDB.Cli.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Cli 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Core 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Core 正在使用 'D:\source\SonnetDB\src\SonnetDB.Core\obj\Debug\net10.0\SonnetDB.Core.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Core 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Data 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Data 正在使用 'D:\source\SonnetDB\src\SonnetDB.Data\obj\Debug\net10.0\SonnetDB.Data.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Data 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore 正在使用 'D:\source\SonnetDB\src\SonnetDB.EntityFrameworkCore\obj\Debug\net10.0\SonnetDB.EntityFrameworkCore.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.LanguageServer 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.LanguageServer 正在使用 'D:\source\SonnetDB\src\SonnetDB.LanguageServer\obj\Debug\net10.0\SonnetDB.LanguageServer.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.LanguageServer 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Studio 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Studio 正在使用 'D:\source\SonnetDB\src\SonnetDB.Studio\obj\Debug\net10.0-windows\SonnetDB.Studio.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Studio 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB 正在使用 'D:\source\SonnetDB\src\SonnetDB\obj\Debug\net10.0\SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 Testcontainers.SonnetDB(netstandard2.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(netstandard2.0) 正在使用 'D:\source\SonnetDB\src\Testcontainers.SonnetDB\obj\Debug\netstandard2.0\Testcontainers.SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(netstandard2.1) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(netstandard2.1) 正在使用 'D:\source\SonnetDB\src\Testcontainers.SonnetDB\obj\Debug\netstandard2.1\Testcontainers.SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net8.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net8.0) 正在使用 'D:\source\SonnetDB\src\Testcontainers.SonnetDB\obj\Debug\net8.0\Testcontainers.SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net8.0) 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_8_default.globalconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net9.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net9.0) 正在使用 'D:\source\SonnetDB\src\Testcontainers.SonnetDB\obj\Debug\net9.0\Testcontainers.SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net9.0) 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_9_default.globalconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net10.0) 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net10.0) 正在使用 'D:\source\SonnetDB\src\Testcontainers.SonnetDB\obj\Debug\net10.0\Testcontainers.SonnetDB.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 Testcontainers.SonnetDB(net10.0) 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Accuracy.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Accuracy.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Accuracy.Tests\obj\Debug\net10.0\SonnetDB.Accuracy.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Accuracy.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests.ProcessProbe 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests.ProcessProbe 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Benchmarks.Tests\Child\obj\Debug\net10.0\SonnetDB.Benchmarks.Tests.ProcessProbe.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests.ProcessProbe 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Benchmarks.Tests\obj\Debug\net10.0\SonnetDB.Benchmarks.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Benchmarks 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Benchmarks\obj\Debug\net10.0\SonnetDB.Benchmarks.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Benchmarks 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Core.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Core.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Core.Tests\obj\Debug\net10.0\SonnetDB.Core.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Core.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.EcosystemSoak 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.EcosystemSoak 正在使用 'D:\source\SonnetDB\tests\SonnetDB.EcosystemSoak\obj\Debug\net10.0\SonnetDB.EcosystemSoak.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.EcosystemSoak 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.EntityFrameworkCore.Tests\obj\Debug\net10.0\SonnetDB.EntityFrameworkCore.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.EntityFrameworkCore.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.IoTSharpCompat.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.IoTSharpCompat.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.IoTSharpCompat.Tests\obj\Debug\net10.0\SonnetDB.IoTSharpCompat.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.IoTSharpCompat.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.LanguageServer.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.LanguageServer.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.LanguageServer.Tests\obj\Debug\net10.0\SonnetDB.LanguageServer.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.LanguageServer.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Media.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Media.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Media.Tests\obj\Debug\net10.0\SonnetDB.Media.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Media.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Studio.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Studio.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Studio.Tests\obj\Debug\net10.0-windows\SonnetDB.Studio.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Studio.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.Tests 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.Tests 正在使用 'D:\source\SonnetDB\tests\SonnetDB.Tests\obj\Debug\net10.0\win-x64\SonnetDB.Tests.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.Tests 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+项目 SonnetDB.TriggerAdmission 正在使用 'D:\source\SonnetDB\.editorconfig' 中的配置。
+项目 SonnetDB.TriggerAdmission 正在使用 'D:\source\SonnetDB\tests\SonnetDB.TriggerAdmission\obj\Debug\net10.0\SonnetDB.TriggerAdmission.GeneratedMSBuildEditorConfig.editorconfig' 中的配置。
+项目 SonnetDB.TriggerAdmission 正在使用 'C:\Program Files\dotnet\sdk\10.0.401\Sdks\Microsoft.NET.Sdk\analyzers\build\config\analysislevel_10_default.globalconfig' 中的配置。
+在 10810 毫秒后完成。
+正在确定可格式化的文件。
+在 5277 毫秒后完成。
+正在运行格式化程序。
+正在运行 代码样式 分析。
+正在确定诊断…
+正在 5 上运行 SonnetDB.Native 分析器。
+正在 5 上运行 run-benchmarks 分析器。
+正在 5 上运行 start-benchmark-env 分析器。
+正在 5 上运行 connectors-release 分析器。
+正在 5 上运行 SonnetDB.CdcStreamingJourney 分析器。
+正在 5 上运行 SonnetDB.DocumentQuickstart 分析器。
+正在 5 上运行 SonnetDB.EcosystemSample 分析器。
+正在 5 上运行 SonnetDB.IndustrialDiagnostics 分析器。
+正在 5 上运行 SonnetDB.KvQuickstart 分析器。
+正在 5 上运行 SonnetDB.MediaSegments 分析器。
+正在 5 上运行 SonnetDB.SemanticImages 分析器。
+正在 5 上运行 SonnetDB.Cli 分析器。
+正在 5 上运行 SonnetDB.Core 分析器。
+正在 5 上运行 SonnetDB.Data 分析器。
+正在 5 上运行 SonnetDB.EntityFrameworkCore 分析器。
+正在 5 上运行 SonnetDB.LanguageServer 分析器。
+正在 5 上运行 SonnetDB.Studio 分析器。
+正在 5 上运行 SonnetDB 分析器。
+正在 5 上运行 Testcontainers.SonnetDB(netstandard2.0) 分析器。
+正在 5 上运行 Testcontainers.SonnetDB(netstandard2.1) 分析器。
+正在 5 上运行 Testcontainers.SonnetDB(net8.0) 分析器。
+正在 5 上运行 Testcontainers.SonnetDB(net9.0) 分析器。
+正在 5 上运行 Testcontainers.SonnetDB(net10.0) 分析器。
+正在 5 上运行 SonnetDB.Accuracy.Tests 分析器。
+正在 5 上运行 SonnetDB.Benchmarks.Tests.ProcessProbe 分析器。
+正在 5 上运行 SonnetDB.Benchmarks.Tests 分析器。
+正在 5 上运行 SonnetDB.Benchmarks 分析器。
+正在 5 上运行 SonnetDB.Core.Tests 分析器。
+正在 5 上运行 SonnetDB.EcosystemSoak 分析器。
+正在 5 上运行 SonnetDB.EntityFrameworkCore.Tests 分析器。
+正在 5 上运行 SonnetDB.IoTSharpCompat.Tests 分析器。
+正在 5 上运行 SonnetDB.LanguageServer.Tests 分析器。
+正在 5 上运行 SonnetDB.Media.Tests 分析器。
+正在 5 上运行 SonnetDB.Studio.Tests 分析器。
+正在 5 上运行 SonnetDB.Tests 分析器。
+正在 5 上运行 SonnetDB.TriggerAdmission 分析器。
+在 36926 毫秒后完成。
+将在 36927 毫秒后完成分析。
+正在运行 分析器引用 分析。
+正在确定诊断…
+正在 159 上运行 SonnetDB.Native 分析器。
+正在 154 上运行 run-benchmarks 分析器。
+正在 154 上运行 start-benchmark-env 分析器。
+正在 154 上运行 connectors-release 分析器。
+正在 159 上运行 SonnetDB.CdcStreamingJourney 分析器。
+正在 154 上运行 SonnetDB.DocumentQuickstart 分析器。
+正在 169 上运行 SonnetDB.EcosystemSample 分析器。
+正在 159 上运行 SonnetDB.IndustrialDiagnostics 分析器。
+正在 159 上运行 SonnetDB.KvQuickstart 分析器。
+正在 159 上运行 SonnetDB.MediaSegments 分析器。
+正在 159 上运行 SonnetDB.SemanticImages 分析器。
+正在 159 上运行 SonnetDB.Cli 分析器。
+正在 165 上运行 SonnetDB.Core 分析器。
+正在 154 上运行 SonnetDB.Data 分析器。
+正在 178 上运行 SonnetDB.EntityFrameworkCore 分析器。
+正在 159 上运行 SonnetDB.LanguageServer 分析器。
+正在 170 上运行 SonnetDB.Studio 分析器。
+正在 180 上运行 SonnetDB 分析器。
+正在 154 上运行 Testcontainers.SonnetDB(net8.0) 分析器。
+正在 154 上运行 Testcontainers.SonnetDB(net9.0) 分析器。
+正在 154 上运行 Testcontainers.SonnetDB(net10.0) 分析器。
+正在 229 上运行 SonnetDB.Accuracy.Tests 分析器。
+正在 154 上运行 SonnetDB.Benchmarks.Tests.ProcessProbe 分析器。
+正在 251 上运行 SonnetDB.Benchmarks.Tests 分析器。
+正在 195 上运行 SonnetDB.Benchmarks 分析器。
+正在 210 上运行 SonnetDB.Core.Tests 分析器。
+正在 169 上运行 SonnetDB.EcosystemSoak 分析器。
+正在 246 上运行 SonnetDB.EntityFrameworkCore.Tests 分析器。
+正在 213 上运行 SonnetDB.IoTSharpCompat.Tests 分析器。
+正在 210 上运行 SonnetDB.LanguageServer.Tests 分析器。
+正在 210 上运行 SonnetDB.Media.Tests 分析器。
+正在 226 上运行 SonnetDB.Studio.Tests 分析器。
+正在 229 上运行 SonnetDB.Tests 分析器。
+正在 159 上运行 SonnetDB.TriggerAdmission 分析器。
+在 58920 毫秒后完成。
+将在 58920 毫秒后完成分析。
+在 102165 毫秒后完成。
+已将 0 个文件格式化(共 2149 个)。
+将在 118252 毫秒后完成格式化。

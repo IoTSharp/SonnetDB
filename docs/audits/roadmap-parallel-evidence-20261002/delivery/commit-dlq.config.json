@@ -1,0 +1,11 @@
+{
+  "TaskRoot": "C:\\Temp\\sdb-delivery-9bdceac1",
+  "Name": "commit-dlq",
+  "Executable": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "Arguments": [
+    "commit",
+    "-m",
+    "feat(streaming): 实现持久 DLQ 重放与条件删除"
+  ],
+  "TimeoutSeconds": 90
+}

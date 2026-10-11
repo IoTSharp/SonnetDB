@@ -21,7 +21,8 @@ const iconNames = ['ChartNoAxesColumnIncreasing', 'ClipboardCheck', 'Download', 
 const uiNames = ['NAlert', 'NButton', 'NCheckbox', 'NDataTable', 'NInput', 'NInputNumber',
   'NRadioButton', 'NRadioGroup', 'NSelect', 'NTag'];
 const synthetic = (exports) => new SyntheticModule(Object.keys(exports), function () {
-  for (const [name, value] of Object.entries(exports)) this.setExport(name, value);
+  const entries = Object.entries(exports); const deadline = Date.now() + 1000;
+  for (let index = 0; index < entries.length && index < 1000 && Date.now() < deadline; index += 1) this.setExport(...entries[index]);
 });
 
 async function fixture() {
@@ -44,6 +45,7 @@ async function fixture() {
     ['echarts/renderers', synthetic({ CanvasRenderer: {} })],
     ['lucide-vue-next', synthetic(Object.fromEntries(iconNames.map((name) => [name, {}])))],
     ['@/api/graphs', synthetic(graphApi)],
+    ['@/api/client', synthetic({ createApiClient: () => vue.markRaw({ defaults: { baseURL: 'http://first.invalid', headers: { common: {} } } }) })],
     ['@/components/WorkbenchSectionTabs.vue', synthetic({ default: {} })],
     ['@/components/WriteApprovalPanel.vue', synthetic({ default: {} })],
     ['@/stores/auth', synthetic({ useAuthStore: () => auth })],
@@ -66,6 +68,9 @@ async function fixture() {
 
 const visual = (id) => ({ snapshotSequence: id, vertices: [{ id, labels: [], properties: [] }], edges: [], truncated: false });
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); await vue.nextTick(); };
+const overviewData = (count, graph = 'graph_a') => ({ graph: { name: graph, storageId: 'fixture', recordFormatVersion: 1 },
+  snapshotSequence: count, vertexCount: count, edgeCount: 0, labels: [], indexes: [], degreeHistogram: [], slowTraversals: [],
+  capabilities: { boundedVisualization: true }, slowTraversalSource: 'fixture' });
 
 test('Graph approvals expire on target, connection, credentials and editor changes', { timeout: 5000 }, async () => {
   const f = await fixture();
@@ -108,15 +113,20 @@ test('Late graph A responses and failures cannot overwrite graph B data, loading
   const f = await fixture();
   try {
     const firstOverview = f.latest('fetchGraphOperationsOverview');
+    firstOverview.resolve(overviewData(1)); await settle();
     const firstVisual = f.latest('fetchGraphVisualization');
+    const staleRefresh = f.component.refreshAll();
+    const staleOverview = f.latest('fetchGraphOperationsOverview');
     f.props.graph = 'graph_b';
     await settle();
-    f.latest('fetchGraphOperationsOverview').resolve({ vertexCount: 22 });
+    f.latest('fetchGraphOperationsOverview').resolve(overviewData(22, 'graph_b'));
+    await settle();
     f.latest('fetchGraphVisualization').resolve(visual(22));
     await settle();
-    firstOverview.reject(new Error('obsolete graph failure'));
+    staleOverview.reject(new Error('obsolete graph failure'));
     firstVisual.resolve(visual(1));
     await settle();
+    await staleRefresh;
     assert.equal(f.component.overview.value.vertexCount, 22);
     assert.equal(f.component.visualization.value.vertices[0].id, 22);
     assert.equal(f.component.errorMsg.value, '');
@@ -129,11 +139,11 @@ test('A newer same-graph visualization owns the result while an older refresh st
   const f = await fixture();
   try {
     const firstOverview = f.latest('fetchGraphOperationsOverview');
+    firstOverview.resolve(overviewData(5)); await settle();
     const firstVisual = f.latest('fetchGraphVisualization');
     const newer = f.component.loadVisualization();
     f.latest('fetchGraphVisualization').resolve(visual(9));
     await newer;
-    firstOverview.resolve({ vertexCount: 5 });
     firstVisual.resolve(visual(5));
     await settle();
     assert.equal(f.component.overview.value.vertexCount, 5);
@@ -153,11 +163,12 @@ test('A completed old-target write retains its history identity without refreshi
     f.props.graph = 'graph_b';
     await settle();
     const beforeCompletion = f.calls.length;
-    write.resolve({ sequence: 8 });
+    write.resolve({ sequence: 8, isDuplicate: false });
     await running;
     assert.equal(f.calls.length, beforeCompletion);
     assert.equal(f.history[0].target, 'graph_a');
     assert.equal(f.history[0].database, 'alpha');
+    assert.equal(f.history[0].status, 'unknown');
     assert.equal(f.notices.length, 0);
     assert.equal(f.component.writeBusy.value, false);
   } finally { f.dispose(); }
@@ -166,20 +177,22 @@ test('A completed old-target write retains its history identity without refreshi
 test('Unmounting prevents late responses from repopulating graph state', { timeout: 5000 }, async () => {
   const f = await fixture();
   f.dispose();
-  f.latest('fetchGraphOperationsOverview').resolve({ vertexCount: 5 });
-  f.latest('fetchGraphVisualization').resolve(visual(5));
+  f.latest('fetchGraphOperationsOverview').resolve(overviewData(5));
   await settle();
   assert.equal(f.component.overview.value, null);
   assert.equal(f.component.visualization.value, null);
+  assert.equal(f.calls.filter((call) => call.name === 'fetchGraphVisualization').length, 0);
 });
 
 test('A refresh superseding a visualization clears the loading flag and retains only its response', { timeout: 5000 }, async () => {
   const f = await fixture();
   try {
+    f.latest('fetchGraphOperationsOverview').resolve(overviewData(1)); await settle();
     const oldLoad = f.component.loadVisualization();
     const oldVisual = f.latest('fetchGraphVisualization');
     const refresh = f.component.refreshAll();
-    f.latest('fetchGraphOperationsOverview').resolve({ vertexCount: 12 });
+    f.latest('fetchGraphOperationsOverview').resolve(overviewData(12));
+    await settle();
     f.latest('fetchGraphVisualization').resolve(visual(12));
     await refresh;
     assert.equal(f.component.visualizationBusy.value, false);

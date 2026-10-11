@@ -1,0 +1,35 @@
+{
+  "TaskRoot": "C:\\Temp\\sdb-delivery-9bdceac1",
+  "Gates": [
+    {
+      "CommitNumber": 1,
+      "RestoreExitCode": 0,
+      "FormatExitCode": 0,
+      "FormatSeconds": 134.0666183
+    },
+    {
+      "CommitNumber": 2,
+      "RestoreExitCode": 0,
+      "FormatExitCode": 0,
+      "FormatSeconds": 118.2717692
+    },
+    {
+      "CommitNumber": 3,
+      "RestoreExitCode": 0,
+      "FormatExitCode": 0,
+      "FormatSeconds": 114.0945269
+    },
+    {
+      "CommitNumber": 4,
+      "RestoreExitCode": 0,
+      "FormatExitCode": 0,
+      "FormatSeconds": 134.1901474
+    }
+  ],
+  "FinalSourceHashesMatched": 16,
+  "ProcessIdentityCount": 153,
+  "OwnedLiveBeforeAcceptanceCommit": 0,
+  "ExportedFiles": 51,
+  "ExportedUtc": "2026-10-02T14:15:42.8426513Z",
+  "ExcludedGitDiscoveryFailure": "Initial git path selection returned two executables and failed before starting any process. Corrected with the first Get-Command result; commit-ttl-final succeeded."
+}

@@ -601,7 +601,11 @@ public sealed class KvKeyspaceTests : IDisposable
     [Fact]
     public void CleanExpired_AndExpirationStats_ReportExpectedCounts()
     {
-        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = KvOptions.Default with { ExpirerEnabled = false, CleanupEnabled = false },
+        });
         var kv = db.Keyspaces.Open("cache");
         var now = DateTimeOffset.UtcNow;
 

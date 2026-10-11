@@ -1,0 +1,30 @@
+{
+  "name": "managed-journey",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll",
+    "--budgets"
+  ],
+  "timeoutSeconds": 60,
+  "maxPolls": 31,
+  "owner": {
+    "pid": 15456,
+    "created": "2026-10-03T04:16:33.6265360Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$PSVersionTable.PSVersion.ToString()\n& 'D:\\source\\SonnetDB\\docs\\audits\\roadmap-parallel-next-evidence-20261003\\run-owned.ps1' -Name managed-journey -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll','--budgets') -TimeoutSeconds 60\"",
+    "parent": 47744
+  },
+  "root": null,
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 4.4174386,
+  "samples": [],
+  "cleanup": [
+    {
+      "action": "short-command-already-exited",
+      "pid": 21140
+    }
+  ],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

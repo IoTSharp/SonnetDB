@@ -1,0 +1,35 @@
+{
+  "name": "managed-topology",
+  "runnerSha256": "47C411907A4D2BB2BD7DE90D492B9E666827B53DB5BE97DAA0758403DB0963CE",
+  "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+  "arguments": [
+    "samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll",
+    "--topology"
+  ],
+  "timeoutSeconds": 120,
+  "maxPolls": 61,
+  "owner": {
+    "pid": 59944,
+    "created": "2026-10-03T05:09:32.9848260Z",
+    "command": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'docs/audits/roadmap-continuation-evidence-20261003/run-owned.ps1' -Name managed-topology -Executable 'C:\\Program Files\\dotnet\\dotnet.exe' -Arguments @('samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll','--topology') -TimeoutSeconds 120\"",
+    "parent": 47744
+  },
+  "root": {
+    "pid": 16196,
+    "created": "2026-10-03T05:09:34.3259530Z",
+    "command": "\"C:\\Program Files\\dotnet\\dotnet.exe\" samples/SonnetDB.CdcStreamingJourney/bin/Release/net10.0/SonnetDB.CdcStreamingJourney.dll --topology",
+    "parent": 59944
+  },
+  "reason": "exited",
+  "exitCode": 0,
+  "elapsedSeconds": 3.4579871,
+  "samples": [
+    {
+      "elapsedSeconds": 1.8746429,
+      "chains": []
+    }
+  ],
+  "cleanup": [],
+  "finalSnapshotAvailable": true,
+  "remaining": []
+}

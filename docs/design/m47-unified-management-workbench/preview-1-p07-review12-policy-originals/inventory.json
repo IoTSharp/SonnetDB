@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "toolingCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+  "p07RunId": "38151053382",
+  "files": [
+    {
+      "file": "review.json",
+      "storageFile": "review.json.gz",
+      "encoding": "gzip",
+      "size": 5620,
+      "sha256": "3907db3456d1426685755a569ec29750e75c90cb4a9527d2749a228d7d8e7e4f"
+    },
+    {
+      "file": "readiness.json",
+      "storageFile": "readiness.json.gz",
+      "encoding": "gzip",
+      "size": 3344,
+      "sha256": "fd3bac2649a9d47bce4f2b73bbb70bf519d1f35b99f82170e7b2f75b8f3882b4"
+    },
+    {
+      "file": "p07-run.json",
+      "storageFile": "p07-run.json.gz",
+      "encoding": "gzip",
+      "size": 12137,
+      "sha256": "b9f7f1018203a5cfe2aa3b17786afc4088241165c0dbd3d348fc8c64b6bde61d"
+    },
+    {
+      "file": "p07-jobs.json",
+      "storageFile": "p07-jobs.json.gz",
+      "encoding": "gzip",
+      "size": 2884,
+      "sha256": "3dffab8db84ed9fa5dc45b4bde826ac77b819ac09ae841fd63af6fc210397d0f"
+    },
+    {
+      "file": "p07-artifacts.json",
+      "storageFile": "p07-artifacts.json.gz",
+      "encoding": "gzip",
+      "size": 741,
+      "sha256": "a6176bdd3c447ffb232af2e0159151253f0df8f524d2409e796033ec4c82599e"
+    },
+    {
+      "file": "p07-download.json",
+      "storageFile": "p07-download.json.gz",
+      "encoding": "gzip",
+      "size": 584,
+      "sha256": "0f3b0a9ce59ee0795e4ddba56cedfe41c0603cbf0aad8c1b655be882601c6b6a"
+    },
+    {
+      "file": "prepare-download.json",
+      "storageFile": "prepare-download.json.gz",
+      "encoding": "gzip",
+      "size": 943,
+      "sha256": "9fa026c5c3cee1f331ed7322d9e98c083dfde1329cbe85f5ccb2efbe2629c74b"
+    },
+    {
+      "file": "prepare-controller.json",
+      "storageFile": "prepare-controller.json.gz",
+      "encoding": "gzip",
+      "size": 572,
+      "sha256": "c583dd7c7007e4c7d532739ca37922f61e215e977ec680e9375f93c135315212"
+    },
+    {
+      "file": "prepare-owned.json",
+      "storageFile": "prepare-owned.json.gz",
+      "encoding": "gzip",
+      "size": 994,
+      "sha256": "bd9e8a1b9cbabc9e2167786180575e25098643b8c3083d4f207ad54b33edae0e"
+    },
+    {
+      "file": "verification.json",
+      "storageFile": "verification.json.gz",
+      "encoding": "gzip",
+      "size": 2084,
+      "sha256": "7f0029e842293d6bbbec788eea99d88e44e4a16806117d17efa8e866ee8e95ad"
+    },
+    {
+      "file": "environment-before.json",
+      "storageFile": "environment-before.json.gz",
+      "encoding": "gzip",
+      "size": 1533,
+      "sha256": "510073711df8c51a52dfaf3dd4173bc454f3e812dfea72e461d4672a26fbc1b6"
+    },
+    {
+      "file": "environment-request.json",
+      "storageFile": "environment-request.json.gz",
+      "encoding": "gzip",
+      "size": 552,
+      "sha256": "46b3ac8fb63f4de2bf18aa7b6b90c21edad6ef0115c1c3deeb5410ce6c265866"
+    },
+    {
+      "file": "environment-response.json",
+      "storageFile": "environment-response.json.gz",
+      "encoding": "gzip",
+      "size": 1534,
+      "sha256": "87a7f8764672560dde9214b4d2bf16f17ffa52a3dc21f43287d5bb4b3f1d61e9"
+    },
+    {
+      "file": "environment-after.json",
+      "storageFile": "environment-after.json.gz",
+      "encoding": "gzip",
+      "size": 1534,
+      "sha256": "87a7f8764672560dde9214b4d2bf16f17ffa52a3dc21f43287d5bb4b3f1d61e9"
+    },
+    {
+      "file": "environment-result.json",
+      "storageFile": "environment-result.json.gz",
+      "encoding": "gzip",
+      "size": 264,
+      "sha256": "a25d967b5adb9e534718079e671525fbccea4f4ff85f8eb482350185464f7024"
+    }
+  ]
+}

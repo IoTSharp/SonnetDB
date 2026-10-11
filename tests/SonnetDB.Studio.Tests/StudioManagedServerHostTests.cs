@@ -25,6 +25,9 @@ public sealed class StudioManagedServerHostTests
 
         Assert.True(opened.Healthy, opened.Error);
         Assert.True(opened.StartedByStudio);
+        Assert.Equal("studio", opened.ProcessOwner);
+        Assert.Equal("running", opened.LifecycleState);
+        Assert.True(opened.CanStop);
         Assert.Equal("inspection", opened.MountedDatabaseName);
         Assert.Equal(Path.GetFullPath(databasePath), opened.MountedDatabasePath);
 
@@ -45,6 +48,9 @@ public sealed class StudioManagedServerHostTests
 
         var stopped = await host.StopAsync(controlRoot, url, CancellationToken.None);
         Assert.False(stopped.StartedByStudio);
+        Assert.Equal("none", stopped.ProcessOwner);
+        Assert.Equal("stopped", stopped.LifecycleState);
+        Assert.False(stopped.CanStop);
         Directory.Delete(root, recursive: true);
     }
 
@@ -110,12 +116,18 @@ public sealed class StudioManagedServerHostTests
         Assert.False(started.StartedByStudio);
         Assert.True(started.Healthy);
         Assert.Null(started.Error);
+        Assert.Equal("external", started.ProcessOwner);
+        Assert.Equal("external-running", started.LifecycleState);
+        Assert.False(started.CanStop);
 
         var stopped = await host.StopAsync(dataRoot, externalServer.Url, CancellationToken.None);
 
         Assert.True(stopped.IsRunning);
         Assert.False(stopped.StartedByStudio);
         Assert.True(stopped.Healthy);
+        Assert.Equal("external", stopped.ProcessOwner);
+        Assert.Equal("external-running", stopped.LifecycleState);
+        Assert.False(stopped.CanStop);
 
         using var client = new HttpClient();
         using var response = await client.GetAsync(externalServer.Url + "/healthz");

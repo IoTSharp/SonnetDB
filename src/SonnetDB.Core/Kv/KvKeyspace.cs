@@ -91,6 +91,7 @@ public sealed partial class KvKeyspace : IDisposable
     private readonly KvOptions _options;
     private readonly KvDiskReadBudget _diskReadBudget;
     private readonly bool _ownsDiskReadBudget;
+    private IDisposable? _diskReadBudgetKeyspaceLease;
     private KvOrderedOverlay _values;
     private Dictionary<byte[], KvValueEntry>? _frozenValues;
     private SnapshotOverlayCache? _snapshotOverlayCache;
@@ -134,6 +135,7 @@ public sealed partial class KvKeyspace : IDisposable
         _generation = generation;
         _wal = wal;
         _lifecycleLease = lifecycleLease;
+        _diskReadBudgetKeyspaceLease = diskReadBudget.AcquireKeyspaceReference();
     }
 
     /// <summary>Keyspace 名称。</summary>
@@ -414,7 +416,10 @@ public sealed partial class KvKeyspace : IDisposable
         try
         {
             ownedDiskReadBudget = diskReadBudget is null
-                ? new KvDiskReadBudget(options.MaxConcurrentStateReads)
+                ? new KvDiskReadBudget(
+                    options.MaxConcurrentStateReads,
+                    options.MaxQueuedStateReads,
+                    TimeSpan.FromMilliseconds(options.StateReadWaitTimeoutMilliseconds))
                 : null;
             return OpenWithLifecycleLease(
                 name,
@@ -466,6 +471,7 @@ public sealed partial class KvKeyspace : IDisposable
         IReadOnlyList<string> replaySealedWalPaths = sealedWalPaths;
         bool upgradedLegacyWalWithRecords = false;
         KvWalFile? wal = null;
+        KvKeyspace? keyspace = null;
 
         try
         {
@@ -581,7 +587,7 @@ public sealed partial class KvKeyspace : IDisposable
             else if (legacyResetWal && generationMetadata.Version < 2)
                 KvGenerationFile.Save(rootDirectory, state.Generation, legacyResetStartSequence);
 
-            var keyspace = new KvKeyspace(
+            keyspace = new KvKeyspace(
                 name,
                 rootDirectory,
                 options,
@@ -600,8 +606,22 @@ public sealed partial class KvKeyspace : IDisposable
         }
         catch
         {
-            wal?.Dispose();
-            state.DiskState?.Dispose();
+            try
+            {
+                wal?.Dispose();
+            }
+            finally
+            {
+                try
+                {
+                    state.DiskState?.Dispose();
+                }
+                finally
+                {
+                    // 构造完成后目录初始化仍可能失败，不能遗留共享预算的 keyspace 引用。
+                    keyspace?._diskReadBudgetKeyspaceLease?.Dispose();
+                }
+            }
             throw;
         }
     }
@@ -2359,7 +2379,7 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
-    /// <summary>关系表在线维护先限制覆盖层总量，再逐键可取消地启用有序访问；超限交给正常检查点消化。</summary>
+    /// <summary>关系表在线维护先限制覆盖层总量，再逐键可取消地启用有序访问；超限时按需启动一次自动检查点。</summary>
     internal bool TryEnableOrderedOverlayScans(int maximumEntries, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEntries);
@@ -2374,7 +2394,13 @@ public sealed partial class KvKeyspace : IDisposable
                     : _options.MaxSnapshotOverlayEntries);
             long totalEntries = (long)_values.Count + (_frozenValues?.Count ?? 0);
             if (totalEntries > configuredLimit)
+            {
+                // 在线门槛可能低于日常写预算；只为尚无检查点的覆盖层发起一次调度。
+                // 已排队、冻结及失败重试由现有 worker 和退避处理，避免重复强制重排。
+                if (!_autoCheckpointQueued && _checkpointState is null && _frozenValues is null)
+                    ScheduleAutoCheckpointLocked(force: true);
                 return false;
+            }
             _values.EnableOrderedScans(cancellationToken);
             if (_frozenValues is KvOrderedOverlay frozen)
                 frozen.EnableOrderedScans(cancellationToken);
@@ -2450,7 +2476,8 @@ public sealed partial class KvKeyspace : IDisposable
 
                 page.Add(new KvEntry(
                     pair.Key.ToArray(),
-                    pair.Value.Value.ToArray(),
+                    // 已发布覆盖层值不可变；磁盘读取值为本次独占数组，稳定只读回调无需再次复制。
+                    pair.Value.Value,
                     pair.Value.Version,
                     pair.Value.ExpiresAtUtc));
                 if (page.Count < pageSize)
@@ -2741,6 +2768,7 @@ public sealed partial class KvKeyspace : IDisposable
         KvDiskState? checkpointDisk;
         KvDiskState? currentDisk;
         FileStream? lifecycleLease;
+        IDisposable? diskReadBudgetKeyspaceLease;
         lock (_sync)
         {
             if (!_disposed || _checkpointState?.IsRunning == true)
@@ -2752,6 +2780,8 @@ public sealed partial class KvKeyspace : IDisposable
             _diskState = null;
             lifecycleLease = _lifecycleLease;
             _lifecycleLease = null;
+            diskReadBudgetKeyspaceLease = _diskReadBudgetKeyspaceLease;
+            _diskReadBudgetKeyspaceLease = null;
         }
 
         Exception? failure = null;
@@ -2783,6 +2813,19 @@ public sealed partial class KvKeyspace : IDisposable
         {
             // state 句柄全部释放后才能交出目录，避免新实例与旧 checkpoint 的文件回滚重叠。
             lifecycleLease?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        try
+        {
+            // 延迟 checkpoint 已结束且目录租约已交回，才允许共享预算关闭。
+            diskReadBudgetKeyspaceLease?.Dispose();
         }
         catch (Exception) when (failure is not null)
         {
@@ -3082,7 +3125,6 @@ public sealed partial class KvKeyspace : IDisposable
             : SnapshotPath(RootDirectory, checkpoint.Sequence);
         KvDiskState? openedState = null;
         KvDiskState? oldDiskState = null;
-        bool stateSaved = false;
         bool published = false;
         try
         {
@@ -3095,7 +3137,8 @@ public sealed partial class KvKeyspace : IDisposable
                 checkpoint.DiskState,
                 prefix: [],
                 afterKey: null,
-                readDiskValues: true);
+                readDiskValues: true,
+                maintenanceRead: true);
             if (checkpoint.IsSegment)
             {
                 KvStateFile.SaveSegment(
@@ -3114,7 +3157,6 @@ public sealed partial class KvKeyspace : IDisposable
                     count,
                     checkpoint.Generation);
             }
-            stateSaved = true;
             CheckpointTestHook?.Invoke(KvCheckpointPhase.BeforeStateDirectoryFsync);
             SonnetDB.Wal.DirectoryFsync.FlushRequired(
                 Path.GetDirectoryName(statePath) ?? string.Empty);
@@ -3198,7 +3240,9 @@ public sealed partial class KvKeyspace : IDisposable
             {
                 if (invalidated && checkpointOwnsOldDisk)
                     checkpoint.DiskState?.Dispose();
-                if (stateSaved)
+                // 保存枚举中途超时或取消时，也可能已写出部分文件；
+                // 未发布的 checkpoint 文件必须删除，避免恢复时误选为最新快照。
+                if (File.Exists(statePath))
                 {
                     File.Delete(statePath);
                     SonnetDB.Wal.DirectoryFsync.FlushBestEffort(
@@ -4162,7 +4206,8 @@ public sealed partial class KvKeyspace : IDisposable
         byte[]? startInclusive = null,
         byte[]? endExclusive = null,
         CancellationToken cancellationToken = default,
-        Action? candidateVisited = null)
+        Action? candidateVisited = null,
+        bool maintenanceRead = false)
     {
         if (secondary is null)
         {
@@ -4175,7 +4220,8 @@ public sealed partial class KvKeyspace : IDisposable
                 startInclusive,
                 endExclusive,
                 cancellationToken,
-                candidateVisited))
+                candidateVisited,
+                maintenanceRead))
             {
                 yield return pair;
             }
@@ -4191,7 +4237,8 @@ public sealed partial class KvKeyspace : IDisposable
             startInclusive,
             endExclusive,
             cancellationToken,
-            candidateVisited);
+            candidateVisited,
+            maintenanceRead);
         foreach (var pair in MergeOverlayAndLowerLayer(
             primary,
             lowerLayer,
@@ -4268,7 +4315,8 @@ public sealed partial class KvKeyspace : IDisposable
         byte[]? startInclusive,
         byte[]? endExclusive,
         CancellationToken cancellationToken,
-        Action? candidateVisited)
+        Action? candidateVisited,
+        bool maintenanceRead)
     {
         using var memory = EnumerateOrderedOverlay(overlay, prefix, startInclusive, endExclusive, afterKey, cancellationToken, candidateVisited).GetEnumerator();
         using var disk = ReadDiskCandidates().GetEnumerator();
@@ -4303,7 +4351,7 @@ public sealed partial class KvKeyspace : IDisposable
                 {
                     yield return new KeyValuePair<byte[], KvValueEntry>(
                         diskEntry.Key,
-                        readDiskValues ? diskState!.Read(diskEntry, cancellationToken) : diskEntry.ToValueEntry());
+                        readDiskValues ? diskState!.Read(diskEntry, cancellationToken, maintenanceRead) : diskEntry.ToValueEntry());
                 }
                 hasDisk = disk.MoveNext();
                 continue;
@@ -4330,7 +4378,7 @@ public sealed partial class KvKeyspace : IDisposable
             {
                 yield return new KeyValuePair<byte[], KvValueEntry>(
                     currentDisk.Key,
-                    readDiskValues ? diskState!.Read(currentDisk, cancellationToken) : currentDisk.ToValueEntry());
+                    readDiskValues ? diskState!.Read(currentDisk, cancellationToken, maintenanceRead) : currentDisk.ToValueEntry());
             }
             hasDisk = disk.MoveNext();
         }
