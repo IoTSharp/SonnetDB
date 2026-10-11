@@ -55,7 +55,13 @@ SELECT CAST('42' AS INT), CAST(1 AS STRING), CAST(1704067200000 AS DATETIME);
 SELECT CAST('9007199254740993.125' AS DECIMAL(20,3));
 SELECT CAST('12:34:56.1234567' AS TIME);
 SELECT CAST(text_value AS INT) FROM values_table WHERE CAST(text_value AS INT) > 0;
+SELECT CAST(AVG(value) AS FLOAT), CAST(SUM(value) AS INT) FROM values_table;
+SELECT tenant, CAST(SUM(amount) AS DECIMAL) FROM ledger GROUP BY tenant HAVING CAST(SUM(amount) AS DECIMAL) > 0;
 ```
+
+关系查询允许 `CAST` 包装 `SUM`、`AVG`、`MIN`、`MAX`、`COUNT` 的聚合投影和 HAVING 表达式，并与已有 `COALESCE`、算术、CASE 和标量函数组合。先按每组求聚合结果，再进行外层转换；NULL 与空集规则不变，声明列类型使用 CAST 目标，COUNT 结果仍非空。Decimal 聚合的内联结果不先转换为 Float64；目标为 Decimal 的 CAST 及 Decimal 算术保留精度，显式 FLOAT 转换和已有标量函数继续遵守各自的类型合同。外层 CAST 不改变原聚合的输入或溢出规则：`CAST(SUM(value) AS DECIMAL)` 不能补救 `SUM(INT)` 的 Int64 溢出，需改为 `CAST(SUM(CAST(value AS DECIMAL)) AS DECIMAL)`；Decimal 聚合自身及转换到 INT 的溢出都返回执行错误。此范围不扩展 measurement 聚合方言；正式包与 Chloe Provider 验收另行完成。
+
+REST 结果按已声明的 Float64 元数据读取为 `double`，即使 JSON 数值没有小数部分，`GetValue`、`GetFieldValue<double>` 与 `GetDouble` 也保持该类型；NULL 不变，缺少类型声明时继续使用原有推断。
 
 `NULL` 转换到任一已支持目标类型仍为 `NULL`。`DECIMAL` / `NUMERIC` 转换保持十进制值，不经过 `Float64`；括号中的 precision/scale 仅用于校验目标声明，未声明时使用 `(38,28)`。`TIME` 只接受不带日期/时区的 `HH:mm[:ss[.fffffff]]` 文本、`TimeOnly` 或小于 24 小时的 `TimeSpan`，以 ticks 精度保存；`24:00:00`、负值、跨日值以及 `DATETIME`/`DateTimeOffset` 到 `TIME` 的隐式取时钟转换均拒绝。整数转换使用不变量格式并截断有限浮点的小数部分；布尔转换接受 `TRUE`/`FALSE` 或数值 `0`/`1`；`DATETIME` 输入可以是 UTC/ISO-8601 文本或 Unix 毫秒，结果统一为 UTC；`BLOB` 的字符串输入按 UTF-8 编码，`JSON` 当前保留字符串文本。格式错误、溢出、非有限浮点和非法布尔值会返回执行错误。`VECTOR` 与 `GEOPOINT` 作为 CAST 目标暂不支持，不会隐式构造对应模型值。
 

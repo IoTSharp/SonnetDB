@@ -1943,3 +1943,16 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 最终完整类定向TRX、完整restore/原CI Format Check、精确三路径提交及普通推送以 artifacts/online-closure-20261012/outbox-budget-* 收据为准；此处尚未取得测试或新CI通过。#277现有head的远端状态独立核验，若已实际合并则另建该增量PR；否则在完成门禁后正常追加到原测试稳定性PR。正式包、nightly/parity和生产验收不由本机测试推断；canonical foreign、parity-results、冻结tag和PAUSED自动化保持。
 
 本轮实际完整 SqlOutboxWorkerTests TRX：16executed/16passed/0failed；生产/测试DLL、源码与原TRX绑定冻结。该本机完整类通过不替代新head的Windows/Linux全量CI；接下来最终树完整restore/原format通过后才提交。
+
+
+## GH-Issue #254 关系聚合 CAST（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-engine 独立工作树的 codex/issue254-aggregate-cast 分支，基线 648239608c957474379ef330e8f71b7748ccbad6，处理已有 SUM/AVG/MIN/MAX/COUNT 结果上的 CAST、HAVING 和既有标量组合。InlineAggregates 递归处理 CAST 的 operand，聚合保持每组求值；Decimal 结果复用 CAST(不变量字符串 AS DECIMAL)，避免内联先降为 Double。真实 REST 验证暴露声明 Float64 的整值 JSON 被 GetValue 读取成 Int64，主会话明确批准第七路径 RemoteExecutionResult.cs，仅按已有 Double 元数据读取为 double。没有新 AST 类型、DTO、JSON serializer、依赖、文件格式或 AOT 边界，不扩 measurement 方言、不带入 #223、不改存储。
+
+原 Core v1 编译失败 CS1503/CS8604，未执行测试、无 TRX；只修新测试 helper 的 bool? 元数据和非空 ColumnInfo 检查，原失败日志保留。Core v2 实际 55/55，最终 Core v3 使用 transport v2 的同 Core/Data DLL 并记录原/新 SHA，--no-build 实际 55/55，其中 #254 新用例 10/10：NULL/空集/COUNT 元数据、GROUP BY/HAVING/BOOL/IS NULL、CASE/COALESCE/标量每组一次、超过 2^53 的 Decimal 精度、Decimal.MaxValue、聚合及外层转换溢出、输入转换和 embedded ADO 合同。
+
+原真实 transport v1 16/17 FAIL，REST Double 类型失配原断言/TRX 保留；声明 Double 修正后的 transport v2 23/25 FAIL，#254 REST 与 Frame HTTP/2 两项均 PASS，两个既有 embedded schema 夹具在 CREATE TABLE 的 WAL 目录持久化发布前失败。主会话另行明确批准最终第三个 transport 窗口，原最多三次构建/两次 transport 预算与第四次最终构建批准分开保留；transport v3 对同四个实际 DLL 核 SHA、冻结源码/参数/归属后以 --no-build 使用专属短 TEMP，实际 25/25、0 failed/skip，其中两项 #254 与前述两项 embedded 用例均 PASS。原 23/25 仍为 FAIL；短 TEMP 复核不证明路径长度已是根因，存储代码未修改，没有第五次构建或再次重跑。
+
+所有原失败、非空 TRX、stdout/stderr、每个 Job 的 PID/启动时间/父链/命令行、实际 DLL hash/version、两个根授权增补及同 DLL 交接保留在 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\aggregate-cast-254。最后七收据精确 UTC 身份审计 PASS，48 kernel 身份/7 controllers、0 live/unknown。仅本阶段已核 marker、绝对路径、无 reparse 和无存活进程的长/短专属 TEMP 有界回收；旧 trigonometry policy 拒绝对象与其他阶段文件未触及。HANDOFF 原字节前缀保持，新增段 UTF-8 无 BOM/LF。
+
+实现仅七路径、index 空，执行者未暂存/提交/推送/变更分支或 GitHub。主会话下一步独立核 aggregate-cast-final-tree.json 的最终七路径与实际测试/进程/回收证据，在最终树执行完整 solution restore 和原 CI Format Check，通过后精确暂存提交并处理远端交付。此处未预写上述完整门禁、提交/PR 或全量 CI 通过；正式 NuGet 发包与 Chloe Provider 真实验收仍 NOT_RUN，不能由本地和真实 REST/h2c 定向测试推定完成。
