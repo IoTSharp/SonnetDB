@@ -30,6 +30,9 @@ jobs:
     outputs:
       source: ${{ steps.identity.outputs.source }}
     steps:
+      - name: Preserve immutable repository bytes on Windows
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
@@ -96,6 +99,9 @@ jobs:
       contents: write
       actions: read
     steps:
+      - name: Preserve immutable repository bytes on Windows
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}

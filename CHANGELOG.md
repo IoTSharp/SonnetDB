@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- M47-P07：新增同候选原门禁/安装收据与许可评审收集入口，精确冻结原证据和工具SHA；修正Windows分发checkout换行漂移。初审4/12工作流、许可NOT_READY，P08仍须独立授权。
 - **M47-P06预览说明与独立分发（2026-10-11）**：候选10包外说明、限制/回退/反馈及四附件hash补记；新增默认只读prepare的手动入口、同source/run/attempt/库存核验、P07原完整verifier及P08人工环境授权、显式四附件上传和未知效果只读对账。35项本地合成合同、实际279ZIP库存及身份校验通过，原候选/三资产不变；[P06报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)分列证据。P07/P08未验，NOT_READY，未tag/公开Release。
 - **M47-P05候选10实物验收（2026-10-11）**：来源54eefc81 / 4.5.0-preview.1.10，干净CI38104431383、279项库存/hash及NativeAOT版本独立通过；实际Chrome/Edge密码登录、R1查询/1000行导出/单行审批、撤权/unknown/错配拒绝、正常Ctrl+C重开与61文件同候选快照回退通过。验收工具等待真实写响应后独立回读，原过早回读FAIL保留；[报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)及[不可变候选10](docs/design/m47-unified-management-workbench/preview-1-candidate-10.json)分列实物/夹具/故障注入与清理边界。P06～P08待验，NOT_READY；未公开发布。
 - **M47-P05实物错配修复（2026-10-11）**：候选09原包首次设置已实测；发现包内candidate编号滞后及缺运行时Server/Web身份核验，保留原包/失败收据，补candidate/version检查、source-generated身份端点、编译Web挂载前核验和Preview请求版本/SHA约束。继任候选10须新SHA干净CI重包；[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)分列实际包、工具错误与待验门禁，NOT_READY。

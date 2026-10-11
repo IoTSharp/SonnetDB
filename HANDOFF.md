@@ -1741,3 +1741,17 @@ suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保
 首个本地提交4d8d7f71尚未推送，私有暂存脚本统一LF误改变HEAD里40行旧交接CRLF，且把工作区五列P06行放入HEAD四列表头。旧stage/commit原收据保留，另记有效FAIL_OUTSIDE_LINE_ENDINGS；本纠正恢复父基线d4e4b7fd的HANDOFF完整原字节前缀，仅追加本片两段，ROADMAP提交保持HEAD四列、工作区他人五列变更保留。没有撤销或改写已存在提交，正常追加纠正提交后再推送；原包和分发四附件不变。
 
 共享工作区CSDN两文件和其交接尾追加在本片期间出现外来变化，已实际保留，不回滚/纳入暂存；其余123个有hash的非自有文件在local-validation核对未变。旧Python/工具/保护边界失败保留。纠正后的完整restore/原CI format、基于原HEAD的最终净变更whitespace、纠正commit与正常push/独立远端及非空身份审计，以artifacts/m47-p06-20261011/delivery.json和相应独立收据为准；本轮仍1/5、NOT_READY、P07/P08待验、PAUSED。
+
+## M47-P07同候选门禁与原证据实现中（2026-10-11，Asia/Shanghai）
+
+本轮明确授权仅P07，owned提交和正常push；P08另需授权。接续eb244cfd/main、空index、105外来dirty完整快照，自动化PAUSED；无工作树/子智能体/跨聊天发送。固定PowerShell7、Job归属/有界命令与取消/墙钟/finally清理继续，禁Graphify/广域工具扫描/未经授权安装/按名或历史PID终止。
+
+原candidate10/source54eefc816f133a805b0d38f0cbe930d2c17650b6/build38104431383 attempt1/ZIP46634305bytes SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed及candidate/manifest/checksum/审计逐字保持。真实原verifier初审4/12工作流通过，8项缺同来源运行，NOT_READY；原nightly JSON解析失败仅非阻断UNAVAILABLE。原policy/verifier未改、light/full未削减。
+
+已单次真实prepare38114436815 attempt1失败Frozen record drift、0API/mutation=false；原artifact11692363372/digest9c132d2e8ec42430ef4bba61138b0835ef8fdc32d16be78fd4106085d425d7a6和日志保留。本地字节=Git blob，工具workflow在checkout前禁autocrlf；待提交后真实新run验证，不改原包或把旧FAIL写PASS。新增只读P07收集workflow/Job工具，保存原12workflow/五Workbenchjob/steps/artifacts，复制P05真实原文并逐hash、源码、记录名验证，归一验收与原文分开；成功collection也可能NOT_READY，不等于READY。
+
+243依赖/16原缺口逐项审查，5构建工具本包不分发，7运行时npm原通知与4Microsoft资格/终端保护条款仍NOT_READY。按原integrity/精确版本/固定gitHead核上游原文；css-render/BEM的07akioni通知在原包缺失，naive-ui版权不能替代。Microsoft实际Hosted Enterprise2026/VC++V14原DOCX及SHA保存；不能以本机Community或MIT替代，待redistributable-list/保护条款。修复包内通知必须新候选/版本及受影响验收，本轮不重建10。
+
+本轮原证据/失败/代理直连、许可源、baseline和checks在artifacts/m47-p07-20261011；make-originals初次import路径失败在任何mutations前，原脚本/FAIL保留，修正新收据成功。提交前需最终树完整restore/原CI format/whitespace及owned-only index，待真实结果再补；正常push后继续实际prepare与P07 artifact，然后以真实结果冻结P07机器记录。产品NOT_READY，P08未跑，无tag/公开Release/匿名首跑/生产/自动化恢复。根HANDOFF只独占尾部追加/flush核旧前缀，stage用HEAD原字节+owned段，保持foreign追加/五列ROADMAP与HEAD四列。
+
+M47-P07暂存纠正：第一次owned stage默认whitespace检查发现原CRLF收据/新增CRLF段，实际FAIL/双流保留且没有commit。已核index仅38owned后精确撤回，20份已核SHA原JSON副本无损gzip入仓；远端解码核原size/SHA后上传原JSON，原P05文件不动。HEAD交接旧字节不动，仅owned新段暂存LF。原first gate PASS仍保留，源码存储工具修正后43合同重新PASS；最终树须重新完整restore/原CI format/default staged whitespace。辅助只读inline probe语法错误没有mutations，修正probe核20原文hash通过。
