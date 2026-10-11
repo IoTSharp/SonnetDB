@@ -1883,3 +1883,19 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
+
+## GH-Issue #273 Idempotent 迁移脚本明确拒绝候选（2026-10-12，Asia/Shanghai）
+
+在线闭环主智能体授权在 online-delivery 独立工作树、codex/issue273-idempotent-script 分支、原 main 基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03 实施。SonnetDbHistoryRepository 的三个历史条件脚本入口明确抛出 NotSupportedException，说明尚未实现迁移历史条件保护，并给出 Database.Migrate()/MigrateAsync() 或普通脚本替代；EF Core 在返回脚本前拒绝 Idempotent 及其 NoTransactions 组合，不再产生没有历史保护的伪幂等脚本。没有新增 SQL 语法、Migrator、依赖或 JSON 边界，普通历史表顺序迁移保持。
+
+新增真实 IMigrator.GenerateScript 回归覆盖两种 Idempotent 组合的正向、逆向、from==to 与无迁移八 case，并覆盖 Default/NoTransactions 两种普通脚本；另计划独立运行既有顺序 MigrateAsync 与自定义历史表两测试。当前源码实现与 git diff --check 的真实结果见本轮静态收据；build/test/完整 restore/CI 原 Format Check/AOT 均 NOT_RUN，尚未取得构建槽。当前只是候选，不代表正式 NuGet 修复或真实升级验收，GH-Issue #273 整体继续开放。
+
+本轮限 HistoryRepository、ProviderTests、CHANGELOG、HANDOFF 四路径，未操作索引、提交、分支或远端；完整提交前门禁与最终集成由主智能体审复。历史交接按原字节只追加并核旧前缀，证据在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery/issue-273-*；保留所有原 FAIL/UNKNOWN，固定 PowerShell7、单 dotnet/2CPU、Windows Job 数量和墙钟上限、取消与精确 PID/创建时间/命令/父链身份、仅本任务进程树及 TEMP 回收。下一步先取得测试槽完成十二定向 case、非空 TRX/DLL 与零精确活跃身份，再冻结交给主智能体最终 restore/format。#228 已由独立 PR #275 交付，未混入此分支。
+
+## GH-Issue #273 十二项定向回归通过与源码冻结（2026-10-12，Asia/Shanghai）
+
+接续上段候选，实际 Release 构建与真实 IMigrator.GenerateScript 八拒绝、两普通脚本及既有顺序 MigrateAsync/自定义历史表两回归均通过：非空原 TRX 为12 executed/12 passed/0 failed。Provider 生产与测试目录 DLL SHA 完全相同，测试 DLL、源码和 TRX SHA 绑定实际收据 issue-273-targeted-validation.json；仅本机 EF/Core 合同，不计已发行包或真实远程升级完成。
+
+唯一测试 Job 限600秒/2CPU/单节点/禁共享编译和 node reuse，完整root/controller/子身份与 finally 清理取得cleanupComplete=true；单次限定PID集合独立核八个完整身份零精确活跃，专属TEMP经绝对路径/owner标记核验已回收。所有JSON日期按字符串读取并以DateTimeOffset保UTC，避免自动DateTime转换丢失Kind。第一次静态检查发现自有Handoff追加CRLF被Git识为尾随空白，失败收据 issue-273-static-first-failure.json 保留；只修正owned后缀为LF后 git diff --check 通过，原始534848字节前缀SHA250B44F0FE4005816DFB77906DFE9B458959F5B3D79F3B788896961347E94AF4完整保持。
+
+四个受改路径已冻结并停止dotnet，本子任务未stage/commit/push或其它远端mutation。主智能体下一步独立审查冻结diff/十二case/身份与清理收据，再在最终待提交树执行完整restore和原CI Format Check、精确四路径提交及普通候选分支交付。完整解决方案门禁与独立NativeAOT发布此时尚未运行；EF Provider既有IsAotCompatible=false边界不改，无JSON变更或警告压制。正式NuGet修复版本/消费者实际升级验收保持开放，不能因本地12/12自动关闭GH-Issue #273。
