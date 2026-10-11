@@ -65,7 +65,7 @@ SELECT CAST(text_value AS INT) FROM values_table WHERE CAST(text_value AS INT) >
 
 ### ANSI 窗口函数 `OVER`
 
-关系表查询支持 `row_number()`、`count`、`sum`、`avg`、`min`、`max` 的 ANSI `OVER` 规格：
+关系表查询支持 `row_number()`、`rank()`、`dense_rank()`、`ntile(n)`、`count`、`sum`、`avg`、`min`、`max` 的 ANSI `OVER` 规格：
 
 ```sql
 SELECT id, tenant_id,
@@ -76,6 +76,12 @@ FROM devices ORDER BY id;
 ```
 
 `PARTITION BY` 可包含多个关系行标量表达式；省略时全结果集是一个分区。窗口按 `WHERE` 过滤后的行计算，最终 `ORDER BY`、`LIMIT` 和 `OFFSET` 在窗口求值之后生效。`row_number()` 必须指定窗口内 `ORDER BY`；多个排序项和升降序均可使用。升序排序时 NULL 在前，降序时在后。排序键完全相同的行按本次关系输入顺序编号，该顺序不是跨执行保证；需要稳定编号时把唯一键加入窗口排序。
+
+`rank()` 和 `dense_rank()` 不接受实参、`*` 或 `DISTINCT`。只有窗口内所有显式排序键均相同的行才是同行，两个 NULL 排序键视为相同。`rank()` 返回同行组第一行的位置，后续排名保留间隙；`dense_rank()` 为每个同行组连续编号。例如排序值 `10, 10, 20` 分别得到 `1, 1, 3` 和 `1, 1, 2`。内部用于稳定本次行序的输入序号不会拆分同行；把唯一键显式加入窗口排序则会拆分同行。没有窗口内 `ORDER BY` 时，同一分区全部是同行，这两个函数均返回 `1`。
+
+`ntile(n)` 按窗口行序把完整分区尽可能平均地分为 `n` 桶，余数先分给前面的桶。例如六行分四桶得到 `1, 1, 2, 2, 3, 4`。分桶可以拆开同行；需要稳定分桶时把唯一键加入窗口排序。`n` 必须是正 Int64 整数字面量，或执行前绑定为整数字面量的命名/位置参数；`NULL`、零、负数、浮点、字符串、布尔、列引用和其他表达式均被拒绝，不接受 `*`、`DISTINCT` 或额外参数。桶数大于行数时，非空桶编号为 `1..行数`，不会为未使用的桶产生额外行。空输入返回零行，但无效参数仍会被校验。没有窗口内 `ORDER BY` 时沿本次关系输入顺序分桶，不保证跨执行的行序。
+
+三种排名结果均为非空 `Int64`，空结果也保留该列元数据。ADO.NET 的 `GetFieldType()` 返回 `typeof(long)`，`GetInt64()` 返回整数值；`GetInt32()` 可读取落在 Int32 范围内的排名。该原生 SQL/ADO 合同不代表 FreeSql Provider 已完成适配或相关正式包已经发布。
 
 无窗口 `ORDER BY` 的聚合为每行返回完整分区的聚合结果。指定排序时使用默认 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 语义，相同排序键的所有同行共享同一个累计结果。`COUNT(*)` 计入 NULL 行，`COUNT(expr)` 忽略 NULL；其他聚合沿用关系聚合的 NULL、Int64 与 DECIMAL 语义。空输入返回零行。当前仅支持顶层窗口投影，不支持窗口函数嵌套表达式、与普通聚合/`GROUP BY`/`HAVING` 同层混用或显式 `ROWS`/`RANGE` frame。执行会物化过滤后的关系行并按窗口分区排序；有序累计聚合逐 peer 前缀复算，最坏为 O(n²)，不适用于大分区低延迟工作负载。
 

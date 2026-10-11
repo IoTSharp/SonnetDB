@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
@@ -209,6 +210,10 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- CI CodeQL 的 init/analyze 同步从 v4.38.1 升级为 v4.38.2（PR #213）；保持原分析语言和构建步骤，合入独立 Windows 测试稳定性前置。
+
+- 测试侧 xunit.runner.visualstudio 从 4.0.0 升级为 4.0.1（PR #269），合入独立 Windows 测试稳定性前置；不增加产品运行时依赖。
+
 - PR #215/#216：将 SkiaSharp 与 Linux NoDependencies 原生资产同步升级到 4.153.1，修正单独升级产生的托管/原生版本失配；图像解码、缩放及对象处理按真实 native 路径回归。
 - PR #267：升级 Microsoft.ML.OnnxRuntime 1.30.0→1.31.0；保持显式模型 profile 和 native/synthetic tensor 合同，不以合成模型结果代替真实模型质量验收。
 - `Testcontainers` 从 4.15.0 升级至 4.16.0，保留现有 SonnetDB 容器模块的五个目标框架与非 AOT 宿主边界（PR #268，M43 生态工具链）。
@@ -466,6 +471,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- Windows CI：持久订阅确认的锁故障用例统一使用2秒初开/重开预算，分别核生产超时原消息和实际调用者取消，并验证相同 delivery/checkpoint/pending 恢复；原200ms Open失败保留。
 - Windows CI：持久死信 pending isolation 恢复用例统一使用2秒存储预算，保留真实锁超时和重开恢复，并独立核15秒调用者未取消；保留原200ms Open/recovery失败，生产配置不变。
 - Windows Outbox 批次取消测试使用 2 秒初始化/批次预算，并独立核处理器真实取消、15 秒调用者未取消及租约可恢复；保留原 100ms 构造阶段取消失败，生产预算不变。
 - Windows CI：持久订阅确认故障用例为初始存储提供合理有界预算，独立区分真实存储超时、dispatcher总预算和调用者取消，保留持久批次恢复断言。
