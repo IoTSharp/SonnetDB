@@ -163,10 +163,22 @@ public sealed class SqlOutboxWorkerTests : IDisposable
     public async Task ProcessBatch_BatchDeadline_CancelsHandlerAndLeavesRecoverableLease()
     {
         using var db = Open();
-        var worker = new SqlOutboxWorker(db, Options() with { BatchTimeout = TimeSpan.FromMilliseconds(100) }, _clock);
+        var worker = new SqlOutboxWorker(db, Options() with { BatchTimeout = TimeSpan.FromSeconds(2) }, _clock);
         Enqueue(db, "deadline");
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.ProcessBatchAsync(async (_, token) =>
-            await Task.Delay(TimeSpan.FromSeconds(3), token)));
+        using var callerDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        Task? handlerWait = null;
+        CancellationToken handlerToken = default;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.ProcessBatchAsync((_, token) =>
+        {
+            handlerToken = token;
+            handlerWait = Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return new ValueTask(handlerWait);
+        }, callerDeadline.Token).WaitAsync(callerDeadline.Token));
+        Assert.False(callerDeadline.IsCancellationRequested);
+        Assert.NotNull(handlerWait);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handlerWait.WaitAsync(callerDeadline.Token));
+        Assert.True(handlerToken.IsCancellationRequested);
+        Assert.False(callerDeadline.IsCancellationRequested);
         Assert.Equal("leased", Assert.Single(Select(db, "SELECT state FROM sql_outbox").Rows)[0]);
         _clock.Advance(TimeSpan.FromSeconds(11));
         Assert.Equal(1, (await Worker(db).ProcessBatchAsync((_, _) => ValueTask.CompletedTask)).Delivered);
