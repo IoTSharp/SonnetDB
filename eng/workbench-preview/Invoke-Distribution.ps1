@@ -15,4 +15,7 @@ if (Test-Path -LiteralPath $spec) { throw 'Immutable operation spec exists.' }
 @{ name=$Mode; exe=$node; arguments=@((Join-Path $PSScriptRoot 'dispatch.mjs'),$Mode,$Number,$root,[IO.Path]::GetFullPath($Output)); cwd=$root; timeoutSeconds=660; environment=@{ PREVIEW_PWSH=$pwsh } } |
     ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $spec -Encoding utf8
 & (Join-Path $PSScriptRoot 'Invoke-Owned.ps1') -Spec $spec -EvidenceRoot $evidence
-if ($LASTEXITCODE -ne 0) { throw 'Distribution operation failed; preserve result and reconcile any UNKNOWN without retry.' }
+$ownedResult = Get-Content -LiteralPath (Join-Path $evidence "$Mode.result.json") -Raw | ConvertFrom-Json -DateKind String
+if ($ownedResult.name -cne $Mode -or $ownedResult.status -cne 'PASS' -or $ownedResult.exitCode -ne 0 -or $ownedResult.cleanupComplete -ne $true) { throw 'Distribution operation failed; preserve result and reconcile any UNKNOWN without retry.' }
+# JobProcess launches through the Windows API, so success does not set the caller's native exit variable.
+$global:LASTEXITCODE = 0

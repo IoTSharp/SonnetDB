@@ -1755,3 +1755,11 @@ suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保
 本轮原证据/失败/代理直连、许可源、baseline和checks在artifacts/m47-p07-20261011；make-originals初次import路径失败在任何mutations前，原脚本/FAIL保留，修正新收据成功。提交前需最终树完整restore/原CI format/whitespace及owned-only index，待真实结果再补；正常push后继续实际prepare与P07 artifact，然后以真实结果冻结P07机器记录。产品NOT_READY，P08未跑，无tag/公开Release/匿名首跑/生产/自动化恢复。根HANDOFF只独占尾部追加/flush核旧前缀，stage用HEAD原字节+owned段，保持foreign追加/五列ROADMAP与HEAD四列。
 
 M47-P07暂存纠正：第一次owned stage默认whitespace检查发现原CRLF收据/新增CRLF段，实际FAIL/双流保留且没有commit。已核index仅38owned后精确撤回，20份已核SHA原JSON副本无损gzip入仓；远端解码核原size/SHA后上传原JSON，原P05文件不动。HEAD交接旧字节不动，仅owned新段暂存LF。原first gate PASS仍保留，源码存储工具修正后43合同重新PASS；最终树须重新完整restore/原CI format/default staged whitespace。辅助只读inline probe语法错误没有mutations，修正probe核20原文hash通过。
+
+## M47-P07远端prepare调用层纠正（2026-10-11，Asia/Shanghai）
+
+实现69e6705de593099336f94ebc7d7232b13d3bb0e6已正常push，初轮源码最终树44合同/restore9.34秒/原format149.61秒/default staged whitespace PASS，38owned精确commit；两次旧stage FAIL/初次格式结果均保留。第二stage上游Rollup原文含Markdown引用行尾空格，已对20原JSON与7上游原文统一无损gzip，原SHA/原P05字节不改；收集器直接对冻结candidate/审计receiptSHA及包manifest依赖SHA，原raw解码artifact另存。归档结构凭据字段审计20原文无发现，不复制环境/spec。
+
+真实prepare38116277262 attempt1/tooling69e6705d工作流failure；controller PREPARED_NOT_READY/9commands/12.57秒、mutationStarted=false，原Job PASS/exit0/cleanupComplete=true。源码/库存/ZIP实际核完，不当成工作流PASS。失败为Invoke-Distribution依赖新进程未设置LASTEXITCODE（null -ne 0）；本次仅外部两PS调用层改读原Job status/exitCode/cleanup并在全部PASS后明确0，P07同型问题同步修正，包source54eefc81及全部原资产不变。6个有界真实Job包装合同覆盖null/残留55/子exit7拒绝，controller仅合成，fixture明确归属路径finally清理，收据保留；不计真实分发或安装证据。
+
+本段独占FileStream尾部追加/Flush(true)核整段旧字节前缀；stage只HEAD+本段LF和自有Fixed行，保护外来dirty/旧HANDOFF/parity。下一步最终树完整restore/原format/default whitespace，正常owned commit/push；只新prepare、P07原证据artifact和真实NOT_READY记录，不发布P08、不恢复自动化、无新候选重包/工作树/子智能体。初审8workflow缺运行和11运行许可条件仍阻断；原失败/UNKNOWN不覆盖。

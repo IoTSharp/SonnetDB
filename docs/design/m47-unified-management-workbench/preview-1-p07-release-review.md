@@ -44,3 +44,5 @@ npm审查以准确版本、原integrity与registry元数据/固定gitHead核上�
 第一次owned暂存被默认whitespace检查拦住原CRLF收据及新增交接行尾，原FAIL双流保留、没有commit。仅撤回经核38个自有index条目，原JSON副本按核实hash无损压缩，原P05文件不动；HEAD交接旧字节保留，仅新增owned段在index用LF。重新执行合同测试、完整restore/原CI format及默认staged whitespace，未降低原格式门槛。
 
 第二次stage仍发现原Rollup许可证中的Markdown引用空行尾空格；该原文也不能改写，遂对全部上游原文本使用同一无损归档/解码/SHA核验，原FAIL另存。收集器进一步直接把每个旅程/执行结果/suite/audit的SHA对到冻结candidate/审计补记，把243依赖原JSON SHA对到已核包manifest，防止只重写归一库存就改变原收据。新增替换hash拒绝场景；再次最终树门禁后才允许commit。
+
+远端工具修正第一次复验：run38116277262/attempt1/tooling69e6705d，工作流真实failure；controller实际PREPARED_NOT_READY、9命令/12.57秒、mutation=false，原Job PASS/exit0/cleanupComplete=true。失败位于Invoke-Distribution的LASTEXITCODE判定：Windows API启动不会给新PowerShell进程赋该变量，null -ne 0误报。两调用层改为核原Job JSON并只在PASS/exit0/cleanup=true后设置0；6项包装合同验证null、残留55、真实子进程exit7拒绝，均保留原收据，仅controller夹具，不计真实分发通过。再次完整restore/原format/owned-only/default whitespace后正常提交推送，新的实际prepare/P07结果仍待取得。

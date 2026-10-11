@@ -12,4 +12,6 @@ $spec=Join-Path $owned 'p07.spec.json'
     arguments=@((Join-Path $PSScriptRoot 'collect-p07.mjs'),$root,$Number,$PrepareRun,$out);cwd=$root;timeoutSeconds=660;
     environment=@{PREVIEW_PWSH=(Get-Process -Id $PID).Path}}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $spec
 & (Join-Path $PSScriptRoot 'Invoke-Owned.ps1') -Spec $spec -EvidenceRoot $owned
-if($LASTEXITCODE -ne 0){throw 'P07 evidence collection failed; keep original receipts'}
+$ownedResult=Get-Content -LiteralPath (Join-Path $owned 'p07.result.json') -Raw|ConvertFrom-Json -DateKind String
+if($ownedResult.name -cne 'p07' -or $ownedResult.status -cne 'PASS' -or $ownedResult.exitCode -ne 0 -or $ownedResult.cleanupComplete -ne $true){throw 'P07 evidence collection failed; keep original receipts'}
+$global:LASTEXITCODE=0
