@@ -1907,3 +1907,11 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+## GH-Issue #258 原生逐行 UUID 实现（2026-10-12，Asia/Shanghai）
+
+隔离分支 codex/issue258-row-uuid 从 a299a3fcc42de494145be74a8ee451aedeec4249 实现零参数 uuid()，每次实际求值调用 Guid.NewGuid().ToString("D") 并返回非 NULL String；沿既有逐行 SELECT/JOIN/UPDATE、RETURNING 和事务缓冲路径，不改优化器或 UUID 存储类型。同名 scalar UDF 覆盖时仍保留未知声明类型。CREATE/ALTER 列 DEFAULT 中直接和嵌套 UUID 调用在写 schema 前明确拒绝，避免现有 ADD COLUMN 一次默认值回填；其它默认函数及显式 GUID 字符串参数保持既有行为。
+
+Release 本地 Core 定向测试 23/23（新 UUID 16/16及既有 UPDATE/事务回归7项），真实 REST/HTTP/2 传输 17/17（新 UUID 两协议各1项）。覆盖逐行/同一行多调用、空结果元数据、零参数校验、NULL/短路、参数绑定不提前求值、RETURNING 与存储相等、提交/回滚及重开恢复。首轮 8/23 通过、15项因新fixture使用保留字 token 而在解析阶段失败，已仅改为 guid_value 后通过，原日志/回执/TRX 保留；另保留成功审计误用 LASTEXITCODE 的编排拒绝记录。实际测试 Core/Data/Server与测试 DLL SHA/版本分别归档，版本为 0.0.0-dev+a299a3f...，不是正式发行包。三次 Job 清理及独立33个kernel身份/3个controller审计通过，零存活精确或未知身份；本任务 uuid-test-temp 已按精确路径和所有权回收。此前 trigonometry TEMP 的不透明策略拒绝对象保持未动。
+
+本执行者仅修改八条自有源码/文档路径，保持 HANDOFF 原字节前缀及 LF 追加，未暂存、提交、推送、切分支、安装工具或操作 GitHub；#219/#220/#221 实现不纳入本分支。证据位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-engine/uuid-258，最终冻结以 uuid-final-tree.json 为准；当前 git diff --check 通过、索引空，父智能体仍须对最终树执行完整 solution restore 和原 CI Format Check 后才可提交，随后独占准确提交/推送及线上状态回读。正式 Core/Data/Server/SDK 包发布、Chloe Provider 的 Guid.NewGuid 翻译及完整验收尚未执行，不由本地或真实传输 PASS 推断，Issue 是否可关闭由父智能体据完整外部条件决定。

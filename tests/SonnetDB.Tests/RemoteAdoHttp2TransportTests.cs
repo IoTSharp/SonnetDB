@@ -732,6 +732,117 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.All(requests, r => Assert.Equal("HTTP/1.1", r.Protocol));
     }
 
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task UuidFunction_PerRowReturningAndTransactions_UseRealTransport(string protocol)
+    {
+        string baseUrl = protocol == "rest" ? _http11Url : _frameH2Url;
+        await using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE uuid_contract (id INT, guid_value STRING NULL, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "SELECT uuid() FROM uuid_contract";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(string), empty.GetFieldType(0));
+            Assert.False(empty.GetColumnSchema().Single().AllowDBNull);
+            Assert.False(await empty.ReadAsync());
+        }
+        command.CommandText = "INSERT INTO uuid_contract (id, guid_value) VALUES (1, NULL), (2, NULL), (3, NULL), (4, NULL)";
+        Assert.Equal(4, await command.ExecuteNonQueryAsync());
+        command.CommandText = "SELECT uuid(), UUID() FROM uuid_contract ORDER BY id";
+        var projected = new HashSet<string>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            for (int row = 0; row < 4; row++)
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.True(projected.Add(ValidateGuid(reader.GetString(0))));
+                Assert.True(projected.Add(ValidateGuid(reader.GetString(1))));
+            }
+            Assert.False(await reader.ReadAsync());
+        }
+        Assert.Equal(8, projected.Count);
+
+        var discarded = new HashSet<string>(StringComparer.Ordinal);
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE uuid_contract SET guid_value = uuid() WHERE guid_value IS NULL RETURNING id, guid_value";
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                for (int row = 0; row < 4; row++)
+                {
+                    Assert.True(await reader.ReadAsync());
+                    Assert.True(discarded.Add(ValidateGuid(reader.GetString(1))));
+                }
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(4, reader.RecordsAffected);
+            }
+            await transaction.RollbackAsync();
+        }
+        command.Transaction = null;
+        command.CommandText = "SELECT COUNT(*) FROM uuid_contract WHERE guid_value IS NULL";
+        Assert.Equal(4L, Assert.IsType<long>(await command.ExecuteScalarAsync()));
+
+        var committed = new Dictionary<long, string>();
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE uuid_contract SET guid_value = uuid() WHERE id >= @minimum RETURNING id, guid_value";
+            command.Parameters.AddWithValue("@minimum", 1L);
+            await using (var reader = await command.ExecuteReaderAsync())
+            {
+                for (int row = 0; row < 4; row++)
+                {
+                    Assert.True(await reader.ReadAsync());
+                    committed.Add(reader.GetInt64(0), ValidateGuid(reader.GetString(1)));
+                }
+                Assert.False(await reader.ReadAsync());
+                Assert.Equal(4, reader.RecordsAffected);
+            }
+            Assert.Equal(4, committed.Values.Distinct(StringComparer.Ordinal).Count());
+            Assert.Empty(committed.Values.Intersect(discarded, StringComparer.Ordinal));
+            await transaction.CommitAsync();
+        }
+        command.Transaction = null;
+        command.Parameters.Clear();
+        command.CommandText = "SELECT id, guid_value FROM uuid_contract ORDER BY id";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            for (int row = 0; row < 4; row++)
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(committed[reader.GetInt64(0)], reader.GetString(1));
+            }
+            Assert.False(await reader.ReadAsync());
+        }
+        command.CommandText = "SELECT uuid(NULL) FROM uuid_contract WHERE id < 0";
+        var invalidArity = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
+        Assert.Contains("0 个参数", invalidArity.ServerMessage, StringComparison.Ordinal);
+        command.CommandText = "ALTER TABLE uuid_contract ADD COLUMN generated STRING DEFAULT lower(uuid())";
+        var invalidDefault = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteNonQueryAsync());
+        Assert.Contains("不支持列 DEFAULT", invalidDefault.ServerMessage, StringComparison.Ordinal);
+
+        int port = new Uri(baseUrl).Port;
+        var observed = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.NotEmpty(observed);
+        Assert.All(observed, request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        Assert.Contains(observed, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        if (protocol == "frame-http2")
+            Assert.Contains(observed, request => request.Path == "/v1/frame");
+
+        static string ValidateGuid(string text)
+        {
+            Assert.True(Guid.TryParseExact(text, "D", out var guid));
+            Assert.NotEqual(Guid.Empty, guid);
+            Assert.Equal(guid.ToString("D"), text);
+            return text;
+        }
+    }
+
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
         string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {
