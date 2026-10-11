@@ -1884,6 +1884,30 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
 
+
+## SonnetDB 线上 PR 与 Issue 全量闭环新会话交接（2026-10-12，Asia/Shanghai）
+
+P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec46c55a4171cf5f2d83de03；完整 restore、原 CI Format Check 与独立远端回读通过。当前工作区仍在 codex/m47-preview12-release，共享索引为空；博客、M42、WB97/WB98、VS Code 等未提交内容继续按归属保护。主分支合并收据为 artifacts/m47-p07-close-20261011/merge-main-20261012-delivery.json；新 main CI 须实时核验。
+
+用户明确要求创建新会话，由一名主智能体监督协调三个执行智能体：先实时清点 IoTSharp/SonnetDB 的全部开放 PR，逐一审查、验证、解决冲突并串行合并；随后逐项实现开放 issue 的问题，更新相关依赖状态，提交并合入 main。用户估计四十多项，实际数量以 GitHub 清点为准。已授权本批任务的 PR/issue 回复及完成后关闭；实际未解决、验收不足或受外部条件阻塞者保留开放并如实回复，不把计划、局部测试或依赖更新当成完成。
+
+本次新的三执行智能体授权覆盖此前 P07/P08 阶段不启用子智能体的安排。主智能体负责队列、依赖顺序、任务边界、结果复核、最终集成、准确提交/推送和远端回复关闭；三个智能体分配互不重叠的调查、实现和验证范围，共享索引与 main 合并只由主智能体串行操作。实现保持最小必要变更，不虚标、不超范围重构、不增加无用抽象、冗余文档或测试。
+
+新会话开始先读根 AGENTS/HANDOFF、ROADMAP、实时 Git/远端状态和主分支 CI，再建立有编号、依赖、验收证据与远端状态的精简清单；持续推进可执行项，外部阻塞不能虚假关闭。保持 source-generated JSON、NativeAOT、许可和原质量门禁；每次提交前在最终树完成规定 restore 与完整 format。parity-results 不合入开发分支，已发布 tag/源码冻结记录与全部历史 FAIL/UNKNOWN 保留。
+
+所有主/子智能体均固定 PowerShell 7，委派时重复最大数量与墙钟超时、取消/进度、限定工具发现、进程精确归属和任务临时对象回收要求；禁止 Graphify、广域工具扫描及按进程名/旧 PID 终止。互联网直连失败用单命令 127.0.0.1:7890 代理回退。当前 workbench 自动化继续暂停，不另建重复执行队列。
+
+本段为新会话派单准备，真实会话 ID 和启动情况以 create_thread/wait_threads 返回为准。父会话完成创建后停止仓库写入；本段暂不单独提交，由新主智能体接管后按 HEAD 原字节加自有增量纳入其首次合规交接提交，避免父子会话争用共享索引。
+
+
+## 线上闭环执行：PR #214 当前 main 刷新（2026-10-12，Asia/Shanghai）
+
+实时清点 10 个开放 PR、49 个开放 Issue，原 main 为 dcadffc7137f5653ec46c55a4171cf5f2d83de03；main CI 38166870523 初始仍运行，旧通过不能替代其结果。已启动三执行智能体，主智能体独占 Git 索引、提交、推送及 GitHub 操作。独立 online-closure/online-engine/online-delivery 工作树均从同一原 main 建立，原 D:\source\SonnetDB 的 dirty/index/冻结 tag 与 parity-results 保持。
+
+当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
+
+执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
 ## Windows CI 时间与并发断言修复（2026-10-12，Asia/Shanghai）
 
 本次在已有 online-cap 工作树的 codex/windows-ci-stability 分支处理三个历史 Windows CI 失败，基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03；该分支不包含 CAP 修复。只修改四个测试文件、CHANGELOG 与本段 HANDOFF，未修改生产代码、依赖、发布/格式/超时默认值或二进制合同。分支、提交、推送、PR 与最终完整 restore/原 CI Format Check 由主会话完成，本段不预写它们通过。
