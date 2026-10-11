@@ -9,3 +9,15 @@
 实物243依赖、215项原许可文件引用已核；5项build-only实际无发出模块/二进制，Mapbox 2.0.3 MIT、自有指令源码、四项VC runtime及微软原文/Community用户资格记录/下游保护完整绑定。许可输入审查PASS，整体仍须原P07评审。新候选和接受审计绑定本轮非空实测；保留candidate10历史空窗作为排除记录，不伪造candidate12空窗。
 
 [分发冻结](preview-1-distribution-12.json)只新增外部notes与独立三行checksum，原P04包/清单/checksum不变。[原文库存](preview-1-p07-evidence-12/inventory.json)的18份原JSON以gzip无损保存，原文SHA复核；不归档密码、环境/spec或截图。新远端prepare与P07尚待执行；十二同源门禁正在运行，当前NOT_READY、P08未发布/匿名首跑NOT_RUN、workbench PAUSED。后续结果追加原报告，不改冻结记录。
+
+## 候选12 P07放行评审完成（2026-10-11）
+
+**P07 READY：原十二门禁12/12、八项验收8/8全部通过。** 包source 5bcd3b811f2dae5005fc28fd70f6ff934e454c7a / 4.5.0-preview.1.12，分发工具 13cb7a78bb9d0a0ea097444d20865f34232b988a；原候选10/11及所有旧FAIL/UNKNOWN保持。prepare 38147374946 / attempt1 success，P07 38148424602 / attempt1 success；原P07 artifact 11705379779 / digest sha256:1f29a0b1209d84b7a75c742ba69791c6331f7ce75399d94b2ab6d9ac65a023f1，到期 2026-11-10T14:45:50Z。
+
+独立核三份原Actions archive size/digest、18份冻结原JSON解码SHA、8份归一检查/原始证据、10分发+5收集工具Git blob与原policy/verifier字节；D01原controller PREPARED_NOT_READY/mutationStarted=false及Job PASS分列。原verifier READY绑定全部12同source workflow、job、具名step、最新attempt和artifact，并验证真实light/full原Parity证据；七天scheduled只观察，不替代本候选或作为阻断。新[P07记录](preview-1-p07-12.json)绑定真实原artifact，[无损原文](preview-1-p07-review12-originals/inventory.json)保持原字节。
+
+同候选实物37记录、17回执/244身份、两个1000行导出及许可输入审查沿用本轮已冻结实际记录；243依赖/215原文引用、五项未随包发出的构建工具、Mapbox2.0.3、自有指令源码和微软Community/原条款/下游保护绑定。无生产、干净机器或Microsoft资格认证推断。包/manifest/原checksum、冻结candidate/审计/notes/distribution及源码分支不变；原NOT_READY/NOT_RUN快照不回写为READY。20个具名运行期目录中仅实际存在的任务包副本、合成数据/快照与浏览器profiles已回收，原回执/导出和发行物保留；无按名杀进程。
+
+P08明确未完成：当前凭据/必审人均maikebing，环境prevent_self_review=true/can_admins_bypass=false。精确发布请求已在[P08记录](preview-1-p08-12.json)绑定四附件与distribution SHA；需另一有权账户dispatch，再由maikebing审批。tag/Release当前404；本轮未发publish、未上传，匿名下载/公开包首跑NOT_RUN。后续通过一次实际发布、匿名四附件/ZIP验证及真实首跑后才称P08完成。main及parity-results保护，外来dirty保留，workbench PAUSED。
+
+用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。

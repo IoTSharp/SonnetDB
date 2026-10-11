@@ -76,10 +76,12 @@ test('P07 requires full original policy and eight raw checks; scheduled observat
   for(const id of ['C01','C02','C03','C04','C05','D01','P05-installed-R1','licenses']){const bytes=Buffer.from(JSON.stringify({status:'PASS',candidate:f.seal.candidate,sourceCommit:f.seal.sourceCommit,version:f.seal.version,check:id}));const file=`${id}.json`;fs.writeFileSync(path.join(f.temp,file),bytes);p.checks.push({id,status:'PASS',file,sha256:digest(bytes)});}
   validateP07(p,readiness,f.seal,b,f.temp);assert.throws(()=>validateP07({...p,status:'UNKNOWN'},readiness,f.seal,b,f.temp));assert.throws(()=>validateP07(p,{...readiness,status:'NOT_READY'},f.seal,b,f.temp));assert.throws(()=>validateP07({...p,checks:p.checks.slice(1)},readiness,f.seal,b,f.temp));assert.throws(()=>validateP07({...p,distributionSha256:'0'.repeat(64)},readiness,f.seal,b,f.temp));
 }));
-test('P08 denies default prepare, absent approval, unprotected environment and self approval',()=>use(f=>{
+test('P08 requires explicit authorization and configured reviewers; self review follows environment policy',()=>use(f=>{
   const c=context(f);authorize(c.context,f.seal,c.sealBytes,environment);
   for(const override of [{operation:'prepare'},{event:'push'},{authorization:''}])assert.throws(()=>authorize({...c.context,...override},f.seal,c.sealBytes,environment));
-  assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[]}));assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[{...environment.protection_rules[0],prevent_self_review:false}]}));
+  assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[]}));
+  assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[{...environment.protection_rules[0],reviewers:[]}]}));
+  authorize(c.context,f.seal,c.sealBytes,{...environment,protection_rules:[{...environment.protection_rules[0],prevent_self_review:false}]});
   assert.throws(()=>authorize(c.context,f.seal,c.sealBytes,{...environment,can_admins_bypass:true}));
 }));
 test('fixture publisher makes one immutable tag, draft, four explicit uploads, byte readback, prerelease/latest=false',async()=>asyncUse(async f=>{

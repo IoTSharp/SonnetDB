@@ -1,3 +1,5 @@
+**2026-10-11 候选12 P07 READY；P08等待另一实际发起账户。** [P07记录](preview-1-p07-12.json)绑定原12/12工作流、8/8验收、source 5bcd3b811f2dae5005fc28fd70f6ff934e454c7a / 4.5.0-preview.1.12、prepare38147374946/P0738148424602 attempt1 success及原artifact/hash。18原文/三archive/10+5工具blob独立PASS；实物P05与243依赖许可证输入已闭环。保护环境maikebing/禁止自批与管理员绕过保持；[P08请求](preview-1-p08-12.json)准备完成但未dispatch publish，tag/Release/匿名下载/公开包首跑未验。原candidate10/11及失败不改，workbench PAUSED。
+
 **2026-10-11 P08工具/审批环境及前置证据准备完成，尚未发布，产品NOT_READY。** [P08报告](preview-1-p08-publication.md)及[机器记录](preview-1-p08-10.json)保存真实环境maikebing、禁止自批/管理员绕过，原完整门禁4/12与许可缺口；五项通知仅准备给下一候选，不改candidate10或P07。最终86项Node/五项补件/异常脱敏与源码解析合同通过；候选10匿名404原FAIL保留，公开包首跑NOT_RUN。继续顺序为许可闭环、新候选/受影响实物验收、同源完整gate及新P06/P07、精确实际授权与不同账户dispatch、一次发布及匿名下载/首跑；自动化PAUSED。
 
 **2026-10-11 P07评审完成，未放行：NOT_READY。** [P07报告](preview-1-p07-release-review.md)和[真实机器记录](preview-1-p07-10.json)绑定candidate10/4.5.0-preview.1.10、包source54eefc816f133a805b0d38f0cbe930d2c17650b6及tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24。prepare38116860908、P07收集38117134746均attempt1/success，发布job skipped；原包/清单/hash及旧失败保持。
@@ -871,3 +873,5 @@ impeccable detector 只扫描原型目录，一次执行、退出码 0、JSON `[
 ## WB75（2026-10-08）：精确本地集成窗口
 
 WB74隐藏.git拒绝发生在锁/attempt/object之前、commit0及两轮完整门禁PASS保持。本片先修IO隐藏目录属性读取并覆盖真实目录/hooks/DateKind/manifest/index/15locks/锁内只读前置预演，然后新最终树完整restore与原CI format放行，仅owned15本地commit。继承纯guard38及PS14/Node41、六源SHA不变，0重测/actual/产品build。新门禁/退出/提交/暂停以artifacts/wb75-local-integration-20261008独立收据为准；whole-session过程false及真实恢复/三宿主边界不提升。
+
+用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。

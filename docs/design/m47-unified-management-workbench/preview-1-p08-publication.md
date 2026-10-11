@@ -47,3 +47,9 @@ Microsoft 2026官方再分发清单已取得，明确包含VC/redist中的未修
 下一顺序：两个npm原文/替换及Microsoft适用资格/保护条款闭环 → 新候选/版本/干净构建与受影响实物验收 → 同包完整12workflow（Parity both且publish_results=false；三个发布workflow只dispatch preflight）→ 新P06/P07冻结和artifact → 精确实际授权、另一账户dispatch及maikebing环境审批 → 一次发布 → 匿名download与真实first-run → 确认完成后归档。未通过前保留NOT_READY。
 
 本轮证据根`artifacts/m47-p08-20261011`；归档仅保留适用非凭据收据。完整restore/原CI format、owned-only暂存、默认whitespace、正常提交/推送/独立remote回读及非空本机进程审计的实际结果以本轮delivery.json为准，未取得结果不预写PASS。外来dirty/交接旧字节、parity-results和PAUSED自动化保持；无工作树/子智能体、生产部署、服务安装、其它发布渠道或编辑器重启。
+
+## 候选12已通过P07，等待分离发起与审批（2026-10-11）
+
+[P07记录](preview-1-p07-12.json)原12/12与8/8全部通过，新[P08请求](preview-1-p08-12.json)绑定4.5.0-preview.1.12、source 5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、tag workbench-preview-1.12及distribution SHA da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715。四附件已经真实远端prepare并独立核原archive digest及ZIP290项库存。实际发起账户maikebing与required reviewer相同，原保护禁止自批、禁止管理员绕过；不能用同名账户、bot或削弱环境完成审批。当前tag/Release缺失，未dispatch publish/公开上传，匿名下载和公开包首跑NOT_RUN。用户要求完成P08的意图及Community资格已记录，下一步只需有权的另一实际发起账户和随后maikebing环境审批，再按既有工具完成一次发行/匿名回读/首跑。
+
+用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。

@@ -1831,3 +1831,15 @@ profile推进candidate12/4.5.0-preview.1.12，下一步最终源码提交到新�
 P04 38145580702 attempt1 success、两归档digest独立PASS；版本4.5.0-preview.1.12，290库存逐字节及NativeAOT/PE/Web身份和VerifyOnly PASS，ZIP46781896bytes/SHA27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824。新P05实包四阶段37记录、五类拒绝/61文件隔离快照PASS；17回执/244身份非空审计零残留与双1000行导出/ACL恢复PASS。243实际依赖/215原文引用、五项未分发构建工具排除及Community用户资格/微软原条款下游保护输入审查PASS，不计整体放行。候选12/审计/四附件/18原文库存已冻结；原candidate10空窗明确历史排除，11失败/全旧FAIL保持。
 
 下一步精确提交冻结docs/HANDOFF自有追加并正常推release分支，冻结source分支不动；真实P06 prepare及P07原收集/独立artifact核验、原12/12与8/8全部通过才READY。当前CI/发布预检仍运行，NOT_READY；P08实际一次发布/匿名四附件/首跑NOT_RUN。当前凭据和reviewer均maikebing，禁止自批/管理员绕过保持，实际发布需另一个有权账户发起；先完成具体四附件与精确hash准备，不再重复问Community。workbench PAUSED，外来dirty/parity-results/共享文档前缀保持；无子智能体/新工作树/跨聊天/生产部署或服务安装。
+
+## M47-P07候选12完成，P08待另一实际发起账户（2026-10-11，Asia/Shanghai）
+
+P07真实收集38148424602 attempt1 success，prepare38147374946 attempt1 success；原十二workflow12/12、C01～C05/D01/P05-installed-R1/licenses八项8/8全部PASS，原verifier及最终评审READY。包源码5bcd3b811f2dae5005fc28fd70f6ff934e454c7a/tree2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3、4.5.0-preview.1.12、P04 38145580702；工具冻结提交13cb7a78bb9d0a0ea097444d20865f34232b988a/codex/m47-preview12-release已正常推与独立回读。新P07机器记录绑定artifact11705379779/digestsha256:1f29a0b1209d84b7a75c742ba69791c6331f7ce75399d94b2ab6d9ac65a023f1；三archive size/digest、18冻结原JSON、八归一检查/原文和10+5工具Git blob独立核验PASS。原同源full/light及必选step/artifact不削减；七天scheduled仍非阻断观察。候选12冻结record/包/manifest/checksum/notes/seal及所有原失败保持，NOT_READY快照不回写。
+
+P05本轮四阶段37记录、五类拒绝与61文件快照恢复、17回执244身份零残留/两1000行导出/ACL恢复；243实物依赖215原文引用、五项未分发构建工具和微软Community用户资格/原条款/下游保护输入审查PASS，边界只本机R1。20个明确任务运行目录逐项核归属后已清理实际存在项，保留原证据/导出/ZIP。一次只读snapshot12-03代理EOF原FAIL保留，后续独立snapshot/P07成功，不重派P04。
+
+P08具体四附件/hash和请求已冻结preview-1-p08-12.json，authorization输入P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715；当前凭据及reviewer均maikebing、prevent_self_review=true/can_admins_bypass=false，需另一有权实际账户发起，然后maikebing审批。原用户已要求完成P08并确认Community，不重复询问许可；不能自动改bot/关闭自批保护。tag/Release当前404，publish未派发、公开上传/匿名下载/公开首跑NOT_RUN。取得另一账户并审批后，按原Invoke-Distribution一次发布及Invoke-P08Readback download/first-run走完，真实通过后才更新P08完成。
+
+本次最终docs/机器记录与原文库存、HANDOFF自有追加将在最终完整restore/原CI format/默认cached whitespace PASS后精确提交并普通push release分支；最终commit/tree/remote以本轮delivery.json为准，不移动source/main/parity-results，不包含外来dirty。workbench仍PAUSED；无子智能体、新工作树、跨聊天、生产部署/服务安装。
+
+用户最新决定覆盖此前禁止自批及需另一账户的规定：允许 maikebing 发起并实际审批，required reviewer maikebing 与 can_admins_bypass=false 保留。GitHub环境已一次PUT并独立GET核验 prevent_self_review=false。原候选12、包、四附件、source分支和旧P07原文保持；变更后的工具需重新prepare及P07原评审12/12与8/8，再依已冻结请求一次publish、实际环境审批、匿名四附件和公开包首跑。本段为策略实施状态，不预写发布完成。

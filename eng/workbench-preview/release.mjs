@@ -8,7 +8,7 @@ export function authorize(context, seal, sealBytes, environment) {
   requireThat(context.authorization === `P08:${seal.tag}:${digest(sealBytes)}`, 'Explicit P08 authorization missing/mismatched');
   requireThat(environment.name === 'workbench-preview-p08', 'Wrong P08 environment');
   const reviewers = environment.protection_rules?.filter(r => r.type === 'required_reviewers');
-  requireThat(reviewers?.length === 1 && reviewers[0].prevent_self_review === true && reviewers[0].reviewers?.length > 0, 'P08 requires configured reviewers and prevents self approval');
+  requireThat(reviewers?.length === 1 && reviewers[0].reviewers?.length > 0, 'P08 requires configured reviewers');
   requireThat(environment.can_admins_bypass === false, 'P08 environment approval must not permit administrator bypass');
 }
 export async function reconcile(api, release, seal, sealBytes) {

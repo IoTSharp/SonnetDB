@@ -2,7 +2,7 @@
 
 **当前唯一执行路线是根 [ROADMAP：Workbench Preview 1](../../../ROADMAP.md#workbench-preview-1)。** 已完成切片和原路线状态表见 [CHANGELOG归档](../../../CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；本文件下方WB记录保留为原始历史证据，不继续按旧“下一片”或任务次数派单。
 
-首版优先Web Admin与匹配Server的已验收子集；Studio/VS Code未通过各自安装/完整宿主旅程时延期公开下载物。当前 NOT_READY；旧workbench定时 PAUSED，不自动恢复WB98或创建滚动会话。Graph Beta、MQ database逻辑/instance .system/mq物理与单库备份边界保持。
+首版优先Web Admin与匹配Server的已验收子集；Studio/VS Code未通过各自安装/完整宿主旅程时延期公开下载物。候选12 P07 READY，P08审批策略复验中；旧workbench定时 PAUSED，不自动恢复WB98或创建滚动会话。Graph Beta、MQ database逻辑/instance .system/mq物理与单库备份边界保持。
 
 | 顺序 | 根路线交付ID | 下一步与依赖 |
 |---|---|---|
@@ -12,8 +12,8 @@
 | 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；候选10的P05结果见下一项，P06～P08待验，NOT_READY。 |
 | 5 | M47-P05 | **本机R1实物验收完成**：[报告](preview-1-p05-installed-journey.md)、[候选10](preview-1-candidate-10.json)/4.5.0-preview.1.10，源码54eefc81/CI38104431383；实际Chrome/Edge、导出/审批/撤权/错配/正常重开/隔离快照回退通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | **本地说明/四附件/独立手动分发合同完成**：[P06报告](preview-1-p06-distribution.md)、[分发补记](preview-1-distribution-10.json)；原candidate10包字节保持，P07原完整gate/P08授权未验，NOT_READY。 |
-| 7 | M47-P07 | **评审完成；未放行**：[报告](preview-1-p07-release-review.md)/[真实记录](preview-1-p07-10.json)；prepare38116860908/P07收集38117134746 success，验收7/8、原门禁4/12；8同源工作流与11许可条件仍阻断，NOT_READY。包内修复须新候选及受影响验收。 |
-| 8 | M47-P08 | **工具与审批环境准备完成；未发布**：[报告](preview-1-p08-publication.md)/[记录](preview-1-p08-10.json)。审批环境maikebing/禁止自批与管理员绕过已配置；发布日志、匿名四附件/ZIP/首跑工具及五项许可补件准备完成。candidate10/P07仍NOT_READY：包内11许可条件与八同源workflow缺口保留；需许可闭环后新候选/version和受影响验收、新完整P07，再获精确发布授权及另一账户dispatch。未公开发布，首跑NOT_RUN。 |
+| 7 | M47-P07 | **P07 READY，12/12原门禁、8/8验收通过**：[候选12评审](preview-1-p07-12.json)，真实prepare/P07与独立原artifact/hash核验通过；P08审批策略复验中。 |
+| 8 | M47-P08 | **精确发布请求已准备；待新工具P07复验后发起**：[P08请求](preview-1-p08-12.json)。maikebing必审并允许自批、管理员不可绕过，公开发行/匿名下载/首跑NOT_RUN。 |
 
 每项验收标准、宿主后续和正式版U02～U09只在根路线图维护。WB80的本机恢复PASS不能代替当前桌面包安装；WB83 preflight失败与WB98独审超时不能推成产品故障。已有dirty诊断、旧失败/UNKNOWN和其它会话内容保留。
 
