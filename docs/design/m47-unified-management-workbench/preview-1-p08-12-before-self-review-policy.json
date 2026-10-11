@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "milestone": "M47-P08",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "tag": "workbench-preview-1.12",
+  "distributionRecord": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-distribution-12.json",
+    "sha256": "da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715"
+  },
+  "attachments": [
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+      "size": 485867,
+      "sha256": "b875653cd318a4bfa2845f07b42a725bfb6a8139e7e350c81afe30ebd507c3fe"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-win-x64.zip",
+      "size": 46781896,
+      "sha256": "27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-notes.md",
+      "size": 7574,
+      "sha256": "7319b9f4f807175a9e6815191ce5cb4523e77bd3509da0101472990a4fb8b7bb"
+    },
+    {
+      "path": "sonnetdb-workbench-web-4.5.0-preview.1.12-SHA256SUMS.txt",
+      "size": 359,
+      "sha256": "3b3e30fa82709646b4165ac8c4212f2be5968d49c6053cf2a10330828f93334c"
+    }
+  ],
+  "credentialActor": "maikebing",
+  "requiredReviewer": "maikebing",
+  "preventSelfReview": true,
+  "canAdminsBypass": false,
+  "tagObservedAbsent": true,
+  "releaseObservedAbsent": true,
+  "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
+  "status": "WAITING_FOR_DISTINCT_DISPATCH_ACTOR",
+  "workflowRequest": {
+    "workflow": "workbench-preview-publish.yml",
+    "ref": "codex/m47-preview12-release",
+    "inputs": {
+      "candidate_number": "12",
+      "operation": "publish",
+      "p08_authorization": "P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715"
+    }
+  },
+  "mutationStarted": false,
+  "publicRelease": "NOT_RUN",
+  "anonymousDownload": "NOT_RUN",
+  "publicFirstRun": "NOT_RUN",
+  "observedUtc": "2026-10-11T14:34:06.617Z",
+  "boundary": "Concrete publication input prepared under the user request to complete P08; original P07 READY and current environment approval remain mandatory. No substitute actor, automatic self approval, bypass, tag, Release or upload was attempted.",
+  "p07": {
+    "status": "READY",
+    "record": "docs/design/m47-unified-management-workbench/preview-1-p07-12.json",
+    "recordSha256": "209ee2bbab919db6efe679f195c85e35fd8fed3f4697840280033c1aa844fd06",
+    "runId": "38148424602",
+    "acceptedChecks": 8,
+    "acceptedWorkflowGates": 12
+  },
+  "reviewedDistributorCommit": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
+  "nextAction": "Another authorized GitHub user must dispatch the frozen publish request, followed by maikebing environment approval. Preserve prevent_self_review and can_admins_bypass=false. Only then run anonymous four-attachment verification and actual public-package first-run acceptance."
+}

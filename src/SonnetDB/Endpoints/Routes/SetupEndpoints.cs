@@ -21,8 +21,10 @@ internal static partial class SonnetDbEndpoints
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var installation = app.Services.GetRequiredService<InstallationStore>();
 
-        app.MapGet("/v1/setup/status", () =>
+        app.MapGet("/v1/setup/status", (HttpContext ctx) =>
         {
+            if (WorkbenchPreviewSql.IsRequested(ctx) && registry.Count > 1000)
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
             var users = app.Services.GetRequiredService<UserStore>();
             var visibleDatabaseCount = registry.ListDatabases()
                 .Count(static database => !DatabaseAccessEvaluator.IsSystemDatabase(database));
@@ -39,6 +41,11 @@ internal static partial class SonnetDbEndpoints
 
         app.MapMethods("/v1/setup/initialize", new[] { "POST" }, (RequestDelegate)(async ctx =>
         {
+            if (WorkbenchPreviewSql.IsRequested(ctx) && registry.Count > 1000)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                return;
+            }
             var users = app.Services.GetRequiredService<UserStore>();
             var visibleDatabaseCount = registry.ListDatabases()
                 .Count(static database => !DatabaseAccessEvaluator.IsSystemDatabase(database));

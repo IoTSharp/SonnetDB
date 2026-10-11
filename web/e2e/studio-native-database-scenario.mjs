@@ -292,10 +292,10 @@ export function compactDatabaseProcessEvidence(compact, input) {
 export function projectDatabaseSnapshot(value, { disk = false } = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || !Array.isArray(value.profiles) || value.profiles.length !== 1) fail('one isolated profile is required.');
-  const allowed = new Set(['profiles', 'activeProfileId', 'activeDatabase', ...(disk ? [] : ['activeIdentity'])]);
+  const allowed = new Set(['profiles', 'activeProfileId', 'activeDatabase', 'activeIdentity']);
   if (Object.keys(value).length > 8 || Object.keys(value).some((name) => !allowed.has(name))) fail('unexpected library fields are refused.');
   const profile = value.profiles[0];
-  const profileAllowed = new Set(['id', 'name', 'kind', 'baseUrl', 'defaultDatabase', 'tokenMode', 'createdAt', 'updatedAt', ...(disk ? [] : ['identity'])]);
+  const profileAllowed = new Set(['id', 'name', 'kind', 'baseUrl', 'defaultDatabase', 'tokenMode', 'createdAt', 'updatedAt', 'identity']);
   if (!profile || typeof profile !== 'object' || Object.keys(profile).length > 10
     || Object.keys(profile).some((name) => !profileAllowed.has(name))) fail('unexpected profile fields are refused.');
   const identity = (input) => {
@@ -308,6 +308,23 @@ export function projectDatabaseSnapshot(value, { disk = false } = {}) {
   if (!disk) {
     result.activeIdentity = identity(value.activeIdentity);
     result.profiles[0].identity = identity(profile.identity);
+  } else {
+    const hasActiveIdentity = Object.hasOwn(value, 'activeIdentity');
+    const hasProfileIdentity = Object.hasOwn(profile, 'identity');
+    if (hasActiveIdentity !== hasProfileIdentity) fail('paired disk identity fields are required.');
+    if (hasActiveIdentity) {
+      // SaveAsync persists these derived properties. Validate their exact
+      // relationship before discarding them; disk data cannot certify a bridge ack.
+      const activeIdentity = identity(value.activeIdentity);
+      const profileIdentity = identity(profile.identity);
+      const matches = (input, profileId, database) => input.host === 'studio-desktop'
+        && typeof input.profileId === 'string' && input.profileId.length > 0 && input.profileId === profileId
+        && typeof input.baseUrl === 'string' && input.baseUrl.length > 0 && input.baseUrl === profile.baseUrl
+        && typeof input.database === 'string' && input.database.length > 0 && input.database === database;
+      if (value.activeProfileId !== profile.id
+        || !matches(activeIdentity, value.activeProfileId, value.activeDatabase)
+        || !matches(profileIdentity, profile.id, profile.defaultDatabase)) fail('derived disk identity disagrees.');
+    }
   }
   return result;
 }

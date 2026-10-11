@@ -177,8 +177,9 @@ export async function execDataSql(
   parameters?: SqlParameters,
   signal?: AbortSignal,
   previewMaxRows?: number,
+  previewAction?: 'relation.insert.one',
 ): Promise<SqlResultSet> {
-  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters, previewMaxRows }, signal);
+  return singleResult(await doExecMany(api, `/v1/db/${encodeURIComponent(db)}/sql`, normalizeSqlStatementPayload({ sql, parameters, previewMaxRows }), signal, previewAction));
 }
 
 /**
@@ -206,12 +207,13 @@ async function doExec(api: AxiosInstance, url: string, payload: SqlStatementRequ
   return singleResult(results);
 }
 
-async function doExecMany(api: AxiosInstance, url: string, requestBody: unknown, signal?: AbortSignal): Promise<SqlResultSet[]> {
+async function doExecMany(api: AxiosInstance, url: string, requestBody: unknown, signal?: AbortSignal, previewAction?: 'relation.insert.one'): Promise<SqlResultSet[]> {
   const resp = await api.post(url, requestBody, {
     responseType: 'text',
     transformResponse: (v) => v,
     validateStatus: () => true,
     signal,
+    ...(previewAction ? { headers: { 'X-SonnetDB-Workbench-Action': previewAction } } : {}),
   });
   const ct = resp.headers['content-type']?.toString() ?? '';
   if (typeof resp.data === 'string' && ct.includes('ndjson')) {

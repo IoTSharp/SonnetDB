@@ -12,6 +12,7 @@ import {
 } from '@/api/studioNativeBridge';
 
 export type ConnectionKind = 'managed-local' | 'remote';
+import { previewEnabled } from '@/preview/policy';
 
 export interface ConnectionProfile {
   id: string;
@@ -107,6 +108,7 @@ function normalizeProfile(input: Partial<ConnectionProfile>, index: number): Con
 }
 
 function loadState(): StoredConnectionsState {
+  if (previewEnabled) { const profile = localProfile('/'); return { profiles: [profile], activeProfileId: profile.id, activeDatabase: '' }; }
   try {
     const raw = localStorage.getItem(StorageKey);
     if (!raw) {
@@ -137,6 +139,7 @@ function loadState(): StoredConnectionsState {
 }
 
 function saveState(state: StoredConnectionsState): void {
+  if (previewEnabled) return;
   try {
     localStorage.setItem(StorageKey, JSON.stringify(state));
   } catch {

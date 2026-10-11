@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "kind": "explicit-original-empty-draft-recovery",
+  "candidate": "candidate-12",
+  "version": "4.5.0-preview.1.12",
+  "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
+  "tag": "workbench-preview-1.12",
+  "distributionSha256": "da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715",
+  "releaseId": 409754336,
+  "originalRunId": "38151505875",
+  "originalToolingCommit": "991023ef6fcdc59452e7e51ccb913c578298ca06",
+  "originalFailureStatus": "UNKNOWN_RECONCILE_ORIGINAL_TAG_RELEASE_IDS_NO_RETRY",
+  "originalPublishReceiptSha256": "e68d47179fa7235ebbcbe026666833c7ee5868bf4479212e819e2040e2d361bf",
+  "originalEvidenceArtifact": {
+    "status": "PASS",
+    "id": 11705999352,
+    "size": 138456,
+    "digest": "sha256:7a43cb8854320fdae0521b2915af00c62a09d6d6c8a59e9b9149bbb08effea77",
+    "originalRunId": "38151505875",
+    "source": "original failed publication artifact"
+  },
+  "observedAssets": [],
+  "reconciliationSha256": "8676875fdfcdd952bdb0b6917718ab968be353b52a925c1478424e0307324e94",
+  "reconciledUtc": "2026-10-11T15:40:40.589Z",
+  "requiredReviewer": "maikebing",
+  "authorization": "User explicitly requested completion of M47-P08 and permits maikebing self approval. Recover the exact original empty draft and frozen four files only."
+}

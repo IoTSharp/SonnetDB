@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { admitNativeStudioRoot, assertDatabaseAcknowledgement, assertDatabaseClose, assertDatabaseSnapshot, compactDatabaseProcessEvidence, createDatabaseRecoveryContract,
   beginDatabaseSelectionAttempt, observeDatabaseSeedFailure, projectDatabaseSelectionCandidates, projectDatabaseSelectionDom, projectDatabaseSnapshot,
@@ -15,7 +16,8 @@ const snapshot = (database, disk = false) => ({ activeProfileId: 'managed-local'
 const ack = (database, sequence, launch = 1, method = 'PUT') => ({ sequence, requestSequence: sequence, launch, method, path: '/studio-bridge/connections',
   httpStatus: 200, body: projectDatabaseSnapshot(snapshot(database)) });
 const dom = (database) => ({ activeDatabase: database, hostIdentity: `studio-desktop · managed-local · ${origin} · ${database}`, contractWarning: false });
-const disk = (database) => projectDatabaseSnapshot(snapshot(database, true), { disk: true });
+const disk = (database) => projectDatabaseSnapshot(snapshot(database), { disk: true });
+const serializedLibrary = () => JSON.parse(readFileSync(new URL('./fixtures/studio-managed-local-library.json', import.meta.url), 'utf8'));
 const close = () => ({ method: 'CloseMainWindow', accepted: true, exitCode: 0, exitSignal: null, studioIdentityExited: true,
   serverIdentityExited: true, allOwnedIdentitiesExited: true, allFourPortsReleased: true, fallbackUsed: false });
 const query = () => ({ database: databaseB, requestPath: `/v1/db/${databaseB}/sql`, method: 'POST', httpStatus: 200,
@@ -61,7 +63,8 @@ test('wrong database, case folding, profile default and partial identity all ref
   assert.throws(() => assertDatabaseSnapshot(valid, '__control_plane__', origin));
 });
 
-test('disk semantics do not fabricate native identities and secret or unknown fields are refused', () => {
+test('disk semantics do not fabricate native identities and secret or unknown fields are refused', { timeout: 1000 }, () => {
+  const expires = Date.now() + 500;
   const value = disk(databaseB); assert.equal(assertDatabaseSnapshot(value, databaseB, origin, { disk: true }), true);
   assert.equal('activeIdentity' in value, false); assert.equal('identity' in value.profiles[0], false);
   assert.equal('name' in value.profiles[0], false); assert.equal('updatedAt' in value.profiles[0], false);
@@ -70,8 +73,91 @@ test('disk semantics do not fabricate native identities and secret or unknown fi
     { ...snapshot(databaseB), authorization: 'never-retain' },
     { ...snapshot(databaseB), profiles: [{ ...snapshot(databaseB).profiles[0], password: 'never-retain' }] },
     { ...snapshot(databaseB), activeIdentity: { ...identity(databaseB), token: 'never-retain' } },
-  ]) assert.throws(() => projectDatabaseSnapshot(input));
-  assert.throws(() => projectDatabaseSnapshot(snapshot(databaseB), { disk: true }));
+    { ...snapshot(databaseB), profiles: [{ ...snapshot(databaseB).profiles[0], identity: { ...identity(databaseB), token: 'never-retain' } }] },
+  ]) {
+    assert.ok(Date.now() < expires);
+    assert.throws(() => projectDatabaseSnapshot(input));
+    assert.throws(() => projectDatabaseSnapshot(input, { disk: true }));
+  }
+  assert.deepEqual(projectDatabaseSnapshot(snapshot(databaseB, true), { disk: true }), value);
+});
+
+test('the shared SaveAsync fixture yields only the established minimal disk snapshot', { timeout: 1000 }, () => {
+  const input = serializedLibrary(); const before = structuredClone(input);
+  const actual = projectDatabaseSnapshot(input, { disk: true });
+  assert.deepEqual(actual, { activeProfileId: 'managed-local', activeDatabase: 'MixedCaseDb',
+    profiles: [{ id: 'managed-local', kind: 'managed-local', baseUrl: 'http://127.0.0.1:5080',
+      defaultDatabase: 'MixedCaseDb', tokenMode: 'current-session' }] });
+  assert.equal(assertDatabaseSnapshot(actual, 'MixedCaseDb', 'http://127.0.0.1:5080', { disk: true }), true);
+  assert.deepEqual(input, before);
+  delete input.activeIdentity; delete input.profiles[0].identity;
+  assert.deepEqual(projectDatabaseSnapshot(input, { disk: true }), actual);
+});
+
+test('persisted derived identities require a complete pair with exact own fields', { timeout: 1000 }, () => {
+  const expires = Date.now() + 500;
+  const fixture = serializedLibrary();
+  const changes = [
+    (value) => { delete value.activeIdentity; },
+    (value) => { delete value.profiles[0].identity; },
+    (value) => { value.activeIdentity = null; },
+    (value) => { value.profiles[0].identity = null; },
+    (value) => { value.activeIdentity = []; },
+    (value) => { value.profiles[0].identity = 'studio-desktop'; },
+    (value) => { delete value.activeIdentity.database; },
+    (value) => { delete value.profiles[0].identity.profileId; },
+    (value) => { value.activeIdentity.secret = 'never-retain'; },
+    (value) => { value.profiles[0].identity.secret = 'never-retain'; },
+    (value) => { value.activeIdentity.database = null; },
+    (value) => { value.profiles[0].identity.baseUrl = 5080; },
+  ];
+  for (const change of changes) {
+    assert.ok(Date.now() < expires);
+    const value = structuredClone(fixture); change(value);
+    assert.throws(() => projectDatabaseSnapshot(value, { disk: true }), /identity/u);
+  }
+});
+
+test('both persisted identities reject foreign and case-folded identity components', { timeout: 1000 }, () => {
+  const expires = Date.now() + 500;
+  const fixture = serializedLibrary();
+  const changes = [
+    ['host', 'vscode'], ['host', 'Studio-desktop'],
+    ['profileId', 'other-profile'], ['profileId', 'Managed-local'],
+    ['baseUrl', 'http://127.0.0.1:9999'], ['baseUrl', 'HTTP://127.0.0.1:5080'],
+    ['database', 'OtherDb'], ['database', 'mixedcasedb'],
+  ];
+  for (const target of ['active', 'profile']) {
+    for (const [field, replacement] of changes) {
+      assert.ok(Date.now() < expires);
+      const value = structuredClone(fixture);
+      (target === 'active' ? value.activeIdentity : value.profiles[0].identity)[field] = replacement;
+      assert.throws(() => projectDatabaseSnapshot(value, { disk: true }), /derived disk identity/u);
+    }
+  }
+});
+
+test('disk identities bind active selection and profile default to their respective stored values', { timeout: 1000 }, () => {
+  const value = serializedLibrary();
+  value.activeDatabase = 'SelectedDb'; value.activeIdentity.database = 'SelectedDb';
+  const projected = projectDatabaseSnapshot(value, { disk: true });
+  assert.equal(projected.activeDatabase, 'SelectedDb'); assert.equal(projected.profiles[0].defaultDatabase, 'MixedCaseDb');
+  assert.throws(() => assertDatabaseSnapshot(projected, 'SelectedDb', 'http://127.0.0.1:5080', { disk: true }), /default spelling/u);
+  value.activeIdentity.database = 'MixedCaseDb';
+  assert.throws(() => projectDatabaseSnapshot(value, { disk: true }), /derived disk identity/u);
+  value.activeIdentity.database = 'SelectedDb'; value.profiles[0].identity.database = 'SelectedDb';
+  assert.throws(() => projectDatabaseSnapshot(value, { disk: true }), /derived disk identity/u);
+  const wrongProfile = serializedLibrary();
+  wrongProfile.activeProfileId = 'other-profile'; wrongProfile.activeIdentity.profileId = 'other-profile';
+  assert.throws(() => projectDatabaseSnapshot(wrongProfile, { disk: true }), /derived disk identity/u);
+});
+
+test('an accepted disk snapshot cannot supply the native acknowledgement identity', { timeout: 1000 }, () => {
+  const value = serializedLibrary(); const projected = projectDatabaseSnapshot(value, { disk: true });
+  const expected = { ...barrier(1), launch: 1, method: 'PUT', database: 'MixedCaseDb', origin: 'http://127.0.0.1:5080' };
+  const receipt = { sequence: 2, requestSequence: 2, launch: 1, method: 'PUT', path: '/studio-bridge/connections', httpStatus: 200 };
+  assert.throws(() => assertDatabaseAcknowledgement({ ...receipt, body: projected }, expected), /native identity/u);
+  assert.equal(assertDatabaseAcknowledgement({ ...receipt, body: projectDatabaseSnapshot(value) }, expected), true);
 });
 
 test('B first, repeated A, mismatched DOM and reused sequence do not advance the journey', () => {
