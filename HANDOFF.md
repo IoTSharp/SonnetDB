@@ -1883,3 +1883,18 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
+
+## GH-Issue #228 独立实现候选（2026-10-12，Asia/Shanghai）
+
+由线上闭环主智能体授权，在 online-delivery 独立工作树、基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03 实施 ADO.NET HasRows 修复。SndbDataReader 不再把列数当作行数：首行探测复用原命令读取的超时、取消和远程错误处理，后续同步/异步 Read 返回保留的首行；空结果继续保留声明列元数据，非空结果读尽后仍记有行。
+
+定向回归已编写：空表/未命中 SELECT、空 RETURNING、首行不丢失/未提前定位、读取后状态、NDJSON 断流/Server 错误、调用方及命令取消、正文超时和真实 Kestrel REST/Frame HTTP2。当前仅 git diff --check 通过，build/test/restore/format/AOT 均 NOT_RUN，按主智能体统一构建槽等待验证。未触碰索引、提交、分支或远端；不能把此静态候选写成正式包修复或关闭 Issue。正式 NuGet/Server 发布、FreeSql 公共接口消费回归保持开放门禁；P07/P08 已发布 Windows Web R1 预览不替代这些门禁。
+
+线上调查原始证据保存在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery：authenticated GitHub 完整清点49项开放 Issue；GH-Issue #91/#230 开放，#184/#197 closed/completed；公开 NuGet SonnetDB、Core 与 EntityFrameworkCore 最新稳定版仍为4.0.0。仅本工作树HANDOFF追加本段并保留此前字节，最终验证和集成由主智能体复核。
+## GH-Issue #228 定向回归与候选冻结（2026-10-12，Asia/Shanghai）
+
+接续上段静态候选，首次Core定向TRX为124/125，唯一失败保留：NDJSON正文已有内存缓冲时，已取消的命令令牌可能被底层同步完成的读取忽略。已在Reader异步读取入口按原调用方取消优先顺序显式检查命令令牌，修复后相同Core ADO/NDJSON/timeout回归125/125通过。完整真实Kestrel RemoteAdoHttp2TransportTests为19/19，含新增REST/Frame HTTP2、同步/异步四case；原失败TRX/日志与20个新增case保持，不声称一次全绿。
+
+三次测试均使用Windows Job、DOTNET_PROCESSOR_COUNT=2、单MSBuild节点/禁共享编译/禁node reuse，分别取得完整进程身份与cleanupComplete=true。逐PID独立审计触及20秒上限的FAIL保留；后续一次限定PID集合查询确认37个记录身份零精确活跃，三个专属TEMP目录经绝对路径/归属标记核验已回收。最终源码/测试/DLL/证据SHA、不可变diff、TRX非空计数与HANDOFF前缀收据位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery/issue-228-validation-final.json，当前实现冻结等待主智能体复核。
+
+完整解决方案restore/CI原Format Check由主智能体在最终待提交树执行；本子任务未stage/commit/push/远端mutation。未独立NativeAOT发布、未正式NuGet/Server发行，也未FreeSql公开包消费回归，GH-Issue #228整体保持开放。本段只追加，旧HANDOFF字节及此前NOT_RUN/FAIL记录保持。下一轮#273需主智能体明确分工后才实施。

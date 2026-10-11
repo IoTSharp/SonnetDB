@@ -22,6 +22,8 @@ public sealed class SndbDataReader : DbDataReader
     private readonly Action? _releaseExecutionLease;
     private CancellationTokenSource? _readTimeoutCancellation;
     private bool _hasRow;
+    private bool? _hasRows;
+    private bool _bufferedRow;
     private bool _closed;
 
     internal SndbDataReader(
@@ -53,7 +55,21 @@ public sealed class SndbDataReader : DbDataReader
     public override int FieldCount => _result.Columns.Count;
 
     /// <inheritdoc />
-    public override bool HasRows => FieldCount > 0;
+    public override bool HasRows
+    {
+        get
+        {
+            if (_closed) return false;
+            if (!_hasRows.HasValue)
+            {
+                // 通过原读取路径探测首行，保留命令超时、取消和远程错误；
+                // 下一次 Read 返回这行，探测本身不把公开 Reader 定位到该行。
+                _bufferedRow = Read();
+                _hasRow = false;
+            }
+            return _hasRows.GetValueOrDefault();
+        }
+    }
 
     /// <inheritdoc />
     public override bool IsClosed => _closed;
@@ -353,11 +369,17 @@ public sealed class SndbDataReader : DbDataReader
     public override bool Read()
     {
         if (_closed) return false;
+        if (_bufferedRow)
+        {
+            _commandCancellationToken.ThrowIfCancellationRequested();
+            _bufferedRow = false;
+            _hasRow = true;
+            return true;
+        }
         if (_commandTimeout <= 0 && !_commandCancellationToken.CanBeCanceled)
         {
             // 既无计时器也无命令取消令牌时保持原同步读取快路径。
-            _hasRow = _result.ReadNextRow();
-            return _hasRow;
+            return SetReadResult(_result.ReadNextRow());
         }
 
         return ReadWithTimeoutAsync(CancellationToken.None)
@@ -377,21 +399,26 @@ public sealed class SndbDataReader : DbDataReader
     {
         callerCancellationToken.ThrowIfCancellationRequested();
         if (_closed) return false;
+        _commandCancellationToken.ThrowIfCancellationRequested();
+        if (_bufferedRow)
+        {
+            _bufferedRow = false;
+            _hasRow = true;
+            return true;
+        }
 
         if (_commandTimeout <= 0)
         {
             if (!_commandCancellationToken.CanBeCanceled)
             {
-                _hasRow = await _result.ReadNextRowAsync(callerCancellationToken).ConfigureAwait(false);
-                return _hasRow;
+                return SetReadResult(await _result.ReadNextRowAsync(callerCancellationToken).ConfigureAwait(false));
             }
 
             if (!callerCancellationToken.CanBeCanceled)
             {
                 try
                 {
-                    _hasRow = await _result.ReadNextRowAsync(_commandCancellationToken).ConfigureAwait(false);
-                    return _hasRow;
+                    return SetReadResult(await _result.ReadNextRowAsync(_commandCancellationToken).ConfigureAwait(false));
                 }
                 catch (OperationCanceledException exception) when (_commandCancellationToken.IsCancellationRequested)
                 {
@@ -404,8 +431,7 @@ public sealed class SndbDataReader : DbDataReader
                 _commandCancellationToken);
             try
             {
-                _hasRow = await _result.ReadNextRowAsync(commandReadCancellation.Token).ConfigureAwait(false);
-                return _hasRow;
+                return SetReadResult(await _result.ReadNextRowAsync(commandReadCancellation.Token).ConfigureAwait(false));
             }
             catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
             {
@@ -433,8 +459,7 @@ public sealed class SndbDataReader : DbDataReader
 
         try
         {
-            _hasRow = await _result.ReadNextRowAsync(readCancellation.Token).ConfigureAwait(false);
-            return _hasRow;
+            return SetReadResult(await _result.ReadNextRowAsync(readCancellation.Token).ConfigureAwait(false));
         }
         catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
         {
@@ -458,6 +483,13 @@ public sealed class SndbDataReader : DbDataReader
             commandRegistration.Dispose();
             ResetReadTimeoutCancellation(readCancellation);
         }
+    }
+
+    private bool SetReadResult(bool hasRow)
+    {
+        _hasRow = hasRow;
+        _hasRows ??= hasRow;
+        return hasRow;
     }
 
     /// <summary>

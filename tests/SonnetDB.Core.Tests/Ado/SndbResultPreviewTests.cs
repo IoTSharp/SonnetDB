@@ -197,11 +197,77 @@ public sealed class SndbResultPreviewTests
         Assert.False(reader.Truncated);
     }
 
-    private static async Task<SndbDataReader> CreateReaderAsync(string body)
+    [Fact]
+    public async Task HasRows_DisconnectedRemoteStream_PropagatesIncompleteResult()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            """);
+
+        Assert.Throws<InvalidDataException>(() => reader.HasRows);
+    }
+
+    [Fact]
+    public async Task HasRows_RemoteError_PropagatesServerDiagnostic()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"]}
+            {"error":"query_budget_exceeded","message":"budget exhausted"}
+            """);
+
+        var exception = Assert.Throws<SndbServerException>(() => reader.HasRows);
+        Assert.Equal("query_budget_exceeded", exception.Error);
+        Assert.Equal("budget exhausted", exception.ServerMessage);
+    }
+
+    [Fact]
+    public async Task HasRows_BufferedRemoteRow_CallerCancellationDoesNotConsumeIt()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            [42]
+            {"type":"end","rowCount":1,"recordsAffected":-1}
+            """);
+        Assert.True(reader.HasRows);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() => reader.ReadAsync(cancellation.Token));
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(42L, reader.GetInt64(0));
+        Assert.False(await reader.ReadAsync());
+        Assert.True(reader.HasRows);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HasRows_CommandCancellation_PreservesTokenBeforeAndAfterPrefetch(bool prefetch)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            [42]
+            {"type":"end","rowCount":1,"recordsAffected":-1}
+            """, cancellation.Token);
+        if (prefetch)
+            Assert.True(reader.HasRows);
+        cancellation.Cancel();
+
+        var exception = Assert.Throws<OperationCanceledException>(() => prefetch ? reader.Read() : reader.HasRows);
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        var asyncException = await Assert.ThrowsAsync<OperationCanceledException>(() => reader.ReadAsync());
+        Assert.Equal(cancellation.Token, asyncException.CancellationToken);
+        Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+    }
+
+    private static async Task<SndbDataReader> CreateReaderAsync(string body, CancellationToken commandCancellationToken = default)
     {
         var stream = new MemoryStream(Encoding.UTF8.GetBytes(body));
         var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
         var result = await RemoteExecutionResult.CreateAsync(response, stream, CancellationToken.None);
-        return new SndbDataReader(result, CommandBehavior.Default, connection: null);
+        return new SndbDataReader(result, CommandBehavior.Default, connection: null,
+            commandCancellationToken: commandCancellationToken);
     }
 }

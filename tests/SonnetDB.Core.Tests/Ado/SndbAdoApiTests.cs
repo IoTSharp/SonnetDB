@@ -357,6 +357,62 @@ public sealed class TsdbAdoApiTests : IDisposable
         await Assert.ThrowsAsync<OperationCanceledException>(() => cmd.ExecuteNonQueryAsync(cts.Token));
     }
 
+    [Theory]
+    [InlineData(false, "SELECT id FROM empty_hasrows")]
+    [InlineData(true, "SELECT id FROM empty_hasrows")]
+    [InlineData(false, "SELECT id FROM hasrows WHERE id = -1")]
+    [InlineData(true, "SELECT id FROM hasrows WHERE id = -1")]
+    [InlineData(false, "UPDATE hasrows SET name = 'unused' WHERE id = -1 RETURNING id")]
+    [InlineData(true, "UPDATE hasrows SET name = 'unused' WHERE id = -1 RETURNING id")]
+    public async Task HasRows_EmptyResults_PreservesDeclaredMetadata(bool useAsync, string sql)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE hasrows (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "CREATE TABLE empty_hasrows (id INT, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "INSERT INTO hasrows (id, name) VALUES (1, 'first')");
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = useAsync ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+
+        Assert.False(reader.HasRows);
+        Assert.False(reader.HasRows);
+        Assert.Equal(1, reader.FieldCount);
+        Assert.Equal("id", reader.GetName(0));
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.Equal(typeof(long), reader.GetSchemaTable()!.Rows[0][SchemaTableColumn.DataType]);
+        Assert.False(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.False(reader.HasRows);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task HasRows_NonemptyResults_PreservesFirstRowAndResultStatus(bool useAsync, bool inspectBeforeRead)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE hasrows (id INT, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "INSERT INTO hasrows (id) VALUES (1), (2)");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM hasrows ORDER BY id";
+        using var reader = useAsync ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+
+        if (inspectBeforeRead)
+        {
+            Assert.True(reader.HasRows);
+            Assert.True(reader.HasRows);
+            Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+        }
+        Assert.True(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.True(reader.HasRows);
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.True(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.False(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.True(reader.HasRows);
+    }
+
     [Fact]
     public void DataReader_GetSchemaTable_ReturnsAdoMetadata()
     {

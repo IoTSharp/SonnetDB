@@ -106,6 +106,59 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         }
     }
 
+    [Theory]
+    [InlineData("rest", false)]
+    [InlineData("rest", true)]
+    [InlineData("frame-http2", false)]
+    [InlineData("frame-http2", true)]
+    public async Task HasRows_RemoteResults_PreservesRowsAndEmptyMetadata(string protocol, bool useAsync)
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var connection = new SndbConnection(ConnectionString(
+            protocol == "rest" ? _http11Url : _frameH2Url, protocol));
+        await connection.OpenAsync(cancellation.Token);
+        using var setup = connection.CreateCommand();
+        setup.CommandTimeout = 5;
+        setup.CommandText = "CREATE TABLE hasrows (id INT, value STRING, PRIMARY KEY (id))";
+        await setup.ExecuteNonQueryAsync(cancellation.Token);
+        setup.CommandText = "CREATE TABLE empty_hasrows (id INT, PRIMARY KEY (id))";
+        await setup.ExecuteNonQueryAsync(cancellation.Token);
+        setup.CommandText = "INSERT INTO hasrows (id, value) VALUES (1, 'first'), (2, 'second')";
+        await setup.ExecuteNonQueryAsync(cancellation.Token);
+
+        await VerifyAsync("SELECT id FROM empty_hasrows", hasRows: false);
+        await VerifyAsync("SELECT id FROM hasrows WHERE id = -1", hasRows: false);
+        await VerifyAsync("UPDATE hasrows SET value = 'unused' WHERE id = -1 RETURNING id", hasRows: false);
+        await VerifyAsync("SELECT id FROM hasrows ORDER BY id", hasRows: true);
+
+        async Task VerifyAsync(string sql, bool hasRows)
+        {
+            cancellation.Token.ThrowIfCancellationRequested();
+            using var command = connection.CreateCommand();
+            command.CommandTimeout = 5;
+            command.CommandText = sql;
+            using var reader = useAsync
+                ? await command.ExecuteReaderAsync(cancellation.Token)
+                : command.ExecuteReader();
+            Assert.Equal(hasRows, reader.HasRows);
+            Assert.Equal(hasRows, reader.HasRows);
+            Assert.Equal(1, reader.FieldCount);
+            Assert.Equal("id", reader.GetName(0));
+            Assert.Equal(typeof(long), reader.GetFieldType(0));
+            Assert.Equal(typeof(long), reader.GetSchemaTable()!.Rows[0][SchemaTableColumn.DataType]);
+            Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+            Assert.Equal(hasRows, useAsync ? await reader.ReadAsync(cancellation.Token) : reader.Read());
+            if (hasRows)
+            {
+                Assert.Equal(1L, reader.GetInt64(0));
+                Assert.True(useAsync ? await reader.ReadAsync(cancellation.Token) : reader.Read());
+                Assert.Equal(2L, reader.GetInt64(0));
+                Assert.False(useAsync ? await reader.ReadAsync(cancellation.Token) : reader.Read());
+            }
+            Assert.Equal(hasRows, reader.HasRows);
+        }
+    }
+
     [Fact]
     public void FrameHttp2_RestWritesAndFrameSelect_UseExactHttp2()
     {
