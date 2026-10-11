@@ -38,18 +38,19 @@
   "tagObservedAbsent": true,
   "releaseObservedAbsent": true,
   "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "status": "READY_FOR_AUTHORIZED_PUBLISH",
+  "status": "ORIGINAL_DRAFT_RECONCILED_TOOL_FIX_REVIEW_PENDING",
   "workflowRequest": {
     "workflow": "workbench-preview-publish.yml",
     "ref": "codex/m47-preview12-release",
     "inputs": {
       "candidate_number": "12",
       "operation": "publish",
-      "p08_authorization": "P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715"
+      "p08_authorization": "P08:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715",
+      "p08_recovery_authorization": "P08-RECOVER:workbench-preview-1.12:da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715:409754336:bb0f8e4dfde4830ae77f3589c502808d6bcaa6e08248e0b3cd599024ebef09d0"
     }
   },
-  "mutationStarted": false,
-  "publicRelease": "NOT_RUN",
+  "mutationStarted": true,
+  "publicRelease": "ORIGINAL_DRAFT_CREATED_NOT_PUBLIC",
   "anonymousDownload": "NOT_RUN",
   "publicFirstRun": "NOT_RUN",
   "observedUtc": "2026-10-11T14:34:06.617Z",
@@ -63,7 +64,7 @@
     "acceptedWorkflowGates": 12
   },
   "reviewedDistributorCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
-  "nextAction": "maikebing dispatches this exact frozen request once, then explicitly approves its original pending environment deployment. Independently verify anonymous assets and public-package first run.",
+  "nextAction": "Re-review fixed binary transport and bounded original-empty-draft recovery, then approve the new recovery workflow and retain original tag and release ID.",
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
     "credentialActor": "maikebing",
@@ -72,5 +73,19 @@
     "authority": "Explicit user decision on 2026-10-11",
     "userStatement": "没必要禁止自批， 这是无理的规定， 我的代码我做主， 我认为可以就可以。",
     "environmentId": 24006677696
+  },
+  "originalFailedPublication": {
+    "runId": "38151505875",
+    "toolingCommit": "991023ef6fcdc59452e7e51ccb913c578298ca06",
+    "releaseId": 409754336,
+    "status": "UNKNOWN_RECONCILE_ORIGINAL_TAG_RELEASE_IDS_NO_RETRY",
+    "phase": "upload:sonnetdb-workbench-web-4.5.0-preview.1.12-manifest.json",
+    "error": "GitHub HTTP 400",
+    "receiptSha256": "e68d47179fa7235ebbcbe026666833c7ee5868bf4479212e819e2040e2d361bf"
+  },
+  "recoveryPlan": {
+    "path": "docs/design/m47-unified-management-workbench/preview-1-p08-recovery-12.json",
+    "sha256": "bb0f8e4dfde4830ae77f3589c502808d6bcaa6e08248e0b3cd599024ebef09d0",
+    "releaseId": 409754336
   }
 }

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { digest } from './package.mjs';
 import { identity, names, checksums, prepare, verifyDirectory, validateManifest, validateNotes, validateBuildRun, validateP07 } from './distribution.mjs';
 import { authorize, publish } from './release.mjs';
-import { target, response, expectedMissing } from './github-api.mjs';
+import { target, response, expectedMissing, binaryBodyHeaders } from './github-api.mjs';
 import { publicMetadata } from './public-readback.mjs';
 
 const environment = { name:'workbench-preview-p08', can_admins_bypass:false, protection_rules:[{type:'required_reviewers',prevent_self_review:true,reviewers:[{type:'User',reviewer:{login:'human'}}]}] };
@@ -38,6 +38,8 @@ function context(f) {const sealBytes=Buffer.from(JSON.stringify(f.seal));return 
 function remote(f,opts={}) {
   const calls=[], ctx=context(f), assets=[]; let release=null, tag=null;
   if(opts.existing) {tag={object:{type:'commit',sha:opts.wrongTag?'d'.repeat(40):f.seal.sourceCommit}};release={id:1,html_url:'fixture',draft:false,prerelease:true,tag_name:f.seal.tag,name:`SonnetDB Workbench Preview 1 — ${f.seal.candidate}`,body:`${f.notes}\n<!-- distribution-sha256: ${digest(ctx.sealBytes)} -->\n`};for(const [i,a]of f.seal.attachments.entries())assets.push({id:i+1,name:a.path,size:a.size,state:'uploaded'});if(opts.extra)assets.push({id:99,name:'old.vsix'});if(opts.missing)assets.pop();}
+  if (opts.draft && release) release.draft = true;
+  if (opts.empty) assets.length = 0;
   const api=async(method,payload,body,accept)=>{calls.push({method,payload,body});if(opts.fail===payload&&method!=='GET')throw new Error('UNKNOWN_FIXTURE');
     if(payload.startsWith('git/ref/tags/'))return tag;
     if(payload==='git/refs'){tag={object:{type:'commit',sha:body.sha}};return tag;}
@@ -120,6 +122,53 @@ test('checkpoint failure prevents the following mutation', async () => asyncUse(
   const r = remote(f); r.ctx.checkpoint = () => { throw new Error('disk full fixture'); };
   await assert.rejects(publish(r.api, r.ctx));
   assert.ok(r.calls.every(c => c.method === 'GET'));
+}));
+
+test('binary upload declares the exact byte length, including UTF8; empty or nonbinary input fails', () => {
+  assert.deepEqual(binaryBodyHeaders(Buffer.from('中文')), ['Content-Type: application/octet-stream', 'Content-Length: 6']);
+  assert.throws(() => binaryBodyHeaders(Buffer.alloc(0)));
+  assert.throws(() => binaryBodyHeaders('中文'));
+});
+
+function recoveryContext(f, r) {
+  const recovery = { schemaVersion: 1, kind: 'explicit-original-empty-draft-recovery', releaseId: 1, originalRunId: '123',
+    originalFailureStatus: 'UNKNOWN_RECONCILE_ORIGINAL_TAG_RELEASE_IDS_NO_RETRY', candidate: f.seal.candidate,
+    version: f.seal.version, sourceCommit: f.seal.sourceCommit, tag: f.seal.tag,
+    distributionSha256: digest(r.ctx.sealBytes), observedAssets: [] };
+  const recoveryBytes = Buffer.from(JSON.stringify(recovery));
+  r.ctx.context = { ...r.ctx.context, recovery, recoveryBytes,
+    recoveryAuthorization: `P08-RECOVER:${f.seal.tag}:${digest(r.ctx.sealBytes)}:1:${digest(recoveryBytes)}` };
+  r.ctx.record.recoveryOriginalRunId = '123';
+}
+
+test('explicit original empty draft recovery retains tag and release IDs and uploads four files once', async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f, { existing: true, draft: true, empty: true }); recoveryContext(f, r);
+  await publish(r.api, r.ctx);
+  assert.equal(r.ctx.record.status, 'PUBLISHED_API_READBACK'); assert.equal(r.ctx.record.releaseId, 1);
+  assert.equal(r.ctx.record.originalTagRetained, true); assert.equal(r.ctx.record.recovery, true);
+  assert.equal(r.calls.filter(c => c.payload === 'git/refs' || (c.payload === 'releases' && c.method === 'POST')).length, 0);
+  assert.equal(r.calls.filter(c => c.payload.startsWith('upload/')).length, 4);
+}));
+
+for (const invalid of ['authorization', 'releaseId', 'originalRunId', 'sourceCommit']) test(`original draft recovery rejects mismatched ${invalid} without mutation`, async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f, { existing: true, draft: true, empty: true }); recoveryContext(f, r);
+  if (invalid === 'authorization') r.ctx.context.recoveryAuthorization = '';
+  else r.ctx.context.recovery[invalid] = 'wrong';
+  await assert.rejects(publish(r.api, r.ctx)); assert.ok(r.calls.every(c => c.method === 'GET'));
+}));
+
+test('reconciled draft gaining any assets rejects recovery without overwrite', async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f, { existing: true, draft: true }); recoveryContext(f, r);
+  await assert.rejects(publish(r.api, r.ctx)); assert.ok(r.calls.every(c => c.method === 'GET'));
+}));
+
+test('empty draft has no automatic recovery without the separate original-ID authorization', async () => asyncUse(async f => {
+  prepare(f.incoming, f.delivery, f.notesPath, f.seal);
+  const r = remote(f, { existing: true, draft: true, empty: true });
+  await assert.rejects(publish(r.api, r.ctx)); assert.ok(r.calls.every(c => c.method === 'GET'));
 }));
 
 function publicFixture(f) {

@@ -254,10 +254,11 @@
   "decision": {
     "reviewComplete": true,
     "status": "READY",
-    "readyForP08": true,
+    "readyForP08": false,
     "releaseAuthorized": true,
     "packageUnchanged": true,
     "publication": "NOT_RUN",
-    "boundary": "Updated tools and full frozen Windows R1 package gates passed. Actual publication, anonymous download and public first run remain pending."
+    "boundary": "Updated tools and full frozen Windows R1 package gates passed. Actual publication, anonymous download and public first run remain pending.",
+    "currentToolingReview": "PENDING_BINARY_UPLOAD_FIX_AND_EXPLICIT_DRAFT_RECOVERY"
   }
 }

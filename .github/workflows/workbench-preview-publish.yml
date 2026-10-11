@@ -17,6 +17,10 @@ on:
         description: P08:<frozen tag>:<distribution JSON SHA256>; only after P07 and explicit human authorization
         required: false
         type: string
+      p08_recovery_authorization:
+        description: Exact P08-RECOVER authorization for a separately reconciled original empty draft; default absent
+        required: false
+        type: string
 permissions:
   contents: read
   actions: read
@@ -131,6 +135,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
           P08_AUTHORIZATION: ${{ inputs.p08_authorization }}
+          P08_RECOVERY_AUTHORIZATION: ${{ inputs.p08_recovery_authorization }}
         run: ./eng/workbench-preview/Invoke-Distribution.ps1 -Mode publish -Number $env:CANDIDATE_NUMBER -Output "$env:RUNNER_TEMP/preview-distribution"
       - name: Retain publication or unknown-state receipts
         if: always()

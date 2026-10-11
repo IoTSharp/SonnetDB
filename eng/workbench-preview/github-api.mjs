@@ -1,5 +1,10 @@
 import { requireThat } from './package.mjs';
 
+export function binaryBodyHeaders(body) {
+  requireThat(Buffer.isBuffer(body) && body.length > 0, 'Nonempty binary upload required');
+  return ['Content-Type: application/octet-stream', `Content-Length: ${body.length}`];
+}
+
 export function target(repository, endpoint) {
   requireThat(repository === 'IoTSharp/SonnetDB' && typeof endpoint === 'string' && !/[\r\n]/u.test(endpoint), 'Unsafe GitHub target');
   if (endpoint.startsWith('upload/')) {

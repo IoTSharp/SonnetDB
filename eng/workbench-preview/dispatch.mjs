@@ -4,7 +4,7 @@ import cp from 'node:child_process';
 import { readJson, requireThat, digest } from './package.mjs';
 import { identity, validateBindings, validateBuildRun, prepare, verifyDirectory, validateP07 } from './distribution.mjs';
 import { publish } from './release.mjs';
-import { target, response, expectedMissing } from './github-api.mjs';
+import { target, response, expectedMissing, binaryBodyHeaders } from './github-api.mjs';
 
 const [mode, number, root, output] = process.argv.slice(2);
 requireThat(['prepare','gate','publish'].includes(mode) && /^[1-9][0-9]{0,5}$/u.test(number), 'Invalid operation/candidate');
@@ -38,7 +38,10 @@ async function api(method, endpoint, body, accept = 'application/vnd.github+json
   requireThat(mode === 'publish' || method === 'GET', 'Read-only controller refuses mutation');
   const binaryResponse = method === 'GET' && accept === 'application/octet-stream';
   const args = ['api', target(repository, endpoint), '--include', '--method', method, '-H', `Accept: ${binaryResponse ? accept : 'application/vnd.github+json'}`, '-H', 'X-GitHub-Api-Version: 2022-11-28'];
-  if (body !== undefined) args.push('-H', `Content-Type: ${Buffer.isBuffer(body) ? 'application/octet-stream' : 'application/json'}`, '--input', '-');
+  if (body !== undefined) {
+    for (const header of Buffer.isBuffer(body) ? binaryBodyHeaders(body) : ['Content-Type: application/json']) args.push('-H', header);
+    args.push('--input', '-');
+  }
   let raw;
   try { raw = command('gh', args, body === undefined ? undefined : Buffer.isBuffer(body) ? body : JSON.stringify(body)); }
   catch (e) {
@@ -91,7 +94,10 @@ try {
     validateP07(p07, readJson(readiness), seal, sealBytes, evidence);
     if (mode === 'publish') {
       const environment = await api('GET', 'environments/workbench-preview-p08');
-      await publish(api, { seal, sealBytes, delivery, environment, record, checkpoint, context: { event:process.env.GITHUB_EVENT_NAME, operation:mode, repository:process.env.GITHUB_REPOSITORY, authorization:process.env.P08_AUTHORIZATION } });
+      const recoveryBytes = process.env.P08_RECOVERY_AUTHORIZATION ? fs.readFileSync(path.join(directory, `preview-1-p08-recovery-${number}.json`)) : undefined;
+      if (recoveryBytes) record.recoveryOriginalRunId = JSON.parse(recoveryBytes).originalRunId;
+      await publish(api, { seal, sealBytes, delivery, environment, record, checkpoint, context: { event:process.env.GITHUB_EVENT_NAME, operation:mode, repository:process.env.GITHUB_REPOSITORY, authorization:process.env.P08_AUTHORIZATION,
+        recovery: recoveryBytes ? JSON.parse(recoveryBytes) : undefined, recoveryBytes, recoveryAuthorization:process.env.P08_RECOVERY_AUTHORIZATION } });
     }
   }
   if (record.status === 'RUNNING') record.status = mode === 'prepare' ? 'PREPARED_NOT_READY' : 'P07_RECHECK_PASS_NO_PUBLICATION';

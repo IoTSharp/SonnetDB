@@ -1847,3 +1847,7 @@ P08具体四附件/hash和请求已冻结preview-1-p08-12.json，authorization�
 ## 允许自批后的P07工具复验通过（2026-10-11）
 
 用户明确允许maikebing自批，环境独立GET核prevent_self_review=false、maikebing必审/can_admins_bypass=false。修改后的分发工具ca717fd40912ee583247d95dfad0c55345c63159已通过86项合同、完整restore/原CI format并正常提交推送；真实prepare 38150203876/P07 38151053382均attempt1 success。原12/12同源码工作流、8/8验收全部READY，三archive及10+5工具Git blob和18原文独立核验PASS；新P07 artifact 11706990099/digest sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83。旧政策评审与所有FAIL/UNKNOWN保持。包source5bcd3b811f2dae5005fc28fd70f6ff934e454c7a、4.5.0-preview.1.12及四附件逐字冻结。P08下一步按原精确请求一次publish，由maikebing实际审批，随后匿名下载四附件及公开包首跑；当前均NOT_RUN。
+
+## M47-P08原空草稿对账与上传修复（2026-10-11，Asia/Shanghai）
+
+发布38151505875已由maikebing实际审批；原tag已创建、Release409754336草稿绑定冻结candidate12/source5bcd3b81与原四附件。第一个manifest上传HTTP400，原UNKNOWN/运行FAIL不改；独立GET确认草稿/notes/tag精确且assets为0。GitHub CLI官方api/http.go明确Content-Length设置req.ContentLength；stdin二进制原缺此header，现按准确Buffer字节数声明。新增显式冻结原空草稿恢复计划，只允许原409754336、已对账0asset和独立P08-RECOVER精确hash输入；默认仍拒绝草稿/不完整状态，资产发生变化立即只读拒绝，没有删除/覆盖/tag移动或盲重试。94合同通过后重新prepare/P07审查改后的10+5工具，再新运行实际环境审批并在原草稿上传四件、发布/匿名下载/首跑；当前公开发行及首跑未完成。原候选/包/18原文/十二源门禁保持，旧失败和937外来文件保留；PAUSED。

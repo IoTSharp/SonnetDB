@@ -30,17 +30,33 @@ export async function reconcile(api, release, seal, sealBytes) {
 export async function publish(api, { seal, sealBytes, delivery, context, environment, record, checkpoint = () => {} }) {
   identity(seal); authorize(context, seal, sealBytes, environment);
   verifyDirectory(delivery, seal);
+  const notes = fs.readFileSync(path.join(delivery, `sonnetdb-workbench-web-${seal.version}-notes.md`), 'utf8');
   const tag = await api('GET', `git/ref/tags/${seal.tag}`);
   const existing = await api('GET', `releases/tags/${seal.tag}`);
+  let release;
   if (tag) {
     let target = tag.object;
     if (target.type === 'tag') target = (await api('GET', `git/tags/${target.sha}`)).object;
     requireThat(target.type === 'commit' && target.sha === seal.sourceCommit, 'Tag source mismatch; immutable tag cannot move');
   }
-  if (tag || existing) {
+  if (existing?.draft === true && context.recovery) {
+    const r = context.recovery;
+    requireThat(tag && r.schemaVersion === 1 && r.kind === 'explicit-original-empty-draft-recovery'
+      && r.releaseId === existing.id && r.originalRunId === record.recoveryOriginalRunId
+      && r.originalFailureStatus === 'UNKNOWN_RECONCILE_ORIGINAL_TAG_RELEASE_IDS_NO_RETRY'
+      && r.candidate === seal.candidate && r.version === seal.version && r.sourceCommit === seal.sourceCommit
+      && r.tag === seal.tag && r.distributionSha256 === digest(sealBytes)
+      && Array.isArray(r.observedAssets) && r.observedAssets.length === 0, 'Exact original empty draft recovery binding required');
+    requireThat(Buffer.isBuffer(context.recoveryBytes)
+      && context.recoveryAuthorization === `P08-RECOVER:${seal.tag}:${digest(sealBytes)}:${existing.id}:${digest(context.recoveryBytes)}`, 'Explicit original draft recovery authorization required');
+    requireThat(existing.tag_name === seal.tag && existing.prerelease === true && existing.name === `SonnetDB Workbench Preview 1 — ${seal.candidate}`
+      && existing.body === `${notes}\n<!-- distribution-sha256: ${digest(sealBytes)} -->\n`, 'Original draft identity/notes drift');
+    const assets = await api('GET', `releases/${existing.id}/assets?per_page=100`);
+    requireThat(Array.isArray(assets) && assets.length === 0, 'Original draft gained assets; reconcile without mutation');
+    release = existing; record.originalTagRetained = true; record.recovery = true;
+  } else if (tag || existing) {
     requireThat(tag && existing, 'Partial existing remote state; reconcile without mutation');
     await reconcile(api, existing, seal, sealBytes);
-    const notes = fs.readFileSync(path.join(delivery, `sonnetdb-workbench-web-${seal.version}-notes.md`), 'utf8');
     requireThat(existing.body === `${notes}\n<!-- distribution-sha256: ${digest(sealBytes)} -->\n`, 'Existing release body mismatch');
     requireThat(existing.draft === false, 'Existing draft retained; requires separate reconciliation and authorization');
     const latest = await api('GET', 'releases/latest');
@@ -49,14 +65,17 @@ export async function publish(api, { seal, sealBytes, delivery, context, environ
     return;
   }
   // Each mutation is attempted once. The caller persists UNKNOWN on any error.
-  record.phase = 'create-tag'; record.mutationStarted = true; checkpoint(record);
-  const createdTag = await api('POST', 'git/refs', { ref: `refs/tags/${seal.tag}`, sha: seal.sourceCommit });
-  requireThat(createdTag.object.type === 'commit' && createdTag.object.sha === seal.sourceCommit, 'Created tag mismatch');
-  record.tagCreated = true; record.phase = 'create-draft'; checkpoint(record);
-  const notes = fs.readFileSync(path.join(delivery, `sonnetdb-workbench-web-${seal.version}-notes.md`), 'utf8');
-  const release = await api('POST', 'releases', { tag_name: seal.tag, target_commitish: seal.sourceCommit,
-    name: `SonnetDB Workbench Preview 1 — ${seal.candidate}`, body: `${notes}\n<!-- distribution-sha256: ${digest(sealBytes)} -->\n`,
-    draft: true, prerelease: true, make_latest: 'false' });
+  if (!release) {
+    record.phase = 'create-tag'; record.mutationStarted = true; checkpoint(record);
+    const createdTag = await api('POST', 'git/refs', { ref: `refs/tags/${seal.tag}`, sha: seal.sourceCommit });
+    requireThat(createdTag.object.type === 'commit' && createdTag.object.sha === seal.sourceCommit, 'Created tag mismatch');
+    record.tagCreated = true; record.phase = 'create-draft'; checkpoint(record);
+    release = await api('POST', 'releases', { tag_name: seal.tag, target_commitish: seal.sourceCommit,
+      name: `SonnetDB Workbench Preview 1 — ${seal.candidate}`, body: `${notes}\n<!-- distribution-sha256: ${digest(sealBytes)} -->\n`,
+      draft: true, prerelease: true, make_latest: 'false' });
+  } else {
+    record.phase = 'recover-original-empty-draft'; record.mutationStarted = true; checkpoint(record);
+  }
   requireThat(Number.isSafeInteger(release.id) && release.id > 0, 'Release ID missing');
   record.releaseId = release.id; record.url = release.html_url; record.uploads = []; checkpoint(record);
   for (const f of seal.attachments) {
