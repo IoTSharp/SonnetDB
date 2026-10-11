@@ -6,7 +6,7 @@
   "candidate": "candidate-12",
   "version": "4.5.0-preview.1.12",
   "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
-  "toolingCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+  "toolingCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
   "distributionSha256": "da8f7ac9c82cf61d20471d1504c3db98d200271debd7f894afab38ffedc76715",
   "status": "READY",
   "published": false,
@@ -45,7 +45,7 @@
       "id": "D01",
       "status": "PASS",
       "file": "D01.json",
-      "sha256": "7b1cfaabef4841544a1e43658f88876ddb409de42dfd767bbbddf2a379da1bfd"
+      "sha256": "d455b397fa9192eafa03acc711e4a5801ef6fb18fa8a604ea83d43b9543fc2a2"
     },
     {
       "id": "P05-installed-R1",
@@ -72,11 +72,11 @@
       "issues": []
     }
   ],
-  "distributorCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+  "distributorCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
   "distributorInputs": [
     {
       "path": ".github/workflows/workbench-preview-publish.yml",
-      "sha256": "9e0f4021c3a40ec15be570024716540b7a76630c4861b3ed6d2914a2b664e40d"
+      "sha256": "883eaa6b4cea0cd25bdd8f34886d8496ef5780daf3e52444a0150bd46f474c08"
     },
     {
       "path": "eng/workbench-preview/distribution.mjs",
@@ -84,15 +84,15 @@
     },
     {
       "path": "eng/workbench-preview/release.mjs",
-      "sha256": "4642be90351332af70cb9d51a94799d32b83c88a0d42279a249b126f2e421c76"
+      "sha256": "ea3ad868c82f05fde71b144b38de593861f685a12e3d524840b5d0d5421a3568"
     },
     {
       "path": "eng/workbench-preview/dispatch.mjs",
-      "sha256": "a328c177f424a94b51c4db370c2671549d2430fff8e571269877954608e8f162"
+      "sha256": "c184b84a822047da2a6ca7b2519ccf3315b82b67175f1d45d065a79f7a4a2ab0"
     },
     {
       "path": "eng/workbench-preview/github-api.mjs",
-      "sha256": "34a09cac823cddf1382042709090beedc3443b6835ee7be4fc06ac09e7b9b5fc"
+      "sha256": "a1baa0878c2ccb5010bc7c38715c763f69a5c6d8bb4a8dfb06ce0fd147e76c6c"
     },
     {
       "path": "eng/workbench-preview/Invoke-Distribution.ps1",
@@ -139,47 +139,47 @@
   ],
   "prepareRun": {
     "repository": "IoTSharp/SonnetDB",
-    "runId": "38150203876",
+    "runId": "38153124333",
     "attempt": 1,
-    "toolingCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+    "toolingCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
     "artifacts": [
       {
-        "id": "11706117297",
+        "id": "11707681213",
         "name": "preview-distribution-12",
-        "digest": "sha256:814d187dd262053cd2e54daed0e959b7205163c18a7f3fa9c682488b06d3b0fa",
-        "expiresAt": "2027-01-09T15:10:58Z"
+        "digest": "sha256:6fbe203dc0daa99827a3412f6f0ef05fce67fdfcc5e5215da7b48f0b76f4ef14",
+        "expiresAt": "2027-01-09T15:52:50Z"
       },
       {
-        "id": "11705597997",
+        "id": "11707456681",
         "name": "preview-distribution-evidence-12",
-        "digest": "sha256:04a57a254ebc79cc0debc8cf896518d1d534c7a0957493be0769fd5424d34f4a",
-        "expiresAt": "2027-01-09T15:10:58Z"
+        "digest": "sha256:94cc78476ea8bf198eab43c15865566664c293dc66f3c005f847798a1ed39bcd",
+        "expiresAt": "2027-01-09T15:52:50Z"
       }
     ]
   },
   "collectionStatus": "COMPLETE",
   "commandCount": 7,
-  "endedUtc": "2026-10-11T15:24:34.416Z",
-  "elapsedMilliseconds": 46047,
+  "endedUtc": "2026-10-11T15:57:24.963Z",
+  "elapsedMilliseconds": 42990,
   "boundary": "Successful evidence collection does not mean release readiness. Any non-PASS mandatory gate blocks publication; seven-day scheduled Parity remains nonblocking. Original package/manifest/checksum/FAIL/UNKNOWN remain immutable. P08 requires separate human authorization.",
   "evidenceArtifact": {
     "repository": "IoTSharp/SonnetDB",
-    "runId": "38151053382",
+    "runId": "38153356012",
     "attempt": 1,
-    "id": "11706990099",
+    "id": "11707043927",
     "name": "workbench-preview-p07-12",
-    "digest": "sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83",
-    "expiresAt": "2026-11-10T15:24:34Z"
+    "digest": "sha256:e69096502649bea8a64b69e47924a27d6ed1e2d1993476a6a3733e5b24903088",
+    "expiresAt": "2026-11-10T15:57:25Z"
   },
   "originalReview": {
     "file": "review.json",
-    "sha256": "3907db3456d1426685755a569ec29750e75c90cb4a9527d2749a228d7d8e7e4f",
+    "sha256": "a0fcc764088e55a0fcb31ab73555c7dec3d5102edbd8516c54164bf06f0ca8e1",
     "status": "READY",
     "collectionStatus": "COMPLETE"
   },
   "originalReadiness": {
     "file": "release-gates/readiness.json",
-    "sha256": "fd3bac2649a9d47bce4f2b73bbb70bf519d1f35b99f82170e7b2f75b8f3882b4",
+    "sha256": "66cf61dfda92939310e35b7e1d4f58b669d1bbeea49cc4546b94d68ed176236c",
     "authorityUnmodified": true,
     "requiredWorkflows": 12,
     "passedWorkflows": 12
@@ -187,48 +187,48 @@
   "independentVerification": {
     "status": "PASS",
     "productStatus": "READY",
-    "toolingCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
+    "toolingCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
     "sourceCommit": "5bcd3b811f2dae5005fc28fd70f6ff934e454c7a",
     "version": "4.5.0-preview.1.12",
-    "p07RunId": "38151053382",
-    "prepareRunId": "38150203876",
+    "p07RunId": "38153356012",
+    "prepareRunId": "38153124333",
     "attempt": 1,
     "artifact": {
-      "id": "11706990099",
+      "id": "11707043927",
       "name": "workbench-preview-p07-12",
-      "digest": "sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83",
-      "expiresAt": "2026-11-10T15:24:34Z"
+      "digest": "sha256:e69096502649bea8a64b69e47924a27d6ed1e2d1993476a6a3733e5b24903088",
+      "expiresAt": "2026-11-10T15:57:25Z"
     },
     "archives": [
       {
         "kind": "evidence",
-        "id": "11705597997",
+        "id": "11707456681",
         "name": "preview-distribution-evidence-12",
-        "size": 3319,
-        "sha256": "04a57a254ebc79cc0debc8cf896518d1d534c7a0957493be0769fd5424d34f4a",
-        "digest": "sha256:04a57a254ebc79cc0debc8cf896518d1d534c7a0957493be0769fd5424d34f4a",
-        "expiresAt": "2027-01-09T15:10:58Z"
+        "size": 3312,
+        "sha256": "94cc78476ea8bf198eab43c15865566664c293dc66f3c005f847798a1ed39bcd",
+        "digest": "sha256:94cc78476ea8bf198eab43c15865566664c293dc66f3c005f847798a1ed39bcd",
+        "expiresAt": "2027-01-09T15:52:50Z"
       },
       {
         "kind": "delivery",
-        "id": "11706117297",
+        "id": "11707681213",
         "name": "preview-distribution-12",
         "size": 46488782,
-        "sha256": "814d187dd262053cd2e54daed0e959b7205163c18a7f3fa9c682488b06d3b0fa",
-        "digest": "sha256:814d187dd262053cd2e54daed0e959b7205163c18a7f3fa9c682488b06d3b0fa",
-        "expiresAt": "2027-01-09T15:10:58Z"
+        "sha256": "6fbe203dc0daa99827a3412f6f0ef05fce67fdfcc5e5215da7b48f0b76f4ef14",
+        "digest": "sha256:6fbe203dc0daa99827a3412f6f0ef05fce67fdfcc5e5215da7b48f0b76f4ef14",
+        "expiresAt": "2027-01-09T15:52:50Z"
       },
       {
         "kind": "evidence",
-        "id": "11706990099",
+        "id": "11707043927",
         "name": "workbench-preview-p07-12",
-        "size": 123309,
-        "sha256": "0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83",
-        "digest": "sha256:0e4f59a3cf1a2f496dd62fbc20236c1ee9f346f5e32e3f4fe3902a246ae70e83",
-        "expiresAt": "2026-11-10T15:24:34Z"
+        "size": 123217,
+        "sha256": "e69096502649bea8a64b69e47924a27d6ed1e2d1993476a6a3733e5b24903088",
+        "digest": "sha256:e69096502649bea8a64b69e47924a27d6ed1e2d1993476a6a3733e5b24903088",
+        "expiresAt": "2026-11-10T15:57:25Z"
       }
     ],
-    "reviewSha256": "3907db3456d1426685755a569ec29750e75c90cb4a9527d2749a228d7d8e7e4f",
+    "reviewSha256": "a0fcc764088e55a0fcb31ab73555c7dec3d5102edbd8516c54164bf06f0ca8e1",
     "originalJsonCount": 18,
     "acceptedChecks": 8,
     "totalChecks": 8,
@@ -240,7 +240,7 @@
     "packageUnchanged": true,
     "releaseAuthorized": false,
     "boundary": "Independent exact-byte and source review of original workflow, installed and license evidence; no publication or approval authority.",
-    "receiptSha256": "7f0029e842293d6bbbec788eea99d88e44e4a16806117d17efa8e866ee8e95ad"
+    "receiptSha256": "49129e5f6c4cbcf3ed102f5c4004c287865e2b8bb61c60bbbe7cc6b5adba1192"
   },
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
@@ -250,15 +250,14 @@
     "authority": "Explicit user decision",
     "environmentId": 24006677696
   },
-  "priorReview": "docs/design/m47-unified-management-workbench/preview-1-p07-12-before-self-review-policy.json",
+  "priorReview": "docs/design/m47-unified-management-workbench/preview-1-p07-12-before-upload-fix.json",
   "decision": {
     "reviewComplete": true,
     "status": "READY",
-    "readyForP08": false,
+    "readyForP08": true,
     "releaseAuthorized": true,
     "packageUnchanged": true,
     "publication": "NOT_RUN",
-    "boundary": "Updated tools and full frozen Windows R1 package gates passed. Actual publication, anonymous download and public first run remain pending.",
-    "currentToolingReview": "PENDING_BINARY_UPLOAD_FIX_AND_EXPLICIT_DRAFT_RECOVERY"
+    "boundary": "Updated tools and full frozen Windows R1 package gates passed. Actual publication, anonymous download and public first run remain pending."
   }
 }

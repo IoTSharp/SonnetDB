@@ -35,10 +35,10 @@
   "requiredReviewer": "maikebing",
   "preventSelfReview": false,
   "canAdminsBypass": false,
-  "tagObservedAbsent": true,
-  "releaseObservedAbsent": true,
+  "tagObservedAbsent": false,
+  "releaseObservedAbsent": false,
   "observedToolingRef": "13cb7a78bb9d0a0ea097444d20865f34232b988a",
-  "status": "ORIGINAL_DRAFT_RECONCILED_TOOL_FIX_REVIEW_PENDING",
+  "status": "READY_FOR_AUTHORIZED_PUBLISH",
   "workflowRequest": {
     "workflow": "workbench-preview-publish.yml",
     "ref": "codex/m47-preview12-release",
@@ -58,13 +58,13 @@
   "p07": {
     "status": "READY",
     "record": "docs/design/m47-unified-management-workbench/preview-1-p07-12.json",
-    "recordSha256": "3bc6a353f64c517ca854ee19cd11faa99af1df311b240d24020828c79f59df20",
-    "runId": "38151053382",
+    "recordSha256": "5a44a0f5da9d8d063adc3999e45e11f6a8d6b111e951f8de0bd666652a9bfc7b",
+    "runId": "38153356012",
     "acceptedChecks": 8,
     "acceptedWorkflowGates": 12
   },
-  "reviewedDistributorCommit": "ca717fd40912ee583247d95dfad0c55345c63159",
-  "nextAction": "Re-review fixed binary transport and bounded original-empty-draft recovery, then approve the new recovery workflow and retain original tag and release ID.",
+  "reviewedDistributorCommit": "4ff3e6219768aaae5344254d5503d2f2cb902ff4",
+  "nextAction": "maikebing dispatches this exact frozen request once, then explicitly approves its original pending environment deployment. Independently verify anonymous assets and public-package first run.",
   "approvalPolicy": {
     "requiredReviewer": "maikebing",
     "credentialActor": "maikebing",
