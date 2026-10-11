@@ -732,6 +732,49 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.All(requests, r => Assert.Equal("HTTP/1.1", r.Protocol));
     }
 
+    /// <summary>真实 REST 与 h2c ADO 保持移位参数、UPDATE、NULL 和空结果 Int64 元数据一致。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void ShiftFunctions_RealTransport_PreservesValuesAndDeclaredMetadata(string protocol)
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _http11Url;
+        using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE shift_bits (id INT, flags INT, PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "SELECT shift_left(flags, 1) AS shifted FROM shift_bits";
+        using (var empty = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.False(empty.Read());
+        }
+        command.CommandText = "INSERT INTO shift_bits(id,flags) VALUES(1,6),(2,NULL)";
+        Assert.Equal(2, command.ExecuteNonQuery());
+        var count = command.CreateParameter();
+        count.ParameterName = "@count";
+        count.Value = 1L;
+        command.Parameters.Add(count);
+        command.CommandText = "UPDATE shift_bits SET flags=shift_left(flags,@count) WHERE shift_right(flags,@count)=3";
+        Assert.Equal(1, command.ExecuteNonQuery());
+        command.CommandText = "SELECT id,shift_right(flags,@count) AS shifted FROM shift_bits ORDER BY id";
+        using (var rows = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(long), rows.GetFieldType(1));
+            Assert.True(rows.Read());
+            Assert.Equal(6L, rows.GetInt64(1));
+            Assert.True(rows.Read());
+            Assert.True(rows.IsDBNull(1));
+            Assert.False(rows.Read());
+        }
+        command.CommandText = "SELECT shift_right(flags,@count) FROM shift_bits WHERE flags IS NULL";
+        using var missing = command.ExecuteReader();
+        Assert.Equal(typeof(long), missing.GetFieldType(0));
+        Assert.True(missing.Read());
+        Assert.True(missing.IsDBNull(0));
+    }
+
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
         string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {

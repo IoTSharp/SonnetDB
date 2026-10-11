@@ -38,6 +38,7 @@ UPDATE counters SET value = value + 1 WHERE id = 1;
 - 关系表 `SUM(INT)` 保留 `Int64` 返回类型；任何累加中间结果超出有符号 Int64 范围时返回执行错误，不会转为 `Float64`。需要更大的有限精度结果时，可显式对输入使用 `CAST(value AS DECIMAL)`，但 `DECIMAL` 也受其精度范围约束。
 - `DECIMAL` / `NUMERIC` 操作数保持 `System.Decimal` 精度；`DECIMAL(p,s)` 的精度范围为 `1..38` 且 `0 <= s <= p`，省略括号时使用 `(38,28)`。关系表中的值以 16 字节 decimal payload 持久化，schema format v9 保存声明的 precision/scale；超出 Decimal 范围或声明精度/小数位无效时拒绝执行。
 - 按位 `&` / `|` 只接受整数操作数并返回 `Int64`，任一操作数为 `NULL` 时结果为 `NULL`；浮点、字符串或其他非整数操作数会返回包含“只支持整数操作数”的中文执行错误。
+- `shift_left(value, count)` / `shift_right(value, count)` 接受可表示为有符号 `Int64` 的整数并返回 `Int64`；任一参数为 `NULL` 时返回 `NULL`。位宽固定为 64，左移丢弃移出位，右移为保留符号的算术右移；`count` 必须为 `0..63`，负数及大于等于 64 的计数明确拒绝。FLOAT、DECIMAL 和字符串即使数值为整数也不隐式转换；超出 `Int64` 的无符号值拒绝。Provider 可将移位表达式翻译为这两个函数，CLR `int`/`long` 的位宽和计数掩码须由 Provider 显式保持；引擎不自动套用 CLR 掩码。
 - 任一算术操作数为 `NULL` 时结果为 `NULL`。除数或模数为 `0` 时抛出执行错误，不返回 `Infinity` / `NaN`。
 - `+` 只做数值加法，不把字符串隐式转成数字，也不做字符串拼接。字符串连接使用 `concat(...)`；其中 `NULL` 参数按空字符串处理。
 - 支持聚合结果外包算术或标量函数，例如 `count(*) + 1`、`round(avg(value) + 0.25, 2)`；关系表、measurement 和 document collection 查询遵循同一规则。

@@ -4159,6 +4159,15 @@ internal static partial class RelationalSelectExecutor
         if (expression is IsNullExpression)
             return new SelectColumnInfo(TableColumnType.Boolean, false);
 
+        if (expression is FunctionCallExpression shift
+            && (shift.Name.Equals("shift_left", StringComparison.OrdinalIgnoreCase)
+                || shift.Name.Equals("shift_right", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(shift.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(shift.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.Int64, true);
+        }
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();

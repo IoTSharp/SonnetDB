@@ -149,6 +149,8 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("exp", 1, 1, EvaluateExp),
         new BuiltInScalarFunction("power", 2, 2, EvaluatePower),
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
+        new BuiltInScalarFunction("shift_left", 2, 2, static args => EvaluateShift(args, left: true)),
+        new BuiltInScalarFunction("shift_right", 2, 2, static args => EvaluateShift(args, left: false)),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),
@@ -728,6 +730,29 @@ public static class FunctionRegistry
         string functionName,
         string parameterName)
         => value is null ? null : RequireInt64(value, functionName, parameterName);
+
+    /// <summary>
+    /// 对有符号 Int64 执行 64 位移位；左移丢弃移出位，右移保留符号，计数限定为 0..63。
+    /// </summary>
+    private static object? EvaluateShift(IReadOnlyList<object?> args, bool left)
+    {
+        if (args[0] is null || args[1] is null)
+            return null;
+
+        string functionName = left ? "shift_left" : "shift_right";
+        if (args[0] is not (byte or sbyte or short or ushort or int or uint or long or ulong)
+            || args[1] is not (byte or sbyte or short or ushort or int or uint or long or ulong))
+        {
+            throw new InvalidOperationException($"函数 {functionName} 只支持整数参数，不隐式转换 FLOAT、DECIMAL 或字符串。");
+        }
+
+        long value = RequireInt64(args[0], functionName, "value");
+        long count = RequireInt64(args[1], functionName, "count");
+        if (count is < 0 or > 63)
+            throw new InvalidOperationException($"函数 {functionName} 的 count 参数必须在 0..63 范围内。");
+
+        return left ? value << (int)count : value >> (int)count;
+    }
 
     private static ReadOnlySpan<float> RequireVector(object? value, string functionName)
     {

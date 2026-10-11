@@ -5287,6 +5287,15 @@ internal static class TableSqlExecutor
                 column.IsRowVersion);
         }
 
+        if (projection.ExpressionValue is FunctionCallExpression shift
+            && (shift.Name.Equals("shift_left", StringComparison.OrdinalIgnoreCase)
+                || shift.Name.Equals("shift_right", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(shift.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(shift.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.Int64, true);
+        }
+
         if (projection.Kind != ProjectionKind.Constant)
             return new SelectColumnInfo(null);
 

@@ -1883,3 +1883,11 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 仅暂存 HEAD 原交接字节加本段，保留完整工作区旧字节及所有其他未提交改动。source 分支、公开 tag 和 parity-results 保持；不把工作区的博客、M42、WB97/WB98 或 VS Code 改动纳入本次主分支集成。main 正常 push 会按仓库配置触发 CI 等工作流，其新运行结果不由此前预览验收推断。后续先核本次 delivery 收据与对应 main CI；产品交付仍限冻结 Windows x64 Web Admin 与匹配 NativeAOT R1 预览，其他宿主、干净机器和生产验收沿原边界。
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
+
+## GH-Issue #219 原生整数移位本地实现（2026-10-12，Asia/Shanghai）
+
+本次仅实现 #219：shift_left(value,count) 与 shift_right(value,count) 共用原生标量调度，严格整数且须可表示为有符号 Int64，任一 NULL 返回 NULL；固定 64 位、count 0..63，左移丢弃移出位、右移保留符号。拒绝 FLOAT/DECIMAL/字符串与超范围 UInt64/count；不新增 lexer/operator，CLR 宽度和 count masking 仍为上游 Provider 责任。简单关系表和 JOIN 在空结果/全 NULL 时均声明 Int64；用户函数覆盖保留未知类型。SQL 文档及 CHANGELOG 已同步。
+
+最终精确代码树本机 Core 回归 70 executed/70 passed/0 failed，真实 Kestrel REST 与 h2c/HTTP2 RemoteAdoHttp2TransportTests 17 executed/17 passed/0 failed。原 67/69 两项失败及历次回执保留，最终两份原 TRX 和独立计数位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-engine；shift-core-freeze 与 shift-real-transport-tests 均 PASS/cleanupComplete=true。首次逐 PID 独立审计因 17 秒墙钟边界停止，保留 UNKNOWN；后续单次过滤查询核 PID/创建时间/完整命令/父进程，shift-final-process-audit.json 记录无活精确任务身份。独占 TEMP 清理由 shift-temp-cleanup.json 单列，不删除证据或共享缓存。
+
+授权边界只 #219，无暂存/提交/推送/分支变更/GitHub mutation。完整 SonnetDB.slnx restore 与原 CI Format Check 未在本子任务执行，由主智能体在最终集成树执行通过后方可提交；本机定向测试不代表正式 package、FreeSql #2234 上游验收或 issue 已关闭。#220/#221 尚未实现，须另行派单。49 个真实 open issue 的调查、快照与原文已保存在同证据目录，旧 roadmap issue-state 不能作为当前关闭状态。下一步先审核 #219 diff、最终哈希及原 TRX，再执行集成门禁。
