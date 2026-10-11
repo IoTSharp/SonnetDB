@@ -1734,3 +1734,10 @@ suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保
 最终完整dotnet restore SonnetDB.slnx、原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/和exact cached whitespace必须取得PASS才提交；实际工具收据和代码/交付SHA记录在artifacts/m47-p06-20261011，最终commit/tree、normal push、独立远端、非空身份收口及保留边界见delivery.json，不把本段写为预先PASS。所有长命令继承不可breakaway Job、PID/创建/完整命令/父链、count/墙钟/cancel/finally。仅归属核实的Job进程清理；测试临时目录已finally按绝对路径回收，四资产与原始日志留作交付。保护134个起始dirty路径及外来五列ROADMAP、HANDOFF原字节前缀、博客、M42、WB97/WB98/三VSCode，不stage他人hunk。parity-results远端实时0e48b753da7eab8ebd9651d405ddb58e3bef01c8与本地旧tracking分别核验/保留，不fetch改写该引用。workbench仍PAUSED，无子智能体、新用户会话、生产部署、编辑器重启或跨聊天消息。
 
 下一片只P07：在同package SHA/version核原12workflow/适用raw gates、C01～C05/D01、P05实物与243依赖/16许可缺口，冻结真实P07记录/证据artifact及工具库存，核上传器prepare远端执行，再作放行评审。P08需另获实际授权和配置保护环境，不提前tag/Release；本会话独立任务计1/5，已授权正常提交推送，不恢复自动化。
+
+
+## M47-P06 自有暂存纠正（2026-10-11，Asia/Shanghai）
+
+首个本地提交4d8d7f71尚未推送，私有暂存脚本统一LF误改变HEAD里40行旧交接CRLF，且把工作区五列P06行放入HEAD四列表头。旧stage/commit原收据保留，另记有效FAIL_OUTSIDE_LINE_ENDINGS；本纠正恢复父基线d4e4b7fd的HANDOFF完整原字节前缀，仅追加本片两段，ROADMAP提交保持HEAD四列、工作区他人五列变更保留。没有撤销或改写已存在提交，正常追加纠正提交后再推送；原包和分发四附件不变。
+
+共享工作区CSDN两文件和其交接尾追加在本片期间出现外来变化，已实际保留，不回滚/纳入暂存；其余123个有hash的非自有文件在local-validation核对未变。旧Python/工具/保护边界失败保留。纠正后的完整restore/原CI format、基于原HEAD的最终净变更whitespace、纠正commit与正常push/独立远端及非空身份审计，以artifacts/m47-p06-20261011/delivery.json和相应独立收据为准；本轮仍1/5、NOT_READY、P07/P08待验、PAUSED。

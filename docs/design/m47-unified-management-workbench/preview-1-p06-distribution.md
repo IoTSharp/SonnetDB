@@ -41,3 +41,5 @@ P07需交付 `preview-1-p07-10.json`（本片未创建或伪造READY），schema
 原始证据、合成测试双流、受控Job收据及四附件在 `artifacts/m47-p06-20261011`。最终树restore/原CI format、精确owned stage、正常提交/推送、保护外来dirty与parity、收口身份审计的实际结果在本轮交接和delivery收据；本文件本身不把尚未执行的门禁记PASS。
 
 Workbench自动化继续PAUSED。P07完整门禁/许可/放行、P08实际授权/tag/Release/匿名下载/首次运行、其它宿主/七模型/生产/崩溃/任意升级降级均未验收。下一片只接P07，不提前发布或恢复自动化。
+
+提交集成纠正：首个本地提交4d8d7f71的暂存工具意外规范化旧交接40行CRLF，并将P06五列行放入HEAD四列表头；推送前追加纠正提交，恢复d4e4b7fd交接原字节前缀、只追加本轮自有交接，提交ROADMAP保持原四列。工作区外来五列表格及CSDN两文件/交接变化保留，未暂存。原stage原PASS只覆盖所检查的路径/whitespace，不能作为外来字节保护通过；有效失误与修正分别留收据。纠正重新执行完整restore/原CI format，最终净diff按原HEAD验证，不改写历史。
