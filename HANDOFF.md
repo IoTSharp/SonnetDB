@@ -1907,3 +1907,19 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 当前只刷新 PR #214：保留原 coverlet.collector 10.1.0 精确一行变更，正常合入当前 main 并补本 PR CHANGELOG。上游包 MIT，测试侧 PrivateAssets；不改变生产 JSON、API 或文件格式。最终 restore/完整原 CI format、覆盖率采集烟测及进程清理以 artifacts/online-closure-20261012 的真实回执为准。此处为待验证状态，不预记提交、CI 成功或 PR 已合并；真实 SHA/远端状态由随后回读确认。
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
+
+## 线上闭环执行：GH-Issue #272 命名外键迁移交接（2026-10-12，Asia/Shanghai）
+
+issues_delivery 在授权 online-delivery 工作树、codex/issue272-named-foreign-key 分支及基线 a299a3fcc42de494145be74a8ee451aedeec4249 上，仅修改 EF 迁移生成器、既有 SonnetDbProviderTests.cs、CHANGELOG 与本 HANDOFF。主智能体独占 Git 索引、提交、推送和 GitHub；原 D:/source/SonnetDB dirty/index、parity-results、冻结发布与旧 #270 五个拒删 TEMP 保持。
+
+生产修复仅三行：CREATE TABLE 外键分支保留 EF 原名，使用 SqlGenerationHelper.DelimitIdentifier 生成安全引用的 CONSTRAINT 前缀；已有 ALTER ADD/DROP 的名称传递保持，ADD 不出现双前缀。不存在名字的 DROP 沿引擎原合同返回零行，不修改 no-op 语义；回归同时检查原外键 schema 与实际拒绝孤儿，避免把零行命令误称约束已移除。没有新依赖、生产 JSON、unsafe、文件格式或警告压制变更。
+
+最终同源码和 DLL 的定向及既有回归 26/26 PASS，其中本 Issue 新用例三项：嵌入式、真实 Kestrel REST、Frame HTTP/2 h2c。每项检查 HasConstraintName 生成的 SQL、初始迁移、真实 ForeignKeys schema 原名/表列/引用列/级联、按原名删除后孤儿插入、替换名称和引用表后实际拒绝原表独有主键、接受新表主键并级联删除、回退到无约束/原约束/零迁移及重新创建；EF CRUD 与查询走参数化，名称包含 Unicode、空格和双引号。嵌入式关闭最后连接释放引擎后重开；每个远程协议均实际停止并 dispose 原 Server，再从相同 DataRoot 创建新 Server，验证持久 schema 与实际约束。另 23 项既有迁移/DDL/schema 回归通过。
+
+首次测试编译 CS4007、0 用例执行，改为先 await 实际数组再断言后嵌入式 1/1 PASS。首次远程 REST 通过、Frame 因 266 字符夹具目录在历史表 durable metadata 打开时失败；仅缩短本测试的独占目录/库名后新三项均通过。首轮扩大回归 25/26，既有 Frame 历史夹具也在长任务 TEMP 下失败；不修改该旧用例，改用已核 owner 的短 TEMP，原 26 项同 DLL 重跑 26/26 PASS。上述失败日志、TRX、原源码哈希和诊断完整保留；不把夹具路径调整称为引擎长路径修复。
+
+生产及测试目录 Provider DLL SHA 一致：28E27D475CE8558BEA2DB682546FD0DFBE3DE139204D2D0C8002398132E29817；最终源文件绑定 issue-272-r3-pre-test-source.json，真实用例/DLL/TRX 绑定 issue-272-final-test-validation.json。五个有界 Windows Job cleanupComplete=true，34 个完整 PID/创建 UTC/命令/父链身份一次限定查询零精确活跃、零当前 PID。
+
+本任务五个专属 TEMP 均核 owner=issues_delivery、issue=272、准确绝对路径、owner.json SHA 与全部 reparse 检查；共 10 个文件、8,616 字节。一次全固定绝对路径的 native Remove-Item 清理命令被自动审批拒绝，仅返回 blocked by policy、未执行。五目录保留，清理尾项 BLOCKED_AUTOMATIC_APPROVAL_REVIEW；不重试或改用其它 API/shell，旧 #270 五对象完全未触碰。精确路径与字节规模见 issue-272-temp-cleanup-preflight.json，拒绝及保留状态见 issue-272-temp-cleanup.json。
+
+证据固定在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery。本 HANDOFF 保持本阶段原始字节前缀，仅以 UTF-8 无 BOM、LF 追加。下一步主智能体复核四路径冻结 diff 与源码/DLL 哈希，在最终工作树执行完整 restore 和原 CI Format Check，通过后精确提交、推送与 PR。完整解决方案 restore/format 当前 ROOT_PENDING；正式修复包、公开包消费者升级及独立 NativeAOT 发布均 NOT_RUN。Issue #272 保持开放，源码/本地与真实测试不替代正式公开包复现或完整 BookStore 验收。

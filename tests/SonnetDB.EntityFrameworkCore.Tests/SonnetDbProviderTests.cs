@@ -93,6 +93,217 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Empty(await context.Devices.ToListAsync());
     }
 
+    /// <summary>嵌入式命名外键的建表、删除、替换、回退与关闭重开保持真实约束。</summary>
+    [Fact]
+    public async Task NamedForeignKeyMigrations_Embedded_PreserveSchemaAndConstraintAcrossReopen()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var options = CreateNamedForeignKeyOptions($"Data Source={Path.Combine(_root, "named-foreign-key")}");
+
+        await AssertNamedForeignKeyInitialAndReplacementAsync(options, deadline.Token);
+        await AssertNamedForeignKeyReopenAndRollbackAsync(options, deadline.Token);
+    }
+
+    /// <summary>真实 REST 与 HTTP/2 Frame 迁移在 Server 重开后保持命名外键和约束行为。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task NamedForeignKeyMigrations_Remote_PreserveSchemaAndConstraintAcrossServerReopen(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+        const string token = "issue-272-admin";
+        const string database = "fk";
+        var dataRoot = Path.GetFullPath(Path.Combine(_root, "fk"));
+        var owner = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(dataRoot);
+        File.WriteAllText(Path.Combine(dataRoot, ".issue-272-owner"), owner);
+        var requests = new ConcurrentQueue<(string Path, string Protocol)>();
+        WebApplication? app = null;
+
+        async Task<DbContextOptions<NamedForeignKeyMigrationContext>> StartServerAsync()
+        {
+            app = EfTestServerHost.Build(
+                new ServerOptions
+                {
+                    DataRoot = dataRoot,
+                    AutoLoadExistingDatabases = true,
+                    AllowAnonymousProbes = true,
+                    Tokens = new Dictionary<string, string> { [token] = ServerRoles.Admin },
+                },
+                extraArgs: protocol == "frame-http2" ? ["--Kestrel:Endpoints:Http:Protocols=Http2"] : null);
+            app.Use(async (httpContext, next) =>
+            {
+                requests.Enqueue((httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Protocol));
+                await next(httpContext);
+            });
+            await app.StartAsync(deadline.Token);
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var address = new Uri(Assert.Single(addresses.Addresses));
+            return CreateNamedForeignKeyOptions(
+                $"Data Source=sonnetdb+http://{address.Authority}/{database};Token={token};Timeout=30" +
+                (protocol == "frame-http2" ? ";Protocol=frame-http2" : string.Empty));
+        }
+
+        try
+        {
+            var options = await StartServerAsync();
+            await AssertNamedForeignKeyInitialAndReplacementAsync(options, deadline.Token);
+            await app!.StopAsync();
+            await app.DisposeAsync();
+            app = null;
+
+            options = await StartServerAsync();
+            await AssertNamedForeignKeyReopenAndRollbackAsync(options, deadline.Token);
+
+            var observed = requests.ToArray();
+            Assert.Contains(observed, request => request.Path.StartsWith($"/v1/db/{database}/", StringComparison.Ordinal));
+            Assert.All(observed, request => Assert.Equal(protocol == "frame-http2" ? "HTTP/2" : "HTTP/1.1", request.Protocol));
+        }
+        finally
+        {
+            try
+            {
+                if (app is not null)
+                {
+                    try { await app.StopAsync(); }
+                    finally { await app.DisposeAsync(); }
+                }
+            }
+            finally
+            {
+                var expected = Path.GetFullPath(Path.Combine(_root, "fk"));
+                if (!string.Equals(dataRoot, expected, StringComparison.Ordinal) ||
+                    File.GetAttributes(dataRoot).HasFlag(FileAttributes.ReparsePoint) ||
+                    File.ReadAllText(Path.Combine(dataRoot, ".issue-272-owner")) != owner)
+                    throw new InvalidOperationException("拒绝清理所有权不一致的命名外键测试目录。");
+                Directory.Delete(dataRoot, recursive: true);
+            }
+        }
+    }
+
+    private static DbContextOptions<NamedForeignKeyMigrationContext> CreateNamedForeignKeyOptions(string connectionString)
+        => new DbContextOptionsBuilder<NamedForeignKeyMigrationContext>()
+            .UseSonnetDB(connectionString)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+
+    private static async Task AssertNamedForeignKeyInitialAndReplacementAsync(
+        DbContextOptions<NamedForeignKeyMigrationContext> options, CancellationToken cancellationToken)
+    {
+        await using var context = new NamedForeignKeyMigrationContext(options);
+        var createScript = context.Database.GenerateCreateScript();
+        Assert.Contains("CONSTRAINT \"FK_书\"\"籍_作者\" FOREIGN KEY", createScript, StringComparison.Ordinal);
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+
+        context.Authors.AddRange(new NamedForeignKeyAuthor { Id = 1 }, new NamedForeignKeyAuthor { Id = 2 });
+        context.ReplacementAuthors.AddRange(new NamedForeignKeyReplacementAuthor { Id = 1 }, new NamedForeignKeyReplacementAuthor { Id = 3 });
+        context.Books.Add(new NamedForeignKeyBook { Id = 1, AuthorId = 1 });
+        await context.SaveChangesAsync(cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 90, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+
+        var noOpDrop = Assert.Single(context.GetService<IMigrationsSqlGenerator>().Generate(
+            [new DropForeignKeyOperation { Table = NamedForeignKeyNames.Books, Name = "Missing_约束" }]));
+        Assert.Equal(0, await context.Database.ExecuteSqlRawAsync(noOpDrop.CommandText, cancellationToken));
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 91, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+
+        await migrator.MigrateAsync(NamedForeignKeyRemoved.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, null, null, cancellationToken);
+        context.Books.Add(new NamedForeignKeyBook { Id = 2, AuthorId = 3 });
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(3, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 2, cancellationToken)).AuthorId);
+
+        await migrator.MigrateAsync(NamedForeignKeyReplaced.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.ReplacementAuthors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 92, 2, NamedForeignKeyNames.ReplacementConstraint, cancellationToken);
+        context.Books.Add(new NamedForeignKeyBook { Id = 3, AuthorId = 3 });
+        await context.SaveChangesAsync(cancellationToken);
+        context.ReplacementAuthors.Remove(await context.ReplacementAuthors.SingleAsync(author => author.Id == 3, cancellationToken));
+        await context.SaveChangesAsync(cancellationToken);
+        var remainingBookIds = await context.Books.AsNoTracking().OrderBy(book => book.Id).Select(book => book.Id).ToArrayAsync(cancellationToken);
+        Assert.Equal([1L], remainingBookIds);
+        Assert.Equal(
+            [NamedForeignKeyInitial.MigrationId, NamedForeignKeyRemoved.MigrationId, NamedForeignKeyReplaced.MigrationId],
+            (await context.Database.GetAppliedMigrationsAsync(cancellationToken)).ToArray());
+    }
+
+    private static async Task AssertNamedForeignKeyReopenAndRollbackAsync(
+        DbContextOptions<NamedForeignKeyMigrationContext> options, CancellationToken cancellationToken)
+    {
+        await using var context = new NamedForeignKeyMigrationContext(options);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.ReplacementAuthors, cancellationToken);
+        Assert.Equal(1, await context.Books.CountAsync(cancellationToken));
+        await AssertNamedForeignKeyViolationAsync(context, 93, 2, NamedForeignKeyNames.ReplacementConstraint, cancellationToken);
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(NamedForeignKeyRemoved.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, null, null, cancellationToken);
+        var orphan = new NamedForeignKeyBook { Id = 4, AuthorId = 99 };
+        context.Books.Add(orphan);
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(99, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 4, cancellationToken)).AuthorId);
+        context.Books.Remove(orphan);
+        await context.SaveChangesAsync(cancellationToken);
+
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 94, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+        await migrator.MigrateAsync(Migration.InitialDatabase, cancellationToken);
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var tables = context.Database.GetDbConnection().GetSchema("Tables", [null, null, NamedForeignKeyNames.Books, null]);
+            Assert.Empty(tables.Rows.Cast<System.Data.DataRow>());
+        }
+        finally { await context.Database.CloseConnectionAsync(); }
+        Assert.Empty(await context.Database.GetAppliedMigrationsAsync(cancellationToken));
+
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 95, 1, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+        context.Authors.Add(new NamedForeignKeyAuthor { Id = 10 });
+        context.Books.Add(new NamedForeignKeyBook { Id = 10, AuthorId = 10 });
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(10, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 10, cancellationToken)).AuthorId);
+        Assert.Equal([NamedForeignKeyInitial.MigrationId], (await context.Database.GetAppliedMigrationsAsync(cancellationToken)).ToArray());
+    }
+
+    private static async Task AssertNamedForeignKeySchemaAsync(
+        NamedForeignKeyMigrationContext context, string? expectedName, string? expectedPrincipal, CancellationToken cancellationToken)
+    {
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var constraints = context.Database.GetDbConnection().GetSchema("ForeignKeys", [null, null, NamedForeignKeyNames.Books, null]);
+            var rows = constraints.Rows.Cast<System.Data.DataRow>().ToArray();
+            if (expectedName is null)
+            {
+                Assert.Empty(rows);
+                return;
+            }
+            var row = Assert.Single(rows);
+            Assert.Equal(expectedName, row["CONSTRAINT_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.Books, row["TABLE_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.AuthorId, row["COLUMN_NAME"]);
+            Assert.Equal(expectedPrincipal, row["PRINCIPAL_TABLE_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.Id, row["PRINCIPAL_COLUMN_NAME"]);
+            Assert.Equal("Cascade", row["ON_DELETE"]);
+        }
+        finally { await context.Database.CloseConnectionAsync(); }
+    }
+
+    private static async Task AssertNamedForeignKeyViolationAsync(
+        NamedForeignKeyMigrationContext context, long bookId, long authorId, string expectedConstraint, CancellationToken cancellationToken)
+    {
+        context.Books.Add(new NamedForeignKeyBook { Id = bookId, AuthorId = authorId });
+        var error = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(cancellationToken));
+        Assert.Contains(expectedConstraint, error.ToString(), StringComparison.Ordinal);
+        context.ChangeTracker.Clear();
+        Assert.False(await context.Books.AnyAsync(book => book.Id == bookId, cancellationToken));
+    }
+
     /// <summary>普通跟踪 UPDATE 实际命中零行时必须按 EF Core 契约报告乐观并发冲突。</summary>
     [Fact]
     public void SaveChanges_TrackedUpdateMatchesNoRows_ThrowsConcurrencyException()
@@ -2614,4 +2825,153 @@ public sealed class AddAndAlterDeviceRetryCount : Migration
             oldDefaultValue: 2.5d);
         migrationBuilder.DropColumn("RetryCount", "Devices");
     }
+}
+
+internal static class NamedForeignKeyNames
+{
+    internal const string Books = "A06 书\"籍";
+    internal const string Authors = "A06 作\"者";
+    internal const string ReplacementAuthors = "A06 替\"代作者";
+    internal const string OriginalConstraint = "FK_书\"籍_作者";
+    internal const string ReplacementConstraint = "FK_替\"代_作者";
+    internal const string Id = "Id";
+    internal const string AuthorId = "Author ID";
+}
+
+internal sealed class NamedForeignKeyMigrationContext(DbContextOptions<NamedForeignKeyMigrationContext> options) : DbContext(options)
+{
+    internal DbSet<NamedForeignKeyAuthor> Authors => Set<NamedForeignKeyAuthor>();
+    internal DbSet<NamedForeignKeyReplacementAuthor> ReplacementAuthors => Set<NamedForeignKeyReplacementAuthor>();
+    internal DbSet<NamedForeignKeyBook> Books => Set<NamedForeignKeyBook>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<NamedForeignKeyAuthor>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.Authors);
+            entity.HasKey(author => author.Id);
+            entity.Property(author => author.Id).HasColumnType("INT").ValueGeneratedNever();
+        });
+        modelBuilder.Entity<NamedForeignKeyReplacementAuthor>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.ReplacementAuthors);
+            entity.HasKey(author => author.Id);
+            entity.Property(author => author.Id).HasColumnType("INT").ValueGeneratedNever();
+        });
+        modelBuilder.Entity<NamedForeignKeyBook>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.Books);
+            entity.HasKey(book => book.Id);
+            entity.Property(book => book.Id).HasColumnType("INT").ValueGeneratedNever();
+            entity.Property(book => book.AuthorId).HasColumnName(NamedForeignKeyNames.AuthorId).HasColumnType("INT");
+            entity.HasOne<NamedForeignKeyAuthor>().WithMany().HasForeignKey(book => book.AuthorId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName(NamedForeignKeyNames.OriginalConstraint);
+        });
+    }
+}
+
+internal sealed class NamedForeignKeyAuthor
+{
+    public long Id { get; set; }
+}
+
+internal sealed class NamedForeignKeyReplacementAuthor
+{
+    public long Id { get; set; }
+}
+
+internal sealed class NamedForeignKeyBook
+{
+    public long Id { get; set; }
+    public long AuthorId { get; set; }
+}
+
+/// <summary>创建带命名外键的初始书籍及两种作者表。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyInitial : Migration
+{
+    internal const string MigrationId = "20261012010100_NamedForeignKeyInitial";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.Authors,
+            columns: table => new { Id = table.Column<long>(type: "INT", nullable: false) },
+            constraints: table => table.PrimaryKey("PK_A06Authors", row => row.Id));
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.ReplacementAuthors,
+            columns: table => new { Id = table.Column<long>(type: "INT", nullable: false) },
+            constraints: table => table.PrimaryKey("PK_A06ReplacementAuthors", row => row.Id));
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.Books,
+            columns: table => new
+            {
+                Id = table.Column<long>(type: "INT", nullable: false),
+                AuthorId = table.Column<long>(name: NamedForeignKeyNames.AuthorId, type: "INT", nullable: false),
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_A06Books", row => row.Id);
+                table.ForeignKey(
+                    name: NamedForeignKeyNames.OriginalConstraint,
+                    column: row => row.AuthorId,
+                    principalTable: NamedForeignKeyNames.Authors,
+                    principalColumn: NamedForeignKeyNames.Id,
+                    onDelete: ReferentialAction.Cascade);
+            });
+    }
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(NamedForeignKeyNames.Books);
+        migrationBuilder.DropTable(NamedForeignKeyNames.ReplacementAuthors);
+        migrationBuilder.DropTable(NamedForeignKeyNames.Authors);
+    }
+}
+
+/// <summary>按模型原名删除外键，回退时恢复原关系。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyRemoved : Migration
+{
+    internal const string MigrationId = "20261012010200_NamedForeignKeyRemoved";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropForeignKey(NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Books);
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddForeignKey(
+            name: NamedForeignKeyNames.OriginalConstraint,
+            table: NamedForeignKeyNames.Books,
+            column: NamedForeignKeyNames.AuthorId,
+            principalTable: NamedForeignKeyNames.Authors,
+            principalColumn: NamedForeignKeyNames.Id,
+            onDelete: ReferentialAction.Cascade);
+}
+
+/// <summary>以新名称及新引用表替换关系，回退时删除替换约束。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyReplaced : Migration
+{
+    internal const string MigrationId = "20261012010300_NamedForeignKeyReplaced";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddForeignKey(
+            name: NamedForeignKeyNames.ReplacementConstraint,
+            table: NamedForeignKeyNames.Books,
+            column: NamedForeignKeyNames.AuthorId,
+            principalTable: NamedForeignKeyNames.ReplacementAuthors,
+            principalColumn: NamedForeignKeyNames.Id,
+            onDelete: ReferentialAction.Cascade);
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropForeignKey(NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.Books);
 }

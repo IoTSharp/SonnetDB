@@ -52,6 +52,9 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             foreach (var foreignKey in operation.ForeignKeys)
             {
                 builder.AppendLine(",");
+                builder.Append("CONSTRAINT ")
+                    .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(foreignKey.Name))
+                    .Append(" ");
                 ForeignKeyConstraint(foreignKey, model, builder);
             }
 
