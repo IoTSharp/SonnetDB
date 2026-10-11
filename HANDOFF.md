@@ -1823,3 +1823,11 @@ profile推进candidate12/4.5.0-preview.1.12，下一步最终源码提交到新�
 补充更正：candidate11真实CI实物依赖数243；241仅本机合同库存，不用于CI许可验收。候选记录和license-review均绑定实际243，源码报告已更正。
 
 最终定向TRX已独立解析：7executed/7passed/0failed，原结果与源码/测试DLL SHA已保存；含两项实际WAL归档行为。仅本机合同，不计新候选实物P05或P07整体PASS。
+
+## M47-P07 候选12源码已交付与实物冻结（2026-10-11，Asia/Shanghai）
+
+补记实际源码提交5bcd3b811f2dae5005fc28fd70f6ff934e454c7a/tree2cebe49ba46b77bd0fedbad52c1f4156eca4c7c3已正常推codex/m47-preview12-source且独立回读；本地codex/m47-preview12-release，main未移动。最终完整restore/原format和7executed/7passed TRX、86发布合同均PASS后提交，30自有路径与937外来文件核验保持。先前交接中的待提交仅是当时状态。
+
+P04 38145580702 attempt1 success、两归档digest独立PASS；版本4.5.0-preview.1.12，290库存逐字节及NativeAOT/PE/Web身份和VerifyOnly PASS，ZIP46781896bytes/SHA27787c8ce6af47327cd54f975e4b6eaede30d66c345aea9c6d051391e88ae824。新P05实包四阶段37记录、五类拒绝/61文件隔离快照PASS；17回执/244身份非空审计零残留与双1000行导出/ACL恢复PASS。243实际依赖/215原文引用、五项未分发构建工具排除及Community用户资格/微软原条款下游保护输入审查PASS，不计整体放行。候选12/审计/四附件/18原文库存已冻结；原candidate10空窗明确历史排除，11失败/全旧FAIL保持。
+
+下一步精确提交冻结docs/HANDOFF自有追加并正常推release分支，冻结source分支不动；真实P06 prepare及P07原收集/独立artifact核验、原12/12与8/8全部通过才READY。当前CI/发布预检仍运行，NOT_READY；P08实际一次发布/匿名四附件/首跑NOT_RUN。当前凭据和reviewer均maikebing，禁止自批/管理员绕过保持，实际发布需另一个有权账户发起；先完成具体四附件与精确hash准备，不再重复问Community。workbench PAUSED，外来dirty/parity-results/共享文档前缀保持；无子智能体/新工作树/跨聊天/生产部署或服务安装。
