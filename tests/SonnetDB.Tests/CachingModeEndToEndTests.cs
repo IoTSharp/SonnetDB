@@ -131,9 +131,13 @@ public sealed class CachingModeEndToEndTests : IAsyncLifetime
         using var kv = new SndbKvClient(connectionString);
         await kv.SetAsync("cache", @namespace, "expired:janitor", [4], DateTimeOffset.UtcNow.AddMilliseconds(-1));
         await kv.SetAsync("cache", @namespace, "active:janitor", [5], DateTimeOffset.UtcNow.AddMinutes(1));
-        Assert.Equal(1, await kv.CleanExpiredAsync("cache"));
+        // Core 后台过期清理可能先完成；只核本轮计数和物理过期项，不让后续 Get 的惰性删除掩盖结果。
+        int removed = await kv.CleanExpiredAsync("cache");
+        Assert.InRange(removed, 0, 1);
+        Assert.Equal(0, (await kv.GetExpirationStatsAsync("cache")).ExpiredKeys);
         Assert.Null(await kv.GetAsync("cache", @namespace, "expired:janitor"));
-        Assert.NotNull(await kv.GetAsync("cache", @namespace, "active:janitor"));
+        var active = Assert.IsType<SndbKvEntry>(await kv.GetAsync("cache", @namespace, "active:janitor"));
+        Assert.Equal([5], active.Value);
 
         await kv.SetAsync("cache", @namespace, "prefix:1", [1]);
         await kv.SetAsync("cache", @namespace, "prefix:2", [2]);
