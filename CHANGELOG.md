@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #220：新增原生 `lpad` / `rpad`，默认空格或循环自定义填充、UTF-16 宽度、较小宽度保留原串及 NULL 传播；拒绝空填充、非法宽度与损坏 UTF-16 输出（包括代理对截断），单次结果限定 1,048,576 个 UTF-16 单元，空关系与全 NULL 结果保留 STRING 声明元数据。正式包发布与 FreeSql #2234 适配另行验收。
 - GH-Issue #219：新增原生 `shift_left` / `shift_right` 标量函数，固定有符号 Int64/64 位、0..63 计数、左移丢出位/右移保留符号和 NULL 传播，拒绝非整数及越界参数；空关系结果保留 Int64 声明元数据。正式包发布与 FreeSql #2234 的 CLR 位宽/掩码适配另行验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。

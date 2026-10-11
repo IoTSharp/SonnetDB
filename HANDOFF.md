@@ -1891,3 +1891,17 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 最终精确代码树本机 Core 回归 70 executed/70 passed/0 failed，真实 Kestrel REST 与 h2c/HTTP2 RemoteAdoHttp2TransportTests 17 executed/17 passed/0 failed。原 67/69 两项失败及历次回执保留，最终两份原 TRX 和独立计数位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-engine；shift-core-freeze 与 shift-real-transport-tests 均 PASS/cleanupComplete=true。首次逐 PID 独立审计因 17 秒墙钟边界停止，保留 UNKNOWN；后续单次过滤查询核 PID/创建时间/完整命令/父进程，shift-final-process-audit.json 记录无活精确任务身份。独占 TEMP 清理由 shift-temp-cleanup.json 单列，不删除证据或共享缓存。
 
 授权边界只 #219，无暂存/提交/推送/分支变更/GitHub mutation。完整 SonnetDB.slnx restore 与原 CI Format Check 未在本子任务执行，由主智能体在最终集成树执行通过后方可提交；本机定向测试不代表正式 package、FreeSql #2234 上游验收或 issue 已关闭。#220/#221 尚未实现，须另行派单。49 个真实 open issue 的调查、快照与原文已保存在同证据目录，旧 roadmap issue-state 不能作为当前关闭状态。下一步先审核 #219 diff、最终哈希及原 TRX，再执行集成门禁。
+## GH-Issue #220 原生字符串填充本地实现（2026-10-12，Asia/Shanghai）
+
+基于已交付 #219 提交 c8fd0e853817ef1ac7350f147338eb0b37c52cae，仅实现 #220 的 lpad/rpad（2..3 参数）。默认空格或循环使用自定义非空字符串，宽度和末段前缀按 UTF-16 单元计数，与 length 一致；较小或相等宽度保留原串，零宽度不截断，空原串可填充。任一参数 NULL 传播；其它调用中的空填充串一律拒绝，width 只接受可表示为 Int64 的非负整数，不隐式转换 FLOAT/DECIMAL/字符串。结果含保留原串最多 1,048,576 UTF-16 单元，超限在生成填充结果前拒绝；一次 string.Create 分配，重复前缀最多 20 次倍增。简单表及 JOIN 的空结果/全 NULL 输出声明 STRING，尊重 UDF 类型与覆盖。原 #174 字符串函数保持，SQL 文档及 CHANGELOG 已同步。
+
+精确最终代码树 Core 定向回归 117 executed/117 passed/0 failed（含新增填充边界及已有字符串、表达式、移位和数学回归），完整真实 Kestrel REST/h2c ADO 类 19 executed/19 passed/0 failed。原 TRX、独立计数、测试 DLL SHA 和本机实际 Core/Data/Server DLL 版本/hash 位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-engine/padding-220；两执行回执均 PASS/cleanupComplete=true。单次任务 <=600 秒，2CPU/一个 dotnet 根进程，无 shared compiler；验证阶段 20 分钟原 UTC 截止不延长。首次远程控制脚本因 PowerShell JSON 日期自动转型后重复时区换算而提前拒绝，未启动 dotnet，原 ERROR 记录保留；后续以原始 UTC 字符串和 DateTimeOffset 精确读取后通过。独立进程审计核 PID、完整创建时间、命令和父进程，padding-final-process-audit.json 确认零活任务身份；独占 TEMP 已按准确路径回收，保留日志、TRX、DLL/hash、旧失败及共享缓存。
+
+八个自有路径冻结，无暂存/提交/推送/分支修改/远端 mutation。完整 solution restore 与原 CI Format Check 由主智能体在最终集成树执行通过后再提交；本机测试不计正式 Core/Data/Server/SDK 发布，也不计 FreeSql #2234 适配或 issue 全阶段关闭。#221 未实现。下一步审核 padding-final-tree.json、精确 diff 与原 TRX，再执行最终集成门禁及单独 #220 PR；后续切片须另行派单。HANDOFF 原始字节前缀保持。
+### #220 代理对边界修正与最终复验（2026-10-12）
+
+上一段 117/19 与初次冻结是历史快照：复核发现 lpad('7',2,'😀') 会制造孤立高代理项，不能用该快照证明最终 UTF-16 输出合同。一次修正补丁先检查原 1,048,576 单元预算，再用严格 BCL 编码计数验证原串及实际使用的填充完整/末段前缀；拒绝孤立代理项和“截断填充串会切开代理对”，统一映射为 InvalidOperationException，保留 UTF-16 宽度，不扫描未使用的 fill 尾部。完整 emoji 可输出，较小宽度仍保留合法原串；非法 UTF-16 原串明确拒绝。文档和 CHANGELOG 已同步。
+
+最终修正代码树 Core v2 123 executed/123 passed/0 failed，完整真实 REST/h2c v2 19 executed/19 passed/0 failed，包含两协议完整 emoji 和首次/重复末段代理对截断的稳定拒绝回归。两份新原 TRX、独立计数和最终测试 DLL SHA 保持；旧 117/19、原 ERROR/快照与五份旧实际 DLL 已归档 v1-tested-dlls。最终五份实际 Core/Data/Server/两测试 DLL 保存于 v2-tested-dlls；padding-final-tree-v2.json 绑定最终八路径、DLL 版本/hash 和新 TRX/hash，覆盖初次冻结的最终交付适用性。原验证阶段截止 2026-10-11T20:18:51Z 不延长，最后远程测试在 20:15:42Z 完成；只新增两项有界测试任务，全部回执/失败历史保持。
+
+padding-final-process-audit-v2.json 对四次测试全部任务身份及控制器作精确 UTC/FILETIME、命令与父进程审计，零活精确身份；独占 TEMP 再次准确回收，证据与两套 DLL 保留。八路径再次冻结，无索引/分支/提交/push/远端操作，HANDOFF 全部旧字节保持。主智能体接续最终完整 restore/原 CI format、审核与单独 #220 PR；正式包及 FreeSql 上游验收仍 NOT_RUN，#221 未实施。

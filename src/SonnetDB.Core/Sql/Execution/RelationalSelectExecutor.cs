@@ -4159,6 +4159,15 @@ internal static partial class RelationalSelectExecutor
         if (expression is IsNullExpression)
             return new SelectColumnInfo(TableColumnType.Boolean, false);
 
+        if (expression is FunctionCallExpression padding
+            && (padding.Name.Equals("lpad", StringComparison.OrdinalIgnoreCase)
+                || padding.Name.Equals("rpad", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(padding.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(padding.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.String, true);
+        }
+
         if (expression is FunctionCallExpression shift
             && (shift.Name.Equals("shift_left", StringComparison.OrdinalIgnoreCase)
                 || shift.Name.Equals("shift_right", StringComparison.OrdinalIgnoreCase))
