@@ -14,7 +14,7 @@
 | 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**。[P04报告](docs/design/m47-unified-management-workbench/preview-1-p04-packaging.md)。[候选09](docs/design/m47-unified-management-workbench/preview-1-candidate-09.json)/4.5.0-preview.1.9；NOT_READY。 |
 | 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | **本机R1实物验收完成**：[P05报告](docs/design/m47-unified-management-workbench/preview-1-p05-installed-journey.md)、[候选10](docs/design/m47-unified-management-workbench/preview-1-candidate-10.json)/4.5.0-preview.1.10；Chrome/Edge、正常重开/同候选回退/错配拒绝通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | **本地说明/分发合同完成**：[P06报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)及四附件补记完成；独立手动入口默认只读prepare，P07原门禁/P08授权仍阻断，NOT_READY。 |
-| 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | P02～P06；📋。保存真实 workflow/job/step/artifact 结果，不降低原 gate。 |
+| 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | **评审完成；未放行**：[P07报告](docs/design/m47-unified-management-workbench/preview-1-p07-release-review.md)/[真实记录](docs/design/m47-unified-management-workbench/preview-1-p07-10.json)；prepare/P07收集success，验收7/8、原门禁4/12；8项同源工作流与许可条件仍阻断，NOT_READY。 |
 | 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | P07 全部必选通过且取得实际发布授权；⏳。上传、公开可下载与运行验收分别记。 |
 
 具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。P01候选01来源固定为 `c40fa670e3a170c5fac8cefa181d618631862270`，保留版本 `4.5.0-preview.1.1`；仅为已提交实现起点，未构建/验收/打标签。后续代码、配置或打包变更须新增候选与版本，不覆盖该清单、不用 dirty 工作树发包。首版限定 win-x64 同源环回 Web＋Server；旧 `workbench` 定时保持 `PAUSED`。 后继候选02已绑定修复提交 `ed4f48242c5d5b4e7e16861504d03cc845146402` 与保留版本 4.5.0-preview.1.2；本地验收通过，未打包/推送/发布，P07须重核最终候选的全部门禁。
@@ -182,7 +182,7 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 | **M47-P04 / P0** | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
 | **M47-P05 / P0** | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
 | **M47-P06 / P0** | **本地说明/四附件/限定手动分发合同完成**：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
-| **M47-P07 / P0** | 冻结最终候选并完成提交、CI、发行物与真实旅程放行评审 | 如需提交，最终树先完整 `dotnet restore SonnetDB.slnx`、原 CI `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；同 commit/version/latest attempt 的真实工作流和有效 artifact 由既有 verifier 核验。必选失败/UNKNOWN/NOT_RUN 均不放行，延期项明确排除。 |
+| **M47-P07 / P0** | **真实评审完成；NOT_READY**：[报告](docs/design/m47-unified-management-workbench/preview-1-p07-release-review.md)、[记录](docs/design/m47-unified-management-workbench/preview-1-p07-10.json)；成功prepare/P07原artifact已绑定 | 原12workflow中4通过、8缺同包源码运行；7/8验收通过、许可条件未闭环，不放行。包内修复必须新候选/version及受影响验收后重新取完整gate；P08另需实际授权。 |
 | **M47-P08 / 发布** | 经实际发布授权执行一次发布，核公开页/下载/版本/哈希与首跑，再归档完成条目 | P07 全通过后进行；保存已确认 ID/URL/上传结果及独立回读。未知远端效果先核实，不盲重试。仅核到公开文件不冒称全部宿主/生产验收；发布后把本轮完成 P 项移入 CHANGELOG。 |
 
 现有发布验证读取 [release-readiness policy](eng/release-readiness-policy.ps1)：Workbench 五个 job 及要求的 artifact，CI/Format/AOT、适用 CodeQL、Parity light/full、soak/容量合同和发布/连接器等检查按原 policy 执行。排除首版 Studio 或 VS Code 下载物，不等于可以跳过其既有基础 CI job。七天 scheduled Parity 保持独立非阻断观察，不将其误设为首个 Web 预览必须等待七天，也不把缩规模验证当固定硬件/生产证据。

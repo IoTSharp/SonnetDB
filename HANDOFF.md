@@ -1763,3 +1763,17 @@ M47-P07暂存纠正：第一次owned stage默认whitespace检查发现原CRLF收
 真实prepare38116277262 attempt1/tooling69e6705d工作流failure；controller PREPARED_NOT_READY/9commands/12.57秒、mutationStarted=false，原Job PASS/exit0/cleanupComplete=true。源码/库存/ZIP实际核完，不当成工作流PASS。失败为Invoke-Distribution依赖新进程未设置LASTEXITCODE（null -ne 0）；本次仅外部两PS调用层改读原Job status/exitCode/cleanup并在全部PASS后明确0，P07同型问题同步修正，包source54eefc81及全部原资产不变。6个有界真实Job包装合同覆盖null/残留55/子exit7拒绝，controller仅合成，fixture明确归属路径finally清理，收据保留；不计真实分发或安装证据。
 
 本段独占FileStream尾部追加/Flush(true)核整段旧字节前缀；stage只HEAD+本段LF和自有Fixed行，保护外来dirty/旧HANDOFF/parity。下一步最终树完整restore/原format/default whitespace，正常owned commit/push；只新prepare、P07原证据artifact和真实NOT_READY记录，不发布P08、不恢复自动化、无新候选重包/工作树/子智能体。初审8workflow缺运行和11运行许可条件仍阻断；原失败/UNKNOWN不覆盖。
+
+## M47-P07真实原证据归档与未放行评审完成（2026-10-11，Asia/Shanghai）
+
+直接授权已回读父会话01a12935-096e-7843-a6f8-c5d497684581用户原话“现在在新会话中开始实现P07”；此前本任务自写授权文字不作为独立来源。仅P07与owned正常提交推送，P08仍需另获授权，无子智能体/新会话/工作树或自动化恢复。
+
+真实prepare38116860908 attempt1/tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24整体success，prepare步骤通过、publish skipped，controller PREPARED_NOT_READY/9命令/9.016秒/mutation=false，Job PASS/exit0/cleanupComplete=true。真实P07收集38117134746 attempt1/同工具整体success，原Job PASS/exit0/cleanup=true，收集31.974秒/7外部命令；artifact11693529921/workbench-preview-p07-10/digest sha256:f9cec7973d7c6a0afde07a99fdbcb89b70e2a5fb22d2b077dc0bc787cd3d8208，到期2026-11-10T06:10:27Z。三份prepare/P07原archive的下载size/SHA与API digest相同；20原JSON/7原文/8归一验收、冻结candidate/审计/依赖manifest/10分发+5收集工具blob独立核验通过。原独立核验脚本文件名错误FAIL及纠正PASS分开保留。
+
+最终preview-1-p07-10.json/status NOT_READY、collection COMPLETE、published=false；C01～C05/D01/P05-installed-R1共7/8通过，licenses未闭环。原完整verifier仍4/12通过，parity/document-soak/ecosystem-soak/m19-capacity-evidence/m39-trigger-evidence/publish/connectors-release/docker-publish缺source54eefc81有效运行；7npm通知/4Microsoft条件共11条运行时缺口，5build-only排除不等于全部清关。scheduled七天最新观察READY/7/7/nonblocking，初审UNAVAILABLE保留，不能替代本候选light/full。原gate/policy未改，NOT_READY已实际被发布校验拒绝。原两个prepare工作流FAIL不覆盖。
+
+candidate10/4.5.0-preview.1.10/package source54eefc816f133a805b0d38f0cbe930d2c17650b6/tree0083fd496dbdac25019aee058651c821dac0c336/build38104431383/ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、279entry、原manifest/checksum/审计逐字保持。本片评审完成但未放行；下一顺序关闭运行时通知与Microsoft条件，包内变更必须新candidate/version、重包及受影响P04/P05等验收，再取同包源码原12门禁和新的P07；只有全部通过及单独P08授权后才能公开发布。不可为候选10改写READY或覆盖字节。
+
+44Node/6进程包装合同已通过；本次最终文档/机器记录完整restore/原CI format/default staged whitespace后精确7owned提交正常push，最终SHA/远端与非空本机收口见artifacts/m47-p07-20261011/delivery.json和原checks，未取得结果不预写PASS。审计只用本机checks身份，Hosted PID不查本机，DateKind String显式解析，拒绝空窗。只保留交付/原日志，不清共享缓存/外来文件；原FAIL/UNKNOWN/cleanup=false保留。
+
+HANDOFF独占尾追加/Flush(true)核旧字节前缀，stage严格HEAD原字节+本段；ROADMAP工作区外来五列与HEAD四列各自结构保持，CHANGELOG/queue/validation同样只HEAD+owned增量。保护105初始外来文件、博客/M42/WB97/WB98/三个VSCode和parity-results；workbench实读PAUSED。本任务无tag/Release/公开附件/匿名首跑/生产部署/安装服务/编辑器重启/跨聊天发送。

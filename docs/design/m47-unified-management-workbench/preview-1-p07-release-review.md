@@ -46,3 +46,15 @@ npm审查以准确版本、原integrity与registry元数据/固定gitHead核上�
 第二次stage仍发现原Rollup许可证中的Markdown引用空行尾空格；该原文也不能改写，遂对全部上游原文本使用同一无损归档/解码/SHA核验，原FAIL另存。收集器进一步直接把每个旅程/执行结果/suite/audit的SHA对到冻结candidate/审计补记，把243依赖原JSON SHA对到已核包manifest，防止只重写归一库存就改变原收据。新增替换hash拒绝场景；再次最终树门禁后才允许commit。
 
 远端工具修正第一次复验：run38116277262/attempt1/tooling69e6705d，工作流真实failure；controller实际PREPARED_NOT_READY、9命令/12.57秒、mutation=false，原Job PASS/exit0/cleanupComplete=true。失败位于Invoke-Distribution的LASTEXITCODE判定：Windows API启动不会给新PowerShell进程赋该变量，null -ne 0误报。两调用层改为核原Job JSON并只在PASS/exit0/cleanup=true后设置0；6项包装合同验证null、残留55、真实子进程exit7拒绝，均保留原收据，仅controller夹具，不计真实分发通过。再次完整restore/原format/owned-only/default whitespace后正常提交推送，新的实际prepare/P07结果仍待取得。
+
+## 真实远端复验与最终评审（2026-10-11）
+
+prepare run38116860908 / attempt1 / tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24整体success，prepare job及三具名步骤success，publish job skipped。原controller PREPARED_NOT_READY、9命令/9.016秒、mutationStarted=false；原Job PASS/exit0/cleanupComplete=true。四附件下载后逐size/SHA核验，ZIP仍46,634,305bytes/279entry，candidate、manifest、原checksum和审计补记不改。两个原prepare failure保留原结论。
+
+P07 run38117134746 / attempt1 / 同tooling整体success；collect job和具名收集/保留步骤success，原Job PASS/exit0/cleanupComplete=true，收集31.974秒/7外部命令。成功artifact workbench-preview-p07-10 / ID11693529921 / digest sha256:f9cec7973d7c6a0afde07a99fdbcb89b70e2a5fb22d2b077dc0bc787cd3d8208 / expiresAt 2026-11-10T06:10:27Z。独立下载全部三份prepare/P07 archive并核SHA256与API digest/size一致；核20原JSON、7上游原文、8归一检查的原size/SHA、冻结candidate/审计、243依赖manifest绑定及10分发/5收集工具Git blob。原本地独立核验因p07收据文件名写错而失败，原FAIL/双流/脚本保留；纠正后完整复核PASS，未更改远端原文。
+
+[最终机器记录](preview-1-p07-10.json)来自该真实artifact。C01～C05、D01、P05-installed-R1共7/8检查PASS，licenses仍NOT_READY；原verifier再次4/12通过、8项缺同package源码的有效运行，9组blockers保留，**评审完成、未放行**。原full policy/light/full不降低，NOT_READY记录已实际核验被既有发布校验器拒绝。不能把工作流success或D01归一PASS称为产品READY。
+
+七天scheduled Parity此次原report为READY、7/7、100%；light/full原profile各51场景。原初审UNAVAILABLE不覆盖，最新观察仅适用于report中的历史来源，不替代candidate10源码54eefc81的parity gate。观察始终nonblocking。11项运行时许可条件未闭环，5项build-only排除不等于243项全部清关；如修复包内通知，必须新candidate/version、重新构建及受影响验收，再取全部同包来源门禁及新的P07评审。P08未执行，仍须所有门禁通过与独立实际发布授权。
+
+本轮44项Node合同及6项真实Job包装合同已通过，最终文档/机器记录再完整restore、原CI format与默认staged whitespace后精确owned提交并正常push；实际最终SHA、远端回读和非空本机身份收口以artifacts/m47-p07-20261011/delivery.json为准。GitHub Hosted身份不用于本机审计。原FAIL/UNKNOWN、外来dirty、根HANDOFF原字节与parity-results保持；workbench仍PAUSED。

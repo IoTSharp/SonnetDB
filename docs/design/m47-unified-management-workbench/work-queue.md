@@ -12,7 +12,7 @@
 | 4 | M47-P04 | **候选09实物组包与独立校验完成；候选05～08原CI失败保留**：[P04报告](preview-1-p04-packaging.md)。[候选09](preview-1-candidate-09.json)/4.5.0-preview.1.9；候选10的P05结果见下一项，P06～P08待验，NOT_READY。 |
 | 5 | M47-P05 | **本机R1实物验收完成**：[报告](preview-1-p05-installed-journey.md)、[候选10](preview-1-candidate-10.json)/4.5.0-preview.1.10，源码54eefc81/CI38104431383；实际Chrome/Edge、导出/审批/撤权/错配/正常重开/隔离快照回退通过，P06～P08待验，NOT_READY。 |
 | 6 | M47-P06 | **本地说明/四附件/独立手动分发合同完成**：[P06报告](preview-1-p06-distribution.md)、[分发补记](preview-1-distribution-10.json)；原candidate10包字节保持，P07原完整gate/P08授权未验，NOT_READY。 |
-| 7 | M47-P07 | P02～P06后：同候选完整提交/CI/发行物/真实旅程门禁放行，不降低现有policy。 |
+| 7 | M47-P07 | **评审完成；未放行**：[报告](preview-1-p07-release-review.md)/[真实记录](preview-1-p07-10.json)；prepare38116860908/P07收集38117134746 success，验收7/8、原门禁4/12；8同源工作流与11许可条件仍阻断，NOT_READY。包内修复须新候选及受影响验收。 |
 | 8 | M47-P08 | P07通过并获实际发布授权后：一次发布、独立回读下载/版本/hash和归档。 |
 
 每项验收标准、宿主后续和正式版U02～U09只在根路线图维护。WB80的本机恢复PASS不能代替当前桌面包安装；WB83 preflight失败与WB98独审超时不能推成产品故障。已有dirty诊断、旧失败/UNKNOWN和其它会话内容保留。

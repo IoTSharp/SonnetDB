@@ -1,3 +1,7 @@
+**2026-10-11 P07评审完成，未放行：NOT_READY。** [P07报告](preview-1-p07-release-review.md)和[真实机器记录](preview-1-p07-10.json)绑定candidate10/4.5.0-preview.1.10、包source54eefc816f133a805b0d38f0cbe930d2c17650b6及tooling 1f3709945f97bfd656538570d1d8b8cf3b0cba24。prepare38116860908、P07收集38117134746均attempt1/success，发布job skipped；原包/清单/hash及旧失败保持。
+
+C01～C05/D01/P05-R1共7项PASS、licenses NOT_READY；原12workflow中4通过、8缺同包源码有效运行。243依赖/16缺口中5build-only不分发，7运行时npm通知与4Microsoft条款条件未闭环。真实artifact11693529921及digest、20原JSON/7许可原文/8归一检查和10+5工具库存独立核验；原checker拒绝NOT_READY发布。七天scheduled Parity最新7/7观察READY、nonblocking，不替代本候选light/full；初审UNAVAILABLE保留。包内许可修复须新候选和受影响验收。P08未执行，自动化PAUSED。
+
 ## M47-P03 当前收尾验收：R1本地完成（2026-10-10）
 
 **P03按R1本地完成，KV原30秒分页/导出超时关闭。** 完整模式按原332项清单重新执行四分片，307通过、25个原skip、0失败/0flaky，单worker、零重试；Node465/465、类型检查和新Preview构建通过，正式/admin真实浏览器12/12。真实Kestrel19/19与StudioHost夹具12/12明确复用上一轮未变输入的证据。 当前307/25来自新四片，旧失败未改写；七模型专用读取仍延期，Chrome完整矩阵、原清理缺证和编辑器恢复未提升结论。见[P03报告](preview-1-p03-controls.md)；[候选04](preview-1-candidate-04.json)已绑定`57222f57e4cce324ca054126fd4281ec5e5afec1` / 4.5.0-preview.1.4。用户本次授权并已先推送原提交，远端发布门禁未验证，产品NOT_READY，P04～P08未执行。
