@@ -1712,3 +1712,12 @@ suite-10-a在弹窗提前关闭后过早回读FAIL，原收据与强制清理保
 不可变preview-1-candidate-10.json和P05报告已冻结实际包/CI/工具/hash/用户旅程及限界。P05仅本机解压包R1完成、NOT_READY；七模型延期/原事故/cleanup=false/UNKNOWN不变，无干净Windows安装/崩溃恢复/任意升级降级/生产验证。下一顺序P06说明/限制/反馈/升级回退及四附件分发，P07同候选原发布门禁/许可条款，P08另获明确授权后公开发布。workbench自动化实读仍PAUSED；无tag/公开Release/生产部署/安装服务/重启编辑器/跨聊天外发或子智能体。
 
 共享ROADMAP保留working-tree外来五列状态，index只取HEAD四列加owned进展；CHANGELOG/queue同样HEAD加owned，HANDOFF独占追加/fsync核原前缀，范围纠正与本段纳入owned交接。三VSCode脚本hash、博客/M42/WB97/WB98外来dirty与parity-results保留。最终树提交前须再次完整restore/原CI同级Format/cached whitespace并通过；随后正常push并独立核remote main与parity-results，最终SHA与回执见Git/本片checks，不把计划写成门禁已通过。
+
+
+## M47-P05真实交付门禁与提交后审计修正（2026-10-11，Asia/Shanghai）
+
+主P05交付6b90fcfe54e2ced1ea141bdb297e50f13c80a18c已正常推送、remote main独立回读一致，parity-results保持0e48b753da7eab8ebd9651d405ddb58e3bef01c8；restore-p05-final PASS21.64秒、原CI format-p05-final PASS207.50秒、最终staged whitespace PASS，七文件精确提交，index空/外来dirty保留。candidate10/包来源54eefc81与P05实物R1结果不变，产品NOT_READY，P06～P08待验。
+
+提交后首份final-delivery-process-audit.json原字段PASS却筛得0收据/0身份，无效空窗必须按FAIL_EMPTY_WINDOW理解，不能作为回收证明。实际单条micro证实本机ConvertFrom-Json自动转DateTime再字符串解析导致UTC偏移丢失；新v2保留字符串时间、显式DateTimeOffset并加至少15收据/100身份下限，20真实Job收据/337身份、0live/0监听/0signal与24临时目录回收PASS。原JSON与micro/新脚本/新结果都保留。安装独立audit20/268没有时间窗筛选，numeric PID全部不存在/reused0，未进入错误日期匹配分支，原安装/停止/套件证据有效。新增不可变preview-1-candidate-10-acceptance-audit.json绑定纠正，不修改已冻结candidate10或包字节。
+
+本段与报告审计说明只补提交后真实结果，按HEAD+owned追加暂存保护外来HANDOFF字节，独占锁/fsync核旧前缀。补记提交前仍完整restore/原CI format/cached whitespace，正常push后核main与parity；精确SHA/实值收据在artifacts/m47-p05-20261011/checks，不tag/公开发布/生产部署/恢复自动化。下一次从P06当前实物身份接续，不能复用无效空窗或把本机R1升级为正式发行。

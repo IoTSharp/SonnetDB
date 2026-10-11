@@ -37,3 +37,7 @@
 本轮 `suite-10-a`在审批后过早回读而FAIL：组件在异步提交之前消费并关闭审批，脚本原先把弹窗消失当提交完成。验收工具改为等待实际写入完整响应后回读；仅工具源码发生此修正，candidate10包字节未变。原suite-a强制Job清理如实保留，不写成正常停止。更早的Fetch `status()`误用、隐藏控制台AttachConsole失败/cleanup=false、P02安全事故及其它FAIL/UNKNOWN记录不覆盖。
 
 此结果覆盖本机实际解压包的R1；未在干净Windows机器执行安装，也未验证服务安装、代理子路径、跨域/TLS、容器、崩溃恢复、任意升级/降级、七模型专用预算或生产业务。SSE事件等延期入口仅验证拒绝，未冒称可用。P06接说明/限制/升级回退和四附件分发合同，P07核同候选原发布门禁与243依赖中的原文/元数据/Microsoft再分发条款，P08仍须单独授权。Workbench/WB98自动化保持PAUSED；未tag、公开Release、生产部署、重启编辑器或跨聊天外发。
+
+P05主交付提交 `6b90fcfe54e2ced1ea141bdb297e50f13c80a18c`已正常推送并独立核remote main，保护parity-results仍`0e48b753da7eab8ebd9651d405ddb58e3bef01c8`；完整restore、原CI同级format及staged whitespace均PASS。提交后首份final audit错误筛出0份收据，**该空窗结果无效**：本机JSON自动日期转换后再转字符串解析丢失UTC偏移。单条实际收据micro重现后，工具保留字符串时间并增加至少15收据/100身份的下限；[审计补记](preview-1-candidate-10-acceptance-audit.json)绑定新实证20收据/337身份、0live/0监听/0signal与24临时目录回收。原错误空窗JSON、micro与修正脚本/结果分存，不覆写为PASS。
+
+原安装独立audit20收据/268身份未使用时间窗口筛选，且PID查询全部不存在（reused=0），未进入有日期解析问题的匹配分支；原安装/停止证据继续有效。candidate10冻结文件与包字节保持不可变，补记只补交付后审计，不改变R1/P06～P08边界或创建新包版本。
