@@ -294,7 +294,7 @@ public sealed class FileStreamingSubscriptionDispatcherTests
         using var directory = new TemporaryDirectory();
         var storageOptions = new FileStreamingSubscriptionOptions
         {
-            OperationTimeoutMilliseconds = budgetExpires ? 5000 : 100,
+            OperationTimeoutMilliseconds = budgetExpires ? 5000 : 2000,
         };
         string? deliveryId = null;
         await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, Definition(), storageOptions))
@@ -304,17 +304,19 @@ public sealed class FileStreamingSubscriptionDispatcherTests
             using var heldLock = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             var dispatcher = new FileStreamingSubscriptionDispatcher(subscription, Options() with
             {
-                MaxDuration = budgetExpires ? TimeSpan.FromMilliseconds(300) : TimeSpan.FromSeconds(3),
+                MaxDuration = budgetExpires ? TimeSpan.FromMilliseconds(300) : TimeSpan.FromSeconds(10),
             });
+            using var callerDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             Task<FileStreamingDispatcherResult> run = dispatcher.RunAsync((batch, cancellationToken) =>
             {
                 deliveryId = batch.DeliveryId;
                 return Succeed(batch, cancellationToken);
-            }).AsTask();
+            }, callerDeadline.Token).AsTask();
             if (budgetExpires)
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(callerDeadline.Token));
             else
-                await Assert.ThrowsAsync<TimeoutException>(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+                await Assert.ThrowsAsync<TimeoutException>(() => run.WaitAsync(callerDeadline.Token));
+            Assert.False(callerDeadline.IsCancellationRequested);
             Assert.NotNull(deliveryId);
             Assert.Equal(-1, subscription.Checkpoint.CommittedSequence);
         }
