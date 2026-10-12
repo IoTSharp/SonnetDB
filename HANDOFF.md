@@ -2010,6 +2010,20 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 实现仅七路径、index 空，执行者未暂存/提交/推送/变更分支或 GitHub。主会话下一步独立核 aggregate-cast-final-tree.json 的最终七路径与实际测试/进程/回收证据，在最终树执行完整 solution restore 和原 CI Format Check，通过后精确暂存提交并处理远端交付。此处未预写上述完整门禁、提交/PR 或全量 CI 通过；正式 NuGet 发包与 Chloe Provider 真实验收仍 NOT_RUN，不能由本地和真实 REST/h2c 定向测试推定完成。
 
 
+## GH-Issue #261 普通及物化视图声明元数据（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-engine 独立工作树的 codex/issue261-view-declarations 分支，基线 80f960e3b8c1dac99023d17f6f5c5643bb27ba91，仅二十个产品/测试/文档路径及本交接增量。空结果、全 NULL、别名及嵌套视图按静态声明返回类型、可空性、DECIMAL precision/scale、size 和标志；LIMIT 0 不执行投影/过滤/排序 UDF。外连接只扩大可空性，不能把未知表达式当成 NULL 字面量；最终 CASE/COALESCE 合并检查原 AST 的 NULL 语法，显式/隐式/CAST(NULL AS INT) 控制及匹配/未匹配真实行均已覆盖，没有新增持久推断标记。
+
+物化视图自身快照格式 v1→v2 把声明纳入 CRC；旧 v1 真实行可读，完整 schema 明确要求 REFRESH，不伪造旧声明。REST 继续现有 source-generated DTO/context，declaredNullable 的显式 null 不能被全局忽略策略删除；GetColumnSchema 返回强类型 DbColumn，既有 positional constructor/deconstruction 及 GetSchemaTable precision 的 short 合同保持。Frame v3 明确协商并保留 v2/legacy 原字节，只在稳定的执行前 unsupported_result_version 拒绝时至多重试一次 v2；SQL 错误、结果不确定及已执行后忽略 header 不重放 REST。旧 v2 的未知类型保守保持 Object，未声称旧服务 raw VECTOR 元数据兼容。
+
+最终 build06 实际 PASS，0 warning/0 error；tiny 未知外连接回归 TRX 1/1，最终 Core03 同 DLL 定向类 TRX 168/168、真实 REST/h2c RemoteAdoHttp2TransportTests 全类 Transport03 TRX 26/26，均 0 failed/skip。两真实视图用例包含空/all-null/nested/materialized 重开、声明未知表达式和外连接 CASE/COALESCE 的读前/读后/EOF schema 与真实值，生产 source-generated JSON 显式 null、Frame v3 KNN float[] 也在实际窗口覆盖。二十源码和十个 producer/copied/executed DLL 哈希在 build06 前后及测试后保持；非空 TRX、stdout/stderr、spec 和冻结绑定留在 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\view-declarations-261。
+
+早期 build03 的 DbColumn.IsRowVersion 编译失败、micro 0/2、Core01 163/167、Transport01 23/26 及旧成功回执完整保留，不能把旧成功赋给最终修正树。root 对第四、第五、第六构建与最终第三 transport 的授权增补分别留存；最终上限 70 shell、24 Jobs、6 builds、3 transports，原 22:48:17Z 起点和 00:18:17Z 硬截止未重置、2CPU/600秒 Job/取消文件保持。累计 shell 继承约 54 的不确定估计与本次续跑准确增量分列，不把估计改为精确计数。DLL 采集的 ordered-hashtable 属性选择失败及清理脚本首次小输入 parser 失败另留 FAIL，随后只修证据脚本，不修改通过后的产品源码或新增构建。
+
+最终 owned-process-audit-final.json 实际核十八 Job 全部 cleanupComplete=true，162 个 PID/UTC 创建时间/完整命令/父链身份，0 live/unknown；一次限定 PID 的 CIM 查询完成。专属 TEMP 仅在 marker、绝对路径、无 reparse 与无活身份核实后移除（10 目录/5 文件），原十四 Job 清理回执和初次 60秒审计失败保持。HANDOFF 原字节前缀不变。没有暂存、提交、推送、GitHub 操作、服务/工具安装或新代理/工作树，索引保持空。
+
+主智能体下一步先独立核 view-declarations-final-tree.json、最终源码/DLL/TRX/清理回执，在最终待提交树执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，再精确提交/远端交付。本执行者的较早 scoped format 与本机定向/真实传输测试不替代完整 solution 门禁、全量 Windows/Linux CI、NativeAOT 发布、正式 NuGet 或消费者验收。正式已发布最低包版本、NewLife.XCode 实际逆向/代码生成/导出及外部验收仍 NOT_RUN；Issue #261 保持 OPEN，不由本地实现虚报完整闭环。
+
 ## GH-Issue #235 精确 Decimal 参数与原数值文本（2026-10-12，Asia/Shanghai）
 
 本阶段在 online-delivery 的 codex/issue235-exact-decimal-parameters，原基线 1f38728f；主智能体正常合入 #254/80f960e3 后新 HEAD 为 282d29ee8f2c662da7b76b1d5dd1f7ffab4b123a。21 个 own 代码/测试路径原文安全保存后恢复，20 源 SHA 与保存时一致，RelationalSelectExecutor 自动合入并复核继承的 CAST/Wrap 修改；stash 25a9d50021385308f5572dc98de96a0c19243ac2 及根备份保留。本阶段没有修改继承的 RemoteExecutionResult 或 WrapValueAsLiteral，HANDOFF 使用新 HEAD 的完整字节前缀后追加。
@@ -2128,6 +2142,16 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 
 准确7source/11 Core与Server生产actual DLL/runtimeconfig、非空真实TRX及全旧/新Job/错误/截止记录分别冻结到artifacts/online-closure-20261012/rootaccept275-0406；完整原HANDOFF字节prefix保持。新独立20分钟/12shell/8Job/一次Server构建/一次transport、单dotnet2CPU、600/300秒、固定PS7隐藏console、数量/墙钟/取消及KernelJob完整PID创建命令父链/finally约束保持。所有已录Job精确身份与D:\pr275verify-0331旧owner及获准新子目录的无reparse、有界微试inventory和一次回收以process-audit.json/temp-cleanup-result.json及最后hidden审计Job回执为准；policy拒删对象不动。根最终whole-solution restore/原Format Check、精确提交/普通推送和新head CI仍NOT_RUN，必须另行执行后交付，不把本次本机PASS赋给这些门禁。
 
+## 2026-10-12 #290 / #261 合并树验证（issues_delivery，0516）
+
+- 精确树：codex/pr290-main292-refresh，HEAD eb996655fa198525ade9c78b73a7975013f86e7e，MERGE_HEAD e47c3ce4a855569b91a7d70a575aefcf2b50f608；实际 PR 分支为 codex/issue261-view-declarations。主智能体保留 HANDOFF 两侧完整内容并解决冲突。本任务只尾部追加此节，不修改产品/测试代码或 Git/index/refs。
+- 证据根：D:\source\SonnetDB\artifacts\online-closure-20261012\pr290-integration-0516。source-before.json、configs-before.json、source-after-validation.json 和 git-after-validation.json 证明 21 个来源文件及 9 项配置在构建/测试期间无漂移，Git 身份不变且无未解决冲突。before/HANDOFF.md 保存全部原始字节；handoff-prefix-proof.json 验证追加后完整字节前缀。
+- 两次完整 Release 构建 PASS，均 0 warning / 0 error，-m:1、2 CPU、关闭 node reuse/shared compilation；Core 162.9 秒、Server 137.1 秒。微试实际 TRX 1/1。完整七个 Core 类实际 TRX 203/203：Frame32、MaterializedView14、SelectMetadata12、真正类型 TsdbAdoApiTests62、Timeout29、Preview18、DecimalDeclaration36。完整 RemoteAdoHttp2TransportTests 只运行一次，实际 TRX 28/28，包含真实 REST/h2c 视图声明、旧代恢复和继承 main 的排名。三个窗口均 --no-build --no-restore，逐类/逐例及 TRX 回执在 evidence 根中。
+- core/server-binaries.json 和 core/server-complete-bindings.json 记录并归档 producer、复制/执行 DLL、PDB、runtimeconfig 的 SHA256、版本和路径。PE 元数据确认 Core 执行目录 7 个、Server 目录 8 个本仓库程序集（含 CoAP/MQTT）均 AssemblyConfiguration=Release、DebuggableModes=2、DisableOptimizations=false；配置判断没有仅依赖输出目录名。
+- 专属临时目录 D:\pr290integration-0516 已在 owner、绝对路径、无 reparse、有界16项清单及无活跃引用核验后删除，删除调用只有一次。第一次 audit 因脚本生成启动器命令行含 TEMP 字面量而拒绝删除，FAIL 回执保留；独立启动复核 PASS（12 个完成 Jobs、74 个 PID/创建 UTC/命令行/父进程身份，live=0、unknown=0、temp references=0）。后续最终审计见 pr290integration-final-audit-0516-audit.json 和同名 runner result；各 runner 清理回执独立保留。
+- 旧类名误用、旧阶段 deadline/不完整窗口及历史 FAIL/UNKNOWN/NOT_RUN 回执保留。当前新计数不能替换历史 168/26 的来源说明。本轮只证明限定 Release/local transport 回归；full CI、NativeAOT、正式包、公开消费者和生产验收未执行。#261 的正式版本与 XCode 消费验收仍缺，不能据此关闭 Issue。
+- 主智能体下一步：在最终待提交树完成 dotnet restore SonnetDB.slnx 和原始 Format Check，审查完整合并差异，然后完成 merge commit、原 PR 分支 push、精确 head CI/GitHub 更新。根门禁及这些交付在本子任务均 NOT_RUN。
+
 ## PR #295 INSERT SELECT 历史夹具修正（2026-10-12）
 
 精确c1bfdd7 Linux全套失败保留：Core6352/6353、Server1177/1179，三失败均在seed写入拒绝20,6声明。样本9007199254740993.125000需要16整数位+6声明小数=22precision；两个源/目标schema改为22,6，原大值、assertions、identity/RETURNING和production约束不变。此为旧夹具纠正，未改写precision校验或减小样本。新增准确Core/真实Server复验与完整最终restore/format结果见独立pr295-fixture0510收据；本段不预写PASS。正式包/Chloe/AOT消费者仍独立，Issue264不关闭。
@@ -2159,3 +2183,23 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 - build-inputs.json 冻结15项输入，生产/配置/未改订阅测试哈希稳定；binaries.json 和 actual-binaries 归档producer/copied Core/Data/Test DLL、PDB、runtimeconfig及版本/hash，producer/copied DLL一致。PE metadata确认7本仓库执行程序集实际Release/优化开启，Portable PDB逐5个目标源SHA匹配（两个修改测试、三个相关生产源）。完整非空TRX/逐例/逐类结果独立留存。
 - 专属 D:\streamci-0647 已按 owner、绝对路径、无reparse、有界 14 项清单和无活跃引用核验后一次删除。cleanup审计8个此前Jobs/57个记录PID+创建UTC+完整命令行+父PID，live=0/unknown=0/temp references=0；后续最后审计与self runner cleanup单列。历史全部FAIL/UNKNOWN/NOT_RUN与旧拒删对象保留。
 - 阶段固定06:47:44Z至07:17:44Z、35shell/18hidden Jobs、最多2build/3testwindows，未延旧阶段。本代理仅完成局部真实回归、字节前缀保存和证据交接；root须在最终待提交树执行完整solution restore与原CI Format Check，审查四路径后建立独立test-only PR并核新head Windows/Linux全suite。上述root门禁、Git/GitHub交付、新CI、nightly/parity与正式包/生产验收仍 NOT_RUN，不能把86/86写为全suite修复完成。
+
+## PR #290 root准确收尾与批次集成（2026-10-12）
+
+最小产品修正2源：已知Int64元数据保19/0，unknown/未知Decimal保持null；LIMIT0 joins仅作declaration不伪增下推，原expected1保持。3测试/CHANGELOG共6拥有patch已核，20源/20实际Core-Server DLL/PDB/runtimeconfig与执行冻结SHA一致。Core五完整类133/133、实际RemoteAdoEndToEnd全类65/65、micro3/3均由原非空TRX逐counter核；micro包含相关类不重复累计。原新增probe3/3FAIL及旧平台原三FAIL完整保留，PDB六源绑定仅声明已实证Core范围，未伪写Server最终聚合。两个worker固定阶段08:36:27、08:50:00因截止未freeze/cleanup的事实和路径筛选FAIL及截止拒绝保持。root以新独立有界审计完成source/binary/TRX，专属D:\p290fix-0801尚保留待准确清理。用户要求后续多PR一批减少CI，当前只做本地checkpoint，不push单PR重复新CI。根后续完整restore/原Format/精确本地提交、275+290+296组合与统一CI/main以实际收据为准，正式包/consumer、模型与生产验收不闭环。
+
+
+## Batch02 PR #275 + #290 actual combination verification (2026-10-12 UTC)
+
+Current exact combined tree and actual result receipts: D:\source\SonnetDB\artifacts\online-closure-20261012\batch02-combination-1257. Two meaningful new facts verify HasRows then GetSchemaTable/GetColumnSchema preserve Int6419/0 and explicitly unknown Decimal declarations without consuming either buffered row, and double Dispose returns the real command lease for reuse. Existing peek caller/command cancellation coverage retained; reviewer changed no production or NextResult contract. Actual final Core nine full classes 244/244, real HTTP2/EndToEnd two full classes 91/97, unique executed cases 341, accepted cases 335, real failures 6; original lease probe is included and not counted twice. Original two-case probe1PASS/1FAIL remains: its new fixture incorrectly used legacy columnTypes (Decimal29); one authorized fixture-only repair supplies actual columnSchemas with unknown precision. No production defect inferred from that original fixture failure.
+
+Actual Release builds3(Core2+Server1), all clean zero-warning/error builds; root explicitly authorized one extra incremental Core build, so the original2-build limit is not marked PASS. Final source/DLL/PDB/runtimeconfig/TRX bindings and process/TEMP status are in freeze.json; current root branch/index/merge preserved. Real failures are retained for root contract review; no conclusion that expectations are obsolete or that production is defective. Root still owns full final solution restore, original Format Check, exact staging/private checkpoint, later batch integration and one CI delivery. Old177/133 counts remain historical and were not claimed for this combination. Formal package/native ABI/consumer/NativeAOT/hardware/production/nightly/parity NOT_RUN. Stage began12:57:22Z, cutoff13:32:22Z, freeze target13:30:22Z; actual receipt UTC governs. TEMP=REMOVED, attempts=1, retryCount=0; matching prior task identities0, signals0. All previous FAIL/UNKNOWN and old artifact snapshots remain.
+
+
+## Batch02 real transport fixture repair and shortTEMP verification (2026-10-12 UTC)
+
+Current stage: D:\source\SonnetDB\artifacts\online-closure-20261012\batch02-real-repair-1339. Only RemoteAdoHttp2TransportTests.AssertRealUnknownBranchDeclarations changed: both schema APIs strictly require known Int6419/0 and unknown object precision/scale null. Original row values, nullable branches, declared-only/empty reads, actual REST/HTTP2 traffic and materialized reopen assertions retained. Production and Core code unchanged. The original six FAIL and previous probe failure remain; original postfreeze independent PID audit stays NOT_RUN.
+
+Original four embedded WAL/CreateFileW failure cases passed4/4 on the same original DLL under owned shortTEMP D:\b02m-1342. This context observation does not prove path length or filesystem root cause; no reproduction on original longTEMP or causal intervention experiment was performed. Sole Server incremental Release build and final source/DLL/PDB binding passed; repaired metadata focus2/2 and whole two real classes97/97 passed, with the focused six included and not added to97. Core244 is carried as exact unchanged source/binary/TRX evidence, not rerun in this stage. Original Core and new Server evidence therefore retain separate execution times.
+
+Source-before/after and actual old/new artifacts/TRX are retained. Fresh exact PID audit and shortTEMP result=REMOVED, attempts=1, retries0; final wrapper receipt and final postfreeze audit remain separately reported. Stage13:39:38Z, hard14:14:38Z, freeze target14:12:38Z. Root owns current whole-tree restore/originalFormat/privatecheckpoint/batch integration/oneCI. Formal package/consumer/NativeAOT/hardware/production/nightly/parity NOT_RUN.

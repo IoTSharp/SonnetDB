@@ -16,6 +16,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data;
 using SonnetDB.Exceptions;
+using SonnetDB.Hosting;
 using SonnetDB.IO;
 using SonnetDB.Json;
 using SonnetDB.Protocol;
@@ -37,8 +38,305 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
     private string _frameH2Url = string.Empty;
     private string? _dataRoot;
     private bool _suppressSqlResultVersion;
+    private bool _rejectSqlV3;
+    private bool _rejectAllSqlVersions;
+    private bool _corruptSqlResponse;
     private const string AdminToken = "ado-h2-admin";
     private const string DatabaseName = "ado_h2_transport";
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task ViewDeclarations_EmptyAllNullAndMaterializedReopen_UseRealTransport(string protocol)
+    {
+        string unknownSchemaJson = System.Text.Json.JsonSerializer.Serialize(
+            new ResultColumnSchema("object", true, false, false, false), ServerJsonContext.Default.ResultColumnSchema);
+        using var unknownSchema = System.Text.Json.JsonDocument.Parse(unknownSchemaJson);
+        Assert.True(unknownSchema.RootElement.TryGetProperty("declaredNullable", out var nullable));
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, nullable.ValueKind);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        await using (var connection = new SndbConnection(ConnectionString(
+            protocol == "rest" ? _http11Url : _frameH2Url, protocol)))
+        {
+            await connection.OpenAsync(deadline.Token);
+            await using var command = connection.CreateCommand();
+            foreach (string sql in new[]
+            {
+                "CREATE TABLE ViewItems (DeviceID INT, Name STRING, Amount DECIMAL(20,6), Payload BLOB, PRIMARY KEY(DeviceID))",
+                "INSERT INTO ViewItems (DeviceID, Name, Amount, Payload) VALUES (1, NULL, NULL, NULL)",
+                "CREATE VIEW ItemView AS SELECT DeviceID AS ItemID, Name, Amount, Payload FROM ViewItems",
+                "CREATE VIEW NestedView AS SELECT * FROM ItemView",
+                "CREATE VIEW UnknownView AS SELECT concat('id=', CAST(DeviceID AS STRING)) AS Rendered FROM ViewItems",
+                "CREATE TABLE BranchKeys (id INT, PRIMARY KEY(id))",
+                "INSERT INTO BranchKeys (id) VALUES (1), (2)",
+                "CREATE VIEW UnknownSource AS SELECT id, concat('id=', CAST(id AS STRING)) AS Rendered FROM BranchKeys WHERE id = 1",
+                "CREATE VIEW UnknownBranches AS SELECT l.id, CASE WHEN l.id = 1 THEN r.Rendered ELSE 0 END AS chosen, "
+                    + "COALESCE(r.Rendered, 0) AS filled, CASE WHEN l.id = 1 THEN l.id ELSE NULL END AS genuine_null, "
+                    + "CASE WHEN l.id = 1 THEN l.id END AS implicit_null, COALESCE(NULL, l.id) AS null_first, "
+                    + "CASE WHEN l.id = 1 THEN l.id ELSE CAST(NULL AS INT) END AS typed_null "
+                    + "FROM BranchKeys l LEFT JOIN UnknownSource r ON l.id = r.id",
+                "CREATE MATERIALIZED VIEW SnapshotView AS SELECT * FROM NestedView",
+                "REFRESH MATERIALIZED VIEW SnapshotView",
+            })
+            {
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync(deadline.Token);
+            }
+            foreach (string source in new[] { "ItemView", "NestedView", "SnapshotView" })
+            {
+                foreach (string suffix in new[] { " LIMIT 0", " WHERE ItemID < 0", string.Empty })
+                {
+                    command.CommandText = "SELECT * FROM " + source + suffix;
+                    await using var reader = await command.ExecuteReaderAsync(deadline.Token);
+                    AssertRealViewDeclarations(reader);
+                    if (suffix.Length == 0)
+                    {
+                        Assert.True(await reader.ReadAsync(deadline.Token));
+                        Assert.Equal(1L, reader.GetInt64(0));
+                        Assert.True(reader.IsDBNull(1));
+                        Assert.True(reader.IsDBNull(2));
+                        Assert.True(reader.IsDBNull(3));
+                    }
+                    Assert.False(await reader.ReadAsync(deadline.Token));
+                    AssertRealViewDeclarations(reader);
+                }
+            }
+            foreach (string suffix in new[] { " LIMIT 0", " ORDER BY id" })
+            {
+                command.CommandText = "SELECT * FROM UnknownBranches" + suffix;
+                await using var reader = await command.ExecuteReaderAsync(deadline.Token);
+                AssertRealUnknownBranchDeclarations(reader);
+                if (suffix == " ORDER BY id")
+                {
+                    Assert.True(await reader.ReadAsync(deadline.Token));
+                    Assert.Equal(1L, reader.GetInt64(0));
+                    Assert.Equal("id=1", reader.GetString(1));
+                    Assert.Equal("id=1", reader.GetString(2));
+                    Assert.Equal(1L, reader.GetInt64(3));
+                    Assert.Equal(1L, reader.GetInt64(4));
+                    Assert.Equal(1L, reader.GetInt64(5));
+                    Assert.Equal(1L, reader.GetInt64(6));
+                    AssertRealUnknownBranchDeclarations(reader);
+                    Assert.True(await reader.ReadAsync(deadline.Token));
+                    Assert.Equal(2L, reader.GetInt64(0));
+                    Assert.Equal(0L, reader.GetInt64(1));
+                    Assert.Equal(0L, reader.GetInt64(2));
+                    Assert.True(reader.IsDBNull(3));
+                    Assert.True(reader.IsDBNull(4));
+                    Assert.Equal(2L, reader.GetInt64(5));
+                    Assert.True(reader.IsDBNull(6));
+                    AssertRealUnknownBranchDeclarations(reader);
+                }
+                Assert.False(await reader.ReadAsync(deadline.Token));
+                AssertRealUnknownBranchDeclarations(reader);
+            }
+            command.CommandText = "SELECT * FROM UnknownView";
+            await using var unknown = await command.ExecuteReaderAsync(deadline.Token);
+            Assert.Equal(typeof(object), unknown.GetFieldType(0));
+            Assert.Null(unknown.GetColumnSchema()[0].NumericPrecision);
+            Assert.Null(unknown.GetColumnSchema()[0].AllowDBNull);
+            Assert.True(await unknown.ReadAsync(deadline.Token));
+            Assert.Equal("id=1", unknown.GetString(0));
+            Assert.Equal(typeof(object), unknown.GetFieldType(0));
+            Assert.False(await unknown.ReadAsync(deadline.Token));
+        }
+        await ReopenHostAsync(deadline.Token);
+        await using (var reopened = new SndbConnection(ConnectionString(
+            protocol == "rest" ? _http11Url : _frameH2Url, protocol)))
+        {
+            await reopened.OpenAsync(deadline.Token);
+            await using var command = reopened.CreateCommand();
+            command.CommandText = "SELECT * FROM SnapshotView LIMIT 0";
+            await using var reader = await command.ExecuteReaderAsync(deadline.Token);
+            AssertRealViewDeclarations(reader);
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        string expectedHttp = protocol == "rest" ? "HTTP/1.1" : "HTTP/2";
+        Assert.All(_requests.Where(request => request.Path.StartsWith("/v1/db/", StringComparison.Ordinal)
+            || request.Path == "/v1/frame"), request => Assert.Equal(expectedHttp, request.Protocol));
+        if (protocol == "frame-http2")
+            Assert.Contains(_requests, request => request.Path == "/v1/frame"
+                && request.ResultVersion == SqlFrameCodec.DeclaredResultVersion);
+    }
+
+    private static void AssertRealUnknownBranchDeclarations(DbDataReader reader)
+    {
+        Assert.Equal(new[] { typeof(long), typeof(object), typeof(object), typeof(long), typeof(long), typeof(long), typeof(long) },
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        var schema = reader.GetColumnSchema();
+        Assert.Equal(new bool?[] { false, true, false, true, true, false, true },
+            schema.Select(column => column.AllowDBNull).ToArray());
+        Assert.Equal(new int?[] { 19, null, null, 19, 19, 19, 19 },
+            schema.Select(column => column.NumericPrecision).ToArray());
+        Assert.Equal(new int?[] { 0, null, null, 0, 0, 0, 0 },
+            schema.Select(column => column.NumericScale).ToArray());
+        using var table = reader.GetSchemaTable()!;
+        Assert.Equal(new object[] { (short)19, DBNull.Value, DBNull.Value, (short)19, (short)19, (short)19, (short)19 },
+            table.Rows.Cast<DataRow>().Select(row => row[SchemaTableColumn.NumericPrecision]).ToArray());
+        Assert.Equal(new object[] { (short)0, DBNull.Value, DBNull.Value, (short)0, (short)0, (short)0, (short)0 },
+            table.Rows.Cast<DataRow>().Select(row => row[SchemaTableColumn.NumericScale]).ToArray());
+    }
+
+    private static void AssertRealViewDeclarations(DbDataReader reader)
+    {
+        Assert.Equal(["ItemID", "Name", "Amount", "Payload"],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray());
+        Assert.Equal([typeof(long), typeof(string), typeof(decimal), typeof(byte[])],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        Assert.Equal(["Int64", "String", "Decimal", "Blob"],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetDataTypeName).ToArray());
+        var schema = reader.GetColumnSchema();
+        Assert.Equal(new bool?[] { false, true, true, true }, schema.Select(column => column.AllowDBNull).ToArray());
+        Assert.Equal(20, schema[2].NumericPrecision);
+        Assert.Equal(6, schema[2].NumericScale);
+        Assert.Equal("Decimal", schema[2].DataTypeName);
+        Assert.Null(schema[1].ColumnSize);
+        Assert.Null(schema[3].ColumnSize);
+        Assert.Equal(DBNull.Value, reader.GetSchemaTable()!.Rows[1][SchemaTableColumn.ColumnSize]);
+    }
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task LegacyViewGeneration_ReadsRowsRequiresRefreshAndMigrates_UseRealTransport(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        await using (var connection = new SndbConnection(ConnectionString(
+            protocol == "rest" ? _http11Url : _frameH2Url, protocol)))
+        {
+            await connection.OpenAsync(deadline.Token);
+            await using var command = connection.CreateCommand();
+            foreach (string sql in new[]
+            {
+                "CREATE TABLE legacy_items (value INT, PRIMARY KEY(value))",
+                "INSERT INTO legacy_items (value) VALUES (42)",
+                "CREATE MATERIALIZED VIEW LegacyView AS SELECT value FROM legacy_items",
+                "REFRESH MATERIALIZED VIEW LegacyView",
+            })
+            {
+                command.CommandText = sql;
+                await command.ExecuteNonQueryAsync(deadline.Token);
+            }
+        }
+        var registry = _app!.Services.GetRequiredService<TsdbRegistry>();
+        Assert.True(registry.TryGet(DatabaseName, out var database));
+        string snapshot = Assert.Single(Directory.GetFiles(database.MaterializedViews.RootDirectory,
+            "*.sdbmvsnap", SearchOption.AllDirectories));
+        await ReopenHostAsync(deadline.Token, () => File.WriteAllBytes(snapshot, Convert.FromHexString(
+            "5344424D56533031010000002000000001000000010000000000000000000000"
+            + "0500000076616C7565012A00000000000000532F07A85344424D5653303100000000")));
+        await using var reopened = new SndbConnection(ConnectionString(
+            protocol == "rest" ? _http11Url : _frameH2Url, protocol));
+        await reopened.OpenAsync(deadline.Token);
+        await using var query = reopened.CreateCommand();
+        query.CommandText = "SELECT * FROM LegacyView";
+        await using (var reader = await query.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Contains("REFRESH", Assert.Throws<InvalidOperationException>(() => reader.GetFieldType(0)).Message);
+            Assert.Throws<InvalidOperationException>(() => reader.GetDataTypeName(0));
+            Assert.Throws<InvalidOperationException>(() => reader.GetSchemaTable());
+            Assert.Throws<InvalidOperationException>(() => reader.GetColumnSchema());
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(42L, reader.GetInt64(0));
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        query.CommandText = "REFRESH MATERIALIZED VIEW LegacyView";
+        await query.ExecuteNonQueryAsync(deadline.Token);
+        query.CommandText = "SELECT * FROM LegacyView LIMIT 0";
+        await using var refreshed = await query.ExecuteReaderAsync(deadline.Token);
+        Assert.Equal(typeof(long), refreshed.GetFieldType(0));
+        Assert.False(await refreshed.ReadAsync(deadline.Token));
+        Assert.Contains(_requests, request => request.Protocol == (protocol == "rest" ? "HTTP/1.1" : "HTTP/2")
+            && request.Path == (protocol == "rest" ? $"/v1/db/{DatabaseName}/sql" : "/v1/frame"));
+    }
+
+    private async Task ReopenHostAsync(CancellationToken cancellationToken, Action? afterStop = null)
+    {
+        await _app!.StopAsync(cancellationToken);
+        await _app.DisposeAsync();
+        _app = null;
+        afterStop?.Invoke();
+        _app = TestServerHost.Build(new ServerOptions
+        {
+            DataRoot = _dataRoot!,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string> { [AdminToken] = ServerRoles.Admin },
+        }, extraArgs:
+        ["--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0", "--Kestrel:Endpoints:FrameH2:Protocols=Http2"]);
+        _app.Use(async (context, next) =>
+        {
+            _requests.Enqueue(new ObservedRequest(context.Connection.LocalPort,
+                context.Request.Path.Value ?? string.Empty, context.Request.Protocol,
+                context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString()));
+            await next(context);
+        });
+        await _app.StartAsync(cancellationToken);
+        var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
+        Assert.Equal(2, addresses.Addresses.Count);
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address)) _http11Url = address;
+            else _frameH2Url = address;
+        }
+    }
+
+    [Theory]
+    [InlineData("auto")]
+    [InlineData("frame-http2")]
+    public async Task OldV2Server_StablePreExecutionRejection_RetriesOnceAndKeepsOldContract(string protocol)
+    {
+        _rejectSqlV3 = true;
+        await using var connection = new SndbConnection(ConnectionString(
+            protocol == "auto" ? _http11Url : _frameH2Url, protocol));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE old_v2_items (id INT, amount DECIMAL(20,6), PRIMARY KEY(id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "CREATE VIEW OldV2View AS SELECT id, amount FROM old_v2_items";
+        await command.ExecuteNonQueryAsync();
+        _requests.Clear();
+        command.CommandText = "SELECT * FROM OldV2View LIMIT 0";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.Equal(typeof(decimal), reader.GetFieldType(1));
+        Assert.Null(reader.GetColumnSchema()[1].NumericPrecision);
+        Assert.Null(reader.GetColumnSchema()[1].NumericScale);
+        Assert.False(await reader.ReadAsync());
+        var requests = _requests.ToArray();
+        Assert.Equal(new[] { "3", "2" }, requests.Select(request => request.ResultVersion).ToArray());
+        Assert.All(requests, request => Assert.Equal("/v1/frame", request.Path));
+        Assert.All(requests, request => Assert.Equal(protocol == "auto" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SqlFrame_RealErrorAndUncertainTransport_DoNotReplay(bool corruptTransport)
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        _corruptSqlResponse = corruptTransport;
+        _requests.Clear();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM missing_view_declaration_source";
+        await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
+        Assert.Equal("3", Assert.Single(_requests).ResultVersion);
+        Assert.Equal("/v1/frame", Assert.Single(_requests).Path);
+    }
+
+    [Fact]
+    public async Task SqlFrame_UnsupportedV3AndV2_StopsAfterOneFallback()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        _rejectAllSqlVersions = true;
+        _requests.Clear();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT 1";
+        var error = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
+        Assert.Equal("unsupported_result_version", error.Error);
+        Assert.Equal(new[] { "3", "2" }, _requests.Select(request => request.ResultVersion).ToArray());
+    }
 
     public async Task InitializeAsync()
     {
@@ -59,12 +357,33 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         ]);
         _app.Use(async (context, next) =>
         {
-            if (_suppressSqlResultVersion)
-                context.Request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
             _requests.Enqueue(new ObservedRequest(
                 context.Connection.LocalPort,
                 context.Request.Path.Value ?? string.Empty,
-                context.Request.Protocol));
+                context.Request.Protocol,
+                context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString()));
+            if (context.Request.Path == "/v1/frame"
+                && context.Request.Headers.ContainsKey(SqlFrameCodec.ResultVersionHeader))
+            {
+                if (_corruptSqlResponse)
+                {
+                    context.Response.ContentType = "application/x-sonnetdb-frame";
+                    await context.Response.WriteAsync("uncertain frame response");
+                    return;
+                }
+                if (_rejectAllSqlVersions || _rejectSqlV3
+                    && context.Request.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.DeclaredResultVersion)
+                {
+                    var rejected = new ArrayBufferWriter<byte>();
+                    FrameCodec.WriteErrorFrame(rejected, (byte)FrameService.Sql, (byte)SqlFrameOp.Query, 1,
+                        "unsupported_result_version", "版本检查在 SQL 执行前拒绝请求。");
+                    context.Response.ContentType = "application/x-sonnetdb-frame";
+                    await context.Response.Body.WriteAsync(rejected.WrittenMemory);
+                    return;
+                }
+            }
+            if (_suppressSqlResultVersion)
+                context.Request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
             await next(context);
         });
 
@@ -264,6 +583,7 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         knn.CommandText = "SELECT embedding FROM knn(vector_contract, embedding, @query, 1)";
         knn.Parameters.AddWithValue("@query", new float[] { 1f, -0.5f, 0.25f });
         using var knnReader = await knn.ExecuteReaderAsync();
+        Assert.Equal(typeof(float[]), knnReader.GetFieldType(0));
         Assert.True(await knnReader.ReadAsync());
         Assert.Equal(new float[] { 1f, -0.5f, 0.25f }, Assert.IsType<float[]>(knnReader.GetValue(0)));
 
@@ -271,6 +591,7 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         ObservedRequest[] requests = _requests.Where(r => r.LocalPort == h2Port).ToArray();
         Assert.Contains(requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
         Assert.Contains(requests, r => r.Path == "/v1/frame");
+        Assert.Equal(SqlFrameCodec.DeclaredResultVersion, requests.Last(r => r.Path == "/v1/frame").ResultVersion);
         Assert.All(requests, r => Assert.Equal("HTTP/2", r.Protocol));
 
         using (var update = connection.CreateCommand())
@@ -807,14 +1128,18 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Equal(9007199254740993.125000m, Assert.IsType<decimal>(reader.GetValue(0)));
         Assert.False(await reader.ReadAsync());
 
-        var unsupported = await SendSqlFrameAsync(sql, "3");
+        var declared = await SendSqlFrameAsync(sql, SqlFrameCodec.DeclaredResultVersion);
+        var declaration = Assert.Single(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(declared[0].Payload).ColumnInfo!);
+        Assert.Equal((byte)24, declaration.NumericPrecision);
+        Assert.Equal((byte)6, declaration.NumericScale);
+        var unsupported = await SendSqlFrameAsync(sql, "4");
         Assert.True(Assert.Single(unsupported).Header.IsError);
         Assert.Equal("unsupported_result_version", FrameCodec.ReadErrorPayload(unsupported[0].Payload).Code);
         Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
     [Fact]
-    public async Task OldSqlFrameServer_AutoFallsBackAndForcedFrameReportsVersion()
+    public async Task OldSqlFrameServer_IgnoredVersion_AutoAndForcedReportWithoutSqlReplay()
     {
         _suppressSqlResultVersion = true;
         using var auto = new SndbConnection(ConnectionString(_http11Url, "auto"));
@@ -832,14 +1157,11 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         using (var query = auto.CreateCommand())
         {
             query.CommandText = "SELECT amount FROM h2_old_result_version WHERE id = 1";
-            using var reader = query.ExecuteReader();
-            Assert.Equal(typeof(decimal), reader.GetFieldType(0));
-            Assert.True(reader.Read());
-            Assert.Equal(9007199254740993.125000m, Assert.IsType<decimal>(reader.GetValue(0)));
+            var autoError = Assert.Throws<SndbServerException>(() => query.ExecuteReader());
+            Assert.Equal("frame_sql_result_version_unsupported", autoError.Error);
         }
         ObservedRequest[] fallbackRequests = _requests.ToArray().Skip(before).ToArray();
-        Assert.Contains(fallbackRequests, request => request.Path == "/v1/frame");
-        Assert.Contains(fallbackRequests, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        Assert.Equal("/v1/frame", Assert.Single(fallbackRequests).Path);
 
         await using var forced = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
         await forced.OpenAsync();
@@ -1056,5 +1378,5 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         }
     }
 
-    private sealed record ObservedRequest(int LocalPort, string Path, string Protocol);
+    private sealed record ObservedRequest(int LocalPort, string Path, string Protocol, string ResultVersion);
 }

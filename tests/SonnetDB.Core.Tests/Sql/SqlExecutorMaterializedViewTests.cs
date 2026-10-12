@@ -1,8 +1,13 @@
+using System.Buffers.Binary;
+using System.Data.Common;
+using System.IO.Hashing;
+using SonnetDB.Data;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using SonnetDB.Views;
 using Xunit;
 
@@ -10,6 +15,139 @@ namespace SonnetDB.Core.Tests.Sql;
 
 public sealed class SqlExecutorMaterializedViewTests : IDisposable
 {
+    // 固定的旧 v1 文件：一列 value、一行 Int64 42；字节不由当前编码器产生。
+    private const string LegacySnapshotHex =
+        "5344424D56533031010000002000000001000000010000000000000000000000"
+        + "0500000076616C7565012A00000000000000532F07A85344424D5653303100000000";
+
+    [Fact]
+    public void MaterializedView_EmptyNullRefreshAndReopen_PersistsGenerationDeclarations()
+    {
+        using (var database = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(database, "CREATE TABLE declaration_items (id INT, amount DECIMAL(20,6), PRIMARY KEY(id))");
+            SqlExecutor.Execute(database, "CREATE MATERIALIZED VIEW DeclaredSnapshot AS SELECT id AS ItemID, amount FROM declaration_items");
+            SqlExecutor.Execute(database, "REFRESH MATERIALIZED VIEW DeclaredSnapshot");
+            var empty = Select(database, "SELECT * FROM DeclaredSnapshot LIMIT 0");
+            Assert.Empty(empty.Rows);
+            Assert.Equal((byte)20, empty.ColumnInfo![1].NumericPrecision);
+            Assert.Equal((byte)6, empty.ColumnInfo![1].NumericScale);
+        }
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var empty = Select(reopened, "SELECT * FROM DeclaredSnapshot");
+            Assert.Empty(empty.Rows);
+            Assert.Equal(TableColumnType.Decimal, empty.ColumnInfo![1].DataType);
+            Assert.Equal((byte)20, empty.ColumnInfo[1].NumericPrecision);
+            SqlExecutor.Execute(reopened, "INSERT INTO declaration_items (id, amount) VALUES (1, NULL)");
+            SqlExecutor.Execute(reopened, "REFRESH MATERIALIZED VIEW DeclaredSnapshot");
+        }
+        using var connection = new SndbConnection($"Data Source={_root}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM DeclaredSnapshot";
+        using var reader = command.ExecuteReader();
+        Assert.Equal(typeof(decimal), reader.GetFieldType(1));
+        Assert.Equal(20, reader.GetColumnSchema()[1].NumericPrecision);
+        Assert.Equal(6, reader.GetColumnSchema()[1].NumericScale);
+        Assert.True(reader.Read());
+        Assert.True(reader.IsDBNull(1));
+        Assert.False(reader.Read());
+        Assert.Equal(typeof(decimal), reader.GetFieldType(1));
+    }
+
+    [Fact]
+    public void LegacyMaterializedGeneration_ReadsRowsRequiresRefreshAndExplicitlyMigrates()
+    {
+        using (var database = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(database, "CREATE TABLE legacy_items (value INT, PRIMARY KEY(value))");
+            SqlExecutor.Execute(database, "INSERT INTO legacy_items (value) VALUES (42)");
+            SqlExecutor.Execute(database, "CREATE MATERIALIZED VIEW LegacyView AS SELECT value FROM legacy_items");
+            SqlExecutor.Execute(database, "REFRESH MATERIALIZED VIEW LegacyView");
+            string path = Assert.Single(Directory.GetFiles(database.MaterializedViews.RootDirectory,
+                "*.sdbmvsnap", SearchOption.AllDirectories));
+            File.WriteAllBytes(path, Convert.FromHexString(LegacySnapshotHex));
+        }
+        using var connection = new SndbConnection($"Data Source={_root}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM LegacyView";
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.Equal("value", reader.GetName(0));
+            AssertRefreshRequired(reader);
+            Assert.True(reader.Read());
+            Assert.Equal(42L, reader.GetInt64(0));
+            Assert.False(reader.Read());
+            AssertRefreshRequired(reader);
+        }
+        command.CommandText = "REFRESH MATERIALIZED VIEW LegacyView";
+        command.ExecuteNonQuery();
+        command.CommandText = "SELECT * FROM LegacyView LIMIT 0";
+        using var refreshed = command.ExecuteReader();
+        Assert.Equal(typeof(long), refreshed.GetFieldType(0));
+        Assert.Equal("Int64", refreshed.GetDataTypeName(0));
+        Assert.False(refreshed.Read());
+    }
+
+    private static void AssertRefreshRequired(DbDataReader reader)
+    {
+        Assert.Contains("REFRESH", Assert.Throws<InvalidOperationException>(() => reader.GetFieldType(0)).Message);
+        Assert.Contains("REFRESH", Assert.Throws<InvalidOperationException>(() => reader.GetDataTypeName(0)).Message);
+        Assert.Contains("REFRESH", Assert.Throws<InvalidOperationException>(() => reader.GetSchemaTable()).Message);
+        Assert.Contains("REFRESH", Assert.Throws<InvalidOperationException>(() => reader.GetColumnSchema()).Message);
+    }
+
+    [Fact]
+    public void SnapshotCodec_V1LiteralAndV2Declarations_KeepFormatsAndRejectInvalidMetadata()
+    {
+        string path = Path.Combine(_root, "codec", "declarations.sdbmvsnap");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, Convert.FromHexString(LegacySnapshotHex));
+        var legacy = MaterializedViewSnapshotCodec.Load(path);
+        Assert.Equal(42L, Assert.Single(legacy.Rows)[0]);
+        Assert.True(Assert.Single(legacy.ColumnInfo!).RequiresRefresh);
+
+        var result = new SelectExecutionResult(["amount"], [new object?[] { null }])
+        {
+            ColumnInfo = [new SelectColumnInfo(TableColumnType.Decimal, true)
+                { NumericPrecision = 20, NumericScale = 6 }],
+        };
+        MaterializedViewSnapshotCodec.Save(path, result);
+        byte[] baseline = File.ReadAllBytes(path);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(baseline.AsSpan(8, 4)));
+        Assert.Equal(result.ColumnInfo, MaterializedViewSnapshotCodec.Load(path).ColumnInfo);
+        const int metadata = 32 + 4 + 6;
+        foreach ((int offset, byte invalid) in new[]
+        {
+            (metadata, (byte)10), (metadata + 1, (byte)0x40),
+            (metadata + 2, (byte)39), (metadata + 3, (byte)21),
+            (metadata, (byte)TableColumnType.String),
+        })
+        {
+            byte[] malformed = (byte[])baseline.Clone();
+            malformed[offset] = invalid;
+            RewriteSnapshotCrc(malformed);
+            File.WriteAllBytes(path, malformed);
+            Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path));
+        }
+        byte[] damagedDeclaration = (byte[])baseline.Clone();
+        damagedDeclaration[metadata + 3] = 5;
+        File.WriteAllBytes(path, damagedDeclaration);
+        Assert.Contains("CRC", Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path)).Message);
+        byte[] unknownVersion = (byte[])baseline.Clone();
+        BinaryPrimitives.WriteInt32LittleEndian(unknownVersion.AsSpan(8, 4), 3);
+        File.WriteAllBytes(path, unknownVersion);
+        Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path));
+        File.WriteAllBytes(path, baseline[..(metadata + 2)]);
+        Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path));
+    }
+
+    private static void RewriteSnapshotCrc(byte[] bytes)
+        => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(bytes.Length - 16, 4),
+            Crc32.HashToUInt32(bytes.AsSpan(32, bytes.Length - 48)));
+
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "sndb-materialized-view-" + Guid.NewGuid().ToString("N"));
@@ -130,6 +268,7 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
     [Fact]
     public void RefreshMaterializedView_WhenNewGenerationFails_KeepsPreviousGenerationReadable()
     {
+        SelectColumnInfo[] previousDeclarations;
         using (var database = Tsdb.Open(Options()))
         {
             SqlExecutor.Execute(database,
@@ -142,6 +281,9 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
                 """);
             SqlExecutor.Execute(database, "REFRESH MATERIALIZED VIEW quotients");
             long previousGeneration = database.MaterializedViews.Catalog.TryGet("quotients")!.ActiveGeneration;
+            previousDeclarations = Select(database, "SELECT id, quotient FROM quotients LIMIT 0").ColumnInfo!.ToArray();
+            Assert.Equal(new TableColumnType?[] { TableColumnType.Int64, TableColumnType.Float64 },
+                previousDeclarations.Select(column => column.DataType).ToArray());
 
             SqlExecutor.Execute(database,
                 "INSERT INTO divisors (id, divisor) VALUES (2, 0)");
@@ -152,12 +294,16 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
             Assert.Equal(MaterializedViewRefreshStatus.Failed, failed.Status);
             Assert.Equal(previousGeneration, failed.ActiveGeneration);
             Assert.Contains("除数不能为 0", failed.LastError, StringComparison.Ordinal);
+            Assert.Equal(previousDeclarations,
+                Select(database, "SELECT id, quotient FROM quotients LIMIT 0").ColumnInfo);
             Assert.Equal(
                 new object?[] { 1L, 25.0 },
                 Select(database, "SELECT id, quotient FROM quotients").Rows.Single());
         }
 
         using var reopened = Tsdb.Open(Options());
+        Assert.Equal(previousDeclarations,
+            Select(reopened, "SELECT id, quotient FROM quotients LIMIT 0").ColumnInfo);
         Assert.Equal(
             new object?[] { 1L, 25.0 },
             Select(reopened, "SELECT id, quotient FROM quotients").Rows.Single());

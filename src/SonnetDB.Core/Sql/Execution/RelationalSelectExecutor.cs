@@ -79,6 +79,30 @@ internal static partial class RelationalSelectExecutor
                 branch => Execute(tsdb, branch, outerScope, memo));
         }
 
+        if (statement.Pagination?.Fetch == 0)
+        {
+            var declarationPlan = new RelationInputPlan(null, null, 0);
+            Relation declared = LoadFrom(tsdb, statement, declarationPlan, memo);
+            foreach (JoinClause join in statement.JoinClauses)
+            {
+                Relation right = LoadJoin(tsdb, join, declarationPlan with { IsDeclarationOnly = true }, memo);
+                declared = declared with
+                {
+                    Columns = WidenJoinColumns(declared.Columns, right.Columns, join.Kind),
+                    Rows = [],
+                };
+            }
+            var projections = ContainsAggregate(statement.Projections)
+                || statement.GroupBy.Count != 0 || statement.Having is not null
+                ? BuildAggregateProjections(statement.Projections, statement.GroupBy, declared)
+                : BuildRawProjections(statement.Projections, declared);
+            return new SelectExecutionResult(projections.Select(static projection => projection.Name).ToArray(), [])
+            {
+                ColumnInfo = projections.Select(projection => InferSelectColumnInfo(
+                    projection.Expression, declared.Columns)).ToArray(),
+            };
+        }
+
         if (outerScope is null
             && !SqlRowRetentionBudget.HasExecutionBudget
             && TryRewriteNonCorrelatedInSemijoin(
@@ -499,7 +523,7 @@ internal static partial class RelationalSelectExecutor
             long retainedRows)
             => _metrics?.RecordRelationInput(
                 plan.Predicate is not null,
-                plan.RowLimit is not null,
+                plan.RowLimit is not null && !plan.IsDeclarationOnly,
                 sourceColumns,
                 projectedColumns,
                 candidateRows,
@@ -731,7 +755,7 @@ internal static partial class RelationalSelectExecutor
         for (int index = 0; index < selectedColumns.Length; index++)
         {
             TableColumn column = selectedColumns[index];
-            columns[index] = new RelColumn(alias, column.Name, column.Name, column.DataType);
+            columns[index] = new RelColumn(alias, column.Name, column.Name, column.DataType) { Info = SelectColumnInfo.FromColumn(column) };
         }
 
         relation = new Relation(
@@ -988,6 +1012,9 @@ internal static partial class RelationalSelectExecutor
         IReadOnlySet<string>? RequiredColumns,
         int? RowLimit)
     {
+        /// <summary>仅用于声明绑定，不计为实际 LIMIT 下推的零行计划。</summary>
+        public bool IsDeclarationOnly { get; init; }
+
         public static RelationInputPlan Disabled { get; } = new(null, null, null);
     }
 
@@ -1820,7 +1847,7 @@ internal static partial class RelationalSelectExecutor
 
         var alias = statement.TableAlias ?? statement.Measurement;
         if (statement.FromSubquery is not null)
-            return LoadSubquery(tsdb, statement.FromSubquery, alias);
+            return LoadSubquery(tsdb, statement.FromSubquery, alias, plan.RowLimit == 0);
 
         if (RecursiveCteScope.Find(statement.Measurement) is { } recursiveSource)
             return LoadRecursiveSource(recursiveSource, alias);
@@ -1841,7 +1868,7 @@ internal static partial class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         if (join.Subquery is not null)
-            return LoadSubquery(tsdb, join.Subquery, join.Alias);
+            return LoadSubquery(tsdb, join.Subquery, join.Alias, plan.RowLimit == 0);
 
         if (RecursiveCteScope.Find(join.TableName) is { } recursiveSource)
             return LoadRecursiveSource(recursiveSource, join.Alias);
@@ -1856,7 +1883,7 @@ internal static partial class RelationalSelectExecutor
     }
 
     private static Relation LoadTransitionTable(string name, string alias, TableSchema schema)
-        => new(schema.Columns.Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType)).ToArray(),
+        => new(schema.Columns.Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType) { Info = SelectColumnInfo.FromColumn(column) }).ToArray(),
             SonnetDB.Routines.TriggerTransitionTables.Read(name),
             new RelationalJoinInputEstimate(100_000, Math.Max(1, schema.Columns.Count * 32)));
 
@@ -1892,7 +1919,7 @@ internal static partial class RelationalSelectExecutor
         for (int i = 0; i < selectedColumns.Length; i++)
         {
             var column = selectedColumns[i];
-            columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType);
+            columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType) { Info = SelectColumnInfo.FromColumn(column) };
         }
         TableStore store = tsdb.Tables.Open(schema.Name);
         RelationalJoinInputEstimate estimate = EstimateTableInput(store, schema, selectedColumns, plan);
@@ -2007,7 +2034,7 @@ internal static partial class RelationalSelectExecutor
     {
         SelectExecutionResult snapshot = manager.ReadSnapshot(name);
         var columns = snapshot.Columns
-            .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
+            .Select((column, ordinal) => FromResultColumn(snapshot, ordinal, alias, column))
             .ToArray();
         var rows = new List<object?[]>();
         foreach (IReadOnlyList<object?> row in snapshot.Rows)
@@ -2023,11 +2050,13 @@ internal static partial class RelationalSelectExecutor
                 RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
-    private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias)
+    private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias, bool schemaOnly = false)
     {
-        var result = SqlExecutor.ExecuteSelect(tsdb, subquery);
+        var result = SqlExecutor.ExecuteSelect(tsdb, schemaOnly
+            ? subquery with { Pagination = new PaginationSpec(0, 0) }
+            : subquery);
         var columns = result.Columns
-            .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
+            .Select((column, ordinal) => FromResultColumn(result, ordinal, alias, column))
             .ToArray();
         var rows = new List<object?[]>();
         foreach (IReadOnlyList<object?> row in result.Rows)
@@ -2062,6 +2091,10 @@ internal static partial class RelationalSelectExecutor
         SubqueryMemo memo,
         bool preserveDeclaredJoinOrder = false)
     {
+        if (kind is JoinKind.Right or JoinKind.Full)
+            left = left with { Columns = MakeNullable(left.Columns) };
+        if (kind is JoinKind.Left or JoinKind.Full)
+            right = right with { Columns = MakeNullable(right.Columns) };
         if (preserveDeclaredJoinOrder)
         {
             // A unique lookup preserves the declared right-side match order because
@@ -4118,6 +4151,11 @@ internal static partial class RelationalSelectExecutor
 
     private static SelectColumnInfo InferSelectColumnInfo(
         SqlExpression expression, IReadOnlyList<RelColumn> columns)
+        => InferSelectColumnInfoCore(expression, columns) with
+        { RequiresRefresh = columns.Any(static column => column.Info?.RequiresRefresh == true) };
+
+    private static SelectColumnInfo InferSelectColumnInfoCore(
+        SqlExpression expression, IReadOnlyList<RelColumn> columns)
     {
         if (expression is IdentifierExpression identifier)
         {
@@ -4125,14 +4163,14 @@ internal static partial class RelationalSelectExecutor
             foreach (var column in columns)
             {
                 if (!IdentifierNameEquals(column.Name, identifier)
-                    || identifier.Qualifier is not null
+                    || identifier.Qualifier is not null && column.Qualifier.Length != 0
                         && !IdentifierQualifierEquals(column.Qualifier, identifier))
                     continue;
                 if (match is not null)
                     return new SelectColumnInfo(null);
                 match = column;
             }
-            return new SelectColumnInfo(match?.StaticType);
+            return match?.Info ?? new SelectColumnInfo(match?.StaticType);
         }
 
         if (expression is LiteralExpression literal)
@@ -4169,17 +4207,62 @@ internal static partial class RelationalSelectExecutor
         if (expression is IsNullExpression)
             return new SelectColumnInfo(TableColumnType.Boolean, false);
 
+        if (expression is UnaryExpression unary)
+        {
+            var operand = InferSelectColumnInfo(unary.Operand, columns);
+            return new SelectColumnInfo(unary.Operator == SqlUnaryOperator.Not
+                ? TableColumnType.Boolean : operand.DataType, operand.IsNullable)
+            { RequiresRefresh = operand.RequiresRefresh };
+        }
+
+        if (expression is BinaryExpression binary)
+        {
+            var left = InferSelectColumnInfo(binary.Left, columns);
+            var right = InferSelectColumnInfo(binary.Right, columns);
+            bool? nullable = left.IsNullable == true || right.IsNullable == true ? true
+                : left.IsNullable == false && right.IsNullable == false ? false : null;
+            TableColumnType? type = null;
+            if (!IsArithmeticOperator(binary.Operator))
+                type = TableColumnType.Boolean;
+            else if (binary.Operator is SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr)
+                type = left.DataType == TableColumnType.Int64 && right.DataType == TableColumnType.Int64
+                    ? TableColumnType.Int64 : null;
+            else if (left.DataType is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.Decimal
+                && right.DataType is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.Decimal)
+                type = left.DataType == TableColumnType.Decimal || right.DataType == TableColumnType.Decimal
+                    ? TableColumnType.Decimal
+                    : binary.Operator == SqlBinaryOperator.Divide || left.DataType == TableColumnType.Float64
+                        || right.DataType == TableColumnType.Float64 ? TableColumnType.Float64 : TableColumnType.Int64;
+            return new SelectColumnInfo(type, nullable)
+            { RequiresRefresh = left.RequiresRefresh || right.RequiresRefresh };
+        }
+
+        if (expression is CaseExpression conditional)
+        {
+            var branches = conditional.WhenClauses.Select(static clause => clause.Result).ToArray();
+            if (conditional.Else is { } otherwise)
+                branches = branches.Append(otherwise).ToArray();
+            return MergeExpressionDeclarations(branches, columns, coalesce: false,
+                implicitNullBranch: conditional.Else is null);
+        }
+
+        if (expression is FunctionCallExpression scalar
+            && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
+            return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();
             if (name == "count")
                 return new SelectColumnInfo(TableColumnType.Int64, false);
-            var inputType = function.Arguments.Count == 1
-                ? InferSelectColumnInfo(function.Arguments[0], columns).DataType
-                : null;
+            var input = function.Arguments.Count == 1
+                ? InferSelectColumnInfo(function.Arguments[0], columns)
+                : new SelectColumnInfo(null);
+            var inputType = input.DataType;
             return name switch
             {
-                "min" or "max" => new SelectColumnInfo(inputType, true),
+                "min" or "max" => input with
+                { IsNullable = true, IsKey = false, IsAutoIncrement = false, IsRowVersion = false },
                 "avg" => new SelectColumnInfo(
                     inputType == TableColumnType.Decimal
                         ? TableColumnType.Decimal : TableColumnType.Float64, true),
@@ -4193,6 +4276,56 @@ internal static partial class RelationalSelectExecutor
 
         return new SelectColumnInfo(null);
     }
+
+    internal static SelectColumnInfo InferColumnInfo(SqlExpression expression, IReadOnlyList<TableColumn> columns)
+        => InferSelectColumnInfo(expression, columns.Select(column =>
+            new RelColumn(string.Empty, column.Name, column.Name, column.DataType)
+            { Info = SelectColumnInfo.FromColumn(column) }).ToArray());
+
+    private static SelectColumnInfo MergeExpressionDeclarations(
+        IReadOnlyList<SqlExpression> expressions, IReadOnlyList<RelColumn> columns,
+        bool coalesce, bool implicitNullBranch = false)
+    {
+        // CASE / COALESCE 返回原值，不做数值类型提升；混合非 NULL 声明保持未知。
+        var branches = expressions.Select(expression => InferSelectColumnInfo(expression, columns)).ToArray();
+        var typed = branches.Where(static branch => branch.DataType is not null).ToArray();
+        var first = typed.FirstOrDefault();
+        bool same = first is not null && typed.All(branch => branch.DataType == first.DataType)
+            && expressions.Select((expression, index) => branches[index].DataType is not null
+                || expression is LiteralExpression { Kind: SqlLiteralKind.Null }).All(static known => known);
+        bool? nullable = coalesce
+            ? branches.Any(static branch => branch.IsNullable == false) ? false
+                : branches.All(static branch => branch.IsNullable == true) ? true : null
+            : implicitNullBranch || branches.Any(static branch => branch.IsNullable == true) ? true
+                : branches.All(static branch => branch.IsNullable == false) ? false : null;
+        return new SelectColumnInfo(same ? first!.DataType : null, nullable)
+        {
+            NumericPrecision = same && typed.All(branch => branch.NumericPrecision == first!.NumericPrecision)
+                ? first!.NumericPrecision : null,
+            NumericScale = same && typed.All(branch => branch.NumericScale == first!.NumericScale)
+                ? first!.NumericScale : null,
+            ColumnSize = same && typed.All(branch => branch.ColumnSize == first!.ColumnSize) ? first!.ColumnSize : null,
+            RequiresRefresh = branches.Any(static branch => branch.RequiresRefresh),
+        };
+    }
+
+    private static RelColumn FromResultColumn(SelectExecutionResult result, int ordinal, string alias, string name)
+    {
+        SelectColumnInfo info = result.ColumnInfo?[ordinal]
+            ?? (result.ColumnSchema is { } schema ? SelectColumnInfo.FromColumn(schema[ordinal]) : new SelectColumnInfo(null));
+        return new RelColumn(alias, NormalizeSubqueryColumnName(name), name, info.DataType) { Info = info };
+    }
+
+    private static RelColumn[] MakeNullable(IReadOnlyList<RelColumn> columns)
+        => columns.Select(column => column with
+        {
+            Info = (column.Info ?? new SelectColumnInfo(column.StaticType)) with
+            { IsNullable = true, IsKey = false, IsAutoIncrement = false },
+        }).ToArray();
+
+    private static RelColumn[] WidenJoinColumns(IReadOnlyList<RelColumn> left, IReadOnlyList<RelColumn> right, JoinKind kind)
+        => (kind is JoinKind.Right or JoinKind.Full ? MakeNullable(left) : left)
+            .Concat(kind is JoinKind.Left or JoinKind.Full ? MakeNullable(right) : right).ToArray();
 
     private static object? EvaluateAggregate(
         Tsdb tsdb,
@@ -5811,7 +5944,10 @@ internal static partial class RelationalSelectExecutor
     /// 关系列描述。<see cref="StaticType"/> 为该列的 schema 静态类型（关系表列已知；子查询 /
     /// 表达式派生列为 null），用于聚合返回类型判定（Q15），避免额外全量预扫。
     /// </summary>
-    private sealed record RelColumn(string Qualifier, string Name, string OutputName, TableColumnType? StaticType = null);
+    private sealed record RelColumn(string Qualifier, string Name, string OutputName, TableColumnType? StaticType = null)
+    {
+        internal SelectColumnInfo? Info { get; init; }
+    }
 
     private sealed record Projection(string Name, SqlExpression Expression, AggregateSpec? Aggregate = null);
 

@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.ObjectModel;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
@@ -12,7 +13,7 @@ namespace SonnetDB.Data;
 /// SonnetDB ADO.NET 数据读取器。基于内部 <see cref="IExecutionResult"/> 抽象，
 /// 嵌入式模式下持有内存物化结果，远程模式下持有 ndjson 流式结果。
 /// </summary>
-public sealed class SndbDataReader : DbDataReader
+public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
 {
     private readonly IExecutionResult _result;
     private readonly CommandBehavior _behavior;
@@ -123,7 +124,12 @@ public sealed class SndbDataReader : DbDataReader
         => throw new NotSupportedException("SonnetDB 不支持字符流读取。");
 
     /// <inheritdoc />
-    public override string GetDataTypeName(int ordinal) => GetFieldType(ordinal).Name;
+    public override string GetDataTypeName(int ordinal)
+    {
+        ValidateOrdinal(ordinal);
+        RequireDeclarations(ordinal);
+        return _result.GetColumnMetadata(ordinal)?.DataType?.ToString() ?? GetFieldType(ordinal).Name;
+    }
 
     /// <inheritdoc />
     public override DateTime GetDateTime(int ordinal)
@@ -152,6 +158,7 @@ public sealed class SndbDataReader : DbDataReader
     public override Type GetFieldType(int ordinal)
     {
         ValidateOrdinal(ordinal);
+        RequireDeclarations(ordinal);
         return _result.GetFieldType(ordinal);
     }
 
@@ -271,6 +278,7 @@ public sealed class SndbDataReader : DbDataReader
         table.Columns.Add(SchemaTableColumn.NumericPrecision, typeof(short));
         table.Columns.Add(SchemaTableColumn.NumericScale, typeof(short));
         table.Columns.Add(SchemaTableColumn.DataType, typeof(object));
+        table.Columns.Add("DataTypeName", typeof(string));
         table.Columns.Add(SchemaTableColumn.ProviderType, typeof(int));
         table.Columns.Add(SchemaTableColumn.IsLong, typeof(bool));
         table.Columns.Add(SchemaTableColumn.AllowDBNull, typeof(bool));
@@ -291,13 +299,18 @@ public sealed class SndbDataReader : DbDataReader
             var row = table.NewRow();
             row[SchemaTableColumn.ColumnName] = GetName(ordinal);
             row[SchemaTableColumn.ColumnOrdinal] = ordinal;
-            row[SchemaTableColumn.ColumnSize] = GetColumnSize(fieldType);
-            row[SchemaTableColumn.NumericPrecision] = GetNumericPrecision(fieldType);
-            row[SchemaTableColumn.NumericScale] = GetNumericScale(fieldType);
+            row[SchemaTableColumn.ColumnSize] = columnMetadata?.ColumnSize is { } size ? size
+                : columnMetadata.HasValue ? DBNull.Value : GetColumnSize(fieldType);
+            row[SchemaTableColumn.NumericPrecision] = columnMetadata?.NumericPrecision is { } precision ? (short)precision
+                : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericPrecision(fieldType);
+            row[SchemaTableColumn.NumericScale] = columnMetadata?.NumericScale is { } scale ? (short)scale
+                : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericScale(fieldType);
             row[SchemaTableColumn.DataType] = fieldType;
+            row["DataTypeName"] = GetDataTypeName(ordinal);
             row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
             row[SchemaTableColumn.IsLong] = fieldType == typeof(byte[]) || fieldType == typeof(string);
-            row[SchemaTableColumn.AllowDBNull] = columnMetadata?.IsNullable ?? true;
+            row[SchemaTableColumn.AllowDBNull] = columnMetadata?.DeclaredNullable is { } nullable ? nullable
+                : columnMetadata.HasValue ? DBNull.Value : true;
             row["IsReadOnly"] = false;
             row["IsRowVersion"] = columnMetadata?.IsRowVersion ?? false;
             row[SchemaTableColumn.IsUnique] = false;
@@ -311,6 +324,44 @@ public sealed class SndbDataReader : DbDataReader
         }
 
         return table;
+    }
+
+    /// <summary>返回强类型声明 schema；不读取结果行，旧物化代际须先显式 REFRESH。</summary>
+    /// <returns>按输出顺序排列的只读列声明。</returns>
+    public ReadOnlyCollection<DbColumn> GetColumnSchema()
+    {
+        var columns = new List<DbColumn>(FieldCount);
+        for (int ordinal = 0; ordinal < FieldCount; ordinal++)
+            columns.Add(new SndbColumn(this, ordinal));
+        return columns.AsReadOnly();
+    }
+
+    private sealed class SndbColumn : DbColumn
+    {
+        internal SndbColumn(SndbDataReader reader, int ordinal)
+        {
+            var fieldType = reader.GetFieldType(ordinal);
+            var metadata = reader._result.GetColumnMetadata(ordinal);
+            ColumnName = reader.GetName(ordinal);
+            ColumnOrdinal = ordinal;
+            DataType = fieldType;
+            DataTypeName = reader.GetDataTypeName(ordinal);
+            ColumnSize = metadata.HasValue ? metadata.Value.ColumnSize : GetColumnSize(fieldType);
+            NumericPrecision = metadata?.NumericPrecision is { } precision ? precision
+                : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericPrecision(fieldType);
+            NumericScale = metadata?.NumericScale is { } scale ? scale
+                : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericScale(fieldType);
+            AllowDBNull = metadata.HasValue ? metadata.Value.DeclaredNullable : true;
+            IsKey = metadata?.IsKey ?? false;
+            IsAutoIncrement = metadata?.IsAutoIncrement ?? false;
+            IsUnique = false;
+            IsReadOnly = false;
+            IsLong = fieldType == typeof(string) || fieldType == typeof(byte[]);
+            BaseCatalogName = reader._connection?.Database ?? string.Empty;
+            BaseSchemaName = string.Empty;
+            BaseTableName = string.Empty;
+            BaseColumnName = ColumnName;
+        }
     }
 
     /// <inheritdoc />
@@ -587,6 +638,12 @@ public sealed class SndbDataReader : DbDataReader
             : fieldType == typeof(Guid)
                 ? 16
                 : -1;
+
+    private void RequireDeclarations(int ordinal)
+    {
+        if (_result.GetColumnMetadata(ordinal)?.RequiresRefresh == true)
+            throw new InvalidOperationException("旧物化视图代际没有声明元数据；请显式 REFRESH MATERIALIZED VIEW 后重试。");
+    }
 
     private static short GetNumericPrecision(Type fieldType)
         => fieldType == typeof(byte)

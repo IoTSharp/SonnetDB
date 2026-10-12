@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Net;
 using System.Text;
 using SonnetDB.Data;
@@ -238,6 +239,47 @@ public sealed class SndbResultPreviewTests
         Assert.Equal(42L, reader.GetInt64(0));
         Assert.False(await reader.ReadAsync());
         Assert.True(reader.HasRows);
+    }
+
+    /// <summary>首行探测后的两种 schema 保留 Int64 与未知 Decimal 声明且不消费缓冲行。</summary>
+    [Fact]
+    public async Task HasRows_NumericSchemaAfterPrefetch_PreservesDeclarationsAndFirstRow()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id","amount"],"columnSchemas":[{"dataType":"int64","isNullable":false,"isKey":false,"isAutoIncrement":false,"isRowVersion":false,"numericPrecision":null,"numericScale":null},{"dataType":"decimal","isNullable":true,"isKey":false,"isAutoIncrement":false,"isRowVersion":false,"numericPrecision":null,"numericScale":null}]}
+            [42,12.5]
+            [43,null]
+            {"type":"end","rowCount":2,"recordsAffected":-1}
+            """);
+
+        AssertNumericDeclarations(reader);
+        Assert.True(reader.HasRows);
+        AssertNumericDeclarations(reader);
+        Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(42L, reader.GetInt64(0));
+        Assert.Equal(12.5m, reader.GetDecimal(1));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(43L, reader.GetInt64(0));
+        Assert.True(reader.IsDBNull(1));
+        Assert.False(await reader.ReadAsync());
+
+        static void AssertNumericDeclarations(SndbDataReader reader)
+        {
+            var columns = reader.GetColumnSchema();
+            Assert.Equal(typeof(long), columns[0].DataType);
+            Assert.Equal(19, columns[0].NumericPrecision);
+            Assert.Equal(0, columns[0].NumericScale);
+            Assert.Equal(typeof(decimal), columns[1].DataType);
+            Assert.Null(columns[1].NumericPrecision);
+            Assert.Null(columns[1].NumericScale);
+            using var table = reader.GetSchemaTable();
+            Assert.Equal((short)19, table.Rows[0][SchemaTableColumn.NumericPrecision]);
+            Assert.Equal((short)0, table.Rows[0][SchemaTableColumn.NumericScale]);
+            Assert.Equal(DBNull.Value, table.Rows[1][SchemaTableColumn.NumericPrecision]);
+            Assert.Equal(DBNull.Value, table.Rows[1][SchemaTableColumn.NumericScale]);
+        }
     }
 
     [Theory]

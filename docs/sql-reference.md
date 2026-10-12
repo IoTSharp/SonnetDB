@@ -9,6 +9,20 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### 视图的声明元数据（GH-Issue #261）
+
+读取普通视图或物化视图的原生声明使用 `SELECT * FROM ViewName LIMIT 0`，并在 ADO reader 上调用 `GetFieldType`、`GetDataTypeName`、`GetSchemaTable` 或 `GetColumnSchema`。无需先 `Read()`；空表、零行和全 NULL 结果保留列名、顺序、SQL/CLR 类型与可空性。直接列投影保留已声明的 `DECIMAL(p,s)`；无界 STRING/BLOB 的长度、未知表达式及无法确定的派生精度保持未知，不按样本或 CLR 默认值制造声明。外连接的 NULL 扩展会扩大对应侧的可空性。`LIMIT 0` 只绑定声明，不执行视图的投影、过滤或排序 UDF。
+
+`SndbConnection.GetSchema("Columns")` 继续只列关系表。provider 不解析视图 SQL 来重建列定义；视图消费方应使用上述零行 reader。
+
+物化视图的声明属于显式 `REFRESH MATERIALIZED VIEW` 发布的代际，并随该代际的 v2 快照持久化，CRC 覆盖声明。旧 v1 快照仍可读行；由于未保存代际声明，完整 reader 元数据 API 明确要求先 REFRESH，不从首行或当前基表重建。成功 REFRESH 才发布 v2，失败保留原活动代际。该升级只涉及独立物化快照，不改变引擎 FileHeader 的文件版本。
+
+REST 使用 source-generated 的可选原始字段传递声明。Frame 完整声明通过 `X-SonnetDB-Sql-Result-Version: 3` 显式协商；v2 和缺失协商头的旧编码保持原字节合同。客户端仅在稳定的、执行前 `unsupported_result_version` 响应后重试一次 v2，v2 仍没有精度、长度或旧代际标记的完整合同。真实 SQL 错误、无法确认的传输结果和已执行却忽略版本头的旧响应不会自动重放；后者要求显式选择新的 REST 请求或升级服务端。
+
+v3 区分原始结果未提供声明与视图表达式的声明类型未知，前者保留原有值类型适配，后者保持 `Object`。v2 无法区分这两种情况，因此未知列保守返回 `Object`；不据此承诺旧服务端原始 VECTOR 元数据兼容。
+
+以上为源码和测试合同；最低正式包版本、NewLife.XCode 的实际反向工程、代码生成及导出验收须单独核实。
+
 ### 标识符大小写合同（GH-Issue #211）
 
 关系表与 measurement 保留创建时的名称拼写，不折叠大小写。普通 SQL 引用按 `OrdinalIgnoreCase` 匹配；双引号引用按 `Ordinal` 精确匹配，与当前语言区域及数据 collation 无关。

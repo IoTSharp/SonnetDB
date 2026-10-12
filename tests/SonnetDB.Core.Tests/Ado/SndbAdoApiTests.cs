@@ -435,6 +435,10 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal("id", schema.Rows[0][SchemaTableColumn.ColumnName]);
         Assert.Equal(0, schema.Rows[0][SchemaTableColumn.ColumnOrdinal]);
         Assert.Equal(typeof(long), schema.Rows[0][SchemaTableColumn.DataType]);
+        Assert.Equal((short)19, schema.Rows[0][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)0, schema.Rows[0][SchemaTableColumn.NumericScale]);
+        Assert.Equal(19, reader.GetColumnSchema()[0].NumericPrecision);
+        Assert.Equal(0, reader.GetColumnSchema()[0].NumericScale);
         Assert.Equal((int)DbType.Int64, schema.Rows[0][SchemaTableColumn.ProviderType]);
         Assert.False((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
         Assert.Equal(c.Database, schema.Rows[0][SchemaTableOptionalColumn.BaseCatalogName]);
@@ -446,6 +450,31 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal("enabled", schema.Rows[2][SchemaTableColumn.ColumnName]);
         Assert.Equal(typeof(bool), schema.Rows[2][SchemaTableColumn.DataType]);
         Assert.Equal((int)DbType.Boolean, schema.Rows[2][SchemaTableColumn.ProviderType]);
+    }
+
+    [Theory]
+    [InlineData(" LIMIT 0")]
+    [InlineData(" WHERE id < 0")]
+    public void DataReader_EmptyDeclaredColumns_PreservesInt64AndUnknownDecimalPrecision(string suffix)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE intrinsic_metadata (id INT, amount DECIMAL(18,4), PRIMARY KEY(id))");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id, amount, CAST(NULL AS DECIMAL) AS unknown_amount FROM intrinsic_metadata" + suffix;
+        using var reader = command.ExecuteReader();
+        Assert.Equal(new[] { typeof(long), typeof(decimal), typeof(decimal) },
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        var columns = reader.GetColumnSchema();
+        Assert.Equal(new int?[] { 19, 18, null }, columns.Select(column => column.NumericPrecision).ToArray());
+        Assert.Equal(new int?[] { 0, 4, null }, columns.Select(column => column.NumericScale).ToArray());
+        var table = reader.GetSchemaTable()!;
+        Assert.Equal((short)19, table.Rows[0][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)0, table.Rows[0][SchemaTableColumn.NumericScale]);
+        Assert.Equal((short)18, table.Rows[1][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)4, table.Rows[1][SchemaTableColumn.NumericScale]);
+        Assert.Equal(DBNull.Value, table.Rows[2][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal(DBNull.Value, table.Rows[2][SchemaTableColumn.NumericScale]);
+        Assert.False(reader.Read());
     }
 
     [Fact]

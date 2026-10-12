@@ -361,6 +361,30 @@ public sealed class SndbCommandTimeoutTests
         await using var nextReader = await command.ExecuteReaderAsync();
     }
 
+    /// <summary>首行探测后释放 Reader 必须归还命令租约，使同一命令可以再次执行。</summary>
+    [Fact]
+    public async Task HasRows_DisposeBufferedReader_ReleasesCommandLease()
+    {
+        var implementation = new ControllableConnectionImpl(
+            delayExecution: false,
+            resultDelay: TimeSpan.Zero,
+            resultRowCount: 1);
+        using var connection = CreateOpenConnection(implementation);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM timeout_probe";
+        var reader = await command.ExecuteReaderAsync();
+
+        Assert.True(reader.HasRows);
+        reader.Dispose();
+        reader.Dispose();
+
+        Assert.True(reader.IsClosed);
+        Assert.False(reader.HasRows);
+        Assert.True(implementation.ResultDisposed);
+        await using var nextReader = await command.ExecuteReaderAsync();
+        Assert.True(await nextReader.ReadAsync());
+    }
+
     /// <summary>Reader 结果释放和 CloseConnection 同时失败时必须保留最先发生的结果释放异常。</summary>
     [Fact]
     public async Task ReaderClose_ResultDisposeFailure_PrecedesConnectionCloseFailure()

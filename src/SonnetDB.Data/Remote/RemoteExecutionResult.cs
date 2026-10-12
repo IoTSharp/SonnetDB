@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Data.Internal;
 using SonnetDB.Model;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Remote;
 
@@ -244,7 +245,31 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                                         ReadSchemaBoolean(schema, "isNullable"),
                                         ReadSchemaBoolean(schema, "isKey"),
                                         ReadSchemaBoolean(schema, "isAutoIncrement"),
-                                        ReadSchemaBoolean(schema, "isRowVersion"));
+                                        ReadSchemaBoolean(schema, "isRowVersion"))
+                                    {
+                                        DataType = dataType.GetString() switch
+                                        {
+                                            "int64" => TableColumnType.Int64,
+                                            "float64" => TableColumnType.Float64,
+                                            "decimal" => TableColumnType.Decimal,
+                                            "boolean" => TableColumnType.Boolean,
+                                            "string" => TableColumnType.String,
+                                            "datetime" => TableColumnType.DateTime,
+                                            "time" => TableColumnType.Time,
+                                            "blob" => TableColumnType.Blob,
+                                            "json" => TableColumnType.Json,
+                                            _ => null,
+                                        },
+                                        NumericPrecision = ReadOptionalByte(schema, "numericPrecision"),
+                                        NumericScale = ReadOptionalByte(schema, "numericScale"),
+                                        ColumnSize = schema.TryGetProperty("columnSize", out var size)
+                                            && size.ValueKind != JsonValueKind.Null ? size.GetInt32() : null,
+                                        DeclaredNullable = schema.TryGetProperty("declaredNullable", out var nullable)
+                                            ? nullable.ValueKind == JsonValueKind.Null ? null : nullable.GetBoolean()
+                                            : ReadSchemaBoolean(schema, "isNullable"),
+                                        RequiresRefresh = schema.TryGetProperty("requiresRefresh", out var refresh)
+                                            && refresh.GetBoolean(),
+                                    };
                                 }
                             }
                         }
@@ -295,6 +320,10 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             throw new InvalidDataException("远程 SQL 截断标记必须是布尔值。");
         return truncated.GetBoolean();
     }
+
+    private static byte? ReadOptionalByte(JsonElement schema, string name)
+        => schema.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value.GetByte() : null;
 
     internal static object? ReadScalar(JsonElement element) => element.ValueKind switch
     {
