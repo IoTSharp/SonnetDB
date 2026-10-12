@@ -149,6 +149,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("exp", 1, 1, EvaluateExp),
         new BuiltInScalarFunction("power", 2, 2, EvaluatePower),
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
+        new BuiltInScalarFunction("uuid", 0, 0, static _ => Guid.NewGuid().ToString("D")),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),

@@ -1908,6 +1908,14 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
 
+## GH-Issue #258 原生逐行 UUID 实现（2026-10-12，Asia/Shanghai）
+
+隔离分支 codex/issue258-row-uuid 从 a299a3fcc42de494145be74a8ee451aedeec4249 实现零参数 uuid()，每次实际求值调用 Guid.NewGuid().ToString("D") 并返回非 NULL String；沿既有逐行 SELECT/JOIN/UPDATE、RETURNING 和事务缓冲路径，不改优化器或 UUID 存储类型。同名 scalar UDF 覆盖时仍保留未知声明类型。CREATE/ALTER 列 DEFAULT 中直接和嵌套 UUID 调用在写 schema 前明确拒绝，避免现有 ADD COLUMN 一次默认值回填；其它默认函数及显式 GUID 字符串参数保持既有行为。
+
+Release 本地 Core 定向测试 23/23（新 UUID 16/16及既有 UPDATE/事务回归7项），真实 REST/HTTP/2 传输 17/17（新 UUID 两协议各1项）。覆盖逐行/同一行多调用、空结果元数据、零参数校验、NULL/短路、参数绑定不提前求值、RETURNING 与存储相等、提交/回滚及重开恢复。首轮 8/23 通过、15项因新fixture使用保留字 token 而在解析阶段失败，已仅改为 guid_value 后通过，原日志/回执/TRX 保留；另保留成功审计误用 LASTEXITCODE 的编排拒绝记录。实际测试 Core/Data/Server与测试 DLL SHA/版本分别归档，版本为 0.0.0-dev+a299a3f...，不是正式发行包。三次 Job 清理及独立33个kernel身份/3个controller审计通过，零存活精确或未知身份；本任务 uuid-test-temp 已按精确路径和所有权回收。此前 trigonometry TEMP 的不透明策略拒绝对象保持未动。
+
+本执行者仅修改八条自有源码/文档路径，保持 HANDOFF 原字节前缀及 LF 追加，未暂存、提交、推送、切分支、安装工具或操作 GitHub；#219/#220/#221 实现不纳入本分支。证据位于 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-engine/uuid-258，最终冻结以 uuid-final-tree.json 为准；当前 git diff --check 通过、索引空，父智能体仍须对最终树执行完整 solution restore 和原 CI Format Check 后才可提交，随后独占准确提交/推送及线上状态回读。正式 Core/Data/Server/SDK 包发布、Chloe Provider 的 Guid.NewGuid 翻译及完整验收尚未执行，不由本地或真实传输 PASS 推断，Issue 是否可关闭由父智能体据完整外部条件决定。
+
 
 ## Issue #271 BLOB 参数查询实现与本地证据（2026-10-12，Asia/Shanghai）
 
@@ -2085,6 +2093,17 @@ CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 
 
 本阶段最多40分钟、35 shell/25 Jobs、两次2CPU构建和一次真实transport组合；root在隔离工作树串行stage/commit/push/远端，#241/#292分支与恢复stash保持。最终 Core/EF TRX、源/DLL SHA、完整restore/原Format Check、默认cached whitespace、原PR正文及新head回读以 pr288-main289-* 不可变回执为准。当前不预写这些通过或main合并；新head全部CI、正式NuGet/Server/Chloe/FreeSql及NativeAOT消费者验收独立，Issue仍开放。
 
+
+## PR #281 UUID 原实现与 main/#288 精确集成验证（2026-10-12，Asia/Shanghai）
+
+在根正常合并的 codex/pr281-main288-integrated 上验证：HEAD f4d2e3f06a10432083c308f5c2991f8fade6f8b3，MERGE_HEAD 296f0ba37da821ca97d51e73b608b2cde0e8091b；没有重做 UUID、扩大生产或新增测试。根原八路径、完整 HANDOFF 与继承编译输入按 SHA 冻结，C# 与既有测试在验证期间没有修改。
+
+两次隐藏 Job 构建（Core tests、Server tests）均 0 warning / 0 error。新执行 DLL 上微试 1/1 后，完整 Core 64/64（UUID 16、表达式 45、空结果列元数据 3）；完整真实 RemoteAdoHttp2TransportTests 21/21，UUID/CAST/排名各自 REST 与精确 h2c 各一项均通过。微试不重复累计；原历史 23/23、17/17 与失败不赋予本集成树。两项 owned format verify/no-restore/severity warn 通过，没有必要 whitespace 修复。
+
+证据目录：artifacts/online-closure-20261012/issues-engine/uuid-258-integrated-20261012-020246，绑定实际八源/继承输入、七执行 DLL、三个非空 TRX 与四宿主 deps/runtimeconfig。NO_PROXY 固定 localhost,127.0.0.1,::1；所有 native 子命令经隐藏 Windows Job、2CPU、数量/墙钟/取消与 finally 回收。准备阶段重复 NO_PROXY/no_proxy 哈希键在执行前被解析器拒绝，0 Job/0源码写；原拒绝保留。全部 Job 终态、当前已记录身份和专属短 TEMP 的准确清理以该目录最终 validation-final.json 为准，不补造旧 policy 拒删对象的清理。
+
+根仍独占 index/branch/commit/push/GitHub，并须在最后真实提交树完成完整 solution restore 与原 CI Format Check；本代理仅追加这段并核原完整字节前缀。新 head 全量 CI、NativeAOT 完整发布、正式 NuGet/Core/Data/Server/SDK 与 Chloe 消费验收未由本地 PASS 推断。Issue #258 保持开放，后续复用原 PR #281 正常交付及正式包回归，不再启用重复候选。
+
 ## PR #292 / #241 已验前置刷新（2026-10-12，Asia/Shanghai）
 
 原 #241 headdcdfb8d00e7dd05c1b2491ce05cef0915d85e96c正常合入已推 #288 head296f0ba37da821ca97d51e73b608b2cde0e8091b，保留 #235/原NumericText修正及已合main/#289的准确源码。#241原10个C#源SHA完全不变，只有一个HANDOFF实际冲突；三原blob保留，逐两侧全部完整章节零缺失及539063字节公共前缀核后合并，未弱化严格helper。当前 #288 新head CI未结束，不能先合有该前置的 #292。
@@ -2128,6 +2147,18 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 
 准确复验补充：本次两Release构建均0warnings/errors；Core完整InsertSelect/DecimalEnforcement/DecimalDeclaration三类66/66，真实Server修正两mode、异步InsertSelect及完整HTTP2类23/23。新12源/PDB SHA绑定已PASS，原CI三失败及原首helper错误保留。最终整树restore/原Format Check/cached whitespace及新head以pr295-fixture0510不可变收据为准；上述局部通过不写为全suite或正式包验收。
 
+## PR #281 UUID 与 main/#295 的准确合并树验证（2026-10-12，Asia/Shanghai）
+
+本独立片固定 07:37:00Z 至 08:12:00Z，分支 codex/pr281-main295-refresh，HEAD 42ab54d7093f0f80eefce752bddd4931df9b86e0，MERGE_HEAD 944769b966f11e089a366266927f0486827e57ed。根已只解决 HANDOFF/CHANGELOG 两个文档冲突，保留完整 193/195 章节和全部 CHANGELOG，原 8 effective paths 保持；本代理只验证与本完整字节前缀后的 LF 尾追加，不改 source/test/Git/index/refs/stash/远端。main 继承 #295 enforced Decimal 与 22,6 大值夹具，旧 64/21 证据仅用于选择测试，不能充当当前合并树成功。
+
+当前两项 Release build（Core Tests 与正确的 tests/SonnetDB.Tests）均 0warnings/0errors；单 dotnet root、2CPU/-m1/sharedoff，独占 marker TEMP。Core 最小 smoke 1/1 后运行六完整类，真实 130executed/130passed/0failed/0skipped：SqlUuidFunctionTests 16、SqlExpressionExecutionTests 45、SqlSelectColumnMetadataTests 3，加 DecimalEnforcement 16、DecimalDeclaration 36、InsertSelect 14，覆盖新 Decimal/精确参数交互。smoke 包含在完整类，不重复加总。
+
+完整实际 namespace SonnetDB.Tests.RemoteAdoHttp2TransportTests 用新 Release net10.0/win-x64 DLL，当前真实 21executed/21passed/0failed/0skipped，覆盖 UUID、排名、typed DecimalMain、实际 REST/RequestVersionExact h2c、generated RETURNING 与事务等本类声明场景；这是本次新 TRX 的 21，不借用旧同数量。10 个有效生产/已执行测试源的 Portable PDB SHA 均匹配当前源码。源/配置、producer/copied/executed Release DLL/PDB/deps/runtimeconfig、三个新 TRX 与最终身份/owner/no-reparse TEMP 清理以 artifacts/online-closure-20261012/pr281-verify-0737 实际 JSON 为准；12 个前置源码快照必须保持相同，不能以无关旧 DLL 或旧 TRX 提升证据。
+
+预算最多 45shell/22hiddenJob/400files、仅 2 builds（各 360 秒）与 3 test 窗口（各 240 秒），固定 PS7/隐藏 Job/UTF8、max+wallclock/cancel/backoff 与仅自有完整进程树回收保持；未安装、扫描大目录、Graphify、再派生或政策拒删重试。全部历史 FAIL/UNKNOWN（含 #284）仍保留，本片不凭当前 PASS 推导旧失败根因。
+
+根下一步先核本 merge-state/source-DLL-PDB-TRX/hash 与实际 cleanup，再在最终合并树做完整 solution restore/原 CI Format Check，精确 commit/merge push 后核新 head CI；当前 HANDOFF 仍随根合并提交交付。本地 130/21 不替代完整 Windows/Linux、Parity/nightly、正式 Core/Data/Server/SDK/NuGet、FreeSql #2234 或 Chloe/NativeAOT 消费者验收，也不自动关闭 #219。
+
 
 ## PR #217 main 944 前端精确集成验收（2026-10-12）
 
@@ -2155,3 +2186,11 @@ Node 24.15.0/npm 11.12.1，Web npmci149 与 VSCode npmci315 packages 通过；pr
 ## PR #217 root 精确整合已合 #297（2026-10-12）
 
 原9792+944树三个真实目标构建、469 Web contracts、59 extension tests及经明确一次修正的 productionpage/worker smoke均有独立证据；root逐SHA核16源/289产物及两非空日志。完整restore/原Format Check通过后普通本地merge commit68254f88，再正常merge main6195c3；两个docs保完整197/196章。303个非HANDOFF/CHANGELOG源与产物字节保持、继承两streaming测试blob等于6195，没有重跑原frontend结果。原URL harness FAIL和actualExtensionHost FAIL/UNKNOWN保留；Studio PDB源码checksum审计NOT_RUN，不冒充已验。原阶段最后freeze启动越08:17:21截止，phase时限合规FAIL保持。专属temp旧400枚举上限FAIL原样保留，root新独立90s/10000items阶段以owner/absolute/noReparse、70身份fresh0live及0当前引用核634项，一次精确移除635项含根；无政策拒删重试。新整树门禁/commit/push及fresh head CI以root独立收据为准；重复PR218仅217实合main后关闭。无package/Marketplace/正式发布。
+
+## PR #281 root 继承已合 #297（2026-10-12）
+
+原42ab+944准确Core130/130、实际Remote21/21及45源/产物和3TRX已独立复核，完整restore/原Format Check通过后普通本地merge commit1bd75745；随后正常merge当前main6195c3。仅继承已合#297的两个streaming tests和docs，43个非CHANGELOG/HANDOFF已验证源与产物字节保持；两个继承测试Git blob等于6195c3。HANDOFF冲突保完整198/196章。没有重复运行原130/21，原DLL/PDB绑定只证明未改UUID/Decimal组合；新整树所有streaming/full CI仍由后续head实时门禁证明。正式包/消费者依赖保持OPEN。最终restore/原Format Check、精确提交推送与fresh head CI以root独立收据为准，未预写完成。
+
+## PR #217 接续待合 #281 前置（2026-10-12）
+
+root最终6195树完整restore/原Format Check通过后普通本地提交，再正常合并已验证但Windows CI尚待的281 head0320923；两个docs完整章节保留。frontend16源和289实际产物仍保持，前置281的已验源与归档逐SHA保持。原三个frontend构建/469+59/浏览器worker证据只属于原944树，未重新构建包含UUID的Studio或宣称新后台GUI验收；此组合以新完整CI证明。依赖规则为先281取得12新精确head门禁合main，再本217所有新门禁通过并串行合并；218重复PR只在217实际合main后关闭。新最终root门禁/提交/推送以独立收据为准，不预写CI完成。
