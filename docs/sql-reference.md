@@ -1373,6 +1373,9 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`trim`、`ltrim`、`rtrim`、`length` / `char_length`、`substring` / `substr`、`position(search IN value)`、`replace`、`left`、`right`、`starts_with` / `ends_with` / `contains`、`regexp_like`、`date_diff` / `datediff`、`date_format` / `format_datetime` / `strftime` / `to_char`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
 - `uuid()` 为零参数标量函数，每次实际求值都调用 `Guid.NewGuid()`，返回非 NULL 的标准小写 GUID 字符串（D 格式，36 个字符，含连字符），声明类型为 String，兼容现有 GUID 字符串转换器。`uuid(NULL)` 等带参数调用报参数数量错误。直接用于多行 SELECT 时每行分别求值，同一行的不同调用也分别生成；在 UPDATE SET 中对每个匹配行分别生成，RETURNING 读取实际写入或事务缓冲中的列值，不再次生成。绑定和常量算术/谓词检查不会提前执行函数；CASE、COALESCE 的未选分支沿既有短路规则不执行。
 - `uuid()` 不支持列 DEFAULT，包括其它默认函数中嵌套的 UUID 调用；CREATE/ALTER 默认值在写 schema 前明确拒绝，避免现有 ADD COLUMN 默认值一次求值回填造成重复。普通 SELECT、UPDATE、事务提交和回滚沿既有行处理合同；回滚丢弃生成的值，提交与恢复保存已生成的字符串。结果中同名用户标量函数覆盖后保留未知声明类型。此为引擎实现合同，正式 Core/Data/Server/SDK 包与 Chloe Provider 集成须另行验收。
+- 三角函数 `sin(value)`、`cos(value)`、`tan(value)`、`asin(value)`、`acos(value)`、`atan(value)` 各接收一个数值参数，`atan2(y, x)` 接收两个参数，顺序固定为 y、x。整数、浮点和 Decimal 按现有数值转换规则转为 Float64，结果也为 Float64；字符串和 Boolean 不作隐式数值转换。角度一律为弧度。
+- 三角函数传播 NULL；`atan2` 任一参数为 NULL 时返回 NULL，优先于另一参数的类型、有限性检查。非 NULL 参数必须为有限数值，`asin` / `acos` 还要求输入在闭区间 `[-1, 1]` 内；违反合同或计算结果非有限时抛出 SQL 执行错误。有限输入交给对应的 .NET Math 运算，`tan` 在浮点表示的极点附近不额外按 epsilon 拒绝；大角度遵循 Float64 精度与运行时的参数规约，比较结果应使用浮点容差。`atan2(0, 0)` 返回 0，四象限由 y、x 符号决定，负 x 轴按输入零的符号返回正或负 pi。既有 `abs` / `round` / `sqrt` / `log` 和 `ceil` / `ceiling` / `floor` / `exp` / `power` / `pow` 的数值合同保持。
+- 内置三角函数的关系表投影在空结果和全 NULL 结果中仍声明可空 Float64；用户同名标量函数覆盖后按用户函数的未知声明类型处理。这是引擎实现合同，正式 Core/Data/Server/SDK 发布与 FreeSql Provider 的正式版本集成验收另行完成；Sign、Log10、有限 FLOAT Truncate 沿 #221 约定使用已有 SQL 适配。
 - 字符串函数对字符串参数使用 Ordinal 规则；除 `concat` 将 NULL 参数视为空字符串外，字符串参数或位置/长度参数为 NULL 时返回 NULL。`substring` 使用从 1 开始的位置，省略长度时截取到末尾；位置必须大于等于 1，长度和 `left` / `right` 的字符数不能为负数。`length` 返回 .NET UTF-16 字符数（`long`），不是 UTF-8 字节数。`position(search IN value)` 返回按 UTF-16 计数的 1 基位置，未找到返回 0，空搜索串返回 1；关系表、Document 和时序查询可通过共用的标量函数求值器调用。
 - `lpad(value, width [, padding])` / `rpad(value, width [, padding])` 将字符串填充至目标宽度，分别在左侧或右侧补充。省略 `padding` 时使用空格；非空自定义填充串循环使用，最后一段只取所需前缀。宽度及前缀按 UTF-16 单元计数，与 `length` 一致；组合字素可以拆分，但输出必须保持代理对完整。原串及实际使用的填充片段包含孤立代理项、或截断填充串会切开代理对时，明确返回执行错误；未使用的填充尾部不参与验证。例如 `lpad('7',3,'😀')` 返回 `'😀7'`，`lpad('7',2,'😀')` 拒绝且不改变请求宽度。目标宽度小于等于原串长度时保留原串（与 CLR `PadLeft` / `PadRight` 一致，不采用 PostgreSQL 的截断行为）；空原串允许填充，零宽度保留原串。任一参数为 `NULL` 时返回 `NULL`；其它调用中空填充串一律拒绝，即使不需要补充。`value` / `padding` 必须是字符串，`width` 必须是非负整数，不隐式转换 FLOAT、DECIMAL 或字符串。单次结果最多 1,048,576 个 UTF-16 单元（约 2 MiB 字符数据），超限目标或原串均在扫描或分配填充结果前拒绝；空关系及全 NULL 结果仍声明 STRING。原生实现与正式包发布、FreeSql Provider 适配分别验收。
 
@@ -1387,6 +1390,12 @@ SELECT lpad('7', 4, '0') AS left_code,  -- '0007'
 ```sql
 SELECT id, uuid() AS generated_id FROM devices ORDER BY id;
 UPDATE devices SET guid_value = uuid() WHERE guid_value IS NULL RETURNING id, guid_value;
+```
+
+三角函数示例（结果依次为 0、1、0、0、0、0、pi/4）：
+
+```sql
+SELECT sin(0), cos(0), tan(0), asin(0), acos(1), atan(0), atan2(1, 1)
 ```
 
 常用字符串函数示例：

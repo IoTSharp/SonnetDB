@@ -2485,3 +2485,64 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 根独立资源收尾补录：root1514-recovery-cleanup.json新鲜核9个原Job收据、54个记录身份，matchingLive0/unknown0，PID复用按创建时间区别未触碰；自有D:\sbg1358标记、绝对路径、noReparse与零当前command引用核准，有界10项只删除一次。oldworker截止拒绝和NOT_RUN作为历史保持，根本次fresh检查与精确删除PASS另列；非整机孤儿证明。root完整门禁及准确5路径private commit仍按下面独立收据记录，无先写远端CI/正式消费者/main新fix完成。
 
 根复核 SQL 八组件加 UUID/semantic recovery 组合，2026-10-13 Asia/Shanghai：两次实际 Release build 0 warnings/errors；原 Core427/427 和五整类 Server146/146 TRX 保留，TsdbAdoApiTests 单独补74/74，与冻结 DLL 绑定，unique Core501/19类；原2 windows由根明确授权扩为3，补审计37 identities全gone、自有TEMP4项回收。45 inputs、69 source/runtime records、36 actual PDB bindings、进程与自有 TEMP fresh audit PASS。纠正历史覆盖说明：文件 SndbAdoApiTests 的真实类名为 TsdbAdoApiTests，旧 filter 未命中；旧 Core410 实际17类，当前427实际18类，不篡改历史 TRX 或将类数虚标。当前 EF NOT_RUN，旧106不迁移到新树。UUID DEFAULT 显式拒绝是原 UUID feature，不称新 defect；真实恢复预算修复只保证已入队前缀计数，不冒称全局原子或 crash-safe 历史重建。#300/main/完整 CI/正式 package 和 consumer 尚待独立验收；所有 FAIL/UNKNOWN/NOT_RUN 保留。完整最终 restore/原 Format 和 private checkpoint 以根收据为准。
+
+## 线上闭环执行：GH-Issue #270 LIKE 参数转义修复交接（2026-10-12，Asia/Shanghai）
+
+执行智能体 issues_delivery 在授权的 online-delivery 工作树、codex/issue270-like-escaping 分支、基线 a299a3fcc42de494145be74a8ee451aedeec4249 上完成实现与定向验证；主智能体独占索引、提交、推送和 GitHub 写操作。原四路径之外，主智能体明确授权 LikePatternMatcher.cs 与既有 SqlStringFunctionTests.cs，共六路径含本 HANDOFF 与 CHANGELOG；原 D:/source/SonnetDB dirty/index 不参与本交付。
+
+EF Contains/StartsWith/EndsWith 的运行时参数按反斜杠、百分号、下划线顺序生成三层 REPLACE，并在 LIKE 前检查原参数 IS NOT NULL，以免 CONCAT 将 NULL 当空串。常量与运行时参数均保持字面语义与参数化。首次完整 EF 用例暴露核心 matcher 把文本中的 % 先按普通字符匹配、丢失通配符回溯状态；最小修复仅将未转义 % 分支提前，普通 SQL LIKE 的通配符及反斜杠转义合同保持。
+
+历史初始 EF 小样 5/5 PASS；首次完整 EF 为 42/60 PASS、18 FAIL，原 TRX、日志、实际 DLL 哈希与诊断保留，不把小样替代完整结果。最终树核心极小回归 3/3、独立边界 26/26、原 EF 完整用例复验 60/60 PASS，共 89 个定向用例通过。EF 其中本地 42、真实 Kestrel REST 9、Frame HTTP/2 h2c 9，验证实际列表、Count、OrderBy/Skip(1)/Take(2)、非空参数原值及传输协议；所有数据集含可空 Name=NULL。此结果不是公开包消费者、外部生产服务或独立 NativeAOT 发布验收。
+
+最终生产/两个测试目录 Core DLL SHA 相同：6D2E0399D5D62F84C46591C429A5511F940C4EC4A26AED45CB7B1372A69B4C5E；生产/EF 测试目录 Provider DLL SHA 相同：0EC4937D7465B3AC27B750695505F0446668722E17B8480510A29B2044665808。最终四个源码/测试哈希绑定 issue-270-final-pre-test-source.json。没有新依赖、生产 JSON 变更、反射序列化、unsafe 或警告压制。
+
+五个有界 Windows Job 均 cleanupComplete=true，48 个完整身份独立核零精确活跃。五个专属 TEMP 根路径、owner=issues_delivery、issue=270、owner.json SHA 及所有 reparse 检查通过，共 10 个文件、8,271 字节；自动审批两次拒绝 Remove-Item 删除命令，仅返回 blocked by policy，两次均未执行。按主智能体决定保留五目录与拒绝收据，不更换 API/shell 绕过；精确绝对路径和字节规模见 issue-270-temp-preserved-inventory-r2.json，清理尾项状态 BLOCKED_AUTOMATIC_APPROVAL_REVIEW。旧测试 FAIL、所有日志/TRX/spec/身份与诊断继续保留。
+
+交付证据固定在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery；原 HANDOFF 539062 字节和 SHA 57DC84FE4D487FA253E3B2EE09C8A970BD61C7E80F6114DBAE9021073AFA5FDF 保持原字节前缀，仅以 UTF-8 无 BOM、LF 追加本段。下一步由主智能体复核六路径冻结 diff 与源文件哈希，在最终待提交工作树执行完整 restore 和原 CI Format Check，通过后精确提交、推送及 PR。完整解决方案 restore/format 当前 ROOT_PENDING；正式修复包、公开包消费者升级和独立 NativeAOT 发布均 NOT_RUN，Issue #270 继续开放，不把源码和本地/真实测试 PASS 写成正式发布完成。
+
+
+## Batch04 PR #280 actual LIKE combination verification (2026-10-12 UTC)
+
+Exact HEAD2411a099d081f5be15948ade57b683137e50a160 with MERGEceb1b2062f0366c7115e22e99e2f500a17dc9762; only six #280 feature paths. Reviewer changed no C# production/test source and made no causal repair. Root had independently established LikePatternMatcher parent-to-main/future baseline equality; the prior selected-query UNKNOWN remains historical and is not rewritten. Main #297 Streaming and #298 Semantic/UUID protected path diff0 and archived input hashes preserve current fixes; this phase did not rerun their unrelated runtime cases.
+
+Serial Core.Tests and EF.Tests Release builds passed, zero warnings/errors,2CPU/m1/shared compilation off; no Server.Tests build. Actual complete Core String/Expression classes 78/78, entire EF project 155/155, zero failed/skipped. Embedded NULL argument smoke and constant/captured matrix cases passed. Actual REST/h2 parameterized percent/underscore/backslash literal semantics/list/count/page with nullable target rows passed, with observed exact HTTP1.1/HTTP2 assertions. Remote NULL argument replay was not in the existing theory matrix and is NOT_RUN; no broader coverage is claimed. All counts derive from new TRX; old CI snapshots are not substituted. Evidence root: D:\source\SonnetDB\artifacts\online-closure-20261012\batch04-like-1437;25 exact current input files, current source/PDB/DLL/runtimeconfig/TRX bindings, raw windows and case counts retained.
+
+Owned process audit matching live0/signals0; shortTEMP=REMOVED, attempts=1, retry0; final wrapper/postfreeze audit separately recorded. Stage14:37:06Z to15:07:06Z, minute25 freeze launch boundary15:02:06Z. #282/#279 not integrated; production JSON/AOT rules unchanged. Root owns final whole-tree solution restore/originalFormat/exact private checkpoint and unified batch CI. Formal packages/consumers/NativeAOT/hardware/production/nightly/parity NOT_RUN.
+
+## 线上闭环执行：GH-Issue #272 命名外键迁移交接（2026-10-12，Asia/Shanghai）
+
+issues_delivery 在授权 online-delivery 工作树、codex/issue272-named-foreign-key 分支及基线 a299a3fcc42de494145be74a8ee451aedeec4249 上，仅修改 EF 迁移生成器、既有 SonnetDbProviderTests.cs、CHANGELOG 与本 HANDOFF。主智能体独占 Git 索引、提交、推送和 GitHub；原 D:/source/SonnetDB dirty/index、parity-results、冻结发布与旧 #270 五个拒删 TEMP 保持。
+
+生产修复仅三行：CREATE TABLE 外键分支保留 EF 原名，使用 SqlGenerationHelper.DelimitIdentifier 生成安全引用的 CONSTRAINT 前缀；已有 ALTER ADD/DROP 的名称传递保持，ADD 不出现双前缀。不存在名字的 DROP 沿引擎原合同返回零行，不修改 no-op 语义；回归同时检查原外键 schema 与实际拒绝孤儿，避免把零行命令误称约束已移除。没有新依赖、生产 JSON、unsafe、文件格式或警告压制变更。
+
+最终同源码和 DLL 的定向及既有回归 26/26 PASS，其中本 Issue 新用例三项：嵌入式、真实 Kestrel REST、Frame HTTP/2 h2c。每项检查 HasConstraintName 生成的 SQL、初始迁移、真实 ForeignKeys schema 原名/表列/引用列/级联、按原名删除后孤儿插入、替换名称和引用表后实际拒绝原表独有主键、接受新表主键并级联删除、回退到无约束/原约束/零迁移及重新创建；EF CRUD 与查询走参数化，名称包含 Unicode、空格和双引号。嵌入式关闭最后连接释放引擎后重开；每个远程协议均实际停止并 dispose 原 Server，再从相同 DataRoot 创建新 Server，验证持久 schema 与实际约束。另 23 项既有迁移/DDL/schema 回归通过。
+
+首次测试编译 CS4007、0 用例执行，改为先 await 实际数组再断言后嵌入式 1/1 PASS。首次远程 REST 通过、Frame 因 266 字符夹具目录在历史表 durable metadata 打开时失败；仅缩短本测试的独占目录/库名后新三项均通过。首轮扩大回归 25/26，既有 Frame 历史夹具也在长任务 TEMP 下失败；不修改该旧用例，改用已核 owner 的短 TEMP，原 26 项同 DLL 重跑 26/26 PASS。上述失败日志、TRX、原源码哈希和诊断完整保留；不把夹具路径调整称为引擎长路径修复。
+
+生产及测试目录 Provider DLL SHA 一致：28E27D475CE8558BEA2DB682546FD0DFBE3DE139204D2D0C8002398132E29817；最终源文件绑定 issue-272-r3-pre-test-source.json，真实用例/DLL/TRX 绑定 issue-272-final-test-validation.json。五个有界 Windows Job cleanupComplete=true，34 个完整 PID/创建 UTC/命令/父链身份一次限定查询零精确活跃、零当前 PID。
+
+本任务五个专属 TEMP 均核 owner=issues_delivery、issue=272、准确绝对路径、owner.json SHA 与全部 reparse 检查；共 10 个文件、8,616 字节。一次全固定绝对路径的 native Remove-Item 清理命令被自动审批拒绝，仅返回 blocked by policy、未执行。五目录保留，清理尾项 BLOCKED_AUTOMATIC_APPROVAL_REVIEW；不重试或改用其它 API/shell，旧 #270 五对象完全未触碰。精确路径与字节规模见 issue-272-temp-cleanup-preflight.json，拒绝及保留状态见 issue-272-temp-cleanup.json。
+
+证据固定在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery。本 HANDOFF 保持本阶段原始字节前缀，仅以 UTF-8 无 BOM、LF 追加。下一步主智能体复核四路径冻结 diff 与源码/DLL 哈希，在最终工作树执行完整 restore 和原 CI Format Check，通过后精确提交、推送与 PR。完整解决方案 restore/format 当前 ROOT_PENDING；正式修复包、公开包消费者升级及独立 NativeAOT 发布均 NOT_RUN。Issue #272 保持开放，源码/本地与真实测试不替代正式公开包复现或完整 BookStore 验收。
+
+
+## Batch04 PR #282 plus real NULL argument verification (2026-10-12 UTC)
+
+One authorized Theory2cases added only in SonnetDbProviderTests: REST and exactHTTP2. Captured NULL Contains/StartsWith/EndsWith predicates actually yield empty list/count0/pageempty; EF may legally foldFALSE and this does not claim NULLwentoverwire. A separate composableFromSqlRaw typedDbParameter(String,DBNull) preserves ISNOTNULL/LIKEguard and asserts actualNULLinterceptor capture forlist/count/page, with exactprotocol traffic. Original nonNULL literal/%/underscore/backslash matrix and namedFK/Chinesequote/reopen/rollback contracts retained.
+
+SoleEF ReleasebuildPASS0warnings/errors, noCore orServerTestsbuild; focusedNULL2+NamedFK3=5/5, entireEF=160/160, focusedfiveincluded/notadded. Previous Core78 source/config/CoreTestsruntime/TRX remainunchangedandNOT rerun. EF dependency producerCore/Data can differ fromoldCoreTests cache; originalstrictbinder mismatch retained, currentEF producer/copiedPDB/DLL binding separate, no unjustified byteequivalence claim fornewEF dependencyandoldCoreexecution.
+
+Evidence D:\source\SonnetDB\artifacts\online-closure-20261012\batch04-fk-null-1523 retains25inputs/actualDLLPDB/runtime/TRX and originalfailure. ProductionJson/AOT rules unchanged, reviewerproductionedits0;297/298 protectedpaths retained. FreshPIDaudit live0/signals0; shortTEMP=REMOVED, attempts=1, retry0. Stage15:23:09Z/hard15:53:09Z/minute25freeze15:48:09Z; rootfinalrestore/originalFormat/privatecheckpoint/batchCI remain. FormalIssues270/272OPEN; packages/consumer/NativeAOT/hardware/production/nightly/parityNOT_RUN.
+
+## GH-Issue #221 三角函数隔离实现与本地验收（2026-10-12，Asia/Shanghai）
+
+online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fcc42de494145be74a8ee451aedeec4249；只处理 #221 的 sin/cos/tan/asin/acos/atan/atan2(y,x)。弧度制、现有数值转 Float64、NULL 优先传播、非有限输入/结果拒绝、asin/acos 闭区间 [-1,1]，tan 不作人为 epsilon 极点拒绝；既有数学函数合同不变。单表/JOIN 空结果及全 NULL 的可空 Float64 元数据已补齐，同名标量 UDF 保留未知声明类型。八个自有路径和最终哈希以 artifacts/online-closure-20261012/issues-engine/trigonometry-221/trigonometry-final-tree.json 为准；此分支未恢复 #219/#220 的实现。
+
+核心选定回归 213/213，完整真实远程 ADO 17/17（含新增 REST HTTP/1.1 与 frame-http2 h2c 两例）通过；最小 SQL、四象限/轴/零点、参数、WHERE、域/类型/非有限错误和空/NULL 元数据有实测。首轮新测试的三个 ColumnInfo 可空断言编译失败，0 测试执行，原 FAIL/日志保留；断言修正后的原 TRX、实际 Core/Data/Server/测试 DLL、版本与 SHA 已归档。实际版本 0.0.0-dev+a299a3fcc42de494145be74a8ee451aedeec4249，不是正式发行；Core/Data/Server/SDK 正式发布和 FreeSql PR #2234 Provider 集成仍未验收，Issue 不应据本地结果关闭。Sign/Log10/有限 FLOAT Truncate 沿原 Issue 使用已有 SQL 适配。
+
+三个有界 Windows Job 收据 cleanupComplete=true；独立审计 31 个完整精度 kernel 身份、3 个 CIM 控制器身份，精确/未知存活均为 0。专用 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\trigonometry-221\trigonometry-test-temp 属 issues_engine #221，来源为 task-boundaries.json、三个执行 spec 的 TEMP/TMP 和首收据 controller 73980 的创建命令；两次删除均被 tools.exec_command 拒绝，仅返回 blocked by policy，命令未执行。目录保留，详见 trigonometry-temp-cleanup-policy-rejections.json；未改用替代 API 绕过，临时目录回收仍为 BLOCKED_BY_EXECUTION_POLICY。
+
+固定 PowerShell 7、单 dotnet 根、两 CPU、单命令 600 秒内；原 45 分钟窗口截止 2026-10-11T21:15:06Z。源码和交接追加后冻结，未暂存/提交/推送、未变更分支、未安装或操作 GitHub。主智能体下一步先复核八路径及证据，再按最终工作树执行完整 restore/原 CI Format Check、准确提交及远端交付；本记录不预记这些门禁或 main 合入完成。临时目录清理限制单独交接，不阻止可审查的修复交付。
+
+根复核 B04（三角函数、LIKE 转义、命名外键），2026-10-13 Asia/Shanghai：原 279/280/282 祖先完整保留，UUID 与七个三角函数登记、独立 metadata 分支和完整远程测试共存。两次 Release build 0 warnings/errors，实际 Core 153/153（六整类）、RemoteAdoHttp2TransportTests 23/23。30 inputs、24 runtime archives、17 actual PDB source bindings由根独立核对；worker freeze 16:42:14Z、fresh resource cleanup 16:46:11Z PASS。当前 EF 未运行，旧160只属旧树；原 Outbox constructor cancellation 仍 UNKNOWN，不改变阈值。完整最终 restore/原 Format 和 private checkpoint 以独立收据为准，尚未 push/main/正式 consumer 验收。随后与 SQL/semantic 组合进入单一最终候选 CI。
+根复核最终 SQL11/恢复修复/Streaming exact消息合同，2026-10-13：新Core626/626（23整类，ACK两Theory），oneRelease0warn/errors；89records/55inputs/43actualPDB由根复核。两个真实wrapper旧订阅消息和新checkpoint budget插值消息均精确覆盖，生产/2000ms/锁分支/inner/caller cancel/checkpoint/pending/reopen断言不变。原root301第一次归属误述与299原UbuntuFAIL均保存并已纠正issue。Server148/完整EF176来源此前新联合实际PASS，76source/config+producer/copiedruntime字节一致才条件转移，明确未重跑。原591/148/176与410/427等TRX原样保留。source/index fresh审计13记录身份全gone、自有TEMP7项回收。完整restore/原Format/exact私有commit以根收据为准，CI/main/Issues300/301尚未验收，不预关闭。下一步纳入已核字符串聚合/BLOB541a14（2原PR），13原PR一个最终candidate/newhead CI；正式package/consumer、真实模型/硬件/nightly/parity及CAP NativeAOT失败继续独立。

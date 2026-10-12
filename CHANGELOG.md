@@ -28,6 +28,8 @@
 
 - GH-Issue #220：新增原生 `lpad` / `rpad`，默认空格或循环自定义填充、UTF-16 宽度、较小宽度保留原串及 NULL 传播；拒绝空填充、非法宽度与损坏 UTF-16 输出（包括代理对截断），单次结果限定 1,048,576 个 UTF-16 单元，空关系与全 NULL 结果保留 STRING 声明元数据。正式包发布与 FreeSql #2234 适配另行验收。
 - GH-Issue #219：新增原生 `shift_left` / `shift_right` 标量函数，固定有符号 Int64/64 位、0..63 计数、左移丢出位/右移保留符号和 NULL 传播，拒绝非整数及越界参数；空关系结果保留 Int64 声明元数据。正式包发布与 FreeSql #2234 的 CLR 位宽/掩码适配另行验收。
+
+- GH-Issue #221：新增弧度制 `sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `atan2(y,x)` 标量函数，明确可空 Float64、有限数值与反三角函数定义域合同，并保留空结果类型元数据；正式发布和 FreeSql Provider 验收仍独立。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
@@ -518,6 +520,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - Windows CI：持久订阅确认故障用例为初始存储提供合理有界预算，独立区分真实存储超时、dispatcher总预算和调用者取消，保留持久批次恢复断言。
 - Windows CI：物理读取过载 HTTP 映射用例为冷启动共享主机提供 15 秒有界请求预算，保留真实 503、Retry-After 和错误码断言；不改变服务端过载或生产超时配置。
 - **Windows CI 时间与并发断言（2026-10-12）**：缓存端到端用例核对后台/手动清理竞争后的物理过期项，独立精确删除计数用例关闭后台维护；进程取消用例用专用线程和有界 readiness 观测保留原执行/整树回收断言，空流窗口用例保留真正的操作超时与超时后恢复验证。仅调整测试，不修改生产逻辑。
+
+- **GH-Issue #270 EF Core 字符串字面查询**：对 `Contains`、`StartsWith`、`EndsWith` 的运行时 LIKE 参数按反斜杠、`%`、`_` 顺序转义并保留参数化；显式保护 NULL 参数，避免 CONCAT 将其转为空串后误匹配。修正引擎 `%` 通配符遇到文本 `%` 时的匹配顺序和回溯，普通 SQL LIKE 通配符合同保持，消费方无需预转义。
+
+- EF Core 建表保留并安全引用命名外键，按模型原名执行删除、替换与回退迁移（GH-Issue #272；源码修复，正式包与消费者验收待完成）。
 - M47-P07 分发/P07调用层改读真实Job收据的status/exitCode/cleanupComplete，拒绝失败和未清理；修正新PowerShell进程未设置或残留LASTEXITCODE导致实际prepare完成却误报失败，6项真实进程包装合同通过（仅合成controller）。
 - **M47-P03 KV及时序预览渲染收尾（2026-10-10）**：KV及时序点表/监控结果表使用虚拟滚动，避免500～1000行同时挂载导致原30秒旅程或5秒点击超时；保留全部已加载数据及KV1000/measurement500条上限、cursor截断、原值导出与权限合同，验证末尾行选择和筛选后的选中导出。P03按[R1本地验收](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)完成；七模型专用读取仍延期，发行/实物/远端门禁与NOT_READY保持。
 - **M47-P02 Web smoke 修复（2026-10-10）**：修复 logout 的 Vite/Node 环境错用和 Studio 夹具身份/生命周期前置；fixture smoke 与独立真实 Server suite 分开收集，Node 合同成为 CI 必经步骤。相同 236 个输入上 Web build、448 条 Node 合同、307 条 fixture 与 12 条 StudioHost 回归通过；默认 25 条宿主专用 skip、30 条独立 real suite 和远端门禁分列。保留两次历史 CI 失败、原执行器越界清理及本地中断记录，产品仍 NOT_READY；见 [P02 报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。
@@ -2406,3 +2412,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 
 - 2026-10-12 批次02测试声明合同补正：远程视图 helper 在两种 schema API 中严格核已知 Int64 的19/0与未知类型的 null 精度/scale；生产未改。完整真实两类97/97、焦点2/2以及同旧DLL短TEMP四例4/4已核验并保留旧FAIL，焦点不重复累计；短TEMP通过不作为路径异常根因证明，最终批次门禁仍独立。
+
+- 2026-10-12 批次04 #280组合实测：完整Core String/Expression 78/78、完整EF 155/155，保留参数化LIKE转义、NULL守卫及embedded/REST/h2列表计数分页断言；本验证阶段未改生产或测试源码，最终批次门禁和正式包验收仍独立。
+
+
+- 2026-10-12 批次04 #282及remoteNULL补测：新增一个REST/HTTP2双模式回归，区分捕获NULL可合法折叠FALSE与typed NULL raw wire实际捕获；实际空列表/计数0/空分页和协议断言通过，命名外键原范围保持。完整EF160/160，焦点5不重复累计；Core78未重跑，正式270/272验收仍开放。

@@ -587,9 +587,10 @@ public sealed class FileStreamingSubscriptionTests
             else
             {
                 var failure = await Assert.ThrowsAsync<TimeoutException>(() => pending);
-                if (failure.Message == "持久订阅操作超过存储操作超时边界。")
+                if (failure.Message == "持久订阅操作超过存储操作超时边界。"
+                    || failure.Message == $"Streaming 检查点操作超过 {options.OperationTimeoutMilliseconds} 毫秒超时边界。")
                 {
-                    // wrapper 取消分支不保留原 OperationCanceledException。
+                    // subscription/checkpoint wrapper 取消分支均不保留原 OperationCanceledException。
                     Assert.Null(failure.InnerException);
                 }
                 else
