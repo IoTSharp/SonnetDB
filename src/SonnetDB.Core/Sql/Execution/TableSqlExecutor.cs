@@ -274,9 +274,17 @@ internal static class TableSqlExecutor
         string? defaultExpressionSql = null;
         if (statement.DefaultExpression is not null)
         {
-            var tempColumn = new TableColumn(statement.ColumnName, dataType, IsPrimaryKey: false, isNullable, Ordinal: 0);
-            defaultExpressionSql = ValidateAndFormatDefault(statement.DefaultExpression, tempColumn);
-            defaultValue = EvaluateAndConvertDefault(statement.DefaultExpression, tempColumn);
+            var tempColumn = new TableColumn(statement.ColumnName, dataType, IsPrimaryKey: false, isNullable, Ordinal: 0)
+            {
+                DecimalPrecision = dataType == TableColumnType.Decimal ? statement.DecimalPrecision ?? 38 : (byte)0,
+                DecimalScale = dataType == TableColumnType.Decimal ? statement.DecimalScale ?? 28 : (byte)0,
+            };
+            defaultValue = EvaluateAndConvertSchemaDefault(statement.DefaultExpression, tempColumn);
+            if (statement.DecimalPrecision is not null && defaultValue is decimal decimalDefault)
+                DecimalDeclarationValidator.Validate(decimalDefault, tempColumn.DecimalPrecision, tempColumn.DecimalScale, tempColumn.Name);
+            if (!isNullable && defaultValue is null)
+                throw new InvalidOperationException($"NOT NULL 列 '{tempColumn.Name}' 的 DEFAULT 不能是 NULL。");
+            defaultExpressionSql = SqlExpressionFormatter.Format(statement.DefaultExpression);
         }
         else if (!isNullable && !statement.IsRowVersion && !statement.IsAutoIncrement)
         {
@@ -291,7 +299,9 @@ internal static class TableSqlExecutor
             defaultValue,
             defaultExpressionSql,
             statement.IsRowVersion,
-            statement.IsAutoIncrement);
+            statement.IsAutoIncrement,
+            statement.DecimalPrecision,
+            statement.DecimalScale);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
     }
 
@@ -341,14 +351,21 @@ internal static class TableSqlExecutor
         {
             DataType = targetType,
             IsNullable = targetNullable,
+            DecimalPrecision = targetType != TableColumnType.Decimal ? (byte)0
+                : statement.DataType is null ? currentColumn.DecimalPrecision : statement.DecimalPrecision ?? 38,
+            DecimalScale = targetType != TableColumnType.Decimal ? (byte)0
+                : statement.DataType is null ? currentColumn.DecimalScale : statement.DecimalScale ?? 28,
         };
+        bool validateDecimalDefault = targetType == TableColumnType.Decimal
+            && (statement.DecimalPrecision is not null
+                || statement.DataType is null && (targetColumn.DecimalPrecision != 38 || targetColumn.DecimalScale != 28));
 
         string? targetDefaultSql = statement.DefaultAction switch
         {
             ColumnDefaultAction.Unchanged => currentColumn.DefaultExpressionSql,
             ColumnDefaultAction.Drop => null,
             ColumnDefaultAction.Set when statement.DefaultExpression is not null =>
-                ValidateAndFormatDefault(statement.DefaultExpression, targetColumn),
+                ValidateAndFormatDefault(statement.DefaultExpression, targetColumn, validateDecimalDefault),
             ColumnDefaultAction.Set => throw new InvalidOperationException("ALTER COLUMN SET DEFAULT 缺少默认表达式。"),
             _ => throw new ArgumentOutOfRangeException(nameof(statement)),
         };
@@ -356,7 +373,9 @@ internal static class TableSqlExecutor
         if (statement.DefaultAction == ColumnDefaultAction.Unchanged
             && targetDefaultSql is not null)
         {
-            _ = EvaluateAndConvertSchemaDefault(SqlParser.ParsePredicate(targetDefaultSql), targetColumn);
+            var defaultValue = EvaluateAndConvertSchemaDefault(SqlParser.ParsePredicate(targetDefaultSql), targetColumn);
+            if (validateDecimalDefault && defaultValue is decimal decimalDefault)
+                DecimalDeclarationValidator.Validate(decimalDefault, targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
         }
 
         if (!targetNullable && targetDefaultSql is not null)
@@ -377,7 +396,17 @@ internal static class TableSqlExecutor
             targetType,
             targetNullable,
             targetDefaultSql,
-            value => ConvertTableValueForSchemaChange(value, targetColumn));
+            value => ConvertTableValueForSchemaChange(value, targetColumn),
+            targetType == TableColumnType.Decimal ? targetColumn.DecimalPrecision : null,
+            targetType == TableColumnType.Decimal ? targetColumn.DecimalScale : null,
+            statement.DecimalPrecision is null ? null : (_, values) =>
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (values[targetColumn.Ordinal] is { } value)
+                    DecimalDeclarationValidator.Validate(
+                        DecimalDeclarationValidator.ConvertExact(value, targetColumn.Name),
+                        targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
+            });
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_column");
     }
 
@@ -5626,11 +5655,13 @@ internal static class TableSqlExecutor
         return ConvertTableValue(value, column);
     }
 
-    private static string ValidateAndFormatDefault(SqlExpression expression, TableColumn column)
+    private static string ValidateAndFormatDefault(SqlExpression expression, TableColumn column, bool validateDecimalDeclaration = false)
     {
         var value = EvaluateAndConvertSchemaDefault(expression, column);
         if (!column.IsNullable && value is null)
             throw new InvalidOperationException($"NOT NULL 列 '{column.Name}' 的 DEFAULT 不能是 NULL。");
+        if (validateDecimalDeclaration && value is decimal decimalValue)
+            DecimalDeclarationValidator.Validate(decimalValue, column.DecimalPrecision, column.DecimalScale, column.Name);
         return SqlExpressionFormatter.Format(expression);
     }
 
@@ -5640,37 +5671,48 @@ internal static class TableSqlExecutor
 
     private static object? EvaluateAndConvertSchemaDefault(SqlExpression expression, TableColumn column)
         => ConvertTableValueForSchemaChange(EvaluateDefaultExpression(column.DataType == TableColumnType.Decimal
-            ? SqlScalarOperations.InDecimalContext(expression) : expression), column);
+            ? SqlScalarOperations.InDecimalContext(expression) : expression, column.DataType == TableColumnType.Decimal), column);
 
     private static object? EvaluateDefaultExpression(SqlExpression expression)
+        => EvaluateDefaultExpression(expression, requireExactDecimal: false);
+
+    private static object? EvaluateDefaultExpression(SqlExpression expression, bool requireExactDecimal)
     {
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
-            CastExpression cast => SqlCastOperations.Convert(EvaluateDefaultExpression(cast.TargetType == SqlDataType.Decimal
-                ? SqlScalarOperations.InDecimalContext(cast.Operand) : cast.Operand), cast.TargetType),
+            CastExpression cast => EvaluateDefaultCast(cast, requireExactDecimal),
             DurationLiteralExpression duration => duration.Milliseconds,
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
-                SqlScalarOperations.Negate(EvaluateDefaultExpression(unary.Operand)),
+                SqlScalarOperations.Negate(EvaluateDefaultExpression(unary.Operand, requireExactDecimal)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) =>
                 SqlScalarOperations.EvaluateArithmetic(
                     binary.Operator,
-                    EvaluateDefaultExpression(binary.Left),
-                    EvaluateDefaultExpression(binary.Right)),
-            FunctionCallExpression { IsStar: false } function => EvaluateDefaultFunction(function),
+                    EvaluateDefaultExpression(binary.Left, requireExactDecimal),
+                    EvaluateDefaultExpression(binary.Right, requireExactDecimal)),
+            FunctionCallExpression { IsStar: false } function => EvaluateDefaultFunction(function, requireExactDecimal),
             _ => throw new InvalidOperationException(
                 $"列 DEFAULT 只支持字面量、常量算术和内置标量函数，不支持 {expression.GetType().Name}。"),
         };
     }
 
-    private static object? EvaluateDefaultFunction(FunctionCallExpression function)
+    private static object? EvaluateDefaultCast(CastExpression cast, bool requireExactDecimal)
+    {
+        var value = EvaluateDefaultExpression(cast.TargetType == SqlDataType.Decimal
+            ? SqlScalarOperations.InDecimalContext(cast.Operand) : cast.Operand, requireExactDecimal);
+        return requireExactDecimal && cast.TargetType == SqlDataType.Decimal && value is not null
+            ? DecimalDeclarationValidator.ConvertExact(value, "DEFAULT")
+            : SqlCastOperations.Convert(value, cast.TargetType);
+    }
+
+    private static object? EvaluateDefaultFunction(FunctionCallExpression function, bool requireExactDecimal)
     {
         var scalarFunction = FunctionRegistry.ScalarFunctions.FirstOrDefault(candidate =>
             string.Equals(candidate.Name, function.Name, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"列 DEFAULT 不支持标量函数 '{function.Name}'。");
         ValidateScalarFunctionArgumentCount(function, scalarFunction);
         var arguments = function.Arguments
-            .Select(EvaluateDefaultExpression)
+            .Select(argument => EvaluateDefaultExpression(argument, requireExactDecimal))
             .ToArray();
         return scalarFunction.Evaluate(arguments);
     }
@@ -5707,6 +5749,8 @@ internal static class TableSqlExecutor
     /// </summary>
     private static object? ConvertTableValueForSchemaChange(object? value, TableColumn column)
     {
+        if (column.DataType == TableColumnType.Decimal && value is not null)
+            return DecimalDeclarationValidator.ConvertExact(value, column.Name);
         var converted = ConvertTableValue(value, column);
         if (value is null || converted is null)
             return converted;
