@@ -2103,3 +2103,10 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 新的hidden PS7/Windows Job微试覆盖ack两cancel变体、pending isolation和intent三个变体，实际6executed/6passed；随后同DLL no-build/no-restore及Blame执行FileStreamingSubscriptionTests、FileStreamingDeadLetterOperationsTests、FileStreamingDeadLetterTests三个完整类，实际86executed/86passed/0failed/0notExecuted。微试包含在完整类，不重复累计；源码、真实TRX、重复DLL SHA、5最终source与Job/临时目录收据冻结到artifacts/online-closure-20261012/rootaccept291-0232，全部旧FAIL/NOT_RUN和前片冻档不修改。
 
 本代理仅追加本HANDOFF，不写index、branch、commit或GitHub；所有native命令在task-owned隐藏console内，2CPU、外部180/300秒、最多12shell/8Job/两个窗口及阶段取消界限保持。旧与新Job精确身份及获准D:\pr291timerpaths-0207整目录owner/reparse/200项、10层、30秒遍历微试与一次回收结果以process-audit.json/temp-cleanup-result.json及最后hidden audit Job回执为准，policy拒删对象不触碰。根最终完整restore、原CI Format Check、独立PR/new-head全量CI仍须实际执行；本机PASS不替代这些门禁、nightly/parity、正式包和生产验收。
+
+
+## PR #295 INSERT SELECT 历史夹具修正（2026-10-12）
+
+精确c1bfdd7 Linux全套失败保留：Core6352/6353、Server1177/1179，三失败均在seed写入拒绝20,6声明。样本9007199254740993.125000需要16整数位+6声明小数=22precision；两个源/目标schema改为22,6，原大值、assertions、identity/RETURNING和production约束不变。此为旧夹具纠正，未改写precision校验或减小样本。新增准确Core/真实Server复验与完整最终restore/format结果见独立pr295-fixture0510收据；本段不预写PASS。正式包/Chloe/AOT消费者仍独立，Issue264不关闭。
+
+准确复验补充：本次两Release构建均0warnings/errors；Core完整InsertSelect/DecimalEnforcement/DecimalDeclaration三类66/66，真实Server修正两mode、异步InsertSelect及完整HTTP2类23/23。新12源/PDB SHA绑定已PASS，原CI三失败及原首helper错误保留。最终整树restore/原Format Check/cached whitespace及新head以pr295-fixture0510不可变收据为准；上述局部通过不写为全suite或正式包验收。
