@@ -2587,3 +2587,11 @@ online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fc
 唯一Core Release构建90.04秒、0warning/error；唯一完整相关窗口实际9executed/9passed/0failed/0notExecuted，包含BackgroundFlushIntegration2、BackgroundFlushWorker5、CompactionIntegration2，5.97秒runner/约1秒test。这是新test-only源码对应本地证据，不累加原7、804或CI6669。来源/actualDLL-PDB/TRX、生产源码不变、重编译产物字节差异和自有进程/TEMP核验以artifacts/online-closure-20261012/flush-ci-fix-1942最终freeze/resources收据为准。
 
 本代理未stage/commit/push/改refs。根须在最终三路径树完成whole restore/原Format Check、精确commit及一次更新302，并验证新head完整CI；当前不能说Windows已通过。原CI FAIL及全部历史FAIL/UNKNOWN/NOT_RUN继续保留，正式包/消费者/nightly/parity/生产验收独立。
+
+## Issue #263 跨协议整数参数私有验收（2026-10-13）
+
+本批在未修生产与旧冻结已构建资产上首次实际执行21个新增case，真实baseline为5PASS/16FAIL，原TRX和10资产保留。最小修复仅Data ParameterBinder补sbyte/ushort/uint三个无损InvariantCulture分支，Data与Core SqlParameterBinder各以Enum.GetTypeCode/Convert.ChangeType(TypeCode)复用原底层整数处理，共11行生产新增；SndbParameter.Value/DbType未改变，未改wire/Server/schema/落盘格式或依赖。UInt64高位和枚举仍保持embedded OverflowException、远程NotSupportedException的原声明边界。
+
+两次Release build各0warning/0error；修复后真实完整RemoteAdoHttp2TransportTests与RemoteVectorParameterTests合计66/66，Core现有四个参数整类另66/66，两组使用各自实际DLL，不合称单一132-case运行。新增21case全部实际到达三协议、nullable/NULL、原始与显式DbType、谓词、同步/异步批量、事务回滚和正常重开。源码、DLL/PDB CodeView及源码checksum、TRX storage和原失败证据位于artifacts/online-closure-20261012/i3052/。
+
+当前仅保存本地修复来源，root将在最终5个owned路径（两binder、原测试文件、CHANGELOG、HANDOFF）执行完整solution restore和原Format Check后私有提交；准确hash和门禁以r3058-263-*收据为准。之后接入online-engine原2fe联合候选重新运行统一验证。正式包、Chloe原始消费者及NativeAOT运行未验，#263仍OPEN/等待发布；本段不声明联合候选或发行完成。

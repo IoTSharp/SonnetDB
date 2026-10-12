@@ -95,13 +95,20 @@ internal static class ParameterBinder
         if (value is null || value is DBNull)
             return "NULL";
 
+        // 保留枚举底层整数类型，复用相同的无损格式化与范围限制。
+        if (value is Enum enumValue)
+            value = Convert.ChangeType(enumValue, enumValue.GetTypeCode(), CultureInfo.InvariantCulture);
+
         return value switch
         {
             string s => "'" + s.Replace("'", "''") + "'",
             bool b => b ? "true" : "false",
             byte u8 => u8.ToString(CultureInfo.InvariantCulture),
+            sbyte i8 => i8.ToString(CultureInfo.InvariantCulture),
             short i16 => i16.ToString(CultureInfo.InvariantCulture),
+            ushort u16 => u16.ToString(CultureInfo.InvariantCulture),
             int i32 => i32.ToString(CultureInfo.InvariantCulture),
+            uint u32 => u32.ToString(CultureInfo.InvariantCulture),
             long i64 => i64.ToString(CultureInfo.InvariantCulture),
             float f => "FLOAT '" + f.ToString("R", CultureInfo.InvariantCulture) + "'",
             double d => "FLOAT '" + d.ToString("R", CultureInfo.InvariantCulture) + "'",
