@@ -4175,6 +4175,12 @@ internal static partial class RelationalSelectExecutor
             && UserFunctionRegistry.Current?.TryGetScalar(scalar.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);
 
+        if (expression is FunctionCallExpression trigonometric
+            && trigonometric.Name.ToLowerInvariant() is "sin" or "cos" or "tan" or "asin" or "acos" or "atan" or "atan2"
+            && FunctionRegistry.GetFunctionKind(trigonometric.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(trigonometric.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.Float64, true);
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();

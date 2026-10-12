@@ -1035,6 +1035,92 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         if (protocol == "frame-http2") Assert.Contains(observed, request => request.Path == "/v1/frame");
     }
 
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void TrigonometricFunctions_ParametersErrorsAndMetadata_UseRealTransport(string protocol)
+    {
+        string baseUrl = protocol == "rest" ? _http11Url : _frameH2Url;
+        using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE trig_contract (id INT, angle FLOAT, y FLOAT, x FLOAT, PRIMARY KEY (id))";
+        command.ExecuteNonQuery();
+        const string projection = "SELECT sin(a.angle), cos(a.angle), tan(a.angle), asin(a.angle), "
+            + "acos(a.angle), atan(a.angle), atan2(a.y, a.x) FROM trig_contract a";
+        Assert.All(new[] { projection, projection + " JOIN trig_contract b ON a.id = b.id" }, sql =>
+        {
+            command.CommandText = sql;
+            using var reader = command.ExecuteReader();
+            Assert.Equal(7, reader.FieldCount);
+            Assert.All(reader.GetColumnSchema(), column =>
+            {
+                Assert.Equal(typeof(double), column.DataType);
+                Assert.True(column.AllowDBNull);
+            });
+            Assert.False(reader.Read());
+        });
+
+        command.CommandText = "INSERT INTO trig_contract (id, angle, y, x) VALUES "
+            + "(1, 0, 1, 1), (2, NULL, NULL, NULL)";
+        Assert.Equal(2, command.ExecuteNonQuery());
+        command.CommandText = projection + " WHERE sin(a.angle) >= @minimum";
+        command.Parameters.AddWithValue("@minimum", 0d);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.True(reader.Read());
+            double[] expected = [0d, 1d, 0d, 0d, Math.PI / 2d, 0d, Math.PI / 4d];
+            Assert.All(Enumerable.Range(0, expected.Length), index =>
+            {
+                Assert.Equal(typeof(double), reader.GetFieldType(index));
+                Assert.Equal(expected[index], reader.GetDouble(index), 12);
+            });
+            Assert.False(reader.Read());
+        }
+        command.Parameters.Clear();
+        command.CommandText = projection + " WHERE a.id = 2";
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.All(Enumerable.Range(0, 7), index => Assert.Equal(typeof(double), reader.GetFieldType(index)));
+            Assert.True(reader.Read());
+            Assert.All(Enumerable.Range(0, 7), index => Assert.True(reader.IsDBNull(index)));
+            Assert.False(reader.Read());
+        }
+
+        command.CommandText = "SELECT sin(@angle), atan2(@y, @x)";
+        command.Parameters.AddWithValue("@angle", Math.PI / 2d);
+        command.Parameters.AddWithValue("@y", 1d);
+        command.Parameters.AddWithValue("@x", -1d);
+        using (var reader = command.ExecuteReader())
+        {
+            Assert.True(reader.Read());
+            Assert.Equal(1d, reader.GetDouble(0), 12);
+            Assert.Equal(3d * Math.PI / 4d, reader.GetDouble(1), 12);
+        }
+        command.Parameters.Clear();
+        Assert.All(new[]
+        {
+            (Sql: "SELECT asin(2)", Message: "[-1, 1]"),
+            (Sql: "SELECT sin(exp(1000))", Message: "有限数值参数"),
+            (Sql: "SELECT atan2(1)", Message: "2 个参数"),
+            (Sql: "SELECT cos('0')", Message: "数值参数"),
+        }, invalid =>
+        {
+            command.CommandText = invalid.Sql;
+            var error = Assert.Throws<SndbServerException>(() => command.ExecuteReader());
+            Assert.Contains(invalid.Message, error.ServerMessage, StringComparison.Ordinal);
+        });
+
+        int port = new Uri(baseUrl).Port;
+        ObservedRequest[] requests = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.NotEmpty(requests);
+        Assert.All(requests, request => Assert.Equal(
+            protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        Assert.Contains(requests, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        if (protocol == "frame-http2")
+            Assert.Contains(requests, request => request.Path == "/v1/frame");
+    }
+
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
         string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {

@@ -5336,6 +5336,12 @@ internal static class TableSqlExecutor
             && UserFunctionRegistry.Current?.TryGetScalar(function.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);
 
+        if (projection.ExpressionValue is FunctionCallExpression trigonometric
+            && trigonometric.Name.ToLowerInvariant() is "sin" or "cos" or "tan" or "asin" or "acos" or "atan" or "atan2"
+            && FunctionRegistry.GetFunctionKind(trigonometric.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(trigonometric.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.Float64, true);
+
         if (projection.Kind != ProjectionKind.Constant)
             return new SelectColumnInfo(null);
 
