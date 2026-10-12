@@ -91,7 +91,24 @@ public sealed record ResultColumnSchema(
     bool IsNullable,
     bool IsKey,
     bool IsAutoIncrement,
-    bool IsRowVersion);
+    bool IsRowVersion)
+{
+    /// <summary>声明的精度；未知时为 null。</summary>
+    public byte? NumericPrecision { get; init; }
+
+    /// <summary>声明的小数位数；未知时为 null。</summary>
+    public byte? NumericScale { get; init; }
+
+    /// <summary>声明的最大长度；无界或未知时为 null。</summary>
+    public int? ColumnSize { get; init; }
+
+    /// <summary>声明的可空性；无法静态确定时为 null。</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public bool? DeclaredNullable { get; init; }
+
+    /// <summary>旧物化代际须显式 REFRESH 才能访问完整声明。</summary>
+    public bool RequiresRefresh { get; init; }
+}
 
 /// <summary>
 /// SQL 流式响应的尾部统计（ndjson 最后一行）。

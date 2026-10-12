@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -91,6 +92,217 @@ public sealed class SonnetDbProviderTests : IDisposable
         await context.SaveChangesAsync();
 
         Assert.Empty(await context.Devices.ToListAsync());
+    }
+
+    /// <summary>嵌入式命名外键的建表、删除、替换、回退与关闭重开保持真实约束。</summary>
+    [Fact]
+    public async Task NamedForeignKeyMigrations_Embedded_PreserveSchemaAndConstraintAcrossReopen()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var options = CreateNamedForeignKeyOptions($"Data Source={Path.Combine(_root, "named-foreign-key")}");
+
+        await AssertNamedForeignKeyInitialAndReplacementAsync(options, deadline.Token);
+        await AssertNamedForeignKeyReopenAndRollbackAsync(options, deadline.Token);
+    }
+
+    /// <summary>真实 REST 与 HTTP/2 Frame 迁移在 Server 重开后保持命名外键和约束行为。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task NamedForeignKeyMigrations_Remote_PreserveSchemaAndConstraintAcrossServerReopen(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+        const string token = "issue-272-admin";
+        const string database = "fk";
+        var dataRoot = Path.GetFullPath(Path.Combine(_root, "fk"));
+        var owner = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(dataRoot);
+        File.WriteAllText(Path.Combine(dataRoot, ".issue-272-owner"), owner);
+        var requests = new ConcurrentQueue<(string Path, string Protocol)>();
+        WebApplication? app = null;
+
+        async Task<DbContextOptions<NamedForeignKeyMigrationContext>> StartServerAsync()
+        {
+            app = EfTestServerHost.Build(
+                new ServerOptions
+                {
+                    DataRoot = dataRoot,
+                    AutoLoadExistingDatabases = true,
+                    AllowAnonymousProbes = true,
+                    Tokens = new Dictionary<string, string> { [token] = ServerRoles.Admin },
+                },
+                extraArgs: protocol == "frame-http2" ? ["--Kestrel:Endpoints:Http:Protocols=Http2"] : null);
+            app.Use(async (httpContext, next) =>
+            {
+                requests.Enqueue((httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Protocol));
+                await next(httpContext);
+            });
+            await app.StartAsync(deadline.Token);
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var address = new Uri(Assert.Single(addresses.Addresses));
+            return CreateNamedForeignKeyOptions(
+                $"Data Source=sonnetdb+http://{address.Authority}/{database};Token={token};Timeout=30" +
+                (protocol == "frame-http2" ? ";Protocol=frame-http2" : string.Empty));
+        }
+
+        try
+        {
+            var options = await StartServerAsync();
+            await AssertNamedForeignKeyInitialAndReplacementAsync(options, deadline.Token);
+            await app!.StopAsync();
+            await app.DisposeAsync();
+            app = null;
+
+            options = await StartServerAsync();
+            await AssertNamedForeignKeyReopenAndRollbackAsync(options, deadline.Token);
+
+            var observed = requests.ToArray();
+            Assert.Contains(observed, request => request.Path.StartsWith($"/v1/db/{database}/", StringComparison.Ordinal));
+            Assert.All(observed, request => Assert.Equal(protocol == "frame-http2" ? "HTTP/2" : "HTTP/1.1", request.Protocol));
+        }
+        finally
+        {
+            try
+            {
+                if (app is not null)
+                {
+                    try { await app.StopAsync(); }
+                    finally { await app.DisposeAsync(); }
+                }
+            }
+            finally
+            {
+                var expected = Path.GetFullPath(Path.Combine(_root, "fk"));
+                if (!string.Equals(dataRoot, expected, StringComparison.Ordinal) ||
+                    File.GetAttributes(dataRoot).HasFlag(FileAttributes.ReparsePoint) ||
+                    File.ReadAllText(Path.Combine(dataRoot, ".issue-272-owner")) != owner)
+                    throw new InvalidOperationException("拒绝清理所有权不一致的命名外键测试目录。");
+                Directory.Delete(dataRoot, recursive: true);
+            }
+        }
+    }
+
+    private static DbContextOptions<NamedForeignKeyMigrationContext> CreateNamedForeignKeyOptions(string connectionString)
+        => new DbContextOptionsBuilder<NamedForeignKeyMigrationContext>()
+            .UseSonnetDB(connectionString)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+
+    private static async Task AssertNamedForeignKeyInitialAndReplacementAsync(
+        DbContextOptions<NamedForeignKeyMigrationContext> options, CancellationToken cancellationToken)
+    {
+        await using var context = new NamedForeignKeyMigrationContext(options);
+        var createScript = context.Database.GenerateCreateScript();
+        Assert.Contains("CONSTRAINT \"FK_书\"\"籍_作者\" FOREIGN KEY", createScript, StringComparison.Ordinal);
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+
+        context.Authors.AddRange(new NamedForeignKeyAuthor { Id = 1 }, new NamedForeignKeyAuthor { Id = 2 });
+        context.ReplacementAuthors.AddRange(new NamedForeignKeyReplacementAuthor { Id = 1 }, new NamedForeignKeyReplacementAuthor { Id = 3 });
+        context.Books.Add(new NamedForeignKeyBook { Id = 1, AuthorId = 1 });
+        await context.SaveChangesAsync(cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 90, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+
+        var noOpDrop = Assert.Single(context.GetService<IMigrationsSqlGenerator>().Generate(
+            [new DropForeignKeyOperation { Table = NamedForeignKeyNames.Books, Name = "Missing_约束" }]));
+        Assert.Equal(0, await context.Database.ExecuteSqlRawAsync(noOpDrop.CommandText, cancellationToken));
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 91, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+
+        await migrator.MigrateAsync(NamedForeignKeyRemoved.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, null, null, cancellationToken);
+        context.Books.Add(new NamedForeignKeyBook { Id = 2, AuthorId = 3 });
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(3, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 2, cancellationToken)).AuthorId);
+
+        await migrator.MigrateAsync(NamedForeignKeyReplaced.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.ReplacementAuthors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 92, 2, NamedForeignKeyNames.ReplacementConstraint, cancellationToken);
+        context.Books.Add(new NamedForeignKeyBook { Id = 3, AuthorId = 3 });
+        await context.SaveChangesAsync(cancellationToken);
+        context.ReplacementAuthors.Remove(await context.ReplacementAuthors.SingleAsync(author => author.Id == 3, cancellationToken));
+        await context.SaveChangesAsync(cancellationToken);
+        var remainingBookIds = await context.Books.AsNoTracking().OrderBy(book => book.Id).Select(book => book.Id).ToArrayAsync(cancellationToken);
+        Assert.Equal([1L], remainingBookIds);
+        Assert.Equal(
+            [NamedForeignKeyInitial.MigrationId, NamedForeignKeyRemoved.MigrationId, NamedForeignKeyReplaced.MigrationId],
+            (await context.Database.GetAppliedMigrationsAsync(cancellationToken)).ToArray());
+    }
+
+    private static async Task AssertNamedForeignKeyReopenAndRollbackAsync(
+        DbContextOptions<NamedForeignKeyMigrationContext> options, CancellationToken cancellationToken)
+    {
+        await using var context = new NamedForeignKeyMigrationContext(options);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.ReplacementAuthors, cancellationToken);
+        Assert.Equal(1, await context.Books.CountAsync(cancellationToken));
+        await AssertNamedForeignKeyViolationAsync(context, 93, 2, NamedForeignKeyNames.ReplacementConstraint, cancellationToken);
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(NamedForeignKeyRemoved.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, null, null, cancellationToken);
+        var orphan = new NamedForeignKeyBook { Id = 4, AuthorId = 99 };
+        context.Books.Add(orphan);
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(99, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 4, cancellationToken)).AuthorId);
+        context.Books.Remove(orphan);
+        await context.SaveChangesAsync(cancellationToken);
+
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 94, 3, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+        await migrator.MigrateAsync(Migration.InitialDatabase, cancellationToken);
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var tables = context.Database.GetDbConnection().GetSchema("Tables", [null, null, NamedForeignKeyNames.Books, null]);
+            Assert.Empty(tables.Rows.Cast<System.Data.DataRow>());
+        }
+        finally { await context.Database.CloseConnectionAsync(); }
+        Assert.Empty(await context.Database.GetAppliedMigrationsAsync(cancellationToken));
+
+        await migrator.MigrateAsync(NamedForeignKeyInitial.MigrationId, cancellationToken);
+        await AssertNamedForeignKeySchemaAsync(context, NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Authors, cancellationToken);
+        await AssertNamedForeignKeyViolationAsync(context, 95, 1, NamedForeignKeyNames.OriginalConstraint, cancellationToken);
+        context.Authors.Add(new NamedForeignKeyAuthor { Id = 10 });
+        context.Books.Add(new NamedForeignKeyBook { Id = 10, AuthorId = 10 });
+        await context.SaveChangesAsync(cancellationToken);
+        Assert.Equal(10, (await context.Books.AsNoTracking().SingleAsync(book => book.Id == 10, cancellationToken)).AuthorId);
+        Assert.Equal([NamedForeignKeyInitial.MigrationId], (await context.Database.GetAppliedMigrationsAsync(cancellationToken)).ToArray());
+    }
+
+    private static async Task AssertNamedForeignKeySchemaAsync(
+        NamedForeignKeyMigrationContext context, string? expectedName, string? expectedPrincipal, CancellationToken cancellationToken)
+    {
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var constraints = context.Database.GetDbConnection().GetSchema("ForeignKeys", [null, null, NamedForeignKeyNames.Books, null]);
+            var rows = constraints.Rows.Cast<System.Data.DataRow>().ToArray();
+            if (expectedName is null)
+            {
+                Assert.Empty(rows);
+                return;
+            }
+            var row = Assert.Single(rows);
+            Assert.Equal(expectedName, row["CONSTRAINT_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.Books, row["TABLE_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.AuthorId, row["COLUMN_NAME"]);
+            Assert.Equal(expectedPrincipal, row["PRINCIPAL_TABLE_NAME"]);
+            Assert.Equal(NamedForeignKeyNames.Id, row["PRINCIPAL_COLUMN_NAME"]);
+            Assert.Equal("Cascade", row["ON_DELETE"]);
+        }
+        finally { await context.Database.CloseConnectionAsync(); }
+    }
+
+    private static async Task AssertNamedForeignKeyViolationAsync(
+        NamedForeignKeyMigrationContext context, long bookId, long authorId, string expectedConstraint, CancellationToken cancellationToken)
+    {
+        context.Books.Add(new NamedForeignKeyBook { Id = bookId, AuthorId = authorId });
+        var error = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(cancellationToken));
+        Assert.Contains(expectedConstraint, error.ToString(), StringComparison.Ordinal);
+        context.ChangeTracker.Clear();
+        Assert.False(await context.Books.AnyAsync(book => book.Id == bookId, cancellationToken));
     }
 
     /// <summary>普通跟踪 UPDATE 实际命中零行时必须按 EF Core 契约报告乐观并发冲突。</summary>
@@ -748,6 +960,354 @@ public sealed class SonnetDbProviderTests : IDisposable
             .OrderBy(item => item.Id)
             .Select(item => item.Id)
             .ToArrayAsync());
+    }
+
+    /// <summary>以原问题三字符及组合、NULL 小样验证参数转义与实际列表/计数。</summary>
+    [Theory]
+    [InlineData("%", 1L)]
+    [InlineData("_", 3L)]
+    [InlineData("\\", 5L)]
+    [InlineData("\\%_", 5L)]
+    [InlineData(null, 0L)]
+    public async Task Query_StringPatternEscapingSmoke_PreservesLiteralAndNullParameters(string? pattern, long expectedId)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var interceptor = new ReaderCommandCaptureInterceptor();
+        using var context = new NullableDeviceContext(
+            new DbContextOptionsBuilder<NullableDeviceContext>()
+                .UseSonnetDB($"Data Source={_root}")
+                .AddInterceptors(interceptor)
+                .Options);
+        await context.Database.EnsureCreatedAsync(deadline.Token);
+        Device[] devices =
+        [
+            new() { Id = 1, Name = "100% Real" },
+            new() { Id = 2, Name = "100X Real" },
+            new() { Id = 3, Name = "A_B" },
+            new() { Id = 4, Name = "AXB" },
+            new() { Id = 5, Name = pattern == "\\%_" ? "\\%_" : "path\\name" },
+        ];
+        context.Devices.AddRange(devices);
+        await context.SaveChangesAsync(deadline.Token);
+        context.ChangeTracker.Clear();
+
+        var query = context.Devices.Where(item => item.Name.Contains(pattern!));
+        var ids = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(deadline.Token);
+
+        Assert.Equal(expectedId == 0 ? [] : new[] { expectedId }, ids);
+        Assert.Equal(ids.Length, await query.CountAsync(deadline.Token));
+        if (pattern is not null)
+        {
+            Assert.Contains(interceptor.ParameterValues, value => Equals(value, pattern));
+        }
+    }
+
+    /// <summary>实际执行三种方法的常量/参数、字面特殊字符、Unicode、空串和 NULL。</summary>
+    [Theory]
+    [InlineData(nameof(string.Contains), "%", false)]
+    [InlineData(nameof(string.Contains), "%", true)]
+    [InlineData(nameof(string.Contains), "_", false)]
+    [InlineData(nameof(string.Contains), "_", true)]
+    [InlineData(nameof(string.Contains), "\\", false)]
+    [InlineData(nameof(string.Contains), "\\", true)]
+    [InlineData(nameof(string.Contains), "\\%_", false)]
+    [InlineData(nameof(string.Contains), "\\%_", true)]
+    [InlineData(nameof(string.Contains), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.Contains), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.Contains), "", false)]
+    [InlineData(nameof(string.Contains), "", true)]
+    [InlineData(nameof(string.Contains), null, false)]
+    [InlineData(nameof(string.Contains), null, true)]
+    [InlineData(nameof(string.StartsWith), "%", false)]
+    [InlineData(nameof(string.StartsWith), "%", true)]
+    [InlineData(nameof(string.StartsWith), "_", false)]
+    [InlineData(nameof(string.StartsWith), "_", true)]
+    [InlineData(nameof(string.StartsWith), "\\", false)]
+    [InlineData(nameof(string.StartsWith), "\\", true)]
+    [InlineData(nameof(string.StartsWith), "\\%_", false)]
+    [InlineData(nameof(string.StartsWith), "\\%_", true)]
+    [InlineData(nameof(string.StartsWith), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.StartsWith), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.StartsWith), "", false)]
+    [InlineData(nameof(string.StartsWith), "", true)]
+    [InlineData(nameof(string.StartsWith), null, false)]
+    [InlineData(nameof(string.StartsWith), null, true)]
+    [InlineData(nameof(string.EndsWith), "%", false)]
+    [InlineData(nameof(string.EndsWith), "%", true)]
+    [InlineData(nameof(string.EndsWith), "_", false)]
+    [InlineData(nameof(string.EndsWith), "_", true)]
+    [InlineData(nameof(string.EndsWith), "\\", false)]
+    [InlineData(nameof(string.EndsWith), "\\", true)]
+    [InlineData(nameof(string.EndsWith), "\\%_", false)]
+    [InlineData(nameof(string.EndsWith), "\\%_", true)]
+    [InlineData(nameof(string.EndsWith), "泵_%\\😀设备", false)]
+    [InlineData(nameof(string.EndsWith), "泵_%\\😀设备", true)]
+    [InlineData(nameof(string.EndsWith), "", false)]
+    [InlineData(nameof(string.EndsWith), "", true)]
+    [InlineData(nameof(string.EndsWith), null, false)]
+    [InlineData(nameof(string.EndsWith), null, true)]
+    public async Task Query_StringPatterns_LiteralSemanticsMatchListCountAndPage(
+        string method, string? pattern, bool constant)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var interceptor = new ReaderCommandCaptureInterceptor();
+        using var context = new NullableDeviceContext(
+            new DbContextOptionsBuilder<NullableDeviceContext>()
+                .UseSonnetDB($"Data Source={_root}")
+                .AddInterceptors(interceptor)
+                .Options);
+        await context.Database.EnsureCreatedAsync(deadline.Token);
+        var devices = CreateLiteralPatternDevices();
+        context.Devices.AddRange(devices);
+        await context.SaveChangesAsync(deadline.Token);
+        context.ChangeTracker.Clear();
+
+        await AssertLiteralPatternQueryAsync(
+            context.Devices, devices, method, pattern, constant, interceptor, deadline.Token);
+    }
+
+    /// <summary>通过真实 Kestrel REST/Frame HTTP2 执行三种方法的特殊字符列表、计数和分页。</summary>
+    [Theory]
+    [InlineData(nameof(string.Contains), "%", "rest")]
+    [InlineData(nameof(string.Contains), "%", "frame-http2")]
+    [InlineData(nameof(string.Contains), "_", "rest")]
+    [InlineData(nameof(string.Contains), "_", "frame-http2")]
+    [InlineData(nameof(string.Contains), "\\", "rest")]
+    [InlineData(nameof(string.Contains), "\\", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "%", "rest")]
+    [InlineData(nameof(string.StartsWith), "%", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "_", "rest")]
+    [InlineData(nameof(string.StartsWith), "_", "frame-http2")]
+    [InlineData(nameof(string.StartsWith), "\\", "rest")]
+    [InlineData(nameof(string.StartsWith), "\\", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "%", "rest")]
+    [InlineData(nameof(string.EndsWith), "%", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "_", "rest")]
+    [InlineData(nameof(string.EndsWith), "_", "frame-http2")]
+    [InlineData(nameof(string.EndsWith), "\\", "rest")]
+    [InlineData(nameof(string.EndsWith), "\\", "frame-http2")]
+    public async Task RemoteQuery_StringPatterns_LiteralSemanticsMatchListCountAndPage(
+        string method, string pattern, string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var dataRoot = Path.Combine(_root, "remote-patterns");
+        var requests = new ConcurrentQueue<(string Method, string Protocol)>();
+        var frameHttp2 = protocol == "frame-http2";
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
+            {
+                DataRoot = dataRoot,
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string> { ["ef-patterns-admin"] = ServerRoles.Admin },
+            },
+            extraArgs: frameHttp2 ? ["--Kestrel:Endpoints:Http:Protocols=Http2"] : null);
+        app.Use(async (httpContext, next) =>
+        {
+            requests.Enqueue((httpContext.Request.Method, httpContext.Request.Protocol));
+            await next(httpContext);
+        });
+
+        try
+        {
+            await app.StartAsync(deadline.Token);
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = Assert.Single(addresses.Addresses);
+            var interceptor = new ReaderCommandCaptureInterceptor();
+            using var context = new NullableDeviceContext(
+                new DbContextOptionsBuilder<NullableDeviceContext>()
+                    .UseSonnetDB(
+                        $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/ef_patterns;" +
+                        "Token=ef-patterns-admin;Timeout=15" +
+                        (frameHttp2 ? ";Protocol=frame-http2" : string.Empty))
+                    .AddInterceptors(interceptor)
+                    .Options);
+            await context.Database.EnsureCreatedAsync(deadline.Token);
+            var devices = CreateLiteralPatternDevices();
+            context.Devices.AddRange(devices);
+            await context.SaveChangesAsync(deadline.Token);
+            context.ChangeTracker.Clear();
+            requests.Clear();
+
+            await AssertLiteralPatternQueryAsync(
+                context.Devices, devices, method, pattern, constant: false, interceptor, deadline.Token);
+
+            var observed = requests.ToArray();
+            Assert.NotEmpty(observed);
+            Assert.All(observed, request =>
+            {
+                Assert.Equal("POST", request.Method);
+                Assert.Equal(frameHttp2 ? "HTTP/2" : "HTTP/1.1", request.Protocol);
+            });
+        }
+        finally
+        {
+            using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await app.StopAsync(cleanupDeadline.Token);
+        }
+    }
+
+    /// <summary>真实 REST 与 HTTP2 对捕获的 NULL 谓词及显式线上 NULL 参数都返回空列表、零计数和空分页。</summary>
+    /// <param name="protocol">真实连接协议。</param>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task RemoteQuery_CapturedNullStringParameter_ReturnsEmptyAndPreservesWireNull(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var requests = new ConcurrentQueue<(string Method, string Protocol)>();
+        var frameHttp2 = protocol == "frame-http2";
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
+            {
+                DataRoot = Path.Combine(_root, "remote-null-patterns"),
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string> { ["ef-null-patterns-admin"] = ServerRoles.Admin },
+            },
+            extraArgs: frameHttp2 ? ["--Kestrel:Endpoints:Http:Protocols=Http2"] : null);
+        app.Use(async (httpContext, next) =>
+        {
+            requests.Enqueue((httpContext.Request.Method, httpContext.Request.Protocol));
+            await next(httpContext);
+        });
+
+        try
+        {
+            await app.StartAsync(deadline.Token);
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var address = new Uri(Assert.Single(addresses.Addresses));
+            var interceptor = new ReaderCommandCaptureInterceptor();
+            using var context = new NullableDeviceContext(
+                new DbContextOptionsBuilder<NullableDeviceContext>()
+                    .UseSonnetDB(
+                        $"Data Source=sonnetdb+http://{address.Authority}/ef_null_patterns;" +
+                        "Token=ef-null-patterns-admin;Timeout=15" +
+                        (frameHttp2 ? ";Protocol=frame-http2" : string.Empty))
+                    .AddInterceptors(interceptor)
+                    .Options);
+            await context.Database.EnsureCreatedAsync(deadline.Token);
+            var devices = CreateLiteralPatternDevices();
+            context.Devices.AddRange(devices);
+            await context.SaveChangesAsync(deadline.Token);
+            context.ChangeTracker.Clear();
+            requests.Clear();
+
+            // EF 可合法将捕获的 NULL 谓词折叠为 FALSE；这里只验证实际查询结果，不伪称参数必然上网。
+            string? capturedPattern = null;
+            foreach (string method in new[] { nameof(string.Contains), nameof(string.StartsWith), nameof(string.EndsWith) })
+            {
+                await AssertLiteralPatternQueryAsync(
+                    context.Devices, devices, method, capturedPattern, constant: false, interceptor, deadline.Token);
+            }
+
+            // 独立 raw wire 合同：保留相同 NULL 守卫，以显式类型参数确认真实传输 NULL。
+            using var parameterFactory = context.Database.GetDbConnection().CreateCommand();
+            var parameter = parameterFactory.CreateParameter();
+            parameter.ParameterName = "nullPattern";
+            parameter.DbType = System.Data.DbType.String;
+            parameter.Value = DBNull.Value;
+            var wireQuery = context.Devices.FromSqlRaw(
+                "SELECT \"Id\", \"Name\", \"Enabled\" FROM \"Devices\" " +
+                "WHERE @nullPattern IS NOT NULL AND \"Name\" LIKE @nullPattern",
+                parameter);
+            interceptor.Reset();
+            Assert.Empty(await wireQuery.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(deadline.Token));
+            Assert.Contains(interceptor.ParameterValues, static value => value is null);
+            Assert.Equal(0, await wireQuery.CountAsync(deadline.Token));
+            Assert.Contains(interceptor.ParameterValues, static value => value is null);
+            Assert.Empty(await wireQuery.OrderBy(item => item.Id).Skip(1).Take(2)
+                .Select(item => item.Id).ToArrayAsync(deadline.Token));
+            Assert.Contains(interceptor.ParameterValues, static value => value is null);
+
+            var observed = requests.ToArray();
+            Assert.NotEmpty(observed);
+            Assert.All(observed, request =>
+            {
+                Assert.Equal("POST", request.Method);
+                Assert.Equal(frameHttp2 ? "HTTP/2" : "HTTP/1.1", request.Protocol);
+            });
+        }
+        finally
+        {
+            using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await app.StopAsync(cleanupDeadline.Token);
+        }
+    }
+
+    private static Device[] CreateLiteralPatternDevices() =>
+    [
+        new() { Id = 1, Name = "100% Real" },
+        new() { Id = 2, Name = "100X Real" },
+        new() { Id = 3, Name = "A_B" },
+        new() { Id = 4, Name = "AXB" },
+        new() { Id = 5, Name = "path\\name" },
+        new() { Id = 6, Name = "%leading" },
+        new() { Id = 7, Name = "trailing%" },
+        new() { Id = 8, Name = "_leading" },
+        new() { Id = 9, Name = "trailing_" },
+        new() { Id = 10, Name = "\\leading" },
+        new() { Id = 11, Name = "trailing\\" },
+        new() { Id = 12, Name = "\\%_" },
+        new() { Id = 13, Name = "泵_%\\😀设备" },
+        new() { Id = 14, Name = string.Empty },
+        new() { Id = 15, Name = null! },
+    ];
+
+    private static IQueryable<Device> CreateLiteralPatternQuery(
+        IQueryable<Device> source, string method, string? pattern, bool constant)
+    {
+        if (!constant)
+        {
+            return method switch
+            {
+                nameof(string.Contains) => source.Where(item => item.Name.Contains(pattern!)),
+                nameof(string.StartsWith) => source.Where(item => item.Name.StartsWith(pattern!)),
+                nameof(string.EndsWith) => source.Where(item => item.Name.EndsWith(pattern!)),
+                _ => throw new ArgumentOutOfRangeException(nameof(method)),
+            };
+        }
+
+        var item = Expression.Parameter(typeof(Device), "item");
+        var predicate = Expression.Call(
+            Expression.Property(item, nameof(Device.Name)),
+            typeof(string).GetMethod(method, [typeof(string)])!,
+            Expression.Constant(pattern, typeof(string)));
+        return source.Where(Expression.Lambda<Func<Device, bool>>(predicate, item));
+    }
+
+    private static async Task AssertLiteralPatternQueryAsync(
+        IQueryable<Device> source,
+        Device[] devices,
+        string method,
+        string? pattern,
+        bool constant,
+        ReaderCommandCaptureInterceptor interceptor,
+        CancellationToken cancellationToken)
+    {
+        var expected = devices.Where(item => item.Name is not null && pattern is not null && (method switch
+        {
+            nameof(string.Contains) => item.Name.Contains(pattern, StringComparison.Ordinal),
+            nameof(string.StartsWith) => item.Name.StartsWith(pattern, StringComparison.Ordinal),
+            nameof(string.EndsWith) => item.Name.EndsWith(pattern, StringComparison.Ordinal),
+            _ => throw new ArgumentOutOfRangeException(nameof(method)),
+        })).OrderBy(item => item.Id).Select(item => item.Id).ToArray();
+        var query = CreateLiteralPatternQuery(source, method, pattern, constant);
+        interceptor.Reset();
+        var actual = await query.OrderBy(item => item.Id).Select(item => item.Id).ToArrayAsync(cancellationToken);
+
+        Assert.Equal(expected, actual);
+        if (!constant && !string.IsNullOrEmpty(pattern))
+        {
+            Assert.Contains(interceptor.ParameterValues, value => Equals(value, pattern));
+        }
+
+        Assert.Equal(expected.Length, await query.CountAsync(cancellationToken));
+        Assert.Equal(
+            expected.Skip(1).Take(2),
+            await query.OrderBy(item => item.Id).Skip(1).Take(2).Select(item => item.Id).ToArrayAsync(cancellationToken));
     }
 
     /// <summary>
@@ -1449,6 +2009,59 @@ public sealed class SonnetDbProviderTests : IDisposable
         var exception = Assert.Throws<NotSupportedException>(() => generator.Generate([alterColumn]));
 
         Assert.Contains("计算列", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, Migration.InitialDatabase, null)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, Migration.InitialDatabase, null)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000100_InitialDevices")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000100_InitialDevices")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000300_AddAndAlterDeviceRetryCount")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000300_AddAndAlterDeviceRetryCount")]
+    public void GenerateScript_WithIdempotentOptions_ThrowsNotSupported(
+        MigrationsSqlGenerationOptions options,
+        string fromMigration,
+        string? toMigration)
+    {
+        using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+        var migrator = context.GetService<IMigrator>();
+
+        var exception = Assert.Throws<NotSupportedException>(
+            () => migrator.GenerateScript(fromMigration, toMigration, options));
+
+        Assert.Contains("Idempotent", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("迁移历史条件保护", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("MigrateAsync()", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions)]
+    public void GenerateScript_WithoutMigrationsAndWithIdempotentOptions_ThrowsNotSupported(
+        MigrationsSqlGenerationOptions options)
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        Assert.Empty(context.GetService<IMigrationsAssembly>().Migrations);
+        var migrator = context.GetService<IMigrator>();
+
+        var exception = Assert.Throws<NotSupportedException>(() => migrator.GenerateScript(options: options));
+
+        Assert.Contains("Idempotent", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("迁移历史条件保护", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Default)]
+    [InlineData(MigrationsSqlGenerationOptions.NoTransactions)]
+    public void GenerateScript_WithoutIdempotentOptions_GeneratesMigrationAndHistorySql(
+        MigrationsSqlGenerationOptions options)
+    {
+        using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+        var script = context.GetService<IMigrator>().GenerateScript(options: options);
+
+        Assert.Contains("CREATE TABLE \"Devices\"", script, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO \"__EFMigrationsHistory\"", script, StringComparison.Ordinal);
+        Assert.Contains("20260613000300_AddAndAlterDeviceRetryCount", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2614,4 +3227,153 @@ public sealed class AddAndAlterDeviceRetryCount : Migration
             oldDefaultValue: 2.5d);
         migrationBuilder.DropColumn("RetryCount", "Devices");
     }
+}
+
+internal static class NamedForeignKeyNames
+{
+    internal const string Books = "A06 书\"籍";
+    internal const string Authors = "A06 作\"者";
+    internal const string ReplacementAuthors = "A06 替\"代作者";
+    internal const string OriginalConstraint = "FK_书\"籍_作者";
+    internal const string ReplacementConstraint = "FK_替\"代_作者";
+    internal const string Id = "Id";
+    internal const string AuthorId = "Author ID";
+}
+
+internal sealed class NamedForeignKeyMigrationContext(DbContextOptions<NamedForeignKeyMigrationContext> options) : DbContext(options)
+{
+    internal DbSet<NamedForeignKeyAuthor> Authors => Set<NamedForeignKeyAuthor>();
+    internal DbSet<NamedForeignKeyReplacementAuthor> ReplacementAuthors => Set<NamedForeignKeyReplacementAuthor>();
+    internal DbSet<NamedForeignKeyBook> Books => Set<NamedForeignKeyBook>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<NamedForeignKeyAuthor>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.Authors);
+            entity.HasKey(author => author.Id);
+            entity.Property(author => author.Id).HasColumnType("INT").ValueGeneratedNever();
+        });
+        modelBuilder.Entity<NamedForeignKeyReplacementAuthor>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.ReplacementAuthors);
+            entity.HasKey(author => author.Id);
+            entity.Property(author => author.Id).HasColumnType("INT").ValueGeneratedNever();
+        });
+        modelBuilder.Entity<NamedForeignKeyBook>(entity =>
+        {
+            entity.ToTable(NamedForeignKeyNames.Books);
+            entity.HasKey(book => book.Id);
+            entity.Property(book => book.Id).HasColumnType("INT").ValueGeneratedNever();
+            entity.Property(book => book.AuthorId).HasColumnName(NamedForeignKeyNames.AuthorId).HasColumnType("INT");
+            entity.HasOne<NamedForeignKeyAuthor>().WithMany().HasForeignKey(book => book.AuthorId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName(NamedForeignKeyNames.OriginalConstraint);
+        });
+    }
+}
+
+internal sealed class NamedForeignKeyAuthor
+{
+    public long Id { get; set; }
+}
+
+internal sealed class NamedForeignKeyReplacementAuthor
+{
+    public long Id { get; set; }
+}
+
+internal sealed class NamedForeignKeyBook
+{
+    public long Id { get; set; }
+    public long AuthorId { get; set; }
+}
+
+/// <summary>创建带命名外键的初始书籍及两种作者表。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyInitial : Migration
+{
+    internal const string MigrationId = "20261012010100_NamedForeignKeyInitial";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.Authors,
+            columns: table => new { Id = table.Column<long>(type: "INT", nullable: false) },
+            constraints: table => table.PrimaryKey("PK_A06Authors", row => row.Id));
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.ReplacementAuthors,
+            columns: table => new { Id = table.Column<long>(type: "INT", nullable: false) },
+            constraints: table => table.PrimaryKey("PK_A06ReplacementAuthors", row => row.Id));
+        migrationBuilder.CreateTable(
+            name: NamedForeignKeyNames.Books,
+            columns: table => new
+            {
+                Id = table.Column<long>(type: "INT", nullable: false),
+                AuthorId = table.Column<long>(name: NamedForeignKeyNames.AuthorId, type: "INT", nullable: false),
+            },
+            constraints: table =>
+            {
+                table.PrimaryKey("PK_A06Books", row => row.Id);
+                table.ForeignKey(
+                    name: NamedForeignKeyNames.OriginalConstraint,
+                    column: row => row.AuthorId,
+                    principalTable: NamedForeignKeyNames.Authors,
+                    principalColumn: NamedForeignKeyNames.Id,
+                    onDelete: ReferentialAction.Cascade);
+            });
+    }
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropTable(NamedForeignKeyNames.Books);
+        migrationBuilder.DropTable(NamedForeignKeyNames.ReplacementAuthors);
+        migrationBuilder.DropTable(NamedForeignKeyNames.Authors);
+    }
+}
+
+/// <summary>按模型原名删除外键，回退时恢复原关系。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyRemoved : Migration
+{
+    internal const string MigrationId = "20261012010200_NamedForeignKeyRemoved";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropForeignKey(NamedForeignKeyNames.OriginalConstraint, NamedForeignKeyNames.Books);
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddForeignKey(
+            name: NamedForeignKeyNames.OriginalConstraint,
+            table: NamedForeignKeyNames.Books,
+            column: NamedForeignKeyNames.AuthorId,
+            principalTable: NamedForeignKeyNames.Authors,
+            principalColumn: NamedForeignKeyNames.Id,
+            onDelete: ReferentialAction.Cascade);
+}
+
+/// <summary>以新名称及新引用表替换关系，回退时删除替换约束。</summary>
+[DbContext(typeof(NamedForeignKeyMigrationContext))]
+[Migration(MigrationId)]
+public sealed class NamedForeignKeyReplaced : Migration
+{
+    internal const string MigrationId = "20261012010300_NamedForeignKeyReplaced";
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddForeignKey(
+            name: NamedForeignKeyNames.ReplacementConstraint,
+            table: NamedForeignKeyNames.Books,
+            column: NamedForeignKeyNames.AuthorId,
+            principalTable: NamedForeignKeyNames.ReplacementAuthors,
+            principalColumn: NamedForeignKeyNames.Id,
+            onDelete: ReferentialAction.Cascade);
+
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropForeignKey(NamedForeignKeyNames.ReplacementConstraint, NamedForeignKeyNames.Books);
 }

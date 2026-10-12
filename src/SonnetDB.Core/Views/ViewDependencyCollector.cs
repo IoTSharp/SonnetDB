@@ -100,7 +100,22 @@ internal static class ViewDependencyCollector
 
         foreach (var join in select.JoinClauses)
         {
-            if (join.Subquery is null)
+            if (join.ValuesRows is { } valuesRows)
+            {
+                long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                int cells = 0;
+                foreach (var row in valuesRows)
+                {
+                    foreach (var value in row)
+                    {
+                        SonnetDB.Sql.Execution.SqlExecutor.ThrowIfCancellationRequested();
+                        if (++cells > 1_000_000 || System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds >= 3)
+                            throw new NotSupportedException("VALUES 依赖遍历超出单元格或三秒预算。");
+                        VisitExpression(value, dependencies, graphDependencies, bindSourceName, ref hasParameters);
+                    }
+                }
+            }
+            else if (join.Subquery is null)
             {
                 string name = bindSourceName?.Invoke(join.TableName, join.TableNameIsQuoted) ?? join.TableName;
                 if (!string.IsNullOrEmpty(name))

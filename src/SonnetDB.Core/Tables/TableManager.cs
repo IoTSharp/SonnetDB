@@ -910,6 +910,7 @@ public sealed partial class TableManager : IDisposable
             var stores = new List<(string Name, TableStore Store)>(names.Length);
             foreach (string name in names)
             {
+                SqlTransactionContext.Current?.CheckCommitDeadline();
                 TableSchema schema = Catalog.TryGet(name)
                     ?? throw new InvalidOperationException($"table '{name}' 不存在。");
                 stores.Add((name, OpenStoreLocked(schema)));
@@ -921,11 +922,14 @@ public sealed partial class TableManager : IDisposable
             {
                 foreach ((string _, TableStore store) in stores)
                 {
-                    Monitor.Enter(store.SynchronizationRoot);
+                    store.EnterReadLock();
                     locksHeld++;
                 }
                 foreach ((string name, TableStore store) in stores)
+                {
+                    SqlTransactionContext.Current?.CheckCommitDeadline();
                     bindings.Add(name, new TableReadBinding(store, store.AcquireTableReadSnapshot()));
+                }
                 return bindings;
             }
             catch
@@ -1607,7 +1611,8 @@ public sealed partial class TableManager : IDisposable
 
         void CountGeneratedCascadeRow()
         {
-            if (transaction?.IsExecutingDeferredTriggers == true && generatedRows >= 100_000)
+            if ((transaction?.IsExecutingDeferredTriggers == true || transaction?.IsSerializableCommitInProgress == true)
+                && generatedRows >= 100_000)
                 throw new RoutineExecutionException(RoutineErrorCodes.DeferredLimit,
                     "延迟触发器提交阶段的级联行数超过 100000 行预算。");
             generatedRows++;

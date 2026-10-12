@@ -680,6 +680,68 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         }
     }
 
+    /// <summary>默认恢复预算在后台持久入队后自然到期，单次 HTTP 观察仍可等到精确终态。</summary>
+    [Fact]
+    public async Task SemanticSearch_RecoveryBudgetExpiresAfterBackgroundEnqueue_CommitsExactProgress()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await RestartWithDefaultRecoveryObservationAsync(deadline.Token);
+        using var client = CreateClient();
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var processing = _app.Services.GetRequiredService<ObjectSemanticProcessingService>();
+        var objects = new SndbObjectStore(tsdb);
+        const string bucket = "backfill-recovery-budget";
+        objects.CreateBucket(bucket);
+        objects.SetSemanticOptions(bucket, true, true, 32, 32, 75);
+        using var image = new MemoryStream(CreatePng(8, 8, SKColors.Red));
+        await objects.PutObjectAsync(bucket, "disabled.png", image, "image/png", cancellationToken: deadline.Token);
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        processing.AfterBackfillObjectForTest = budget =>
+        {
+            using var registration = budget.Token.Register(() => cancelled.TrySetResult());
+            entered.TrySetResult(budget.Token);
+            release.Task.WaitAsync(TimeSpan.FromSeconds(3), deadline.Token).GetAwaiter().GetResult();
+        };
+        var store = new ObjectProcessingJobStore(tsdb);
+        try
+        {
+            Assert.True(store.TryWriteBackfill(null,
+                new ObjectSemanticBackfillState(bucket, null, 0, 0, 0, false, DateTimeOffset.UtcNow), deadline.Token));
+            var pageToken = await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token);
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2), deadline.Token);
+            Assert.True(pageToken.IsCancellationRequested);
+            Assert.False(deadline.IsCancellationRequested);
+            _output.WriteLine("Natural recovery=250ms/page=5000ms: linked page token cancelled while caller remains active.");
+            await TraceBackfillAsync(client, bucket, "recovery budget expired while page held", deadline.Token);
+            using var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", null, deadline.Token);
+            _output.WriteLine("recovery-budget in-flight POST HTTP {0}: {1}", (int)response.StatusCode,
+                await response.Content.ReadAsStringAsync(deadline.Token));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var progress = await response.Content.ReadFromJsonAsync(
+                ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse, deadline.Token);
+            Assert.NotNull(progress);
+            Assert.False(progress.Completed);
+            Assert.True(progress.HasMore);
+            Assert.Equal(0, progress.ScannedObjects);
+            Assert.Equal(0, progress.QueuedObjects);
+            Assert.Equal(0, progress.SkippedObjects);
+            release.TrySetResult();
+            var completed = await WaitForBackfillCompletionAsync(bucket, progress, deadline.Token);
+            Assert.True(completed.Completed);
+            Assert.Equal(1, completed.ScannedObjects);
+            Assert.Equal(1, completed.QueuedObjects);
+            Assert.Equal(0, completed.SkippedObjects);
+            await TraceBackfillAsync(client, bucket, "recovery budget committed", deadline.Token);
+        }
+        finally
+        {
+            release.TrySetResult();
+            processing.AfterBackfillObjectForTest = null;
+        }
+    }
+
     /// <summary>回填入队完成后内部预算到期仍返回真实 HTTP 成功及已持久化的完成计数。</summary>
     [Fact]
     public async Task SemanticSearch_BackfillBudgetExpiresAfterEnqueue_ReturnsCommittedProgress()
@@ -1219,6 +1281,22 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         var options = CreateOptions(_dataRoot!, "managed");
         // 仅本测试主动暂停后台页；恢复预算须覆盖三秒观察，生产与其它测试仍使用默认预算。
         options.SemanticSearch.ObjectProcessing.RecoveryBudgetMilliseconds = 5_000;
+        options.SemanticSearch.ObjectProcessing.BackfillBudgetMilliseconds = 5_000;
+        _app = TestServerHost.Build(options, services =>
+            services.AddSingleton<IMultimodalEmbeddingProvider>(new FakeMultimodalEmbeddingProvider()));
+        await _app.StartAsync(cancellationToken);
+        var addresses = _app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+        _baseUrl = addresses.Addresses.First();
+    }
+
+    private async Task RestartWithDefaultRecoveryObservationAsync(CancellationToken cancellationToken)
+    {
+        await _app!.StopAsync(cancellationToken);
+        await _app.DisposeAsync();
+        var options = CreateOptions(_dataRoot!, "managed");
+        Assert.Equal(250, options.SemanticSearch.ObjectProcessing.RecoveryBudgetMilliseconds);
         options.SemanticSearch.ObjectProcessing.BackfillBudgetMilliseconds = 5_000;
         _app = TestServerHost.Build(options, services =>
             services.AddSingleton<IMultimodalEmbeddingProvider>(new FakeMultimodalEmbeddingProvider()));

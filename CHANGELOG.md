@@ -8,11 +8,30 @@
 ## [Unreleased]
 
 ### Added
+
+- GH-Issue #261：原生零行 reader 保留普通/物化视图的声明列名、SQL/CLR 类型、可空性及已知 DECIMAL 精度/小数位；未知声明保持未知，schema 查询不执行视图 UDF。物化快照 v2 在 CRC 内保存代际声明，兼容读 v1 行并要求显式 REFRESH 后访问完整元数据；Frame v3 显式协商完整声明，保留旧编码，仅对执行前版本拒绝回退一次 v2。
+
+
+- 关系基表轻事务新增保守的表级乐观 `Serializable` 隔离：保留首次读取的 store/schema/generation/sequence，提交前按固定顺序锁定实际读、写及外键依赖并校验；冲突返回 `table_serialization_conflict`，终止整个事务并要求从头重试。嵌入式与 REST/h2c NDJSON 事务会话均显式传递隔离级别并拒绝未确认的 Serializable 降级；默认 ReadCommitted 行为保持（Issue #225）。
+
+
+- PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
+- GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
+
 - GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
 
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
+
+- GH-Issue #244：关系表 INSERT VALUES 支持已有无行标量表达式、参数 CAST、函数、CASE 与算术；Decimal 目标和显式 DECIMAL CAST 保留原数值文本，CASE/COALESCE 保持短路及单次函数求值。全部行先准备再预留自增号/写入，RETURNING、ON CONFLICT、默认值和触发器/事务保存点沿用现有合同；本地与实际 REST/h2c 验证、正式发布和外部 ORM 验收分列。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
+
+- GH-Issue #220：新增原生 `lpad` / `rpad`，默认空格或循环自定义填充、UTF-16 宽度、较小宽度保留原串及 NULL 传播；拒绝空填充、非法宽度与损坏 UTF-16 输出（包括代理对截断），单次结果限定 1,048,576 个 UTF-16 单元，空关系与全 NULL 结果保留 STRING 声明元数据。正式包发布与 FreeSql #2234 适配另行验收。
+- GH-Issue #219：新增原生 `shift_left` / `shift_right` 标量函数，固定有符号 Int64/64 位、0..63 计数、左移丢出位/右移保留符号和 NULL 传播，拒绝非整数及越界参数；空关系结果保留 Int64 声明元数据。正式包发布与 FreeSql #2234 的 CLR 位宽/掩码适配另行验收。
+
+- GH-Issue #221：新增弧度制 `sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `atan2(y,x)` 标量函数，明确可空 Float64、有限数值与反三角函数定义域合同，并保留空结果类型元数据；正式发布和 FreeSql Provider 验收仍独立。
+
+- GH-Issue #223：新增关系表双参数 `string_agg`/`group_concat` 基础聚合，支持 NULL/参数分隔符、GroupBy/JOIN/关联单列子查询与 nullable String 元数据，逐行一次求值并限制共享拼接预算；可选聚合语法、measurement、正式包与 FreeSql 集成独立验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
@@ -475,12 +494,23 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+
+- PR #302：后台 Flush 集成 fixture 显式关闭自动 Compaction，保留每批 15 秒、最终至少 8 个物理段和 5000 点查询合同；每批等待退出后立即断言段数增长，写入/等待循环增加次数、总墙钟与取消边界，正常重新打开用例保留。生产默认配置不改，原 Windows CI FAIL 与新 head 门禁独立。
+- 物化视图读取保留已持久化的完整输出名称，修复带点 quoted alias 在空结果/CTE 的声明及重开后值绑定；补齐 Streaming ACK 两层精确超时文案测试合同，原预算与恢复断言保持（Issue #261、#300、#301；13 PR 组合验证）。
+- **GH-Issue #228 ADO.NET HasRows**：按真实结果探测是否存在行，保留空 SELECT/RETURNING 的声明列元数据；首行探测复用命令超时、取消与远程错误传播，并由后续同步/异步 Read 返回该行。正式 NuGet/Server 发布与 FreeSql 消费者回归仍待验收。
+
+- 后台语义回填区分恢复工作预算与真实宿主取消：工作预算到期停止新增对象，以原五秒提交窗口保存已持久入队前缀的游标和计数；HTTP仍使用请求取消，生产默认250ms、调用者取消及存储错误合同不变。新增真实KV整库重开、宿主取消和Kestrel自然预算回归；跨崩溃的任务/计数原子性与真实模型质量独立验收。
 - PR #298：后台已领取语义回填页的控制测试仅为独立宿主配置匹配的恢复/页预算，在释放三秒有界观察前确认页与调用者令牌未取消；保留真实进行中响应和终态 scanned=1/queued=1/skipped=0，生产默认预算与原页预算取消用例不变。默认恢复取消后的持久计数缺口已受控复现，另行跟踪。
 - 批量集成已审 PR #281 与 #217；语义图片回填测试对明确进行中 response 等待同一持久终态，保留首次排队1及重复回填scanned1/queued0/skipped1、thumbnail/search/delete/disable原断言；真实后台持页 partial0 回归与完整18个Semantic测试通过，生产代码及真实模型质量声明不变。
 - **前端依赖与 MapLibre 6 迁移（2026-10-12）**：保留 PR #217 覆盖 #218 的 Web/VS Code 锁定依赖更新；两个地图组件改用 ESM namespace/type 导入和局部创建实例，并通过 Vite `worker&url` 打包和显式配置独立地图 worker，保留现有瓦片、投影、结果地图和轨迹逻辑。
 
 
 - 持久死信 CI 测试：检查点锁故障恢复使用一致的 2 秒存储预算和贯穿初始化/故障/重开的 15 秒调用者取消边界；精确区分订阅包装层、检查点操作层和文件锁三个已存在的超时消息及 inner exception，保留意图恢复与恰好一次断言，不修改生产超时。
+
+- GH-Issue #261 声明元数据回归：已知 Int64 在两种 ADO schema API 中保留 precision=19/scale=0，未知 Decimal 和未知类型仍不编造精度；LIMIT 0 的 JOIN 声明探测不再伪增实际输入 LIMIT 下推计数，保留主 FROM 的下推与零候选/零保留行合同。
+
+- **GH-Issue #273 EF Core 迁移脚本合同**：生成 `Idempotent` 或 `Idempotent | NoTransactions` 脚本时明确抛出 `NotSupportedException`，避免缺少迁移历史保护的脚本被误当作可重放脚本；普通脚本与按历史表顺序执行的 `MigrateAsync` 保持原合同。
+
 - GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
 - GH-Issue #241：ADD/ALTER DECIMAL/NUMERIC 的 precision/scale 穿透解析、schema 演进及持久化，未修改列保留原声明，远程表元数据保留 scale=0；DDL 在发布 schema 前无损预检全部旧行与默认值，拒绝小数损失/溢出及原始字符串转换舍入。表 schema v10、public 构造/解构和普通写入合同保持；持续值约束归 #264，正式包及 XCode 迁移验收另列。
 - GH-Issue #235：嵌入式和远程 ADO 的 Decimal 参数保留实际 System.Decimal 精度；DECIMAL 写入、CAST、比较及算术按原数值文本解析浮点字面量，明确拒绝舍入、下溢和溢出。既有 Double/Float/Int64 及非关系模型的浮点参数语义保持；纯数值转换不重复执行动态 UDF。声明 p/s 约束、正式修复包和上游 ORM 验收独立推进。
@@ -491,10 +521,16 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - Linux CI：仅持久死信重新签名意图不匹配理论用例统一使用两秒初开/重开预算，以45秒调用者截止覆盖初始化、锁故障、损坏状态读写与重开；保留真实存储超时原消息、损坏拒绝和原spool不确认断言，原200ms初开失败保持。
 - Windows CI：持久订阅确认的锁故障用例统一使用2秒初开/重开预算，分别核生产超时原消息和实际调用者取消，并验证相同 delivery/checkpoint/pending 恢复；原200ms Open失败保留。
 - Windows CI：持久死信 pending isolation 恢复用例统一使用2秒存储预算，保留真实锁超时和重开恢复，并独立核15秒调用者未取消；保留原200ms Open/recovery失败，生产配置不变。
+
+- 修复 #271 BLOB 参数查询：嵌入式保留二进制字面量快照，远程使用严格十六进制 `X'...'` 字面量，普通及关联等值按字节内容比较，并保留主键/二级索引与 EXISTS 访问路径；公开修复包及实际 ABP Passkey/A06 验收仍独立进行。
 - Windows Outbox 批次取消测试使用 2 秒初始化/批次预算，并独立核处理器真实取消、15 秒调用者未取消及租约可恢复；保留原 100ms 构造阶段取消失败，生产预算不变。
 - Windows CI：持久订阅确认故障用例为初始存储提供合理有界预算，独立区分真实存储超时、dispatcher总预算和调用者取消，保留持久批次恢复断言。
 - Windows CI：物理读取过载 HTTP 映射用例为冷启动共享主机提供 15 秒有界请求预算，保留真实 503、Retry-After 和错误码断言；不改变服务端过载或生产超时配置。
 - **Windows CI 时间与并发断言（2026-10-12）**：缓存端到端用例核对后台/手动清理竞争后的物理过期项，独立精确删除计数用例关闭后台维护；进程取消用例用专用线程和有界 readiness 观测保留原执行/整树回收断言，空流窗口用例保留真正的操作超时与超时后恢复验证。仅调整测试，不修改生产逻辑。
+
+- **GH-Issue #270 EF Core 字符串字面查询**：对 `Contains`、`StartsWith`、`EndsWith` 的运行时 LIKE 参数按反斜杠、`%`、`_` 顺序转义并保留参数化；显式保护 NULL 参数，避免 CONCAT 将其转为空串后误匹配。修正引擎 `%` 通配符遇到文本 `%` 时的匹配顺序和回溯，普通 SQL LIKE 通配符合同保持，消费方无需预转义。
+
+- EF Core 建表保留并安全引用命名外键，按模型原名执行删除、替换与回退迁移（GH-Issue #272；源码修复，正式包与消费者验收待完成）。
 - M47-P07 分发/P07调用层改读真实Job收据的status/exitCode/cleanupComplete，拒绝失败和未清理；修正新PowerShell进程未设置或残留LASTEXITCODE导致实际prepare完成却误报失败，6项真实进程包装合同通过（仅合成controller）。
 - **M47-P03 KV及时序预览渲染收尾（2026-10-10）**：KV及时序点表/监控结果表使用虚拟滚动，避免500～1000行同时挂载导致原30秒旅程或5秒点击超时；保留全部已加载数据及KV1000/measurement500条上限、cursor截断、原值导出与权限合同，验证末尾行选择和筛选后的选中导出。P03按[R1本地验收](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)完成；七模型专用读取仍延期，发行/实物/远端门禁与NOT_READY保持。
 - **M47-P02 Web smoke 修复（2026-10-10）**：修复 logout 的 Vite/Node 环境错用和 Studio 夹具身份/生命周期前置；fixture smoke 与独立真实 Server suite 分开收集，Node 合同成为 CI 必经步骤。相同 236 个输入上 Web build、448 条 Node 合同、307 条 fixture 与 12 条 StudioHost 回归通过；默认 25 条宿主专用 skip、30 条独立 real suite 和远端门禁分列。保留两次历史 CI 失败、原执行器越界清理及本地中断记录，产品仍 NOT_READY；见 [P02 报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。
@@ -2380,3 +2416,11 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 [3.0.1]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
+
+
+- 2026-10-12 批次02测试声明合同补正：远程视图 helper 在两种 schema API 中严格核已知 Int64 的19/0与未知类型的 null 精度/scale；生产未改。完整真实两类97/97、焦点2/2以及同旧DLL短TEMP四例4/4已核验并保留旧FAIL，焦点不重复累计；短TEMP通过不作为路径异常根因证明，最终批次门禁仍独立。
+
+- 2026-10-12 批次04 #280组合实测：完整Core String/Expression 78/78、完整EF 155/155，保留参数化LIKE转义、NULL守卫及embedded/REST/h2列表计数分页断言；本验证阶段未改生产或测试源码，最终批次门禁和正式包验收仍独立。
+
+
+- 2026-10-12 批次04 #282及remoteNULL补测：新增一个REST/HTTP2双模式回归，区分捕获NULL可合法折叠FALSE与typed NULL raw wire实际捕获；实际空列表/计数0/空分页和协议断言通过，命名外键原范围保持。完整EF160/160，焦点5不重复累计；Core78未重跑，正式270/272验收仍开放。

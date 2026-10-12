@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
 using SonnetDB.Model;
@@ -16,6 +17,9 @@ namespace SonnetDB.Query.Functions;
 /// </summary>
 public static class FunctionRegistry
 {
+    private const int MaxPaddingResultLength = 1_048_576;
+    private static readonly UTF8Encoding _paddingUtf8Encoding = new(false, true);
+
     private static readonly IAggregateFunction[] _aggregateFunctionList = CreateAggregateFunctionList();
     private static readonly IScalarFunction[] _scalarFunctionList = CreateScalarFunctionList();
     private static readonly IWindowFunction[] _windowFunctionList = CreateWindowFunctionList();
@@ -111,6 +115,8 @@ public static class FunctionRegistry
             "first", Aggregator.First, AggregateFieldTypes.All),
         new BuiltInAggregateFunction(
             "last", Aggregator.Last, AggregateFieldTypes.All),
+        new StringAggregateFunction("string_agg"),
+        new StringAggregateFunction("group_concat"),
         // Tier 2 — 扩展聚合（PR #52）
         new StddevFunction(),
         new VarianceFunction(),
@@ -149,7 +155,17 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("exp", 1, 1, EvaluateExp),
         new BuiltInScalarFunction("power", 2, 2, EvaluatePower),
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
+        new BuiltInScalarFunction("shift_left", 2, 2, static args => EvaluateShift(args, left: true)),
+        new BuiltInScalarFunction("shift_right", 2, 2, static args => EvaluateShift(args, left: false)),
+
         new BuiltInScalarFunction("uuid", 0, 0, static _ => Guid.NewGuid().ToString("D")),
+        new BuiltInScalarFunction("sin", 1, 1, static args => EvaluateTrigonometric(args, "sin")),
+        new BuiltInScalarFunction("cos", 1, 1, static args => EvaluateTrigonometric(args, "cos")),
+        new BuiltInScalarFunction("tan", 1, 1, static args => EvaluateTrigonometric(args, "tan")),
+        new BuiltInScalarFunction("asin", 1, 1, static args => EvaluateTrigonometric(args, "asin")),
+        new BuiltInScalarFunction("acos", 1, 1, static args => EvaluateTrigonometric(args, "acos")),
+        new BuiltInScalarFunction("atan", 1, 1, static args => EvaluateTrigonometric(args, "atan")),
+        new BuiltInScalarFunction("atan2", 2, 2, static args => EvaluateTrigonometric(args, "atan2")),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),
@@ -159,6 +175,8 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("rtrim", 1, 2, EvaluateRTrim),
         new BuiltInScalarFunction("length", 1, 1, EvaluateLength),
         new BuiltInScalarFunction("char_length", 1, 1, EvaluateLength),
+        new BuiltInScalarFunction("lpad", 2, 3, static args => EvaluatePadding(args, left: true)),
+        new BuiltInScalarFunction("rpad", 2, 3, static args => EvaluatePadding(args, left: false)),
         new BuiltInScalarFunction("substring", 2, 3, EvaluateSubstring),
         new BuiltInScalarFunction("substr", 2, 3, EvaluateSubstring),
         new BuiltInScalarFunction("position", 2, 2, EvaluatePosition),
@@ -422,6 +440,71 @@ public static class FunctionRegistry
         return value is null ? null : (long)value.Length;
     }
 
+    /// <summary>
+    /// 按 UTF-16 单元填充至目标宽度；较小宽度保留原串，结果最多 1,048,576 个单元。
+    /// </summary>
+    private static object? EvaluatePadding(IReadOnlyList<object?> args, bool left)
+    {
+        if (args[0] is null || args[1] is null || (args.Count == 3 && args[2] is null))
+            return null;
+
+        string functionName = left ? "lpad" : "rpad";
+        string value = RequireNullableString(args[0], functionName)!;
+        string padding = args.Count == 3 ? RequireNullableString(args[2], functionName)! : " ";
+        if (padding.Length == 0)
+            throw new InvalidOperationException($"函数 {functionName} 的填充串不能为空。");
+        if (args[1] is not (byte or sbyte or short or ushort or int or uint or long or ulong))
+            throw new InvalidOperationException($"函数 {functionName} 的 width 参数需要整数，不隐式转换 FLOAT、DECIMAL 或字符串。");
+
+        long width = RequireInt64(args[1], functionName, "width");
+        if (width < 0)
+            throw new InvalidOperationException($"函数 {functionName} 的 width 参数不能为负数。");
+        if (Math.Max(width, value.Length) > MaxPaddingResultLength)
+            throw new InvalidOperationException($"函数 {functionName} 的结果最多支持 {MaxPaddingResultLength} 个 UTF-16 单元。");
+
+        try
+        {
+            _paddingUtf8Encoding.GetByteCount(value);
+            int paddingLength = (int)Math.Max(0, width - value.Length);
+            if (paddingLength > 0)
+            {
+                int prefixLength = Math.Min(paddingLength, padding.Length);
+                _paddingUtf8Encoding.GetByteCount(padding.AsSpan(0, prefixLength));
+                int tailLength = paddingLength % padding.Length;
+                if (tailLength > 0 && prefixLength == padding.Length)
+                    _paddingUtf8Encoding.GetByteCount(padding.AsSpan(0, tailLength));
+            }
+        }
+        catch (EncoderFallbackException exception)
+        {
+            throw new InvalidOperationException(
+                $"函数 {functionName} 的输出包含不完整的 UTF-16 代理项，或截断填充串会切开代理对。", exception);
+        }
+
+        if (width <= value.Length)
+            return value;
+
+        return string.Create((int)width, (Value: value, Padding: padding, Left: left), static (result, state) =>
+        {
+            int paddingLength = result.Length - state.Value.Length;
+            Span<char> target = state.Left ? result[..paddingLength] : result[state.Value.Length..];
+            int prefixLength = Math.Min(target.Length, state.Padding.Length);
+            state.Padding.AsSpan(0, prefixLength).CopyTo(target);
+            RepeatPaddingPrefix(target, prefixLength);
+            state.Value.AsSpan().CopyTo(state.Left ? result[paddingLength..] : result[..state.Value.Length]);
+        });
+    }
+
+    /// <summary>倍增已有填充前缀；受输出预算约束，最多执行 20 次倍增。</summary>
+    private static void RepeatPaddingPrefix(Span<char> target, int filledLength)
+    {
+        if (filledLength >= target.Length)
+            return;
+        int copyLength = Math.Min(filledLength, target.Length - filledLength);
+        target[..copyLength].CopyTo(target[filledLength..]);
+        RepeatPaddingPrefix(target, filledLength + copyLength);
+    }
+
     private static object? EvaluateSubstring(IReadOnlyList<object?> args)
     {
         const string functionName = "substring";
@@ -663,6 +746,40 @@ public static class FunctionRegistry
 
     private static double RadiansToDegrees(double radians) => radians * (180d / Math.PI);
 
+    private static object? EvaluateTrigonometric(IReadOnlyList<object?> args, string functionName)
+    {
+        if (args[0] is null || args.Count == 2 && args[1] is null)
+            return null;
+
+        double first = RequireFiniteDouble(args[0], functionName);
+        double second = args.Count == 2 ? RequireFiniteDouble(args[1], functionName) : 0d;
+        if (functionName is "asin" or "acos" && (first < -1d || first > 1d))
+            throw new InvalidOperationException($"函数 {functionName} 的参数必须在 [-1, 1] 范围内。");
+
+        double result = functionName switch
+        {
+            "sin" => Math.Sin(first),
+            "cos" => Math.Cos(first),
+            "tan" => Math.Tan(first),
+            "asin" => Math.Asin(first),
+            "acos" => Math.Acos(first),
+            "atan" => Math.Atan(first),
+            "atan2" => Math.Atan2(first, second),
+            _ => throw new InvalidOperationException($"未知三角函数 {functionName}。"),
+        };
+        if (!double.IsFinite(result))
+            throw new InvalidOperationException($"函数 {functionName} 的结果必须是有限数值。");
+        return result;
+    }
+
+    private static double RequireFiniteDouble(object? value, string functionName)
+    {
+        double number = RequireDouble(value, functionName);
+        if (!double.IsFinite(number))
+            throw new InvalidOperationException($"函数 {functionName} 需要有限数值参数。");
+        return number;
+    }
+
     private static double RequireDouble(object? value, string functionName)
     {
         return value switch
@@ -729,6 +846,29 @@ public static class FunctionRegistry
         string functionName,
         string parameterName)
         => value is null ? null : RequireInt64(value, functionName, parameterName);
+
+    /// <summary>
+    /// 对有符号 Int64 执行 64 位移位；左移丢弃移出位，右移保留符号，计数限定为 0..63。
+    /// </summary>
+    private static object? EvaluateShift(IReadOnlyList<object?> args, bool left)
+    {
+        if (args[0] is null || args[1] is null)
+            return null;
+
+        string functionName = left ? "shift_left" : "shift_right";
+        if (args[0] is not (byte or sbyte or short or ushort or int or uint or long or ulong)
+            || args[1] is not (byte or sbyte or short or ushort or int or uint or long or ulong))
+        {
+            throw new InvalidOperationException($"函数 {functionName} 只支持整数参数，不隐式转换 FLOAT、DECIMAL 或字符串。");
+        }
+
+        long value = RequireInt64(args[0], functionName, "value");
+        long count = RequireInt64(args[1], functionName, "count");
+        if (count is < 0 or > 63)
+            throw new InvalidOperationException($"函数 {functionName} 的 count 参数必须在 0..63 范围内。");
+
+        return left ? value << (int)count : value >> (int)count;
+    }
 
     private static ReadOnlySpan<float> RequireVector(object? value, string functionName)
     {

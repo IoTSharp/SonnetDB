@@ -149,6 +149,9 @@ public sealed class RelationalInputPushdownTests : IDisposable
             """);
         Assert.Empty(empty.Rows);
         Assert.Equal(1, emptyMetrics.InputLimitPushdownCount);
+        Assert.Equal(0, emptyMetrics.InputCandidateRows);
+        Assert.Equal(0, emptyMetrics.InputRetainedRows);
+        Assert.Equal("t.id", Assert.Single(empty.Columns));
     }
 
     [Fact]

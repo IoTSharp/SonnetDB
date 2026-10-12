@@ -373,6 +373,7 @@ internal static class SqlNameBinder
                 : BindSelect(tsdb, join.Subquery, parent: null, visibleCtes);
             string? cteName = ResolveCteName(visibleCtes, join.TableName, join.TableNameIsQuoted);
             SqlSourceName? source = subquery is null
+                && join.ValuesRows is null
                 && cteName is null
                 ? SqlSourceNameResolver.Resolve(tsdb, join.TableName,
                     statement.IdentifierNamesBound || join.TableNameIsQuoted)
@@ -386,10 +387,11 @@ internal static class SqlNameBinder
             joins[i] = join with { TableName = tableName, Alias = alias, Subquery = subquery };
             var joinedCte = ctes.FirstOrDefault(cte => string.Equals(cte.Name, cteName, StringComparison.Ordinal));
             sources.Add(new Source(alias, schema,
-                subquery is not null ? OutputColumns(subquery)
+                join.ColumnNames.Count > 0 ? join.ColumnNames
+                    : subquery is not null ? OutputColumns(subquery)
                     : joinedCte is not null ? joinedCte.ColumnNames ?? OutputColumns(joinedCte.Query) : null,
                 QualifierKnown: !implicitAlias || source is not null
-                    || cteName is not null || subquery is not null));
+                    || cteName is not null || subquery is not null || join.ValuesRows is not null));
         }
 
         if (sources.Select(static source => source.Alias).Distinct(StringComparer.OrdinalIgnoreCase).Count()
@@ -511,13 +513,17 @@ internal static class SqlNameBinder
         for (int i = 0; i < joins.Length; i++)
         {
             var join = statement.FromClauses[i];
-            var sourceSchema = ResolveSourceTable(tsdb, join.TableName, join.TableNameIsQuoted);
+            var subquery = join.Subquery is null ? null : BindSelect(tsdb, join.Subquery);
+            var sourceSchema = subquery is null && join.ValuesRows is null
+                ? ResolveSourceTable(tsdb, join.TableName, join.TableNameIsQuoted) : null;
             string tableName = sourceSchema?.Name ?? join.TableName;
             bool implicitAlias = string.Equals(join.Alias, join.TableName, StringComparison.Ordinal)
                 && join.AliasIsQuoted == join.TableNameIsQuoted;
             string alias = implicitAlias ? tableName : Key(join.Alias, join.AliasIsQuoted);
-            joins[i] = join with { TableName = tableName, Alias = alias };
-            sources.Add(new Source(alias, sourceSchema));
+            joins[i] = join with { TableName = tableName, Alias = alias, Subquery = subquery };
+            sources.Add(new Source(alias, sourceSchema,
+                join.ColumnNames.Count > 0 ? join.ColumnNames
+                    : subquery is not null ? OutputColumns(subquery) : null));
         }
         var scope = new Scope(sources, Parent: null);
         for (int i = 0; i < joins.Length; i++)

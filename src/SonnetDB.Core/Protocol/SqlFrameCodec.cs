@@ -25,6 +25,9 @@ public static class SqlFrameCodec
     /// <summary>携带声明列信息和精确 DECIMAL 值标记的 SQL 结果格式版本。</summary>
     public const string TypedResultVersion = "2";
 
+    /// <summary>携带代际声明、精度、小数位数与长度的 SQL 结果格式版本。</summary>
+    public const string DeclaredResultVersion = "3";
+
     /// <summary>名字（db / 列名 / 参数名）UTF-8 字节数上限。</summary>
     public const int MaxNameBytes = 512;
 
@@ -249,13 +252,20 @@ public static class SqlFrameCodec
         => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
             streamId, columns, columnInfo);
 
+    /// <summary>编码协商为 v3 的完整声明；false 保留 v2 的原始字节格式。</summary>
+    public static void EncodeQueryMetaFrame(
+        IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns,
+        IReadOnlyList<SelectColumnInfo>? columnInfo, bool fullDeclarations)
+        => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, columns, columnInfo, fullDeclarations);
+
     /// <summary>
     /// meta 帧编码内核：块布局固定，帧头 service/op 由调用方指定
     /// （sql query 与 vector search 共用同一响应块词汇表）。
     /// </summary>
     internal static void EncodeMetaFrameCore(
         IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns,
-        IReadOnlyList<SelectColumnInfo>? columnInfo = null)
+        IReadOnlyList<SelectColumnInfo>? columnInfo = null, bool fullDeclarations = false)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count > MaxColumnCount)
@@ -267,7 +277,7 @@ public static class SqlFrameCodec
         for (int i = 0; i < columns.Count; i++)
             payloadLength += SpanWriter.MeasureVarString(columns[i]);
         if (columnInfo is not null)
-            payloadLength += 1 + 2L * columns.Count;
+            payloadLength += 1 + (fullDeclarations ? 8L : 2L) * columns.Count;
         if (payloadLength > FrameHeader.MaxFramePayloadBytes)
             throw new ArgumentException($"帧 payload 长度 {payloadLength} 超过上限 {FrameHeader.MaxFramePayloadBytes}。");
 
@@ -282,7 +292,7 @@ public static class SqlFrameCodec
             w.WriteVarString(columns[i]);
         if (columnInfo is not null)
         {
-            w.WriteByte(1);
+            w.WriteByte(fullDeclarations ? (byte)2 : (byte)1);
             foreach (var info in columnInfo)
             {
                 w.WriteByte(info.DataType is { } type ? (byte)type : (byte)0);
@@ -295,7 +305,16 @@ public static class SqlFrameCodec
                 if (info.IsKey) flags |= 0x02;
                 if (info.IsAutoIncrement) flags |= 0x04;
                 if (info.IsRowVersion) flags |= 0x08;
+                if (fullDeclarations && info.RequiresRefresh) flags |= 0x20;
+                if (fullDeclarations && !info.IsDeclared) flags |= 0x40;
                 w.WriteByte(flags);
+                if (fullDeclarations)
+                {
+                    ValidateFullDeclaration(info);
+                    w.WriteByte(info.NumericPrecision ?? 0);
+                    w.WriteByte(info.NumericScale ?? byte.MaxValue);
+                    w.WriteInt32(info.ColumnSize ?? -1);
+                }
             }
         }
         writer.Advance(FrameHeader.Size + (int)payloadLength);
@@ -325,7 +344,9 @@ public static class SqlFrameCodec
         SelectColumnInfo[]? columnInfo = null;
         if (reader.Remaining != 0)
         {
-            if (reader.ReadByte() != 1 || reader.Remaining != 2 * columns.Length)
+            byte declarationVersion = reader.ReadByte();
+            bool fullDeclarations = declarationVersion == 2;
+            if (declarationVersion is not (1 or 2) || reader.Remaining != (fullDeclarations ? 8 : 2) * columns.Length)
                 throw new FrameFormatException("meta 帧体声明列信息长度或版本无效。");
             columnInfo = new SelectColumnInfo[columns.Length];
             for (int i = 0; i < columns.Length; i++)
@@ -338,19 +359,50 @@ public static class SqlFrameCodec
                     >= 1 and <= 9 => (TableColumnType)typeCode,
                     _ => throw new FrameFormatException("meta 帧体包含不支持的声明列类型。"),
                 };
-                if ((flags & ~0x1F) != 0)
+                if ((flags & ~(fullDeclarations ? 0x7F : 0x1F)) != 0 || fullDeclarations && (flags & 0x11) == 1)
                     throw new FrameFormatException("meta 帧体包含不支持的声明列标记。");
-                columnInfo[i] = new SelectColumnInfo(
+                var info = new SelectColumnInfo(
                     type,
                     (flags & 0x10) == 0 ? null : (flags & 0x01) != 0,
                     (flags & 0x02) != 0,
                     (flags & 0x04) != 0,
                     (flags & 0x08) != 0);
+                if (fullDeclarations)
+                {
+                    byte precision = reader.ReadByte();
+                    byte scale = reader.ReadByte();
+                    int size = reader.ReadInt32();
+                    if (size < -1)
+                        throw new FrameFormatException("meta 帧体声明长度无效。");
+                    info = info with
+                    {
+                        NumericPrecision = precision == 0 ? null : precision,
+                        NumericScale = scale == byte.MaxValue ? null : scale,
+                        ColumnSize = size == -1 ? null : size,
+                        RequiresRefresh = (flags & 0x20) != 0,
+                        IsDeclared = (flags & 0x40) == 0,
+                    };
+                    ValidateFullDeclaration(info);
+                }
+                columnInfo[i] = info;
             }
         }
         if (reader.Remaining != 0)
             throw new FrameFormatException("meta 帧体尾部有多余字节。");
         return (columns, columnInfo);
+    }
+
+    private static void ValidateFullDeclaration(SelectColumnInfo info)
+    {
+        if (!info.IsDeclared && (info.DataType.HasValue || info.IsNullable.HasValue
+                || info.NumericPrecision.HasValue || info.NumericScale.HasValue || info.ColumnSize.HasValue
+                || info.RequiresRefresh || info.IsKey || info.IsAutoIncrement || info.IsRowVersion)
+            || info.NumericPrecision.HasValue != info.NumericScale.HasValue
+            || info.NumericPrecision is 0 or > 38 || info.NumericScale is > 38
+            || info.NumericScale > info.NumericPrecision
+            || info.NumericPrecision.HasValue && info.DataType != TableColumnType.Decimal
+            || info.ColumnSize is < 0)
+            throw new FrameFormatException("meta 帧体声明精度、小数位数或长度无效。");
     }
 
     // ────────────────────────────── rows 响应帧 ──────────────────────────────

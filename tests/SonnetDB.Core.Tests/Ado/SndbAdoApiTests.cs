@@ -357,6 +357,62 @@ public sealed class TsdbAdoApiTests : IDisposable
         await Assert.ThrowsAsync<OperationCanceledException>(() => cmd.ExecuteNonQueryAsync(cts.Token));
     }
 
+    [Theory]
+    [InlineData(false, "SELECT id FROM empty_hasrows")]
+    [InlineData(true, "SELECT id FROM empty_hasrows")]
+    [InlineData(false, "SELECT id FROM hasrows WHERE id = -1")]
+    [InlineData(true, "SELECT id FROM hasrows WHERE id = -1")]
+    [InlineData(false, "UPDATE hasrows SET name = 'unused' WHERE id = -1 RETURNING id")]
+    [InlineData(true, "UPDATE hasrows SET name = 'unused' WHERE id = -1 RETURNING id")]
+    public async Task HasRows_EmptyResults_PreservesDeclaredMetadata(bool useAsync, string sql)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE hasrows (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "CREATE TABLE empty_hasrows (id INT, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "INSERT INTO hasrows (id, name) VALUES (1, 'first')");
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = useAsync ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+
+        Assert.False(reader.HasRows);
+        Assert.False(reader.HasRows);
+        Assert.Equal(1, reader.FieldCount);
+        Assert.Equal("id", reader.GetName(0));
+        Assert.Equal(typeof(long), reader.GetFieldType(0));
+        Assert.Equal(typeof(long), reader.GetSchemaTable()!.Rows[0][SchemaTableColumn.DataType]);
+        Assert.False(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.False(reader.HasRows);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task HasRows_NonemptyResults_PreservesFirstRowAndResultStatus(bool useAsync, bool inspectBeforeRead)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE hasrows (id INT, PRIMARY KEY (id))");
+        ExecNonQuery(connection, "INSERT INTO hasrows (id) VALUES (1), (2)");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM hasrows ORDER BY id";
+        using var reader = useAsync ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+
+        if (inspectBeforeRead)
+        {
+            Assert.True(reader.HasRows);
+            Assert.True(reader.HasRows);
+            Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+        }
+        Assert.True(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.True(reader.HasRows);
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.True(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.False(useAsync ? await reader.ReadAsync() : reader.Read());
+        Assert.True(reader.HasRows);
+    }
+
     [Fact]
     public void DataReader_GetSchemaTable_ReturnsAdoMetadata()
     {
@@ -379,6 +435,10 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal("id", schema.Rows[0][SchemaTableColumn.ColumnName]);
         Assert.Equal(0, schema.Rows[0][SchemaTableColumn.ColumnOrdinal]);
         Assert.Equal(typeof(long), schema.Rows[0][SchemaTableColumn.DataType]);
+        Assert.Equal((short)19, schema.Rows[0][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)0, schema.Rows[0][SchemaTableColumn.NumericScale]);
+        Assert.Equal(19, reader.GetColumnSchema()[0].NumericPrecision);
+        Assert.Equal(0, reader.GetColumnSchema()[0].NumericScale);
         Assert.Equal((int)DbType.Int64, schema.Rows[0][SchemaTableColumn.ProviderType]);
         Assert.False((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
         Assert.Equal(c.Database, schema.Rows[0][SchemaTableOptionalColumn.BaseCatalogName]);
@@ -390,6 +450,31 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal("enabled", schema.Rows[2][SchemaTableColumn.ColumnName]);
         Assert.Equal(typeof(bool), schema.Rows[2][SchemaTableColumn.DataType]);
         Assert.Equal((int)DbType.Boolean, schema.Rows[2][SchemaTableColumn.ProviderType]);
+    }
+
+    [Theory]
+    [InlineData(" LIMIT 0")]
+    [InlineData(" WHERE id < 0")]
+    public void DataReader_EmptyDeclaredColumns_PreservesInt64AndUnknownDecimalPrecision(string suffix)
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE intrinsic_metadata (id INT, amount DECIMAL(18,4), PRIMARY KEY(id))");
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id, amount, CAST(NULL AS DECIMAL) AS unknown_amount FROM intrinsic_metadata" + suffix;
+        using var reader = command.ExecuteReader();
+        Assert.Equal(new[] { typeof(long), typeof(decimal), typeof(decimal) },
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
+        var columns = reader.GetColumnSchema();
+        Assert.Equal(new int?[] { 19, 18, null }, columns.Select(column => column.NumericPrecision).ToArray());
+        Assert.Equal(new int?[] { 0, 4, null }, columns.Select(column => column.NumericScale).ToArray());
+        var table = reader.GetSchemaTable()!;
+        Assert.Equal((short)19, table.Rows[0][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)0, table.Rows[0][SchemaTableColumn.NumericScale]);
+        Assert.Equal((short)18, table.Rows[1][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal((short)4, table.Rows[1][SchemaTableColumn.NumericScale]);
+        Assert.Equal(DBNull.Value, table.Rows[2][SchemaTableColumn.NumericPrecision]);
+        Assert.Equal(DBNull.Value, table.Rows[2][SchemaTableColumn.NumericScale]);
+        Assert.False(reader.Read());
     }
 
     [Fact]

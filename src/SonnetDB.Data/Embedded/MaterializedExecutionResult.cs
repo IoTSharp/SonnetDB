@@ -13,7 +13,7 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
 {
     private readonly IReadOnlyList<IReadOnlyList<object?>> _rows;
     private readonly ExecutionFieldTypeKind[] _columnTypes;
-    private readonly ExecutionColumnMetadata[]? _columnMetadata;
+    private readonly ExecutionColumnMetadata?[]? _columnMetadata;
     private int _rowIndex = -1;
 
     private MaterializedExecutionResult(
@@ -31,31 +31,50 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
         _columnTypes = new ExecutionFieldTypeKind[columns.Count];
         if (resultSchema is not null)
         {
-            _columnMetadata = new ExecutionColumnMetadata[columns.Count];
+            _columnMetadata = new ExecutionColumnMetadata?[columns.Count];
             for (int c = 0; c < columns.Count; c++)
             {
                 var declared = resultSchema[c];
                 _columnTypes[c] = ExecutionFieldTypeResolver.Resolve(declared.DataType);
                 _columnMetadata[c] = new ExecutionColumnMetadata(
                     declared.IsNullable, declared.IsPrimaryKey,
-                    declared.IsAutoIncrement, declared.IsRowVersion);
+                    declared.IsAutoIncrement, declared.IsRowVersion)
+                {
+                    DataType = declared.DataType,
+                    DeclaredNullable = declared.IsNullable,
+                    NumericPrecision = declared.DataType == TableColumnType.Decimal ? declared.DecimalPrecision : null,
+                    NumericScale = declared.DataType == TableColumnType.Decimal ? declared.DecimalScale : null,
+                };
             }
             return;
         }
         if (columnInfo is not null)
         {
-            _columnMetadata = new ExecutionColumnMetadata[columns.Count];
+            _columnMetadata = new ExecutionColumnMetadata?[columns.Count];
             for (int c = 0; c < columns.Count; c++)
             {
                 var declared = columnInfo[c];
+                if (!declared.IsDeclared)
+                {
+                    _columnTypes[c] = ResolveFromRows(rows, c);
+                    continue;
+                }
                 _columnTypes[c] = declared.DataType is { } type
                     ? ExecutionFieldTypeResolver.Resolve(type)
-                    : ResolveFromRows(rows, c);
+                    : ExecutionFieldTypeKind.Object;
                 _columnMetadata[c] = new ExecutionColumnMetadata(
                     declared.IsNullable ?? true,
                     declared.IsKey,
                     declared.IsAutoIncrement,
-                    declared.IsRowVersion);
+                    declared.IsRowVersion)
+                {
+                    DataType = declared.DataType,
+                    NumericPrecision = declared.NumericPrecision,
+                    NumericScale = declared.NumericScale,
+                    ColumnSize = declared.ColumnSize,
+                    RequiresRefresh = declared.RequiresRefresh,
+                    DeclaredNullable = declared.IsNullable,
+                };
             }
             return;
         }

@@ -37,6 +37,8 @@ public sealed class BackgroundFlushIntegrationTests : IDisposable
                 MaxAge = TimeSpan.FromHours(24),
             },
             SegmentWriterOptions = new SegmentWriterOptions { FsyncOnCommit = false },
+            // 本 fixture 验证 Flush 产生物理段；后台 Compaction 会合并这些段。
+            Compaction = new() { Enabled = false },
             BackgroundFlush = new BackgroundFlushOptions
             {
                 Enabled = true,
@@ -58,12 +60,17 @@ public sealed class BackgroundFlushIntegrationTests : IDisposable
     /// <remarks>
     /// 分批写入并等待，而非一次性写完，是为了避免写入速度远快于后台 Flush 轮询频率时
     /// 所有数据堆积在一个 MemTable 中只产生一个 Segment 的竞态问题。
+    /// 本 fixture 显式关闭 Compaction，确保物理段数可用于观察每批 Flush 的增长。
     /// </remarks>
     [Fact]
     public void ContinuousWrite_5000Points_AutoFlushesMultipleSegments()
     {
         const int totalPoints = 5000;
         const int batchSize = 600; // 大于 MaxPoints（500），确保每批都触发 Flush
+        const int batchCount = totalPoints / batchSize;
+        const int maxBatchPolls = 300; // 每次 50ms，且仍受原 15s 墙钟限制。
+        var testClock = System.Diagnostics.Stopwatch.StartNew();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(150));
 
         using var db = Tsdb.Open(MakeOptions());
 
@@ -71,26 +78,40 @@ public sealed class BackgroundFlushIntegrationTests : IDisposable
         int segmentsBefore = 0;
 
         // 分批写入，每批写完后等待后台至少产生一个新 Segment
-        while (written + batchSize <= totalPoints)
+        for (int batch = 0; batch < batchCount; batch++)
         {
+            cancellation.Token.ThrowIfCancellationRequested();
+            Assert.True(testClock.Elapsed < TimeSpan.FromSeconds(150), "连续写入测试超出总墙钟预算。");
             for (int i = 0; i < batchSize; i++)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
                 db.Write(MakePoint(1000L + written + i, written + i));
+            }
             written += batchSize;
 
             int expectedMin = segmentsBefore + 1;
             var batchDeadline = DateTime.UtcNow.AddSeconds(15);
-            while (DateTime.UtcNow < batchDeadline && db.Segments.SegmentCount < expectedMin)
+            for (int poll = 0; poll < maxBatchPolls && DateTime.UtcNow < batchDeadline
+                && db.Segments.SegmentCount < expectedMin; poll++)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
                 Thread.Sleep(50);
+            }
+
+            Assert.True(db.Segments.SegmentCount >= expectedMin,
+                $"批次 {batch + 1}/{batchCount} 应在 15s 内产生新 Segment；期望至少 {expectedMin}，实际 {db.Segments.SegmentCount}");
 
             segmentsBefore = db.Segments.SegmentCount;
         }
 
         // 写入剩余点
         for (int i = written; i < totalPoints; i++)
+        {
+            cancellation.Token.ThrowIfCancellationRequested();
             db.Write(MakePoint(1000L + i, i));
+        }
 
         // 断言至少产生了多个 Segment（每批一个，共 totalPoints/batchSize = 8 批）
-        int batchCount = totalPoints / batchSize;
         Assert.True(db.Segments.SegmentCount >= batchCount,
             $"期望 SegmentCount >= {batchCount}，实际 {db.Segments.SegmentCount}");
 
@@ -103,6 +124,8 @@ public sealed class BackgroundFlushIntegrationTests : IDisposable
         var points = db.Query.Execute(query).ToList();
 
         Assert.Equal(totalPoints, points.Count);
+        cancellation.Token.ThrowIfCancellationRequested();
+        Assert.True(testClock.Elapsed < TimeSpan.FromSeconds(150), "连续写入测试超出总墙钟预算。");
     }
 
     /// <summary>
@@ -121,7 +144,7 @@ public sealed class BackgroundFlushIntegrationTests : IDisposable
 
             // 等待后台线程至少触发一次 Flush（最长 30s，Windows CI 可能较慢）
             var deadline = DateTime.UtcNow.AddSeconds(30);
-            while (DateTime.UtcNow < deadline && db.Segments.SegmentCount < 1)
+            for (int poll = 0; poll < 300 && DateTime.UtcNow < deadline && db.Segments.SegmentCount < 1; poll++)
                 Thread.Sleep(100);
 
             // 正常 Dispose（会再 Flush 剩余）
