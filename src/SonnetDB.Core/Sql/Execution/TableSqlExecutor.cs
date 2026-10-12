@@ -1629,12 +1629,6 @@ internal static class TableSqlExecutor
         MutationAliasValidator.Validate(statement);
         if (statement.FromClauses.Count != 0)
         {
-            if (transaction.TryGetBufferedMutations(schema.Name, out _))
-            {
-                throw new NotSupportedException(
-                    "UPDATE ... JOIN/FROM 当前不支持同一轻事务中先缓冲目标表变更；请将联接更新作为事务中的首次目标表写入。");
-            }
-
             return ExecuteJoinUpdate(
                 tsdb,
                 statement,
@@ -1839,42 +1833,16 @@ internal static class TableSqlExecutor
         if (statement.FromClauses.Count == 0)
             throw new InvalidOperationException("UPDATE 联接更新至少需要一个 FROM/JOIN 来源。");
 
-        var schemas = new Dictionary<string, TableSchema>(StringComparer.Ordinal)
-        {
-            [statement.TableAlias ?? statement.TableName] = targetSchema,
-        };
+        var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { statement.TableAlias ?? statement.TableName };
         foreach (var from in statement.FromClauses)
         {
-            if (from.Subquery is not null)
-                throw new NotSupportedException("UPDATE ... JOIN/FROM 暂不支持子查询来源。");
             if (from.Kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
                 throw new NotSupportedException("UPDATE ... JOIN/FROM 仅支持 INNER JOIN 与 LEFT JOIN。");
-            var sourceSchema = tsdb.Tables.Catalog.TryGet(from.TableName)
-                ?? throw new NotSupportedException(
-                    $"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
-            if (!schemas.TryAdd(from.Alias, sourceSchema))
+            if (from.Subquery is null && from.ValuesRows is null && tsdb.Tables.Catalog.TryGet(from.TableName) is null)
+                throw new NotSupportedException($"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
+            if (!aliases.Add(from.Alias))
                 throw new InvalidOperationException($"UPDATE 联接别名 '{from.Alias}' 重复。");
         }
-
-        bool IdentifierExists(IdentifierExpression identifier)
-        {
-            if (identifier.Qualifier is { } qualifier)
-            {
-                return schemas.TryGetValue(qualifier, out var qualifiedSchema)
-                    && qualifiedSchema.TryGetColumn(identifier.Name) is not null;
-            }
-
-            return schemas.Values.Any(schema => schema.TryGetColumn(identifier.Name) is not null);
-        }
-
-        foreach (var assignment in statement.Assignments)
-        {
-            if (assignment.Value is not DefaultValueExpression)
-                SqlProjectionExpressionEvaluator.Validate(assignment.Value, IdentifierExists, "UPDATE JOIN SET");
-        }
-        SqlProjectionExpressionEvaluator.Validate(statement.Where, IdentifierExists, "UPDATE JOIN WHERE");
-        foreach (var from in statement.FromClauses)
-            SqlProjectionExpressionEvaluator.Validate(from.On, IdentifierExists, "UPDATE JOIN ON");
     }
 
     private static JoinBoundAssignment[] BindJoinAssignments(UpdateStatement statement, TableSchema schema)

@@ -1026,6 +1026,14 @@ public sealed record JoinClause(
     SelectStatement? Subquery = null,
     JoinKind Kind = JoinKind.Inner)
 {
+    /// <summary>派生 VALUES 来源；为空表示关系表或 SELECT 来源。</summary>
+    public IReadOnlyList<IReadOnlyList<SqlExpression>>? ValuesRows { get; init; }
+
+    /// <summary>派生来源按位置指定的输出列名。</summary>
+    public IReadOnlyList<string> ColumnNames { get; init; } = Array.Empty<string>();
+
+    /// <summary>按位置标记派生输出列名的双引号声明。</summary>
+    public IReadOnlyList<bool> ColumnNamesIsQuoted { get; init; } = Array.Empty<bool>();
     /// <summary>JOIN 目标名称是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 

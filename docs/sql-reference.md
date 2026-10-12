@@ -693,7 +693,18 @@ WHERE guid IN (
 - 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。当前 `main` 的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；实际发布前不能作为已发布包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
 - 会话存放于单个 Server 进程内；跨实例路由需固定到创建会话的实例。服务端重启会丢失未提交缓冲及终态缓存，未收到提交响应时须按会话 ID 查询终态，若服务端不可达或缓存已过期则结果未知。已发布包和 FreeSql Provider 仍需按实际版本与部署形态单独验收。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
-- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，支持关系表、`(SELECT ...) AS s` 与 `(VALUES(...),(...)) AS s(column,...)` 派生来源及 INNER/LEFT JOIN。SELECT 可沿用 UNION ALL 并可声明按位置输出别名；VALUES 必须声明全部输出列，行宽一致，列名不能仅大小写不同。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；触发器及约束按普通 UPDATE 执行。轻事务中目标和来源均读取已缓冲的 INSERT/UPDATE/DELETE；连续联接更新保留首次并发基线，语句失败不发布本条已准备的目标变更。
+- 派生 VALUES 支持参数、NULL 和既有标量表达式，保留 Decimal、TIME 与 UTC 值。单来源上限为 100000 行、4096 列、1000000 单元格和 64 MiB 估算物化字节；解析另有 30 秒上限，执行沿用调用方取消及物化预算。超限拒绝整条语句，不截断来源；空派生来源仍校验 SET/ON/WHERE 列引用。
+
+```sql
+UPDATE target AS t SET value = s.value
+FROM (VALUES (1, @value1), (2, @value2)) AS s(id, value)
+WHERE t.id = s.id;
+
+UPDATE target AS t
+JOIN (SELECT 1 AS id, @value1 AS value UNION ALL SELECT 2 AS id, @value2 AS value) AS s
+ON t.id = s.id SET value = s.value WHERE 1 = 1;
+```
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
