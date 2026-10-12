@@ -23,6 +23,9 @@ public sealed record TableColumn(
     /// <summary>DECIMAL/NUMERIC 小数位数；非 Decimal 列为 0。</summary>
     public byte DecimalScale { get; init; }
 
+    /// <summary>是否具有必须执行的显式 DECIMAL/NUMERIC 精度和小数位约束。</summary>
+    public bool HasExplicitDecimalDeclaration { get; init; }
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>

@@ -286,9 +286,9 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             row[SchemaTableColumn.ColumnSize] = columnMetadata?.ColumnSize is { } size ? size
                 : columnMetadata.HasValue ? DBNull.Value : GetColumnSize(fieldType);
             row[SchemaTableColumn.NumericPrecision] = columnMetadata?.NumericPrecision is { } precision ? (short)precision
-                : columnMetadata.HasValue ? DBNull.Value : GetNumericPrecision(fieldType);
+                : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericPrecision(fieldType);
             row[SchemaTableColumn.NumericScale] = columnMetadata?.NumericScale is { } scale ? (short)scale
-                : columnMetadata.HasValue ? DBNull.Value : GetNumericScale(fieldType);
+                : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericScale(fieldType);
             row[SchemaTableColumn.DataType] = fieldType;
             row["DataTypeName"] = GetDataTypeName(ordinal);
             row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
@@ -332,9 +332,9 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             DataTypeName = reader.GetDataTypeName(ordinal);
             ColumnSize = metadata.HasValue ? metadata.Value.ColumnSize : GetColumnSize(fieldType);
             NumericPrecision = metadata?.NumericPrecision is { } precision ? precision
-                : metadata.HasValue ? null : GetNumericPrecision(fieldType);
+                : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericPrecision(fieldType);
             NumericScale = metadata?.NumericScale is { } scale ? scale
-                : metadata.HasValue ? null : GetNumericScale(fieldType);
+                : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericScale(fieldType);
             AllowDBNull = metadata.HasValue ? metadata.Value.DeclaredNullable : true;
             IsKey = metadata?.IsKey ?? false;
             IsAutoIncrement = metadata?.IsAutoIncrement ?? false;

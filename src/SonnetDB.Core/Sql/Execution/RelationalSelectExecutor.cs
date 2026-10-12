@@ -85,7 +85,7 @@ internal static partial class RelationalSelectExecutor
             Relation declared = LoadFrom(tsdb, statement, declarationPlan, memo);
             foreach (JoinClause join in statement.JoinClauses)
             {
-                Relation right = LoadJoin(tsdb, join, declarationPlan, memo);
+                Relation right = LoadJoin(tsdb, join, declarationPlan with { IsDeclarationOnly = true }, memo);
                 declared = declared with
                 {
                     Columns = WidenJoinColumns(declared.Columns, right.Columns, join.Kind),
@@ -523,7 +523,7 @@ internal static partial class RelationalSelectExecutor
             long retainedRows)
             => _metrics?.RecordRelationInput(
                 plan.Predicate is not null,
-                plan.RowLimit is not null,
+                plan.RowLimit is not null && !plan.IsDeclarationOnly,
                 sourceColumns,
                 projectedColumns,
                 candidateRows,
@@ -1012,6 +1012,9 @@ internal static partial class RelationalSelectExecutor
         IReadOnlySet<string>? RequiredColumns,
         int? RowLimit)
     {
+        /// <summary>仅用于声明绑定，不计为实际 LIMIT 下推的零行计划。</summary>
+        public bool IsDeclarationOnly { get; init; }
+
         public static RelationInputPlan Disabled { get; } = new(null, null, null);
     }
 

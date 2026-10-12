@@ -1499,6 +1499,7 @@ public sealed class SqlParser
             NameIsQuoted = nameIsQuoted,
             DecimalPrecision = decimalPrecision ?? 38,
             DecimalScale = decimalScale ?? 28,
+            HasExplicitDecimalDeclaration = decimalPrecision is not null,
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
             ModbusMapping = modbusMapping,

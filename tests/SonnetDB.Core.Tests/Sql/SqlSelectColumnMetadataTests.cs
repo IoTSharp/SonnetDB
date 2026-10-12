@@ -67,7 +67,8 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
         Assert.Equal(6, schema[2].NumericScale);
         Assert.Null(schema[1].ColumnSize);
         Assert.Null(schema[3].ColumnSize);
-        Assert.Null(schema[0].NumericPrecision);
+        Assert.Equal(19, schema[0].NumericPrecision);
+        Assert.Equal(0, schema[0].NumericScale);
         Assert.Equal("Decimal", schema[2].DataTypeName);
         var table = reader.GetSchemaTable()!;
         Assert.Equal((short)20, table.Rows[2][SchemaTableColumn.NumericPrecision]);
@@ -187,7 +188,8 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
             Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray());
         Assert.Equal(new bool?[] { false, true, false, true, true, false, true },
             reader.GetColumnSchema().Select(column => column.AllowDBNull).ToArray());
-        Assert.All(reader.GetColumnSchema(), column => Assert.Null(column.NumericPrecision));
+        Assert.Equal(new int?[] { 19, null, null, 19, 19, 19, 19 },
+            reader.GetColumnSchema().Select(column => column.NumericPrecision).ToArray());
     }
 
     [Fact]

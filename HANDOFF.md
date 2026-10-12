@@ -2088,6 +2088,17 @@ CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 
 
 本阶段最多35分钟/25shell/18Jobs/两次2CPU构建和一次实际transport组合；必须对这棵准确集成树重新绑定Core/EF真实TRX、source/DLL SHA，执行最终完整restore/原CI Format Check/default cached whitespace后才提交推回原PR。上述收据由pr292-parent288-*记录，本段不预写结果。原#241268/6、父#288429/66和所有旧FAIL分别保持；正式NuGet/Server/XCode消费者与#264持续DML约束仍独立OPEN/NOT_RUN，发布冻结/parity-results/外来dirty/旧恢复stash不动。
 
+## Issue #264 显式 Decimal 持续写入约束（2026-10-12，Asia/Shanghai）
+
+准确base bc03a6fbba49492019887b9cf57e2e4a39cbdc93，分支codex/issue264-decimal-enforcement。显式来源为非positional init属性，constructor/deconstruct保持；SQL舍入前、store/轻事务/跨表prepare/生成列前预检，拒绝需要舍入和precision溢出。裸Decimal保留CLR全值域与原Double兼容；tblschema自身catalog格式v11/flags bit4，row/key/index/FileHeader布局未动，旧reader拒绝v11。当前reader把旧v9/v10非38/28识别为显式，旧38/28保持来源不明不约束；历史非法行可原值读取/合法UPDATE修正，不自动改写，显式重声明走#241全值DDL预检。
+
+final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91、codec20），实际嵌入式/REST/exact h2c两类9/9（新2643）通过；两tiny1/1不累计。Portable PDB逐14个当前Core/测试源SHA匹配。两owned format verify通过，无源码whitespace修正。原Core build两新fixture编译错误、首完整188/190及EF CS0266均保留；第四且最后EF300s/2CPU仅2type assert经root明确授权后PASS。#235大值fixture在功能执行前对齐bare（旧functional不是FAIL），#181原20,6夹具22位值的实际FAIL后改为22,6；#241晚到scale越界改为合法源1000的precision缩窄失败，保留严格约束与原源/失败。
+
+源码/DLL/TRX/所有FAIL及阶段预算冻结于artifacts/online-closure-20261012/issue264-impl-0300。所有native隐藏KernelJob、2CPU、有界数量/墙钟/取消和finally清理；最终当前记录身份及owner/noReparse短TEMP回收以cleanup.json为准，不预写未执行的fresh结果，不触碰旧policy对象。root独占index/branch/commit/push/GitHub及最后整树restore/原CI Format Check；本段仅尾追加并核原完整字节前缀。原04:00:11Z不延；正式NuGet/Server/Chloe/完整NativeAOT和新head CI仍独立NOT_RUN，Issue保持OPEN，不把本地PASS或catalog升级冒称完全兼容。
+
+
+根最终检查补充（2026-10-12）：完整原Format Check发现TableSqlExecutor三处WHITESPACE，原FAIL保留。仅按原formatter修正该源空白；逐全部token kind/text与非空白trivia核一致。上述14源PDB字节绑定属于修正前准确源码；修正后不冒称PDB字节SHA匹配，不追加无必要构建。普通预检发生在identity分配前；BEFORE trigger导致失败仍遵循既有identity可能留gap语义，本轮未新增该场景实跑。旧reader拒绝v11为源码合同，本轮无旧reader可执行验收。独立审查未确认P1/P2；正式包/Chloe/AOT仍NOT_RUN。最终整树门禁见独立root-ws收据。
+
 ## Linux CI 持久死信重新签名意图测试预算（2026-10-12，Asia/Shanghai）
 
 本片从 main/干净 codex/deadletter-intent-ci-budget 的 06cdd55881667ab0b4e74b250d399e8053d53d04 接续，仅拥有 FileStreamingDeadLetterTests.cs、CHANGELOG.md 与本 HANDOFF 追加三个路径。PR #291 Linux run38187087964/job114611644616 的 payload 理论变体在 line251 首次 OpenAsync/WriteStateAsync 的200ms预算中失败，尚未执行损坏intent断言；原完整日志保存在 artifacts/online-closure-20261012/pr291-linux-failure-job01.stdout.log，并在新 deadletter-intent-resume0140 目录留存，不把旧失败写成PASS。
@@ -2117,3 +2128,13 @@ CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 
 - 专属临时目录 D:\pr290integration-0516 已在 owner、绝对路径、无 reparse、有界16项清单及无活跃引用核验后删除，删除调用只有一次。第一次 audit 因脚本生成启动器命令行含 TEMP 字面量而拒绝删除，FAIL 回执保留；独立启动复核 PASS（12 个完成 Jobs、74 个 PID/创建 UTC/命令行/父进程身份，live=0、unknown=0、temp references=0）。后续最终审计见 pr290integration-final-audit-0516-audit.json 和同名 runner result；各 runner 清理回执独立保留。
 - 旧类名误用、旧阶段 deadline/不完整窗口及历史 FAIL/UNKNOWN/NOT_RUN 回执保留。当前新计数不能替换历史 168/26 的来源说明。本轮只证明限定 Release/local transport 回归；full CI、NativeAOT、正式包、公开消费者和生产验收未执行。#261 的正式版本与 XCode 消费验收仍缺，不能据此关闭 Issue。
 - 主智能体下一步：在最终待提交树完成 dotnet restore SonnetDB.slnx 和原始 Format Check，审查完整合并差异，然后完成 merge commit、原 PR 分支 push、精确 head CI/GitHub 更新。根门禁及这些交付在本子任务均 NOT_RUN。
+
+## PR #295 INSERT SELECT 历史夹具修正（2026-10-12）
+
+精确c1bfdd7 Linux全套失败保留：Core6352/6353、Server1177/1179，三失败均在seed写入拒绝20,6声明。样本9007199254740993.125000需要16整数位+6声明小数=22precision；两个源/目标schema改为22,6，原大值、assertions、identity/RETURNING和production约束不变。此为旧夹具纠正，未改写precision校验或减小样本。新增准确Core/真实Server复验与完整最终restore/format结果见独立pr295-fixture0510收据；本段不预写PASS。正式包/Chloe/AOT消费者仍独立，Issue264不关闭。
+
+准确复验补充：本次两Release构建均0warnings/errors；Core完整InsertSelect/DecimalEnforcement/DecimalDeclaration三类66/66，真实Server修正两mode、异步InsertSelect及完整HTTP2类23/23。新12源/PDB SHA绑定已PASS，原CI三失败及原首helper错误保留。最终整树restore/原Format Check/cached whitespace及新head以pr295-fixture0510不可变收据为准；上述局部通过不写为全suite或正式包验收。
+
+## PR #290 root准确收尾与批次集成（2026-10-12）
+
+最小产品修正2源：已知Int64元数据保19/0，unknown/未知Decimal保持null；LIMIT0 joins仅作declaration不伪增下推，原expected1保持。3测试/CHANGELOG共6拥有patch已核，20源/20实际Core-Server DLL/PDB/runtimeconfig与执行冻结SHA一致。Core五完整类133/133、实际RemoteAdoEndToEnd全类65/65、micro3/3均由原非空TRX逐counter核；micro包含相关类不重复累计。原新增probe3/3FAIL及旧平台原三FAIL完整保留，PDB六源绑定仅声明已实证Core范围，未伪写Server最终聚合。两个worker固定阶段08:36:27、08:50:00因截止未freeze/cleanup的事实和路径筛选FAIL及截止拒绝保持。root以新独立有界审计完成source/binary/TRX，专属D:\p290fix-0801尚保留待准确清理。用户要求后续多PR一批减少CI，当前只做本地checkpoint，不push单PR重复新CI。根后续完整restore/原Format/精确本地提交、275+290+296组合与统一CI/main以实际收据为准，正式包/consumer、模型与生产验收不闭环。
