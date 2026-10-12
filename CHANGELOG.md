@@ -19,6 +19,10 @@
 - PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
 - GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
 
+
+- EF Core JSON #266：固定对象属性路径的字符串、布尔、受支持整数及浮点标量投影/谓词复用 json_value，属性名按 JSON path 与 SQL literal 两层转义并保留路径预算；修复共享 JSON 求值器将 Int64 先提升为 Double 导致的大整数精度丢失。Complex/Owned × embedded/REST/h2c 六条真实路径通过；数组路径、转换器/其它标量、非根 Owned 更新和 ExecuteUpdate 继续明确拒绝，公开包与官方 BookStore 验收独立。
+- EF Core JSON #266：支持 ToJson 整容器 UTF-8 物化、文本参数/SQL literal 与 EF 序列化的根替换，真实嵌入式/REST/h2c 读写、回滚、并发和正常重开通过；非根 Owned 更新、路径查询与批量更新仍明确拒绝，官方 BookStore/公开包消费者验收独立。
+- EF Core 10：为 ToJson 的 JsonTypePlaceholder 提供默认 JSON 容器模型和迁移 DDL 生成；JSON 聚合查询/写入在实现前明确拒绝，普通 STRING/raw JSON 字符串行为保留（Issue #266，建模切片，未完成数据库与消费者验收）。
 - GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
 
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。

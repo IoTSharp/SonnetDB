@@ -157,15 +157,21 @@ public static class JsonPathEvaluator
 
     internal static object? ConvertElement(JsonElement element)
     {
+        if (element.ValueKind == JsonValueKind.Number)
+        {
+            // 分支分别装箱，避免 long/double 条件表达式先把整数提升为 double。
+            if (element.TryGetInt64(out long longValue))
+                return longValue;
+
+            return element.GetDouble();
+        }
+
         return element.ValueKind switch
         {
             JsonValueKind.Null => null,
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.TryGetInt64(out long longValue)
-                ? longValue
-                : element.GetDouble(),
             JsonValueKind.Object or JsonValueKind.Array => element.GetRawText(),
             JsonValueKind.Undefined => null,
             _ => element.GetRawText(),

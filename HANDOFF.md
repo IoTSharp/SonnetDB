@@ -2598,3 +2598,29 @@ online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fc
 本代理未stage/commit/push/改refs。根须在最终三路径树完成whole restore/原Format Check、精确commit及一次更新302，并验证新head完整CI；当前不能说Windows已通过。原CI FAIL及全部历史FAIL/UNKNOWN/NOT_RUN继续保留，正式包/消费者/nightly/parity/生产验收独立。
 
 已接入正常合入的main6eb0ccff（原302精确d49fc10的16SUCCESS/1预期SKIPPED全部门禁通过）；仅HANDOFF尾追加冲突，公共前缀及两侧完整后缀保留。Web的5文件私有5dbd504、当前CSS/依赖/构建字节和13真实前端断言保持。此私有main集成只保存来源，最终JSON+Web组合运行验证仍待下一阶段，不把旧运行资产当成新组合实跑。正式包/Server/生产接受未增加。
+
+## Issue #266 EF JSON 容器建模私有切片（2026-10-13）
+
+root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/105含JSON15/15，编译0warn/errors；doc final仅新public GetDataReaderMethod中文XML，签名与throw不变。EF10真实容器CLR是JsonTypePlaceholder，默认原生JSON type mapping，ComplexProperty/OwnsOne无需HasColumnType可生成设计/runtime关系模型与migration SQL；普通STRING/rawJSON字符串DDL保持既有STRING。尚未实现的聚合materialization/parameter/literal/JSON path/query/INSERT/UPDATE/ExecuteUpdate明确拒绝，以防fragment覆盖；新fixture为模型/拒绝路径且connection attempts0，不能冒称真实Server JSON接受。
+
+旧shadowDbType编译FAIL、EF1001具体内部类测试FAIL、focused13/15期待偏差与其源码/TRX原样保留；没有压IL/EF warning或新增运行时依赖、缓存/ABP修改。中文XML阶段独立15min按时freeze，9记录身份无存活、3KernelJobs cleanup PASS；既有fixtureTEMP候选0，创建总数NOT_INSTRUMENTED，不称全机无孤儿。root最终whole restore/原Format/exact7path私有commit由收据绑定，未push/main/发布包。
+
+#266继续OPEN/PARTIAL。下一片先实现正确整体JSON序列化/materialization和不会丢兄弟字段的更新，再验证嵌入式/REST/h2c真实CRUD、回滚、正常重开、scalar JSON path；collection rowset、官方未改BookStore/IdentityPasskey/account及公开NuGet固定版本消费仍独立NOT_RUN。本切片不混入13原PR的SQL最终candidate；该candidate另有新snapshot完整dotted output绑定修复正在验证。
+## Issue #266 M1-A 整 JSON 容器真实读写私有检查点（2026-10-13）
+
+根独立复核source4/runtime22/PDB4，实际完整EF105/105含JSON15/15及Complex/Owned×embedded/REST/h2c六真实case。UTF8 stream物化、文本参数/literal/EF已序列化的$根替换，Unicode/嵌套/数组/SQLNULL与JSONnull、回滚/并发/删除/正常数据库重开均按原断言通过；literal实际ADO执行不是参数替代。h2c真实POST/v1/frame、application/x-sonnetdb-frame与HTTP/2明确验证。非root Owned更新/JSON path查询/ExecuteUpdate guards保留，不能把scalarfragment改为$覆盖兄弟字段；自有生产不引入反射JSON序列化。
+
+原build1 EF1002与focused15的11PASS/4FAIL完整保留。最后build3仅修测试fixture的可选Owned属性默认null!及frame队列真实endpoint断言，不压warning/不移除NULL assertions；producer freeze19:28:51.203Z早于19:28:59target，最后完整EF窗口仅一次。三build/两窗口为根明确授权上限，没有第4build/第3window。旧M0 41ffc282检查点保留，本阶段不借13PR候选EF176结果。根最终whole restore/原Format/exact6path私有commit由各收据绑定，无push/main/package/tag/Release。
+
+#266保持OPEN/PARTIAL：Owned非root更新、scalar路径/collection/unknown字段保留、官方未改BookStore/IdentityPasskey和公开NuGet固定版本消费仍需后续验收；本切片的六个本机真实transport不代表正式消费者、生产掉电或业务验收。下一片先评估现有json_value/json_exists字面路径的EF映射与安全局部更新路线，禁止丢兄弟/未知字段。原失败、源码、真实TRX/运输证据和有限进程/TEMP审计保存在json-crud-slice-1900。
+
+## Issue #266 M1-B 固定 JSON 标量与 Int64 精度私有检查点（2026-10-13）
+
+原 M1-B 完整 EF105 的99PASS/6FAIL保留。root使用原冻结Core DLL复现TryGetInt64准确而Evaluate返回Double、相邻Int64折为同值；本轮仅将Number分支分别返回long或double，保持范围外数字旧行为，再验证固定属性路径SQL投影和谓词。新增11个直接求值边界case及4组真实SQL相邻Int64case；Core定向29/29、完整EF105/105、文档索引一致性7/7通过。六个Complex/Owned×embedded/REST/h2c均实际到达大整数投影/谓词、NULL/missing、拒绝类型、原回滚及正常重开后续断言。root独立核6source/28runtime/4组DLL-PDB Guid-stamp-age/6source checksum/3份TRX实际storage，证据root2102-json-binding.json。
+
+文档普通数字索引使用原始JSON数值文本，不经过此次装箱分支；partial-filter成员集合在打开collection时按主文档重建索引。7项现存一致性回归通过；旧DocumentQueryPlanner通用数字比较仍有Double转换源码，未声称全Document数值合同已解决。完整NativeAOT宿主、官方BookStore/Passkey及公开NuGet消费仍未验，#266保持OPEN/PARTIAL；非根Owned更新、数组path与ExecuteUpdate不解除guard。
+
+当前基于私有ca339e8b保存8个owned路径，root将以同一最终树完整restore/原Format通过后做私有commit；实际提交hash/门禁结果以root2105-json-*收据为准，尚无push/main/package。原M0/M1-A与历史FAIL保留，不将此处局部通过记成完整Issue完成。后续先合已审main、核组合，再按既有json-setter-design-2012推进必要安全局部写；本段不授权发布。
+
+
+本私有集成将JSON M0/M1-A/M1-B精确611d9faa接入已含main6eb的Web候选b5db1c60。仅CHANGELOG/HANDOFF产生追加冲突，完整两侧交接章节保留；未出现产品源码冲突。既有JSON6source/28runtime及29/105/7属于611原执行，Web13断言属于其独立Vite运行，不能作为当前新组合DLL的实跑证据。当前完整restore/原Format仅用于私有来源检查点，新的统一运行验证及远端CI待最终263切片就绪后一次执行，不发布包/tag/Release。
