@@ -204,16 +204,18 @@ public sealed class FileStreamingDeadLetterOperationsTests
     public async Task ReplayDeadLetterAsync_WithPendingIsolation_ReopensAndFinishesIsolationBeforeClaim()
     {
         using var directory = new TemporaryDirectory();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var options = Options() with { OperationTimeoutMilliseconds = 200 };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var options = Options() with { OperationTimeoutMilliseconds = 2000 };
         await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, Definition(), options, deadline.Token))
         {
             await subscription.PublishAsync(Event(1), deadline.Token);
             StreamingDeliveryBatch delivery = (await subscription.ReadBatchAsync(deadline.Token))!;
             string lockPath = Directory.GetFiles(Path.Combine(directory.Path, "checkpoints"), "*.lock").Single();
             using var held = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
+            var failure = await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
                 delivery.DeliveryId, subscription.StateRevision, delivery.Attempt, "poison", deadline.Token).AsTask());
+            Assert.Equal("持久订阅操作超过存储操作超时边界。", failure.Message);
+            Assert.False(deadline.IsCancellationRequested);
             await Assert.ThrowsAsync<InvalidOperationException>(() => subscription.ReplayDeadLetterAsync(1,
                 delivery.DeliveryId, subscription.DeadLetterRevision, deadline.Token).AsTask());
             await Assert.ThrowsAsync<InvalidOperationException>(() => subscription.DeleteDeadLetterAsync(1,
@@ -226,6 +228,7 @@ public sealed class FileStreamingDeadLetterOperationsTests
         Assert.Equal(0, reopened.PendingEventCount);
         Assert.Equal(1, (await reopened.ReplayDeadLetterAsync(1, summary.DeliveryId,
             summary.DeadLetterRevision, deadline.Token)).Summary.ReplayAttempt);
+        Assert.False(deadline.IsCancellationRequested);
     }
 
     [Fact]
