@@ -482,7 +482,9 @@ public sealed partial class TableManager : IDisposable
         object? defaultValue,
         string? defaultExpressionSql,
         bool isRowVersion,
-        bool isAutoIncrement)
+        bool isAutoIncrement,
+        byte? decimalPrecision = null,
+        byte? decimalScale = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -494,7 +496,8 @@ public sealed partial class TableManager : IDisposable
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
                 var updated = current.WithAddedColumn(
-                    columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement);
+                    columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement,
+                    decimalPrecision, decimalScale);
                 var store = OpenStoreLocked(current);
                 long nextAutoIncrement = 0;
                 ApplySchemaTransformLocked(current, updated, store, (_, row) =>
@@ -559,7 +562,10 @@ public sealed partial class TableManager : IDisposable
         TableColumnType dataType,
         bool isNullable,
         string? defaultExpressionSql,
-        Func<object?, object?>? convertValue)
+        Func<object?, object?>? convertValue,
+        byte? decimalPrecision = null,
+        byte? decimalScale = null,
+        Action<TableSchema, IReadOnlyList<object?>>? validateDecimalValues = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -583,12 +589,14 @@ public sealed partial class TableManager : IDisposable
                     columnName,
                     dataType,
                     isNullable,
-                    defaultExpressionSql);
+                    defaultExpressionSql,
+                    decimalPrecision,
+                    decimalScale);
                 var store = OpenStoreLocked(current);
                 if (!changesType)
                 {
-                    if (currentColumn.IsNullable && !isNullable)
-                        store.ValidateExistingRows(updated);
+                    if (currentColumn.IsNullable && !isNullable || validateDecimalValues is not null)
+                        store.ValidateExistingRows(updated, validateDecimalValues);
                     ApplyMetadataSchemaLocked(current, updated, store);
                     return;
                 }
@@ -604,7 +612,11 @@ public sealed partial class TableManager : IDisposable
                             values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
                         return values;
                     },
-                    ValidateAlteredRowCheckConstraints);
+                    (targetSchema, values) =>
+                    {
+                        ValidateAlteredRowCheckConstraints(targetSchema, values);
+                        validateDecimalValues?.Invoke(targetSchema, values);
+                    });
             }
     }
 

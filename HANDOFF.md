@@ -1990,3 +1990,16 @@ ADO Decimal 参数使用 typed Decimal AST，远程使用 DECIMAL '不变量文�
 从原 #235 已交付 head94c965f16e8699ee2f06c1561090436700e4c778干净接续。Ubuntu run38183066766/job114599537571 Core6254/6257仅三个旧 SqlParserTests AST相等预期未含新保留的NumericText（默认0.5、INSERT1.5、负数operand1.5）；整个run仍运行时log-failed拒绝以及之后exact job原日志均保留。只修三个预期，保留精确Decimal原数字文本和生产record相等性；没有删metadata或修改生产代码。
 
 本阶段最多35分钟/30shell/18Job/2次600秒2CPU构建，无额外真实transport窗口；原#235冻结23路径/284不同测试与本次parser验证分别计数。实际完整parser类TRX、源码/DLL绑定、最终完整restore/原Format Check和新提交/原PR回读由pr288-parser-*原回执记录。新head全量CI、#241父集成、正式NuGet/Chloe/FreeSql及NativeAOT验收仍单独核实，Issue保持OPEN。保留#235原stash、#289恢复stash、外来dirty、parity-results、发布冻结与PAUSED；任务Job精确身份/finally回收，不Graphify/扫描/安装/按名杀进程。
+
+
+## 2026-10-12 — #241 Decimal DDL 声明与无损迁移执行交接
+
+- 当前执行工作树：`C:\Users\mysti\.codex\worktrees\online-delivery\SonnetDB`；分支 `codex/issue241-decimal-declarations`；基线 `94c965f16e8699ee2f06c1561090436700e4c778`（#235 / PR #288）。本执行子任务只修改父任务批准的 13 个路径，未 stage、commit、push、切分支或写 GitHub。
+- 已完成 #241：ADD / ALTER 的 TYPE、SET DATA TYPE 和直接类型写法传递 Decimal/NUMERIC `(p,s)`；所有 schema 克隆、增删、索引/约束、重命名保持未修改列的声明；Server schema 与 Workbench 元数据保留合法零 scale；tblschema 仍是 v10，公共 positional constructor/deconstruction 合同保持。
+- 显式 Decimal 迁移在发布 schema 前预检全部旧行或准备后的转换行；按 96-bit Decimal 系数与整数缩放验证精度/scale，不先通过字符串、浮点转换舍入。默认值及嵌套 Decimal CAST 走无损 DDL 转换；失败保留旧行、索引和声明，重开仍一致。裸 DECIMAL DDL 保留完整 CLR Decimal 值域；DML 持续声明约束仍属于排除项 #264。
+- 本次真实验证：Core build PASS（0 warning / 0 error）；极小 Core 试运行 1/1 PASS；268/268 Core 回归 PASS，其中 36 个新增 #241 用例，覆盖裸 Decimal/极端声明、晚行失败、默认值、字符串/浮点迁移、15 个 schema 演化路径和 codec v10，另含既有 #235 Decimal 参数和 safe DDL / table / index / atomic batch 回归。
+- EF/Server build PASS（0 warning / 0 error）；嵌入式试运行 1/1 PASS；实际合同回归 6/6 PASS：新增 #241 嵌入式 / REST HTTP/1.1 / 精确 h2c HTTP/2 和既有 #235 的对应三个用例。实际请求协议、零 scale、值、失败 DDL 和完整 Stop/Dispose 后重新加载数据库均由测试断言；未使用 mock 替代服务。
+- 本次 owned-path Format Check PASS：`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --include <10 owned C# paths>`；只读检查，没有修改源码。10 个 C# 源码哈希与实际 Core / EF 测试 DLL 的构建前源码一致；旧 #235 `SqlDecimalParameterTests.cs`、`SndbDecimalContractTests.cs` 保持原样（其中完整 CLR 值域的历史 fixture 未改写）。本条 HANDOFF 仅追加，原始 557648-byte 前缀保持。
+- 证据根：`D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery\issue-241`。保留了 spec、start / identity / result receipts、stdout/stderr、TRX、构建前源码哈希、测试实际 DLL 路径/版本/哈希、#235 fixture 哈希、资源预算和最终 freeze。使用 2/3 builds、1/2 实际 transport windows、7/20 owned Jobs；全部 Job `cleanupComplete=true`。最终核验 54 个历史进程身份，无仍存活的所属进程；仅回收已验证专属 `D:\s241-c1-b925f2e0` 的 20 个临时对象，保留产物和证据。
+- 下一步由父任务处理：审阅最终 13 路径 freeze、整合 #235 修正及其它独立修复，针对最终待提交整树执行完整 `dotnet restore SonnetDB.slnx` 和 CI 同等级 Format Check，再由父任务 stage / commit / push / PR。当前没有完整最终整树提交证明；正式修复包发布、外部 Server/NuGet/XCode 消费者验收仍 OPEN / NOT_RUN；#264 不在本次实现范围。
+根接续已在准确父1ebe27f55d94d8b80e21095ebd07d95d718580c6恢复#241十三路径；旧94c父的原13文件及恢复stash保留。唯一两文档冲突严格核557648-byte共同前缀并保留parser父段与#241完整尾，两CHANGELOG原行都保留；strict helper未弱化。首次取消stage误含三untracked路径被Git拒绝，随后仅恢复准确10tracked staged路径，索引为空。十C#与sql-reference原SHA、七实际DLL及Core268/268、EF6/6原TRX独立核通过，所执行Core集合不含父改动的SqlParserTests，生产与选中fixture不变。最终完整restore/原Format Check与提交/远端以issue241-final-root-*及issue241-delivery.json为准；实际全量CI与正式包/XCode/#264继续独立。
