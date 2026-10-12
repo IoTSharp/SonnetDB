@@ -115,6 +115,8 @@ public static class FunctionRegistry
             "first", Aggregator.First, AggregateFieldTypes.All),
         new BuiltInAggregateFunction(
             "last", Aggregator.Last, AggregateFieldTypes.All),
+        new StringAggregateFunction("string_agg"),
+        new StringAggregateFunction("group_concat"),
         // Tier 2 — 扩展聚合（PR #52）
         new StddevFunction(),
         new VarianceFunction(),

@@ -2,6 +2,7 @@ using System.Globalization;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Query.Functions;
+using SonnetDB.Query.Functions.Aggregates;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 using SonnetDB.Views;
@@ -69,6 +70,15 @@ internal static partial class RelationalSelectExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        foreach (var item in statement.Projections)
+            foreach (var call in EnumerateAggregateCalls(item.Expression))
+                if (StringAggregateFunction.IsBuiltIn(call.Name))
+                    _ = StringAggregateFunction.ValidateCall(call);
+        if (statement.Having is not null)
+            foreach (var call in EnumerateAggregateCalls(statement.Having))
+                if (StringAggregateFunction.IsBuiltIn(call.Name))
+                    _ = StringAggregateFunction.ValidateCall(call);
 
         SqlExecutor.EnsureMaterializationSourceSupported(tsdb, statement);
 
@@ -2058,7 +2068,7 @@ internal static partial class RelationalSelectExecutor
     {
         SelectExecutionResult snapshot = manager.ReadSnapshot(name);
         var columns = snapshot.Columns
-            .Select((column, ordinal) => FromResultColumn(snapshot, ordinal, alias, column))
+            .Select((column, ordinal) => FromResultColumn(snapshot, ordinal, alias, column) with { Name = column })
             .ToArray();
         var rows = new List<object?[]>();
         foreach (IReadOnlyList<object?> row in snapshot.Rows)
@@ -3832,9 +3842,10 @@ internal static partial class RelationalSelectExecutor
         Relation relation,
         RelationalScope? outerScope,
         SubqueryMemo memo)
-        => InferAggregateInputIntegral(aggregate, relation.Columns)
+        => !StringAggregateFunction.IsBuiltIn(aggregate.Function.Name)
+            && (InferAggregateInputIntegral(aggregate, relation.Columns)
             ?? IsAggregateInputAllIntegral(
-                tsdb, aggregate, relation.Columns, relation.Rows, outerScope, memo);
+                tsdb, aggregate, relation.Columns, relation.Rows, outerScope, memo));
 
     /// <summary>
     /// 判定某个聚合的输入表达式在 <paramref name="allRows"/> 全集合上是否只产出整数（或 null）。
@@ -4375,9 +4386,17 @@ internal static partial class RelationalSelectExecutor
             && UserFunctionRegistry.Current?.TryGetScalar(trigonometric.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.Float64, true);
 
+        if (expression is SubqueryExpression stringAggregateSubquery
+            && stringAggregateSubquery.Select.Projections.Count == 1
+            && stringAggregateSubquery.Select.Projections[0].Expression is FunctionCallExpression stringAggregateCall
+            && StringAggregateFunction.IsBuiltIn(stringAggregateCall.Name))
+            return new SelectColumnInfo(TableColumnType.String, true);
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();
+            if (StringAggregateFunction.IsBuiltIn(name))
+                return new SelectColumnInfo(TableColumnType.String, true);
             if (name == "count")
                 return new SelectColumnInfo(TableColumnType.Int64, false);
             var input = function.Arguments.Count == 1
@@ -4463,6 +4482,10 @@ internal static partial class RelationalSelectExecutor
     {
         var fn = aggregate.Function;
         var name = fn.Name.ToLowerInvariant();
+        if (StringAggregateFunction.IsBuiltIn(name))
+            return StringAggregateFunction.Evaluate(fn, rows,
+                row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo),
+                tsdb.SqlMemoryOptions.QueryLimitBytes);
         if (name == "count")
         {
             if (fn.IsStar)
@@ -5871,7 +5894,8 @@ internal static partial class RelationalSelectExecutor
             || string.Equals(name, "sum", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "min", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "max", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(name, "avg", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(name, "avg", StringComparison.OrdinalIgnoreCase)
+            || StringAggregateFunction.IsBuiltIn(name);
 
     private static bool MatchesGroupBy(SqlExpression expression, IReadOnlyList<SqlExpression> groupBy)
         => groupBy.Any(group => ExpressionEquals(expression, group));

@@ -30,6 +30,8 @@
 - GH-Issue #219：新增原生 `shift_left` / `shift_right` 标量函数，固定有符号 Int64/64 位、0..63 计数、左移丢出位/右移保留符号和 NULL 传播，拒绝非整数及越界参数；空关系结果保留 Int64 声明元数据。正式包发布与 FreeSql #2234 的 CLR 位宽/掩码适配另行验收。
 
 - GH-Issue #221：新增弧度制 `sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `atan2(y,x)` 标量函数，明确可空 Float64、有限数值与反三角函数定义域合同，并保留空结果类型元数据；正式发布和 FreeSql Provider 验收仍独立。
+
+- GH-Issue #223：新增关系表双参数 `string_agg`/`group_concat` 基础聚合，支持 NULL/参数分隔符、GroupBy/JOIN/关联单列子查询与 nullable String 元数据，逐行一次求值并限制共享拼接预算；可选聚合语法、measurement、正式包与 FreeSql 集成独立验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。
@@ -492,6 +494,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 物化视图读取保留已持久化的完整输出名称，修复带点 quoted alias 在空结果/CTE 的声明及重开后值绑定；补齐 Streaming ACK 两层精确超时文案测试合同，原预算与恢复断言保持（Issue #261、#300、#301；13 PR 组合验证）。
 - **GH-Issue #228 ADO.NET HasRows**：按真实结果探测是否存在行，保留空 SELECT/RETURNING 的声明列元数据；首行探测复用命令超时、取消与远程错误传播，并由后续同步/异步 Read 返回该行。正式 NuGet/Server 发布与 FreeSql 消费者回归仍待验收。
 
 - 后台语义回填区分恢复工作预算与真实宿主取消：工作预算到期停止新增对象，以原五秒提交窗口保存已持久入队前缀的游标和计数；HTTP仍使用请求取消，生产默认250ms、调用者取消及存储错误合同不变。新增真实KV整库重开、宿主取消和Kestrel自然预算回归；跨崩溃的任务/计数原子性与真实模型质量独立验收。
@@ -516,6 +519,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - Linux CI：仅持久死信重新签名意图不匹配理论用例统一使用两秒初开/重开预算，以45秒调用者截止覆盖初始化、锁故障、损坏状态读写与重开；保留真实存储超时原消息、损坏拒绝和原spool不确认断言，原200ms初开失败保持。
 - Windows CI：持久订阅确认的锁故障用例统一使用2秒初开/重开预算，分别核生产超时原消息和实际调用者取消，并验证相同 delivery/checkpoint/pending 恢复；原200ms Open失败保留。
 - Windows CI：持久死信 pending isolation 恢复用例统一使用2秒存储预算，保留真实锁超时和重开恢复，并独立核15秒调用者未取消；保留原200ms Open/recovery失败，生产配置不变。
+
+- 修复 #271 BLOB 参数查询：嵌入式保留二进制字面量快照，远程使用严格十六进制 `X'...'` 字面量，普通及关联等值按字节内容比较，并保留主键/二级索引与 EXISTS 访问路径；公开修复包及实际 ABP Passkey/A06 验收仍独立进行。
 - Windows Outbox 批次取消测试使用 2 秒初始化/批次预算，并独立核处理器真实取消、15 秒调用者未取消及租约可恢复；保留原 100ms 构造阶段取消失败，生产预算不变。
 - Windows CI：持久订阅确认故障用例为初始存储提供合理有界预算，独立区分真实存储超时、dispatcher总预算和调用者取消，保留持久批次恢复断言。
 - Windows CI：物理读取过载 HTTP 映射用例为冷启动共享主机提供 15 秒有界请求预算，保留真实 503、Retry-After 和错误码断言；不改变服务端过载或生产超时配置。
