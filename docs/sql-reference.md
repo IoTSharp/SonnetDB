@@ -55,7 +55,13 @@ SELECT CAST('42' AS INT), CAST(1 AS STRING), CAST(1704067200000 AS DATETIME);
 SELECT CAST('9007199254740993.125' AS DECIMAL(20,3));
 SELECT CAST('12:34:56.1234567' AS TIME);
 SELECT CAST(text_value AS INT) FROM values_table WHERE CAST(text_value AS INT) > 0;
+SELECT CAST(AVG(value) AS FLOAT), CAST(SUM(value) AS INT) FROM values_table;
+SELECT tenant, CAST(SUM(amount) AS DECIMAL) FROM ledger GROUP BY tenant HAVING CAST(SUM(amount) AS DECIMAL) > 0;
 ```
+
+关系查询允许 `CAST` 包装 `SUM`、`AVG`、`MIN`、`MAX`、`COUNT` 的聚合投影和 HAVING 表达式，并与已有 `COALESCE`、算术、CASE 和标量函数组合。先按每组求聚合结果，再进行外层转换；NULL 与空集规则不变，声明列类型使用 CAST 目标，COUNT 结果仍非空。Decimal 聚合的内联结果不先转换为 Float64；目标为 Decimal 的 CAST 及 Decimal 算术保留精度，显式 FLOAT 转换和已有标量函数继续遵守各自的类型合同。外层 CAST 不改变原聚合的输入或溢出规则：`CAST(SUM(value) AS DECIMAL)` 不能补救 `SUM(INT)` 的 Int64 溢出，需改为 `CAST(SUM(CAST(value AS DECIMAL)) AS DECIMAL)`；Decimal 聚合自身及转换到 INT 的溢出都返回执行错误。此范围不扩展 measurement 聚合方言；正式包与 Chloe Provider 验收另行完成。
+
+REST 结果按已声明的 Float64 元数据读取为 `double`，即使 JSON 数值没有小数部分，`GetValue`、`GetFieldValue<double>` 与 `GetDouble` 也保持该类型；NULL 不变，缺少类型声明时继续使用原有推断。
 
 `NULL` 转换到任一已支持目标类型仍为 `NULL`。`DECIMAL` / `NUMERIC` 转换保持十进制值，不经过 `Float64`；括号中的 precision/scale 仅用于校验目标声明，未声明时使用 `(38,28)`。`TIME` 只接受不带日期/时区的 `HH:mm[:ss[.fffffff]]` 文本、`TimeOnly` 或小于 24 小时的 `TimeSpan`，以 ticks 精度保存；`24:00:00`、负值、跨日值以及 `DATETIME`/`DateTimeOffset` 到 `TIME` 的隐式取时钟转换均拒绝。整数转换使用不变量格式并截断有限浮点的小数部分；布尔转换接受 `TRUE`/`FALSE` 或数值 `0`/`1`；`DATETIME` 输入可以是 UTC/ISO-8601 文本或 Unix 毫秒，结果统一为 UTC；`BLOB` 的字符串输入按 UTF-8 编码，`JSON` 当前保留字符串文本。格式错误、溢出、非有限浮点和非法布尔值会返回执行错误。`VECTOR` 与 `GEOPOINT` 作为 CAST 目标暂不支持，不会隐式构造对应模型值。
 
@@ -190,7 +196,7 @@ CREATE TABLE devices (
 规则：
 
 - 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
-- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；省略 `(p,s)` 时默认为 `(38,28)`。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
+- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
@@ -264,6 +270,9 @@ ALTER TABLE table_name ALTER [COLUMN] column_name
 
 - 每条语句至少要指定一种变更；类型、空值约束和默认值动作各自最多出现一次，可以组合在同一条语句中。
 - `TYPE FLOAT` 与 `SET DATA TYPE FLOAT` 是两种等价的类型变更写法；省略 `TYPE` 的 `FLOAT` 形式用于 SQL Server 风格组合，例如 `ALTER TABLE devices ALTER COLUMN retry_count FLOAT NOT NULL`。
+- `ADD COLUMN amount DECIMAL(p,s)`、`ALTER COLUMN amount TYPE DECIMAL(p,s)`、`SET DATA TYPE NUMERIC(p,s)` 和省略 `TYPE` 的写法保留声明的 precision/scale 和显式来源，schema 重开、列/表重命名及索引/约束演进不会重置未修改列的声明；嵌入式和远程 `GetSchema("Columns")` 保留 scale=0。表 catalog 升级 v11，以现有列 flags bit4 保存来源；不修改行/key/index 布局。旧 reader 明确拒绝 v11，回退须同时恢复旧 catalog/data 副本，不能仅替换旧二进制。
+- 显式修改 Decimal 声明时先检查所有已有行和保留/新设的默认值：值必须能在目标 scale 下无损表示，且绝对值小于 `10^(precision-scale)`；多余尾零可无损表示，真实小数损失或精度溢出会拒绝整个 DDL，原 schema、行和索引保持。默认值的原始字符串和 Decimal CAST 在转换舍入前预检；转换仍受 CLR Decimal 的 96 位系数和 0..28 scale 限制。裸 `DECIMAL`/`NUMERIC` 类型变更保留完整 CLR Decimal 值域，省略类型的空值/默认值变更保留原 p/s。
+- INSERT/UPDATE、核心直接写入及事务提交对显式 `DECIMAL(p,s)` 持续执行上述精确约束，整批预检先于生成列预留和行/索引写入，失败不会留下部分批次；不进行隐式舍入，多余尾零可接受。旧 v9/v10 catalog 中非 `(38,28)` 的声明在读取后约束后续写入，已有不合规行仍原值可读并可用合法 UPDATE 修正；旧 `(38,28)` 无法恢复其来源，保留 legacy 不约束，可显式重声明并通过全部已有值预检后启用。裸 TYPE DECIMAL 重置为不约束，单独 NULL/DEFAULT 修改保持原来源。正式引擎/ADO.NET/Server、XCode 迁移及 Chloe 消费验收独立完成。
 - 类型变更会转换全部存量非空值并重建派生索引。当前不支持 `USING expression` 自定义转换；任一值无法转换，或转换后违反唯一索引、CHECK、NOT NULL 等约束时，在进程内整条 DDL 恢复原 schema、数据和索引。行 payload 与 catalog 发布之间尚无迁移 journal，因此不将该恢复边界解释为进程终止或掉电原子性。
 - 真正改变物理类型的迁移当前使用单个 KV 原子 batch，受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制（默认分别为 100,000 条 mutation 和 256 MiB WAL）。超出预算时会在写 WAL 前拒绝；应先提高预算，或通过新表分批迁移。`SET/DROP DEFAULT`、`DROP NOT NULL` 和列重命名只发布元数据，不受该 batch 行数限制。
 - `SET NOT NULL` 会分页扫描并验证全部存量行，但不会重写 row payload；`DROP NOT NULL` 与直接写 `NULL` 等价，`NOT NULL` 与 `SET NOT NULL` 等价。

@@ -488,6 +488,9 @@ public sealed record TableColumnDefinition(
     /// <summary>DECIMAL/NUMERIC 的小数位数；未声明时使用 28。</summary>
     public byte DecimalScale { get; init; } = 28;
 
+    /// <summary>是否在 DECIMAL/NUMERIC 类型后显式声明了精度和小数位。</summary>
+    public bool HasExplicitDecimalDeclaration { get; init; }
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>
@@ -518,6 +521,12 @@ public sealed record AlterTableAddColumnStatement(
     bool IsRowVersion = false,
     bool IsAutoIncrement = false) : SqlStatement
 {
+    /// <summary>显式 DECIMAL/NUMERIC 总精度；未声明括号时为空。</summary>
+    public byte? DecimalPrecision { get; init; }
+
+    /// <summary>显式 DECIMAL/NUMERIC 小数位数；未声明括号时为空。</summary>
+    public byte? DecimalScale { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 
@@ -562,6 +571,12 @@ public sealed record AlterTableAlterColumnStatement(
     ColumnDefaultAction DefaultAction = ColumnDefaultAction.Unchanged,
     SqlExpression? DefaultExpression = null) : SqlStatement
 {
+    /// <summary>本次类型变更显式声明的 DECIMAL/NUMERIC 总精度。</summary>
+    public byte? DecimalPrecision { get; init; }
+
+    /// <summary>本次类型变更显式声明的 DECIMAL/NUMERIC 小数位数。</summary>
+    public byte? DecimalScale { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 

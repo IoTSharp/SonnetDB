@@ -75,7 +75,7 @@ internal static class SchemaEndpointHandler
                     column.Ordinal,
                     column.IsRowVersion,
                     column.DecimalPrecision == 0 ? null : column.DecimalPrecision,
-                    column.DecimalScale == 0 ? null : column.DecimalScale)
+                    column.DataType == SonnetDB.Tables.TableColumnType.Decimal ? column.DecimalScale : null)
                 {
                     IsAutoIncrement = column.IsAutoIncrement,
                     DefaultExpressionSql = column.DefaultExpressionSql,
