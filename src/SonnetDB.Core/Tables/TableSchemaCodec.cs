@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 10;
+    private const int _formatVersion = 11;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -166,6 +166,7 @@ public static class TableSchemaCodec
         var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
         var decimalDefinitions = new Dictionary<string, (byte Precision, byte Scale)>(StringComparer.Ordinal);
+        var explicitDecimalDeclarations = new HashSet<string>(StringComparer.Ordinal);
         var primaryKey = new List<string>();
         Span<byte> flags = stackalloc byte[2];
         Span<byte> decimalSpec = stackalloc byte[2];
@@ -183,12 +184,18 @@ public static class TableSchemaCodec
             bool isNullable = (flags[1] & 0b0000_0010) != 0;
             bool isRowVersion = version >= 4 && (flags[1] & 0b0000_0100) != 0;
             bool isAutoIncrement = version >= 8 && (flags[1] & 0b0000_1000) != 0;
+            bool hasExplicitDecimalDeclaration = version >= 11 && (flags[1] & 0b0001_0000) != 0;
+            if (version >= 11 && ((flags[1] & 0b1110_0000) != 0
+                || hasExplicitDecimalDeclaration && type != TableColumnType.Decimal))
+                throw new InvalidDataException($"TableSchema: invalid column flags for '{columnName}'.");
             columns.Add((columnName, type, isNullable));
             if (version >= 9 && type == TableColumnType.Decimal)
             {
                 ReadExactSpan(source, decimalSpec, $"table {tableIndex} column {i} decimal spec");
                 crc.Append(decimalSpec);
                 decimalDefinitions[columnName] = (decimalSpec[0], decimalSpec[1]);
+                if (hasExplicitDecimalDeclaration || version < 11 && (decimalSpec[0] != 38 || decimalSpec[1] != 28))
+                    explicitDecimalDeclarations.Add(columnName);
             }
             if (version >= 7)
             {
@@ -258,7 +265,8 @@ public static class TableSchemaCodec
             checkConstraints,
             columnDefaults,
             autoIncrementColumns,
-            decimalDefinitions);
+            decimalDefinitions,
+            explicitDecimalDeclarations);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -392,6 +400,8 @@ public static class TableSchemaCodec
                     flags |= 0b0000_0100;
                 if (column.IsAutoIncrement)
                     flags |= 0b0000_1000;
+                if (column.DataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration)
+                    flags |= 0b0001_0000;
                 writer.WriteByte(flags);
                 if (column.DataType == TableColumnType.Decimal)
                 {

@@ -202,7 +202,7 @@ public sealed class SqlDecimalDeclarationTests : IDisposable
         }
     }
 
-    /// <summary>每个 schema 克隆路径保留或正确重命名 Decimal 声明，codec 仍为 v10。</summary>
+    /// <summary>每个 schema 克隆路径保留或正确重命名 Decimal 声明，codec 升级为 v11。</summary>
     [Theory]
     [InlineData("add-index")]
     [InlineData("drop-index")]
@@ -270,7 +270,7 @@ public sealed class SqlDecimalDeclarationTests : IDisposable
         Assert.Equal((byte)0, clone.TryGetColumn("untouched")!.DecimalScale);
         string path = Path.Combine(_root, "schema.tblschema");
         TableSchemaCodec.Save(path, [clone]);
-        Assert.Equal(10, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
+        Assert.Equal(11, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
         var loaded = Assert.Single(TableSchemaCodec.Load(path));
         Assert.Equal(clone.Columns, loaded.Columns);
     }

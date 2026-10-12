@@ -488,6 +488,9 @@ public sealed record TableColumnDefinition(
     /// <summary>DECIMAL/NUMERIC 的小数位数；未声明时使用 28。</summary>
     public byte DecimalScale { get; init; } = 28;
 
+    /// <summary>是否在 DECIMAL/NUMERIC 类型后显式声明了精度和小数位。</summary>
+    public bool HasExplicitDecimalDeclaration { get; init; }
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>

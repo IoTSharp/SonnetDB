@@ -102,7 +102,7 @@ public sealed class SndbDecimalContractTests : IDisposable
     {
         await using var connection = new SndbConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
-        await ExecuteAsync(connection, "CREATE TABLE amounts (id INT, value DECIMAL(38,28) NULL, PRIMARY KEY (id))", cancellationToken);
+        await ExecuteAsync(connection, "CREATE TABLE amounts (id INT, value DECIMAL NULL, PRIMARY KEY (id))", cancellationToken);
         await ExecuteAsync(connection, "CREATE INDEX ix_amounts_value ON amounts (value)", cancellationToken);
         decimal[] values = [IssueValue, -IssueValue, 0.1m, 0.2m, 9007199254740992.125m, 9007199254740993.125m,
             0.1234567890123456789012345678m, decimal.MaxValue, decimal.MinValue];

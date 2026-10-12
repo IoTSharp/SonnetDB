@@ -2073,3 +2073,14 @@ CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 
 原 #241 headdcdfb8d00e7dd05c1b2491ce05cef0915d85e96c正常合入已推 #288 head296f0ba37da821ca97d51e73b608b2cde0e8091b，保留 #235/原NumericText修正及已合main/#289的准确源码。#241原10个C#源SHA完全不变，只有一个HANDOFF实际冲突；三原blob保留，逐两侧全部完整章节零缺失及539063字节公共前缀核后合并，未弱化严格helper。当前 #288 新head CI未结束，不能先合有该前置的 #292。
 
 本阶段最多35分钟/25shell/18Jobs/两次2CPU构建和一次实际transport组合；必须对这棵准确集成树重新绑定Core/EF真实TRX、source/DLL SHA，执行最终完整restore/原CI Format Check/default cached whitespace后才提交推回原PR。上述收据由pr292-parent288-*记录，本段不预写结果。原#241268/6、父#288429/66和所有旧FAIL分别保持；正式NuGet/Server/XCode消费者与#264持续DML约束仍独立OPEN/NOT_RUN，发布冻结/parity-results/外来dirty/旧恢复stash不动。
+
+## Issue #264 显式 Decimal 持续写入约束（2026-10-12，Asia/Shanghai）
+
+准确base bc03a6fbba49492019887b9cf57e2e4a39cbdc93，分支codex/issue264-decimal-enforcement。显式来源为非positional init属性，constructor/deconstruct保持；SQL舍入前、store/轻事务/跨表prepare/生成列前预检，拒绝需要舍入和precision溢出。裸Decimal保留CLR全值域与原Double兼容；tblschema自身catalog格式v11/flags bit4，row/key/index/FileHeader布局未动，旧reader拒绝v11。当前reader把旧v9/v10非38/28识别为显式，旧38/28保持来源不明不约束；历史非法行可原值读取/合法UPDATE修正，不自动改写，显式重声明走#241全值DDL预检。
+
+final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91、codec20），实际嵌入式/REST/exact h2c两类9/9（新2643）通过；两tiny1/1不累计。Portable PDB逐14个当前Core/测试源SHA匹配。两owned format verify通过，无源码whitespace修正。原Core build两新fixture编译错误、首完整188/190及EF CS0266均保留；第四且最后EF300s/2CPU仅2type assert经root明确授权后PASS。#235大值fixture在功能执行前对齐bare（旧functional不是FAIL），#181原20,6夹具22位值的实际FAIL后改为22,6；#241晚到scale越界改为合法源1000的precision缩窄失败，保留严格约束与原源/失败。
+
+源码/DLL/TRX/所有FAIL及阶段预算冻结于artifacts/online-closure-20261012/issue264-impl-0300。所有native隐藏KernelJob、2CPU、有界数量/墙钟/取消和finally清理；最终当前记录身份及owner/noReparse短TEMP回收以cleanup.json为准，不预写未执行的fresh结果，不触碰旧policy对象。root独占index/branch/commit/push/GitHub及最后整树restore/原CI Format Check；本段仅尾追加并核原完整字节前缀。原04:00:11Z不延；正式NuGet/Server/Chloe/完整NativeAOT和新head CI仍独立NOT_RUN，Issue保持OPEN，不把本地PASS或catalog升级冒称完全兼容。
+
+
+根最终检查补充（2026-10-12）：完整原Format Check发现TableSqlExecutor三处WHITESPACE，原FAIL保留。仅按原formatter修正该源空白；逐全部token kind/text与非空白trivia核一致。上述14源PDB字节绑定属于修正前准确源码；修正后不冒称PDB字节SHA匹配，不追加无必要构建。普通预检发生在identity分配前；BEFORE trigger导致失败仍遵循既有identity可能留gap语义，本轮未新增该场景实跑。旧reader拒绝v11为源码合同，本轮无旧reader可执行验收。独立审查未确认P1/P2；正式包/Chloe/AOT仍NOT_RUN。最终整树门禁见独立root-ws收据。

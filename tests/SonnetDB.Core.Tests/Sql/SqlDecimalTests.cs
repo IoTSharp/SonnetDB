@@ -49,7 +49,7 @@ public sealed class SqlDecimalTests : IDisposable
         using (var db = Open())
         {
             SqlExecutor.Execute(db,
-                "CREATE TABLE ledger (id INT, amount DECIMAL(20,6), PRIMARY KEY (id))");
+                "CREATE TABLE ledger (id INT, amount DECIMAL(22,6), PRIMARY KEY (id))");
             SqlExecutor.Execute(db,
                 "INSERT INTO ledger (id, amount) VALUES (1, '9007199254740993.125000')");
 
