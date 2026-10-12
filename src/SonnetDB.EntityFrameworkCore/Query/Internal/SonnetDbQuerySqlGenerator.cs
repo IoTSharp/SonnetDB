@@ -107,11 +107,6 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
     /// <returns>已访问的列表达式。</returns>
     protected override Expression VisitColumn(ColumnExpression columnExpression)
     {
-        if (columnExpression.TypeMapping is SonnetDbJsonTypeMapping)
-        {
-            throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
-        }
-
         if (string.Equals(columnExpression.TableAlias, _unqualifiedDeleteAlias, StringComparison.Ordinal))
         {
             Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnExpression.Name));
@@ -123,7 +118,9 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
 
     /// <inheritdoc />
     protected override Expression VisitJsonScalar(JsonScalarExpression jsonScalarExpression)
-        => throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        => jsonScalarExpression.Path.Count == 0
+            ? Visit(jsonScalarExpression.Json)
+            : throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
 
     /// <inheritdoc />
     protected override Expression VisitUpdate(UpdateExpression updateExpression)

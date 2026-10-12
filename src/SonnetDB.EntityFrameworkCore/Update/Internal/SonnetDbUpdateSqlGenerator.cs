@@ -78,7 +78,10 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
     private static void RejectJsonAggregateWrites(IReadOnlyModificationCommand command)
     {
         if (command.ColumnModifications.Any(static operation => operation.IsWrite
-            && (operation.JsonPath is not null || operation.TypeMapping is SonnetDbJsonTypeMapping)))
+            && (operation.JsonPath is not null || operation.TypeMapping is SonnetDbJsonTypeMapping)
+            && (operation.JsonPath != "$"
+                || operation.TypeMapping is not SonnetDbJsonTypeMapping
+                || operation.Value is not null and not string)))
         {
             throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }

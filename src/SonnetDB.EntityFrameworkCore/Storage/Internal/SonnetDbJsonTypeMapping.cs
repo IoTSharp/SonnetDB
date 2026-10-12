@@ -1,19 +1,30 @@
 using System.Data.Common;
+using System.Linq.Expressions;
 using System.Reflection;
+using System.Text;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 /// <summary>
-/// 为 ToJson 聚合提供模型与迁移的 JSON 容器映射；聚合读写尚不支持。
+/// 为 ToJson 聚合提供 JSON 整容器映射；JSON 路径查询和局部更新尚不支持。
 /// </summary>
 public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
 {
     internal const string UnsupportedOperationMessage =
-        "SonnetDB ToJson support is limited to model and migration generation. JSON aggregate queries and writes are not supported.";
+        "SonnetDB ToJson supports whole-container operations only. JSON path queries and partial updates are not supported.";
+
+    private static readonly MethodInfo GetStringMethod =
+        typeof(DbDataReader).GetMethod(nameof(DbDataReader.GetString), [typeof(int)])!;
+
+    private static readonly MethodInfo GetUtf8BytesMethod =
+        typeof(Encoding).GetMethod(nameof(Encoding.GetBytes), [typeof(string)])!;
+
+    private static readonly ConstructorInfo MemoryStreamConstructor =
+        typeof(MemoryStream).GetConstructor([typeof(byte[])])!;
 
     /// <summary>
-    /// 创建仅支持模型与迁移生成的 JSON 容器映射。
+    /// 创建支持 JSON 整容器读写的映射。
     /// </summary>
     public SonnetDbJsonTypeMapping()
         : base("JSON", typeof(JsonTypePlaceholder), System.Data.DbType.String)
@@ -30,18 +41,36 @@ public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
         => new SonnetDbJsonTypeMapping(parameters);
 
     /// <summary>
-    /// 拒绝获取 JSON 聚合的数据读取方法；当前切片仅支持模型与迁移生成。
+    /// 获取用于读取完整 JSON 文本的数据读取方法。
     /// </summary>
-    /// <returns>此方法不返回数据读取方法。</returns>
-    /// <exception cref="NotSupportedException">尚未支持 JSON 聚合读取，调用时始终抛出异常。</exception>
+    /// <returns>关系数据读取器的字符串读取方法。</returns>
     public override MethodInfo GetDataReaderMethod()
-        => throw new NotSupportedException(UnsupportedOperationMessage);
+        => GetStringMethod;
+
+    /// <summary>
+    /// 将完整 JSON 文本转换为 EF JSON 物化器使用的 UTF-8 数据流。
+    /// </summary>
+    /// <param name="expression">读取 JSON 字符串的表达式。</param>
+    /// <returns>创建 JSON 数据流的表达式。</returns>
+    public override Expression CustomizeDataReaderExpression(Expression expression)
+        => Expression.New(
+            MemoryStreamConstructor,
+            Expression.Call(Expression.Constant(Encoding.UTF8), GetUtf8BytesMethod, expression));
 
     /// <inheritdoc />
     protected override void ConfigureParameter(DbParameter parameter)
-        => throw new NotSupportedException(UnsupportedOperationMessage);
+    {
+        if (parameter.Value is not null and not DBNull and not string)
+        {
+            throw new NotSupportedException(UnsupportedOperationMessage);
+        }
+
+        base.ConfigureParameter(parameter);
+    }
 
     /// <inheritdoc />
     protected override string GenerateNonNullSqlLiteral(object value)
-        => throw new NotSupportedException(UnsupportedOperationMessage);
+        => value is string json
+            ? "'" + json.Replace("'", "''", StringComparison.Ordinal) + "'"
+            : throw new NotSupportedException(UnsupportedOperationMessage);
 }
