@@ -18,6 +18,7 @@
     <Project Path="connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" />
   </Folder>
   <Folder Name="/extensions/">
+    <Project Path="extensions/SonnetDB.CAP/SonnetDB.CAP.csproj" />
     <Project Path="extensions/IoTSharp.CoAP.NET/CoAP.NET.SourceGeneration/CoAP.NET.SourceGeneration.csproj" />
     <Project Path="extensions/IoTSharp.CoAP.NET/CoAP.NET/CoAP.NET.csproj" />
     <Project Path="extensions/MQTTnet.AspNetCore.Routing/Source/MQTTnet.AspNetCore.Routing.csproj" />
@@ -37,6 +38,7 @@
     <Project Path="samples/SonnetDB.SemanticImages/SonnetDB.SemanticImages.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SonnetDB.CAP.Tests/SonnetDB.CAP.Tests.csproj" />
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />
     <Project Path="tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj" />
     <Project Path="tests/SonnetDB.Benchmarks.Tests/Child/SonnetDB.Benchmarks.Tests.ProcessProbe.csproj" />

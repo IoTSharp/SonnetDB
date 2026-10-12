@@ -381,6 +381,10 @@ public sealed record MqPullResponse(IReadOnlyList<MqMessageResponse> Messages);
 /// <param name="Offset">已处理完成的最后一条 offset。</param>
 public sealed record MqAckRequest(string ConsumerGroup, long Offset);
 
+/// <summary>幂等登记 MQ 消费组的请求。</summary>
+/// <param name="ConsumerGroup">消费组名称。</param>
+public sealed record MqConsumerGroupEnsureRequest(string ConsumerGroup);
+
 /// <summary>
 /// MQ 确认响应。
 /// </summary>

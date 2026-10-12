@@ -486,6 +486,34 @@ internal static partial class SonnetDbEndpoints
             }
         });
 
+        app.MapPost("/v1/db/{db}/documents/{collection}/indexes/ensure", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentIndexCreateRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.Name) || req.Paths is null || req.Paths.Count == 0 || req.IsUnique || req.IsSparse
+                || req.PartialFilter is not null || req.TtlPath is not null || req.TtlSeconds is not null || req.Kind != "path")
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "幂等索引入口只接受普通 path 索引名称和 paths。").ConfigureAwait(false);
+                return;
+            }
+            registry.TryGet(db, out var tsdb);
+            try
+            {
+                DocumentPathIndex index = tsdb.Documents.EnsureIndex(collection, req.Name, req.Paths);
+                await Results.Json(new DocumentIndexOperationResponse(collection, index.Name, "ready", index.Paths),
+                    ServerJsonContext.Default.DocumentIndexOperationResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status409Conflict, "index_conflict", ex.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapDelete("/v1/db/{db}/documents/{collection}/indexes/{index}", async (HttpContext ctx, string db, string collection, string index) =>
         {
             if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))

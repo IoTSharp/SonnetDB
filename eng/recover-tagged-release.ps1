@@ -293,8 +293,11 @@ function Assert-PublishedRelease {
     }
 
     $expectedAssets = [Collections.Generic.List[string]]::new()
-    foreach ($package in @('SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Caching.EasyCaching',
-            'SonnetDB.Caching.Distributed', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')) {
+    $releasePackageIds = @('SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Caching.EasyCaching',
+        'SonnetDB.Caching.Distributed', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
+    # CAP 从 4.1.0 开始交付；旧 tag 的恢复仍使用原七包合同。
+    if ([version]($Version.Split('-')[0]) -ge [version]'4.1.0') { $releasePackageIds += 'SonnetDB.CAP' }
+    foreach ($package in $releasePackageIds) {
         $expectedAssets.Add("$package.$Version.nupkg")
     }
     foreach ($name in @("sndb-sdk-$Version-linux-x64.tar.gz", "sonnetdb-full-$Version-linux-x64.tar.gz",
@@ -320,9 +323,9 @@ function Assert-PublishedRelease {
         throw "GitHub Release '$Tag' is missing required assets: $($missing -join ', ')"
     }
 
-    foreach ($package in @('sonnetdb.core', 'sonnetdb', 'sonnetdb.entityframeworkcore', 'sonnetdb.caching.easycaching',
-            'sonnetdb.caching.distributed', 'sonnetdb.cli', 'testcontainers.sonnetdb')) {
-        $url = "https://api.nuget.org/v3-flatcontainer/$package/$Version/$package.$Version.nupkg"
+    foreach ($package in $releasePackageIds) {
+        $nugetPackage = $package.ToLowerInvariant()
+        $url = "https://api.nuget.org/v3-flatcontainer/$nugetPackage/$Version/$nugetPackage.$Version.nupkg"
         try {
             $response = Invoke-WebRequest -UseBasicParsing -Method Head -Uri $url -TimeoutSec 60
         }

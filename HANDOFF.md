@@ -1884,6 +1884,42 @@ P07更新工具原评审38155021627 attempt1 success，原12/12同源码门禁�
 
 固定 PowerShell 7、已审 Windows Job 执行器、数量/墙钟/取消边界和任务归属清理；保留旧 FAIL/UNKNOWN，不新增智能体、工作树、跨聊天发送、工具安装或服务。workbench 自动化沿已暂停状态。
 
+## 2026-10-09 CAP 传输与存储评估
+
+- 当前分支 main，接收时 HEAD 为 5424b666，工作树干净。先阅读根交接、AGENTS、项目依赖、现有文档/MQ/事务源码；既有 workbench 暂停状态及 parity-results 不动。
+- 用户初始要求分析 CAP 并建立独立 NuGet 支持项目，传输/存储分开；随后明确要求进一步评估 ADO.NET、EF Core、MongoDB 方式，EF Core 不应成为基础依赖，文档方式须避免 ADO/EF。当前转入存储方案评估，未创建空壳项目或提前定为 EF 存储。
+- 已核 CAP GitHub latest release 与 NuGet 索引为 10.0.2，发布日 2026-08-01；tag 源码 e52b8508e54cdb7a9ce7f9fec03d9ea8ad2710fb 只读下载在忽略目录 artifacts/cap-analysis-20261009/upstream。初始直接网络超时，使用已有本地代理后查询/下载成功；不涉及凭据、外发消息或发布。
+- 重要纠正：SonnetDB 有原生 MongoDB-like Document Store，但没有 MongoDB wire/官方 Driver 直连或 MongoDB session/跨 collection 事务。已向用户纠正前面关于协议入口的假定。不能直接复用 CAP 官方 MongoDB 插件连接 SonnetDB；官方插件还依赖事务锁、update pipeline、索引/聚合等操作。
+- 新增 docs/design/cap-integration.md，并同步 ROADMAP M43/CHANGELOG 的“仅评估文档”状态。候选包为独立 Transport、Storage.AdoNet、Storage.Document 和可选 EntityFrameworkCore 桥接；Document 与 Transport 的组合须避免间接引入 Data/EF。现有 SndbDocumentClient/SndbMqClient 位于 SonnetDB Data 包，不能只换用这些类就声称没有 ADO 包依赖；嵌入式可直接使用 Core，远程需独立轻量客户端或最小 source-generated HTTP DTO/client。
+- 文档原子 FindOneAndUpdate 和单 collection 有界 ordered BulkWrite 是可用底座，不等同跨 collection 业务 Outbox 原子性。独立消息持久化、同 collection 批提交桥接和多集合事务分别评估；未知事务对象不能静默降级。MQ 累计 Ack/单活动消费者、持久化 Inbox 后确认、失败不自动死信跳过、实例恢复及 CAP 全宿主 AOT 边界均记录在文档。
+- 本轮只核对源码/依赖与文档改动，适配项目构建、CAP 旅程/并发/恢复/性能、候选 NuGet 包和实际发布全部未执行。结束前执行文档 diff --check 与本地文件链接检查；未运行 restore/format，因为没有代码变更且不提交。本轮四份文档暂未提交，存储方案仍在进一步评估，不把设计候选登记为实现或发布完成。
+- 下一次先回答/确认用户对原生 Document 路线和事务保证的需求，再按评估中的独立路径创建实际支持项目与有意义的集成验证；不新增 MongoDB wire 协议、不以 MongoDB 名称暗示兼容、不把 EF 带入基础包。已有 Native/Workbench、现场硬件、长期及其它发布工作保持原交接边界。
+
+## 2026-10-09 CAP 错误会话接续：统一项目与 4.1.0 候选
+
+- 接续会话 01a11dd5-4863-71f3-a578-dccfa4a7b25a 的流中断。读取原会话完整用户指令后确认，后续指令已覆盖旧评估：使用 Document Store，通过 SonnetDB.Data 支持远程/嵌入式；本会话又要求一个项目/包，版本 4.1（规范化 4.1.0）。基线 5424b666，已建立本地 codex/cap-integration 分支。原 main/远端和 parity-results 未改；workbench 暂停状态保持。
+- 两个未提交适配项目合并为 extensions/SonnetDB.CAP，存储/传输注册入口保持独立。新增同 collection 业务+Outbox ordered BulkWrite 事务、状态/重试/延迟/清理/监控和条件锁；Core/Data/Server 补幂等普通 path 索引及 MQ 消费组持久登记。复用已有 ACK WAL 格式，不改变布局。统一 Data SDK 包含 ADO Provider 程序集，但不依赖 EF Core/MongoDB Driver，未另做 SQL/EF 存储。
+- CAP 34/34、Core 文档/MQ 定向 296/296、Server 定向 15/15 全通过，0 失败/跳过；发布产物合成合同 17 项通过。CAP Cobertura 89.82%（1227/1366，含生成代码），去除生成路径并按文件行去重 94.26%（558/592）。生产构建开启 AOT/trim 分析，无相关警告；完整 CAP NativeAOT、完整 solution tests 未执行。原编译失败、28 项初次 4 FAIL、恢复假设失败仍保留，不覆盖。
+- 单包 SonnetDB.CAP.4.1.0.nupkg 已生成，直接依赖 SonnetDB(Data)4.1.0 与 CAP10.0.2，README/XML/DLL/nuspec 与恢复图审计通过；不依赖 EF/MongoDB/Newtonsoft/Dapper。完整 eng release 八包打包却在 Core 对 3.0.1 的 CP0002/CP0011 兼容性门禁失败，Core 配置只有 4.0.0 豁免，本片不压制检查或修改基线。不能由单包成功称全发行可发布/可安装。
+- gh maikebing keyring token invalid，未读取/输出凭据；未 push/tag/CI dispatch/NuGet 发布。下一步先恢复认证，单独处理正式 4.1.0 的配套 Core/Data 兼容性/发行门禁，再取得 exact commit 平台 CI/AOT/Parity 等证据。4.1.0 包不能依赖旧 SDK 替代，旧 Server 也缺新入口。
+- 证据 artifacts/cap-analysis-20261009，设计 docs/design/cap-integration.md，本地验收 docs/audits/cap-integration-20261009.md。完整 solution restore 已通过；最终原 CI format 与本地提交结果以接续收尾记录为准，不预填 PASS。旧 .vscode/settings.json 为接收时已有修改，保持且排除提交。
+- 事务仅同 collection，消息传输与业务提交分开；同组同 topic 需单活动消费者，无跨进程 lease/exactly-once。持久登记的废弃组可能阻止回收，需运维处理；新组无法恢复已回收历史。正常重开/Server 重启不等于强杀、掉电、Linux、固定硬件、长期、安装或生产验收，先前 Native/Workbench/现场/发布边界保持。
+
+- 接续收尾：最终完整 restore exit0；原 CI format（保留 --exclude extensions/）exit0，另独立 CAP 项目 verify format exit0。workspace warning 保留。release recovery 保留旧 4.0.0 七包、4.1.0 起八包，PS AST/四版本声明片段检查通过；初次观察器匹配 += 拒绝及修正保留。代码已完成本地审阅、仅本次 CAP 路径将纳入本地提交；实际提交 SHA 以 Git 记录为准，正式发布阻塞保持。
+
+## M43 PR #265 首条事务启动竞态修复（2026-10-12，Asia/Shanghai）
+
+在独立 online-cap 工作树接续 PR 原 head 8c299f4003c3e814cd177d46b94f975ee759ce6b，由主智能体把 main dcadffc7137f5653ec46c55a4171cf5f2d83de03 合入；本子任务仅修改源码/测试与交接，未操作 index、提交、推送、远端 PR 或发布。HANDOFF 冲突保留完整 main 原字节前缀（534848 bytes，SHA256 250b44f0fe4005816dfb77906dfe9b458959f5b3d79f3b788896961347e94af4），再追加 CAP 原历史记录和本段；没有替换/删除 Workbench 预览、source-generated JSON、许可或发行质量门禁。
+
+原 CI CAP33/34 的首条嵌入式业务+Outbox 旅程超过原 15 秒送达时限。核 CAP10.0.2 官方 tag e52b8508e54cdb7a9ce7f9fec03d9ea8ad2710fb 的 Bootstrapper/Dispatcher：.NET10 BackgroundService 异步启动期间，尚未初始化的 dispatcher 保留已持久化消息等待后续 retry。修复在已启动 Bootstrapper 的 ExecuteTask 完成后才调用业务批 CommitAsync/FlushAsync；初始化等待发生于文档批次提交及其存储初始化锁之前。只传播 ExecuteTask 实际 fault/cancel，并未改变 CAP 上游记录/吞并其他初始化及 processor 异常的规则。未启动宿主继续允许原子持久业务文档和 Scheduled Outbox，提交不等于消息已送达，也不主动启动宿主。
+
+新增四组 embedded/真实环回 REST theories（共8例）：可控启动屏障、提交等待取消后回滚、初始化器 InvalidOperationException 原异常传播及回滚、未启动 CAP 的 Scheduled Outbox/零接收合同。首先临时去掉五行修复并运行屏障：2/2 真 FAIL（embedded 在屏障释放前已完成 commit；remote 在屏障释放前业务文档已持久化），原日志/TRX保留；finally 恢复固定源码且 SHA 核通过。固定版本 CAP36/36 通过，新增边界后最终 CAP42/42 通过，0失败/错误/跳过，原旅程15秒不改。最终事务源码 SHA256 d0f6901394f5caf31362a74140280dc4588ee294e4ac123eac4289656b225d24（五行启动顺序修复与一行明确 dormant 合同的 XML）。
+
+证据位于 artifacts/online-closure-20261012/pr-review：cap-original-barrier.result.json + test-results/cap-original-barrier.trx；cap-repair-restoration.json；cap-fixed-full.result.json + CAP36 TRX；cap-fixed-boundaries.result.json + test-results/cap-fixed-boundaries.trx；最终冻结清单 cap-repair-final.json。每阶段单 dotnet 根、DOTNET_PROCESSOR_COUNT=2、-m:1/-nr:false/-p:UseSharedCompilation=false，原对照最多2次命令/1200秒，最终边界最多1次/600秒，取消文件和Windows Job完整身份审计均保留；各 Job cleanupComplete=true，未按进程名清理。测试专属数据目录由夹具 finally 按归属路径回收，原失败、原源码对照和日志是保留证据。
+
+完整最终 solution restore/原 CI Format Check、独立 CAP 格式、精确 stage/merge commit、当前 head 的远端 CI 和后续集成由主智能体接管，未取得结果前不得写为通过。完整 CAP NativeAOT、Linux、强杀/掉电、固定硬件、长期/生产及正式 NuGet 发布不由本机 CAP42 结果推断；原全发行兼容性与许可边界保持，parity-results 不合入/不清理。下一步先核本段与 cap-repair-final.json 的最终源码/测试 SHA、原FAIL与42项非空TRX/清理，再执行最终格式门禁和精确提交，推送后核当前源码的完整 CI，远端操作仅由主智能体按用户授权执行。
+
+
 
 ## SonnetDB 线上 PR 与 Issue 全量闭环新会话交接（2026-10-12，Asia/Shanghai）
 
@@ -2215,3 +2251,22 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 ## PR #298 根交付计时纠正（2026-10-12）
 原 13:21:20Z 提前收尾目标未达；实际 audit2 于 13:22:41.1227051Z PASS，在原 hard deadline 13:23:20Z 内。fresh 记录身份无同身份存活；18项独占 TEMP 无reparse/当前引用，单次删除完成；最后隐藏Job cleanupComplete=true。先前预测 audit2 被截止拒绝不符合真实不可变收据，纠正见 pr298-harness-1255/late-finalize-note.md。首 current-reference audit FAIL 与 ReadOnlySpan docs失败继续保留。UTC守卫使用 DateTimeOffset，不以转换到本地的 DateTime 同 UtcNow 比较。
 根独立逐SHA核18当前/归档文件、3原TRX实际1/3/18计数与4 PDB源码绑定，发现首根检查选错SonnetDB.Core.pdb后改读实际SonnetDB.pdb，首失败保存。最终只有Semantic测试、CHANGELOG、HANDOFF三路径；生产未改。下面完整restore/原Format和Git交付以独立root收据为准，本段不预写远端CI或main完成。
+
+
+## CAP #265 与 main2411 准确集成实测（2026-10-12）
+
+本独立阶段start15:12:24Z、minute27冻结审计target15:39:24Z、hard15:47:24Z；branch codex/pr-batch-20261012-05/HEAD2411a099d081f5be15948ade57b683137e50a160/MERGE_HEAD d06b7027d5327b599fc23d93ea17314ae19c1162，root正常auto-merge无冲突、45effectivepaths。worker没有生产/测试源、Git/index/ref/远端写，只新增本LF尾和一个自有CHANGELOG证据条目。56 source/config输入冻结，选定297 streaming、298 semantic/UUID tests逐Git blob保全；Directory.Packages仅新增原CAP10.0.2，其它main依赖保留，Core未加NuGet运行时依赖，自有新增JSON使用sourcegen contexts。
+
+唯一CAP Tests Release build142.2s/SDK10.0.401/2CPU/-m1/sharedoff，0warnings/errors；当前实际整项目TRX42executed/42passed/0failed/0notExecuted。包含真实embedded与Kestrel CAP发布订阅、单collection业务+Outbox提交/回滚/冲突、启动等待取消/故障、ACK/Reject与持久慢group重开；不借用旧34/296/15。当前copied executed12 DLL/PDB/deps/runtimeconfig和56输入、真实逐case TRX已于15:38:31.319Z（minute27之前）冻结到artifacts/online-closure-20261012/cap-integrated-1512。
+
+完整CAP NativeAOT宿主NOT_RUN：第一次实际dotnet publish6.3s在我临时probe误用internal CapDocumentStore/Client的CS0122失败，未进入AOT linker，不能叫第三方AOT失败。根明确授权额外一次publish预算例外；公开SndbDocumentClient ctor/FindOneAsync及caller-owned生命周期已核并修复probe，保持原AddCap/default serializer/subscriber发现/真实Document+MQ。第二Native helper被其15:35 start gate拒绝，0dotnet；没有继续追gate或压IL警告。准确数量为2 native helper attempts、1实际Native publish、1 harnessrepair，native executable运行NOT_RUN；不能写原budget1 PASS。原CS0122、start gate、初始错误streaming目录helper FAIL均保留，无生产代码修复。
+
+fresh batch PID/creation/command/parent审计0matchinglive；clean launcher、marker/noReparse、微试/400项10层30秒有界库存、0currentrefs核后，独占D:\cp1512于15:42:10.035Z单次删除完成，实际14items。所有已执行hidden kernelJobs cleanupComplete=true；最终handoff Job自身回收见其独立收据。无安装、新pkg/tag/Release/publication、spawning/Graphify/按名kill。
+
+根下一步独立核56源/12executed资产/TRX与cleanup、完整原字节prefix及merge-state，在最终45paths+两自有doc的真实树执行整solution restore/原Format Check，并额外验证被exclude的CAP项目format，然后精确Git/原PR更新/新head CI。#265旧Windows run38179039405/job114587469288的具体test/exception仍UNKNOWN（原日志缺失），不由42PASS改写。完整CAP NativeAOT/正式Core-Data依赖包consumer/跨进程租约/掉电恢复/业务exactly-once和正式发布保持OPEN/NOT_RUN。
+
+## CAP #265 默认管线 NativeAOT 失败后的私有检查点（2026-10-13）
+
+根独立复核原56仓库输入、CLR42/42实际TRX、12已执行资产、5DLL-PDB身份及12PDB源码绑定；这里只重新绑定原证据，没有重跑CLR。自有JSON10调用保持source-generated contexts，默认CAP serializer/subscriber发现/调用管线保持。完整NativeAOT宿主已执行且FAIL，46条IL2026/IL2055/IL2060/IL2067/IL2072/IL2075/IL3000/IL3050诊断全部来自DotNetCore.CAP10.0.2；不压警告、不替换默认管线，native run NOT_RUN。Tests显式IsAotCompatible=false，不能借42CLR结果声称AOT通过。
+
+本次保存main2411与原265/d06b的45路径私有merge检查点，先在最终树执行完整solution restore/原CI Format（exclude extensions保持），再分别执行CAP library与CAP Tests项目Format。根收据才代表这些门禁实际结果，未取得PASS不commit；无push/main合入/package/tag/Release。#265继续OPEN/BLOCKED_BY_UPSTREAM_NATIVE_AOT，旧Windows具体异常UNKNOWN、正式消费者/跨进程租约/掉电/业务exactly-once均独立未验收。原失败证据cap-native-1550及独立审计cap-root-review-1850完整保留。下一步需要满足默认依赖NativeAOT合同后重新验收，不通过降低检查级别推进。

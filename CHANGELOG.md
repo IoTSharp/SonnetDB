@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- CAP #265：保留默认序列化/订阅管线的完整 NativeAOT 宿主实测失败边界，46 条上游 DotNetCore.CAP 10.0.2 诊断未压制；普通 CLR 回归通过不代表原生或正式消费者验收，适配器仍为私有未合入检查点。
 - GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
 
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
@@ -43,6 +44,10 @@
 - **M47 WB77 Native 接续窗口（2026-10-09）**：记录唯一新根移交、新有界合同与独立证据入口；旧WB76预算发布失败保留，task-local wrapper修复及真实旅程分别验收，不改变生产身份、恢复、正常关闭或回收合同。
 
 - **M47 WB76 新 Native 窗口入口（2026-10-09）**：增加固定证据目录及对应标签，单列 .62 文件前置与实际运行时观察；仅 runner metadata，保留原查询、缓存、身份、预算及正常关闭／回收合同。源码逆投影证明其它字节不变，真实旅程结果另见 WB76 报告，不把已获取的最新代码或既有源码测试当作恢复通过。
+
+- **M43 CAP 适配（2026-10-09）**：新增统一 `SonnetDB.CAP` 项目，通过 Data SDK 提供本地/远程 Document Store 存储与 MQ 传输；包含消息状态/重试/调度/监控、条件存储锁和单 collection 业务+Outbox 原子批事务，不依赖 EF Core。补齐幂等文档索引和 MQ 消费组持久登记，避免未确认慢组消息在重启回收时丢失；复用已有 ACK WAL，无布局变更。新增真实本地/Server/CAP 流程测试及 NuGet 发布清单，候选包与正式发布分列，详见[集成合同](docs/design/cap-integration.md)。
+
+- **M43 CAP 首条事务启动顺序（2026-10-12，PR #265）**：在已启动的 CAP 后台初始化完成后提交业务与 Outbox 并通知 dispatcher，避免 .NET 10 异步宿主启动期间首条嵌入式消息只进入延后重试；可控启动屏障、等待取消、启动任务异常与未启动宿主的嵌入式/远程回归通过，保留 Scheduled Outbox 合同、原发送超时与完整发布门禁。
 
 - **M47 WB75 本地集成窗口（2026-10-08）**：记录隐藏.git元数据修复和真实不提交预演、固定15路径/owned HANDOFF与完整最终树门禁；已有Native CIM六源和38/14/41验收继承，旧WB74失败不升级。最终本地提交结果以WB75收据为准，提交后暂停。
 
@@ -214,6 +219,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- CAP 原实现继承当前 main 后完成准确集成树的真实嵌入式/Kestrel 全项目 42/42 回归，保留 Document 业务/Outbox 与 MQ 慢消费组重开合同；完整 CAP NativeAOT 宿主和正式依赖包消费者仍未验收，不能由适配层零警告构建或历史候选包推导。
 - CI CodeQL 的 init/analyze 同步从 v4.38.1 升级为 v4.38.2（PR #213）；保持原分析语言和构建步骤，合入独立 Windows 测试稳定性前置。
 
 - 测试侧 xunit.runner.visualstudio 从 4.0.0 升级为 4.0.1（PR #269），合入独立 Windows 测试稳定性前置；不增加产品运行时依赖。

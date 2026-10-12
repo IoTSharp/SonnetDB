@@ -232,6 +232,28 @@ public sealed class SndbMqClient : IDisposable
         return ValidatePulledMessages(topic, remoteMessages, maxCount);
     }
 
+    /// <summary>幂等登记消费组，保留已有 offset；新组从最早保留的消息开始。</summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>消费组下一条待消费 offset。</returns>
+    public async Task<long> EnsureConsumerGroupAsync(string topic, string consumerGroup, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_embedded is not null)
+            return ValidateAckResponse(_embedded.EnsureConsumerGroup(topic, consumerGroup));
+        using var response = await PostJsonAsync(MqUrl(topic, "ensure-group"), new MqConsumerGroupEnsureRequest(consumerGroup),
+            RemoteJsonContext.Default.MqConsumerGroupEnsureRequest, cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqAckResponse, cancellationToken).ConfigureAwait(false);
+        ValidateTopic(topic, body.Topic, "ensure-group");
+        if (!string.Equals(body.ConsumerGroup, consumerGroup, StringComparison.Ordinal))
+            throw new InvalidDataException("MQ ensure-group 响应的消费组不匹配。");
+        return ValidateAckResponse(body.NextOffset);
+    }
+
     /// <summary>
     /// 确认消费者组已处理到指定 offset。
     /// </summary>

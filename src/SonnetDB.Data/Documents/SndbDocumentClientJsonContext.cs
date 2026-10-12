@@ -11,6 +11,8 @@ namespace SonnetDB.Data.Documents;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false)]
 [JsonSerializable(typeof(DocumentCollectionCreateRequest))]
+[JsonSerializable(typeof(DocumentIndexEnsureRequest))]
+[JsonSerializable(typeof(DocumentIndexEnsureResponse))]
 [JsonSerializable(typeof(DocumentCollectionOperationResponse))]
 [JsonSerializable(typeof(SndbDocumentValidator))]
 [JsonSerializable(typeof(SndbDocumentValidatorRule))]
