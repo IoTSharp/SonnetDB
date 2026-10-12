@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- 关系基表轻事务新增保守的表级乐观 `Serializable` 隔离：保留首次读取的 store/schema/generation/sequence，提交前按固定顺序锁定实际读、写及外键依赖并校验；冲突返回 `table_serialization_conflict`，终止整个事务并要求从头重试。嵌入式与 REST/h2c NDJSON 事务会话均显式传递隔离级别并拒绝未确认的 Serializable 降级；默认 ReadCommitted 行为保持（Issue #225）。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。

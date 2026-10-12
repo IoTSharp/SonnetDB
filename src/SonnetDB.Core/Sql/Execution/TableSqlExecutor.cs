@@ -1957,16 +1957,24 @@ internal static class TableSqlExecutor
             if (transaction.DeferredTriggerCount != 0 && RoutineExecutionContext.Current?.Options.CanWrite == false)
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
                     SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
-            affected = tsdb.Tables.ExecuteCommitLocked(() =>
+            int CommitLocked()
             {
                 // 延迟约束触发器与最终 mutation 快照共享 TableManager 锁，避免跨事务
                 // 的最终状态检查发生 write skew；触发器产生的 mutation 也纳入本次提交。
-                transaction.ExpandDeferredCascades(tsdb.Tables);
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    tsdb.Tables.ExpandSerializableCascades(transaction);
+                else
+                    transaction.ExpandDeferredCascades(tsdb.Tables);
                 SqlRoutineRuntime.ExecuteDeferredTriggers(tsdb, transaction);
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    tsdb.Tables.ExpandSerializableCascades(transaction);
                 var mutations = transaction.SnapshotTableMutations();
                 var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
                 foreach (var (tableName, expectedGeneration) in reservationGenerations)
                 {
+                    transaction.CheckCommitDeadline();
+                    if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                        continue; // 首次 reservation token 在全部依赖表锁内校验，返回统一序列化冲突。
                     long actualGeneration = tsdb.Tables.Open(tableName).Generation;
                     if (actualGeneration != expectedGeneration)
                     {
@@ -1977,9 +1985,13 @@ internal static class TableSqlExecutor
                 }
 
                 transaction.CheckCommitDeadline();
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    return tsdb.Tables.ApplySerializableTransaction(transaction, mutations);
                 transaction.EndDeferredExecution();
                 return tsdb.Tables.ApplyTransaction(mutations);
-            }, transaction.CheckCommitDeadline);
+            }
+
+            affected = tsdb.Tables.ExecuteCommitLocked(CommitLocked, transaction.CheckCommitDeadline);
         }
         catch (Exception exception)
         {

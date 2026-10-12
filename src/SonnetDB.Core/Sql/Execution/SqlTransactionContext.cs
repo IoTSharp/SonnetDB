@@ -17,8 +17,10 @@ namespace SonnetDB.Sql.Execution;
 /// （不做快照，不加读锁）。measurement / document 写入在事务内被拒绝（#199），故 read-your-writes
 /// 只覆盖关系表。
 /// </para>
+/// <para>显式 Serializable 使用表级首次读版本的乐观提交校验；并发变化可在提交前被读到，
+/// 但冲突事务不能成功提交。冲突后必须重试整个事务，仅覆盖关系基表。</para>
 /// </remarks>
-public sealed class SqlTransactionContext
+public sealed partial class SqlTransactionContext
 {
     private static readonly AsyncLocal<SqlTransactionContext?> _current = new();
 
@@ -354,6 +356,8 @@ public sealed class SqlTransactionContext
         _completed = true;
         _undo.Clear();
         _tableMutations.Clear();
+        _serializableReads.Clear();
+        _serializableReservationAdvances.Clear();
         _autoIncrementReservationGenerations.Clear();
         _routineInvocations.Clear();
         _deferredTriggers.Clear();

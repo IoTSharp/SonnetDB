@@ -75,8 +75,11 @@ public sealed partial class TableStore : IDisposable
     {
         get
         {
-            lock (_sync)
+            using (AcquireReadLock())
+            {
+                RecordSerializableReadLocked();
                 return _schema;
+            }
         }
     }
 
@@ -85,8 +88,11 @@ public sealed partial class TableStore : IDisposable
     {
         get
         {
-            lock (_sync)
+            using (AcquireReadLock())
+            {
+                RecordSerializableReadLocked();
                 return _rowCount;
+            }
         }
     }
 
@@ -199,11 +205,12 @@ public sealed partial class TableStore : IDisposable
     {
         KvReadSnapshot snapshot;
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (AcquireReadLock())
         {
             SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             snapshot = _keyspace.AcquireReadSnapshot();
+            RecordSerializableReadLocked(snapshot.Sequence);
         }
 
         try
@@ -228,7 +235,7 @@ public sealed partial class TableStore : IDisposable
         int rowCount;
         long generation;
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (AcquireReadLock())
         {
             SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
@@ -236,6 +243,7 @@ public sealed partial class TableStore : IDisposable
             snapshot = _keyspace.AcquireReadSnapshot();
             rowCount = _rowCount;
             generation = _keyspace.Generation;
+            RecordSerializableReadLocked(snapshot.Sequence);
         }
 
         try
@@ -484,10 +492,13 @@ public sealed partial class TableStore : IDisposable
     internal long ApplyAutoIncrement(IReadOnlyList<object?[]> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        lock (_sync)
+        using (AcquireReadLock())
         {
+            long beforeSequence = _keyspace.LastSequence;
             if (rows.Count > 0)
                 ApplyAutoIncrementLocked(_schema, rows);
+            SonnetDB.Sql.Execution.SqlTransactionContext.Current?.RecordSerializableReservation(
+                this, _schema, _keyspace.Generation, beforeSequence, _keyspace.LastSequence);
             return _keyspace.Generation;
         }
     }
@@ -723,12 +734,13 @@ public sealed partial class TableStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(primaryKeyValues);
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
-        lock (_sync)
+        using (AcquireReadLock())
         {
             SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             TableSchema schema = _schema;
             Interlocked.Increment(ref _primaryKeyLookupCount);
+            RecordSerializableReadLocked();
 
             byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);

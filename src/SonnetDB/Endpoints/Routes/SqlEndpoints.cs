@@ -17,6 +17,7 @@ using SonnetDB.Kv;
 using SonnetDB.Mcp;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 using SonnetMQ;
 
 namespace SonnetDB.Endpoints;
@@ -99,7 +100,17 @@ internal static partial class SonnetDbEndpoints
             if (!await TryRequireDatabasePermissionAsync(ctx, db, permission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
             var sessions = ctx.RequestServices.GetRequiredService<SqlTransactionSessions>();
-            if (!sessions.TryCreate(tsdb, db, ctx.Request.Headers.Authorization.ToString(), out var session))
+            string requestedIsolation = ctx.Request.Headers["X-SonnetDB-Isolation-Level"].ToString();
+            if (requestedIsolation is not "" and not "read_committed" and not "serializable")
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest,
+                    "transaction_isolation_unsupported", "事务隔离级别必须为 read_committed 或 serializable。")
+                    .ConfigureAwait(false);
+                return;
+            }
+            var isolationLevel = requestedIsolation == "serializable"
+                ? SqlTransactionIsolationLevel.Serializable : SqlTransactionIsolationLevel.ReadCommitted;
+            if (!sessions.TryCreate(tsdb, db, ctx.Request.Headers.Authorization.ToString(), out var session, isolationLevel))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
                     "transaction_limit", "活动远程轻事务数已达上限。").ConfigureAwait(false);
@@ -110,6 +121,8 @@ internal static partial class SonnetDbEndpoints
             {
                 writer.WriteStartObject();
                 writer.WriteString("id", session!.Id);
+                writer.WriteString("isolationLevel", isolationLevel == SqlTransactionIsolationLevel.Serializable
+                    ? "serializable" : "read_committed");
                 writer.WriteEndObject();
             }
             await ctx.Response.BodyWriter.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);

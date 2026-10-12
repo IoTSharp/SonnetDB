@@ -17,6 +17,9 @@ public sealed class TableConstraintException : InvalidOperationException
     /// <summary>乐观并发冲突错误码。</summary>
     public const string ConcurrencyConflict = "table_concurrency_conflict";
 
+    /// <summary>可串行化事务的首次读版本已发生变化。</summary>
+    public const string SerializationConflict = "table_serialization_conflict";
+
     /// <summary>当前 schema 演进路径无法安全完成的错误码。</summary>
     public const string SchemaEvolutionUnsupported = "table_schema_evolution_unsupported";
 
@@ -78,6 +81,7 @@ public sealed class TableConstraintException : InvalidOperationException
             ForeignKeyViolation => "确认引用行存在，或先处理依赖行。",
             CheckViolation => "检查写入值是否满足表上的 CHECK 条件。",
             ConcurrencyConflict => "重新读取当前行版本后重试写入。",
+            SerializationConflict => "整个事务已回滚；从 BEGIN 开始重新读取并重试整个事务。",
             SchemaEvolutionUnsupported => "在事务外创建目标表，回填并校验行、索引和外键后切换应用访问。",
             _ => "检查表约束和当前写入值后重试。",
         };

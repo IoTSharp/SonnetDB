@@ -403,6 +403,7 @@ public static class SqlExecutor
         if (options.QueryFingerprint is null)
             options = options with { QueryFingerprint = SqlStatementFingerprint.Create(statement) };
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
+        SqlSerializableSourceValidator.Validate(tsdb, statement, transaction, options.CancellationToken);
         EnsureModbusAdministrationAllowed(statement, options);
 
         bool isRootStatement = RoutineExecutionContext.Current is null;
@@ -1859,6 +1860,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         statement = BindSelectNames(tsdb, statement);
+        SqlSerializableSourceValidator.Validate(tsdb, statement, SqlTransactionContext.Current,
+            RoutineExecutionContext.Current?.Options.CancellationToken ?? default);
         // EXPLAIN ANALYZE 和例程内嵌 SELECT 复用当前根调用的治理选项，
         // 不能因为进入这个公开辅助入口而退回默认取消令牌或丢失执行指标。
         SqlExecutionOptions executionOptions = RoutineExecutionContext.Current?.Options

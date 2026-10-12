@@ -1953,3 +1953,17 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 最终 Core 定向 TRX 为 76 executed / 76 passed / 0 failed / 0 skipped，其中新增排名 44/44，包含原生 SQL、嵌入式 ADO、NULL、多键、参数、空结果 schema 和 GetInt64/GetInt32。首次 trial 的测试编译失败及修正后的单例 PASS 均保留。原 transport-v1 的 REST 实际通过，h2c 在首条 CREATE TABLE 建立 HTTP/2 前失败；两次 listing 退出成功但未给出有效测试列表，不计验收。根授权的唯一 h2c 补充以同源码/同 DLL SHA、no-build/no-restore、NO_PROXY=localhost,127.0.0.1,::1 执行，最终 TRX 精确 1 executed / 1 passed / 0 failed，真实请求的 HTTP/2 断言通过；不证明原失败的代理因果。D:\source\FreeSql 的本地 Provider 仍引用 SonnetDB 1.1.0，仅核公共 SqlExt 三接口；它不是 PR #2234 当前远端回归，正式 NuGet、FreeSql 适配、CI 与发布保持独立。
 
 本片实施窗口 60 分钟、45 shell、18 Job、最多三次构建及原两真实 transport 组合，另有根授权的一次 300 秒 h2c 补充；实际七个 Windows 非 breakaway Job 均 cleanupComplete=true，末次审计 74 个已记录身份全部不在场，共享 Codex 父链保留。两个精确测试临时目录前缀的非递归观察均无目录，不作宽泛删除；历史父 PID 和短命进程未观测部分不补造身份。源码、TRX、实际/归档 DLL、原失败、全部 Job 收据及审计冻结到 artifacts/online-closure-20261012/pr-review/rank222-20261012-2208；旧拒删对象保持。PowerShell 7、DateKind String、2CPU、取消、有界等待及 finally 回收继续。下一步由根在最终六路径树运行完整 restore/原 Format Check，精确 stage/commit/push 并核新 CI；本代理未修改 index、分支或 GitHub，局部 PASS 不替代这些门禁或正式 Provider/包发布。
+
+
+## GH-Issue #225 可串行化读集（2026-10-12，Asia/Shanghai）
+
+- 分支 `codex/issue225-serializable-readset`，实施基线仍为 `d1ea54654925568409dc496e804c54097e153d95`，17 个自有源码文件已冻结并交给根会话集成。根会话的 main 变更未自动刷新到该分支。实现保留首次读 token、自身连续 AUTO_INCREMENT 预留增量、固定实际依赖表锁和统一冲突码；失败提交 complete 且 `WasCommitted=false`，远程会话保留 rollback 终态。
+- 最终第 6 次子集构建通过，0 警告、0 错误；测试程序集为 Release，传递依赖 SonnetDB 程序集实际为 Debug。最终同一套 DLL 的 Core 小样本 1/1、完整 35/35；Server legacy 小样本 3/3、完整 5/5，包含真实 REST/h2c 双连接 NDJSON 会话、变化读/幻读/write skew、ReadCommitted 兼容、稳定错误及终态、无 batch replay 和旧 Server/未确认隔离拒绝。Native Frame 事务、完整 Release 配置、NativeAOT 发布分析、正式包/Server 发布及 FreeSql 消费者验收仍 OPEN。
+- 初始编译失败、Core v5 的 35/34/1 聚合 fixture 失败与 Server v5 的 3/0/3 初始化失败均保留。仅修改测试夹具为既有支持的派生聚合 SQL 和 `/healthz`，没有改变生产聚合或健康路由。原 `/health` HTTP 状态未被记录，不宣称观测到 404 或代理原因。同套 v5 DLL 的旧真实 FrameHttp2 readiness 微试单独保留，不能充作 Serializable 会话证明。
+- 证据目录 `D:/source/SonnetDB/artifacts/online-closure-20261012/pr-review/serial225-impl-20261012-2258`：`build6-source.json`、`build6-executed-dlls.json`、`final-binding.json`、最终 Core/Server TRX 与摘要、完整 stdout/stderr、Job 回收回执、`identity-audit-final.json` 及 `temp-audit-final.json`。100 个实际测试目录 DLL 已复制并核对，17 源码与执行 DLL 在最终测试前后匹配。初始未完整持久化的 shell 身份缺口继续披露，不补造身份。所有实现阶段 Job 均 `cleanupComplete=true`；未清理共享缓存、共享 test-host 根目录或旧拒删对象。
+- 原 Server v5 初始化失败的三个 `sndb-serial225-server-*` 临时根仍保留，确切路径、创建时间及顶层内容见 `temp-cleanup-final.json`。递归回收命令在创建进程之前被工具策略拒绝，仅返回 `blocked by policy`；未执行删除或备份，不再重试。该残留与进程 Job 回收 PASS 分开记录，不能写成完整磁盘资源回收完成。
+- 下一步由根会话独立复核证据和融合后最终树，完成全 solution restore 与原参数 Format Check，再精确提交自有范围。该实施代理没有 stage/commit/push、GitHub 操作、分支刷新或父文档编辑。提交、PR、发布、FreeSql 与 Native Frame 状态由根会话按实际证据更新。
+
+根会话已独立核17源码、100实际/归档DLL及完整Core35/35、Server5/5原TRX；新增三文档后总20路径。最终完整restore/原Format Check与提交/PR/远端新CI以issue225-final-root-*及issue225-delivery.json为准，未提前写为完成。
+
+最终整树format首次exit2，静默stdout/stderr的诊断复跑也exit2；加入report后明确仅两个新增测试文件WHITESPACE。按原报告仅修空白，使用PowerShell自带Roslyn核修改前后每个C#token kind/text完全一致（含字符串原文），生产15源码原SHA保持。原17源码/同DLL35+5测试属于格式前精确源码；新测试源码以token等价证明关联，不追加第七构建或虚构新TRX。前置Roslyn SDK版本冲突、PowerShell协变GetRoot重载与tiny预期计数错误均保留工具失败，修正证据脚本后实际token等价通过。新冻结与完整原门禁收据用issue225-final-root02-*，原FAIL不覆盖。
