@@ -1984,3 +1984,9 @@ ADO Decimal 参数使用 typed Decimal AST，远程使用 DECIMAL '不变量文�
 首次 HANDOFF 追加守卫使用 PowerShell 不支持的 ReadOnlySpan 字节比较，在实际写入前失败；改用原/当前 SHA256 与长度检查后追加，原失败单列保留。TEMP stdout 的 dictionary Measure-Object 汇总 itemCount 为 null，逐根库存的真实 itemCount 以及 removed=true 均存在；未据该汇总空值推断库存或回收。此两项辅助脚本结果不改变五个 Job 与实际测试证据。
 
 执行智能体未暂存、提交、推送或 GitHub 写入，index 仍空；下一步由根独立核 23 路径、最终 DLL/TRX/进程/库存绑定，执行最终完整 solution restore 与原 CI Format Check，之后精确提交/推送及远端交付。声明 DECIMAL(p,s) 值约束归 #264、reader 精度/scale 元数据归 #241；原 CAST 字符串与字符串写入的转换合同未扩。正式修复 NuGet/Server、Chloe/FreeSql 正式包真实 CRUD、NativeAOT 发布和外部消费者验收仍 NOT_RUN/UNKNOWN，当前源码与真实本地 Server 定向通过不关闭这些外部条件。
+
+## PR #288 原数字文本 AST 回归（2026-10-12，Asia/Shanghai）
+
+从原 #235 已交付 head94c965f16e8699ee2f06c1561090436700e4c778干净接续。Ubuntu run38183066766/job114599537571 Core6254/6257仅三个旧 SqlParserTests AST相等预期未含新保留的NumericText（默认0.5、INSERT1.5、负数operand1.5）；整个run仍运行时log-failed拒绝以及之后exact job原日志均保留。只修三个预期，保留精确Decimal原数字文本和生产record相等性；没有删metadata或修改生产代码。
+
+本阶段最多35分钟/30shell/18Job/2次600秒2CPU构建，无额外真实transport窗口；原#235冻结23路径/284不同测试与本次parser验证分别计数。实际完整parser类TRX、源码/DLL绑定、最终完整restore/原Format Check和新提交/原PR回读由pr288-parser-*原回执记录。新head全量CI、#241父集成、正式NuGet/Chloe/FreeSql及NativeAOT验收仍单独核实，Issue保持OPEN。保留#235原stash、#289恢复stash、外来dirty、parity-results、发布冻结与PAUSED；任务Job精确身份/finally回收，不Graphify/扫描/安装/按名杀进程。

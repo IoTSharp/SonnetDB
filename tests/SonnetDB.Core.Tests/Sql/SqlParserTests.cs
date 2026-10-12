@@ -441,7 +441,7 @@ public class SqlParserTests
         Assert.Equal(LiteralExpression.String("local"), hostDefault);
 
         var usageDefault = Assert.IsType<LiteralExpression>(stmt.Columns[1].DefaultExpression);
-        Assert.Equal(LiteralExpression.Float(0.5), usageDefault);
+        Assert.Equal(LiteralExpression.Float(0.5) with { NumericText = "0.5" }, usageDefault);
     }
 
     [Fact]
@@ -464,7 +464,7 @@ public class SqlParserTests
         Assert.Single(stmt.Rows);
         var row = stmt.Rows[0];
         Assert.Equal(LiteralExpression.String("node-1"), row[0]);
-        Assert.Equal(LiteralExpression.Float(1.5), row[1]);
+        Assert.Equal(LiteralExpression.Float(1.5) with { NumericText = "1.5" }, row[1]);
         Assert.Equal(LiteralExpression.Integer(1_700_000_000_000L), row[2]);
     }
 
@@ -964,7 +964,7 @@ public class SqlParserTests
         var binary = Assert.IsType<BinaryExpression>(stmt.Where);
         var negate = Assert.IsType<UnaryExpression>(binary.Right);
         Assert.Equal(SqlUnaryOperator.Negate, negate.Operator);
-        Assert.Equal(LiteralExpression.Float(1.5), negate.Operand);
+        Assert.Equal(LiteralExpression.Float(1.5) with { NumericText = "1.5" }, negate.Operand);
     }
 
     [Fact]

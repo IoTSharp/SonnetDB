@@ -465,6 +465,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
 - GH-Issue #235：嵌入式和远程 ADO 的 Decimal 参数保留实际 System.Decimal 精度；DECIMAL 写入、CAST、比较及算术按原数值文本解析浮点字面量，明确拒绝舍入、下溢和溢出。既有 Double/Float/Int64 及非关系模型的浮点参数语义保持；纯数值转换不重复执行动态 UDF。声明 p/s 约束、正式修复包和上游 ORM 验收独立推进。
 - 修复 #271 BLOB 参数查询：嵌入式保留二进制字面量快照，远程使用严格十六进制 `X'...'` 字面量，普通及关联等值按字节内容比较，并保留主键/二级索引与 EXISTS 访问路径；公开修复包及实际 ABP Passkey/A06 验收仍独立进行。
 
