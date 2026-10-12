@@ -2140,3 +2140,18 @@ Node 24.15.0/npm 11.12.1，Web npmci149 与 VSCode npmci315 packages 通过；pr
 实际 Web bundle、Studio wwwroot、VSCode out 与 Studio DLL/PDB/runtimeconfig 共289资源已归档，原锁/config/source和HEAD/index保持，以 D:\source\SonnetDB\artifacts\online-closure-20261012\pr217-integrated-0742 的完整source/asset/测试/Job SHA与freeze为准。原process audit已fresh核所有记录身份，无同身份存活。独占 TEMP 在400项有界枚举上限处停止且尚未删除，原FAIL、marker、绝对路径与非空目录完整保留；没有增加上限或删除重试，无policy对象/共享缓存触碰。
 
 本尾为LF且保原全部字节prefix，未stage/commit。Root下一步独立核freeze及保留TEMP，正常继承新main6195/#297（仅streaming tests/docs）并作源等价复核，执行最终整树restore/原Format Check、精确stage/commit/PR/newheadCI；当前不是已合main或发布。#218是重复Dependabot PR，仅#217实际合main后由Root关闭。Core全suite/AOT/消费者/Marketplace/Release/设备/nightly/parity及新head远端CI独立NOT_RUN。
+
+## 2026-10-12 独立 Streaming 检查点超时 CI 测试合同修复
+
+- 本片从干净 codex/streaming-checkpoint-timeout-ci-contract、base944769b966f11e089a366266927f0486827e57ed 接续（含已合 #295），只修改两个 observed streaming 测试文件、CHANGELOG 和本 HANDOFF 尾追加四路径；生产 src、Git/index/refs/stash 与远端均未改。
+- 原 #294 精确 head9d037d2 的 Linux/Windows CI FAIL 保留，原 run38206032265、jobs114669620104/114669620095 完整日志及诊断归档到 artifacts/online-closure-20261012/streaming-ci-fix-0647/original-ci。Linux 唯一失败是 pending isolation 测试未枚举实际检查点操作超时；Windows 唯一失败发生在 200ms 首次 OpenAsync，尚未进入 held-file-lock 故障点。此独立测试修复不代替 #244 VALUES 产品合同或正式包验收。
+- Windows WithCheckpointLockTimeout_ReopensAndCompletesIntentExactlyOnce 将初开与两次重开的同一持久选项统一为2000ms，贯穿15秒调用者令牌至初开、发布、读取、隔离、读取意图、故障后状态拒绝、重开、死信列表与最终事件读取；两处确认调用者未取消。真实独占 checkpoint 文件锁、未提交 checkpoint=-1、pending=2、PendingDeliveryId、重开 checkpoint=1/pending=1/意图清除、剩余 sequence=2 与第二次重开恰好一条死信的原断言全部保留。
+- 两个目标测试继续精确 Assert.ThrowsAsync<TimeoutException>，明确枚举三个生产原消息：订阅 wrapper 超时/null inner、检查点操作超时/null inner、文件锁超时/IOException 或源码 fallback 的 null inner。Linux 只新增缺失的检查点操作分支；不改生产定时器、不使用宽泛 ThrowsAny、不添加重试或跳过。
+- 唯一 Core Release build PASS，0 warning/error，89.5秒，2CPU/-m:1/shared compilation和node reuse关闭；owned两文件format verify PASS（54.8秒）。相同冻结DLL的微试2/2、三个完整类86/86（Subscription35、DeadLetterOperations27、DeadLetter24）及唯一15秒上限新进程观察2/2（9.3秒）均通过；重复两例包含在86内，不累计为新的独立测试数量。未做第二构建或更多观察进程。
+- build-inputs.json 冻结15项输入，生产/配置/未改订阅测试哈希稳定；binaries.json 和 actual-binaries 归档producer/copied Core/Data/Test DLL、PDB、runtimeconfig及版本/hash，producer/copied DLL一致。PE metadata确认7本仓库执行程序集实际Release/优化开启，Portable PDB逐5个目标源SHA匹配（两个修改测试、三个相关生产源）。完整非空TRX/逐例/逐类结果独立留存。
+- 专属 D:\streamci-0647 已按 owner、绝对路径、无reparse、有界 14 项清单和无活跃引用核验后一次删除。cleanup审计8个此前Jobs/57个记录PID+创建UTC+完整命令行+父PID，live=0/unknown=0/temp references=0；后续最后审计与self runner cleanup单列。历史全部FAIL/UNKNOWN/NOT_RUN与旧拒删对象保留。
+- 阶段固定06:47:44Z至07:17:44Z、35shell/18hidden Jobs、最多2build/3testwindows，未延旧阶段。本代理仅完成局部真实回归、字节前缀保存和证据交接；root须在最终待提交树执行完整solution restore与原CI Format Check，审查四路径后建立独立test-only PR并核新head Windows/Linux全suite。上述root门禁、Git/GitHub交付、新CI、nightly/parity与正式包/生产验收仍 NOT_RUN，不能把86/86写为全suite修复完成。
+
+## PR #217 root 精确整合已合 #297（2026-10-12）
+
+原9792+944树三个真实目标构建、469 Web contracts、59 extension tests及经明确一次修正的 productionpage/worker smoke均有独立证据；root逐SHA核16源/289产物及两非空日志。完整restore/原Format Check通过后普通本地merge commit68254f88，再正常merge main6195c3；两个docs保完整197/196章。303个非HANDOFF/CHANGELOG源与产物字节保持、继承两streaming测试blob等于6195，没有重跑原frontend结果。原URL harness FAIL和actualExtensionHost FAIL/UNKNOWN保留；Studio PDB源码checksum审计NOT_RUN，不冒充已验。原阶段最后freeze启动越08:17:21截止，phase时限合规FAIL保持。专属temp旧400枚举上限FAIL原样保留，root新独立90s/10000items阶段以owner/absolute/noReparse、70身份fresh0live及0当前引用核634项，一次精确移除635项含根；无政策拒删重试。新整树门禁/commit/push及fresh head CI以root独立收据为准；重复PR218仅217实合main后关闭。无package/Marketplace/正式发布。
