@@ -811,9 +811,9 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using var connection = OpenAdoSchemaMatrixConnection(mode);
         using (var ddl = connection.CreateCommand())
         {
-            ddl.CommandText = "CREATE TABLE source_rows (id INT, amount DECIMAL(20,6), PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE source_rows (id INT, amount DECIMAL(22,6), PRIMARY KEY (id))";
             ddl.ExecuteNonQuery();
-            ddl.CommandText = "CREATE TABLE target_rows (id INT AUTO_INCREMENT, amount DECIMAL(20,6), PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE target_rows (id INT AUTO_INCREMENT, amount DECIMAL(22,6), PRIMARY KEY (id))";
             ddl.ExecuteNonQuery();
         }
 

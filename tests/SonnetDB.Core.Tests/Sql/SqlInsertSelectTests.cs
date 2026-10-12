@@ -22,8 +22,8 @@ public sealed class SqlInsertSelectTests : IDisposable
     public void InsertSelect_DecimalProjection_PreservesExactValueAndReturning()
     {
         using var db = Open();
-        Execute(db, "CREATE TABLE source_rows (id INT, amount DECIMAL(20,6), PRIMARY KEY (id))");
-        Execute(db, "CREATE TABLE target_rows (id INT AUTO_INCREMENT, amount DECIMAL(20,6), PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE source_rows (id INT, amount DECIMAL(22,6), PRIMARY KEY (id))");
+        Execute(db, "CREATE TABLE target_rows (id INT AUTO_INCREMENT, amount DECIMAL(22,6), PRIMARY KEY (id))");
         Execute(db, "INSERT INTO source_rows (id, amount) VALUES (1, '9007199254740993.125000')");
 
         var inserted = Assert.IsType<InsertExecutionResult>(Execute(db,

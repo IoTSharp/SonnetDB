@@ -1499,6 +1499,7 @@ public sealed class SqlParser
             NameIsQuoted = nameIsQuoted,
             DecimalPrecision = decimalPrecision ?? 38,
             DecimalScale = decimalScale ?? 28,
+            HasExplicitDecimalDeclaration = decimalPrecision is not null,
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
             ModbusMapping = modbusMapping,
@@ -1843,7 +1844,7 @@ public sealed class SqlParser
             Advance();
 
         var columnName = ExpectColumnName(out bool columnNameIsQuoted);
-        var dataType = ParseTableDataType();
+        var dataType = ParseTableDataType(out var decimalPrecision, out var decimalScale);
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
@@ -1868,6 +1869,8 @@ public sealed class SqlParser
         {
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnNameIsQuoted = columnNameIsQuoted,
+            DecimalPrecision = decimalPrecision,
+            DecimalScale = decimalScale,
         };
     }
 
@@ -2054,7 +2057,10 @@ public sealed class SqlParser
             case TokenKind.KeywordDecimal:
             case TokenKind.KeywordNumeric:
                 Advance();
-                (decimalPrecision, decimalScale) = ParseDecimalSpec();
+                bool hasDecimalSpec = Current.Kind == TokenKind.LeftParen;
+                var decimalSpec = ParseDecimalSpec();
+                if (hasDecimalSpec)
+                    (decimalPrecision, decimalScale) = decimalSpec;
                 return SqlDataType.Decimal;
             case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
             case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
@@ -5579,6 +5585,8 @@ public sealed class SqlParser
 
         var columnName = ExpectColumnName(out bool columnNameIsQuoted);
         SqlDataType? dataType = null;
+        byte? decimalPrecision = null;
+        byte? decimalScale = null;
         ColumnNullability nullability = ColumnNullability.Unspecified;
         var defaultAction = ColumnDefaultAction.Unchanged;
         SqlExpression? defaultExpression = null;
@@ -5587,6 +5595,7 @@ public sealed class SqlParser
         while (true)
         {
             if (Current.Kind is TokenKind.KeywordInt or TokenKind.KeywordFloat
+                or TokenKind.KeywordDecimal or TokenKind.KeywordNumeric
                 or TokenKind.KeywordBool or TokenKind.KeywordString
                 or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordBlob or TokenKind.KeywordJson
@@ -5594,7 +5603,7 @@ public sealed class SqlParser
             {
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType();
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                 changed = true;
                 continue;
             }
@@ -5604,7 +5613,7 @@ public sealed class SqlParser
                 Advance();
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType();
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                 changed = true;
                 continue;
             }
@@ -5635,7 +5644,7 @@ public sealed class SqlParser
                     ExpectIdentifier("type", "ALTER COLUMN SET DATA 后面期望 TYPE");
                     if (dataType is not null)
                         throw Error("ALTER COLUMN 数据类型重复声明");
-                    dataType = ParseTableDataType();
+                    dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                     changed = true;
                     continue;
                 }
@@ -5704,6 +5713,8 @@ public sealed class SqlParser
         {
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnNameIsQuoted = columnNameIsQuoted,
+            DecimalPrecision = decimalPrecision,
+            DecimalScale = decimalScale,
         };
     }
 

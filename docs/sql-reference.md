@@ -196,7 +196,7 @@ CREATE TABLE devices (
 规则：
 
 - 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
-- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；省略 `(p,s)` 时默认为 `(38,28)`。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
+- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
@@ -270,6 +270,9 @@ ALTER TABLE table_name ALTER [COLUMN] column_name
 
 - 每条语句至少要指定一种变更；类型、空值约束和默认值动作各自最多出现一次，可以组合在同一条语句中。
 - `TYPE FLOAT` 与 `SET DATA TYPE FLOAT` 是两种等价的类型变更写法；省略 `TYPE` 的 `FLOAT` 形式用于 SQL Server 风格组合，例如 `ALTER TABLE devices ALTER COLUMN retry_count FLOAT NOT NULL`。
+- `ADD COLUMN amount DECIMAL(p,s)`、`ALTER COLUMN amount TYPE DECIMAL(p,s)`、`SET DATA TYPE NUMERIC(p,s)` 和省略 `TYPE` 的写法保留声明的 precision/scale 和显式来源，schema 重开、列/表重命名及索引/约束演进不会重置未修改列的声明；嵌入式和远程 `GetSchema("Columns")` 保留 scale=0。表 catalog 升级 v11，以现有列 flags bit4 保存来源；不修改行/key/index 布局。旧 reader 明确拒绝 v11，回退须同时恢复旧 catalog/data 副本，不能仅替换旧二进制。
+- 显式修改 Decimal 声明时先检查所有已有行和保留/新设的默认值：值必须能在目标 scale 下无损表示，且绝对值小于 `10^(precision-scale)`；多余尾零可无损表示，真实小数损失或精度溢出会拒绝整个 DDL，原 schema、行和索引保持。默认值的原始字符串和 Decimal CAST 在转换舍入前预检；转换仍受 CLR Decimal 的 96 位系数和 0..28 scale 限制。裸 `DECIMAL`/`NUMERIC` 类型变更保留完整 CLR Decimal 值域，省略类型的空值/默认值变更保留原 p/s。
+- INSERT/UPDATE、核心直接写入及事务提交对显式 `DECIMAL(p,s)` 持续执行上述精确约束，整批预检先于生成列预留和行/索引写入，失败不会留下部分批次；不进行隐式舍入，多余尾零可接受。旧 v9/v10 catalog 中非 `(38,28)` 的声明在读取后约束后续写入，已有不合规行仍原值可读并可用合法 UPDATE 修正；旧 `(38,28)` 无法恢复其来源，保留 legacy 不约束，可显式重声明并通过全部已有值预检后启用。裸 TYPE DECIMAL 重置为不约束，单独 NULL/DEFAULT 修改保持原来源。正式引擎/ADO.NET/Server、XCode 迁移及 Chloe 消费验收独立完成。
 - 类型变更会转换全部存量非空值并重建派生索引。当前不支持 `USING expression` 自定义转换；任一值无法转换，或转换后违反唯一索引、CHECK、NOT NULL 等约束时，在进程内整条 DDL 恢复原 schema、数据和索引。行 payload 与 catalog 发布之间尚无迁移 journal，因此不将该恢复边界解释为进程终止或掉电原子性。
 - 真正改变物理类型的迁移当前使用单个 KV 原子 batch，受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制（默认分别为 100,000 条 mutation 和 256 MiB WAL）。超出预算时会在写 WAL 前拒绝；应先提高预算，或通过新表分批迁移。`SET/DROP DEFAULT`、`DROP NOT NULL` 和列重命名只发布元数据，不受该 batch 行数限制。
 - `SET NOT NULL` 会分页扫描并验证全部存量行，但不会重写 row payload；`DROP NOT NULL` 与直接写 `NULL` 等价，`NOT NULL` 与 `SET NOT NULL` 等价。

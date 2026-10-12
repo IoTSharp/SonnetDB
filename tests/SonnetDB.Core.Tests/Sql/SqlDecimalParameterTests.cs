@@ -17,7 +17,7 @@ public sealed class SqlDecimalParameterTests : IDisposable
     public void Insert_IssueValue_PreservesAllSignificantDigits()
     {
         using var db = Open();
-        SqlExecutor.Execute(db, "CREATE TABLE amounts (id INT, value DECIMAL(38,28), PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE amounts (id INT, value DECIMAL, PRIMARY KEY (id))");
         const decimal expected = 123456789.1234567890123456789m;
         SqlExecutor.Execute(db, "default", "INSERT INTO amounts (id, value) VALUES (1, @value)",
             new SqlParameters().AddNamed("value", expected));
@@ -84,7 +84,7 @@ public sealed class SqlDecimalParameterTests : IDisposable
     public void Query_AdjacentDecimals_PreservesComparisonAndNumericArithmetic()
     {
         using var db = Open();
-        SqlExecutor.Execute(db, "CREATE TABLE ledger (id INT, amount DECIMAL(38,28), PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE ledger (id INT, amount DECIMAL, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "CREATE INDEX ix_amount ON ledger (amount)");
         SqlExecutor.Execute(db, "INSERT INTO ledger (id, amount) VALUES (1, 9007199254740992.125), (2, 9007199254740993.125)");
         Assert.Equal(9007199254740993.125m, Value(SqlExecutor.Execute(db, "SELECT amount FROM ledger WHERE amount = 9007199254740993.125")));
@@ -100,7 +100,7 @@ public sealed class SqlDecimalParameterTests : IDisposable
     public void Insert_InexactBatch_RejectsWithoutPartialRows()
     {
         using var db = Open();
-        SqlExecutor.Execute(db, "CREATE TABLE ledger (id INT, amount DECIMAL(38,28), PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE ledger (id INT, amount DECIMAL, PRIMARY KEY (id))");
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
             "INSERT INTO ledger (id, amount) VALUES (1, 0.1), (2, 0.12345678901234567890123456789)"));
         Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM ledger")).Rows);

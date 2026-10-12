@@ -60,6 +60,9 @@ public sealed class SqlTransactionContext
         ArgumentNullException.ThrowIfNull(mutation);
         ThrowIfCompleted();
 
+        if (mutation.NewValues is not null)
+            DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
+
         if (mutation.PrimaryKeyValues is not null && mutation.NewValues is null)
             _cascadeRevision++;
 
