@@ -518,6 +518,12 @@ public sealed record AlterTableAddColumnStatement(
     bool IsRowVersion = false,
     bool IsAutoIncrement = false) : SqlStatement
 {
+    /// <summary>显式 DECIMAL/NUMERIC 总精度；未声明括号时为空。</summary>
+    public byte? DecimalPrecision { get; init; }
+
+    /// <summary>显式 DECIMAL/NUMERIC 小数位数；未声明括号时为空。</summary>
+    public byte? DecimalScale { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 
@@ -562,6 +568,12 @@ public sealed record AlterTableAlterColumnStatement(
     ColumnDefaultAction DefaultAction = ColumnDefaultAction.Unchanged,
     SqlExpression? DefaultExpression = null) : SqlStatement
 {
+    /// <summary>本次类型变更显式声明的 DECIMAL/NUMERIC 总精度。</summary>
+    public byte? DecimalPrecision { get; init; }
+
+    /// <summary>本次类型变更显式声明的 DECIMAL/NUMERIC 小数位数。</summary>
+    public byte? DecimalScale { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 
