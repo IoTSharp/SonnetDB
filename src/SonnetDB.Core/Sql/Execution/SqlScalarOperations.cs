@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using SonnetDB.Sql.Ast;
 
@@ -8,6 +9,157 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class SqlScalarOperations
 {
+    /// <summary>在 System.Decimal 的真实值域内精确解析，拒绝自动舍入；输入最多 1024 字符，耗时最多一秒。</summary>
+    internal static decimal ParseExactDecimal(string text)
+    {
+        long started = Stopwatch.GetTimestamp();
+        string expected = NormalizeDecimal(text, started);
+        if (!decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value)
+            || !string.Equals(expected, NormalizeDecimal(value.ToString(CultureInfo.InvariantCulture), started), StringComparison.Ordinal))
+            throw new InvalidOperationException("DECIMAL 数值超出 System.Decimal 可无损表示的范围或精度。");
+        return value;
+    }
+
+    /// <summary>只在明确的 DECIMAL 上下文中使用原始数值文本；显式 FLOAT 和 CLR Double 不改类型。</summary>
+    internal static SqlExpression InDecimalContext(SqlExpression expression)
+    {
+        long started = Stopwatch.GetTimestamp();
+        int visited = 0;
+        return Rewrite(expression, 0);
+
+        SqlExpression Rewrite(SqlExpression node, int depth)
+        {
+            if (++visited > 4096 || depth > 64 || Stopwatch.GetElapsedTime(started).TotalSeconds > 1)
+                throw new InvalidOperationException("DECIMAL 表达式超出有界解析预算。");
+            SqlQueryResources.Current?.CancellationToken.ThrowIfCancellationRequested();
+            switch (node)
+            {
+                case LiteralExpression { Kind: SqlLiteralKind.Float, NumericText: not null } literal:
+                    return LiteralExpression.Decimal(ParseExactDecimal(literal.NumericText));
+                case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
+                    var operand = Rewrite(unary.Operand, depth + 1);
+                    return ReferenceEquals(operand, unary.Operand) ? unary : unary with { Operand = operand };
+                case BinaryExpression binary when IsDecimalArithmetic(binary.Operator):
+                    var left = Rewrite(binary.Left, depth + 1);
+                    var right = Rewrite(binary.Right, depth + 1);
+                    return ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
+                        ? binary : binary with { Left = left, Right = right };
+                case CastExpression { TargetType: SqlDataType.Decimal } cast:
+                    var converted = Rewrite(cast.Operand, depth + 1);
+                    return ReferenceEquals(converted, cast.Operand) ? cast : cast with { Operand = converted };
+                default:
+                    return node;
+            }
+        }
+    }
+
+    /// <summary>只重新求值纯数值常量；动态列、UDF 与子查询保留首次执行结果，最多 8192 节点、一秒。</summary>
+    internal static object? ExactDecimalConstant(SqlExpression expression, object? originalValue)
+    {
+        long started = Stopwatch.GetTimestamp();
+        int visited = 0;
+        if (!IsPureNumber(expression, 0))
+            return originalValue;
+        SqlExpression exact = InDecimalContext(expression);
+        return ReferenceEquals(exact, expression) ? originalValue : EvaluateNumber(exact, 0);
+
+        void CheckBudget(int depth)
+        {
+            if (++visited > 8192 || depth > 64 || Stopwatch.GetElapsedTime(started).TotalSeconds > 1)
+                throw new InvalidOperationException("DECIMAL 常量超出有界解析预算。");
+            SqlQueryResources.Current?.CancellationToken.ThrowIfCancellationRequested();
+        }
+
+        bool IsPureNumber(SqlExpression node, int depth)
+        {
+            CheckBudget(depth);
+            return node switch
+            {
+                LiteralExpression { Kind: SqlLiteralKind.Integer or SqlLiteralKind.Float or SqlLiteralKind.Decimal } => true,
+                UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => IsPureNumber(unary.Operand, depth + 1),
+                BinaryExpression binary when IsDecimalArithmetic(binary.Operator) =>
+                    IsPureNumber(binary.Left, depth + 1) && IsPureNumber(binary.Right, depth + 1),
+                CastExpression { TargetType: SqlDataType.Decimal } cast => IsPureNumber(cast.Operand, depth + 1),
+                _ => false,
+            };
+        }
+
+        object? EvaluateNumber(SqlExpression node, int depth)
+        {
+            CheckBudget(depth);
+            return node switch
+            {
+                LiteralExpression { Kind: SqlLiteralKind.Integer } literal => literal.IntegerValue,
+                LiteralExpression { Kind: SqlLiteralKind.Float } literal => literal.FloatValue,
+                LiteralExpression { Kind: SqlLiteralKind.Decimal } literal => literal.DecimalValue,
+                UnaryExpression unary => Negate(EvaluateNumber(unary.Operand, depth + 1)),
+                BinaryExpression binary => EvaluateArithmetic(binary.Operator,
+                    EvaluateNumber(binary.Left, depth + 1), EvaluateNumber(binary.Right, depth + 1)),
+                CastExpression cast => SqlCastOperations.Convert(EvaluateNumber(cast.Operand, depth + 1), cast.TargetType),
+                _ => throw new InvalidOperationException("DECIMAL 常量包含动态表达式。"),
+            };
+        }
+    }
+
+    private static bool IsDecimalArithmetic(SqlBinaryOperator value)
+        => value is SqlBinaryOperator.Add or SqlBinaryOperator.Subtract or SqlBinaryOperator.Multiply
+            or SqlBinaryOperator.Divide or SqlBinaryOperator.Modulo;
+
+    private static string NormalizeDecimal(string text, long started)
+    {
+        if (text.Length is < 1 or > 1024)
+            throw new InvalidOperationException("DECIMAL 数值文本必须在 1..1024 字符的解析预算内。");
+        int exponentIndex = text.IndexOfAny(['e', 'E']);
+        int exponent = 0;
+        if (exponentIndex >= 0
+            && (!int.TryParse(text.AsSpan(exponentIndex + 1), NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture, out exponent) || exponent is < -4096 or > 4096))
+            throw new InvalidOperationException("DECIMAL 指数超出有界解析预算。");
+        ReadOnlySpan<char> mantissa = exponentIndex >= 0 ? text.AsSpan(0, exponentIndex) : text.AsSpan();
+        bool negative = mantissa.Length > 0 && mantissa[0] == '-';
+        int offset = mantissa.Length > 0 && mantissa[0] is '-' or '+' ? 1 : 0;
+        Span<char> digits = stackalloc char[1024];
+        int count = 0;
+        int fractional = 0;
+        bool point = false;
+        for (int index = offset; index < mantissa.Length && index < 1024; index++)
+        {
+            if ((index & 31) == 0)
+            {
+                if (Stopwatch.GetElapsedTime(started).TotalSeconds > 1)
+                    throw new InvalidOperationException("DECIMAL 文本解析超时。");
+                SqlQueryResources.Current?.CancellationToken.ThrowIfCancellationRequested();
+            }
+            char digit = mantissa[index];
+            if (digit == '.' && !point)
+            {
+                point = true;
+                continue;
+            }
+            if (digit is < '0' or > '9')
+                throw new InvalidOperationException("DECIMAL 文本包含无效数值字符。");
+            digits[count++] = digit;
+            if (point)
+                fractional++;
+        }
+        if (count == 0)
+            throw new InvalidOperationException("DECIMAL 文本缺少数字。");
+        int first = 0;
+        for (int round = 0; round < count && first < count && digits[first] == '0'
+            && Stopwatch.GetElapsedTime(started).TotalSeconds < 1; round++)
+            first++;
+        if (first == count)
+            return "0";
+        int end = count;
+        for (int round = 0; round < count && end > first && digits[end - 1] == '0'
+            && Stopwatch.GetElapsedTime(started).TotalSeconds < 1; round++)
+            end--;
+        if (Stopwatch.GetElapsedTime(started).TotalSeconds >= 1)
+            throw new InvalidOperationException("DECIMAL 文本解析超时。");
+        int power = exponent - fractional + count - end;
+        return string.Concat(negative ? "-" : string.Empty, new string(digits[first..end]), "E", power.ToString(CultureInfo.InvariantCulture));
+    }
+
     /// <summary>
     /// 计算二元算术表达式；整数加减乘模与按位运算保留 Int64，DECIMAL 输入保持 Decimal，
     /// 其它含浮点操作数的运算返回 Float64。

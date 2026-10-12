@@ -974,6 +974,7 @@ internal static class SelectExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
         SqlLiteralKind.Integer => literal.IntegerValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
         SqlLiteralKind.Float => literal.FloatValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        SqlLiteralKind.Decimal => ((double)literal.DecimalValue).ToString(System.Globalization.CultureInfo.InvariantCulture),
         SqlLiteralKind.String => literal.StringValue ?? string.Empty,
         _ => literal.Kind.ToString(),
     };
@@ -2044,6 +2045,7 @@ internal static class SelectExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue,
         SqlLiteralKind.Integer => literal.IntegerValue,
         SqlLiteralKind.Float => literal.FloatValue,
+        SqlLiteralKind.Decimal => (double)literal.DecimalValue,
         SqlLiteralKind.String => literal.StringValue,
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
     };

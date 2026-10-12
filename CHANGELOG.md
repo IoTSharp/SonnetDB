@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
@@ -471,6 +472,11 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
+- GH-Issue #235：嵌入式和远程 ADO 的 Decimal 参数保留实际 System.Decimal 精度；DECIMAL 写入、CAST、比较及算术按原数值文本解析浮点字面量，明确拒绝舍入、下溢和溢出。既有 Double/Float/Int64 及非关系模型的浮点参数语义保持；纯数值转换不重复执行动态 UDF。声明 p/s 约束、正式修复包和上游 ORM 验收独立推进。
+- 修复 #271 BLOB 参数查询：嵌入式保留二进制字面量快照，远程使用严格十六进制 `X'...'` 字面量，普通及关联等值按字节内容比较，并保留主键/二级索引与 EXISTS 访问路径；公开修复包及实际 ABP Passkey/A06 验收仍独立进行。
+
+
 - 持久订阅确认、死信 pending isolation 与重新签名意图测试精确区分2000ms wrapper取消和checkpoint锁重试耗尽的合法超时消息/inner合同，保留调用者未取消和原恢复断言；Linux原两项失败保留，生产计时器和预算不变。
 - Linux CI：仅持久死信重新签名意图不匹配理论用例统一使用两秒初开/重开预算，以45秒调用者截止覆盖初始化、锁故障、损坏状态读写与重开；保留真实存储超时原消息、损坏拒绝和原spool不确认断言，原200ms初开失败保持。
 - Windows CI：持久订阅确认的锁故障用例统一使用2秒初开/重开预算，分别核生产超时原消息和实际调用者取消，并验证相同 delivery/checkpoint/pending 恢复；原200ms Open失败保留。
