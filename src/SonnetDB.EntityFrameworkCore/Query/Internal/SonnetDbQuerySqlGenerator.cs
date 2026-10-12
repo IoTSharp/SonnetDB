@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
+using System.Text;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.EntityFrameworkCore.Storage;
 using SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Query.Internal;
@@ -10,6 +12,8 @@ namespace SonnetDB.EntityFrameworkCore.Query.Internal;
 /// </summary>
 public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
 {
+    private static readonly StringTypeMapping JsonPathLiteralMapping = new("STRING", System.Data.DbType.String);
+
     private string? _unqualifiedDeleteAlias;
 
     /// <summary>
@@ -118,9 +122,41 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
 
     /// <inheritdoc />
     protected override Expression VisitJsonScalar(JsonScalarExpression jsonScalarExpression)
-        => jsonScalarExpression.Path.Count == 0
-            ? Visit(jsonScalarExpression.Json)
-            : throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+    {
+        if (jsonScalarExpression.Path.Count == 0)
+            return Visit(jsonScalarExpression.Json);
+
+        var clrType = Nullable.GetUnderlyingType(jsonScalarExpression.Type) ?? jsonScalarExpression.Type;
+        if (jsonScalarExpression.TypeMapping is null
+            || jsonScalarExpression.TypeMapping.Converter is not null
+            || (clrType != typeof(string) && clrType != typeof(bool)
+                && clrType != typeof(byte) && clrType != typeof(short)
+                && clrType != typeof(int) && clrType != typeof(long)
+                && clrType != typeof(float) && clrType != typeof(double))
+            || jsonScalarExpression.Path.Count > 64)
+        {
+            throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        }
+
+        var path = new StringBuilder("$");
+        foreach (var segment in jsonScalarExpression.Path)
+        {
+            if (segment.ArrayIndex is not null || string.IsNullOrWhiteSpace(segment.PropertyName)
+                || segment.PropertyName.Length > 1024 - path.Length - 4)
+            {
+                throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+            }
+
+            path.Append("['").Append(segment.PropertyName.Replace("'", "''", StringComparison.Ordinal)).Append("']");
+            if (path.Length > 1024)
+                throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        }
+
+        Sql.Append("json_value(");
+        Visit(jsonScalarExpression.Json);
+        Sql.Append(", ").Append(JsonPathLiteralMapping.GenerateSqlLiteral(path.ToString())).Append(")");
+        return jsonScalarExpression;
+    }
 
     /// <inheritdoc />
     protected override Expression VisitUpdate(UpdateExpression updateExpression)

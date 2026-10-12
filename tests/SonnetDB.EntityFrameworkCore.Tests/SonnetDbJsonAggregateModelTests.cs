@@ -28,6 +28,8 @@ namespace SonnetDB.EntityFrameworkCore.Tests;
 public sealed class SonnetDbJsonAggregateModelTests
 {
     private readonly ITestOutputHelper _output;
+    private const string DisplayNameJson = "display'name.with dot 😃";
+    private const string ChildLabelJson = "嵌套'key.with space";
 
     /// <summary>创建 JSON 模型与真实数据库合同测试。</summary>
     public SonnetDbJsonAggregateModelTests(ITestOutputHelper output) => _output = output;
@@ -82,14 +84,14 @@ public sealed class SonnetDbJsonAggregateModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ToJson_PathQueries_RejectsBeforeDatabaseExecution(bool owned)
+    public void ToJson_FixedStringPaths_GenerateNativeLiteralPathWithoutOpeningDatabase(bool owned)
     {
         var blocker = new ConnectionBlocker();
         using var context = CreateContext(owned, blocker);
 
         Assert.Contains("\"Data\"", context.Set<Passkey>().ToQueryString());
-        AssertUnsupported(() => context.Set<Passkey>().Select(passkey => passkey.Data.DisplayName).ToQueryString());
-        AssertUnsupported(() => context.Set<Passkey>()
+        Assert.Contains("json_value(", context.Set<Passkey>().Select(passkey => passkey.Data.DisplayName).ToQueryString());
+        Assert.Contains("json_value(", context.Set<Passkey>()
             .Where(passkey => passkey.Data.DisplayName == "changed").Select(passkey => passkey.Id).ToQueryString());
         Assert.Equal(0, blocker.OpenAttempts);
     }
@@ -122,6 +124,7 @@ public sealed class SonnetDbJsonAggregateModelTests
             AssertAggregate(expected, tracked.Data);
             AssertAggregate(expected, (await context.Set<AggregateRow>().AsNoTracking()
                 .SingleAsync(row => row.Id == 1, cancellationToken)).Data);
+            await AssertActualScalarsAsync(context, expected, capture, cancellationToken);
 
             tracked.Data.DisplayName = "整根 O'Reilly \"\\ 中文😃";
             tracked.Data.Tags = ["新值", "quote'\\\"", "😃"];
@@ -143,7 +146,7 @@ public sealed class SonnetDbJsonAggregateModelTests
             var executedBefore = capture.Commands.Count;
             tracked.Data.DisplayName = "unsupported leaf";
             var exception = await Assert.ThrowsAsync<NotSupportedException>(() => partial.SaveChangesAsync(cancellationToken));
-            Assert.Contains("whole-container operations only", exception.Message);
+            Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
             Assert.Equal(executedBefore, capture.Commands.Count);
             Assert.Equal(before, await ReadRawAsync(partial, 1, cancellationToken));
         }
@@ -224,6 +227,35 @@ public sealed class SonnetDbJsonAggregateModelTests
                 Assert.Null((await context.Set<AggregateRow>().AsNoTracking()
                     .SingleAsync(row => row.Id == 3, cancellationToken)).Data);
             }
+
+            var missingJson = AggregateJson(InitialAggregate(), omitOptional: true);
+            await context.Database.OpenConnectionAsync(cancellationToken);
+            try
+            {
+                await using var missingCommand = context.Database.GetDbConnection().CreateCommand();
+                missingCommand.CommandText = "INSERT INTO \"AggregateRows\" (\"Id\", \"Stamp\", \"Data\") VALUES (6, 'missing', "
+                    + mapping.GenerateSqlLiteral(missingJson) + ")";
+                missingCommand.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+                Assert.Equal(1, await missingCommand.ExecuteNonQueryAsync(cancellationToken));
+            }
+            finally
+            {
+                await context.Database.CloseConnectionAsync();
+            }
+            Assert.Null(await context.Set<AggregateRow>().Where(row => row.Id == 6)
+                .Select(row => row.Data.Optional).SingleAsync(cancellationToken));
+            await AssertExistsRawAsync(context, owned, cancellationToken);
+            var executedBefore = capture.Commands.Count;
+            Assert.ThrowsAny<Exception>(() => context.Set<AggregateRow>().Select(row => row.Data.Child).ToQueryString());
+            Assert.ThrowsAny<Exception>(() => context.Set<AggregateRow>().Select(row => row.Data.Tags).ToQueryString());
+            Assert.ThrowsAny<Exception>(() => context.Set<AggregateRow>().Select(row => row.Data.Tags[0]).ToQueryString());
+            var dynamicIndex = 1;
+            Assert.ThrowsAny<Exception>(() => context.Set<AggregateRow>().Select(row => row.Data.Tags[dynamicIndex]).ToQueryString());
+            AssertUnsupported(() => context.Set<AggregateRow>().Select(row => row.Data.Identifier).ToQueryString());
+            AssertUnsupported(() => context.Set<AggregateRow>().Select(row => row.Data.OccurredAt).ToQueryString());
+            AssertUnsupported(() => context.Set<AggregateRow>().Select(row => row.Data.Bytes).ToQueryString());
+            AssertUnsupported(() => context.Set<AggregateRow>().Select(row => row.Data.Converted).ToQueryString());
+            Assert.Equal(executedBefore, capture.Commands.Count);
         }
 
         Assert.Equal(0, fixture.ContextReferences);
@@ -259,7 +291,7 @@ public sealed class SonnetDbJsonAggregateModelTests
             setters.SetProperty(passkey => passkey.Data.DisplayName, "changed")));
         if (exception is NotSupportedException)
         {
-            Assert.Contains("whole-container operations only", exception.Message);
+            Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
         }
         else
         {
@@ -289,7 +321,7 @@ public sealed class SonnetDbJsonAggregateModelTests
     private static void AssertUnsupported(Action action)
     {
         var exception = Assert.Throws<NotSupportedException>(action);
-        Assert.Contains("whole-container operations only", exception.Message);
+        Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
     }
 
     private static DbContext CreateContext(bool owned, ConnectionBlocker? blocker = null)
@@ -316,6 +348,15 @@ public sealed class SonnetDbJsonAggregateModelTests
         Optional = null,
         Tags = ["first", "中文", "escape\\\""],
         Child = new AggregateChild { Label = "nested\"\\中文" },
+        Enabled = true,
+        ExactLong = long.MaxValue - 123,
+        Metric = 1.25d,
+        Single = 1.5f,
+        NullableCounter = null,
+        Identifier = Guid.Parse("142408e3-4c82-43a2-a7f5-2e82d4677769"),
+        OccurredAt = new DateTime(2026, 10, 13, 0, 0, 0, DateTimeKind.Utc),
+        Bytes = [1, 2, 3],
+        Converted = "mixed",
     };
 
     private static void AssertAggregate(AggregateData expected, AggregateData actual)
@@ -325,6 +366,15 @@ public sealed class SonnetDbJsonAggregateModelTests
         Assert.Equal(expected.Optional, actual.Optional);
         Assert.Equal(expected.Tags, actual.Tags);
         Assert.Equal(expected.Child.Label, actual.Child.Label);
+        Assert.Equal(expected.Enabled, actual.Enabled);
+        Assert.Equal(expected.ExactLong, actual.ExactLong);
+        Assert.Equal(expected.Metric, actual.Metric);
+        Assert.Equal(expected.Single, actual.Single);
+        Assert.Equal(expected.NullableCounter, actual.NullableCounter);
+        Assert.Equal(expected.Identifier, actual.Identifier);
+        Assert.Equal(expected.OccurredAt, actual.OccurredAt);
+        Assert.Equal(expected.Bytes, actual.Bytes);
+        Assert.Equal(expected.Converted, actual.Converted);
     }
 
     private static void MarkWholeAggregate(DbContext context, AggregateRow row, bool owned)
@@ -350,34 +400,125 @@ public sealed class SonnetDbJsonAggregateModelTests
         Assert.Equal(DbType.String, parameter.DbType);
         using var document = JsonDocument.Parse((string)parameter.Value!);
         var root = document.RootElement;
-        Assert.Equal(expected.DisplayName, root.GetProperty("DisplayName").GetString());
+        Assert.Equal(expected.DisplayName, root.GetProperty(DisplayNameJson).GetString());
         Assert.Equal(expected.Counter, root.GetProperty("Counter").GetInt32());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("Optional").ValueKind);
         Assert.Equal(expected.Tags, root.GetProperty("Tags").EnumerateArray().Select(element => element.GetString()!).ToArray());
-        Assert.Equal(expected.Child.Label, root.GetProperty("Child").GetProperty("Label").GetString());
+        Assert.Equal(expected.Child.Label, root.GetProperty("Child").GetProperty(ChildLabelJson).GetString());
+        Assert.Equal(expected.ExactLong, root.GetProperty("ExactLong").GetInt64());
         Assert.DoesNotContain("json_set", command.Sql, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string AggregateJson(AggregateData value)
+    private static string AggregateJson(AggregateData value, bool omitOptional = false)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteString("DisplayName", value.DisplayName);
+            writer.WriteString(DisplayNameJson, value.DisplayName);
             writer.WriteNumber("Counter", value.Counter);
-            writer.WriteNull("Optional");
+            if (!omitOptional)
+                writer.WriteNull("Optional");
+            writer.WriteBoolean("Enabled", value.Enabled);
+            writer.WriteNumber("ExactLong", value.ExactLong);
+            writer.WriteNumber("Metric", value.Metric);
+            writer.WriteNumber("Single", value.Single);
+            writer.WriteNull("NullableCounter");
+            writer.WriteString("Identifier", value.Identifier);
+            writer.WriteString("OccurredAt", value.OccurredAt);
+            writer.WriteBase64String("Bytes", value.Bytes);
+            writer.WriteString("Converted", value.Converted.ToUpperInvariant());
             writer.WriteStartArray("Tags");
             foreach (var tag in value.Tags.Take(8))
                 writer.WriteStringValue(tag);
             writer.WriteEndArray();
             writer.WriteStartObject("Child");
-            writer.WriteString("Label", value.Child.Label);
+            writer.WriteString(ChildLabelJson, value.Child.Label);
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
 
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static async Task AssertActualScalarsAsync(DbContext context, AggregateData expected, JsonCommandCapture capture, CancellationToken cancellationToken)
+    {
+        var query = context.Set<AggregateRow>().Where(row => row.Id == 1).Select(row => new
+        {
+            row.Data.DisplayName,
+            row.Data.Counter,
+            row.Data.ExactLong,
+            row.Data.Enabled,
+            row.Data.Metric,
+            row.Data.Single,
+            row.Data.NullableCounter,
+            row.Data.Optional,
+            Nested = row.Data.Child.Label,
+        });
+        var projected = await query.SingleAsync(cancellationToken);
+        Assert.Equal(expected.DisplayName, projected.DisplayName);
+        Assert.Equal(expected.Counter, projected.Counter);
+        Assert.Equal(expected.ExactLong, projected.ExactLong);
+        Assert.Equal(expected.Enabled, projected.Enabled);
+        Assert.Equal(expected.Metric, projected.Metric);
+        Assert.Equal(expected.Single, projected.Single);
+        Assert.Null(projected.NullableCounter);
+        Assert.Null(projected.Optional);
+        Assert.Equal(expected.Child.Label, projected.Nested);
+        var command = capture.Commands.Last();
+        Assert.Contains("json_value(", command.Sql);
+        Assert.Contains("display''''name.with dot 😃", command.Sql);
+        Assert.Contains("嵌套''''key.with space", command.Sql);
+        var name = expected.DisplayName;
+        var exact = expected.ExactLong;
+        Assert.Equal(1L, await context.Set<AggregateRow>()
+            .Where(row => row.Data.DisplayName == name && row.Data.Enabled && row.Data.ExactLong == exact)
+            .Select(row => row.Id).SingleAsync(cancellationToken));
+        var whereCommand = capture.Commands.Last();
+        Assert.Contains("json_value(", whereCommand.Sql);
+        Assert.Contains(whereCommand.Parameters, parameter => parameter.DbType == DbType.String && Equals(parameter.Value, name));
+        Assert.Contains(whereCommand.Parameters, parameter => parameter.DbType == DbType.Int64 && Equals(parameter.Value, exact));
+        var adjacent = exact - 1;
+        Assert.False(await context.Set<AggregateRow>().AnyAsync(row => row.Data.ExactLong == adjacent, cancellationToken));
+    }
+
+    private async Task AssertExistsRawAsync(DbContext context, bool owned, CancellationToken cancellationToken)
+    {
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var command = context.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "SELECT \"Id\", json_value(\"Data\", '$.Optional'), json_exists(\"Data\", '$.Optional') FROM \"AggregateRows\" WHERE \"Id\" IN (1, 6)";
+            command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+            _output.WriteLine("ACTUAL JSON NULL/MISSING SQL: " + command.CommandText);
+            await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            {
+                var count = 0;
+                var timer = Stopwatch.StartNew();
+                while (count < 2 && timer.Elapsed < TimeSpan.FromSeconds(5) && await reader.ReadAsync(cancellationToken))
+                {
+                    Assert.True(reader.IsDBNull(1));
+                    var id = reader.GetInt64(0);
+                    Assert.Equal(id == 1, reader.GetBoolean(2));
+                    _output.WriteLine($"ACTUAL JSON NULL/MISSING id={id}; value=SQLNULL; exists={reader.GetBoolean(2)}");
+                    count++;
+                }
+                Assert.Equal(2, count);
+            }
+            if (owned)
+            {
+                command.CommandText = "SELECT json_value(\"Data\", '$.Optional'), json_exists(\"Data\", '$.Optional') FROM \"AggregateRows\" WHERE \"Id\"=2";
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                Assert.True(await reader.ReadAsync(cancellationToken));
+                Assert.True(reader.IsDBNull(0));
+                Assert.True(reader.IsDBNull(1));
+                _output.WriteLine("ACTUAL SQLNULL AGGREGATE: value=SQLNULL; exists=SQLNULL");
+            }
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
     }
 
     private static async Task<string?> ReadRawAsync(DbContext context, long id, CancellationToken cancellationToken)
@@ -477,8 +618,10 @@ public sealed class SonnetDbJsonAggregateModelTests
             builder.Entity<AggregateRow>().ComplexProperty(row => row.Data, data =>
             {
                 data.ToJson();
-                data.ComplexProperty(item => item.Child);
+                data.Property(item => item.DisplayName).HasJsonPropertyName(DisplayNameJson);
+                data.ComplexProperty(item => item.Child).Property(item => item.Label).HasJsonPropertyName(ChildLabelJson);
                 data.Property(item => item.Tags);
+                data.Property(item => item.Converted).HasConversion(value => value.ToUpperInvariant(), value => value.ToLowerInvariant());
             });
         }
     }
@@ -494,8 +637,10 @@ public sealed class SonnetDbJsonAggregateModelTests
             builder.Entity<AggregateRow>().OwnsOne(row => row.Data, data =>
             {
                 data.ToJson("Data");
-                data.OwnsOne(item => item.Child);
+                data.Property(item => item.DisplayName).HasJsonPropertyName(DisplayNameJson);
+                data.OwnsOne(item => item.Child, child => child.Property(item => item.Label).HasJsonPropertyName(ChildLabelJson));
                 data.Property(item => item.Tags);
+                data.Property(item => item.Converted).HasConversion(value => value.ToUpperInvariant(), value => value.ToLowerInvariant());
             });
             builder.Entity<AggregateRow>().Navigation(row => row.Data).IsRequired(false);
         }
@@ -515,6 +660,15 @@ public sealed class SonnetDbJsonAggregateModelTests
         public string? Optional { get; set; }
         public List<string> Tags { get; set; } = [];
         public AggregateChild Child { get; set; } = new();
+        public bool Enabled { get; set; }
+        public long ExactLong { get; set; }
+        public double Metric { get; set; }
+        public float Single { get; set; }
+        public long? NullableCounter { get; set; }
+        public Guid Identifier { get; set; }
+        public DateTime OccurredAt { get; set; }
+        public byte[] Bytes { get; set; } = [];
+        public string Converted { get; set; } = string.Empty;
     }
 
     private sealed class AggregateChild

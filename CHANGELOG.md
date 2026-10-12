@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- EF Core JSON #266：固定对象属性路径的字符串、布尔、受支持整数及浮点标量投影/谓词复用 json_value，属性名按 JSON path 与 SQL literal 两层转义并保留路径预算；修复共享 JSON 求值器将 Int64 先提升为 Double 导致的大整数精度丢失。Complex/Owned × embedded/REST/h2c 六条真实路径通过；数组路径、转换器/其它标量、非根 Owned 更新和 ExecuteUpdate 继续明确拒绝，公开包与官方 BookStore 验收独立。
 - EF Core JSON #266：支持 ToJson 整容器 UTF-8 物化、文本参数/SQL literal 与 EF 序列化的根替换，真实嵌入式/REST/h2c 读写、回滚、并发和正常重开通过；非根 Owned 更新、路径查询与批量更新仍明确拒绝，官方 BookStore/公开包消费者验收独立。
 - EF Core 10：为 ToJson 的 JsonTypePlaceholder 提供默认 JSON 容器模型和迁移 DDL 生成；JSON 聚合查询/写入在实现前明确拒绝，普通 STRING/raw JSON 字符串行为保留（Issue #266，建模切片，未完成数据库与消费者验收）。
 - GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。

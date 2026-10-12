@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 /// <summary>
-/// 为 ToJson 聚合提供 JSON 整容器映射；JSON 路径查询和局部更新尚不支持。
+/// 为 ToJson 聚合提供整容器与受支持固定标量路径映射；局部更新和其它路径仍不支持。
 /// </summary>
 public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
 {
     internal const string UnsupportedOperationMessage =
-        "SonnetDB ToJson supports whole-container operations only. JSON path queries and partial updates are not supported.";
+        "SonnetDB ToJson supports whole-container operations and supported fixed scalar paths. Partial updates and other JSON paths are not supported.";
 
     private static readonly MethodInfo GetStringMethod =
         typeof(DbDataReader).GetMethod(nameof(DbDataReader.GetString), [typeof(int)])!;
