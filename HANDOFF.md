@@ -2194,3 +2194,7 @@ Node 24.15.0/npm 11.12.1，Web npmci149 与 VSCode npmci315 packages 通过；pr
 ## PR #217 接续待合 #281 前置（2026-10-12）
 
 root最终6195树完整restore/原Format Check通过后普通本地提交，再正常合并已验证但Windows CI尚待的281 head0320923；两个docs完整章节保留。frontend16源和289实际产物仍保持，前置281的已验源与归档逐SHA保持。原三个frontend构建/469+59/浏览器worker证据只属于原944树，未重新构建包含UUID的Studio或宣称新后台GUI验收；此组合以新完整CI证明。依赖规则为先281取得12新精确head门禁合main，再本217所有新门禁通过并串行合并；218重复PR只在217实际合main后关闭。新最终root门禁/提交/推送以独立收据为准，不预写CI完成。
+
+## 批次01：UUID与前端依赖及Semantic回填测试终态（2026-10-12）
+
+用户新指示后续多个PR统一整合/一轮完整CI，替代逐个refresh/push造成的重复。batch codex/pr-batch-20261012-01自93f09c9d，原#281032和#217979/93均实际祖先，原分支/PR/失败/保护refs不改；一次批次PR通过新完整17门禁后合main，并独立回读原PR集成状态。root已在旧准确树获得281 Core130/real21与前端3build/469+59/worker smoke，字段证据不冒称新完整组合。原281 Windows09:07:53Z唯一semantic backfill QueuedObjects1/0失败，Core6369/EF90通过；其原response Completed等仍UNKNOWN。新真实受控后台持页证实合法partial scanned0/queued0/Completedfalse/HasMoretrue，释放后同持久终态scanned1/queued1/skipped0。最小仅Semantic测试修复：只对明确未完成等待持久Completed（100items/10秒/token/50ms），不重POST/不按计数轮询，completed queued0仍严格失败；thumbnail/search/delete/disable及重复scanned1/queued0/skipped1原合同保持。实际SDK10.0.401两Release编译0warn/error，诊断3/3与完整Semantic18/18，17输入/9实际DLL-PDB-runtimeconfig由root逐SHA及原TRX核，不叠加重复3例。本模拟provider不证明真实模型质量。worker35分钟原截止10:14:24守卫拒最后收尾，finaldocs/PDBchecksum总审计/tempcleanup当时NOT_RUN原样保留；root本新有界阶段准确归档与docs写入，D:\semback-0939后续精确清理单列。下一批275/276/290/296等本地checkpoint准备，无单PR重复CI；正式包/外部consumer、nightly/parity/生产acceptance保持OPEN。最终restore/原Format/commit/push/create及新head17CI/main以独立收据为准。

@@ -17,11 +17,17 @@ using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
 using SonnetDB.SemanticSearch;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace SonnetDB.Tests;
 
 public sealed class SemanticSearchEndpointTests : IAsyncLifetime
 {
+    private readonly ITestOutputHelper _output;
+
+    /// <summary>记录真实回填响应与持久状态，便于区分进行中进度和终态业务计数。</summary>
+    public SemanticSearchEndpointTests(ITestOutputHelper output) => _output = output;
+
     private const string AdminToken = "admin-semantic-token";
     private WebApplication? _app;
     private string? _baseUrl;
@@ -588,12 +594,18 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
         await WaitForNoSearchHitsAsync(client);
 
+        using var observation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await TraceBackfillAsync(client, bucket, "before first POST", observation.Token);
         var backfill = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", content: null);
+        _output.WriteLine("first POST HTTP {0}: {1}", (int)backfill.StatusCode,
+            await backfill.Content.ReadAsStringAsync(observation.Token));
         Assert.True(backfill.StatusCode == HttpStatusCode.OK,
             $"HTTP {(int)backfill.StatusCode}: {await backfill.Content.ReadAsStringAsync()}");
         var backfillResult = await backfill.Content.ReadFromJsonAsync(
             ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse);
         Assert.NotNull(backfillResult);
+        await TraceBackfillAsync(client, bucket, "after first POST", observation.Token);
+        backfillResult = await WaitForBackfillCompletionAsync(bucket, backfillResult!, observation.Token);
         Assert.Equal(1, backfillResult!.QueuedObjects);
         _ = await WaitForProcessingAsync(client, bucket, "disabled.png", "completed");
 
@@ -602,9 +614,64 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         var repeatedBackfillResult = await repeatedBackfill.Content.ReadFromJsonAsync(
             ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse);
         Assert.NotNull(repeatedBackfillResult);
+        repeatedBackfillResult = await WaitForBackfillCompletionAsync(bucket, repeatedBackfillResult!, observation.Token);
         Assert.Equal(1, repeatedBackfillResult!.ScannedObjects);
         Assert.Equal(0, repeatedBackfillResult.QueuedObjects);
         Assert.Equal(1, repeatedBackfillResult.SkippedObjects);
+    }
+
+    /// <summary>后台已领取回填页时，首次 HTTP 请求返回真实进行中进度而非虚构完成计数。</summary>
+    [Fact]
+    public async Task SemanticSearch_BackfillOwnedByBackground_ReturnsIncompleteProgressAndCommitsOneObject()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var client = CreateClient();
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var processing = _app.Services.GetRequiredService<ObjectSemanticProcessingService>();
+        var objects = new SndbObjectStore(tsdb);
+        const string bucket = "backfill-owned";
+        objects.CreateBucket(bucket);
+        objects.SetSemanticOptions(bucket, true, true, 32, 32, 75);
+        using var image = new MemoryStream(CreatePng(8, 8, SKColors.Red));
+        await objects.PutObjectAsync(bucket, "disabled.png", image, "image/png", cancellationToken: deadline.Token);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        processing.AfterBackfillObjectForTest = _ =>
+        {
+            entered.TrySetResult();
+            release.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token).GetAwaiter().GetResult();
+        };
+        var store = new ObjectProcessingJobStore(tsdb);
+        try
+        {
+            Assert.True(store.TryWriteBackfill(null,
+                new ObjectSemanticBackfillState(bucket, null, 0, 0, 0, false, DateTimeOffset.UtcNow),
+                deadline.Token));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token);
+            await TraceBackfillAsync(client, bucket, "background owns page", deadline.Token);
+            using var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", null, deadline.Token);
+            string body = await response.Content.ReadAsStringAsync(deadline.Token);
+            _output.WriteLine("in-flight POST HTTP {0}: {1}", (int)response.StatusCode, body);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var progress = await response.Content.ReadFromJsonAsync(
+                ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse, deadline.Token);
+            Assert.NotNull(progress);
+            Assert.False(progress.Completed);
+            Assert.True(progress.HasMore);
+            Assert.Equal(0, progress.QueuedObjects);
+            release.TrySetResult();
+            var completed = await WaitForBackfillCompletionAsync(bucket, progress, deadline.Token);
+            Assert.True(completed.Completed);
+            Assert.Equal(1, completed.ScannedObjects);
+            Assert.Equal(1, completed.QueuedObjects);
+            Assert.Equal(0, completed.SkippedObjects);
+            await TraceBackfillAsync(client, bucket, "background completed", deadline.Token);
+        }
+        finally
+        {
+            release.TrySetResult();
+            processing.AfterBackfillObjectForTest = null;
+        }
     }
 
     /// <summary>回填入队完成后内部预算到期仍返回真实 HTTP 成功及已持久化的完成计数。</summary>
@@ -1239,6 +1306,46 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             $"/v1/db/images/s3/{bucket}/multipart.png?uploadId={uploadId}&partNumber={partNumber}",
             new ByteArrayContent(content));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private async Task<ObjectBucketSemanticBackfillResponse> WaitForBackfillCompletionAsync(
+        string bucket, ObjectBucketSemanticBackfillResponse response, CancellationToken cancellationToken)
+    {
+        Assert.Equal(!response.Completed, response.HasMore);
+        if (response.Completed) return response;
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var store = new ObjectProcessingJobStore(tsdb);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int attempt = 0; attempt < 100 && watch.Elapsed < TimeSpan.FromSeconds(10); attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var state = store.ReadBackfill(bucket, cancellationToken)?.State;
+            if (state?.Completed == true)
+            {
+                _output.WriteLine("completed persisted backfill: {0}",
+                    JsonSerializer.Serialize(state, ServerJsonContext.Default.ObjectSemanticBackfillState));
+                return new ObjectBucketSemanticBackfillResponse(
+                    bucket, state.ScannedObjects, state.QueuedObjects, state.SkippedObjects)
+                {
+                    Completed = state.Completed,
+                    HasMore = !state.Completed,
+                    ContinuationToken = state.ContinuationToken,
+                };
+            }
+            await Task.Delay(50, cancellationToken);
+        }
+        throw new TimeoutException("持久回填尚未完成；不把进行中进度当作终态业务计数。");
+    }
+
+    private async Task TraceBackfillAsync(HttpClient client, string bucket, string stage, CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync($"/v1/db/images/s3/{bucket}/disabled.png?processing", cancellationToken);
+        _output.WriteLine("{0} disabled.png processing HTTP {1}: {2}", stage, (int)response.StatusCode,
+            await response.Content.ReadAsStringAsync(cancellationToken));
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
+        var backfill = new ObjectProcessingJobStore(tsdb).ReadBackfill(bucket, cancellationToken);
+        _output.WriteLine("{0} persisted backfill: {1}", stage, backfill is null ? "absent"
+            : JsonSerializer.Serialize(backfill.State, ServerJsonContext.Default.ObjectSemanticBackfillState));
     }
 
     private static async Task<ObjectProcessingStatusResponse> WaitForProcessingAsync(
