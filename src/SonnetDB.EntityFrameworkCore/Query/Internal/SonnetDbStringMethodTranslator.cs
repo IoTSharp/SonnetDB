@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 namespace SonnetDB.EntityFrameworkCore.Query.Internal;
 
 /// <summary>
-/// Translates common .NET string predicates to SonnetDB LIKE expressions.
+/// 将常用 .NET 字符串谓词翻译为 SonnetDB LIKE 表达式。
 /// </summary>
 public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
 {
@@ -19,9 +19,9 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
     /// <summary>
-    /// Creates the SonnetDB string method translator.
+    /// 创建 SonnetDB 字符串方法翻译器。
     /// </summary>
-    /// <param name="sqlExpressionFactory">SQL expression factory.</param>
+    /// <param name="sqlExpressionFactory">SQL 表达式工厂。</param>
     public SonnetDbStringMethodTranslator(ISqlExpressionFactory sqlExpressionFactory)
     {
         _sqlExpressionFactory = sqlExpressionFactory;
@@ -84,7 +84,10 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
             return null;
         }
 
-        return _sqlExpressionFactory.Like(instance, pattern, null);
+        // SonnetDB CONCAT 将 NULL 视为空字符串，不能让 NULL 参数变成匹配所有字符串的模式。
+        return _sqlExpressionFactory.AndAlso(
+            _sqlExpressionFactory.IsNotNull(arguments[0]),
+            _sqlExpressionFactory.Like(instance, pattern, null));
     }
 
     private SqlExpression BuildPattern(
@@ -98,7 +101,9 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
                 string.Concat(prefix, EscapeLikePattern(constant), suffix));
         }
 
-        var result = pattern;
+        // 必须先转义原始反斜杠，再转义通配符，避免二次转义新插入的反斜杠。
+        var result = ReplacePattern(
+            ReplacePattern(ReplacePattern(pattern, "\\", "\\\\"), "%", "\\%"), "_", "\\_");
         if (prefix is not null)
         {
             result = _sqlExpressionFactory.Add(_sqlExpressionFactory.Constant(prefix), result);
@@ -111,6 +116,15 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
 
         return result;
     }
+
+    private SqlExpression ReplacePattern(SqlExpression pattern, string search, string replacement)
+        => _sqlExpressionFactory.Function(
+            "REPLACE",
+            [pattern, _sqlExpressionFactory.Constant(search), _sqlExpressionFactory.Constant(replacement)],
+            nullable: true,
+            argumentsPropagateNullability: [true, false, false],
+            typeof(string),
+            pattern.TypeMapping);
 
     private static string EscapeLikePattern(string value)
     {

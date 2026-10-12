@@ -30,16 +30,16 @@ internal static class LikePatternMatcher
                         continue;
                     }
                 }
-                else if (patternChar == '_' || patternChar == text[textIndex])
-                {
-                    patternIndex++;
-                    textIndex++;
-                    continue;
-                }
                 else if (patternChar == '%')
                 {
                     starPatternIndex = patternIndex++;
                     starTextIndex = textIndex;
+                    continue;
+                }
+                else if (patternChar == '_' || patternChar == text[textIndex])
+                {
+                    patternIndex++;
+                    textIndex++;
                     continue;
                 }
             }
