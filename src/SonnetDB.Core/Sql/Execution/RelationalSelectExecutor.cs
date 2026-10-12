@@ -2114,6 +2114,7 @@ internal static partial class RelationalSelectExecutor
         var columns = result.Columns
             .Select((column, index) => new RelColumn(alias,
                 columnAliases is { Count: > 0 } ? columnAliases[index]
+                    : subquery.CteOutputColumnNames is not null ? column
                     : index < subquery.Projections.Count && subquery.Projections[index].Alias is { } projectionAlias
                         ? projectionAlias : NormalizeSubqueryColumnName(column),
                 columnAliases is { Count: > 0 } ? columnAliases[index] : column,

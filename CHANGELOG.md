@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
 - GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
@@ -474,6 +475,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 持久死信 CI 测试：检查点锁故障恢复使用一致的 2 秒存储预算和贯穿初始化/故障/重开的 15 秒调用者取消边界；精确区分订阅包装层、检查点操作层和文件锁三个已存在的超时消息及 inner exception，保留意图恢复与恰好一次断言，不修改生产超时。
 - GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
 - GH-Issue #241：ADD/ALTER DECIMAL/NUMERIC 的 precision/scale 穿透解析、schema 演进及持久化，未修改列保留原声明，远程表元数据保留 scale=0；DDL 在发布 schema 前无损预检全部旧行与默认值，拒绝小数损失/溢出及原始字符串转换舍入。表 schema v10、public 构造/解构和普通写入合同保持；持续值约束归 #264，正式包及 XCode 迁移验收另列。
 - GH-Issue #235：嵌入式和远程 ADO 的 Decimal 参数保留实际 System.Decimal 精度；DECIMAL 写入、CAST、比较及算术按原数值文本解析浮点字面量，明确拒绝舍入、下溢和溢出。既有 Double/Float/Int64 及非关系模型的浮点参数语义保持；纯数值转换不重复执行动态 UDF。声明 p/s 约束、正式修复包和上游 ORM 验收独立推进。

@@ -165,37 +165,57 @@ public sealed class FileStreamingDeadLetterTests
     public async Task MoveExhaustedBatchToDeadLetterAsync_WithCheckpointLockTimeout_ReopensAndCompletesIntentExactlyOnce()
     {
         using var directory = new TemporaryDirectory();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var definition = Definition();
-        var options = Options() with { OperationTimeoutMilliseconds = 200 };
+        // 初开与重开使用同一持久预算，调用者截止贯穿真实锁故障和恢复。
+        var options = Options() with { OperationTimeoutMilliseconds = 2000 };
         string deliveryId;
-        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options))
+        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token))
         {
-            await subscription.PublishAsync(Event(1));
-            StreamingDeliveryBatch batch = (await subscription.ReadBatchAsync())!;
+            await subscription.PublishAsync(Event(1), deadline.Token);
+            StreamingDeliveryBatch batch = (await subscription.ReadBatchAsync(deadline.Token))!;
             deliveryId = batch.DeliveryId;
-            await subscription.PublishAsync(Event(2));
+            await subscription.PublishAsync(Event(2), deadline.Token);
             string lockPath = Directory.GetFiles(Path.Combine(directory.Path, "checkpoints"), "*.lock").Single();
             using var heldLock = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
-                batch.DeliveryId, subscription.StateRevision, batch.Attempt, "poison").AsTask());
+            var failure = await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
+                batch.DeliveryId, subscription.StateRevision, batch.Attempt, "poison", deadline.Token).AsTask());
+            if (failure.Message == "持久订阅操作超过存储操作超时边界。")
+            {
+                // wrapper 取消分支不保留原 OperationCanceledException。
+                Assert.Null(failure.InnerException);
+            }
+            else if (failure.Message == $"Streaming 检查点操作超过 {options.OperationTimeoutMilliseconds} 毫秒超时边界。")
+            {
+                // 检查点操作自己的取消分支也不保留原 OperationCanceledException。
+                Assert.Null(failure.InnerException);
+            }
+            else
+            {
+                Assert.Equal($"无法在 {options.OperationTimeoutMilliseconds} 毫秒内取得检查点文件锁。", failure.Message);
+                // 最后一次锁重试保留 IOException；重试循环后的 fallback 不含 inner。
+                Assert.True(failure.InnerException is IOException or null);
+            }
+            Assert.False(deadline.IsCancellationRequested);
             Assert.Equal(-1, subscription.Checkpoint.CommittedSequence);
             Assert.Equal(2, subscription.PendingEventCount);
-            Assert.Equal(deliveryId, (await ReadEnvelopeAsync(directory)).State.PendingDeliveryId);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => subscription.GetStatusAsync().AsTask());
+            Assert.Equal(deliveryId, (await ReadEnvelopeAsync(directory, deadline.Token)).State.PendingDeliveryId);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => subscription.GetStatusAsync(deadline.Token).AsTask());
         }
 
-        await using (var reopened = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options))
+        await using (var reopened = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token))
         {
             Assert.Equal(1, reopened.Checkpoint.CommittedSequence);
             Assert.Equal(1, reopened.PendingEventCount);
-            Assert.Equal(deliveryId, Assert.Single(await reopened.ListDeadLettersAsync()).DeliveryId);
-            Assert.Null((await ReadEnvelopeAsync(directory)).State.PendingDeliveryId);
-            Assert.Equal(2, Assert.Single((await reopened.ReadBatchAsync())!.Events).Sequence);
+            Assert.Equal(deliveryId, Assert.Single(await reopened.ListDeadLettersAsync(cancellationToken: deadline.Token)).DeliveryId);
+            Assert.Null((await ReadEnvelopeAsync(directory, deadline.Token)).State.PendingDeliveryId);
+            Assert.Equal(2, Assert.Single((await reopened.ReadBatchAsync(deadline.Token))!.Events).Sequence);
         }
 
-        await using var again = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options);
-        Assert.Single(await again.ListDeadLettersAsync());
+        await using var again = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token);
+        Assert.Single(await again.ListDeadLettersAsync(cancellationToken: deadline.Token));
         Assert.Equal(1, again.Checkpoint.CommittedSequence);
+        Assert.False(deadline.IsCancellationRequested);
     }
 
     [Fact]
