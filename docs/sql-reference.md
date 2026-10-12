@@ -52,6 +52,7 @@ UPDATE counters SET value = value + 1 WHERE id = 1;
 - 关系表 `SUM(INT)` 保留 `Int64` 返回类型；任何累加中间结果超出有符号 Int64 范围时返回执行错误，不会转为 `Float64`。需要更大的有限精度结果时，可显式对输入使用 `CAST(value AS DECIMAL)`，但 `DECIMAL` 也受其精度范围约束。
 - `DECIMAL` / `NUMERIC` 操作数保持 `System.Decimal` 精度；`DECIMAL(p,s)` 的精度范围为 `1..38` 且 `0 <= s <= p`，省略括号时使用 `(38,28)`。关系表中的值以 16 字节 decimal payload 持久化，schema format v9 保存声明的 precision/scale；超出 Decimal 范围或声明精度/小数位无效时拒绝执行。
 - 按位 `&` / `|` 只接受整数操作数并返回 `Int64`，任一操作数为 `NULL` 时结果为 `NULL`；浮点、字符串或其他非整数操作数会返回包含“只支持整数操作数”的中文执行错误。
+- `shift_left(value, count)` / `shift_right(value, count)` 接受可表示为有符号 `Int64` 的整数并返回 `Int64`；任一参数为 `NULL` 时返回 `NULL`。位宽固定为 64，左移丢弃移出位，右移为保留符号的算术右移；`count` 必须为 `0..63`，负数及大于等于 64 的计数明确拒绝。FLOAT、DECIMAL 和字符串即使数值为整数也不隐式转换；超出 `Int64` 的无符号值拒绝。Provider 可将移位表达式翻译为这两个函数，CLR `int`/`long` 的位宽和计数掩码须由 Provider 显式保持；引擎不自动套用 CLR 掩码。
 - 任一算术操作数为 `NULL` 时结果为 `NULL`。除数或模数为 `0` 时抛出执行错误，不返回 `Infinity` / `NaN`。
 - `+` 只做数值加法，不把字符串隐式转成数字，也不做字符串拼接。字符串连接使用 `concat(...)`；其中 `NULL` 参数按空字符串处理。
 - 支持聚合结果外包算术或标量函数，例如 `count(*) + 1`、`round(avg(value) + 0.25, 2)`；关系表、measurement 和 document collection 查询遵循同一规则。
@@ -140,6 +141,16 @@ UPDATE jobs SET status = 'running' WHERE id = @id AND version = @version;
 ```
 
 调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`BeginTransaction` 的 ReadCommitted/Serializable 轻事务不提供悲观锁；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。ADO.NET 同步和异步锁定读在嵌入式及远程模式均抛 `SqlParseException`，其 `Code` 为 `sql_locking_read_unsupported`；直接 REST SQL 返回同一错误码。锁定读被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
+
+#### 关系基表可串行化事务
+
+`SndbConnection.BeginTransaction(IsolationLevel.Serializable)` 对关系基表启用保守的表级乐观可串行化校验。事务保存每张表首次读取时的 store/schema 身份、generation 和快照 sequence；后续读取和语句保存点回滚不会前移基线。因此，事务可能在后续查询中读到其它已提交写入，但只要首次读集发生变化，最终 COMMIT 就会以 `table_serialization_conflict` 拒绝，并将该事务置为回滚终态。应用必须重新开始整个事务，不能只重试 COMMIT。即使竞争写入落在查询谓词范围之外，也可能因表级校验而冲突。
+
+COUNT、空结果、索引/点读、JOIN、CTE、子查询、UPDATE/DELETE 候选集、延迟触发器和级联读写均参加读集校验。自身实际发生的 AUTO_INCREMENT 预留仅在其起始版本连续匹配首次基线时计入自身 sequence 增量；外部变化、TRUNCATE、schema 或 store 替换不能被后续预留吸收。只有实际读、写和外键校验依赖表才在最终阶段按 Ordinal 顺序取得 store 锁，并从校验保持到 apply 完成；不会先打开整个 catalog 的所有 store。
+
+实现限制为最多 4096 张读集/最终依赖表，最多检查 16384 张 catalog schema 与 16384 项外键定义，最多 100000 项最终行变更及有界生成级联行。提交准备在元数据遍历、打开实际依赖和锁等待期间检查取消及请求提交期限；锁等待采用每次至多 50ms、最多 2401 次、总计至多 120 秒的有界等待，并受更严格的请求提交期限约束。数据源校验最多 16384 节点、64 层和三秒。逻辑视图、物化视图、其它模型、外部源及没有对应保护的 catalog 语句显式拒绝。未指定隔离级别时继续使用 ReadCommitted。
+
+远程事务创建发送 `X-SonnetDB-Isolation-Level: serializable`，Server 响应必须包含一致的 `isolationLevel` 确认。旧 Server 的 404、错误或缺失确认均拒绝创建 Serializable 事务；已取得合法新 session ID 却未确认的会话只尝试一次、最长五秒的 rollback。真实验证覆盖 REST HTTP/1.1 与 h2c HTTP/2 的 NDJSON 事务会话路径；这不是 Native Frame 事务验收。
 
 ### Modbus 32 位寄存器解码
 
@@ -233,6 +244,25 @@ CREATE TABLE devices (
 - ADO.NET 可用 `ExecuteScalar("INSERT ... RETURNING id")` 取得本条语句生成的首个 ID，作为语句级 last-insert-id；`ExecuteReader` 可读取完整返回行，同时 `RecordsAffected` 保留实际插入行数。SonnetDB 不维护连接级 `LAST_INSERT_ID()` 状态。
 - 完整的 `INSERT ... RETURNING` 类型、列属性和跨嵌入式/REST/Frame HTTP/2 ADO 回落合同属于下一未发布版本，首次交付版本号待发布标签确定；已发布的 3.1.0 不应据此视为具备该完整合同。Frame SQL 查询端点仍只读，`Protocol=frame-http2` 的 ADO 写入经同一 HTTP/2 连接回落 REST SQL 端点。
 - EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
+
+关系表的 `INSERT ... VALUES` 在下一未发布版本支持已有无行标量表达式，包括常量、参数、`CAST`、标量函数、`CASE` 和算术。多行 `VALUES` 可与 `RETURNING`、`ON CONFLICT`、默认值和已有事务/触发器组合：
+
+```sql
+CREATE TABLE invoice_items (
+    id INT AUTO_INCREMENT,
+    amount DECIMAL NULL,
+    created DATETIME NULL,
+    PRIMARY KEY (id)
+);
+INSERT INTO invoice_items (amount, created)
+VALUES (CAST(@amount AS DECIMAL), CURRENT_UTC_DATETIME()),
+       (CASE WHEN @amount IS NULL THEN NULL ELSE CAST(@amount AS DECIMAL) + 0.1 END, NULL)
+RETURNING id, amount;
+```
+
+`CASE` 和 `COALESCE` 保持短路，已到达的函数调用只执行一次。Decimal 目标列和显式 `CAST(... AS DECIMAL)` 使用原数值文本保留可表示精度，分支值在实际选中时转换；既有标量函数保持其返回类型和数值算法。所有行先完成求值与类型转换，再预留自增号和写入；任一行失败不会插入前行，也不会撤销调用方已有事务中的较早成功语句。用户函数的外部副作用不属于数据库事务回滚范围。
+
+`VALUES` 不允许列引用、聚合、窗口或原始子查询，即使这些结构位于未选分支也会拒绝；`DEFAULT` 仍仅作为完整单元格使用。这项能力属于关系表 INSERT，不扩展其它模型的 VALUES 方言。
 
 关系查询可在投影和谓词中使用以下日期标量函数：
 
@@ -707,7 +737,18 @@ WHERE guid IN (
 - 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。当前 `main` 的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；实际发布前不能作为已发布包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
 - 会话存放于单个 Server 进程内；跨实例路由需固定到创建会话的实例。服务端重启会丢失未提交缓冲及终态缓存，未收到提交响应时须按会话 ID 查询终态，若服务端不可达或缓存已过期则结果未知。已发布包和 FreeSql Provider 仍需按实际版本与部署形态单独验收。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
-- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，支持关系表、`(SELECT ...) AS s` 与 `(VALUES(...),(...)) AS s(column,...)` 派生来源及 INNER/LEFT JOIN。SELECT 可沿用 UNION ALL 并可声明按位置输出别名；VALUES 必须声明全部输出列，行宽一致，列名不能仅大小写不同。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；触发器及约束按普通 UPDATE 执行。轻事务中目标和来源均读取已缓冲的 INSERT/UPDATE/DELETE；连续联接更新保留首次并发基线，语句失败不发布本条已准备的目标变更。
+- 派生 VALUES 支持参数、NULL 和既有标量表达式，保留 Decimal、TIME 与 UTC 值。单来源上限为 100000 行、4096 列、1000000 单元格和 64 MiB 估算物化字节；解析另有 30 秒上限，执行沿用调用方取消及物化预算。超限拒绝整条语句，不截断来源；空派生来源仍校验 SET/ON/WHERE 列引用。
+
+```sql
+UPDATE target AS t SET value = s.value
+FROM (VALUES (1, @value1), (2, @value2)) AS s(id, value)
+WHERE t.id = s.id;
+
+UPDATE target AS t
+JOIN (SELECT 1 AS id, @value1 AS value UNION ALL SELECT 2 AS id, @value2 AS value) AS s
+ON t.id = s.id SET value = s.value WHERE 1 = 1;
+```
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
@@ -1331,6 +1372,13 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
 - 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`trim`、`ltrim`、`rtrim`、`length` / `char_length`、`substring` / `substr`、`position(search IN value)`、`replace`、`left`、`right`、`starts_with` / `ends_with` / `contains`、`regexp_like`、`date_diff` / `datediff`、`date_format` / `format_datetime` / `strftime` / `to_char`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
 - 字符串函数对字符串参数使用 Ordinal 规则；除 `concat` 将 NULL 参数视为空字符串外，字符串参数或位置/长度参数为 NULL 时返回 NULL。`substring` 使用从 1 开始的位置，省略长度时截取到末尾；位置必须大于等于 1，长度和 `left` / `right` 的字符数不能为负数。`length` 返回 .NET UTF-16 字符数（`long`），不是 UTF-8 字节数。`position(search IN value)` 返回按 UTF-16 计数的 1 基位置，未找到返回 0，空搜索串返回 1；关系表、Document 和时序查询可通过共用的标量函数求值器调用。
+- `lpad(value, width [, padding])` / `rpad(value, width [, padding])` 将字符串填充至目标宽度，分别在左侧或右侧补充。省略 `padding` 时使用空格；非空自定义填充串循环使用，最后一段只取所需前缀。宽度及前缀按 UTF-16 单元计数，与 `length` 一致；组合字素可以拆分，但输出必须保持代理对完整。原串及实际使用的填充片段包含孤立代理项、或截断填充串会切开代理对时，明确返回执行错误；未使用的填充尾部不参与验证。例如 `lpad('7',3,'😀')` 返回 `'😀7'`，`lpad('7',2,'😀')` 拒绝且不改变请求宽度。目标宽度小于等于原串长度时保留原串（与 CLR `PadLeft` / `PadRight` 一致，不采用 PostgreSQL 的截断行为）；空原串允许填充，零宽度保留原串。任一参数为 `NULL` 时返回 `NULL`；其它调用中空填充串一律拒绝，即使不需要补充。`value` / `padding` 必须是字符串，`width` 必须是非负整数，不隐式转换 FLOAT、DECIMAL 或字符串。单次结果最多 1,048,576 个 UTF-16 单元（约 2 MiB 字符数据），超限目标或原串均在扫描或分配填充结果前拒绝；空关系及全 NULL 结果仍声明 STRING。原生实现与正式包发布、FreeSql Provider 适配分别验收。
+
+```sql
+SELECT lpad('7', 4, '0') AS left_code,  -- '0007'
+       rpad('7', 4, '0') AS right_code, -- '7000'
+       lpad('abcd', 2) AS unchanged;    -- 'abcd'
+```
 
 常用字符串函数示例：
 

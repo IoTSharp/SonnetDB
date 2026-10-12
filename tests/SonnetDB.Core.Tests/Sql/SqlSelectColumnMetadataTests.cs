@@ -215,6 +215,53 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
         Assert.True(calls > 0);
     }
 
+    /// <summary>派生列改名与 LIMIT 0 保留精度和可空性，SELECT/VALUES 均不消费来源。</summary>
+    [Fact]
+    public void DerivedAliases_LimitZero_PreservesDeclarationsWithoutConsumingSelectOrValues()
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE TABLE central_metadata(id INT, amount DECIMAL(18,4), PRIMARY KEY(id))");
+        SqlExecutor.Execute(database, "INSERT INTO central_metadata(id,amount) VALUES(1,'1.2500')");
+        int calls = 0;
+        database.Functions.RegisterScalar("central_schema_probe", arguments => { calls++; return arguments[0]; }, 1, 1);
+        database.Functions.RegisterScalar("central_values_probe", _ => { calls++; return "different-type"; }, 1, 1);
+        const string sql = """
+            SELECT d."Shown.Amount" AS AmountOut, d."Shown.ID" AS KeyOut,
+                   d."Shown.Probe" AS ProbeOut, v."Value.ID" AS ValuesOut,
+                   -l.id AS Negated, l.id + 1 AS Incremented,
+                   CASE WHEN l.id=1 THEN l.amount ELSE l.amount END AS Chosen,
+                   COALESCE(l.amount,l.amount) AS Filled,
+                   shift_left(l.id,1) AS Shifted, lpad('7',3,'0') AS Padded
+            FROM (SELECT id,amount FROM central_metadata WHERE central_schema_probe(id)>0) AS l
+            JOIN (SELECT id,amount,central_schema_probe(id) AS probed FROM central_metadata
+                  WHERE central_schema_probe(id)>0) AS d("Shown.ID","Shown.Amount","Shown.Probe")
+                ON l.id=d."Shown.ID"
+            JOIN (VALUES(1),(central_values_probe(1))) AS v("Value.ID") ON d."Shown.ID"=v."Value.ID"
+            LIMIT 0
+            """;
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, sql));
+        Assert.Empty(result.Rows);
+        Assert.Equal(0, calls);
+        Assert.Equal(new[] { "AmountOut", "KeyOut", "ProbeOut", "ValuesOut", "Negated", "Incremented", "Chosen", "Filled", "Shifted", "Padded" }, result.Columns);
+        var info = result.ColumnInfo!;
+        Assert.Equal(new TableColumnType?[] { TableColumnType.Decimal, TableColumnType.Int64, null, null,
+            TableColumnType.Int64, TableColumnType.Int64, TableColumnType.Decimal, TableColumnType.Decimal,
+            TableColumnType.Int64, TableColumnType.String }, info.Select(column => column.DataType).ToArray());
+        Assert.True(info[0].IsNullable);
+        Assert.False(info[1].IsNullable);
+        Assert.False(info[4].IsNullable);
+        Assert.False(info[5].IsNullable);
+        foreach (int index in new[] { 0, 6, 7 })
+        {
+            Assert.Equal((byte)18, info[index].NumericPrecision);
+            Assert.Equal((byte)4, info[index].NumericScale);
+        }
+        var populated = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database,
+            sql.Replace("LIMIT 0", string.Empty, StringComparison.Ordinal)));
+        Assert.Single(populated.Rows);
+        Assert.Equal(1.25m, populated.Rows[0][0]);
+        Assert.True(calls > 0);
+    }
     private readonly string _root = Path.Combine(Path.GetTempPath(),
         "sndb-select-metadata-" + Guid.NewGuid().ToString("N"));
 

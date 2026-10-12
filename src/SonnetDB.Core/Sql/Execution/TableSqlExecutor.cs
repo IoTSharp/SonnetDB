@@ -527,7 +527,7 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertInsertValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column, schema);
             }
 
             ApplyInsertDefaults(defaults, values);
@@ -1090,7 +1090,7 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertInsertValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column, schema);
             }
 
             ApplyInsertDefaults(defaults, values);
@@ -1634,12 +1634,6 @@ internal static class TableSqlExecutor
         MutationAliasValidator.Validate(statement);
         if (statement.FromClauses.Count != 0)
         {
-            if (transaction.TryGetBufferedMutations(schema.Name, out _))
-            {
-                throw new NotSupportedException(
-                    "UPDATE ... JOIN/FROM 当前不支持同一轻事务中先缓冲目标表变更；请将联接更新作为事务中的首次目标表写入。");
-            }
-
             return ExecuteJoinUpdate(
                 tsdb,
                 statement,
@@ -1844,42 +1838,16 @@ internal static class TableSqlExecutor
         if (statement.FromClauses.Count == 0)
             throw new InvalidOperationException("UPDATE 联接更新至少需要一个 FROM/JOIN 来源。");
 
-        var schemas = new Dictionary<string, TableSchema>(StringComparer.Ordinal)
-        {
-            [statement.TableAlias ?? statement.TableName] = targetSchema,
-        };
+        var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { statement.TableAlias ?? statement.TableName };
         foreach (var from in statement.FromClauses)
         {
-            if (from.Subquery is not null)
-                throw new NotSupportedException("UPDATE ... JOIN/FROM 暂不支持子查询来源。");
             if (from.Kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
                 throw new NotSupportedException("UPDATE ... JOIN/FROM 仅支持 INNER JOIN 与 LEFT JOIN。");
-            var sourceSchema = tsdb.Tables.Catalog.TryGet(from.TableName)
-                ?? throw new NotSupportedException(
-                    $"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
-            if (!schemas.TryAdd(from.Alias, sourceSchema))
+            if (from.Subquery is null && from.ValuesRows is null && tsdb.Tables.Catalog.TryGet(from.TableName) is null)
+                throw new NotSupportedException($"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
+            if (!aliases.Add(from.Alias))
                 throw new InvalidOperationException($"UPDATE 联接别名 '{from.Alias}' 重复。");
         }
-
-        bool IdentifierExists(IdentifierExpression identifier)
-        {
-            if (identifier.Qualifier is { } qualifier)
-            {
-                return schemas.TryGetValue(qualifier, out var qualifiedSchema)
-                    && qualifiedSchema.TryGetColumn(identifier.Name) is not null;
-            }
-
-            return schemas.Values.Any(schema => schema.TryGetColumn(identifier.Name) is not null);
-        }
-
-        foreach (var assignment in statement.Assignments)
-        {
-            if (assignment.Value is not DefaultValueExpression)
-                SqlProjectionExpressionEvaluator.Validate(assignment.Value, IdentifierExists, "UPDATE JOIN SET");
-        }
-        SqlProjectionExpressionEvaluator.Validate(statement.Where, IdentifierExists, "UPDATE JOIN WHERE");
-        foreach (var from in statement.FromClauses)
-            SqlProjectionExpressionEvaluator.Validate(from.On, IdentifierExists, "UPDATE JOIN ON");
     }
 
     private static JoinBoundAssignment[] BindJoinAssignments(UpdateStatement statement, TableSchema schema)
@@ -2001,16 +1969,24 @@ internal static class TableSqlExecutor
             if (transaction.DeferredTriggerCount != 0 && RoutineExecutionContext.Current?.Options.CanWrite == false)
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
                     SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
-            affected = tsdb.Tables.ExecuteCommitLocked(() =>
+            int CommitLocked()
             {
                 // 延迟约束触发器与最终 mutation 快照共享 TableManager 锁，避免跨事务
                 // 的最终状态检查发生 write skew；触发器产生的 mutation 也纳入本次提交。
-                transaction.ExpandDeferredCascades(tsdb.Tables);
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    tsdb.Tables.ExpandSerializableCascades(transaction);
+                else
+                    transaction.ExpandDeferredCascades(tsdb.Tables);
                 SqlRoutineRuntime.ExecuteDeferredTriggers(tsdb, transaction);
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    tsdb.Tables.ExpandSerializableCascades(transaction);
                 var mutations = transaction.SnapshotTableMutations();
                 var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
                 foreach (var (tableName, expectedGeneration) in reservationGenerations)
                 {
+                    transaction.CheckCommitDeadline();
+                    if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                        continue; // 首次 reservation token 在全部依赖表锁内校验，返回统一序列化冲突。
                     long actualGeneration = tsdb.Tables.Open(tableName).Generation;
                     if (actualGeneration != expectedGeneration)
                     {
@@ -2021,9 +1997,13 @@ internal static class TableSqlExecutor
                 }
 
                 transaction.CheckCommitDeadline();
+                if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
+                    return tsdb.Tables.ApplySerializableTransaction(transaction, mutations);
                 transaction.EndDeferredExecution();
                 return tsdb.Tables.ApplyTransaction(mutations);
-            }, transaction.CheckCommitDeadline);
+            }
+
+            affected = tsdb.Tables.ExecuteCommitLocked(CommitLocked, transaction.CheckCommitDeadline);
         }
         catch (Exception exception)
         {
@@ -2166,14 +2146,101 @@ internal static class TableSqlExecutor
         return bindings;
     }
 
-    private static object? ConvertInsertValue(SqlExpression expression, TableColumn column)
+    private static object? ConvertInsertValue(SqlExpression expression, TableColumn column, TableSchema schema)
     {
         if (expression is not DefaultValueExpression)
-            return ConvertTableValue(expression, column);
+        {
+            bool decimalContext = column.DataType == TableColumnType.Decimal;
+            var bound = BindInsertValueExpression(expression, decimalContext, column.Name);
+            if (decimalContext)
+                bound = SqlScalarOperations.InDecimalContext(bound);
+            // 绑定阶段已遍历全部分支并拒绝列引用；求值器不会读取这个空行。
+            return ConvertTableValue(EvaluateScalar(bound, schema, Array.Empty<object?>()), column);
+        }
 
         return TryEvaluateColumnDefault(column, out var defaultValue)
             ? defaultValue
             : null;
+    }
+
+    /// <summary>
+    /// 校验 INSERT VALUES 的无行标量表达式；不执行函数或常量运算，并延后分支中的精确 Decimal 解析。
+    /// </summary>
+    private static SqlExpression BindInsertValueExpression(SqlExpression expression, bool decimalContext, string columnName)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        int visited = 0;
+        return Bind(expression, decimalContext, 0);
+
+        SqlExpression Bind(SqlExpression node, bool exactDecimal, int depth)
+        {
+            if (++visited > 4096 || depth > 64 || System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds > 1)
+                throw new InvalidOperationException("INSERT VALUES 表达式超出有界校验预算。");
+            SqlExecutor.ThrowIfCancellationRequested();
+            switch (node)
+            {
+                case LiteralExpression { Kind: SqlLiteralKind.Float, NumericText: not null } literal when exactDecimal:
+                    // CAST 复用现有原数值文本解析，只有实际选中的 CASE/COALESCE 分支才执行。
+                    return new CastExpression(literal, SqlDataType.Decimal);
+                case LiteralExpression or DurationLiteralExpression or MaterializedSubqueryValueExpression:
+                    return node;
+                case CastExpression cast:
+                    if (cast.TargetType is SqlDataType.Vector or SqlDataType.GeoPoint)
+                        throw new NotSupportedException($"CAST 当前不支持目标类型 {cast.TargetType}。");
+                    return cast with { Operand = Bind(cast.Operand, cast.TargetType == SqlDataType.Decimal, depth + 1) };
+                case UnaryExpression unary when unary.Operator is SqlUnaryOperator.Negate or SqlUnaryOperator.Not:
+                    return unary with { Operand = Bind(unary.Operand, exactDecimal && unary.Operator == SqlUnaryOperator.Negate, depth + 1) };
+                case BinaryExpression binary when IsArithmeticOperator(binary.Operator)
+                    || binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or || IsComparisonOperator(binary.Operator):
+                    bool arithmeticDecimal = exactDecimal && IsArithmeticOperator(binary.Operator);
+                    return binary with
+                    {
+                        Left = Bind(binary.Left, arithmeticDecimal, depth + 1),
+                        Right = Bind(binary.Right, arithmeticDecimal, depth + 1),
+                    };
+                case IsNullExpression isNull:
+                    return isNull with { Operand = Bind(isNull.Operand, false, depth + 1) };
+                case InExpression { Subquery: null } inExpression:
+                    if (inExpression.Values.Count > 4096)
+                        throw new InvalidOperationException("INSERT VALUES 的 IN 列表超出校验预算。");
+                    return inExpression with
+                    {
+                        Value = Bind(inExpression.Value, false, depth + 1),
+                        Values = inExpression.Values.Select(value => Bind(value, false, depth + 1)).ToArray(),
+                    };
+                case CaseExpression caseExpression:
+                    if (caseExpression.WhenClauses.Count > 2048)
+                        throw new InvalidOperationException("INSERT VALUES 的 CASE 分支超出校验预算。");
+                    return caseExpression with
+                    {
+                        WhenClauses = caseExpression.WhenClauses.Select(clause => new CaseWhenClause(
+                            Bind(clause.Condition, false, depth + 1), Bind(clause.Result, exactDecimal, depth + 1))).ToArray(),
+                        Else = caseExpression.Else is null ? null : Bind(caseExpression.Else, exactDecimal, depth + 1),
+                    };
+                case FunctionCallExpression function:
+                    if (function.IsStar || function.IsDistinct || function.Over is not null
+                        || FunctionRegistry.TryGetAggregate(function.Name, out _)
+                        || FunctionRegistry.TryGetWindow(function.Name, out _))
+                        throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}' 的调用形式。");
+                    if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (function.Arguments.Count != 2 || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String })
+                            throw new InvalidOperationException("json_value 需要两个参数，第二个参数必须是 JSON path 字符串字面量。");
+                    }
+                    else if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+                        ValidateScalarFunctionArgumentCount(function, scalarFunction);
+                    else
+                        throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}'。");
+                    if (function.Arguments.Count > 4096)
+                        throw new InvalidOperationException("INSERT VALUES 的函数参数超出校验预算。");
+                    bool coalesceDecimal = exactDecimal && string.Equals(function.Name, "coalesce", StringComparison.OrdinalIgnoreCase);
+                    return function with { Arguments = function.Arguments.Select(argument => Bind(argument, coalesceDecimal, depth + 1)).ToArray() };
+                case IdentifierExpression identifier:
+                    throw new InvalidOperationException($"INSERT VALUES 中不能引用列 '{identifier.Name}'。");
+                default:
+                    throw new InvalidOperationException($"列 '{columnName}' 的 INSERT VALUES 不支持表达式 '{node.GetType().Name}'。");
+            }
+        }
     }
 
     private static BoundColumnDefault[] BindInsertDefaults(
@@ -5328,6 +5395,24 @@ internal static class TableSqlExecutor
         if (projection.Column is { } column)
         {
             return SelectColumnInfo.FromColumn(column);
+        }
+
+        if (projection.ExpressionValue is FunctionCallExpression padding
+            && (padding.Name.Equals("lpad", StringComparison.OrdinalIgnoreCase)
+                || padding.Name.Equals("rpad", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(padding.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(padding.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.String, true);
+        }
+
+        if (projection.ExpressionValue is FunctionCallExpression shift
+            && (shift.Name.Equals("shift_left", StringComparison.OrdinalIgnoreCase)
+                || shift.Name.Equals("shift_right", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(shift.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(shift.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.Int64, true);
         }
 
         if (projection.Kind != ProjectionKind.Constant)

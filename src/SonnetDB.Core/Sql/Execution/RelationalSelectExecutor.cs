@@ -171,6 +171,19 @@ internal static partial class RelationalSelectExecutor
                 SqlExecutor.ThrowIfCancellationRequested();
                 var join = statement.JoinClauses[joinIndex];
                 var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
+                if (preserveDeclaredJoinOrder)
+                    ValidateDeclaredExpression(join.On, relation.Columns.Concat(right.Columns).ToArray(), outerScope);
+                // FROM has a TRUE join predicate; use only its WHERE equality keys here.
+                // The complete WHERE remains below, evaluated once on matched rows.
+                if (preserveDeclaredJoinOrder && statement.JoinClauses.Count == 1
+                    && join.Kind == JoinKind.Inner && join.On is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
+                    && statement.Where is not null
+                    && TryPlanHashJoin(relation, right, statement.Where, out var fromKeys, out _))
+                {
+                    relation = HashJoin(tsdb, relation, right, fromKeys, Array.Empty<SqlExpression>(),
+                        JoinKind.Inner, RelationalHashBuildSide.Right, outerScope, memo);
+                    continue;
+                }
                 relation = Join(
                     tsdb,
                     relation,
@@ -181,6 +194,14 @@ internal static partial class RelationalSelectExecutor
                     memo,
                     preserveDeclaredJoinOrder);
             }
+        }
+
+        if (preserveDeclaredJoinOrder)
+        {
+            if (statement.Where is not null)
+                ValidateDeclaredExpression(statement.Where, relation.Columns, outerScope);
+            foreach (var projection in statement.Projections)
+                ValidateDeclaredExpression(projection.Expression, relation.Columns, outerScope);
         }
 
         if (statement.Where is not null)
@@ -645,7 +666,7 @@ internal static partial class RelationalSelectExecutor
         for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
         {
             JoinClause join = statement.JoinClauses[joinIndex];
-            if (!TryCreateExplainRelation(
+            if (join.ValuesRows is not null || !TryCreateExplainRelation(
                     tsdb,
                     join.TableName,
                     join.Alias,
@@ -1052,7 +1073,8 @@ internal static partial class RelationalSelectExecutor
 
         foreach (var join in statement.JoinClauses)
         {
-            if (!TryCreateInputDescriptor(tsdb, join.TableName, join.Alias, join.Subquery, out var input))
+            if (join.ValuesRows is not null
+                || !TryCreateInputDescriptor(tsdb, join.TableName, join.Alias, join.Subquery, out var input))
                 return RelationInputPushdownPlan.Disabled(statement.JoinClauses.Count);
             inputs.Add(input);
         }
@@ -1526,7 +1548,7 @@ internal static partial class RelationalSelectExecutor
         for (int index = 0; index < statement.JoinClauses.Count; index++)
         {
             JoinClause join = statement.JoinClauses[index];
-            if (join.Subquery is not null
+            if (join.ValuesRows is not null || join.Subquery is not null
                 || tsdb.Tables.Catalog.TryGet(join.TableName) is not { } schema)
             {
                 return false;
@@ -1867,8 +1889,10 @@ internal static partial class RelationalSelectExecutor
         RelationInputPlan plan,
         SubqueryMemo memo)
     {
+        if (join.ValuesRows is not null)
+            return LoadValues(tsdb, join, memo, schemaOnly: plan.RowLimit == 0);
         if (join.Subquery is not null)
-            return LoadSubquery(tsdb, join.Subquery, join.Alias, plan.RowLimit == 0);
+            return LoadSubquery(tsdb, join.Subquery, join.Alias, schemaOnly: plan.RowLimit == 0, columnAliases: join.ColumnNames);
 
         if (RecursiveCteScope.Find(join.TableName) is { } recursiveSource)
             return LoadRecursiveSource(recursiveSource, join.Alias);
@@ -2050,13 +2074,88 @@ internal static partial class RelationalSelectExecutor
                 RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
-    private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias, bool schemaOnly = false)
+    private static Relation LoadValues(Tsdb tsdb, JoinClause join, SubqueryMemo memo, bool schemaOnly = false)
+    {
+        var source = join.ValuesRows!;
+        if (source.Count is 0 or > 100_000 || join.ColumnNames.Count is 0 or > 4096
+            || (long)source.Count * join.ColumnNames.Count > 1_000_000)
+            throw new InvalidOperationException("派生 VALUES 超过行列或单元格上限。");
+        if (join.ColumnNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != join.ColumnNames.Count)
+            throw new InvalidOperationException("派生 VALUES 输出列名重复。");
+        var types = new TableColumnType?[join.ColumnNames.Count];
+        var mixed = new bool[types.Length];
+        var rows = new List<object?[]>(schemaOnly ? 0 : source.Count);
+        long retainedBytes = 0;
+        foreach (var expressions in source)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (expressions.Count != types.Length)
+                throw new InvalidOperationException("派生 VALUES 输出列数与行宽不一致。");
+            var row = schemaOnly ? null : new object?[types.Length];
+            for (int index = 0; index < types.Length; index++)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                var expression = expressions[index];
+                SqlProjectionExpressionEvaluator.Validate(expression, static _ => false, "派生 VALUES");
+                object? value = null;
+                if (row is not null)
+                {
+                    value = EvaluateScalar(tsdb, expression, Array.Empty<RelColumn>(), Array.Empty<object?>(), memo: memo);
+                    row[index] = value;
+                }
+                var type = InferSelectColumnInfo(expression, Array.Empty<RelColumn>()).DataType;
+                if (type is not null)
+                {
+                    if (types[index] is not null && types[index] != type) mixed[index] = true;
+                    else types[index] = type;
+                }
+                else if (value is not null || schemaOnly && expression is not LiteralExpression { Kind: SqlLiteralKind.Null })
+                {
+                    mixed[index] = true;
+                }
+            }
+            if (row is null)
+                continue;
+            retainedBytes = checked(retainedBytes + SqlSpillRowCodec.EstimateRowBytes(row));
+            if (retainedBytes > 64 * 1024 * 1024)
+                throw new InvalidOperationException("派生 VALUES 超过 64 MiB 物化预算。");
+            SqlRowRetentionBudget.Current?.Retain(row);
+            rows.Add(row);
+        }
+        var columns = join.ColumnNames.Select((name, index) =>
+            new RelColumn(join.Alias, name, name, mixed[index] ? null : types[index])).ToArray();
+        return new Relation(columns, rows, new RelationalJoinInputEstimate(rows.Count,
+            RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
+    }
+
+    private static void ValidateDeclaredExpression(SqlExpression expression,
+        IReadOnlyList<RelColumn> columns, RelationalScope? outerScope)
+    {
+        var dummy = new object?[columns.Count];
+        SqlProjectionExpressionEvaluator.Validate(expression, identifier =>
+        {
+            _ = GetColumnValue(columns, dummy, identifier, outerScope);
+            return true;
+        }, "UPDATE JOIN/FROM");
+    }
+
+    private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias,
+        bool schemaOnly = false, IReadOnlyList<string>? columnAliases = null)
     {
         var result = SqlExecutor.ExecuteSelect(tsdb, schemaOnly
             ? subquery with { Pagination = new PaginationSpec(0, 0) }
             : subquery);
+        if (columnAliases is { Count: > 0 } && columnAliases.Count != result.Columns.Count)
+            throw new InvalidOperationException("派生 SELECT 输出列别名数与投影列数不一致。");
         var columns = result.Columns
-            .Select((column, ordinal) => FromResultColumn(result, ordinal, alias, column))
+            .Select((column, index) => FromResultColumn(result, index, alias, column) with
+            {
+                Name = columnAliases is { Count: > 0 } ? columnAliases[index]
+                    : subquery.CteOutputColumnNames is not null ? column
+                    : index < subquery.Projections.Count && subquery.Projections[index].Alias is { } projectionAlias
+                        ? projectionAlias : NormalizeSubqueryColumnName(column),
+                OutputName = columnAliases is { Count: > 0 } ? columnAliases[index] : column,
+            })
             .ToArray();
         var rows = new List<object?[]>();
         foreach (IReadOnlyList<object?> row in result.Rows)
@@ -2100,20 +2199,16 @@ internal static partial class RelationalSelectExecutor
             // A unique lookup preserves the declared right-side match order because
             // each left row can match at most one right row.
             if (kind is JoinKind.Inner or JoinKind.Left
-                && TryPlanHashJoin(left, right, on, out var orderedKeys, out var orderedResidual)
-                && TryPlanIndexNestedLoop(left, right, orderedKeys, out var orderedIndex)
-                && orderedIndex is { IsUnique: true })
+                && TryPlanHashJoin(left, right, on, out var orderedKeys, out var orderedResidual))
             {
-                return IndexNestedLoopJoin(
-                    tsdb,
-                    left,
-                    right,
-                    orderedKeys,
-                    orderedResidual,
-                    kind,
-                    orderedIndex,
-                    outerScope,
-                    memo);
+                if (TryPlanIndexNestedLoop(left, right, orderedKeys, out var orderedIndex)
+                    && orderedIndex is { IsUnique: true })
+                    return IndexNestedLoopJoin(tsdb, left, right, orderedKeys, orderedResidual,
+                        kind, orderedIndex, outerScope, memo);
+                // Build the declared right side: buckets retain source order and probes
+                // retain target order, including duplicates and transaction overlays.
+                return HashJoin(tsdb, left, right, orderedKeys, orderedResidual,
+                    kind, RelationalHashBuildSide.Right, outerScope, memo);
             }
 
             return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
@@ -4249,6 +4344,24 @@ internal static partial class RelationalSelectExecutor
         if (expression is FunctionCallExpression scalar
             && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
             return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
+
+        if (expression is FunctionCallExpression padding
+            && (padding.Name.Equals("lpad", StringComparison.OrdinalIgnoreCase)
+                || padding.Name.Equals("rpad", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(padding.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(padding.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.String, true);
+        }
+
+        if (expression is FunctionCallExpression shift
+            && (shift.Name.Equals("shift_left", StringComparison.OrdinalIgnoreCase)
+                || shift.Name.Equals("shift_right", StringComparison.OrdinalIgnoreCase))
+            && FunctionRegistry.GetFunctionKind(shift.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(shift.Name, out _) != true)
+        {
+            return new SelectColumnInfo(TableColumnType.Int64, true);
+        }
 
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {

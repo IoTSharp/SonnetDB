@@ -225,7 +225,8 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
                 "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
         }
 
-        return new SqlTransactionContext();
+        return new SqlTransactionContext(isolationLevel == IsolationLevel.Serializable
+            ? SqlTransactionIsolationLevel.Serializable : SqlTransactionIsolationLevel.ReadCommitted);
     }
 
     public void CommitTransaction(object transactionState)

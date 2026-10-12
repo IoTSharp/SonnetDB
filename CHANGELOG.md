@@ -11,9 +11,20 @@
 
 - GH-Issue #261：原生零行 reader 保留普通/物化视图的声明列名、SQL/CLR 类型、可空性及已知 DECIMAL 精度/小数位；未知声明保持未知，schema 查询不执行视图 UDF。物化快照 v2 在 CRC 内保存代际声明，兼容读 v1 行并要求显式 REFRESH 后访问完整元数据；Frame v3 显式协商完整声明，保留旧编码，仅对执行前版本拒绝回退一次 v2。
 
+
+- 关系基表轻事务新增保守的表级乐观 `Serializable` 隔离：保留首次读取的 store/schema/generation/sequence，提交前按固定顺序锁定实际读、写及外键依赖并校验；冲突返回 `table_serialization_conflict`，终止整个事务并要求从头重试。嵌入式与 REST/h2c NDJSON 事务会话均显式传递隔离级别并拒绝未确认的 Serializable 降级；默认 ReadCommitted 行为保持（Issue #225）。
+
+
+- PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
+- GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
+
+- GH-Issue #244：关系表 INSERT VALUES 支持已有无行标量表达式、参数 CAST、函数、CASE 与算术；Decimal 目标和显式 DECIMAL CAST 保留原数值文本，CASE/COALESCE 保持短路及单次函数求值。全部行先准备再预留自增号/写入，RETURNING、ON CONFLICT、默认值和触发器/事务保存点沿用现有合同；本地与实际 REST/h2c 验证、正式发布和外部 ORM 验收分列。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
+
+- GH-Issue #220：新增原生 `lpad` / `rpad`，默认空格或循环自定义填充、UTF-16 宽度、较小宽度保留原串及 NULL 传播；拒绝空填充、非法宽度与损坏 UTF-16 输出（包括代理对截断），单次结果限定 1,048,576 个 UTF-16 单元，空关系与全 NULL 结果保留 STRING 声明元数据。正式包发布与 FreeSql #2234 适配另行验收。
+- GH-Issue #219：新增原生 `shift_left` / `shift_right` 标量函数，固定有符号 Int64/64 位、0..63 计数、左移丢出位/右移保留符号和 NULL 传播，拒绝非整数及越界参数；空关系结果保留 Int64 声明元数据。正式包发布与 FreeSql #2234 的 CLR 位宽/掩码适配另行验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。
 - M47-P08 修复stdin二进制附件上传的Content-Length，并提供精确原Release/空资产清单/独立授权hash限定的草稿恢复；原失败和tag/Release ID保留，94合同通过，实际恢复与匿名首跑待验。

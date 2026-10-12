@@ -632,7 +632,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
         }
 
-        return new RemoteTransactionState(CreateSessionAsync(CancellationToken.None).GetAwaiter().GetResult());
+        return new RemoteTransactionState(CreateSessionAsync(isolationLevel, CancellationToken.None).GetAwaiter().GetResult());
     }
 
     public void CommitTransaction(object transactionState)
@@ -645,7 +645,15 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction.SessionId is { } sessionId)
         {
-            await CommitSessionWithRecoveryAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await CommitSessionWithRecoveryAsync(sessionId, cancellationToken).ConfigureAwait(false);
+            }
+            catch (SndbServerException exception) when (exception.Error == TableConstraintException.SerializationConflict)
+            {
+                transaction.MarkCompleted();
+                throw;
+            }
             transaction.MarkCompleted();
             return;
         }
@@ -750,15 +758,21 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private string SessionUrl(string id)
         => $"v1/db/{Uri.EscapeDataString(_database)}/sql/transactions/{id}";
 
-    private async Task<string?> CreateSessionAsync(CancellationToken cancellationToken)
+    private async Task<string?> CreateSessionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
     {
         if (_http is null)
             throw new InvalidOperationException("连接未打开。");
         using var request = CreateRequest(HttpMethod.Post,
             $"v1/db/{Uri.EscapeDataString(_database)}/sql/transactions");
+        bool serializable = isolationLevel == IsolationLevel.Serializable;
+        request.Headers.Add("X-SonnetDB-Isolation-Level", serializable ? "serializable" : "read_committed");
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            if (serializable)
+                throw new NotSupportedException("服务端不支持可串行化事务会话；请升级服务端后重试整个事务。");
             return null;
+        }
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -768,7 +782,28 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             || id.ValueKind != JsonValueKind.String
             || !Guid.TryParseExact(id.GetString(), "N", out _))
             throw new InvalidDataException("远程事务创建响应缺少有效的会话 ID。");
-        return id.GetString();
+        string sessionId = id.GetString()!;
+        if (serializable && (!document.RootElement.TryGetProperty("isolationLevel", out var acknowledged)
+            || acknowledged.ValueKind != JsonValueKind.String
+            || acknowledged.GetString() != "serializable"))
+        {
+            Exception? cleanupFailure = null;
+            using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await EndSessionAsync(sessionId, "rollback", cleanupDeadline.Token).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException
+                or OperationCanceledException or SndbServerException)
+            {
+                cleanupFailure = exception;
+            }
+            throw new NotSupportedException(
+                $"服务端未确认 serializable 隔离级别，事务会话 {sessionId} 已拒绝使用。"
+                + (cleanupFailure is null ? "已回滚未确认的会话。" : "会话回滚未确认；服务端租约会过期。"),
+                cleanupFailure);
+        }
+        return sessionId;
     }
 
     /// <summary>
