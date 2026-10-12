@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Data.Common;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -80,6 +81,150 @@ public sealed class SndbDecimalDeclarationContractTests : IDisposable
             Assert.Contains(observed, request => request.Path.EndsWith("/sql", StringComparison.Ordinal));
     }
 
+    /// <summary>#264：显式约束、生成列、整批更新及事务在真实连接上保持一致。</summary>
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task Enforcement_BatchesTransactionsAndReopen_UseRealConnection(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        if (protocol == "embedded")
+        {
+            await ExerciseEnforcementAsync("Data Source=" + _root, deadline.Token);
+            await VerifyEnforcementAsync("Data Source=" + _root, deadline.Token);
+            return;
+        }
+        bool frame = protocol == "frame-http2";
+        const string database = "decimal_enforcement";
+        const string token = "decimal-constraints-local-admin";
+        var requests = new ConcurrentQueue<(string Path, string Protocol)>();
+        var options = new ServerOptions
+        {
+            DataRoot = _root,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string> { [token] = ServerRoles.Admin },
+        };
+        await using (var app = BuildServer(options, frame, requests))
+        {
+            try
+            {
+                await app.StartAsync(deadline.Token);
+                Assert.True(app.Services.GetRequiredService<TsdbRegistry>().TryCreate(database, out _));
+                await ExerciseEnforcementAsync(ConnectionString(app, database, token, frame), deadline.Token);
+            }
+            finally
+            {
+                using var stopping = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await app.StopAsync(stopping.Token);
+            }
+        }
+        await using (var app = BuildServer(options, frame, requests))
+        {
+            try
+            {
+                await app.StartAsync(deadline.Token);
+                await VerifyEnforcementAsync(ConnectionString(app, database, token, frame), deadline.Token);
+            }
+            finally
+            {
+                using var stopping = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await app.StopAsync(stopping.Token);
+            }
+        }
+        var observed = requests.ToArray();
+        Assert.InRange(observed.Length, 1, 160);
+        Assert.All(observed, request => Assert.Equal(frame ? "HTTP/2" : "HTTP/1.1", request.Protocol));
+        Assert.Contains(observed, request => request.Path.EndsWith("/schema", StringComparison.Ordinal));
+    }
+
+    private static async Task ExerciseEnforcementAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        await using var connection = new SndbConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ExecuteAsync(connection, "CREATE TABLE limits(id INT AUTO_INCREMENT, amount DECIMAL(5,2), wide DECIMAL, PRIMARY KEY(id))", cancellationToken);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "INSERT INTO limits(amount,wide) VALUES(@amount,@wide)";
+            command.CommandTimeout = 15;
+            command.Parameters.Add(new SndbParameter("amount", 1.2300m) { DbType = DbType.Decimal });
+            command.Parameters.Add(new SndbParameter("wide", decimal.MaxValue) { DbType = DbType.Decimal });
+            Assert.Equal(1, await command.ExecuteNonQueryAsync(cancellationToken));
+        }
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => ExecuteAsync(connection,
+            "INSERT INTO limits(amount) VALUES('2.50'),('1.234')", cancellationToken));
+        Assert.Contains("DECIMAL", error.Message, StringComparison.OrdinalIgnoreCase);
+        await Assert.ThrowsAnyAsync<Exception>(() => ExecuteAsync(connection,
+            "INSERT INTO limits(amount) VALUES('1000')", cancellationToken));
+        await ExecuteAsync(connection, "INSERT INTO limits(amount) VALUES(@value)", cancellationToken, 2.50m);
+        await ExecuteAsync(connection, "INSERT INTO limits(amount) VALUES(NULL)", cancellationToken);
+        await Assert.ThrowsAnyAsync<Exception>(() => ExecuteAsync(connection,
+            "UPDATE limits SET amount=CASE WHEN id=1 THEN '9.25' ELSE '1.234' END WHERE id<3", cancellationToken));
+        await using (var tx = await connection.BeginTransactionAsync(cancellationToken))
+        {
+            await ExecuteInTransactionAsync(connection, tx, "UPDATE limits SET amount='1.50' WHERE id=1", cancellationToken);
+            await Assert.ThrowsAnyAsync<Exception>(() => ExecuteInTransactionAsync(connection, tx,
+                "UPDATE limits SET amount=CASE WHEN id=1 THEN '9.25' ELSE '1.234' END WHERE id<3", cancellationToken));
+            await AssertEnforcementValuesAsync(connection, 1.50m, cancellationToken, tx);
+            await tx.RollbackAsync(cancellationToken);
+        }
+        await AssertEnforcementValuesAsync(connection, 1.23m, cancellationToken);
+        await using (var tx = await connection.BeginTransactionAsync(cancellationToken))
+        {
+            await ExecuteInTransactionAsync(connection, tx, "UPDATE limits SET amount='1.75' WHERE id=1", cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        await AssertEnforcementValuesAsync(connection, 1.75m, cancellationToken);
+    }
+
+    private static async Task VerifyEnforcementAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        await using var connection = new SndbConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        var column = Assert.Single(connection.GetSchema("Columns", [null, null, "limits", "amount"]).Rows.Cast<DataRow>());
+        Assert.Equal((short)5, Assert.IsType<short>(column["NUMERIC_PRECISION"]));
+        Assert.Equal((short)2, Assert.IsType<short>(column["NUMERIC_SCALE"]));
+        await AssertEnforcementValuesAsync(connection, 1.75m, cancellationToken);
+        await Assert.ThrowsAnyAsync<Exception>(() => ExecuteAsync(connection,
+            "INSERT INTO limits(amount) VALUES('1.234')", cancellationToken));
+        await AssertEnforcementValuesAsync(connection, 1.75m, cancellationToken);
+    }
+
+    private static async Task ExecuteInTransactionAsync(SndbConnection connection, DbTransaction transaction,
+        string sql, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = Assert.IsType<SndbTransaction>(transaction);
+        command.CommandTimeout = 15;
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task AssertEnforcementValuesAsync(SndbConnection connection, decimal first,
+        CancellationToken cancellationToken, DbTransaction? transaction = null)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction is null ? null : Assert.IsType<SndbTransaction>(transaction);
+        command.CommandTimeout = 15;
+        command.CommandText = "SELECT id,amount,wide FROM limits ORDER BY id";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        Assert.Equal(typeof(decimal), reader.GetFieldType(1));
+        for (int i = 0; i < 3; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.True(await reader.ReadAsync(cancellationToken));
+            Assert.Equal(i + 1L, reader.GetInt64(0));
+            if (i == 2)
+                Assert.True(reader.IsDBNull(1));
+            else
+                Assert.Equal(i == 0 ? first : 2.50m, Assert.IsType<decimal>(reader.GetValue(1)));
+            if (i == 0)
+                Assert.Equal(decimal.MaxValue, reader.GetDecimal(2));
+        }
+        Assert.False(await reader.ReadAsync(cancellationToken));
+    }
+
     private static WebApplication BuildServer(ServerOptions options, bool frameHttp2,
         ConcurrentQueue<(string Path, string Protocol)> requests)
     {
@@ -121,8 +266,8 @@ public sealed class SndbDecimalDeclarationContractTests : IDisposable
         AssertMetadata(connection, "whole", 12, 0);
         AssertMetadata(connection, "untouched", 9, 0);
 
-        // #264 持续写入约束独立实施；本测试用晚到的越界值证实后续 DDL 会预检所有行。
-        await ExecuteAsync(connection, "INSERT INTO ledger(id,amount,untouched) VALUES(4,@value,10)", cancellationToken, 1.234m);
+        // #264 后旧来源声明也执行约束：合法源值1000在缩窄为DECIMAL(5,2)时才溢出。
+        await ExecuteAsync(connection, "INSERT INTO ledger(id,amount,untouched) VALUES(4,@value,10)", cancellationToken, 1000m);
         var error = await Assert.ThrowsAnyAsync<Exception>(() => ExecuteAsync(connection,
             "ALTER TABLE ledger ALTER amount TYPE DECIMAL(5,2)", cancellationToken));
         Assert.Contains("DECIMAL", error.Message, StringComparison.OrdinalIgnoreCase);
@@ -161,7 +306,7 @@ public sealed class SndbDecimalDeclarationContractTests : IDisposable
         command.CommandTimeout = 15;
         command.CommandText = "SELECT amount,fee,whole FROM ledger ORDER BY id";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        decimal?[] expected = [1.23m, -999.99m, null, 1.234m];
+        decimal?[] expected = [1.23m, -999.99m, null, 1000m];
         int index = 0;
         while (index < 4 && await reader.ReadAsync(cancellationToken))
         {

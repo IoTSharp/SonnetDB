@@ -349,6 +349,52 @@ public sealed class SqlSerializableTransactionTests : IDisposable
     }
 
     private static SqlTransactionContext Serializable() => new(SqlTransactionIsolationLevel.Serializable);
+
+    [Fact]
+    public void Commit_DerivedValuesCteAndAutoIncrementOverlay_TracksOnlyPhysicalSourcesAndSucceeds()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE items(id INT AUTO_INCREMENT,value INT,amount DECIMAL(18,4),PRIMARY KEY(id))");
+        Execute(db, "CREATE TABLE sources(id INT,value INT,PRIMARY KEY(id))");
+        Execute(db, "INSERT INTO sources(id,value) VALUES(1,3),(2,7)");
+        Execute(db, "CREATE MEASUREMENT v(value FIELD INT)");
+        var transaction = Serializable();
+        Assert.Equal(0L, Scalar(db, "SELECT COUNT(*) FROM items", transaction));
+        Execute(db, "INSERT INTO items(value,amount) VALUES(10,'1.25'),(20,'2.50')", transaction);
+        Execute(db, "UPDATE items AS t SET value=t.value+s.value FROM (VALUES(1,5),(2,6)) AS s(id,value) WHERE t.id=s.id", transaction);
+        Assert.Equal(3L, Scalar(db, """
+            WITH selected("Source.ID","Delta") AS (SELECT id AS original_id,value AS original_value FROM sources)
+            SELECT s."Delta" FROM selected AS s
+            JOIN (VALUES(1,100)) AS v(id,extra) ON s."Source.ID"=v.id
+            """, transaction));
+        Execute(db, "UPDATE items AS t JOIN (SELECT id,value FROM sources) AS d ON t.id=d.id SET value=t.value+d.value WHERE t.id>0", transaction);
+        Execute(db, "UPDATE items AS t JOIN items AS s ON t.id=s.id SET value=s.value+1 WHERE t.id>0", transaction);
+        Assert.Equal(new[] { "items", "sources" }, transaction.SerializableReads.Select(read => read.Schema.Name).Order(StringComparer.Ordinal));
+        var result = Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT id,value,amount FROM items ORDER BY id", transaction));
+        Assert.Equal(new object?[] { new object?[] { 1L, 19L, 1.25m }, new object?[] { 2L, 34L, 2.50m } }, result.Rows);
+        Execute(db, "COMMIT", transaction);
+        Assert.True(transaction.WasCommitted);
+        Assert.Equal(19L, Scalar(db, "SELECT value FROM items WHERE id=1"));
+    }
+
+    [Fact]
+    public void Commit_DerivedUpdateSourceChanges_PreservesFirstReadAndRejectsOwnReservation()
+    {
+        using var db = Open();
+        Execute(db, "CREATE TABLE items(id INT AUTO_INCREMENT,value INT,PRIMARY KEY(id))");
+        Execute(db, "CREATE TABLE sources(id INT,value INT,PRIMARY KEY(id))");
+        Execute(db, "INSERT INTO sources(id,value) VALUES(1,30)");
+        Execute(db, "INSERT INTO items(value) VALUES(10)");
+        var transaction = Serializable();
+        Execute(db, "UPDATE items AS t SET value=d.value FROM (SELECT id,value FROM sources) AS d WHERE t.id=d.id", transaction);
+        Assert.Equal(30L, Scalar(db, "SELECT value FROM items WHERE id=1", transaction));
+        Execute(db, "UPDATE sources SET value=40 WHERE id=1");
+        Assert.Equal(40L, Scalar(db, "WITH latest AS (SELECT value FROM sources) SELECT value FROM latest", transaction));
+        Execute(db, "INSERT INTO items(value) VALUES(20)", transaction);
+        AssertConflict(db, transaction);
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id=1"));
+        Assert.Equal(1L, Scalar(db, "SELECT COUNT(*) FROM items"));
+    }
     private Tsdb Open() => Tsdb.Open(new TsdbOptions
     {
         RootDirectory = _root,

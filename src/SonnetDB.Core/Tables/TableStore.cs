@@ -496,7 +496,11 @@ public sealed partial class TableStore : IDisposable
         {
             long beforeSequence = _keyspace.LastSequence;
             if (rows.Count > 0)
+            {
+                foreach (var row in rows)
+                    DecimalDeclarationValidator.NormalizeForWrite(_schema, row);
                 ApplyAutoIncrementLocked(_schema, rows);
+            }
             SonnetDB.Sql.Execution.SqlTransactionContext.Current?.RecordSerializableReservation(
                 this, _schema, _keyspace.Generation, beforeSequence, _keyspace.LastSequence);
             return _keyspace.Generation;
@@ -514,6 +518,7 @@ public sealed partial class TableStore : IDisposable
         {
             var schema = _schema;
             var normalizedValues = values.ToArray();
+            DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
             ApplyAutoIncrementLocked(schema, [normalizedValues]);
             ValidateRow(schema, normalizedValues);
             byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
@@ -538,6 +543,7 @@ public sealed partial class TableStore : IDisposable
         {
             var schema = _schema;
             var normalizedValues = values.ToArray();
+            DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
             ApplyAutoIncrementLocked(schema, [normalizedValues]);
             ValidateRow(schema, normalizedValues);
             byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
@@ -568,6 +574,8 @@ public sealed partial class TableStore : IDisposable
         {
             var schema = _schema;
             var normalizedRows = rows.Select(static row => row.ToArray()).ToArray();
+            foreach (var values in normalizedRows)
+                DecimalDeclarationValidator.NormalizeForWrite(schema, values);
             ApplyAutoIncrementLocked(schema, normalizedRows);
             var operations = new List<TableMutationOperation>(rows.Count);
             var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -1808,6 +1816,7 @@ public sealed partial class TableStore : IDisposable
 
     private void ValidateRow(TableSchema schema, IReadOnlyList<object?> values)
     {
+        DecimalDeclarationValidator.ValidateForWrite(schema, values);
         if (values.Count != schema.Columns.Count)
             throw new ArgumentException("行值数量必须与表 schema 列数量一致。", nameof(values));
 
@@ -2449,6 +2458,7 @@ public sealed partial class TableStore : IDisposable
             }
 
             var values = mutation.NewValues.ToArray();
+            DecimalDeclarationValidator.NormalizeForWrite(schema, values);
             autoIncrementRows.Add((values, mutation.PrimaryKeyValues is null));
             normalizedMutations.Add(mutation with { NewValues = values });
         }

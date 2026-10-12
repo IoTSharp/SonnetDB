@@ -206,7 +206,7 @@ CREATE TABLE devices (
 规则：
 
 - 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
-- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；省略 `(p,s)` 时默认为 `(38,28)`。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
+- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
@@ -280,9 +280,9 @@ ALTER TABLE table_name ALTER [COLUMN] column_name
 
 - 每条语句至少要指定一种变更；类型、空值约束和默认值动作各自最多出现一次，可以组合在同一条语句中。
 - `TYPE FLOAT` 与 `SET DATA TYPE FLOAT` 是两种等价的类型变更写法；省略 `TYPE` 的 `FLOAT` 形式用于 SQL Server 风格组合，例如 `ALTER TABLE devices ALTER COLUMN retry_count FLOAT NOT NULL`。
-- `ADD COLUMN amount DECIMAL(p,s)`、`ALTER COLUMN amount TYPE DECIMAL(p,s)`、`SET DATA TYPE NUMERIC(p,s)` 和省略 `TYPE` 的写法保留声明的 precision/scale，schema 重开、列/表重命名及索引/约束演进不会重置未修改列的声明；嵌入式和远程 `GetSchema("Columns")` 保留 scale=0。表 schema 文件仍使用 v10。
+- `ADD COLUMN amount DECIMAL(p,s)`、`ALTER COLUMN amount TYPE DECIMAL(p,s)`、`SET DATA TYPE NUMERIC(p,s)` 和省略 `TYPE` 的写法保留声明的 precision/scale 和显式来源，schema 重开、列/表重命名及索引/约束演进不会重置未修改列的声明；嵌入式和远程 `GetSchema("Columns")` 保留 scale=0。表 catalog 升级 v11，以现有列 flags bit4 保存来源；不修改行/key/index 布局。旧 reader 明确拒绝 v11，回退须同时恢复旧 catalog/data 副本，不能仅替换旧二进制。
 - 显式修改 Decimal 声明时先检查所有已有行和保留/新设的默认值：值必须能在目标 scale 下无损表示，且绝对值小于 `10^(precision-scale)`；多余尾零可无损表示，真实小数损失或精度溢出会拒绝整个 DDL，原 schema、行和索引保持。默认值的原始字符串和 Decimal CAST 在转换舍入前预检；转换仍受 CLR Decimal 的 96 位系数和 0..28 scale 限制。裸 `DECIMAL`/`NUMERIC` 类型变更保留完整 CLR Decimal 值域，省略类型的空值/默认值变更保留原 p/s。
-- 上述是 DDL 迁移预检。普通 INSERT/UPDATE 对显式 `DECIMAL(p,s)` 的持续值约束仍由 GH-Issue #264 跟踪；当前接受并保存声明不代表该写入约束已经执行。正式引擎/ADO.NET/Server 包和 XCode 迁移验收独立完成。
+- INSERT/UPDATE、核心直接写入及事务提交对显式 `DECIMAL(p,s)` 持续执行上述精确约束，整批预检先于生成列预留和行/索引写入，失败不会留下部分批次；不进行隐式舍入，多余尾零可接受。旧 v9/v10 catalog 中非 `(38,28)` 的声明在读取后约束后续写入，已有不合规行仍原值可读并可用合法 UPDATE 修正；旧 `(38,28)` 无法恢复其来源，保留 legacy 不约束，可显式重声明并通过全部已有值预检后启用。裸 TYPE DECIMAL 重置为不约束，单独 NULL/DEFAULT 修改保持原来源。正式引擎/ADO.NET/Server、XCode 迁移及 Chloe 消费验收独立完成。
 - 类型变更会转换全部存量非空值并重建派生索引。当前不支持 `USING expression` 自定义转换；任一值无法转换，或转换后违反唯一索引、CHECK、NOT NULL 等约束时，在进程内整条 DDL 恢复原 schema、数据和索引。行 payload 与 catalog 发布之间尚无迁移 journal，因此不将该恢复边界解释为进程终止或掉电原子性。
 - 真正改变物理类型的迁移当前使用单个 KV 原子 batch，受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制（默认分别为 100,000 条 mutation 和 256 MiB WAL）。超出预算时会在写 WAL 前拒绝；应先提高预算，或通过新表分批迁移。`SET/DROP DEFAULT`、`DROP NOT NULL` 和列重命名只发布元数据，不受该 batch 行数限制。
 - `SET NOT NULL` 会分页扫描并验证全部存量行，但不会重写 row payload；`DROP NOT NULL` 与直接写 `NULL` 等价，`NOT NULL` 与 `SET NOT NULL` 等价。
@@ -703,7 +703,18 @@ WHERE guid IN (
 - 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。当前 `main` 的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；实际发布前不能作为已发布包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
 - 会话存放于单个 Server 进程内；跨实例路由需固定到创建会话的实例。服务端重启会丢失未提交缓冲及终态缓存，未收到提交响应时须按会话 ID 查询终态，若服务端不可达或缓存已过期则结果未知。已发布包和 FreeSql Provider 仍需按实际版本与部署形态单独验收。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
-- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，来源限关系表及 INNER/LEFT JOIN。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；来源保持只读，触发器及约束按普通 UPDATE 执行。轻事务中目标表已有缓冲写时，后续联接更新会明确拒绝。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，支持关系表、`(SELECT ...) AS s` 与 `(VALUES(...),(...)) AS s(column,...)` 派生来源及 INNER/LEFT JOIN。SELECT 可沿用 UNION ALL 并可声明按位置输出别名；VALUES 必须声明全部输出列，行宽一致，列名不能仅大小写不同。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；触发器及约束按普通 UPDATE 执行。轻事务中目标和来源均读取已缓冲的 INSERT/UPDATE/DELETE；连续联接更新保留首次并发基线，语句失败不发布本条已准备的目标变更。
+- 派生 VALUES 支持参数、NULL 和既有标量表达式，保留 Decimal、TIME 与 UTC 值。单来源上限为 100000 行、4096 列、1000000 单元格和 64 MiB 估算物化字节；解析另有 30 秒上限，执行沿用调用方取消及物化预算。超限拒绝整条语句，不截断来源；空派生来源仍校验 SET/ON/WHERE 列引用。
+
+```sql
+UPDATE target AS t SET value = s.value
+FROM (VALUES (1, @value1), (2, @value2)) AS s(id, value)
+WHERE t.id = s.id;
+
+UPDATE target AS t
+JOIN (SELECT 1 AS id, @value1 AS value UNION ALL SELECT 2 AS id, @value2 AS value) AS s
+ON t.id = s.id SET value = s.value WHERE 1 = 1;
+```
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。

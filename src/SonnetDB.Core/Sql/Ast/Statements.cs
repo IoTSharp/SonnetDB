@@ -488,6 +488,9 @@ public sealed record TableColumnDefinition(
     /// <summary>DECIMAL/NUMERIC 的小数位数；未声明时使用 28。</summary>
     public byte DecimalScale { get; init; } = 28;
 
+    /// <summary>是否在 DECIMAL/NUMERIC 类型后显式声明了精度和小数位。</summary>
+    public bool HasExplicitDecimalDeclaration { get; init; }
+
     /// <summary>
     /// 是否由数据库在插入时自动分配单调递增的整数值。
     /// </summary>
@@ -1023,6 +1026,14 @@ public sealed record JoinClause(
     SelectStatement? Subquery = null,
     JoinKind Kind = JoinKind.Inner)
 {
+    /// <summary>派生 VALUES 来源；为空表示关系表或 SELECT 来源。</summary>
+    public IReadOnlyList<IReadOnlyList<SqlExpression>>? ValuesRows { get; init; }
+
+    /// <summary>派生来源按位置指定的输出列名。</summary>
+    public IReadOnlyList<string> ColumnNames { get; init; } = Array.Empty<string>();
+
+    /// <summary>按位置标记派生输出列名的双引号声明。</summary>
+    public IReadOnlyList<bool> ColumnNamesIsQuoted { get; init; } = Array.Empty<bool>();
     /// <summary>JOIN 目标名称是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 

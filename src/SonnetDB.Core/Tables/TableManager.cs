@@ -565,7 +565,8 @@ public sealed partial class TableManager : IDisposable
         Func<object?, object?>? convertValue,
         byte? decimalPrecision = null,
         byte? decimalScale = null,
-        Action<TableSchema, IReadOnlyList<object?>>? validateDecimalValues = null)
+        Action<TableSchema, IReadOnlyList<object?>>? validateDecimalValues = null,
+        bool? hasExplicitDecimalDeclaration = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -591,7 +592,8 @@ public sealed partial class TableManager : IDisposable
                     isNullable,
                     defaultExpressionSql,
                     decimalPrecision,
-                    decimalScale);
+                    decimalScale,
+                    hasExplicitDecimalDeclaration);
                 var store = OpenStoreLocked(current);
                 if (!changesType)
                 {
@@ -1062,6 +1064,17 @@ public sealed partial class TableManager : IDisposable
             // 在准备 batch 之前展开 ON DELETE CASCADE：递归把所有引用了被删父行的级联子行加入待删队列，
             // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
             var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable, metrics);
+            foreach (var (tableName, mutations) in expandedMutations)
+            {
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                foreach (var mutation in mutations)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (mutation.NewValues is not null)
+                        DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
+                }
+            }
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
             var lockedStores = new List<TableStore>(expandedMutations.Count);
             try

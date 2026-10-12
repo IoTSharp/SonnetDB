@@ -1499,6 +1499,7 @@ public sealed class SqlParser
             NameIsQuoted = nameIsQuoted,
             DecimalPrecision = decimalPrecision ?? 38,
             DecimalScale = decimalScale ?? 28,
+            HasExplicitDecimalDeclaration = decimalPrecision is not null,
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
             ModbusMapping = modbusMapping,
@@ -3285,10 +3286,50 @@ public sealed class SqlParser
         string tableName;
         bool tableNameIsQuoted;
         SelectStatement? subquery = null;
-        if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.KeywordSelect)
+        IReadOnlyList<IReadOnlyList<SqlExpression>>? valueRows = null;
+        var derivedDeadline = System.Diagnostics.Stopwatch.StartNew();
+        if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind is TokenKind.KeywordSelect or TokenKind.KeywordValues)
         {
             Advance();
-            subquery = ParseSelect();
+            if (Current.Kind == TokenKind.KeywordSelect)
+            {
+                subquery = ParseSelect();
+            }
+            else
+            {
+                Advance();
+                var rows = new List<IReadOnlyList<SqlExpression>>();
+                int width = -1;
+                do
+                {
+                    SonnetDB.Sql.Execution.SqlExecutor.ThrowIfCancellationRequested();
+                    if (derivedDeadline.Elapsed > TimeSpan.FromSeconds(30))
+                        throw Error("派生来源解析超过 30 秒预算。");
+                    if (rows.Count >= 100_000)
+                        throw Error("派生 VALUES 超过 100000 行上限。");
+                    Expect(TokenKind.LeftParen);
+                    var row = new List<SqlExpression> { ParseExpression() };
+                    while (Current.Kind == TokenKind.Comma)
+                    {
+                        SonnetDB.Sql.Execution.SqlExecutor.ThrowIfCancellationRequested();
+                        if (derivedDeadline.Elapsed > TimeSpan.FromSeconds(30))
+                            throw Error("派生来源解析超过 30 秒预算。");
+                        Advance();
+                        if (row.Count >= 4096)
+                            throw Error("派生 VALUES 超过列数上限。");
+                        row.Add(ParseExpression());
+                    }
+                    Expect(TokenKind.RightParen);
+                    if (width < 0) width = row.Count;
+                    if (row.Count != width || (long)(rows.Count + 1) * width > 1_000_000)
+                        throw Error("派生 VALUES 行列数不一致或超过单元格上限。");
+                    rows.Add(row);
+                    if (Current.Kind != TokenKind.Comma) break;
+                    Advance();
+                } while (Current.Kind == TokenKind.LeftParen);
+                valueRows = rows;
+            }
             Expect(TokenKind.RightParen);
             tableName = ParseRequiredTableAlias("JOIN 子查询必须声明别名", out tableNameIsQuoted);
         }
@@ -3299,13 +3340,36 @@ public sealed class SqlParser
 
         bool aliasIsQuoted = tableNameIsQuoted;
         string? explicitAlias = null;
-        if (subquery is null)
+        if (subquery is null && valueRows is null)
         {
             explicitAlias = ParseOptionalTableAlias(out bool parsedAliasIsQuoted);
             if (explicitAlias is not null)
                 aliasIsQuoted = parsedAliasIsQuoted;
         }
         var alias = explicitAlias ?? tableName;
+        var columnNames = new List<string>();
+        var columnQuoted = new List<bool>();
+        if ((subquery is not null || valueRows is not null) && Current.Kind == TokenKind.LeftParen)
+        {
+            Advance();
+            do
+            {
+                SonnetDB.Sql.Execution.SqlExecutor.ThrowIfCancellationRequested();
+                if (derivedDeadline.Elapsed > TimeSpan.FromSeconds(30))
+                    throw Error("派生来源解析超过 30 秒预算。");
+                if (columnNames.Count >= 4096)
+                    throw Error("派生来源输出列超过上限。");
+                columnNames.Add(ExpectIdentifierName(out bool quoted));
+                columnQuoted.Add(quoted);
+                if (Current.Kind != TokenKind.Comma) break;
+                Advance();
+            } while (Current.Kind != TokenKind.RightParen);
+            Expect(TokenKind.RightParen);
+        }
+        if (valueRows is not null && columnNames.Count != valueRows[0].Count)
+            throw Error("派生 VALUES 必须按位置声明全部输出列名。");
+        if (columnNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != columnNames.Count)
+            throw Error("派生来源输出列名重复。");
         SqlExpression on;
         if (requiresOn)
         {
@@ -3320,6 +3384,9 @@ public sealed class SqlParser
         {
             TableNameIsQuoted = tableNameIsQuoted,
             AliasIsQuoted = aliasIsQuoted,
+            ValuesRows = valueRows,
+            ColumnNames = columnNames,
+            ColumnNamesIsQuoted = columnQuoted,
         };
     }
 
@@ -3570,19 +3637,7 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordFrom)
         {
             Advance();
-            string fromTable = ExpectIdentifierName(out bool fromTableIsQuoted);
-            string? explicitFromAlias = ParseOptionalTableAlias(out bool fromAliasIsQuoted);
-            string fromAlias = explicitFromAlias ?? fromTable;
-            fromClauses.Add(new JoinClause(
-                fromTable,
-                fromAlias,
-                LiteralExpression.Bool(true),
-                Subquery: null,
-                Kind: JoinKind.Inner)
-            {
-                TableNameIsQuoted = fromTableIsQuoted,
-                AliasIsQuoted = explicitFromAlias is null ? fromTableIsQuoted : fromAliasIsQuoted,
-            });
+            fromClauses.Add(ParseJoinClauseTail(JoinKind.Inner, requiresOn: false));
             while (ParseOptionalJoinClause() is { } updateJoin)
                 fromClauses.Add(updateJoin);
         }

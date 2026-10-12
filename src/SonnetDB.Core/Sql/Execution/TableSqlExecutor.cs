@@ -83,11 +83,14 @@ internal static class TableSqlExecutor
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
         var decimalDefinitions = new Dictionary<string, (byte Precision, byte Scale)>(StringComparer.Ordinal);
+        var explicitDecimalDeclarations = new HashSet<string>(StringComparer.Ordinal);
         foreach (var column in statement.Columns)
         {
             var dataType = MapTableColumnType(column.DataType);
             if (dataType == TableColumnType.Decimal)
                 decimalDefinitions[column.Name] = (column.DecimalPrecision, column.DecimalScale);
+            if (dataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration)
+                explicitDecimalDeclarations.Add(column.Name);
             var isPrimaryKey = statement.PrimaryKey.Contains(column.Name, StringComparer.Ordinal);
             var isAutoIncrement = column.IsAutoIncrement;
             var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey && !isAutoIncrement;
@@ -104,8 +107,13 @@ internal static class TableSqlExecutor
                     dataType,
                     IsPrimaryKey: false,
                     isNullable,
-                    Ordinal: 0);
-                var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn);
+                    Ordinal: 0)
+                {
+                    DecimalPrecision = column.DecimalPrecision,
+                    DecimalScale = column.DecimalScale,
+                    HasExplicitDecimalDeclaration = column.HasExplicitDecimalDeclaration,
+                };
+                var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn, tempColumn.HasExplicitDecimalDeclaration);
                 columnDefaults.Add(column.Name, defaultSql);
             }
 
@@ -143,7 +151,8 @@ internal static class TableSqlExecutor
             checkConstraints: checkConstraints,
             columnDefaults: columnDefaults,
             autoIncrementColumns: autoIncrementColumns,
-            decimalDefinitions: decimalDefinitions);
+            decimalDefinitions: decimalDefinitions,
+            explicitDecimalDeclarations: explicitDecimalDeclarations);
         ModbusTableBinding? modbusBinding = ModbusSqlExecutor.ResolveTableBinding(tsdb, statement, schema);
         tsdb.Tables.Create(schema);
         if (modbusBinding is null)
@@ -278,6 +287,7 @@ internal static class TableSqlExecutor
             {
                 DecimalPrecision = dataType == TableColumnType.Decimal ? statement.DecimalPrecision ?? 38 : (byte)0,
                 DecimalScale = dataType == TableColumnType.Decimal ? statement.DecimalScale ?? 28 : (byte)0,
+                HasExplicitDecimalDeclaration = dataType == TableColumnType.Decimal && statement.DecimalPrecision is not null,
             };
             defaultValue = EvaluateAndConvertSchemaDefault(statement.DefaultExpression, tempColumn);
             if (statement.DecimalPrecision is not null && defaultValue is decimal decimalDefault)
@@ -355,10 +365,10 @@ internal static class TableSqlExecutor
                 : statement.DataType is null ? currentColumn.DecimalPrecision : statement.DecimalPrecision ?? 38,
             DecimalScale = targetType != TableColumnType.Decimal ? (byte)0
                 : statement.DataType is null ? currentColumn.DecimalScale : statement.DecimalScale ?? 28,
+            HasExplicitDecimalDeclaration = targetType == TableColumnType.Decimal
+                && (statement.DataType is null ? currentColumn.HasExplicitDecimalDeclaration : statement.DecimalPrecision is not null),
         };
-        bool validateDecimalDefault = targetType == TableColumnType.Decimal
-            && (statement.DecimalPrecision is not null
-                || statement.DataType is null && (targetColumn.DecimalPrecision != 38 || targetColumn.DecimalScale != 28));
+        bool validateDecimalDefault = targetColumn.HasExplicitDecimalDeclaration;
 
         string? targetDefaultSql = statement.DefaultAction switch
         {
@@ -406,7 +416,7 @@ internal static class TableSqlExecutor
                     DecimalDeclarationValidator.Validate(
                         DecimalDeclarationValidator.ConvertExact(value, targetColumn.Name),
                         targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
-            });
+            }, hasExplicitDecimalDeclaration: targetColumn.HasExplicitDecimalDeclaration);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_column");
     }
 
@@ -1619,12 +1629,6 @@ internal static class TableSqlExecutor
         MutationAliasValidator.Validate(statement);
         if (statement.FromClauses.Count != 0)
         {
-            if (transaction.TryGetBufferedMutations(schema.Name, out _))
-            {
-                throw new NotSupportedException(
-                    "UPDATE ... JOIN/FROM 当前不支持同一轻事务中先缓冲目标表变更；请将联接更新作为事务中的首次目标表写入。");
-            }
-
             return ExecuteJoinUpdate(
                 tsdb,
                 statement,
@@ -1829,42 +1833,16 @@ internal static class TableSqlExecutor
         if (statement.FromClauses.Count == 0)
             throw new InvalidOperationException("UPDATE 联接更新至少需要一个 FROM/JOIN 来源。");
 
-        var schemas = new Dictionary<string, TableSchema>(StringComparer.Ordinal)
-        {
-            [statement.TableAlias ?? statement.TableName] = targetSchema,
-        };
+        var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { statement.TableAlias ?? statement.TableName };
         foreach (var from in statement.FromClauses)
         {
-            if (from.Subquery is not null)
-                throw new NotSupportedException("UPDATE ... JOIN/FROM 暂不支持子查询来源。");
             if (from.Kind is JoinKind.Right or JoinKind.Full or JoinKind.Cross)
                 throw new NotSupportedException("UPDATE ... JOIN/FROM 仅支持 INNER JOIN 与 LEFT JOIN。");
-            var sourceSchema = tsdb.Tables.Catalog.TryGet(from.TableName)
-                ?? throw new NotSupportedException(
-                    $"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
-            if (!schemas.TryAdd(from.Alias, sourceSchema))
+            if (from.Subquery is null && from.ValuesRows is null && tsdb.Tables.Catalog.TryGet(from.TableName) is null)
+                throw new NotSupportedException($"UPDATE ... JOIN/FROM 来源 '{from.TableName}' 必须是关系表。");
+            if (!aliases.Add(from.Alias))
                 throw new InvalidOperationException($"UPDATE 联接别名 '{from.Alias}' 重复。");
         }
-
-        bool IdentifierExists(IdentifierExpression identifier)
-        {
-            if (identifier.Qualifier is { } qualifier)
-            {
-                return schemas.TryGetValue(qualifier, out var qualifiedSchema)
-                    && qualifiedSchema.TryGetColumn(identifier.Name) is not null;
-            }
-
-            return schemas.Values.Any(schema => schema.TryGetColumn(identifier.Name) is not null);
-        }
-
-        foreach (var assignment in statement.Assignments)
-        {
-            if (assignment.Value is not DefaultValueExpression)
-                SqlProjectionExpressionEvaluator.Validate(assignment.Value, IdentifierExists, "UPDATE JOIN SET");
-        }
-        SqlProjectionExpressionEvaluator.Validate(statement.Where, IdentifierExists, "UPDATE JOIN WHERE");
-        foreach (var from in statement.FromClauses)
-            SqlProjectionExpressionEvaluator.Validate(from.On, IdentifierExists, "UPDATE JOIN ON");
     }
 
     private static JoinBoundAssignment[] BindJoinAssignments(UpdateStatement statement, TableSchema schema)
@@ -2437,6 +2415,7 @@ internal static class TableSqlExecutor
 
     private static void ValidateRequiredColumns(TableSchema schema, IReadOnlyList<object?> values)
     {
+        DecimalDeclarationValidator.ValidateForWrite(schema, values);
         if (values.Count != schema.Columns.Count)
             throw new InvalidOperationException("内部错误：行值数量与 schema 列数量不一致。");
 
@@ -5738,7 +5717,9 @@ internal static class TableSqlExecutor
         {
             TableColumnType.Int64 => Convert.ToInt64(value, CultureInfo.InvariantCulture),
             TableColumnType.Float64 => Convert.ToDouble(value, CultureInfo.InvariantCulture),
-            TableColumnType.Decimal => Convert.ToDecimal(value, CultureInfo.InvariantCulture),
+            TableColumnType.Decimal => column.HasExplicitDecimalDeclaration
+                ? DecimalDeclarationValidator.ConvertForWrite(value, column)
+                : Convert.ToDecimal(value, CultureInfo.InvariantCulture),
             TableColumnType.Time => ConvertTimeValue(value, column),
             TableColumnType.Boolean => value is bool b
                 ? b

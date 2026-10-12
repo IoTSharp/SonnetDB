@@ -87,7 +87,29 @@ internal static class SqlSerializableSourceValidator
                     foreach (var order in select.OrderByList) Add(order.Expression);
                     foreach (var cte in select.CommonTableExpressions) Add(cte.Query);
                     foreach (var operation in select.SetOperationList) Add(operation.Query);
-                    foreach (var join in select.JoinClauses) { Add(join.Subquery); Add(join.On); }
+                    foreach (var join in select.JoinClauses)
+                    {
+                        Add(join.Subquery); Add(join.On);
+                        if (join.ValuesRows is { } rows)
+                        {
+                            int cells = 0;
+                            foreach (var row in rows)
+                            {
+                                foreach (var value in row)
+                                {
+                                    cancellationToken.ThrowIfCancellationRequested();
+                                    if (++cells > 1_000_000 || Stopwatch.GetElapsedTime(started).TotalSeconds >= 3)
+                                        throw new NotSupportedException("Serializable VALUES 校验超出单元格或时间预算。");
+                                    // 终端值不包含数据源；逐个检查取消/预算，避免把已支持的万行参数批次
+                                    // 错当成一万多个嵌套查询节点。复合表达式仍按原节点预算完整遍历。
+                                    if (value is not LiteralExpression and not ParameterExpression
+                                        and not DurationLiteralExpression and not VectorLiteralExpression
+                                        and not GeoPointLiteralExpression)
+                                        Add(value);
+                                }
+                            }
+                        }
+                    }
                     if (select.Pagination is { } page) { Add(page.OffsetExpression); Add(page.FetchExpression); }
                     break;
                 case BinaryExpression binary: Add(binary.Left); Add(binary.Right); break;
