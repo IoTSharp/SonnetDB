@@ -4363,6 +4363,12 @@ internal static partial class RelationalSelectExecutor
             return new SelectColumnInfo(TableColumnType.Int64, true);
         }
 
+        if (expression is FunctionCallExpression uuidScalar
+            && string.Equals(uuidScalar.Name, "uuid", StringComparison.OrdinalIgnoreCase)
+            && FunctionRegistry.GetFunctionKind(uuidScalar.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(uuidScalar.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.String, false);
+
         if (expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
         {
             string name = function.Name.ToLowerInvariant();

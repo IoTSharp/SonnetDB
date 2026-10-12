@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
@@ -155,6 +155,8 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
         new BuiltInScalarFunction("shift_left", 2, 2, static args => EvaluateShift(args, left: true)),
         new BuiltInScalarFunction("shift_right", 2, 2, static args => EvaluateShift(args, left: false)),
+
+        new BuiltInScalarFunction("uuid", 0, 0, static _ => Guid.NewGuid().ToString("D")),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
         new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, EvaluateLower),

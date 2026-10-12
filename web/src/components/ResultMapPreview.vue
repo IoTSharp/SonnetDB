@@ -52,7 +52,9 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NSelect, NSpace, NTag, NText, type SelectOption } from 'naive-ui';
-import maplibregl, { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useMapTileSettings } from '@/composables/useMapTileSettings';
 import { transformGeoPoint } from '@/utils/geoTransforms';
 import { parseGeoPointValue } from '@/utils/sqlValue';
@@ -140,15 +142,17 @@ function buildPoints(): MapPoint[] {
 
 function initMap(): void {
   if (!mapEl.value || map) return;
-  map = new maplibregl.Map({
+  maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  const createdMap = new maplibregl.Map({
     container: mapEl.value,
     style: mapStyle.value,
     center: [116.397, 39.908],
     zoom: 3,
   });
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-  map.once('style.load', renderMap);
-  map.on('load', renderMap);
+  map = createdMap;
+  createdMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  createdMap.once('style.load', renderMap);
+  createdMap.on('load', renderMap);
 }
 
 function renderMap(): void {

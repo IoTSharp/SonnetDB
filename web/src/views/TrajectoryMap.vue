@@ -96,7 +96,9 @@ import {
   NText,
   type SelectOption,
 } from 'naive-ui';
-import maplibregl, { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import * as echarts from 'echarts/core';
 import { GridComponent, LegendComponent, TooltipComponent, type GridComponentOption } from 'echarts/components';
 import { LineChart, type LineSeriesOption } from 'echarts/charts';
@@ -288,15 +290,17 @@ function interpolateTime(from: number | null, to: number | null, index: number, 
 
 function initMap(): void {
   if (!mapEl.value || map) return;
-  map = new maplibregl.Map({
+  maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  const createdMap = new maplibregl.Map({
     container: mapEl.value,
     style: mapStyle.value,
     center: [116.397, 39.908],
     zoom: 4,
   });
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-  map.once('style.load', renderMap);
-  map.on('load', renderMap);
+  map = createdMap;
+  createdMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  createdMap.once('style.load', renderMap);
+  createdMap.on('load', renderMap);
 }
 
 function renderMap(): void {

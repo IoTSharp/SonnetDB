@@ -218,6 +218,40 @@ public sealed class SqlInsertExpressionTests : IDisposable
         Assert.Equal(2, Select(db, "SELECT id FROM items").Rows.Count);
     }
 
+    /// <summary>UUID 在 INSERT VALUES 中逐行求值，RETURNING 使用已写值且真实回滚不持久化。</summary>
+    [Fact]
+    public void Insert_UuidValuesReturningAndRollback_PreservesCapturedValuesAndTransactionBoundary()
+    {
+        using var db = Open();
+        CreateItems(db);
+        var transaction = new SqlTransactionContext();
+        var inserted = Assert.IsType<InsertExecutionResult>(Execute(db,
+            "INSERT INTO items(amount,label) VALUES(CAST('1.25' AS DECIMAL),uuid()),(2+0.5,UUID()) RETURNING id,label", transaction));
+        Assert.Equal(2, inserted.RowsInserted);
+        var returned = inserted.Returning!.Rows;
+        Assert.Equal(2, returned.Count);
+        string[] identifiers = returned.Select(row => Assert.IsType<string>(row[1])).ToArray();
+        Assert.All(identifiers, value => Assert.True(Guid.TryParseExact(value, "D", out _)));
+        Assert.Equal(2, identifiers.Distinct(StringComparer.Ordinal).Count());
+        var visible = Assert.IsType<SelectExecutionResult>(Execute(db, "SELECT id,label FROM items ORDER BY id", transaction));
+        Assert.Equal(returned.Select(row => row.ToArray()).ToArray(), visible.Rows.Select(row => row.ToArray()).ToArray());
+        Assert.Empty(Select(db, "SELECT id FROM items").Rows);
+        Execute(db, "ROLLBACK", transaction);
+        Assert.True(transaction.IsCompleted);
+        Assert.False(transaction.WasCommitted);
+        Assert.Empty(Select(db, "SELECT id,label FROM items").Rows);
+
+        var committed = new SqlTransactionContext();
+        var next = Assert.IsType<InsertExecutionResult>(Execute(db,
+            "INSERT INTO items(amount,label) VALUES(3.5,uuid()) RETURNING id,label", committed));
+        var nextRow = Assert.Single(next.Returning!.Rows);
+        string nextIdentifier = Assert.IsType<string>(nextRow[1]);
+        Assert.True(Guid.TryParseExact(nextIdentifier, "D", out _));
+        Assert.DoesNotContain(nextIdentifier, identifiers);
+        Execute(db, "COMMIT", committed);
+        Assert.True(committed.WasCommitted);
+        Assert.Equal(nextRow, Assert.Single(Select(db, "SELECT id,label FROM items").Rows));
+    }
     private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });
     private static void CreateItems(Tsdb db) => SqlExecutor.Execute(db,
         "CREATE TABLE items (id INT AUTO_INCREMENT, amount DECIMAL NULL, label STRING DEFAULT 'fallback', created DATETIME NULL, PRIMARY KEY (id))");

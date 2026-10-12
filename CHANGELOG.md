@@ -17,6 +17,9 @@
 
 - PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
 - GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
+
+- GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
+
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
 
 - GH-Issue #244：关系表 INSERT VALUES 支持已有无行标量表达式、参数 CAST、函数、CASE 与算术；Decimal 目标和显式 DECIMAL CAST 保留原数值文本，CASE/COALESCE 保持短路及单次函数求值。全部行先准备再预留自增号/写入，RETURNING、ON CONFLICT、默认值和触发器/事务保存点沿用现有合同；本地与实际 REST/h2c 验证、正式发布和外部 ORM 验收分列。
@@ -488,6 +491,11 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Fixed
 - **GH-Issue #228 ADO.NET HasRows**：按真实结果探测是否存在行，保留空 SELECT/RETURNING 的声明列元数据；首行探测复用命令超时、取消与远程错误传播，并由后续同步/异步 Read 返回该行。正式 NuGet/Server 发布与 FreeSql 消费者回归仍待验收。
+
+- 后台语义回填区分恢复工作预算与真实宿主取消：工作预算到期停止新增对象，以原五秒提交窗口保存已持久入队前缀的游标和计数；HTTP仍使用请求取消，生产默认250ms、调用者取消及存储错误合同不变。新增真实KV整库重开、宿主取消和Kestrel自然预算回归；跨崩溃的任务/计数原子性与真实模型质量独立验收。
+- PR #298：后台已领取语义回填页的控制测试仅为独立宿主配置匹配的恢复/页预算，在释放三秒有界观察前确认页与调用者令牌未取消；保留真实进行中响应和终态 scanned=1/queued=1/skipped=0，生产默认预算与原页预算取消用例不变。默认恢复取消后的持久计数缺口已受控复现，另行跟踪。
+- 批量集成已审 PR #281 与 #217；语义图片回填测试对明确进行中 response 等待同一持久终态，保留首次排队1及重复回填scanned1/queued0/skipped1、thumbnail/search/delete/disable原断言；真实后台持页 partial0 回归与完整18个Semantic测试通过，生产代码及真实模型质量声明不变。
+- **前端依赖与 MapLibre 6 迁移（2026-10-12）**：保留 PR #217 覆盖 #218 的 Web/VS Code 锁定依赖更新；两个地图组件改用 ESM namespace/type 导入和局部创建实例，并通过 Vite `worker&url` 打包和显式配置独立地图 worker，保留现有瓦片、投影、结果地图和轨迹逻辑。
 
 
 - 持久死信 CI 测试：检查点锁故障恢复使用一致的 2 秒存储预算和贯穿初始化/故障/重开的 15 秒调用者取消边界；精确区分订阅包装层、检查点操作层和文件锁三个已存在的超时消息及 inner exception，保留意图恢复与恰好一次断言，不修改生产超时。
