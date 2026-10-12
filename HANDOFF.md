@@ -2215,3 +2215,11 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 ## PR #298 根交付计时纠正（2026-10-12）
 原 13:21:20Z 提前收尾目标未达；实际 audit2 于 13:22:41.1227051Z PASS，在原 hard deadline 13:23:20Z 内。fresh 记录身份无同身份存活；18项独占 TEMP 无reparse/当前引用，单次删除完成；最后隐藏Job cleanupComplete=true。先前预测 audit2 被截止拒绝不符合真实不可变收据，纠正见 pr298-harness-1255/late-finalize-note.md。首 current-reference audit FAIL 与 ReadOnlySpan docs失败继续保留。UTC守卫使用 DateTimeOffset，不以转换到本地的 DateTime 同 UtcNow 比较。
 根独立逐SHA核18当前/归档文件、3原TRX实际1/3/18计数与4 PDB源码绑定，发现首根检查选错SonnetDB.Core.pdb后改读实际SonnetDB.pdb，首失败保存。最终只有Semantic测试、CHANGELOG、HANDOFF三路径；生产未改。下面完整restore/原Format和Git交付以独立root收据为准，本段不预写远端CI或main完成。
+
+## Issue #266 EF JSON 容器建模私有切片（2026-10-13）
+
+root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/105含JSON15/15，编译0warn/errors；doc final仅新public GetDataReaderMethod中文XML，签名与throw不变。EF10真实容器CLR是JsonTypePlaceholder，默认原生JSON type mapping，ComplexProperty/OwnsOne无需HasColumnType可生成设计/runtime关系模型与migration SQL；普通STRING/rawJSON字符串DDL保持既有STRING。尚未实现的聚合materialization/parameter/literal/JSON path/query/INSERT/UPDATE/ExecuteUpdate明确拒绝，以防fragment覆盖；新fixture为模型/拒绝路径且connection attempts0，不能冒称真实Server JSON接受。
+
+旧shadowDbType编译FAIL、EF1001具体内部类测试FAIL、focused13/15期待偏差与其源码/TRX原样保留；没有压IL/EF warning或新增运行时依赖、缓存/ABP修改。中文XML阶段独立15min按时freeze，9记录身份无存活、3KernelJobs cleanup PASS；既有fixtureTEMP候选0，创建总数NOT_INSTRUMENTED，不称全机无孤儿。root最终whole restore/原Format/exact7path私有commit由收据绑定，未push/main/发布包。
+
+#266继续OPEN/PARTIAL。下一片先实现正确整体JSON序列化/materialization和不会丢兄弟字段的更新，再验证嵌入式/REST/h2c真实CRUD、回滚、正常重开、scalar JSON path；collection rowset、官方未改BookStore/IdentityPasskey/account及公开NuGet固定版本消费仍独立NOT_RUN。本切片不混入13原PR的SQL最终candidate；该candidate另有新snapshot完整dotted output绑定修复正在验证。

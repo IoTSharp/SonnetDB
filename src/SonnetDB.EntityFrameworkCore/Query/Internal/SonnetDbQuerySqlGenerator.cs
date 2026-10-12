@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Query.Internal;
 
@@ -106,6 +107,11 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
     /// <returns>已访问的列表达式。</returns>
     protected override Expression VisitColumn(ColumnExpression columnExpression)
     {
+        if (columnExpression.TypeMapping is SonnetDbJsonTypeMapping)
+        {
+            throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        }
+
         if (string.Equals(columnExpression.TableAlias, _unqualifiedDeleteAlias, StringComparison.Ordinal))
         {
             Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnExpression.Name));
@@ -113,6 +119,21 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
         }
 
         return base.VisitColumn(columnExpression);
+    }
+
+    /// <inheritdoc />
+    protected override Expression VisitJsonScalar(JsonScalarExpression jsonScalarExpression)
+        => throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+
+    /// <inheritdoc />
+    protected override Expression VisitUpdate(UpdateExpression updateExpression)
+    {
+        if (updateExpression.ColumnValueSetters.Any(static setter => setter.Column.TypeMapping is SonnetDbJsonTypeMapping))
+        {
+            throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        }
+
+        return base.VisitUpdate(updateExpression);
     }
 
     /// <inheritdoc />

@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore.Update;
+using SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Update.Internal;
 
@@ -24,6 +25,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         int commandPosition,
         out bool requiresTransaction)
     {
+        RejectJsonAggregateWrites(command);
         return AppendInsertReturningOperation(
             commandStringBuilder,
             command,
@@ -38,6 +40,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         int commandPosition,
         out bool requiresTransaction)
     {
+        RejectJsonAggregateWrites(command);
         requiresTransaction = false;
         var operations = command.ColumnModifications;
         AppendUpdateCommand(
@@ -70,5 +73,14 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
             appendReturningOneClause: false);
         // SonnetDbModificationCommandBatch 从 SndbDataReader.RecordsAffected 校验实际影响行数。
         return ResultSetMapping.NoResults;
+    }
+
+    private static void RejectJsonAggregateWrites(IReadOnlyModificationCommand command)
+    {
+        if (command.ColumnModifications.Any(static operation => operation.IsWrite
+            && (operation.JsonPath is not null || operation.TypeMapping is SonnetDbJsonTypeMapping)))
+        {
+            throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+        }
     }
 }
