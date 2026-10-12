@@ -194,7 +194,7 @@ public sealed class DocumentTtlSelectMaterializationBudgetTests : IDisposable
         SelectExecutionResult result = Select(db, sql,
             new SqlExecutionOptions { MaxMaterializedRows = 2, MaxMaterializedBytes = 192, Metrics = metrics });
 
-        Assert.Equal([3d, 4d], result.Rows.Select(static row => Assert.IsType<double>(row[0])));
+        Assert.Equal([3L, 4L], result.Rows.Select(static row => Assert.IsType<long>(row[0])));
         Assert.False(result.Truncated);
         Assert.Equal(5, metrics.Complete().CandidateRows);
         Assert.Equal(4, metrics.Complete().ExaminedRows);

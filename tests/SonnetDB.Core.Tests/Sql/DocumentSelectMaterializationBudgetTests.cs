@@ -35,17 +35,17 @@ public sealed class DocumentSelectMaterializationBudgetTests : IDisposable
 
     /// <summary>只有过滤和 OFFSET 后保留的行计费，成功结果保持完整 SQL 页。</summary>
     [Theory]
-    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs WHERE json_value(document, '$.n') >= 4 LIMIT 2 OFFSET 3", 7d, 8d)]
-    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs WHERE json_value(document, '$.n') >= 4 OFFSET 3 ROWS FETCH NEXT 2 ROWS ONLY", 7d, 8d)]
-    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs OFFSET 8", 8d, 9d)]
-    public void Execute_FilterAndPagination_CountsOnlyCompletePage(string sql, double first, double second)
+    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs WHERE json_value(document, '$.n') >= 4 LIMIT 2 OFFSET 3", 7L, 8L)]
+    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs WHERE json_value(document, '$.n') >= 4 OFFSET 3 ROWS FETCH NEXT 2 ROWS ONLY", 7L, 8L)]
+    [InlineData("SELECT json_value(document, '$.n') AS n FROM docs OFFSET 8", 8L, 9L)]
+    public void Execute_FilterAndPagination_CountsOnlyCompletePage(string sql, long first, long second)
     {
         using Tsdb db = OpenDocuments(10);
 
         SelectExecutionResult result = Select(db, sql,
             new SqlExecutionOptions { MaxMaterializedRows = 2, MaxMaterializedBytes = 192 });
 
-        Assert.Equal([first, second], result.Rows.Select(static row => Assert.IsType<double>(row[0])));
+        Assert.Equal([first, second], result.Rows.Select(static row => Assert.IsType<long>(row[0])));
         AssertEquivalent(Select(db, sql), result);
         AssertReleased(db);
     }
@@ -151,7 +151,7 @@ public sealed class DocumentSelectMaterializationBudgetTests : IDisposable
         Assert.Null(result.Rows[0][2]);
         Assert.Equal("{\"x\":1}", result.Rows[0][3]);
         Assert.Equal("[\"a\",\"b\"]", result.Rows[0][4]);
-        Assert.Equal(8d, Assert.IsType<double>(result.Rows[0][5]));
+        Assert.Equal(8L, Assert.IsType<long>(result.Rows[0][5]));
         Assert.Equal(0L, Assert.IsType<long>(result.Rows[1][5]));
         AssertReleased(db);
     }

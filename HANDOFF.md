@@ -2641,3 +2641,13 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 最终同一组合源码重新构建Core/EF/ADO三个Release项目，各实际执行目录冻结后使用no-build/no-restore运行：Core JSON/索引/参数四类49/49、完整EF 191/191、完整RemoteAdoHttp2TransportTests 63/63通过；新增21个三协议整数用例实际通过。E/j3052保存本次实际DLL/PDB/deps/runtimeconfig、TRX与绑定结果；这些计数不借用旧JSON29/105/7或Web13，也不把多组不同测试资产混写为同一DLL运行。root随后在最终树执行完整solution restore及原Format，再形成联合候选提交；确切提交和门禁以r3110-*证据为准。
 
 已有Web源码/package/lock字节保持，原真实前端Graph/Trajectory交互与唯一npm build属于模拟API/Vite证据；未宣称本次.NET组合的正式Server前端业务接受。#263正式包与Chloe消费者仍待发布/验收，#266完整JSON局部更新、官方BookStore与EF NativeAOT未完成，CAP265默认NativeAOT上游失败保持。setter只读审计s3052发现writer scratch预算、成功setter rollback及遍历中cancel缺口，四原dirty保持UNBUILT/UNTESTED。无新包、tag或Release授权。
+
+## PR #303 测试合同修正与完整本地失败边界（2026-10-13）
+
+首候选81dddea0的Linux完整CI为Core6685=6674PASS/11FAIL，EF191和Server1232各自PASS；旧失败原日志与run38316318322/job115033681462保持。六整类本地原DLL基线184=173PASS/11FAIL；独立合同审查确认既定M1-B对整数JSON返回Int64及整数算术保型，因此只修六测试文件13行（早期口头14已更正），保原SQL/值/分页/TTL 5candidate与4examined/192bytes/21.5浮点及聚合。两算术断言收紧为Assert.IsType<long>，无生产修改。
+
+唯一新Core build零warning/error；完整Core6685实际6682PASS/3FAIL，原六类184/184及原11/11均PASS。余3为两Rag Restore在295字符路径的DirectoryFsync IOException、一个Tombstone备份临时锁UnauthorizedAccess；完整窗保持FAIL。独立新夹具以同DLL证实存在的15字符目录可Flush、295字符目录仍抛native3，但原两Rag失败因果不升级为CONFIRMED；首反射适配器PSObject转换失败0入口另保。锁路径推算151字符、名义重试630ms，真实解锁时间/占用原因UNKNOWN。
+
+另一个独立短TEMP窗口D盘14字符、同一冻结DLL、0build/0retry，精确三失败用例3/3PASS，实际Rag segments235字符、观测最大252；不据此把原fullCore改为PASS或证明锁根因。主独立r3150-fix-binding核6源/12运行资产/3组DLL-PDB/9源码及两个TRX，并核7生产源保持。此前联合窗口Core49/EF191/ADO63仍为原执行记录，EF/ADO不冒称本修正后新运行。各阶段owner TEMP/进程已清理，详细证据c303fix、c303short、a303-review、p303-path、p303fix-path、l303-lock。
+
+本次只对六测试+CHANGELOG/HANDOFF共8owned路径再执行完整restore/原Format后提交，并正常FF更新同一PR303；新head须完整远端CI通过才正常merge。首候选FAIL、固定原监控预算、全部UNKNOWN和NOT_RUN保留；#263等待正式发布，#266仍PARTIAL，setter四dirty不入本候选，无package/tag/Release。Windows本机长路径目录fsync及临时锁调度另按实际证据继续，不在此改生产、阈值、retry或全局配置。
