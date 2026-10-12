@@ -212,11 +212,20 @@ public sealed class FileStreamingWindowAggregatorTests
     {
         using var directory = new TemporaryDirectory();
         var subscriptionDefinition = SubscriptionDefinition(batchSize: 1);
-        var options = new StreamingWindowOptions { OperationTimeoutMilliseconds = 250 };
+        var options = new StreamingWindowOptions { OperationTimeoutMilliseconds = 2_000 };
         await using var subscription = await FileStreamingSubscription.OpenAsync(directory.SubscriptionPath, subscriptionDefinition);
         await using var aggregator = await FileStreamingWindowAggregator.CreateAsync(directory.StatePath, Definition(), options: options);
-        await Assert.ThrowsAsync<TimeoutException>(() => aggregator.PumpOnceAsync(subscription).AsTask());
+        using var callerDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var failure = await Assert.ThrowsAsync<TimeoutException>(() => aggregator.PumpOnceAsync(subscription, callerDeadline.Token).AsTask());
+        Assert.Equal("窗口操作超过配置的超时边界。", failure.Message);
+        Assert.IsAssignableFrom<OperationCanceledException>(failure.InnerException);
+        Assert.False(callerDeadline.IsCancellationRequested);
         Assert.Equal(-1, (await aggregator.GetStateAsync()).AppliedSequence);
+        await subscription.PublishAsync(Event(1, 1));
+        Assert.True(await aggregator.PumpOnceAsync(subscription, callerDeadline.Token));
+        Assert.Equal(1, (await aggregator.GetStateAsync()).AppliedSequence);
+        Assert.Equal(1, subscription.Checkpoint.CommittedSequence);
+        Assert.Equal(1, Assert.Single((await aggregator.ReadWindowsAsync()).Windows).Count);
     }
 
     [Fact]

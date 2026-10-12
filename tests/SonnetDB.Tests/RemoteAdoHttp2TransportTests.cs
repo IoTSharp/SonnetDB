@@ -346,6 +346,100 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             && request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
+    /// <summary>关系排名通过真实 REST 与 h2c 保留参数、NULL 排序及空结果整数元数据。</summary>
+    /// <param name="protocol">远程 ADO 协议。</param>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task RankingWindows_ParameterizedPeersAndEmptySchema_PreserveTransportInt64(string protocol)
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string url = protocol == "rest" ? _http11Url : _frameH2Url;
+        await using var connection = new SndbConnection(ConnectionString(url, protocol));
+        await connection.OpenAsync(cancellation.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE ranking_transport "
+            + "(id INT, tenant INT, category INT, score INT, tie INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(cancellation.Token);
+        command.CommandText = """
+            INSERT INTO ranking_transport (id, tenant, category, score, tie) VALUES
+            (1, 1, NULL, NULL, 2), (2, 1, NULL, NULL, 2),
+            (3, 1, NULL, 10, 2), (4, 1, NULL, 10, 1),
+            (5, 1, 2, 10, 1), (6, 2, NULL, 5, 1)
+            """;
+        Assert.Equal(6, await command.ExecuteNonQueryAsync(cancellation.Token));
+        command.CommandText = """
+            SELECT id,
+                   rank() OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC) AS ar,
+                   dense_rank() OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC) AS ad,
+                   rank() OVER (PARTITION BY tenant, category ORDER BY score DESC, tie ASC) AS dr,
+                   dense_rank() OVER (PARTITION BY tenant, category ORDER BY score DESC, tie ASC) AS dd,
+                   ntile(@buckets) OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC, id) AS tile
+            FROM ranking_transport WHERE id >= @minimum ORDER BY id
+            """;
+        command.Parameters.AddWithValue("@buckets", 3L);
+        command.Parameters.AddWithValue("@minimum", 1L);
+        await using (var reader = await command.ExecuteReaderAsync(cancellation.Token))
+        {
+            AssertRankingTransportSchema(reader);
+            long[][] expectedRows =
+            [
+                [1L, 1L, 1L, 3L, 3L, 1L],
+                [2L, 1L, 1L, 3L, 3L, 1L],
+                [3L, 3L, 2L, 2L, 2L, 2L],
+                [4L, 4L, 3L, 1L, 1L, 3L],
+                [5L, 1L, 1L, 1L, 1L, 1L],
+                [6L, 1L, 1L, 1L, 1L, 1L],
+            ];
+            foreach (long[] expected in expectedRows)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                Assert.True(await reader.ReadAsync(cancellation.Token));
+                for (int column = 0; column < expected.Length; column++)
+                {
+                    Assert.Equal(expected[column], reader.GetInt64(column));
+                    Assert.Equal((int)expected[column], reader.GetInt32(column));
+                }
+            }
+            Assert.False(await reader.ReadAsync(cancellation.Token));
+        }
+
+        command.Parameters["@minimum"].Value = long.MaxValue;
+        await using (var empty = await command.ExecuteReaderAsync(cancellation.Token))
+        {
+            AssertRankingTransportSchema(empty);
+            Assert.False(await empty.ReadAsync(cancellation.Token));
+        }
+
+        command.Parameters["@minimum"].Value = 1L;
+        command.Parameters["@buckets"].Value = 0L;
+        var invalid = await Assert.ThrowsAsync<SndbServerException>(() =>
+            command.ExecuteReaderAsync(cancellation.Token));
+        Assert.Equal("sql_error", invalid.Error);
+        Assert.Contains("ntile()", invalid.ServerMessage, StringComparison.Ordinal);
+
+        int port = new Uri(url).Port;
+        ObservedRequest[] observed = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.Contains(observed, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        Assert.All(observed, request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        if (protocol == "frame-http2")
+            Assert.Contains(observed, request => request.Path == "/v1/frame");
+    }
+
+    private static void AssertRankingTransportSchema(DbDataReader reader)
+    {
+        Assert.Equal(["id", "ar", "ad", "dr", "dd", "tile"],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray());
+        var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+        for (int column = 1; column < 6; column++)
+        {
+            Assert.Equal(typeof(long), reader.GetFieldType(column));
+            Assert.Equal(typeof(long), schema.Rows[column][SchemaTableColumn.DataType]);
+            Assert.Equal((int)DbType.Int64, schema.Rows[column][SchemaTableColumn.ProviderType]);
+            Assert.False((bool)schema.Rows[column][SchemaTableColumn.AllowDBNull]);
+        }
+    }
+
     [Fact]
     public async Task FrameHttp2_Int64Boundary_AsyncReadAndBigIntegerPreflight()
     {

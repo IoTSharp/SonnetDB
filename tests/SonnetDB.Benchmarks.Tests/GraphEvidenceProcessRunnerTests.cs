@@ -692,7 +692,7 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
     {
         string readyPath = Path.Combine(_rootDirectory, "ready");
         using var cancellation = new CancellationTokenSource();
-        Task<GraphEvidenceProcessResult> runner = Task.Run(() =>
+        Task<GraphEvidenceProcessResult> runner = Task.Factory.StartNew(() =>
             GraphEvidenceProcessRunner.RunUntilFileExists(
                 CreateProbeStartInfo(),
                 Path.Combine(_rootDirectory, "never-ready"),
@@ -700,13 +700,30 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                 ConditionPollInterval,
                 maximumPollCount: 300,
                 captureOutput: true,
-                cancellationToken: cancellation.Token));
-        bool cancellationIssued = await CancelWhenFileExists(readyPath, cancellation);
-        GraphEvidenceProcessResult result = await runner.WaitAsync(TimeSpan.FromSeconds(20));
+                cancellationToken: cancellation.Token),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        bool cancellationIssued;
+        GraphEvidenceProcessResult result;
+        try
+        {
+            cancellationIssued = await Task.Factory.StartNew(
+                () => CancelWhenFileExists(readyPath, cancellation),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+            result = await runner.WaitAsync(TimeSpan.FromSeconds(20));
+        }
+        finally
+        {
+            await cancellation.CancelAsync();
+            await runner.WaitAsync(TimeSpan.FromSeconds(20));
+        }
 
         ProcessIdentity parent = ReadIdentity("parent");
         ProcessIdentity leaf = ReadIdentity("leaf");
-        Assert.True(cancellationIssued);
+        Assert.True(cancellationIssued, result.Diagnostic);
         Assert.True(result.Cancelled, result.Diagnostic);
         Assert.False(result.TimedOut, result.Diagnostic);
         Assert.True(result.TerminationRequested, result.Diagnostic);
@@ -910,14 +927,14 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
         return TryReadIdentity(prefix, out _);
     }
 
-    private static async Task<bool> CancelWhenFileExists(
+    private static bool CancelWhenFileExists(
         string path,
         CancellationTokenSource cancellation)
     {
-        const int maximumPollCount = 200;
+        const int maximumPollCount = 600;
         var stopwatch = Stopwatch.StartNew();
         for (int attempt = 0;
-            attempt < maximumPollCount && stopwatch.Elapsed < TimeSpan.FromSeconds(10);
+            attempt < maximumPollCount && stopwatch.Elapsed < TimeSpan.FromSeconds(30);
             attempt++)
         {
             if (File.Exists(path))
@@ -925,7 +942,16 @@ public sealed class GraphEvidenceProcessRunnerTests : IDisposable
                 cancellation.Cancel();
                 return true;
             }
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            if (cancellation.IsCancellationRequested)
+                return false;
+            if (attempt > 0 && attempt % 100 == 0)
+                Console.Error.WriteLine($"cancel-ready-wait polls={attempt} elapsed={stopwatch.Elapsed}");
+            Thread.Sleep(TimeSpan.FromMilliseconds(50));
+        }
+        if (File.Exists(path))
+        {
+            cancellation.Cancel();
+            return true;
         }
         return false;
     }

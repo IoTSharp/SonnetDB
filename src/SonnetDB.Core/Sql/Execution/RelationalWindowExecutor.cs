@@ -58,7 +58,7 @@ internal static partial class RelationalSelectExecutor
                     SqlRowRetentionBudget.RetainValueForExecution(values[row]);
                     output[row][column] = values[row];
                 }
-                columnInfo[column] = function.Name.Equals("row_number", StringComparison.OrdinalIgnoreCase)
+                columnInfo[column] = IsRankingWindowFunction(function.Name)
                     ? new SelectColumnInfo(TableColumnType.Int64, false)
                     : InferSelectColumnInfo(function, relation.Columns);
             }
@@ -92,13 +92,25 @@ internal static partial class RelationalSelectExecutor
         WindowSpecification specification = function.Over!;
         string name = function.Name.ToLowerInvariant();
         bool rowNumber = name == "row_number";
-        if (!rowNumber && !IsAggregateFunction(name))
+        bool ranking = IsRankingWindowFunction(name);
+        bool ntile = name == "ntile";
+        if (!ranking && !IsAggregateFunction(name))
             throw new NotSupportedException($"关系表窗口函数 '{function.Name}' 尚未支持。");
-        if (rowNumber && (function.IsStar || function.IsDistinct || function.Arguments.Count != 0))
-            throw new InvalidOperationException("row_number() 不接受参数或 DISTINCT。");
+        if (ranking && (function.IsStar || function.IsDistinct || function.Arguments.Count != (ntile ? 1 : 0)))
+            throw new InvalidOperationException(ntile
+                ? "ntile() 需要一个正整数参数，不接受 * 或 DISTINCT。"
+                : $"{function.Name}() 不接受参数或 DISTINCT。");
         if (rowNumber && specification.OrderBy.Count == 0)
             throw new InvalidOperationException("关系表 row_number() 必须指定窗口内 ORDER BY。");
-        if (!rowNumber && (function.IsStar && name != "count"
+        long bucketCount = 0;
+        if (ntile)
+        {
+            if (function.Arguments[0] is not LiteralExpression { Kind: SqlLiteralKind.Integer } buckets
+                || buckets.IntegerValue <= 0)
+                throw new InvalidOperationException("ntile() 的桶数必须是正 Int64 整数字面量或绑定后的整数参数。");
+            bucketCount = buckets.IntegerValue;
+        }
+        if (!ranking && (function.IsStar && name != "count"
             || !function.IsStar && function.Arguments.Count != 1))
             throw new InvalidOperationException($"窗口函数 {function.Name} 的参数数量无效。");
         if (function.IsDistinct && specification.OrderBy.Count != 0)
@@ -130,7 +142,7 @@ internal static partial class RelationalSelectExecutor
             partition.Add(new WindowRow(index, row, orderValues));
         }
 
-        bool integral = !rowNumber && name is "sum" or "min" or "max" or "avg"
+        bool integral = !ranking && name is "sum" or "min" or "max" or "avg"
             && IsIntegralAggregateInput(tsdb, new AggregateSpec(function), relation, outerScope, memo);
         foreach (List<WindowRow> partition in partitions.Values)
         {
@@ -142,6 +154,36 @@ internal static partial class RelationalSelectExecutor
             {
                 for (int position = 0; position < partition.Count; position++)
                     result[partition[position].Index] = (long)position + 1;
+            }
+            else if (name is "rank" or "dense_rank")
+            {
+                long rank = 1;
+                for (int position = 0; position < partition.Count; position++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    // 排名只比较显式排序键；稳定行序 tie-break 不改变并列语义。
+                    if (position > 0 && CompareWindowKeys(
+                        partition[position - 1], partition[position], specification.OrderBy) != 0)
+                        rank = name == "rank" ? (long)position + 1 : rank + 1;
+                    result[partition[position].Index] = rank;
+                }
+            }
+            else if (ntile)
+            {
+                long smallerBucketSize = partition.Count / bucketCount;
+                long largerBucketCount = partition.Count % bucketCount;
+                long largerBucketRows = (smallerBucketSize + 1) * largerBucketCount;
+                for (int position = 0; position < partition.Count; position++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    // 余数优先分给前面的桶；桶数大于行数时每行独占一个非空桶。
+                    long bucket = smallerBucketSize == 0
+                        ? (long)position + 1
+                        : position < largerBucketRows
+                            ? position / (smallerBucketSize + 1) + 1
+                            : largerBucketCount + (position - largerBucketRows) / smallerBucketSize + 1;
+                    result[partition[position].Index] = bucket;
+                }
             }
             else if (specification.OrderBy.Count == 0)
             {
@@ -180,6 +222,12 @@ internal static partial class RelationalSelectExecutor
                 throw new InvalidOperationException("窗口 PARTITION BY / ORDER BY 必须引用可解析的关系行标量表达式。");
         }
     }
+
+    private static bool IsRankingWindowFunction(string name)
+        => name.Equals("row_number", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("rank", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("dense_rank", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("ntile", StringComparison.OrdinalIgnoreCase);
 
     private static int CompareWindowRows(WindowRow left, WindowRow right,
         IReadOnlyList<OrderBySpec> orderBy)
