@@ -567,16 +567,17 @@ public sealed class FileStreamingSubscriptionTests
     public async Task AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(bool cancel)
     {
         using var directory = new TemporaryDirectory();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var definition = Definition(batchSize: 1);
-        var options = new FileStreamingSubscriptionOptions { OperationTimeoutMilliseconds = 200 };
+        var options = new FileStreamingSubscriptionOptions { OperationTimeoutMilliseconds = 2000 };
         string deliveryId;
-        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options))
+        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token))
         {
-            await subscription.PublishAsync(Event(1));
-            deliveryId = (await subscription.ReadBatchAsync())!.DeliveryId;
+            await subscription.PublishAsync(Event(1), deadline.Token);
+            deliveryId = (await subscription.ReadBatchAsync(deadline.Token))!.DeliveryId;
             string lockPath = Directory.GetFiles(Path.Combine(directory.Path, "checkpoints"), "*.lock").Single();
             using var heldLock = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            using var cancellation = new CancellationTokenSource();
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
             Task<StreamingDeliveryReceipt> pending = subscription.AcknowledgeAsync(deliveryId, cancellation.Token).AsTask();
             if (cancel)
             {
@@ -584,13 +585,31 @@ public sealed class FileStreamingSubscriptionTests
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
             }
             else
-                await Assert.ThrowsAsync<TimeoutException>(() => pending);
+            {
+                var failure = await Assert.ThrowsAsync<TimeoutException>(() => pending);
+                if (failure.Message == "持久订阅操作超过存储操作超时边界。")
+                {
+                    // wrapper 取消分支不保留原 OperationCanceledException。
+                    Assert.Null(failure.InnerException);
+                }
+                else
+                {
+                    Assert.Equal($"无法在 {options.OperationTimeoutMilliseconds} 毫秒内取得检查点文件锁。", failure.Message);
+                    // 最后一次锁重试保留 IOException；重试循环后的 fallback 不含 inner。
+                    Assert.True(failure.InnerException is IOException or null);
+                }
+                Assert.False(cancellation.IsCancellationRequested);
+            }
+            Assert.False(deadline.IsCancellationRequested);
             Assert.Equal(-1, subscription.Checkpoint.CommittedSequence);
             Assert.Equal(1, subscription.PendingEventCount);
         }
 
-        await using var reopened = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options);
-        Assert.Equal(deliveryId, (await reopened.ReadBatchAsync())!.DeliveryId);
+        await using var reopened = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token);
+        Assert.Equal(deliveryId, (await reopened.ReadBatchAsync(deadline.Token))!.DeliveryId);
+        Assert.Equal(-1, reopened.Checkpoint.CommittedSequence);
+        Assert.Equal(1, reopened.PendingEventCount);
+        Assert.False(deadline.IsCancellationRequested);
     }
 
     private static StreamingSubscriptionDefinition Definition(int batchSize = 2, int capacity = 4)

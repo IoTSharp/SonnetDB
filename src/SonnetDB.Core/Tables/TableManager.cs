@@ -482,7 +482,9 @@ public sealed partial class TableManager : IDisposable
         object? defaultValue,
         string? defaultExpressionSql,
         bool isRowVersion,
-        bool isAutoIncrement)
+        bool isAutoIncrement,
+        byte? decimalPrecision = null,
+        byte? decimalScale = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -494,7 +496,8 @@ public sealed partial class TableManager : IDisposable
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
                 var updated = current.WithAddedColumn(
-                    columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement);
+                    columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement,
+                    decimalPrecision, decimalScale);
                 var store = OpenStoreLocked(current);
                 long nextAutoIncrement = 0;
                 ApplySchemaTransformLocked(current, updated, store, (_, row) =>
@@ -559,7 +562,11 @@ public sealed partial class TableManager : IDisposable
         TableColumnType dataType,
         bool isNullable,
         string? defaultExpressionSql,
-        Func<object?, object?>? convertValue)
+        Func<object?, object?>? convertValue,
+        byte? decimalPrecision = null,
+        byte? decimalScale = null,
+        Action<TableSchema, IReadOnlyList<object?>>? validateDecimalValues = null,
+        bool? hasExplicitDecimalDeclaration = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -583,12 +590,15 @@ public sealed partial class TableManager : IDisposable
                     columnName,
                     dataType,
                     isNullable,
-                    defaultExpressionSql);
+                    defaultExpressionSql,
+                    decimalPrecision,
+                    decimalScale,
+                    hasExplicitDecimalDeclaration);
                 var store = OpenStoreLocked(current);
                 if (!changesType)
                 {
-                    if (currentColumn.IsNullable && !isNullable)
-                        store.ValidateExistingRows(updated);
+                    if (currentColumn.IsNullable && !isNullable || validateDecimalValues is not null)
+                        store.ValidateExistingRows(updated, validateDecimalValues);
                     ApplyMetadataSchemaLocked(current, updated, store);
                     return;
                 }
@@ -604,7 +614,11 @@ public sealed partial class TableManager : IDisposable
                             values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
                         return values;
                     },
-                    ValidateAlteredRowCheckConstraints);
+                    (targetSchema, values) =>
+                    {
+                        ValidateAlteredRowCheckConstraints(targetSchema, values);
+                        validateDecimalValues?.Invoke(targetSchema, values);
+                    });
             }
     }
 
@@ -1046,6 +1060,17 @@ public sealed partial class TableManager : IDisposable
             // 在准备 batch 之前展开 ON DELETE CASCADE：递归把所有引用了被删父行的级联子行加入待删队列，
             // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
             var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable, metrics);
+            foreach (var (tableName, mutations) in expandedMutations)
+            {
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                foreach (var mutation in mutations)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (mutation.NewValues is not null)
+                        DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
+                }
+            }
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
             var lockedStores = new List<TableStore>(expandedMutations.Count);
             try

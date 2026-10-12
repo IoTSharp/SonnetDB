@@ -293,6 +293,100 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             && request.Path == "/v1/frame" && request.Protocol == "HTTP/2");
     }
 
+    /// <summary>关系排名通过真实 REST 与 h2c 保留参数、NULL 排序及空结果整数元数据。</summary>
+    /// <param name="protocol">远程 ADO 协议。</param>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task RankingWindows_ParameterizedPeersAndEmptySchema_PreserveTransportInt64(string protocol)
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string url = protocol == "rest" ? _http11Url : _frameH2Url;
+        await using var connection = new SndbConnection(ConnectionString(url, protocol));
+        await connection.OpenAsync(cancellation.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE ranking_transport "
+            + "(id INT, tenant INT, category INT, score INT, tie INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(cancellation.Token);
+        command.CommandText = """
+            INSERT INTO ranking_transport (id, tenant, category, score, tie) VALUES
+            (1, 1, NULL, NULL, 2), (2, 1, NULL, NULL, 2),
+            (3, 1, NULL, 10, 2), (4, 1, NULL, 10, 1),
+            (5, 1, 2, 10, 1), (6, 2, NULL, 5, 1)
+            """;
+        Assert.Equal(6, await command.ExecuteNonQueryAsync(cancellation.Token));
+        command.CommandText = """
+            SELECT id,
+                   rank() OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC) AS ar,
+                   dense_rank() OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC) AS ad,
+                   rank() OVER (PARTITION BY tenant, category ORDER BY score DESC, tie ASC) AS dr,
+                   dense_rank() OVER (PARTITION BY tenant, category ORDER BY score DESC, tie ASC) AS dd,
+                   ntile(@buckets) OVER (PARTITION BY tenant, category ORDER BY score ASC, tie DESC, id) AS tile
+            FROM ranking_transport WHERE id >= @minimum ORDER BY id
+            """;
+        command.Parameters.AddWithValue("@buckets", 3L);
+        command.Parameters.AddWithValue("@minimum", 1L);
+        await using (var reader = await command.ExecuteReaderAsync(cancellation.Token))
+        {
+            AssertRankingTransportSchema(reader);
+            long[][] expectedRows =
+            [
+                [1L, 1L, 1L, 3L, 3L, 1L],
+                [2L, 1L, 1L, 3L, 3L, 1L],
+                [3L, 3L, 2L, 2L, 2L, 2L],
+                [4L, 4L, 3L, 1L, 1L, 3L],
+                [5L, 1L, 1L, 1L, 1L, 1L],
+                [6L, 1L, 1L, 1L, 1L, 1L],
+            ];
+            foreach (long[] expected in expectedRows)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                Assert.True(await reader.ReadAsync(cancellation.Token));
+                for (int column = 0; column < expected.Length; column++)
+                {
+                    Assert.Equal(expected[column], reader.GetInt64(column));
+                    Assert.Equal((int)expected[column], reader.GetInt32(column));
+                }
+            }
+            Assert.False(await reader.ReadAsync(cancellation.Token));
+        }
+
+        command.Parameters["@minimum"].Value = long.MaxValue;
+        await using (var empty = await command.ExecuteReaderAsync(cancellation.Token))
+        {
+            AssertRankingTransportSchema(empty);
+            Assert.False(await empty.ReadAsync(cancellation.Token));
+        }
+
+        command.Parameters["@minimum"].Value = 1L;
+        command.Parameters["@buckets"].Value = 0L;
+        var invalid = await Assert.ThrowsAsync<SndbServerException>(() =>
+            command.ExecuteReaderAsync(cancellation.Token));
+        Assert.Equal("sql_error", invalid.Error);
+        Assert.Contains("ntile()", invalid.ServerMessage, StringComparison.Ordinal);
+
+        int port = new Uri(url).Port;
+        ObservedRequest[] observed = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.Contains(observed, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        Assert.All(observed, request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        if (protocol == "frame-http2")
+            Assert.Contains(observed, request => request.Path == "/v1/frame");
+    }
+
+    private static void AssertRankingTransportSchema(DbDataReader reader)
+    {
+        Assert.Equal(["id", "ar", "ad", "dr", "dd", "tile"],
+            Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray());
+        var schema = Assert.IsType<DataTable>(reader.GetSchemaTable());
+        for (int column = 1; column < 6; column++)
+        {
+            Assert.Equal(typeof(long), reader.GetFieldType(column));
+            Assert.Equal(typeof(long), schema.Rows[column][SchemaTableColumn.DataType]);
+            Assert.Equal((int)DbType.Int64, schema.Rows[column][SchemaTableColumn.ProviderType]);
+            Assert.False((bool)schema.Rows[column][SchemaTableColumn.AllowDBNull]);
+        }
+    }
+
     [Fact]
     public async Task FrameHttp2_Int64Boundary_AsyncReadAndBigIntegerPreflight()
     {
@@ -730,6 +824,104 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
             .ToArray();
         Assert.NotEmpty(requests);
         Assert.All(requests, r => Assert.Equal("HTTP/1.1", r.Protocol));
+    }
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task AggregateCast_ValuesNullMetadataAndOverflow_UseRealTransport(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        string baseUrl = protocol == "rest" ? _http11Url : _frameH2Url;
+        await using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        await connection.OpenAsync(deadline.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE cast_rows (id INT, tenant INT, value INT NULL, amount DECIMAL(28,6), PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+        command.CommandText = "INSERT INTO cast_rows (id, tenant, value, amount) VALUES "
+            + "(1, 1, 3, '9007199254740993.125'), (2, 1, 5, '0.875'), (3, 2, 7, '0.1'), (4, 3, NULL, NULL)";
+        Assert.Equal(4, await command.ExecuteNonQueryAsync(deadline.Token));
+        const string projection = "SELECT CAST(SUM(value) AS INT), CAST(AVG(value) AS FLOAT), "
+            + "CAST(MIN(value) AS DECIMAL), CAST(MAX(value) AS STRING), CAST(COUNT(value) AS INT), "
+            + "CAST(COUNT(*) AS FLOAT), CAST(SUM(amount) AS DECIMAL) FROM cast_rows ";
+        Type[] types = [typeof(long), typeof(double), typeof(decimal), typeof(string), typeof(long), typeof(double), typeof(decimal)];
+        command.CommandText = projection + "WHERE tenant = 1";
+        await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Equal(types, Enumerable.Range(0, 7).Select(reader.GetFieldType).ToArray());
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(4d, reader.GetFieldValue<double>(1));
+            Assert.Equal(4d, reader.GetDouble(1));
+            Assert.Equal(2d, reader.GetFieldValue<double>(5));
+            Assert.Equal(new object?[] { 8L, 4d, 3m, "5", 2L, 2d, 9007199254740994m },
+                Enumerable.Range(0, 7).Select(reader.GetValue).ToArray());
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        command.CommandText = projection + "WHERE id < 0";
+        await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Equal(types, Enumerable.Range(0, 7).Select(reader.GetFieldType).ToArray());
+            Assert.Equal(new bool?[] { true, true, true, true, false, false, true },
+                reader.GetColumnSchema().Select(column => column.AllowDBNull).ToArray());
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(0d, reader.GetFieldValue<double>(5));
+            Assert.Equal(0d, reader.GetDouble(5));
+            Assert.Equal(new object?[] { DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, 0L, 0d, DBNull.Value },
+                Enumerable.Range(0, 7).Select(reader.GetValue).ToArray());
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        command.CommandText = "SELECT tenant, CAST(SUM(value) AS INT), CAST(AVG(value) AS FLOAT), "
+            + "CAST(SUM(amount) AS DECIMAL), concat('n=', CAST(COUNT(*) AS STRING)) FROM cast_rows GROUP BY tenant "
+            + "HAVING CAST(SUM(value) AS INT) > 7 ORDER BY tenant";
+        await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(new object?[] { 1L, 8L, 4d, 9007199254740994m, "n=2" },
+                Enumerable.Range(0, 5).Select(reader.GetValue).ToArray());
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        command.CommandText = "SELECT CAST(SUM(amount) + CAST('0.1' AS DECIMAL) AS DECIMAL) FROM cast_rows WHERE tenant = 1 "
+            + "HAVING CAST(SUM(amount) AS DECIMAL) = CAST('9007199254740994' AS DECIMAL)";
+        Assert.Equal(9007199254740994.1m, Assert.IsType<decimal>(await command.ExecuteScalarAsync(deadline.Token)));
+        command.CommandText = "SELECT CAST(AVG(value) AS FLOAT) FROM cast_rows WHERE tenant = 1";
+        Assert.Equal(4d, Assert.IsType<double>(await command.ExecuteScalarAsync(deadline.Token)));
+        command.CommandText = "SELECT CAST(SUM(value) AS INT) FROM cast_rows WHERE tenant = 3";
+        Assert.Null(await command.ExecuteScalarAsync(deadline.Token));
+        command.CommandText = "SELECT tenant, CAST(SUM(amount) AS DECIMAL) FROM cast_rows WHERE id < 0 GROUP BY tenant";
+        await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Equal(typeof(decimal), reader.GetFieldType(1));
+            Assert.True(reader.GetColumnSchema()[1].AllowDBNull);
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+        command.CommandText = "CREATE TABLE cast_bigints (id INT, value INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+        command.CommandText = "INSERT INTO cast_bigints (id, value) VALUES (1, 9223372036854775807), (2, 1)";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+        command.CommandText = "SELECT CAST(SUM(value) AS DECIMAL) FROM cast_bigints";
+        var aggregateOverflow = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync(deadline.Token));
+        Assert.Contains("SUM(INT) 的 Int64 累加发生溢出", aggregateOverflow.ServerMessage, StringComparison.Ordinal);
+        command.CommandText = "SELECT CAST(SUM(CAST(value AS DECIMAL)) AS DECIMAL) FROM cast_bigints";
+        Assert.Equal(9223372036854775808m, Assert.IsType<decimal>(await command.ExecuteScalarAsync(deadline.Token)));
+        command.CommandText = "SELECT CAST(SUM(CAST(value AS DECIMAL)) AS INT) FROM cast_bigints";
+        var castOverflow = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync(deadline.Token));
+        Assert.Contains("Int64", castOverflow.ServerMessage, StringComparison.Ordinal);
+        command.CommandText = "CREATE TABLE cast_decimal_bounds (id INT, amount DECIMAL(29,0), PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+        command.CommandText = "INSERT INTO cast_decimal_bounds (id, amount) VALUES (1, '79228162514264337593543950335'), (2, '1')";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+        command.CommandText = "SELECT CAST(MAX(amount) AS DECIMAL) FROM cast_decimal_bounds";
+        Assert.Equal(decimal.MaxValue, Assert.IsType<decimal>(await command.ExecuteScalarAsync(deadline.Token)));
+        command.CommandText = "SELECT CAST(SUM(amount) AS DECIMAL) FROM cast_decimal_bounds";
+        var decimalOverflow = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync(deadline.Token));
+        Assert.Contains("DECIMAL 聚合发生溢出", decimalOverflow.ServerMessage, StringComparison.Ordinal);
+
+        int port = new Uri(baseUrl).Port;
+        var observed = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.NotEmpty(observed);
+        Assert.All(observed, request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        Assert.Contains(observed, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        if (protocol == "frame-http2") Assert.Contains(observed, request => request.Path == "/v1/frame");
     }
 
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
