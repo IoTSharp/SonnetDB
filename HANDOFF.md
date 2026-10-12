@@ -2198,3 +2198,20 @@ root最终6195树完整restore/原Format Check通过后普通本地提交，再�
 ## 批次01：UUID与前端依赖及Semantic回填测试终态（2026-10-12）
 
 用户新指示后续多个PR统一整合/一轮完整CI，替代逐个refresh/push造成的重复。batch codex/pr-batch-20261012-01自93f09c9d，原#281032和#217979/93均实际祖先，原分支/PR/失败/保护refs不改；一次批次PR通过新完整17门禁后合main，并独立回读原PR集成状态。root已在旧准确树获得281 Core130/real21与前端3build/469+59/worker smoke，字段证据不冒称新完整组合。原281 Windows09:07:53Z唯一semantic backfill QueuedObjects1/0失败，Core6369/EF90通过；其原response Completed等仍UNKNOWN。新真实受控后台持页证实合法partial scanned0/queued0/Completedfalse/HasMoretrue，释放后同持久终态scanned1/queued1/skipped0。最小仅Semantic测试修复：只对明确未完成等待持久Completed（100items/10秒/token/50ms），不重POST/不按计数轮询，completed queued0仍严格失败；thumbnail/search/delete/disable及重复scanned1/queued0/skipped1原合同保持。实际SDK10.0.401两Release编译0warn/error，诊断3/3与完整Semantic18/18，17输入/9实际DLL-PDB-runtimeconfig由root逐SHA及原TRX核，不叠加重复3例。本模拟provider不证明真实模型质量。worker35分钟原截止10:14:24守卫拒最后收尾，finaldocs/PDBchecksum总审计/tempcleanup当时NOT_RUN原样保留；root本新有界阶段准确归档与docs写入，D:\semback-0939后续精确清理单列。下一批275/276/290/296等本地checkpoint准备，无单PR重复CI；正式包/外部consumer、nightly/parity/生产acceptance保持OPEN。最终restore/原Format/commit/push/create及新head17CI/main以独立收据为准。
+
+
+## PR #298 后台语义回填控制测试预算修正（2026-10-12，Asia/Shanghai）
+
+本独立35分钟片固定12:48:20Z至13:23:20Z，提前13:21:20Z交付；从干净codex/pr-batch-20261012-01/ad75131deecc0feab23fbc4d3372dae45044bdbd接续，只改SemanticSearchEndpointTests中新控制用例及独立宿主预算、CHANGELOG和本LF尾。根独占全部Git/index/ref/stash/远端。原精确Windows run38237768352/job114772572472的Server1181/1182和line666 queued=1失败、原终态1/0/1完整保留；不能当作旧BucketOptions故障或未等到完成。
+
+第一诊断迭代仅将页预算设5000ms而保留生产默认恢复250ms，直接记录链接页令牌取消、15秒调用者未取消、单POST真实0/0/0进行中、之后同一持久状态1/0/1完成且对象任务已完成，真实TRX1/1；源码/DLL/PDB/config单独冻档，不纳入最终回归总数。确认恢复预算在持久入队后、计数/游标CAS前取消导致下一轮去重计skipped的生产持久计数缺口，另行OPEN跟踪，本片没有修改生产统计或默认值。
+
+最终仅本控制用例重启自有宿主，在同一独占dataRoot配置恢复/页5000ms、hook最多3秒/调用者15秒，释放前严格核页和调用者令牌未取消；保留queued1/scanned1/skipped0、真实partial和finally释放。无count轮询或重复POST，其余fixture、原页预算取消及桶缩略图/search/delete/disabled-image断言不改。两个Release构建0warnings/errors，SDK10.0.401/2CPU/-m1/sharedoff；最终focused3/3与完整Semantic类真实18executed/18passed/0failed/0notExecuted，focused不重复累计。源码/18输入与executed DLL/PDB/runtimeconfig及三个非空TRX分别绑定于artifacts/online-closure-20261012/pr298-harness-1255，终核全部SHA一致；fake provider不冒称模型质量。
+
+owned format verify仅include本测试、原solution/no-restore/severity warn/exclude extensions，exit0且未改源；通用workspace-load warning原文保留。预算最多2repairs/2builds/3windows/45shell/22hiddenJobs，单owned build root；隐藏PS7/UTF8/kernelJob、次数+墙钟+取消+backoff保持。fresh记录身份与marker/noReparse/有界库存/当前引用审计及独占D:\pr298harness-1255一次清理结果以process-audit.json、temp-cleanup.json和最后Job回执为准，不预写未执行清理或抹去policy旧FAIL。
+
+下一步根先核原CI、diagnostic与final两组freeze/实际TRX及cleanup，再在最终三路径树完成整solution restore与原完整Format Check、精确stage/commit/PR新head CI；本HANDOFF随根提交，本代理不提交。生产计数缺口独立OPEN；新head全量Windows/Linux、nightly/parity、正式包、完整NativeAOT与生产验收独立NOT_RUN，不由本地18/18推导。
+
+## PR #298 根交付计时纠正（2026-10-12）
+原 13:21:20Z 提前收尾目标未达；实际 audit2 于 13:22:41.1227051Z PASS，在原 hard deadline 13:23:20Z 内。fresh 记录身份无同身份存活；18项独占 TEMP 无reparse/当前引用，单次删除完成；最后隐藏Job cleanupComplete=true。先前预测 audit2 被截止拒绝不符合真实不可变收据，纠正见 pr298-harness-1255/late-finalize-note.md。首 current-reference audit FAIL 与 ReadOnlySpan docs失败继续保留。UTC守卫使用 DateTimeOffset，不以转换到本地的 DateTime 同 UtcNow 比较。
+根独立逐SHA核18当前/归档文件、3原TRX实际1/3/18计数与4 PDB源码绑定，发现首根检查选错SonnetDB.Core.pdb后改读实际SonnetDB.pdb，首失败保存。最终只有Semantic测试、CHANGELOG、HANDOFF三路径；生产未改。下面完整restore/原Format和Git交付以独立root收据为准，本段不预写远端CI或main完成。

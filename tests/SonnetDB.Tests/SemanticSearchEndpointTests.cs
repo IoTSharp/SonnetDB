@@ -625,6 +625,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     public async Task SemanticSearch_BackfillOwnedByBackground_ReturnsIncompleteProgressAndCommitsOneObject()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await RestartWithBackfillObservationBudgetAsync(deadline.Token);
         using var client = CreateClient();
         Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
         var processing = _app.Services.GetRequiredService<ObjectSemanticProcessingService>();
@@ -634,12 +635,12 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         objects.SetSemanticOptions(bucket, true, true, 32, 32, 75);
         using var image = new MemoryStream(CreatePng(8, 8, SKColors.Red));
         await objects.PutObjectAsync(bucket, "disabled.png", image, "image/png", cancellationToken: deadline.Token);
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        processing.AfterBackfillObjectForTest = _ =>
+        processing.AfterBackfillObjectForTest = budget =>
         {
-            entered.TrySetResult();
-            release.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token).GetAwaiter().GetResult();
+            entered.TrySetResult(budget.Token);
+            release.Task.WaitAsync(TimeSpan.FromSeconds(3), deadline.Token).GetAwaiter().GetResult();
         };
         var store = new ObjectProcessingJobStore(tsdb);
         try
@@ -647,7 +648,9 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             Assert.True(store.TryWriteBackfill(null,
                 new ObjectSemanticBackfillState(bucket, null, 0, 0, 0, false, DateTimeOffset.UtcNow),
                 deadline.Token));
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token);
+            var pageToken = await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token);
+            Assert.False(pageToken.IsCancellationRequested);
+            Assert.False(deadline.IsCancellationRequested);
             await TraceBackfillAsync(client, bucket, "background owns page", deadline.Token);
             using var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", null, deadline.Token);
             string body = await response.Content.ReadAsStringAsync(deadline.Token);
@@ -659,6 +662,9 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
             Assert.False(progress.Completed);
             Assert.True(progress.HasMore);
             Assert.Equal(0, progress.QueuedObjects);
+            Assert.False(pageToken.IsCancellationRequested);
+            Assert.False(deadline.IsCancellationRequested);
+            _output.WriteLine("Controlled observation: recovery/page=5000ms; page and caller tokens remain active before release.");
             release.TrySetResult();
             var completed = await WaitForBackfillCompletionAsync(bucket, progress, deadline.Token);
             Assert.True(completed.Completed);
@@ -1205,6 +1211,23 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
                 Backend = backend,
             },
         };
+
+    private async Task RestartWithBackfillObservationBudgetAsync(CancellationToken cancellationToken)
+    {
+        await _app!.StopAsync(cancellationToken);
+        await _app.DisposeAsync();
+        var options = CreateOptions(_dataRoot!, "managed");
+        // 仅本测试主动暂停后台页；恢复预算须覆盖三秒观察，生产与其它测试仍使用默认预算。
+        options.SemanticSearch.ObjectProcessing.RecoveryBudgetMilliseconds = 5_000;
+        options.SemanticSearch.ObjectProcessing.BackfillBudgetMilliseconds = 5_000;
+        _app = TestServerHost.Build(options, services =>
+            services.AddSingleton<IMultimodalEmbeddingProvider>(new FakeMultimodalEmbeddingProvider()));
+        await _app.StartAsync(cancellationToken);
+        var addresses = _app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+        _baseUrl = addresses.Addresses.First();
+    }
 
     private HttpClient CreateClient(string token = AdminToken)
         => CreateClient(_baseUrl!, token);
