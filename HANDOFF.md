@@ -1923,6 +1923,22 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
 
+## GH-Issue #273 Idempotent 迁移脚本明确拒绝候选（2026-10-12，Asia/Shanghai）
+
+在线闭环主智能体授权在 online-delivery 独立工作树、codex/issue273-idempotent-script 分支、原 main 基线 dcadffc7137f5653ec46c55a4171cf5f2d83de03 实施。SonnetDbHistoryRepository 的三个历史条件脚本入口明确抛出 NotSupportedException，说明尚未实现迁移历史条件保护，并给出 Database.Migrate()/MigrateAsync() 或普通脚本替代；EF Core 在返回脚本前拒绝 Idempotent 及其 NoTransactions 组合，不再产生没有历史保护的伪幂等脚本。没有新增 SQL 语法、Migrator、依赖或 JSON 边界，普通历史表顺序迁移保持。
+
+新增真实 IMigrator.GenerateScript 回归覆盖两种 Idempotent 组合的正向、逆向、from==to 与无迁移八 case，并覆盖 Default/NoTransactions 两种普通脚本；另计划独立运行既有顺序 MigrateAsync 与自定义历史表两测试。当前源码实现与 git diff --check 的真实结果见本轮静态收据；build/test/完整 restore/CI 原 Format Check/AOT 均 NOT_RUN，尚未取得构建槽。当前只是候选，不代表正式 NuGet 修复或真实升级验收，GH-Issue #273 整体继续开放。
+
+本轮限 HistoryRepository、ProviderTests、CHANGELOG、HANDOFF 四路径，未操作索引、提交、分支或远端；完整提交前门禁与最终集成由主智能体审复。历史交接按原字节只追加并核旧前缀，证据在 D:/source/SonnetDB/artifacts/online-closure-20261012/issues-delivery/issue-273-*；保留所有原 FAIL/UNKNOWN，固定 PowerShell7、单 dotnet/2CPU、Windows Job 数量和墙钟上限、取消与精确 PID/创建时间/命令/父链身份、仅本任务进程树及 TEMP 回收。下一步先取得测试槽完成十二定向 case、非空 TRX/DLL 与零精确活跃身份，再冻结交给主智能体最终 restore/format。#228 已由独立 PR #275 交付，未混入此分支。
+
+## GH-Issue #273 十二项定向回归通过与源码冻结（2026-10-12，Asia/Shanghai）
+
+接续上段候选，实际 Release 构建与真实 IMigrator.GenerateScript 八拒绝、两普通脚本及既有顺序 MigrateAsync/自定义历史表两回归均通过：非空原 TRX 为12 executed/12 passed/0 failed。Provider 生产与测试目录 DLL SHA 完全相同，测试 DLL、源码和 TRX SHA 绑定实际收据 issue-273-targeted-validation.json；仅本机 EF/Core 合同，不计已发行包或真实远程升级完成。
+
+唯一测试 Job 限600秒/2CPU/单节点/禁共享编译和 node reuse，完整root/controller/子身份与 finally 清理取得cleanupComplete=true；单次限定PID集合独立核八个完整身份零精确活跃，专属TEMP经绝对路径/owner标记核验已回收。所有JSON日期按字符串读取并以DateTimeOffset保UTC，避免自动DateTime转换丢失Kind。第一次静态检查发现自有Handoff追加CRLF被Git识为尾随空白，失败收据 issue-273-static-first-failure.json 保留；只修正owned后缀为LF后 git diff --check 通过，原始534848字节前缀SHA250B44F0FE4005816DFB77906DFE9B458959F5B3D79F3B788896961347E94AF4完整保持。
+
+四个受改路径已冻结并停止dotnet，本子任务未stage/commit/push或其它远端mutation。主智能体下一步独立审查冻结diff/十二case/身份与清理收据，再在最终待提交树执行完整restore和原CI Format Check、精确四路径提交及普通候选分支交付。完整解决方案门禁与独立NativeAOT发布此时尚未运行；EF Provider既有IsAotCompatible=false边界不改，无JSON变更或警告压制。正式NuGet修复版本/消费者实际升级验收保持开放，不能因本地12/12自动关闭GH-Issue #273。
+
 
 ## Issue #271 BLOB 参数查询实现与本地证据（2026-10-12，Asia/Shanghai）
 
@@ -2203,3 +2219,13 @@ Current stage: D:\source\SonnetDB\artifacts\online-closure-20261012\batch02-real
 Original four embedded WAL/CreateFileW failure cases passed4/4 on the same original DLL under owned shortTEMP D:\b02m-1342. This context observation does not prove path length or filesystem root cause; no reproduction on original longTEMP or causal intervention experiment was performed. Sole Server incremental Release build and final source/DLL/PDB binding passed; repaired metadata focus2/2 and whole two real classes97/97 passed, with the focused six included and not added to97. Core244 is carried as exact unchanged source/binary/TRX evidence, not rerun in this stage. Original Core and new Server evidence therefore retain separate execution times.
 
 Source-before/after and actual old/new artifacts/TRX are retained. Fresh exact PID audit and shortTEMP result=REMOVED, attempts=1, retries0; final wrapper receipt and final postfreeze audit remain separately reported. Stage13:39:38Z, hard14:14:38Z, freeze target14:12:38Z. Root owns current whole-tree restore/originalFormat/privatecheckpoint/batch integration/oneCI. Formal package/consumer/NativeAOT/hardware/production/nightly/parity NOT_RUN.
+
+## 2026-10-12 PR #276 latest-main integrated local verification (pr_review)
+
+- Frozen scope: `codex/pr276-main295-refresh`, HEAD `c2b5c030e20043ca2bbdb051e0ac384616d9edcc`, inherited MERGE_HEAD `944769b966f11e089a366266927f0486827e57ed`. Effective feature difference is exactly CHANGELOG, HANDOFF, history repository and provider tests; 60 inherited staged paths and the original index are preserved. This review makes no source/test/Git/index/ref/stash/remote writes; only this HANDOFF tail is appended and remains unstaged for root.
+- Fresh Release builds: EF test project and Core test project PASS, both zero warnings/errors, serial m:1/shared compilation off/2 CPU. Both completed owned Job cleanup; reviewer has zero build roots and no further builds planned.
+- Fresh actual TRX: entire EF project 100/100 PASS without a filter; relevant Core 66/66 PASS (DecimalEnforcement16, DecimalDeclaration36, InsertSelect14); zero skipped/failed. Idempotent scripts explicitly reject six migration-boundary/options variants plus two empty-migration variants; ordinary scripts retain two Default/NoTransactions variants. Actual embedded async migration initialize/upgrade/repeat/rollback/custom history and real Kestrel remote creation/history/use pass. Existing history with frame-http2 on Http2-only Kestrel asserts every observed request is HTTP/2 and skips the applied migration. Synchronous Migrate runtime acceptance and additional frame-endpoint migration assertions are NOT_RUN.
+- Evidence binds 73 exact archived inputs, 55 current source/PDB SHA256 bindings, 12 DLL/PDB GUID bindings and 28 actual producer/copied/executed DLL/PDB/runtimeconfig/deps artifacts; sources and binaries are rehashed at final freeze. Evidence root: `D:\source\SonnetDB\artifacts\online-closure-20261012\pr276-integrated-0822`.
+- Process/TEMP result is stated in the attached evidence receipt below. No name-based process kills or historical/shared cleanup. Historical failures remain unchanged. Stage start 08:22:22 UTC, fixed deadline 08:57:22 UTC; final freeze receipt supplies actual completion time.
+- Root still owns solution restore plus the original complete format gate on the final tree, HANDOFF staging, commit, PR and merge. Later main `6195c3f28539ab25ca2df00b6ac209b30c198160` source-equivalence/integration is PENDING_ROOT; this receipt only verifies MERGE_HEAD944. Provider NativeAOT acceptance is NOT_RUN (`IsAotCompatible=false`); external consumers/native ABI/hardware/production/nightly/parity are NOT_RUN.
+- Owned process audit: 47 identities, matching live=0, signals=0. TEMP=REMOVED, attempts=1, retryCount=0.

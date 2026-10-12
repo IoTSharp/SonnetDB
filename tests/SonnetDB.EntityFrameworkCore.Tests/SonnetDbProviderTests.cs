@@ -1451,6 +1451,59 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Contains("计算列", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, Migration.InitialDatabase, null)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, Migration.InitialDatabase, null)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000100_InitialDevices")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000100_InitialDevices")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000300_AddAndAlterDeviceRetryCount")]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions, "20260613000300_AddAndAlterDeviceRetryCount", "20260613000300_AddAndAlterDeviceRetryCount")]
+    public void GenerateScript_WithIdempotentOptions_ThrowsNotSupported(
+        MigrationsSqlGenerationOptions options,
+        string fromMigration,
+        string? toMigration)
+    {
+        using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+        var migrator = context.GetService<IMigrator>();
+
+        var exception = Assert.Throws<NotSupportedException>(
+            () => migrator.GenerateScript(fromMigration, toMigration, options));
+
+        Assert.Contains("Idempotent", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("迁移历史条件保护", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("MigrateAsync()", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent)]
+    [InlineData(MigrationsSqlGenerationOptions.Idempotent | MigrationsSqlGenerationOptions.NoTransactions)]
+    public void GenerateScript_WithoutMigrationsAndWithIdempotentOptions_ThrowsNotSupported(
+        MigrationsSqlGenerationOptions options)
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        Assert.Empty(context.GetService<IMigrationsAssembly>().Migrations);
+        var migrator = context.GetService<IMigrator>();
+
+        var exception = Assert.Throws<NotSupportedException>(() => migrator.GenerateScript(options: options));
+
+        Assert.Contains("Idempotent", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("迁移历史条件保护", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MigrationsSqlGenerationOptions.Default)]
+    [InlineData(MigrationsSqlGenerationOptions.NoTransactions)]
+    public void GenerateScript_WithoutIdempotentOptions_GeneratesMigrationAndHistorySql(
+        MigrationsSqlGenerationOptions options)
+    {
+        using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+        var script = context.GetService<IMigrator>().GenerateScript(options: options);
+
+        Assert.Contains("CREATE TABLE \"Devices\"", script, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO \"__EFMigrationsHistory\"", script, StringComparison.Ordinal);
+        Assert.Contains("20260613000300_AddAndAlterDeviceRetryCount", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task DatabaseMigrate_WithHistoryTable_InitializesUpgradesRollsBackAndIsIdempotent()
     {

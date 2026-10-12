@@ -10,6 +10,9 @@ namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 /// </summary>
 public sealed class SonnetDbHistoryRepository : HistoryRepository, IHistoryRepository
 {
+    private const string IdempotentMigrationScriptNotSupported =
+        "SonnetDB 当前不支持 Idempotent 迁移脚本，因为尚未实现迁移历史条件保护。请使用 Database.Migrate()/MigrateAsync() 或普通迁移脚本。";
+
     /// <summary>
     /// 创建 SonnetDB migration 历史仓储。
     /// </summary>
@@ -227,15 +230,15 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository, IHistoryRepos
 
     /// <inheritdoc />
     public override string GetBeginIfNotExistsScript(string migrationId)
-        => string.Empty;
+        => throw new NotSupportedException(IdempotentMigrationScriptNotSupported);
 
     /// <inheritdoc />
     public override string GetBeginIfExistsScript(string migrationId)
-        => string.Empty;
+        => throw new NotSupportedException(IdempotentMigrationScriptNotSupported);
 
     /// <inheritdoc />
     public override string GetEndIfScript()
-        => string.Empty;
+        => throw new NotSupportedException(IdempotentMigrationScriptNotSupported);
 
     private string BuildCreateScript(bool ifNotExists)
     {
