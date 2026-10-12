@@ -2586,3 +2586,15 @@ online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fc
 两次命名浏览器session分列：首次CLI生命周期/跨命令globalThis失败保留，独立恢复完成13断言后关闭，未使用forceclick。页面使用本地静态Vite和全mock API/假token，外部瓦片拒绝；返回fixture计数291次拦截，trace有337条resource记录，不能称所有网络尝试不超过300或真实Server/生产接受。trace DOM快照含修改后的CSS；页面实际请求的Vite ECharts模块及其缓存chunk版本6.1.0已核，网络响应无bodySHA，不能声称响应body哈希绑定。PNG/trace、构建资产与源码哈希在w20613-web-recovery，原FAIL/UNKNOWN均保留。
 
 根独立核源码/包/构建与13断言，并视觉查看正常控制和tooltip截图。当前5个owned路径由root做完整solution restore/原Format后私有commit，尚无push/main；真实提交/门禁以root2111-web-*收据为准。后续接入已审main再统一远端CI，不发布包/tag/Release，不把模拟数据图表验证当真实业务或地图服务验收。
+
+## #302 后台 Flush 集成 fixture 的 Compaction 隔离（2026-10-13）
+
+原 exact head494e95c Windows run38292238576/job114954829623 Core6669/6670唯一失败保留：ContinuousWrite_5000Points_AutoFlushesMultipleSegments 要求当前物理SegmentCount>=8，实际2。诊断原七项本地7/7、约1秒，不能称CI失败复现；默认Compaction实际true/MinTierSize4/poll5s，会Swap多个物理段，当前段数不是累计flush数。具体原CI compaction时序仍UNKNOWN，原804子集未覆盖该类。
+
+根批准独立20分钟test-only阶段19:42:17Z至20:02:17Z，只修改BackgroundFlushIntegrationTests fixture显式Compaction=false，外层8批/每批600点/每批最多300轮50ms且原15秒deadline，等待后立即断言物理段新增；最终>=8及5000点查询、正常2000点重开保持。连续用例加150秒总墙钟/取消保护，重开原30秒等待改为最多300轮100ms；生产六个相关源、默认Compaction/FlushPolicy/worker参数不修改。极小2批/2点/4poll试运行和循环比较条件人工核验已记录。
+
+唯一Core Release构建90.04秒、0warning/error；唯一完整相关窗口实际9executed/9passed/0failed/0notExecuted，包含BackgroundFlushIntegration2、BackgroundFlushWorker5、CompactionIntegration2，5.97秒runner/约1秒test。这是新test-only源码对应本地证据，不累加原7、804或CI6669。来源/actualDLL-PDB/TRX、生产源码不变、重编译产物字节差异和自有进程/TEMP核验以artifacts/online-closure-20261012/flush-ci-fix-1942最终freeze/resources收据为准。
+
+本代理未stage/commit/push/改refs。根须在最终三路径树完成whole restore/原Format Check、精确commit及一次更新302，并验证新head完整CI；当前不能说Windows已通过。原CI FAIL及全部历史FAIL/UNKNOWN/NOT_RUN继续保留，正式包/消费者/nightly/parity/生产验收独立。
+
+已接入正常合入的main6eb0ccff（原302精确d49fc10的16SUCCESS/1预期SKIPPED全部门禁通过）；仅HANDOFF尾追加冲突，公共前缀及两侧完整后缀保留。Web的5文件私有5dbd504、当前CSS/依赖/构建字节和13真实前端断言保持。此私有main集成只保存来源，最终JSON+Web组合运行验证仍待下一阶段，不把旧运行资产当成新组合实跑。正式包/Server/生产接受未增加。
