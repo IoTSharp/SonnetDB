@@ -144,12 +144,18 @@ internal static class SqlExpressionFormatter
                 builder.Append(literal.IntegerValue.ToString(CultureInfo.InvariantCulture));
                 break;
             case SqlLiteralKind.Float:
-                builder.Append(literal.FloatValue.ToString("R", CultureInfo.InvariantCulture));
+                builder.Append(literal.NumericText ?? literal.FloatValue.ToString("R", CultureInfo.InvariantCulture));
+                break;
+            case SqlLiteralKind.Decimal:
+                builder.Append("DECIMAL '").Append(literal.DecimalValue.ToString(CultureInfo.InvariantCulture)).Append('\'');
                 break;
             case SqlLiteralKind.String:
                 builder.Append('\'')
                     .Append((literal.StringValue ?? string.Empty).Replace("'", "''", StringComparison.Ordinal))
                     .Append('\'');
+                break;
+            case SqlLiteralKind.Blob:
+                builder.Append("X'").Append(Convert.ToHexString(literal.BlobValue.Span)).Append('\'');
                 break;
             default:
                 throw new NotSupportedException($"CHECK 约束暂不支持字面量 '{literal.Kind}'。");

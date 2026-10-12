@@ -311,6 +311,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     internal static object? ReadScalar(JsonElement element, string? columnType)
         => columnType switch
         {
+            "float64" => ReadTypedScalar(element, ExecutionFieldTypeKind.Double),
             "decimal" => ReadDecimal(element),
             "datetime" => ReadTypedScalar(element, ExecutionFieldTypeKind.DateTime),
             "time" => ReadTypedScalar(element, ExecutionFieldTypeKind.TimeOnly),
@@ -324,6 +325,12 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             return null;
         if (type == ExecutionFieldTypeKind.Decimal)
             return ReadDecimal(element);
+        if (type == ExecutionFieldTypeKind.Double)
+        {
+            if (element.ValueKind == JsonValueKind.Number && element.TryGetDouble(out double value))
+                return value;
+            throw new InvalidDataException("远程 SQL FLOAT 值无法解析为 Float64。");
+        }
         if (type == ExecutionFieldTypeKind.DateTime)
         {
             if (element.ValueKind == JsonValueKind.String && element.TryGetDateTime(out var dateTime))
