@@ -1035,6 +1035,95 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         if (protocol == "frame-http2") Assert.Contains(observed, request => request.Path == "/v1/frame");
     }
 
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task StringAggregate_GroupByJoinAndCorrelatedQuery_UseRealTransport(string protocol)
+    {
+        string baseUrl = protocol == "rest" ? _http11Url : _frameH2Url;
+        await using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE agg_labels (id INT, tenant INT, name STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "SELECT string_agg(name, ',') FROM agg_labels";
+        await using (var empty = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(string), empty.GetFieldType(0));
+            Assert.True(empty.GetColumnSchema().Single().AllowDBNull);
+            Assert.True(await empty.ReadAsync());
+            Assert.True(empty.IsDBNull(0));
+            Assert.False(await empty.ReadAsync());
+        }
+        command.CommandText = "INSERT INTO agg_labels (id, tenant, name) VALUES "
+            + "(1, 1, 'red'), (2, 1, 'blue'), (3, 1, 'red'), (4, 1, NULL), (5, 2, NULL), (6, 3, ''), (7, 3, '😀汉字')";
+        Assert.Equal(7, await command.ExecuteNonQueryAsync());
+        command.CommandText = "SELECT a.tenant, string_agg(a.name, @separator), group_concat(a.name, @separator) "
+            + "FROM agg_labels a JOIN agg_labels b ON a.id = b.id GROUP BY a.tenant ORDER BY a.tenant";
+        command.Parameters.AddWithValue("@separator", "::");
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(string), reader.GetFieldType(1));
+            for (int group = 0; group < 3; group++)
+            {
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(group + 1L, reader.GetInt64(0));
+                if (group == 1)
+                {
+                    Assert.True(reader.IsDBNull(1));
+                    Assert.True(reader.IsDBNull(2));
+                }
+                else
+                {
+                    string[] expected = group == 0 ? ["blue", "red", "red"] : ["", "😀汉字"];
+                    Assert.Equal(expected, SortedPieces(reader.GetString(1), "::"));
+                    Assert.Equal(expected, SortedPieces(reader.GetString(2), "::"));
+                }
+            }
+            Assert.False(await reader.ReadAsync());
+        }
+        command.Parameters.Clear();
+        command.CommandText = "CREATE TABLE agg_tenants (id INT, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync();
+        command.CommandText = "INSERT INTO agg_tenants (id) VALUES (1), (2), (3), (4)";
+        await command.ExecuteNonQueryAsync();
+        string correlated = "SELECT t.id, (SELECT group_concat(l.name, ',') FROM agg_labels l WHERE l.tenant = t.id) "
+            + "AS names FROM agg_tenants t";
+        command.CommandText = correlated + " ORDER BY t.id";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(string), reader.GetFieldType(1));
+            for (int tenant = 0; tenant < 4; tenant++)
+            {
+                Assert.True(await reader.ReadAsync());
+                if (tenant is 1 or 3) Assert.True(reader.IsDBNull(1));
+                else Assert.Equal(tenant == 0 ? new[] { "blue", "red", "red" } : new[] { "", "😀汉字" }, SortedPieces(reader.GetString(1), ","));
+            }
+            Assert.False(await reader.ReadAsync());
+        }
+        command.CommandText = correlated + " WHERE t.id < 0";
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            Assert.Equal(typeof(string), reader.GetFieldType(1));
+            Assert.False(await reader.ReadAsync());
+        }
+        command.CommandText = "SELECT string_agg(name, NULL) FROM agg_labels WHERE tenant = 2";
+        Assert.Null(await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT string_agg(DISTINCT name, ',') FROM agg_labels WHERE id < 0";
+        var unsupported = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
+        Assert.Contains("DISTINCT", unsupported.ServerMessage, StringComparison.Ordinal);
+
+        int port = new Uri(baseUrl).Port;
+        var observed = _requests.Where(request => request.LocalPort == port).ToArray();
+        Assert.NotEmpty(observed);
+        Assert.All(observed, request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+        Assert.Contains(observed, request => request.Path == $"/v1/db/{DatabaseName}/sql");
+        if (protocol == "frame-http2") Assert.Contains(observed, request => request.Path == "/v1/frame");
+
+        static string[] SortedPieces(string text, string delimiter)
+            => text.Split(delimiter, StringSplitOptions.None).Order(StringComparer.Ordinal).ToArray();
+    }
+
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
         string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {

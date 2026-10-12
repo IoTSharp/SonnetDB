@@ -1927,6 +1927,19 @@ Release 本地 Core 定向测试 23/23（新 UUID 16/16及既有 UPDATE/事务�
 
 证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-271-*.json/.trx/.log；最后 freeze 绑定 12 路径与 DLL SHA。执行智能体不操作 index/commit/push/GitHub；主智能体接下来复核冻结范围、最终完整 restore/原 CI Format Check，再精确提交推送和处理 PR/issue。正式修复包、公开消费、NativeAOT 发布、SQLite 包对照、实际 ABP Passkey/A06/BookStore 及最大支持 BLOB 长度仍为独立 NOT_RUN/UNKNOWN；这些源代码与真实本地 Server 测试不关闭外部验收。
 
+
+## 线上闭环执行：GH-Issue #223 基础字符串聚合（2026-10-12，Asia/Shanghai）
+
+当前八路径实现位于 codex/issue223-string-aggregation，基线 a299a3fcc42de494145be74a8ee451aedeec4249。新增关系表 string_agg(value, delimiter) 与双参数同义 group_concat；STRING/NULL 输入、NULL 跳过、空串/重复/Unicode 保留、空输入/全 NULL 返回 NULL、NULL 分隔符为空串，分隔符只接受 STRING/NULL 字面量或绑定参数。支持 GroupBy/JOIN 和单列关联聚合，裸字符串聚合及关联子查询提供 nullable String 元数据，包括空外层结果；输入顺序不保证。DISTINCT、聚合内 ORDER BY、OVER 和 measurement 明确拒绝，不扩展任意 registry aggregate。
+
+输入逐行只求值一次；片段列表在分配前按保守 UTF-16 字节估算准入，最终字符串预留保留至根查询结束，多个组/子查询共享查询及数据库预算。溢出、预算拒绝与取消不返回截断字符串；全 NULL/空输入不保留字符串容量。无第三方依赖、JSON DTO/AOT 边界或文件格式变更。
+
+最终 Core v3 39/39（27 个本 Issue 用例）及真实 REST + Frame HTTP/2 transport v2 17/17（2 个新 theory 用例）通过；GroupBy/JOIN/关联查询、参数、NULL/空结果元数据、标量 UDF override、一次求值、共享结果预算、落盘后预算拒绝/取消/成功与资源释放均有实际测试。实际受测 Core/Data/Server/test DLL 已复制并记录版本/hash。原失败完整保留：Core v2 38/39 的新增回归夹具使用 CAST(sum(...))，既有聚合内联不穿过 CAST，独立范围为开放 #254，已改用支持的 concat('total=', sum(id))；transport v1 15/17 仅末尾 DBNull 断言不符既有 ExecuteScalarAsync 的 SQL NULL=>null 合同，修正新断言，未修改 Data 合同。
+
+五次有界 Job 均 cleanupComplete；最终独立审计覆盖 43 个 kernel identities 与 5 个 controller，exact live=0、unknown live=0。本任务专属 TEMP 经原始所有权、五个 spec、路径/重解析点与进程审计核对后已清理（17 个对象）；旧 trigonometry TEMP 与历史失败均未触碰。证据根为 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\string-aggregation-223，最终树、原 HANDOFF 前缀、源码与实际程序集、所有成功/失败收据见 string-aggregate-final-tree.json。
+
+本执行智能体未暂存、提交、推送、改变分支或写 GitHub；索引仍由主智能体独占，准确八文件待主智能体复核和交付。下一步由主智能体在最终树执行规定完整 solution restore 与原 CI Format Check，再串行提交/推送/PR/合并；本地及真实传输通过不能代替正式 Core/Data/Server/SDK 发包和 FreeSql StringAgg/string.Join Provider 验收，后者 NOT_RUN，Issue 不得仅凭本切片虚假关闭。uuid #258 的已交付实现不在此基线，后续集成由主智能体处理。
+
 ## 线上闭环执行：PR #268 依赖刷新（2026-10-12，Asia/Shanghai）
 
 PR #214 最终 restore/原 format 通过，实际 SpanReader TRX 30/30 与 Cobertura 已独立核验，Windows Job 回收通过；提交 91d316b8de884589f3d1253fef4711f3db2da47c 已普通推回原 dependabot 分支并更新 PR 说明，新 head CI 待完成，未合并 main。
@@ -2215,3 +2228,6 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 ## PR #298 根交付计时纠正（2026-10-12）
 原 13:21:20Z 提前收尾目标未达；实际 audit2 于 13:22:41.1227051Z PASS，在原 hard deadline 13:23:20Z 内。fresh 记录身份无同身份存活；18项独占 TEMP 无reparse/当前引用，单次删除完成；最后隐藏Job cleanupComplete=true。先前预测 audit2 被截止拒绝不符合真实不可变收据，纠正见 pr298-harness-1255/late-finalize-note.md。首 current-reference audit FAIL 与 ReadOnlySpan docs失败继续保留。UTC守卫使用 DateTimeOffset，不以转换到本地的 DateTime 同 UtcNow 比较。
 根独立逐SHA核18当前/归档文件、3原TRX实际1/3/18计数与4 PDB源码绑定，发现首根检查选错SonnetDB.Core.pdb后改读实际SonnetDB.pdb，首失败保存。最终只有Semantic测试、CHANGELOG、HANDOFF三路径；生产未改。下面完整restore/原Format和Git交付以独立root收据为准，本段不预写远端CI或main完成。
+
+
+字符串聚合当前 main2411 正常合并：UUID 与 correlated string aggregate metadata 两分支保留；remote 仅加入完整原 string aggregate method，最新 UUID/AggregateCast 原文件内容逐字保留。此私有 checkpoint 仅保存已审查来源；当前组合 runtime 未运行，待接入 #285 后一起验证。原 Windows allocation7792/4096 与旧 local零分配观察仍 UNKNOWN，阈值不变。最终 whole restore/原 Format 由根收据绑定，未 push/main/正式 package 或 FreeSql consumer 验收。
