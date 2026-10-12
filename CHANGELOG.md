@@ -475,6 +475,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 ### Fixed
 - **GH-Issue #228 ADO.NET HasRows**：按真实结果探测是否存在行，保留空 SELECT/RETURNING 的声明列元数据；首行探测复用命令超时、取消与远程错误传播，并由后续同步/异步 Read 返回该行。正式 NuGet/Server 发布与 FreeSql 消费者回归仍待验收。
 
+
+- 持久死信 CI 测试：检查点锁故障恢复使用一致的 2 秒存储预算和贯穿初始化/故障/重开的 15 秒调用者取消边界；精确区分订阅包装层、检查点操作层和文件锁三个已存在的超时消息及 inner exception，保留意图恢复与恰好一次断言，不修改生产超时。
 - GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
 - GH-Issue #241：ADD/ALTER DECIMAL/NUMERIC 的 precision/scale 穿透解析、schema 演进及持久化，未修改列保留原声明，远程表元数据保留 scale=0；DDL 在发布 schema 前无损预检全部旧行与默认值，拒绝小数损失/溢出及原始字符串转换舍入。表 schema v10、public 构造/解构和普通写入合同保持；持续值约束归 #264，正式包及 XCode 迁移验收另列。
 - GH-Issue #235：嵌入式和远程 ADO 的 Decimal 参数保留实际 System.Decimal 精度；DECIMAL 写入、CAST、比较及算术按原数值文本解析浮点字面量，明确拒绝舍入、下溢和溢出。既有 Double/Float/Int64 及非关系模型的浮点参数语义保持；纯数值转换不重复执行动态 UDF。声明 p/s 约束、正式修复包和上游 ORM 验收独立推进。
