@@ -2624,3 +2624,20 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 
 
 本私有集成将JSON M0/M1-A/M1-B精确611d9faa接入已含main6eb的Web候选b5db1c60。仅CHANGELOG/HANDOFF产生追加冲突，完整两侧交接章节保留；未出现产品源码冲突。既有JSON6source/28runtime及29/105/7属于611原执行，Web13断言属于其独立Vite运行，不能作为当前新组合DLL的实跑证据。当前完整restore/原Format仅用于私有来源检查点，新的统一运行验证及远端CI待最终263切片就绪后一次执行，不发布包/tag/Release。
+
+## Issue #263 跨协议整数参数私有验收（2026-10-13）
+
+本批在未修生产与旧冻结已构建资产上首次实际执行21个新增case，真实baseline为5PASS/16FAIL，原TRX和10资产保留。最小修复仅Data ParameterBinder补sbyte/ushort/uint三个无损InvariantCulture分支，Data与Core SqlParameterBinder各以Enum.GetTypeCode/Convert.ChangeType(TypeCode)复用原底层整数处理，共11行生产新增；SndbParameter.Value/DbType未改变，未改wire/Server/schema/落盘格式或依赖。UInt64高位和枚举仍保持embedded OverflowException、远程NotSupportedException的原声明边界。
+
+两次Release build各0warning/0error；修复后真实完整RemoteAdoHttp2TransportTests与RemoteVectorParameterTests合计66/66，Core现有四个参数整类另66/66，两组使用各自实际DLL，不合称单一132-case运行。新增21case全部实际到达三协议、nullable/NULL、原始与显式DbType、谓词、同步/异步批量、事务回滚和正常重开。源码、DLL/PDB CodeView及源码checksum、TRX storage和原失败证据位于artifacts/online-closure-20261012/i3052/。
+
+当前仅保存本地修复来源，root将在最终5个owned路径（两binder、原测试文件、CHANGELOG、HANDOFF）执行完整solution restore和原Format Check后私有提交；准确hash和门禁以r3058-263-*收据为准。之后接入online-engine原2fe联合候选重新运行统一验证。正式包、Chloe原始消费者及NativeAOT运行未验，#263仍OPEN/等待发布；本段不声明联合候选或发行完成。
+
+
+## #263、JSON 与 Web 联合候选最终本地验证（2026-10-13）
+
+本候选以2fe13431为第一父接入独立已验#263提交a6bef0c1，完整保留main6eb、原299与JSON611历史。相对main仅16路径；产品源码无冲突，HANDOFF双方246/243个完整章节逐一保留，未带入四个未构建setter草案。#263原21case基线5PASS/16FAIL及独立两组66PASS继续保留。
+
+最终同一组合源码重新构建Core/EF/ADO三个Release项目，各实际执行目录冻结后使用no-build/no-restore运行：Core JSON/索引/参数四类49/49、完整EF 191/191、完整RemoteAdoHttp2TransportTests 63/63通过；新增21个三协议整数用例实际通过。E/j3052保存本次实际DLL/PDB/deps/runtimeconfig、TRX与绑定结果；这些计数不借用旧JSON29/105/7或Web13，也不把多组不同测试资产混写为同一DLL运行。root随后在最终树执行完整solution restore及原Format，再形成联合候选提交；确切提交和门禁以r3110-*证据为准。
+
+已有Web源码/package/lock字节保持，原真实前端Graph/Trajectory交互与唯一npm build属于模拟API/Vite证据；未宣称本次.NET组合的正式Server前端业务接受。#263正式包与Chloe消费者仍待发布/验收，#266完整JSON局部更新、官方BookStore与EF NativeAOT未完成，CAP265默认NativeAOT上游失败保持。setter只读审计s3052发现writer scratch预算、成功setter rollback及遍历中cancel缺口，四原dirty保持UNBUILT/UNTESTED。无新包、tag或Release授权。

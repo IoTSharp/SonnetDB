@@ -44,6 +44,197 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
     private const string AdminToken = "ado-h2-admin";
     private const string DatabaseName = "ado_h2_transport";
 
+    /// <summary>三种小整数及其真实枚举参数在嵌入式、REST、h2c 中无损绑定，并在完整重开后保留。</summary>
+    [Theory]
+    [InlineData("embedded", "sbyte", false)]
+    [InlineData("embedded", "ushort", false)]
+    [InlineData("embedded", "uint", false)]
+    [InlineData("embedded", "sbyte", true)]
+    [InlineData("embedded", "ushort", true)]
+    [InlineData("embedded", "uint", true)]
+    [InlineData("rest", "sbyte", false)]
+    [InlineData("rest", "ushort", false)]
+    [InlineData("rest", "uint", false)]
+    [InlineData("rest", "sbyte", true)]
+    [InlineData("rest", "ushort", true)]
+    [InlineData("rest", "uint", true)]
+    [InlineData("frame-http2", "sbyte", false)]
+    [InlineData("frame-http2", "ushort", false)]
+    [InlineData("frame-http2", "uint", false)]
+    [InlineData("frame-http2", "sbyte", true)]
+    [InlineData("frame-http2", "ushort", true)]
+    [InlineData("frame-http2", "uint", true)]
+    public async Task IntegralParameters_ValuesEnumsNullsAndReopen_PreserveExactContract(
+        string protocol, string kind, bool boxedEnum)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        object value = (kind, boxedEnum) switch
+        {
+            ("sbyte", false) => (object)sbyte.MinValue,
+            ("ushort", false) => (object)ushort.MaxValue,
+            ("uint", false) => (object)uint.MaxValue,
+            ("sbyte", true) => IntegralSByte.Min,
+            ("ushort", true) => IntegralUInt16.Max,
+            ("uint", true) => IntegralUInt32.Max,
+            _ => throw new InvalidOperationException("未知整数测试输入。"),
+        };
+        long expected = kind switch
+        {
+            "sbyte" => sbyte.MinValue,
+            "ushort" => ushort.MaxValue,
+            "uint" => uint.MaxValue,
+            _ => throw new InvalidOperationException("未知整数类型。"),
+        };
+        DbType declaredType = kind switch
+        {
+            "sbyte" => DbType.SByte,
+            "ushort" => DbType.UInt16,
+            "uint" => DbType.UInt32,
+            _ => throw new InvalidOperationException("未知整数类型。"),
+        };
+        object? nullableValue = kind switch
+        {
+            "sbyte" => (object?)(sbyte?)sbyte.MinValue,
+            "ushort" => (object?)(ushort?)ushort.MaxValue,
+            "uint" => (object?)(uint?)uint.MaxValue,
+            _ => throw new InvalidOperationException("未知整数类型。"),
+        };
+        string embeddedRoot = Path.Combine(_dataRoot!, "integral-embedded");
+        await using (var connection = new SndbConnection(IntegralConnectionString(protocol, embeddedRoot)))
+        {
+            await connection.OpenAsync(deadline.Token);
+            await using var command = connection.CreateCommand();
+            command.CommandTimeout = 10;
+            command.CommandText = "CREATE TABLE integral_parameters (id INT, value INT NULL, PRIMARY KEY(id))";
+            command.ExecuteNonQuery();
+            var parameter = new SndbParameter("@value", value);
+            command.Parameters.Add(parameter);
+            command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(1,@value)";
+            Assert.Equal(1, command.ExecuteNonQuery());
+            Assert.Same(value, parameter.Value);
+            Assert.Equal(DbType.Object, parameter.DbType);
+
+            parameter.DbType = declaredType;
+            command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(2,@value),(3,@value)";
+            Assert.Equal(2, await command.ExecuteNonQueryAsync(deadline.Token));
+            command.CommandText = "SELECT id,value FROM integral_parameters WHERE value=@value ORDER BY id";
+            using (var reader = command.ExecuteReader())
+            {
+                Assert.Equal(typeof(long), reader.GetFieldType(1));
+                for (int row = 1; row <= 3; row++)
+                {
+                    deadline.Token.ThrowIfCancellationRequested();
+                    Assert.True(reader.Read());
+                    Assert.Equal(row, reader.GetInt64(0));
+                    Assert.Equal(expected, Assert.IsType<long>(reader.GetValue(1)));
+                }
+                Assert.False(reader.Read());
+            }
+            Assert.Same(value, parameter.Value);
+            Assert.Equal(declaredType, parameter.DbType);
+
+            parameter.Value = nullableValue;
+            command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(6,@value)";
+            Assert.Equal(1, await command.ExecuteNonQueryAsync(deadline.Token));
+            Assert.Same(nullableValue, parameter.Value);
+            parameter.Value = (uint?)null;
+            command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(4,@value)";
+            Assert.Equal(1, command.ExecuteNonQuery());
+            parameter.Value = DBNull.Value;
+            command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(5,@value)";
+            Assert.Equal(1, await command.ExecuteNonQueryAsync(deadline.Token));
+
+            parameter.Value = value;
+            using (var transaction = connection.BeginTransaction())
+            {
+                command.Transaction = transaction;
+                command.CommandText = "INSERT INTO integral_parameters(id,value) VALUES(7,@value)";
+                Assert.Equal(1, await command.ExecuteNonQueryAsync(deadline.Token));
+                transaction.Rollback();
+                command.Transaction = null;
+            }
+            command.CommandText = "SELECT COUNT(*) FROM integral_parameters WHERE id=7";
+            Assert.Equal(0L, command.ExecuteScalar());
+            parameter.Value = 0L;
+            command.CommandText = "SELECT COUNT(*) FROM integral_parameters WHERE value=@value";
+            Assert.Equal(0L, await command.ExecuteScalarAsync(deadline.Token));
+        }
+
+        if (protocol != "embedded")
+            await ReopenHostAsync(deadline.Token);
+        await using (var reopened = new SndbConnection(IntegralConnectionString(protocol, embeddedRoot)))
+        {
+            reopened.Open();
+            await using var command = reopened.CreateCommand();
+            command.CommandTimeout = 10;
+            command.Parameters.Add(new SndbParameter("@value", value) { DbType = declaredType });
+            command.CommandText = "SELECT value FROM integral_parameters WHERE value=@value ORDER BY id";
+            await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+            {
+                Assert.Equal(typeof(long), reader.GetFieldType(0));
+                for (int row = 0; row < 4; row++)
+                {
+                    deadline.Token.ThrowIfCancellationRequested();
+                    Assert.True(await reader.ReadAsync(deadline.Token));
+                    Assert.Equal(expected, Assert.IsType<long>(reader.GetValue(0)));
+                }
+                Assert.False(await reader.ReadAsync(deadline.Token));
+            }
+            command.CommandText = "SELECT COUNT(*) FROM integral_parameters WHERE value IS NULL";
+            Assert.Equal(2L, await command.ExecuteScalarAsync(deadline.Token));
+        }
+        if (protocol != "embedded")
+        {
+            var requests = _requests.Where(request =>
+                request.Path == $"/v1/db/{DatabaseName}/sql" || request.Path == "/v1/frame").ToArray();
+            Assert.NotEmpty(requests);
+            Assert.All(requests, request => Assert.Equal(
+                protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+            if (protocol == "frame-http2")
+                Assert.Contains(requests, request => request.Path == "/v1/frame");
+        }
+    }
+
+    /// <summary>枚举归一化继承原 UInt64 参数边界，不把高位值转为浮点或截断。</summary>
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task IntegralParameters_UInt64AndEnumAboveInt64_KeepExistingRejection(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string embeddedRoot = Path.Combine(_dataRoot!, "integral-unsigned-boundary");
+        await using var connection = new SndbConnection(IntegralConnectionString(protocol, embeddedRoot));
+        await connection.OpenAsync(deadline.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = 10;
+        command.CommandText = "SELECT @value";
+        var parameter = new SndbParameter("@value", ulong.MaxValue);
+        command.Parameters.Add(parameter);
+        object[] values = [ulong.MaxValue, IntegralUInt64.Max];
+        for (int index = 0; index < values.Length; index++)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            parameter.Value = values[index];
+            if (protocol == "embedded")
+                await Assert.ThrowsAsync<OverflowException>(() => command.ExecuteScalarAsync(deadline.Token));
+            else
+                await Assert.ThrowsAsync<NotSupportedException>(() => command.ExecuteScalarAsync(deadline.Token));
+            Assert.Same(values[index], parameter.Value);
+            Assert.Equal(DbType.Object, parameter.DbType);
+        }
+    }
+
+    private string IntegralConnectionString(string protocol, string embeddedRoot)
+        => protocol == "embedded" ? $"Data Source={embeddedRoot}"
+            : ConnectionString(protocol == "rest" ? _http11Url : _frameH2Url, protocol);
+
+    private enum IntegralSByte : sbyte { Min = sbyte.MinValue }
+    private enum IntegralUInt16 : ushort { Max = ushort.MaxValue }
+    private enum IntegralUInt32 : uint { Max = uint.MaxValue }
+    private enum IntegralUInt64 : ulong { Max = ulong.MaxValue }
+
+
     [Theory]
     [InlineData("rest")]
     [InlineData("frame-http2")]
