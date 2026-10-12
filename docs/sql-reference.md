@@ -38,6 +38,7 @@ UPDATE counters SET value = value + 1 WHERE id = 1;
 - 关系表 `SUM(INT)` 保留 `Int64` 返回类型；任何累加中间结果超出有符号 Int64 范围时返回执行错误，不会转为 `Float64`。需要更大的有限精度结果时，可显式对输入使用 `CAST(value AS DECIMAL)`，但 `DECIMAL` 也受其精度范围约束。
 - `DECIMAL` / `NUMERIC` 操作数保持 `System.Decimal` 精度；`DECIMAL(p,s)` 的精度范围为 `1..38` 且 `0 <= s <= p`，省略括号时使用 `(38,28)`。关系表中的值以 16 字节 decimal payload 持久化，schema format v9 保存声明的 precision/scale；超出 Decimal 范围或声明精度/小数位无效时拒绝执行。
 - 按位 `&` / `|` 只接受整数操作数并返回 `Int64`，任一操作数为 `NULL` 时结果为 `NULL`；浮点、字符串或其他非整数操作数会返回包含“只支持整数操作数”的中文执行错误。
+- `shift_left(value, count)` / `shift_right(value, count)` 接受可表示为有符号 `Int64` 的整数并返回 `Int64`；任一参数为 `NULL` 时返回 `NULL`。位宽固定为 64，左移丢弃移出位，右移为保留符号的算术右移；`count` 必须为 `0..63`，负数及大于等于 64 的计数明确拒绝。FLOAT、DECIMAL 和字符串即使数值为整数也不隐式转换；超出 `Int64` 的无符号值拒绝。Provider 可将移位表达式翻译为这两个函数，CLR `int`/`long` 的位宽和计数掩码须由 Provider 显式保持；引擎不自动套用 CLR 掩码。
 - 任一算术操作数为 `NULL` 时结果为 `NULL`。除数或模数为 `0` 时抛出执行错误，不返回 `Infinity` / `NaN`。
 - `+` 只做数值加法，不把字符串隐式转成数字，也不做字符串拼接。字符串连接使用 `concat(...)`；其中 `NULL` 参数按空字符串处理。
 - 支持聚合结果外包算术或标量函数，例如 `count(*) + 1`、`round(avg(value) + 0.25, 2)`；关系表、measurement 和 document collection 查询遵循同一规则。
@@ -1338,6 +1339,13 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
 - 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`trim`、`ltrim`、`rtrim`、`length` / `char_length`、`substring` / `substr`、`position(search IN value)`、`replace`、`left`、`right`、`starts_with` / `ends_with` / `contains`、`regexp_like`、`date_diff` / `datediff`、`date_format` / `format_datetime` / `strftime` / `to_char`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
 - 字符串函数对字符串参数使用 Ordinal 规则；除 `concat` 将 NULL 参数视为空字符串外，字符串参数或位置/长度参数为 NULL 时返回 NULL。`substring` 使用从 1 开始的位置，省略长度时截取到末尾；位置必须大于等于 1，长度和 `left` / `right` 的字符数不能为负数。`length` 返回 .NET UTF-16 字符数（`long`），不是 UTF-8 字节数。`position(search IN value)` 返回按 UTF-16 计数的 1 基位置，未找到返回 0，空搜索串返回 1；关系表、Document 和时序查询可通过共用的标量函数求值器调用。
+- `lpad(value, width [, padding])` / `rpad(value, width [, padding])` 将字符串填充至目标宽度，分别在左侧或右侧补充。省略 `padding` 时使用空格；非空自定义填充串循环使用，最后一段只取所需前缀。宽度及前缀按 UTF-16 单元计数，与 `length` 一致；组合字素可以拆分，但输出必须保持代理对完整。原串及实际使用的填充片段包含孤立代理项、或截断填充串会切开代理对时，明确返回执行错误；未使用的填充尾部不参与验证。例如 `lpad('7',3,'😀')` 返回 `'😀7'`，`lpad('7',2,'😀')` 拒绝且不改变请求宽度。目标宽度小于等于原串长度时保留原串（与 CLR `PadLeft` / `PadRight` 一致，不采用 PostgreSQL 的截断行为）；空原串允许填充，零宽度保留原串。任一参数为 `NULL` 时返回 `NULL`；其它调用中空填充串一律拒绝，即使不需要补充。`value` / `padding` 必须是字符串，`width` 必须是非负整数，不隐式转换 FLOAT、DECIMAL 或字符串。单次结果最多 1,048,576 个 UTF-16 单元（约 2 MiB 字符数据），超限目标或原串均在扫描或分配填充结果前拒绝；空关系及全 NULL 结果仍声明 STRING。原生实现与正式包发布、FreeSql Provider 适配分别验收。
+
+```sql
+SELECT lpad('7', 4, '0') AS left_code,  -- '0007'
+       rpad('7', 4, '0') AS right_code, -- '7000'
+       lpad('abcd', 2) AS unchanged;    -- 'abcd'
+```
 
 常用字符串函数示例：
 

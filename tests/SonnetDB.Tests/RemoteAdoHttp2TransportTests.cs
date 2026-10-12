@@ -924,6 +924,126 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         if (protocol == "frame-http2") Assert.Contains(observed, request => request.Path == "/v1/frame");
     }
 
+    /// <summary>真实 REST 与 h2c ADO 保持移位参数、UPDATE、NULL 和空结果 Int64 元数据一致。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void ShiftFunctions_RealTransport_PreservesValuesAndDeclaredMetadata(string protocol)
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _http11Url;
+        using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE shift_bits (id INT, flags INT, PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "SELECT shift_left(flags, 1) AS shifted FROM shift_bits";
+        using (var empty = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(long), empty.GetFieldType(0));
+            Assert.False(empty.Read());
+        }
+        command.CommandText = "INSERT INTO shift_bits(id,flags) VALUES(1,6),(2,NULL)";
+        Assert.Equal(2, command.ExecuteNonQuery());
+        var count = command.CreateParameter();
+        count.ParameterName = "@count";
+        count.Value = 1L;
+        command.Parameters.Add(count);
+        command.CommandText = "UPDATE shift_bits SET flags=shift_left(flags,@count) WHERE shift_right(flags,@count)=3";
+        Assert.Equal(1, command.ExecuteNonQuery());
+        command.CommandText = "SELECT id,shift_right(flags,@count) AS shifted FROM shift_bits ORDER BY id";
+        using (var rows = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(long), rows.GetFieldType(1));
+            Assert.True(rows.Read());
+            Assert.Equal(6L, rows.GetInt64(1));
+            Assert.True(rows.Read());
+            Assert.True(rows.IsDBNull(1));
+            Assert.False(rows.Read());
+        }
+        command.CommandText = "SELECT shift_right(flags,@count) FROM shift_bits WHERE flags IS NULL";
+        using var missing = command.ExecuteReader();
+        Assert.Equal(typeof(long), missing.GetFieldType(0));
+        Assert.True(missing.Read());
+        Assert.True(missing.IsDBNull(0));
+    }
+
+    /// <summary>真实 REST 与 h2c ADO 保持填充参数、UTF-16 宽度、NULL 和空结果 STRING 元数据一致。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void PaddingFunctions_RealTransport_PreservesTextAndDeclaredMetadata(string protocol)
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _http11Url;
+        using var connection = new SndbConnection(ConnectionString(baseUrl, protocol));
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE padded_codes (id INT, code STRING, PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "SELECT lpad(code,4), rpad(code,4) FROM padded_codes";
+        using (var empty = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(string), empty.GetFieldType(0));
+            Assert.Equal(typeof(string), empty.GetFieldType(1));
+            Assert.False(empty.Read());
+        }
+        command.CommandText = "INSERT INTO padded_codes(id,code) VALUES(1,'7'),(2,NULL),(3,'😀'),(4,'abcdef')";
+        Assert.Equal(4, command.ExecuteNonQuery());
+        var width = command.CreateParameter();
+        width.ParameterName = "@width";
+        width.Value = 4L;
+        command.Parameters.Add(width);
+        var padding = command.CreateParameter();
+        padding.ParameterName = "@padding";
+        padding.Value = "ab";
+        command.Parameters.Add(padding);
+        command.CommandText = "SELECT lpad(code,@width,@padding),rpad(code,@width,@padding) FROM padded_codes WHERE rpad(code,@width,@padding)='7aba'";
+        using (var row = command.ExecuteReader())
+        {
+            Assert.True(row.Read());
+            Assert.Equal("aba7", row.GetString(0));
+            Assert.Equal("7aba", row.GetString(1));
+            Assert.False(row.Read());
+        }
+        command.CommandText = "SELECT lpad(code,@width,@padding),rpad(code,@width,@padding) FROM padded_codes WHERE code IS NULL";
+        using (var missing = command.ExecuteReader())
+        {
+            Assert.Equal(typeof(string), missing.GetFieldType(0));
+            Assert.Equal(typeof(string), missing.GetFieldType(1));
+            Assert.True(missing.Read());
+            Assert.True(missing.IsDBNull(0));
+            Assert.True(missing.IsDBNull(1));
+        }
+        command.CommandText = "SELECT lpad(code,@width,@padding),rpad(code,@width,@padding) FROM padded_codes WHERE id=3";
+        using (var unicode = command.ExecuteReader())
+        {
+            Assert.True(unicode.Read());
+            Assert.Equal("ab😀", unicode.GetString(0));
+            Assert.Equal("😀ab", unicode.GetString(1));
+        }
+        command.CommandText = "SELECT lpad(code,@width,@padding) FROM padded_codes WHERE id=4";
+        Assert.Equal("abcdef", command.ExecuteScalar());
+        width.Value = 3L;
+        padding.Value = "😀";
+        command.CommandText = "SELECT lpad(code,@width,@padding),rpad(code,@width,@padding) FROM padded_codes WHERE id=1";
+        using (var completePair = command.ExecuteReader())
+        {
+            Assert.True(completePair.Read());
+            Assert.Equal("😀7", completePair.GetString(0));
+            Assert.Equal("7😀", completePair.GetString(1));
+        }
+        width.Value = 2L;
+        command.CommandText = "SELECT lpad(code,@width,@padding) FROM padded_codes WHERE id=1";
+        var leftError = Assert.Throws<SndbServerException>(() => command.ExecuteScalar());
+        Assert.Contains("截断填充串会切开代理对", leftError.Message, StringComparison.Ordinal);
+        width.Value = 4L;
+        command.CommandText = "SELECT rpad(code,@width,@padding) FROM padded_codes WHERE id=1";
+        var rightError = Assert.Throws<SndbServerException>(() => command.ExecuteScalar());
+        Assert.Contains("截断填充串会切开代理对", rightError.Message, StringComparison.Ordinal);
+        width.Value = 1_048_577L;
+        command.CommandText = "SELECT rpad(code,@width,@padding) FROM padded_codes WHERE id=1";
+        Assert.Throws<SndbServerException>(() => command.ExecuteScalar());
+    }
+
     private async Task<List<(FrameHeader Header, byte[] Payload)>> SendSqlFrameAsync(
         string sql, string? resultVersion, IReadOnlyDictionary<string, object?>? parameters = null)
     {
