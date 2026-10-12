@@ -5330,6 +5330,12 @@ internal static class TableSqlExecutor
                 column.IsRowVersion);
         }
 
+        if (projection.ExpressionValue is FunctionCallExpression function
+            && string.Equals(function.Name, "uuid", StringComparison.OrdinalIgnoreCase)
+            && FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(function.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.String, false);
+
         if (projection.Kind != ProjectionKind.Constant)
             return new SelectColumnInfo(null);
 
@@ -5718,6 +5724,9 @@ internal static class TableSqlExecutor
 
     private static object? EvaluateDefaultFunction(FunctionCallExpression function, bool requireExactDecimal)
     {
+        if (string.Equals(function.Name, "uuid", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("函数 uuid() 不支持列 DEFAULT；请在 SELECT 或 UPDATE SET 中逐行调用。");
+
         var scalarFunction = FunctionRegistry.ScalarFunctions.FirstOrDefault(candidate =>
             string.Equals(candidate.Name, function.Name, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"列 DEFAULT 不支持标量函数 '{function.Name}'。");

@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
+
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
@@ -473,6 +475,11 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- PR #298：后台已领取语义回填页的控制测试仅为独立宿主配置匹配的恢复/页预算，在释放三秒有界观察前确认页与调用者令牌未取消；保留真实进行中响应和终态 scanned=1/queued=1/skipped=0，生产默认预算与原页预算取消用例不变。默认恢复取消后的持久计数缺口已受控复现，另行跟踪。
+- 批量集成已审 PR #281 与 #217；语义图片回填测试对明确进行中 response 等待同一持久终态，保留首次排队1及重复回填scanned1/queued0/skipped1、thumbnail/search/delete/disable原断言；真实后台持页 partial0 回归与完整18个Semantic测试通过，生产代码及真实模型质量声明不变。
+- **前端依赖与 MapLibre 6 迁移（2026-10-12）**：保留 PR #217 覆盖 #218 的 Web/VS Code 锁定依赖更新；两个地图组件改用 ESM namespace/type 导入和局部创建实例，并通过 Vite `worker&url` 打包和显式配置独立地图 worker，保留现有瓦片、投影、结果地图和轨迹逻辑。
+
+
 - 持久死信 CI 测试：检查点锁故障恢复使用一致的 2 秒存储预算和贯穿初始化/故障/重开的 15 秒调用者取消边界；精确区分订阅包装层、检查点操作层和文件锁三个已存在的超时消息及 inner exception，保留意图恢复与恰好一次断言，不修改生产超时。
 - GH-Issue #235 的 NumericText 保留后，修正三个既有 parser AST 相等性预期，分别覆盖 0.5 默认值、1.5 INSERT 和负数字面量的正数 operand；保留精确原数字文本与生产相等性合同。原 Ubuntu 全量失败与修正后定向验证分列。
 - GH-Issue #241：ADD/ALTER DECIMAL/NUMERIC 的 precision/scale 穿透解析、schema 演进及持久化，未修改列保留原声明，远程表元数据保留 scale=0；DDL 在发布 schema 前无损预检全部旧行与默认值，拒绝小数损失/溢出及原始字符串转换舍入。表 schema v10、public 构造/解构和普通写入合同保持；持续值约束归 #264，正式包及 XCode 迁移验收另列。
