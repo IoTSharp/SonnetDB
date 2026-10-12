@@ -245,20 +245,34 @@ public sealed class FileStreamingDeadLetterTests
     [InlineData("checkpoint")]
     public async Task OpenAsync_WithResignedPendingIntentMismatch_FailsClosedAndPreservesOriginalSpool(string change)
     {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         using var directory = new TemporaryDirectory();
         var definition = Definition();
-        var options = Options() with { OperationTimeoutMilliseconds = 200 };
-        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options))
+        // 持久选项在初开和重开时必须一致；两秒覆盖初始化及真实锁超时，另保留测试总截止。
+        var options = Options() with { OperationTimeoutMilliseconds = 2_000 };
+        await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token))
         {
-            await subscription.PublishAsync(Event(1));
-            StreamingDeliveryBatch batch = (await subscription.ReadBatchAsync())!;
+            await subscription.PublishAsync(Event(1), deadline.Token);
+            StreamingDeliveryBatch batch = (await subscription.ReadBatchAsync(deadline.Token))!;
             string lockPath = Directory.GetFiles(Path.Combine(directory.Path, "checkpoints"), "*.lock").Single();
             using var heldLock = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
-                batch.DeliveryId, subscription.StateRevision, batch.Attempt, "poison").AsTask());
+            TimeoutException failure = await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
+                batch.DeliveryId, subscription.StateRevision, batch.Attempt, "poison", deadline.Token).AsTask());
+            if (failure.Message == "持久订阅操作超过存储操作超时边界。")
+            {
+                // wrapper 取消分支不保留原 OperationCanceledException。
+                Assert.Null(failure.InnerException);
+            }
+            else
+            {
+                Assert.Equal($"无法在 {options.OperationTimeoutMilliseconds} 毫秒内取得检查点文件锁。", failure.Message);
+                // 最后一次锁重试保留 IOException；重试循环后的 fallback 不含 inner。
+                Assert.True(failure.InnerException is IOException or null);
+            }
+            Assert.False(deadline.IsCancellationRequested);
         }
 
-        FileStreamingDeadLetterState state = (await ReadEnvelopeAsync(directory)).State;
+        FileStreamingDeadLetterState state = (await ReadEnvelopeAsync(directory, deadline.Token)).State;
         FileStreamingDeadLetterRecord record = state.Records[0];
         FileStreamingDeadLetterRecord changed = change switch
         {
@@ -266,11 +280,12 @@ public sealed class FileStreamingDeadLetterTests
             "revision" => record with { ExpectedStateRevision = record.ExpectedStateRevision + 1 },
             _ => record with { Checkpoint = record.Checkpoint with { WatermarkUtc = Utc(20) } },
         };
-        await WriteResignedStateAsync(directory, state with { Records = [changed] });
-        await Assert.ThrowsAsync<InvalidDataException>(() => FileStreamingSubscription.OpenAsync(directory.Path, definition, options).AsTask());
-        using var spool = new CdcEventSpool(Path.Combine(directory.Path, "events.spool"));
-        Assert.Single(await spool.ReplayAsync());
+        await WriteResignedStateAsync(directory, state with { Records = [changed] }, deadline.Token);
+        await Assert.ThrowsAsync<InvalidDataException>(() => FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token).AsTask());
+        using var spool = new CdcEventSpool(Path.Combine(directory.Path, "events.spool"), null, deadline.Token);
+        Assert.Single(await spool.ReplayAsync(deadline.Token));
         Assert.Equal(-1, spool.AcknowledgedCheckpoints.GetValueOrDefault(0, -1));
+        Assert.False(deadline.IsCancellationRequested);
     }
 
     [Theory]
@@ -420,17 +435,20 @@ public sealed class FileStreamingDeadLetterTests
     private static string DeadLetterPath(TemporaryDirectory directory)
         => Path.Combine(directory.Path, "dead-letters", "state.json");
 
-    private static async Task<FileStreamingDeadLetterEnvelope> ReadEnvelopeAsync(TemporaryDirectory directory)
-        => JsonSerializer.Deserialize(await File.ReadAllBytesAsync(DeadLetterPath(directory)),
+    private static async Task<FileStreamingDeadLetterEnvelope> ReadEnvelopeAsync(
+        TemporaryDirectory directory, CancellationToken cancellationToken = default)
+        => JsonSerializer.Deserialize(await File.ReadAllBytesAsync(DeadLetterPath(directory), cancellationToken),
             FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterEnvelope)!;
 
-    private static async Task WriteResignedStateAsync(TemporaryDirectory directory, FileStreamingDeadLetterState state)
+    private static async Task WriteResignedStateAsync(
+        TemporaryDirectory directory, FileStreamingDeadLetterState state, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] stateBytes = JsonSerializer.SerializeToUtf8Bytes(state, FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterState);
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(
             new FileStreamingDeadLetterEnvelope(state, Convert.ToHexString(SHA256.HashData(stateBytes))),
             FileStreamingDeadLetterJsonContext.Default.FileStreamingDeadLetterEnvelope);
-        await File.WriteAllBytesAsync(DeadLetterPath(directory), bytes);
+        await File.WriteAllBytesAsync(DeadLetterPath(directory), bytes, cancellationToken);
     }
 
     private sealed class TemporaryDirectory : IDisposable
