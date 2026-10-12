@@ -2110,3 +2110,15 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 精确c1bfdd7 Linux全套失败保留：Core6352/6353、Server1177/1179，三失败均在seed写入拒绝20,6声明。样本9007199254740993.125000需要16整数位+6声明小数=22precision；两个源/目标schema改为22,6，原大值、assertions、identity/RETURNING和production约束不变。此为旧夹具纠正，未改写precision校验或减小样本。新增准确Core/真实Server复验与完整最终restore/format结果见独立pr295-fixture0510收据；本段不预写PASS。正式包/Chloe/AOT消费者仍独立，Issue264不关闭。
 
 准确复验补充：本次两Release构建均0warnings/errors；Core完整InsertSelect/DecimalEnforcement/DecimalDeclaration三类66/66，真实Server修正两mode、异步InsertSelect及完整HTTP2类23/23。新12源/PDB SHA绑定已PASS，原CI三失败及原首helper错误保留。最终整树restore/原Format Check/cached whitespace及新head以pr295-fixture0510不可变收据为准；上述局部通过不写为全suite或正式包验收。
+
+
+## 2026-10-12 独立 Streaming 检查点超时 CI 测试合同修复
+
+- 本片从干净 codex/streaming-checkpoint-timeout-ci-contract、base944769b966f11e089a366266927f0486827e57ed 接续（含已合 #295），只修改两个 observed streaming 测试文件、CHANGELOG 和本 HANDOFF 尾追加四路径；生产 src、Git/index/refs/stash 与远端均未改。
+- 原 #294 精确 head9d037d2 的 Linux/Windows CI FAIL 保留，原 run38206032265、jobs114669620104/114669620095 完整日志及诊断归档到 artifacts/online-closure-20261012/streaming-ci-fix-0647/original-ci。Linux 唯一失败是 pending isolation 测试未枚举实际检查点操作超时；Windows 唯一失败发生在 200ms 首次 OpenAsync，尚未进入 held-file-lock 故障点。此独立测试修复不代替 #244 VALUES 产品合同或正式包验收。
+- Windows WithCheckpointLockTimeout_ReopensAndCompletesIntentExactlyOnce 将初开与两次重开的同一持久选项统一为2000ms，贯穿15秒调用者令牌至初开、发布、读取、隔离、读取意图、故障后状态拒绝、重开、死信列表与最终事件读取；两处确认调用者未取消。真实独占 checkpoint 文件锁、未提交 checkpoint=-1、pending=2、PendingDeliveryId、重开 checkpoint=1/pending=1/意图清除、剩余 sequence=2 与第二次重开恰好一条死信的原断言全部保留。
+- 两个目标测试继续精确 Assert.ThrowsAsync<TimeoutException>，明确枚举三个生产原消息：订阅 wrapper 超时/null inner、检查点操作超时/null inner、文件锁超时/IOException 或源码 fallback 的 null inner。Linux 只新增缺失的检查点操作分支；不改生产定时器、不使用宽泛 ThrowsAny、不添加重试或跳过。
+- 唯一 Core Release build PASS，0 warning/error，89.5秒，2CPU/-m:1/shared compilation和node reuse关闭；owned两文件format verify PASS（54.8秒）。相同冻结DLL的微试2/2、三个完整类86/86（Subscription35、DeadLetterOperations27、DeadLetter24）及唯一15秒上限新进程观察2/2（9.3秒）均通过；重复两例包含在86内，不累计为新的独立测试数量。未做第二构建或更多观察进程。
+- build-inputs.json 冻结15项输入，生产/配置/未改订阅测试哈希稳定；binaries.json 和 actual-binaries 归档producer/copied Core/Data/Test DLL、PDB、runtimeconfig及版本/hash，producer/copied DLL一致。PE metadata确认7本仓库执行程序集实际Release/优化开启，Portable PDB逐5个目标源SHA匹配（两个修改测试、三个相关生产源）。完整非空TRX/逐例/逐类结果独立留存。
+- 专属 D:\streamci-0647 已按 owner、绝对路径、无reparse、有界 14 项清单和无活跃引用核验后一次删除。cleanup审计8个此前Jobs/57个记录PID+创建UTC+完整命令行+父PID，live=0/unknown=0/temp references=0；后续最后审计与self runner cleanup单列。历史全部FAIL/UNKNOWN/NOT_RUN与旧拒删对象保留。
+- 阶段固定06:47:44Z至07:17:44Z、35shell/18hidden Jobs、最多2build/3testwindows，未延旧阶段。本代理仅完成局部真实回归、字节前缀保存和证据交接；root须在最终待提交树执行完整solution restore与原CI Format Check，审查四路径后建立独立test-only PR并核新head Windows/Linux全suite。上述root门禁、Git/GitHub交付、新CI、nightly/parity与正式包/生产验收仍 NOT_RUN，不能把86/86写为全suite修复完成。
