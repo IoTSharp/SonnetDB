@@ -1928,6 +1928,8 @@ Release 本地 Core 定向测试 23/23（新 UUID 16/16及既有 UPDATE/事务�
 证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-271-*.json/.trx/.log；最后 freeze 绑定 12 路径与 DLL SHA。执行智能体不操作 index/commit/push/GitHub；主智能体接下来复核冻结范围、最终完整 restore/原 CI Format Check，再精确提交推送和处理 PR/issue。正式修复包、公开消费、NativeAOT 发布、SQLite 包对照、实际 ABP Passkey/A06/BookStore 及最大支持 BLOB 长度仍为独立 NOT_RUN/UNKNOWN；这些源代码与真实本地 Server 测试不关闭外部验收。
 
 
+
+
 ## 线上闭环执行：GH-Issue #223 基础字符串聚合（2026-10-12，Asia/Shanghai）
 
 当前八路径实现位于 codex/issue223-string-aggregation，基线 a299a3fcc42de494145be74a8ee451aedeec4249。新增关系表 string_agg(value, delimiter) 与双参数同义 group_concat；STRING/NULL 输入、NULL 跳过、空串/重复/Unicode 保留、空输入/全 NULL 返回 NULL、NULL 分隔符为空串，分隔符只接受 STRING/NULL 字面量或绑定参数。支持 GroupBy/JOIN 和单列关联聚合，裸字符串聚合及关联子查询提供 nullable String 元数据，包括空外层结果；输入顺序不保证。DISTINCT、聚合内 ORDER BY、OVER 和 measurement 明确拒绝，不扩展任意 registry aggregate。
@@ -2231,3 +2233,5 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 
 
 字符串聚合当前 main2411 正常合并：UUID 与 correlated string aggregate metadata 两分支保留；remote 仅加入完整原 string aggregate method，最新 UUID/AggregateCast 原文件内容逐字保留。此私有 checkpoint 仅保存已审查来源；当前组合 runtime 未运行，待接入 #285 后一起验证。原 Windows allocation7792/4096 与旧 local零分配观察仍 UNKNOWN，阈值不变。最终 whole restore/原 Format 由根收据绑定，未 push/main/正式 package 或 FreeSql consumer 验收。
+
+根复核字符串聚合/BLOB合批（2026-10-13）：当前main已含BLOB第一父图，正常merge285仅2doc paths，未重加旧生产文件；metadata保UUID和stringAgg、最新remote原methods逐字保留另加完整原stringAgg。新Core290/290（11整类，Knn原4096 guard本窗0bytes）和完整EF90/90；两Releasebuild0warn/errors，52inputs/28runtime/38真实PDB root independently verified。EFBlob实际embedded+REST+h2c三cases全部Passed，64KiB/NULL/Eq/Any/SequenceEqual/rollback/reopen/EXPLAIN断言保持；Server RemoteStringAgg方法未跑，最终共同候选须单独实测。原7792/4096及21窗0保持历史UNKNOWN。正式package/FreeSql/Chloe/ABP不由source/localPASS替代；完整whole restore/原Format与privatecommit由root收据绑定，未push/main。本批与另一已验SQL11组件合并成13原PR最终candidate统一CI。
