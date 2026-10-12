@@ -1908,6 +1908,17 @@ P07/P08 当前任务已完成，收尾已快进推送 main：dcadffc7137f5653ec4
 
 执行顺序先逐 PR 审查/刷新/验证/串行合并；Issue #219 和 #228 的隔离实现可准备，但代码合入不替代正式 NuGet、上游 ORM、干净机器或生产验收。真实发布及上游依赖未满足者保持开放。所有 task 使用 PowerShell 7、有界 Windows Job、取消入口、精确身份与 finally 清理；Internet 直连失败记录保留后仅单命令代理回退，workbench 自动化保持暂停。
 
+
+## Issue #271 BLOB 参数查询实现与本地证据（2026-10-12，Asia/Shanghai）
+
+隔离分支 codex/issue271-binary-predicate 从 a299a3fc 实现 #271；本次只拥有八个 SQL/ADO 生产路径、两个新测试文件、CHANGELOG 和本交接，共 12 路径。嵌入式 byte[] 参数保留类型并复制为 BLOB 字面量，远程使用严格 X'HEX'；普通和关联等值按字节内容比较，原字符串语义和未定义的 BLOB 排序拒绝保持，PK/二级索引及 EXISTS 访问路径继续使用 typed literal。未修改 EF 类型映射、行/键/索引 codec、生产 JSON、依赖或存储格式；#272 的独立变更不在本分支。
+
+47/47 Core 合同及相关既有回归、3/3 EF 嵌入式/真实 REST/精确 h2c、60/60 既有 EF provider 回归通过，共 110 项不同测试。实际 ADO 拦截确认 SndbCommand、DbType.Binary 与 byte[]，覆盖独立等值、关联 Any/SequenceEqual、空/高位/不同长度/不同用户/DBNull、65,536 字节、索引/EXISTS 执行指标、更新/删除/事务回滚及实际 Server stop/dispose/reopen。最终 EF 私有字段命名和 Reset 排版修改后，主智能体授权第四且最后一次构建，三项 EF 测试再次通过；既有 60 项回归在此前相同生产 DLL 上运行。本次没有第五次构建。
+
+首次新 Core 测试 8/10 通过，两项 INSERT 夹具遗漏列列表的失败 TRX/日志保留，修正夹具后的 47/47 记录独立存在；日期读取、PowerShell true 语法及 LASTEXITCODE 调用检查的历史 shell 误报也保留说明。五次 Windows Job 全部 cleanupComplete=true；独立核 42 个 ledger/root/controller 身份的 PID、创建时间、完整命令、父链及任务归属，没有匹配存活身份。五个仅本任务使用的 i271-* TEMP 在绝对路径、owner JSON 和有界库存核验后各一次删除并确认不存在；#270/#272 旧拒绝删除目录保持。原 HANDOFF 字节前缀不改。
+
+证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-271-*.json/.trx/.log；最后 freeze 绑定 12 路径与 DLL SHA。执行智能体不操作 index/commit/push/GitHub；主智能体接下来复核冻结范围、最终完整 restore/原 CI Format Check，再精确提交推送和处理 PR/issue。正式修复包、公开消费、NativeAOT 发布、SQLite 包对照、实际 ABP Passkey/A06/BookStore 及最大支持 BLOB 长度仍为独立 NOT_RUN/UNKNOWN；这些源代码与真实本地 Server 测试不关闭外部验收。
+
 ## 线上闭环执行：PR #268 依赖刷新（2026-10-12，Asia/Shanghai）
 
 PR #214 最终 restore/原 format 通过，实际 SpanReader TRX 30/30 与 Cobertura 已独立核验，Windows Job 回收通过；提交 91d316b8de884589f3d1253fef4711f3db2da47c 已普通推回原 dependabot 分支并更新 PR 说明，新 head CI 待完成，未合并 main。
@@ -1915,6 +1926,20 @@ PR #214 最终 restore/原 format 通过，实际 SpanReader TRX 30/30 与 Cober
 当前 PR #268 正常合入上述已核 #214 依赖，唯一产品差异为 Testcontainers 4.15.0→4.16.0，原 NuGet MIT 已核，不扩为 NativeAOT 支持。最终树必须完整 restore/原 format、五框架编译与现有 Docker context 回归通过；真实 Docker 生命周期另记，未执行不能推定通过。验证收据与精确 tree/SHA 留在 artifacts/online-closure-20261012；最终串行合并顺序为 #214 后 #268，不先合入有前置的分支。
 
 三执行智能体保持隔离：#219 最终真实 REST/h2c 验证中，#228 静态候选待构建槽，#265 启动竞态对照验证中。正式 NuGet、FreeSql/Chloe/XCode/SqlSugar/ABP 适配、干净 Windows 与生产边界未满足者保留开放。原根工作树和 parity-results 不动，进程清理与禁止 Graphify 继续生效。
+
+## 线上闭环执行：PR #267 ONNX Runtime 依赖刷新（2026-10-12，Asia/Shanghai）
+
+PR #268 已在最终 restore/原 CI format、五框架编译及真实 Testcontainers 原生归档器 1/1 TRX 通过后提交 0a07216e2cf1e040b7f47763b8621aeb974174a3 并推回原分支；新 head CI 待完成。当前 #267 正常合入 #268（前置 #214），仅升级 ONNX Runtime 1.30.0→1.31.0，加本段及 CHANGELOG；MIT 原 NuGet 来源已核。将运行既有 LocalOnnxEmbeddingProviderTests 的真实 native runtime 与微型合成 graph，核 profile、tokenizer、padding、pooling 与 tensor 合同；此类结果不能冒称真实语义/模型质量、成本或生产验收。完整 solution restore/规定 format 通过后才提交，实际 receipt/tree/SHA 留于 artifacts/online-closure-20261012。
+
+主分支 CI 38166870523 的 Linux/Format/三个 AOT 全通过，Windows 因远程缓存手动清理与后台清理计数竞争失败，原失败保留；独立 codex/windows-ci-stability 正在修复测试时序和旧 #213/#269 测试边界，未削弱生产 timeout/cleanup。#265 CAP42、原 format/独立 CAP format/17发行库存合同通过后，74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 已推原分支，新 CI 待完成。#219 c8fd0e85 已创建 PR #274；#228 最终 Core125/真实HTTP2 19 与最终 restore/format 通过，988553d1 已提交推候选，PR 待创建。#220 独立实现验证中，#273 只读准备完成。外部正式 NuGet/ORM/干净 Windows/生产边界仍开放，canonical dirty、冻结发布和 parity-results 保留。
+## 线上闭环执行：PR #215/#216 SkiaSharp 配对升级候选（2026-10-12，Asia/Shanghai）
+
+原两个 PR 分别只升级托管或 Linux native 包，原 Linux CI/AOT 失败日志已定位为版本失配。当前 #215 正常合入已验证 #267（前置 #214/#268），同步两 PackageVersion 到 4.153.1，保留原 MIT 来源、完整 CHANGELOG 和既有交接；产品差异仅两版本行。需完成最终完整 restore/原 CI Format Check 及既有实际图像处理/对象处理回归，Linux native 与各 RID AOT 由此新 head 的真实 CI 独立确认。不会以 Windows 本机 native 成功替代 Linux/RID 验收。#216 的改动包含在配对候选中，待实际合入 main 后才能在原 PR 记录被替代并关闭，当前未关闭或声称已合并。
+
+#267 的51 native/synthetic ONNX合同、完整 restore/原 format 通过，fbc2d88f3e06a1576694ad2922dc527f03957d1c 已推原分支；真实模型质量仍独立。#214 当前只剩 Windows CI，未合并。#273 十二项真实 EF 回归及最终 restore/format 通过，7f751eac65d69ecee7e7286f5b2700aec751c9ff 已本地提交，尚待推送/PR；#228 已 PR #275，#219 已 PR #274，均不自动关闭正式包与 ORM 验收。Windows CI 独立修复三组 Core53/Graph13/Cache4 共70通过，根最终门禁待执行。#220 原117/19发现emoji填充截断会制造孤立代理项，正在必要修复和同组复验，原快照保留，不提前写最终PASS。
+
+进程与任务通过固定 PowerShell7、数量/墙钟/取消界限和 Windows Job 管理；JSON UTC读取显式 DateKind String/DateTimeOffset，原日期误判失败与修正证据均保留。canonical dirty/shared index、正式发布冻结和 parity-results 保持；所有真正外部正式发行/上游 ORM/干净机器/生产门禁继续开放。
+
 
 ## Windows CI 时间与并发断言修复（2026-10-12，Asia/Shanghai）
 
@@ -1936,6 +1961,18 @@ PR #268 新 head 0a07216e2cf1e040b7f47763b8621aeb974174a3 的真实 Windows CI 3
 
 #214 已实时回读 MERGED/a299a3fcc42de494145be74a8ee451aedeec4249；SkiaSharp 配对提交2d3342935e69e2421136b8ce236a2cae512894a8已推#215，Windows native64/64及最终restore/format通过，Linux/AOT新CI待核。#220 b1344188已PR #278，123/19实际回归；#273 c2b5c030已刷新main并推PR #276，12实际回归及最终两轮完整门禁通过。独立PR #274/#275旧headCI已全通过但HANDOFF追加与新main冲突，需准确刷新和新head验证；不能绕过冲突或把旧headCI赋给新提交。#221/#270/前端#217正在隔离实现，#270原18FAIL与必要Core LIKE修正保持，正式NuGet/消费者验收未完成。canonical同方法134项status/共享文档diffSHA完全相同、index空，parity/冻结发布与PAUSED自动化保持。
 同轮读取 PR #265 新 head 74ddb02cc9af1c3b903b077b2cb5a2c6a1fd2455 的真实 Windows CI38170203167，失败发生在 dispatcher 测试的 OpenAsync/100ms 建立持久订阅阶段，尚未进入锁故障确认。Options 是持久化合同，不能给首次打开临时设置另一组预算。仅该测试的 false 分支存储预算改为2000ms、dispatcher总预算10秒，true分支原5000ms存储/300msdispatcher保持；两个分支共用15秒调用者取消，WaitAsync使用该令牌，额外断言调用者未取消，避免把外层WaitAsync TimeoutException误认为生产存储超时。稳定DeliveryId/Checkpoint=-1/重开后同批次/PendingCount=1的真实故障和恢复断言保持。生产配置不改、未增加重试/跳过；原FAIL保留，需实际完整dispatcher类回归及最终树重跑完整restore/原format后才追加提交到PR #277。先前物理HTTP定向1/1与restore已通过，它们不替代此新增代码后的完整门禁。
+## PR #213 CodeQL 当前主分支与 Windows 前置刷新（2026-10-12，Asia/Shanghai）
+
+从实时获取的原 head 40f2e5e6f153d83fb1136ac8b64b86a2210d604c 正常合入已推送的 Windows 前置 aaeb535739e180b35db07fb2db08a5ddc954a55f，其中已包含当前 main a299a3fc。有效自身差异仍为 init/analyze 两处 v4.38.2 和本 PR CHANGELOG/HANDOFF；MIT 版本许可已有独立记录，不修改产品源码、JSON/AOT边界或格式。早期原 Windows readiness 失败保留，独立 PR #277 的本机测试不冒称本提交整体 CI 已通过。
+
+最终完整 restore、原 CI Format Check、相对已验证前置的默认 whitespace、普通推回原分支及新 head CI 均以 artifacts/online-closure-20261012/pr213-* 收据为准。只在实际新 head 全门禁通过后串行合并；本轮不发布 NuGet、Release、tag 或变更已冻结预览。canonical dirty、parity-results、PAUSED 自动化和所有历史失败保持。
+
+## PR #269 测试适配器实时刷新（2026-10-12，Asia/Shanghai）
+
+Dependabot 在 #214 合并后已自动刷新；本轮精确 fetch 得到 cffa6a60422b635a62ad5b6714415d6f072bb81a，未使用旧 eeddcb head。该 head 远端完整检查已通过，但仍缺本 PR CHANGELOG 与当前测试前置记录，因此不直接合并。正常合入独立 PR #277 的 aaeb5357，保持测试侧 xunit.runner.visualstudio 4.0.1、PrivateAssets 与 Apache-2.0 精确版本许可，未引入 Core 运行时依赖或修改 JSON/AOT合同。
+
+原 250ms 空窗口初始化失败与日期误判记录保留，新增前置测试改变已独立验证。最终完整 restore、原 CI Format Check、真实适配器发现烟测和普通推回原分支以 artifacts/online-closure-20261012/pr269-* 收据为准；新的远端 head 必须独立通过后才串行合并。当前未发布包、tag 或 Release；canonical dirty、parity-results 与 PAUSED 自动化保持。
+
 ## Windows Outbox 批次测试预算（2026-10-12，Asia/Shanghai）
 
 PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOutboxWorker 构造器的 schema 校验阶段；100ms BatchTimeout 同时覆盖构造器和每批处理，测试尚未进入处理器。原日志保留，不据此推断生产取消失效。仅测试将预算设为2秒，处理器无限协作等待该批次令牌；外层15秒调用者令牌限制等待，并分别确认处理器进入、真实令牌取消、调用者未取消及 leased 状态/到期后的恢复投递。没有增加生产重试、跳过或修改默认配置。
@@ -1971,3 +2008,112 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 最终 owned-process-audit-final.json 实际核十八 Job 全部 cleanupComplete=true，162 个 PID/UTC 创建时间/完整命令/父链身份，0 live/unknown；一次限定 PID 的 CIM 查询完成。专属 TEMP 仅在 marker、绝对路径、无 reparse 与无活身份核实后移除（10 目录/5 文件），原十四 Job 清理回执和初次 60秒审计失败保持。HANDOFF 原字节前缀不变。没有暂存、提交、推送、GitHub 操作、服务/工具安装或新代理/工作树，索引保持空。
 
 主智能体下一步先独立核 view-declarations-final-tree.json、最终源码/DLL/TRX/清理回执，在最终待提交树执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，再精确提交/远端交付。本执行者的较早 scoped format 与本机定向/真实传输测试不替代完整 solution 门禁、全量 Windows/Linux CI、NativeAOT 发布、正式 NuGet 或消费者验收。正式已发布最低包版本、NewLife.XCode 实际逆向/代码生成/导出及外部验收仍 NOT_RUN；Issue #261 保持 OPEN，不由本地实现虚报完整闭环。
+
+## GH-Issue #235 精确 Decimal 参数与原数值文本（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-delivery 的 codex/issue235-exact-decimal-parameters，原基线 1f38728f；主智能体正常合入 #254/80f960e3 后新 HEAD 为 282d29ee8f2c662da7b76b1d5dd1f7ffab4b123a。21 个 own 代码/测试路径原文安全保存后恢复，20 源 SHA 与保存时一致，RelationalSelectExecutor 自动合入并复核继承的 CAST/Wrap 修改；stash 25a9d50021385308f5572dc98de96a0c19243ac2 及根备份保留。本阶段没有修改继承的 RemoteExecutionResult 或 WrapValueAsLiteral，HANDOFF 使用新 HEAD 的完整字节前缀后追加。
+
+ADO Decimal 参数使用 typed Decimal AST，远程使用 DECIMAL '不变量文本'；普通 Float/Double 参数使用显式 FLOAT，原 Int64 词法和 measurement 字段语义保持。DECIMAL 目标写入、CAST、比较、IN 索引候选与算术使用原浮点 token 文本，按真实 System.Decimal 96 位范围精确解析，拒绝舍入、1e-29 下溢和溢出，支持可表示的 29 位值。未扩大无小数点整数的 Int64 词法合同。文本/表达式遍历有明确长度、节点、深度、墙钟与取消边界。重算仅允许纯数值常量，UDF、列引用和子查询保留首次结果；无 child 修改时复用原 AST。
+
+新增 Decimal 类型可达既有泛参数入口，因此对信息目录、measurement SELECT/字段/混合 JOIN、共享投影、文档、文档向量、Hybrid 权重、JSON 文件与空间剪枝的最小 dispatch 明确恢复旧 Decimal 到 Double 行为，没有给这些模型新增原生 Decimal。TableInSubquery 只追加 Decimal 投影名称格式。生产改动共 19 路径，加两个新测试、CHANGELOG 与本 HANDOFF 共 23 路径；不改 JSON DTO/serializer、依赖、二进制行/键/索引 codec 或文件格式。
+
+最终第三且最后一次构建 Core 实际 221/221，含新 Decimal 合同 22 项、计数型 UDF Decimal/Double 两个对照（四语句均每行一次）、真实 measurement 写/读/维表 JOIN、Document/JSON 文件/vector_search/Hybrid 参数与 #254/#271 等既有回归；真实 ADO embedded/REST/精确 h2c 三项 3/3，原金额正负、nullable、28/29 位值、Max/Min、参数与 raw 比较/批量、事务 rollback/commit、GetValue/GetDecimal/类型及实际 Server stop/dispose/reopen 均通过。同 EF 产物旧 provider 60/60；共 284 项不同测试。首最小 1/1 与首 56/56 为较早源码证据，保留但不重复加总，也不代替后加入的兼容/UDF 回归。没有第四次构建。
+
+五个 Windows Job 全部 cleanupComplete=true，独立审计 58 个 ledger/root/controller 身份的 PID、创建 UTC、完整命令、父链与任务归属，0 matching active；五个 i235-* TEMP 在 owner/路径、2048 项/8 深度/60 秒库存边界和无 reparse 检查后各一次回收，原清理 JSON 与 stdout 保留。旧 #270/#272 拒绝对象、共享缓存、根 source dirty、parity-results、冻结 tag 与 PAUSED 自动化未触及。证据位于 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery 的 issue-235-*。
+
+首次 HANDOFF 追加守卫使用 PowerShell 不支持的 ReadOnlySpan 字节比较，在实际写入前失败；改用原/当前 SHA256 与长度检查后追加，原失败单列保留。TEMP stdout 的 dictionary Measure-Object 汇总 itemCount 为 null，逐根库存的真实 itemCount 以及 removed=true 均存在；未据该汇总空值推断库存或回收。此两项辅助脚本结果不改变五个 Job 与实际测试证据。
+
+执行智能体未暂存、提交、推送或 GitHub 写入，index 仍空；下一步由根独立核 23 路径、最终 DLL/TRX/进程/库存绑定，执行最终完整 solution restore 与原 CI Format Check，之后精确提交/推送及远端交付。声明 DECIMAL(p,s) 值约束归 #264、reader 精度/scale 元数据归 #241；原 CAST 字符串与字符串写入的转换合同未扩。正式修复 NuGet/Server、Chloe/FreeSql 正式包真实 CRUD、NativeAOT 发布和外部消费者验收仍 NOT_RUN/UNKNOWN，当前源码与真实本地 Server 定向通过不关闭这些外部条件。
+
+## PR #288 原数字文本 AST 回归（2026-10-12，Asia/Shanghai）
+
+从原 #235 已交付 head94c965f16e8699ee2f06c1561090436700e4c778干净接续。Ubuntu run38183066766/job114599537571 Core6254/6257仅三个旧 SqlParserTests AST相等预期未含新保留的NumericText（默认0.5、INSERT1.5、负数operand1.5）；整个run仍运行时log-failed拒绝以及之后exact job原日志均保留。只修三个预期，保留精确Decimal原数字文本和生产record相等性；没有删metadata或修改生产代码。
+
+本阶段最多35分钟/30shell/18Job/2次600秒2CPU构建，无额外真实transport窗口；原#235冻结23路径/284不同测试与本次parser验证分别计数。实际完整parser类TRX、源码/DLL绑定、最终完整restore/原Format Check和新提交/原PR回读由pr288-parser-*原回执记录。新head全量CI、#241父集成、正式NuGet/Chloe/FreeSql及NativeAOT验收仍单独核实，Issue保持OPEN。保留#235原stash、#289恢复stash、外来dirty、parity-results、发布冻结与PAUSED；任务Job精确身份/finally回收，不Graphify/扫描/安装/按名杀进程。
+
+
+## 2026-10-12 — #241 Decimal DDL 声明与无损迁移执行交接
+
+- 当前执行工作树：`C:\Users\mysti\.codex\worktrees\online-delivery\SonnetDB`；分支 `codex/issue241-decimal-declarations`；基线 `94c965f16e8699ee2f06c1561090436700e4c778`（#235 / PR #288）。本执行子任务只修改父任务批准的 13 个路径，未 stage、commit、push、切分支或写 GitHub。
+- 已完成 #241：ADD / ALTER 的 TYPE、SET DATA TYPE 和直接类型写法传递 Decimal/NUMERIC `(p,s)`；所有 schema 克隆、增删、索引/约束、重命名保持未修改列的声明；Server schema 与 Workbench 元数据保留合法零 scale；tblschema 仍是 v10，公共 positional constructor/deconstruction 合同保持。
+- 显式 Decimal 迁移在发布 schema 前预检全部旧行或准备后的转换行；按 96-bit Decimal 系数与整数缩放验证精度/scale，不先通过字符串、浮点转换舍入。默认值及嵌套 Decimal CAST 走无损 DDL 转换；失败保留旧行、索引和声明，重开仍一致。裸 DECIMAL DDL 保留完整 CLR Decimal 值域；DML 持续声明约束仍属于排除项 #264。
+- 本次真实验证：Core build PASS（0 warning / 0 error）；极小 Core 试运行 1/1 PASS；268/268 Core 回归 PASS，其中 36 个新增 #241 用例，覆盖裸 Decimal/极端声明、晚行失败、默认值、字符串/浮点迁移、15 个 schema 演化路径和 codec v10，另含既有 #235 Decimal 参数和 safe DDL / table / index / atomic batch 回归。
+- EF/Server build PASS（0 warning / 0 error）；嵌入式试运行 1/1 PASS；实际合同回归 6/6 PASS：新增 #241 嵌入式 / REST HTTP/1.1 / 精确 h2c HTTP/2 和既有 #235 的对应三个用例。实际请求协议、零 scale、值、失败 DDL 和完整 Stop/Dispose 后重新加载数据库均由测试断言；未使用 mock 替代服务。
+- 本次 owned-path Format Check PASS：`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ --include <10 owned C# paths>`；只读检查，没有修改源码。10 个 C# 源码哈希与实际 Core / EF 测试 DLL 的构建前源码一致；旧 #235 `SqlDecimalParameterTests.cs`、`SndbDecimalContractTests.cs` 保持原样（其中完整 CLR 值域的历史 fixture 未改写）。本条 HANDOFF 仅追加，原始 557648-byte 前缀保持。
+- 证据根：`D:\source\SonnetDB\artifacts\online-closure-20261012\issues-delivery\issue-241`。保留了 spec、start / identity / result receipts、stdout/stderr、TRX、构建前源码哈希、测试实际 DLL 路径/版本/哈希、#235 fixture 哈希、资源预算和最终 freeze。使用 2/3 builds、1/2 实际 transport windows、7/20 owned Jobs；全部 Job `cleanupComplete=true`。最终核验 54 个历史进程身份，无仍存活的所属进程；仅回收已验证专属 `D:\s241-c1-b925f2e0` 的 20 个临时对象，保留产物和证据。
+- 下一步由父任务处理：审阅最终 13 路径 freeze、整合 #235 修正及其它独立修复，针对最终待提交整树执行完整 `dotnet restore SonnetDB.slnx` 和 CI 同等级 Format Check，再由父任务 stage / commit / push / PR。当前没有完整最终整树提交证明；正式修复包发布、外部 Server/NuGet/XCode 消费者验收仍 OPEN / NOT_RUN；#264 不在本次实现范围。
+根接续已在准确父1ebe27f55d94d8b80e21095ebd07d95d718580c6恢复#241十三路径；旧94c父的原13文件及恢复stash保留。唯一两文档冲突严格核557648-byte共同前缀并保留parser父段与#241完整尾，两CHANGELOG原行都保留；strict helper未弱化。首次取消stage误含三untracked路径被Git拒绝，随后仅恢复准确10tracked staged路径，索引为空。十C#与sql-reference原SHA、七实际DLL及Core268/268、EF6/6原TRX独立核通过，所执行Core集合不含父改动的SqlParserTests，生产与选中fixture不变。最终完整restore/原Format Check与提交/远端以issue241-final-root-*及issue241-delivery.json为准；实际全量CI与正式包/XCode/#264继续独立。
+
+## Windows 持久死信恢复测试预算（2026-10-12，Asia/Shanghai）
+
+从已核 main ae94a977e8cf263018f764914ccb6e1c5e7f8c98 的干净 codex/windows-deadletter-ci-budget 接续。#215 已凭精确 head 全12门禁合入，#267作为其祖先亦由GitHub确认MERGED；#216配对依赖重复PR已关闭。#267 CI38178970954和#265 CI38179039405的Windows Core均6214/6215，唯一失败为 ReplayDeadLetterAsync_WithPendingIsolation_ReopensAndFinishesIsolationBeforeClaim 的Open/recovery 200ms存储超时；原日志和状态全部保留，不说旧失败已PASS。
+
+仅把该用例同初开/重开的持久化配置设为2000ms、调用者总取消边界15秒；仍持真实独占checkpoint锁，要求生产存储操作TimeoutException的原消息、调用者未取消、故障后Replay/Delete拒绝、实际重开完成pending隔离与精确checkpoint/PendingCount/ReplayAttempt。生产默认和重试策略不变。只拥有测试文件、CHANGELOG与本交接三个路径；最终完整类TRX、真实DLL/SHA、完整restore/原CI Format Check及提交/新CI以 artifacts/online-closure-20261012/deadletter-ci-* 收据为准，本段不预写结果。
+
+PowerShell7、数量/墙钟/取消边界、最多一项600秒2CPU构建及Job整树归属清理；原失败、parity-results、冻结发布、canonical foreign dirty与PAUSED Workbench保持。此修复仅测试稳定性，正式包、nightly及生产验收独立。
+
+## GH-Issue #222 关系排名窗口（2026-10-12，Asia/Shanghai）
+
+从干净 `codex/issue222-ranking-windows` / `648239608c957474379ef330e8f71b7748ccbad6` 接续。专属实现仅六路径：RelationalWindowExecutor、新 SqlRelationalRankingWindowTests、RemoteAdoHttp2TransportTests 的独立排名方法、sql-reference 排名条目、CHANGELOG 自有行和本 HANDOFF 追加。已有 row_number、基础 OVER、聚合窗口及 measurement series 编号不重做，不改 AST、JSON DTO、二进制布局或依赖。
+
+排名复用现有复合分区、NULL/升降序排序及显式 peer 比较；rank 留间隙、dense_rank 连续。NTILE 仅接受正 Int64 字面量或绑定后的整数参数，余数先分给较大的前置桶，大于行数时只产生 1..行数；参数校验先于空分区。三种排名列保持非空 Int64，空结果同样保留元数据。无窗口 ORDER 时 rank/dense_rank 每分区均为 1，NTILE 沿本次关系输入序分桶且不保证跨执行次序；row_number 原 ORDER 要求保持。
+
+最终 Core 定向 TRX 为 76 executed / 76 passed / 0 failed / 0 skipped，其中新增排名 44/44，包含原生 SQL、嵌入式 ADO、NULL、多键、参数、空结果 schema 和 GetInt64/GetInt32。首次 trial 的测试编译失败及修正后的单例 PASS 均保留。原 transport-v1 的 REST 实际通过，h2c 在首条 CREATE TABLE 建立 HTTP/2 前失败；两次 listing 退出成功但未给出有效测试列表，不计验收。根授权的唯一 h2c 补充以同源码/同 DLL SHA、no-build/no-restore、NO_PROXY=localhost,127.0.0.1,::1 执行，最终 TRX 精确 1 executed / 1 passed / 0 failed，真实请求的 HTTP/2 断言通过；不证明原失败的代理因果。D:\source\FreeSql 的本地 Provider 仍引用 SonnetDB 1.1.0，仅核公共 SqlExt 三接口；它不是 PR #2234 当前远端回归，正式 NuGet、FreeSql 适配、CI 与发布保持独立。
+
+本片实施窗口 60 分钟、45 shell、18 Job、最多三次构建及原两真实 transport 组合，另有根授权的一次 300 秒 h2c 补充；实际七个 Windows 非 breakaway Job 均 cleanupComplete=true，末次审计 74 个已记录身份全部不在场，共享 Codex 父链保留。两个精确测试临时目录前缀的非递归观察均无目录，不作宽泛删除；历史父 PID 和短命进程未观测部分不补造身份。源码、TRX、实际/归档 DLL、原失败、全部 Job 收据及审计冻结到 artifacts/online-closure-20261012/pr-review/rank222-20261012-2208；旧拒删对象保持。PowerShell 7、DateKind String、2CPU、取消、有界等待及 finally 回收继续。下一步由根在最终六路径树运行完整 restore/原 Format Check，精确 stage/commit/push 并核新 CI；本代理未修改 index、分支或 GitHub，局部 PASS 不替代这些门禁或正式 Provider/包发布。
+
+
+## Windows 持久订阅确认测试预算补件（2026-10-12，Asia/Shanghai）
+
+PR #286 Windows run38181034337 的唯一失败发生在 AcknowledgeAsync_WithHeldCheckpointLock_StopsAtTimeoutOrCancellationAndRecovers(true) 的 OpenAsync/200ms阶段；原非空日志保存在 artifacts/online-closure-20261012/pr286-windows-failure-first.stdout.log。尚未进入真实确认锁故障，不能改写旧结果为PASS。
+
+在已交付 PR #289 的834bca57904a38588423715848750f05d7f5be1a追加同类测试修复：同一持久选项初开与重开均2000ms，15秒调用者边界贯穿初始化/发布/读取/确认/重开。真实独占checkpoint锁仍分别验证生产存储超时原消息、显式调用者取消；同时核外层截止未取消和delivery/CommittedSequence=-1/PendingCount=1重开恢复。生产逻辑、默认和重试未变；新旧两完整测试类TRX/实际DLL与最终完整restore/原Format Check、精确提交及远端新head以subscription-ci-*收据为准。尚未执行新验证。
+
+本增量仅3 owned路径（subscription测试、CHANGELOG、HANDOFF），PR累计4路径。最多2次600秒2CPU构建、2次完整测试窗口、总45分钟/40命令/20Job界限（因已合入三个前置PR，追加一次main集成与最终树复验），Job精确身份和仅任务对象清理。原deadletter27/27及所有旧FAIL保留，最终新head全量CI独立；不代表nightly/正式包/生产验收，canonical foreign、parity-results和PAUSED保持。
+本次最终两完整测试类实际TRX共62 executed/62 passed/0failed（微试2/2不重复累计）；生产Core与测试DLL哈希、4测试/文档累计路径和3增量路径被冻结，Job清理通过。完整restore/原format及远端CI状态由后续不可变收据分别核验。
+
+补充最终集成：main已经凭12完整新门禁串行合入#269、#213、#287，准确基线af6f26f9befbf626b7fc127c250fd72b3fa8f070。严格尾追加helper拒绝主线在原尾前新增#213/#269历史段落，原拒绝保留；独立审查唯一真实末尾冲突，保存三原blob和合并原文、保留自动合并前缀及deadletter/ranking两个完整尾段。恢复本任务3路径stash精确测试字节和文档自有追加；原stash及备份保持待交付。相对新main有效4路径。随后重新构建并实测两个完整类；原先62/62属于集成前真实DLL，最终门禁和新head以subscription-ci-integrated-*收据为准。
+
+## PR #288 当前 main 与 #289 前置集成（2026-10-12，Asia/Shanghai）
+
+从已核 #288 head 1ebe27f55d94d8b80e21095ebd07d95d718580c6 正常合入准确 #289 head 78f19e122abf29f7283e6c5870ef02fbc7f3ad09，后者包含当前 main af6f26f9befbf626b7fc127c250fd72b3fa8f070。#235 原已测 C# 哈希不变；已合入 main 的依赖及 ranking 源、#289 两个完整 streaming 测试文件逐 Git blob 核与原提交一致。RemoteAdoHttp2TransportTests 自动合并保留 CAST 及 ranking 两套方法。相对准确 #289 的30路径含已审 #271/#254 前置，本次没有新的产品代码修改。
+
+CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 helper 因历史段落插入而拒绝，原拒绝、三原 blob 和 prefix 分析保留；helper 未改。独立审阅唯一实际冲突后保留两侧全部完整章节，逐181/184节精确原文验证零缺失，539063字节共同前缀 SHA 不变。后续验证只针对这一真实最终集成树；原 #235/AST及 streaming TRX不冒称新集成产物。
+
+本阶段最多40分钟、35 shell/25 Jobs、两次2CPU构建和一次真实transport组合；root在隔离工作树串行stage/commit/push/远端，#241/#292分支与恢复stash保持。最终 Core/EF TRX、源/DLL SHA、完整restore/原Format Check、默认cached whitespace、原PR正文及新head回读以 pr288-main289-* 不可变回执为准。当前不预写这些通过或main合并；新head全部CI、正式NuGet/Server/Chloe/FreeSql及NativeAOT消费者验收独立，Issue仍开放。
+
+## PR #292 / #241 已验前置刷新（2026-10-12，Asia/Shanghai）
+
+原 #241 headdcdfb8d00e7dd05c1b2491ce05cef0915d85e96c正常合入已推 #288 head296f0ba37da821ca97d51e73b608b2cde0e8091b，保留 #235/原NumericText修正及已合main/#289的准确源码。#241原10个C#源SHA完全不变，只有一个HANDOFF实际冲突；三原blob保留，逐两侧全部完整章节零缺失及539063字节公共前缀核后合并，未弱化严格helper。当前 #288 新head CI未结束，不能先合有该前置的 #292。
+
+本阶段最多35分钟/25shell/18Jobs/两次2CPU构建和一次实际transport组合；必须对这棵准确集成树重新绑定Core/EF真实TRX、source/DLL SHA，执行最终完整restore/原CI Format Check/default cached whitespace后才提交推回原PR。上述收据由pr292-parent288-*记录，本段不预写结果。原#241268/6、父#288429/66和所有旧FAIL分别保持；正式NuGet/Server/XCode消费者与#264持续DML约束仍独立OPEN/NOT_RUN，发布冻结/parity-results/外来dirty/旧恢复stash不动。
+
+## Linux CI 持久死信重新签名意图测试预算（2026-10-12，Asia/Shanghai）
+
+本片从 main/干净 codex/deadletter-intent-ci-budget 的 06cdd55881667ab0b4e74b250d399e8053d53d04 接续，仅拥有 FileStreamingDeadLetterTests.cs、CHANGELOG.md 与本 HANDOFF 追加三个路径。PR #291 Linux run38187087964/job114611644616 的 payload 理论变体在 line251 首次 OpenAsync/WriteStateAsync 的200ms预算中失败，尚未执行损坏intent断言；原完整日志保存在 artifacts/online-closure-20261012/pr291-linux-failure-job01.stdout.log，并在新 deadletter-intent-resume0140 目录留存，不把旧失败写成PASS。
+
+仅该理论测试将初开和重开的同一持久选项统一为2000ms，与既有#289合同一致；45秒调用者令牌传入初开、发布、读取、真实持锁隔离、状态读取/重新签名写入、最终重开以及spool恢复/回放。两个helper新增可选令牌，其余调用者默认语义保留。保留真实独占checkpoint锁及TimeoutException，并新增生产原消息与45秒调用者未取消的区分；重新签名payload/revision/checkpoint后仍必须InvalidDataException，原spool单事件与未确认checkpoint=-1断言不变。相邻200ms用例、生产代码、JSON/AOT、默认预算、重试、跳过和KNN原4096门槛都未改。
+
+本机唯一Release Core Tests构建通过，0warnings/0errors；先定向理论微试实际3executed/3passed，再以同一冻结DLL、no-build/no-restore和CI Blame配置执行完整FileStreamingDeadLetterTests类，实际24executed/24passed/0failed/0notExecuted。微试包含在完整类中，不重复累计。源码/配置、producer及copied Core/Data/Test DLL、runtimeconfig与两份非空TRX绑定，证据位于 artifacts/online-closure-20261012/deadletter-intent-resume0140；owned format --include该文件通过，这不是完整CI Format Check。
+
+新恢复阶段保守截止02:25Z，最多30shell/14Job/一项600秒Release构建/两个测试窗口，2CPU、固定PowerShell7、取消文件、非breakaway Windows Job完整身份/父链及finally回收；仅任务独占TEMP清理，旧policy拒删对象与全部历史FAIL/UNKNOWN保持。进程身份、HANDOFF完整原字节prefix和三路径最终SHA以本目录最终审计为准。本代理未写index、commit、branch或GitHub；根会话下一步先核源码/DLL/TRX/清理，再在最终三路径树执行完整restore与原CI Format Check，精确stage/commit/push独立稳定性增量，并按真实新head CI核验队列。完整Windows/Linux CI、nightly/parity、正式包和生产验收仍未由本机PASS证明。
+
+
+## 持久订阅与死信测试独立验收（2026-10-12，Asia/Shanghai）
+
+原02:25Z补充窗口的deadline拒绝、FAIL和新树NOT_RUN保持，未延长旧窗口；原24/24仅属于补充前冻结源码。根在02:31:59Z新派独立15分钟验收至02:46:59Z，0build、不再改测试或生产，先严格核8编译输入和6个producer/copied DLL/runtimeconfig及原归档SHA全部与当前树一致。三处目标测试精确区分wrapper原消息+空inner与2000ms锁消息+IOException/源码fallback空inner，真实持锁、调用者未取消和原故障/恢复断言全部保持；原#291初开失败及#288 Linux双消息失败另存原文。
+
+新的hidden PS7/Windows Job微试覆盖ack两cancel变体、pending isolation和intent三个变体，实际6executed/6passed；随后同DLL no-build/no-restore及Blame执行FileStreamingSubscriptionTests、FileStreamingDeadLetterOperationsTests、FileStreamingDeadLetterTests三个完整类，实际86executed/86passed/0failed/0notExecuted。微试包含在完整类，不重复累计；源码、真实TRX、重复DLL SHA、5最终source与Job/临时目录收据冻结到artifacts/online-closure-20261012/rootaccept291-0232，全部旧FAIL/NOT_RUN和前片冻档不修改。
+
+本代理仅追加本HANDOFF，不写index、branch、commit或GitHub；所有native命令在task-owned隐藏console内，2CPU、外部180/300秒、最多12shell/8Job/两个窗口及阶段取消界限保持。旧与新Job精确身份及获准D:\pr291timerpaths-0207整目录owner/reparse/200项、10层、30秒遍历微试与一次回收结果以process-audit.json/temp-cleanup-result.json及最后hidden audit Job回执为准，policy拒删对象不触碰。根最终完整restore、原CI Format Check、独立PR/new-head全量CI仍须实际执行；本机PASS不替代这些门禁、nightly/parity、正式包和生产验收。
+
+
+## 2026-10-12 #290 / #261 合并树验证（issues_delivery，0516）
+
+- 精确树：codex/pr290-main292-refresh，HEAD eb996655fa198525ade9c78b73a7975013f86e7e，MERGE_HEAD e47c3ce4a855569b91a7d70a575aefcf2b50f608；实际 PR 分支为 codex/issue261-view-declarations。主智能体保留 HANDOFF 两侧完整内容并解决冲突。本任务只尾部追加此节，不修改产品/测试代码或 Git/index/refs。
+- 证据根：D:\source\SonnetDB\artifacts\online-closure-20261012\pr290-integration-0516。source-before.json、configs-before.json、source-after-validation.json 和 git-after-validation.json 证明 21 个来源文件及 9 项配置在构建/测试期间无漂移，Git 身份不变且无未解决冲突。before/HANDOFF.md 保存全部原始字节；handoff-prefix-proof.json 验证追加后完整字节前缀。
+- 两次完整 Release 构建 PASS，均 0 warning / 0 error，-m:1、2 CPU、关闭 node reuse/shared compilation；Core 162.9 秒、Server 137.1 秒。微试实际 TRX 1/1。完整七个 Core 类实际 TRX 203/203：Frame32、MaterializedView14、SelectMetadata12、真正类型 TsdbAdoApiTests62、Timeout29、Preview18、DecimalDeclaration36。完整 RemoteAdoHttp2TransportTests 只运行一次，实际 TRX 28/28，包含真实 REST/h2c 视图声明、旧代恢复和继承 main 的排名。三个窗口均 --no-build --no-restore，逐类/逐例及 TRX 回执在 evidence 根中。
+- core/server-binaries.json 和 core/server-complete-bindings.json 记录并归档 producer、复制/执行 DLL、PDB、runtimeconfig 的 SHA256、版本和路径。PE 元数据确认 Core 执行目录 7 个、Server 目录 8 个本仓库程序集（含 CoAP/MQTT）均 AssemblyConfiguration=Release、DebuggableModes=2、DisableOptimizations=false；配置判断没有仅依赖输出目录名。
+- 专属临时目录 D:\pr290integration-0516 已在 owner、绝对路径、无 reparse、有界16项清单及无活跃引用核验后删除，删除调用只有一次。第一次 audit 因脚本生成启动器命令行含 TEMP 字面量而拒绝删除，FAIL 回执保留；独立启动复核 PASS（12 个完成 Jobs、74 个 PID/创建 UTC/命令行/父进程身份，live=0、unknown=0、temp references=0）。后续最终审计见 pr290integration-final-audit-0516-audit.json 和同名 runner result；各 runner 清理回执独立保留。
+- 旧类名误用、旧阶段 deadline/不完整窗口及历史 FAIL/UNKNOWN/NOT_RUN 回执保留。当前新计数不能替换历史 168/26 的来源说明。本轮只证明限定 Release/local transport 回归；full CI、NativeAOT、正式包、公开消费者和生产验收未执行。#261 的正式版本与 XCode 消费验收仍缺，不能据此关闭 Issue。
+- 主智能体下一步：在最终待提交树完成 dotnet restore SonnetDB.slnx 和原始 Format Check，审查完整合并差异，然后完成 merge commit、原 PR 分支 push、精确 head CI/GitHub 更新。根门禁及这些交付在本子任务均 NOT_RUN。

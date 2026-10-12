@@ -1408,10 +1408,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 sql.Append(literal.IntegerValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 return;
             case LiteralExpression { Kind: SqlLiteralKind.Float } literal:
-                sql.Append(literal.FloatValue.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                sql.Append(literal.NumericText ?? ParameterBinder.FormatLiteral(literal.FloatValue));
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Decimal } literal:
+                sql.Append(ParameterBinder.FormatLiteral(literal.DecimalValue));
                 return;
             case LiteralExpression { Kind: SqlLiteralKind.String } literal:
                 sql.Append(ParameterBinder.FormatLiteral(literal.StringValue ?? string.Empty));
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Blob } literal:
+                sql.Append(ParameterBinder.FormatLiteral(literal.BlobValue.ToArray()));
                 return;
             case DurationLiteralExpression duration:
                 sql.Append(duration.Milliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));

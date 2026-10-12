@@ -465,7 +465,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
     }
 
     /// <summary>
@@ -496,7 +497,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
     }
 
     /// <summary>
@@ -525,7 +527,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
     }
 
     /// <summary>
@@ -553,7 +556,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions().Append(definition).ToArray(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
     }
 
     /// <summary>
@@ -582,7 +586,8 @@ public sealed class TableSchema
                     constraint.ExpressionSql))
                 .ToArray(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
     }
 
     /// <summary>
@@ -620,6 +625,17 @@ public sealed class TableSchema
         string? defaultExpressionSql,
         bool isRowVersion,
         bool isAutoIncrement)
+        => WithAddedColumn(name, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement, null, null);
+
+    internal TableSchema WithAddedColumn(
+        string name,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql,
+        bool isRowVersion,
+        bool isAutoIncrement,
+        byte? decimalPrecision,
+        byte? decimalScale)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (Columns.Any(column => string.Equals(column.Name, name, StringComparison.OrdinalIgnoreCase)))
@@ -631,6 +647,10 @@ public sealed class TableSchema
             StringComparer.Ordinal);
         if (defaultExpressionSql is not null)
             defaults[name] = defaultExpressionSql;
+
+        var decimalDefinitions = DecimalDefinitions();
+        if (dataType == TableColumnType.Decimal)
+            decimalDefinitions[name] = (decimalPrecision ?? 38, decimalScale ?? 28);
 
         return CreateWithDefaults(
             Name,
@@ -645,8 +665,7 @@ public sealed class TableSchema
             CheckConstraintDefinitions(),
             defaults,
             isAutoIncrement ? AutoIncrementColumnNames().Append(name).ToHashSet(StringComparer.Ordinal) : AutoIncrementColumnNames(),
-            Columns.Where(static c => c.DataType == TableColumnType.Decimal)
-                .ToDictionary(static c => c.Name, static c => (c.DecimalPrecision, c.DecimalScale), StringComparer.Ordinal));
+            decimalDefinitions);
     }
 
     /// <summary>返回重定义主键后的新 schema。</summary>
@@ -682,6 +701,15 @@ public sealed class TableSchema
         TableColumnType dataType,
         bool isNullable,
         string? defaultExpressionSql)
+        => WithAlteredColumn(name, dataType, isNullable, defaultExpressionSql, null, null);
+
+    internal TableSchema WithAlteredColumn(
+        string name,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql,
+        byte? decimalPrecision,
+        byte? decimalScale)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var column = TryGetColumn(name)
@@ -708,6 +736,12 @@ public sealed class TableSchema
         else
             defaults[name] = defaultExpressionSql;
 
+        var decimalDefinitions = DecimalDefinitions();
+        if (dataType != TableColumnType.Decimal)
+            decimalDefinitions.Remove(name);
+        else if (decimalPrecision is not null || decimalScale is not null)
+            decimalDefinitions[name] = (decimalPrecision ?? 38, decimalScale ?? 28);
+
         return CreateWithDefaults(
             Name,
             Columns.Select(c => string.Equals(c.Name, name, StringComparison.Ordinal)
@@ -721,7 +755,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             defaults,
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            decimalDefinitions);
     }
 
     /// <summary>
@@ -762,7 +797,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(exceptColumn: name),
-            AutoIncrementColumnNames(exceptColumn: name));
+            AutoIncrementColumnNames(exceptColumn: name),
+            DecimalDefinitions(exceptColumn: name));
     }
 
     /// <summary>
@@ -797,7 +833,7 @@ public sealed class TableSchema
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(renameColumn: (oldName, newName)),
             AutoIncrementColumnNames(renameColumn: (oldName, newName)),
-            decimalDefinitions: null,
+            DecimalDefinitions(renameColumn: (oldName, newName)),
             allowLegacyCaseVariants: true);
     }
 
@@ -815,7 +851,8 @@ public sealed class TableSchema
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
             ColumnDefaultDefinitions(),
-            AutoIncrementColumnNames());
+            AutoIncrementColumnNames(),
+            DecimalDefinitions());
 
     /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? RowVersionColumn
@@ -824,6 +861,17 @@ public sealed class TableSchema
     /// <summary>返回当前表的自增列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? AutoIncrementColumn
         => Columns.FirstOrDefault(static c => c.IsAutoIncrement);
+
+    private Dictionary<string, (byte Precision, byte Scale)> DecimalDefinitions(
+        string? exceptColumn = null,
+        (string OldName, string NewName)? renameColumn = null)
+        => Columns.Where(column => column.DataType == TableColumnType.Decimal
+                && !string.Equals(column.Name, exceptColumn, StringComparison.Ordinal))
+            .ToDictionary(
+                column => renameColumn is { } rename && string.Equals(column.Name, rename.OldName, StringComparison.Ordinal)
+                    ? rename.NewName : column.Name,
+                static column => (column.DecimalPrecision, column.DecimalScale),
+                StringComparer.Ordinal);
 
     private static List<TableIndex> BuildIndexes(
         string tableName,

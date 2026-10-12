@@ -1743,6 +1743,7 @@ internal static class HybridSearchExecutor
         {
             LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var integer } => integer,
             LiteralExpression { Kind: SqlLiteralKind.Float, FloatValue: var number } => number,
+            LiteralExpression { Kind: SqlLiteralKind.Decimal, DecimalValue: var number } => (double)number,
             _ => throw new InvalidOperationException($"hybrid_search 参数 '{names[0]}' 必须是非负数字字面量。"),
         };
         if (value < 0d || double.IsNaN(value) || double.IsInfinity(value))
@@ -1820,6 +1821,7 @@ internal static class HybridSearchExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue,
         SqlLiteralKind.Integer => literal.IntegerValue,
         SqlLiteralKind.Float => literal.FloatValue,
+        SqlLiteralKind.Decimal => (double)literal.DecimalValue,
         SqlLiteralKind.String => literal.StringValue,
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
     };
@@ -1908,6 +1910,7 @@ internal static class HybridSearchExecutor
         SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
         SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
+        SqlLiteralKind.Decimal => ((double)literal.DecimalValue).ToString(CultureInfo.InvariantCulture),
         SqlLiteralKind.String => literal.StringValue ?? string.Empty,
         _ => literal.Kind.ToString(),
     };

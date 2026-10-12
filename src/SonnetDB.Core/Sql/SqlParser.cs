@@ -2,6 +2,7 @@
 using SonnetDB.Graphs;
 using SonnetDB.Modbus;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Sql;
 
@@ -1842,7 +1843,7 @@ public sealed class SqlParser
             Advance();
 
         var columnName = ExpectColumnName(out bool columnNameIsQuoted);
-        var dataType = ParseTableDataType();
+        var dataType = ParseTableDataType(out var decimalPrecision, out var decimalScale);
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
@@ -1867,6 +1868,8 @@ public sealed class SqlParser
         {
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnNameIsQuoted = columnNameIsQuoted,
+            DecimalPrecision = decimalPrecision,
+            DecimalScale = decimalScale,
         };
     }
 
@@ -2053,7 +2056,10 @@ public sealed class SqlParser
             case TokenKind.KeywordDecimal:
             case TokenKind.KeywordNumeric:
                 Advance();
-                (decimalPrecision, decimalScale) = ParseDecimalSpec();
+                bool hasDecimalSpec = Current.Kind == TokenKind.LeftParen;
+                var decimalSpec = ParseDecimalSpec();
+                if (hasDecimalSpec)
+                    (decimalPrecision, decimalScale) = decimalSpec;
                 return SqlDataType.Decimal;
             case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
             case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
@@ -4016,7 +4022,20 @@ public sealed class SqlParser
                 return LiteralExpression.Integer(token.IntegerValue);
             case TokenKind.FloatLiteral:
                 Advance();
-                return LiteralExpression.Float(token.DoubleValue);
+                return LiteralExpression.Float(token.DoubleValue) with { NumericText = token.Text };
+            case TokenKind.KeywordDecimal when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+            case TokenKind.KeywordNumeric when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                decimal decimalValue = SqlScalarOperations.ParseExactDecimal(Current.Text);
+                Advance();
+                return LiteralExpression.Decimal(decimalValue);
+            case TokenKind.KeywordFloat when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                if (!double.TryParse(Current.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatValue)
+                    || !double.IsFinite(floatValue))
+                    throw Error("FLOAT 字面量必须是有限浮点数");
+                Advance();
+                return LiteralExpression.Float(floatValue);
             case TokenKind.StringLiteral:
                 Advance();
                 return LiteralExpression.String(token.Text);
@@ -4054,6 +4073,21 @@ public sealed class SqlParser
                 return inner;
             case TokenKind.LeftBracket:
                 return ParseVectorLiteral();
+            case TokenKind.IdentifierLiteral when !token.IsQuotedIdentifier
+                && string.Equals(token.Text, "x", StringComparison.OrdinalIgnoreCase)
+                && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromHexString(Current.Text);
+                }
+                catch (FormatException)
+                {
+                    throw Error("BLOB 字面量必须包含偶数个十六进制字符");
+                }
+                Advance();
+                return LiteralExpression.Blob(bytes);
             case TokenKind.IdentifierLiteral when string.Equals(Current.Text, "point", StringComparison.OrdinalIgnoreCase):
                 return ParsePointLiteralOrFunctionCall();
             case TokenKind.KeywordTime:
@@ -5550,6 +5584,8 @@ public sealed class SqlParser
 
         var columnName = ExpectColumnName(out bool columnNameIsQuoted);
         SqlDataType? dataType = null;
+        byte? decimalPrecision = null;
+        byte? decimalScale = null;
         ColumnNullability nullability = ColumnNullability.Unspecified;
         var defaultAction = ColumnDefaultAction.Unchanged;
         SqlExpression? defaultExpression = null;
@@ -5558,6 +5594,7 @@ public sealed class SqlParser
         while (true)
         {
             if (Current.Kind is TokenKind.KeywordInt or TokenKind.KeywordFloat
+                or TokenKind.KeywordDecimal or TokenKind.KeywordNumeric
                 or TokenKind.KeywordBool or TokenKind.KeywordString
                 or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordBlob or TokenKind.KeywordJson
@@ -5565,7 +5602,7 @@ public sealed class SqlParser
             {
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType();
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                 changed = true;
                 continue;
             }
@@ -5575,7 +5612,7 @@ public sealed class SqlParser
                 Advance();
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType();
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                 changed = true;
                 continue;
             }
@@ -5606,7 +5643,7 @@ public sealed class SqlParser
                     ExpectIdentifier("type", "ALTER COLUMN SET DATA 后面期望 TYPE");
                     if (dataType is not null)
                         throw Error("ALTER COLUMN 数据类型重复声明");
-                    dataType = ParseTableDataType();
+                    dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
                     changed = true;
                     continue;
                 }
@@ -5675,6 +5712,8 @@ public sealed class SqlParser
         {
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnNameIsQuoted = columnNameIsQuoted,
+            DecimalPrecision = decimalPrecision,
+            DecimalScale = decimalScale,
         };
     }
 
