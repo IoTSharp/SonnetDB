@@ -139,7 +139,7 @@ public sealed class SqlExecutorViewTests : IDisposable
             database,
             "SELECT id, value FROM reading_values WHERE value > 3"));
 
-        Assert.Equal(new object?[] { "r1", 7.0 }, selected.Rows.Single());
+        Assert.Equal(new object?[] { "r1", 7L }, selected.Rows.Single());
     }
 
     [Fact]

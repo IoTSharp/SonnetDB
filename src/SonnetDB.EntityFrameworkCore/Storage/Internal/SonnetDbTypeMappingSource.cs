@@ -20,6 +20,7 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
     private static readonly DateTimeTypeMapping DateTime = new("DATETIME");
     private static readonly DateTimeOffsetTypeMapping DateTimeOffset = new("DATETIME", DbType.DateTimeOffset);
     private static readonly GuidTypeMapping Guid = new("STRING", DbType.Guid);
+    private static readonly SonnetDbJsonTypeMapping Json = new();
 
     private static readonly Dictionary<string, RelationalTypeMapping> StoreTypeMappings = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -49,7 +50,8 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
         [typeof(byte[])] = Bytes,
         [typeof(DateTime)] = DateTime,
         [typeof(DateTimeOffset)] = DateTimeOffset,
-        [typeof(Guid)] = Guid
+        [typeof(Guid)] = Guid,
+        [typeof(JsonTypePlaceholder)] = Json
     };
 
     /// <summary>

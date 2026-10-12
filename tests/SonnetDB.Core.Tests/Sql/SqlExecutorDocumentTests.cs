@@ -195,7 +195,7 @@ public sealed class SqlExecutorDocumentTests : IDisposable
 
         var afterUpdate = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT json_value(document, '$.metrics.temp') AS temp FROM device_docs WHERE id = 'dev-1'"));
-        Assert.Equal(22.0, Assert.IsType<double>(afterUpdate.Rows.Single()[0]));
+        Assert.Equal(22L, Assert.IsType<long>(afterUpdate.Rows.Single()[0]));
 
         var deleted = Assert.IsType<DeleteExecutionResult>(SqlExecutor.Execute(db,
             "DELETE FROM device_docs WHERE json_value(document, '$.site') = 'south'"));
@@ -640,7 +640,7 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             """));
 
         Assert.Equal(new[] { "id", "score" }, result.Columns);
-        Assert.Equal(new object?[] { "dev-1", 7.0 }, result.Rows.Single());
+        Assert.Equal(new object?[] { "dev-1", 7L }, result.Rows.Single());
     }
 
     [Fact]

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- Web 图表依赖更新至 ECharts/ZRender 6.1.0（原 PR #299），修复嵌入式轨迹页在不超过 1100px 视口下筛选行收缩为零、加载按钮被地图画布遮挡的问题；保留筛选内容高度并允许容器滚动。真实前端正常点击、提示、缩放尺寸、空态恢复及销毁验证通过，模拟 API 与正式 Server 接受分开。
 
 - GH-Issue #261：原生零行 reader 保留普通/物化视图的声明列名、SQL/CLR 类型、可空性及已知 DECIMAL 精度/小数位；未知声明保持未知，schema 查询不执行视图 UDF。物化快照 v2 在 CRC 内保存代际声明，兼容读 v1 行并要求显式 REFRESH 后访问完整元数据；Frame v3 显式协商完整声明，保留旧编码，仅对执行前版本拒绝回退一次 v2。
 
@@ -18,6 +19,10 @@
 - PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
 - GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
 
+
+- EF Core JSON #266：固定对象属性路径的字符串、布尔、受支持整数及浮点标量投影/谓词复用 json_value，属性名按 JSON path 与 SQL literal 两层转义并保留路径预算；修复共享 JSON 求值器将 Int64 先提升为 Double 导致的大整数精度丢失。Complex/Owned × embedded/REST/h2c 六条真实路径通过；数组路径、转换器/其它标量、非根 Owned 更新和 ExecuteUpdate 继续明确拒绝，公开包与官方 BookStore 验收独立。
+- EF Core JSON #266：支持 ToJson 整容器 UTF-8 物化、文本参数/SQL literal 与 EF 序列化的根替换，真实嵌入式/REST/h2c 读写、回滚、并发和正常重开通过；非根 Owned 更新、路径查询与批量更新仍明确拒绝，官方 BookStore/公开包消费者验收独立。
+- EF Core 10：为 ToJson 的 JsonTypePlaceholder 提供默认 JSON 容器模型和迁移 DDL 生成；JSON 聚合查询/写入在实现前明确拒绝，普通 STRING/raw JSON 字符串行为保留（Issue #266，建模切片，未完成数据库与消费者验收）。
 - GH-Issue #258：新增零参数 `uuid()`，逐次返回标准 D 格式非空 GUID 字符串，保留逐行 SELECT/UPDATE 与 RETURNING/事务语义及空结果 String 元数据；明确拒绝 UUID 列 DEFAULT，正式发行和 Chloe Provider 集成仍独立验收。
 
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
@@ -494,6 +499,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 同步六个 Document/JSON 查询测试对整数结果的严格 Int64 期望（13 行替换），覆盖嵌套数组、分页、TTL、视图及整数表达式；保留数值、预算和浮点断言，修复联合候选首次完整 CI 暴露的 11 个旧 Double 期望失败。
+- GH-Issue #263：远程 ADO 参数绑定补齐 SByte/UInt16/UInt32 的无损整数格式化，嵌入式与远程枚举按原始底层类型复用既有整数分支；保留 Value/DbType、NULL、精度及原 UInt64 边界。新增三协议21例覆盖极值、枚举、谓词、批量、事务回滚及重开；正式包未包含前保持等待发布。
 
 - PR #302：后台 Flush 集成 fixture 显式关闭自动 Compaction，保留每批 15 秒、最终至少 8 个物理段和 5000 点查询合同；每批等待退出后立即断言段数增长，写入/等待循环增加次数、总墙钟与取消边界，正常重新打开用例保留。生产默认配置不改，原 Windows CI FAIL 与新 head 门禁独立。
 - 物化视图读取保留已持久化的完整输出名称，修复带点 quoted alias 在空结果/CTE 的声明及重开后值绑定；补齐 Streaming ACK 两层精确超时文案测试合同，原预算与恢复断言保持（Issue #261、#300、#301；13 PR 组合验证）。

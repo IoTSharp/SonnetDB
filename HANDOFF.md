@@ -2578,6 +2578,15 @@ online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fc
 根复核字符串聚合/BLOB合批（2026-10-13）：当前main已含BLOB第一父图，正常merge285仅2doc paths，未重加旧生产文件；metadata保UUID和stringAgg、最新remote原methods逐字保留另加完整原stringAgg。新Core290/290（11整类，Knn原4096 guard本窗0bytes）和完整EF90/90；两Releasebuild0warn/errors，52inputs/28runtime/38真实PDB root independently verified。EFBlob实际embedded+REST+h2c三cases全部Passed，64KiB/NULL/Eq/Any/SequenceEqual/rollback/reopen/EXPLAIN断言保持；Server RemoteStringAgg方法未跑，最终共同候选须单独实测。原7792/4096及21窗0保持历史UNKNOWN。正式package/FreeSql/Chloe/ABP不由source/localPASS替代；完整whole restore/原Format与privatecommit由root收据绑定，未push/main。本批与另一已验SQL11组件合并成13原PR最终candidate统一CI。
 根最终复核13原PR单candidate（2026-10-13）：13originalheads及main2411祖先由最终delivery再次live核；newCore804/804（30整类）、newServer150/150（五整类且实际REST/h2c StringAgg）和完整newEF176/176、4actualbuild含1causalretry均无编译warn/errors。104source/runtimeassets/70inputs/58actualPortablePDB/3TRX绑定根独立核，不累加旧626/290/176/90。newFact首803/804失败及6query诊断表明持久snapshot入口截掉保存dotted output Names.Joined，不是ordinary view StringAgg return type；唯一生产修复LoadMaterializedView使用保存fullName，通用子查询normalize保持。empty/quotedCTE/reopen/refresh/persistedalpha全部验证PASS，Knn4096原guard保持，7792/4096历史FAIL/21窗0 UNKNOWN不抹除。旧probe缺Hashing依赖FAIL/早期错归因/所有原FAIL保存，第二probe明确加载已执行Hashing10.0.0.12且自有fixture清理。
 全部original239/208doc章节完整，一段incoming非连续historical章节完整补录；原helperFAIL不覆盖/不重跑已完成source改动。newscope四build四windows由根明确追加唯一causalretry，hard18:31:59不延；18:30:44freeze/release，76记录身份live0/unknown0/refs0，自有TEMP25项回收。#300恢复前缀计数、#301两个真实timeout wrapper exact合同保留；currentCI/main/issue closure尚待，publicpackage/FreeSql/Chloe/ABP/SqlSugar/XCode consumer、真实模型/硬件/nightly/parity/生产仍独立。#266建模M0私有41ffc282另branch不入本candidate，EF105不迁移到本176。根随后whole restore/原Format/exactcommit/一次push13wrapper，然后fresh exacthead17门禁真实PASS方可main。
+
+## PR #299 图表升级及嵌入轨迹页布局私有检查点（2026-10-13）
+
+保留原069a7a95374ca00d4f62cf27c4539cf3a1d545d0依赖merge的package/lock两文件，新增TrajectoryMap.vue响应式embedded布局修正：筛选行max-content，容器overflow:auto；文件同时规范为UTF8无BOM，Graph/父组件代码保持。真实1100×820页面原filter高度0、按钮被map拦截，修复后711.562px并正常点击；780窄屏与1440宽屏亦通过。唯一npm build（vue-tsc/Vite）PASS。旧Graph六节点三边及tooltip/resize/zoom/empty/dispose证据保持；本轮Trajectory真实App13断言PASS，包括两条线六点、负坐标、真实鼠标tooltip、空态恢复、resize、正常tab切换dispose与trace。
+
+两次命名浏览器session分列：首次CLI生命周期/跨命令globalThis失败保留，独立恢复完成13断言后关闭，未使用forceclick。页面使用本地静态Vite和全mock API/假token，外部瓦片拒绝；返回fixture计数291次拦截，trace有337条resource记录，不能称所有网络尝试不超过300或真实Server/生产接受。trace DOM快照含修改后的CSS；页面实际请求的Vite ECharts模块及其缓存chunk版本6.1.0已核，网络响应无bodySHA，不能声称响应body哈希绑定。PNG/trace、构建资产与源码哈希在w20613-web-recovery，原FAIL/UNKNOWN均保留。
+
+根独立核源码/包/构建与13断言，并视觉查看正常控制和tooltip截图。当前5个owned路径由root做完整solution restore/原Format后私有commit，尚无push/main；真实提交/门禁以root2111-web-*收据为准。后续接入已审main再统一远端CI，不发布包/tag/Release，不把模拟数据图表验证当真实业务或地图服务验收。
+
 ## #302 后台 Flush 集成 fixture 的 Compaction 隔离（2026-10-13）
 
 原 exact head494e95c Windows run38292238576/job114954829623 Core6669/6670唯一失败保留：ContinuousWrite_5000Points_AutoFlushesMultipleSegments 要求当前物理SegmentCount>=8，实际2。诊断原七项本地7/7、约1秒，不能称CI失败复现；默认Compaction实际true/MinTierSize4/poll5s，会Swap多个物理段，当前段数不是累计flush数。具体原CI compaction时序仍UNKNOWN，原804子集未覆盖该类。
@@ -2587,3 +2596,58 @@ online-engine 工作树分支 codex/issue221-trigonometry，基线 HEAD a299a3fc
 唯一Core Release构建90.04秒、0warning/error；唯一完整相关窗口实际9executed/9passed/0failed/0notExecuted，包含BackgroundFlushIntegration2、BackgroundFlushWorker5、CompactionIntegration2，5.97秒runner/约1秒test。这是新test-only源码对应本地证据，不累加原7、804或CI6669。来源/actualDLL-PDB/TRX、生产源码不变、重编译产物字节差异和自有进程/TEMP核验以artifacts/online-closure-20261012/flush-ci-fix-1942最终freeze/resources收据为准。
 
 本代理未stage/commit/push/改refs。根须在最终三路径树完成whole restore/原Format Check、精确commit及一次更新302，并验证新head完整CI；当前不能说Windows已通过。原CI FAIL及全部历史FAIL/UNKNOWN/NOT_RUN继续保留，正式包/消费者/nightly/parity/生产验收独立。
+
+已接入正常合入的main6eb0ccff（原302精确d49fc10的16SUCCESS/1预期SKIPPED全部门禁通过）；仅HANDOFF尾追加冲突，公共前缀及两侧完整后缀保留。Web的5文件私有5dbd504、当前CSS/依赖/构建字节和13真实前端断言保持。此私有main集成只保存来源，最终JSON+Web组合运行验证仍待下一阶段，不把旧运行资产当成新组合实跑。正式包/Server/生产接受未增加。
+
+## Issue #266 EF JSON 容器建模私有切片（2026-10-13）
+
+root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/105含JSON15/15，编译0warn/errors；doc final仅新public GetDataReaderMethod中文XML，签名与throw不变。EF10真实容器CLR是JsonTypePlaceholder，默认原生JSON type mapping，ComplexProperty/OwnsOne无需HasColumnType可生成设计/runtime关系模型与migration SQL；普通STRING/rawJSON字符串DDL保持既有STRING。尚未实现的聚合materialization/parameter/literal/JSON path/query/INSERT/UPDATE/ExecuteUpdate明确拒绝，以防fragment覆盖；新fixture为模型/拒绝路径且connection attempts0，不能冒称真实Server JSON接受。
+
+旧shadowDbType编译FAIL、EF1001具体内部类测试FAIL、focused13/15期待偏差与其源码/TRX原样保留；没有压IL/EF warning或新增运行时依赖、缓存/ABP修改。中文XML阶段独立15min按时freeze，9记录身份无存活、3KernelJobs cleanup PASS；既有fixtureTEMP候选0，创建总数NOT_INSTRUMENTED，不称全机无孤儿。root最终whole restore/原Format/exact7path私有commit由收据绑定，未push/main/发布包。
+
+#266继续OPEN/PARTIAL。下一片先实现正确整体JSON序列化/materialization和不会丢兄弟字段的更新，再验证嵌入式/REST/h2c真实CRUD、回滚、正常重开、scalar JSON path；collection rowset、官方未改BookStore/IdentityPasskey/account及公开NuGet固定版本消费仍独立NOT_RUN。本切片不混入13原PR的SQL最终candidate；该candidate另有新snapshot完整dotted output绑定修复正在验证。
+## Issue #266 M1-A 整 JSON 容器真实读写私有检查点（2026-10-13）
+
+根独立复核source4/runtime22/PDB4，实际完整EF105/105含JSON15/15及Complex/Owned×embedded/REST/h2c六真实case。UTF8 stream物化、文本参数/literal/EF已序列化的$根替换，Unicode/嵌套/数组/SQLNULL与JSONnull、回滚/并发/删除/正常数据库重开均按原断言通过；literal实际ADO执行不是参数替代。h2c真实POST/v1/frame、application/x-sonnetdb-frame与HTTP/2明确验证。非root Owned更新/JSON path查询/ExecuteUpdate guards保留，不能把scalarfragment改为$覆盖兄弟字段；自有生产不引入反射JSON序列化。
+
+原build1 EF1002与focused15的11PASS/4FAIL完整保留。最后build3仅修测试fixture的可选Owned属性默认null!及frame队列真实endpoint断言，不压warning/不移除NULL assertions；producer freeze19:28:51.203Z早于19:28:59target，最后完整EF窗口仅一次。三build/两窗口为根明确授权上限，没有第4build/第3window。旧M0 41ffc282检查点保留，本阶段不借13PR候选EF176结果。根最终whole restore/原Format/exact6path私有commit由各收据绑定，无push/main/package/tag/Release。
+
+#266保持OPEN/PARTIAL：Owned非root更新、scalar路径/collection/unknown字段保留、官方未改BookStore/IdentityPasskey和公开NuGet固定版本消费仍需后续验收；本切片的六个本机真实transport不代表正式消费者、生产掉电或业务验收。下一片先评估现有json_value/json_exists字面路径的EF映射与安全局部更新路线，禁止丢兄弟/未知字段。原失败、源码、真实TRX/运输证据和有限进程/TEMP审计保存在json-crud-slice-1900。
+
+## Issue #266 M1-B 固定 JSON 标量与 Int64 精度私有检查点（2026-10-13）
+
+原 M1-B 完整 EF105 的99PASS/6FAIL保留。root使用原冻结Core DLL复现TryGetInt64准确而Evaluate返回Double、相邻Int64折为同值；本轮仅将Number分支分别返回long或double，保持范围外数字旧行为，再验证固定属性路径SQL投影和谓词。新增11个直接求值边界case及4组真实SQL相邻Int64case；Core定向29/29、完整EF105/105、文档索引一致性7/7通过。六个Complex/Owned×embedded/REST/h2c均实际到达大整数投影/谓词、NULL/missing、拒绝类型、原回滚及正常重开后续断言。root独立核6source/28runtime/4组DLL-PDB Guid-stamp-age/6source checksum/3份TRX实际storage，证据root2102-json-binding.json。
+
+文档普通数字索引使用原始JSON数值文本，不经过此次装箱分支；partial-filter成员集合在打开collection时按主文档重建索引。7项现存一致性回归通过；旧DocumentQueryPlanner通用数字比较仍有Double转换源码，未声称全Document数值合同已解决。完整NativeAOT宿主、官方BookStore/Passkey及公开NuGet消费仍未验，#266保持OPEN/PARTIAL；非根Owned更新、数组path与ExecuteUpdate不解除guard。
+
+当前基于私有ca339e8b保存8个owned路径，root将以同一最终树完整restore/原Format通过后做私有commit；实际提交hash/门禁结果以root2105-json-*收据为准，尚无push/main/package。原M0/M1-A与历史FAIL保留，不将此处局部通过记成完整Issue完成。后续先合已审main、核组合，再按既有json-setter-design-2012推进必要安全局部写；本段不授权发布。
+
+
+本私有集成将JSON M0/M1-A/M1-B精确611d9faa接入已含main6eb的Web候选b5db1c60。仅CHANGELOG/HANDOFF产生追加冲突，完整两侧交接章节保留；未出现产品源码冲突。既有JSON6source/28runtime及29/105/7属于611原执行，Web13断言属于其独立Vite运行，不能作为当前新组合DLL的实跑证据。当前完整restore/原Format仅用于私有来源检查点，新的统一运行验证及远端CI待最终263切片就绪后一次执行，不发布包/tag/Release。
+
+## Issue #263 跨协议整数参数私有验收（2026-10-13）
+
+本批在未修生产与旧冻结已构建资产上首次实际执行21个新增case，真实baseline为5PASS/16FAIL，原TRX和10资产保留。最小修复仅Data ParameterBinder补sbyte/ushort/uint三个无损InvariantCulture分支，Data与Core SqlParameterBinder各以Enum.GetTypeCode/Convert.ChangeType(TypeCode)复用原底层整数处理，共11行生产新增；SndbParameter.Value/DbType未改变，未改wire/Server/schema/落盘格式或依赖。UInt64高位和枚举仍保持embedded OverflowException、远程NotSupportedException的原声明边界。
+
+两次Release build各0warning/0error；修复后真实完整RemoteAdoHttp2TransportTests与RemoteVectorParameterTests合计66/66，Core现有四个参数整类另66/66，两组使用各自实际DLL，不合称单一132-case运行。新增21case全部实际到达三协议、nullable/NULL、原始与显式DbType、谓词、同步/异步批量、事务回滚和正常重开。源码、DLL/PDB CodeView及源码checksum、TRX storage和原失败证据位于artifacts/online-closure-20261012/i3052/。
+
+当前仅保存本地修复来源，root将在最终5个owned路径（两binder、原测试文件、CHANGELOG、HANDOFF）执行完整solution restore和原Format Check后私有提交；准确hash和门禁以r3058-263-*收据为准。之后接入online-engine原2fe联合候选重新运行统一验证。正式包、Chloe原始消费者及NativeAOT运行未验，#263仍OPEN/等待发布；本段不声明联合候选或发行完成。
+
+
+## #263、JSON 与 Web 联合候选最终本地验证（2026-10-13）
+
+本候选以2fe13431为第一父接入独立已验#263提交a6bef0c1，完整保留main6eb、原299与JSON611历史。相对main仅16路径；产品源码无冲突，HANDOFF双方246/243个完整章节逐一保留，未带入四个未构建setter草案。#263原21case基线5PASS/16FAIL及独立两组66PASS继续保留。
+
+最终同一组合源码重新构建Core/EF/ADO三个Release项目，各实际执行目录冻结后使用no-build/no-restore运行：Core JSON/索引/参数四类49/49、完整EF 191/191、完整RemoteAdoHttp2TransportTests 63/63通过；新增21个三协议整数用例实际通过。E/j3052保存本次实际DLL/PDB/deps/runtimeconfig、TRX与绑定结果；这些计数不借用旧JSON29/105/7或Web13，也不把多组不同测试资产混写为同一DLL运行。root随后在最终树执行完整solution restore及原Format，再形成联合候选提交；确切提交和门禁以r3110-*证据为准。
+
+已有Web源码/package/lock字节保持，原真实前端Graph/Trajectory交互与唯一npm build属于模拟API/Vite证据；未宣称本次.NET组合的正式Server前端业务接受。#263正式包与Chloe消费者仍待发布/验收，#266完整JSON局部更新、官方BookStore与EF NativeAOT未完成，CAP265默认NativeAOT上游失败保持。setter只读审计s3052发现writer scratch预算、成功setter rollback及遍历中cancel缺口，四原dirty保持UNBUILT/UNTESTED。无新包、tag或Release授权。
+
+## PR #303 测试合同修正与完整本地失败边界（2026-10-13）
+
+首候选81dddea0的Linux完整CI为Core6685=6674PASS/11FAIL，EF191和Server1232各自PASS；旧失败原日志与run38316318322/job115033681462保持。六整类本地原DLL基线184=173PASS/11FAIL；独立合同审查确认既定M1-B对整数JSON返回Int64及整数算术保型，因此只修六测试文件13行（早期口头14已更正），保原SQL/值/分页/TTL 5candidate与4examined/192bytes/21.5浮点及聚合。两算术断言收紧为Assert.IsType<long>，无生产修改。
+
+唯一新Core build零warning/error；完整Core6685实际6682PASS/3FAIL，原六类184/184及原11/11均PASS。余3为两Rag Restore在295字符路径的DirectoryFsync IOException、一个Tombstone备份临时锁UnauthorizedAccess；完整窗保持FAIL。独立新夹具以同DLL证实存在的15字符目录可Flush、295字符目录仍抛native3，但原两Rag失败因果不升级为CONFIRMED；首反射适配器PSObject转换失败0入口另保。锁路径推算151字符、名义重试630ms，真实解锁时间/占用原因UNKNOWN。
+
+另一个独立短TEMP窗口D盘14字符、同一冻结DLL、0build/0retry，精确三失败用例3/3PASS，实际Rag segments235字符、观测最大252；不据此把原fullCore改为PASS或证明锁根因。主独立r3150-fix-binding核6源/12运行资产/3组DLL-PDB/9源码及两个TRX，并核7生产源保持。此前联合窗口Core49/EF191/ADO63仍为原执行记录，EF/ADO不冒称本修正后新运行。各阶段owner TEMP/进程已清理，详细证据c303fix、c303short、a303-review、p303-path、p303fix-path、l303-lock。
+
+本次只对六测试+CHANGELOG/HANDOFF共8owned路径再执行完整restore/原Format后提交，并正常FF更新同一PR303；新head须完整远端CI通过才正常merge。首候选FAIL、固定原监控预算、全部UNKNOWN和NOT_RUN保留；#263等待正式发布，#266仍PARTIAL，setter四dirty不入本候选，无package/tag/Release。Windows本机长路径目录fsync及临时锁调度另按实际证据继续，不在此改生产、阈值、retry或全局配置。

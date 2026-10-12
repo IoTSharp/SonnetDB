@@ -182,7 +182,7 @@ public sealed class DocumentQueryOperatorTests
             out object? explicitValue));
         Assert.Equal("B", explicitValue);
         Assert.True(JsonPathEvaluator.TryEvaluate(row.Json, "$['a.b'][0]", out object? quotedValue));
-        Assert.Equal(42d, Assert.IsType<double>(quotedValue));
+        Assert.Equal(42L, Assert.IsType<long>(quotedValue));
         Assert.False(JsonPathEvaluator.TryEvaluate(
             row.Json,
             "$.groups.items[0].name",

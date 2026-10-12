@@ -415,6 +415,10 @@ public static class SqlParameterBinder
     /// </summary>
     internal static SqlExpression ToLiteral(object? value)
     {
+        // 保留枚举底层整数类型，复用相同的无损字面量与范围限制。
+        if (value is Enum enumValue)
+            value = Convert.ChangeType(enumValue, enumValue.GetTypeCode(), CultureInfo.InvariantCulture);
+
         switch (value)
         {
             case null:
