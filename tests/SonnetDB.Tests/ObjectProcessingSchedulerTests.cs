@@ -408,16 +408,117 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token));
     }
 
-    /// <summary>创建三个尚未登记派生任务的对象，测试只控制调度而不启动模型或 worker。</summary>
-    private async Task SeedBackfillObjectsAsync()
+    /// <summary>恢复工作预算取消后保存已登记前缀，整个数据库关闭重开后从持久游标继续。</summary>
+    [Fact]
+    public async Task RecoverDueJobs_BudgetCancelledAfterEnqueue_ReopensDatabaseAndPreservesExactProgress()
     {
-        var objects = new SndbObjectStore(_db);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        string registryRoot = Path.Combine(_root, "backfill-recovery");
+        ObjectSemanticBackfillState saved;
+        using (var registry = new TsdbRegistry(registryRoot))
+        {
+            Assert.True(registry.TryCreate("images", out var database));
+            await SeedBackfillObjectsAsync(database, deadline.Token);
+            using var fixture = CreateService(registry: registry);
+            CancellationTokenSource? recoveryBudget = null;
+            fixture.Service.BeforeRecoveryBackfillForTest = budget => recoveryBudget = budget;
+            fixture.Service.AfterBackfillObjectForTest = pageBudget =>
+            {
+                Assert.NotNull(recoveryBudget);
+                recoveryBudget!.Cancel();
+                Assert.True(pageBudget.IsCancellationRequested);
+                Assert.False(deadline.IsCancellationRequested);
+            };
+            var jobs = new ObjectProcessingJobStore(database);
+            Assert.True(jobs.TryWriteBackfill(null,
+                new ObjectSemanticBackfillState("backfill", null, 0, 0, 0, false, DateTimeOffset.UtcNow), deadline.Token));
+            fixture.Service.RecoverDueJobs(deadline.Token);
+            saved = jobs.ReadBackfill("backfill", deadline.Token)!.State;
+            Assert.False(saved.Completed);
+            Assert.NotNull(saved.ContinuationToken);
+            Assert.Equal(1, saved.ScannedObjects);
+            Assert.Equal(1, saved.QueuedObjects);
+            Assert.Equal(0, saved.SkippedObjects);
+            Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, deadline.Token));
+            Assert.Single(database.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName)
+                .ScanPrefix(ObjectProcessingJobStore.JobPrefix, 10));
+        }
+
+        using var reopenedRegistry = new TsdbRegistry(registryRoot);
+        reopenedRegistry.LoadExisting();
+        Assert.True(reopenedRegistry.TryGet("images", out var reopened));
+        var reopenedJobs = new ObjectProcessingJobStore(reopened);
+        var restored = reopenedJobs.ReadBackfill("backfill", deadline.Token)!.State;
+        Assert.Equal(saved, restored);
+        using var restarted = CreateService(registry: reopenedRegistry);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int attempt = 0; attempt < 4 && !restored.Completed && watch.Elapsed < TimeSpan.FromSeconds(8); attempt++)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            restarted.Service.RecoverDueJobs(deadline.Token);
+            restored = reopenedJobs.ReadBackfill("backfill", deadline.Token)!.State;
+            if (!restored.Completed)
+                await Task.Delay(25, deadline.Token);
+        }
+        Assert.True(restored.Completed);
+        Assert.Equal(3, restored.ScannedObjects);
+        Assert.Equal(3, restored.QueuedObjects);
+        Assert.Equal(0, restored.SkippedObjects);
+        Assert.Equal(3, reopenedJobs.ReadDue(DateTimeOffset.UtcNow, 10, deadline.Token).Count);
+        Assert.Equal(3, reopened.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName)
+            .ScanPrefix(ObjectProcessingJobStore.JobPrefix, 10).Count);
+        var repeated = restarted.Service.EnqueueBucket("images", reopened, "backfill", deadline.Token);
+        Assert.True(repeated.Completed);
+        Assert.Equal(3, repeated.ScannedObjects);
+        Assert.Equal(0, repeated.QueuedObjects);
+        Assert.Equal(3, repeated.SkippedObjects);
+    }
+
+    /// <summary>真实宿主取消仍保持未提交页，不被恢复预算的独立进度窗口忽略。</summary>
+    [Fact]
+    public async Task RecoverDueJobs_HostCancelledAfterEnqueue_DoesNotCommitProgress()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(15));
+        await SeedBackfillObjectsAsync(cancellationToken: deadline.Token);
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+        using var fixture = CreateService();
+        bool entered = false;
+        fixture.Service.AfterBackfillObjectForTest = pageBudget =>
+        {
+            entered = true;
+            stopping.Cancel();
+            Assert.True(pageBudget.IsCancellationRequested);
+            Assert.False(deadline.IsCancellationRequested);
+        };
+        var jobs = new ObjectProcessingJobStore(_db);
+        Assert.True(jobs.TryWriteBackfill(null,
+            new ObjectSemanticBackfillState("backfill", null, 0, 0, 0, false, DateTimeOffset.UtcNow), deadline.Token));
+        fixture.Service.RecoverDueJobs(stopping.Token);
+        Assert.True(entered);
+        var persisted = jobs.ReadBackfill("backfill", deadline.Token)!.State;
+        Assert.False(persisted.Completed);
+        Assert.Null(persisted.ContinuationToken);
+        Assert.Equal(0, persisted.ScannedObjects);
+        Assert.Equal(0, persisted.QueuedObjects);
+        Assert.Equal(0, persisted.SkippedObjects);
+        Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, deadline.Token));
+        Assert.Single(_db.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName)
+            .ScanPrefix(ObjectProcessingJobStore.JobPrefix, 10));
+    }
+
+    /// <summary>创建三个尚未登记派生任务的对象，测试只控制调度而不启动模型或 worker。</summary>
+    private async Task SeedBackfillObjectsAsync(Tsdb? database = null, CancellationToken cancellationToken = default)
+    {
+        var objects = new SndbObjectStore(database ?? _db);
+        var token = cancellationToken.CanBeCanceled ? cancellationToken : _deadline.Token;
         objects.CreateBucket("backfill");
         objects.SetSemanticOptions("backfill", false, true, 32, 32, 80);
         for (int index = 0; index < 3; index++)
         {
             using var content = new MemoryStream([1]);
-            await objects.PutObjectAsync("backfill", $"{index}.png", content, "image/png", cancellationToken: _deadline.Token);
+            await objects.PutObjectAsync("backfill", $"{index}.png", content, "image/png", cancellationToken: token);
         }
     }
 
@@ -440,7 +541,8 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
     }
 
     /// <summary>构造可手动单步运行的后台服务，未启动线程、模型或监听端口。</summary>
-    private ServiceFixture CreateService(int queueCapacity = 8, IMultimodalEmbeddingProvider? provider = null)
+    private ServiceFixture CreateService(
+        int queueCapacity = 8, IMultimodalEmbeddingProvider? provider = null, TsdbRegistry? registry = null)
     {
         var options = Options.Create(new ServerOptions
         {
@@ -453,7 +555,7 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         });
         var indexes = new USearchSemanticIndexRegistry(NullLogger<USearchSemanticIndexRegistry>.Instance);
         var images = new SemanticImageSearchService(options, provider ?? new UnusedProvider(), indexes, NullLogger<SemanticImageSearchService>.Instance);
-        return new ServiceFixture(new ObjectSemanticProcessingService(_registry, images, options,
+        return new ServiceFixture(new ObjectSemanticProcessingService(registry ?? _registry, images, options,
             NullLogger<ObjectSemanticProcessingService>.Instance), images, indexes);
     }
 

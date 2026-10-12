@@ -2215,3 +2215,9 @@ owned format verify仅include本测试、原solution/no-restore/severity warn/ex
 ## PR #298 根交付计时纠正（2026-10-12）
 原 13:21:20Z 提前收尾目标未达；实际 audit2 于 13:22:41.1227051Z PASS，在原 hard deadline 13:23:20Z 内。fresh 记录身份无同身份存活；18项独占 TEMP 无reparse/当前引用，单次删除完成；最后隐藏Job cleanupComplete=true。先前预测 audit2 被截止拒绝不符合真实不可变收据，纠正见 pr298-harness-1255/late-finalize-note.md。首 current-reference audit FAIL 与 ReadOnlySpan docs失败继续保留。UTC守卫使用 DateTimeOffset，不以转换到本地的 DateTime 同 UtcNow 比较。
 根独立逐SHA核18当前/归档文件、3原TRX实际1/3/18计数与4 PDB源码绑定，发现首根检查选错SonnetDB.Core.pdb后改读实际SonnetDB.pdb，首失败保存。最终只有Semantic测试、CHANGELOG、HANDOFF三路径；生产未改。下面完整restore/原Format和Git交付以独立root收据为准，本段不预写远端CI或main完成。
+
+## 恢复预算到期后保存回填进度：独立生产修复（2026-10-12）
+从#298已真实合main的9b2c7b88源码，在codex/fix-semantic-recovery-progress独立修复后台work budget与真实progress/host token：250ms默认恢复预算到期停止新对象，已登记prefix通过既有5秒CAS窗口保存cursor/count；HTTP两token仍RequestAborted，真实host/request取消与IOException原合同保留。不是task与cursor的全局原子事务，也不证明crash/WAL结果未知时的计数恢复或正式模型质量。
+实际唯一Release build0warnings/errors；focused10/10包含于完整Scheduler+Semantic38/38，不累加。三新回归分别真实KV/整DB关闭重开继续3/3/0、真实host取消保0和自然250/5000后台令牌取消、单POSTpartial→同持久1/1/0。原page-budget1/3、caller取消0→恢复3/2/1、原IOException及桶缩略图/search/delete/disabled断言保留。根独立核20 source/config/executed DLL/PDB/runtime资产、两个原TRX非空counter及3实际PDB源checksum，build1前源与最终源匹配。
+原stage13:57:57–14:32:57未延；worker owned原Format verify(include3C#) exit0/源不变。docs启动14:27:30与cleanup启动14:30:15门禁拒绝的原FAIL保留，workerHANDOFF/TRX汇总/freshPID/TEMP删除NOT_RUN，不借9Jobkernel cleanupComplete冒称最终fresh审计已做。根本新独立阶段补真实TRX与本LF尾；完整restore/原全量Format/commit及D:\sbg1358精确fresh审计与单次回收以另外root收据为准，未执行前不预写PASS。默认options/jobstore/testhost生产JSON均不变，不新包/tag/Release/真实模型或正式消费者接受。
+根独立资源收尾补录：root1514-recovery-cleanup.json新鲜核9个原Job收据、54个记录身份，matchingLive0/unknown0，PID复用按创建时间区别未触碰；自有D:\sbg1358标记、绝对路径、noReparse与零当前command引用核准，有界10项只删除一次。oldworker截止拒绝和NOT_RUN作为历史保持，根本次fresh检查与精确删除PASS另列；非整机孤儿证明。root完整门禁及准确5路径private commit仍按下面独立收据记录，无先写远端CI/正式消费者/main新fix完成。

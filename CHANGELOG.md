@@ -475,6 +475,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 后台语义回填区分恢复工作预算与真实宿主取消：工作预算到期停止新增对象，以原五秒提交窗口保存已持久入队前缀的游标和计数；HTTP仍使用请求取消，生产默认250ms、调用者取消及存储错误合同不变。新增真实KV整库重开、宿主取消和Kestrel自然预算回归；跨崩溃的任务/计数原子性与真实模型质量独立验收。
 - PR #298：后台已领取语义回填页的控制测试仅为独立宿主配置匹配的恢复/页预算，在释放三秒有界观察前确认页与调用者令牌未取消；保留真实进行中响应和终态 scanned=1/queued=1/skipped=0，生产默认预算与原页预算取消用例不变。默认恢复取消后的持久计数缺口已受控复现，另行跟踪。
 - 批量集成已审 PR #281 与 #217；语义图片回填测试对明确进行中 response 等待同一持久终态，保留首次排队1及重复回填scanned1/queued0/skipped1、thumbnail/search/delete/disable原断言；真实后台持页 partial0 回归与完整18个Semantic测试通过，生产代码及真实模型质量声明不变。
 - **前端依赖与 MapLibre 6 迁移（2026-10-12）**：保留 PR #217 覆盖 #218 的 Web/VS Code 锁定依赖更新；两个地图组件改用 ESM namespace/type 导入和局部创建实例，并通过 Vite `worker&url` 打包和显式配置独立地图 worker，保留现有瓦片、投影、结果地图和轨迹逻辑。
