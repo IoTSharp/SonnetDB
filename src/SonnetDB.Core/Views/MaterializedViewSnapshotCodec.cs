@@ -4,12 +4,13 @@ using System.IO.Hashing;
 using System.Text;
 using SonnetDB.Model;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Views;
 
 internal static class MaterializedViewSnapshotCodec
 {
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxColumnCount = 65_535;
@@ -72,6 +73,9 @@ internal static class MaterializedViewSnapshotCodec
             throw new InvalidDataException($"物化视图列数超过上限 {MaxColumnCount}。");
         if (result.Rows.Count > MaxRowCount)
             throw new InvalidDataException($"物化视图行数超过上限 {MaxRowCount}。");
+        if (result.ColumnInfo is { } info && info.Count != result.Columns.Count
+            || result.ColumnSchema is { } schema && schema.Count != result.Columns.Count)
+            throw new InvalidDataException("物化视图声明列数与列名数量不一致。");
         foreach (var row in result.Rows)
         {
             if (row.Count != result.Columns.Count)
@@ -93,6 +97,22 @@ internal static class MaterializedViewSnapshotCodec
         var crc = new Crc32();
         foreach (string column in result.Columns)
             WriteString(destination, crc, column, MaxColumnNameBytes);
+        for (int column = 0; column < result.Columns.Count; column++)
+        {
+            var info = result.ColumnInfo?[column]
+                ?? (result.ColumnSchema is { } schema ? SelectColumnInfo.FromColumn(schema[column]) : new SelectColumnInfo(null));
+            if (info.RequiresRefresh)
+                throw new InvalidDataException("旧物化代际缺少声明，必须先 REFRESH 来源。");
+            ValidateDeclaration(info);
+            WriteByte(destination, crc, info.DataType is { } type ? (byte)type : (byte)0);
+            byte flags = (byte)((info.IsNullable.HasValue ? 0x10 : 0)
+                | (info.IsNullable == true ? 1 : 0) | (info.IsKey ? 2 : 0)
+                | (info.IsAutoIncrement ? 4 : 0) | (info.IsRowVersion ? 8 : 0));
+            WriteByte(destination, crc, flags);
+            WriteByte(destination, crc, info.NumericPrecision ?? 0);
+            WriteByte(destination, crc, info.NumericScale ?? byte.MaxValue);
+            WriteInt32(destination, crc, info.ColumnSize ?? -1);
+        }
         foreach (var row in result.Rows)
         {
             foreach (object? value in row)
@@ -113,7 +133,7 @@ internal static class MaterializedViewSnapshotCodec
         if (!header[..Magic.Length].SequenceEqual(Magic))
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header magic.");
         int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
-        if (version != FormatVersion)
+        if (version is not (1 or FormatVersion))
             throw new InvalidDataException($"MaterializedViewSnapshot: unsupported format version {version}.");
         if (BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize)
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header size.");
@@ -126,7 +146,7 @@ internal static class MaterializedViewSnapshotCodec
         if (source.CanSeek)
         {
             long minimumRemaining = checked(
-                (long)columnCount * sizeof(int)
+                (long)columnCount * (sizeof(int) + (version == 2 ? 8 : 0))
                 + (long)rowCount * columnCount
                 + FooterSize);
             if (source.Length - source.Position < minimumRemaining)
@@ -137,6 +157,32 @@ internal static class MaterializedViewSnapshotCodec
         var columns = new string[columnCount];
         for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
             columns[columnIndex] = ReadString(source, crc, MaxColumnNameBytes, $"column {columnIndex}");
+        var columnInfo = new SelectColumnInfo[columnCount];
+        for (int column = 0; column < columnCount; column++)
+        {
+            if (version == 1)
+            {
+                columnInfo[column] = new SelectColumnInfo(null) { RequiresRefresh = true };
+                continue;
+            }
+            byte type = ReadByte(source, crc, "declaration type");
+            byte flags = ReadByte(source, crc, "declaration flags");
+            byte precision = ReadByte(source, crc, "declaration precision");
+            byte scale = ReadByte(source, crc, "declaration scale");
+            int size = ReadInt32(source, crc, "declaration size");
+            if (type > 9 || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
+                throw new InvalidDataException("MaterializedViewSnapshot: invalid declaration metadata.");
+            var info = new SelectColumnInfo(type == 0 ? null : (TableColumnType)type,
+                (flags & 0x10) == 0 ? null : (flags & 1) != 0,
+                (flags & 2) != 0, (flags & 4) != 0, (flags & 8) != 0)
+            {
+                NumericPrecision = precision == 0 ? null : precision,
+                NumericScale = scale == byte.MaxValue ? null : scale,
+                ColumnSize = size == -1 ? null : size,
+            };
+            ValidateDeclaration(info);
+            columnInfo[column] = info;
+        }
         var rows = new IReadOnlyList<object?>[rowCount];
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
         {
@@ -154,7 +200,18 @@ internal static class MaterializedViewSnapshotCodec
             throw new InvalidDataException("MaterializedViewSnapshot: invalid footer magic.");
         if (source.ReadByte() != -1)
             throw new InvalidDataException("MaterializedViewSnapshot: trailing bytes detected.");
-        return new SelectExecutionResult(columns, rows);
+        return new SelectExecutionResult(columns, rows) { ColumnInfo = columnInfo };
+    }
+
+    private static void ValidateDeclaration(SelectColumnInfo info)
+    {
+        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 9
+            || info.NumericPrecision.HasValue != info.NumericScale.HasValue
+            || info.NumericPrecision is 0 or > 38 || info.NumericScale is > 38
+            || info.NumericScale > info.NumericPrecision
+            || info.NumericPrecision.HasValue && info.DataType != TableColumnType.Decimal
+            || info.ColumnSize is < 0)
+            throw new InvalidDataException("MaterializedViewSnapshot: invalid declaration precision, scale or length.");
     }
 
     private static void WriteValue(Stream destination, Crc32 crc, object? value)

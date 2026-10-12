@@ -588,20 +588,32 @@ internal static class SqlEndpointHandler
                     declared.IsNullable,
                     declared.IsPrimaryKey,
                     declared.IsAutoIncrement,
-                    declared.IsRowVersion);
+                    declared.IsRowVersion)
+                {
+                    NumericPrecision = declared.DataType == TableColumnType.Decimal ? declared.DecimalPrecision : null,
+                    NumericScale = declared.DataType == TableColumnType.Decimal ? declared.DecimalScale : null,
+                    DeclaredNullable = declared.IsNullable,
+                };
                 continue;
             }
 
             var info = result.ColumnInfo?[column];
-            if (info?.DataType is { } declaredType)
+            if (info is not null)
             {
-                columnTypes[column] = ToColumnTypeCode(declaredType);
+                columnTypes[column] = info.DataType is { } declaredType ? ToColumnTypeCode(declaredType) : "object";
                 columnSchemas![column] = new ResultColumnSchema(
                     columnTypes[column],
                     info.IsNullable ?? true,
                     info.IsKey,
                     info.IsAutoIncrement,
-                    info.IsRowVersion);
+                    info.IsRowVersion)
+                {
+                    NumericPrecision = info.NumericPrecision,
+                    NumericScale = info.NumericScale,
+                    ColumnSize = info.ColumnSize,
+                    DeclaredNullable = info.IsNullable,
+                    RequiresRefresh = info.RequiresRefresh,
+                };
                 continue;
             }
 

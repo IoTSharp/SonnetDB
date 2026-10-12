@@ -1290,6 +1290,11 @@ internal static class TableSqlExecutor
             && (SqlTransactionContext.Current is not { } transaction
                 || !transaction.TryGetBufferedMutations(schema.Name, out _));
         var projections = BuildProjections(statement.Projections, schema);
+        if (statement.Pagination?.Fetch == 0)
+            return new SelectExecutionResult(projections.Select(static projection => projection.ColumnName).ToArray(), [])
+            {
+                ColumnInfo = projections.Select(projection => ResolveProjectionColumnInfo(projection, schema)).ToArray(),
+            };
         var hiddenOrderColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
         var (rows, rangeOrderSatisfied) = LoadSelectCandidateRowsForStatement(
             tsdb.Tables.Open(schema.Name),
@@ -1333,7 +1338,7 @@ internal static class TableSqlExecutor
             : RemoveHiddenOrderColumns(ordered, projections.Length);
         return visible with
         {
-            ColumnInfo = projections.Select(ResolveProjectionColumnInfo).ToArray(),
+            ColumnInfo = projections.Select(projection => ResolveProjectionColumnInfo(projection, schema)).ToArray(),
         };
     }
 
@@ -5275,20 +5280,17 @@ internal static class TableSqlExecutor
             _ => throw new InvalidOperationException("未知关系表投影类型。"),
         };
 
-    private static SelectColumnInfo ResolveProjectionColumnInfo(Projection projection)
+    private static SelectColumnInfo ResolveProjectionColumnInfo(Projection projection, TableSchema schema)
     {
         if (projection.Column is { } column)
         {
-            return new SelectColumnInfo(
-                column.DataType,
-                column.IsNullable,
-                column.IsPrimaryKey,
-                column.IsAutoIncrement,
-                column.IsRowVersion);
+            return SelectColumnInfo.FromColumn(column);
         }
 
         if (projection.Kind != ProjectionKind.Constant)
-            return new SelectColumnInfo(null);
+            return projection.ExpressionValue is { } expression
+                ? RelationalSelectExecutor.InferColumnInfo(expression, schema.Columns)
+                : new SelectColumnInfo(null);
 
         object? value = projection.ConstantValue;
         return new SelectColumnInfo(value switch

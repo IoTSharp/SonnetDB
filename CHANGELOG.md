@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+
+- GH-Issue #261：原生零行 reader 保留普通/物化视图的声明列名、SQL/CLR 类型、可空性及已知 DECIMAL 精度/小数位；未知声明保持未知，schema 查询不执行视图 UDF。物化快照 v2 在 CRC 内保存代际声明，兼容读 v1 行并要求显式 REFRESH 后访问完整元数据；Frame v3 显式协商完整声明，保留旧编码，仅对执行前版本拒绝回退一次 v2。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
 - M47-P08 显式恢复按冻结原Release ID读取草稿，并核tag/ID一致；真实可见性回归与94合同通过，原零写入拒绝保留，恢复发行与公开首跑继续验收。

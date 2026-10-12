@@ -228,17 +228,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
-            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken, sqlResultV2: true)
+            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
+                allowFallback: false, sqlResultVersion: SqlFrameCodec.DeclaredResultVersion)
                 .ConfigureAwait(false);
+            if (frames is { Count: 1 } && frames[0].Header.IsError
+                && frames[0].Header.Version == FrameHeader.CurrentVersion
+                && frames[0].Header.Flags == (byte)(FrameFlags.Response | FrameFlags.Error)
+                && frames[0].Header.Service == (byte)FrameService.Sql
+                && frames[0].Header.Op == (byte)SqlFrameOp.Query && frames[0].Header.StreamId == 1
+                && FrameCodec.ReadErrorPayload(frames[0].Payload).Code == "unsupported_result_version")
+                frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
+                    allowFallback: false, sqlResultV2: true).ConfigureAwait(false);
             if (frames is not null)
             {
                 if (frames[0].Header.IsError
                     || SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload).ColumnInfo is not null)
                     return BuildSqlResult(frames);
-                if (_builder.ResolveProtocol() == SndbTransportProtocol.FrameHttp2)
-                    throw new SndbServerException("frame_sql_result_version_unsupported",
-                        "服务端未协商 SQL Frame 结果格式 v2；请升级服务端或改用 Protocol=rest。",
-                        HttpStatusCode.OK);
+                throw new SndbServerException("frame_sql_result_version_unsupported",
+                    "服务端未协商 SQL Frame 声明结果格式；SQL 已执行，不能自动重发。请升级服务端或在新请求中显式选择 Protocol=rest。",
+                    HttpStatusCode.OK);
             }
         }
 

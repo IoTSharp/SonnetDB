@@ -1956,3 +1956,18 @@ PR #279 Windows CI 38174532212 的 Core 6255/6256 中唯一失败发生在 SqlOu
 所有原失败、非空 TRX、stdout/stderr、每个 Job 的 PID/启动时间/父链/命令行、实际 DLL hash/version、两个根授权增补及同 DLL 交接保留在 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\aggregate-cast-254。最后七收据精确 UTC 身份审计 PASS，48 kernel 身份/7 controllers、0 live/unknown。仅本阶段已核 marker、绝对路径、无 reparse 和无存活进程的长/短专属 TEMP 有界回收；旧 trigonometry policy 拒绝对象与其他阶段文件未触及。HANDOFF 原字节前缀保持，新增段 UTF-8 无 BOM/LF。
 
 实现仅七路径、index 空，执行者未暂存/提交/推送/变更分支或 GitHub。主会话下一步独立核 aggregate-cast-final-tree.json 的最终七路径与实际测试/进程/回收证据，在最终树执行完整 solution restore 和原 CI Format Check，通过后精确暂存提交并处理远端交付。此处未预写上述完整门禁、提交/PR 或全量 CI 通过；正式 NuGet 发包与 Chloe Provider 真实验收仍 NOT_RUN，不能由本地和真实 REST/h2c 定向测试推定完成。
+
+
+## GH-Issue #261 普通及物化视图声明元数据（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-engine 独立工作树的 codex/issue261-view-declarations 分支，基线 80f960e3b8c1dac99023d17f6f5c5643bb27ba91，仅二十个产品/测试/文档路径及本交接增量。空结果、全 NULL、别名及嵌套视图按静态声明返回类型、可空性、DECIMAL precision/scale、size 和标志；LIMIT 0 不执行投影/过滤/排序 UDF。外连接只扩大可空性，不能把未知表达式当成 NULL 字面量；最终 CASE/COALESCE 合并检查原 AST 的 NULL 语法，显式/隐式/CAST(NULL AS INT) 控制及匹配/未匹配真实行均已覆盖，没有新增持久推断标记。
+
+物化视图自身快照格式 v1→v2 把声明纳入 CRC；旧 v1 真实行可读，完整 schema 明确要求 REFRESH，不伪造旧声明。REST 继续现有 source-generated DTO/context，declaredNullable 的显式 null 不能被全局忽略策略删除；GetColumnSchema 返回强类型 DbColumn，既有 positional constructor/deconstruction 及 GetSchemaTable precision 的 short 合同保持。Frame v3 明确协商并保留 v2/legacy 原字节，只在稳定的执行前 unsupported_result_version 拒绝时至多重试一次 v2；SQL 错误、结果不确定及已执行后忽略 header 不重放 REST。旧 v2 的未知类型保守保持 Object，未声称旧服务 raw VECTOR 元数据兼容。
+
+最终 build06 实际 PASS，0 warning/0 error；tiny 未知外连接回归 TRX 1/1，最终 Core03 同 DLL 定向类 TRX 168/168、真实 REST/h2c RemoteAdoHttp2TransportTests 全类 Transport03 TRX 26/26，均 0 failed/skip。两真实视图用例包含空/all-null/nested/materialized 重开、声明未知表达式和外连接 CASE/COALESCE 的读前/读后/EOF schema 与真实值，生产 source-generated JSON 显式 null、Frame v3 KNN float[] 也在实际窗口覆盖。二十源码和十个 producer/copied/executed DLL 哈希在 build06 前后及测试后保持；非空 TRX、stdout/stderr、spec 和冻结绑定留在 D:\source\SonnetDB\artifacts\online-closure-20261012\issues-engine\view-declarations-261。
+
+早期 build03 的 DbColumn.IsRowVersion 编译失败、micro 0/2、Core01 163/167、Transport01 23/26 及旧成功回执完整保留，不能把旧成功赋给最终修正树。root 对第四、第五、第六构建与最终第三 transport 的授权增补分别留存；最终上限 70 shell、24 Jobs、6 builds、3 transports，原 22:48:17Z 起点和 00:18:17Z 硬截止未重置、2CPU/600秒 Job/取消文件保持。累计 shell 继承约 54 的不确定估计与本次续跑准确增量分列，不把估计改为精确计数。DLL 采集的 ordered-hashtable 属性选择失败及清理脚本首次小输入 parser 失败另留 FAIL，随后只修证据脚本，不修改通过后的产品源码或新增构建。
+
+最终 owned-process-audit-final.json 实际核十八 Job 全部 cleanupComplete=true，162 个 PID/UTC 创建时间/完整命令/父链身份，0 live/unknown；一次限定 PID 的 CIM 查询完成。专属 TEMP 仅在 marker、绝对路径、无 reparse 与无活身份核实后移除（10 目录/5 文件），原十四 Job 清理回执和初次 60秒审计失败保持。HANDOFF 原字节前缀不变。没有暂存、提交、推送、GitHub 操作、服务/工具安装或新代理/工作树，索引保持空。
+
+主智能体下一步先独立核 view-declarations-final-tree.json、最终源码/DLL/TRX/清理回执，在最终待提交树执行完整 dotnet restore SonnetDB.slnx 和原 CI Format Check，再精确提交/远端交付。本执行者的较早 scoped format 与本机定向/真实传输测试不替代完整 solution 门禁、全量 Windows/Linux CI、NativeAOT 发布、正式 NuGet 或消费者验收。正式已发布最低包版本、NewLife.XCode 实际逆向/代码生成/导出及外部验收仍 NOT_RUN；Issue #261 保持 OPEN，不由本地实现虚报完整闭环。
