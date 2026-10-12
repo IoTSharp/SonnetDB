@@ -494,6 +494,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+
+- PR #302：后台 Flush 集成 fixture 显式关闭自动 Compaction，保留每批 15 秒、最终至少 8 个物理段和 5000 点查询合同；每批等待退出后立即断言段数增长，写入/等待循环增加次数、总墙钟与取消边界，正常重新打开用例保留。生产默认配置不改，原 Windows CI FAIL 与新 head 门禁独立。
 - 物化视图读取保留已持久化的完整输出名称，修复带点 quoted alias 在空结果/CTE 的声明及重开后值绑定；补齐 Streaming ACK 两层精确超时文案测试合同，原预算与恢复断言保持（Issue #261、#300、#301；13 PR 组合验证）。
 - **GH-Issue #228 ADO.NET HasRows**：按真实结果探测是否存在行，保留空 SELECT/RETURNING 的声明列元数据；首行探测复用命令超时、取消与远程错误传播，并由后续同步/异步 Read 返回该行。正式 NuGet/Server 发布与 FreeSql 消费者回归仍待验收。
 
