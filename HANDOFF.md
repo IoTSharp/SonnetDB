@@ -2141,3 +2141,19 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 预算最多 45shell/22hiddenJob/400files、仅 2 builds（各 360 秒）与 3 test 窗口（各 240 秒），固定 PS7/隐藏 Job/UTF8、max+wallclock/cancel/backoff 与仅自有完整进程树回收保持；未安装、扫描大目录、Graphify、再派生或政策拒删重试。全部历史 FAIL/UNKNOWN（含 #284）仍保留，本片不凭当前 PASS 推导旧失败根因。
 
 根下一步先核本 merge-state/source-DLL-PDB-TRX/hash 与实际 cleanup，再在最终合并树做完整 solution restore/原 CI Format Check，精确 commit/merge push 后核新 head CI；当前 HANDOFF 仍随根合并提交交付。本地 130/21 不替代完整 Windows/Linux、Parity/nightly、正式 Core/Data/Server/SDK/NuGet、FreeSql #2234 或 Chloe/NativeAOT 消费者验收，也不自动关闭 #219。
+
+
+## 2026-10-12 独立 Streaming 检查点超时 CI 测试合同修复
+
+- 本片从干净 codex/streaming-checkpoint-timeout-ci-contract、base944769b966f11e089a366266927f0486827e57ed 接续（含已合 #295），只修改两个 observed streaming 测试文件、CHANGELOG 和本 HANDOFF 尾追加四路径；生产 src、Git/index/refs/stash 与远端均未改。
+- 原 #294 精确 head9d037d2 的 Linux/Windows CI FAIL 保留，原 run38206032265、jobs114669620104/114669620095 完整日志及诊断归档到 artifacts/online-closure-20261012/streaming-ci-fix-0647/original-ci。Linux 唯一失败是 pending isolation 测试未枚举实际检查点操作超时；Windows 唯一失败发生在 200ms 首次 OpenAsync，尚未进入 held-file-lock 故障点。此独立测试修复不代替 #244 VALUES 产品合同或正式包验收。
+- Windows WithCheckpointLockTimeout_ReopensAndCompletesIntentExactlyOnce 将初开与两次重开的同一持久选项统一为2000ms，贯穿15秒调用者令牌至初开、发布、读取、隔离、读取意图、故障后状态拒绝、重开、死信列表与最终事件读取；两处确认调用者未取消。真实独占 checkpoint 文件锁、未提交 checkpoint=-1、pending=2、PendingDeliveryId、重开 checkpoint=1/pending=1/意图清除、剩余 sequence=2 与第二次重开恰好一条死信的原断言全部保留。
+- 两个目标测试继续精确 Assert.ThrowsAsync<TimeoutException>，明确枚举三个生产原消息：订阅 wrapper 超时/null inner、检查点操作超时/null inner、文件锁超时/IOException 或源码 fallback 的 null inner。Linux 只新增缺失的检查点操作分支；不改生产定时器、不使用宽泛 ThrowsAny、不添加重试或跳过。
+- 唯一 Core Release build PASS，0 warning/error，89.5秒，2CPU/-m:1/shared compilation和node reuse关闭；owned两文件format verify PASS（54.8秒）。相同冻结DLL的微试2/2、三个完整类86/86（Subscription35、DeadLetterOperations27、DeadLetter24）及唯一15秒上限新进程观察2/2（9.3秒）均通过；重复两例包含在86内，不累计为新的独立测试数量。未做第二构建或更多观察进程。
+- build-inputs.json 冻结15项输入，生产/配置/未改订阅测试哈希稳定；binaries.json 和 actual-binaries 归档producer/copied Core/Data/Test DLL、PDB、runtimeconfig及版本/hash，producer/copied DLL一致。PE metadata确认7本仓库执行程序集实际Release/优化开启，Portable PDB逐5个目标源SHA匹配（两个修改测试、三个相关生产源）。完整非空TRX/逐例/逐类结果独立留存。
+- 专属 D:\streamci-0647 已按 owner、绝对路径、无reparse、有界 14 项清单和无活跃引用核验后一次删除。cleanup审计8个此前Jobs/57个记录PID+创建UTC+完整命令行+父PID，live=0/unknown=0/temp references=0；后续最后审计与self runner cleanup单列。历史全部FAIL/UNKNOWN/NOT_RUN与旧拒删对象保留。
+- 阶段固定06:47:44Z至07:17:44Z、35shell/18hidden Jobs、最多2build/3testwindows，未延旧阶段。本代理仅完成局部真实回归、字节前缀保存和证据交接；root须在最终待提交树执行完整solution restore与原CI Format Check，审查四路径后建立独立test-only PR并核新head Windows/Linux全suite。上述root门禁、Git/GitHub交付、新CI、nightly/parity与正式包/生产验收仍 NOT_RUN，不能把86/86写为全suite修复完成。
+
+## PR #281 root 继承已合 #297（2026-10-12）
+
+原42ab+944准确Core130/130、实际Remote21/21及45源/产物和3TRX已独立复核，完整restore/原Format Check通过后普通本地merge commit1bd75745；随后正常merge当前main6195c3。仅继承已合#297的两个streaming tests和docs，43个非CHANGELOG/HANDOFF已验证源与产物字节保持；两个继承测试Git blob等于6195c3。HANDOFF冲突保完整198/196章。没有重复运行原130/21，原DLL/PDB绑定只证明未改UUID/Decimal组合；新整树所有streaming/full CI仍由后续head实时门禁证明。正式包/消费者依赖保持OPEN。最终restore/原Format Check、精确提交推送与fresh head CI以root独立收据为准，未预写完成。
