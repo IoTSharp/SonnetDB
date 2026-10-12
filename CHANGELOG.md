@@ -14,6 +14,8 @@
 - PR #296 / GH-Issue #246：修正派生 SELECT 加载时的名称优先级，外层显式列别名高于 CTE 已解析的输出名，CTE 输出名高于内部投影别名；保留完整双引号点号名称、空结果类型以及原 CTE ORDER BY/LIMIT/OFFSET 合同。
 - GH-Issue #246：关系 UPDATE JOIN/FROM 接受参数化派生 VALUES/SELECT（含 UNION ALL）与按位置列别名；目标及来源共享轻事务 overlay，连续批次保留最初并发基线。声明校验覆盖空来源；固定右侧哈希构建保留首匹配顺序并支持单条万行集合更新，VALUES 行列/字节、取消和解析预算有界。正式包及完整 CI 验收独立。
 - GH-Issue #264：持续执行显式 DECIMAL/NUMERIC(p,s) 写入约束，拒绝需要舍入或超精度的输入，SQL/核心存储/轻事务和跨表批次在生成列及行索引写入前预检；裸 Decimal 保留完整 CLR 值域及既有浮点兼容。表 catalog `tables.tblschema` 升级 v11（flags bit4 保存显式来源），旧引擎拒绝新 catalog；当前 reader 读取旧 v9/v10 的非默认 p/s 后执行后续写入约束，旧 38/28 来源不明时保持不约束，历史非法行不在读取时改写。此 catalog 格式/旧写入行为变化必须与旧数据副本的回退边界一起发布；正式包和 Chloe 验收独立。
+
+- GH-Issue #244：关系表 INSERT VALUES 支持已有无行标量表达式、参数 CAST、函数、CASE 与算术；Decimal 目标和显式 DECIMAL CAST 保留原数值文本，CASE/COALESCE 保持短路及单次函数求值。全部行先准备再预留自增号/写入，RETURNING、ON CONFLICT、默认值和触发器/事务保存点沿用现有合同；本地与实际 REST/h2c 验证、正式发布和外部 ORM 验收分列。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 

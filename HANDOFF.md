@@ -2098,6 +2098,29 @@ final Core190/190（新26416、DDL36、精确参数22、原Decimal5、Parser91�
 
 根最终检查补充（2026-10-12）：完整原Format Check发现TableSqlExecutor三处WHITESPACE，原FAIL保留。仅按原formatter修正该源空白；逐全部token kind/text与非空白trivia核一致。上述14源PDB字节绑定属于修正前准确源码；修正后不冒称PDB字节SHA匹配，不追加无必要构建。普通预检发生在identity分配前；BEFORE trigger导致失败仍遵循既有identity可能留gap语义，本轮未新增该场景实跑。旧reader拒绝v11为源码合同，本轮无旧reader可执行验收。独立审查未确认P1/P2；正式包/Chloe/AOT仍NOT_RUN。最终整树门禁见独立root-ws收据。
 
+## GH-Issue #244 INSERT VALUES 标量表达式（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-cap 的 codex/issue244-insert-expressions，基线 1ebe27f55d94d8b80e21095ebd07d95d718580c6（已交付 #235 加三项 parser 预期修正）。VALUES 已调用完整 ParseExpression；只在 TableSqlExecutor 的 INSERT 专属非 DEFAULT 路径接入结构绑定和现有标量求值，不改 Parser、共享 ConvertTableValue/SqlScalarOperations、DEFAULT 文法、其它模型、ORM API 或二进制格式。结构绑定有 4096 节点/64 深度/1 秒及取消边界，不执行函数或常量运算；禁止列引用、聚合/star/窗口及原始子查询，包括未选分支。Decimal 目标和显式 DECIMAL CAST 通过已有 CAST AST 延后原数值文本转换，CASE/COALESCE 保持短路；全部 VALUES 行先准备，再预留 AUTO_INCREMENT 或写入。
+
+实际 Core v2 原产物 --no-build 完整七类 153/153，含新 #244 三十项：参数 CAST/UTC 函数、多行 RETURNING、默认值、NULL、精确高位 Decimal、未达分支非法数值、UDF 单次/短路、禁止结构、后行失败零写/零自增预留、已有事务缓冲/触发器保存点及直接/队列 ON CONFLICT。恢复后的原问题微试 1/1 是此完整类的重复子集，不另加总。
+
+实际新旧 ADO 合同两类完整 6/6，含 #244 新嵌入式、REST 和 h2c 三项以及 #235 既有三项；同语句、CLR Decimal/NULL、事务/触发器/RETURNING/ON CONFLICT、实际服务停止释放重开及 HTTP/1.1、HTTP/2 路由断言全部通过。测试/生产 DLL 都为 Release，实际 DLL/PDB/deps/runtimeconfig/版本与准确源配置及非空原 TRX 已绑定冻结。此证据是实际 REST/h2c ADO SQL/session 路径，不冒称 Native Frame 事务验收。
+
+原 v1 Core 微试因新夹具使用未支持的内联 PRIMARY KEY 在 DDL 阶段 FAIL，尚未进入 INSERT；只改新测试及示例为已有表级 PRIMARY KEY(id)，生产 Parser 不改。原嵌入式微试因新断言误期待 ExecuteScalar(SQL NULL) 返回 DBNull.Value 而 FAIL；既有返回 null 保持，只改新测试为读取实际一行、IsDBNull 与 declared Decimal 类型。原两份失败 TRX、stdout/stderr、v1/v2 源/DLL绑定全部保留。恢复原额度 1 次 EF build 用尽后，根明确追加且仅追加最后一次 EF 项目构建，只有 fixture DLL/PDB改变、所有生产 DLL 相同；原额度/追加授权分列，无第三 transport 或再次 build。
+
+最终三自有 C# 路径的原 severity warn/no-restore/verify-no-changes owned format 通过且源码字节未变；它报告通用 workspace-load warning，原 stderr 保留，未宣称完整 solution 门禁。源代码、两个新测试、CHANGELOG、sql-reference 与本 HANDOFF 共六路径，执行者未暂存、提交、推送、改分支或 GitHub 写入。HANDOFF 保留继承文件完整原字节前缀后追加。
+
+用户要求隐藏控制台后停止新增旧执行器任务；根审过的 task-owned Invoke-OwnedHidden.ps1 用于随后格式和清理，canonical eng/workbench-preview 执行器未被本执行者修改。各 Job 的内核归属、PID/UTC 创建/命令/父链、finally cleanupComplete 和后继只读身份审计按实际收据记录；短命子进程独立身份采样的边界不由内核清空升级为全生命周期捕获。七个明确独占 TEMP 经 marker、绝对路径、无 reparse、有界库存、原 Job 清空与新鲜拥有 PID 检查后一次逐项回收（35对象、无递归删除），旧 policy 拒绝对象及共享/default TEMP 未触及。前只读 auditor mismatch 与初始恢复 UTC 字符串本地再解析导致的时间守卫拒绝仍保留，新鲜精确原 UTC 解析与后继观察单列，不补造历史 PASS。
+
+证据目录：D:\source\SonnetDB\artifacts\online-closure-20261012\pr-review\serial244-impl-20261012-0013。下一步根独立核最终六路径、原 TRX、源/DLL配置绑定和身份/清理回执，在最终待提交树执行完整 restore 与原 CI Format Check，再精确提交/普通推送独立 #244 PR、核远端 CI 并按用户要求串行合并/完整验收后处理 Issue。正式 NuGet/Server 发布、NativeAOT 发布、Native Frame 事务及外部 ORM 消费者验收仍 NOT_RUN；它们不由本地指定范围通过推断。
+
+
+## #244 准确#292父最终集成验收（2026-10-12）
+
+Root按六自有路径冻结逐SHA核后精确stash并快进1ebe到bc03a6fbba49492019887b9cf57e2e4a39cbdc93，恢复stash81e0b041f3320934bd2f4c3cbb60296102ada09d保留；唯一HANDOFF冲突三原blob与两侧完整章节零缺失。辅助脚本因PowerShell位置与System.IO相对工作目录不同在任何写入前两次拒绝，原失败和前缀守卫保留；显式设置task process工作目录后独立解决，canonical未写。两个原fixtureSHA不变，生产TableSqlExecutor自动合入#241后相对父仍仅已审INSERT专用visitor/ConvertInsertValue，不扩共享转换。
+
+本准确集成树重新构建后Core完整280/280（原七类153+DDL36+Parser91），实际EF/Server72/72（原新三协议合同、DDL、BLOB及provider），0failed。最初224/224为较窄集合，完整同DLL280不重复累计。旧153/6及两个fixture FAIL保持原范围。最终Root完整restore/原Format Check、准确6path source与7实际DLL/TRX及提交/独立PR回读由issue244-final-root-*、issue244-root-freeze.json及issue244-delivery.json记录，不预写CI/main合并或正式消费者完成。
+
 ## Linux CI 持久死信重新签名意图测试预算（2026-10-12，Asia/Shanghai）
 
 本片从 main/干净 codex/deadletter-intent-ci-budget 的 06cdd55881667ab0b4e74b250d399e8053d53d04 接续，仅拥有 FileStreamingDeadLetterTests.cs、CHANGELOG.md 与本 HANDOFF 追加三个路径。PR #291 Linux run38187087964/job114611644616 的 payload 理论变体在 line251 首次 OpenAsync/WriteStateAsync 的200ms预算中失败，尚未执行损坏intent断言；原完整日志保存在 artifacts/online-closure-20261012/pr291-linux-failure-job01.stdout.log，并在新 deadletter-intent-resume0140 目录留存，不把旧失败写成PASS。
@@ -2234,3 +2257,16 @@ padding-final-process-audit-v2.json 对四次测试全部任务身份及控制�
 
 ## Batch03 根格式行尾修正（2026-10-12）
 原完整Format Check仅发现RemoteAdoHttp2TransportTests.cs925/926两行CRLF，来自根合并插入方法闭括号时使用Environment.NewLine。原FAIL保留于root1448-batch03-format；根仅移除两个CR字节、LF数量及全部非CR字节保持，实际231Core/28Server源逻辑不变。旧实际PDB源码SHA属于root1458归档的修正前文本，不冒称其匹配LF新SHA；精确两字节桥接见root1458-batch03-lf-bridge.json。重新最终完整restore/原Format通过前不能提交。本片仅root行尾与本LF交接，原冻结49资产/16PDB/实际TRX和所有FAIL保持。
+## Batch03续：#294 INSERT VALUES 表达式与当前组合本地复验（2026-10-12）
+
+本明确新阶段实际14:47:17Z开始，固定15:17:17Z hard截止，第25分钟15:12:17Z前开始冻结/audit、留5分钟，未延长/重置。唯一online-delivery/codex/pr-batch-20261012-03工作区，HEADc7d5935b35d44951f0ff8c3927dfdfacf35346e0/MERGE_HEAD9d037d2fab05ff6839240652e1b6340d06c6f615。根已对前#274/#278组合的两CR字节修LF并重跑最终完整restore/原Format通过后私有提交c7，原修正前源码/PDB及精确非CR字节桥保持；本片继承新c7，不复用旧RemotePDB来冒称新SHA。root1509-batch03-294-ready.json记录合法#294 merge、六featurepaths及仅docs完整章节根解决；当前#297 Streaming无差异。
+
+独立生产审查PASS：精确逆去TableSqlExecutor两个ConvertInsertValue调用点、专用INSERT求值段与bounded binder后，整个executor与B03原文逐字一致。其余12个相关Registry/关系执行器/存储/Serializable/derived及两#297 timeout修复源码/fixture相同；保留全部行材料化后才AUTO_INCREMENT reserve、首读基线/自有reservation/commit锁、Decimal正规化、shift/padding元数据、CTE/VALUES源分类与overlay。无共享ConvertTableValue扩展、JSON反射、依赖或二进制格式变更。本代理0causal repair、0生产/fixture新增，30源码/config输入先行完整bytes/hash归档。
+
+两实际Release项目build（Core.Tests109.1秒，EF.Tests58.1秒且含真实Server产品引用）均0warnings/0errors；单本任务dotnetroot/2CPU/-m1/shared compiler和node reuse关闭，与另任务全局最多2root遵守。两个fresh no-build/no-restore窗口全PASS、0failed/0skipped：Core准确8整类224/224，INSERT表达式30、DecimalDDL36、derived19、Serializable37、DecimalEnforcement16、Streaming subscription35/dead-letter operations27/dead-letter24；EF准确3整类12/12，SndbInsertExpressionContractTests3、SndbDecimalDeclarationContractTests6、SndbDerivedUpdateTests3。包含embedded/REST/RequestVersionExact h2c与既有一次万行/两万参数、精确Decimal/TIME/UTC/事务失败续接/回滚/关闭重开合同；counts以本树非空TRX为准，不重复累计旧280/72、B03的231/28或B02的331/9。
+
+明确没有build SonnetDB.Tests项目或运行其旧copied Core/Server DLL；EF引用的本树真实Server产品和当前Core/Data/EF测试DLL为本次证据。当前producer/copied DLL/PDB、两actual executed test assemblies/runtimeconfig/deps、30输入、两个TRX storage与Portable PDB源SHA以artifacts/online-closure-20261012/pr294-combination-1447/freeze.json/pdb-source-bindings.json实际冻结为准。HANDOFF全部原byte-prefix保持，仅LF尾追加；已在15:03释放dotnet槽，后续只有有界PS证据工作。
+
+fresh audit15:05:59Z实际36任务身份/gone32/PID-reused4/live0/unknown0/TEMP references0/stopActions0，4复用PID创建时间不同、未触碰。四hidden KernelJobs均cleanupComplete，24 copied/root lifecycle receipts SHA一致。短独占D:\p294-1447按owner marker/绝对target/no-reparse/当前refs与有界14项核后删除PASS；所有旧policy对象、旧CI原Windows/Linux FAIL和各阶段FAIL/UNKNOWN保留。没有把旧#294 CI FAIL或旧本地声明覆盖成新head完整CI；CAST(NULL AS DECIMAL)额外empty metadata缺口仍未修复。
+
+本代理无Git/index/ref/stash/commit/push/remote写，无new agent/worktree/Graphify/广域扫描/安装/按名kill；保留此prepared merge供根。两个build与两个test窗口额度已用完，无第三build/ServerTests测试，不把未执行事项计PASS。未单独执行owned format；根须在本尾追加后核冻结证据，执行最终完整solution restore与原CI Format Check并精确stage/私有commit，再按明确计划统一batch02与其它合法组合，不push原294。新准确remote head完整Windows/Linux CI、nightly/parity、正式NuGet/Core/Data/Server/SDK、Chloe/FreeSql消费者、NativeAOT publish、release/生产验收保持独立NOT_RUN，Issue不由本局部结果虚关。

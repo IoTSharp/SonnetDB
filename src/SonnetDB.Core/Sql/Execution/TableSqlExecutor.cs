@@ -527,7 +527,7 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertInsertValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column, schema);
             }
 
             ApplyInsertDefaults(defaults, values);
@@ -1090,7 +1090,7 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertInsertValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column, schema);
             }
 
             ApplyInsertDefaults(defaults, values);
@@ -2141,14 +2141,101 @@ internal static class TableSqlExecutor
         return bindings;
     }
 
-    private static object? ConvertInsertValue(SqlExpression expression, TableColumn column)
+    private static object? ConvertInsertValue(SqlExpression expression, TableColumn column, TableSchema schema)
     {
         if (expression is not DefaultValueExpression)
-            return ConvertTableValue(expression, column);
+        {
+            bool decimalContext = column.DataType == TableColumnType.Decimal;
+            var bound = BindInsertValueExpression(expression, decimalContext, column.Name);
+            if (decimalContext)
+                bound = SqlScalarOperations.InDecimalContext(bound);
+            // 绑定阶段已遍历全部分支并拒绝列引用；求值器不会读取这个空行。
+            return ConvertTableValue(EvaluateScalar(bound, schema, Array.Empty<object?>()), column);
+        }
 
         return TryEvaluateColumnDefault(column, out var defaultValue)
             ? defaultValue
             : null;
+    }
+
+    /// <summary>
+    /// 校验 INSERT VALUES 的无行标量表达式；不执行函数或常量运算，并延后分支中的精确 Decimal 解析。
+    /// </summary>
+    private static SqlExpression BindInsertValueExpression(SqlExpression expression, bool decimalContext, string columnName)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        int visited = 0;
+        return Bind(expression, decimalContext, 0);
+
+        SqlExpression Bind(SqlExpression node, bool exactDecimal, int depth)
+        {
+            if (++visited > 4096 || depth > 64 || System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalSeconds > 1)
+                throw new InvalidOperationException("INSERT VALUES 表达式超出有界校验预算。");
+            SqlExecutor.ThrowIfCancellationRequested();
+            switch (node)
+            {
+                case LiteralExpression { Kind: SqlLiteralKind.Float, NumericText: not null } literal when exactDecimal:
+                    // CAST 复用现有原数值文本解析，只有实际选中的 CASE/COALESCE 分支才执行。
+                    return new CastExpression(literal, SqlDataType.Decimal);
+                case LiteralExpression or DurationLiteralExpression or MaterializedSubqueryValueExpression:
+                    return node;
+                case CastExpression cast:
+                    if (cast.TargetType is SqlDataType.Vector or SqlDataType.GeoPoint)
+                        throw new NotSupportedException($"CAST 当前不支持目标类型 {cast.TargetType}。");
+                    return cast with { Operand = Bind(cast.Operand, cast.TargetType == SqlDataType.Decimal, depth + 1) };
+                case UnaryExpression unary when unary.Operator is SqlUnaryOperator.Negate or SqlUnaryOperator.Not:
+                    return unary with { Operand = Bind(unary.Operand, exactDecimal && unary.Operator == SqlUnaryOperator.Negate, depth + 1) };
+                case BinaryExpression binary when IsArithmeticOperator(binary.Operator)
+                    || binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or || IsComparisonOperator(binary.Operator):
+                    bool arithmeticDecimal = exactDecimal && IsArithmeticOperator(binary.Operator);
+                    return binary with
+                    {
+                        Left = Bind(binary.Left, arithmeticDecimal, depth + 1),
+                        Right = Bind(binary.Right, arithmeticDecimal, depth + 1),
+                    };
+                case IsNullExpression isNull:
+                    return isNull with { Operand = Bind(isNull.Operand, false, depth + 1) };
+                case InExpression { Subquery: null } inExpression:
+                    if (inExpression.Values.Count > 4096)
+                        throw new InvalidOperationException("INSERT VALUES 的 IN 列表超出校验预算。");
+                    return inExpression with
+                    {
+                        Value = Bind(inExpression.Value, false, depth + 1),
+                        Values = inExpression.Values.Select(value => Bind(value, false, depth + 1)).ToArray(),
+                    };
+                case CaseExpression caseExpression:
+                    if (caseExpression.WhenClauses.Count > 2048)
+                        throw new InvalidOperationException("INSERT VALUES 的 CASE 分支超出校验预算。");
+                    return caseExpression with
+                    {
+                        WhenClauses = caseExpression.WhenClauses.Select(clause => new CaseWhenClause(
+                            Bind(clause.Condition, false, depth + 1), Bind(clause.Result, exactDecimal, depth + 1))).ToArray(),
+                        Else = caseExpression.Else is null ? null : Bind(caseExpression.Else, exactDecimal, depth + 1),
+                    };
+                case FunctionCallExpression function:
+                    if (function.IsStar || function.IsDistinct || function.Over is not null
+                        || FunctionRegistry.TryGetAggregate(function.Name, out _)
+                        || FunctionRegistry.TryGetWindow(function.Name, out _))
+                        throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}' 的调用形式。");
+                    if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (function.Arguments.Count != 2 || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String })
+                            throw new InvalidOperationException("json_value 需要两个参数，第二个参数必须是 JSON path 字符串字面量。");
+                    }
+                    else if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+                        ValidateScalarFunctionArgumentCount(function, scalarFunction);
+                    else
+                        throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}'。");
+                    if (function.Arguments.Count > 4096)
+                        throw new InvalidOperationException("INSERT VALUES 的函数参数超出校验预算。");
+                    bool coalesceDecimal = exactDecimal && string.Equals(function.Name, "coalesce", StringComparison.OrdinalIgnoreCase);
+                    return function with { Arguments = function.Arguments.Select(argument => Bind(argument, coalesceDecimal, depth + 1)).ToArray() };
+                case IdentifierExpression identifier:
+                    throw new InvalidOperationException($"INSERT VALUES 中不能引用列 '{identifier.Name}'。");
+                default:
+                    throw new InvalidOperationException($"列 '{columnName}' 的 INSERT VALUES 不支持表达式 '{node.GetType().Name}'。");
+            }
+        }
     }
 
     private static BoundColumnDefault[] BindInsertDefaults(
