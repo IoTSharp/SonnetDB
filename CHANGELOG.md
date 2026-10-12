@@ -471,6 +471,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 持久订阅确认、死信 pending isolation 与重新签名意图测试精确区分2000ms wrapper取消和checkpoint锁重试耗尽的合法超时消息/inner合同，保留调用者未取消和原恢复断言；Linux原两项失败保留，生产计时器和预算不变。
+- Linux CI：仅持久死信重新签名意图不匹配理论用例统一使用两秒初开/重开预算，以45秒调用者截止覆盖初始化、锁故障、损坏状态读写与重开；保留真实存储超时原消息、损坏拒绝和原spool不确认断言，原200ms初开失败保持。
 - Windows CI：持久订阅确认的锁故障用例统一使用2秒初开/重开预算，分别核生产超时原消息和实际调用者取消，并验证相同 delivery/checkpoint/pending 恢复；原200ms Open失败保留。
 - Windows CI：持久死信 pending isolation 恢复用例统一使用2秒存储预算，保留真实锁超时和重开恢复，并独立核15秒调用者未取消；保留原200ms Open/recovery失败，生产配置不变。
 - Windows Outbox 批次取消测试使用 2 秒初始化/批次预算，并独立核处理器真实取消、15 秒调用者未取消及租约可恢复；保留原 100ms 构造阶段取消失败，生产预算不变。

@@ -214,7 +214,17 @@ public sealed class FileStreamingDeadLetterOperationsTests
             using var held = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             var failure = await Assert.ThrowsAsync<TimeoutException>(() => subscription.MoveExhaustedBatchToDeadLetterAsync(
                 delivery.DeliveryId, subscription.StateRevision, delivery.Attempt, "poison", deadline.Token).AsTask());
-            Assert.Equal("持久订阅操作超过存储操作超时边界。", failure.Message);
+            if (failure.Message == "持久订阅操作超过存储操作超时边界。")
+            {
+                // wrapper 取消分支不保留原 OperationCanceledException。
+                Assert.Null(failure.InnerException);
+            }
+            else
+            {
+                Assert.Equal($"无法在 {options.OperationTimeoutMilliseconds} 毫秒内取得检查点文件锁。", failure.Message);
+                // 最后一次锁重试保留 IOException；重试循环后的 fallback 不含 inner。
+                Assert.True(failure.InnerException is IOException or null);
+            }
             Assert.False(deadline.IsCancellationRequested);
             await Assert.ThrowsAsync<InvalidOperationException>(() => subscription.ReplayDeadLetterAsync(1,
                 delivery.DeliveryId, subscription.DeadLetterRevision, deadline.Token).AsTask());

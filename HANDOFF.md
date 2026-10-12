@@ -1999,3 +1999,21 @@ PR #286 Windows run38181034337 的唯一失败发生在 AcknowledgeAsync_WithHel
 本次最终两完整测试类实际TRX共62 executed/62 passed/0failed（微试2/2不重复累计）；生产Core与测试DLL哈希、4测试/文档累计路径和3增量路径被冻结，Job清理通过。完整restore/原format及远端CI状态由后续不可变收据分别核验。
 
 补充最终集成：main已经凭12完整新门禁串行合入#269、#213、#287，准确基线af6f26f9befbf626b7fc127c250fd72b3fa8f070。严格尾追加helper拒绝主线在原尾前新增#213/#269历史段落，原拒绝保留；独立审查唯一真实末尾冲突，保存三原blob和合并原文、保留自动合并前缀及deadletter/ranking两个完整尾段。恢复本任务3路径stash精确测试字节和文档自有追加；原stash及备份保持待交付。相对新main有效4路径。随后重新构建并实测两个完整类；原先62/62属于集成前真实DLL，最终门禁和新head以subscription-ci-integrated-*收据为准。
+## Linux CI 持久死信重新签名意图测试预算（2026-10-12，Asia/Shanghai）
+
+本片从 main/干净 codex/deadletter-intent-ci-budget 的 06cdd55881667ab0b4e74b250d399e8053d53d04 接续，仅拥有 FileStreamingDeadLetterTests.cs、CHANGELOG.md 与本 HANDOFF 追加三个路径。PR #291 Linux run38187087964/job114611644616 的 payload 理论变体在 line251 首次 OpenAsync/WriteStateAsync 的200ms预算中失败，尚未执行损坏intent断言；原完整日志保存在 artifacts/online-closure-20261012/pr291-linux-failure-job01.stdout.log，并在新 deadletter-intent-resume0140 目录留存，不把旧失败写成PASS。
+
+仅该理论测试将初开和重开的同一持久选项统一为2000ms，与既有#289合同一致；45秒调用者令牌传入初开、发布、读取、真实持锁隔离、状态读取/重新签名写入、最终重开以及spool恢复/回放。两个helper新增可选令牌，其余调用者默认语义保留。保留真实独占checkpoint锁及TimeoutException，并新增生产原消息与45秒调用者未取消的区分；重新签名payload/revision/checkpoint后仍必须InvalidDataException，原spool单事件与未确认checkpoint=-1断言不变。相邻200ms用例、生产代码、JSON/AOT、默认预算、重试、跳过和KNN原4096门槛都未改。
+
+本机唯一Release Core Tests构建通过，0warnings/0errors；先定向理论微试实际3executed/3passed，再以同一冻结DLL、no-build/no-restore和CI Blame配置执行完整FileStreamingDeadLetterTests类，实际24executed/24passed/0failed/0notExecuted。微试包含在完整类中，不重复累计。源码/配置、producer及copied Core/Data/Test DLL、runtimeconfig与两份非空TRX绑定，证据位于 artifacts/online-closure-20261012/deadletter-intent-resume0140；owned format --include该文件通过，这不是完整CI Format Check。
+
+新恢复阶段保守截止02:25Z，最多30shell/14Job/一项600秒Release构建/两个测试窗口，2CPU、固定PowerShell7、取消文件、非breakaway Windows Job完整身份/父链及finally回收；仅任务独占TEMP清理，旧policy拒删对象与全部历史FAIL/UNKNOWN保持。进程身份、HANDOFF完整原字节prefix和三路径最终SHA以本目录最终审计为准。本代理未写index、commit、branch或GitHub；根会话下一步先核源码/DLL/TRX/清理，再在最终三路径树执行完整restore与原CI Format Check，精确stage/commit/push独立稳定性增量，并按真实新head CI核验队列。完整Windows/Linux CI、nightly/parity、正式包和生产验收仍未由本机PASS证明。
+
+
+## 持久订阅与死信测试独立验收（2026-10-12，Asia/Shanghai）
+
+原02:25Z补充窗口的deadline拒绝、FAIL和新树NOT_RUN保持，未延长旧窗口；原24/24仅属于补充前冻结源码。根在02:31:59Z新派独立15分钟验收至02:46:59Z，0build、不再改测试或生产，先严格核8编译输入和6个producer/copied DLL/runtimeconfig及原归档SHA全部与当前树一致。三处目标测试精确区分wrapper原消息+空inner与2000ms锁消息+IOException/源码fallback空inner，真实持锁、调用者未取消和原故障/恢复断言全部保持；原#291初开失败及#288 Linux双消息失败另存原文。
+
+新的hidden PS7/Windows Job微试覆盖ack两cancel变体、pending isolation和intent三个变体，实际6executed/6passed；随后同DLL no-build/no-restore及Blame执行FileStreamingSubscriptionTests、FileStreamingDeadLetterOperationsTests、FileStreamingDeadLetterTests三个完整类，实际86executed/86passed/0failed/0notExecuted。微试包含在完整类，不重复累计；源码、真实TRX、重复DLL SHA、5最终source与Job/临时目录收据冻结到artifacts/online-closure-20261012/rootaccept291-0232，全部旧FAIL/NOT_RUN和前片冻档不修改。
+
+本代理仅追加本HANDOFF，不写index、branch、commit或GitHub；所有native命令在task-owned隐藏console内，2CPU、外部180/300秒、最多12shell/8Job/两个窗口及阶段取消界限保持。旧与新Job精确身份及获准D:\pr291timerpaths-0207整目录owner/reparse/200项、10层、30秒遍历微试与一次回收结果以process-audit.json/temp-cleanup-result.json及最后hidden audit Job回执为准，policy拒删对象不触碰。根最终完整restore、原CI Format Check、独立PR/new-head全量CI仍须实际执行；本机PASS不替代这些门禁、nightly/parity、正式包和生产验收。
