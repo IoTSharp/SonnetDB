@@ -249,6 +249,7 @@ internal static class WhereClauseDecomposer
         {
             LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var value } => value,
             LiteralExpression { Kind: SqlLiteralKind.Float, FloatValue: var value } => value,
+            LiteralExpression { Kind: SqlLiteralKind.Decimal, DecimalValue: var value } => (double)value,
             _ => throw new InvalidOperationException($"函数 {functionName} 的空间剪枝参数必须是数值字面量。"),
         };
     }

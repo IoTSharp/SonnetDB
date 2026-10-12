@@ -421,6 +421,7 @@ internal static class TableInSubqueryExecutor
             SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
             SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
             SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
+            SqlLiteralKind.Decimal => literal.DecimalValue.ToString(CultureInfo.InvariantCulture),
             SqlLiteralKind.String => literal.StringValue ?? string.Empty,
             _ => literal.Kind.ToString(),
         };

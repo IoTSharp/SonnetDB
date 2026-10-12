@@ -29,7 +29,8 @@ public sealed class PhysicalReadOverloadTests
             await app.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             string address = app.Services.GetRequiredService<IServer>()
                 .Features.Get<IServerAddressesFeature>()!.Addresses.First();
-            using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(5) };
+            // 此用例验证错误映射；冷启动的请求管线在共享 CI 主机上仍须有界完成。
+            using var client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(15) };
             using var response = await client.GetAsync("/healthz/read-overload");
             Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
             Assert.Equal(TimeSpan.FromSeconds(1), response.Headers.RetryAfter?.Delta);

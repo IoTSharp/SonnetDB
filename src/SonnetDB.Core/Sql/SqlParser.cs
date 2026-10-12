@@ -2,6 +2,7 @@
 using SonnetDB.Graphs;
 using SonnetDB.Modbus;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Sql;
 
@@ -4016,7 +4017,20 @@ public sealed class SqlParser
                 return LiteralExpression.Integer(token.IntegerValue);
             case TokenKind.FloatLiteral:
                 Advance();
-                return LiteralExpression.Float(token.DoubleValue);
+                return LiteralExpression.Float(token.DoubleValue) with { NumericText = token.Text };
+            case TokenKind.KeywordDecimal when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+            case TokenKind.KeywordNumeric when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                decimal decimalValue = SqlScalarOperations.ParseExactDecimal(Current.Text);
+                Advance();
+                return LiteralExpression.Decimal(decimalValue);
+            case TokenKind.KeywordFloat when _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                if (!double.TryParse(Current.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatValue)
+                    || !double.IsFinite(floatValue))
+                    throw Error("FLOAT 字面量必须是有限浮点数");
+                Advance();
+                return LiteralExpression.Float(floatValue);
             case TokenKind.StringLiteral:
                 Advance();
                 return LiteralExpression.String(token.Text);
@@ -4054,6 +4068,21 @@ public sealed class SqlParser
                 return inner;
             case TokenKind.LeftBracket:
                 return ParseVectorLiteral();
+            case TokenKind.IdentifierLiteral when !token.IsQuotedIdentifier
+                && string.Equals(token.Text, "x", StringComparison.OrdinalIgnoreCase)
+                && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.StringLiteral:
+                Advance();
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromHexString(Current.Text);
+                }
+                catch (FormatException)
+                {
+                    throw Error("BLOB 字面量必须包含偶数个十六进制字符");
+                }
+                Advance();
+                return LiteralExpression.Blob(bytes);
             case TokenKind.IdentifierLiteral when string.Equals(Current.Text, "point", StringComparison.OrdinalIgnoreCase):
                 return ParsePointLiteralOrFunctionCall();
             case TokenKind.KeywordTime:
