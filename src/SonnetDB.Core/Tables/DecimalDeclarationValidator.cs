@@ -8,6 +8,54 @@ internal static class DecimalDeclarationValidator
 {
     private static readonly BigInteger _maximumCoefficient = (BigInteger.One << 96) - 1;
 
+    internal static decimal ConvertForWrite(object value, TableColumn column)
+    {
+        try
+        {
+            decimal converted = ConvertExact(value, column.Name);
+            Validate(converted, column.DecimalPrecision, column.DecimalScale, column.Name);
+            return converted;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or FormatException or OverflowException)
+        {
+            throw new InvalidOperationException(
+                $"DECIMAL 列 '{column.Name}' 写入不符合显式声明 ({column.DecimalPrecision},{column.DecimalScale})；不进行舍入。",
+                exception);
+        }
+    }
+
+    internal static void ValidateForWrite(TableSchema schema, IReadOnlyList<object?> values)
+    {
+        if (values.Count != schema.Columns.Count)
+            throw new ArgumentException("行值数量必须与表 schema 列数量一致。", nameof(values));
+        foreach (var column in schema.Columns)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (column.DataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration
+                && values[column.Ordinal] is null && !column.IsNullable)
+                throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
+            if (column.DataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration
+                && values[column.Ordinal] is { } value)
+                _ = ConvertForWrite(value, column);
+        }
+    }
+
+    internal static void NormalizeForWrite(TableSchema schema, object?[] values)
+    {
+        if (values.Length != schema.Columns.Count)
+            throw new ArgumentException("行值数量必须与表 schema 列数量一致。", nameof(values));
+        foreach (var column in schema.Columns)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (column.DataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration
+                && values[column.Ordinal] is null && !column.IsNullable)
+                throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
+            if (column.DataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration
+                && values[column.Ordinal] is { } value)
+                values[column.Ordinal] = ConvertForWrite(value, column);
+        }
+    }
+
     internal static decimal ConvertExact(object value, string columnName)
         => value switch
         {

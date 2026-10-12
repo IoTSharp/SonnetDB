@@ -83,11 +83,14 @@ internal static class TableSqlExecutor
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
         var decimalDefinitions = new Dictionary<string, (byte Precision, byte Scale)>(StringComparer.Ordinal);
+        var explicitDecimalDeclarations = new HashSet<string>(StringComparer.Ordinal);
         foreach (var column in statement.Columns)
         {
             var dataType = MapTableColumnType(column.DataType);
             if (dataType == TableColumnType.Decimal)
                 decimalDefinitions[column.Name] = (column.DecimalPrecision, column.DecimalScale);
+            if (dataType == TableColumnType.Decimal && column.HasExplicitDecimalDeclaration)
+                explicitDecimalDeclarations.Add(column.Name);
             var isPrimaryKey = statement.PrimaryKey.Contains(column.Name, StringComparer.Ordinal);
             var isAutoIncrement = column.IsAutoIncrement;
             var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey && !isAutoIncrement;
@@ -104,8 +107,13 @@ internal static class TableSqlExecutor
                     dataType,
                     IsPrimaryKey: false,
                     isNullable,
-                    Ordinal: 0);
-                var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn);
+                    Ordinal: 0)
+                {
+                    DecimalPrecision = column.DecimalPrecision,
+                    DecimalScale = column.DecimalScale,
+                    HasExplicitDecimalDeclaration = column.HasExplicitDecimalDeclaration,
+                };
+                var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn, tempColumn.HasExplicitDecimalDeclaration);
                 columnDefaults.Add(column.Name, defaultSql);
             }
 
@@ -143,7 +151,8 @@ internal static class TableSqlExecutor
             checkConstraints: checkConstraints,
             columnDefaults: columnDefaults,
             autoIncrementColumns: autoIncrementColumns,
-            decimalDefinitions: decimalDefinitions);
+            decimalDefinitions: decimalDefinitions,
+            explicitDecimalDeclarations: explicitDecimalDeclarations);
         ModbusTableBinding? modbusBinding = ModbusSqlExecutor.ResolveTableBinding(tsdb, statement, schema);
         tsdb.Tables.Create(schema);
         if (modbusBinding is null)
@@ -278,6 +287,7 @@ internal static class TableSqlExecutor
             {
                 DecimalPrecision = dataType == TableColumnType.Decimal ? statement.DecimalPrecision ?? 38 : (byte)0,
                 DecimalScale = dataType == TableColumnType.Decimal ? statement.DecimalScale ?? 28 : (byte)0,
+                HasExplicitDecimalDeclaration = dataType == TableColumnType.Decimal && statement.DecimalPrecision is not null,
             };
             defaultValue = EvaluateAndConvertSchemaDefault(statement.DefaultExpression, tempColumn);
             if (statement.DecimalPrecision is not null && defaultValue is decimal decimalDefault)
@@ -355,10 +365,10 @@ internal static class TableSqlExecutor
                 : statement.DataType is null ? currentColumn.DecimalPrecision : statement.DecimalPrecision ?? 38,
             DecimalScale = targetType != TableColumnType.Decimal ? (byte)0
                 : statement.DataType is null ? currentColumn.DecimalScale : statement.DecimalScale ?? 28,
+            HasExplicitDecimalDeclaration = targetType == TableColumnType.Decimal
+                && (statement.DataType is null ? currentColumn.HasExplicitDecimalDeclaration : statement.DecimalPrecision is not null),
         };
-        bool validateDecimalDefault = targetType == TableColumnType.Decimal
-            && (statement.DecimalPrecision is not null
-                || statement.DataType is null && (targetColumn.DecimalPrecision != 38 || targetColumn.DecimalScale != 28));
+        bool validateDecimalDefault = targetColumn.HasExplicitDecimalDeclaration;
 
         string? targetDefaultSql = statement.DefaultAction switch
         {
@@ -406,7 +416,7 @@ internal static class TableSqlExecutor
                     DecimalDeclarationValidator.Validate(
                         DecimalDeclarationValidator.ConvertExact(value, targetColumn.Name),
                         targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
-            });
+            }, hasExplicitDecimalDeclaration: targetColumn.HasExplicitDecimalDeclaration);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_column");
     }
 
@@ -2425,6 +2435,7 @@ internal static class TableSqlExecutor
 
     private static void ValidateRequiredColumns(TableSchema schema, IReadOnlyList<object?> values)
     {
+        DecimalDeclarationValidator.ValidateForWrite(schema, values);
         if (values.Count != schema.Columns.Count)
             throw new InvalidOperationException("内部错误：行值数量与 schema 列数量不一致。");
 
@@ -5726,7 +5737,9 @@ internal static class TableSqlExecutor
         {
             TableColumnType.Int64 => Convert.ToInt64(value, CultureInfo.InvariantCulture),
             TableColumnType.Float64 => Convert.ToDouble(value, CultureInfo.InvariantCulture),
-            TableColumnType.Decimal => Convert.ToDecimal(value, CultureInfo.InvariantCulture),
+            TableColumnType.Decimal => column.HasExplicitDecimalDeclaration
+                ? DecimalDeclarationValidator.ConvertForWrite(value, column)
+                : Convert.ToDecimal(value, CultureInfo.InvariantCulture),
             TableColumnType.Time => ConvertTimeValue(value, column),
             TableColumnType.Boolean => value is bool b
                 ? b
