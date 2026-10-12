@@ -220,6 +220,25 @@ CREATE TABLE devices (
 - 完整的 `INSERT ... RETURNING` 类型、列属性和跨嵌入式/REST/Frame HTTP/2 ADO 回落合同属于下一未发布版本，首次交付版本号待发布标签确定；已发布的 3.1.0 不应据此视为具备该完整合同。Frame SQL 查询端点仍只读，`Protocol=frame-http2` 的 ADO 写入经同一 HTTP/2 连接回落 REST SQL 端点。
 - EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
 
+关系表的 `INSERT ... VALUES` 在下一未发布版本支持已有无行标量表达式，包括常量、参数、`CAST`、标量函数、`CASE` 和算术。多行 `VALUES` 可与 `RETURNING`、`ON CONFLICT`、默认值和已有事务/触发器组合：
+
+```sql
+CREATE TABLE invoice_items (
+    id INT AUTO_INCREMENT,
+    amount DECIMAL NULL,
+    created DATETIME NULL,
+    PRIMARY KEY (id)
+);
+INSERT INTO invoice_items (amount, created)
+VALUES (CAST(@amount AS DECIMAL), CURRENT_UTC_DATETIME()),
+       (CASE WHEN @amount IS NULL THEN NULL ELSE CAST(@amount AS DECIMAL) + 0.1 END, NULL)
+RETURNING id, amount;
+```
+
+`CASE` 和 `COALESCE` 保持短路，已到达的函数调用只执行一次。Decimal 目标列和显式 `CAST(... AS DECIMAL)` 使用原数值文本保留可表示精度，分支值在实际选中时转换；既有标量函数保持其返回类型和数值算法。所有行先完成求值与类型转换，再预留自增号和写入；任一行失败不会插入前行，也不会撤销调用方已有事务中的较早成功语句。用户函数的外部副作用不属于数据库事务回滚范围。
+
+`VALUES` 不允许列引用、聚合、窗口或原始子查询，即使这些结构位于未选分支也会拒绝；`DEFAULT` 仍仅作为完整单元格使用。这项能力属于关系表 INSERT，不扩展其它模型的 VALUES 方言。
+
 关系查询可在投影和谓词中使用以下日期标量函数：
 
 ```sql

@@ -2073,3 +2073,26 @@ CHANGELOG 两块冲突保留两侧全部自有条目。严格 HANDOFF 尾追加 
 原 #241 headdcdfb8d00e7dd05c1b2491ce05cef0915d85e96c正常合入已推 #288 head296f0ba37da821ca97d51e73b608b2cde0e8091b，保留 #235/原NumericText修正及已合main/#289的准确源码。#241原10个C#源SHA完全不变，只有一个HANDOFF实际冲突；三原blob保留，逐两侧全部完整章节零缺失及539063字节公共前缀核后合并，未弱化严格helper。当前 #288 新head CI未结束，不能先合有该前置的 #292。
 
 本阶段最多35分钟/25shell/18Jobs/两次2CPU构建和一次实际transport组合；必须对这棵准确集成树重新绑定Core/EF真实TRX、source/DLL SHA，执行最终完整restore/原CI Format Check/default cached whitespace后才提交推回原PR。上述收据由pr292-parent288-*记录，本段不预写结果。原#241268/6、父#288429/66和所有旧FAIL分别保持；正式NuGet/Server/XCode消费者与#264持续DML约束仍独立OPEN/NOT_RUN，发布冻结/parity-results/外来dirty/旧恢复stash不动。
+
+## GH-Issue #244 INSERT VALUES 标量表达式（2026-10-12，Asia/Shanghai）
+
+本阶段在 online-cap 的 codex/issue244-insert-expressions，基线 1ebe27f55d94d8b80e21095ebd07d95d718580c6（已交付 #235 加三项 parser 预期修正）。VALUES 已调用完整 ParseExpression；只在 TableSqlExecutor 的 INSERT 专属非 DEFAULT 路径接入结构绑定和现有标量求值，不改 Parser、共享 ConvertTableValue/SqlScalarOperations、DEFAULT 文法、其它模型、ORM API 或二进制格式。结构绑定有 4096 节点/64 深度/1 秒及取消边界，不执行函数或常量运算；禁止列引用、聚合/star/窗口及原始子查询，包括未选分支。Decimal 目标和显式 DECIMAL CAST 通过已有 CAST AST 延后原数值文本转换，CASE/COALESCE 保持短路；全部 VALUES 行先准备，再预留 AUTO_INCREMENT 或写入。
+
+实际 Core v2 原产物 --no-build 完整七类 153/153，含新 #244 三十项：参数 CAST/UTC 函数、多行 RETURNING、默认值、NULL、精确高位 Decimal、未达分支非法数值、UDF 单次/短路、禁止结构、后行失败零写/零自增预留、已有事务缓冲/触发器保存点及直接/队列 ON CONFLICT。恢复后的原问题微试 1/1 是此完整类的重复子集，不另加总。
+
+实际新旧 ADO 合同两类完整 6/6，含 #244 新嵌入式、REST 和 h2c 三项以及 #235 既有三项；同语句、CLR Decimal/NULL、事务/触发器/RETURNING/ON CONFLICT、实际服务停止释放重开及 HTTP/1.1、HTTP/2 路由断言全部通过。测试/生产 DLL 都为 Release，实际 DLL/PDB/deps/runtimeconfig/版本与准确源配置及非空原 TRX 已绑定冻结。此证据是实际 REST/h2c ADO SQL/session 路径，不冒称 Native Frame 事务验收。
+
+原 v1 Core 微试因新夹具使用未支持的内联 PRIMARY KEY 在 DDL 阶段 FAIL，尚未进入 INSERT；只改新测试及示例为已有表级 PRIMARY KEY(id)，生产 Parser 不改。原嵌入式微试因新断言误期待 ExecuteScalar(SQL NULL) 返回 DBNull.Value 而 FAIL；既有返回 null 保持，只改新测试为读取实际一行、IsDBNull 与 declared Decimal 类型。原两份失败 TRX、stdout/stderr、v1/v2 源/DLL绑定全部保留。恢复原额度 1 次 EF build 用尽后，根明确追加且仅追加最后一次 EF 项目构建，只有 fixture DLL/PDB改变、所有生产 DLL 相同；原额度/追加授权分列，无第三 transport 或再次 build。
+
+最终三自有 C# 路径的原 severity warn/no-restore/verify-no-changes owned format 通过且源码字节未变；它报告通用 workspace-load warning，原 stderr 保留，未宣称完整 solution 门禁。源代码、两个新测试、CHANGELOG、sql-reference 与本 HANDOFF 共六路径，执行者未暂存、提交、推送、改分支或 GitHub 写入。HANDOFF 保留继承文件完整原字节前缀后追加。
+
+用户要求隐藏控制台后停止新增旧执行器任务；根审过的 task-owned Invoke-OwnedHidden.ps1 用于随后格式和清理，canonical eng/workbench-preview 执行器未被本执行者修改。各 Job 的内核归属、PID/UTC 创建/命令/父链、finally cleanupComplete 和后继只读身份审计按实际收据记录；短命子进程独立身份采样的边界不由内核清空升级为全生命周期捕获。七个明确独占 TEMP 经 marker、绝对路径、无 reparse、有界库存、原 Job 清空与新鲜拥有 PID 检查后一次逐项回收（35对象、无递归删除），旧 policy 拒绝对象及共享/default TEMP 未触及。前只读 auditor mismatch 与初始恢复 UTC 字符串本地再解析导致的时间守卫拒绝仍保留，新鲜精确原 UTC 解析与后继观察单列，不补造历史 PASS。
+
+证据目录：D:\source\SonnetDB\artifacts\online-closure-20261012\pr-review\serial244-impl-20261012-0013。下一步根独立核最终六路径、原 TRX、源/DLL配置绑定和身份/清理回执，在最终待提交树执行完整 restore 与原 CI Format Check，再精确提交/普通推送独立 #244 PR、核远端 CI 并按用户要求串行合并/完整验收后处理 Issue。正式 NuGet/Server 发布、NativeAOT 发布、Native Frame 事务及外部 ORM 消费者验收仍 NOT_RUN；它们不由本地指定范围通过推断。
+
+
+## #244 准确#292父最终集成验收（2026-10-12）
+
+Root按六自有路径冻结逐SHA核后精确stash并快进1ebe到bc03a6fbba49492019887b9cf57e2e4a39cbdc93，恢复stash81e0b041f3320934bd2f4c3cbb60296102ada09d保留；唯一HANDOFF冲突三原blob与两侧完整章节零缺失。辅助脚本因PowerShell位置与System.IO相对工作目录不同在任何写入前两次拒绝，原失败和前缀守卫保留；显式设置task process工作目录后独立解决，canonical未写。两个原fixtureSHA不变，生产TableSqlExecutor自动合入#241后相对父仍仅已审INSERT专用visitor/ConvertInsertValue，不扩共享转换。
+
+本准确集成树重新构建后Core完整280/280（原七类153+DDL36+Parser91），实际EF/Server72/72（原新三协议合同、DDL、BLOB及provider），0failed。最初224/224为较窄集合，完整同DLL280不重复累计。旧153/6及两个fixture FAIL保持原范围。最终Root完整restore/原Format Check、准确6path source与7实际DLL/TRX及提交/独立PR回读由issue244-final-root-*、issue244-root-freeze.json及issue244-delivery.json记录，不预写CI/main合并或正式消费者完成。

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #244：关系表 INSERT VALUES 支持已有无行标量表达式、参数 CAST、函数、CASE 与算术；Decimal 目标和显式 DECIMAL CAST 保留原数值文本，CASE/COALESCE 保持短路及单次函数求值。全部行先准备再预留自增号/写入，RETURNING、ON CONFLICT、默认值和触发器/事务保存点沿用现有合同；本地与实际 REST/h2c 验证、正式发布和外部 ORM 验收分列。
 - GH-Issue #254：关系聚合投影/HAVING 支持 CAST 与既有标量组合，SUM/AVG/MIN/MAX/COUNT 的结果转换保留 NULL、声明类型、Decimal 精度和聚合/转换阶段溢出合同；REST 按已有 Float64 元数据读取数值，避免整值浮点结果变成 Int64；嵌入式与真实 REST/h2c 回归、正式发包及 Chloe 验收分列。
 - GH-Issue #222：在已有关系表 OVER 上新增 `rank()`、`dense_rank()`、`ntile(n)`，复用多键分区及 NULL/升降序排序，保留并列排名、正 Int64 桶数参数和空结果 Int64 元数据；measurement、已有 row_number/聚合合同和正式 FreeSql Provider 交付分开验收。
 - M47-P08 公开发布 Windows x64 Workbench Web R1 预览 4.5.0-preview.1.12（Release 409754336）：P07完整12/12、8/8及实际maikebing审批通过；匿名四附件/290项库存和Chrome/Edge公开包首跑、正常停止/非空进程审计通过，Studio/VS Code及正式4.5发布仍独立验收。
