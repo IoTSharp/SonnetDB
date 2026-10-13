@@ -2771,3 +2771,7 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 候选2（b4edbe46）十二项独立workflow_dispatch预检已实读全部success，但其PR CI仍保留Windows KNN失败，不能用另一次预检替代PR门禁。该候选从CI下载的原七包已绑定源码/版本/sidecar和manifest，并实际通过官方BookStore标准迁移生成、本地完整HTTP旅程、真实IdentityUserStore与应用重建存储回归；它们只属原包2，本轮没有公开发布。后继源/候选若变化须新版本和新验证，不能覆盖原包2。
 
 本最终集成专属D:\t\ef266f、36命令/10:15Z上限。全树最终restore/原Format、commit/远端状态以后续ef266final-b收据为准；所有FAIL/UNKNOWN/NOT_RUN、外部候选与共享工作保持。公开发布仍需具体候选人工确认，SonnetDB.Abp公开版本固定与#266关闭尚未完成。
+
+PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
+
+最终源合入PR309同步main的e2222152；除交接记录外树内容与fd465cc3完全相同。保留6765/6766本地Core原FAIL、EF292与KNN修复10项的边界。新的源码SHA将用于新候选版本及完整远端门禁，旧b4edbe46/候选2仍冻结。
