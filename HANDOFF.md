@@ -2751,3 +2751,23 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 修复仅影响KNN测试的两个分配测量窗口：16MiB为临时GC预算，不是允许分配阈值；成功建立窗口后计数实际操作分配，finally结束，无法建立或预算失效均失败。保留K8、100000次替换、4096/8192阈值、候选数量/排序，增加37字节数组的真实分配对照；不改生产KNN、不更换SDK、也不改变进程默认GC配置。Release build零警告/错误，对照1/1、完整KNN10/10、零跳过。全Core和新远端CI待各自实际结果，不把局部10项当全套通过。
 
 本片仅测试文件、CHANGELOG、HANDOFF三路径，最终完整restore/原Format、精确提交与独立PR以ef266alloc后续收据为准。专属TEMP D:\t\ef266a2、24命令/09:00Z边界，原阶段预算/失败不重置。下一步先提交独立修复，再正常集成并对新JSON head完整验收；已冻结但未发布的4.5.0-preview.ef266.2、所有候选包SHA和源b4edbe46保持，不改写为新源码或发布成功。公开版本消费和#266关闭仍未完成。
+
+## 不可变 NuGet 候选提升入口（2026-10-13）
+
+本片从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/nuget-candidate-promotion，独立于JSON与KNN测试修复。实际候选2七个nupkg的nuspec ZIP时间戳是构建时刻；现有tag流程重新pack会改变字节，本机NuGet.Config/进程/用户环境未配置NuGet发布key（仅查询存在性，未输出密钥）。因此准备复用GitHub既有secret、按冻结字节提升的入口，不以同版本重新打包替代已验候选。
+
+新增手动且main-only workflow，publish默认false。先核Publish预检run成功、workflow/event/source一致、source为main祖先，再核七个固定包id/版本/源码commit/sidecar/大小/非reparse/nuspec XML与规范化manifest SHA；必须保留完整release-readiness门禁。publish=true还须精确version@source_commit确认，只推送已验证原文件；不skip重复、不自动重试、不创建tag/Release/镜像。公共写入尚未执行，必须等待具体候选人工批准。manifest由固定package id顺序、大写SHA、双空格、文件名和LF组成，UTF8计算。
+
+离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
+
+测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
+
+## 最终 JSON 候选接入独立测量与发布工具（2026-10-13）
+
+从b4edbe46先正常合入32de4d59形成source-only checkpoint c522bd65（两父保留，最终restore/原Format通过），再合入318c7fa5。独立PR308现已正常合入main 78a4adc18170efff2ba2a147e7f756c653333dd4，PR309仍单独验收；本候选保留所有来源祖先。冲突仅两个共享文档，完整保留双方条目/章节。JSON生产代码与原ab52269d/b4edbe46保持同字节，未借CI修复改变业务阈值。
+
+新Release Core构建与EF构建各0warning/error；完整EF292/292和提升校验7/7通过。新完整Core为6765/6766 FAIL，唯一Save_BackupTemporarilyLocked_RetriesAfterHandleIsReleased触发历史备份临时锁错误；对应源码/测试未改，原630ms重试合同未改，具体句柄释放时刻仍UNKNOWN。KnnBoundedExecutionTests在同一完整TRX中10/10通过。不得把此全Core运行改写为PASS，不以该未改范围失败否定已绑定的JSON局部证据；最终精确head仍必须正常通过完整远端CI后才可merge。
+
+候选2（b4edbe46）十二项独立workflow_dispatch预检已实读全部success，但其PR CI仍保留Windows KNN失败，不能用另一次预检替代PR门禁。该候选从CI下载的原七包已绑定源码/版本/sidecar和manifest，并实际通过官方BookStore标准迁移生成、本地完整HTTP旅程、真实IdentityUserStore与应用重建存储回归；它们只属原包2，本轮没有公开发布。后继源/候选若变化须新版本和新验证，不能覆盖原包2。
+
+本最终集成专属D:\t\ef266f、36命令/10:15Z上限。全树最终restore/原Format、commit/远端状态以后续ef266final-b收据为准；所有FAIL/UNKNOWN/NOT_RUN、外部候选与共享工作保持。公开发布仍需具体候选人工确认，SonnetDB.Abp公开版本固定与#266关闭尚未完成。
