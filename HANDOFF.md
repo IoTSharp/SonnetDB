@@ -2709,3 +2709,13 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedulerTests 19/19、零跳过。最终三路径完整restore/原Format、精确提交与新PR状态由ef266z后续收据确定。本片不声称复现了原CI的具体计时位置，也不把局部19项记为全部Server通过。原失败保留，后续必须用新精确候选完成正常CI后才合并。
 
 复用同一online-engine树，无新clone/worktree/agent。专属TEMP D:\t\ef266z、24外部命令/06:40Z本地实施上限；远端新候选另按workflow上限有界观察。canonical共享dirty、delivery4dirty、parity-results、stash、profiles、发布候选与PAUSED Workbench保持。正常代码/PR交付沿用用户授权；新公开包及#266关闭仍须真实完整验收。
+
+## 不可变 NuGet 候选提升入口（2026-10-13）
+
+本片从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/nuget-candidate-promotion，独立于JSON与KNN测试修复。实际候选2七个nupkg的nuspec ZIP时间戳是构建时刻；现有tag流程重新pack会改变字节，本机NuGet.Config/进程/用户环境未配置NuGet发布key（仅查询存在性，未输出密钥）。因此准备复用GitHub既有secret、按冻结字节提升的入口，不以同版本重新打包替代已验候选。
+
+新增手动且main-only workflow，publish默认false。先核Publish预检run成功、workflow/event/source一致、source为main祖先，再核七个固定包id/版本/源码commit/sidecar/大小/非reparse/nuspec XML与规范化manifest SHA；必须保留完整release-readiness门禁。publish=true还须精确version@source_commit确认，只推送已验证原文件；不skip重复、不自动重试、不创建tag/Release/镜像。公共写入尚未执行，必须等待具体候选人工批准。manifest由固定package id顺序、大写SHA、双空格、文件名和LF组成，UTF8计算。
+
+离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
+
+测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
