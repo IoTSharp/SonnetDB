@@ -2721,3 +2721,23 @@ ef266x-assets.json与ef266x-binding.json绑定5源码、两组DLL/PDB、全部�
 原PR305已正常合并为main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de，源51321fff祖先关系独立核验。原PR306的2fe54839 Windows CI在既有ObjectProcessingSchedulerTests.EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure失败（run38347555099/job115132361400；Server1231/1232，未抛预期IOException），其它检查成功。原错误日志ef266c-failed-log完整保留，不绕过或盲目重跑。代码允许250ms页预算在钩子前返回零进度，旧测试未区分未到注入点与异常被吞；下一步在独立CI修复分支处理该测试的有界分页前置条件，保持生产预算、同一IOException身份、持久计数和单任务断言。修复不混入本JSON代码提交。
 
 本片精确15路径的最终restore/原Format、提交以ef266y后续收据为准，本段不预填提交结果；保存本地checkpoint后复用本树进行独立CI修复，再接回JSON候选并走精确head CI。新TEMP D:\t\ef266y，32外部命令/06:20Z实现窗口；PR306旧head的只读监控单列ef266c至05:55Z，原预算与失败不重置。ef266w已完成47个旧Job/282身份审计ownLive0及专属TEMP1379项回收，第48个清理Job亦PASS；此前私有包官方应用证据仍只属于51321fff，不覆盖本次新源码。公开发布、固定公开包消费者和#266关闭仍未完成。原delivery4dirty、canonical共享工作、parity-results、stash、profiles、已发布候选和PAUSED Workbench保持。
+
+## PR306 Windows CI 的独立回填故障注入测试修复（2026-10-13）
+
+本片从已核main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de建立codex/pr306-backfill-fault-ci，只修改ObjectProcessingSchedulerTests及CHANGELOG/HANDOFF三路径，不带入JSON数组/子树源码。后者已独立提交并推送ab52269d，ef266y-runtime-archive.json保存135个实际运行文件引用及去重副本，Core6765/EF292和PDB证据仍属该片。
+
+原PR306 head2fe54839、run38347555099/job115132361400的Windows结果为Core6748/6748、EF270/270、Server1231/1232；唯一失败是EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure未抛IOException。日志没有记录具体预算耗尽位置；代码证明故障钩子前的250ms页预算可正常返回零进度，不能把未到注入点当成吞异常。修复只允许钩子未调用、扫描/入队/跳过计数全零、HasMore且未Completed、无cursor/持久任务的合法空页继续；最多8页、10秒linked deadline和25ms backoff。一旦钩子触达却正常返回，立即断言失败；最终仍要求同一个IOException实例、钩子恰好一次、持久进度0和一个已入队任务。生产预算、取消和存储行为未改，没有增加盲目CI重跑或降低断言。
+
+Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedulerTests 19/19、零跳过。最终三路径完整restore/原Format、精确提交与新PR状态由ef266z后续收据确定。本片不声称复现了原CI的具体计时位置，也不把局部19项记为全部Server通过。原失败保留，后续必须用新精确候选完成正常CI后才合并。
+
+复用同一online-engine树，无新clone/worktree/agent。专属TEMP D:\t\ef266z、24外部命令/06:40Z本地实施上限；远端新候选另按workflow上限有界观察。canonical共享dirty、delivery4dirty、parity-results、stash、profiles、发布候选与PAUSED Workbench保持。正常代码/PR交付沿用用户授权；新公开包及#266关闭仍须真实完整验收。
+
+## #266 JSON 完整修改候选与独立CI修复集成（2026-10-13）
+
+以ab52269d为第一父正常合入独立测试修复05f87d7a（PR307），保留原2fe54839/PR306及51321fff/已合PR305祖先，不压平失败历史。仅CHANGELOG/HANDOFF冲突，逐项保留双方全部新增章节与条目；生产源与各自测试源无冲突。候选包含根/嵌套属性、EF metadata编码、数组及唯一OwnsOne子树更新，依赖的调度故障测试修复仍由独立PR307先合入main。最终更新PR306为此完整JSON修改范围，PR307合入后独立核对PR306实际差异只剩JSON范围。
+
+本集成重新构建实际EF与Server测试资产，验证完整EF、Core setter和调度测试；原完整Core6765属于ab52269d前冻结的同字节Core源码/测试，不冒称本集成新运行。最终restore/原Format、运行绑定、提交与远端门禁以ef266merge-*为准；本段不预填结果。PR306旧head Windows唯一失败保留，不能借PR305绿灯或本地通过合并。
+
+同一实施树，专属短TEMP D:\t\ef266m；24命令/07:20Z集成窗口，最多2根dotnet/每根2CPU、隐藏KernelJob、完整身份及取消/回收保持。新公开包尚未发布，官方应用私有候选证据仍仅属51321fff；公开固定消费者与#266关闭待具体候选完整验收。canonical、其它旧树、parity-results、stash、profiles及PAUSED Workbench不改。
+
+合成验证已完成：EF/Server/Core三个实际Release构建各0警告/错误，完整EF292/292、Core setter80/80、ObjectProcessingSchedulerTests19/19均零跳过。ef266merge-{ef,core,scheduler}-binding分别核当前源码校验和、实际DLL/PDB、运行资产和TRX；12份JSON源码/测试及1份调度测试源码均与各自已验切片字节一致。原完整Core6765仍只计原片运行，合成树另由精确head远端全CI验收。main未配置branch rules/经典protection的404只属配置读取结果，仍遵守全部适用CI成功后正常合并的会话门禁。
