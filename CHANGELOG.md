@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
+
 ### Added
 - 增加默认只验证的NuGet候选提升入口：绑定成功Publish预检run、已合入main的源码SHA、版本与七包规范化SHA256清单，复用完整release-readiness门禁；人工明确确认后直接推送已下载的原包，不重打包，不自动创建tag/Release/镜像。
 

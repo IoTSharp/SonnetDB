@@ -21,7 +21,7 @@ function Get-ReleaseWorkflowPolicy {
         [string]$Version
     )
     @(
-        @{ File = 'ci.yml'; Jobs = @('Build & Test (ubuntu-latest)', 'Build & Test (windows-latest)', 'Format Check', 'AOT Publish (ubuntu-latest)', 'AOT Publish (windows-latest)', 'AOT Publish (ubuntu-24.04-arm)'); Artifacts = @('test-results-ubuntu-latest', 'test-results-windows-latest', 'aot-linux-x64', 'aot-linux-arm64', 'aot-win-x64') }
+        @{ File = 'ci.yml'; Jobs = @('Build & Test (ubuntu-latest)', 'Build & Test (windows-latest, core)', 'Build & Test (windows-latest, rest)', 'Format Check', 'AOT Publish (ubuntu-latest)', 'AOT Publish (windows-latest)', 'AOT Publish (ubuntu-24.04-arm)'); Artifacts = @('test-results-ubuntu-latest', 'test-results-windows-latest-core', 'test-results-windows-latest-rest', 'aot-linux-x64', 'aot-linux-arm64', 'aot-win-x64') }
         @{ File = 'codeql.yml'; Jobs = @('Analyze (csharp)'); Artifacts = @() }
         # upload-pages-artifact is consumed by deploy-pages and is not exposed
         # as a durable Actions artifact for release evidence. The successful
@@ -44,7 +44,7 @@ function Get-ReleaseWorkflowPolicy {
 function Get-RequiredReleaseSteps {
     param([string]$JobName)
     switch -Wildcard ($JobName) {
-        'Build & Test (*)' { @('Build', 'Test', 'Test release gate contracts') }
+        'Build & Test (*)' { @('Build', 'Select complete test shard', 'Test', 'Test release gate contracts') }
         'Format Check' { 'Format check' }
         'AOT Publish (*)' { @('Publish SonnetDB.Cli (Native AOT)', 'Publish SonnetDB (Native AOT)', 'Run image codec smoke (Native AOT)') }
         'Analyze (csharp)' { @('Build', 'Analyze code and upload results') }

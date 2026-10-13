@@ -2775,3 +2775,17 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
 
 最终源合入PR309同步main的e2222152；除交接记录外树内容与fd465cc3完全相同。保留6765/6766本地Core原FAIL、EF292与KNN修复10项的边界。新的源码SHA将用于新候选版本及完整远端门禁，旧b4edbe46/候选2仍冻结。
+
+## PR306 Windows 全套测试总时限的独立 CI 分片修复（2026-10-13）
+
+从已正常合入PR309的main 94bc13a788066a21bd465023e71cc0a307766fac建立codex/windows-ci-test-shards。PR306精确head 2a46190a的Windows Core 6766/6766已通过、耗时40分43秒，随后EF执行因整个Test步骤50分钟上限取消；原超时、此前本地Tombstone失败及原因UNKNOWN全部保留，不能改写为产品断言全部失败或全部通过。
+
+Ubuntu继续完整单任务；Windows拆为Core与其余原方案项目两个独立任务，各自完整restore/build，临时同目录slnx按项目分片，原42项目的并集完整且不重叠，不使用测试名过滤或跳过。保留job=60分钟、Test=50分钟、单项hang=10分钟及mini dump；结果分为两个Windows产物。release-readiness要求两片及选择步骤都实际成功，缺片/缺产物/缺步骤负例必须阻止发布。辅助脚本有512项目/10秒上限、拒绝覆盖、失败清理和源码不变合同。
+
+初版分片覆盖与发布门禁测试通过；实际dotnet discovery首次因本地LanguageServer/Media/Studio测试DLL未构建而失败，此检查没有执行产品测试，失败收据ef266shard-route保留。后续完整构建、实际路由集合比较、最终restore/原Format和提交/远端结果以artifacts/online-closure-20261012/ef266shard-*收据为准，不预写完成。公开候选4.5.0-preview.ef266.2/.3保持冻结且未发布；源码变更后需新版本和新验证，#266仍OPEN。源码仅既有online-engine，canonical共享dirty、delivery原四dirty及parity-results保持；本阶段36个外部命令、12:00Z截止和自有进程树清理边界不放宽。
+
+分片源d1d446fd完整Release构建零警告错误；实际dotnet discovery核8461=Core6749+其余1712、互斥无遗漏（仅路由），完整restore/原Format通过、保留workspace-load warning。独立PR310的Ubuntu run38389101010/job115268131721在分片覆盖通过后，于清理点名前缀临时slnx时失败：Linux将其识别为hidden，Remove-Item需显式Force。只给测试清理和生成失败清理的精确自有文件增加Force，未扩大清理路径或降低测试门禁。首失败及Windows原结果保留，新head另验。
+
+曾在JSON工作分支2a46190a准备合入d1d446fd，唯一HANDOFF冲突已保留两侧且最终restore/原Format通过；发现上述真实Linux问题后，先保存已解冲突交接到ef266shard-uncommitted-integration-handoff.md，再中止本任务尚未提交的merge，返回独立分片分支修复。没有丢弃JSON源代码、改写旧候选或触碰其它工作树；后续重新合入修复后的分片head。
+
+PR310已追加跨平台清理修复b41d4ad6ca15ed25b81cb0d0d647cead1de9534d，Windows合同显式标记隐藏文件后全部通过，最终restore/原Format通过。现从真实JSON工作分支codex/issue266-json-array-updates的2a46190a正常合入b41d4ad6，HANDOFF两侧完整保留；生产与C#测试源码相对2a46190a不变，分片源码与已验b41d4ad6一致。本地nested-json-scalar仍是旧2fe54839，不作为基线。合并最终树再跑完整restore/原Format后提交、正常更新PR306与独立新候选；完整远端CI及公开包消费者仍待各自验收。
