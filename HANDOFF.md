@@ -2700,6 +2700,28 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 
 后续继续核真实 ABP 所需嵌套/数组/子树和查询形状，再补模型/迁移、Passkey/账户、SQLite 对照及固定包消费者；完整验收前不关闭 #266。普通代码与 PR/Issue 交付已获用户明确授权，新公开包/tag/Release 仍需具体候选审批。源码仅在既有 online-engine 树，canonical 共享 dirty、delivery4dirty、parity-results、stash、旧 profiles、已发布候选与 PAUSED Workbench 保持。新证据 ef266w、短 TEMP D:\t\ef266w；隐藏 KernelJob、48命令/05:05Z交付阶段截止、每根2CPU和禁共享编译器，任务结束核身份与专属 TEMP 回收。
 
+## #266 嵌套 OwnsOne 标量更新切片（2026-10-13）
+
+根标量切片已提交51321fff4e41f6005cd45bd90100ab83c116933a并推送，PR #305仍按该精确head接受完整CI。本片从51321fff在同一online-engine树建立codex/issue266-nested-json-scalar，不改变305远端分支；只沿唯一OwnsOne ownership链从每层模型名构造固定属性路径，保持64片段/1024字符、标量类型、转换器、有限值与存量父对象校验。集合/数组路径、子树、JSON ExecuteUpdate仍拒绝。
+
+首轮嵌套更新实际完整EF267/267。补父级名称转义用例时，测试夹具误在IMutableForeignKey调用SetJsonPropertyName，build2五个编译错误保留；随后误启动的no-build运行仍为旧267 DLL，不计最终树验收，ef266x-stale-run-boundary.json明确该边界。修正为标准HasJsonPropertyName后build3零警告/错误，最终同一DLL完整EF270/270、零跳过；新增9例覆盖embedded/REST/h2c的嵌套UPDATE、未知兄弟和数字词法、成功后rollback、正常重开、缺失parent拒写，以及父级/leaf同时含引号、点与Unicode的精确路径。移除原单个Child拒绝用例，因为该边界已被实际支持。
+
+ef266x-assets.json与ef266x-binding.json绑定5源码、两组DLL/PDB、全部运行文件及实际TRX270结果；本片最终完整restore/原Format、精确8路径提交与PR状态以ef266x后续收据为准，不预写未发生结果。新临时目录D:\t\ef266x；独立嵌套切片最多24外部命令、05:30Z截止，不重置原ef266w的48命令/05:05Z交付预算。KernelJob/每根2CPU/最多2根/禁共享编译器及只回收自有完整身份和TEMP继续保持。
+
+前一切片还取得私有候选4.5.0-preview.ef266.1的官方ABP集成证据，详见ef266w-acceptance.json：SonnetDB.Abp原8006cf2d源码未改，通过临时MSBuild导入标准生成迁移和测试适配，Complex/Owned模型、完整BookStore建表/标准迁移/重复迁移与种子、真实IdentityUserStore的Passkey创建/读取/更新/应用重建/删除，以及本地、REST HTTP/1.1、Frame HTTP/2三套官方密码账户HTTP登录/CRUD/分页/重建读取通过；SQLite同模型Passkey存储对照也通过。服务器分别记录414条HTTP/1.1 SQL和48条HTTP/2 Frame请求，均正常退出。临时测试只替换Provider与数据库夹具，不修改ABP模块、权限、安全日志或事务。Passkey使用合成凭证字节，不是浏览器WebAuthn注册/认证；SQLite历史完整登录写锁失败保留。私有候选属于原51321fff，不含本片嵌套扩展，也不是公开包或正式固定消费者证据。
+
+#266保持OPEN/PARTIAL。后续先完成305和本片精确head的正常CI/合并，再处理剩余数组/子树/查询合同；公开新候选须完整发布门禁和具体候选批准，固定SonnetDB.Abp后再跑正式消费者。canonical共享dirty、原delivery4dirty、parity-results、stash、91 profiles、发布候选及PAUSED Workbench均保持，canonical交接只尾追加且暂不提交共享foreign内容。
+
+## #266 JSON 属性编码、数组和子树更新：本地完整回归通过（2026-10-13）
+
+本片复用online-engine，从已推送2fe54839067e975abe0e0567dd94ae6cbab8fedf建立codex/issue266-json-array-updates。新增可选第四布尔参数显式JSON片段模式，三参数/FALSE仍保留字符串和值类型及容器拒绝合同。源与片段各8MiB、输入共用100000节点，输出另限8MiB/100000节点/64层；复用原固定编码scratch、操作/10秒协作预算与SQL取消。EF只扩展标准ModificationCommand的属性JSON writer钩子；不复制框架的对象序列化或修改命令管线。数组、Guid、日期、二进制、转换器属性按EF metadata writer完整编码；唯一OwnsOne子树复用EF已生成参数，模型路径候选不唯一或集合索引拒绝。更新仅保留目标外兄弟，替换子树内的模型外成员不承诺保留；OwnsMany元素路径与JSON ExecuteUpdate仍未支持。
+
+本地最终Core6765/6765、零跳过（新增17），EF292/292、零跳过（新增27、替代5个旧拒绝用例）。真实三协议覆盖空数组/数组原地修改、Guid/DateTime/byte[]/转换器编码、特殊父级名子树替换、成功UPDATE后rollback、第二行失败前首行确已执行、应用正常重开及未知兄弟/数字词法。Core新增显式片段与标量隔离、重复键/无效片段、深度/节点/UTF8输出预算、事务/重开、第二行校验/输出/返回前取消的原子性。早期EF278与289属于当时源码，不与最终292混用；build3的CS8604可空性编译失败保留，修正后build4/build5各零警告/错误。ef266y-core-binding.json与ef266y-ef-binding.json分别绑定5/7份源码、各自DLL/PDB、完整运行文件及TRX，Core与EF不是同一个运行。
+
+原PR305已正常合并为main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de，源51321fff祖先关系独立核验。原PR306的2fe54839 Windows CI在既有ObjectProcessingSchedulerTests.EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure失败（run38347555099/job115132361400；Server1231/1232，未抛预期IOException），其它检查成功。原错误日志ef266c-failed-log完整保留，不绕过或盲目重跑。代码允许250ms页预算在钩子前返回零进度，旧测试未区分未到注入点与异常被吞；下一步在独立CI修复分支处理该测试的有界分页前置条件，保持生产预算、同一IOException身份、持久计数和单任务断言。修复不混入本JSON代码提交。
+
+本片精确15路径的最终restore/原Format、提交以ef266y后续收据为准，本段不预填提交结果；保存本地checkpoint后复用本树进行独立CI修复，再接回JSON候选并走精确head CI。新TEMP D:\t\ef266y，32外部命令/06:20Z实现窗口；PR306旧head的只读监控单列ef266c至05:55Z，原预算与失败不重置。ef266w已完成47个旧Job/282身份审计ownLive0及专属TEMP1379项回收，第48个清理Job亦PASS；此前私有包官方应用证据仍只属于51321fff，不覆盖本次新源码。公开发布、固定公开包消费者和#266关闭仍未完成。原delivery4dirty、canonical共享工作、parity-results、stash、profiles、已发布候选和PAUSED Workbench保持。
+
 ## PR306 Windows CI 的独立回填故障注入测试修复（2026-10-13）
 
 本片从已核main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de建立codex/pr306-backfill-fault-ci，只修改ObjectProcessingSchedulerTests及CHANGELOG/HANDOFF三路径，不带入JSON数组/子树源码。后者已独立提交并推送ab52269d，ef266y-runtime-archive.json保存135个实际运行文件引用及去重副本，Core6765/EF292和PDB证据仍属该片。
@@ -2710,15 +2732,15 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 
 复用同一online-engine树，无新clone/worktree/agent。专属TEMP D:\t\ef266z、24外部命令/06:40Z本地实施上限；远端新候选另按workflow上限有界观察。canonical共享dirty、delivery4dirty、parity-results、stash、profiles、发布候选与PAUSED Workbench保持。正常代码/PR交付沿用用户授权；新公开包及#266关闭仍须真实完整验收。
 
-## 不可变 NuGet 候选提升入口（2026-10-13）
+## #266 JSON 完整修改候选与独立CI修复集成（2026-10-13）
 
-本片从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/nuget-candidate-promotion，独立于JSON与KNN测试修复。实际候选2七个nupkg的nuspec ZIP时间戳是构建时刻；现有tag流程重新pack会改变字节，本机NuGet.Config/进程/用户环境未配置NuGet发布key（仅查询存在性，未输出密钥）。因此准备复用GitHub既有secret、按冻结字节提升的入口，不以同版本重新打包替代已验候选。
+以ab52269d为第一父正常合入独立测试修复05f87d7a（PR307），保留原2fe54839/PR306及51321fff/已合PR305祖先，不压平失败历史。仅CHANGELOG/HANDOFF冲突，逐项保留双方全部新增章节与条目；生产源与各自测试源无冲突。候选包含根/嵌套属性、EF metadata编码、数组及唯一OwnsOne子树更新，依赖的调度故障测试修复仍由独立PR307先合入main。最终更新PR306为此完整JSON修改范围，PR307合入后独立核对PR306实际差异只剩JSON范围。
 
-新增手动且main-only workflow，publish默认false。先核Publish预检run成功、workflow/event/source一致、source为main祖先，再核七个固定包id/版本/源码commit/sidecar/大小/非reparse/nuspec XML与规范化manifest SHA；必须保留完整release-readiness门禁。publish=true还须精确version@source_commit确认，只推送已验证原文件；不skip重复、不自动重试、不创建tag/Release/镜像。公共写入尚未执行，必须等待具体候选人工批准。manifest由固定package id顺序、大写SHA、双空格、文件名和LF组成，UTF8计算。
+本集成重新构建实际EF与Server测试资产，验证完整EF、Core setter和调度测试；原完整Core6765属于ab52269d前冻结的同字节Core源码/测试，不冒称本集成新运行。最终restore/原Format、运行绑定、提交与远端门禁以ef266merge-*为准；本段不预填结果。PR306旧head Windows唯一失败保留，不能借PR305绿灯或本地通过合并。
 
-离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
+同一实施树，专属短TEMP D:\t\ef266m；24命令/07:20Z集成窗口，最多2根dotnet/每根2CPU、隐藏KernelJob、完整身份及取消/回收保持。新公开包尚未发布，官方应用私有候选证据仍仅属51321fff；公开固定消费者与#266关闭待具体候选完整验收。canonical、其它旧树、parity-results、stash、profiles及PAUSED Workbench不改。
 
-测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
+合成验证已完成：EF/Server/Core三个实际Release构建各0警告/错误，完整EF292/292、Core setter80/80、ObjectProcessingSchedulerTests19/19均零跳过。ef266merge-{ef,core,scheduler}-binding分别核当前源码校验和、实际DLL/PDB、运行资产和TRX；12份JSON源码/测试及1份调度测试源码均与各自已验切片字节一致。原完整Core6765仍只计原片运行，合成树另由精确head远端全CI验收。main未配置branch rules/经典protection的404只属配置读取结果，仍遵守全部适用CI成功后正常合并的会话门禁。
 
 ## PR306 第二次 Windows CI：独立 KNN 分配计数测量修复（2026-10-13）
 
@@ -2730,7 +2752,29 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 
 本片仅测试文件、CHANGELOG、HANDOFF三路径，最终完整restore/原Format、精确提交与独立PR以ef266alloc后续收据为准。专属TEMP D:\t\ef266a2、24命令/09:00Z边界，原阶段预算/失败不重置。下一步先提交独立修复，再正常集成并对新JSON head完整验收；已冻结但未发布的4.5.0-preview.ef266.2、所有候选包SHA和源b4edbe46保持，不改写为新源码或发布成功。公开版本消费和#266关闭仍未完成。
 
+## 不可变 NuGet 候选提升入口（2026-10-13）
+
+本片从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/nuget-candidate-promotion，独立于JSON与KNN测试修复。实际候选2七个nupkg的nuspec ZIP时间戳是构建时刻；现有tag流程重新pack会改变字节，本机NuGet.Config/进程/用户环境未配置NuGet发布key（仅查询存在性，未输出密钥）。因此准备复用GitHub既有secret、按冻结字节提升的入口，不以同版本重新打包替代已验候选。
+
+新增手动且main-only workflow，publish默认false。先核Publish预检run成功、workflow/event/source一致、source为main祖先，再核七个固定包id/版本/源码commit/sidecar/大小/非reparse/nuspec XML与规范化manifest SHA；必须保留完整release-readiness门禁。publish=true还须精确version@source_commit确认，只推送已验证原文件；不skip重复、不自动重试、不创建tag/Release/镜像。公共写入尚未执行，必须等待具体候选人工批准。manifest由固定package id顺序、大写SHA、双空格、文件名和LF组成，UTF8计算。
+
+离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
+
+测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
+
+## 最终 JSON 候选接入独立测量与发布工具（2026-10-13）
+
+从b4edbe46先正常合入32de4d59形成source-only checkpoint c522bd65（两父保留，最终restore/原Format通过），再合入318c7fa5。独立PR308现已正常合入main 78a4adc18170efff2ba2a147e7f756c653333dd4，PR309仍单独验收；本候选保留所有来源祖先。冲突仅两个共享文档，完整保留双方条目/章节。JSON生产代码与原ab52269d/b4edbe46保持同字节，未借CI修复改变业务阈值。
+
+新Release Core构建与EF构建各0warning/error；完整EF292/292和提升校验7/7通过。新完整Core为6765/6766 FAIL，唯一Save_BackupTemporarilyLocked_RetriesAfterHandleIsReleased触发历史备份临时锁错误；对应源码/测试未改，原630ms重试合同未改，具体句柄释放时刻仍UNKNOWN。KnnBoundedExecutionTests在同一完整TRX中10/10通过。不得把此全Core运行改写为PASS，不以该未改范围失败否定已绑定的JSON局部证据；最终精确head仍必须正常通过完整远端CI后才可merge。
+
+候选2（b4edbe46）十二项独立workflow_dispatch预检已实读全部success，但其PR CI仍保留Windows KNN失败，不能用另一次预检替代PR门禁。该候选从CI下载的原七包已绑定源码/版本/sidecar和manifest，并实际通过官方BookStore标准迁移生成、本地完整HTTP旅程、真实IdentityUserStore与应用重建存储回归；它们只属原包2，本轮没有公开发布。后继源/候选若变化须新版本和新验证，不能覆盖原包2。
+
+本最终集成专属D:\t\ef266f、36命令/10:15Z上限。全树最终restore/原Format、commit/远端状态以后续ef266final-b收据为准；所有FAIL/UNKNOWN/NOT_RUN、外部候选与共享工作保持。公开发布仍需具体候选人工确认，SonnetDB.Abp公开版本固定与#266关闭尚未完成。
+
 PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
+
+最终源合入PR309同步main的e2222152；除交接记录外树内容与fd465cc3完全相同。保留6765/6766本地Core原FAIL、EF292与KNN修复10项的边界。新的源码SHA将用于新候选版本及完整远端门禁，旧b4edbe46/候选2仍冻结。
 
 ## PR306 Windows 全套测试总时限的独立 CI 分片修复（2026-10-13）
 
@@ -2744,6 +2788,8 @@ Ubuntu继续完整单任务；Windows拆为Core与其余原方案项目两个独
 
 曾在JSON工作分支2a46190a准备合入d1d446fd，唯一HANDOFF冲突已保留两侧且最终restore/原Format通过；发现上述真实Linux问题后，先保存已解冲突交接到ef266shard-uncommitted-integration-handoff.md，再中止本任务尚未提交的merge，返回独立分片分支修复。没有丢弃JSON源代码、改写旧候选或触碰其它工作树；后续重新合入修复后的分片head。
 
+PR310已追加跨平台清理修复b41d4ad6ca15ed25b81cb0d0d647cead1de9534d，Windows合同显式标记隐藏文件后全部通过，最终restore/原Format通过。现从真实JSON工作分支codex/issue266-json-array-updates的2a46190a正常合入b41d4ad6，HANDOFF两侧完整保留；生产与C#测试源码相对2a46190a不变，分片源码与已验b41d4ad6一致。本地nested-json-scalar仍是旧2fe54839，不作为基线。合并最终树再跑完整restore/原Format后提交、正常更新PR306与独立新候选；完整远端CI及公开包消费者仍待各自验收。
+
 ## 独立修复回填调用方取消测试的注入前置条件（2026-10-13）
 
 PR310的b41d4ad6在12项检查成功后于11:54Z正常合入main 854dc21d6c9f58cc54b38f9933cc696acf28b195；五个CI路径与精确head一致。JSON已正常合入该依赖并提交3ef409e6a377be7906891b4adf1520dcfbb672bc，PR306仍OPEN。新冻结候选4.5.0-preview.ef266.4的Publish run38392154416 / NuGet artifact11809313406七个原包验证通过，manifest SHA256=8E6898A4E20D95F9A0F2A751EC365C165D1BFE1B8961B4D5C2CDA7BEC2C6665B；公开发布未授权/未执行。未修改的SonnetDB.Abp 8006cf2d通过该私有feed完成Complex/Owned×SonnetDB/SQLite四个模型复现、官方标准迁移生成、真实IdentityUserStore Passkey存储和完整应用HTTP回归1/1；应用HTTP使用ASP.NET测试宿主，应用重建与Server进程重启分开，.4的REST/h2c消费者尚未执行。
@@ -2753,3 +2799,5 @@ PR310的b41d4ad6在12项检查成功后于11:54Z正常合入main 854dc21d6c9f58c
 从main 854dc21d建立codex/backfill-cancellation-ci，仅改上述测试与CHANGELOG/HANDOFF三路径。沿用8页/10秒/25ms边界，只允许钩子零次、调用方未取消、全部计数零、无cursor、HasMore且无持久任务的合法空页继续；任何钩子触达却无异常立即失败。最终额外核唯一钩子、调用方token、独立期限未触发，保留原持久进度0、一个任务及重建恢复3/2/1断言。生产250ms预算、调度和取消逻辑不改，后续本地定向/整类、最终restore/原Format及独立PR以ef266cancel-*收据记录。
 
 前四阶段已审计87任务/842已记录身份，ownLive=0、uncertain=0、signals=0；仅清理自有D:\t\ef266f、ef266p、ef266r3、ef266s，证据与候选保留。新取消测试阶段使用D:\t\ef266c、28命令/13:00Z上限；候选4原预检窗口不重置。需新源码/新候选后再做完整发布与消费者门禁，#266保持OPEN，原所有FAIL/UNKNOWN/NOT_RUN及共享树边界保持。
+
+取消测试修复已作为75e85c6893755148caaf4ee323153a223b70b196提交并创建独立PR311。该独立树Release build零警告错误，定向1/1和整类19/19、零跳过；8个源码/运行文件已归档，实际DLL/PDB/源码checksum及TRX绑定通过，最终restore/原Format通过。现在JSON分支从3ef409e6正常合入同一75e85c68，仅HANDOFF冲突且两侧保留；生产源码仍与候选4一致，测试文件与已验75e85c68一致。合并最终树另执行restore/原Format后提交，完整组合CI与新候选预检/消费者不能由独立树19项替代；候选4仍保持失败，公开发布与#266关闭尚未完成。

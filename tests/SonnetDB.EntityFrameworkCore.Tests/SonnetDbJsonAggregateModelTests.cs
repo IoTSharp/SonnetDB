@@ -699,6 +699,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     private sealed class AggregateChild
     {
         public string Label { get; set; } = string.Empty;
+        public int Counter { get; set; }
     }
 
     private sealed class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable
@@ -774,6 +775,13 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             return owned
                 ? new AggregateOwnedContext(new DbContextOptionsBuilder<AggregateOwnedContext>().UseSonnetDB(_connectionString).AddInterceptors(capture).Options, release)
                 : new AggregateComplexContext(new DbContextOptionsBuilder<AggregateComplexContext>().UseSonnetDB(_connectionString).AddInterceptors(capture).Options, release);
+        }
+
+        public AggregateContext CreateEscapedOwnedContext(JsonCommandCapture capture)
+        {
+            _contextReferences++;
+            return new EscapedOwnedContext(new DbContextOptionsBuilder<EscapedOwnedContext>()
+                .UseSonnetDB(_connectionString).AddInterceptors(capture).Options, () => _contextReferences--);
         }
 
         public async Task ReopenAsync(CancellationToken cancellationToken)

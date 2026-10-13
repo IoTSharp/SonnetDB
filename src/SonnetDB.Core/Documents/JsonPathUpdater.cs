@@ -32,14 +32,40 @@ internal static class JsonPathUpdater
     }
 
     internal static string SetValue(string json, string pathText, object? value)
+        => SetValueCore(json, pathText, value, new WorkBudget(Observation.Value), allowContainers: false);
+
+    internal static string SetSerializedValue(string json, string pathText, string? value)
     {
         var budget = new WorkBudget(Observation.Value);
+        budget.Check();
+        var text = value ?? "null";
+        RequireUtf8Budget(text, budget);
+        JsonDocument replacement;
+        try
+        {
+            replacement = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = MaxDepth });
+        }
+        catch (JsonException exception)
+        {
+            throw Error("replacement JSON 无效或嵌套深度超过 64。", exception);
+        }
+
+        using (replacement)
+        {
+            ValidateDocument(replacement.RootElement, 0, budget);
+            return SetValueCore(json, pathText, replacement.RootElement, budget, allowContainers: true);
+        }
+    }
+
+    private static string SetValueCore(string json, string pathText, object? value, WorkBudget budget, bool allowContainers)
+    {
         budget.Check();
         RequireUtf8Budget(json, budget);
         if (pathText.Length > 1024)
             throw Error("JSON path 超过 1024 字符上限。");
         RequireUtf8Budget(pathText, budget);
-        ValidateScalar(value, budget);
+        if (!allowContainers)
+            ValidateScalar(value, budget);
 
         JsonPath path;
         try
@@ -67,7 +93,7 @@ internal static class JsonPathUpdater
         {
             budget.Check();
             ValidateDocument(document.RootElement, 0, budget);
-            ValidateTarget(document.RootElement, path, budget);
+            ValidateTarget(document.RootElement, path, budget, allowContainers);
             var output = new CappedOutput(budget);
             Rewrite(document.RootElement, output, path, value, 0, true, 0, budget);
             budget.Check();
@@ -141,7 +167,7 @@ internal static class JsonPathUpdater
         }
     }
 
-    private static void ValidateTarget(JsonElement root, JsonPath path, WorkBudget budget)
+    private static void ValidateTarget(JsonElement root, JsonPath path, WorkBudget budget, bool allowContainers)
     {
         var parent = root;
         for (int index = 0; index < path.Segments.Count; index++)
@@ -155,7 +181,7 @@ internal static class JsonPathUpdater
                     throw Error("属性路径的 parent 必须是现有 JSON 对象。");
                 if (last)
                 {
-                    if (parent.TryGetProperty(segment.PropertyName!, out var existing))
+                    if (!allowContainers && parent.TryGetProperty(segment.PropertyName!, out var existing))
                         RequireScalarLeaf(existing);
                     return;
                 }
@@ -167,7 +193,7 @@ internal static class JsonPathUpdater
                 if (parent.ValueKind != JsonValueKind.Array || segment.ArrayIndex >= parent.GetArrayLength())
                     throw Error("数组路径必须指向现有数组中未越界的元素。");
                 parent = parent[segment.ArrayIndex];
-                if (last)
+                if (last && !allowContainers)
                     RequireScalarLeaf(parent);
             }
         }
@@ -182,13 +208,13 @@ internal static class JsonPathUpdater
     private static void Rewrite(JsonElement element, CappedOutput output, JsonPath path, object? value,
         int matched, bool onPath, int depth, WorkBudget budget)
     {
-        budget.VisitNode(depth, writing: true);
         if (onPath && matched == path.Segments.Count)
         {
-            WriteScalar(output, value, budget);
+            WriteReplacement(output, path, value, depth, budget);
             return;
         }
 
+        budget.VisitNode(depth, writing: true);
         if (element.ValueKind == JsonValueKind.Object)
         {
             output.WriteByte((byte)'{');
@@ -212,12 +238,11 @@ internal static class JsonPathUpdater
             if (onPath && !found)
             {
                 // ValidateTarget 已保证只有末端属性允许新增，不自动创建 parent。
-                budget.VisitNode(depth + 1, writing: true);
                 if (!first)
                     output.WriteByte((byte)',');
                 WriteString(output, target!, budget);
                 output.WriteByte((byte)':');
-                WriteScalar(output, value, budget);
+                WriteReplacement(output, path, value, depth + 1, budget);
             }
             output.WriteByte((byte)'}');
         }
@@ -248,6 +273,18 @@ internal static class JsonPathUpdater
                 default: throw Error("不支持的 JSON 值。");
             }
         }
+    }
+
+    private static void WriteReplacement(CappedOutput output, JsonPath path, object? value, int depth, WorkBudget budget)
+    {
+        if (value is JsonElement replacement)
+        {
+            Rewrite(replacement, output, path, null, 0, false, depth, budget);
+            return;
+        }
+
+        budget.VisitNode(depth, writing: true);
+        WriteScalar(output, value, budget);
     }
 
     private static void WriteString(CappedOutput output, string text, WorkBudget budget)
