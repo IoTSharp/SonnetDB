@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #266 嵌套标量切片：单属性 `SaveChanges` 可沿唯一 `OwnsOne` ownership 链更新嵌套标量，从每层模型 JSON 名称重建固定路径并保留未知兄弟和数字词法；路径限制保持 64 片段/1024 字符。集合/数组路径、子树与 JSON `ExecuteUpdate` 仍不支持；公开包与完整消费者验收另计。
+
 - GH-Issue #266 EF 桥接切片：根 `OwnsOne.ToJson` 的单个直接标量属性 `SaveChanges` 通过 `json_set_value` 更新，从模型构造精确属性路径并复用 EF 标量参数、事务和影响行数并发检查；保留其它成员和数字原文，支持已有对象缺失末端属性及 JSON null。嵌套 Owned、数组/子树、转换器/其它类型、非有限浮点和 JSON `ExecuteUpdate` 仍拒绝；ComplexProperty/多属性的既有整根替换行为不变，正式包、官方 BookStore/Passkey 与 EF NativeAOT 不在本切片验收范围。
 
 - GH-Issue #266 Core 切片：新增三参数 `json_set_value`，替换非根标量或添加现有对象的末端属性，保留数字原文、成员顺序及未知成员；拒绝重复键、缺失 parent、越界与容器目标。输入/输出各限 8 MiB UTF-8，树限 100000 节点/64 层，默认字符串转义按固定块写出，独立编码 scratch 限 5120 字节；单次求值保留协作式 10 秒预算并读取 SQL 取消/deadline。EF 桥接、非根 Owned、ExecuteUpdate、子树更新、官方 BookStore/Passkey 与正式包消费仍须单独验收。

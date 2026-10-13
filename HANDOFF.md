@@ -2699,3 +2699,15 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 本轮 fresh GitHub 读取确认 #266 仍 OPEN，五项验收包含官方完整 BookStore/Passkey、本地及真实 Server 和固定公开包消费者；仅有 open PR #265 属 CAP，无现成 EF PR。直连 GitHub 超时的原失败保留，单命令代理重试成功。当前切片先精确提交并以 Refs #266 创建 PR，按精确 head 全部门禁成功后正常合并；提交、CI、合并 SHA 以 artifacts/online-closure-20261012/ef266w-* 真实收据为准，本段不预写结果。提交前最终树重新完整 restore 与原 Format Check，不增加排除或压制警告。
 
 后续继续核真实 ABP 所需嵌套/数组/子树和查询形状，再补模型/迁移、Passkey/账户、SQLite 对照及固定包消费者；完整验收前不关闭 #266。普通代码与 PR/Issue 交付已获用户明确授权，新公开包/tag/Release 仍需具体候选审批。源码仅在既有 online-engine 树，canonical 共享 dirty、delivery4dirty、parity-results、stash、旧 profiles、已发布候选与 PAUSED Workbench 保持。新证据 ef266w、短 TEMP D:\t\ef266w；隐藏 KernelJob、48命令/05:05Z交付阶段截止、每根2CPU和禁共享编译器，任务结束核身份与专属 TEMP 回收。
+
+## #266 嵌套 OwnsOne 标量更新切片（2026-10-13）
+
+根标量切片已提交51321fff4e41f6005cd45bd90100ab83c116933a并推送，PR #305仍按该精确head接受完整CI。本片从51321fff在同一online-engine树建立codex/issue266-nested-json-scalar，不改变305远端分支；只沿唯一OwnsOne ownership链从每层模型名构造固定属性路径，保持64片段/1024字符、标量类型、转换器、有限值与存量父对象校验。集合/数组路径、子树、JSON ExecuteUpdate仍拒绝。
+
+首轮嵌套更新实际完整EF267/267。补父级名称转义用例时，测试夹具误在IMutableForeignKey调用SetJsonPropertyName，build2五个编译错误保留；随后误启动的no-build运行仍为旧267 DLL，不计最终树验收，ef266x-stale-run-boundary.json明确该边界。修正为标准HasJsonPropertyName后build3零警告/错误，最终同一DLL完整EF270/270、零跳过；新增9例覆盖embedded/REST/h2c的嵌套UPDATE、未知兄弟和数字词法、成功后rollback、正常重开、缺失parent拒写，以及父级/leaf同时含引号、点与Unicode的精确路径。移除原单个Child拒绝用例，因为该边界已被实际支持。
+
+ef266x-assets.json与ef266x-binding.json绑定5源码、两组DLL/PDB、全部运行文件及实际TRX270结果；本片最终完整restore/原Format、精确8路径提交与PR状态以ef266x后续收据为准，不预写未发生结果。新临时目录D:\t\ef266x；独立嵌套切片最多24外部命令、05:30Z截止，不重置原ef266w的48命令/05:05Z交付预算。KernelJob/每根2CPU/最多2根/禁共享编译器及只回收自有完整身份和TEMP继续保持。
+
+前一切片还取得私有候选4.5.0-preview.ef266.1的官方ABP集成证据，详见ef266w-acceptance.json：SonnetDB.Abp原8006cf2d源码未改，通过临时MSBuild导入标准生成迁移和测试适配，Complex/Owned模型、完整BookStore建表/标准迁移/重复迁移与种子、真实IdentityUserStore的Passkey创建/读取/更新/应用重建/删除，以及本地、REST HTTP/1.1、Frame HTTP/2三套官方密码账户HTTP登录/CRUD/分页/重建读取通过；SQLite同模型Passkey存储对照也通过。服务器分别记录414条HTTP/1.1 SQL和48条HTTP/2 Frame请求，均正常退出。临时测试只替换Provider与数据库夹具，不修改ABP模块、权限、安全日志或事务。Passkey使用合成凭证字节，不是浏览器WebAuthn注册/认证；SQLite历史完整登录写锁失败保留。私有候选属于原51321fff，不含本片嵌套扩展，也不是公开包或正式固定消费者证据。
+
+#266保持OPEN/PARTIAL。后续先完成305和本片精确head的正常CI/合并，再处理剩余数组/子树/查询合同；公开新候选须完整发布门禁和具体候选批准，固定SonnetDB.Abp后再跑正式消费者。canonical共享dirty、原delivery4dirty、parity-results、stash、91 profiles、发布候选及PAUSED Workbench均保持，canonical交接只尾追加且暂不提交共享foreign内容。

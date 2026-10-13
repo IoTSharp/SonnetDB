@@ -38,7 +38,7 @@ var online = await context.Devices
 - 支持关系表基础 CRUD、类型映射、SQL 生成和 `ToQueryString()`。
 - 支持 migrations SQL、默认 `__EFMigrationsHistory` 和自定义 history table。
 - `ToJson` 支持整容器读写和固定标量路径查询。根 `OwnsOne(...).ToJson(...)` 容器只修改一个直接标量属性时，`SaveChanges` 使用 `json_set_value` 保留其它成员；支持 `string`、`bool`、`byte`、`short`、`int`、`long`、有限 `float`/`double` 及其可空形式。值沿用 EF 参数绑定，属性名按模型的 JSON 名称精确转义；可添加缺失的末端属性，但容器必须已经是有效对象。
-- 上述单属性更新拒绝嵌套 Owned、数组、子树、值转换器、其它类型及非有限浮点值。`ExecuteUpdate` 的 JSON 更新仍不支持；ComplexProperty 或多个属性修改由 EF 生成的整容器替换保留既有行为，不能据此承诺保留模型外成员。EF Provider 不声明 Native AOT 兼容；源码验证不代表公开包或官方 BookStore/Passkey 已验收。
+- 嵌套 `OwnsOne` 的单个标量属性也支持上述更新；每一级属性名均取自唯一 ownership 链的模型元数据，固定路径最多 64 个属性片段和 1024 字符，现有父级必须为对象。数组/集合路径、子树、值转换器、其它类型及非有限浮点值仍拒绝。`ExecuteUpdate` 的 JSON 更新仍不支持；ComplexProperty 或多个属性修改由 EF 生成的整容器替换保留既有行为，不能据此承诺保留模型外成员。EF Provider 不声明 Native AOT 兼容；源码验证不代表公开包或官方 BookStore/Passkey 已验收。
 - 支持 `StartsWith`、`EndsWith`、`Contains` 到 `LIKE` 的基础字符串模式翻译。
 - 支持 `DateTime` / `DateTimeOffset` 的 `Now`、`UtcNow`、`Today`、`Date`、常用日期分量、`AddYears` 至 `AddTicks`，以及 `DateTimeOffset.ToUnixTimeSeconds()` / `ToUnixTimeMilliseconds()` 翻译。
 

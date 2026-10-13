@@ -252,7 +252,6 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     }
 
     [Theory]
-    [InlineData("Child")]
     [InlineData("Tags")]
     [InlineData("Identifier")]
     [InlineData("OccurredAt")]
@@ -273,7 +272,6 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         var before = await ReadRawAsync(context, 1, token);
         switch (shape)
         {
-            case "Child": row.Data.Child.Label = "nested"; break;
             case "Tags": row.Data.Tags = ["array"]; break;
             case "Identifier": row.Data.Identifier = Guid.Empty; break;
             case "OccurredAt": row.Data.OccurredAt = DateTime.UnixEpoch; break;

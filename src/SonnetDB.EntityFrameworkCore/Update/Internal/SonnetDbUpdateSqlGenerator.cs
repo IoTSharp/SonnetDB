@@ -110,7 +110,6 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         if (operation.Property is not { DeclaringType: IEntityType entityType } property
             || !entityType.IsMappedToJson()
             || entityType.FindOwnership() is not { IsUnique: true } ownership
-            || ownership.PrincipalEntityType.IsMappedToJson()
             || !string.Equals(entityType.GetContainerColumnName(), operation.ColumnName, StringComparison.Ordinal)
             || operation.TypeMapping is null || operation.TypeMapping.Converter is not null)
         {
@@ -127,17 +126,42 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
             return false;
         }
 
-        // EF 的 JsonPath 以点连接原始名称，属性名自身可以含点。只接受根 Owned 的直接属性，
-        // 从模型构造带引号的路径，避免将属性名拆成另一条路径；参数仍沿用 EF 的标量映射。
+        // EF 的 JsonPath 以点连接原始名称，名称本身也可以含点；沿唯一 ownership 链
+        // 从模型构造带引号的固定属性路径，不猜测点的含义，也不接受集合索引。
         var jsonName = property.GetJsonPropertyName();
-        if (string.IsNullOrWhiteSpace(jsonName) || jsonName.Length > 1019
-            || !string.Equals(operation.JsonPath, "$." + jsonName, StringComparison.Ordinal))
-        {
+        if (string.IsNullOrWhiteSpace(jsonName) || jsonName.Length > 1019)
             return false;
+
+        var names = new List<string> { jsonName };
+        for (var depth = 0; ownership.PrincipalEntityType.IsMappedToJson() && depth < 64; depth++)
+        {
+            var ownedName = entityType.GetJsonPropertyName();
+            if (names.Count >= 64 || string.IsNullOrWhiteSpace(ownedName) || ownedName.Length > 1019)
+                return false;
+            names.Add(ownedName);
+            entityType = ownership.PrincipalEntityType;
+            if (entityType.FindOwnership() is not { IsUnique: true } parentOwnership)
+                return false;
+            ownership = parentOwnership;
         }
 
-        path = "$['" + jsonName.Replace("'", "''", StringComparison.Ordinal) + "']";
-        return path.Length <= 1024;
+        if (ownership.PrincipalEntityType.IsMappedToJson()
+            || !string.Equals(entityType.GetContainerColumnName(), operation.ColumnName, StringComparison.Ordinal))
+            return false;
+
+        names.Reverse();
+        var quotedPath = new StringBuilder("$");
+        var efPath = new StringBuilder("$");
+        foreach (var name in names)
+        {
+            quotedPath.Append("['").Append(name.Replace("'", "''", StringComparison.Ordinal)).Append("']");
+            if (quotedPath.Length > 1024)
+                return false;
+            efPath.Append('.').Append(name);
+        }
+
+        path = quotedPath.ToString();
+        return string.Equals(operation.JsonPath, efPath.ToString(), StringComparison.Ordinal);
     }
 
     private static void RejectJsonAggregateWrites(IReadOnlyModificationCommand command, bool allowScalarUpdate)

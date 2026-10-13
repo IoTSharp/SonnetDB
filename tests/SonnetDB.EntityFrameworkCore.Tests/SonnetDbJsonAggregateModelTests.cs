@@ -776,6 +776,13 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 : new AggregateComplexContext(new DbContextOptionsBuilder<AggregateComplexContext>().UseSonnetDB(_connectionString).AddInterceptors(capture).Options, release);
         }
 
+        public AggregateContext CreateEscapedOwnedContext(JsonCommandCapture capture)
+        {
+            _contextReferences++;
+            return new EscapedOwnedContext(new DbContextOptionsBuilder<EscapedOwnedContext>()
+                .UseSonnetDB(_connectionString).AddInterceptors(capture).Options, () => _contextReferences--);
+        }
+
         public async Task ReopenAsync(CancellationToken cancellationToken)
         {
             Assert.Equal(0, _contextReferences);
