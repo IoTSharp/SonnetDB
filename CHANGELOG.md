@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #266 EF 桥接切片：根 `OwnsOne.ToJson` 的单个直接标量属性 `SaveChanges` 通过 `json_set_value` 更新，从模型构造精确属性路径并复用 EF 标量参数、事务和影响行数并发检查；保留其它成员和数字原文，支持已有对象缺失末端属性及 JSON null。嵌套 Owned、数组/子树、转换器/其它类型、非有限浮点和 JSON `ExecuteUpdate` 仍拒绝；ComplexProperty/多属性的既有整根替换行为不变，正式包、官方 BookStore/Passkey 与 EF NativeAOT 不在本切片验收范围。
+
 - GH-Issue #266 Core 切片：新增三参数 `json_set_value`，替换非根标量或添加现有对象的末端属性，保留数字原文、成员顺序及未知成员；拒绝重复键、缺失 parent、越界与容器目标。输入/输出各限 8 MiB UTF-8，树限 100000 节点/64 层，默认字符串转义按固定块写出，独立编码 scratch 限 5120 字节；单次求值保留协作式 10 秒预算并读取 SQL 取消/deadline。EF 桥接、非根 Owned、ExecuteUpdate、子树更新、官方 BookStore/Passkey 与正式包消费仍须单独验收。
 
 - Web 图表依赖更新至 ECharts/ZRender 6.1.0（原 PR #299），修复嵌入式轨迹页在不超过 1100px 视口下筛选行收缩为零、加载按钮被地图画布遮挡的问题；保留筛选内容高度并允许容器滚动。真实前端正常点击、提示、缩放尺寸、空态恢复及销毁验证通过，模拟 API 与正式 Server 接受分开。
