@@ -2719,3 +2719,15 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
 
 测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
+
+## PR306 第二次 Windows CI：独立 KNN 分配计数测量修复（2026-10-13）
+
+从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/knn-allocation-counter-ci；PR307已正常合并，PR306 b4edbe46仍不得合并。该head Windows run38358785783/job115167790779的Core6764/6765，唯一失败KnnBoundedExecutionTests分配量130584超原4096；回填修复已通过。旧7792/4096及21窗0的UNKNOWN历史保留，不改阈值、不盲重跑原CI。
+
+查证dotnet/runtime PR #134855（修复#134724；本次GitHub回读仍OPEN，未视作已发布修复）后，用独立.NET10.0.12/Windows受控探针观察到：无BGC基线16次全零；BGC窗口450次空操作中14次非零、最大7864，后台GC索引256；无GC区间空操作0、已知小对象64、gen2增量0。证据allocation-counter-probe.cs、ef266release-allocation-probe日志。它证明本机有计数器测量污染，不提供原CI130584的分配栈或完整根因归属。
+
+修复仅影响KNN测试的两个分配测量窗口：16MiB为临时GC预算，不是允许分配阈值；成功建立窗口后计数实际操作分配，finally结束，无法建立或预算失效均失败。保留K8、100000次替换、4096/8192阈值、候选数量/排序，增加37字节数组的真实分配对照；不改生产KNN、不更换SDK、也不改变进程默认GC配置。Release build零警告/错误，对照1/1、完整KNN10/10、零跳过。全Core和新远端CI待各自实际结果，不把局部10项当全套通过。
+
+本片仅测试文件、CHANGELOG、HANDOFF三路径，最终完整restore/原Format、精确提交与独立PR以ef266alloc后续收据为准。专属TEMP D:\t\ef266a2、24命令/09:00Z边界，原阶段预算/失败不重置。下一步先提交独立修复，再正常集成并对新JSON head完整验收；已冻结但未发布的4.5.0-preview.ef266.2、所有候选包SHA和源b4edbe46保持，不改写为新源码或发布成功。公开版本消费和#266关闭仍未完成。
+
+PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
