@@ -34,6 +34,6 @@ $saved = $false
 try { $solution.Save($writer); $writer.Flush(); $saved = $true }
 finally {
     $writer.Dispose(); $stream.Dispose()
-    if (!$saved) { Remove-Item -LiteralPath $target }
+    if (!$saved) { Remove-Item -LiteralPath $target -Force }
 }
 [pscustomobject]@{ shard = $Shard; path = $target; sourceProjectCount = $projects.Count; projectPaths = $kept.ToArray() }

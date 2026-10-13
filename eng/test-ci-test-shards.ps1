@@ -11,6 +11,10 @@ try {
     $created.Add($corePath)
     $rest = & (Join-Path $PSScriptRoot 'new-ci-test-solution.ps1') -Shard rest -OutputPath $restPath
     $created.Add($restPath)
+    # Linux 点名前缀天然为 hidden；Windows 也覆盖相同的清理条件。
+    if ($IsWindows) {
+        foreach ($path in $created) { [IO.File]::SetAttributes($path, [IO.File]::GetAttributes($path) -bor [IO.FileAttributes]::Hidden) }
+    }
     [xml]$source = [IO.File]::ReadAllText($sourcePath)
     $original = @($source.SelectNodes('//Project') | ForEach-Object { [string]$_.Path })
     $combined = @($core.projectPaths) + @($rest.projectPaths)
@@ -30,6 +34,6 @@ try {
 finally {
     foreach ($path in $created) {
         if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path)) -cne $root -or ![IO.Path]::GetFileName($path).StartsWith('.ci-tests-' + $owner, [StringComparison]::Ordinal)) { throw 'Cleanup ownership mismatch.' }
-        Remove-Item -LiteralPath $path
+        Remove-Item -LiteralPath $path -Force
     }
 }
