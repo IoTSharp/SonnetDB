@@ -2699,3 +2699,13 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 本轮 fresh GitHub 读取确认 #266 仍 OPEN，五项验收包含官方完整 BookStore/Passkey、本地及真实 Server 和固定公开包消费者；仅有 open PR #265 属 CAP，无现成 EF PR。直连 GitHub 超时的原失败保留，单命令代理重试成功。当前切片先精确提交并以 Refs #266 创建 PR，按精确 head 全部门禁成功后正常合并；提交、CI、合并 SHA 以 artifacts/online-closure-20261012/ef266w-* 真实收据为准，本段不预写结果。提交前最终树重新完整 restore 与原 Format Check，不增加排除或压制警告。
 
 后续继续核真实 ABP 所需嵌套/数组/子树和查询形状，再补模型/迁移、Passkey/账户、SQLite 对照及固定包消费者；完整验收前不关闭 #266。普通代码与 PR/Issue 交付已获用户明确授权，新公开包/tag/Release 仍需具体候选审批。源码仅在既有 online-engine 树，canonical 共享 dirty、delivery4dirty、parity-results、stash、旧 profiles、已发布候选与 PAUSED Workbench 保持。新证据 ef266w、短 TEMP D:\t\ef266w；隐藏 KernelJob、48命令/05:05Z交付阶段截止、每根2CPU和禁共享编译器，任务结束核身份与专属 TEMP 回收。
+
+## PR306 Windows CI 的独立回填故障注入测试修复（2026-10-13）
+
+本片从已核main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de建立codex/pr306-backfill-fault-ci，只修改ObjectProcessingSchedulerTests及CHANGELOG/HANDOFF三路径，不带入JSON数组/子树源码。后者已独立提交并推送ab52269d，ef266y-runtime-archive.json保存135个实际运行文件引用及去重副本，Core6765/EF292和PDB证据仍属该片。
+
+原PR306 head2fe54839、run38347555099/job115132361400的Windows结果为Core6748/6748、EF270/270、Server1231/1232；唯一失败是EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure未抛IOException。日志没有记录具体预算耗尽位置；代码证明故障钩子前的250ms页预算可正常返回零进度，不能把未到注入点当成吞异常。修复只允许钩子未调用、扫描/入队/跳过计数全零、HasMore且未Completed、无cursor/持久任务的合法空页继续；最多8页、10秒linked deadline和25ms backoff。一旦钩子触达却正常返回，立即断言失败；最终仍要求同一个IOException实例、钩子恰好一次、持久进度0和一个已入队任务。生产预算、取消和存储行为未改，没有增加盲目CI重跑或降低断言。
+
+Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedulerTests 19/19、零跳过。最终三路径完整restore/原Format、精确提交与新PR状态由ef266z后续收据确定。本片不声称复现了原CI的具体计时位置，也不把局部19项记为全部Server通过。原失败保留，后续必须用新精确候选完成正常CI后才合并。
+
+复用同一online-engine树，无新clone/worktree/agent。专属TEMP D:\t\ef266z、24外部命令/06:40Z本地实施上限；远端新候选另按workflow上限有界观察。canonical共享dirty、delivery4dirty、parity-results、stash、profiles、发布候选与PAUSED Workbench保持。正常代码/PR交付沿用用户授权；新公开包及#266关闭仍须真实完整验收。

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+
 - GH-Issue #266 EF 桥接切片：根 `OwnsOne.ToJson` 的单个直接标量属性 `SaveChanges` 通过 `json_set_value` 更新，从模型构造精确属性路径并复用 EF 标量参数、事务和影响行数并发检查；保留其它成员和数字原文，支持已有对象缺失末端属性及 JSON null。嵌套 Owned、数组/子树、转换器/其它类型、非有限浮点和 JSON `ExecuteUpdate` 仍拒绝；ComplexProperty/多属性的既有整根替换行为不变，正式包、官方 BookStore/Passkey 与 EF NativeAOT 不在本切片验收范围。
 
 - GH-Issue #266 Core 切片：新增三参数 `json_set_value`，替换非根标量或添加现有对象的末端属性，保留数字原文、成员顺序及未知成员；拒绝重复键、缺失 parent、越界与容器目标。输入/输出各限 8 MiB UTF-8，树限 100000 节点/64 层，默认字符串转义按固定块写出，独立编码 scratch 限 5120 字节；单次求值保留协作式 10 秒预算并读取 SQL 取消/deadline。EF 桥接、非根 Owned、ExecuteUpdate、子树更新、官方 BookStore/Passkey 与正式包消费仍须单独验收。
@@ -503,6 +504,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- 对象回填故障注入测试区分页预算产生的合法零进度页与异常传播：只在钩子未触达、计数/任务均为零时最多推进8页/10秒，仍严格要求同一IOException和一个持久任务；生产250ms预算保持，修复PR #306 Windows CI暴露的测试前置条件缺口。
+
 - 同步六个 Document/JSON 查询测试对整数结果的严格 Int64 期望（13 行替换），覆盖嵌套数组、分页、TTL、视图及整数表达式；保留数值、预算和浮点断言，修复联合候选首次完整 CI 暴露的 11 个旧 Double 期望失败。
 - GH-Issue #263：远程 ADO 参数绑定补齐 SByte/UInt16/UInt32 的无损整数格式化，嵌入式与远程枚举按原始底层类型复用既有整数分支；保留 Value/DbType、NULL、精度及原 UInt64 边界。新增三协议21例覆盖极值、枚举、谓词、批量、事务回滚及重开；正式包未包含前保持等待发布。
 
