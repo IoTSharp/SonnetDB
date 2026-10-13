@@ -399,11 +399,43 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         await SeedBackfillObjectsAsync();
         using var fixture = CreateService();
         var expected = new IOException("backfill storage unavailable");
-        fixture.Service.AfterBackfillObjectForTest = _ => throw expected;
-
-        Assert.Same(expected, Assert.Throws<IOException>(() =>
-            fixture.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token)));
+        int hookCalls = 0;
+        fixture.Service.AfterBackfillObjectForTest = _ =>
+        {
+            hookCalls++;
+            throw expected;
+        };
         var jobs = new ObjectProcessingJobStore(_db);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        IOException? observed = null;
+        // 页预算可能在读取对象前耗尽；只允许尚未触达钩子的真实零进度页继续。
+        // 钩子已触达却没有抛错、出现进度或任务，都立即失败，不重试失败断言。
+        for (int attempt = 0; attempt < 8 && timer.Elapsed < TimeSpan.FromSeconds(10); attempt++)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            try
+            {
+                var page = fixture.Service.EnqueueBucket("images", _db, "backfill", deadline.Token);
+                Assert.Equal(0, hookCalls);
+                Assert.Equal(0, page.ScannedObjects);
+                Assert.Equal(0, page.QueuedObjects);
+                Assert.Equal(0, page.SkippedObjects);
+                Assert.True(page.HasMore);
+                Assert.False(page.Completed);
+                Assert.Null(page.ContinuationToken);
+                Assert.Empty(jobs.ReadDue(DateTimeOffset.UtcNow, 10, deadline.Token));
+            }
+            catch (IOException exception)
+            {
+                observed = exception;
+                break;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
+        }
+        Assert.Same(expected, observed);
+        Assert.Equal(1, hookCalls);
         Assert.Equal(0, jobs.ReadBackfill("backfill", _deadline.Token)!.State.ScannedObjects);
         Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token));
     }
