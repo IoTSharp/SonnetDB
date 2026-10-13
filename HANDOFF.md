@@ -2664,3 +2664,38 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 证据根 D:\source\SonnetDB\artifacts\online-closure-20261012：s266r-baseline-freeze.json、s266r-fixed1-freeze.json分别保首失败；s266r-final-freeze.json绑定5源码/16运行资产，s266r-final-results含63定向及6748完整TRX，s266a-final-binding.json及s266a-fullcore-binding.json为独立DLL/PDB/source/TRX证明，s266a-AUDIT.md为三轮审计。s266r-preformat是已过预检，不替代最终提交前完整restore/原Format；最终门禁与commit/远端状态由root后续独立回执记录，不把本段待交付计划当成已commit/merge。运行使用短且专属owner TEMP D:\t\s266r；全部外部任务隐藏KernelJob、最多2根/每根2CPU、关闭共享编译器和node reuse，结束后按已记录身份回收自有资源。
 
 后续顺序：root最终完整restore/原Format及精确7路径提交；按精确候选走远端门禁/正常合并，仍不关闭#266或发布包。保parity-results、旧stash、91旧profiles、发布候选、PAUSED Workbench、CAP265原46个NativeAOT失败，以及303前批完整Core6682/6685原3FAIL及因果UNKNOWN。canonical交接只由root尾追加并校验旧prefix，暂不提交共享foreign内容。本批收口后冻结新会话入口，再按用户要求创建下一local会话并确认启动。
+
+## #266 根 Owned 直接标量更新桥接：本地实现与验证完成（2026-10-13）
+
+本轮用户明确选择“继续 #266 EF JSON 更新桥接”后，复用原 clean online-engine，从 fresh origin/main a037f681b4be5c1e44f551613e1026c1eeadfda5 建 codex/issue266-ef-scalar-update；未创建 worktree/clone。源码改动只在此既有树，当前 HEAD 仍为 a037，代码、测试、PackageReadme、CHANGELOG 和本段 HANDOFF 共7个自有路径，空 index、未提交。此次以本地可审查改动交付，没有 commit/push、PR/Issue 写入、tag/Release 或新会话创建；本段不把实施完成写成 main 已合入。canonical 仍为原 dcadffc 的156共享 dirty/空 index，仅由主尾追加本段并核原字节前缀；共享交接暂不提交，避免混入他人工作。
+
+实现只解锁根 OwnsOne(...).ToJson(...) 的单个直接标量属性 SaveChanges：string/bool/byte/short/int/long/有限 float、double 及其可空形式。更新生成器基于 EF 模型 JSON 属性名构造 bracket path，核对原 JsonPath 和根 ownership、1024字符预算，复用既有 json_set_value、原 EF 标量参数、WHERE/并发 token 与 RecordsAffected；不会将含点或引号的属性名误拆成子路径，不新增 JSON 序列化入口。保留未知兄弟、成员顺序与未修改数字词法；可新增有效对象缺失的末端属性、将值写为 JSON null。嵌套 Owned、数组/子树、转换器/其它类型、非有限浮点和 JSON ExecuteUpdate 仍拒绝。ComplexProperty、多属性修改由 EF 生成的整根替换保留旧行为；未知成员保留只适用于本次单 leaf setter，不泛化到整根替换。
+
+新基线实际跑 embedded/ExactLong 一例，在旧 RejectJsonAggregateWrites 按原不支持合同 FAIL；ef266u-baseline-assets.json 与 baseline-results/baseline.trx 保留原结果。实现后首 JSON 整类71/71 PASS；补存量无效形状后，最终同一实际DLL完整 EF 262/262 PASS、0 skip，其中新增71例：三协议36个标量/可空/转义/缺失leaf、3个成功回滚与影响行数并发、6个首行已执行后第二行失败（自动/显式事务）、3个首UPDATE完成后取消并回滚、8个翻译阶段拒绝、三协议15个 SQL NULL/JSON null/数组/容器目标/重复键失败不写入。真实 embedded、REST HTTP/1.1 和 h2c Frame HTTP/2 均核请求协议与正常重开；取消用例精确在首个实际 UPDATE RecordsAffected=1 后触发，不宣称本批验证 setter 内部遍历取消。既有 Core 内部取消证据仍是原批次，不冒充本批运行。
+
+最终 Release build 零警告/零错误；全 solution restore PASS，原 Format Check（severity warn，唯一原排除 extensions/）退出0，保留一条 workspace-load warning。ef266u-assets2.json 冻结4源码及83运行文件；ef266u-binding.json 核87个哈希、两对 DLL/PDB CodeView 身份、4个编译源码 checksum 和 full-ef.trx 实际DLL路径/262结果。源码最终验证后未再修改；交接为后续追加文档。证据统一在 D:\source\SonnetDB\artifacts\online-closure-20261012 的 ef266u-*，完整测试 ef266u-results2/full-ef.trx。
+
+本批资源审计 ef266u-resources.json 只核本任务已完成隐藏 KernelJob 记录及控制进程，ownLive=0、无信号；审计自身、后续清理和交接命令各有退出收据。专属 D:\t\ef266u 按 owner marker/绝对路径/无 reparse point/数量和时间上限清理，ef266u-clean-temp.json 为回执；不宣称全机孤儿清零。先前纯规范预查的三个只读执行者已停止且无源码修改，本次获明确任务后未再次派发；其唯一隐藏搜索原 FAIL 和所有此前 FAIL/UNKNOWN/NOT_RUN 继续保留。
+
+未完成边界：本批未跑远端 CI、完整 Core/Server 套件、NativeAOT setter 运行、正式包消费者或官方 BookStore/Passkey。EF Provider 原本明确不声明 NativeAOT 兼容，未改变该合同；#266 仍 OPEN/PARTIAL。后续先审查本地精确7路径；交付时重新核最终树、原 Format 和正常 PR/CI 门禁，再独立选嵌套 Owned/数组/子树更新或官方应用验证切片。原 delivery 四 dirty、parity-results、stash、91 profiles、已发布候选与 PAUSED Workbench 均不得重放或覆盖。
+
+
+### 本批最终共享目录快照更正
+
+上述 canonical“156共享dirty”为本批开始时快照，不能作为收口时仍为156的声明。ef266u-final-trees.json 最终核得 canonical=174 dirty/空index，HEAD仍dcadffc；差集是18个 docs/blogs 下的并行发布稿、辅助文件和状态文件，均非本任务创建，本任务未改动或清理。online-engine 仍为本批精确7路径/空index；delivery仍原4 dirty/空index，cap和closure clean。首次收口 helper 因硬编码旧156计数而失败，属于快照断言过时，不是源码、构建或测试失败；后续按实际快照和逐路径差集核验，保留该失败事实。两次本任务 HANDOFF 追加均单独验证追加前的完整字节前缀，不用初始全文件哈希否定其它会话的合法并行追加。
+
+## 用户授权新会话推进 #266 剩余内容与提交合并闭环（2026-10-13）
+
+用户直接要求：“创建新会话， 在新会话里接续当前任务完成剩余内容闭环， 并提交代码合并到主分支， 关闭关联issuse 合并相关的pr”。后继已获正常提交、推送、关联PR创建/更新/合并及符合验收的Issue更新/关闭授权；不要再把本地实现交付当作终点，也不要提前关闭尚缺正式消费者验收的#266。
+
+新冻结入口为 artifacts/online-closure-20261012/NEXT_SESSION_20261013_EF266_CLOSURE.md，SHA256=A0283F5BA304653803DFB749D79E9F44FAB1ADB1171CB96C5A173FB4444FBE40。完整范围、7路径、已测262/262及旧失败、剩余验收顺序、资源边界均在入口；本次交接后的源码SHA清单见同目录ef266v-source-manifest.json。仍复用online-engine的codex/issue266-ef-scalar-update，HEAD a037f681b4be5c1e44f551613e1026c1eeadfda5，7路径未提交、空index。仅交接文档追加，已测4源码保持原SHA；后继提交前仍须在最终树执行完整restore/原Format。
+
+本次fresh五树快照ef266v-trees.json记录canonical=159共享dirty/空index（此前博客临时文件已由其所属任务回收），不硬编码旧156/174计数。原delivery4dirty保留，parity/stash等保护不变。fresh PR列表ef266v-prs.stdout.log只见#265，属于CAP集成，不能盲目当成本次EF关联PR。创建新local会话，不新建worktree/clone；派发/启动回执保存ef266v-dispatch.json。写本段时尚未执行创建，不能把本段当作已启动证明。原主在确认接续后停止源码、索引、共享交接与远端写，后继独占推进；本次未在旧会话执行commit、push或merge。
+
+## #266 标量更新切片接管审查与正常 PR 交付（2026-10-13）
+
+后继已实核冻结入口 A0283F5B…4FBE40、清单 D078A998…DA945F，实施树 HEAD a037f681、分支 codex/issue266-ef-scalar-update、空索引及精确7路径全部 SHA256 一致。审查两份生产改动与完整新增测试后未发现需改变该受限合同的阻断问题；根 ownership、标量类型/有限值、模型路径两层转义、参数绑定及影响行数保留。原4源码与262/262测试证据仍属同一已测源码，不把旧运行记为本轮重新执行。
+
+本轮 fresh GitHub 读取确认 #266 仍 OPEN，五项验收包含官方完整 BookStore/Passkey、本地及真实 Server 和固定公开包消费者；仅有 open PR #265 属 CAP，无现成 EF PR。直连 GitHub 超时的原失败保留，单命令代理重试成功。当前切片先精确提交并以 Refs #266 创建 PR，按精确 head 全部门禁成功后正常合并；提交、CI、合并 SHA 以 artifacts/online-closure-20261012/ef266w-* 真实收据为准，本段不预写结果。提交前最终树重新完整 restore 与原 Format Check，不增加排除或压制警告。
+
+后续继续核真实 ABP 所需嵌套/数组/子树和查询形状，再补模型/迁移、Passkey/账户、SQLite 对照及固定包消费者；完整验收前不关闭 #266。普通代码与 PR/Issue 交付已获用户明确授权，新公开包/tag/Release 仍需具体候选审批。源码仅在既有 online-engine 树，canonical 共享 dirty、delivery4dirty、parity-results、stash、旧 profiles、已发布候选与 PAUSED Workbench 保持。新证据 ef266w、短 TEMP D:\t\ef266w；隐藏 KernelJob、48命令/05:05Z交付阶段截止、每根2CPU和禁共享编译器，任务结束核身份与专属 TEMP 回收。

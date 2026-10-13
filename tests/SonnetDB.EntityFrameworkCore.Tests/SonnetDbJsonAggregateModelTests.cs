@@ -23,9 +23,9 @@ using Xunit.Abstractions;
 namespace SonnetDB.EntityFrameworkCore.Tests;
 
 /// <summary>
-/// 验证 ToJson 的整容器支持与仍然拒绝的 JSON 路径边界。
+/// 验证 ToJson 整容器、标量查询和直接标量更新及其拒绝边界。
 /// </summary>
-public sealed class SonnetDbJsonAggregateModelTests
+public sealed partial class SonnetDbJsonAggregateModelTests
 {
     private readonly ITestOutputHelper _output;
     private const string DisplayNameJson = "display'name.with dot 😃";
@@ -142,13 +142,10 @@ public sealed class SonnetDbJsonAggregateModelTests
         {
             await using var partial = fixture.CreateContext(owned, capture);
             var tracked = await partial.Set<AggregateRow>().SingleAsync(row => row.Id == 1, cancellationToken);
-            var before = await ReadRawAsync(partial, 1, cancellationToken);
-            var executedBefore = capture.Commands.Count;
-            tracked.Data.DisplayName = "unsupported leaf";
-            var exception = await Assert.ThrowsAsync<NotSupportedException>(() => partial.SaveChangesAsync(cancellationToken));
-            Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
-            Assert.Equal(executedBefore, capture.Commands.Count);
-            Assert.Equal(before, await ReadRawAsync(partial, 1, cancellationToken));
+            tracked.Data.DisplayName = "owned single leaf 中文";
+            Assert.Equal(1, await partial.SaveChangesAsync(cancellationToken));
+            expected = tracked.Data;
+            AssertScalarCommand(capture.Commands.Last(command => command.Sql.StartsWith("UPDATE", StringComparison.Ordinal)), DisplayNameJson, expected.DisplayName);
         }
         else
         {
@@ -291,7 +288,7 @@ public sealed class SonnetDbJsonAggregateModelTests
             setters.SetProperty(passkey => passkey.Data.DisplayName, "changed")));
         if (exception is NotSupportedException)
         {
-            Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
+            Assert.Contains("This JSON operation is not supported", exception.Message);
         }
         else
         {
@@ -321,7 +318,7 @@ public sealed class SonnetDbJsonAggregateModelTests
     private static void AssertUnsupported(Action action)
     {
         var exception = Assert.Throws<NotSupportedException>(action);
-        Assert.Contains("Partial updates and other JSON paths are not supported", exception.Message);
+        Assert.Contains("This JSON operation is not supported", exception.Message);
     }
 
     private static DbContext CreateContext(bool owned, ConnectionBlocker? blocker = null)
@@ -417,6 +414,8 @@ public sealed class SonnetDbJsonAggregateModelTests
             writer.WriteStartObject();
             writer.WriteString(DisplayNameJson, value.DisplayName);
             writer.WriteNumber("Counter", value.Counter);
+            writer.WriteNumber("Small", value.Small);
+            writer.WriteNumber("Short", value.Short);
             if (!omitOptional)
                 writer.WriteNull("Optional");
             writer.WriteBoolean("Enabled", value.Enabled);
@@ -546,6 +545,30 @@ public sealed class SonnetDbJsonAggregateModelTests
     private sealed class JsonCommandCapture : DbCommandInterceptor
     {
         public List<CapturedCommand> Commands { get; } = [];
+        public List<(CapturedCommand Command, int Affected)> CompletedUpdates { get; } = [];
+        public Action? AfterUpdate { get; set; }
+
+        private void CompleteUpdate(DbCommand command, DbDataReader reader)
+        {
+            if (!command.CommandText.StartsWith("UPDATE", StringComparison.Ordinal)
+                || !command.CommandText.Contains("json_set_value(", StringComparison.Ordinal))
+                return;
+            CompletedUpdates.Add((Commands.Last(), reader.RecordsAffected));
+            AfterUpdate?.Invoke();
+        }
+
+        public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
+        {
+            CompleteUpdate(command, result);
+            return result;
+        }
+
+        public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+            DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            CompleteUpdate(command, result);
+            return ValueTask.FromResult(result);
+        }
 
         private void Capture(DbCommand command)
         {
@@ -657,6 +680,8 @@ public sealed class SonnetDbJsonAggregateModelTests
     {
         public string DisplayName { get; set; } = string.Empty;
         public int Counter { get; set; }
+        public byte Small { get; set; }
+        public short Short { get; set; }
         public string? Optional { get; set; }
         public List<string> Tags { get; set; } = [];
         public AggregateChild Child { get; set; } = new();
