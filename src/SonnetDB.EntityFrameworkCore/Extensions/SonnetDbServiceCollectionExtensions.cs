@@ -49,6 +49,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<IMemberTranslatorProvider, SonnetDbMemberTranslatorProvider>()
             .TryAdd<IMethodCallTranslatorProvider, SonnetDbMethodCallTranslatorProvider>()
             .TryAdd<IUpdateSqlGenerator, SonnetDbUpdateSqlGenerator>()
+            .TryAdd<IModificationCommandFactory, SonnetDbModificationCommandFactory>()
             .TryAdd<IModificationCommandBatchFactory, SonnetDbModificationCommandBatchFactory>()
             .TryAdd<IMigrationsSqlGenerator, SonnetDbMigrationsSqlGenerator>()
             .TryAdd<IHistoryRepository, SonnetDbHistoryRepository>()

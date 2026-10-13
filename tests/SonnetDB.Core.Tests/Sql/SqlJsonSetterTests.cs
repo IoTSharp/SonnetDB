@@ -13,7 +13,7 @@ using Xunit;
 namespace SonnetDB.Core.Tests.Sql;
 
 /// <summary>验证有界 JSON 标量更新和真实关系表的整语句失败边界。</summary>
-public sealed class SqlJsonSetterTests : IDisposable
+public sealed partial class SqlJsonSetterTests : IDisposable
 {
     private const int ByteLimit = 8 * 1024 * 1024;
     private readonly string _owner = Guid.NewGuid().ToString("N");

@@ -252,11 +252,6 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     }
 
     [Theory]
-    [InlineData("Tags")]
-    [InlineData("Identifier")]
-    [InlineData("OccurredAt")]
-    [InlineData("Bytes")]
-    [InlineData("Converted")]
     [InlineData("NaN")]
     [InlineData("Infinity")]
     public async Task ToJson_ScalarUpdate_UnsupportedShapesRejectBeforeSql(string shape)
@@ -272,11 +267,6 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         var before = await ReadRawAsync(context, 1, token);
         switch (shape)
         {
-            case "Tags": row.Data.Tags = ["array"]; break;
-            case "Identifier": row.Data.Identifier = Guid.Empty; break;
-            case "OccurredAt": row.Data.OccurredAt = DateTime.UnixEpoch; break;
-            case "Bytes": row.Data.Bytes = [4, 5]; break;
-            case "Converted": row.Data.Converted = "changed"; break;
             case "NaN": row.Data.Metric = double.NaN; break;
             case "Infinity": row.Data.Single = float.PositiveInfinity; break;
             default: throw new InvalidOperationException("Unknown unsupported shape.");

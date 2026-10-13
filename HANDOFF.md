@@ -2711,3 +2711,13 @@ ef266x-assets.json与ef266x-binding.json绑定5源码、两组DLL/PDB、全部�
 前一切片还取得私有候选4.5.0-preview.ef266.1的官方ABP集成证据，详见ef266w-acceptance.json：SonnetDB.Abp原8006cf2d源码未改，通过临时MSBuild导入标准生成迁移和测试适配，Complex/Owned模型、完整BookStore建表/标准迁移/重复迁移与种子、真实IdentityUserStore的Passkey创建/读取/更新/应用重建/删除，以及本地、REST HTTP/1.1、Frame HTTP/2三套官方密码账户HTTP登录/CRUD/分页/重建读取通过；SQLite同模型Passkey存储对照也通过。服务器分别记录414条HTTP/1.1 SQL和48条HTTP/2 Frame请求，均正常退出。临时测试只替换Provider与数据库夹具，不修改ABP模块、权限、安全日志或事务。Passkey使用合成凭证字节，不是浏览器WebAuthn注册/认证；SQLite历史完整登录写锁失败保留。私有候选属于原51321fff，不含本片嵌套扩展，也不是公开包或正式固定消费者证据。
 
 #266保持OPEN/PARTIAL。后续先完成305和本片精确head的正常CI/合并，再处理剩余数组/子树/查询合同；公开新候选须完整发布门禁和具体候选批准，固定SonnetDB.Abp后再跑正式消费者。canonical共享dirty、原delivery4dirty、parity-results、stash、91 profiles、发布候选及PAUSED Workbench均保持，canonical交接只尾追加且暂不提交共享foreign内容。
+
+## #266 JSON 属性编码、数组和子树更新：本地完整回归通过（2026-10-13）
+
+本片复用online-engine，从已推送2fe54839067e975abe0e0567dd94ae6cbab8fedf建立codex/issue266-json-array-updates。新增可选第四布尔参数显式JSON片段模式，三参数/FALSE仍保留字符串和值类型及容器拒绝合同。源与片段各8MiB、输入共用100000节点，输出另限8MiB/100000节点/64层；复用原固定编码scratch、操作/10秒协作预算与SQL取消。EF只扩展标准ModificationCommand的属性JSON writer钩子；不复制框架的对象序列化或修改命令管线。数组、Guid、日期、二进制、转换器属性按EF metadata writer完整编码；唯一OwnsOne子树复用EF已生成参数，模型路径候选不唯一或集合索引拒绝。更新仅保留目标外兄弟，替换子树内的模型外成员不承诺保留；OwnsMany元素路径与JSON ExecuteUpdate仍未支持。
+
+本地最终Core6765/6765、零跳过（新增17），EF292/292、零跳过（新增27、替代5个旧拒绝用例）。真实三协议覆盖空数组/数组原地修改、Guid/DateTime/byte[]/转换器编码、特殊父级名子树替换、成功UPDATE后rollback、第二行失败前首行确已执行、应用正常重开及未知兄弟/数字词法。Core新增显式片段与标量隔离、重复键/无效片段、深度/节点/UTF8输出预算、事务/重开、第二行校验/输出/返回前取消的原子性。早期EF278与289属于当时源码，不与最终292混用；build3的CS8604可空性编译失败保留，修正后build4/build5各零警告/错误。ef266y-core-binding.json与ef266y-ef-binding.json分别绑定5/7份源码、各自DLL/PDB、完整运行文件及TRX，Core与EF不是同一个运行。
+
+原PR305已正常合并为main dfc31a3feecd3a35bcb809f2cf810ec6bb9ca5de，源51321fff祖先关系独立核验。原PR306的2fe54839 Windows CI在既有ObjectProcessingSchedulerTests.EnqueueBucket_StorageFailureAfterEnqueue_PropagatesOriginalFailure失败（run38347555099/job115132361400；Server1231/1232，未抛预期IOException），其它检查成功。原错误日志ef266c-failed-log完整保留，不绕过或盲目重跑。代码允许250ms页预算在钩子前返回零进度，旧测试未区分未到注入点与异常被吞；下一步在独立CI修复分支处理该测试的有界分页前置条件，保持生产预算、同一IOException身份、持久计数和单任务断言。修复不混入本JSON代码提交。
+
+本片精确15路径的最终restore/原Format、提交以ef266y后续收据为准，本段不预填提交结果；保存本地checkpoint后复用本树进行独立CI修复，再接回JSON候选并走精确head CI。新TEMP D:\t\ef266y，32外部命令/06:20Z实现窗口；PR306旧head的只读监控单列ef266c至05:55Z，原预算与失败不重置。ef266w已完成47个旧Job/282身份审计ownLive0及专属TEMP1379项回收，第48个清理Job亦PASS；此前私有包官方应用证据仍只属于51321fff，不覆盖本次新源码。公开发布、固定公开包消费者和#266关闭仍未完成。原delivery4dirty、canonical共享工作、parity-results、stash、profiles、已发布候选和PAUSED Workbench保持。

@@ -699,6 +699,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     private sealed class AggregateChild
     {
         public string Label { get; set; } = string.Empty;
+        public int Counter { get; set; }
     }
 
     private sealed class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable

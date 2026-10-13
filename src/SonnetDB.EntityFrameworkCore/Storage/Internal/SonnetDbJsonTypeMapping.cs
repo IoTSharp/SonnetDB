@@ -7,12 +7,12 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 
 /// <summary>
-/// 为 ToJson 聚合提供整容器、固定标量查询及 OwnsOne 标量属性更新映射。
+/// 为 ToJson 聚合提供整容器、固定标量查询及 OwnsOne 属性和子树更新映射。
 /// </summary>
 public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
 {
     internal const string UnsupportedOperationMessage =
-        "SonnetDB ToJson supports whole-container operations, supported fixed scalar queries and scalar updates through OwnsOne containers. This JSON operation is not supported.";
+        "SonnetDB ToJson supports whole-container operations, supported fixed scalar queries and JSON property or subtree updates through OwnsOne containers. This JSON operation is not supported.";
 
     private static readonly MethodInfo GetStringMethod =
         typeof(DbDataReader).GetMethod(nameof(DbDataReader.GetString), [typeof(int)])!;

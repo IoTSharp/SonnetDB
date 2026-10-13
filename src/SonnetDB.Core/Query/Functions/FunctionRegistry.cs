@@ -191,7 +191,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("json_exists", 2, 2, JsonSqlFunctions.Exists),
         new BuiltInScalarFunction("json_array_length", 2, 2, JsonSqlFunctions.ArrayLength),
         new BuiltInScalarFunction("json_contains", 3, 3, JsonSqlFunctions.Contains),
-        new BuiltInScalarFunction("json_set_value", 3, 3, JsonSqlFunctions.SetValue),
+        new BuiltInScalarFunction("json_set_value", 3, 4, JsonSqlFunctions.SetValue),
         new BuiltInScalarFunction("regexp_like", 2, 3, static args =>
             RegexPatternMatcher.IsMatch(args[0], args[1], args.Count == 3 ? args[2] : null)),
         new BuiltInScalarFunction("current_datetime", 0, 0, SqlDateTimeFunctions.CurrentDateTime),

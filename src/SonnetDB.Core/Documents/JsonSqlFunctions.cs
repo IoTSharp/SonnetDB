@@ -22,7 +22,7 @@ internal static class JsonSqlFunctions
     private const int MaxComparisonOperations = 1_000_000;
 
     /// <summary>替换非根 JSON path 的单个标量，或添加现有对象的末端属性。</summary>
-    /// <param name="args">JSON 文本、固定 path 和 SQL 标量值。</param>
+    /// <param name="args">JSON 文本、固定 path、值及可选的“值为序列化 JSON”布尔标记。</param>
     /// <returns>保留其它成员的 JSON 文本；SQL NULL 值写为 JSON null。</returns>
     public static object SetValue(IReadOnlyList<object?> args)
     {
@@ -30,6 +30,14 @@ internal static class JsonSqlFunctions
         string? path = RequireNullableString(args[1], "json_set_value", "path");
         if (json is null || path is null)
             throw new InvalidOperationException("json_set_value 的 json 和 path 参数不能是 SQL NULL。");
+
+        if (args.Count == 4)
+        {
+            if (args[3] is not bool serialized)
+                throw new InvalidOperationException("json_set_value 的第四个参数必须是布尔值。");
+            if (serialized)
+                return JsonPathUpdater.SetSerializedValue(json, path, RequireNullableString(args[2], "json_set_value", "value"));
+        }
 
         return JsonPathUpdater.SetValue(json, path, args[2]);
     }
