@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- 增加默认只验证的NuGet候选提升入口：绑定成功Publish预检run、已合入main的源码SHA、版本与七包规范化SHA256清单，复用完整release-readiness门禁；人工明确确认后直接推送已下载的原包，不重打包，不自动创建tag/Release/镜像。
+
 
 - GH-Issue #266 EF 桥接切片：根 `OwnsOne.ToJson` 的单个直接标量属性 `SaveChanges` 通过 `json_set_value` 更新，从模型构造精确属性路径并复用 EF 标量参数、事务和影响行数并发检查；保留其它成员和数字原文，支持已有对象缺失末端属性及 JSON null。嵌套 Owned、数组/子树、转换器/其它类型、非有限浮点和 JSON `ExecuteUpdate` 仍拒绝；ComplexProperty/多属性的既有整根替换行为不变，正式包、官方 BookStore/Passkey 与 EF NativeAOT 不在本切片验收范围。
 

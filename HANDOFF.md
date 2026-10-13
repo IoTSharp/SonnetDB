@@ -2710,6 +2710,16 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 
 复用同一online-engine树，无新clone/worktree/agent。专属TEMP D:\t\ef266z、24外部命令/06:40Z本地实施上限；远端新候选另按workflow上限有界观察。canonical共享dirty、delivery4dirty、parity-results、stash、profiles、发布候选与PAUSED Workbench保持。正常代码/PR交付沿用用户授权；新公开包及#266关闭仍须真实完整验收。
 
+## 不可变 NuGet 候选提升入口（2026-10-13）
+
+本片从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/nuget-candidate-promotion，独立于JSON与KNN测试修复。实际候选2七个nupkg的nuspec ZIP时间戳是构建时刻；现有tag流程重新pack会改变字节，本机NuGet.Config/进程/用户环境未配置NuGet发布key（仅查询存在性，未输出密钥）。因此准备复用GitHub既有secret、按冻结字节提升的入口，不以同版本重新打包替代已验候选。
+
+新增手动且main-only workflow，publish默认false。先核Publish预检run成功、workflow/event/source一致、source为main祖先，再核七个固定包id/版本/源码commit/sidecar/大小/非reparse/nuspec XML与规范化manifest SHA；必须保留完整release-readiness门禁。publish=true还须精确version@source_commit确认，只推送已验证原文件；不skip重复、不自动重试、不创建tag/Release/镜像。公共写入尚未执行，必须等待具体候选人工批准。manifest由固定package id顺序、大写SHA、双空格、文件名和LF组成，UTF8计算。
+
+离线正例及错误manifest/commit/version、篡改包、自洽篡改、额外包共7例通过；微试单例通过，PowerShell语法和YamlDotNet16.0.0解析/default=false/main-only守卫通过。真实下载candidate2七包也完成hash/版本/commit验证，清单SHA CAEFA6F1862B3DB4BFCF3630D96289BFD18C9F62D6EC6A64F18A24317E8A21C2；该候选仍未发布且其旧head PR CI失败保留。生产源无变更，正常推送路径/实际发布NOT_RUN；最终全solution restore/原Format及提交以ef266promote后续收据为准。
+
+测试只创建带owner的唯一TEMP子目录并逐项核验回收，独立窗口至09:15Z/24外部命令；无新worktree/clone/agent，不改变原失败/预算或共享canonical工作。后续独立PR合并后只在已批准的具体候选上执行publish=true。#266公开固定消费者及Issue关闭仍未完成。
+
 ## PR306 第二次 Windows CI：独立 KNN 分配计数测量修复（2026-10-13）
 
 从main fe4f7c3c074d07392c8bc92d45cc7dea31b66f5a建立codex/knn-allocation-counter-ci；PR307已正常合并，PR306 b4edbe46仍不得合并。该head Windows run38358785783/job115167790779的Core6764/6765，唯一失败KnnBoundedExecutionTests分配量130584超原4096；回填修复已通过。旧7792/4096及21窗0的UNKNOWN历史保留，不改阈值、不盲重跑原CI。
@@ -2719,3 +2729,5 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 修复仅影响KNN测试的两个分配测量窗口：16MiB为临时GC预算，不是允许分配阈值；成功建立窗口后计数实际操作分配，finally结束，无法建立或预算失效均失败。保留K8、100000次替换、4096/8192阈值、候选数量/排序，增加37字节数组的真实分配对照；不改生产KNN、不更换SDK、也不改变进程默认GC配置。Release build零警告/错误，对照1/1、完整KNN10/10、零跳过。全Core和新远端CI待各自实际结果，不把局部10项当全套通过。
 
 本片仅测试文件、CHANGELOG、HANDOFF三路径，最终完整restore/原Format、精确提交与独立PR以ef266alloc后续收据为准。专属TEMP D:\t\ef266a2、24命令/09:00Z边界，原阶段预算/失败不重置。下一步先提交独立修复，再正常集成并对新JSON head完整验收；已冻结但未发布的4.5.0-preview.ef266.2、所有候选包SHA和源b4edbe46保持，不改写为新源码或发布成功。公开版本消费和#266关闭仍未完成。
+
+PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
