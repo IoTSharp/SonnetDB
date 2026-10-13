@@ -4380,6 +4380,12 @@ internal static partial class RelationalSelectExecutor
             && UserFunctionRegistry.Current?.TryGetScalar(uuidScalar.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);
 
+        if (expression is FunctionCallExpression jsonSetter
+            && string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
+            && FunctionRegistry.GetFunctionKind(jsonSetter.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(jsonSetter.Name, out _) != true)
+            return new SelectColumnInfo(TableColumnType.String, false);
+
         if (expression is FunctionCallExpression trigonometric
             && trigonometric.Name.ToLowerInvariant() is "sin" or "cos" or "tan" or "asin" or "acos" or "atan" or "atan2"
             && FunctionRegistry.GetFunctionKind(trigonometric.Name) == FunctionKind.Scalar

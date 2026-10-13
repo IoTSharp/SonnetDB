@@ -2651,3 +2651,16 @@ root独立核5owned sources/18producer-copy-runtime/5实际PDB和新完整EF105/
 另一个独立短TEMP窗口D盘14字符、同一冻结DLL、0build/0retry，精确三失败用例3/3PASS，实际Rag segments235字符、观测最大252；不据此把原fullCore改为PASS或证明锁根因。主独立r3150-fix-binding核6源/12运行资产/3组DLL-PDB/9源码及两个TRX，并核7生产源保持。此前联合窗口Core49/EF191/ADO63仍为原执行记录，EF/ADO不冒称本修正后新运行。各阶段owner TEMP/进程已清理，详细证据c303fix、c303short、a303-review、p303-path、p303fix-path、l303-lock。
 
 本次只对六测试+CHANGELOG/HANDOFF共8owned路径再执行完整restore/原Format后提交，并正常FF更新同一PR303；新head须完整远端CI通过才正常merge。首候选FAIL、固定原监控预算、全部UNKNOWN和NOT_RUN保留；#263等待正式发布，#266仍PARTIAL，setter四dirty不入本候选，无package/tag/Release。Windows本机长路径目录fsync及临时锁调度另按实际证据继续，不在此改生产、阈值、retry或全局配置。
+## #266 Core scalar leaf setter：本地修复与验证（2026-10-13）
+
+本批复用 online-engine 工作树，从 fresh main f60705007428e9be63c44818306c5366cd2a692c 建 codex/issue266-core-scalar-setter，应用冻结 jsimpl-full.diff 的增量；main 新增 string_agg/group_concat、shift/trig/padding 保留。online-delivery 原611四dirty及其原SHA未改，canonical 原dcadffc分支156共享dirty/空index不纳入本提交。无新 worktree/clone；root独占索引/共享文档/远端，三执行者不派生。
+
+新增 json_set_value(json,path,value) 的Core标量leaf实现：仅替换非根标量或新增现有对象末端属性，完整输入重复键校验，保数字词法/成员顺序，拒绝缺parent、数组越界和容器目标。源/replacement/结果各有8MiB UTF-8限制、64层/64路径片段/1024路径字符、100000输入及输出节点、1000000操作数；字符串replacement/sibling/property统一默认JavaScriptEncoder固定块，数字replacement保Utf8JsonWriter格式、原数字分块复制。编码临时payload固定上限5120字节，和DOM/GetString/HashSet、输出扩容与返回string内存分开；不宣称总堆峰值5120或8MiB。单次10秒仍是协作式预算，SQL token/deadline保持既有合同，返回解码后再检查；不声称同步Parse/解码可被抢占式中止。
+
+首草案首次Release build 0 warning/error；定向42=38PASS/4FAIL，4个UPDATE缺必需WHERE而停在parser，原SQL原子性/事务/cancel未到达。修复后首新63=60PASS/3FAIL：两个零行SELECT缺String元数据，一个测试把SQL deadline的TimeoutException误断言为OperationCanceledException。仅在RelationalSelectExecutor加6行builtin String,false且同名UDF不覆写的声明分支，并修正deadline精确断言；不改SQL UPDATE/transaction/cancellation共享管线。两轮原FAIL及各自source/runtime/TRX冻结保留，未改写。
+
+最终Release build 0 warning/error（生产AOT/trim分析保持启用）；新增setter定向63/63 PASS；同一DLL完整Core 6748/6748 PASS，0 skip。测试实际覆盖成功setter事务内新值/外部旧值/rollback旧值、第二行失败和事务buffer的[1,2]到达、普通/事务各3阶段取消且首行BeforeReturn、rollback/reopen、expired SQL deadline与pre-cancel、本地10秒exact/+1tick及第二行timeout、8MiB exact/+1和转义、5120 scratch高水位/退出归零、100000输入新增leaf造成100001输出拒绝、空结果声明及同名UDF覆盖。旧查询PASS不用于证明本批更新。已有两平台旧CI与本批本地运行分开；本批远端CI、NativeAOT实际发布/运行、REST/h2c新setter更新、EF桥接、非根Owned、ExecuteUpdate、子树更新、官方BookStore/Passkey与正式包消费仍NOT_RUN，#266仍PARTIAL。
+
+证据根 D:\source\SonnetDB\artifacts\online-closure-20261012：s266r-baseline-freeze.json、s266r-fixed1-freeze.json分别保首失败；s266r-final-freeze.json绑定5源码/16运行资产，s266r-final-results含63定向及6748完整TRX，s266a-final-binding.json及s266a-fullcore-binding.json为独立DLL/PDB/source/TRX证明，s266a-AUDIT.md为三轮审计。s266r-preformat是已过预检，不替代最终提交前完整restore/原Format；最终门禁与commit/远端状态由root后续独立回执记录，不把本段待交付计划当成已commit/merge。运行使用短且专属owner TEMP D:\t\s266r；全部外部任务隐藏KernelJob、最多2根/每根2CPU、关闭共享编译器和node reuse，结束后按已记录身份回收自有资源。
+
+后续顺序：root最终完整restore/原Format及精确7路径提交；按精确候选走远端门禁/正常合并，仍不关闭#266或发布包。保parity-results、旧stash、91旧profiles、发布候选、PAUSED Workbench、CAP265原46个NativeAOT失败，以及303前批完整Core6682/6685原3FAIL及因果UNKNOWN。canonical交接只由root尾追加并校验旧prefix，暂不提交共享foreign内容。本批收口后冻结新会话入口，再按用户要求创建下一local会话并确认启动。
