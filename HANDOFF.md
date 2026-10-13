@@ -2731,3 +2731,11 @@ Release build零警告/错误；修复用例1/1、完整ObjectProcessingSchedule
 本片仅测试文件、CHANGELOG、HANDOFF三路径，最终完整restore/原Format、精确提交与独立PR以ef266alloc后续收据为准。专属TEMP D:\t\ef266a2、24命令/09:00Z边界，原阶段预算/失败不重置。下一步先提交独立修复，再正常集成并对新JSON head完整验收；已冻结但未发布的4.5.0-preview.ef266.2、所有候选包SHA和源b4edbe46保持，不改写为新源码或发布成功。公开版本消费和#266关闭仍未完成。
 
 PR309同步当前main 78a4adc1：仅HANDOFF冲突，完整保留发布工具与已合KNN修复章节；工具源码保持318c7fa5，KNN源码保持32de4d59。最终restore/原Format与commit以ef266final-promote收据为准，公开发布仍未执行。
+
+## PR306 Windows 全套测试总时限的独立 CI 分片修复（2026-10-13）
+
+从已正常合入PR309的main 94bc13a788066a21bd465023e71cc0a307766fac建立codex/windows-ci-test-shards。PR306精确head 2a46190a的Windows Core 6766/6766已通过、耗时40分43秒，随后EF执行因整个Test步骤50分钟上限取消；原超时、此前本地Tombstone失败及原因UNKNOWN全部保留，不能改写为产品断言全部失败或全部通过。
+
+Ubuntu继续完整单任务；Windows拆为Core与其余原方案项目两个独立任务，各自完整restore/build，临时同目录slnx按项目分片，原42项目的并集完整且不重叠，不使用测试名过滤或跳过。保留job=60分钟、Test=50分钟、单项hang=10分钟及mini dump；结果分为两个Windows产物。release-readiness要求两片及选择步骤都实际成功，缺片/缺产物/缺步骤负例必须阻止发布。辅助脚本有512项目/10秒上限、拒绝覆盖、失败清理和源码不变合同。
+
+初版分片覆盖与发布门禁测试通过；实际dotnet discovery首次因本地LanguageServer/Media/Studio测试DLL未构建而失败，此检查没有执行产品测试，失败收据ef266shard-route保留。后续完整构建、实际路由集合比较、最终restore/原Format和提交/远端结果以artifacts/online-closure-20261012/ef266shard-*收据为准，不预写完成。公开候选4.5.0-preview.ef266.2/.3保持冻结且未发布；源码变更后需新版本和新验证，#266仍OPEN。源码仅既有online-engine，canonical共享dirty、delivery原四dirty及parity-results保持；本阶段36个外部命令、12:00Z截止和自有进程树清理边界不放宽。
