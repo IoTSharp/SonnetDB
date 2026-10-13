@@ -374,12 +374,47 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
     {
         await SeedBackfillObjectsAsync();
         using var fixture = CreateService();
-        using var caller = new CancellationTokenSource();
-        fixture.Service.AfterBackfillObjectForTest = _ => caller.Cancel();
-
-        Assert.ThrowsAny<OperationCanceledException>(() =>
-            fixture.Service.EnqueueBucket("images", _db, "backfill", caller.Token));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
+        int hookCalls = 0;
+        fixture.Service.AfterBackfillObjectForTest = _ =>
+        {
+            hookCalls++;
+            caller.Cancel();
+        };
         var jobs = new ObjectProcessingJobStore(_db);
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        OperationCanceledException? observed = null;
+        // 只推进尚未触达取消钩子、没有进度或持久任务的合法空页；不重试失败断言。
+        for (int attempt = 0; attempt < 8 && timer.Elapsed < TimeSpan.FromSeconds(10); attempt++)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            try
+            {
+                var page = fixture.Service.EnqueueBucket("images", _db, "backfill", caller.Token);
+                Assert.Equal(0, hookCalls);
+                Assert.False(caller.IsCancellationRequested);
+                Assert.Equal(0, page.ScannedObjects);
+                Assert.Equal(0, page.QueuedObjects);
+                Assert.Equal(0, page.SkippedObjects);
+                Assert.True(page.HasMore);
+                Assert.False(page.Completed);
+                Assert.Null(page.ContinuationToken);
+                Assert.Empty(jobs.ReadDue(DateTimeOffset.UtcNow, 10, deadline.Token));
+            }
+            catch (OperationCanceledException exception)
+            {
+                observed = exception;
+                break;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(25), deadline.Token);
+        }
+        Assert.NotNull(observed);
+        Assert.Equal(1, hookCalls);
+        Assert.False(deadline.IsCancellationRequested);
+        Assert.True(caller.IsCancellationRequested);
+        Assert.Equal(caller.Token, observed.CancellationToken);
         Assert.Equal(0, jobs.ReadBackfill("backfill", _deadline.Token)!.State.ScannedObjects);
         Assert.Single(jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token));
 
