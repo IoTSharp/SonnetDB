@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #270：补齐公开 `.5` 参数化字面 Contains/StartsWith/EndsWith 的原复现、SQLite对照、真实REST/h2c和官方BookStore作者HTTP列表/Count/分页验收；附隔离消费者及来源/哈希收据，不修改生产或应用业务。
 - GH-Issue #271：补齐公开 `4.5.0-preview.ef266.5` BLOB相等/相关Any原复现、边界/索引/外键/回滚/跨进程恢复、真实REST/h2c及固定ABP Passkey Store/账户HTTP验收；客户端公开包与源码Server来源分别保留，不新增生产实现。
 - GH-Issue #272：补齐固定公开 NuGet `4.5.0-preview.ef266.5` 的原始命名外键复现与五阶段迁移验收；SonnetDB/SQLite共12个独立进程验证实际目录、约束移除/替换、回退及重开，附可复现消费者与持久收据，不新增生产实现。
 - GH-Issue #243：更新 schema 演进回归的旧无主键写入拒绝断言，分别验证空表及已写入表增加主键后，自增高水位、ROWVERSION、ADO 元数据和重连读取保持正确；没有修改生产实现。

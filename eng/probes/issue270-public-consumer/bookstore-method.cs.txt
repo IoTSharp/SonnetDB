@@ -1,0 +1,128 @@
+    /// <summary>公开固定包通过未修改的官方作者列表及 Count 路径，保持三个特殊字符的字面语义。</summary>
+    [Fact]
+    public async Task PublicPackage_OfficialAuthorFilters_ReturnLiteralNamesAndCountsAcrossApplicationRestart()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(150));
+        string ownership = Guid.NewGuid().ToString("N");
+        string directory = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "sonnetdb-abp-contains-" + ownership));
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, ".owner"), ownership, deadline.Token);
+        string evidence = Environment.GetEnvironmentVariable("BOOKSTORE270_EVIDENCE")
+            ?? throw new InvalidOperationException("BOOKSTORE270_EVIDENCE must name this run's evidence directory.");
+        var checks = new JsonArray();
+        var receipt = new JsonObject
+        {
+            ["applicationSnapshot"] = "841567fd963621a8656a904121462234c6c80c0e",
+            ["officialUpstream"] = "97bc6ddfbc491843ddcd101342ce10e088c1d0d6",
+            ["packageVersion"] = "4.5.0-preview.ef266.5",
+            ["startedUtc"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["checks"] = checks,
+            ["passed"] = false,
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "SonnetDB",
+            ["ConnectionStrings:Default"] = "Data Source=" + Path.Combine(directory, "db")
+        }).Build();
+        try
+        {
+            using (var migration = await AbpApplicationFactory.CreateAsync<BookStoreDbMigratorModule>(options =>
+            {
+                options.UseAutofac();
+                options.Services.ReplaceConfiguration(configuration);
+                options.AddDataMigrationEnvironment();
+            }))
+            {
+                await migration.InitializeAsync();
+                var migrator = migration.ServiceProvider.GetRequiredService<BookStoreDbMigrationService>();
+                await migrator.MigrateAsync().WaitAsync(deadline.Token);
+                await migrator.MigrateAsync().WaitAsync(deadline.Token);
+                await migration.ShutdownAsync();
+                receipt["standardMigrationAndRepeatedSeed"] = true;
+            }
+            for (int phase = 0; phase < 2; phase++)
+            {
+                await using var application = new OfficialApplication(configuration);
+                using var client = application.CreateClient(new WebApplicationFactoryClientOptions
+                {
+                    BaseAddress = new Uri("https://localhost:44339")
+                });
+                await LoginAsync(client, deadline.Token);
+                receipt["authenticatedAdminPhase" + phase] = true;
+                if (phase == 0)
+                {
+                    await SetAntiforgeryAsync(client, deadline.Token);
+                    foreach (string name in new[] { "100% Real", "100X Real", "A_B", "AXB", "path\\name" })
+                    {
+                        var created = await SendJsonAsync(client, HttpMethod.Post, "/api/app/author", new JsonObject
+                        {
+                            ["name"] = name,
+                            ["birthDate"] = "1980-01-01T00:00:00",
+                            ["shortBio"] = "Issue 270 public package literal Contains acceptance"
+                        }, deadline.Token);
+                        Assert.Equal(name, created!["name"]!.GetValue<string>());
+                    }
+                }
+                foreach (var (filter, expected) in new[] { ("%", "100% Real"), ("_", "A_B"), ("\\", "path\\name") })
+                {
+                    string uri = "/api/app/author?Sorting=Name&MaxResultCount=10&SkipCount=0&Filter=" + Uri.EscapeDataString(filter);
+                    var response = await ReadJsonAsync(client, uri, deadline.Token);
+                    var row = Assert.Single(response["items"]!.AsArray());
+                    Assert.Equal(expected, row!["name"]!.GetValue<string>());
+                    Assert.Equal(1, response["totalCount"]!.GetValue<int>());
+                    var page = await ReadJsonAsync(client, uri.Replace("SkipCount=0", "SkipCount=1", StringComparison.Ordinal), deadline.Token);
+                    Assert.Empty(page["items"]!.AsArray());
+                    Assert.Equal(1, page["totalCount"]!.GetValue<int>());
+                    checks.Add(new JsonObject
+                    {
+                        ["phase"] = phase == 0 ? "first-host" : "recreated-host",
+                        ["filter"] = filter,
+                        ["expectedName"] = expected,
+                        ["listAndCount"] = response.DeepClone(),
+                        ["pageAfterOnlyMatch"] = page.DeepClone(),
+                        ["passed"] = true,
+                    });
+                }
+            }
+            receipt["passed"] = true;
+        }
+        catch (Exception exception)
+        {
+            receipt["failure"] = exception.ToString();
+            throw;
+        }
+        finally
+        {
+            receipt["finishedUtc"] = DateTimeOffset.UtcNow.ToString("O");
+            var assemblies = new JsonArray();
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic
+                && (assembly.GetName().Name?.StartsWith("SonnetDB", StringComparison.Ordinal) == true
+                    || assembly.GetName().Name?.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) == true)))
+            {
+                assemblies.Add(new JsonObject
+                {
+                    ["name"] = assembly.GetName().Name,
+                    ["informationalVersion"] = System.Reflection.CustomAttributeExtensions
+                        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?.InformationalVersion,
+                    ["location"] = assembly.Location,
+                    ["sha256"] = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(assembly.Location))),
+                });
+            }
+            receipt["assemblies"] = assemblies;
+            try
+            {
+                string expectedRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "sonnetdb-abp-contains-" + ownership));
+                if (!string.Equals(directory, expectedRoot, StringComparison.OrdinalIgnoreCase)
+                    || File.GetAttributes(directory).HasFlag(FileAttributes.ReparsePoint)
+                    || await File.ReadAllTextAsync(Path.Combine(directory, ".owner")) != ownership)
+                    throw new InvalidOperationException("Refusing to clean unowned test resources.");
+                Directory.Delete(directory, recursive: true);
+                receipt["databaseDirectoryCleaned"] = true;
+            }
+            finally
+            {
+                Directory.CreateDirectory(evidence);
+                await File.WriteAllTextAsync(Path.Combine(evidence, "bookstore-author-journey.json"), receipt.ToJsonString());
+            }
+        }
+    }

@@ -1,0 +1,2411 @@
+{
+  "issue": 270,
+  "recordedUtc": "2026-10-15T23:05:41.6720696+00:00",
+  "packageVersion": "4.5.0-preview.ef266.5",
+  "packageSourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "embedded": {
+    "runDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61",
+    "failed": 0,
+    "packages": [
+      {
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "nupkgSha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "nuspecSha256": "4A1D60B6909C0C29E6C39E461EB89F273BD129BFB1C6F480D78D15FD4E677541"
+      },
+      {
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "nupkgSha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "nuspecSha256": "8E92F4B7207418B69AF8A2CAA25434B3E9C63C923186BE72FB007ABB71B6E01F"
+      },
+      {
+        "id": "sonnetdb.entityframeworkcore",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "nupkgSha256": "9688BA682E160639681AF3E4882DE6A58F70CF289B42552987FA7CD85D87E125",
+        "nuspecSha256": "A7A0451DE6D707C68E0BB06F0D70FD7316063F303AADF965617E951FAB1B8445"
+      }
+    ],
+    "passed": 102,
+    "cases": 102
+  },
+  "remote": {
+    "cases": 102,
+    "packages": [
+      {
+        "id": "sonnetdb.entityframeworkcore",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "9688BA682E160639681AF3E4882DE6A58F70CF289B42552987FA7CD85D87E125",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      },
+      {
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      },
+      {
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      }
+    ],
+    "failed": 0,
+    "sourceServer": {
+      "stoppedByOwnedKill": true,
+      "identity": {
+        "ProcessId": 82736,
+        "ParentProcessId": 54344,
+        "CreationDate": "2026-10-16T06:59:27.427177+08:00",
+        "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\s270\\server\\SonnetDB.dll --contentRoot D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\host"
+      },
+      "filesVerified": 541,
+      "exitCode": -1,
+      "manifestSha256": "F3C8003EE04C621A4FBF975E29263414199D8DD521D0071D0048859F14ED7A1D",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\s270\\server",
+      "productionCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45"
+    },
+    "passed": 102,
+    "observedRestHttp11SqlRequests": 200,
+    "runDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c",
+    "observedFrameHttp2Requests": 157
+  },
+  "consumerRuns": [
+    {
+      "name": "SonnetDB-matrix",
+      "passed": true,
+      "cases": 48,
+      "originals": [],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "SonnetDB-original-backslash",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "\\",
+          "Expected": [
+            "path\\name"
+          ],
+          "Actual": [
+            "path\\name"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "SonnetDB-original-percent",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "%",
+          "Expected": [
+            "100% Real"
+          ],
+          "Actual": [
+            "100% Real"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "SonnetDB-original-underscore",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "_",
+          "Expected": [
+            "A_B"
+          ],
+          "Actual": [
+            "A_B"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "Sqlite-matrix",
+      "passed": true,
+      "cases": 48,
+      "originals": [],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "Sqlite-original-backslash",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "\\",
+          "Expected": [
+            "path\\name"
+          ],
+          "Actual": [
+            "path\\name"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "Sqlite-original-percent",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "%",
+          "Expected": [
+            "100% Real"
+          ],
+          "Actual": [
+            "100% Real"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "Sqlite-original-underscore",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "_",
+          "Expected": [
+            "A_B"
+          ],
+          "Actual": [
+            "A_B"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE instr(\"a\".\"Name\", @pattern) > 0\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "frame-http2-matrix-all",
+      "passed": true,
+      "cases": 48,
+      "originals": [],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "frame-http2-original-backslash",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "\\",
+          "Expected": [
+            "path\\name"
+          ],
+          "Actual": [
+            "path\\name"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "frame-http2-original-percent",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "%",
+          "Expected": [
+            "100% Real"
+          ],
+          "Actual": [
+            "100% Real"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "frame-http2-original-underscore",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "_",
+          "Expected": [
+            "A_B"
+          ],
+          "Actual": [
+            "A_B"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "rest-matrix-all",
+      "passed": true,
+      "cases": 48,
+      "originals": [],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "rest-original-backslash",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "\\",
+          "Expected": [
+            "path\\name"
+          ],
+          "Actual": [
+            "path\\name"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "\\"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "rest-original-percent",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "%",
+          "Expected": [
+            "100% Real"
+          ],
+          "Actual": [
+            "100% Real"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "%"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    },
+    {
+      "name": "rest-original-underscore",
+      "passed": true,
+      "cases": 1,
+      "originals": [
+        {
+          "Pattern": "_",
+          "Expected": [
+            "A_B"
+          ],
+          "Actual": [
+            "A_B"
+          ],
+          "Count": 1,
+          "Page": [],
+          "Passed": true,
+          "Executed": [
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT COUNT(*)\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                }
+              ]
+            },
+            {
+              "Sql": "SELECT \"a\".\"Name\"\r\nFROM \"A06Authors\" AS \"a\"\r\nWHERE \"a\".\"Name\" LIKE concat(concat('%', REPLACE(REPLACE(REPLACE(@pattern, '\\', '\\\\'), '%', '\\%'), '_', '\\_')), '%')\r\nORDER BY \"a\".\"Name\"\r\nLIMIT @p2 OFFSET @p",
+              "Parameters": [
+                {
+                  "Name": "@pattern",
+                  "DbType": "String",
+                  "Value": "_"
+                },
+                {
+                  "Name": "@p2",
+                  "DbType": "Int32",
+                  "Value": "2"
+                },
+                {
+                  "Name": "@p",
+                  "DbType": "Int32",
+                  "Value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "runtimeAssemblies": [
+        {
+          "Name": "Microsoft.EntityFrameworkCore",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "Sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "Sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Relational",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "Sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "Name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "InformationalVersion": "10.0.12",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "Sha256": "69683D0960188B56DA3D5B69DB14E2255F073D355AA6DA333D6916303AA1FA33"
+        },
+        {
+          "Name": "SonnetDB.Core",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "Sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        },
+        {
+          "Name": "SonnetDB.Data",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "Sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "Name": "SonnetDB.EntityFrameworkCore",
+          "InformationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "Location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "Sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        }
+      ]
+    }
+  ],
+  "application": {
+    "fixtureHelpersUnchanged": true,
+    "privatePackageFolder": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\p",
+    "packages": [
+      {
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      },
+      {
+        "id": "sonnetdb.entityframeworkcore",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "9688BA682E160639681AF3E4882DE6A58F70CF289B42552987FA7CD85D87E125",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      },
+      {
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+      }
+    ],
+    "steps": [
+      {
+        "label": "issue270-bookstore-restore-disk-d",
+        "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "arguments": [
+          "restore",
+          "tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj",
+          "--configfile",
+          "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\NuGet.Config",
+          "--packages",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\p",
+          "--no-cache",
+          "-p:RestoreFallbackFolders=",
+          "-p:NuGetAudit=false",
+          "-nr:false"
+        ],
+        "launchedPid": 57256,
+        "launchedAt": "2026-10-15T22:55:20.1413181Z",
+        "launchingParentPid": 17224,
+        "started": "2026-10-16T06:55:20.141318+08:00",
+        "pid": 57256,
+        "parentPid": 17224,
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj --configfile C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\NuGet.Config --packages D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\p --no-cache -p:RestoreFallbackFolders= -p:NuGetAudit=false -nr:false",
+        "elapsedSeconds": 22.2785411,
+        "exitCode": 0,
+        "timedOut": false,
+        "failure": null,
+        "remainingRecordedProcesses": [],
+        "recordedIdentities": [
+          {
+            "ProcessId": 57256,
+            "ParentProcessId": 17224,
+            "CreationDate": "2026-10-16T06:55:20.141318+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" restore tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj --configfile C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\NuGet.Config --packages D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\p --no-cache -p:RestoreFallbackFolders= -p:NuGetAudit=false -nr:false"
+          },
+          {
+            "ProcessId": 81952,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:20.790551+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 41504,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:21.011403+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 51536,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:21.011413+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 29808,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:21.011418+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 69916,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:21.205112+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 84112,
+            "ParentProcessId": 57256,
+            "CreationDate": "2026-10-16T06:55:21.376354+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 15444,
+            "ParentProcessId": 81952,
+            "CreationDate": "2026-10-16T06:55:20.80237+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 55840,
+            "ParentProcessId": 41504,
+            "CreationDate": "2026-10-16T06:55:21.022765+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 62096,
+            "ParentProcessId": 51536,
+            "CreationDate": "2026-10-16T06:55:21.028611+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 58732,
+            "ParentProcessId": 29808,
+            "CreationDate": "2026-10-16T06:55:21.025643+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 22712,
+            "ParentProcessId": 69916,
+            "CreationDate": "2026-10-16T06:55:21.212997+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 38960,
+            "ParentProcessId": 84112,
+            "CreationDate": "2026-10-16T06:55:21.386938+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          }
+        ],
+        "unobservedDescendantsProvenAbsent": false
+      },
+      {
+        "label": "issue270-bookstore-assets",
+        "executable": "C:\\Program Files\\nodejs\\node.exe",
+        "arguments": [
+          "eng/Copy-BookStoreAssets.cjs"
+        ],
+        "launchedPid": 13932,
+        "launchedAt": "2026-10-15T22:56:20.2567978Z",
+        "launchingParentPid": 45256,
+        "started": null,
+        "pid": null,
+        "parentPid": null,
+        "commandLine": null,
+        "elapsedSeconds": 0.897113,
+        "exitCode": 0,
+        "timedOut": false,
+        "failure": null,
+        "remainingRecordedProcesses": [],
+        "recordedIdentities": [],
+        "unobservedDescendantsProvenAbsent": false
+      },
+      {
+        "label": "issue270-bookstore-build-bound",
+        "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "arguments": [
+          "build",
+          "tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-p:SourceRevisionId=841567fd963621a8656a904121462234c6c80c0e",
+          "-p:RepositoryCommit=841567fd963621a8656a904121462234c6c80c0e",
+          "-nr:false"
+        ],
+        "launchedPid": 76128,
+        "launchedAt": "2026-10-15T23:02:37.0741987Z",
+        "launchingParentPid": 68476,
+        "started": "2026-10-16T07:02:37.074198+08:00",
+        "pid": 76128,
+        "parentPid": 68476,
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj -c Release --no-restore -p:SourceRevisionId=841567fd963621a8656a904121462234c6c80c0e -p:RepositoryCommit=841567fd963621a8656a904121462234c6c80c0e -nr:false",
+        "elapsedSeconds": 37.0964627,
+        "exitCode": 0,
+        "timedOut": false,
+        "failure": null,
+        "remainingRecordedProcesses": [],
+        "recordedIdentities": [
+          {
+            "ProcessId": 76128,
+            "ParentProcessId": 68476,
+            "CreationDate": "2026-10-16T07:02:37.074198+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" build tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj -c Release --no-restore -p:SourceRevisionId=841567fd963621a8656a904121462234c6c80c0e -p:RepositoryCommit=841567fd963621a8656a904121462234c6c80c0e -nr:false"
+          },
+          {
+            "ProcessId": 53336,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:37.753478+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 78012,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:37.753489+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 68500,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:37.753493+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 77964,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:37.965504+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 73680,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.024143+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 69176,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.135495+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 2816,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.260933+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 51708,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.339653+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 46248,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.401488+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 58160,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.401527+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 8948,
+            "ParentProcessId": 76128,
+            "CreationDate": "2026-10-16T07:02:38.642301+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\MSBuild.dll\" /noautoresponse /nologo /nodemode:1 /nodeReuse:false /low:false"
+          },
+          {
+            "ProcessId": 80648,
+            "ParentProcessId": 53336,
+            "CreationDate": "2026-10-16T07:02:37.816487+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 77968,
+            "ParentProcessId": 78012,
+            "CreationDate": "2026-10-16T07:02:37.828188+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 55020,
+            "ParentProcessId": 68500,
+            "CreationDate": "2026-10-16T07:02:37.842795+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 26192,
+            "ParentProcessId": 77964,
+            "CreationDate": "2026-10-16T07:02:38.002992+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 50928,
+            "ParentProcessId": 73680,
+            "CreationDate": "2026-10-16T07:02:38.084091+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 15964,
+            "ParentProcessId": 69176,
+            "CreationDate": "2026-10-16T07:02:38.144839+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 82812,
+            "ParentProcessId": 2816,
+            "CreationDate": "2026-10-16T07:02:38.270922+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 49824,
+            "ParentProcessId": 51708,
+            "CreationDate": "2026-10-16T07:02:38.364716+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 70148,
+            "ParentProcessId": 46248,
+            "CreationDate": "2026-10-16T07:02:38.410072+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 4280,
+            "ParentProcessId": 58160,
+            "CreationDate": "2026-10-16T07:02:38.412364+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          },
+          {
+            "ProcessId": 80956,
+            "ParentProcessId": 8948,
+            "CreationDate": "2026-10-16T07:02:38.652115+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          }
+        ],
+        "unobservedDescendantsProvenAbsent": false
+      },
+      {
+        "label": "issue270-bookstore-test-bound",
+        "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj",
+          "-c",
+          "Release",
+          "--no-build",
+          "--no-restore",
+          "--filter",
+          "FullyQualifiedName~PublicPackage_OfficialAuthorFilters_ReturnLiteralNamesAndCountsAcrossApplicationRestart",
+          "--logger",
+          "trx;LogFileName=issue270-bookstore-bound.trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound",
+          "-nr:false"
+        ],
+        "launchedPid": 59168,
+        "launchedAt": "2026-10-15T23:03:14.3032998Z",
+        "launchingParentPid": 68476,
+        "started": "2026-10-16T07:03:14.303299+08:00",
+        "pid": 59168,
+        "parentPid": 68476,
+        "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~PublicPackage_OfficialAuthorFilters_ReturnLiteralNamesAndCountsAcrossApplicationRestart --logger trx;LogFileName=issue270-bookstore-bound.trx --results-directory D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound -nr:false",
+        "elapsedSeconds": 24.1905044,
+        "exitCode": 0,
+        "timedOut": false,
+        "failure": null,
+        "remainingRecordedProcesses": [],
+        "recordedIdentities": [
+          {
+            "ProcessId": 59168,
+            "ParentProcessId": 68476,
+            "CreationDate": "2026-10-16T07:03:14.303299+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" test tests/SonnetDB.Abp.BookStore.Tests/SonnetDB.Abp.BookStore.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~PublicPackage_OfficialAuthorFilters_ReturnLiteralNamesAndCountsAcrossApplicationRestart --logger trx;LogFileName=issue270-bookstore-bound.trx --results-directory D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound -nr:false"
+          },
+          {
+            "ProcessId": 56340,
+            "ParentProcessId": 59168,
+            "CreationDate": "2026-10-16T07:03:15.189195+08:00",
+            "CommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" exec \"C:\\Program Files\\dotnet\\sdk\\10.0.400\\vstest.console.dll\" --framework:\".NETCoreApp,Version=v10.0\" --testCaseFilter:\"FullyQualifiedName~PublicPackage_OfficialAuthorFilters_ReturnLiteralNamesAndCountsAcrossApplicationRestart\" --logger:\"trx;LogFileName=issue270-bookstore-bound.trx\" --resultsDirectory:D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Abp.BookStore.Tests.dll --logger:Console;Verbosity=minimal --nologo --artifactsProcessingMode-collect --testSessionCorrelationId:59168_57ea1aa3-6522-43d3-9b2c-212dc1e748bb"
+          },
+          {
+            "ProcessId": 70208,
+            "ParentProcessId": 56340,
+            "CreationDate": "2026-10-16T07:03:15.419692+08:00",
+            "CommandLine": "\"D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\testhost.exe\"  --runtimeconfig \"D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Abp.BookStore.Tests.runtimeconfig.json\" --depsfile \"D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Abp.BookStore.Tests.deps.json\" --port 63617 --endpoint 127.0.0.1:063617 --role client --parentprocessid 56340 --telemetryoptedin false"
+          },
+          {
+            "ProcessId": 46988,
+            "ParentProcessId": 70208,
+            "CreationDate": "2026-10-16T07:03:15.473945+08:00",
+            "CommandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+          }
+        ],
+        "unobservedDescendantsProvenAbsent": false
+      }
+    ],
+    "failedTests": 0,
+    "runtime": {
+      "applicationSnapshot": "841567fd963621a8656a904121462234c6c80c0e",
+      "officialUpstream": "97bc6ddfbc491843ddcd101342ce10e088c1d0d6",
+      "packageVersion": "4.5.0-preview.ef266.5",
+      "startedUtc": "2026-10-16T07:03:16.7684581+08:00",
+      "checks": [
+        {
+          "phase": "first-host",
+          "filter": "%",
+          "expectedName": "100% Real",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "100% Real",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-4408-5177-373b-931f4b6936d6"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        },
+        {
+          "phase": "first-host",
+          "filter": "_",
+          "expectedName": "A_B",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "A_B",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-44ed-c389-0dd6-f359b61fd876"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        },
+        {
+          "phase": "first-host",
+          "filter": "\\",
+          "expectedName": "path\\name",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "path\\name",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-46cd-99a5-0c7d-e0b6290d2f6f"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        },
+        {
+          "phase": "recreated-host",
+          "filter": "%",
+          "expectedName": "100% Real",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "100% Real",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-4408-5177-373b-931f4b6936d6"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        },
+        {
+          "phase": "recreated-host",
+          "filter": "_",
+          "expectedName": "A_B",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "A_B",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-44ed-c389-0dd6-f359b61fd876"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        },
+        {
+          "phase": "recreated-host",
+          "filter": "\\",
+          "expectedName": "path\\name",
+          "listAndCount": {
+            "totalCount": 1,
+            "items": [
+              {
+                "name": "path\\name",
+                "birthDate": "1980-01-01T00:00:00Z",
+                "shortBio": "Issue 270 public package literal Contains acceptance",
+                "id": "3a2453fb-46cd-99a5-0c7d-e0b6290d2f6f"
+              }
+            ]
+          },
+          "pageAfterOnlyMatch": {
+            "totalCount": 1,
+            "items": []
+          },
+          "passed": true
+        }
+      ],
+      "passed": true,
+      "standardMigrationAndRepeatedSeed": true,
+      "authenticatedAdminPhase0": true,
+      "authenticatedAdminPhase1": true,
+      "finishedUtc": "2026-10-16T07:03:35.546914+08:00",
+      "assemblies": [
+        {
+          "name": "SonnetDB.Abp.BookStore.Tests",
+          "informationalVersion": "0.1.0-alpha.1+841567fd963621a8656a904121462234c6c80c0e",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Abp.BookStore.Tests.dll",
+          "sha256": "22682083CAFEBF1408C4A952CA0542CD028254388F951B58AB098FD896230FCA"
+        },
+        {
+          "name": "SonnetDB.Abp.EntityFrameworkCore",
+          "informationalVersion": "0.1.0-alpha.1+841567fd963621a8656a904121462234c6c80c0e",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Abp.EntityFrameworkCore.dll",
+          "sha256": "23764E0DEEF184C0BE1229D147E8FB9FEA0DBCE3D044F8B5BDED7A49950873FF"
+        },
+        {
+          "name": "Microsoft.EntityFrameworkCore",
+          "informationalVersion": "10.0.12",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.dll",
+          "sha256": "F5B1703D608E241314952B2EDE8DCDD1B8D8ADDA8C91A13CB7E6B1007414CEF4"
+        },
+        {
+          "name": "Microsoft.EntityFrameworkCore.Sqlite",
+          "informationalVersion": "10.0.11",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Sqlite.dll",
+          "sha256": "6C1737C1F1BA7B32C2A39D838B8AB5F5DBCC1639CA2FDF1AA6699D01444E0210"
+        },
+        {
+          "name": "Microsoft.EntityFrameworkCore.Relational",
+          "informationalVersion": "10.0.12",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Relational.dll",
+          "sha256": "A1E4F36208650B15B75A4B01A5821D61D5BE417AC2E86EC3C65E2560A87E0D7D"
+        },
+        {
+          "name": "SonnetDB.EntityFrameworkCore",
+          "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.dll",
+          "sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+        },
+        {
+          "name": "Microsoft.EntityFrameworkCore.Abstractions",
+          "informationalVersion": "10.0.12",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\Microsoft.EntityFrameworkCore.Abstractions.dll",
+          "sha256": "74BC17C936D66EA090B6A5B4CC4307D2154C9692E57EDD4C55D68DD4A99C11B6"
+        },
+        {
+          "name": "SonnetDB.Data",
+          "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+          "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        },
+        {
+          "name": "SonnetDB.Core",
+          "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46",
+          "location": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+          "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        }
+      ],
+      "databaseDirectoryCleaned": true
+    },
+    "passedTests": 1,
+    "archiveSha256": "8BB22F2FAD35EF12807C959D0A08ECC2A51090B7345AB12C73CD03BD4523AD59",
+    "sourceDllSubstitutions": 0,
+    "externalEngineProjectReferences": 0,
+    "snapshotInternalProjectReferences": [
+      {
+        "name": "Acme.BookStore.Application/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Application\\Acme.BookStore.Application.csproj"
+      },
+      {
+        "name": "Acme.BookStore.Application.Contracts/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Application.Contracts\\Acme.BookStore.Application.Contracts.csproj"
+      },
+      {
+        "name": "Acme.BookStore.DbMigrator/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.DbMigrator\\Acme.BookStore.DbMigrator.csproj"
+      },
+      {
+        "name": "Acme.BookStore.Domain/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Domain\\Acme.BookStore.Domain.csproj"
+      },
+      {
+        "name": "Acme.BookStore.Domain.Shared/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Domain.Shared\\Acme.BookStore.Domain.Shared.csproj"
+      },
+      {
+        "name": "Acme.BookStore.EntityFrameworkCore/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.EntityFrameworkCore\\Acme.BookStore.EntityFrameworkCore.csproj"
+      },
+      {
+        "name": "Acme.BookStore.HttpApi/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.HttpApi\\Acme.BookStore.HttpApi.csproj"
+      },
+      {
+        "name": "Acme.BookStore.PostgreSql.Migrations/0.1.0-alpha.1",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.PostgreSql.Migrations\\Acme.BookStore.PostgreSql.Migrations.csproj"
+      },
+      {
+        "name": "Acme.BookStore.SonnetDB.Migrations/0.1.0-alpha.1",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.SonnetDB.Migrations\\Acme.BookStore.SonnetDB.Migrations.csproj"
+      },
+      {
+        "name": "Acme.BookStore.Sqlite.Migrations/0.1.0-alpha.1",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Sqlite.Migrations\\Acme.BookStore.Sqlite.Migrations.csproj"
+      },
+      {
+        "name": "Acme.BookStore.Web/1.0.0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Web\\Acme.BookStore.Web.csproj"
+      },
+      {
+        "name": "SonnetDB.Abp.EntityFrameworkCore/0.1.0-alpha.1",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\src\\SonnetDB.Abp.EntityFrameworkCore\\SonnetDB.Abp.EntityFrameworkCore.csproj"
+      }
+    ],
+    "sourceCommit": "841567fd963621a8656a904121462234c6c80c0e",
+    "skippedTests": 0,
+    "upstreamProvenance": [
+      {
+        "Path": "src/Acme.BookStore.EntityFrameworkCore/Authors/EfCoreAuthorRepository.cs",
+        "Upstream": "97bc6ddfbc491843ddcd101342ce10e088c1d0d6",
+        "DownloadedSha256": "279998D4D8F2C09F8B304A2149C9424EA5513DC1CD44816DBDC0104BCB11B267",
+        "ManifestSha256": "279998d4d8f2c09f8b304a2149c9424ea5513dc1cd44816dbdc0104bcb11b267",
+        "ApplicationSha256": "900BD5448079A1D8B18B422DBB3177FCE5AE192B92B838BC17A953469280D468",
+        "MatchesManifest": true,
+        "ApplicationUnmodified": false,
+        "EquivalentAfterKnownCompileAdaptations": true,
+        "AllowedAdaptations": [
+          "Remove redundant System usings under implicit usings",
+          "Repository nullable return/filter and filter! only",
+          "Normalize CRLF to LF"
+        ]
+      },
+      {
+        "Path": "src/Acme.BookStore.Application/Authors/AuthorAppService.cs",
+        "Upstream": "97bc6ddfbc491843ddcd101342ce10e088c1d0d6",
+        "DownloadedSha256": "89FE0EA1C6D39A82AB634B07ACB320169A61C33CBCA701A4582E17CCF230DB0A",
+        "ManifestSha256": "89fe0ea1c6d39a82ab634b07acb320169a61c33cbca701a4582e17ccf230db0a",
+        "ApplicationSha256": "AC31149B35833E7039A4C289CA17669BBA77BD9644D407631D43A25F4772F1E1",
+        "MatchesManifest": true,
+        "ApplicationUnmodified": false,
+        "EquivalentAfterKnownCompileAdaptations": true,
+        "AllowedAdaptations": [
+          "Remove redundant System usings under implicit usings",
+          "Repository nullable return/filter and filter! only",
+          "Normalize CRLF to LF"
+        ]
+      }
+    ]
+  },
+  "boundaries": [
+    "Public fixed NuGet clients; frozen source Server, not a Server release package",
+    "Official application TestServer with real authentication and embedded storage; no browser or standalone application Kestrel claim",
+    "Application host recreation is not process-crash recovery",
+    "SQLite console comparison is 10.0.12; application loads its existing SQLite.Core 10.0.11 but this journey selects SonnetDB",
+    "Restore disables vulnerability audit; no dependency-security conclusion",
+    "No production code changes, commit, push, GitHub reply or closure performed by this subagent"
+  ],
+  "files": [
+    {
+      "role": "consumer-validation-manifest",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\validation-manifest.json",
+      "sha256": "57475C7DE7805C26C391C6B501E08E8B0561CB59035E27058E8E4A9203139538"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\SonnetDB-matrix\\receipt.json",
+      "sha256": "004CA6146FFA3C2C04602D119A67D4529748E5834483E3CAD3D5628F012FCDB8"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\SonnetDB-original-backslash\\receipt.json",
+      "sha256": "89060D1E2CB7BAB18BD692C065BC07F0E545A46EC84F621F978A368DE277B806"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\SonnetDB-original-percent\\receipt.json",
+      "sha256": "CADC351B68BCBB86B647E894B02D2A9D56CD665622B69C654CC99A71E3AFD19F"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\SonnetDB-original-underscore\\receipt.json",
+      "sha256": "4B4EE6BF50027908358C33C22F7053628804DEC886768A061FACF925F0F451CB"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\Sqlite-matrix\\receipt.json",
+      "sha256": "760716CD9A3705828B5CCC7D595E3CDA091144D3D176388BB39369EC105554EE"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\Sqlite-original-backslash\\receipt.json",
+      "sha256": "E5B60E6B5D0FABD9AD106CC816C97A69E227AF236E3DF790CA2F23461017AB44"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\Sqlite-original-percent\\receipt.json",
+      "sha256": "521383FAA033D89E28E24FEDF3B0B4EE0077C7C17E0553D6735906BA4AFBE22F"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\p270\\r-15477a61\\Sqlite-original-underscore\\receipt.json",
+      "sha256": "370506ACA3DD3C89BFF645C8150A01B75A42BEAB0DF379AB1F26975A87D09882"
+    },
+    {
+      "role": "consumer-validation-manifest",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\validation-manifest.json",
+      "sha256": "B698633D736C47C25F3CDAD82C2F16729F36E15BC016D6B84F509D50F4CE7F10"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\frame-http2-matrix-all\\receipt.json",
+      "sha256": "559B3883AFE85360056801362DDA70C65BD2EC356D99A298DDBCE9B0EF4AAD01"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\frame-http2-original-backslash\\receipt.json",
+      "sha256": "FCBB3A49B03D8D4818F2FBF5F538602A2BC1079F56FC141FCB0620668F07C601"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\frame-http2-original-percent\\receipt.json",
+      "sha256": "2EA1AC8DBA46E75261B33B981B97BD79107A99767B054A17427591DB39762D39"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\frame-http2-original-underscore\\receipt.json",
+      "sha256": "4A7634920D39CCECCF91898E369350A6705652F4A4D1D7B9B4E1D08D8936891D"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\rest-matrix-all\\receipt.json",
+      "sha256": "9A613F2999CAB5E371DFB022B54FBA870477A0001DE914FC7E1F24D7D597DBCA"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\rest-original-backslash\\receipt.json",
+      "sha256": "636A774A32D55DF443B0D0A4500E19447F9D083A16BEA70ACDDB5E3FBCC05741"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\rest-original-percent\\receipt.json",
+      "sha256": "ECF8556F6F64C3D4134C9BEC0CA4894B0EC67136446D4CE7624130A5B23CB1F2"
+    },
+    {
+      "role": "consumer-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\remote\\r-13364e8c\\rest-original-underscore\\receipt.json",
+      "sha256": "8BD455A7184C9A50DEC5DA3E87F4EB8485A3644E6FD2225C453301C262231101"
+    },
+    {
+      "role": "application-process-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-restore-disk-d.json",
+      "sha256": "DAAA1BA802996F9CA423186D7BD3FD2C0A941BDEDB60AD934B55EC42EEF1C1AD"
+    },
+    {
+      "role": "application-process-log",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-restore-disk-d.stdout.log",
+      "sha256": "D924FB70A9C08EEF7EEC82DFB5E39B4A779B7C2BFAE81C5D3AFBA3E92F8CA9E6"
+    },
+    {
+      "role": "application-process-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-assets.json",
+      "sha256": "2D3A4BE715F480B28C0ABA614A047DD7DA40F2F20F3936FD61ACA74E24366E87"
+    },
+    {
+      "role": "application-process-log",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-assets.stdout.log",
+      "sha256": "73DFD179F7303ECDF8CF80D07DD62B93F6B09FF8B4C2C3FC1EEC97D38DD6634B"
+    },
+    {
+      "role": "application-process-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-build-bound.json",
+      "sha256": "CEFE08DC2E18CFDA1CCF75F9E81C4A970EB98BB0F485ACDCB9574F470B0B248E"
+    },
+    {
+      "role": "application-process-log",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-build-bound.stdout.log",
+      "sha256": "7551E102786660475DF6E31DCF1CD2B5D912A206D9F2A63120C48FF96899DAEB"
+    },
+    {
+      "role": "application-process-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-test-bound.json",
+      "sha256": "61EC6CEB086D38994428B4787BC846C9B8B1CBF0A9B8F4C8C4464389679BAA4F"
+    },
+    {
+      "role": "application-process-log",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\artifacts\\checks\\issue270-bookstore-test-bound.stdout.log",
+      "sha256": "1B35D383BB2E064CA27579EBBBD600CA899B3F17D3764D632BF0E7F6C06CF5DF"
+    },
+    {
+      "role": "application-source-archive",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\artifacts\\issue270-public-20261016\\sonnetdb-abp-841567fd.zip",
+      "sha256": "8BB22F2FAD35EF12807C959D0A08ECC2A51090B7345AB12C73CD03BD4523AD59"
+    },
+    {
+      "role": "upstream-source-provenance",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\upstream-provenance.json",
+      "sha256": "343FEF1EEC11705C43D0DF83B9F300861A50DAF87655BF7768E6DE82AF145A62"
+    },
+    {
+      "role": "application-assets-graph",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\obj\\project.assets.json",
+      "sha256": "6757DAF470F3E8369F1F24F830A333EB1542C213540C61E39DB23D24B2496100"
+    },
+    {
+      "role": "application-runtime-receipt",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound\\bookstore-author-journey.json",
+      "sha256": "5AAE026C2B4E12C7E4FE6CF76929775C5C8A2AE92989F71B73967D34F5348EDC"
+    },
+    {
+      "role": "application-test-trx",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\bookstore-bound\\issue270-bookstore-bound.trx",
+      "sha256": "DFC7A43811DE96FDA23E34375EAA985AB9532D4D5B0B694DE5E34896AF77601A"
+    },
+    {
+      "role": "application-probe-source",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\BookStoreSonnetHttpJourneyTests.cs",
+      "sha256": "2955FCEE5E828F3C49FB5E30A118779F9D4373DC19B4EFCF29663BB266049DF3"
+    },
+    {
+      "role": "application-probe-source",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\tests\\SonnetDB.Abp.BookStore.Tests\\BookStoreContainsPublicPackageTests.cs",
+      "sha256": "D811708B601015E4F43FE68C2EBFB463C9821346CA5B73827F83E5D0660AD826"
+    },
+    {
+      "role": "official-application-source",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.EntityFrameworkCore\\Authors\\EfCoreAuthorRepository.cs",
+      "sha256": "900BD5448079A1D8B18B422DBB3177FCE5AE192B92B838BC17A953469280D468"
+    },
+    {
+      "role": "official-application-source",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue270-work\\b270\\samples\\BookStore\\src\\Acme.BookStore.Application\\Authors\\AuthorAppService.cs",
+      "sha256": "AC31149B35833E7039A4C289CA17669BBA77BD9644D407631D43A25F4772F1E1"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\bookstore-method.cs.txt",
+      "sha256": "114E81A362C35B31C91D84605AFD5694EBE137134515C4C004A23BDC18717B0D"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\ContainsRepro.csproj",
+      "sha256": "EC9884CAE128F815823B1576FA5181600B2BA75A7F94952046AF536910A1AD2F"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\Directory.Build.props",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\Directory.Build.targets",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\Directory.Packages.props",
+      "sha256": "2D5BFD4D93D6ED857B76D40C1DE99F10F316C0CD5D5CF8CF241F9F9790D12648"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\NuGet.Config",
+      "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\prepare-bookstore.ps1",
+      "sha256": "214EFE9F5611BE7EE5C6067971DBE5BCCE6D323AAC7F9F3FCFD56F69BCD0772C"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\Program.cs",
+      "sha256": "298CF0B87658FBACEAB69C074B71F332AFC4D5D7AE36C367CE3DE5D3F3FD7678"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\README.md",
+      "sha256": "0F4E22CB7551FAC3EC09CF846252A13F89233E68284573B73E4A1539217EC8FA"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\record-evidence.ps1",
+      "sha256": "E9B954BAA3CD0ED85AE330EC991642286EEF139B2E60D8AD49181CDD663F1DBE"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\run-remote.ps1",
+      "sha256": "C73F6B302376FF1E52EBAE2053DC6DD74B3A1A6995B1EBB231711DFA979062FB"
+    },
+    {
+      "role": "reproducible-probe-asset",
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB\\eng\\probes\\issue270-public-consumer\\run.ps1",
+      "sha256": "6F8AA78218FEF7BB356C0EAB114001F28322BDB83F9755330CBBF13E1AA3B394"
+    }
+  ]
+}
