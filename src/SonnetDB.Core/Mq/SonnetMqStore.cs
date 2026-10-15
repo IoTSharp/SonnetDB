@@ -330,6 +330,38 @@ public sealed partial class SonnetMqStore : IDisposable
         }
     }
 
+    /// <summary>幂等登记消费组，保留当前消费位置并参与已确认消息的回收边界。</summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="consumerGroup">消费者组名称。</param>
+    /// <returns>现有消费位置；新组从当前最早保留的 offset 开始。</returns>
+    public long EnsureConsumerGroup(string topic, string consumerGroup)
+    {
+        EnsureNotDisposed();
+        _snapshotGate.EnterReadLock();
+        try
+        {
+            EnsureNotDisposed();
+            ValidateTopic(topic);
+            ValidateConsumerGroup(consumerGroup);
+            var state = GetOrCreateTopic(topic);
+            lock (state.SyncRoot)
+            {
+                long next = state.GetConsumerOffset(consumerGroup);
+                if (!state.ConsumerOffsets.ContainsKey(consumerGroup))
+                {
+                    WriteRecord(state, RecordTypeAck, EncodeName(topic, nameof(topic)), EncodeName(consumerGroup, nameof(consumerGroup)),
+                        ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
+                    state.SetConsumerOffset(consumerGroup, next);
+                }
+                return next;
+            }
+        }
+        finally
+        {
+            _snapshotGate.ExitReadLock();
+        }
+    }
+
     /// <summary>
     /// 确认消费者组已处理到指定 offset。
     /// </summary>

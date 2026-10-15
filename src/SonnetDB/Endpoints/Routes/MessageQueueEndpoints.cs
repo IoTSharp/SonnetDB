@@ -138,6 +138,29 @@ internal static partial class SonnetDbEndpoints
             }
         });
 
+        app.MapPost("/v1/db/{db}/mq/{topic}/ensure-group", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqConsumerGroupEnsureRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.ConsumerGroup))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 consumerGroup。").ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                long nextOffset = mq.EnsureConsumerGroup(QualifyMqTopic(db, topic), req.ConsumerGroup);
+                await Results.Json(new MqAckResponse(topic, req.ConsumerGroup, nextOffset),
+                    ServerJsonContext.Default.MqAckResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapPost("/v1/db/{db}/mq/{topic}/ack", async (HttpContext ctx, string db, string topic) =>
         {
             if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))

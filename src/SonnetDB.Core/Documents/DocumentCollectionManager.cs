@@ -127,6 +127,36 @@ public sealed class DocumentCollectionManager : IDisposable
             }
     }
 
+    /// <summary>幂等创建普通 JSON path 索引；已有同名索引的定义必须完全匹配。</summary>
+    /// <param name="collectionName">集合名称。</param>
+    /// <param name="indexName">索引名称。</param>
+    /// <param name="paths">按顺序排列的 JSON path。</param>
+    /// <returns>已有或新建的索引。</returns>
+    public DocumentPathIndex EnsureIndex(string collectionName, string indexName, IReadOnlyList<string> paths)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        ArgumentNullException.ThrowIfNull(paths);
+        if (paths.Count == 0)
+            throw new ArgumentException("索引必须包含至少一个 path。", nameof(paths));
+        string[] normalized = paths.Select(path => JsonPath.Parse(path).Text).ToArray();
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                var schema = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                DocumentPathIndex? existing = schema.TryGetIndex(indexName);
+                if (existing is null)
+                    return CreateIndex(collectionName, new DocumentPathIndexDefinition(indexName, normalized));
+                if (existing.Kind != DocumentIndexKind.Path || existing.IsUnique || existing.IsSparse
+                    || existing.PartialFilter is not null || existing.TtlPath is not null || existing.TtlSeconds is not null
+                    || !existing.Paths.SequenceEqual(normalized, StringComparer.Ordinal))
+                    throw new InvalidOperationException($"文档索引 '{indexName}' 已存在且定义不匹配。");
+                return existing;
+            }
+    }
+
     internal void EnsureIndexes(
         string collectionName,
         IReadOnlyList<DocumentPathIndexDefinition> definitions)

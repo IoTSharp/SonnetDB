@@ -12,7 +12,7 @@ namespace SonnetDB.Data.Documents;
 /// <summary>
 /// SonnetDB Document Store 客户端，统一支持嵌入式与远程 SonnetDB。
 /// </summary>
-public sealed class SndbDocumentClient : IDisposable
+public sealed partial class SndbDocumentClient : IDisposable
 {
     private const int DefaultFindLimit = 100;
     private static readonly TimeSpan CursorTtl = TimeSpan.FromMinutes(15);

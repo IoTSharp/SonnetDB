@@ -11,11 +11,11 @@ if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $root = [IO.Path]::GetFullPath($ArtifactRoot)
 if ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Artifact root cannot be a reparse point.' }
-$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.Cli', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'Testcontainers.SonnetDB')
+$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'Testcontainers.SonnetDB')
 $packages = @(Get-ChildItem -LiteralPath $root -File -Filter '*.nupkg')
-if ($packages.Count -ne $ids.Count) { throw 'The candidate must contain exactly seven NuGet packages.' }
+if ($packages.Count -ne $ids.Count) { throw 'The candidate must contain exactly eight NuGet packages.' }
 $records = [Collections.Generic.List[object]]::new()
-for ($index = 0; $index -lt 7 -and $clock.Elapsed.TotalSeconds -lt 90; $index++) {
+for ($index = 0; $index -lt $ids.Count -and $clock.Elapsed.TotalSeconds -lt 90; $index++) {
     $id = $ids[$index]
     $name = "$id.$Version.nupkg"
     $file = Get-Item -LiteralPath (Join-Path $root $name)
@@ -46,7 +46,7 @@ for ($index = 0; $index -lt 7 -and $clock.Elapsed.TotalSeconds -lt 90; $index++)
     finally { $zip.Dispose() }
     $records.Add([pscustomobject]@{ file = $name; sha256 = $hash; bytes = $file.Length })
 }
-if ($records.Count -ne 7) { throw 'Candidate verification deadline exceeded.' }
+if ($records.Count -ne $ids.Count) { throw 'Candidate verification deadline exceeded.' }
 # 固定 package id 顺序、UTF-8、LF 和大写十六进制，跨平台绑定同一组不可变字节。
 $canonical = ($records | ForEach-Object { $_.sha256 + '  ' + $_.file + "`n" }) -join ''
 $actualManifest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($canonical)))

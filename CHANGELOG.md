@@ -11,6 +11,8 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Added
+- CAP #265 与当前主线集成，并将 NuGet 候选提升清单和有界发布循环同步为含 `SonnetDB.CAP` 的八包合同；增加缺少 CAP 包的拒绝检查，保留默认完整 CAP 宿主的上游 NativeAOT 失败边界。分支与 PR 核查见[集成记录](docs/audits/branch-integration-20261015.md)。
+- CAP #265：保留默认序列化/订阅管线的完整 NativeAOT 宿主实测失败边界，46 条上游 DotNetCore.CAP 10.0.2 诊断未压制；普通 CLR 回归通过不代表原生或正式消费者验收，适配器仍为私有未合入检查点。
 - 增加默认只验证的NuGet候选提升入口：绑定成功Publish预检run、已合入main的源码SHA、版本与七包规范化SHA256清单，复用完整release-readiness门禁；人工明确确认后直接推送已下载的原包，不重打包，不自动创建tag/Release/镜像。
 
 - GH-Issue #266 JSON 片段切片：`json_set_value` 增加可选第四布尔参数，显式解析完整 JSON 片段以替换对象/数组，三参数及 `FALSE` 保留原标量合同和容器拒绝边界。EF 复用标准修改命令和 JSON metadata writer，为数组、Guid、日期、二进制、转换器属性及唯一 `OwnsOne` 子树生成参数化更新；精确路径保留目标外成员，数组原地修改、回滚、失败原子性与重开分别验证。片段/源各8MiB、共享100000输入节点、结果8MiB/100000节点/64层及既有取消/协作式预算保持；`OwnsMany` 元素路径、JSON `ExecuteUpdate`、公开包和固定消费者仍另计。
@@ -80,6 +82,10 @@
 - **M47 WB77 Native 接续窗口（2026-10-09）**：记录唯一新根移交、新有界合同与独立证据入口；旧WB76预算发布失败保留，task-local wrapper修复及真实旅程分别验收，不改变生产身份、恢复、正常关闭或回收合同。
 
 - **M47 WB76 新 Native 窗口入口（2026-10-09）**：增加固定证据目录及对应标签，单列 .62 文件前置与实际运行时观察；仅 runner metadata，保留原查询、缓存、身份、预算及正常关闭／回收合同。源码逆投影证明其它字节不变，真实旅程结果另见 WB76 报告，不把已获取的最新代码或既有源码测试当作恢复通过。
+
+- **M43 CAP 适配（2026-10-09）**：新增统一 `SonnetDB.CAP` 项目，通过 Data SDK 提供本地/远程 Document Store 存储与 MQ 传输；包含消息状态/重试/调度/监控、条件存储锁和单 collection 业务+Outbox 原子批事务，不依赖 EF Core。补齐幂等文档索引和 MQ 消费组持久登记，避免未确认慢组消息在重启回收时丢失；复用已有 ACK WAL，无布局变更。新增真实本地/Server/CAP 流程测试及 NuGet 发布清单，候选包与正式发布分列，详见[集成合同](docs/design/cap-integration.md)。
+
+- **M43 CAP 首条事务启动顺序（2026-10-12，PR #265）**：在已启动的 CAP 后台初始化完成后提交业务与 Outbox 并通知 dispatcher，避免 .NET 10 异步宿主启动期间首条嵌入式消息只进入延后重试；可控启动屏障、等待取消、启动任务异常与未启动宿主的嵌入式/远程回归通过，保留 Scheduled Outbox 合同、原发送超时与完整发布门禁。
 
 - **M47 WB75 本地集成窗口（2026-10-08）**：记录隐藏.git元数据修复和真实不提交预演、固定15路径/owned HANDOFF与完整最终树门禁；已有Native CIM六源和38/14/41验收继承，旧WB74失败不升级。最终本地提交结果以WB75收据为准，提交后暂停。
 
@@ -251,6 +257,7 @@
 - **M27 #340 ServerRelay 功能完成（2026-09-26）**：功能交付和本机合同标记完成；当前主分支 Release 构建 0 warning/0 error，双独立 Server smoke 的 live follow、hard-kill failure seal、稳定失败重放和清理通过（`PASS_LOCAL_ONLY`）。用户将人工验证真实 IdP、部署双网与 Studio 现场；这些现场验收保持待执行，不影响功能完成标记。见[复验与验收边界](docs/audits/relay-multi-instance-closure-20260923.md#2026-09-26-主分支复验)。
 
 ### Changed
+- CAP 原实现继承当前 main 后完成准确集成树的真实嵌入式/Kestrel 全项目 42/42 回归，保留 Document 业务/Outbox 与 MQ 慢消费组重开合同；完整 CAP NativeAOT 宿主和正式依赖包消费者仍未验收，不能由适配层零警告构建或历史候选包推导。
 - CI CodeQL 的 init/analyze 同步从 v4.38.1 升级为 v4.38.2（PR #213）；保持原分析语言和构建步骤，合入独立 Windows 测试稳定性前置。
 
 - 测试侧 xunit.runner.visualstudio 从 4.0.0 升级为 4.0.1（PR #269），合入独立 Windows 测试稳定性前置；不增加产品运行时依赖。

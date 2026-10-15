@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       manifest_sha256:
-        description: Approved canonical manifest SHA256 for all seven package bytes
+        description: Approved canonical manifest SHA256 for all eight package bytes
         required: true
         type: string
       publish:
@@ -92,12 +92,12 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) { throw 'NuGet publication credential is unavailable.' }
           $verified = ./eng/verify-nuget-candidate-promotion.ps1 -ArtifactRoot artifacts/approved-nuget -Version $env:CANDIDATE_VERSION -CommitSha $env:CANDIDATE_COMMIT -ManifestSha256 $env:CANDIDATE_MANIFEST
           $clock = [Diagnostics.Stopwatch]::StartNew()
-          for ($index = 0; $index -lt 7 -and $clock.Elapsed.TotalMinutes -lt 20; $index++) {
+          for ($index = 0; $index -lt 8 -and $clock.Elapsed.TotalMinutes -lt 20; $index++) {
             $file = Join-Path 'artifacts/approved-nuget' $verified.packages[$index].file
             dotnet nuget push $file --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --timeout 120
             if ($LASTEXITCODE -ne 0) { throw 'Publication incomplete; inspect original package versions before any retry.' }
           }
-          if ($index -ne 7) { throw 'Publication deadline exceeded.' }
+          if ($index -ne 8) { throw 'Publication deadline exceeded.' }
       - name: Save verification receipts
         if: always()
         uses: actions/upload-artifact@v7
