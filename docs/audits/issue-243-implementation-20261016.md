@@ -59,3 +59,5 @@ CREATE 在保存前登记回滚责任，因此 rename 成功但目录刷新失�
 根在 `4c116ec2` 上按冻结 SHA 接收十份生产文件及七份测试文件，保留前批 #312/#313/#314 和共享文档。Core、Server、Crash 三个 Release 构建均 0 warning / 0 error；Core 组合 **404/404**，Server 组合 **15/15** 加独立既有有界删除 **8/8**，实际进程终止组合 **5/5**（本项三种事务边界和既有主键重命名两边界），全部零失败/跳过。Core 根组合包含本项、主键更新、Tables、Serializable、触发器、自增、RETURNING 和安全 DDL，未重复子树已经完成的慢 OnlineCheckpoint 类；子树最终 447/447 包含该类与备份。两处结果有重叠，不累计为单次完整 suite。
 
 根证据位于 `artifacts/issue-supervision-20261016/issue243/`。最终待提交树按仓库规定执行完整 restore 与 Format Check，收据实际均 exit 0 后才执行本次独立提交；SHA 以 Git log 为准。当前本项尚未推送、发包或关闭；首次可安装版本、XCode 最大行数/分批删除消费者验收仍未完成。
+
+本项最终完整门禁通过后独立提交 `b6e674c431cb8841f33d4a14941537d965184366`，已随#226整批正常推送并回读main为 `285186b868a59d4b22e47279ea51deb38a3a1f45`。最终组合源码通过Core3313/3313、Server104/104、实际kill15/15，包含本项回归且与以上旧结果重叠，不累计。评论 `6203689607` 的正文、作者及open状态已回读验证；代码CI `38818030145` 正在执行。正式版本及XCode消费者条件仍未完成，Issue保持开放；见[本批线上回执](issue-supervision-priority-actions-20261016.json)。本段更新此前“尚未推送”的历史状态。

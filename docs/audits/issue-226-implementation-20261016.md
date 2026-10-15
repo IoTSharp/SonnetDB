@@ -80,3 +80,5 @@ Crash 十项覆盖屏障前/后、journal 后、1032 行迁移第一 raw 页后�
 首轮根525/27/13+2在旧事务保护修复前完成，保留为过程证据，不替代上述最终结果。子树74/94/10和根最终集合存在重叠，不累加，也不称为完整solution suite。未新增JSON序列化边界、依赖或unsafe，未在本检查点执行新的NativeAOT发布、远端CI、正式包发布或ORM消费者验收。
 
 本次最终树按仓库要求完整执行 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；收据实际exit 0后才独立提交，提交SHA以Git记录为准。正常批次推送、远端SHA/CI和Issue回复结果由监督记录继续补充。
+
+最终完整restore及原Format Check均exit 0，暂存差异检查通过，独立提交 `285186b868a59d4b22e47279ea51deb38a3a1f45` 已正常推送main并回读确认。评论 `6203690535` 已验证正文/作者及open状态；精确源码SHA的CI `38818030145` 正在执行。正式版本和FreeSql/XCode消费者验收未完成，Issue保持开放；见[本批线上回执](issue-supervision-priority-actions-20261016.json)。

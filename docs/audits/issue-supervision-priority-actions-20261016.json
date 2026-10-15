@@ -1,0 +1,34 @@
+{
+  "mainSha": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "paritySha": "2ab6caa94b9f07d25fdd0760a7aa682f7ca26295",
+  "ciRun": 38818030145,
+  "ciStatusAtComment": "in_progress",
+  "actions": [
+    {
+      "issue": 243,
+      "state": "open",
+      "stateReason": null,
+      "commentId": 6203689607,
+      "commentUrl": "https://github.com/IoTSharp/SonnetDB/issues/243#issuecomment-6203689607",
+      "author": "maikebing",
+      "bodyVerified": true,
+      "body": "已补齐无主键关系表路径，独立提交 [b6e674c4](https://github.com/IoTSharp/SonnetDB/commit/b6e674c431cb8841f33d4a14941537d965184366) 已随本批推送进入 main，批次远端 SHA 为 `285186b868a59d4b22e47279ea51deb38a3a1f45`。\n\n有主键、复合主键和无主键表均支持单条原子 `DELETE ... WHERE ... LIMIT n [RETURNING ...]`。无主键表使用持久不透明内部行身份，重复值和 NULL 独立保存；普通 INSERT、WHERE UPDATE/DELETE、事务、索引、ROWVERSION、触发器、外键子表动作及备份恢复贯通。SQL/ADO/DbFirst 不新增隐藏列或伪造业务主键，因此不再以 #253/#255 的前置写入缺口作为停工条件。\n\n最终独立 #243 验证：根 Core **404/404**、Server组合 **15/15** 加不重叠的既有有界删除 **8/8**、实际进程终止恢复 **5/5**；子树更广447/447与其重叠，不累计。随后在包含 #226 及旧事务 schema 保护的最终批次主树上，Core **3313/3313**、Server **104/104**、实际终止恢复 **15/15** 均通过，零失败/跳过。每次提交前完整restore、规定Format Check及暂存差异检查实际通过。精确批次SHA的CI run `38818030145` 正在执行，尚不宣称远端CI通过。\n\n边界：LIMIT只约束直接删除数，候选扫描、内存和级联修改另计；0不扫描或清表，非法参数明确拒绝。内部行身份启用前持久保存v13目录屏障，回滚/DROP不降级；旧引擎拒绝v13，回退使用升级前副本。无主键按业务主键定位、UPSERT/ON CONFLICT及JOIN/FROM UPDATE继续明确拒绝。详见[实施审计](https://github.com/IoTSharp/SonnetDB/blob/285186b868a59d4b22e47279ea51deb38a3a1f45/docs/audits/issue-243-implementation-20261016.md)。\n\n**源码功能与本地验收已完成，Issue 保持开放**：仍需包含能力的正式引擎/ADO.NET/Server最低版本，以及XCode最大行数与分批删除消费者回归；发布和消费者条件继续关联 #230 及 NewLifeX/NewLife.XCode#100，不能以局部PASS代替完整交付。\n\n<!-- sonnetdb-priority-226-243-20261016:243 -->\n",
+      "closed": false,
+      "remaining": "正式发布版本及对应 ORM 消费者验收",
+      "verifiedAtUtc": "2026-10-15T22:35:50.7106811Z"
+    },
+    {
+      "issue": 226,
+      "state": "open",
+      "stateReason": null,
+      "commentId": 6203690535,
+      "commentUrl": "https://github.com/IoTSharp/SonnetDB/issues/226#issuecomment-6203690535",
+      "author": "maikebing",
+      "bodyVerified": true,
+      "body": "已补齐本 Issue 剩余的存量主键类型及定义迁移，独立提交 [285186b8](https://github.com/IoTSharp/SonnetDB/commit/285186b868a59d4b22e47279ea51deb38a3a1f45) 已推送并回读确认进入 main。\n\n在已有重命名能力上，支持非空表有效主键类型转换、单列/复合主键定义替换和无主键表增加主键；重建行键及普通/唯一索引，按原父行身份同步受支持的入站外键，保持默认值、CHECK、自增高水位及 ROWVERSION。重复、NULL、溢出、不可转换、精度损失和不支持的拓扑在写前拒绝。\n\n恢复顺序为持久 v13 目录屏障、undo journal、raw/WAL、新目录、完成标记、内存发布。未完成迁移可幂等恢复，决定不确定时要求关闭重开；补充实际终止及恢复中再次终止测试。另修复复审实际发现的旧事务 INSERT 错挂父行：两种隔离级别均绑定首次写入 schema，在旧缓冲读取、合并、级联与提交前以 `table_serialization_conflict` 拒绝过期写集。\n\n最终主树三个 Release 构建零警告/错误；Core SQL/Tables/ADO/Backup **3313/3313**、真实传输及 ADO 组合 **104/104**、实际进程终止恢复 **15/15**，全部零失败/跳过。18 个新嵌入式/REST/h2c 迁移用例包含在104内，36个新事务用例包含在3313内，不额外累计。完整 solution restore、规定 Format Check 和暂存差异检查实际通过后才提交。精确源码 SHA 的 CI run `38818030145` 已启动，目前执行中，尚不宣称远端 CI 通过。\n\n合同与证据：[迁移合同](https://github.com/IoTSharp/SonnetDB/blob/285186b868a59d4b22e47279ea51deb38a3a1f45/docs/sql-primary-key-migration.md)、[实施审计](https://github.com/IoTSharp/SonnetDB/blob/285186b868a59d4b22e47279ea51deb38a3a1f45/docs/audits/issue-226-implementation-20261016.md)。单次最多32表、10万行、256 MiB逻辑工作集；SQL DROP PRIMARY KEY、复杂外键拓扑和跨语句 DDL 事务 #227 未纳入本合同。v13目录不降级，旧引擎拒绝，回退使用迁移前副本；没有修改FileHeader或既有行值格式。\n\n**源码功能与本地验收已完成，Issue 保持开放**：原交付要求的正式 NuGet/Server 版本、FreeSql CodeFirst/DbFirst（含 OldName）及 XCode 实际消费者验收尚未完成，继续关联 #230。未把本地 DLL 或推送结果视为公开包验收。\n\n<!-- sonnetdb-priority-226-243-20261016:226 -->\n",
+      "closed": false,
+      "remaining": "正式发布版本及对应 ORM 消费者验收",
+      "verifiedAtUtc": "2026-10-15T22:35:54.6937810Z"
+    }
+  ]
+}
