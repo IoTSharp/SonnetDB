@@ -1,0 +1,1189 @@
+{
+  "runId": "cnblogs-20261009-resume-1138",
+  "reviewedCandidates": [
+    "143",
+    "144"
+  ],
+  "deadline": "2026-10-09T12:07:07.0693584+08:00",
+  "httpEvidence": [
+    {
+      "checkedAt": "2026-10-09T11:07:14.6496905+08:00",
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "status": "000",
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account.download",
+      "exitCode": 35
+    },
+    {
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account.download",
+      "exitCode": 0,
+      "checkedAt": "2026-10-09T11:08:07.5692745+08:00",
+      "url": "https://www.cnblogs.com/IoTSharp/"
+    },
+    {
+      "exitCode": 1,
+      "status": 0,
+      "checkedAt": "2026-10-09T11:38:44.5915678+08:00",
+      "url": "https://api.github.com/repos/IoTSharp/SonnetDB/releases/latest",
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-release.download"
+    },
+    {
+      "checkedAt": "2026-10-09T11:39:05.1409253+08:00",
+      "exitCode": 0,
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/latest",
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-release-page.download"
+    },
+    {
+      "checkedAt": "2026-10-09T11:39:06.4828422+08:00",
+      "exitCode": 0,
+      "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.core/index.json",
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-nuget.download"
+    },
+    {
+      "checkedAt": "2026-10-09T11:39:25.8323714+08:00",
+      "exitCode": 0,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/data-model.md",
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-data-model.download"
+    },
+    {
+      "checkedAt": "2026-10-09T11:39:26.7857438+08:00",
+      "exitCode": 0,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/sql-reference.md",
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-sql-reference.download"
+    },
+    {
+      "checkedAt": "2026-10-09T11:39:27.6897477+08:00",
+      "exitCode": 0,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Engine/MeasurementSchemaPolicy.cs",
+      "status": 200,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-schema-policy.download"
+    },
+    {
+      "status": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/timeseries-write-admission.md",
+      "checkedAt": "2026-10-09T11:45:21.2841119+08:00",
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-admission.download",
+      "exitCode": 0
+    },
+    {
+      "status": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Engine/TsdbMeasurementSchemaPolicyTests.cs",
+      "checkedAt": "2026-10-09T11:45:22.3944394+08:00",
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-policy-tests.download",
+      "exitCode": 0
+    },
+    {
+      "status": 200,
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "checkedAt": "2026-10-09T11:45:23.7099390+08:00",
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account-before-publish.download",
+      "exitCode": 0
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-nuget-official.download",
+      "exitCode": 0,
+      "checkedAt": "2026-10-09T11:46:04.6678367+08:00",
+      "url": "https://www.nuget.org/packages/SonnetDB.Core/4.0.0",
+      "status": 200
+    },
+    {
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235723",
+      "exitCode": 0,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-published-143.download",
+      "status": 200,
+      "checkedAt": "2026-10-09T11:47:31.2688807+08:00"
+    },
+    {
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235731",
+      "exitCode": 0,
+      "path": "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-published-144.download",
+      "status": 200,
+      "checkedAt": "2026-10-09T11:47:32.1486192+08:00"
+    }
+  ],
+  "startedAt": "2026-10-09T11:07:12.2609747+08:00",
+  "initialTodaySuccess": 0,
+  "processes": [
+    {
+      "exitCode": 0,
+      "stdout": "curl 8.21.0 (Windows) libcurl/8.21.0 Schannel zlib/1.3.2 WinIDN WinLDAP\r\nRelease-Date: 2026-06-24\r\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ipfs ipns ldap ldaps mqtt mqtts pop3 pop3s smtp smtps telnet tftp ws wss\r\nFeatures: alt-svc AsynchDNS HSTS HTTPS-proxy IDN IPv6 Kerberos Largefile libz SPNEGO SSL SSPI threadsafe Unicode UnixSockets\r\n",
+      "stderr": "",
+      "children": [],
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "startedAt": "2026-10-09T11:07:12.3572714+08:00",
+      "parentPid": 4668,
+      "executable": "C:\\Windows\\system32\\curl.exe",
+      "pid": 56224,
+      "arguments": [
+        "--version"
+      ],
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "createdAt": "2026-10-09T11:07:12.3599671+08:00",
+      "finishedAt": "2026-10-09T11:07:12.4592007+08:00"
+    },
+    {
+      "exitCode": 7,
+      "stdout": "000",
+      "stderr": "curl: (7) Failed to connect to www.cnblogs.com:443 over proxy 127.0.0.1 after 2045 ms: Could not connect to server\r\n",
+      "children": [
+        {
+          "pid": 11124,
+          "parentPid": 56308,
+          "createdAt": "2026-10-09T11:07:12.5094976+08:00"
+        }
+      ],
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "startedAt": "2026-10-09T11:07:12.4915432+08:00",
+      "parentPid": 4668,
+      "executable": "C:\\Windows\\system32\\curl.exe",
+      "pid": 56308,
+      "arguments": [
+        "--silent",
+        "--show-error",
+        "--location",
+        "--max-time",
+        "20",
+        "--output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account.download",
+        "--write-out",
+        "%{http_code}",
+        "https://www.cnblogs.com/IoTSharp/"
+      ],
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "createdAt": "2026-10-09T11:07:12.4924254+08:00",
+      "finishedAt": "2026-10-09T11:07:14.5946273+08:00"
+    },
+    {
+      "exitCode": 35,
+      "stdout": "000",
+      "stderr": "curl: (35) schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS (0x8009030e) - ��ȫ����û�п��õ�ƾ֤\r\n",
+      "children": [
+        {
+          "pid": 41676,
+          "parentPid": 49240,
+          "createdAt": "2026-10-09T11:07:14.6180890+08:00"
+        }
+      ],
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "startedAt": "2026-10-09T11:07:14.6016765+08:00",
+      "parentPid": 4668,
+      "executable": "C:\\Windows\\system32\\curl.exe",
+      "pid": 49240,
+      "arguments": [
+        "--proxy",
+        "http://127.0.0.1:7890",
+        "--silent",
+        "--show-error",
+        "--location",
+        "--max-time",
+        "20",
+        "--output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account.download",
+        "--write-out",
+        "%{http_code}",
+        "https://www.cnblogs.com/IoTSharp/"
+      ],
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "createdAt": "2026-10-09T11:07:14.6027137+08:00",
+      "finishedAt": "2026-10-09T11:07:14.6458915+08:00"
+    },
+    {
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://www.cnblogs.com/IoTSharp/",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account.download"
+      ],
+      "finishedAt": "2026-10-09T11:08:07.5619042+08:00",
+      "stderr": "",
+      "parentPid": 47692,
+      "stdout": "{\"status\": 200, \"url\": \"https://www.cnblogs.com/IoTSharp\", \"proxy\": false}\r\n",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "startedAt": "2026-10-09T11:08:06.3613059+08:00",
+      "children": [
+        {
+          "createdAt": "2026-10-09T11:08:06.3869685+08:00",
+          "parentPid": 57196,
+          "pid": 45164
+        }
+      ],
+      "exitCode": 0,
+      "createdAt": "2026-10-09T11:08:06.3655974+08:00",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 57196
+    },
+    {
+      "startedAt": "2026-10-09T11:38:43.6990308+08:00",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "exitCode": 1,
+      "finishedAt": "2026-10-09T11:38:44.5852294+08:00",
+      "stdout": "",
+      "createdAt": "2026-10-09T11:38:43.7036542+08:00",
+      "stderr": "{\"errors\": [\"<urlopen error [WinError 10054] \\u8fdc\\u7a0b\\u4e3b\\u673a\\u5f3a\\u8feb\\u5173\\u95ed\\u4e86\\u4e00\\u4e2a\\u73b0\\u6709\\u7684\\u8fde\\u63a5\\u3002>\", \"HTTP Error 403: rate limit exceeded\"]}\r\n",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "children": [
+        {
+          "pid": 43756,
+          "createdAt": "2026-10-09T11:38:43.7156040+08:00",
+          "parentPid": 50760
+        }
+      ],
+      "pid": 50760,
+      "parentPid": 55432,
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://api.github.com/repos/IoTSharp/SonnetDB/releases/latest",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-release.download"
+      ]
+    },
+    {
+      "createdAt": "2026-10-09T11:39:00.5809983+08:00",
+      "startedAt": "2026-10-09T11:39:00.5771398+08:00",
+      "exitCode": 0,
+      "children": [
+        {
+          "parentPid": 46864,
+          "createdAt": "2026-10-09T11:39:00.5889802+08:00",
+          "pid": 15836
+        }
+      ],
+      "finishedAt": "2026-10-09T11:39:05.1329398+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://github.com/IoTSharp/SonnetDB/releases/tag/v4.0.0\", \"proxy\": true}\r\n",
+      "parentPid": 3892,
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://github.com/IoTSharp/SonnetDB/releases/latest",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-release-page.download"
+      ],
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 46864
+    },
+    {
+      "createdAt": "2026-10-09T11:39:05.1662093+08:00",
+      "startedAt": "2026-10-09T11:39:05.1654803+08:00",
+      "exitCode": 0,
+      "children": [
+        {
+          "parentPid": 6056,
+          "createdAt": "2026-10-09T11:39:05.1736210+08:00",
+          "pid": 56104
+        }
+      ],
+      "finishedAt": "2026-10-09T11:39:06.4790247+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://nuget.azure.cn/v3-flatcontainer/sonnetdb.core/index.json\", \"proxy\": false}\r\n",
+      "parentPid": 3892,
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://api.nuget.org/v3-flatcontainer/sonnetdb.core/index.json",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-nuget.download"
+      ],
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 6056
+    },
+    {
+      "createdAt": "2026-10-09T11:39:06.5067250+08:00",
+      "startedAt": "2026-10-09T11:39:06.5059466+08:00",
+      "exitCode": 0,
+      "children": [
+        {
+          "parentPid": 54716,
+          "createdAt": "2026-10-09T11:39:06.5169671+08:00",
+          "pid": 22296
+        }
+      ],
+      "finishedAt": "2026-10-09T11:39:25.8299724+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/data-model.md\", \"proxy\": true}\r\n",
+      "parentPid": 3892,
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/data-model.md",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-data-model.download"
+      ],
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 54716
+    },
+    {
+      "createdAt": "2026-10-09T11:39:25.8466426+08:00",
+      "startedAt": "2026-10-09T11:39:25.8459128+08:00",
+      "exitCode": 0,
+      "children": [
+        {
+          "parentPid": 49392,
+          "createdAt": "2026-10-09T11:39:25.8536963+08:00",
+          "pid": 30872
+        }
+      ],
+      "finishedAt": "2026-10-09T11:39:26.7834244+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/sql-reference.md\", \"proxy\": false}\r\n",
+      "parentPid": 3892,
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/sql-reference.md",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-sql-reference.download"
+      ],
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 49392
+    },
+    {
+      "createdAt": "2026-10-09T11:39:26.8016162+08:00",
+      "startedAt": "2026-10-09T11:39:26.8007219+08:00",
+      "exitCode": 0,
+      "children": [
+        {
+          "parentPid": 53092,
+          "createdAt": "2026-10-09T11:39:26.8088794+08:00",
+          "pid": 8188
+        }
+      ],
+      "finishedAt": "2026-10-09T11:39:27.6870805+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Engine/MeasurementSchemaPolicy.cs\", \"proxy\": false}\r\n",
+      "parentPid": 3892,
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Engine/MeasurementSchemaPolicy.cs",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-schema-policy.download"
+      ],
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 53092
+    },
+    {
+      "finishedAt": "2026-10-09T11:44:12.1643407+08:00",
+      "stdout": "{\r\n  \"title\": \"Measurement \\u5B9E\\u7528\\u5EFA\\u6A21\\uFF1ATAG\\u3001FIELD\\u3001\\u7A00\\u758F\\u503C\\u4E0E\\u539F\\u59CB\\u540D\\u79F0\",\r\n  \"url\": null,\r\n  \"postId\": null,\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": \"D:\\\\source\\\\SonnetDB\\\\docs\\\\blogs\\\\.cnblogs-20261009-143-preview.md\",\r\n  \"message\": \"dry-run\\uFF1A\\u5DF2\\u5B8C\\u6210 Markdown \\u89E3\\u6790\\u3001\\u9ED8\\u8BA4\\u4EA4\\u6D41\\u533A\\u5757\\u4E0E\\u672C\\u5730\\u56FE\\u7247\\u68C0\\u67E5\\uFF1B\\u672A\\u53D1\\u8D77\\u7F51\\u7EDC\\u8BF7\\u6C42\\u6216\\u53D1\\u5E03\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "startedAt": "2026-10-09T11:44:10.4073576+08:00",
+      "parentPid": 16308,
+      "arguments": [
+        "run",
+        "--no-build",
+        "--no-restore",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\143-measurement-sparse-values-and-names.md",
+        "--dry-run",
+        "--preview-output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-143-preview.md"
+      ],
+      "pid": 43428,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "children": [
+        {
+          "parentPid": 43428,
+          "createdAt": "2026-10-09T11:44:10.4335952+08:00",
+          "pid": 54296
+        }
+      ],
+      "exitCode": 0,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "createdAt": "2026-10-09T11:44:10.4139209+08:00",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”"
+    },
+    {
+      "finishedAt": "2026-10-09T11:44:13.7057803+08:00",
+      "stdout": "{\r\n  \"title\": \"\\u53D7\\u63A7 Schema-on-Write\\uFF1A\\u4ECE\\u81EA\\u52A8\\u5EFA\\u5217\\u5230\\u62D2\\u7EDD\\u574F\\u6279\\u6B21\",\r\n  \"url\": null,\r\n  \"postId\": null,\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": \"D:\\\\source\\\\SonnetDB\\\\docs\\\\blogs\\\\.cnblogs-20261009-144-preview.md\",\r\n  \"message\": \"dry-run\\uFF1A\\u5DF2\\u5B8C\\u6210 Markdown \\u89E3\\u6790\\u3001\\u9ED8\\u8BA4\\u4EA4\\u6D41\\u533A\\u5757\\u4E0E\\u672C\\u5730\\u56FE\\u7247\\u68C0\\u67E5\\uFF1B\\u672A\\u53D1\\u8D77\\u7F51\\u7EDC\\u8BF7\\u6C42\\u6216\\u53D1\\u5E03\\u3002\"\r\n}\r\n",
+      "stderr": "",
+      "startedAt": "2026-10-09T11:44:12.2184769+08:00",
+      "parentPid": 16308,
+      "arguments": [
+        "run",
+        "--no-build",
+        "--no-restore",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\144-schema-on-write-rejection-and-correction.md",
+        "--dry-run",
+        "--preview-output",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-144-preview.md"
+      ],
+      "pid": 6492,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "children": [
+        {
+          "parentPid": 6492,
+          "createdAt": "2026-10-09T11:44:12.2304968+08:00",
+          "pid": 23700
+        }
+      ],
+      "exitCode": 0,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "createdAt": "2026-10-09T11:44:12.2200322+08:00",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”"
+    },
+    {
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "stderr": "",
+      "exitCode": 0,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/timeseries-write-admission.md",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-admission.download"
+      ],
+      "children": [
+        {
+          "parentPid": 44164,
+          "createdAt": "2026-10-09T11:44:53.9704177+08:00",
+          "pid": 56792
+        }
+      ],
+      "finishedAt": "2026-10-09T11:45:21.2632042+08:00",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 44164,
+      "createdAt": "2026-10-09T11:44:53.9564970+08:00",
+      "stdout": "{\"status\": 200, \"url\": \"https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/timeseries-write-admission.md\", \"proxy\": true}\r\n",
+      "parentPid": 6492,
+      "startedAt": "2026-10-09T11:44:53.9504536+08:00"
+    },
+    {
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "stderr": "",
+      "exitCode": 0,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Engine/TsdbMeasurementSchemaPolicyTests.cs",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-policy-tests.download"
+      ],
+      "children": [
+        {
+          "parentPid": 56932,
+          "createdAt": "2026-10-09T11:45:21.3497674+08:00",
+          "pid": 28436
+        }
+      ],
+      "finishedAt": "2026-10-09T11:45:22.3845271+08:00",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 56932,
+      "createdAt": "2026-10-09T11:45:21.3363172+08:00",
+      "stdout": "{\"status\": 200, \"url\": \"https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Engine/TsdbMeasurementSchemaPolicyTests.cs\", \"proxy\": false}\r\n",
+      "parentPid": 6492,
+      "startedAt": "2026-10-09T11:45:21.3348055+08:00"
+    },
+    {
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "stderr": "",
+      "exitCode": 0,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://www.cnblogs.com/IoTSharp/",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-account-before-publish.download"
+      ],
+      "children": [
+        {
+          "parentPid": 34900,
+          "createdAt": "2026-10-09T11:45:22.4423186+08:00",
+          "pid": 14088
+        }
+      ],
+      "finishedAt": "2026-10-09T11:45:23.7026009+08:00",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "pid": 34900,
+      "createdAt": "2026-10-09T11:45:22.4299186+08:00",
+      "stdout": "{\"status\": 200, \"url\": \"https://www.cnblogs.com/IoTSharp\", \"proxy\": false}\r\n",
+      "parentPid": 6492,
+      "startedAt": "2026-10-09T11:45:22.4288825+08:00"
+    },
+    {
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "finishedAt": "2026-10-09T11:46:04.6477640+08:00",
+      "pid": 35288,
+      "children": [
+        {
+          "pid": 56624,
+          "parentPid": 35288,
+          "createdAt": "2026-10-09T11:46:01.3946308+08:00"
+        }
+      ],
+      "createdAt": "2026-10-09T11:46:01.3803962+08:00",
+      "parentPid": 53224,
+      "startedAt": "2026-10-09T11:46:01.3724867+08:00",
+      "stderr": "",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://www.nuget.org/packages/SonnetDB.Core/4.0.0",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-nuget-official.download"
+      ],
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "exitCode": 0,
+      "stdout": "{\"status\": 200, \"url\": \"https://www.nuget.org/packages/SonnetDB.Core/4.0.0\", \"proxy\": false}\r\n"
+    },
+    {
+      "parentPid": 49488,
+      "exitCode": 0,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "children": [
+        {
+          "parentPid": 51168,
+          "createdAt": "2026-10-09T11:46:20.6064474+08:00",
+          "pid": 45740
+        },
+        {
+          "parentPid": 51168,
+          "createdAt": "2026-10-09T11:46:22.8510249+08:00",
+          "pid": 50708
+        }
+      ],
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "pid": 51168,
+      "stdout": "{\r\n  \"title\": \"Measurement \\u5B9E\\u7528\\u5EFA\\u6A21\\uFF1ATAG\\u3001FIELD\\u3001\\u7A00\\u758F\\u503C\\u4E0E\\u539F\\u59CB\\u540D\\u79F0\",\r\n  \"url\": \"https://www.cnblogs.com/IoTSharp/p/23235723\",\r\n  \"postId\": \"23235723\",\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": null,\r\n  \"message\": \"\\u5DF2\\u53D1\\u5E03\\u5230\\u535A\\u5BA2\\u56ED\\u3002\"\r\n}\r\n",
+      "arguments": [
+        "run",
+        "--no-build",
+        "--no-restore",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\143-measurement-sparse-values-and-names.md"
+      ],
+      "startedAt": "2026-10-09T11:46:20.5852665+08:00",
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "finishedAt": "2026-10-09T11:46:24.8597567+08:00",
+      "stderr": "",
+      "createdAt": "2026-10-09T11:46:20.5915903+08:00"
+    },
+    {
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "stdout": "{\r\n  \"title\": \"\\u53D7\\u63A7 Schema-on-Write\\uFF1A\\u4ECE\\u81EA\\u52A8\\u5EFA\\u5217\\u5230\\u62D2\\u7EDD\\u574F\\u6279\\u6B21\",\r\n  \"url\": \"https://www.cnblogs.com/IoTSharp/p/23235731\",\r\n  \"postId\": \"23235731\",\r\n  \"isDraft\": false,\r\n  \"categories\": [\r\n    \"SonnetDB\"\r\n  ],\r\n  \"uploadedImages\": [],\r\n  \"localImages\": [],\r\n  \"communityFooterIncluded\": true,\r\n  \"previewPath\": null,\r\n  \"message\": \"\\u5DF2\\u53D1\\u5E03\\u5230\\u535A\\u5BA2\\u56ED\\u3002\"\r\n}\r\n",
+      "pid": 17644,
+      "executable": "C:\\Program Files\\dotnet\\dotnet.exe",
+      "arguments": [
+        "run",
+        "--no-build",
+        "--no-restore",
+        "--project",
+        "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher",
+        "--",
+        "D:\\source\\SonnetDB\\docs\\blogs\\144-schema-on-write-rejection-and-correction.md"
+      ],
+      "createdAt": "2026-10-09T11:46:48.0971126+08:00",
+      "exitCode": 0,
+      "startedAt": "2026-10-09T11:46:48.0919100+08:00",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "parentPid": 26152,
+      "children": [
+        {
+          "createdAt": "2026-10-09T11:46:48.1182814+08:00",
+          "parentPid": 17644,
+          "pid": 18084
+        },
+        {
+          "createdAt": "2026-10-09T11:46:49.7557593+08:00",
+          "parentPid": 17644,
+          "pid": 54868
+        }
+      ],
+      "stderr": "",
+      "finishedAt": "2026-10-09T11:46:51.1223944+08:00"
+    },
+    {
+      "exitCode": 0,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "startedAt": "2026-10-09T11:47:30.3680816+08:00",
+      "createdAt": "2026-10-09T11:47:30.3746835+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://www.cnblogs.com/IoTSharp/p/23235723\", \"proxy\": false}\r\n",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "children": [
+        {
+          "pid": 4020,
+          "createdAt": "2026-10-09T11:47:30.3893901+08:00",
+          "parentPid": 7452
+        }
+      ],
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://www.cnblogs.com/IoTSharp/p/23235723",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-published-143.download"
+      ],
+      "finishedAt": "2026-10-09T11:47:31.2500855+08:00",
+      "pid": 7452,
+      "parentPid": 52636
+    },
+    {
+      "exitCode": 0,
+      "captureBoundary": "bounded native snapshots can miss short-lived descendants; no whole OS lifetime proof",
+      "startedAt": "2026-10-09T11:47:31.3153837+08:00",
+      "createdAt": "2026-10-09T11:47:31.3167349+08:00",
+      "stderr": "",
+      "stdout": "{\"status\": 200, \"url\": \"https://www.cnblogs.com/IoTSharp/p/23235731\", \"proxy\": false}\r\n",
+      "ancestorBoundary": "调用“Read”并传入“1”个参数时发生异常：“Command line unavailable: 20408”",
+      "executable": "C:\\Users\\mysti\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "children": [
+        {
+          "pid": 8396,
+          "createdAt": "2026-10-09T11:47:31.3300412+08:00",
+          "parentPid": 55772
+        }
+      ],
+      "arguments": [
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-get.py",
+        "https://www.cnblogs.com/IoTSharp/p/23235731",
+        "D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-20261009-published-144.download"
+      ],
+      "finishedAt": "2026-10-09T11:47:32.1341336+08:00",
+      "pid": 55772,
+      "parentPid": 52636
+    }
+  ],
+  "validationScope": "source review and publisher dry-run; examples not executed; no performance or production acceptance",
+  "previousRunId": "cnblogs-20261009-1100",
+  "resumedAt": "2026-10-09T11:38:07.0693584+08:00",
+  "resumeEvidence": {
+    "reason": "explicit manual resume after interruption; daily write/publish counts unchanged",
+    "priorArticleRequests": 0,
+    "releasedExpiredLease": true,
+    "priorIdentityChecks": [
+      {
+        "pid": 56224,
+        "present": false,
+        "query": "调用“Read”并传入“1”个参数时发生异常：“Process identity query denied: 56224”"
+      },
+      {
+        "pid": 56308,
+        "present": false,
+        "query": "调用“Read”并传入“1”个参数时发生异常：“Process identity query denied: 56308”"
+      },
+      {
+        "pid": 49240,
+        "present": false,
+        "query": "调用“Read”并传入“1”个参数时发生异常：“Process identity query denied: 49240”"
+      },
+      {
+        "pid": 57196,
+        "present": false,
+        "query": "调用“Read”并传入“1”个参数时发生异常：“Process identity query denied: 57196”"
+      }
+    ]
+  },
+  "sourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+  "deduplication": {
+    "externalPublishedArticles": 10,
+    "unconfirmedHistoricalPaused": 59,
+    "articles": 142,
+    "newAngles": {
+      "article144": "column budget and failed block correction;117 unconfirmed remains held",
+      "article143": "sparse values plus Point name binding; prior009/013/136 kept"
+    },
+    "scope": "all local articles and external topics plus 2026-10-05 public reconciliation and current homepage",
+    "todayAccountShowsLastRunTitles": true,
+    "currentAccountTitlesChecked": 10
+  },
+  "manuscriptReviews": [
+    {
+      "reviewedAt": "2026-10-09T11:44:08.9724082+08:00",
+      "examplesExecuted": false,
+      "contentSha256": "baa16880dcf4b40f2972cdcf3c442747f03b91dc853b9b3af3fedeea04f9ea79",
+      "articleId": "143",
+      "sourceDocs": [
+        {
+          "sha256": "7b47eb3b051c60db8e555fefa91e7647f482798b4ddd40f5a9e8bf6264b3e5be",
+          "chars": 3405,
+          "path": "../data-model.md"
+        },
+        {
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a",
+          "chars": 75464,
+          "path": "../sql-reference.md"
+        },
+        {
+          "sha256": "156836d96810b99dee07ba49c579c4b4b0954e64fe3ec751187d198f892838fb",
+          "chars": 2312,
+          "path": "../design/sql-identifier-case.md"
+        },
+        {
+          "sha256": "bdb7e0d5eb9067296fb8fd83c4bf5ccc80e7eb93fdc7531465d570453ec8ae1a",
+          "chars": 1786,
+          "path": "../capability-maturity.md"
+        },
+        {
+          "sha256": "6cbffbc142d3309f13adc8a5845bf7092ca5542dc76b7f9894b7dcca8eb196f3",
+          "chars": 39121,
+          "path": "../../ROADMAP.md"
+        }
+      ]
+    },
+    {
+      "reviewedAt": "2026-10-09T11:44:08.9870230+08:00",
+      "examplesExecuted": false,
+      "contentSha256": "f52a281680e60f1222f1b609d2677f3a9c07412244b38a92a70d54ed69103b06",
+      "articleId": "144",
+      "sourceDocs": [
+        {
+          "sha256": "75412e9bc9344ae2bd60a4711133a040fd4bd86cf3ac94b0218cf761a12b6a41",
+          "chars": 1262,
+          "path": "../timeseries-write-admission.md"
+        },
+        {
+          "sha256": "6e0555df5fe92c1bb20965de7ba6f28deb1b78a70d79c92d4048b60ecb2eea21",
+          "chars": 5717,
+          "path": "117-schema-on-write.md"
+        },
+        {
+          "sha256": "7b47eb3b051c60db8e555fefa91e7647f482798b4ddd40f5a9e8bf6264b3e5be",
+          "chars": 3405,
+          "path": "../data-model.md"
+        },
+        {
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a",
+          "chars": 75464,
+          "path": "../sql-reference.md"
+        },
+        {
+          "sha256": "6cbffbc142d3309f13adc8a5845bf7092ca5542dc76b7f9894b7dcca8eb196f3",
+          "chars": 39121,
+          "path": "../../ROADMAP.md"
+        }
+      ]
+    }
+  ],
+  "factSourceHashes": [
+    {
+      "sha256": "a159f69a439cdbefe50fa6afec5e09f8fe44f0bc2444caec45f614b0f59e59b2",
+      "path": "src/SonnetDB.Core/Engine/MeasurementSchemaPolicy.cs"
+    },
+    {
+      "sha256": "aa734e37b2bd0dbbe3646d229e64c21a6543fec7efe1855f999ca742fd991950",
+      "path": "src/SonnetDB.Core/Engine/Tsdb.cs"
+    },
+    {
+      "sha256": "fa0b372975f70f0769d7b2b0b31db22ea879fc08e68dee8d1e8b129768f469e1",
+      "path": "src/SonnetDB.Core/Model/Point.cs"
+    },
+    {
+      "sha256": "e65125a34d06d887c784fabb750df8b78f354588f3ccfa061419e51feabac3f1",
+      "path": "src/SonnetDB.Core/Model/SeriesKey.cs"
+    },
+    {
+      "sha256": "1854f548495443319395608fd3379e7ba9f41ba2ac2b1eb47775f99386614aa3",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs"
+    },
+    {
+      "sha256": "a46e18322581c3beba48f0de64143d3a938c94693dc9dbfc1f41cc8ed540a040",
+      "path": "src/SonnetDB/Configuration/ServerOptions.cs"
+    },
+    {
+      "sha256": "c8ba999b90033fa82630945ce96bb66daac986aef3f229385381e7ab4e1e532d",
+      "path": "tests/SonnetDB.Core.Tests/Engine/TsdbMeasurementSchemaPolicyTests.cs"
+    },
+    {
+      "sha256": "c3000cb1c262816ae7fcd307bbdec55b9a216ec293c3d3c715e14b90a3214859",
+      "path": "tests/SonnetDB.Core.Tests/Engine/TsdbWriteTests.cs"
+    },
+    {
+      "sha256": "f3738e80a4297f93383a31fa6dc24e8be3f882d522a56127d22a782c27eb39a4",
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlIdentifierCaseContractTests.cs"
+    },
+    {
+      "sha256": "217c5d916844397aba5bd5f5bbcca6014776b0d55eb62a97a62d8aa1933a3369",
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorCreateMeasurementTests.cs"
+    },
+    {
+      "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+      "path": "docs/releases/4.0.0.md"
+    }
+  ],
+  "releaseEvidence": {
+    "localReleaseDocument": "candidate wording remains historical; public release page separately checked",
+    "nugetCore": "4.0.0",
+    "github": "v4.0.0",
+    "githubApiLatest": "403 rate limit exceeded; HTML release latest checked instead",
+    "nugetOfficialPage": "https://www.nuget.org/packages/SonnetDB.Core/4.0.0",
+    "feedRedirectNote": "Index request redirected to nuget.azure.cn; official NuGet package page checked independently"
+  },
+  "networkRecovery": "Prior restricted environment Schannel/CIM denied; Python TLS/proxy GET worked; environment now unrestricted. Native identity query uses bounded counts and no unsafe code.",
+  "finalPrePublishReviewAt": "2026-10-09T11:46:04.8350487+08:00",
+  "qrSourceHashesVerified": true,
+  "dotnetTlsProxyPreflightStatus": 200,
+  "publicReadback": [
+    {
+      "articleId": "143",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235723",
+      "bodySourceCommit": true,
+      "status": 200,
+      "communityQrUrls": true,
+      "title": "Measurement 实用建模：TAG、FIELD、稀疏值与原始名称",
+      "checkedAt": "2026-10-09T11:47:32.2474506+08:00"
+    },
+    {
+      "articleId": "144",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235731",
+      "bodySourceCommit": true,
+      "status": 200,
+      "communityQrUrls": true,
+      "title": "受控 Schema-on-Write：从自动建列到拒绝坏批次",
+      "checkedAt": "2026-10-09T11:47:32.2602091+08:00"
+    }
+  ],
+  "finalTodaySuccess": 2,
+  "finalQueueCount": 0,
+  "finalProcessIdentityChecks": [
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56224,
+      "originalCreatedAt": "2026-10-09T11:07:12.3599671+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56308,
+      "originalCreatedAt": "2026-10-09T11:07:12.4924254+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 11124,
+      "originalCreatedAt": "2026-10-09T11:07:12.5094976+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 49240,
+      "originalCreatedAt": "2026-10-09T11:07:14.6027137+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 41676,
+      "originalCreatedAt": "2026-10-09T11:07:14.6180890+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 57196,
+      "originalCreatedAt": "2026-10-09T11:08:06.3655974+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 45164,
+      "originalCreatedAt": "2026-10-09T11:08:06.3869685+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 50760,
+      "originalCreatedAt": "2026-10-09T11:38:43.7036542+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 43756,
+      "originalCreatedAt": "2026-10-09T11:38:43.7156040+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 46864,
+      "originalCreatedAt": "2026-10-09T11:39:00.5809983+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 15836,
+      "originalCreatedAt": "2026-10-09T11:39:00.5889802+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 6056,
+      "originalCreatedAt": "2026-10-09T11:39:05.1662093+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56104,
+      "originalCreatedAt": "2026-10-09T11:39:05.1736210+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 54716,
+      "originalCreatedAt": "2026-10-09T11:39:06.5067250+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 22296,
+      "originalCreatedAt": "2026-10-09T11:39:06.5169671+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 49392,
+      "originalCreatedAt": "2026-10-09T11:39:25.8466426+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 30872,
+      "originalCreatedAt": "2026-10-09T11:39:25.8536963+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 53092,
+      "originalCreatedAt": "2026-10-09T11:39:26.8016162+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 8188,
+      "originalCreatedAt": "2026-10-09T11:39:26.8088794+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 43428,
+      "originalCreatedAt": "2026-10-09T11:44:10.4139209+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 54296,
+      "originalCreatedAt": "2026-10-09T11:44:10.4335952+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 6492,
+      "originalCreatedAt": "2026-10-09T11:44:12.2200322+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 23700,
+      "originalCreatedAt": "2026-10-09T11:44:12.2304968+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 44164,
+      "originalCreatedAt": "2026-10-09T11:44:53.9564970+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56792,
+      "originalCreatedAt": "2026-10-09T11:44:53.9704177+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56932,
+      "originalCreatedAt": "2026-10-09T11:45:21.3363172+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 28436,
+      "originalCreatedAt": "2026-10-09T11:45:21.3497674+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 34900,
+      "originalCreatedAt": "2026-10-09T11:45:22.4299186+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 14088,
+      "originalCreatedAt": "2026-10-09T11:45:22.4423186+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 35288,
+      "originalCreatedAt": "2026-10-09T11:46:01.3803962+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 56624,
+      "originalCreatedAt": "2026-10-09T11:46:01.3946308+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 51168,
+      "originalCreatedAt": "2026-10-09T11:46:20.5915903+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 45740,
+      "originalCreatedAt": "2026-10-09T11:46:20.6064474+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 50708,
+      "originalCreatedAt": "2026-10-09T11:46:22.8510249+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 17644,
+      "originalCreatedAt": "2026-10-09T11:46:48.0971126+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 18084,
+      "originalCreatedAt": "2026-10-09T11:46:48.1182814+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 54868,
+      "originalCreatedAt": "2026-10-09T11:46:49.7557593+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 7452,
+      "originalCreatedAt": "2026-10-09T11:47:30.3746835+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 4020,
+      "originalCreatedAt": "2026-10-09T11:47:30.3893901+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 55772,
+      "originalCreatedAt": "2026-10-09T11:47:31.3167349+08:00",
+      "presenceEvidence": "pid-absent"
+    },
+    {
+      "sameIdentityAlive": false,
+      "pidPresent": false,
+      "action": "read-only; do not stop reused or shared PID",
+      "pid": 8396,
+      "originalCreatedAt": "2026-10-09T11:47:31.3300412+08:00",
+      "presenceEvidence": "pid-absent"
+    }
+  ],
+  "completedAt": "2026-10-09T11:48:33.1860815+08:00",
+  "manualResumeElapsedMinutes": 12.279640436666666,
+  "actualPublisherRequests": 2,
+  "writtenArticles": 2,
+  "taskChanges": [
+    "143-measurement-sparse-values-and-names.md",
+    "144-schema-on-write-rejection-and-correction.md",
+    "publishing-state.json",
+    "publishing-events.jsonl",
+    "00-publishing-plan.md",
+    "series-backlog.md",
+    "publishing-review-2026-10-09.json",
+    "HANDOFF own appended section"
+  ],
+  "processAuditLimits": "Initial restricted-environment probe failed before identity capture; curl --version only, no POST. Subsequent native snapshots bounded and may miss short-lived children; observed identities absent, no global orphan-freedom claim.",
+  "finishedAt": "2026-10-09T11:50:23.8477846+08:00"
+}

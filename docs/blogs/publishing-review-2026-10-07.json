@@ -24,46 +24,7 @@
       "identity": {
         "parentPid": 89648,
         "pid": 41512,
-        "createdAt": "2026-10-07T11:06:24.671031+08:00",
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 139\"",
-        "parentChain": [
-          {
-            "parentPid": 104700,
-            "pid": 89648,
-            "createdAt": "2026-10-07T00:55:06.091465+08:00",
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
-          },
-          {
-            "parentPid": 12944,
-            "pid": 104700,
-            "createdAt": "2026-10-07T00:54:56.898652+08:00",
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
-          },
-          {
-            "parentPid": 3472,
-            "pid": 12944,
-            "createdAt": "2026-10-02T21:45:52.746922+08:00",
-            "commandLine": "sihost.exe"
-          },
-          {
-            "parentPid": 1892,
-            "pid": 3472,
-            "createdAt": "2026-10-02T21:45:34.162075+08:00",
-            "commandLine": null
-          },
-          {
-            "parentPid": 1812,
-            "pid": 1892,
-            "createdAt": "2026-10-02T21:45:33.395525+08:00",
-            "commandLine": null
-          },
-          {
-            "parentPid": 1672,
-            "pid": 1812,
-            "createdAt": "2026-10-02T21:45:32.630945+08:00",
-            "commandLine": null
-          }
-        ]
+        "createdAt": "2026-10-07T11:06:24.671031+08:00"
       },
       "mode": "dry",
       "articleId": "139",
@@ -74,105 +35,13 @@
       "mode": "dry",
       "durationSeconds": 8.3937022,
       "articleId": "139",
-      "failure": "Publisher footer/draft invalid",
-      "identities": [
-        {
-          "parentChain": [
-            {
-              "parentPid": 89648,
-              "pid": 41512,
-              "createdAt": "2026-10-07T11:06:24.671031+08:00",
-              "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 139\""
-            },
-            {
-              "parentPid": 104700,
-              "pid": 89648,
-              "createdAt": "2026-10-07T00:55:06.091465+08:00",
-              "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true"
-            },
-            {
-              "parentPid": 12944,
-              "pid": 104700,
-              "createdAt": "2026-10-07T00:54:56.898652+08:00",
-              "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" "
-            },
-            {
-              "parentPid": 3472,
-              "pid": 12944,
-              "createdAt": "2026-10-02T21:45:52.746922+08:00",
-              "commandLine": "sihost.exe"
-            },
-            {
-              "parentPid": 1892,
-              "pid": 3472,
-              "createdAt": "2026-10-02T21:45:34.162075+08:00",
-              "commandLine": null
-            },
-            {
-              "parentPid": 1812,
-              "pid": 1892,
-              "createdAt": "2026-10-02T21:45:33.395525+08:00",
-              "commandLine": null
-            },
-            {
-              "parentPid": 1672,
-              "pid": 1812,
-              "createdAt": "2026-10-02T21:45:32.630945+08:00",
-              "commandLine": null
-            }
-          ],
-          "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --no-build --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\139-typed-mcp-copilot-rag.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\139.preview.md",
-          "createdAt": "2026-10-07T11:06:30.861689+08:00",
-          "liveAfter": false,
-          "pid": 43460,
-          "parentPid": 41512
-        }
-      ]
+      "failure": "Publisher footer/draft invalid"
     },
     {
       "identity": {
         "pid": 68220,
         "parentPid": 89648,
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$path=[IO.Path]::GetFullPath('docs/blogs/publishing-state.json')\n$s=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json -AsHashtable\n$a=@($s.articles|Where-Object articleId -eq '139')[0]\nif($a.status -ne 'needs-update' -or $a.lastError -ne 'Publisher footer/draft invalid' -or $a.attempts -ne 0){throw 'Unexpected dry-run failure state'}\n$a.status='queued';$a.lastError=$null\n$a.notes='2026-10-07 复核修订；首个离线 dry-run 的包装器误读 camelCase 响应，已修正校验；未发网络请求，继续重新验证预览。'\n$tmp=\\\"$path.dd558cc7310e4f639ab77c86b8d23579.tmp\\\"\n[IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\",[Text.UTF8Encoding]::new($false))\n[IO.File]::Move($tmp,$path,$true)\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 139\"",
-        "createdAt": "2026-10-07T11:07:56.44255+08:00",
-        "parentChain": [
-          {
-            "pid": 89648,
-            "parentPid": 104700,
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-            "createdAt": "2026-10-07T00:55:06.091465+08:00"
-          },
-          {
-            "pid": 104700,
-            "parentPid": 12944,
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-            "createdAt": "2026-10-07T00:54:56.898652+08:00"
-          },
-          {
-            "pid": 12944,
-            "parentPid": 3472,
-            "commandLine": "sihost.exe",
-            "createdAt": "2026-10-02T21:45:52.746922+08:00"
-          },
-          {
-            "pid": 3472,
-            "parentPid": 1892,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:34.162075+08:00"
-          },
-          {
-            "pid": 1892,
-            "parentPid": 1812,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:33.395525+08:00"
-          },
-          {
-            "pid": 1812,
-            "parentPid": 1672,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:32.630945+08:00"
-          }
-        ]
+        "createdAt": "2026-10-07T11:07:56.44255+08:00"
       },
       "kind": "wrapper",
       "articleId": "139",
@@ -183,59 +52,6 @@
       "mode": "dry",
       "durationSeconds": 8.350385,
       "failure": null,
-      "identities": [
-        {
-          "liveAfter": false,
-          "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --no-build --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\139-typed-mcp-copilot-rag.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\139.preview.md",
-          "parentChain": [
-            {
-              "pid": 68220,
-              "parentPid": 89648,
-              "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$path=[IO.Path]::GetFullPath('docs/blogs/publishing-state.json')\n$s=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json -AsHashtable\n$a=@($s.articles|Where-Object articleId -eq '139')[0]\nif($a.status -ne 'needs-update' -or $a.lastError -ne 'Publisher footer/draft invalid' -or $a.attempts -ne 0){throw 'Unexpected dry-run failure state'}\n$a.status='queued';$a.lastError=$null\n$a.notes='2026-10-07 复核修订；首个离线 dry-run 的包装器误读 camelCase 响应，已修正校验；未发网络请求，继续重新验证预览。'\n$tmp=\\\"$path.dd558cc7310e4f639ab77c86b8d23579.tmp\\\"\n[IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\",[Text.UTF8Encoding]::new($false))\n[IO.File]::Move($tmp,$path,$true)\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 139\"",
-              "createdAt": "2026-10-07T11:07:56.44255+08:00"
-            },
-            {
-              "pid": 89648,
-              "parentPid": 104700,
-              "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-              "createdAt": "2026-10-07T00:55:06.091465+08:00"
-            },
-            {
-              "pid": 104700,
-              "parentPid": 12944,
-              "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-              "createdAt": "2026-10-07T00:54:56.898652+08:00"
-            },
-            {
-              "pid": 12944,
-              "parentPid": 3472,
-              "commandLine": "sihost.exe",
-              "createdAt": "2026-10-02T21:45:52.746922+08:00"
-            },
-            {
-              "pid": 3472,
-              "parentPid": 1892,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:34.162075+08:00"
-            },
-            {
-              "pid": 1892,
-              "parentPid": 1812,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:33.395525+08:00"
-            },
-            {
-              "pid": 1812,
-              "parentPid": 1672,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:32.630945+08:00"
-            }
-          ],
-          "parentPid": 68220,
-          "createdAt": "2026-10-07T11:08:02.549356+08:00",
-          "pid": 60412
-        }
-      ],
       "articleId": "139"
     },
     {
@@ -245,46 +61,7 @@
       "identity": {
         "createdAt": "2026-10-07T11:09:11.765445+08:00",
         "pid": 2068,
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 140\"",
-        "parentPid": 89648,
-        "parentChain": [
-          {
-            "createdAt": "2026-10-07T00:55:06.091465+08:00",
-            "pid": 89648,
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-            "parentPid": 104700
-          },
-          {
-            "createdAt": "2026-10-07T00:54:56.898652+08:00",
-            "pid": 104700,
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-            "parentPid": 12944
-          },
-          {
-            "createdAt": "2026-10-02T21:45:52.746922+08:00",
-            "pid": 12944,
-            "commandLine": "sihost.exe",
-            "parentPid": 3472
-          },
-          {
-            "createdAt": "2026-10-02T21:45:34.162075+08:00",
-            "pid": 3472,
-            "commandLine": null,
-            "parentPid": 1892
-          },
-          {
-            "createdAt": "2026-10-02T21:45:33.395525+08:00",
-            "pid": 1892,
-            "commandLine": null,
-            "parentPid": 1812
-          },
-          {
-            "createdAt": "2026-10-02T21:45:32.630945+08:00",
-            "pid": 1812,
-            "commandLine": null,
-            "parentPid": 1672
-          }
-        ]
+        "parentPid": 89648
       }
     },
     {
@@ -292,51 +69,11 @@
       "kind": "publisher",
       "mode": "dry",
       "articleId": "140",
-      "identities": [],
       "durationSeconds": 6.1068193
     },
     {
       "identity": {
-        "parentChain": [
-          {
-            "pid": 89648,
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-            "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-            "parentPid": 104700
-          },
-          {
-            "pid": 104700,
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-            "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-            "parentPid": 12944
-          },
-          {
-            "pid": 12944,
-            "commandLine": "sihost.exe",
-            "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-            "parentPid": 3472
-          },
-          {
-            "pid": 3472,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-            "parentPid": 1892
-          },
-          {
-            "pid": 1892,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-            "parentPid": 1812
-          },
-          {
-            "pid": 1812,
-            "commandLine": null,
-            "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-            "parentPid": 1672
-          }
-        ],
         "pid": 64652,
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$path=[IO.Path]::GetFullPath('docs/blogs/publishing-state.json')\n$s=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json -AsHashtable\n$a=@($s.articles|Where-Object articleId -eq '140')[0]\nif($a.status -ne 'needs-update' -or $a.lastError -ne 'Parent audit timeout' -or $a.attempts -ne 0){throw 'Unexpected offline audit failure state'}\n$a.status='queued';$a.lastError=$null\n$tmp=\\\"$path.dd558cc7310e4f639ab77c86b8d23579.tmp\\\"\n[IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\",[Text.UTF8Encoding]::new($false))\n[IO.File]::Move($tmp,$path,$true)\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 140\"",
         "createdAt": "2026-10-07T11:10:22.7582270+08:00",
         "parentPid": 89648
       },
@@ -345,59 +82,6 @@
       "kind": "wrapper"
     },
     {
-      "identities": [
-        {
-          "parentChain": [
-            {
-              "pid": 64652,
-              "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n$path=[IO.Path]::GetFullPath('docs/blogs/publishing-state.json')\n$s=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json -AsHashtable\n$a=@($s.articles|Where-Object articleId -eq '140')[0]\nif($a.status -ne 'needs-update' -or $a.lastError -ne 'Parent audit timeout' -or $a.attempts -ne 0){throw 'Unexpected offline audit failure state'}\n$a.status='queued';$a.lastError=$null\n$tmp=\\\"$path.dd558cc7310e4f639ab77c86b8d23579.tmp\\\"\n[IO.File]::WriteAllText($tmp,($s|ConvertTo-Json -Depth 30).Replace(\\\"`r`n\\\",\\\"`n\\\")+\\\"`n\\\",[Text.UTF8Encoding]::new($false))\n[IO.File]::Move($tmp,$path,$true)\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode dry -ArticleId 140\"",
-              "createdAt": "2026-10-07T11:10:22.7582270+08:00",
-              "parentPid": 89648
-            },
-            {
-              "pid": 89648,
-              "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-              "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-              "parentPid": 104700
-            },
-            {
-              "pid": 104700,
-              "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-              "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-              "parentPid": 12944
-            },
-            {
-              "pid": 12944,
-              "commandLine": "sihost.exe",
-              "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-              "parentPid": 3472
-            },
-            {
-              "pid": 3472,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-              "parentPid": 1892
-            },
-            {
-              "pid": 1892,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-              "parentPid": 1812
-            },
-            {
-              "pid": 1812,
-              "commandLine": null,
-              "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-              "parentPid": 1672
-            }
-          ],
-          "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --no-build --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\140-semantic-image-search-boundary.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\140.preview.md",
-          "liveAfter": false,
-          "pid": 59140,
-          "parentPid": 64652,
-          "createdAt": "2026-10-07T11:10:25.1948930+08:00"
-        }
-      ],
       "failure": null,
       "articleId": "140",
       "kind": "publisher",
@@ -410,46 +94,7 @@
       "articleId": "139",
       "identity": {
         "createdAt": "2026-10-07T11:11:33.8370050+08:00",
-        "parentChain": [
-          {
-            "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-            "parentPid": 104700,
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-            "pid": 89648
-          },
-          {
-            "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-            "parentPid": 12944,
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-            "pid": 104700
-          },
-          {
-            "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-            "parentPid": 3472,
-            "commandLine": "sihost.exe",
-            "pid": 12944
-          },
-          {
-            "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-            "parentPid": 1892,
-            "commandLine": null,
-            "pid": 3472
-          },
-          {
-            "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-            "parentPid": 1812,
-            "commandLine": null,
-            "pid": 1892
-          },
-          {
-            "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-            "parentPid": 1672,
-            "commandLine": null,
-            "pid": 1812
-          }
-        ],
         "parentPid": 89648,
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode publish -ArticleId 139\"",
         "pid": 51288
       }
     },
@@ -458,120 +103,12 @@
       "mode": "publish",
       "articleId": "139",
       "failure": null,
-      "identities": [
-        {
-          "liveAfter": false,
-          "parentPid": 51288,
-          "pid": 101344,
-          "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --no-build --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\139-typed-mcp-copilot-rag.md",
-          "parentChain": [
-            {
-              "createdAt": "2026-10-07T11:11:33.8370050+08:00",
-              "parentPid": 89648,
-              "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode publish -ArticleId 139\"",
-              "pid": 51288
-            },
-            {
-              "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-              "parentPid": 104700,
-              "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-              "pid": 89648
-            },
-            {
-              "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-              "parentPid": 12944,
-              "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-              "pid": 104700
-            },
-            {
-              "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-              "parentPid": 3472,
-              "commandLine": "sihost.exe",
-              "pid": 12944
-            },
-            {
-              "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-              "parentPid": 1892,
-              "commandLine": null,
-              "pid": 3472
-            },
-            {
-              "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-              "parentPid": 1812,
-              "commandLine": null,
-              "pid": 1892
-            },
-            {
-              "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-              "parentPid": 1672,
-              "commandLine": null,
-              "pid": 1812
-            }
-          ],
-          "createdAt": "2026-10-07T11:11:35.9389420+08:00"
-        },
-        {
-          "liveAfter": false,
-          "parentPid": 101344,
-          "pid": 101108,
-          "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
-          "parentChain": [],
-          "createdAt": "2026-10-07T11:11:35.9548330+08:00"
-        },
-        {
-          "liveAfter": false,
-          "parentPid": 101344,
-          "pid": 34232,
-          "commandLine": "\"C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher\\bin\\Debug\\net8.0\\CnblogsPublisher.exe\"  D:\\source\\SonnetDB\\docs\\blogs\\139-typed-mcp-copilot-rag.md",
-          "parentChain": [],
-          "createdAt": "2026-10-07T11:11:37.6117580+08:00"
-        }
-      ],
       "kind": "publisher"
     },
     {
       "identity": {
-        "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode publish -ArticleId 140\"",
         "parentPid": 89648,
         "createdAt": "2026-10-07T11:12:04.4556230+08:00",
-        "parentChain": [
-          {
-            "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-            "parentPid": 104700,
-            "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-            "pid": 89648
-          },
-          {
-            "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-            "parentPid": 12944,
-            "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-            "pid": 104700
-          },
-          {
-            "commandLine": "sihost.exe",
-            "parentPid": 3472,
-            "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-            "pid": 12944
-          },
-          {
-            "commandLine": null,
-            "parentPid": 1892,
-            "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-            "pid": 3472
-          },
-          {
-            "commandLine": null,
-            "parentPid": 1812,
-            "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-            "pid": 1892
-          },
-          {
-            "commandLine": null,
-            "parentPid": 1672,
-            "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-            "pid": 1812
-          }
-        ],
         "pid": 78564
       },
       "articleId": "140",
@@ -583,59 +120,6 @@
       "durationSeconds": 3.8323629,
       "kind": "publisher",
       "failure": null,
-      "identities": [
-        {
-          "parentPid": 78564,
-          "createdAt": "2026-10-07T11:12:06.2232270+08:00",
-          "parentChain": [
-            {
-              "commandLine": "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command \"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}\n& 'D:\\source\\SonnetDB\\docs\\blogs\\.publish-run-dd558cc7310e4f639ab77c86b8d23579\\session.ps1' -Mode publish -ArticleId 140\"",
-              "parentPid": 89648,
-              "createdAt": "2026-10-07T11:12:04.4556230+08:00",
-              "pid": 78564
-            },
-            {
-              "commandLine": "C:\\Users\\mysti\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe -c features.code_mode_host=true app-server --analytics-default-enabled -c plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true -c plugins.code-review@openai-bundled.mcp_servers.code-review.enabled=true",
-              "parentPid": 104700,
-              "createdAt": "2026-10-07T00:55:06.0914650+08:00",
-              "pid": 89648
-            },
-            {
-              "commandLine": "\"C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.930.7945.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe\" ",
-              "parentPid": 12944,
-              "createdAt": "2026-10-07T00:54:56.8986520+08:00",
-              "pid": 104700
-            },
-            {
-              "commandLine": "sihost.exe",
-              "parentPid": 3472,
-              "createdAt": "2026-10-02T21:45:52.7469220+08:00",
-              "pid": 12944
-            },
-            {
-              "commandLine": null,
-              "parentPid": 1892,
-              "createdAt": "2026-10-02T21:45:34.1620750+08:00",
-              "pid": 3472
-            },
-            {
-              "commandLine": null,
-              "parentPid": 1812,
-              "createdAt": "2026-10-02T21:45:33.3955250+08:00",
-              "pid": 1892
-            },
-            {
-              "commandLine": null,
-              "parentPid": 1672,
-              "createdAt": "2026-10-02T21:45:32.6309450+08:00",
-              "pid": 1812
-            }
-          ],
-          "liveAfter": false,
-          "pid": 15156,
-          "commandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --no-build --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\140-semantic-image-search-boundary.md"
-        }
-      ],
       "articleId": "140"
     }
   ],
@@ -810,86 +294,6 @@
     "camelCase publisher response check corrected after offline dry-run; zero POST at failure",
     "parent-chain collection changed to bounded snapshot after offline audit timeout; zero POST at failure",
     "PowerShell 7.6 JSON dates preserved as strings after quota precheck error; zero POST at failure"
-  ],
-  "cleanup": [
-    {
-      "taskIdentityLive": false,
-      "pid": 41512,
-      "createdAt": "2026-10-07T11:06:24.671031+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 43460,
-      "createdAt": "2026-10-07T11:06:30.861689+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 68220,
-      "createdAt": "2026-10-07T11:07:56.44255+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 60412,
-      "createdAt": "2026-10-07T11:08:02.549356+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 2068,
-      "createdAt": "2026-10-07T11:09:11.765445+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 64652,
-      "createdAt": "2026-10-07T11:10:22.7582270+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 59140,
-      "createdAt": "2026-10-07T11:10:25.1948930+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 51288,
-      "createdAt": "2026-10-07T11:11:33.8370050+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 101344,
-      "createdAt": "2026-10-07T11:11:35.9389420+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 101108,
-      "createdAt": "2026-10-07T11:11:35.9548330+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 34232,
-      "createdAt": "2026-10-07T11:11:37.6117580+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 78564,
-      "createdAt": "2026-10-07T11:12:04.4556230+08:00",
-      "pidPresentOtherIdentity": false
-    },
-    {
-      "taskIdentityLive": false,
-      "pid": 15156,
-      "createdAt": "2026-10-07T11:12:06.2232270+08:00",
-      "pidPresentOtherIdentity": false
-    }
   ],
   "todayPublishedAfter": 2,
   "completedAt": "2026-10-07T11:13:38.0228482+08:00",

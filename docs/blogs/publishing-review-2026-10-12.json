@@ -1,0 +1,696 @@
+{
+  "priorUnknownEntriesPaused": true,
+  "runId": "cnblogs-20261012-daily-1056",
+  "productBuildOrTest": "NOT_RUN",
+  "requestProxy": null,
+  "sourceThreadId": "01a12e0a-1c60-7523-b258-fab37989539b",
+  "examplesExecuted": false,
+  "writtenCount": 2,
+  "newArticleRequests": 2,
+  "deadline": "2026-10-12T11:26:36.0000000+08:00",
+  "imageIntents": [
+    {
+      "model": "gpt-image-2",
+      "requestedSize": "1792x768",
+      "retries": 0,
+      "timeoutSeconds": 120,
+      "attempts": 1,
+      "at": "2026-10-12T11:01:08.1049819+08:00",
+      "wallSeconds": 260,
+      "quality": "high",
+      "articleId": "149",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-12/149-prompt.txt"
+    },
+    {
+      "model": "gpt-image-2",
+      "requestedSize": "1792x768",
+      "retries": 0,
+      "timeoutSeconds": 120,
+      "attempts": 1,
+      "at": "2026-10-12T11:03:03.2603144+08:00",
+      "wallSeconds": 260,
+      "quality": "high",
+      "articleId": "150",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-12/150-prompt.txt"
+    }
+  ],
+  "candidateIds": [
+    "149",
+    "150"
+  ],
+  "startedAt": "2026-10-12T10:56:36+08:00",
+  "nugetVersionMatches": [
+    "4.0.0\"",
+    "4.0.0\r\n"
+  ],
+  "imageRequests": 2,
+  "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+  "latestReleaseMatches": [
+    "v4.0.0",
+    "v4.0.0\\"
+  ],
+  "uploadAccount": {
+    "methods": [
+      "metaWeblog.getPost",
+      "blogger.getUsersBlogs"
+    ],
+    "verifiedAt": "2026-10-12T11:00:30.1624456+08:00",
+    "blogId": "523396",
+    "blogApp": "IoTSharp",
+    "reverifiedAt": "2026-10-12T11:13:13.3270502+08:00"
+  },
+  "qrEvidence": [
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+      "verifiedAt": "2026-10-12T11:00:30.5401067+08:00",
+      "sha256": "5d8dfff96b418c884c9f602168057878e8b6b0bae8b1a181332e1c2cd7be3c99"
+    },
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg",
+      "verifiedAt": "2026-10-12T11:00:31.1048630+08:00",
+      "sha256": "7f34d73bd6ea3ea292754d274ec50fd542801f9250000faa058d0d1fee76356c"
+    }
+  ],
+  "articles": [
+    {
+      "articleId": "149",
+      "dedupAngle": "Relational conditional UPSERT true/false/null results, RETURNING and actual remote session outcomes; published015 is measurement insert,147 schema workflow,148 JOIN; no same-topic published/alias or account title.",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB UPSERT 与 RETURNING：取得真实写入结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\149-cover-20261012.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "35c7f851d31c33983b562cd9238eb67f08d772cfda2c47ba8958e8c526a6a49a",
+          "at": "2026-10-12T11:13:21.9932875+08:00",
+          "phase": "local"
+        },
+        {
+          "previewSha256": "9ce1f3e60acd040e53630a2e6627df14d421a6f56d1b6d8a000b723460b86d07",
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB UPSERT 与 RETURNING：取得真实写入结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "at": "2026-10-12T11:13:32.8279860+08:00",
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111327223-849851304.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        },
+        {
+          "previewSha256": "caf9c1a37b44ce9eefbc7b82a98a17c7a0e3803e4b4f93df6c965d8260223ba9",
+          "at": "2026-10-12T11:16:20.7836470+08:00",
+          "phase": "caption-clarification",
+          "result": {
+            "title": "SonnetDB UPSERT 与 RETURNING：取得真实写入结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        },
+        {
+          "at": "2026-10-12T11:16:27.1433797+08:00",
+          "result": {
+            "title": "SonnetDB UPSERT 与 RETURNING：取得真实写入结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imagesExactly3": true,
+          "phase": "prepublish",
+          "previewSha256": "caf9c1a37b44ce9eefbc7b82a98a17c7a0e3803e4b4f93df6c965d8260223ba9",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111327223-849851304.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        }
+      ],
+      "status": "published",
+      "facts": [
+        {
+          "path": "../sql-reference.md",
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a"
+        },
+        {
+          "path": "../ado-net.md",
+          "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44"
+        },
+        {
+          "path": "../audits/github-issue-184-conditional-upsert-20260925.md",
+          "sha256": "94efe9908b5a22112156159f2cc19d2d7764ef8237ae7b5264032e187119c6af"
+        },
+        {
+          "path": "../audits/github-issue-184-remote-session-20260925.md",
+          "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "uploadIntent": {
+        "intentAt": "2026-10-12T11:13:22.0015837+08:00",
+        "attempts": 1,
+        "method": "metaWeblog.newMediaObject",
+        "status": "uploading",
+        "runId": "cnblogs-20261012-daily-1056",
+        "sha256": "59a4e46e6111da4a0f80681a3c07d7082a130ead6f1e4b94abc7012731c77f18"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111327223-849851304.png",
+        "receivedAt": "2026-10-12T11:13:27.1669275+08:00"
+      },
+      "coverVisualReview": "approved",
+      "coverCaptionClarification": "FALSE/NULL are WHERE predicate on existing conflict; new key inserts. No new generation/upload.",
+      "prepublishSourceDocs": [
+        {
+          "path": "../sql-reference.md",
+          "readAt": "2026-10-12T11:16:22.2297511+08:00",
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a"
+        },
+        {
+          "path": "../ado-net.md",
+          "readAt": "2026-10-12T11:16:22.2347571+08:00",
+          "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44"
+        },
+        {
+          "path": "../audits/github-issue-184-conditional-upsert-20260925.md",
+          "readAt": "2026-10-12T11:16:22.2365387+08:00",
+          "sha256": "94efe9908b5a22112156159f2cc19d2d7764ef8237ae7b5264032e187119c6af"
+        },
+        {
+          "path": "../audits/github-issue-184-remote-session-20260925.md",
+          "readAt": "2026-10-12T11:16:22.2381701+08:00",
+          "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-12T11:16:22.2395043+08:00",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-12T11:16:22.2413127+08:00",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "accountPrepublish": {
+        "checkedAt": "2026-10-12T11:16:28.9747537+08:00",
+        "recentPosts": 100,
+        "titleAliasDedupPassed": true,
+        "todaySuccessCount": 0
+      },
+      "publishIntent": {
+        "method": "skill C# publisher openapi newPost",
+        "contentSha256": "7e15b11d3ec9daa2a0c3cca4e056ef81ad6d8bc16a07d1cff1cf923f59599a60",
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+        "at": "2026-10-12T11:16:29.0214487+08:00",
+        "attempts": 1
+      },
+      "publishResponse": {
+        "title": "SonnetDB UPSERT 与 RETURNING：取得真实写入结果",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23269266",
+        "postId": "23269266",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "createRetried": false,
+        "originalIdBodyExact": true,
+        "requestAttempts": [
+          {
+            "url": "https://www.cnblogs.com/IoTSharp/p/23269266",
+            "httpStatus": 200,
+            "at": "2026-10-12T11:19:35.5681402+08:00"
+          }
+        ],
+        "publicConfirmed": true
+      },
+      "publicationEvidence": {
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "publicHttpStatus": 200,
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111327223-849851304.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "bodyMatchesFinalCSharpPreview": true,
+        "defaultBothQrVerified": true,
+        "postId": "23269266",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23269266",
+        "publicHtmlSha256": "d5e96b8b20a372b6dc4f584dbe0be7b26b2960c1696ec5c8ced54a9e35516f32",
+        "bodySha256": "878e1e8a18aa2e4ad3b6af1635b4f98625f114f03c5f4d732c0eb62ee62a3c72",
+        "checkedAt": "2026-10-12T11:19:35.5732742+08:00",
+        "titleVerified": true,
+        "coverVerified": true
+      }
+    },
+    {
+      "articleId": "150",
+      "dedupAngle": "ROWVERSION stale-edit and same-database multi-table lightweight transaction workflow; distinct from149 statement UPSERT, published147 schema and148 JOIN. Historical081/082 remain unconfirmed.",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB 轻事务与 ROWVERSION：安全处理并发修改",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\150-cover-20261012.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "567f43459077f9565c07c99e66323ca13f663c1a32362358860b5f567bbc9c50",
+          "at": "2026-10-12T11:13:36.0899054+08:00",
+          "phase": "local"
+        },
+        {
+          "previewSha256": "85a4ad49a8788fe1313c986d4b139782cf19cd0d96d1d11edfe6f385120d3737",
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB 轻事务与 ROWVERSION：安全处理并发修改",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "at": "2026-10-12T11:13:50.0705595+08:00",
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111344942-1256787926.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        },
+        {
+          "phase": "prepublish",
+          "previewSha256": "85a4ad49a8788fe1313c986d4b139782cf19cd0d96d1d11edfe6f385120d3737",
+          "at": "2026-10-12T11:20:21.5217358+08:00",
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB 轻事务与 ROWVERSION：安全处理并发修改",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111344942-1256787926.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        }
+      ],
+      "status": "published",
+      "facts": [
+        {
+          "path": "../ado-net.md",
+          "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44"
+        },
+        {
+          "path": "../sql-reference.md",
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a"
+        },
+        {
+          "path": "../audits/github-issue-184-remote-session-20260925.md",
+          "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "uploadIntent": {
+        "intentAt": "2026-10-12T11:13:36.0945310+08:00",
+        "attempts": 1,
+        "method": "metaWeblog.newMediaObject",
+        "status": "uploading",
+        "runId": "cnblogs-20261012-daily-1056",
+        "sha256": "8da3dc5bf268de42175d3f777b0e51430fcb287915d846b3bdd57e2e942011fa"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111344942-1256787926.png",
+        "receivedAt": "2026-10-12T11:13:44.6779811+08:00"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44",
+          "path": "../ado-net.md",
+          "readAt": "2026-10-12T11:20:17.5961239+08:00"
+        },
+        {
+          "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a",
+          "path": "../sql-reference.md",
+          "readAt": "2026-10-12T11:20:17.6001089+08:00"
+        },
+        {
+          "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093",
+          "path": "../audits/github-issue-184-remote-session-20260925.md",
+          "readAt": "2026-10-12T11:20:17.6010199+08:00"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-12T11:20:17.6019813+08:00"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-12T11:20:17.6030300+08:00"
+        }
+      ],
+      "accountPrepublish": {
+        "titleAliasDedupPassed": true,
+        "checkedAt": "2026-10-12T11:20:27.1183321+08:00",
+        "todaySuccessCount": 1,
+        "recentPosts": 100
+      },
+      "publishIntent": {
+        "method": "skill C# publisher openapi newPost",
+        "attempts": 1,
+        "contentSha256": "a44e301959b8adf6a2ef003f541b0e5862feb1feab42c897fc1ce3dfca9356a6",
+        "at": "2026-10-12T11:20:27.1518793+08:00",
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 轻事务与 ROWVERSION：安全处理并发修改",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23269397",
+        "postId": "23269397",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "originalIdBodyExact": true,
+        "requestAttempts": [
+          {
+            "at": "2026-10-12T11:22:10.5804618+08:00",
+            "url": "https://www.cnblogs.com/IoTSharp/p/23269397",
+            "httpStatus": 200
+          }
+        ],
+        "publicConfirmed": true,
+        "createRetried": false
+      },
+      "publicationEvidence": {
+        "checkedAt": "2026-10-12T11:22:10.6099619+08:00",
+        "titleVerified": true,
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "bodySha256": "3736d353bf0aeaa711ebd4992863a55b0be8126fe3c6486131b112ff6d5f1a32",
+        "postId": "23269397",
+        "publicHttpStatus": 200,
+        "defaultBothQrVerified": true,
+        "bodyMatchesFinalCSharpPreview": true,
+        "coverVerified": true,
+        "publicHtmlSha256": "30d69e7ae6d059fe58ac05ef80da6c452cba4a3dc51247c3f893216b6d27a9bd",
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261012111344942-1256787926.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "url": "https://www.cnblogs.com/IoTSharp/p/23269397"
+      }
+    }
+  ],
+  "status": "published-and-verified",
+  "assetReuseSearch": "Named blog/WeChat/Weibo cover directories searched for UPSERT/RETURNING/ROWVERSION/transaction/149/150, no matching traceable topic cover.",
+  "candidateCount": 2,
+  "readEvidence": [
+    {
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "name": "homepage",
+      "httpStatus": 200,
+      "checkedAt": "2026-10-12T11:00:04.1390698+08:00",
+      "sha256": "9aa5d8a6eb37ec9806cb9cef018473dd89014cc47d1921c0f46e24950ab44dd5"
+    },
+    {
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/latest",
+      "name": "latest-release",
+      "httpStatus": 200,
+      "checkedAt": "2026-10-12T11:00:26.2285320+08:00",
+      "sha256": "2d492667ecd59df41f98b456022368eab2b48a34ae856648ed2457f6f2af00d6"
+    },
+    {
+      "url": "https://www.nuget.org/packages/SonnetDB.Core",
+      "name": "nuget-core",
+      "httpStatus": 200,
+      "checkedAt": "2026-10-12T11:00:27.8487618+08:00",
+      "sha256": "0277fa3d6f6e452f48d3effc04b53225edca07bd0626e5cf1b8910f2c97cfb4a"
+    },
+    {
+      "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/sql-reference.md",
+      "httpStatus": 200,
+      "name": "docs/sql-reference.md",
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-12T11:09:51.1524213+08:00"
+    },
+    {
+      "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/ado-net.md",
+      "httpStatus": 200,
+      "name": "docs/ado-net.md",
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-12T11:10:11.8326464+08:00"
+    },
+    {
+      "sha256": "94efe9908b5a22112156159f2cc19d2d7764ef8237ae7b5264032e187119c6af",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/audits/github-issue-184-conditional-upsert-20260925.md",
+      "httpStatus": 200,
+      "name": "docs/audits/github-issue-184-conditional-upsert-20260925.md",
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-12T11:10:33.4165410+08:00"
+    },
+    {
+      "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/audits/github-issue-184-remote-session-20260925.md",
+      "httpStatus": 200,
+      "name": "docs/audits/github-issue-184-remote-session-20260925.md",
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-12T11:10:55.1114811+08:00"
+    },
+    {
+      "sha256": "bbd1d641c5d57bb112b109e053f2477463842532aa9a198e1ff5f3abe3118da1",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs",
+      "httpStatus": 200,
+      "name": "src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs",
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-12T11:11:16.2799385+08:00"
+    }
+  ],
+  "dailySuccessAtStart": 0,
+  "sourceFacts": [
+    {
+      "sha256": "9c3053dd3e2086dc0c67076a89c200b59fa6e48a4f6d5a8d3efeb56cafdb305a",
+      "readAt": "2026-10-12T11:13:09.3848724+08:00",
+      "path": "docs/sql-reference.md"
+    },
+    {
+      "sha256": "64de7c678a30b932ba3b216f3c6e0d3e04c940bcd48580e6206ab83bea1d8d44",
+      "readAt": "2026-10-12T11:13:09.3890762+08:00",
+      "path": "docs/ado-net.md"
+    },
+    {
+      "sha256": "94efe9908b5a22112156159f2cc19d2d7764ef8237ae7b5264032e187119c6af",
+      "readAt": "2026-10-12T11:13:09.3899752+08:00",
+      "path": "docs/audits/github-issue-184-conditional-upsert-20260925.md"
+    },
+    {
+      "sha256": "7fe374fd61ff748c375da6b24ade5db5cf579b46ab060657cebdf9a763b23093",
+      "readAt": "2026-10-12T11:13:09.3908285+08:00",
+      "path": "docs/audits/github-issue-184-remote-session-20260925.md"
+    },
+    {
+      "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+      "readAt": "2026-10-12T11:13:09.3917291+08:00",
+      "path": "docs/releases/4.0.0.md"
+    },
+    {
+      "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+      "readAt": "2026-10-12T11:13:09.3928322+08:00",
+      "path": "ROADMAP.md"
+    },
+    {
+      "sha256": "52de363c79b631b4893c4deedafe754160707ccc3999e894f492255a55c29a52",
+      "readAt": "2026-10-12T11:13:09.3945410+08:00",
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs"
+    },
+    {
+      "sha256": "c125a4f81146ffd0f02917bbb077e5683274878aa38fb9b22607bb4ee8430661",
+      "readAt": "2026-10-12T11:13:09.3954252+08:00",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlTransactionContext.cs"
+    },
+    {
+      "sha256": "e1c4e23ecf6e5fa0c3030a853c51bc4eeb979f5ff9caba844423aee3658a3288",
+      "readAt": "2026-10-12T11:13:09.3966791+08:00",
+      "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs"
+    },
+    {
+      "sha256": "bbd1d641c5d57bb112b109e053f2477463842532aa9a198e1ff5f3abe3118da1",
+      "readAt": "2026-10-12T11:13:09.3975808+08:00",
+      "path": "src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs"
+    },
+    {
+      "sha256": "1a4ddec704e9e3a6f536d8393b8177b95f684fb39ab67b1962313fc42a226639",
+      "readAt": "2026-10-12T11:13:09.3984298+08:00",
+      "path": "src/SonnetDB.Data/SndbTransaction.cs"
+    },
+    {
+      "sha256": "8ab5441297cfb456dd1e720390ac01d8f0397ee8375026f6e22fa77a76c462f7",
+      "readAt": "2026-10-12T11:13:09.3992787+08:00",
+      "path": "src/SonnetDB/Hosting/SqlTransactionSessions.cs"
+    },
+    {
+      "sha256": "c2134c211ec4564e25731d19c0a95d8c799b03606b83a877b70fbee6702b5642",
+      "readAt": "2026-10-12T11:13:09.4001590+08:00",
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlOnConflictDoUpdateReviewTests.cs"
+    },
+    {
+      "sha256": "630131ee58e825c8faacdb5e28ccf613edaeb97cdb201713b2a877af74df98de",
+      "readAt": "2026-10-12T11:13:09.4016554+08:00",
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorTableTests.cs"
+    },
+    {
+      "sha256": "0a647b247384f38e7057bcb1b8288b625fc9a4b49b96e21f4b6d6eb24b31dee0",
+      "readAt": "2026-10-12T11:13:09.4024786+08:00",
+      "path": "tests/SonnetDB.Tests/RemoteTransactionCommitRecoveryTests.cs"
+    },
+    {
+      "sha256": "5088d92c4bebb94898204f3453350e603bdfbdb91bc7e8422379e5f3ae4ee002",
+      "readAt": "2026-10-12T11:13:09.4033220+08:00",
+      "path": "tests/SonnetDB.Core.Tests/Ado/SndbDmlReturningAdoTests.cs"
+    }
+  ],
+  "preparationFailures": [
+    {
+      "at": "2026-10-12T11:12:03+08:00",
+      "phase": "public-reference-read",
+      "path": "tests/SonnetDB.Tests/RemoteTransactionCommitRecoveryTests.cs",
+      "error": "Direct request failed; proxy fallback EOF. No write request. Source content verified from current worktree and identical public Git object; retained successful topic document GETs, removed redundant further downloads."
+    }
+  ],
+  "accountTodayAtStart": 0,
+  "publicSourceComparison": {
+    "documentDrift": "Historical conditional UPSERT audit superseded by remote-session audit; ADO isolation wording checked against accepting Serializable entry points, no stronger isolation claim.",
+    "roadmap": "Read current ROADMAP separately; fixed historical public roadmap linked with commit context",
+    "publicCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+    "relevantTrackedSources": "git diff fixed public commit HEAD on topic docs/current transaction/UPSERT implementations/tests produced no changes; public raw GET/hash compared against worktree",
+    "localCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+  },
+  "dailySuccessBeforePublishing": 0,
+  "readbackTransientFailures": [
+    null,
+    {
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "createRetried": false,
+      "articleId": "149",
+      "at": "2026-10-12T11:19:33.8562612+08:00"
+    },
+    {
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "at": "2026-10-12T11:22:08.9864045+08:00",
+      "articleId": "150",
+      "createRetried": false
+    }
+  ],
+  "finalQuota": {
+    "imageGenerationRequests": 2,
+    "writtenCount": 2,
+    "candidateCount": 2,
+    "attemptsPerArticle": 1,
+    "date": "2026-10-12",
+    "mediaUploadRequests": 2,
+    "successfulNewArticles": 2,
+    "queued": 0,
+    "planned": 52,
+    "timezone": "Asia/Shanghai"
+  },
+  "finishedAt": "2026-10-12T11:23:03.8441095+08:00",
+  "safetyBoundaries": {
+    "databaseExamplesExecuted": false,
+    "productBuildOrTests": "NOT_RUN",
+    "performanceRealModelHardwareProductionRecovery": "NOT_VERIFIED",
+    "stagingCommitPushDeploy": "NOT_PERFORMED",
+    "graphify": "NOT_USED",
+    "foreignWork": "Preserved; only blogs and own HANDOFF section",
+    "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+    "branch": "codex/m47-preview12-release"
+  }
+}

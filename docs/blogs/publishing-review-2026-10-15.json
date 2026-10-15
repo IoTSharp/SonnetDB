@@ -1,0 +1,767 @@
+{
+  "newArticleRequests": 2,
+  "assetReuseSearch": "Bounded named blog cover, Weibo, OSChina covers and WeChat20261009 cover directories inspected for155/156/bulk/validator/multikey/document-index/patch; no corresponding traceable cover. Two independent generated compositions.",
+  "productBuildOrTest": "NOT_RUN",
+  "candidateIds": [
+    "155",
+    "156"
+  ],
+  "runId": "cnblogs-20261015-daily-1058",
+  "priorUnknownEntriesPaused": true,
+  "status": "published-and-verified",
+  "latestReleaseMatches": [
+    "v4.0.0",
+    "v4.0.0\\"
+  ],
+  "writtenCount": 2,
+  "deadline": "2026-10-15T11:28:07.0000000+08:00",
+  "candidateCount": 2,
+  "articles": [
+    {
+      "dedupAngle": "Single-collection atomic mixed bulk, ordered zero-document commit, 24h durable replay, before/after image and expectedVersion; distinct from137 overview and154 query/cursor. Existing external vector-document article only association/search.",
+      "status": "published",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB 文档局部更新与 Mixed Bulk：版本、幂等和逐项结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\155-cover-20261015.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "9c3b0a49df318876091ab383c0e452ac3ad4efc22d781348393336a11da51954",
+          "at": "2026-10-15T11:08:36.9401007+08:00",
+          "phase": "local"
+        },
+        {
+          "at": "2026-10-15T11:08:45.9548375+08:00",
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110840863-607967422.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB 文档局部更新与 Mixed Bulk：版本、幂等和逐项结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "7c6c6f78a3b8cfcfea6d8c4532d220acdd8723e5961527f90e0f22525ce758ec"
+        },
+        {
+          "previewSha256": "7c6c6f78a3b8cfcfea6d8c4532d220acdd8723e5961527f90e0f22525ce758ec",
+          "imagesExactly3": true,
+          "at": "2026-10-15T11:11:12.5223678+08:00",
+          "result": {
+            "title": "SonnetDB 文档局部更新与 Mixed Bulk：版本、幂等和逐项结果",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110840863-607967422.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "phase": "prepublish"
+        }
+      ],
+      "articleId": "155",
+      "facts": [
+        {
+          "path": "../document-store.md",
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3"
+        },
+        {
+          "path": "../../samples/SonnetDB.DocumentQuickstart/README.md",
+          "sha256": "c356802ce66d0fd4b1bf1b8880f6c6b76c252a6c242f8bf632ce87837d3daa31"
+        },
+        {
+          "path": "../../samples/SonnetDB.DocumentQuickstart/Program.cs",
+          "sha256": "09667392cab1e6d17613af6b2aa7c043bb74c99c18de7e4215a8e362de5750db"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+          "sha256": "740ddee1a1052bdef5fdb34d14e2ed2ebe13e45cb2ba1a2c7cf7062ae1f162c6"
+        },
+        {
+          "path": "../../src/SonnetDB.Data/Documents/SndbDocumentBuilders.cs",
+          "sha256": "4acc08057a35708830eda8079ece7bd3cd756e1ee301ab0f6d96d5e321df24e0"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "uploadIntent": {
+        "attempts": 1,
+        "runId": "cnblogs-20261015-daily-1058",
+        "method": "metaWeblog.newMediaObject",
+        "status": "uploading",
+        "sha256": "6f6662a5fb8c1ae2ef7f3dcd1cccabe4e5f61307bd02fd0fc794ccc748af00bf",
+        "intentAt": "2026-10-15T11:08:36.9513111+08:00"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110840863-607967422.png",
+        "receivedAt": "2026-10-15T11:08:39.9245263+08:00"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "path": "../document-store.md",
+          "readAt": "2026-10-15T11:11:07.4501439+08:00",
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3"
+        },
+        {
+          "path": "../../samples/SonnetDB.DocumentQuickstart/README.md",
+          "readAt": "2026-10-15T11:11:07.4539063+08:00",
+          "sha256": "c356802ce66d0fd4b1bf1b8880f6c6b76c252a6c242f8bf632ce87837d3daa31"
+        },
+        {
+          "path": "../../samples/SonnetDB.DocumentQuickstart/Program.cs",
+          "readAt": "2026-10-15T11:11:07.4549624+08:00",
+          "sha256": "09667392cab1e6d17613af6b2aa7c043bb74c99c18de7e4215a8e362de5750db"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+          "readAt": "2026-10-15T11:11:07.4560144+08:00",
+          "sha256": "740ddee1a1052bdef5fdb34d14e2ed2ebe13e45cb2ba1a2c7cf7062ae1f162c6"
+        },
+        {
+          "path": "../../src/SonnetDB.Data/Documents/SndbDocumentBuilders.cs",
+          "readAt": "2026-10-15T11:11:07.4571191+08:00",
+          "sha256": "4acc08057a35708830eda8079ece7bd3cd756e1ee301ab0f6d96d5e321df24e0"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-15T11:11:07.4580193+08:00",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-15T11:11:07.4590444+08:00",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "accountPrepublish": {
+        "checkedAt": "2026-10-15T11:11:13.7434273+08:00",
+        "todaySuccessCount": 0,
+        "titleAliasDedupPassed": true,
+        "recentPosts": 100
+      },
+      "publishIntent": {
+        "method": "skill C# publisher openapi newPost",
+        "at": "2026-10-15T11:11:13.7928057+08:00",
+        "attempts": 1,
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+        "contentSha256": "58edb08553d99e81b014042d7ff23856910c433ede0136aa7340b83028ec3712"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 文档局部更新与 Mixed Bulk：版本、幂等和逐项结果",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23312062",
+        "postId": "23312062",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "requestAttempts": [
+          {
+            "httpStatus": 200,
+            "at": "2026-10-15T11:11:59.2859160+08:00",
+            "url": "https://www.cnblogs.com/IoTSharp/p/23312062"
+          }
+        ],
+        "publicConfirmed": true,
+        "createRetried": false,
+        "originalIdBodyExact": true
+      },
+      "publicationEvidence": {
+        "titleVerified": true,
+        "coverVerified": true,
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110840863-607967422.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "publicHttpStatus": 200,
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "bodyMatchesFinalCSharpPreview": true,
+        "checkedAt": "2026-10-15T11:11:59.2912940+08:00",
+        "bodySha256": "3b6e653d3541382b743e3b7f47913a128480dcdcede1f01003ae0dfca792e425",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23312062",
+        "publicHtmlSha256": "ebabc8e067ff842ba76974e8b6040c4cbacf86ba30d453e57776e88c416105c6",
+        "postId": "23312062",
+        "defaultBothQrVerified": true
+      }
+    },
+    {
+      "dedupAngle": "Path/multikey/wildcard/validator/TTL governance with synchronous document rebuild; explicitly excludes relational ONLINE contract. Distinct from137 overview,154 query page workflow, external fulltext/vector index articles.",
+      "status": "published",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB 文档索引与 Validator：复合、Multikey、TTL 和重建维护",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\156-cover-20261015.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "a73c3180ef291a52620eca38500a81a2c83ac6fe1c84d67cf0da629a8cfadd44",
+          "at": "2026-10-15T11:08:50.7988225+08:00",
+          "phase": "local"
+        },
+        {
+          "at": "2026-10-15T11:08:59.8198951+08:00",
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110854675-1379303334.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB 文档索引与 Validator：复合、Multikey、TTL 和重建维护",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "0e770a85badb4c590ff9f864fc536ef4946b0b722ac10f0bf737c7eac350bf76"
+        },
+        {
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110854675-1379303334.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "previewSha256": "0e770a85badb4c590ff9f864fc536ef4946b0b722ac10f0bf737c7eac350bf76",
+          "imagesExactly3": true,
+          "at": "2026-10-15T11:12:18.2455041+08:00",
+          "result": {
+            "title": "SonnetDB 文档索引与 Validator：复合、Multikey、TTL 和重建维护",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "phase": "prepublish"
+        }
+      ],
+      "articleId": "156",
+      "facts": [
+        {
+          "path": "../document-store.md",
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3"
+        },
+        {
+          "path": "../online-index-build.md",
+          "sha256": "7dc3f4d8f6d3c11761b14f1ec11d3bc24b4202194f003074cb56313ad1f1099c"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionManager.cs",
+          "sha256": "75637029298edd92416bc3a840f738ca997ba1492ef2e6c1f87a0bede64fc8f2"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs",
+          "sha256": "d75867101573f8fcdc9e66431a9977186b911796c8b1b73b219c07c8cc73bc0f"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/Documents/DocumentValidatorModels.cs",
+          "sha256": "52eb818c66fe458f7014175c4bc744e98e3f57346fad052b4497fcfa341f5028"
+        },
+        {
+          "path": "../../tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs",
+          "sha256": "e06b7085e00bdf9e55744d3097a70a3da1ec677560932a013e9d683a360bef3e"
+        },
+        {
+          "path": "../../tests/SonnetDB.Core.Tests/Documents/DocumentIndexConsistencyTests.cs",
+          "sha256": "8c4c149b32f09353f64d0762b034a53a95f7707ec5d493b1cca68952e1a0e6ab"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "uploadIntent": {
+        "attempts": 1,
+        "runId": "cnblogs-20261015-daily-1058",
+        "method": "metaWeblog.newMediaObject",
+        "status": "uploading",
+        "sha256": "50f6ae3c1d0d7c53064913c172cd1c4430d5b19d04908ba8f89b0316c8383e0c",
+        "intentAt": "2026-10-15T11:08:50.8056288+08:00"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110854675-1379303334.png",
+        "receivedAt": "2026-10-15T11:08:53.6530855+08:00"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3",
+          "path": "../document-store.md",
+          "readAt": "2026-10-15T11:12:12.5890026+08:00"
+        },
+        {
+          "sha256": "7dc3f4d8f6d3c11761b14f1ec11d3bc24b4202194f003074cb56313ad1f1099c",
+          "path": "../online-index-build.md",
+          "readAt": "2026-10-15T11:12:12.5942866+08:00"
+        },
+        {
+          "sha256": "75637029298edd92416bc3a840f738ca997ba1492ef2e6c1f87a0bede64fc8f2",
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionManager.cs",
+          "readAt": "2026-10-15T11:12:12.5958977+08:00"
+        },
+        {
+          "sha256": "d75867101573f8fcdc9e66431a9977186b911796c8b1b73b219c07c8cc73bc0f",
+          "path": "../../src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs",
+          "readAt": "2026-10-15T11:12:12.5974537+08:00"
+        },
+        {
+          "sha256": "52eb818c66fe458f7014175c4bc744e98e3f57346fad052b4497fcfa341f5028",
+          "path": "../../src/SonnetDB.Core/Documents/DocumentValidatorModels.cs",
+          "readAt": "2026-10-15T11:12:12.5988095+08:00"
+        },
+        {
+          "sha256": "e06b7085e00bdf9e55744d3097a70a3da1ec677560932a013e9d683a360bef3e",
+          "path": "../../tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs",
+          "readAt": "2026-10-15T11:12:12.6003390+08:00"
+        },
+        {
+          "sha256": "8c4c149b32f09353f64d0762b034a53a95f7707ec5d493b1cca68952e1a0e6ab",
+          "path": "../../tests/SonnetDB.Core.Tests/Documents/DocumentIndexConsistencyTests.cs",
+          "readAt": "2026-10-15T11:12:12.6016797+08:00"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-15T11:12:12.6029969+08:00"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-15T11:12:12.6044751+08:00"
+        }
+      ],
+      "accountPrepublish": {
+        "recentPosts": 100,
+        "checkedAt": "2026-10-15T11:12:19.5165945+08:00",
+        "todaySuccessCount": 1,
+        "titleAliasDedupPassed": true
+      },
+      "publishIntent": {
+        "method": "skill C# publisher openapi newPost",
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+        "attempts": 1,
+        "at": "2026-10-15T11:12:19.5850891+08:00",
+        "contentSha256": "5b3c83d504004361edb2cdf2205b16ccf84c3ac08b9ac190a10079cecad00cf8"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 文档索引与 Validator：复合、Multikey、TTL 和重建维护",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23312087",
+        "postId": "23312087",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "publicConfirmed": true,
+        "createRetried": false,
+        "originalIdBodyExact": true,
+        "requestAttempts": [
+          {
+            "httpStatus": 200,
+            "url": "https://www.cnblogs.com/IoTSharp/p/23312087",
+            "at": "2026-10-15T11:13:15.0926125+08:00"
+          }
+        ]
+      },
+      "publicationEvidence": {
+        "coverVerified": true,
+        "publicHtmlSha256": "333007426b8e2cee3d2accfd4865eeaeeb3438e7169771d93f8c14f4fbc04ab5",
+        "publicHttpStatus": 200,
+        "postId": "23312087",
+        "bodySha256": "85dbee1bf852a8d7c43b61dabd7fa8eb370ff3e18bdb2a3548f9f0f70449a921",
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "titleVerified": true,
+        "bodyMatchesFinalCSharpPreview": true,
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015110854675-1379303334.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "checkedAt": "2026-10-15T11:13:15.0981266+08:00",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23312087",
+        "defaultBothQrVerified": true
+      }
+    }
+  ],
+  "qrEvidence": [
+    {
+      "verifiedAt": "2026-10-15T10:59:43.4697082+08:00",
+      "sha256": "5d8dfff96b418c884c9f602168057878e8b6b0bae8b1a181332e1c2cd7be3c99",
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png"
+    },
+    {
+      "verifiedAt": "2026-10-15T10:59:43.9458175+08:00",
+      "sha256": "7f34d73bd6ea3ea292754d274ec50fd542801f9250000faa058d0d1fee76356c",
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+    }
+  ],
+  "startedAt": "2026-10-15T10:58:07+08:00",
+  "requestProxy": null,
+  "uploadAccount": {
+    "verifiedAt": "2026-10-15T10:59:43.1714883+08:00",
+    "blogId": "523396",
+    "methods": [
+      "metaWeblog.getPost",
+      "blogger.getUsersBlogs"
+    ],
+    "blogApp": "IoTSharp",
+    "reverifiedAt": "2026-10-15T11:08:26.9685355+08:00"
+  },
+  "imageIntents": [
+    {
+      "requestedSize": "1792x768",
+      "model": "gpt-image-2",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-15/155-prompt.txt",
+      "retries": 0,
+      "attempts": 1,
+      "at": "2026-10-15T11:00:31.7076062+08:00",
+      "articleId": "155",
+      "wallSeconds": 260,
+      "timeoutSeconds": 120,
+      "quality": "high"
+    },
+    {
+      "requestedSize": "1792x768",
+      "model": "gpt-image-2",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-15/156-prompt.txt",
+      "retries": 0,
+      "attempts": 1,
+      "at": "2026-10-15T11:01:15.0074270+08:00",
+      "articleId": "156",
+      "wallSeconds": 260,
+      "timeoutSeconds": 120,
+      "quality": "high"
+    }
+  ],
+  "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+  "sourceThreadId": "01a13d7e-a18b-7663-b493-463b86ccec30",
+  "examplesExecuted": false,
+  "dailySuccessAtStart": 0,
+  "imageRequests": 2,
+  "nugetVersionMatches": [
+    "4.0.0\"",
+    "4.0.0\r\n"
+  ],
+  "readEvidence": [
+    {
+      "httpStatus": 200,
+      "name": "homepage",
+      "sha256": "6b592077735e44e4a908275cf3ce933628461d7e84f6967cb5d82730345341e2",
+      "checkedAt": "2026-10-15T10:59:37.7637453+08:00",
+      "url": "https://www.cnblogs.com/IoTSharp/"
+    },
+    {
+      "httpStatus": 200,
+      "name": "latest-release",
+      "sha256": "7abf3df0ef95605353b4b2b02bd1d1099e7222fcbf15e84e9e31f84e00fd61bb",
+      "checkedAt": "2026-10-15T10:59:39.7996495+08:00",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/latest"
+    },
+    {
+      "httpStatus": 200,
+      "name": "nuget-core",
+      "sha256": "cee56e88e36c8c19bb93e3d66b34a7cc8d64e2980edf4bd43b3141f7bf739976",
+      "checkedAt": "2026-10-15T10:59:41.0617348+08:00",
+      "url": "https://www.nuget.org/packages/SonnetDB.Core"
+    },
+    {
+      "checkedAt": "2026-10-15T11:05:24.7262387+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/document-store.md",
+      "name": "docs/document-store.md",
+      "equalsCurrentWorktree": true,
+      "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3"
+    },
+    {
+      "checkedAt": "2026-10-15T11:05:25.7662024+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/samples/SonnetDB.DocumentQuickstart/Program.cs",
+      "name": "samples/SonnetDB.DocumentQuickstart/Program.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "09667392cab1e6d17613af6b2aa7c043bb74c99c18de7e4215a8e362de5750db"
+    },
+    {
+      "checkedAt": "2026-10-15T11:05:46.2950447+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+      "name": "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "740ddee1a1052bdef5fdb34d14e2ed2ebe13e45cb2ba1a2c7cf7062ae1f162c6"
+    },
+    {
+      "checkedAt": "2026-10-15T11:06:06.9136282+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs",
+      "name": "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "4f65157db5920135399b3b99c6c11e58d2fe4ee4bf047b096e5f81c14736c46a"
+    },
+    {
+      "checkedAt": "2026-10-15T11:06:27.4378052+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Documents/DocumentCollectionManager.cs",
+      "name": "src/SonnetDB.Core/Documents/DocumentCollectionManager.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "75637029298edd92416bc3a840f738ca997ba1492ef2e6c1f87a0bede64fc8f2"
+    },
+    {
+      "checkedAt": "2026-10-15T11:06:47.9589286+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs",
+      "name": "tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "e06b7085e00bdf9e55744d3097a70a3da1ec677560932a013e9d683a360bef3e"
+    },
+    {
+      "checkedAt": "2026-10-15T11:07:08.4501069+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/Documents/DocumentIndexConsistencyTests.cs",
+      "name": "tests/SonnetDB.Core.Tests/Documents/DocumentIndexConsistencyTests.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "8c4c149b32f09353f64d0762b034a53a95f7707ec5d493b1cca68952e1a0e6ab"
+    },
+    {
+      "checkedAt": "2026-10-15T11:07:29.0316730+08:00",
+      "httpStatus": 200,
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs",
+      "name": "src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs",
+      "equalsCurrentWorktree": true,
+      "sha256": "d75867101573f8fcdc9e66431a9977186b911796c8b1b73b219c07c8cc73bc0f"
+    }
+  ],
+  "sourceFacts": [
+    {
+      "readAt": "2026-10-15T11:05:04.0422146+08:00",
+      "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3",
+      "path": "docs/document-store.md"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0471274+08:00",
+      "sha256": "7dc3f4d8f6d3c11761b14f1ec11d3bc24b4202194f003074cb56313ad1f1099c",
+      "path": "docs/online-index-build.md"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0483732+08:00",
+      "sha256": "c356802ce66d0fd4b1bf1b8880f6c6b76c252a6c242f8bf632ce87837d3daa31",
+      "path": "samples/SonnetDB.DocumentQuickstart/README.md"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0495940+08:00",
+      "sha256": "09667392cab1e6d17613af6b2aa7c043bb74c99c18de7e4215a8e362de5750db",
+      "path": "samples/SonnetDB.DocumentQuickstart/Program.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0528581+08:00",
+      "sha256": "d30ec3d9fb149c1672e666723a4a9b69f8ef56e8365887bb8e97204fdf1c6e1b",
+      "path": "src/SonnetDB.Data/Documents/SndbDocumentClient.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0545661+08:00",
+      "sha256": "a29eab787b24b40654aa8fce2948e8809db3ce020c5d39e773d9a8204cadce77",
+      "path": "src/SonnetDB.Data/Documents/SndbDocumentModels.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0558070+08:00",
+      "sha256": "4acc08057a35708830eda8079ece7bd3cd756e1ee301ab0f6d96d5e321df24e0",
+      "path": "src/SonnetDB.Data/Documents/SndbDocumentBuilders.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0592454+08:00",
+      "sha256": "740ddee1a1052bdef5fdb34d14e2ed2ebe13e45cb2ba1a2c7cf7062ae1f162c6",
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0606915+08:00",
+      "sha256": "be3d9b0aa96ec20259c9c92df7faa333879bae0e56fcb60f122a6d3795a1d02c",
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.FindAndModify.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0619775+08:00",
+      "sha256": "75637029298edd92416bc3a840f738ca997ba1492ef2e6c1f87a0bede64fc8f2",
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionManager.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0679794+08:00",
+      "sha256": "fbd9ebabde4b6079306156b3d9f0a74a5297543500f074a86a9f2ae5f62e418d",
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0700062+08:00",
+      "sha256": "d75867101573f8fcdc9e66431a9977186b911796c8b1b73b219c07c8cc73bc0f",
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0718430+08:00",
+      "sha256": "52eb818c66fe458f7014175c4bc744e98e3f57346fad052b4497fcfa341f5028",
+      "path": "src/SonnetDB.Core/Documents/DocumentValidatorModels.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0738603+08:00",
+      "sha256": "2461cf0dc723c4b0e737caed354ebf3eb09e2634011ec9df603e411686cc6ff6",
+      "path": "src/SonnetDB.Core/Documents/DocumentQueryModels.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0762733+08:00",
+      "sha256": "4f65157db5920135399b3b99c6c11e58d2fe4ee4bf047b096e5f81c14736c46a",
+      "path": "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0780055+08:00",
+      "sha256": "e06b7085e00bdf9e55744d3097a70a3da1ec677560932a013e9d683a360bef3e",
+      "path": "tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0794439+08:00",
+      "sha256": "8c4c149b32f09353f64d0762b034a53a95f7707ec5d493b1cca68952e1a0e6ab",
+      "path": "tests/SonnetDB.Core.Tests/Documents/DocumentIndexConsistencyTests.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0806041+08:00",
+      "sha256": "1c181057a77dbe5312053f52e56b46117929a0d7ef130e97ba4c7e185c495e07",
+      "path": "tests/SonnetDB.Core.Tests/Documents/DocumentValidatorTests.cs"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0920787+08:00",
+      "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+      "path": "docs/releases/4.0.0.md"
+    },
+    {
+      "readAt": "2026-10-15T11:05:04.0935075+08:00",
+      "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+      "path": "ROADMAP.md"
+    }
+  ],
+  "publicSourceComparison": {
+    "localCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+    "publicCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+    "roadmap": "Current dirty ROADMAP hashed separately; capacity, hardware, recovery gates remain unverified.",
+    "publicRawShaConfirmed": true
+  },
+  "dailySuccessBeforePublishing": 0,
+  "accountTodayAtStart": 0,
+  "readbackTransientFailures": [
+    null,
+    {
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "at": "2026-10-15T11:11:58.0878621+08:00",
+      "createRetried": false,
+      "articleId": "155"
+    },
+    {
+      "articleId": "156",
+      "createRetried": false,
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "at": "2026-10-15T11:13:13.7410864+08:00"
+    }
+  ],
+  "finalQuota": {
+    "successfulNewArticles": 2,
+    "planned": 46,
+    "date": "2026-10-15",
+    "writtenCount": 2,
+    "mediaUploadRequests": 2,
+    "imageGenerationRequests": 2,
+    "timezone": "Asia/Shanghai",
+    "queued": 0,
+    "candidateCount": 2,
+    "attemptsPerArticle": 1
+  },
+  "safetyBoundaries": {
+    "stagingCommitPushDeploy": "NOT_PERFORMED",
+    "productBuildOrTests": "NOT_RUN",
+    "foreignWork": "Preserved; only blog task files and own HANDOFF append",
+    "databaseExamplesExecuted": false,
+    "branch": "codex/m47-preview12-release",
+    "performanceRealModelHardwareProductionRecovery": "NOT_VERIFIED",
+    "graphify": "NOT_USED",
+    "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+  },
+  "handoffPrefixPreserved": true,
+  "finishedAt": "2026-10-15T11:13:45.1299177+08:00",
+  "jsonUtf8NoBomLfVerified": true,
+  "finalPlanConsistency": {
+    "dailyCount": 2,
+    "requestsAdded": 0,
+    "queued": 0,
+    "checkedAt": "2026-10-15T11:14:56.2231110+08:00",
+    "publishedRange": "135–156",
+    "plannedRange": "157–202"
+  }
+}

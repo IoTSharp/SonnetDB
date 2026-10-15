@@ -1,0 +1,35 @@
+{
+  "sha256": "16efe00b89d59a00b70fa5e22e156dea41b4484b1c6f432f5e24b20cb5014c30",
+  "generatedAt": "2026-10-11T11:07:21.6391918+08:00",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-11/147-generated-original.png",
+  "reviewStatus": "approved",
+  "sourceThreadId": "01a128e8-0ba6-7443-ae5d-89f871f75fd2",
+  "articleId": "147",
+  "requestedSize": "1792x768",
+  "retries": 0,
+  "quality": "high",
+  "model": "gpt-image-2",
+  "actualSize": "1915x821",
+  "timeoutSeconds": 120,
+  "runId": "cnblogs-20261011-daily-1101",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-11/147-prompt.txt",
+  "wallCapSeconds": 260,
+  "originalSha256": "16efe00b89d59a00b70fa5e22e156dea41b4484b1c6f432f5e24b20cb5014c30",
+  "finalAsset": "docs/blogs/assets/covers/147-cover-20261011.png",
+  "finalSha256": "fb6f61b91014fa15a3793da15d760a9c34f6912360ca6e99b82a94840b25f394",
+  "typographyCorrections": [
+    {
+      "kind": "deterministic-text-overlay",
+      "rectangle": [
+        940,
+        388,
+        1535,
+        429
+      ],
+      "text": "主键标识行；跨表关联须显式建模",
+      "reason": "Replace unsupported broad completeness statement and imprecise primary-key relationship claim."
+    }
+  ],
+  "reviewedAt": "2026-10-11T11:13:06.6656772+08:00",
+  "reviewNotes": "Original and final landscape images visually inspected: clearly adult Asian woman, modest JK-inspired clothing, project/topic/follow text, full width. Deterministic factual/brand corrections retained with raw source."
+}

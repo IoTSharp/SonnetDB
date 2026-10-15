@@ -1,0 +1,864 @@
+{
+  "latestReleaseMatches": [
+    "v4.0.0",
+    "v4.0.0\\"
+  ],
+  "newArticleRequests": 2,
+  "imageRequests": 2,
+  "productBuildOrTest": "NOT_RUN",
+  "runId": "cnblogs-20261015-manual-1257",
+  "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+  "nugetVersionMatches": [
+    "4.0.0\"",
+    "4.0.0\r\n"
+  ],
+  "requestProxy": "http://127.0.0.1:7890",
+  "sourceThreadId": "01a13859-fab8-7342-b9f6-b67fa3bb17e9",
+  "uploadAccount": {
+    "blogApp": "IoTSharp",
+    "methods": [
+      "metaWeblog.getPost",
+      "blogger.getUsersBlogs"
+    ],
+    "blogId": "523396",
+    "verifiedAt": "2026-10-15T12:59:21.9364758+08:00",
+    "reverifiedAt": "2026-10-15T13:07:20.4462342+08:00"
+  },
+  "candidateIds": [
+    "157",
+    "158",
+    "159"
+  ],
+  "deadline": "2026-10-15T13:27:30.0000000+08:00",
+  "dailySuccessAtStart": 2,
+  "qrEvidence": [
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+      "verifiedAt": "2026-10-15T12:59:22.3587663+08:00",
+      "sha256": "5d8dfff96b418c884c9f602168057878e8b6b0bae8b1a181332e1c2cd7be3c99"
+    },
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg",
+      "verifiedAt": "2026-10-15T12:59:22.7950945+08:00",
+      "sha256": "7f34d73bd6ea3ea292754d274ec50fd542801f9250000faa058d0d1fee76356c"
+    }
+  ],
+  "candidateCount": 3,
+  "imageIntents": [
+    {
+      "at": "2026-10-15T12:59:57.2034520+08:00",
+      "model": "gpt-image-2",
+      "articleId": "157",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/157-prompt.txt",
+      "retries": 0,
+      "requestedSize": "1792x768",
+      "attempts": 1,
+      "wallSeconds": 260,
+      "quality": "high",
+      "timeoutSeconds": 120
+    },
+    {
+      "at": "2026-10-15T13:00:37.8478020+08:00",
+      "model": "gpt-image-2",
+      "articleId": "159",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/159-prompt.txt",
+      "retries": 0,
+      "requestedSize": "1792x768",
+      "attempts": 1,
+      "wallSeconds": 260,
+      "quality": "high",
+      "timeoutSeconds": 120
+    }
+  ],
+  "examplesExecuted": false,
+  "priorUnknownEntriesPaused": true,
+  "writtenCount": 2,
+  "readEvidence": [
+    {
+      "checkedAt": "2026-10-15T12:59:16.6010050+08:00",
+      "name": "homepage",
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "httpStatus": 200,
+      "sha256": "306503a43ec1b3f13a9fca5f1a00ef033a239342ef817918e72e4e83a58cfe76"
+    },
+    {
+      "checkedAt": "2026-10-15T12:59:18.4735766+08:00",
+      "name": "latest-release",
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/latest",
+      "httpStatus": 200,
+      "sha256": "076ff493e03c179e6d093b1e58a26dd4574e2b4e3ee482a4fb1f5772c5d33440"
+    },
+    {
+      "checkedAt": "2026-10-15T12:59:19.8738596+08:00",
+      "name": "nuget-core",
+      "url": "https://www.nuget.org/packages/SonnetDB.Core",
+      "httpStatus": 200,
+      "sha256": "a999da94fb0ce7683ac4e3cd6578be80687f4997c87c384fad05bf8292ab084c"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:50.9873067+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/mongodb-migration.md",
+      "sha256": "125ec6e38d96e08784d66049169bf5cfe93ed9435c07ac1ddf4079e705cc87bc",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "docs/mongodb-migration.md"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:51.7915034+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Cli/DocumentImportCommandRunner.cs",
+      "sha256": "cf6bd79e6ba605ef4ef7a0014d4936900997654512f40c65fb834161444e299e",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "src/SonnetDB.Cli/DocumentImportCommandRunner.cs"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:52.2768553+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Documents/DocumentChangeFeedModels.cs",
+      "sha256": "ad501e593682c5e489b8aa767a31f2dd9accbc6143be1d26e9387f99e8564413",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "src/SonnetDB.Core/Documents/DocumentChangeFeedModels.cs"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:52.7725604+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/fulltext-dictionaries.md",
+      "sha256": "b7655db19811e8dc0a2c76355b7605857ea7ac89cd2ae76ad688c68572bb70ab",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "docs/fulltext-dictionaries.md"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:53.2699016+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionaryCompiler.cs",
+      "sha256": "f1556f80c9cf25ce3ac222e160efd682e97f7bccd99f318ad6e32e1a75496e02",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionaryCompiler.cs"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:53.8279839+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs",
+      "sha256": "4d40cdac6d634c7e400fdf1fb6cafe607add902c43cd20ad5f8840d2fc4eaec5",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs"
+    },
+    {
+      "checkedAt": "2026-10-15T13:05:54.2965161+08:00",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/tests/SonnetDB.Core.Tests/FullText/Tokenizers/Jieba/ChineseTokenizerTests.cs",
+      "sha256": "e52343fc249385f846885a009011de889dd6f61ca2ab66d1e2406e85a293e1ee",
+      "equalsCurrentWorktree": true,
+      "status": 200,
+      "name": "tests/SonnetDB.Core.Tests/FullText/Tokenizers/Jieba/ChineseTokenizerTests.cs"
+    }
+  ],
+  "assetReuseSearch": "Bounded blog/Weibo/OSChina/WeChat named cover directories: no corresponding traceable157 migration or159 dictionary cover. Two independent generations.",
+  "status": "two-articles-and-two-flashes-confirmed",
+  "startedAt": "2026-10-15T12:57:30+08:00",
+  "articles": [
+    {
+      "dryRuns": [
+        {
+          "phase": "local",
+          "previewSha256": "4f8b14dc0316c53f3709e56376c98b1407dd1c5e2180962ecf23a512d7f4976e",
+          "at": "2026-10-15T13:07:27.5112491+08:00",
+          "result": {
+            "title": "SonnetDB MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\157-cover-20261015.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        },
+        {
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130730770-1992194988.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "imagesExactly3": true,
+          "previewSha256": "6cd5caadf82aad309c2a9055fbd11981548c67aeedf1dade6a2b834cde6dfad9",
+          "at": "2026-10-15T13:07:37.7270685+08:00",
+          "result": {
+            "title": "SonnetDB MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        },
+        {
+          "phase": "prepublish",
+          "at": "2026-10-15T13:09:25.3740148+08:00",
+          "result": {
+            "title": "SonnetDB MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imagesExactly3": true,
+          "previewSha256": "6cd5caadf82aad309c2a9055fbd11981548c67aeedf1dade6a2b834cde6dfad9",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130730770-1992194988.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        }
+      ],
+      "articleId": "157",
+      "dedupAngle": "CLI NDJSON/source checkpoint/import report and separate Core change-feed position; not137 overview or154/155/156 CRUD/index tasks.",
+      "facts": [
+        {
+          "sha256": "125ec6e38d96e08784d66049169bf5cfe93ed9435c07ac1ddf4079e705cc87bc",
+          "path": "../mongodb-migration.md"
+        },
+        {
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3",
+          "path": "../document-store.md"
+        },
+        {
+          "sha256": "cf6bd79e6ba605ef4ef7a0014d4936900997654512f40c65fb834161444e299e",
+          "path": "../../src/SonnetDB.Cli/DocumentImportCommandRunner.cs"
+        },
+        {
+          "sha256": "ad501e593682c5e489b8aa767a31f2dd9accbc6143be1d26e9387f99e8564413",
+          "path": "../../src/SonnetDB.Core/Documents/DocumentChangeFeedModels.cs"
+        },
+        {
+          "sha256": "408367a6743ea3f27d2a393bcb029612125b16a5269dec976ac8fad7d68f3e36",
+          "path": "../../tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md"
+        }
+      ],
+      "status": "published",
+      "uploadIntent": {
+        "sha256": "7481742381262e7be12dc3c813ab17bce3f30d57a8b3ac352abcc1ab83de2401",
+        "intentAt": "2026-10-15T13:07:27.5206076+08:00",
+        "attempts": 1,
+        "status": "uploading",
+        "method": "metaWeblog.newMediaObject",
+        "runId": "cnblogs-20261015-manual-1257"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130730770-1992194988.png",
+        "receivedAt": "2026-10-15T13:07:29.6145901+08:00"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "readAt": "2026-10-15T13:09:16.2325620+08:00",
+          "sha256": "125ec6e38d96e08784d66049169bf5cfe93ed9435c07ac1ddf4079e705cc87bc",
+          "path": "../mongodb-migration.md"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2430982+08:00",
+          "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3",
+          "path": "../document-store.md"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2467798+08:00",
+          "sha256": "cf6bd79e6ba605ef4ef7a0014d4936900997654512f40c65fb834161444e299e",
+          "path": "../../src/SonnetDB.Cli/DocumentImportCommandRunner.cs"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2497601+08:00",
+          "sha256": "ad501e593682c5e489b8aa767a31f2dd9accbc6143be1d26e9387f99e8564413",
+          "path": "../../src/SonnetDB.Core/Documents/DocumentChangeFeedModels.cs"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2527822+08:00",
+          "sha256": "408367a6743ea3f27d2a393bcb029612125b16a5269dec976ac8fad7d68f3e36",
+          "path": "../../tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2572001+08:00",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md"
+        },
+        {
+          "readAt": "2026-10-15T13:09:16.2619001+08:00",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md"
+        }
+      ],
+      "accountPrepublish": {
+        "recentPosts": 100,
+        "todaySuccessCount": 2,
+        "titleAliasDedupPassed": true,
+        "checkedAt": "2026-10-15T13:09:26.9376657+08:00"
+      },
+      "publishIntent": {
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+        "method": "skill C# publisher openapi newPost",
+        "at": "2026-10-15T13:09:27.0320304+08:00",
+        "attempts": 1,
+        "contentSha256": "0c0d3b25a5607c100d7ad54b5f7463af4c851980eb65c8e3369d96e6b2458881"
+      },
+      "publishResponse": {
+        "title": "SonnetDB MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23313649",
+        "postId": "23313649",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "publicConfirmed": true,
+        "requestAttempts": [
+          {
+            "httpStatus": 200,
+            "at": "2026-10-15T13:10:32.9609499+08:00",
+            "url": "https://www.cnblogs.com/IoTSharp/p/23313649"
+          }
+        ],
+        "createRetried": false,
+        "originalIdBodyExact": true
+      },
+      "publicationEvidence": {
+        "publicHttpStatus": 200,
+        "titleVerified": true,
+        "publicHtmlSha256": "0fcee191a2f51be72f1a1a90ba70b9c8938d8ff76ee35e06396caeb4d20e013b",
+        "bodySha256": "bb0a276ec7c5baf4f0513287204dbb6351ea4151d2738300f7f6281b27c4dce6",
+        "postId": "23313649",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23313649",
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130730770-1992194988.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "checkedAt": "2026-10-15T13:10:32.9774352+08:00",
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "coverVerified": true,
+        "defaultBothQrVerified": true,
+        "bodyMatchesFinalCSharpPreview": true
+      },
+      "ingPreview": {
+        "status": "dry-run",
+        "articleUrl": "https://www.cnblogs.com/IoTSharp/p/23313649",
+        "postId": "23313649",
+        "content": "[SonnetDB] MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed。从两条NDJSON开始，检查输入、分批导入和checkpoint续跑，并区分集合Change Feed与MongoDB协议。\nhttps://www.cnblogs.com/IoTSharp/p/23313649",
+        "contentSha256": "c64c8c7e6ded7e95a33096b5f2d060ab042484dafe0a5bc1e0263ebece676bad",
+        "isPrivate": false,
+        "writeRequests": 0
+      },
+      "ingIntent": {
+        "helper": "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\cnblogs_ing.py",
+        "invocations": 1,
+        "at": "2026-10-15T13:11:51.3196317+08:00",
+        "contentSha256": "c64c8c7e6ded7e95a33096b5f2d060ab042484dafe0a5bc1e0263ebece676bad",
+        "actualPostCount": "determined by helper durable receipt"
+      },
+      "ing": {
+        "status": "published",
+        "articleUrl": "https://www.cnblogs.com/IoTSharp/p/23313649",
+        "postId": "23313649",
+        "content": "[SonnetDB] MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed。从两条NDJSON开始，检查输入、分批导入和checkpoint续跑，并区分集合Change Feed与MongoDB协议。\nhttps://www.cnblogs.com/IoTSharp/p/23313649",
+        "contentSha256": "c64c8c7e6ded7e95a33096b5f2d060ab042484dafe0a5bc1e0263ebece676bad",
+        "isPrivate": false,
+        "writeRequests": 1,
+        "attempts": 1,
+        "requestMayHaveStarted": true,
+        "intentAt": "2026-10-15T13:11:53.640722+08:00",
+        "runId": "cnblogs-20261015-manual-1257",
+        "responseStatus": 200,
+        "ingId": "3591893",
+        "readbackUrl": "https://api.cnblogs.com/api/statuses/3591893",
+        "confirmedAt": "2026-10-15T13:11:56.827830+08:00",
+        "remoteContentSha256": "c64c8c7e6ded7e95a33096b5f2d060ab042484dafe0a5bc1e0263ebece676bad",
+        "accountVerified": "IoTSharp",
+        "publicFlagVerified": true,
+        "confirmation": "official-api-original-id-readback",
+        "anonymousWebReadback": "NOT_VERIFIED",
+        "existingRemote": false,
+        "createdThisInvocation": true,
+        "lastError": null,
+        "lease": null,
+        "evidence": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/157-ing-result.json"
+      }
+    },
+    {
+      "dryRuns": [
+        {
+          "phase": "local",
+          "previewSha256": "36dbb7c05a5b5fdbe22aa3d04bdd5e735b4c49e9d1316b5beac84c8db9e153e8",
+          "at": "2026-10-15T13:07:44.0007574+08:00",
+          "result": {
+            "title": "SonnetDB 中文词库实操：编译 .dat、核对 Token 与重建边界",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\159-cover-20261015.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        },
+        {
+          "phase": "final",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130746983-1254071081.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "imagesExactly3": true,
+          "previewSha256": "ba53e87c8776fe82ae18b6af43e15f6cc76525c21c15c4f69383a8c88022fb6f",
+          "at": "2026-10-15T13:07:52.9264539+08:00",
+          "result": {
+            "title": "SonnetDB 中文词库实操：编译 .dat、核对 Token 与重建边界",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        },
+        {
+          "imagesExactly3": true,
+          "phase": "prepublish",
+          "at": "2026-10-15T13:10:49.9647867+08:00",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130746983-1254071081.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "previewSha256": "ba53e87c8776fe82ae18b6af43e15f6cc76525c21c15c4f69383a8c88022fb6f",
+          "result": {
+            "title": "SonnetDB 中文词库实操：编译 .dat、核对 Token 与重建边界",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          }
+        }
+      ],
+      "articleId": "159",
+      "dedupAngle": "Custom Core dictionary merge/compile/token inspection, default SQL jieba separation and rebuild preconditions. Distinct from published external fulltext intro20524622 and Hybrid20524623.",
+      "facts": [
+        {
+          "sha256": "b7655db19811e8dc0a2c76355b7605857ea7ac89cd2ae76ad688c68572bb70ab",
+          "path": "../fulltext-dictionaries.md"
+        },
+        {
+          "sha256": "f1556f80c9cf25ce3ac222e160efd682e97f7bccd99f318ad6e32e1a75496e02",
+          "path": "../../src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionaryCompiler.cs"
+        },
+        {
+          "sha256": "4d40cdac6d634c7e400fdf1fb6cafe607add902c43cd20ad5f8840d2fc4eaec5",
+          "path": "../../src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs"
+        },
+        {
+          "sha256": "e52343fc249385f846885a009011de889dd6f61ca2ab66d1e2406e85a293e1ee",
+          "path": "../../tests/SonnetDB.Core.Tests/FullText/Tokenizers/Jieba/ChineseTokenizerTests.cs"
+        },
+        {
+          "sha256": "c82a969d41fae0d2de868c492aa1cf084c0012d43b5c1e970d6aaa29a7dd383f",
+          "path": "../../THIRD_PARTY_NOTICES.md"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md"
+        }
+      ],
+      "status": "published",
+      "uploadIntent": {
+        "sha256": "3b5cd17a71a1d4ef826cf835012f85d251c7ec3f07526ef4fd579a96144352fe",
+        "intentAt": "2026-10-15T13:07:44.0030405+08:00",
+        "attempts": 1,
+        "status": "uploading",
+        "method": "metaWeblog.newMediaObject",
+        "runId": "cnblogs-20261015-manual-1257"
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130746983-1254071081.png",
+        "receivedAt": "2026-10-15T13:07:45.8269882+08:00"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "path": "../fulltext-dictionaries.md",
+          "readAt": "2026-10-15T13:10:33.7205107+08:00",
+          "sha256": "b7655db19811e8dc0a2c76355b7605857ea7ac89cd2ae76ad688c68572bb70ab"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionaryCompiler.cs",
+          "readAt": "2026-10-15T13:10:33.7379814+08:00",
+          "sha256": "f1556f80c9cf25ce3ac222e160efd682e97f7bccd99f318ad6e32e1a75496e02"
+        },
+        {
+          "path": "../../src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs",
+          "readAt": "2026-10-15T13:10:33.7508915+08:00",
+          "sha256": "4d40cdac6d634c7e400fdf1fb6cafe607add902c43cd20ad5f8840d2fc4eaec5"
+        },
+        {
+          "path": "../../tests/SonnetDB.Core.Tests/FullText/Tokenizers/Jieba/ChineseTokenizerTests.cs",
+          "readAt": "2026-10-15T13:10:33.7562079+08:00",
+          "sha256": "e52343fc249385f846885a009011de889dd6f61ca2ab66d1e2406e85a293e1ee"
+        },
+        {
+          "path": "../../THIRD_PARTY_NOTICES.md",
+          "readAt": "2026-10-15T13:10:33.7625641+08:00",
+          "sha256": "c82a969d41fae0d2de868c492aa1cf084c0012d43b5c1e970d6aaa29a7dd383f"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-15T13:10:33.7664009+08:00",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-15T13:10:33.7708825+08:00",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "accountPrepublish": {
+        "titleAliasDedupPassed": true,
+        "checkedAt": "2026-10-15T13:10:51.3670228+08:00",
+        "recentPosts": 100,
+        "todaySuccessCount": 3
+      },
+      "publishIntent": {
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+        "at": "2026-10-15T13:10:51.5379943+08:00",
+        "attempts": 1,
+        "contentSha256": "b38062e9fa53004181b0f7f6088dd7c5304af872ec439bb9b77119d323dab74e",
+        "method": "skill C# publisher openapi newPost"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 中文词库实操：编译 .dat、核对 Token 与重建边界",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23313689",
+        "postId": "23313689",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "requestAttempts": [
+          {
+            "at": "2026-10-15T13:11:43.5935628+08:00",
+            "httpStatus": 200,
+            "url": "https://www.cnblogs.com/IoTSharp/p/23313689"
+          }
+        ],
+        "publicConfirmed": true,
+        "createRetried": false,
+        "originalIdBodyExact": true
+      },
+      "publicationEvidence": {
+        "bodySha256": "e2279539f811da11ca624c1b97e0b0203dee37c40bcc9e96ce0448e8e97191f6",
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261015130746983-1254071081.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "defaultBothQrVerified": true,
+        "titleVerified": true,
+        "checkedAt": "2026-10-15T13:11:43.6044480+08:00",
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "coverVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23313689",
+        "publicHttpStatus": 200,
+        "postId": "23313689",
+        "bodyMatchesFinalCSharpPreview": true,
+        "publicHtmlSha256": "9c0dd6d25de1711838b01251cb115c87b0a0f7ca72115d04cb05f12f5dab16d2"
+      },
+      "ingPreview": {
+        "status": "dry-run",
+        "articleUrl": "https://www.cnblogs.com/IoTSharp/p/23313689",
+        "postId": "23313689",
+        "content": "[SonnetDB] 中文词库实操：编译 .dat、核对 Token 与重建边界。合并词表、编译.dat并核对Token；明确自定义Core分词器与SQL/Server默认jieba的接线和重建边界。\nhttps://www.cnblogs.com/IoTSharp/p/23313689",
+        "contentSha256": "78f00daa5bd3bf17ba396e75e9eef3e6771ebb9f7a297cdf75d2c30c1079f45e",
+        "isPrivate": false,
+        "writeRequests": 0
+      },
+      "ingIntent": {
+        "helper": "C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\cnblogs_ing.py",
+        "invocations": 1,
+        "at": "2026-10-15T13:12:08.5412134+08:00",
+        "contentSha256": "78f00daa5bd3bf17ba396e75e9eef3e6771ebb9f7a297cdf75d2c30c1079f45e",
+        "actualPostCount": "determined by helper durable receipt"
+      },
+      "ing": {
+        "status": "published",
+        "articleUrl": "https://www.cnblogs.com/IoTSharp/p/23313689",
+        "postId": "23313689",
+        "content": "[SonnetDB] 中文词库实操：编译 .dat、核对 Token 与重建边界。合并词表、编译.dat并核对Token；明确自定义Core分词器与SQL/Server默认jieba的接线和重建边界。\nhttps://www.cnblogs.com/IoTSharp/p/23313689",
+        "contentSha256": "78f00daa5bd3bf17ba396e75e9eef3e6771ebb9f7a297cdf75d2c30c1079f45e",
+        "isPrivate": false,
+        "writeRequests": 1,
+        "attempts": 1,
+        "requestMayHaveStarted": true,
+        "intentAt": "2026-10-15T13:12:10.449387+08:00",
+        "runId": "cnblogs-20261015-manual-1257",
+        "responseStatus": 200,
+        "ingId": "3591896",
+        "readbackUrl": "https://api.cnblogs.com/api/statuses/3591896",
+        "confirmedAt": "2026-10-15T13:12:11.960154+08:00",
+        "remoteContentSha256": "78f00daa5bd3bf17ba396e75e9eef3e6771ebb9f7a297cdf75d2c30c1079f45e",
+        "accountVerified": "IoTSharp",
+        "publicFlagVerified": true,
+        "confirmation": "official-api-original-id-readback",
+        "anonymousWebReadback": "NOT_VERIFIED",
+        "existingRemote": false,
+        "createdThisInvocation": true,
+        "lastError": null,
+        "lease": null,
+        "evidence": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/159-ing-result.json"
+      }
+    }
+  ],
+  "manualAuthorization": {
+    "manualFlashCap": 2,
+    "dailyPolicyUnchanged": true,
+    "recordedAt": "2026-10-15T12:59:57.0929485+08:00",
+    "request": "现在发两篇文章和闪存，让我看看",
+    "manualArticleCap": 2,
+    "scope": "two additional new articles and two companion flashes",
+    "authorizedDailyResultCap": 4,
+    "dailyCountAtStart": 2
+  },
+  "selectedIds": [
+    "157",
+    "159"
+  ],
+  "skippedCandidates": [
+    {
+      "url": "https://www.cnblogs.com/IoTSharp/p/20524622",
+      "articleId": "158",
+      "reason": "Overlaps existing external fulltext introduction"
+    }
+  ],
+  "sourceFacts": [
+    {
+      "path": "docs/mongodb-migration.md",
+      "readAt": "2026-10-15T13:05:49.9519418+08:00",
+      "sha256": "125ec6e38d96e08784d66049169bf5cfe93ed9435c07ac1ddf4079e705cc87bc"
+    },
+    {
+      "path": "docs/document-store.md",
+      "readAt": "2026-10-15T13:05:49.9559012+08:00",
+      "sha256": "2bba38532cf6b79dfd7cbee0839d2dd64b0f704b120399f18e223912038673b3"
+    },
+    {
+      "path": "src/SonnetDB.Cli/DocumentImportCommandRunner.cs",
+      "readAt": "2026-10-15T13:05:49.9581226+08:00",
+      "sha256": "cf6bd79e6ba605ef4ef7a0014d4936900997654512f40c65fb834161444e299e"
+    },
+    {
+      "path": "src/SonnetDB.Cli/DocumentImportSourceReader.cs",
+      "readAt": "2026-10-15T13:05:49.9620434+08:00",
+      "sha256": "b4de7a08a4a4fca0c69bed707aa4b5cbeb6a7219932201c6d40995ac1e11a0a4"
+    },
+    {
+      "path": "src/SonnetDB.Cli/DocumentImportModels.cs",
+      "readAt": "2026-10-15T13:05:49.9653535+08:00",
+      "sha256": "77645dc081f30cc3f758c4da6f7a701b7c2c6764327c06a68a11ac9da65d5a2d"
+    },
+    {
+      "path": "src/SonnetDB.Core/Documents/DocumentChangeFeedModels.cs",
+      "readAt": "2026-10-15T13:05:49.9678973+08:00",
+      "sha256": "ad501e593682c5e489b8aa767a31f2dd9accbc6143be1d26e9387f99e8564413"
+    },
+    {
+      "path": "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs",
+      "readAt": "2026-10-15T13:05:49.9707563+08:00",
+      "sha256": "fbd9ebabde4b6079306156b3d9f0a74a5297543500f074a86a9f2ae5f62e418d"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs",
+      "readAt": "2026-10-15T13:05:49.9727980+08:00",
+      "sha256": "408367a6743ea3f27d2a393bcb029612125b16a5269dec976ac8fad7d68f3e36"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Documents/DocumentChangeFeedTests.cs",
+      "readAt": "2026-10-15T13:05:49.9747707+08:00",
+      "sha256": "ec4706b72500c03b15f59fb97a4342c775a0733d6026c9f2ca5572c62e3c3c0c"
+    },
+    {
+      "path": "docs/fulltext-dictionaries.md",
+      "readAt": "2026-10-15T13:05:49.9768739+08:00",
+      "sha256": "b7655db19811e8dc0a2c76355b7605857ea7ac89cd2ae76ad688c68572bb70ab"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionary.cs",
+      "readAt": "2026-10-15T13:05:49.9791935+08:00",
+      "sha256": "fc7700e1b89e9a202132a8e01a68d5410e2931bcfe044804f63db7ccc33bf1de"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseDictionaryCompiler.cs",
+      "readAt": "2026-10-15T13:05:49.9816866+08:00",
+      "sha256": "f1556f80c9cf25ce3ac222e160efd682e97f7bccd99f318ad6e32e1a75496e02"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/Tokenizers/Jieba/ChineseTokenizer.cs",
+      "readAt": "2026-10-15T13:05:49.9842001+08:00",
+      "sha256": "cec3df1c8ec34b270cf0bc87c70447c08575544d907793ef0980cb7be2049cd4"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/Tokenization/CollectingTokenSink.cs",
+      "readAt": "2026-10-15T13:05:49.9865016+08:00",
+      "sha256": "2e7daf7bc20979150069f53e5e2efb9fb2a698243e9b85ec411df947b7033358"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/Tools/DictionaryCompiler/Program.cs",
+      "readAt": "2026-10-15T13:05:49.9887696+08:00",
+      "sha256": "11f1a79ed859be040b47091f84dd1184acb30657ba3c1784cdf9b2dca596602b"
+    },
+    {
+      "path": "src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs",
+      "readAt": "2026-10-15T13:05:49.9913244+08:00",
+      "sha256": "4d40cdac6d634c7e400fdf1fb6cafe607add902c43cd20ad5f8840d2fc4eaec5"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/FullText/Tokenizers/Jieba/ChineseTokenizerTests.cs",
+      "readAt": "2026-10-15T13:05:49.9938074+08:00",
+      "sha256": "e52343fc249385f846885a009011de889dd6f61ca2ab66d1e2406e85a293e1ee"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "readAt": "2026-10-15T13:05:49.9961593+08:00",
+      "sha256": "c82a969d41fae0d2de868c492aa1cf084c0012d43b5c1e970d6aaa29a7dd383f"
+    },
+    {
+      "path": "docs/releases/4.0.0.md",
+      "readAt": "2026-10-15T13:05:49.9986991+08:00",
+      "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+    },
+    {
+      "path": "ROADMAP.md",
+      "readAt": "2026-10-15T13:05:50.0015526+08:00",
+      "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+    }
+  ],
+  "publicSourceComparison": {
+    "publicCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+    "publicShaMatches": 7,
+    "roadmap": "Current dirty ROADMAP read and hashed; no package/production closure claim",
+    "localCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+  },
+  "dailySuccessBeforePublishing": 2,
+  "accountTodayAtStart": 2,
+  "readbackTransientFailures": [
+    null,
+    {
+      "articleId": "157",
+      "createRetried": false,
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "at": "2026-10-15T13:10:31.3655962+08:00"
+    },
+    {
+      "articleId": "159",
+      "at": "2026-10-15T13:11:42.3734848+08:00",
+      "createRetried": false,
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。"
+    }
+  ],
+  "flashInvocations": 2,
+  "flashConfirmedCount": 2,
+  "finalQuota": {
+    "remainingPlanned": 43,
+    "nextCandidates": [
+      "160",
+      "161"
+    ],
+    "routineArticlesBeforeRun": 2,
+    "dailyPolicyChanged": false,
+    "manualFlashes": 2,
+    "date": "2026-10-15",
+    "totalNewArticlesToday": 4,
+    "queued": 0,
+    "pausedDuplicate": [
+      "158"
+    ],
+    "dailyPolicyMax": 2,
+    "manualNewArticles": 2
+  },
+  "safetyBoundaries": {
+    "automationConfig": "UNCHANGED_THIS_RUN",
+    "graphify": "NOT_USED",
+    "performanceRealModelsHardwareProductionLongRun": "NOT_VERIFIED",
+    "officialFlashOriginalIdReadback": "PASS",
+    "branch": "main",
+    "databaseExamples": "NOT_RUN",
+    "stagingCommitPushDeploy": "NOT_PERFORMED",
+    "anonymousFlashWebVisibility": "NOT_VERIFIED",
+    "productBuildTests": "NOT_RUN",
+    "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+  },
+  "preparationFailure": {
+    "writeRequests": 0,
+    "stage": "before lease/init",
+    "fixedBeforeRequests": true,
+    "kind": "unused empty-string Replace during initial helper setup"
+  },
+  "handoffPrefixPreserved": true,
+  "finishedAt": "2026-10-15T13:14:16.9382735+08:00",
+  "jsonUtf8NoBomLfVerified": true,
+  "finalSummaryCorrection": {
+    "reason": "Independent final read found a differently worded old range; only summary corrected, no article or event mutation",
+    "old": "[后续系列选题](series-backlog.md) 已细分为14个系列、143–202共60个选题；143–156已确认发布，157–202共46篇仍为 `planned`；选题不代表正文已完成或已发布。",
+    "at": "2026-10-15T13:16:19.7324456+08:00",
+    "new": "[后续系列选题](series-backlog.md) 已细分为14个系列、143–202共60个选题；143–157及159已确认发布，160–202共43篇仍为 `planned`，158因与已发全文入门同题暂停；选题不代表正文已完成或已发布。"
+  },
+  "finalChecksAt": "2026-10-15T13:16:19.7358874+08:00"
+}

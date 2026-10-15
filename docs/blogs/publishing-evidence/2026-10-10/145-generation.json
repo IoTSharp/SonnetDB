@@ -1,0 +1,25 @@
+{
+  "articleId": "145",
+  "runId": "cnblogs-20261010-daily-1102",
+  "sourceThreadId": "01a123c3-2b1d-7582-b2c2-9a0196efa464",
+  "model": "gpt-image-2",
+  "requestedSize": "1792x768",
+  "quality": "high",
+  "timeoutSeconds": 120,
+  "wallSeconds": 260,
+  "retries": 0,
+  "bridge": "C:\\Users\\mysti\\.codex\\scripts\\Invoke-SonnetOpenAI.ps1",
+  "credentialSource": "Windows Credential Manager Codex/OpenAI/SonnetVIP",
+  "promptPath": "docs/blogs/publishing-evidence/2026-10-10/145-cover-prompt.txt",
+  "requestedAt": "2026-10-10T11:09:15.0122522+08:00",
+  "status": "generated",
+  "actualSize": "1915x821",
+  "sha256": "a3376b678743c6dce480f9c9fdb90f4d660e08858a450f4be7d944f6b005e284",
+  "completedAt": "2026-10-10T11:10:05.9346090+08:00",
+  "deterministicOverlay": {
+    "sourceAsset": "docs/blogs/publishing-evidence/2026-10-10/145-generated-original.png",
+    "sourceSha256": "a3376b678743c6dce480f9c9fdb90f4d660e08858a450f4be7d944f6b005e284",
+    "method": "System.Drawing using Microsoft YaHei; correct technical labels",
+    "finalSha256": "526caf57ba92b13e25509bf6bc4a1ef3941529c2afd1a27a42d2f01781eddc9b"
+  }
+}

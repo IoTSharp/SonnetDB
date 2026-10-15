@@ -1,0 +1,428 @@
+{
+  "runId": "cnblogs-20261010-daily-1102",
+  "reviewedAt": "2026-10-10T11:15:23.4806471+08:00",
+  "sourceCommit": "78045e8b407e9caceae2548116390ffb985fc959",
+  "release": "4.0.0",
+  "releaseEvidence": "publishing-evidence/2026-10-10/release-latest.html",
+  "nugetEvidence": "publishing-evidence/2026-10-10/nuget-core.html",
+  "candidateCount": 2,
+  "articles": [
+    {
+      "articleId": "145",
+      "status": "published",
+      "facts": [
+        {
+          "sha256": "2b15264e24303ced74868de9c01e02caa45a56eff3d90b6a60e0ee0eb964b88e",
+          "path": "../benchmarks/m45-measurement-tag-grouping.md"
+        },
+        {
+          "sha256": "b2e5311d56ab53708d3fe23b4be5cf211c5060e94fded596da009a5e46dbdd09",
+          "path": "../audits/m45-measurement-grouping-20261004.md"
+        },
+        {
+          "sha256": "bb4f2f7e853b96154fc562938d076a2c2d8f0831a345d179cf9f430b94ab13b4",
+          "path": "../../ROADMAP.md"
+        },
+        {
+          "sha256": "5e7b82e7d930bc191e1cdc4c06d4f708beea36a15a048aefb86af057a3f317b4",
+          "path": "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs"
+        },
+        {
+          "sha256": "67c5c20f3a82d160f8a44cfe033be06ed2b872f0613fa82907141e4bfcc0f372",
+          "path": "src/SonnetDB.Core/Sql/Execution/MeasurementSqlNameBinder.cs"
+        },
+        {
+          "sha256": "dac5c758c653ddec17fd0ff359dd1ac79b3e17fea389594196000d88c61876af",
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlExplainPlanner.cs"
+        },
+        {
+          "sha256": "d398acfa0583bc89018f8bdf774f69fc2466cae940b545bc87afcbde42a8ceea",
+          "path": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorMeasurementGroupByTests.cs"
+        }
+      ],
+      "dedupAngle": "Adds TAG/time composite groups, sparse row union and checked Int64 SUM beyond historical time-only 031/037/038.",
+      "coverSha256": "526caf57ba92b13e25509bf6bc4a1ef3941529c2afd1a27a42d2f01781eddc9b",
+      "coverVisualReview": "approved",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB TAG 加时间桶分组：COUNT、稀疏字段与精确整数 SUM",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\145-cover-20261010.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "at": "2026-10-10T11:15:28.8393087+08:00",
+          "previewSha256": "5e78965eea9bc33e8674274c981971591afc057b54c1e693743f453279df6936",
+          "phase": "local"
+        },
+        {
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB TAG 加时间桶分组：COUNT、稀疏字段与精确整数 SUM",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111555357-91509806.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "previewSha256": "84a8d498e6b205929f6889ffa4c92512838f4670da8e3fe327b26eb685ad6e5c",
+          "at": "2026-10-10T11:19:50.9591269+08:00",
+          "phase": "final"
+        },
+        {
+          "imagesExactly3": true,
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111555357-91509806.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "result": {
+            "title": "SonnetDB TAG 加时间桶分组：COUNT、稀疏字段与精确整数 SUM",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "phase": "corrected-final",
+          "at": "2026-10-10T11:22:31.6843903+08:00",
+          "previewSha256": "3cf642767b7c060c5978074df23a244d6d025cc332a4e6b93424b08e1f5661ee"
+        }
+      ],
+      "uploadIntent": {
+        "attempts": 1,
+        "at": "2026-10-10T11:15:40.8071755+08:00",
+        "method": "metaWeblog.newMediaObject",
+        "sha256": "526caf57ba92b13e25509bf6bc4a1ef3941529c2afd1a27a42d2f01781eddc9b"
+      },
+      "uploadResponse": {
+        "receivedAt": "2026-10-10T11:15:54.7517904+08:00",
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111555357-91509806.png"
+      },
+      "publishResponse": {
+        "title": "SonnetDB TAG 加时间桶分组：COUNT、稀疏字段与精确整数 SUM",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23249022",
+        "postId": "23249022",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "publicationEvidence": {
+        "defaultBothQrVerified": true,
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "bodySha256": "250b8db72278cc66ff508bab6a75877242897739096bf120285a0cfcca273c75",
+        "bodyMatchesFinalCSharpPreview": true,
+        "coverVerified": true,
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111555357-91509806.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "checkedAt": "2026-10-10T11:27:53.0928600+08:00",
+        "titleVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23249022",
+        "publicHtmlSha256": "ad3f4d60defd937499ccf62ee50848d181319a9df032ccc60303ff594de975cb",
+        "postId": "23249022",
+        "publicHttpStatus": 200
+      },
+      "prepublishSourceDocs": [
+        {
+          "readAt": "2026-10-10T11:24:33.1174480+08:00",
+          "path": "../benchmarks/m45-measurement-tag-grouping.md",
+          "sha256": "2b15264e24303ced74868de9c01e02caa45a56eff3d90b6a60e0ee0eb964b88e"
+        },
+        {
+          "readAt": "2026-10-10T11:24:33.1239994+08:00",
+          "path": "../audits/m45-measurement-grouping-20261004.md",
+          "sha256": "b2e5311d56ab53708d3fe23b4be5cf211c5060e94fded596da009a5e46dbdd09"
+        },
+        {
+          "readAt": "2026-10-10T11:24:33.1259504+08:00",
+          "path": "../../ROADMAP.md",
+          "sha256": "bb4f2f7e853b96154fc562938d076a2c2d8f0831a345d179cf9f430b94ab13b4"
+        }
+      ],
+      "publishIntent": {
+        "at": "2026-10-10T11:24:33.4591496+08:00",
+        "attempts": 1,
+        "method": "C# publisher openapi newPost",
+        "sourceCommit": "78045e8b407e9caceae2548116390ffb985fc959",
+        "bodySha256": "7a3b6dc019483e4fa4cb6a00b2eb0cbe312b1d74780291ae46ee0a04840ae61f"
+      }
+    },
+    {
+      "articleId": "146",
+      "status": "published",
+      "facts": [
+        {
+          "sha256": "1934fc39b8271efd097ce2e417e5d08665775c139b0fe4e45369286692c0f4c1",
+          "path": "../timeseries-query-preflight.md"
+        },
+        {
+          "sha256": "8e609954941bd9613e25c44ed6a9e7246644dd7150f190bfddc2221785e6c904",
+          "path": "../benchmarks/m42-measurement-result-bounds.md"
+        },
+        {
+          "sha256": "839c84c75e2937150d9ec6da34f4dd94a38912b354d510c9af9dc23881c162a5",
+          "path": "../benchmarks/m42-measurement-order-bounds.md"
+        },
+        {
+          "sha256": "bb4f2f7e853b96154fc562938d076a2c2d8f0831a345d179cf9f430b94ab13b4",
+          "path": "../../ROADMAP.md"
+        },
+        {
+          "sha256": "5e7b82e7d930bc191e1cdc4c06d4f708beea36a15a048aefb86af057a3f317b4",
+          "path": "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs"
+        },
+        {
+          "sha256": "99e92362ac22ce2ef160b8368233662134a9ca009a45490acad4de8e44cb07d9",
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs"
+        },
+        {
+          "sha256": "3de0bcd780c9d1c79b4d9cd4ed91805fdafd6dbee3346743d4dad9ea13feb0ae",
+          "path": "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"
+        },
+        {
+          "sha256": "e65957325ea05722c963e0e38271191f91794d1116c5028a5bfdd39f730a93c5",
+          "path": "tests/SonnetDB.Core.Tests/Sql/MeasurementOrderMaterializationBudgetTests.cs"
+        }
+      ],
+      "dedupAngle": "Adds explicit M42 SQL retention admission, sorted-candidate billing, cancellation and Preflight limits beyond 018/022; no old 093 speed claim.",
+      "coverSha256": "003cde95985b951e6a27b4e1a60862a2b0cbec78f6e6dae9acf6a4f278538858",
+      "coverVisualReview": "approved",
+      "dryRuns": [
+        {
+          "result": {
+            "title": "SonnetDB 有界时序查询：范围、结果准入、取消与首行成本",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\146-cover-20261010.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "at": "2026-10-10T11:15:36.3056753+08:00",
+          "previewSha256": "1fe852ade3a105a658fedbf841e6e07ed38e9eac641091b4c3d67b73ab9127f7",
+          "phase": "local"
+        },
+        {
+          "imagesExactly3": true,
+          "result": {
+            "title": "SonnetDB 有界时序查询：范围、结果准入、取消与首行成本",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111753426-1411140998.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "previewSha256": "0c9b73ff156cf9320c0a9ac714f5c95c4151ab98470422c3a20b1992541e496b",
+          "at": "2026-10-10T11:20:02.1944160+08:00",
+          "phase": "final"
+        },
+        {
+          "imagesExactly3": true,
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111753426-1411140998.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "result": {
+            "title": "SonnetDB 有界时序查询：范围、结果准入、取消与首行成本",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "phase": "corrected-final",
+          "at": "2026-10-10T11:22:36.5923624+08:00",
+          "previewSha256": "2bb2401cc5ee82a1ff12d1e0cde3281fcd0b379cb7147e1d0c0f5f5cb325ebc2"
+        }
+      ],
+      "uploadIntent": {
+        "method": "metaWeblog.newMediaObject",
+        "sha256": "003cde95985b951e6a27b4e1a60862a2b0cbec78f6e6dae9acf6a4f278538858",
+        "at": "2026-10-10T11:17:35.7804271+08:00",
+        "attempts": 1
+      },
+      "uploadResponse": {
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111753426-1411140998.png",
+        "receivedAt": "2026-10-10T11:17:53.3334820+08:00"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 有界时序查询：范围、结果准入、取消与首行成本",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23249049",
+        "postId": "23249049",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "publicationEvidence": {
+        "defaultBothQrVerified": true,
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "bodySha256": "cacf3ce7cb9297a9be98449a3a0bce7253e457b4566647779d046dda4c4d0f9e",
+        "bodyMatchesFinalCSharpPreview": true,
+        "coverVerified": true,
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010111753426-1411140998.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "checkedAt": "2026-10-10T11:27:53.5849340+08:00",
+        "titleVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23249049",
+        "publicHtmlSha256": "517e3a27af4dbc09bf43395e976a83ffc8db661f33a61f2878fe6b0dd67c942a",
+        "postId": "23249049",
+        "publicHttpStatus": 200
+      },
+      "prepublishSourceDocs": [
+        {
+          "sha256": "1934fc39b8271efd097ce2e417e5d08665775c139b0fe4e45369286692c0f4c1",
+          "readAt": "2026-10-10T11:26:12.3434288+08:00",
+          "path": "../timeseries-query-preflight.md"
+        },
+        {
+          "sha256": "8e609954941bd9613e25c44ed6a9e7246644dd7150f190bfddc2221785e6c904",
+          "readAt": "2026-10-10T11:26:12.3526291+08:00",
+          "path": "../benchmarks/m42-measurement-result-bounds.md"
+        },
+        {
+          "sha256": "839c84c75e2937150d9ec6da34f4dd94a38912b354d510c9af9dc23881c162a5",
+          "readAt": "2026-10-10T11:26:12.3543663+08:00",
+          "path": "../benchmarks/m42-measurement-order-bounds.md"
+        },
+        {
+          "sha256": "bb4f2f7e853b96154fc562938d076a2c2d8f0831a345d179cf9f430b94ab13b4",
+          "readAt": "2026-10-10T11:26:12.3568932+08:00",
+          "path": "../../ROADMAP.md"
+        }
+      ],
+      "publishIntent": {
+        "method": "C# publisher openapi newPost",
+        "at": "2026-10-10T11:26:12.9127811+08:00",
+        "bodySha256": "73edee7ee04a4cf418ab5fd43f31d59898037f924ac50f1afe4361a6c10b7c54",
+        "sourceCommit": "78045e8b407e9caceae2548116390ffb985fc959",
+        "attempts": 1
+      }
+    }
+  ],
+  "newArticleRequests": 2,
+  "examplesExecuted": false,
+  "productBuildOrTest": "NOT_RUN",
+  "uploadAccount": {
+    "blogApp": "IoTSharp",
+    "verifiedAt": "2026-10-10T11:15:40.7531991+08:00",
+    "blogId": "523396",
+    "methods": [
+      "metaWeblog.getPost",
+      "blogger.getUsersBlogs"
+    ]
+  },
+  "requestChannel": "direct",
+  "status": "published-and-verified",
+  "preparationFailure": {
+    "reason": "Final preview missing cover/default two QR",
+    "at": "2026-10-10T11:16:00+08:00",
+    "repair": "Gate parser accepts publisher angle-bracket Markdown image URLs; actual previews contained cover/default two QR. No publication request was made."
+  },
+  "imageReadFallback": "146 upload returned known URL once; direct public image GET timed out; read-only proxy GET verified SHA; upload not retried.",
+  "publicSourceCorrection": {
+    "publicCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+    "comparison": "git diff publicCommit -- five topic documents and seven relevant Core/test files returned no changes",
+    "note": "ROADMAP contains subsequent Workbench updates; current local ROADMAP reviewed separately. No push.",
+    "localHeadPublicFetch": "404",
+    "localHead": "78045e8b407e9caceae2548116390ffb985fc959"
+  },
+  "lastError": null,
+  "creationChannel": "direct connectivity GET passed before any create request",
+  "defaultQrOriginalHashVerification": [
+    {
+      "sha256": "5d8dfff96b418c884c9f602168057878e8b6b0bae8b1a181332e1c2cd7be3c99",
+      "checkedAt": "2026-10-10T11:27:54.6377235+08:00",
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png"
+    },
+    {
+      "sha256": "7f34d73bd6ea3ea292754d274ec50fd542801f9250000faa058d0d1fee76356c",
+      "checkedAt": "2026-10-10T11:27:55.0882569+08:00",
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+    }
+  ],
+  "readbackTransientFailure": {
+    "articleId": "145",
+    "reconciledBy": "read-only proxy GET200 and original postId exact full-body equality",
+    "initialPublicStatus": 404,
+    "createRetried": false
+  },
+  "finishedAt": "2026-10-10T11:27:55.1016084+08:00",
+  "finalQuota": {
+    "queued": 0,
+    "attemptsPerArticle": 1,
+    "dateParser": "ConvertFrom-Json -DateKind String plus DateTimeOffset explicit +08 normalization",
+    "successfulNewArticles": 2,
+    "writtenCount": 2,
+    "candidateCount": 2,
+    "timezone": "Asia/Shanghai",
+    "date": "2026-10-10"
+  },
+  "verificationRepair": {
+    "fixed": "Preserve JSON timestamp strings and normalize to +08 date; final state/event audit confirmed exactly two actual requests and two unique success events",
+    "issue": "PowerShell 7.6 date auto-conversion broke string -like count in intermediate quota/report checks",
+    "thirdRequestMade": false
+  },
+  "completedAt": "2026-10-10T11:31:37.6623710+08:00"
+}

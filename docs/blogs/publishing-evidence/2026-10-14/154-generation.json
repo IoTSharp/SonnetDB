@@ -1,0 +1,22 @@
+{
+  "quality": "high",
+  "articleId": "154",
+  "retries": 0,
+  "generatedAt": "2026-10-14T11:04:51.7511566+08:00",
+  "actualSize": "1915x821",
+  "model": "gpt-image-2",
+  "reviewStatus": "approved",
+  "sha256": "ef864efe29d67dd3c98164db187c974279b67f1f4ff8c22cf48fc2d2a1296a00",
+  "wallCapSeconds": 260,
+  "timeoutSeconds": 120,
+  "runId": "cnblogs-20261014-daily-1100",
+  "sourceThreadId": "01a13859-fab8-7342-b9f6-b67fa3bb17e9",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-14/154-generated-original.png",
+  "requestedSize": "1792x768",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-14/154-prompt.txt",
+  "finalAsset": "docs/blogs/assets/covers/154-cover-20261014.png",
+  "finalSha256": "29b3832cb0c2fb32003cfcc6277e009fa52f223d145f65097831e58b5e58ecdd",
+  "deterministicCorrection": "Replaced invented filter/path expressions and generic pages with exact article DTO workflow and device-001/42,device-003/25; clarified caller restart decision.",
+  "reviewedAt": "2026-10-14T11:14:41.5638853+08:00",
+  "reviewNotes": "Raw and final full landscape images visually inspected. Clearly adult Asian women in modest JK-inspired clothing, SonnetDB brand/topic/follow text.153 corrected Namespace to key-prefix grouping.154 replaced invented paths and generic data with exact article filter/projection/page examples. Both final images visually approved; no performance or production claims."
+}

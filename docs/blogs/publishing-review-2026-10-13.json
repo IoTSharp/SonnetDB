@@ -1,0 +1,669 @@
+{
+  "writtenCount": 2,
+  "runId": "cnblogs-20261013-daily-1056",
+  "examplesExecuted": false,
+  "latestReleaseMatches": [
+    "v4.0.0",
+    "v4.0.0\\"
+  ],
+  "status": "published-and-verified",
+  "sourceThreadId": "01a13330-758a-7170-b370-b9e0c18d6359",
+  "imageRequests": 2,
+  "qrEvidence": [
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+      "verifiedAt": "2026-10-13T10:58:37.9393065+08:00",
+      "sha256": "5d8dfff96b418c884c9f602168057878e8b6b0bae8b1a181332e1c2cd7be3c99"
+    },
+    {
+      "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg",
+      "verifiedAt": "2026-10-13T10:58:38.4677742+08:00",
+      "sha256": "7f34d73bd6ea3ea292754d274ec50fd542801f9250000faa058d0d1fee76356c"
+    }
+  ],
+  "readEvidence": [
+    {
+      "httpStatus": 200,
+      "url": "https://www.cnblogs.com/IoTSharp/",
+      "name": "homepage",
+      "sha256": "b65d30a6135b7796b8609de736a57b5efcab747fadbe9d9be3a447c4f91dd5d0",
+      "checkedAt": "2026-10-13T10:58:32.5250374+08:00"
+    },
+    {
+      "httpStatus": 200,
+      "url": "https://github.com/IoTSharp/SonnetDB/releases/latest",
+      "name": "latest-release",
+      "sha256": "0cb8a4fd72fa7fbae5ef5aab6fcb7f1783a9e427b4e554b7897a40b32c7c2143",
+      "checkedAt": "2026-10-13T10:58:34.3174342+08:00"
+    },
+    {
+      "httpStatus": 200,
+      "url": "https://www.nuget.org/packages/SonnetDB.Core",
+      "name": "nuget-core",
+      "sha256": "2f7bf242993ec1e4f54cce9e64438aabb820648633397f7d93eef20b89c5508b",
+      "checkedAt": "2026-10-13T10:58:35.7150079+08:00"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:10:57.9082730+08:00",
+      "name": "docs/kv-keyspace.md",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/kv-keyspace.md",
+      "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:10:59.2166246+08:00",
+      "name": "docs/kv-atomic-contract.md",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/kv-atomic-contract.md",
+      "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:11:00.5167686+08:00",
+      "name": "docs/audits/kv-remote-closure-20260905.md",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/docs/audits/kv-remote-closure-20260905.md",
+      "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:11:02.1063646+08:00",
+      "name": "samples/SonnetDB.KvQuickstart/README.md",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/samples/SonnetDB.KvQuickstart/README.md",
+      "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:11:03.4242479+08:00",
+      "name": "src/SonnetDB.Core/Kv/KvNamespace.cs",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Core/Kv/KvNamespace.cs",
+      "sha256": "3c0f3fde083dad5df37e292edad65c4c430f21044991e4af21c16ec2929178c9"
+    },
+    {
+      "httpStatus": 200,
+      "equalsCurrentWorktree": true,
+      "checkedAt": "2026-10-13T11:11:04.3279330+08:00",
+      "name": "src/SonnetDB.Data/Kv/SndbKvClient.Atomic.cs",
+      "url": "https://raw.githubusercontent.com/IoTSharp/SonnetDB/5424b66672e37f49a2a5633fdde0b54a9b1f0290/src/SonnetDB.Data/Kv/SndbKvClient.Atomic.cs",
+      "sha256": "f600f9f749b07b2f95f49786b42db9dfad376627b607c735983a49deccef3e8a"
+    }
+  ],
+  "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+  "startedAt": "2026-10-13T10:56:33+08:00",
+  "assetReuseSearch": "Bounded named blog/WeChat/Weibo/20261009 cover paths: no matching traceable151/152 KV/atomic cover.137 prepared Markdown alone is not a reusable image.",
+  "nugetVersionMatches": [
+    "4.0.0\"",
+    "4.0.0\r\n"
+  ],
+  "productBuildOrTest": "NOT_RUN",
+  "candidateCount": 2,
+  "newArticleRequests": 2,
+  "priorUnknownEntriesPaused": true,
+  "dailySuccessAtStart": 0,
+  "articles": [
+    {
+      "dedupAngle": "Device-state task: raw bytes, namespace prefix semantics, empty/missing distinction, TTL interpretation, bounded prefix listing and normal reopen. Article137 combines KV/document overview; this is a new explicit KV workflow.",
+      "dryRuns": [
+        {
+          "phase": "local",
+          "at": "2026-10-13T11:13:05.3646279+08:00",
+          "result": {
+            "title": "SonnetDB 持久 KV 入门：字节值、Namespace、TTL 与前缀扫描",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\151-cover-20261013.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "9fed98ce39a27ae464338f044f439683a0798d6936ae65b7dda7c868f82a3873"
+        },
+        {
+          "imagesExactly3": true,
+          "at": "2026-10-13T11:13:20.0113432+08:00",
+          "phase": "final",
+          "result": {
+            "title": "SonnetDB 持久 KV 入门：字节值、Namespace、TTL 与前缀扫描",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "75a016c47cd18e47958931ff6b0a2bf1c0262da35098215b2feace4447bd0a8a",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111310844-700738112.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        },
+        {
+          "result": {
+            "title": "SonnetDB 持久 KV 入门：字节值、Namespace、TTL 与前缀扫描",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "75a016c47cd18e47958931ff6b0a2bf1c0262da35098215b2feace4447bd0a8a",
+          "at": "2026-10-13T11:16:13.7204722+08:00",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111310844-700738112.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "phase": "prepublish",
+          "imagesExactly3": true
+        }
+      ],
+      "facts": [
+        {
+          "path": "../kv-keyspace.md",
+          "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146"
+        },
+        {
+          "path": "../kv-atomic-contract.md",
+          "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83"
+        },
+        {
+          "path": "../audits/kv-remote-closure-20260905.md",
+          "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e"
+        },
+        {
+          "path": "../../samples/SonnetDB.KvQuickstart/README.md",
+          "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "articleId": "151",
+      "status": "published",
+      "uploadIntent": {
+        "status": "uploading",
+        "intentAt": "2026-10-13T11:13:05.3777650+08:00",
+        "runId": "cnblogs-20261013-daily-1056",
+        "sha256": "55668b5213f1ed0b1d0808731649f8d85e8552d1b59d0c6a7e0c3b4dcc34663d",
+        "method": "metaWeblog.newMediaObject",
+        "attempts": 1
+      },
+      "uploadResponse": {
+        "receivedAt": "2026-10-13T11:13:11.3536761+08:00",
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111310844-700738112.png"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146",
+          "path": "../kv-keyspace.md",
+          "readAt": "2026-10-13T11:16:07.9685693+08:00"
+        },
+        {
+          "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83",
+          "path": "../kv-atomic-contract.md",
+          "readAt": "2026-10-13T11:16:07.9727776+08:00"
+        },
+        {
+          "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e",
+          "path": "../audits/kv-remote-closure-20260905.md",
+          "readAt": "2026-10-13T11:16:07.9739886+08:00"
+        },
+        {
+          "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4",
+          "path": "../../samples/SonnetDB.KvQuickstart/README.md",
+          "readAt": "2026-10-13T11:16:07.9750531+08:00"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-13T11:16:07.9761438+08:00"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-13T11:16:07.9774587+08:00"
+        }
+      ],
+      "accountPrepublish": {
+        "titleAliasDedupPassed": true,
+        "todaySuccessCount": 0,
+        "checkedAt": "2026-10-13T11:16:20.1948872+08:00",
+        "recentPosts": 100
+      },
+      "publishIntent": {
+        "at": "2026-10-13T11:16:20.2354821+08:00",
+        "contentSha256": "e2b5dd70f4e87dbaef96c5a815f54cf177d12e19feda9fbd38dcf0267c625561",
+        "method": "skill C# publisher openapi newPost",
+        "attempts": 1,
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+      },
+      "publishResponse": {
+        "title": "SonnetDB 持久 KV 入门：字节值、Namespace、TTL 与前缀扫描",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23283027",
+        "postId": "23283027",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "publicationEvidence": {
+        "checkedAt": "2026-10-13T11:16:43.1283201+08:00",
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "publicHttpStatus": 200,
+        "publicHtmlSha256": "426ac4930dd986df89bb0169e801fc79a05d1264264b9ebcf5e3d695fd59dff6",
+        "coverVerified": true,
+        "postId": "23283027",
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111310844-700738112.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "defaultBothQrVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23283027",
+        "titleVerified": true,
+        "bodySha256": "69e9562d672f6bf8cd11de92b0e8044223117b400233b7b4fe2426ee19653b6f",
+        "bodyMatchesFinalCSharpPreview": true
+      }
+    },
+    {
+      "dedupAngle": "Single-key competing state proposals: NX/XX vs version CAS, atomic previous value exchange/delete, false vs unknown outcomes. Distinct from137 overview and151 storage basics; not distributed locks or exactly-once.",
+      "dryRuns": [
+        {
+          "phase": "local",
+          "at": "2026-10-13T11:13:28.7091287+08:00",
+          "result": {
+            "title": "SonnetDB KV 原子操作：NX/XX、CAS 与交换值",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [
+              "D:\\source\\SonnetDB\\docs\\blogs\\assets\\covers\\152-cover-20261013.png"
+            ],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "4757cfe5039487a62e18854a3002898a26cb200fe52b3035bcf42dba814f1e04"
+        },
+        {
+          "imagesExactly3": true,
+          "at": "2026-10-13T11:13:56.5326150+08:00",
+          "phase": "final",
+          "result": {
+            "title": "SonnetDB KV 原子操作：NX/XX、CAS 与交换值",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "16751a6787c3f274521ecdcf34909a3de11d4814184348a02426099fa87be4b3",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111346854-1786810352.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ]
+        },
+        {
+          "result": {
+            "title": "SonnetDB KV 原子操作：NX/XX、CAS 与交换值",
+            "url": null,
+            "postId": null,
+            "isDraft": false,
+            "categories": [
+              "SonnetDB"
+            ],
+            "uploadedImages": [],
+            "localImages": [],
+            "communityFooterIncluded": true,
+            "message": "dry-run：已完成 Markdown 解析、默认交流区块与本地图片检查；未发起网络请求或发布。"
+          },
+          "previewSha256": "16751a6787c3f274521ecdcf34909a3de11d4814184348a02426099fa87be4b3",
+          "at": "2026-10-13T11:16:51.4600323+08:00",
+          "imageUrls": [
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111346854-1786810352.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+            "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+          ],
+          "phase": "prepublish",
+          "imagesExactly3": true
+        }
+      ],
+      "facts": [
+        {
+          "path": "../kv-keyspace.md",
+          "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146"
+        },
+        {
+          "path": "../kv-atomic-contract.md",
+          "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83"
+        },
+        {
+          "path": "../audits/kv-remote-closure-20260905.md",
+          "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e"
+        },
+        {
+          "path": "../../samples/SonnetDB.KvQuickstart/README.md",
+          "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4"
+        },
+        {
+          "path": "../releases/4.0.0.md",
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3"
+        },
+        {
+          "path": "../../ROADMAP.md",
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de"
+        }
+      ],
+      "articleId": "152",
+      "status": "published",
+      "uploadIntent": {
+        "status": "uploading",
+        "intentAt": "2026-10-13T11:13:28.7250803+08:00",
+        "runId": "cnblogs-20261013-daily-1056",
+        "sha256": "19511e8a8cc7222a5bf1d1442168dab560a44392a88e81a60957193610924136",
+        "method": "metaWeblog.newMediaObject",
+        "attempts": 1
+      },
+      "uploadResponse": {
+        "receivedAt": "2026-10-13T11:13:46.8085106+08:00",
+        "url": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111346854-1786810352.png"
+      },
+      "coverVisualReview": "approved",
+      "prepublishSourceDocs": [
+        {
+          "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146",
+          "path": "../kv-keyspace.md",
+          "readAt": "2026-10-13T11:16:45.1949827+08:00"
+        },
+        {
+          "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83",
+          "path": "../kv-atomic-contract.md",
+          "readAt": "2026-10-13T11:16:45.1977068+08:00"
+        },
+        {
+          "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e",
+          "path": "../audits/kv-remote-closure-20260905.md",
+          "readAt": "2026-10-13T11:16:45.1994460+08:00"
+        },
+        {
+          "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4",
+          "path": "../../samples/SonnetDB.KvQuickstart/README.md",
+          "readAt": "2026-10-13T11:16:45.2012083+08:00"
+        },
+        {
+          "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+          "path": "../releases/4.0.0.md",
+          "readAt": "2026-10-13T11:16:45.2029595+08:00"
+        },
+        {
+          "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+          "path": "../../ROADMAP.md",
+          "readAt": "2026-10-13T11:16:45.2048712+08:00"
+        }
+      ],
+      "accountPrepublish": {
+        "titleAliasDedupPassed": true,
+        "todaySuccessCount": 1,
+        "checkedAt": "2026-10-13T11:16:52.6475760+08:00",
+        "recentPosts": 100
+      },
+      "publishIntent": {
+        "at": "2026-10-13T11:16:52.6648868+08:00",
+        "contentSha256": "3e3bb5ec473018ac86e84f1324e5bd6988abf95b73fe4dd63960a6df8fd92145",
+        "method": "skill C# publisher openapi newPost",
+        "attempts": 1,
+        "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03"
+      },
+      "publishResponse": {
+        "title": "SonnetDB KV 原子操作：NX/XX、CAS 与交换值",
+        "url": "https://www.cnblogs.com/IoTSharp/p/23283045",
+        "postId": "23283045",
+        "isDraft": false,
+        "categories": [
+          "SonnetDB"
+        ],
+        "uploadedImages": [],
+        "localImages": [],
+        "communityFooterIncluded": true,
+        "message": "已发布到博客园。"
+      },
+      "readbackError": null,
+      "readbackReconciliation": {
+        "originalIdBodyExact": true,
+        "createRetried": false,
+        "publicConfirmed": true,
+        "requestAttempts": [
+          {
+            "url": "https://www.cnblogs.com/IoTSharp/p/23283045",
+            "at": "2026-10-13T11:20:23.7603939+08:00",
+            "httpStatus": 200
+          }
+        ]
+      },
+      "publicationEvidence": {
+        "publicHttpStatus": 200,
+        "bodySha256": "fc0bf188734b24997624e8b92a7b959c27161218a9799f1df26fa9c2ab3ba487",
+        "checkedAt": "2026-10-13T11:20:23.8018874+08:00",
+        "defaultBothQrVerified": true,
+        "publicHtmlSha256": "86ec26b3d34fad710de6780cad9e3d7b5a58e964b3ee1eb7988e57ece51c4337",
+        "titleVerified": true,
+        "coverVerified": true,
+        "publicSourceCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290",
+        "all3ImageUrls": [
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261013111346854-1786810352.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111708684-977287033.png",
+          "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261005111729028-1227201642.jpg"
+        ],
+        "url": "https://www.cnblogs.com/IoTSharp/p/23283045",
+        "postId": "23283045",
+        "bodyMatchesFinalCSharpPreview": true
+      }
+    }
+  ],
+  "imageIntents": [
+    {
+      "quality": "high",
+      "articleId": "151",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-13/151-prompt.txt",
+      "wallSeconds": 260,
+      "retries": 0,
+      "timeoutSeconds": 120,
+      "attempts": 1,
+      "model": "gpt-image-2",
+      "at": "2026-10-13T10:59:29.7464928+08:00",
+      "requestedSize": "1792x768"
+    },
+    {
+      "quality": "high",
+      "articleId": "152",
+      "prompt": "docs/blogs/publishing-evidence/2026-10-13/152-prompt.txt",
+      "wallSeconds": 260,
+      "retries": 0,
+      "timeoutSeconds": 120,
+      "attempts": 1,
+      "model": "gpt-image-2",
+      "at": "2026-10-13T11:00:11.8936926+08:00",
+      "requestedSize": "1792x768"
+    }
+  ],
+  "uploadAccount": {
+    "blogApp": "IoTSharp",
+    "methods": [
+      "metaWeblog.getPost",
+      "blogger.getUsersBlogs"
+    ],
+    "blogId": "523396",
+    "verifiedAt": "2026-10-13T10:58:37.6184550+08:00",
+    "reverifiedAt": "2026-10-13T11:12:57.8665175+08:00"
+  },
+  "deadline": "2026-10-13T11:26:33.0000000+08:00",
+  "candidateIds": [
+    "151",
+    "152"
+  ],
+  "requestProxy": null,
+  "sourceFacts": [
+    {
+      "sha256": "93e7881db9872ee108b52c96c64c77d3ca85392eab850fc8ab6a043ed8c0a146",
+      "readAt": "2026-10-13T11:10:55.8257734+08:00",
+      "path": "docs/kv-keyspace.md"
+    },
+    {
+      "sha256": "0f85b713a4ab1ee1e179c7c7338cb5a53c69cde88b9ab75f07ccc5463f4a4f83",
+      "readAt": "2026-10-13T11:10:55.8311144+08:00",
+      "path": "docs/kv-atomic-contract.md"
+    },
+    {
+      "sha256": "9033713a9a888bad9700f36119f55c8f146998262fe7de08102145250f7f812e",
+      "readAt": "2026-10-13T11:10:55.8330227+08:00",
+      "path": "docs/audits/kv-remote-closure-20260905.md"
+    },
+    {
+      "sha256": "2e9d00e81901fd598d4f40c85393b0b21838e928ff56883999b897cc45e1b8f4",
+      "readAt": "2026-10-13T11:10:55.8339936+08:00",
+      "path": "samples/SonnetDB.KvQuickstart/README.md"
+    },
+    {
+      "sha256": "9cec8fddf26e41376e3aee8c72fe645db1f168a250da6fd8d707f7b6570e300c",
+      "readAt": "2026-10-13T11:10:55.8349166+08:00",
+      "path": "samples/SonnetDB.KvQuickstart/Program.cs"
+    },
+    {
+      "sha256": "3c0f3fde083dad5df37e292edad65c4c430f21044991e4af21c16ec2929178c9",
+      "readAt": "2026-10-13T11:10:55.8364792+08:00",
+      "path": "src/SonnetDB.Core/Kv/KvNamespace.cs"
+    },
+    {
+      "sha256": "fa213ca35fff4af9fc00b06ab5b861626dfa4b8e9a4a79ba59ca49cc5e2ed964",
+      "readAt": "2026-10-13T11:10:55.8423541+08:00",
+      "path": "src/SonnetDB.Core/Kv/KvKeyspace.cs"
+    },
+    {
+      "sha256": "db92bc66eaecb0108996b7117e70bab4dfcf6378e255ba13ee8f1cfd1895b46e",
+      "readAt": "2026-10-13T11:10:55.8443461+08:00",
+      "path": "src/SonnetDB.Core/Kv/KvOptions.cs"
+    },
+    {
+      "sha256": "8da45e44d6cf5dc4ccd2f53227c79be929001744137fd47cafa1224c72cc0d0c",
+      "readAt": "2026-10-13T11:10:55.8460652+08:00",
+      "path": "src/SonnetDB.Core/Kv/KvTtlResult.cs"
+    },
+    {
+      "sha256": "85666982c607a94bf7b61564b9fb18f38211a90ee3d8ff8603c5b59db684e153",
+      "readAt": "2026-10-13T11:10:55.8499928+08:00",
+      "path": "src/SonnetDB.Core/Kv/KvValueCodec.cs"
+    },
+    {
+      "sha256": "28cbf294f64b1afbd2c3b3c9d6abb458a444c4fafa757dec0e03c392d6c2fcbe",
+      "readAt": "2026-10-13T11:10:55.8519978+08:00",
+      "path": "src/SonnetDB.Data/Kv/SndbKvClient.cs"
+    },
+    {
+      "sha256": "f600f9f749b07b2f95f49786b42db9dfad376627b607c735983a49deccef3e8a",
+      "readAt": "2026-10-13T11:10:55.8541680+08:00",
+      "path": "src/SonnetDB.Data/Kv/SndbKvClient.Atomic.cs"
+    },
+    {
+      "sha256": "093a01dbeb1e992ecceb5c3c86bca36b9bbfa28434fb8234fc4e11363ae02de4",
+      "readAt": "2026-10-13T11:10:55.8560245+08:00",
+      "path": "tests/SonnetDB.Core.Tests/Kv/KvConditionalOperationsTests.cs"
+    },
+    {
+      "sha256": "bf17d7db52788f08a2f748414d90acc17f324f0bc14e8035aaead9fdf157f791",
+      "readAt": "2026-10-13T11:10:55.8577925+08:00",
+      "path": "tests/SonnetDB.Core.Tests/Kv/KvValueCodecTests.cs"
+    },
+    {
+      "sha256": "759714e1544bc2379eda6ee55ec69e6f791c9b606ce680db663a2e21dd8052f3",
+      "readAt": "2026-10-13T11:10:55.8645312+08:00",
+      "path": "docs/releases/4.0.0.md"
+    },
+    {
+      "sha256": "57ce6a8b5e06ba1238937876ddfa11b012e9c1a0aa0f0758e9267dd4422751de",
+      "readAt": "2026-10-13T11:10:55.8668119+08:00",
+      "path": "ROADMAP.md"
+    }
+  ],
+  "publicSourceComparison": {
+    "roadmap": "Current dirty ROADMAP read and hashed separately; no old next-slice or production closure claim.",
+    "gitTrackedTopicDiff": "No diff for topic docs, sample, namespace or atomic SDK between public fixed commit and current HEAD",
+    "localCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+    "publicRawShaConfirmed": true,
+    "publicCommit": "5424b66672e37f49a2a5633fdde0b54a9b1f0290"
+  },
+  "dailySuccessBeforePublishing": 0,
+  "accountTodayAtStart": 0,
+  "readbackTransientFailures": [
+    null,
+    {
+      "initialError": "已获明确创建成功，公开/原ID回读待核对：响应状态代码未指示成功: 404 (Not Found)。",
+      "at": "2026-10-13T11:20:22.1542769+08:00",
+      "createRetried": false,
+      "articleId": "152"
+    }
+  ],
+  "finalQuota": {
+    "imageGenerationRequests": 2,
+    "successfulNewArticles": 2,
+    "queued": 0,
+    "date": "2026-10-13",
+    "mediaUploadRequests": 2,
+    "planned": 50,
+    "writtenCount": 2,
+    "timezone": "Asia/Shanghai",
+    "candidateCount": 2,
+    "attemptsPerArticle": 1
+  },
+  "safetyBoundaries": {
+    "stagingCommitPushDeploy": "NOT_PERFORMED",
+    "branch": "codex/m47-preview12-release",
+    "databaseExamplesExecuted": false,
+    "sourceCommit": "dcadffc7137f5653ec46c55a4171cf5f2d83de03",
+    "graphify": "NOT_USED",
+    "performanceRealModelHardwareProductionRecovery": "NOT_VERIFIED",
+    "productBuildOrTests": "NOT_RUN",
+    "foreignWork": "Preserved; only blog task files and own HANDOFF append"
+  },
+  "handoffPrefixPreserved": true,
+  "finishedAt": "2026-10-13T11:21:13.6965879+08:00",
+  "jsonUtf8NoBomLfVerified": true
+}

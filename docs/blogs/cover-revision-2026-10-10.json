@@ -1,0 +1,103 @@
+{
+  "runId": "cnblogs-cover-20261010-1028",
+  "startedAt": "2026-10-10T10:24:04.6037010+08:00",
+  "sourceCommit": "78045e8b407e9caceae2548116390ffb985fc959",
+  "scope": "143/144 cover only, original postIds",
+  "newArticleRequests": 0,
+  "items": [
+    {
+      "articleId": "143",
+      "postId": "23235723",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235723",
+      "status": "updated",
+      "imageSha256": "b6454feb94625a9bb7e0887506a5bcf9981ef106eb1b379b5643a1aafcd602a8",
+      "originalContentSha256": "530955d3e485ccfa9ec747935fcfc1ee11b7091aa38be991c6c72387d1af9605",
+      "localContentSha256": "32837b9834391eab9eecc64d1c1bcda96a78ed7dca6429108faa91f9b0f1f5d6",
+      "remoteOriginalBodySha256": "84ecd33105cf0fba7fd08836422f5d59b9ca3a79f2941d7c09e3deebf7bc55d7",
+      "originalCategoryXmlSha256": "e85f0c8075824bf74eaa496a469e811014d4223ad750ca115e5558e8b69d6c37",
+      "credentialVerifiedAt": "2026-10-10T10:24:54.6839760+08:00",
+      "uploadAttemptedAt": "2026-10-10T10:24:54.6857822+08:00",
+      "imageUrl": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010102457698-543809467.png",
+      "desiredRemoteBodySha256": "29150cc6b41db392c20b7bed186a00f16813578ca5b31709fa74601f967a6313",
+      "editRequestStartedAt": "2026-10-10T10:25:02.8202745+08:00",
+      "editResponseConfirmed": true,
+      "publicReadback": {
+        "checkedAt": "2026-10-10T10:25:05.0774853+08:00",
+        "categoriesPreserved": true,
+        "qrVerified": true,
+        "coverVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23235723",
+        "bodySha256": "29150cc6b41db392c20b7bed186a00f16813578ca5b31709fa74601f967a6313"
+      }
+    },
+    {
+      "articleId": "144",
+      "postId": "23235731",
+      "url": "https://www.cnblogs.com/IoTSharp/p/23235731",
+      "status": "updated",
+      "imageSha256": "c492d8c0bbfcea2f42010bbfb15e23edfe0b1183243bdadc7b085b3b71398c19",
+      "originalContentSha256": "07abc66ab674a32a4c21da821a1f4ccf6379fb90d1ceee6fa5558e81dd633967",
+      "localContentSha256": "547eb2aea95e52b682b502c2f5c721c041c4b4cdca22e988203e97f03d651691",
+      "remoteOriginalBodySha256": "5997b5caf7c945ba7ea4995c3f77236b627a169f1e5f08c29beee5264bf18276",
+      "originalCategoryXmlSha256": "e85f0c8075824bf74eaa496a469e811014d4223ad750ca115e5558e8b69d6c37",
+      "credentialVerifiedAt": "2026-10-10T10:25:06.5588974+08:00",
+      "uploadAttemptedAt": "2026-10-10T10:25:06.5602220+08:00",
+      "imageUrl": "https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261010102509629-1843983319.png",
+      "desiredRemoteBodySha256": "4b5c5af1ce0aa11f9e665020c3039a1cbb19992deb42702871984461c040a9be",
+      "editRequestStartedAt": "2026-10-10T10:25:13.6850464+08:00",
+      "editResponseConfirmed": true,
+      "publicReadback": {
+        "checkedAt": "2026-10-10T10:25:14.9663962+08:00",
+        "categoriesPreserved": true,
+        "qrVerified": true,
+        "coverVerified": true,
+        "url": "https://www.cnblogs.com/IoTSharp/p/23235731",
+        "bodySha256": "4b5c5af1ce0aa11f9e665020c3039a1cbb19992deb42702871984461c040a9be"
+      }
+    }
+  ],
+  "authenticatedBlogId": "523396",
+  "credentialEvidence": "Existing PAT verified via read-only getPost and blogger.getUsersBlogs; proxy selected before upload/edit, no write retries",
+  "finalProcessIdentityChecks": [
+    {
+      "pid": 4572,
+      "recordedCreatedAt": "2026-10-10T02:24:58.668755Z",
+      "recordedCommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\143-measurement-sparse-values-and-names.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-cover-20261010-1028-143-remote-preview.md",
+      "observedAt": "2026-10-10T10:29:18.5354497+08:00",
+      "currentlyAbsent": true,
+      "stopRequests": 0
+    },
+    {
+      "pid": 63708,
+      "recordedCreatedAt": "2026-10-10T02:25:09.8848343Z",
+      "recordedCommandLine": "\"C:\\Program Files\\dotnet\\dotnet.exe\" run --project C:\\Users\\mysti\\.codex\\skills\\publish-cnblogs\\scripts\\CnblogsPublisher -- D:\\source\\SonnetDB\\docs\\blogs\\144-schema-on-write-rejection-and-correction.md --dry-run --preview-output D:\\source\\SonnetDB\\docs\\blogs\\.cnblogs-cover-20261010-1028-144-remote-preview.md",
+      "observedAt": "2026-10-10T10:29:18.9962674+08:00",
+      "currentlyAbsent": true,
+      "stopRequests": 0
+    }
+  ],
+  "processAuditLimits": "Final process-audit retains the two remote-preview child identities and parent chains. Prepare dry-run identities were recorded during execution but overwritten by the next phase audit; do not claim a retained full four-process ledger or whole-system orphan proof. All four dry-runs returned normally; no process stop request.",
+  "completedAt": "2026-10-10T10:29:19.0034857+08:00",
+  "verification": {
+    "automationPromptPersisted": true,
+    "publishedShaPreserved": true,
+    "todayCoverUpdated": 2,
+    "coverGatePassed": [
+      "143",
+      "144"
+    ],
+    "newArticleRequests": 0,
+    "sourceDocsRead": true,
+    "factScope": "Original fixed source baseline retained; visual edit only, no new model/performance/production/version claims",
+    "defaultFooterPreserved": true,
+    "projectIdentityPassed": [
+      "143",
+      "144"
+    ],
+    "originalBodyChangedOnlyByCover": true,
+    "todayNewPublished": 0,
+    "publicImageHashMatched": true,
+    "csharpDryRuns": 4,
+    "missingCoverRejected": "141"
+  }
+}

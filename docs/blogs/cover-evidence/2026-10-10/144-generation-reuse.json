@@ -1,0 +1,12 @@
+{
+  "model": "gpt-image-2",
+  "sourceAsset": "D:\\source\\SonnetDB\\docs\\blogs\\wechat\\assets\\144-cover-20261009.png",
+  "exitCode": 0,
+  "reusedAt": "2026-10-10T10:24:04.7506564+08:00",
+  "sourceReceipt": "C:\\Users\\mysti\\AppData\\Local\\Codex\\WechatPublisher\\sonnetdb\\research\\20261009\\covers\\144-image-generation-result.json",
+  "sha256": "c492d8c0bbfcea2f42010bbfb15e23edfe0b1183243bdadc7b085b3b71398c19",
+  "articleId": "144",
+  "sourceThreadId": "01a12083-1b1c-77d1-b86f-d791b0c3b773",
+  "requestedSize": "1792x768",
+  "actualSize": "1916x821"
+}

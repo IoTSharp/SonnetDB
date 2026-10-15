@@ -1,0 +1,21 @@
+{
+  "retries": 0,
+  "quality": "high",
+  "requestedSize": "1792x768",
+  "timeoutSeconds": 120,
+  "runId": "cnblogs-20261015-manual-1257",
+  "sha256": "c83a0deeecdbd3745d4130df615d6a57443630b60034d64c73d14d339a68aaf3",
+  "articleId": "159",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/159-generated-original.png",
+  "generatedAt": "2026-10-15T13:01:17.0986902+08:00",
+  "actualSize": "1915x821",
+  "sourceThreadId": "01a13859-fab8-7342-b9f6-b67fa3bb17e9",
+  "wallCapSeconds": 260,
+  "reviewStatus": "approved",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/159-prompt.txt",
+  "model": "gpt-image-2",
+  "finalSha256": "3b5cd17a71a1d4ef826cf835012f85d251c7ec3f07526ef4fd579a96144352fe",
+  "deterministicCorrection": "Replaced generic semantic-search and auto-index-effect diagram with exact three-term API example and explicit default-jieba/custom-instance separation.",
+  "reviewedAt": "2026-10-15T13:07:37.7768920+08:00",
+  "reviewNotes": "Raw and final full landscape images visually inspected. Adult professional figures, readable SonnetDB/topic/follow text.157 corrected dry-run to input-only, no target permission/unique/validator checks.159 corrected exact dictionary example and explicit custom-Core/default-jieba separation. Full images approved, no performance or production claims."
+}

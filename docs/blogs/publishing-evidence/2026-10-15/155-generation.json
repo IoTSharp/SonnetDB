@@ -1,0 +1,22 @@
+{
+  "wallCapSeconds": 260,
+  "prompt": "docs/blogs/publishing-evidence/2026-10-15/155-prompt.txt",
+  "runId": "cnblogs-20261015-daily-1058",
+  "reviewStatus": "approved",
+  "retries": 0,
+  "articleId": "155",
+  "sourceThreadId": "01a13d7e-a18b-7663-b493-463b86ccec30",
+  "quality": "high",
+  "requestedSize": "1792x768",
+  "generatedAt": "2026-10-15T11:01:14.9878499+08:00",
+  "model": "gpt-image-2",
+  "actualSize": "1915x821",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-15/155-generated-original.png",
+  "timeoutSeconds": 120,
+  "sha256": "5f200e8618bb580c05576c6bbb1bb47593fc244fc888a0651ee9fad6046f1447",
+  "finalAsset": "docs/blogs/assets/covers/155-cover-20261015.png",
+  "finalSha256": "6f6662a5fb8c1ae2ef7f3dcd1cccabe4e5f61307bd02fd0fc794ccc748af00bf",
+  "postProcessing": "Deterministic Pillow typography:155 exact device-001 independent bulk and findOneAndUpdate steps;156 exact index/TTL/validator contract and removed invented magazine issue. Full landscape retained.",
+  "reviewedAt": "2026-10-15T11:08:27.0407033+08:00",
+  "reviewNotes": "Raw and final full landscape images visually inspected. Clearly adult Asian women in modest JK-inspired clothing, SonnetDB brand/topic/follow text.155 corrected diagram to exact device-001 score21-to42/status-new-to-online bulk and separate AddToSet/After.156 deterministic index/TTL/validator card text and removed invented magazine date. Final full landscape images approved; no performance or production claims."
+}

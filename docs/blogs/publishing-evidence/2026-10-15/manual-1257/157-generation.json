@@ -1,0 +1,21 @@
+{
+  "retries": 0,
+  "quality": "high",
+  "requestedSize": "1792x768",
+  "timeoutSeconds": 120,
+  "runId": "cnblogs-20261015-manual-1257",
+  "sha256": "71e432aec6e72ace6afdc5b275f402929169fca538ab8c0a6595f36c6d1e5cef",
+  "articleId": "157",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/157-generated-original.png",
+  "generatedAt": "2026-10-15T13:00:37.8348928+08:00",
+  "actualSize": "1915x821",
+  "sourceThreadId": "01a13859-fab8-7342-b9f6-b67fa3bb17e9",
+  "wallCapSeconds": 260,
+  "reviewStatus": "approved",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-15/manual-1257/157-prompt.txt",
+  "model": "gpt-image-2",
+  "finalSha256": "7481742381262e7be12dc3c813ab17bce3f30d57a8b3ac352abcc1ab83de2401",
+  "deterministicCorrection": "Replaced generated dry-run permission/connectivity checks with input-only validation; corrected checkpoint and batch identity.",
+  "reviewedAt": "2026-10-15T13:07:20.4916078+08:00",
+  "reviewNotes": "Raw and final full landscape images visually inspected. Adult professional figures, readable SonnetDB/topic/follow text.157 corrected dry-run to input-only, no target permission/unique/validator checks.159 corrected exact dictionary example and explicit custom-Core/default-jieba separation. Full images approved, no performance or production claims."
+}

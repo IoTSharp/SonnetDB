@@ -1,0 +1,46 @@
+{
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-11/148-generated-original.png",
+  "model": "gpt-image-2",
+  "timeoutSeconds": 120,
+  "quality": "high",
+  "wallCapSeconds": 260,
+  "runId": "cnblogs-20261011-daily-1101",
+  "reviewStatus": "approved",
+  "actualSize": "1916x821",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-11/148-prompt.txt",
+  "requestedSize": "1792x768",
+  "sha256": "562abee43699ebd113981e5f5ee33b389af97c4f968acafa999550d557844d96",
+  "generatedAt": "2026-10-11T11:10:01.2855699+08:00",
+  "sourceThreadId": "01a128e8-0ba6-7443-ae5d-89f871f75fd2",
+  "articleId": "148",
+  "retries": 0,
+  "originalSha256": "562abee43699ebd113981e5f5ee33b389af97c4f968acafa999550d557844d96",
+  "finalAsset": "docs/blogs/assets/covers/148-cover-20261011.png",
+  "finalSha256": "4f92f825c082253c09924fa002f4bfbad3ee2d255599732de2a15bb9fbb06130",
+  "typographyCorrections": [
+    {
+      "kind": "deterministic-text-overlay",
+      "rectangle": [
+        1475,
+        242,
+        1680,
+        277
+      ],
+      "text": "FULL JOIN 结果",
+      "reason": "NULL-extension belongs to outer join, never INNER; lower measurement diagram remains INNER."
+    },
+    {
+      "kind": "deterministic-brand-overlay",
+      "rectangle": [
+        109,
+        31,
+        332,
+        79
+      ],
+      "text": "SonnetDB",
+      "reason": "Normalize small corner brand spelling."
+    }
+  ],
+  "reviewedAt": "2026-10-11T11:13:17.8457520+08:00",
+  "reviewNotes": "Original and final landscape images visually inspected: clearly adult Asian woman, modest JK-inspired clothing, project/topic/follow text, full width. Deterministic factual/brand corrections retained with raw source."
+}

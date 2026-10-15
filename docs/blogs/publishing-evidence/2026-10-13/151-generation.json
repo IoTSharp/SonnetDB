@@ -1,0 +1,22 @@
+{
+  "quality": "high",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-13/151-generated-original.png",
+  "generatedAt": "2026-10-13T11:00:11.8785735+08:00",
+  "timeoutSeconds": 120,
+  "reviewStatus": "approved",
+  "model": "gpt-image-2",
+  "runId": "cnblogs-20261013-daily-1056",
+  "articleId": "151",
+  "retries": 0,
+  "wallCapSeconds": 260,
+  "sha256": "0bad11b5e74f0904e7c2e434ea198a4dc279a536c5643c6774870f3bd3238255",
+  "actualSize": "1915x821",
+  "requestedSize": "1792x768",
+  "sourceThreadId": "01a13330-758a-7170-b370-b9e0c18d6359",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-13/151-prompt.txt",
+  "finalAsset": "docs/blogs/assets/covers/151-cover-20261013.png",
+  "finalSha256": "55668b5213f1ed0b1d0808731649f8d85e8552d1b59d0c6a7e0c3b4dcc34663d",
+  "derivation": "Full landscape re-encoded as RGB PNG with no visual edits; original and final SHA retained.",
+  "reviewedAt": "2026-10-13T11:12:57.9149408+08:00",
+  "reviewNotes": "Original and final landscape images visually inspected: clearly adult Asian woman, modest JK-inspired clothing, project/topic/follow text, full width. 151 original layout retained.152 deterministic diagram distinguishes three independent operations, CAS conflict, explicit TTL and uncertain write results; no fixed per-key increment promise. Raw images and corrected final images visually reviewed."
+}

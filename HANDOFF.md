@@ -2864,3 +2864,10 @@ canonical 从 codex/m47-preview12-release 切至同 HEAD dcadffc 的 main，原 
 本地验证：完整 CAP Release 构建与实际嵌入式/环回 REST 42/42，失败/跳过为零；候选微试与完整8项、发行产物17项、发布就绪合同、CI完整分片覆盖均通过。初次restore因新worktree未初始化既有submodule失败；初始化固定提交后完整restore通过。默认完整CAP宿主上游NativeAOT原46条诊断继续为失败边界，不压制、不把CLR42或Server/CLI原生CI计作该宿主通过。旧Windows持久订阅超时失败日志保持，后续主线修复已接入。
 
 下面在最终待提交树执行完整restore与原CI Format Check，只有两者通过才提交；实际结果、树SHA、进程身份与KernelJob清理见artifacts/branch-integration-20261015。随后正常更新PR265、验证精确head远端CI、正常合并，再核main祖先关系清理CAP剩余分支。此提交尚不宣称远端CI/合并/正式包、强杀掉电、跨进程租约、固定硬件长稳或生产验收完成。当前main工作区有共享dirty，不执行覆盖式pull、reset或stash-all；最终远端状态和本地未快进边界会追加到canonical交接。
+
+## 博客园系列与伴随闪存交付（2026-10-15）
+
+- 本次从最新远端main ff586430建立隔离候选，只提交博客园系列143–157及159、最终主题封面、发布台账/事件、项目识别与配图门禁和经过筛选的公开证据。未复制canonical中其它渠道、产品研发、共享CHANGELOG/ROADMAP或整份共享HANDOFF的未提交内容；原D:/source/SonnetDB保持原分支与dirty状态。
+- 新157文档迁移 https://www.cnblogs.com/IoTSharp/p/23313649 与159中文词库 https://www.cnblogs.com/IoTSharp/p/23313689 已各一次发布；原ID完整正文与C#预览、公开标题/封面/双二维码核对通过。伴随闪存3591893/3591896各一次POST并通过官方原ID作者/标签/原文链接/公开标志核对，匿名网页可见性未独立验证。158因同题暂停，后续160/161；当天4篇是常规2+用户明确手动2，自动每日2篇规则保持。
+- 公开证据筛选范围见docs/blogs/publication-evidence.md。原始RPC/网页、进程父链、执行日志与原始生成图留在canonical本地；公开副本不冒称完整机器级审计包。文章/封面SHA保留，产品示例/构建测试、固定硬件、真实模型、生产恢复和长期验收仍沿各自NOT_RUN/NOT_VERIFIED边界。
+- 个人技能通过commit-my-skills流程在私有仓库独立保存；它不属于SonnetDB核心运行时代码。该隔离候选仅在完整solution restore与原CI Format Check通过后提交、正常推送，并独立核远端SHA；不采用force，不合并或删除parity-results。

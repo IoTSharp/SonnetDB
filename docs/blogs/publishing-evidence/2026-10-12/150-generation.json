@@ -1,0 +1,22 @@
+{
+  "reviewStatus": "approved",
+  "quality": "high",
+  "articleId": "150",
+  "actualSize": "1916x821",
+  "timeoutSeconds": 120,
+  "requestedSize": "1792x768",
+  "sourceThreadId": "01a12e0a-1c60-7523-b258-fab37989539b",
+  "retries": 0,
+  "runId": "cnblogs-20261012-daily-1056",
+  "model": "gpt-image-2",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-12/150-generated-original.png",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-12/150-prompt.txt",
+  "generatedAt": "2026-10-12T11:05:41.7093663+08:00",
+  "sha256": "a332644f8ab6ca2a78fcd2b07920b49b2ccc7307b14daf56ec50076bec2777ae",
+  "wallCapSeconds": 260,
+  "finalAsset": "docs/blogs/assets/covers/150-cover-20261012.png",
+  "finalSha256": "8da3dc5bf268de42175d3f777b0e51430fcb287915d846b3bdd57e2e942011fa",
+  "deterministicCorrections": "149: removed false/null branch to RETURNING and labeled no returned row; 150: confirmation label refers to terminal state.",
+  "reviewedAt": "2026-10-12T11:13:32.8708404+08:00",
+  "reviewNotes": "Original and final landscape images visually inspected: clearly adult Asian woman, modest JK-inspired clothing, project/topic/follow text, full width. Deterministic corrections:149 FALSE/NULL terminates without RETURNING;150 commit terminal-state label. Raw images and corrected final images visually reviewed."
+}

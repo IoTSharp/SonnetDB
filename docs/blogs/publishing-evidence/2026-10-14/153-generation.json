@@ -1,0 +1,22 @@
+{
+  "quality": "high",
+  "articleId": "153",
+  "retries": 0,
+  "generatedAt": "2026-10-14T11:04:04.2592052+08:00",
+  "actualSize": "1915x821",
+  "model": "gpt-image-2",
+  "reviewStatus": "approved",
+  "sha256": "9b13810f648cbdf0dec5277b7ce2020ad859f3d895929e518bb772bf25fe5ef0",
+  "wallCapSeconds": 260,
+  "timeoutSeconds": 120,
+  "runId": "cnblogs-20261014-daily-1100",
+  "sourceThreadId": "01a13859-fab8-7342-b9f6-b67fa3bb17e9",
+  "sourceAsset": "docs/blogs/publishing-evidence/2026-10-14/153-generated-original.png",
+  "requestedSize": "1792x768",
+  "prompt": "docs/blogs/publishing-evidence/2026-10-14/153-prompt.txt",
+  "finalAsset": "docs/blogs/assets/covers/153-cover-20261014.png",
+  "finalSha256": "acf7fee8afa4d9910ee175a83a2be14b40a54b47384e0cf3ae2c23869f22229a",
+  "deterministicCorrection": "Namespace label changed from business isolation to key-prefix grouping; removed generic reliability slogan.",
+  "reviewedAt": "2026-10-14T11:14:23.7999257+08:00",
+  "reviewNotes": "Raw and final full landscape images visually inspected. Clearly adult Asian women in modest JK-inspired clothing, SonnetDB brand/topic/follow text.153 corrected Namespace to key-prefix grouping.154 replaced invented paths and generic data with exact article filter/projection/page examples. Both final images visually approved; no performance or production claims."
+}
