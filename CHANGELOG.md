@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #264：补齐公开预览包DECIMAL精度/失败原子性/跨进程恢复及固定Chloe源码DDL候选的嵌入式、REST、HTTP/2消费证据；附可复现工具和独立候选补丁，正式发行及Chloe上游交付仍待完成。
 - GH-Issue #270：补齐公开 `.5` 参数化字面 Contains/StartsWith/EndsWith 的原复现、SQLite对照、真实REST/h2c和官方BookStore作者HTTP列表/Count/分页验收；附隔离消费者及来源/哈希收据，不修改生产或应用业务。
 - GH-Issue #271：补齐公开 `4.5.0-preview.ef266.5` BLOB相等/相关Any原复现、边界/索引/外键/回滚/跨进程恢复、真实REST/h2c及固定ABP Passkey Store/账户HTTP验收；客户端公开包与源码Server来源分别保留，不新增生产实现。
 - GH-Issue #272：补齐固定公开 NuGet `4.5.0-preview.ef266.5` 的原始命名外键复现与五阶段迁移验收；SonnetDB/SQLite共12个独立进程验证实际目录、约束移除/替换、回退及重开，附可复现消费者与持久收据，不新增生产实现。

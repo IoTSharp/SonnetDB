@@ -1,0 +1,1155 @@
+{
+  "schemaVersion": 1,
+  "issue": 264,
+  "issueStateAtRead": "OPEN",
+  "issueUpdatedAt": "2026-10-15T15:50:46Z",
+  "issueCommentCount": 1,
+  "issueSnapshotSha256": "F25FA87423273D68A497966B9E8CD5D2F8B05D200391499AD47A85099A9DE9CD",
+  "baselineSonnetDbCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "publicSonnetDbVersion": "4.5.0-preview.ef266.5",
+  "publicSonnetDbSourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "sdk": "10.0.400",
+  "chloePullRequest": {
+    "repository": "shuxinqin/Chloe",
+    "number": 435,
+    "state": "OPEN",
+    "draft": true,
+    "headRepository": "maikebing/Chloe",
+    "headCommit": "bb7ec8735bd4511c35453eb009f70cc606795703",
+    "snapshotSha256": "2188BBA58D1F857275DB9CB96FAB0FA98E5463F292A525D70DA32E8D87EBB6C7",
+    "localCandidatePatchSha256": "5036E843A76F8EACEFD171D9E792760F0B792305B95C8A8C801AE08521A87CB2",
+    "upstreamSourceFilesHashed": 561
+  },
+  "frozenServer": {
+    "sourceCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+    "fileCount": 541,
+    "actualSnapshot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\server-frozen",
+    "manifestSha256": "F3C8003EE04C621A4FBF975E29263414199D8DD521D0071D0048859F14ED7A1D",
+    "formalRelease": false
+  },
+  "nativeConsumerProcessesPassed": 7,
+  "originalChloeGuardProcessesPassed": 1,
+  "adaptedChloeConsumerProcessesPassed": 6,
+  "failedFinalConsumerProcesses": 0,
+  "consumerTimeouts": 0,
+  "noTrx": true,
+  "globalNugetCachesChanged": false,
+  "nativeRun": {
+    "kind": "native",
+    "runRoot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04",
+    "runtimeRoot": "D:\\sndb-t\\i264-native-04",
+    "receiptSha256": "5506A944B15B8320787256609E37DB8633F01E83EED2C0A9A88995092B2907A6",
+    "completedUtc": "2026-10-15T23:10:08.4689755Z",
+    "packages": [
+      {
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5",
+        "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "source": "https://api.nuget.org/v3/index.json",
+        "dlls": [
+          {
+            "name": "SonnetDB.Data.dll",
+            "packageSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+            "runtimeSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+          }
+        ]
+      },
+      {
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5",
+        "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "source": "https://api.nuget.org/v3/index.json",
+        "dlls": [
+          {
+            "name": "SonnetDB.Core.dll",
+            "packageSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+            "runtimeSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "label": "sdk",
+        "executable": "dotnet",
+        "arguments": [
+          "--info"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 45456,
+        "startedUtc": "2026-10-15T23:09:51.4074907Z",
+        "endedUtc": "2026-10-15T23:09:51.9752951Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "sdk.stdout.log",
+            "sha256": "EA2715E6FB22D52E0702F5648E53AD445AE858FFA8287E3BCD485422187708B0"
+          },
+          {
+            "path": "sdk.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "restore",
+        "executable": "dotnet",
+        "arguments": [
+          "restore",
+          "Consumer.csproj",
+          "--configfile",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\NuGet.Config",
+          "--packages",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\packages",
+          "--no-http-cache",
+          "-p:RestoreFallbackFolders=",
+          "-p:RestoreAdditionalProjectFallbackFolders="
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 24308,
+        "startedUtc": "2026-10-15T23:09:52.0054846Z",
+        "endedUtc": "2026-10-15T23:09:58.1533471Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "restore.stdout.log",
+            "sha256": "106DF8237BB8842DE0181E0534BB322C271DF8F7E880AD6CAA9251DEF1242EAD"
+          },
+          {
+            "path": "restore.stderr.log",
+            "sha256": "5AA34D2DE9CA4A3DE3A1A2C540E32CDD84B194E632BDB64D50FD27FD96B4DBEB"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "build",
+        "executable": "dotnet",
+        "arguments": [
+          "build",
+          "Consumer.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-nr:false"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 77696,
+        "startedUtc": "2026-10-15T23:09:58.1803547Z",
+        "endedUtc": "2026-10-15T23:10:00.9790790Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "build.stdout.log",
+            "sha256": "858CF08071F0B6FC8925F5B4D59702CE00950FBD76B30222844855E81869D5D0"
+          },
+          {
+            "path": "build.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "embedded-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "initial",
+          "Data Source=D:\\sndb-t\\i264-native-04\\embedded-db",
+          "embedded"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 28044,
+        "startedUtc": "2026-10-15T23:10:01.1013159Z",
+        "endedUtc": "2026-10-15T23:10:01.6375739Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "embedded-initial.stdout.log",
+            "sha256": "87F4957B2159E222ED99777A65249E03662ABCE7FB3E3DA8DAE2FBBA46E4299A"
+          },
+          {
+            "path": "embedded-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|embedded|initial|pid=28044"
+        ]
+      },
+      {
+        "label": "embedded-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "reopen",
+          "Data Source=D:\\sndb-t\\i264-native-04\\embedded-db",
+          "embedded"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 55764,
+        "startedUtc": "2026-10-15T23:10:01.6382421Z",
+        "endedUtc": "2026-10-15T23:10:02.0884499Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "embedded-reopen.stdout.log",
+            "sha256": "98D1591FE23D4135A70CFBF05A7A1B9E007AB56B2F5250F07D34C545FACFE847"
+          },
+          {
+            "path": "embedded-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|embedded|reopen|pid=55764"
+        ]
+      },
+      {
+        "label": "core",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "core",
+          "D:\\sndb-t\\i264-native-04\\core-db",
+          "embedded-core"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 26240,
+        "startedUtc": "2026-10-15T23:10:02.0889393Z",
+        "endedUtc": "2026-10-15T23:10:02.4460501Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "core.stdout.log",
+            "sha256": "54557EB9D7101BF9FAC6D8F61011D3DC1F29A7E2C83BA7C20E6E0017781A0990"
+          },
+          {
+            "path": "core.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|embedded-core|core|pid=26240"
+        ]
+      },
+      {
+        "label": "rest-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "initial",
+          "Data Source=sonnetdb+http://127.0.0.1:43864/decimal_rest;Token=issue264-local-acceptance;Protocol=rest;Timeout=15",
+          "rest"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 57276,
+        "startedUtc": "2026-10-15T23:10:05.3491238Z",
+        "endedUtc": "2026-10-15T23:10:05.9427403Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "rest-initial.stdout.log",
+            "sha256": "D45AFA55DC4316624F956E24B1B1F3C21D71535FA3C90609FB7D6639B3D14B77"
+          },
+          {
+            "path": "rest-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|rest|initial|pid=57276"
+        ]
+      },
+      {
+        "label": "frame-http2-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "initial",
+          "Data Source=sonnetdb+http://127.0.0.1:43865/decimal_frame;Token=issue264-local-acceptance;Protocol=frame-http2;Timeout=15",
+          "frame-http2"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 77200,
+        "startedUtc": "2026-10-15T23:10:05.9488868Z",
+        "endedUtc": "2026-10-15T23:10:06.3998689Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "frame-http2-initial.stdout.log",
+            "sha256": "2E53E6C671297CFFE1C6143DCE815EDAE4782495784E86137ECFD82F09BE5545"
+          },
+          {
+            "path": "frame-http2-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|frame-http2|initial|pid=77200"
+        ]
+      },
+      {
+        "label": "rest-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "reopen",
+          "Data Source=sonnetdb+http://127.0.0.1:43864/decimal_rest;Token=issue264-local-acceptance;Protocol=rest;Timeout=15",
+          "rest"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 80988,
+        "startedUtc": "2026-10-15T23:10:07.5736167Z",
+        "endedUtc": "2026-10-15T23:10:07.9800378Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "rest-reopen.stdout.log",
+            "sha256": "13825DC5B34419193A0A44E77269366835F4A394A87C621B13B0F72B583A55F4"
+          },
+          {
+            "path": "rest-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|rest|reopen|pid=80988"
+        ]
+      },
+      {
+        "label": "frame-http2-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer\\bin\\Release\\net10.0\\Consumer.dll",
+          "reopen",
+          "Data Source=sonnetdb+http://127.0.0.1:43865/decimal_frame;Token=issue264-local-acceptance;Protocol=frame-http2;Timeout=15",
+          "frame-http2"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\native-04\\consumer",
+        "pid": 81352,
+        "startedUtc": "2026-10-15T23:10:07.9804254Z",
+        "endedUtc": "2026-10-15T23:10:08.3260717Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "frame-http2-reopen.stdout.log",
+            "sha256": "1B994C1F0166A262C997653BF5FE88B3BFFCA14D91DB41EDDD1DF202235FF0BC"
+          },
+          {
+            "path": "frame-http2-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|native|frame-http2|reopen|pid=81352"
+        ]
+      }
+    ],
+    "buildDiagnostics": [
+      {
+        "label": "build",
+        "warnings": 0,
+        "errors": 0
+      }
+    ],
+    "executedSourceCopies": [
+      {
+        "filename": "Consumer.csproj",
+        "sha256": "5912E56B90D2705CA6211BF684DF7539AD8AACB6C11A8447386411B732C98B7E",
+        "executedCopySha256": "5912E56B90D2705CA6211BF684DF7539AD8AACB6C11A8447386411B732C98B7E"
+      },
+      {
+        "filename": "Program.cs",
+        "sha256": "1AFDCDA997750292D0F91DCB13B0568CC111C8C69315664FA254017EF726DA88",
+        "executedCopySha256": "1AFDCDA997750292D0F91DCB13B0568CC111C8C69315664FA254017EF726DA88"
+      },
+      {
+        "filename": "Directory.Build.props",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "Directory.Build.targets",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "Directory.Packages.props",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "NuGet.Config",
+        "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+        "executedCopySha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+      }
+    ],
+    "actualTransportLogs": [
+      {
+        "label": "server-1",
+        "pid": 29708,
+        "startedUtc": "2026-10-15T23:10:04.1960949Z",
+        "endedUtc": "2026-10-15T23:10:06.4652740Z",
+        "exitCode": -1,
+        "deliberatelyKilled": true,
+        "stdoutSha256": "50A132138045D2B3646B02BC9C6D7D1AF5EA883816F36EFBF247241A6B654121",
+        "restHttp11Requests": 74,
+        "framePortHttp2Requests": 74,
+        "frameRequests": 12,
+        "http2RestRequests": 62
+      },
+      {
+        "label": "server-2",
+        "pid": 76792,
+        "startedUtc": "2026-10-15T23:10:06.4656409Z",
+        "endedUtc": "2026-10-15T23:10:08.4151631Z",
+        "exitCode": -1,
+        "deliberatelyKilled": true,
+        "stdoutSha256": "4D7818AC1CBC32F275A1B44C974A066439A197FD39005735B21F80175EAAE69F",
+        "restHttp11Requests": 10,
+        "framePortHttp2Requests": 10,
+        "frameRequests": 6,
+        "http2RestRequests": 4
+      }
+    ],
+    "catalogs": [
+      {
+        "path": "D:\\sndb-t\\i264-native-04\\core-db\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "0E81492602194FDFEC9179507D4E130460AA8B9394DC0B7DBDD9999198FB52F8"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-native-04\\embedded-db\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "08A832164EDD7D176344808277DE45C587570666096F5AB50907002349C186A7"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-native-04\\server-data\\decimal_frame\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "0AC071315BFD3B6DAA9016F4EC783A79AB121B9A0C280BCB55A4B3154F1AC792"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-native-04\\server-data\\decimal_rest\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "6992F212FE8B1F80CA4D4FA1144E65425036C597EE2EB872E0EA55AB8BE8C3B9"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-native-04\\server-data\\__copilot__\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "EB991D7C13967AB60B014EE79C352F6077DEDFA49ADC5B80E92A65512022B07F"
+      }
+    ],
+    "databaseManifestSha256": "6285B6EB3A082DE2286E340DE5FA4F5AAC6E82E052D46F20D28447E18DA956A0",
+    "sonnetDbProjectReferences": 0,
+    "chloeProjectReferences": 0
+  },
+  "chloeRun": {
+    "kind": "chloe-candidate",
+    "runRoot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05",
+    "runtimeRoot": "D:\\sndb-t\\i264-chloe-05",
+    "receiptSha256": "543C10E647A3571E09CB5C7994EC2CE62B069D6E045CAE9893AF2B0597623283",
+    "completedUtc": "2026-10-15T23:15:52.4344504Z",
+    "packages": [
+      {
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5",
+        "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "source": "https://api.nuget.org/v3/index.json",
+        "dlls": [
+          {
+            "name": "SonnetDB.Data.dll",
+            "bin": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\baseline-bin",
+            "packageSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+            "runtimeSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+          },
+          {
+            "name": "SonnetDB.Data.dll",
+            "bin": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0",
+            "packageSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+            "runtimeSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+          }
+        ]
+      },
+      {
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5",
+        "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "source": "https://api.nuget.org/v3/index.json",
+        "dlls": [
+          {
+            "name": "SonnetDB.Core.dll",
+            "bin": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\baseline-bin",
+            "packageSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+            "runtimeSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+          },
+          {
+            "name": "SonnetDB.Core.dll",
+            "bin": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0",
+            "packageSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+            "runtimeSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "label": "clone",
+        "executable": "git",
+        "arguments": [
+          "clone",
+          "--depth",
+          "1",
+          "--single-branch",
+          "--branch",
+          "feat/sonnetdb-provider",
+          "https://github.com/maikebing/Chloe.git",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05",
+        "pid": 83672,
+        "startedUtc": "2026-10-15T23:15:20.6828903Z",
+        "endedUtc": "2026-10-15T23:15:25.6331230Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "clone.stdout.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          },
+          {
+            "path": "clone.stderr.log",
+            "sha256": "CFC89B80E3AEB79A22A32A71FB6FCC8CF02A1F085B3F2F4E2234AA16959F56BA"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "chloe-head",
+        "executable": "git",
+        "arguments": [
+          "rev-parse",
+          "HEAD"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+        "pid": 80668,
+        "startedUtc": "2026-10-15T23:15:25.6586865Z",
+        "endedUtc": "2026-10-15T23:15:25.8990794Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "chloe-head.stdout.log",
+            "sha256": "A00F51714D752CF80FFC4BF39D30CE4D3133F0256849276A0C900FEE7465B5D3"
+          },
+          {
+            "path": "chloe-head.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "sdk",
+        "executable": "dotnet",
+        "arguments": [
+          "--info"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 67148,
+        "startedUtc": "2026-10-15T23:15:26.0192948Z",
+        "endedUtc": "2026-10-15T23:15:26.5249654Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "sdk.stdout.log",
+            "sha256": "59C2C43FBB38745A7AAC1A0D01326F9D827B7DE24469438081664571610FE198"
+          },
+          {
+            "path": "sdk.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "restore",
+        "executable": "dotnet",
+        "arguments": [
+          "restore",
+          "ChloeConsumer.csproj",
+          "--configfile",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\NuGet.Config",
+          "--packages",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\packages",
+          "--no-http-cache",
+          "-p:ChloeSourceRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:RestoreFallbackFolders=",
+          "-p:RestoreAdditionalProjectFallbackFolders="
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 69120,
+        "startedUtc": "2026-10-15T23:15:26.5264403Z",
+        "endedUtc": "2026-10-15T23:15:32.2343598Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "restore.stdout.log",
+            "sha256": "1FBE5A2B5E1EDD6D8BDAC1F77CF719CAD2BAC82D632F057396F1EC575872969E"
+          },
+          {
+            "path": "restore.stderr.log",
+            "sha256": "5AA34D2DE9CA4A3DE3A1A2C540E32CDD84B194E632BDB64D50FD27FD96B4DBEB"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "baseline-build",
+        "executable": "dotnet",
+        "arguments": [
+          "build",
+          "ChloeConsumer.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-nr:false",
+          "-p:ChloeSourceRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:RestoreFallbackFolders=",
+          "-p:RestoreAdditionalProjectFallbackFolders="
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 24568,
+        "startedUtc": "2026-10-15T23:15:32.2634047Z",
+        "endedUtc": "2026-10-15T23:15:36.1994766Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "baseline-build.stdout.log",
+            "sha256": "D75CF7CCFBA712DEC20AA42CBCC25C83DE2249E43C1621961D7F0C0B44F16D9E"
+          },
+          {
+            "path": "baseline-build.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "baseline-guard",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\baseline-bin\\ChloeConsumer.dll",
+          "guard",
+          "Data Source=D:\\sndb-t\\i264-chloe-05\\baseline-db",
+          "embedded"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 48372,
+        "startedUtc": "2026-10-15T23:15:36.2226808Z",
+        "endedUtc": "2026-10-15T23:15:36.3955870Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "baseline-guard.stdout.log",
+            "sha256": "2C34C75EDA3E13425378562FF2DC425CB2E44AE27B7272D180712EFD017EBEFD"
+          },
+          {
+            "path": "baseline-guard.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|embedded|guard|pid=48372"
+        ]
+      },
+      {
+        "label": "patch-check",
+        "executable": "git",
+        "arguments": [
+          "apply",
+          "--check",
+          "C:\\Users\\mysti\\.codex\\worktrees\\issue264-public-decimal\\SonnetDB\\docs\\audits\\issue-264-public-probe\\ChloeDecimal.patch"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+        "pid": 47284,
+        "startedUtc": "2026-10-15T23:15:36.3963277Z",
+        "endedUtc": "2026-10-15T23:15:36.6141342Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "patch-check.stdout.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          },
+          {
+            "path": "patch-check.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "patch-apply",
+        "executable": "git",
+        "arguments": [
+          "apply",
+          "C:\\Users\\mysti\\.codex\\worktrees\\issue264-public-decimal\\SonnetDB\\docs\\audits\\issue-264-public-probe\\ChloeDecimal.patch"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+        "pid": 82872,
+        "startedUtc": "2026-10-15T23:15:36.6150529Z",
+        "endedUtc": "2026-10-15T23:15:36.8305681Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "patch-apply.stdout.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          },
+          {
+            "path": "patch-apply.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "candidate-diff",
+        "executable": "git",
+        "arguments": [
+          "diff",
+          "--",
+          "src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+        "pid": 48104,
+        "startedUtc": "2026-10-15T23:15:36.8312913Z",
+        "endedUtc": "2026-10-15T23:15:36.9495776Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "candidate-diff.stdout.log",
+            "sha256": "5036E843A76F8EACEFD171D9E792760F0B792305B95C8A8C801AE08521A87CB2"
+          },
+          {
+            "path": "candidate-diff.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "candidate-build",
+        "executable": "dotnet",
+        "arguments": [
+          "build",
+          "ChloeConsumer.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-nr:false",
+          "-p:ChloeSourceRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\chloe-source",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:RestoreFallbackFolders=",
+          "-p:RestoreAdditionalProjectFallbackFolders="
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 73820,
+        "startedUtc": "2026-10-15T23:15:36.9501310Z",
+        "endedUtc": "2026-10-15T23:15:38.9989923Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "candidate-build.stdout.log",
+            "sha256": "8A2FAD114B6CA17E922A088F26C5DF6D63CE6ABA17250A55A6BD35A7FDCBBB9F"
+          },
+          {
+            "path": "candidate-build.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": []
+      },
+      {
+        "label": "embedded-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "initial",
+          "Data Source=D:\\sndb-t\\i264-chloe-05\\embedded-db",
+          "embedded"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 57196,
+        "startedUtc": "2026-10-15T23:15:39.2242912Z",
+        "endedUtc": "2026-10-15T23:15:40.3213597Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "embedded-initial.stdout.log",
+            "sha256": "AA39986387538C624A4D55989887E9091989634A545291C19FFC27EA79CDD6F7"
+          },
+          {
+            "path": "embedded-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|embedded|initial|pid=57196"
+        ]
+      },
+      {
+        "label": "embedded-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "reopen",
+          "Data Source=D:\\sndb-t\\i264-chloe-05\\embedded-db",
+          "embedded"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 50680,
+        "startedUtc": "2026-10-15T23:15:40.3218643Z",
+        "endedUtc": "2026-10-15T23:15:40.9576090Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "embedded-reopen.stdout.log",
+            "sha256": "2C7595C9D64F80F99309DE41C8DBEE58920DEEF297AB54BFB428CAB1237FD336"
+          },
+          {
+            "path": "embedded-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|embedded|reopen|pid=50680"
+        ]
+      },
+      {
+        "label": "rest-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "initial",
+          "Data Source=sonnetdb+http://127.0.0.1:43866/chloe_rest;Token=issue264-local-acceptance;Protocol=rest;Timeout=15",
+          "rest"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 65756,
+        "startedUtc": "2026-10-15T23:15:48.3632351Z",
+        "endedUtc": "2026-10-15T23:15:49.1481128Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "rest-initial.stdout.log",
+            "sha256": "4A4956059EEB0D76E1999CB5732A8668B219F54DD4F06AA7F12D9E6AD4117146"
+          },
+          {
+            "path": "rest-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|rest|initial|pid=65756"
+        ]
+      },
+      {
+        "label": "frame-http2-initial",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "initial",
+          "Data Source=sonnetdb+http://127.0.0.1:43867/chloe_frame;Token=issue264-local-acceptance;Protocol=frame-http2;Timeout=15",
+          "frame-http2"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 77184,
+        "startedUtc": "2026-10-15T23:15:49.1565878Z",
+        "endedUtc": "2026-10-15T23:15:49.7987327Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "frame-http2-initial.stdout.log",
+            "sha256": "04058299B23EDACA52827C8F68EA764CE7A01F0072BFCD3EF43A0FE4537E9095"
+          },
+          {
+            "path": "frame-http2-initial.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|frame-http2|initial|pid=77184"
+        ]
+      },
+      {
+        "label": "rest-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "reopen",
+          "Data Source=sonnetdb+http://127.0.0.1:43866/chloe_rest;Token=issue264-local-acceptance;Protocol=rest;Timeout=15",
+          "rest"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 64836,
+        "startedUtc": "2026-10-15T23:15:51.0013448Z",
+        "endedUtc": "2026-10-15T23:15:51.5761627Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "rest-reopen.stdout.log",
+            "sha256": "4ADEAFEB3BB964ECDC8C0F1CB4EDD1F10DF895DCC8C8774F685F447B9E6C38D2"
+          },
+          {
+            "path": "rest-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|rest|reopen|pid=64836"
+        ]
+      },
+      {
+        "label": "frame-http2-reopen",
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer\\bin\\Release\\net10.0\\ChloeConsumer.dll",
+          "reopen",
+          "Data Source=sonnetdb+http://127.0.0.1:43867/chloe_frame;Token=issue264-local-acceptance;Protocol=frame-http2;Timeout=15",
+          "frame-http2"
+        ],
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue264-work\\chloe-05\\consumer",
+        "pid": 80460,
+        "startedUtc": "2026-10-15T23:15:51.5766453Z",
+        "endedUtc": "2026-10-15T23:15:52.0743434Z",
+        "exitCode": 0,
+        "timedOut": false,
+        "logs": [
+          {
+            "path": "frame-http2-reopen.stdout.log",
+            "sha256": "DE9A6635C352A9D7BD88576101DAF97FEBAE6A44B8A48B352FB1856BF3091AE8"
+          },
+          {
+            "path": "frame-http2-reopen.stderr.log",
+            "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+          }
+        ],
+        "completion": [
+          "COMPLETE|chloe|frame-http2|reopen|pid=80460"
+        ]
+      }
+    ],
+    "buildDiagnostics": [
+      {
+        "label": "baseline-build",
+        "warnings": 38,
+        "errors": 0
+      },
+      {
+        "label": "candidate-build",
+        "warnings": 0,
+        "errors": 0
+      }
+    ],
+    "executedSourceCopies": [
+      {
+        "filename": "ChloeConsumer.csproj",
+        "sha256": "7367677FF4A8F8D6E0B435E5882632F30D121A628CBACAACCE6449A5F371E6A5",
+        "executedCopySha256": "7367677FF4A8F8D6E0B435E5882632F30D121A628CBACAACCE6449A5F371E6A5"
+      },
+      {
+        "filename": "ChloeProgram.cs.txt",
+        "sha256": "5370E2E80E9D56C24D81C4599375DA707AF3A16214F66062564BB7132C2AFD5E",
+        "executedCopySha256": "5370E2E80E9D56C24D81C4599375DA707AF3A16214F66062564BB7132C2AFD5E"
+      },
+      {
+        "filename": "Directory.Build.props",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "Directory.Build.targets",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "Directory.Packages.props",
+        "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+        "executedCopySha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+      },
+      {
+        "filename": "NuGet.Config",
+        "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+        "executedCopySha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+      }
+    ],
+    "actualTransportLogs": [
+      {
+        "label": "server-1",
+        "pid": 35292,
+        "startedUtc": "2026-10-15T23:15:47.2125257Z",
+        "endedUtc": "2026-10-15T23:15:49.8830755Z",
+        "exitCode": -1,
+        "deliberatelyKilled": true,
+        "stdoutSha256": "8CA21A667A642CACF39A4157A05CA2A13DA0E1356F105ABD94D33BFDCD5E6896",
+        "restHttp11Requests": 60,
+        "framePortHttp2Requests": 60,
+        "frameRequests": 9,
+        "http2RestRequests": 51
+      },
+      {
+        "label": "server-2",
+        "pid": 56744,
+        "startedUtc": "2026-10-15T23:15:49.8834345Z",
+        "endedUtc": "2026-10-15T23:15:52.1530872Z",
+        "exitCode": -1,
+        "deliberatelyKilled": true,
+        "stdoutSha256": "6A4E8085A4DA000A56F52CE5AE1AF746A9F455BDDFD56784956FE5373B5CD9AA",
+        "restHttp11Requests": 11,
+        "framePortHttp2Requests": 11,
+        "frameRequests": 6,
+        "http2RestRequests": 5
+      }
+    ],
+    "catalogs": [
+      {
+        "path": "D:\\sndb-t\\i264-chloe-05\\embedded-db\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "64BE8EF8199CA5CF55BA3738BC606585F53B6CE680FDDDC867D4912A5EB21101"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-chloe-05\\server-data\\chloe_frame\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "E33AF967B254C6E703A9C7D28D61B6F758974472A306F61CA828E3C77C798D7E"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-chloe-05\\server-data\\chloe_rest\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "D0E6F8AD620AFA69566C68D6DBBE89A7CC958A8D242C609F357C1258A7A3FB3F"
+      },
+      {
+        "path": "D:\\sndb-t\\i264-chloe-05\\server-data\\__copilot__\\tables\\tables.tblschema",
+        "version": 11,
+        "sha256": "E5FB3E898B18B6B0ECBDD13CDAE62F1C7FA1A61E5FB0B8404AE5A75B1225BB9A"
+      }
+    ],
+    "databaseManifestSha256": "B06528F3730318DFC0A118F2FDCD4094B79646D374615B950ACF47F1A799EF3A",
+    "sonnetDbProjectReferences": 0,
+    "chloeProjectReferences": 2
+  },
+  "deliverableAssets": [
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\ChloeConsumer.csproj",
+      "bytes": 1057,
+      "sha256": "7367677FF4A8F8D6E0B435E5882632F30D121A628CBACAACCE6449A5F371E6A5"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\ChloeDecimal.patch",
+      "bytes": 4579,
+      "sha256": "5036E843A76F8EACEFD171D9E792760F0B792305B95C8A8C801AE08521A87CB2"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\ChloeProgram.cs.txt",
+      "bytes": 12936,
+      "sha256": "5370E2E80E9D56C24D81C4599375DA707AF3A16214F66062564BB7132C2AFD5E"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Consumer.csproj",
+      "bytes": 851,
+      "sha256": "5912E56B90D2705CA6211BF684DF7539AD8AACB6C11A8447386411B732C98B7E"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Directory.Build.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Directory.Build.targets",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Directory.Packages.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\NuGet.Config",
+      "bytes": 258,
+      "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Program.cs",
+      "bytes": 11944,
+      "sha256": "1AFDCDA997750292D0F91DCB13B0568CC111C8C69315664FA254017EF726DA88"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Run-Chloe.ps1",
+      "bytes": 11173,
+      "sha256": "59D44A79DCBFC4CEA062B71FD3DA074165E570749C6274264D08DE70B96AD5AB"
+    },
+    {
+      "path": "docs\\audits\\issue-264-public-probe\\Run.ps1",
+      "bytes": 13947,
+      "sha256": "0D8881EDF2AC85996170DED2531EDB42E808BF12BCB531EA44A10F7093632B00"
+    }
+  ],
+  "releaseEvidence": [
+    {
+      "path": "discovery/sonnetdb-versions.json",
+      "sha256": "E158B4E880A8F7EAFCF043511B0F06758E6DF067FFD828A93DA3C133FBE3063B"
+    },
+    {
+      "path": "discovery/sonnetdb-core-versions.json",
+      "sha256": "E158B4E880A8F7EAFCF043511B0F06758E6DF067FFD828A93DA3C133FBE3063B"
+    },
+    {
+      "path": "discovery/releases.json",
+      "sha256": "E82A505C839E69A5A299E963E29DDF85E044E739A8D3A7CC9C58A7B2E95C720D"
+    }
+  ],
+  "remaining": [
+    "Formal stable SonnetDB Core/ADO packages and matching formal Server release containing the fix are not delivered by this task.",
+    "Chloe patch is a local candidate only; upstream review, merge, release baseline and formal package consumer acceptance remain.",
+    "Only paired Decimal Precision/Scale and explicit custom DECIMAL/NUMERIC declarations are enabled; partial metadata, combined custom declaration plus metadata, non-Decimal metadata and unsupported ranges remain rejected.",
+    "Catalog v11 rejects older readers. Rollback requires preserved pre-upgrade catalog and data copies; no old binary reopen or old catalog migration experiment was performed in this task.",
+    "No NativeAOT publish, full Chloe suite, remote CI, publish, commit, push or external issue action performed by this agent."
+  ]
+}

@@ -1,0 +1,64 @@
+diff --git a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+index 890de9e..b5a4eeb 100644
+--- a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
++++ b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+@@ -16,23 +16,6 @@ namespace Chloe.SonnetDB.DDL
+ 
+         public override List<string> GenCreateTableScript(TypeDescriptor typeDescriptor, string tableName, TableCreateMode createMode = TableCreateMode.CreateIfNotExists)
+         {
+-            foreach (var property in typeDescriptor.PrimitivePropertyDescriptors)
+-            {
+-                if (property.Column.Precision != null || property.Column.Scale != null)
+-                    throw new NotSupportedException("SonnetDB does not enforce declared DECIMAL precision and scale constraints. See https://github.com/IoTSharp/SonnetDB/issues/264.");
+-
+-                if (property.TryGetAnnotation(typeof(DataTypeAttribute), out var annotation) && annotation is DataTypeAttribute dataType)
+-                {
+-                    int leftParenthesis = dataType.Name?.IndexOf('(') ?? -1;
+-                    if (leftParenthesis >= 0)
+-                    {
+-                        string typeName = dataType.Name.Substring(0, leftParenthesis).Trim();
+-                        if (typeName.Equals("DECIMAL", StringComparison.OrdinalIgnoreCase) || typeName.Equals("NUMERIC", StringComparison.OrdinalIgnoreCase))
+-                            throw new NotSupportedException("SonnetDB does not enforce declared DECIMAL precision and scale constraints. See https://github.com/IoTSharp/SonnetDB/issues/264.");
+-                    }
+-                }
+-            }
+-
+             if (!string.IsNullOrEmpty(typeDescriptor.Table.Schema))
+                 throw new NotSupportedException("SonnetDB does not support database schemas. See https://github.com/IoTSharp/SonnetDB/issues/232.");
+             if (typeDescriptor.PrimitivePropertyDescriptors.Any(a => a.HasSequence()))
+@@ -84,8 +67,34 @@ namespace Chloe.SonnetDB.DDL
+             if (property.PropertyType.GetUnderlyingType() == typeof(string) && property.Column.Size != null)
+                 throw new NotSupportedException("SonnetDB STRING columns do not enforce a maximum length. See https://github.com/IoTSharp/SonnetDB/issues/240.");
+ 
++            if (property.Column.Precision != null || property.Column.Scale != null)
++            {
++                if (property.PropertyType.GetUnderlyingType() != typeof(decimal))
++                    throw new NotSupportedException("SonnetDB Precision/Scale metadata is supported only for Decimal properties.");
++                if (property.Column.Precision == null || property.Column.Scale == null)
++                    throw new NotSupportedException("Specify both Precision and Scale for an explicit SonnetDB DECIMAL declaration.");
++                if (property.TryGetAnnotation(typeof(DataTypeAttribute), out _))
++                    throw new NotSupportedException("Choose either Precision/Scale or a custom DataType declaration, not both.");
++                int precision = property.Column.Precision.Value;
++                int scale = property.Column.Scale.Value;
++                if (precision < 1 || precision > 38 || scale < 0 || scale > precision || scale > 28)
++                    throw new NotSupportedException("SonnetDB Decimal metadata requires precision 1..38 and scale 0..min(precision,28).");
++                return string.Format(System.Globalization.CultureInfo.InvariantCulture, "DECIMAL({0},{1})", precision, scale);
++            }
++
+             if (property.TryGetAnnotation(typeof(DataTypeAttribute), out var annotation))
+-                return ((DataTypeAttribute)annotation).Name;
++            {
++                string customType = ((DataTypeAttribute)annotation).Name;
++                int leftParenthesis = customType?.IndexOf('(') ?? -1;
++                if (leftParenthesis >= 0)
++                {
++                    string typeName = customType.Substring(0, leftParenthesis).Trim();
++                    if ((typeName.Equals("DECIMAL", StringComparison.OrdinalIgnoreCase) || typeName.Equals("NUMERIC", StringComparison.OrdinalIgnoreCase))
++                        && property.PropertyType.GetUnderlyingType() != typeof(decimal))
++                        throw new NotSupportedException("An explicit DECIMAL/NUMERIC declaration requires a Decimal property.");
++                }
++                return customType;
++            }
+ 
+             Type type = property.PropertyType.GetUnderlyingType();
+             if (type.IsEnum)

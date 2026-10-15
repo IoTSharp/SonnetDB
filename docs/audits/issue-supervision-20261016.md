@@ -79,3 +79,8 @@
 绝对工作树根为 `C:\Users\mysti\.codex\worktrees\<工作树名称>\SonnetDB`。每个代理仅处理自己的Issue及专属probe/审计报告，不修改共享HANDOFF/CHANGELOG、不commit/push/评论/关闭；若发现生产缺口，先向根报告共享边界。新私有packages/http-cache、无fallback或ProjectReference，保留来源、实际退出码和资源归属。公开预览包是否满足发布条件以各原Issue为准；缺实际应用旅程仍准确列出，不据单次SQL成功结项。根随后按Issue逐项审查、集成、完整门禁和独立提交；本段仅记录派发，未把准备写成验收完成。
 
 后续结果在对应 Issue 实施报告及本记录中更新；部分实现不得记为整条 Issue 验收完成。
+## 倒序批次03与最新派发
+
+批次02已正常推送main到8ead8bf2，远端SHA及parity-results回读一致；代码CI38823012523仍运行，270/271/272尚未评论/关闭，三份具体回复草稿在本地batch02-actions目录。#264已冻结13份交付并集成，原生公开包7/7、原Chloe保护1进程、仅DDL候选6/6进程均exit0，根复核65+1362证据资产与26条命令；正式稳定发行及Chloe上游交付未满足，保持OPEN。报告[Decimal公开包及消费者候选](issue-264-public-package-20261016.md)。每项仍须最终完整restore/Format Check后独立提交，本批齐备后推送。
+
+当前代理：issue312已接续#261（D:/source/SonnetDB-worktrees/issue261-public-metadata，codex/issue261-public-metadata，285186b8），只验公开包和XCode真实候选，不与#262并行改共享生产；issue314的#263已完成12个最终消费者进程，整理冻结交付；issue313实施#262日期投影原生类型/Kind和协商。#262真实+08基线6FAIL/3PASS、既有日期参数另2PASS，旧结果保留。下一候选#260需先识别与#262共享标量/类型推断边界；旧树、原始失败、缓存与parity-results均保留。

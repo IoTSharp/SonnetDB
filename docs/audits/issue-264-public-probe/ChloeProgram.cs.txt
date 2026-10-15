@@ -1,0 +1,245 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 3) return 2;
+string phase = args[0];
+string connectionString = args[1];
+string transport = args[2];
+try
+{
+    foreach (string name in new[] { "SonnetDB.Data", "SonnetDB.Core", "Chloe", "Chloe.SonnetDB" })
+    {
+        Assembly assembly = Assembly.Load(name);
+        string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+        Console.WriteLine($"ASSEMBLY|{name}|{version}|{assembly.Location}");
+        if (name.StartsWith("SonnetDB", StringComparison.Ordinal))
+            Check(version.Contains("1af23d8f299febfdf66b040ab3419980396acf46", StringComparison.Ordinal), "public-package-" + name);
+    }
+    using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+    var generator = new SonnetDBTableGenerator(context);
+    if (phase == "guard")
+    {
+        foreach (Type type in new[] { typeof(AmountRow), typeof(PrecisionOnly), typeof(ScaleOnly), typeof(CustomDecimal), typeof(CustomNumeric) })
+            Expect(() => generator.CreateTable(type), "baseline-guard-" + type.Name, "264");
+    }
+    else if (phase == "initial")
+    {
+        foreach (Type type in new[] { typeof(AmountRow), typeof(CustomDecimal), typeof(CustomNumeric), typeof(BareRow), typeof(ExplicitWideRow) })
+        {
+            foreach (string sql in generator.GenCreateTableScript(EntityTypeContainer.GetDescriptor(type), null!))
+                Console.WriteLine("DDL|" + sql);
+            generator.CreateTable(type);
+        }
+        foreach (Type type in new[] { typeof(PrecisionOnly), typeof(ScaleOnly), typeof(ConflictingDeclaration), typeof(NonDecimal), typeof(CustomNonDecimal), typeof(InvalidScale), typeof(InvalidPrecision) })
+            Expect(() => generator.CreateTable(type), "candidate-reject-unsupported-" + type.Name);
+        Metadata("ChloeAmounts", 5, 2);
+        Metadata("ChloeCustomDecimal", 5, 2);
+        Metadata("ChloeCustomNumeric", 5, 2);
+        Metadata("ChloeExplicitWide", 38, 28);
+        context.InsertRange(new List<AmountRow>
+        {
+            new() { Id = 1, Amount = 1.2300m }, new() { Id = 2, Amount = 2.50m },
+            new() { Id = 3, Amount = null }, new() { Id = 4, Amount = 999.99m }, new() { Id = 5, Amount = -999.99m }
+        });
+        foreach (decimal value in new[] { 1.234m, -1.234m, 1000m, -1000m, 123456.789m })
+            Expect(() => context.Insert(new AmountRow { Id = 90, Amount = value }), "orm-reject-" + value, "DECIMAL");
+        Expect(() => context.Session.ExecuteNonQuery("INSERT INTO ChloeAmounts(id,amount) VALUES(90,@value)", new DbParam("value", 1.234m) { DbType = DbType.Decimal }), "raw-precise-reject", "DECIMAL");
+        Expect(() => context.Session.ExecuteNonQuery("INSERT INTO ChloeAmounts(id,amount) VALUES(90,@value)", new DbParam("value", "123456.789") { DbType = DbType.String }), "raw-string-reject", "DECIMAL");
+        Expect(() => context.InsertRange(new List<AmountRow> { new() { Id = 90, Amount = 9.25m }, new() { Id = 91, Amount = 1.234m } }), "single-batch-atomicity", "DECIMAL");
+        Expect(() => context.InsertRange(new List<AmountRow> { new() { Id = 90, Amount = 9.25m }, new() { Id = 91, Amount = 1000m } }, 1, null!), "split-batch-transaction-atomicity", "DECIMAL");
+        AssertRows(context, 1.23m, false);
+        Expect(() => context.Update<AmountRow>(row => row.Id <= 2, row => new AmountRow { Amount = row.Id == 1 ? 9.25m : 1.234m }), "orm-update-atomicity", "DECIMAL");
+        AssertRows(context, 1.23m, false);
+        context.Session.BeginTransaction();
+        try
+        {
+            context.Update<AmountRow>(row => row.Id == 1, row => new AmountRow { Amount = 1.50m });
+            Expect(() => context.Update<AmountRow>(row => row.Id <= 2, row => new AmountRow { Amount = row.Id == 1 ? 9.25m : 1.234m }), "transaction-update-atomicity", "DECIMAL");
+            AssertRows(context, 1.50m, false);
+        }
+        finally { context.Session.RollbackTransaction(); }
+        AssertRows(context, 1.23m, false);
+        context.Session.BeginTransaction();
+        context.Update<AmountRow>(row => row.Id == 1, row => new AmountRow { Amount = 1.75m });
+        context.Session.CommitTransaction();
+        await context.InsertAsync(new AmountRow { Id = 6, Amount = 0.01m });
+        context.Insert(new CustomDecimal { Id = 1, Amount = -999.99m });
+        context.Insert(new CustomNumeric { Id = 1, Amount = 999.99m });
+        Expect(() => context.Insert(new CustomDecimal { Id = 2, Amount = -1000m }), "custom-decimal-constraint", "DECIMAL");
+        Expect(() => context.Insert(new CustomNumeric { Id = 2, Amount = 1.234m }), "custom-numeric-constraint", "DECIMAL");
+        decimal?[] values = [decimal.MaxValue, decimal.MinValue, 123456789.1234567890123456789m, 0.0000000000000000000000000001m, null];
+        context.InsertRange(values.Select((value, index) => new BareRow { Id = index + 1, Amount = value }).ToList());
+        context.Session.ExecuteNonQuery("INSERT INTO ChloeBare(id,amount) VALUES(6,@value)",
+            new DbParam("value", -123456789.1234567890123456789m) { DbType = DbType.Decimal, Precision = 38, Scale = 28 });
+        context.Insert(new ExplicitWideRow { Id = 1, Amount = 0.1234567890123456789012345678m });
+        Expect(() => context.Insert(new ExplicitWideRow { Id = 2, Amount = decimal.MaxValue }), "explicit-wide-is-not-bare", "DECIMAL");
+        Verify(context);
+    }
+    else if (phase == "reopen") Verify(context);
+    else throw new ArgumentException("Unknown phase.");
+    Console.WriteLine($"COMPLETE|chloe|{transport}|{phase}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine(error);
+    return 1;
+}
+
+void Check(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException("Assertion failed: " + label);
+    Console.WriteLine($"PASS|chloe|{transport}|{phase}|{label}");
+}
+
+void Expect(Action action, string label, string? text = null)
+{
+    Exception? failure = null;
+    try { action(); } catch (Exception error) { failure = error; }
+    Check(failure is not null && (text is null || failure.ToString().Contains(text, StringComparison.OrdinalIgnoreCase)), label);
+    Console.WriteLine("EXPECTED-REJECTION|" + label + "|" + failure!.Message);
+}
+
+void Metadata(string table, short precision, short scale)
+{
+    using var connection = new SndbConnection(connectionString);
+    connection.Open();
+    var rows = connection.GetSchema("Columns", [null, null, table, "Amount"]).Rows;
+    Check(rows.Count == 1 && Equals(rows[0]["NUMERIC_PRECISION"], precision) && Equals(rows[0]["NUMERIC_SCALE"], scale), "catalog-" + table);
+}
+
+void AssertRows(SonnetDBContext context, decimal first, bool last)
+{
+    var rows = context.Query<AmountRow>().OrderBy(row => row.Id).ToList();
+    (long, decimal?)[] expected = [(1, first), (2, 2.50m), (3, null), (4, 999.99m), (5, -999.99m)];
+    if (last) expected = [.. expected, (6, 0.01m)];
+    Console.WriteLine("ROWS|" + string.Join(';', rows.Select(row => (row.Id, row.Amount))));
+    Check(rows.Select(row => (row.Id, row.Amount)).SequenceEqual(expected), "exact-constrained-rows");
+}
+
+void Verify(SonnetDBContext context)
+{
+    Metadata("ChloeAmounts", 5, 2);
+    Metadata("ChloeCustomDecimal", 5, 2);
+    Metadata("ChloeCustomNumeric", 5, 2);
+    Metadata("ChloeExplicitWide", 38, 28);
+    AssertRows(context, 1.75m, true);
+    decimal?[] expected = [decimal.MaxValue, decimal.MinValue, 123456789.1234567890123456789m, 0.0000000000000000000000000001m, null, -123456789.1234567890123456789m];
+    Check(context.Query<BareRow>().OrderBy(row => row.Id).Select(row => row.Amount).ToList().SequenceEqual(expected), "bare-full-clr-and-raw-precise-parameters");
+    Check(context.Query<CustomDecimal>().ToList().Single().Amount == -999.99m, "custom-decimal-persisted");
+    Check(context.Query<CustomNumeric>().ToList().Single().Amount == 999.99m, "custom-numeric-persisted");
+    Check(context.Query<ExplicitWideRow>().ToList().Single().Amount == 0.1234567890123456789012345678m, "explicit-wide-persisted");
+    Expect(() => context.Insert(new AmountRow { Id = 99, Amount = 1.234m }), "reopened-constraint", "DECIMAL");
+    AssertRows(context, 1.75m, true);
+}
+
+/// <summary>显式受约束的可空金额映射。</summary>
+[Table("ChloeAmounts")]
+public sealed class AmountRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>要求五位精度、两位小数的金额。</summary>
+    [Column(Precision = 5, Scale = 2)] public decimal? Amount { get; set; }
+}
+/// <summary>自定义 Decimal 声明。</summary>
+[Table("ChloeCustomDecimal")]
+public sealed class CustomDecimal
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>由原生 Decimal 声明约束的金额。</summary>
+    [DataType(" decimal (5,2) ")] public decimal Amount { get; set; }
+}
+/// <summary>自定义 Numeric 声明。</summary>
+[Table("ChloeCustomNumeric")]
+public sealed class CustomNumeric
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>由原生 Numeric 声明约束的金额。</summary>
+    [DataType("NUMERIC(5,2)")] public decimal Amount { get; set; }
+}
+/// <summary>裸 Decimal 映射。</summary>
+[Table("ChloeBare")]
+public sealed class BareRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>保持 CLR Decimal 值域的金额。</summary>
+    public decimal? Amount { get; set; }
+}
+/// <summary>与裸声明区分的显式默认精度声明。</summary>
+[Table("ChloeExplicitWide")]
+public sealed class ExplicitWideRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>显式声明的金额。</summary>
+    [Column(Precision = 38, Scale = 28)] public decimal Amount { get; set; }
+}
+/// <summary>拒绝未提供 scale 的不完整配置。</summary>
+public sealed class PrecisionOnly
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>不完整金额声明。</summary>
+    [Column(Precision = 5)] public decimal Amount { get; set; }
+}
+/// <summary>拒绝未提供 precision 的不完整配置。</summary>
+public sealed class ScaleOnly
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>不完整金额声明。</summary>
+    [Column(Scale = 2)] public decimal Amount { get; set; }
+}
+/// <summary>拒绝两个声明入口同时配置。</summary>
+public sealed class ConflictingDeclaration
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>冲突的金额声明。</summary>
+    [Column(Precision = 5, Scale = 2), DataType("DECIMAL(8,4)")] public decimal Amount { get; set; }
+}
+/// <summary>拒绝把 Decimal 参数误用于整数映射。</summary>
+public sealed class NonDecimal
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>不支持精度声明的整数。</summary>
+    [Column(Precision = 5, Scale = 2)] public long Amount { get; set; }
+}
+/// <summary>拒绝未验证的非 Decimal 自定义映射。</summary>
+public sealed class CustomNonDecimal
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>拒绝未验证的自定义声明与整数映射组合。</summary>
+    [DataType("NUMERIC(5,2)")] public long Amount { get; set; }
+}
+/// <summary>拒绝小数位大于精度。</summary>
+public sealed class InvalidScale
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>非法金额声明。</summary>
+    [Column(Precision = 5, Scale = 6)] public decimal Amount { get; set; }
+}
+/// <summary>拒绝超出原生精度范围。</summary>
+public sealed class InvalidPrecision
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>非法金额声明。</summary>
+    [Column(Precision = 39, Scale = 2)] public decimal Amount { get; set; }
+}
