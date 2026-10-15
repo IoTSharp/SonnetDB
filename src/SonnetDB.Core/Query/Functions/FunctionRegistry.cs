@@ -305,6 +305,14 @@ public static class FunctionRegistry
 
     private static object? EvaluateRound(IReadOnlyList<object?> args)
     {
+        if (args[0] is decimal decimalValue)
+        {
+            long decimalDigits = args.Count == 1 ? 0 : RequireInt64(args[1], "round", "digits");
+            if (decimalDigits is < 0 or > 28)
+                throw new InvalidOperationException("函数 round 的 DECIMAL digits 参数必须在 0..28 范围内。");
+            return Math.Round(decimalValue, (int)decimalDigits, MidpointRounding.ToEven);
+        }
+
         double value = RequireDouble(args[0], "round");
         if (args.Count == 1)
             return Math.Round(value);

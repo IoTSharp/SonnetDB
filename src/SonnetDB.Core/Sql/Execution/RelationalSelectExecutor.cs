@@ -4356,6 +4356,23 @@ internal static partial class RelationalSelectExecutor
             && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
             return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
 
+        if (expression is FunctionCallExpression round
+            && round.Name.Equals("round", StringComparison.OrdinalIgnoreCase)
+            && round.Arguments.Count is 1 or 2
+            && !round.IsStar
+            && FunctionRegistry.GetFunctionKind(round.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(round.Name, out _) != true)
+        {
+            var input = InferSelectColumnInfo(round.Arguments[0], columns);
+            // 舍入可能增加整数位；不沿用输入列的 precision/scale 或主键等属性。
+            return new SelectColumnInfo(input.DataType switch
+            {
+                TableColumnType.Decimal => TableColumnType.Decimal,
+                TableColumnType.Int64 or TableColumnType.Float64 => TableColumnType.Float64,
+                _ => null,
+            }, input.IsNullable);
+        }
+
         if (expression is FunctionCallExpression padding
             && (padding.Name.Equals("lpad", StringComparison.OrdinalIgnoreCase)
                 || padding.Name.Equals("rpad", StringComparison.OrdinalIgnoreCase))

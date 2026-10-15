@@ -30,7 +30,7 @@ namespace SonnetDB.Tests;
 /// 远程 ADO 的 <c>Protocol=frame-http2</c> 必须使用真正的 h2c，而不只是把 SQL 编码成帧。
 /// 写语句仍走 REST endpoint，但与只读帧查询共享同一个 HTTP/2 exact 客户端。
 /// </summary>
-public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
+public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
 {
     private readonly ConcurrentQueue<ObservedRequest> _requests = new();
     private WebApplication? _app;
