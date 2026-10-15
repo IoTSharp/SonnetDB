@@ -450,6 +450,7 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("TABLE_NAME", typeof(string));
         table.Columns.Add("TABLE_TYPE", typeof(string));
         table.Columns.Add("CREATED_UTC", typeof(DateTime));
+        table.Columns.Add("REMARKS", typeof(string));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var snapshot = SnapshotSchema();
@@ -463,7 +464,8 @@ public sealed class SndbConnection : DbConnection
                 string.Empty,
                 schema.Name,
                 "BASE TABLE",
-                new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc));
+                new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc),
+                (object?)schema.Comment ?? DBNull.Value);
         }
         foreach (var view in snapshot.Views)
         {
@@ -510,6 +512,7 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("IS_PRIMARY_KEY", typeof(bool));
         table.Columns.Add("IS_ROW_VERSION", typeof(bool));
         table.Columns.Add("IS_AUTO_INCREMENT", typeof(bool));
+        table.Columns.Add("REMARKS", typeof(string));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var columnNameRestriction = Restriction(restrictionValues, 3);
@@ -532,12 +535,13 @@ public sealed class SndbConnection : DbConnection
                     (object?)column.DefaultExpressionSql ?? DBNull.Value,
                     column.IsNullable,
                     FormatTableColumnType(column.DataType),
-                    GetCharacterMaximumLength(column.DataType),
+                    column.StringLength ?? GetCharacterMaximumLength(column.DataType),
                     GetNumericPrecision(column),
                     GetNumericScale(column),
                     column.IsPrimaryKey,
                     column.IsRowVersion,
-                    column.IsAutoIncrement);
+                    column.IsAutoIncrement,
+                    (object?)column.Comment ?? DBNull.Value);
             }
         }
 

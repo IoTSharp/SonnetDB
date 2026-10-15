@@ -49,6 +49,7 @@ public static class FunctionRegistry
     public static bool TryGetAggregate(string name, [MaybeNullWhen(false)] out IAggregateFunction function)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (SqlSequenceRuntime.IsNext(name)) { function = null; return false; }
         var udf = UserFunctionRegistry.Current;
         if (udf is not null && udf.TryGetAggregate(name, out function))
             return true;
@@ -59,6 +60,8 @@ public static class FunctionRegistry
     public static bool TryGetScalar(string name, [MaybeNullWhen(false)] out IScalarFunction function)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (SqlSequenceRuntime.IsNext(name))
+            return _scalarFunctions.TryGetValue(name, out function);
         var udf = UserFunctionRegistry.Current;
         if (udf is not null && udf.TryGetScalar(name, out function))
             return true;
@@ -69,6 +72,7 @@ public static class FunctionRegistry
     public static bool TryGetWindow(string name, [MaybeNullWhen(false)] out IWindowFunction function)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (SqlSequenceRuntime.IsNext(name)) { function = null; return false; }
         var udf = UserFunctionRegistry.Current;
         if (udf is not null && udf.TryGetWindow(name, out function))
             return true;
@@ -79,6 +83,7 @@ public static class FunctionRegistry
     public static FunctionKind GetFunctionKind(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (SqlSequenceRuntime.IsNext(name)) return FunctionKind.Scalar;
         var udf = UserFunctionRegistry.Current;
         if (udf is not null)
         {
@@ -145,6 +150,7 @@ public static class FunctionRegistry
 
     private static IScalarFunction[] CreateScalarFunctionList() =>
     [
+        new BuiltInScalarFunction("nextval", 1, 1, SqlSequenceRuntime.Next),
         new BuiltInScalarFunction("abs", 1, 1, static args => Math.Abs(RequireDouble(args[0], "abs"))),
         new BuiltInScalarFunction("round", 1, 2, EvaluateRound),
         new BuiltInScalarFunction("sqrt", 1, 1, static args => Math.Sqrt(RequireDouble(args[0], "sqrt"))),

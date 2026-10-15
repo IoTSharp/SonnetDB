@@ -8,9 +8,15 @@
 ## [Unreleased]
 
 ### Changed
+- 表目录 `tables.tblschema` 在包含字符串长度或表列注释时写入 v12，读取兼容 v1～v12；没有这些属性时继续写 v11。旧引擎会拒绝 v12，回退须使用升级前的数据库副本；未修改 `FileHeader` 或行/键编码。
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Added
+- GH-Issue #226 / M43：允许已有数据的主键列重命名，在一次目录提交中同步主键、普通/唯一索引声明、CHECK、默认值、生成列及本表/入站外键；失败补偿或要求重开，实际进程终止后按旧或新完整目录恢复。主键类型和定义迁移仍待实现。
+- GH-Issue #231 / M43：新增单 schema 的持久 Int64 `CREATE/DROP SEQUENCE` 与原子 `nextval`，支持关系表 INSERT 表达式、批量和直接序列 DEFAULT；同步 WAL 后返回，回滚耗号，缺失/耗尽/恢复有稳定诊断。备份冻结覆盖检查点和完整复制，持久化结果不确定时停止发号；查询形状和默认值边界见 [序列合同](docs/sql-sequences.md)。
+- GH-Issue #237 / M43：新增持久 `COMMENT ON TABLE/COLUMN ... IS '...'|NULL`，保留 Unicode、空串、引号、换行和重命名后的注释，通过 information_schema、嵌入式/远程 `GetSchema` 提供读取。
+- GH-Issue #240 / M43：关系表支持 `STRING(n)` / `VARCHAR(n)`，按 UTF-16 代码单元计算，所有写入口拒绝超长值并保持批次原子性；ALTER 扩大/缩短先校验现有行及默认值，支持取消，结果与 ADO/远程目录返回实际声明长度。
+- GH-Issue #243 / M43：有主键及复合主键关系表支持原子 `DELETE ... WHERE ... LIMIT n [RETURNING ...]`，接受非负 Int64 字面量/整型参数，保持事务、外键、触发器及取消合同；上限针对直接删除行，候选扫描和级联影响另计，无主键写入仍不支持。
 - GH-Issue #224 / M45-C01：measurement TAG/time 分组复用已有标量求值器处理 HAVING 和复合聚合投影，支持分组键、投影别名与多键排序，并在筛选/排序后分页；残差/Geo WHERE 与显式物化预算的既有拒绝边界保留。
 - GH-Issue #229：ADO 多条 SELECT 在执行前按 SQL 词法边界完整预检，冻结参数，并通过 `NextResult` / `NextResultAsync` 顺序切换结果和元数据，释放前一结果后才执行下一条；经典 schema 对未声明长度的 STRING 返回 `ColumnSize=-1`，支持 DataSet/DataTable 装载而不伪造声明长度。沿用现有嵌入式、REST 和 Frame 通道，不新增批次快照或写入协议。
 - GH-Issue #257：关系表 UPDATE 可省略 WHERE 更新全部行，复用既有表达式、RETURNING、ROWVERSION、约束、事务、取消和物化预算；其它模型仍须声明 WHERE。

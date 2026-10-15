@@ -2104,7 +2104,7 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
-    public void AlterTable_RejectsPrimaryKeyAndIndexedColumnChanges()
+    public void AlterTable_RejectsDroppingPrimaryKeyAndIndexedColumnsButAllowsKeyRename()
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, name STRING, PRIMARY KEY (id))");
@@ -2112,8 +2112,8 @@ public sealed class SqlExecutorTableTests : IDisposable
 
         Assert.Throws<InvalidOperationException>(() =>
             SqlExecutor.Execute(db, "ALTER TABLE devices DROP COLUMN id"));
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "ALTER TABLE devices RENAME COLUMN id TO device_id"));
+        SqlExecutor.Execute(db, "ALTER TABLE devices RENAME COLUMN id TO device_id");
+        Assert.Equal(["device_id"], db.Tables.Catalog.TryGet("devices")!.PrimaryKey);
         Assert.Throws<InvalidOperationException>(() =>
             SqlExecutor.Execute(db, "ALTER TABLE devices DROP COLUMN serial"));
         Assert.Throws<InvalidOperationException>(() =>

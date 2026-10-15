@@ -1,5 +1,7 @@
 # ROADMAP — SonnetDB 4.5
 
+2026-10-16：第二批 [十项产品切片](docs/audits/implementation-batch-02-20261016.md)已完成本地实现：GH-Issue #226 存量主键列重命名，#231 持久序列/原子取号/逐行插入，#237 表列注释，#240 字符串长度声明/演进/元数据，以及 #243 有主键和复合主键有界删除。扩大 Core 3157 项、Server SQL/ADO/Frame 412 项（含真实 REST/h2c，本批新增 18 项中 17 项为真实网络）及实际强制终止恢复 2 项回归通过，最终冻结复核与本地提交见根 HANDOFF。表目录含新属性时写 v12，旧引擎拒绝；未改行或键编码。#226 主键类型/定义、#227 DDL 事务、#232/#233/#236 及无主键依赖继续排队；正式发布及 ORM 消费者验收另计，不能由这些切片关闭整个 Issue。
+
 2026-10-15：接收最新 main `c7b307f6`，首次核对 46 条开放 Issue，最终快照 48 条（新增 #312/#313/#314，关闭 #273），清理两个已合并本地分支。本批 [十项实现任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：GH-Issue #224 的 HAVING/复合投影/排序分页，#229 多结果 ADO，#257 全表关系 UPDATE，以及 M45/M46 的 Int64 众数/近似去重和三项聚合状态校验。最终 Core 2938 项、真实 REST/h2c 167 项回归通过；实际提交和远端 Issue 闭环见根 HANDOFF，不重做已合入的 #219～#223/#225/#228，不把局部任务提升为整个里程碑、正式发布或下游 ORM 完成。
 
 更新日期：2026-10-12（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。

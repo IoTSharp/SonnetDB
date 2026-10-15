@@ -4380,6 +4380,9 @@ internal static partial class RelationalSelectExecutor
             && UserFunctionRegistry.Current?.TryGetScalar(uuidScalar.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);
 
+        if (expression is FunctionCallExpression sequence && SqlSequenceRuntime.IsNext(sequence.Name))
+            return new SelectColumnInfo(TableColumnType.Int64, false);
+
         if (expression is FunctionCallExpression jsonSetter
             && string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
             && FunctionRegistry.GetFunctionKind(jsonSetter.Name) == FunctionKind.Scalar

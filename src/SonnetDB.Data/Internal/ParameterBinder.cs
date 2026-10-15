@@ -2,6 +2,8 @@
 using System.Text;
 
 using SonnetDB.Model;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Data.Internal;
 
@@ -23,6 +25,17 @@ internal static class ParameterBinder
             if (string.IsNullOrEmpty(n))
                 throw new InvalidOperationException("参数名不能为空。");
             byName[n] = p;
+        }
+
+        // 远程协议发送内联字面量，须在日期等类型被通用格式化为整数之前验证删除上限。
+        if (sql.Contains("LIMIT", StringComparison.OrdinalIgnoreCase)
+            && SqlLexer.Tokenize(sql)[0].Kind == TokenKind.KeywordDelete
+            && SqlParser.Parse(sql) is DeleteStatement { RowLimit: ParameterExpression { Name: { } limitName } }
+            && byName.TryGetValue(limitName, out var limit))
+        {
+            if (limit.Value is not (byte or sbyte or short or ushort or int or uint or long or ulong)
+                || limit.Value is ulong unsignedValue && unsignedValue > long.MaxValue)
+                throw new InvalidOperationException("DELETE LIMIT 参数必须是非负 Int64 范围内的整数。");
         }
 
         var sb = new StringBuilder(sql.Length + 16);
@@ -110,6 +123,7 @@ internal static class ParameterBinder
             int i32 => i32.ToString(CultureInfo.InvariantCulture),
             uint u32 => u32.ToString(CultureInfo.InvariantCulture),
             long i64 => i64.ToString(CultureInfo.InvariantCulture),
+            ulong u64 when u64 <= long.MaxValue => u64.ToString(CultureInfo.InvariantCulture),
             float f => "FLOAT '" + f.ToString("R", CultureInfo.InvariantCulture) + "'",
             double d => "FLOAT '" + d.ToString("R", CultureInfo.InvariantCulture) + "'",
             decimal m => "DECIMAL '" + m.ToString(CultureInfo.InvariantCulture) + "'",

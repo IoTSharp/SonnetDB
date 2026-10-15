@@ -33,6 +33,9 @@ public sealed class TableSchema
         _checkConstraintsByName = checkConstraints.ToFrozenDictionary(c => c.Name, StringComparer.Ordinal);
     }
 
+    /// <summary>表注释；null 表示没有注释，空字符串表示显式空注释。</summary>
+    public string? Comment { get; private init; }
+
     /// <summary>表名。</summary>
     public string Name { get; }
 
@@ -447,7 +450,7 @@ public sealed class TableSchema
             .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .Append(definition)
             .ToArray();
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -478,7 +481,7 @@ public sealed class TableSchema
             .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
             .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .ToArray();
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -510,7 +513,7 @@ public sealed class TableSchema
             .Where(f => !string.Equals(f.Name, target.Name, StringComparison.Ordinal))
             .Select(static f => new TableForeignKeyDefinition(f.Name, f.Columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete))
             .ToArray();
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -540,7 +543,7 @@ public sealed class TableSchema
         var definitions = ForeignKeyDefinitions()
             .Append(definition)
             .ToArray();
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -569,7 +572,7 @@ public sealed class TableSchema
             throw new InvalidOperationException($"table '{Name}' 中约束 '{definition.Name}' 已存在。");
         }
 
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -594,7 +597,7 @@ public sealed class TableSchema
         if (!_checkConstraintsByName.ContainsKey(constraintName))
             return this;
 
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -678,7 +681,7 @@ public sealed class TableSchema
         if (dataType == TableColumnType.Decimal && decimalPrecision is not null)
             explicitDeclarations.Add(name);
 
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable))
                 .Append((name, dataType, isNullable && !isRowVersion && !isAutoIncrement))
@@ -700,7 +703,7 @@ public sealed class TableSchema
     public TableSchema WithPrimaryKey(IReadOnlyList<string> primaryKey)
     {
         ArgumentNullException.ThrowIfNull(primaryKey);
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             primaryKey,
@@ -777,7 +780,7 @@ public sealed class TableSchema
         else
             explicitDeclarations.Remove(name);
 
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Select(c => string.Equals(c.Name, name, StringComparison.Ordinal)
                     ? (c.Name, dataType, isNullable)
@@ -820,7 +823,7 @@ public sealed class TableSchema
                 throw new InvalidOperationException($"列 '{name}' 被检查约束 '{checkConstraint.Name}' 引用，不能删除。");
         }
 
-        return CreateWithDefaults(
+        return CreateWithInheritedMetadata(
             Name,
             Columns.Where(c => !string.Equals(c.Name, name, StringComparison.Ordinal))
                 .Select(static c => (c.Name, c.DataType, c.IsNullable))
@@ -837,7 +840,7 @@ public sealed class TableSchema
     }
 
     /// <summary>
-    /// 返回重命名列后的新 schema。首版不允许重命名主键列。
+    /// 返回重命名列后的新 schema，保留列序号并同步主键、索引、自引用外键和检查约束。
     /// </summary>
     public TableSchema WithRenamedColumn(string oldName, string newName)
     {
@@ -849,35 +852,63 @@ public sealed class TableSchema
             !string.Equals(existing.Name, oldName, StringComparison.Ordinal)
             && string.Equals(existing.Name, newName, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"table '{Name}' 中列 '{newName}' 已存在。");
-        if (column.IsPrimaryKey)
-            throw new InvalidOperationException("ALTER TABLE RENAME COLUMN 当前不支持重命名 PRIMARY KEY 列。");
-        if (CheckConstraints.Any(constraint => constraint.ReferencesColumn(oldName)))
-            throw new InvalidOperationException($"列 '{oldName}' 被 CHECK 约束引用，当前不能重命名。");
-
         return CreateWithDefaultsCore(
             Name,
             Columns.Select(c => string.Equals(c.Name, oldName, StringComparison.Ordinal)
                     ? (newName, c.DataType, c.IsNullable)
                     : (c.Name, c.DataType, c.IsNullable))
                 .ToArray(),
-            PrimaryKey,
+            PrimaryKey.Select(name => string.Equals(name, oldName, StringComparison.Ordinal) ? newName : name).ToArray(),
             IndexDefinitions(renameColumn: (oldName, newName)),
             ForeignKeyDefinitions(renameColumn: (oldName, newName)),
             RowVersionColumnNames(renameColumn: (oldName, newName)),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions(),
+            CheckConstraints.Select(constraint => constraint.WithRenamedColumn(oldName, newName)).ToArray(),
             ColumnDefaultDefinitions(renameColumn: (oldName, newName)),
             AutoIncrementColumnNames(renameColumn: (oldName, newName)),
             DecimalDefinitions(renameColumn: (oldName, newName)),
             allowLegacyCaseVariants: true,
-            explicitDecimalDeclarations: ExplicitDecimalDeclarations(renameColumn: (oldName, newName)));
+            explicitDecimalDeclarations: ExplicitDecimalDeclarations(renameColumn: (oldName, newName)))
+            .InheritMetadata(this, (oldName, newName));
+    }
+
+    /// <summary>返回同步外键父表列名后的 schema；不改变本表行或索引的编码。</summary>
+    internal TableSchema WithRenamedPrincipalColumn(string principalTable, string oldName, string newName)
+    {
+        if (!ForeignKeys.Any(foreignKey =>
+            string.Equals(foreignKey.PrincipalTable, principalTable, StringComparison.Ordinal)
+            && foreignKey.PrincipalColumns.Contains(oldName, StringComparer.Ordinal)))
+            return this;
+
+        return CreateWithDefaultsCore(
+            Name,
+            Columns.Select(static column => (column.Name, column.DataType, column.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            ForeignKeys.Select(foreignKey => new TableForeignKeyDefinition(
+                foreignKey.Name,
+                foreignKey.Columns,
+                foreignKey.PrincipalTable,
+                string.Equals(foreignKey.PrincipalTable, principalTable, StringComparison.Ordinal)
+                    ? foreignKey.PrincipalColumns.Select(name =>
+                        string.Equals(name, oldName, StringComparison.Ordinal) ? newName : name).ToArray()
+                    : foreignKey.PrincipalColumns,
+                foreignKey.OnDelete)).ToArray(),
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames(),
+            DecimalDefinitions(),
+            allowLegacyCaseVariants: true,
+            explicitDecimalDeclarations: ExplicitDecimalDeclarations()).InheritMetadata(this);
     }
 
     /// <summary>
     /// 返回重命名表后的新 schema。
     /// </summary>
     public TableSchema WithName(string name)
-        => CreateWithDefaults(
+        => CreateWithInheritedMetadata(
             name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -897,6 +928,76 @@ public sealed class TableSchema
     /// <summary>返回当前表的自增列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? AutoIncrementColumn
         => Columns.FirstOrDefault(static c => c.IsAutoIncrement);
+
+    /// <summary>返回设置或清除表注释后的新 schema。</summary>
+    /// <param name="comment">注释文本；null 清除注释；持久化 UTF-8 长度最多 65535 字节。</param>
+    /// <returns>保留其余定义的新 schema。</returns>
+    public TableSchema WithComment(string? comment)
+        => new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks) { Comment = comment };
+
+    /// <summary>返回设置或清除列注释后的新 schema。</summary>
+    /// <param name="columnName">已绑定的原始列名。</param>
+    /// <param name="comment">注释文本；null 清除注释；持久化 UTF-8 长度最多 65535 字节。</param>
+    /// <returns>保留其余定义的新 schema。</returns>
+    public TableSchema WithColumnComment(string columnName, string? comment)
+    {
+        var column = TryGetColumn(columnName)
+            ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{columnName}'。");
+        return WithColumnMetadata(column with { Comment = comment });
+    }
+
+    /// <summary>返回设置字符串长度上限后的新 schema；长度按 UTF-16 代码单元计数。</summary>
+    /// <param name="columnName">已绑定的原始列名。</param>
+    /// <param name="length">正整数上限；null 表示无界。</param>
+    /// <returns>保留其余定义的新 schema。</returns>
+    public TableSchema WithColumnLength(string columnName, int? length)
+    {
+        var column = TryGetColumn(columnName)
+            ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{columnName}'。");
+        if (length is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(length), "字符串长度必须是正整数。");
+        if (length is not null && column.DataType != TableColumnType.String)
+            throw new ArgumentException("只有 STRING 列可以声明长度上限。", nameof(columnName));
+        return WithColumnMetadata(column with { StringLength = length });
+    }
+
+    private TableSchema WithColumnMetadata(TableColumn column)
+        => new(Name, Columns.Select(current => current.Ordinal == column.Ordinal ? column : current).ToArray(),
+            PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+        { Comment = Comment };
+
+    private TableSchema InheritMetadata(TableSchema source, (string OldName, string NewName)? rename = null)
+    {
+        var columns = Columns.Select(column =>
+        {
+            string sourceName = rename is { } names && column.Name == names.NewName ? names.OldName : column.Name;
+            var previous = source.TryGetColumn(sourceName);
+            return previous is null ? column : column with
+            {
+                StringLength = column.DataType == TableColumnType.String ? previous.StringLength : null,
+                Comment = previous.Comment,
+            };
+        }).ToArray();
+        return new TableSchema(Name, columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+        { Comment = source.Comment };
+    }
+
+    private TableSchema CreateWithInheritedMetadata(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        IReadOnlyDictionary<string, string?>? columnDefaults,
+        IReadOnlySet<string>? autoIncrementColumns,
+        IReadOnlyDictionary<string, (byte Precision, byte Scale)>? decimalDefinitions,
+        IReadOnlySet<string> explicitDecimalDeclarations)
+        => CreateWithDefaults(name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns,
+            createdAtUtcTicks, checkConstraints, columnDefaults, autoIncrementColumns,
+            decimalDefinitions, explicitDecimalDeclarations).InheritMetadata(this);
 
     private Dictionary<string, (byte Precision, byte Scale)> DecimalDefinitions(
         string? exceptColumn = null,
@@ -1097,7 +1198,15 @@ public sealed class TableSchema
                     .ToArray();
             }
 
-            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete);
+            var principalColumns = f.PrincipalColumns;
+            if (renameColumn is { } principalRename
+                && string.Equals(f.PrincipalTable, Name, StringComparison.Ordinal))
+            {
+                principalColumns = principalColumns.Select(column =>
+                    string.Equals(column, principalRename.OldName, StringComparison.Ordinal)
+                        ? principalRename.NewName : column).ToArray();
+            }
+            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, principalColumns, f.OnDelete);
         }).ToArray();
 
     private IReadOnlyList<TableCheckConstraintDefinition> CheckConstraintDefinitions()

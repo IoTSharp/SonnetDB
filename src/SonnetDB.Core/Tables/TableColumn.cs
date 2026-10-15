@@ -17,6 +17,12 @@ public sealed record TableColumn(
     int Ordinal,
     bool IsRowVersion = false)
 {
+    /// <summary>字符串最大 UTF-16 代码单元数；未声明上限时为 null，超长值拒绝写入且不截断。</summary>
+    public int? StringLength { get; init; }
+
+    /// <summary>列注释；null 表示没有注释，空字符串表示显式空注释。</summary>
+    public string? Comment { get; init; }
+
     /// <summary>DECIMAL/NUMERIC 总精度；非 Decimal 列为 0。</summary>
     public byte DecimalPrecision { get; init; }
 

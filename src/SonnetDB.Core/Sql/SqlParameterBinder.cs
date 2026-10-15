@@ -72,10 +72,27 @@ public static class SqlParameterBinder
                     ? null
                     : BindExpr(writeModbus.ConfirmationToken, parameters),
             },
-            DeleteStatement delete => delete with { Where = BindExpr(delete.Where, parameters) },
+            DeleteStatement delete => delete with
+            {
+                Where = BindExpr(delete.Where, parameters),
+                RowLimit = delete.RowLimit is null ? null : BindDeleteRowLimit(delete.RowLimit, parameters),
+            },
             CallProcedureStatement call => call with { Arguments = BindExprList(call.Arguments, parameters) },
             _ => statement, // DDL / 控制面语句不含参数占位符
         };
+    }
+
+    private static SqlExpression BindDeleteRowLimit(SqlExpression expression, SqlParameters parameters)
+    {
+        if (expression is ParameterExpression parameter
+            && parameters.TryResolve(parameter.Ordinal, parameter.Name, out var value))
+        {
+            if (value is not (byte or sbyte or short or ushort or int or uint or long or ulong)
+                || value is ulong unsignedValue && unsignedValue > long.MaxValue)
+                throw new InvalidOperationException("DELETE LIMIT 参数必须是非负 Int64 范围内的整数。");
+        }
+
+        return BindExpr(expression, parameters);
     }
 
     private static SelectStatement BindSelect(SelectStatement select, SqlParameters p)

@@ -478,7 +478,25 @@ internal static class FrameEndpointHandler
                 return;
             }
 
-            if (SqlEndpointHandler.RequiresWritePermission(parsed))
+            bool sequenceWrite = parsed is SelectStatement && SqlSequenceRuntime.Contains(parsed);
+            if (sequenceWrite && WorkbenchPreviewSql.IsRequested(ctx))
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "preview_action_denied",
+                    "Workbench 只读预览不允许有副作用的 nextval。");
+                return;
+            }
+            if (sequenceWrite)
+            {
+                access = SonnetDbEndpoints.EvaluateDatabaseAccess(ctx, registry, grants, request.Db, DatabasePermission.Write, out _);
+                if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+                {
+                    metrics.RecordSqlError();
+                    FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "forbidden", access.Message);
+                    return;
+                }
+            }
+            if (SqlEndpointHandler.RequiresWritePermission(parsed) && !sequenceWrite)
             {
                 metrics.RecordSqlError();
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request",
@@ -502,7 +520,7 @@ internal static class FrameEndpointHandler
                 {
                     CancellationToken = ctx.RequestAborted,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
-                    CanWrite = false,
+                    CanWrite = sequenceWrite,
                     CanAdminister = false,
                     MaxRoutineStatements = routineOptions.MaxRoutineStatements,
                     MaxRoutineDepth = routineOptions.MaxRoutineDepth,
@@ -577,6 +595,7 @@ internal static class FrameEndpointHandler
             string code = ex switch
             {
                 KvReadOverloadedException => KvReadOverloadedException.Code,
+                SequenceException sequence => sequence.Code,
                 RoutineExecutionException routine => routine.Code,
                 ArgumentException => "bad_request",
                 _ => "sql_error",

@@ -28,6 +28,11 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_kill9_primary_key_rename_before_catalog":
+    case "crash_kill9_primary_key_rename_after_catalog":
+        RunKillPrimaryKeyRename(root, readyFile,
+            beforeCatalog: scenario == "crash_kill9_primary_key_rename_before_catalog");
+        return 0;
     case "crash_kill9_during_fsync":
         RunKillDuringFsync(root, readyFile);
         return 0;
@@ -109,6 +114,26 @@ switch (scenario)
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
         return 3;
+}
+
+static void RunKillPrimaryKeyRename(string root, string readyFile, bool beforeCatalog)
+{
+    using var db = Tsdb.Open(MakeSqlCrashOptions(root));
+    SqlExecutor.Execute(db, """
+        CREATE TABLE parents (id INT AUTO_INCREMENT, label STRING DEFAULT 'base', version INT ROWVERSION,
+            PRIMARY KEY (id), CONSTRAINT ck_positive CHECK (id > 0 AND label <> 'id'))
+        """);
+    SqlExecutor.Execute(db, "CREATE INDEX ix_key_label ON parents (id, label)");
+    SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_label ON parents (label)");
+    SqlExecutor.Execute(db, "CREATE TABLE children (id INT, parent_id INT, PRIMARY KEY (id), FOREIGN KEY (parent_id) REFERENCES parents (id))");
+    SqlExecutor.Execute(db, "INSERT INTO parents (label) VALUES ('one'), ('two')");
+    SqlExecutor.Execute(db, "INSERT INTO children (id, parent_id) VALUES (10, 1)");
+    db.Tables.CheckpointAll();
+    if (beforeCatalog)
+        db.Tables.BeforeColumnRenameCatalogPersistTestHook = () => PauseForTriggerCrash(readyFile, "before-rename-catalog");
+    else
+        db.Tables.AfterCatalogPersistedBeforePublishTestHook = () => PauseForTriggerCrash(readyFile, "after-rename-catalog");
+    SqlExecutor.Execute(db, "ALTER TABLE parents RENAME COLUMN id TO Identifier");
 }
 
 static async Task RunM43CdcSnapshotCrash(string root, string readyFile, bool partialSnapshot)

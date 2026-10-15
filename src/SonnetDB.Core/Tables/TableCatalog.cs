@@ -8,7 +8,7 @@ namespace SonnetDB.Tables;
 public sealed class TableCatalog
 {
     private readonly object _sync = new();
-    private readonly Dictionary<string, TableSchema> _mutable = new(StringComparer.Ordinal);
+    private Dictionary<string, TableSchema> _mutable = new(StringComparer.Ordinal);
     private CatalogSnapshot _snapshot = new(
         FrozenDictionary<string, TableSchema>.Empty,
         new Dictionary<string, TableSchema?>(StringComparer.OrdinalIgnoreCase)
@@ -124,17 +124,41 @@ public sealed class TableCatalog
     public IReadOnlyList<TableSchema> Snapshot()
         => Volatile.Read(ref _snapshot).Exact.Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
 
-    private void PublishSnapshot()
+    /// <summary>预先分配整套目录快照，返回落盘成功后无需再分配的原子发布操作。</summary>
+    internal Action PrepareReplacement(IReadOnlyList<TableSchema> schemas)
     {
-        var unquoted = new Dictionary<string, TableSchema?>(_mutable.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var schema in _mutable.Values)
+        ArgumentNullException.ThrowIfNull(schemas);
+        var replacement = new Dictionary<string, TableSchema>(schemas.Count, StringComparer.Ordinal);
+        foreach (var schema in schemas)
+        {
+            MutationGuard?.Invoke(schema.Name, "REPLACE SNAPSHOT");
+            replacement.Add(schema.Name, schema);
+        }
+        CatalogSnapshot snapshot = CreateSnapshot(replacement);
+        return () =>
+        {
+            lock (_sync)
+            {
+                _mutable = replacement;
+                Volatile.Write(ref _snapshot, snapshot);
+            }
+        };
+    }
+
+    private void PublishSnapshot()
+        => Volatile.Write(ref _snapshot, CreateSnapshot(_mutable));
+
+    private static CatalogSnapshot CreateSnapshot(Dictionary<string, TableSchema> schemas)
+    {
+        var unquoted = new Dictionary<string, TableSchema?>(schemas.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var schema in schemas.Values)
         {
             if (!unquoted.TryAdd(schema.Name, schema))
                 unquoted[schema.Name] = null;
         }
-        Volatile.Write(ref _snapshot, new CatalogSnapshot(
-            _mutable.ToFrozenDictionary(StringComparer.Ordinal),
-            unquoted.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase)));
+        return new CatalogSnapshot(
+            schemas.ToFrozenDictionary(StringComparer.Ordinal),
+            unquoted.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
     }
 
     private sealed record CatalogSnapshot(

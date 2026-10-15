@@ -77,6 +77,8 @@ internal static class SchemaEndpointHandler
                     column.DecimalPrecision == 0 ? null : column.DecimalPrecision,
                     column.DataType == SonnetDB.Tables.TableColumnType.Decimal ? column.DecimalScale : null)
                 {
+                    StringLength = column.StringLength,
+                    Comment = column.Comment,
                     IsAutoIncrement = column.IsAutoIncrement,
                     DefaultExpressionSql = column.DefaultExpressionSql,
                 });
@@ -111,7 +113,8 @@ internal static class SchemaEndpointHandler
                 schema.PrimaryKey.ToList(),
                 indexes,
                 ToDateTimeOffset(schema.CreatedAtUtcTicks),
-                foreignKeys));
+                foreignKeys)
+            { Comment = schema.Comment });
         }
 
         return result;

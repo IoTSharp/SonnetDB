@@ -93,6 +93,7 @@ internal static class DeferredTriggerSafety
                 case DeleteStatement delete:
                     ValidateSource(delete.Measurement, writable: true);
                     VisitExpression(delete.Where, depth + 1);
+                    VisitExpression(delete.RowLimit, depth + 1);
                     break;
                 case SetTriggerNewStatement assignment when definition.Timing == SqlTriggerTiming.Before:
                     VisitExpression(assignment.Value, depth + 1);

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using SonnetDB.Engine;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Endpoints;
 
@@ -17,6 +18,8 @@ internal static class WorkbenchPreviewSql
         if (!IsRequested(context))
             return true;
         if (context.Request.Headers["X-SonnetDB-Workbench-Profile"] != "preview-1" || statementCount != 1)
+            return false;
+        if (SqlSequenceRuntime.Contains(statement))
             return false;
 
         if (statement is ShowTablesStatement or ShowMeasurementsStatement or DescribeTableStatement or DescribeMeasurementStatement)

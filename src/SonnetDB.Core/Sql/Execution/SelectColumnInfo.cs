@@ -34,6 +34,7 @@ public sealed record SelectColumnInfo(
         => new(column.DataType, column.IsNullable, column.IsPrimaryKey,
             column.IsAutoIncrement, column.IsRowVersion)
         {
+            ColumnSize = column.StringLength,
             NumericPrecision = column.DataType == TableColumnType.Decimal ? column.DecimalPrecision : null,
             NumericScale = column.DataType == TableColumnType.Decimal ? column.DecimalScale : null,
         };

@@ -713,8 +713,8 @@ internal static class SqlEndpointHandler
         string operation)
     {
         SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
-        if (detail.Code == KvReadOverloadedException.Code)
-            transportCode = KvReadOverloadedException.Code;
+        if (detail.Code == KvReadOverloadedException.Code || exception is SequenceException)
+            transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
     }
 
@@ -832,7 +832,7 @@ internal static class SqlEndpointHandler
     /// <summary>
     /// 判别是否为需要数据库写权限的数据面语句。
     /// </summary>
-    internal static bool RequiresWritePermission(SqlStatement statement) => statement is not
+    internal static bool RequiresWritePermission(SqlStatement statement) => SqlSequenceRuntime.Contains(statement) || statement is not
         (SelectStatement or
         CallProcedureStatement or
         ShowMeasurementsStatement or

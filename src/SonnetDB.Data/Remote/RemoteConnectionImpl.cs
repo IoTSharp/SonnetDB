@@ -1603,7 +1603,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 ParseForeignKeyAction(foreignKey.OnDelete)))
             .ToArray();
 
-        return TableSchema.CreateWithDefaults(
+        var schema = TableSchema.CreateWithDefaults(
             table.Name,
             columns,
             table.PrimaryKey,
@@ -1615,6 +1615,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             columnDefaults: defaults,
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions);
+        schema = schema.WithComment(table.Comment);
+        foreach (var column in table.Columns)
+        {
+            schema = schema.WithColumnLength(column.Name, column.StringLength);
+            if (column.Comment is not null)
+                schema = schema.WithColumnComment(column.Name, column.Comment);
+        }
+        return schema;
     }
 
     private static ForeignKeyAction ParseForeignKeyAction(string value)

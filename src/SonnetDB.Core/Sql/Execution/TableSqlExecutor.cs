@@ -112,6 +112,7 @@ internal static class TableSqlExecutor
                     DecimalPrecision = column.DecimalPrecision,
                     DecimalScale = column.DecimalScale,
                     HasExplicitDecimalDeclaration = column.HasExplicitDecimalDeclaration,
+                    StringLength = column.StringLength,
                 };
                 var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn, tempColumn.HasExplicitDecimalDeclaration);
                 columnDefaults.Add(column.Name, defaultSql);
@@ -153,6 +154,9 @@ internal static class TableSqlExecutor
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions,
             explicitDecimalDeclarations: explicitDecimalDeclarations);
+        foreach (var column in statement.Columns)
+            if (column.StringLength is { } length)
+                schema = schema.WithColumnLength(column.Name, length);
         ModbusTableBinding? modbusBinding = ModbusSqlExecutor.ResolveTableBinding(tsdb, statement, schema);
         tsdb.Tables.Create(schema);
         if (modbusBinding is null)
@@ -281,6 +285,8 @@ internal static class TableSqlExecutor
             && !statement.IsRowVersion && !statement.IsAutoIncrement;
         object? defaultValue = null;
         string? defaultExpressionSql = null;
+        if (SqlSequenceRuntime.Contains(statement.DefaultExpression))
+            throw SqlSequenceRuntime.Invalid("ALTER TABLE ADD COLUMN 暂不支持序列 DEFAULT 回填；先添加列，再设置 DEFAULT。");
         if (statement.DefaultExpression is not null)
         {
             var tempColumn = new TableColumn(statement.ColumnName, dataType, IsPrimaryKey: false, isNullable, Ordinal: 0)
@@ -288,8 +294,10 @@ internal static class TableSqlExecutor
                 DecimalPrecision = dataType == TableColumnType.Decimal ? statement.DecimalPrecision ?? 38 : (byte)0,
                 DecimalScale = dataType == TableColumnType.Decimal ? statement.DecimalScale ?? 28 : (byte)0,
                 HasExplicitDecimalDeclaration = dataType == TableColumnType.Decimal && statement.DecimalPrecision is not null,
+                StringLength = statement.StringLength,
             };
             defaultValue = EvaluateAndConvertSchemaDefault(statement.DefaultExpression, tempColumn);
+            StringLengthValidator.Validate(tempColumn, defaultValue, statement.TableName);
             if (statement.DecimalPrecision is not null && defaultValue is decimal decimalDefault)
                 DecimalDeclarationValidator.Validate(decimalDefault, tempColumn.DecimalPrecision, tempColumn.DecimalScale, tempColumn.Name);
             if (!isNullable && defaultValue is null)
@@ -311,8 +319,21 @@ internal static class TableSqlExecutor
             statement.IsRowVersion,
             statement.IsAutoIncrement,
             statement.DecimalPrecision,
-            statement.DecimalScale);
+            statement.DecimalScale,
+            statement.StringLength);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
+    }
+
+    /// <summary>设置或清除持久化关系表或列注释。</summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">已绑定名称的注释语句。</param>
+    /// <returns>注释变更结果。</returns>
+    public static RowsAffectedExecutionResult ExecuteComment(Tsdb tsdb, CommentOnTableStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        tsdb.Tables.SetComment(statement.TableName, statement.ColumnName, statement.Comment);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "comment");
     }
 
     public static RowsAffectedExecutionResult ExecuteAlterTablePrimaryKey(
@@ -361,6 +382,8 @@ internal static class TableSqlExecutor
         {
             DataType = targetType,
             IsNullable = targetNullable,
+            StringLength = targetType != TableColumnType.String ? null
+                : statement.DataType is null ? currentColumn.StringLength : statement.StringLength,
             DecimalPrecision = targetType != TableColumnType.Decimal ? (byte)0
                 : statement.DataType is null ? currentColumn.DecimalPrecision : statement.DecimalPrecision ?? 38,
             DecimalScale = targetType != TableColumnType.Decimal ? (byte)0
@@ -383,16 +406,19 @@ internal static class TableSqlExecutor
         if (statement.DefaultAction == ColumnDefaultAction.Unchanged
             && targetDefaultSql is not null)
         {
-            var defaultValue = EvaluateAndConvertSchemaDefault(SqlParser.ParsePredicate(targetDefaultSql), targetColumn);
+            var parsedDefault = SqlParser.ParsePredicate(targetDefaultSql);
+            var defaultValue = SqlSequenceRuntime.ValidateDefault(parsedDefault, targetColumn)
+                ? 0L : EvaluateAndConvertSchemaDefault(parsedDefault, targetColumn);
+            StringLengthValidator.Validate(targetColumn, defaultValue, statement.TableName);
             if (validateDecimalDefault && defaultValue is decimal decimalDefault)
                 DecimalDeclarationValidator.Validate(decimalDefault, targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
         }
 
         if (!targetNullable && targetDefaultSql is not null)
         {
-            var defaultValue = EvaluateAndConvertSchemaDefault(
-                SqlParser.ParsePredicate(targetDefaultSql),
-                targetColumn);
+            var parsedDefault = SqlParser.ParsePredicate(targetDefaultSql);
+            var defaultValue = SqlSequenceRuntime.ValidateDefault(parsedDefault, targetColumn)
+                ? 0L : EvaluateAndConvertSchemaDefault(parsedDefault, targetColumn);
             if (defaultValue is null)
             {
                 throw new InvalidOperationException(
@@ -416,7 +442,8 @@ internal static class TableSqlExecutor
                     DecimalDeclarationValidator.Validate(
                         DecimalDeclarationValidator.ConvertExact(value, targetColumn.Name),
                         targetColumn.DecimalPrecision, targetColumn.DecimalScale, targetColumn.Name);
-            }, hasExplicitDecimalDeclaration: targetColumn.HasExplicitDecimalDeclaration);
+            }, hasExplicitDecimalDeclaration: targetColumn.HasExplicitDecimalDeclaration,
+            stringLength: targetColumn.StringLength, changeStringLength: statement.DataType is not null);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_column");
     }
 
@@ -1426,9 +1453,13 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
         statement = (DeleteStatement)SqlNameBinder.Bind(tsdb, statement);
 
-        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        long? rowLimit = ResolveDeleteRowLimit(statement);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
-        if (!SqlRowRetentionBudget.HasExecutionBudget
+        if (rowLimit == 0)
+            return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, []);
+        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        if (rowLimit is null
+            && !SqlRowRetentionBudget.HasExecutionBudget
             && schema.AutoIncrementColumn is null
             && returningColumns.Length == 0
             && where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
@@ -1469,6 +1500,8 @@ internal static class TableSqlExecutor
             RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
             foreach (var row in candidateRows)
             {
+                if (rowLimit is { } maximumRows && mutations.Count >= maximumRows)
+                    break;
                 SqlExecutor.ThrowIfCancellationRequested();
                 if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                     continue;
@@ -1489,6 +1522,14 @@ internal static class TableSqlExecutor
             return CreateRowsAffectedResult(schema.Name, mutations.Count, "delete", returningColumns, returningRows);
         }
     }
+
+    private static long? ResolveDeleteRowLimit(DeleteStatement statement)
+        => statement.RowLimit switch
+        {
+            null => null,
+            LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: >= 0 } value => value.IntegerValue,
+            _ => throw new InvalidOperationException("DELETE LIMIT 必须是非负 Int64 整数字面量或整数参数，不能为 NULL、浮点或字符串。"),
+        };
 
     public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement)
     {
@@ -1889,10 +1930,16 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        long? rowLimit = ResolveDeleteRowLimit(statement);
+        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
+        if (rowLimit == 0)
+        {
+            changes = [];
+            return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, []);
+        }
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var store = tsdb.Tables.Open(schema.Name);
-        var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
         var returningRows = new List<object?[]>();
@@ -1919,6 +1966,8 @@ internal static class TableSqlExecutor
 
         foreach (var row in candidateRows)
         {
+            if (rowLimit is { } maximumRows && mutations.Count >= maximumRows)
+                break;
             SqlExecutor.ThrowIfCancellationRequested();
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
@@ -5767,7 +5816,10 @@ internal static class TableSqlExecutor
 
     private static string ValidateAndFormatDefault(SqlExpression expression, TableColumn column, bool validateDecimalDeclaration = false)
     {
+        if (SqlSequenceRuntime.ValidateDefault(expression, column))
+            return SqlExpressionFormatter.Format(expression);
         var value = EvaluateAndConvertSchemaDefault(expression, column);
+        StringLengthValidator.Validate(column, value, "DEFAULT");
         if (!column.IsNullable && value is null)
             throw new InvalidOperationException($"NOT NULL 列 '{column.Name}' 的 DEFAULT 不能是 NULL。");
         if (validateDecimalDeclaration && value is decimal decimalValue)
@@ -5817,6 +5869,8 @@ internal static class TableSqlExecutor
 
     private static object? EvaluateDefaultFunction(FunctionCallExpression function, bool requireExactDecimal)
     {
+        if (SqlSequenceRuntime.IsNext(function.Name))
+            return SqlSequenceRuntime.Next(function.Arguments.Select(EvaluateDefaultExpression).ToArray());
         if (string.Equals(function.Name, "uuid", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("函数 uuid() 不支持列 DEFAULT；请在 SELECT 或 UPDATE SET 中逐行调用。");
 

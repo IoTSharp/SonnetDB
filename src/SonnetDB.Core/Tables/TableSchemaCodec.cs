@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 11;
+    private const int _formatVersion = 12;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -161,6 +161,10 @@ public static class TableSchemaCodec
         if (columnCount <= 0)
             throw new InvalidDataException($"TableSchema: table '{name}' has no columns.");
 
+        string? tableComment = version >= 12 ? ReadComment(source, crc, $"table {tableIndex} comment") : null;
+        var stringLengths = new Dictionary<string, int>(StringComparer.Ordinal);
+        var columnComments = new Dictionary<string, string>(StringComparer.Ordinal);
+        Span<byte> stringLength = stackalloc byte[4];
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(columnCount);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
@@ -205,6 +209,19 @@ public static class TableSchemaCodec
                     $"table {tableIndex} column {i} default expression");
                 if (!string.IsNullOrEmpty(defaultExpressionSql))
                     columnDefaults.Add(columnName, defaultExpressionSql);
+            }
+            if (version >= 12)
+            {
+                ReadExactSpan(source, stringLength, $"table {tableIndex} column {i} string length");
+                crc.Append(stringLength);
+                int length = BinaryPrimitives.ReadInt32LittleEndian(stringLength);
+                if (length != -1 && (length <= 0 || type != TableColumnType.String))
+                    throw new InvalidDataException($"TableSchema: invalid string length for '{columnName}'.");
+                if (length != -1)
+                    stringLengths.Add(columnName, length);
+                string? comment = ReadComment(source, crc, $"table {tableIndex} column {i} comment");
+                if (comment is not null)
+                    columnComments.Add(columnName, comment);
             }
             if (isPrimaryKey)
                 primaryKey.Add(columnName);
@@ -254,7 +271,7 @@ public static class TableSchemaCodec
             }
         }
 
-        return TableSchema.LoadWithDefaults(
+        var schema = TableSchema.LoadWithDefaults(
             name,
             columns,
             primaryKey,
@@ -266,18 +283,36 @@ public static class TableSchemaCodec
             columnDefaults,
             autoIncrementColumns,
             decimalDefinitions,
-            explicitDecimalDeclarations);
+            explicitDecimalDeclarations).WithComment(tableComment);
+        foreach (var definition in stringLengths)
+            schema = schema.WithColumnLength(definition.Key, definition.Value);
+        foreach (var definition in columnComments)
+            schema = schema.WithColumnComment(definition.Key, definition.Value);
+        return schema;
+    }
+
+    private static string? ReadComment(Stream source, Crc32 crc, string context)
+    {
+        Span<byte> presence = stackalloc byte[1];
+        ReadExactSpan(source, presence, context);
+        crc.Append(presence);
+        if (presence[0] > 1)
+            throw new InvalidDataException($"TableSchema: invalid comment presence for {context}.");
+        return presence[0] == 0 ? null : ReadString(source, crc, context);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
     {
+        int version = schemas.Any(static schema => schema.Comment is not null
+            || schema.Columns.Any(static column => column.Comment is not null || column.StringLength is not null))
+            ? _formatVersion : 11;
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
         {
             headerBuffer.AsSpan(0, _headerSize).Clear();
             var writer = new SpanWriter(headerBuffer.AsSpan(0, _headerSize));
             writer.WriteBytes(_magic);
-            writer.WriteInt32(_formatVersion);
+            writer.WriteInt32(version);
             writer.WriteInt32(_headerSize);
             writer.WriteInt32(schemas.Count);
             destination.Write(headerBuffer, 0, _headerSize);
@@ -289,7 +324,7 @@ public static class TableSchemaCodec
 
         var crc = new Crc32();
         foreach (var schema in schemas)
-            WriteTable(destination, schema, crc);
+            WriteTable(destination, schema, crc, version);
 
         Span<byte> footer = stackalloc byte[_footerSize];
         BinaryPrimitives.WriteUInt32LittleEndian(footer[..4], crc.GetCurrentHashAsUInt32());
@@ -297,13 +332,13 @@ public static class TableSchemaCodec
         destination.Write(footer);
     }
 
-    private static void WriteTable(Stream destination, TableSchema schema, Crc32 crc)
+    private static void WriteTable(Stream destination, TableSchema schema, Crc32 crc, int version)
     {
         int nameLength = _utf8.GetByteCount(schema.Name);
         if (nameLength > ushort.MaxValue)
             throw new InvalidDataException($"Table '{schema.Name}' 名称过长。");
 
-        int totalSize = 2 + nameLength + 8 + 2;
+        int totalSize = 2 + nameLength + 8 + 2 + (version >= 12 ? CommentSize(schema.Comment) : 0);
         var columnNameLengths = new int[schema.Columns.Count];
         for (int i = 0; i < schema.Columns.Count; i++)
         {
@@ -311,7 +346,7 @@ public static class TableSchemaCodec
             if (length > ushort.MaxValue)
                 throw new InvalidDataException($"Table '{schema.Name}' 的列 '{schema.Columns[i].Name}' 名称过长。");
             columnNameLengths[i] = length;
-            totalSize += 2 + length + 2;
+            totalSize += 2 + length + 2 + (version >= 12 ? 4 + CommentSize(schema.Columns[i].Comment) : 0);
             if (schema.Columns[i].DataType == TableColumnType.Decimal)
                 totalSize += 2;
             totalSize += CheckedStringSize(
@@ -383,6 +418,8 @@ public static class TableSchemaCodec
             writer.Advance(written);
             writer.WriteInt64(schema.CreatedAtUtcTicks);
             writer.WriteUInt16((ushort)schema.Columns.Count);
+            if (version >= 12)
+                WriteComment(ref writer, schema.Comment);
 
             for (int i = 0; i < schema.Columns.Count; i++)
             {
@@ -412,6 +449,11 @@ public static class TableSchemaCodec
                     ref writer,
                     column.DefaultExpressionSql ?? string.Empty,
                     $"Table '{schema.Name}' 的列 '{column.Name}' 默认表达式过长。");
+                if (version >= 12)
+                {
+                    writer.WriteInt32(column.StringLength ?? -1);
+                    WriteComment(ref writer, column.Comment);
+                }
             }
 
             writer.WriteUInt16((ushort)schema.Indexes.Count);
@@ -555,6 +597,16 @@ public static class TableSchemaCodec
         }
 
         return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly(), onDelete);
+    }
+
+    private static int CommentSize(string? comment)
+        => comment is null ? 1 : checked(1 + CheckedStringSize(comment, "表或列注释的 UTF-8 长度不能超过 65535 字节。"));
+
+    private static void WriteComment(ref SpanWriter writer, string? comment)
+    {
+        writer.WriteByte(comment is null ? (byte)0 : (byte)1);
+        if (comment is not null)
+            WriteString(ref writer, comment, "表或列注释的 UTF-8 长度不能超过 65535 字节。");
     }
 
     private static int CheckedStringSize(string value, string lengthError)

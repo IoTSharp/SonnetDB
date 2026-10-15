@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using SonnetDB.Diagnostics;
 using SonnetDB.Kv;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Tables;
 
@@ -1624,6 +1625,7 @@ public sealed partial class TableStore : IDisposable
             byte[] afterKey = [];
             while (true)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var entries = _keyspace.ScanPrefixAfter(
                     [(byte)'r'],
                     afterKey,
@@ -1634,6 +1636,7 @@ public sealed partial class TableStore : IDisposable
                 afterKey = entries[^1].Key.ToArray();
                 foreach (var entry in entries)
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     var values = TableRowCodec.Decode(_schema, entry.Value.Span);
                     ValidateRow(schema, values);
                     validate?.Invoke(schema, values);
@@ -1823,6 +1826,7 @@ public sealed partial class TableStore : IDisposable
         for (int i = 0; i < schema.Columns.Count; i++)
         {
             var column = schema.Columns[i];
+            StringLengthValidator.Validate(column, values[i], schema.Name);
             if (values[i] is null && !column.IsNullable)
                 throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
         }

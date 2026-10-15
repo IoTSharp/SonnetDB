@@ -210,6 +210,8 @@ public sealed class SqlParser
             return ParseRefreshMaterializedView();
         if (IsIdentifier("call"))
             return ParseCallProcedure();
+        if (IsIdentifier("comment"))
+            return ParseComment();
         if (IsIdentifier("analyze"))
             return ParseAnalyzeTable();
         if (IsIdentifier("upsert"))
@@ -375,6 +377,37 @@ public sealed class SqlParser
 
         if (IsIndexKeyword())
             return ParseCreateIndexBody(unique, sparse, ttl);
+
+        if (IsIdentifier("sequence"))
+        {
+            if (unique || sparse || ttl) throw Error("CREATE SEQUENCE 不支持索引修饰符");
+            Advance();
+            bool ifNotExists = ParseOptionalIfNotExists();
+            string name = ExpectIdentifierName(out bool quoted);
+            long start = 1;
+            long increment = 1;
+            bool hasStart = false;
+            bool hasIncrement = false;
+            while (IsIdentifier("start") || IsIdentifier("increment"))
+            {
+                bool isStart = IsIdentifier("start");
+                if (isStart ? hasStart : hasIncrement) throw Error("序列选项不能重复");
+                Advance();
+                if (isStart) Expect(TokenKind.KeywordWith);
+                else Expect(TokenKind.KeywordBy);
+                long value = ParseSequenceInteger();
+                if (isStart) { start = value; hasStart = true; }
+                else { increment = value; hasIncrement = true; }
+            }
+            if (IsIdentifier("no"))
+            {
+                Advance();
+                ExpectIdentifier("cycle", "序列 NO 后面期望 CYCLE");
+            }
+            if (IsIdentifier("cycle")) throw Error("独立序列首版仅支持 NO CYCLE");
+            if (increment == 0) throw Error("序列 INCREMENT BY 不能为零");
+            return new CreateSequenceStatement(name, start, increment, ifNotExists, quoted);
+        }
 
         if (IsIdentifier("modbus"))
         {
@@ -1430,7 +1463,8 @@ public sealed class SqlParser
         var columnName = ExpectColumnName(out bool nameIsQuoted);
         byte? decimalPrecision = null;
         byte? decimalScale = null;
-        var dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
+        int? stringLength = null;
+        var dataType = ParseTableDataType(out decimalPrecision, out decimalScale, out stringLength);
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
@@ -1499,6 +1533,7 @@ public sealed class SqlParser
             NameIsQuoted = nameIsQuoted,
             DecimalPrecision = decimalPrecision ?? 38,
             DecimalScale = decimalScale ?? 28,
+            StringLength = stringLength,
             HasExplicitDecimalDeclaration = decimalPrecision is not null,
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
@@ -1844,7 +1879,7 @@ public sealed class SqlParser
             Advance();
 
         var columnName = ExpectColumnName(out bool columnNameIsQuoted);
-        var dataType = ParseTableDataType(out var decimalPrecision, out var decimalScale);
+        var dataType = ParseTableDataType(out var decimalPrecision, out var decimalScale, out var stringLength);
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
@@ -1871,6 +1906,7 @@ public sealed class SqlParser
             ColumnNameIsQuoted = columnNameIsQuoted,
             DecimalPrecision = decimalPrecision,
             DecimalScale = decimalScale,
+            StringLength = stringLength,
         };
     }
 
@@ -2039,12 +2075,19 @@ public sealed class SqlParser
     }
 
     private SqlDataType ParseTableDataType()
-        => ParseTableDataType(out _, out _);
+        => ParseTableDataType(out _, out _, out _);
 
-    private SqlDataType ParseTableDataType(out byte? decimalPrecision, out byte? decimalScale)
+    private SqlDataType ParseTableDataType(out byte? decimalPrecision, out byte? decimalScale, out int? stringLength)
     {
         decimalPrecision = null;
         decimalScale = null;
+        stringLength = null;
+        if (IsIdentifier("varchar"))
+        {
+            Advance();
+            stringLength = ParseStringLength();
+            return SqlDataType.String;
+        }
         if (Current.Kind == TokenKind.KeywordVector)
             throw Error("关系表 MVP 暂不支持 VECTOR 类型");
         if (Current.Kind == TokenKind.KeywordGeoPoint)
@@ -2064,13 +2107,54 @@ public sealed class SqlParser
                 return SqlDataType.Decimal;
             case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
             case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
-            case TokenKind.KeywordString: Advance(); return SqlDataType.String;
+            case TokenKind.KeywordString:
+                Advance();
+                stringLength = ParseStringLength();
+                return SqlDataType.String;
             case TokenKind.KeywordDateTime: Advance(); return SqlDataType.DateTime;
             case TokenKind.KeywordTime: Advance(); return SqlDataType.Time;
             case TokenKind.KeywordBlob: Advance(); return SqlDataType.Blob;
             case TokenKind.KeywordJson: Advance(); return SqlDataType.Json;
             default: throw Error("期望关系表数据类型 INT / FLOAT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / BLOB / JSON");
         }
+    }
+
+    private int? ParseStringLength()
+    {
+        if (Current.Kind != TokenKind.LeftParen)
+            return null;
+        Advance();
+        int length = ExpectPositiveInt("STRING/VARCHAR 长度必须是 1..2147483647 的整数。");
+        Expect(TokenKind.RightParen);
+        return length;
+    }
+
+    private CommentOnTableStatement ParseComment()
+    {
+        Advance();
+        Expect(TokenKind.KeywordOn);
+        bool column = Current.Kind == TokenKind.KeywordColumn;
+        if (column) Advance();
+        else Expect(TokenKind.KeywordTable);
+        string tableName = ExpectIdentifierName(out bool tableQuoted);
+        string? columnName = null;
+        bool columnQuoted = false;
+        if (column)
+        {
+            Expect(TokenKind.Dot);
+            columnName = ExpectColumnName(out columnQuoted);
+        }
+        Expect(TokenKind.KeywordIs);
+        string? comment;
+        if (Current.Kind == TokenKind.KeywordNull)
+            comment = null;
+        else if (Current.Kind == TokenKind.StringLiteral)
+            comment = Current.Text;
+        else
+            throw Error("COMMENT IS 后期望字符串字面量或 NULL。");
+        Advance();
+        return new CommentOnTableStatement(tableName, columnName, comment)
+        { TableNameIsQuoted = tableQuoted, ColumnNameIsQuoted = columnQuoted };
     }
 
     private (byte Precision, byte Scale) ParseDecimalSpec()
@@ -3569,6 +3653,13 @@ public sealed class SqlParser
         {
             MeasurementIsQuoted = measurementIsQuoted,
         };
+        if (Current.Kind == TokenKind.KeywordLimit)
+        {
+            Advance();
+            if (Current.Kind is not (TokenKind.IntegerLiteral or TokenKind.Parameter))
+                throw Error("DELETE LIMIT 后面期望非负 Int64 整数或参数占位符");
+            statement = statement with { RowLimit = ParsePrimary() };
+        }
         if (IsIdentifier("returning"))
         {
             Advance();
@@ -5326,6 +5417,13 @@ public sealed class SqlParser
     private SqlStatement ParseDrop()
     {
         Expect(TokenKind.KeywordDrop);
+        if (IsIdentifier("sequence"))
+        {
+            Advance();
+            bool ifExists = ParseOptionalIfExists();
+            string name = ExpectIdentifierName(out bool quoted);
+            return new DropSequenceStatement(name, ifExists, quoted);
+        }
         switch (Current.Kind)
         {
             case TokenKind.KeywordIndex:
@@ -5651,6 +5749,7 @@ public sealed class SqlParser
         SqlDataType? dataType = null;
         byte? decimalPrecision = null;
         byte? decimalScale = null;
+        int? stringLength = null;
         ColumnNullability nullability = ColumnNullability.Unspecified;
         var defaultAction = ColumnDefaultAction.Unchanged;
         SqlExpression? defaultExpression = null;
@@ -5663,11 +5762,11 @@ public sealed class SqlParser
                 or TokenKind.KeywordBool or TokenKind.KeywordString
                 or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordBlob or TokenKind.KeywordJson
-                or TokenKind.KeywordVector)
+                or TokenKind.KeywordVector || IsIdentifier("varchar"))
             {
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale, out stringLength);
                 changed = true;
                 continue;
             }
@@ -5677,7 +5776,7 @@ public sealed class SqlParser
                 Advance();
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");
-                dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
+                dataType = ParseTableDataType(out decimalPrecision, out decimalScale, out stringLength);
                 changed = true;
                 continue;
             }
@@ -5708,7 +5807,7 @@ public sealed class SqlParser
                     ExpectIdentifier("type", "ALTER COLUMN SET DATA 后面期望 TYPE");
                     if (dataType is not null)
                         throw Error("ALTER COLUMN 数据类型重复声明");
-                    dataType = ParseTableDataType(out decimalPrecision, out decimalScale);
+                    dataType = ParseTableDataType(out decimalPrecision, out decimalScale, out stringLength);
                     changed = true;
                     continue;
                 }
@@ -5779,6 +5878,7 @@ public sealed class SqlParser
             ColumnNameIsQuoted = columnNameIsQuoted,
             DecimalPrecision = decimalPrecision,
             DecimalScale = decimalScale,
+            StringLength = stringLength,
         };
     }
 
@@ -5879,6 +5979,22 @@ public sealed class SqlParser
     /// <summary>
     /// <c>SHOW USERS</c> / <c>SHOW GRANTS [FOR &lt;user&gt;]</c> / <c>SHOW DATABASES</c>。
     /// </summary>
+    private long ParseSequenceInteger()
+    {
+        string sign = string.Empty;
+        if (Current.Kind is TokenKind.Minus or TokenKind.Plus)
+        {
+            sign = Current.Kind == TokenKind.Minus ? "-" : "+";
+            Advance();
+        }
+        if (Current.Kind is not (TokenKind.IntegerLiteral or TokenKind.Int64MinMagnitudeLiteral)
+            || !Current.Text.All(char.IsAsciiDigit)
+            || !long.TryParse(sign + Current.Text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long value))
+            throw Error("序列 START/INCREMENT 必须是 Int64 整数字面量");
+        Advance();
+        return value;
+    }
+
     private SqlStatement ParseShow()
     {
         Expect(TokenKind.KeywordShow);

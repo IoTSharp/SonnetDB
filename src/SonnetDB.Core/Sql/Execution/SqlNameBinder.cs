@@ -35,6 +35,7 @@ internal static class SqlNameBinder
             {
                 TableName = ResolveTableName(tsdb, analyze.TableName, analyze.TableNameIsQuoted),
             },
+            CommentOnTableStatement comment => BindComment(tsdb, comment),
             AlterTableAddColumnStatement add => BindAddColumn(tsdb, add),
             AlterTableAlterPrimaryKeyStatement primaryKey => BindAlterPrimaryKey(tsdb, primaryKey),
             AlterTableAlterColumnStatement alter => BindAlterColumn(tsdb, alter),
@@ -150,6 +151,17 @@ internal static class SqlNameBinder
             Columns = statement.Columns.Select((name, index) =>
                 (schema.Resolve(name, IsQuoted(statement.ColumnIsQuoted, index))
                     ?? throw new ArgumentException($"PRIMARY KEY 引用了未知列 '{name}'。", nameof(statement))).Name).ToArray(),
+        };
+    }
+
+    private static CommentOnTableStatement BindComment(Tsdb tsdb, CommentOnTableStatement statement)
+    {
+        var schema = ResolveTable(tsdb, statement.TableName, statement.TableNameIsQuoted);
+        return schema is null ? statement : statement with
+        {
+            TableName = schema.Name,
+            ColumnName = statement.ColumnName is null ? null
+                : RequireColumn(schema, statement.ColumnName, statement.ColumnNameIsQuoted).Name,
         };
     }
 

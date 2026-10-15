@@ -66,6 +66,7 @@ public sealed class Tsdb : IDisposable
     private MemTable _activeMemTable;
     private readonly HashSet<ulong> _seriesWithWalRecord;
     private readonly KvKeyspaceManager _keyspaces;
+    private readonly SonnetDB.Sequences.SequenceManager _sequences;
     private readonly TableManager _tables;
     private readonly ModbusManager _modbus;
     private readonly DocumentCollectionManager _documents;
@@ -193,6 +194,7 @@ public sealed class Tsdb : IDisposable
     /// 内置 KV Keyspace 管理器，用于打开轻量键值命名空间。
     /// </summary>
     public KvKeyspaceManager Keyspaces => _keyspaces;
+    internal SonnetDB.Sequences.SequenceManager Sequences => _sequences;
 
     /// <summary>
     /// 关系表管理器，提供 SQL 关系表 MVP 的 schema catalog 与 KV-backed rowstore。
@@ -451,6 +453,8 @@ public sealed class Tsdb : IDisposable
             _schemaSync);
         _routines = new RoutineManager(TsdbPaths.RoutinesDir(options.RootDirectory));
         _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
+        _sequences = new SonnetDB.Sequences.SequenceManager(
+            Path.Combine(options.RootDirectory, "sequences"), options.Kv);
         _tables = new TableManager(
             TsdbPaths.TablesDir(options.RootDirectory),
             options.Kv,
@@ -1551,10 +1555,11 @@ public sealed class Tsdb : IDisposable
                     Documents.CompactAll();
                     return Generations.ExecuteConsistentBackup(() =>
                         Graphs.ExecuteConsistentBackup(() =>
+                        _sequences.ExecuteConsistentBackup(() =>
                         {
                             var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
                             return afterCheckpoint(this, options, checkpointedKeyspaces);
-                        }));
+                        })));
                 });
             }
         }
@@ -1830,7 +1835,8 @@ public sealed class Tsdb : IDisposable
                                 {
                                     try
                                     {
-                                        _keyspaces.Dispose();
+                                        try { _sequences.Dispose(); }
+                                        finally { _keyspaces.Dispose(); }
                                     }
                                     finally
                                     {

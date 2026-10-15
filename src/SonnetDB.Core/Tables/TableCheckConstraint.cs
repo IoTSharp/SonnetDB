@@ -46,6 +46,37 @@ public sealed record TableCheckConstraint(
         return ReferencesColumn(Expression, columnName);
     }
 
+    /// <summary>按绑定后的精确列名改写表达式；字符串常量和函数名称保持原值。</summary>
+    internal TableCheckConstraintDefinition WithRenamedColumn(string oldName, string newName)
+    {
+        return new(Name, SqlExpressionFormatter.Format(Rename(Expression)));
+
+        SqlExpression Rename(SqlExpression expression) => expression switch
+        {
+            IdentifierExpression identifier when string.Equals(identifier.Name, oldName, StringComparison.Ordinal)
+                => identifier with { Name = newName, IsQuoted = true },
+            BinaryExpression binary => binary with { Left = Rename(binary.Left), Right = Rename(binary.Right) },
+            UnaryExpression unary => unary with { Operand = Rename(unary.Operand) },
+            IsNullExpression isNull => isNull with { Operand = Rename(isNull.Operand) },
+            InExpression inExpression => inExpression with
+            {
+                Value = Rename(inExpression.Value),
+                Values = inExpression.Values.Select(Rename).ToArray(),
+            },
+            FunctionCallExpression function => function with { Arguments = function.Arguments.Select(Rename).ToArray() },
+            CaseExpression caseExpression => caseExpression with
+            {
+                WhenClauses = caseExpression.WhenClauses.Select(clause => clause with
+                {
+                    Condition = Rename(clause.Condition),
+                    Result = Rename(clause.Result),
+                }).ToArray(),
+                Else = caseExpression.Else is null ? null : Rename(caseExpression.Else),
+            },
+            _ => expression,
+        };
+    }
+
     private static void ValidateExpression(
         string tableName,
         IReadOnlySet<string> columnNames,

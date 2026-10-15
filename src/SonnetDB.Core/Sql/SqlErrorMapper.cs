@@ -25,6 +25,8 @@ public static class SqlErrorMapper
 
         return exception switch
         {
+            SequenceException sequence => new SqlErrorInfo(sequence.Code, sequence.Message, operation,
+                hint: "检查序列名称、Int64 范围与调用位置；已预留的号码不会回收。"),
             KvReadOverloadedException overloaded => new SqlErrorInfo(
                 KvReadOverloadedException.Code,
                 overloaded.Message,

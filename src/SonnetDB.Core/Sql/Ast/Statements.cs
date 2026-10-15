@@ -482,6 +482,9 @@ public sealed record TableColumnDefinition(
     /// <summary>列名是否使用双引号声明。</summary>
     public bool NameIsQuoted { get; init; }
 
+    /// <summary>STRING/VARCHAR 的最大 UTF-16 代码单元数；null 表示无界。</summary>
+    public int? StringLength { get; init; }
+
     /// <summary>DECIMAL/NUMERIC 的总精度；未声明时使用 38。</summary>
     public byte DecimalPrecision { get; init; } = 38;
 
@@ -521,6 +524,9 @@ public sealed record AlterTableAddColumnStatement(
     bool IsRowVersion = false,
     bool IsAutoIncrement = false) : SqlStatement
 {
+    /// <summary>STRING/VARCHAR 的最大 UTF-16 代码单元数；null 表示无界。</summary>
+    public int? StringLength { get; init; }
+
     /// <summary>显式 DECIMAL/NUMERIC 总精度；未声明括号时为空。</summary>
     public byte? DecimalPrecision { get; init; }
 
@@ -571,6 +577,9 @@ public sealed record AlterTableAlterColumnStatement(
     ColumnDefaultAction DefaultAction = ColumnDefaultAction.Unchanged,
     SqlExpression? DefaultExpression = null) : SqlStatement
 {
+    /// <summary>STRING/VARCHAR 的最大 UTF-16 代码单元数；null 表示无界。</summary>
+    public int? StringLength { get; init; }
+
     /// <summary>本次类型变更显式声明的 DECIMAL/NUMERIC 总精度。</summary>
     public byte? DecimalPrecision { get; init; }
 
@@ -1166,6 +1175,9 @@ public sealed record DeleteStatement(
     /// <summary>删除目标名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 
+    /// <summary>关系表 DELETE 直接选择的最大行数；仅接受非负 Int64 字面量或绑定后的整数参数。</summary>
+    public SqlExpression? RowLimit { get; init; }
+
     /// <summary><c>RETURNING</c> 请求返回的列；空集合表示未声明。</summary>
     public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
 
@@ -1642,4 +1654,17 @@ public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement
 {
     /// <summary>是否实际执行只读语句并返回运行指标。</summary>
     public bool Analyze { get; init; }
+}
+
+/// <summary>设置或清除关系表或列的持久化注释。</summary>
+/// <param name="TableName">表名。</param>
+/// <param name="ColumnName">列名；null 表示表注释。</param>
+/// <param name="Comment">注释文本；null 清除注释。</param>
+public sealed record CommentOnTableStatement(string TableName, string? ColumnName, string? Comment) : SqlStatement
+{
+    /// <summary>表名是否使用双引号。</summary>
+    public bool TableNameIsQuoted { get; init; }
+
+    /// <summary>列名是否使用双引号。</summary>
+    public bool ColumnNameIsQuoted { get; init; }
 }

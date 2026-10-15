@@ -398,6 +398,7 @@ public static class SqlExecutor
             };
         }
         options.Validate();
+        SqlSequenceRuntime.Validate(tsdb, statement, options);
         if (options.HasMaterializationLimits || SqlRowRetentionBudget.HasExecutionBudget)
             SqlMaterializationContract.Validate(tsdb, statement);
         if (options.QueryFingerprint is null)
@@ -410,6 +411,7 @@ public static class SqlExecutor
         using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, options);
         using var materializationScope = SqlRowRetentionBudget.EnterExecution(options);
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
+        using var sequenceScope = SqlSequenceRuntime.Enter(tsdb, options);
         // COMMIT owns cancellation failure cleanup, including a pre-cancelled request.
         if (statement is not CommitTransactionStatement)
             ThrowIfCancellationRequested();
@@ -422,6 +424,14 @@ public static class SqlExecutor
 
         return statement switch
         {
+            CreateSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
+            {
+                tsdb.Sequences.Create(sequence.Name, sequence.NameIsQuoted, sequence.Start, sequence.Increment, sequence.IfNotExists);
+                return new RowsAffectedExecutionResult(sequence.Name, 0, "create_sequence");
+            }),
+            DropSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
+                new RowsAffectedExecutionResult(sequence.Name,
+                    tsdb.Sequences.Drop(sequence.Name, sequence.NameIsQuoted, sequence.IfExists) ? 1 : 0, "drop_sequence")),
             BeginTransactionStatement => new SqlTransactionContext(),
             CommitTransactionStatement => transaction is null
                 ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
@@ -493,6 +503,7 @@ public static class SqlExecutor
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
             DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(tsdb, dropVectorIndex),
+            CommentOnTableStatement comment => TableSqlExecutor.ExecuteComment(tsdb, comment),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
             AlterTableAlterPrimaryKeyStatement alterPrimaryKey => TableSqlExecutor.ExecuteAlterTablePrimaryKey(tsdb, alterPrimaryKey),
             AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(tsdb, alterColumn),
@@ -680,6 +691,8 @@ public static class SqlExecutor
     private static bool IsDdlStatement(SqlStatement statement)
         => statement is
             CreateMeasurementStatement
+            or CreateSequenceStatement
+            or DropSequenceStatement
             or CreateGraphStatement
             or CreatePropertyGraphStatement
             or CreateModbusSourceStatement
@@ -697,6 +710,7 @@ public static class SqlExecutor
             or CreateTableJsonPathIndexStatement
             or CreateFullTextIndexStatement
             or CreateDocumentVectorIndexStatement
+            or CommentOnTableStatement
             or AlterTableAddColumnStatement
             or AlterTableAlterPrimaryKeyStatement
             or AlterTableAlterColumnStatement
@@ -1634,12 +1648,19 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">未提供任何 Field / 类型不兼容等校验失败时抛出。</exception>
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement)
-        => ExecuteInsert(
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        SqlExecutionOptions options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
+        SqlSequenceRuntime.Validate(tsdb, statement, options);
+        using var sequenceScope = SqlSequenceRuntime.Enter(tsdb, options);
+        return ExecuteInsert(
             tsdb,
             databaseName: null,
             statement,
             controlPlane: null,
             transaction: null);
+    }
 
     private static InsertExecutionResult ExecuteInsert(
         Tsdb tsdb,
@@ -1866,6 +1887,8 @@ public static class SqlExecutor
         // 不能因为进入这个公开辅助入口而退回默认取消令牌或丢失执行指标。
         SqlExecutionOptions executionOptions = RoutineExecutionContext.Current?.Options
             ?? SqlExecutionOptions.Default;
+        SqlSequenceRuntime.Validate(tsdb, statement, executionOptions);
+        using var sequenceScope = SqlSequenceRuntime.Enter(tsdb, executionOptions);
         using var queryResourcesScope = SqlQueryResources.EnterRoot(
             tsdb,
             executionOptions with
@@ -2400,18 +2423,18 @@ public static class SqlExecutor
 
     private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaTables(Tsdb tsdb)
     {
-        var columns = new[] { "table_schema", "table_name", "table_type" };
+        var columns = new[] { "table_schema", "table_name", "table_type", "table_comment" };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
-            rows.Add(new object?[] { "main", table.Name, "BASE TABLE" });
+            rows.Add(new object?[] { "main", table.Name, "BASE TABLE", table.Comment });
         foreach (var measurement in tsdb.Measurements.Snapshot())
-            rows.Add(new object?[] { "main", measurement.Name, "MEASUREMENT" });
+            rows.Add(new object?[] { "main", measurement.Name, "MEASUREMENT", null });
         foreach (var collection in tsdb.Documents.Catalog.Snapshot())
-            rows.Add(new object?[] { "main", collection.Name, "DOCUMENT COLLECTION" });
+            rows.Add(new object?[] { "main", collection.Name, "DOCUMENT COLLECTION", null });
         foreach (var view in tsdb.Views.Catalog.Snapshot())
-            rows.Add(new object?[] { "main", view.Name, "VIEW" });
+            rows.Add(new object?[] { "main", view.Name, "VIEW", null });
         foreach (var view in tsdb.MaterializedViews.Catalog.Snapshot())
-            rows.Add(new object?[] { "main", view.Name, "MATERIALIZED VIEW" });
+            rows.Add(new object?[] { "main", view.Name, "MATERIALIZED VIEW", null });
         return (columns, rows.OrderBy(static r => (string)r[1]!, StringComparer.Ordinal).ToArray());
     }
 
@@ -2462,7 +2485,8 @@ public static class SqlExecutor
         var columns = new[]
         {
             "table_schema", "table_name", "column_name", "ordinal_position", "data_type",
-            "is_nullable", "is_primary_key", "column_default", "is_auto_increment"
+            "is_nullable", "is_primary_key", "column_default", "is_auto_increment",
+            "character_maximum_length", "column_comment"
         };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
@@ -2480,6 +2504,8 @@ public static class SqlExecutor
                     column.IsPrimaryKey,
                     column.DefaultExpressionSql,
                     column.IsAutoIncrement,
+                    column.StringLength is { } length ? (long)length : null,
+                    column.Comment,
                 });
             }
         }
@@ -2500,6 +2526,8 @@ public static class SqlExecutor
                     false,
                     null,
                     false,
+                    null,
+                    null,
                 });
             }
         }
@@ -2754,6 +2782,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         statement = (DeleteStatement)BindNames(tsdb, statement);
+        if (statement.RowLimit is not null && tsdb.Tables.Catalog.TryGet(statement.Measurement) is null)
+            throw new NotSupportedException("DELETE LIMIT 当前仅支持关系表；其它模型不能降级为无界删除。");
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {

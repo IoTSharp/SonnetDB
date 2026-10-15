@@ -38,7 +38,11 @@ public sealed record TableInfo(
     List<string> PrimaryKey,
     List<TableIndexInfo> Indexes,
     DateTimeOffset CreatedUtc,
-    List<TableForeignKeyInfo>? ForeignKeys = null);
+    List<TableForeignKeyInfo>? ForeignKeys = null)
+{
+    /// <summary>表注释；null 表示没有注释。</summary>
+    public string? Comment { get; init; }
+}
 
 /// <summary>一个逻辑视图的 schema 信息。</summary>
 public sealed record ViewInfo(
@@ -70,6 +74,12 @@ public sealed record TableColumnInfo(
     byte? DecimalPrecision = null,
     byte? DecimalScale = null)
 {
+    /// <summary>字符串最大 UTF-16 代码单元数；null 表示无界。</summary>
+    public int? StringLength { get; init; }
+
+    /// <summary>列注释；null 表示没有注释。</summary>
+    public string? Comment { get; init; }
+
     /// <summary>是否由数据库在插入时自动分配递增整数值。</summary>
     public bool IsAutoIncrement { get; init; }
 

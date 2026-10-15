@@ -85,6 +85,7 @@ internal static class SqlRoutineAnalyzer
                     VisitExpression(assignment.Value, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     break;
                 case SelectStatement select:
+                    requiresWrite |= SonnetDB.Sql.Execution.SqlSequenceRuntime.Contains(select);
                     VisitSelect(select, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     break;
                 case InsertStatement insert:
@@ -107,6 +108,8 @@ internal static class SqlRoutineAnalyzer
                     requiresWrite = true;
                     objects.Add(delete.Measurement);
                     VisitExpression(delete.Where, parameterNames, triggerEvent, objects, procedures, rowColumns);
+                    if (delete.RowLimit is not null)
+                        VisitExpression(delete.RowLimit, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     break;
                 case CallProcedureStatement call when triggerEvent is null:
                     procedures.Add(call.Name);

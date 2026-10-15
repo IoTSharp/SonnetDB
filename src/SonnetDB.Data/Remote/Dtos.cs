@@ -122,7 +122,11 @@ internal sealed record RemoteTableInfo(
     List<string> PrimaryKey,
     List<RemoteTableIndexInfo> Indexes,
     DateTimeOffset CreatedUtc,
-    List<RemoteTableForeignKeyInfo>? ForeignKeys = null);
+    List<RemoteTableForeignKeyInfo>? ForeignKeys = null)
+{
+    /// <summary>表注释；null 表示没有注释。</summary>
+    public string? Comment { get; init; }
+}
 
 internal sealed record RemoteTableForeignKeyInfo(
     string Name,
@@ -201,6 +205,12 @@ internal sealed record RemoteTableColumnInfo(
     byte? DecimalPrecision = null,
     byte? DecimalScale = null)
 {
+    /// <summary>字符串最大 UTF-16 代码单元数；null 表示无界。</summary>
+    public int? StringLength { get; init; }
+
+    /// <summary>列注释；null 表示没有注释。</summary>
+    public string? Comment { get; init; }
+
     public bool IsAutoIncrement { get; init; }
 }
 

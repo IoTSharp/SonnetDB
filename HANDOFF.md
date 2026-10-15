@@ -5,6 +5,19 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## 当前检查点（第二批十任务，2026-10-16）
+
+- 用户明确选择继续交接建议的第二批十项任务。接收父提交 `f562bf5276e050ec170a997c05c1a8d6a27083f0`，保留首批实现 `ac71b100` 及首批交接。`git fetch origin --prune` 后 main 仍领先 2、落后 0；本次实现、CHANGELOG、ROADMAP、批次报告和本交接共同本地提交，最终 SHA 以 `git log` 为准。未 push、发包、打 tag、创建 Release 或部署。
+- [第二批十任务](docs/audits/implementation-batch-02-20261016.md)按产品能力冻结并完成本地实现：#226 存量主键列重命名一项；#231 持久序列生命周期、原子取号、INSERT/批量/DEFAULT 三项；#237 表/列注释两项；#240 长度声明及写约束、ALTER 演进、准确元数据三项；#243 有主键及复合主键有界删除一项。构建、测试、审查和文档不另计任务。
+- 三个实施智能体各自在 `C:\Users\mysti\.codex\worktrees\batch02-primary-rename\SonnetDB`、`batch02-metadata\SonnetDB`、`batch02-sequences\SonnetDB` 的 detached 工作树实施，根主树串行整合；实施后相互独立只读复审。隔离树及其 artifacts 保留为本地证据，没有新开发分支或工作树内容混入提交；后续可在确认已整合后清理，不要把未提交的隔离树误当未完成产品功能。
+- 主键重命名保持列序号及已编码键/行/索引，统一更新索引/CHECK/生成列/默认值及本表和入站外键，单目录保存、单快照发布；补偿失败要求重开。根组合测试补齐新入站外键克隆保留双方长度/注释。仍不支持非空表主键类型/定义迁移，不能关闭整个 #226。
+- 序列为单 schema、Int64、非循环，独立 KV 每次同步 WAL 后返回；事务回滚或失败插入耗号。独立序列锁消除反向锁序，备份冻结覆盖检查点与完整复制，WAL/fsync 结果不确定后停止发号并要求重开。SELECT 只支持无 FROM/单关系基表标量形状；UPDATE、ON CONFLICT、触发器的显式或隐式序列 DEFAULT 均在取号前拒绝。REST/h2c 明确检查写权限及稳定错误码，Workbench 只读预览拒绝。完整合同见 [序列说明](docs/sql-sequences.md)。
+- 注释区分 NULL/空串，支持 65535 UTF-8 字节并拒绝 65536；字符串长度采用 UTF-16 代码单元，全部写入口超长拒绝且不截断，ALTER 检查已有行/默认值并逐页逐行响应取消。含长度或注释的表目录写 v12，读 v1～v12；无新属性仍写 v11，旧引擎拒绝 v12，回退使用升级前副本。未改 `FileHeader`、行或键格式。
+- DELETE LIMIT 接受非负 Int64 字面量/整型参数，零不扫描或快清；复合键完整匹配，事务/RETURNING/约束/触发器失败保持原子。独立复审发现日期经通用绑定变成毫秒上限，已在嵌入式和远程转换前严格验证并补测。上限只针对直接删除数，不能当候选扫描/内存/级联工作量上限；无主键路径依赖 #253/#255，不能关闭整个 #243。
+- 最终 Release 构建均为 0 warning / 0 error；Core SQL/ADO/Tables/BackupService **3157/3157**、Server SQL/ADO/Frame **412/412**（含真实 Kestrel REST/h2c，也含 registry/unit/嵌入式回归）、主键目录提交前/后实际强制终止恢复 **2/2**，全部零失败、零跳过。最终 TRX 为 `core-reviewed.trx`、`server-frozen.trx`、`crash-reviewed.trx`；完整 restore 与原 Format Check 均 exit 0，见 `restore-before-commit.log/.json`、`format-before-commit.log/.json`。证据和中间失败保留于忽略目录 `artifacts/batch-02-20261016/`；`validation-assets-final.json` 绑定最终结果及 49 源文件/26 DLL/PDB，输入冻结记录 SHA256 `242567D2DE7EDA7B3A12A058A00E07651B480546E582F2A82E739BBF7BEC2B97`。不将独立工作树 249/157/145 或重叠运行累加；未执行完整 suite、远端 CI、新 NativeAOT publish 或正式消费者验收。
+- 接收时 GitHub API 快照为 48 open，保存在该 artifacts 目录；本批没有发送 Issue 评论或关闭 Issue。#231/#237/#240 本地源码/测试完成仍需合入、正式包和 Chloe/XCode/FreeSql 实际消费者验收，不能把本地提交称为已进入公开包或等待发布。首批已公开包事实和 #273 已关闭保持原交接，不重复旧实现。
+- `origin/parity-results` 保持 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`，未合并或主动改写。后续先核本地新提交与线上状态，按 #226 剩余主键类型/定义迁移、#227 DDL 事务共同恢复设计，及 #232/#233/#236、#253/#255 依赖冻结第三批十项。#312 普通主键更新、#313 measurement FIELD 更新、#314 Decimal ROUND 保留既有队列；不能悄悄替换更早需求或追加第十一项。完整 Parity/nightly、NativeAOT publish、固定硬件、长稳及实机安装保持待验收。
+
 ## 当前检查点（首批十任务，2026-10-15 至 2026-10-16）
 
 - 用户要求先同步主线、清理已合并本地分支，再由多个智能体实施，每批十个产品任务；已完成的 Issue 要回复并关闭，每批结束创建新会话继续。本批主智能体监督三个执行智能体，并由独立复审检查最终源码。

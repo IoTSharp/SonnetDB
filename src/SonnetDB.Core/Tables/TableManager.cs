@@ -484,7 +484,8 @@ public sealed partial class TableManager : IDisposable
         bool isRowVersion,
         bool isAutoIncrement,
         byte? decimalPrecision = null,
-        byte? decimalScale = null)
+        byte? decimalScale = null,
+        int? stringLength = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -497,7 +498,7 @@ public sealed partial class TableManager : IDisposable
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
                 var updated = current.WithAddedColumn(
                     columnName, dataType, isNullable, defaultExpressionSql, isRowVersion, isAutoIncrement,
-                    decimalPrecision, decimalScale);
+                    decimalPrecision, decimalScale).WithColumnLength(columnName, stringLength);
                 var store = OpenStoreLocked(current);
                 long nextAutoIncrement = 0;
                 ApplySchemaTransformLocked(current, updated, store, (_, row) =>
@@ -510,6 +511,22 @@ public sealed partial class TableManager : IDisposable
                         : isRowVersion ? 1L : defaultValue;
                     return values;
                 });
+            }
+    }
+
+    /// <summary>设置或清除表或列注释，在目录持久化失败时回滚内存元数据。</summary>
+    internal void SetComment(string tableName, string? columnName, string? comment)
+    {
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                _schemaMutationGuard?.Invoke(tableName, "COMMENT");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = columnName is null ? current.WithComment(comment)
+                    : current.WithColumnComment(columnName, comment);
+                ApplyMetadataSchemaLocked(current, updated, OpenStoreLocked(current));
             }
     }
 
@@ -566,7 +583,9 @@ public sealed partial class TableManager : IDisposable
         byte? decimalPrecision = null,
         byte? decimalScale = null,
         Action<TableSchema, IReadOnlyList<object?>>? validateDecimalValues = null,
-        bool? hasExplicitDecimalDeclaration = null)
+        bool? hasExplicitDecimalDeclaration = null,
+        int? stringLength = null,
+        bool changeStringLength = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -594,10 +613,13 @@ public sealed partial class TableManager : IDisposable
                     decimalPrecision,
                     decimalScale,
                     hasExplicitDecimalDeclaration);
+                if (changeStringLength)
+                    updated = updated.WithColumnLength(columnName, stringLength);
                 var store = OpenStoreLocked(current);
                 if (!changesType)
                 {
-                    if (currentColumn.IsNullable && !isNullable || validateDecimalValues is not null)
+                    if (currentColumn.IsNullable && !isNullable || validateDecimalValues is not null
+                        || currentColumn.StringLength != updated.TryGetColumn(columnName)!.StringLength)
                         store.ValidateExistingRows(updated, validateDecimalValues);
                     ApplyMetadataSchemaLocked(current, updated, store);
                     return;
@@ -672,9 +694,7 @@ public sealed partial class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                var updated = current.WithRenamedColumn(oldColumnName, newColumnName);
-                var store = OpenStoreLocked(current);
-                ApplyMetadataSchemaLocked(current, updated, store);
+                ApplyColumnRenameLocked(current, oldColumnName, newColumnName);
             }
     }
 
@@ -1955,6 +1975,7 @@ public sealed partial class TableManager : IDisposable
         TableSchema updated,
         TableStore store)
     {
+        SqlExecutor.ThrowIfCancellationRequested();
         store.ApplyMetadataSchema(updated);
         Catalog.LoadOrReplace(updated);
         try
