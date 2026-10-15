@@ -1,0 +1,2308 @@
+{
+  "issue": 263,
+  "date": "2026-10-16",
+  "timezone": "Asia/Shanghai",
+  "generatedUtc": "2026-10-15T23:25:47.7608683+00:00",
+  "conclusion": "Three-type raw contract PASS with public preview clients and frozen Chloe source; issue remains OPEN pending formal release and consumer acceptance.",
+  "sourceBase": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "workspace": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB",
+  "evidenceRoot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work",
+  "runtimeRoot": "D:/sndb-t/i263-final01",
+  "topLevelCommand": {
+    "executable": "pwsh",
+    "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB",
+    "arguments": [
+      "-NoProfile",
+      "-File",
+      "scripts/validation/issue263-public-package/Run.ps1",
+      "-EvidenceDirectory",
+      "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue263-work/final01",
+      "-RuntimeDirectory",
+      "D:/sndb-t/i263-final01",
+      "-Proxy",
+      "http://127.0.0.1:7890",
+      "-ServerDirectory",
+      "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue271-work/final-public/remote/server",
+      "-ServerSourceCommit",
+      "285186b868a59d4b22e47279ea51deb38a3a1f45"
+    ],
+    "observedExitCode": 0
+  },
+  "sourceFiles": [
+    {
+      "path": "scripts/validation/issue263-public-package/Common.ps1",
+      "bytes": 4954,
+      "sha256": "540293B988251BA7F49E3CBEAC38F2E1424AF97FA46FD162039578F41E4AF089",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Common.ps1",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Directory.Build.props",
+      "bytes": 462,
+      "sha256": "53FD5A4A2339F29D33DF2B87FF53A18015A6F422F88B11CCA3141F907F6960E6",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Directory.Build.props",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Directory.Build.targets",
+      "bytes": 146,
+      "sha256": "5359906E3197514BDE0B88638BA223A8DB7104295BDD58DF86190117AA70B210",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Directory.Build.targets",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Directory.Packages.props",
+      "bytes": 125,
+      "sha256": "9E76B50138F5957E787BCC088A4BF4C89B40748FCCCB9017FC5349AA45794969",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Directory.Packages.props",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/NuGet.Config",
+      "bytes": 426,
+      "sha256": "24DAE739826EE08E09AB546E96D4C0120A5CBFFB21430A37DAC4D152A8BFBA41",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/NuGet.Config",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/README.md",
+      "bytes": 3046,
+      "sha256": "A98882278687FB9697F30A4FDC4BA9900A52348FE6DC96FBAFE6FF0C934B5B39",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": null,
+      "matchesRuntimeCopy": null,
+      "identity": "post-run-documentation"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Remote.ps1",
+      "bytes": 9045,
+      "sha256": "6F3F5E291028B07C1F471A9180C0790FAC3F35227DB0B7BB5EEFB6B9A9505F76",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Remote.ps1",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Run.ps1",
+      "bytes": 4600,
+      "sha256": "89228A9002B96FE97AA00FB553DAE573F7C6A5685BC07BAC918247EA582FA519",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Run.ps1",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Probe/Probe.csproj",
+      "bytes": 382,
+      "sha256": "918722F521A72FF08E886EAB0E11439D72DF107843D4D8EA4B687807B8C04469",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Probe/Probe.csproj",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    },
+    {
+      "path": "scripts/validation/issue263-public-package/Probe/Program.cs",
+      "bytes": 24200,
+      "sha256": "E0770B77BFB02DD07D1B5F2F4CDC0C70E6E7F0EE26F707FF273F5C7481A0031D",
+      "lfOnly": true,
+      "singleTrailingNewline": true,
+      "utf8NoBom": true,
+      "runtimeCopy": "final01/consumer/Probe/Program.cs",
+      "matchesRuntimeCopy": true,
+      "identity": "tested-source"
+    }
+  ],
+  "powershellParse": [
+    {
+      "file": "Common.ps1",
+      "parseErrors": 0
+    },
+    {
+      "file": "Remote.ps1",
+      "parseErrors": 0
+    },
+    {
+      "file": "Run.ps1",
+      "parseErrors": 0
+    }
+  ],
+  "report": {
+    "path": "docs/audits/issue-263-public-package-20261016.md",
+    "bytes": 9089,
+    "sha256": "1672970953FFA8BF1C212510B587E19E2C20C9C3B15DCC49BC87BD897B55131D"
+  },
+  "publicPackages": {
+    "assets": [
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\obj\\project.assets.json",
+        "packageFolders": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\packages"
+        ],
+        "sha256": "62B90048A03A394F2670DA3D61C017E21534293B1E7C4C4C1F39BE249F9C53CD",
+        "sources": [
+          "https://api.nuget.org/v3/index.json"
+        ],
+        "projectReferences": [
+          "Chloe/5.56.0",
+          "Chloe.SonnetDB/5.56.0"
+        ]
+      }
+    ],
+    "packages": [
+      {
+        "nugetContentHash": "+5DiliK7WzWWh5IYe0vdWzokH1oKdIdHyZJy+26Hu/jcKcQoyGxeNGjqTJklKJ9LHlEB/AtOc02Dfcvgj/FWGw==",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "id": "sonnetdb.core",
+        "version": "4.5.0-preview.ef266.5"
+      },
+      {
+        "nugetContentHash": "2npRi+M2YyKuKmJDE2jCRIfth++brTzhzaTJMEkjpFBl+D17pdFqO9BykfY+nHSIqQBojIoo/afhaeh4MlNniA==",
+        "source": "https://api.nuget.org/v3/index.json",
+        "nupkgSha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+        "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+        "id": "sonnetdb",
+        "version": "4.5.0-preview.ef266.5"
+      }
+    ]
+  },
+  "packageBinaryEquality": [
+    {
+      "package": "sonnetdb.core",
+      "entry": "lib/net10.0/SonnetDB.Core.dll",
+      "archiveEntrySha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "extractedSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "runtimeSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "equal": true
+    },
+    {
+      "package": "sonnetdb",
+      "entry": "lib/net10.0/SonnetDB.Data.dll",
+      "archiveEntrySha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "extractedSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "runtimeSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "equal": true
+    }
+  ],
+  "runtimeFiles": [
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.dll",
+      "bytes": 756224,
+      "sha256": "6C3044DCBAF53796CE4A8B7ED567B4B65067DCC745321892F2B28101A821D194"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.pdb",
+      "bytes": 312888,
+      "sha256": "11570AD8AAE7792A83E0367F7077D40114B419EC2F8D392B191ED4C605CD33F2"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.SonnetDB.dll",
+      "bytes": 52224,
+      "sha256": "25636284589766098BFA13FFADFBEDF2AF2F064FA3834984D766D9072180225C"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.SonnetDB.pdb",
+      "bytes": 29928,
+      "sha256": "62D9A268DEFE47E5CBB9883DBFFDAB398B0A004D30366F4648A76D80AC6426FE"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.SonnetDB.xml",
+      "bytes": 1415,
+      "sha256": "786E6BA63AD900C8A953ED5AE94683B7400B49E16F50694981681E084737639D"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Chloe.xml",
+      "bytes": 73556,
+      "sha256": "3AD0E46D4192A7B3EEEC4081C7629F1BB3F5127F8F77B301A0C86AF16DF56445"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Microsoft.Extensions.AI.Abstractions.dll",
+      "bytes": 679224,
+      "sha256": "C102ABEB64309810483ED4FED82C0853A9F29F31DB989B32939A71E7ED4BB4A6"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "bytes": 65872,
+      "sha256": "DA04EDC338D5AA0F38A1F5FA5FF3EE7E36AFFE9C961DAF3EA724A428BD746BC6"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Microsoft.Extensions.VectorData.Abstractions.dll",
+      "bytes": 100664,
+      "sha256": "9A978AEDCB83FF5C5A1F8F3B2137DCA8608DB2A1030E28B6F281A91046C869ED"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Probe.deps.json",
+      "bytes": 6088,
+      "sha256": "C80EC8037FFACAD9708BFA1039BE0C52E5185A70CCD043A980102522B3F553BD"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Probe.dll",
+      "bytes": 42496,
+      "sha256": "A520835DE96F7323CD2EA6F93C44815821A995A4AA8D7EF171BEEA21EEC87A04"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Probe.exe",
+      "bytes": 162304,
+      "sha256": "F1767F42211E9D1D35FCD1E148F3BF74BC4245B8B9903E46B990B6990B13FC59"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Probe.pdb",
+      "bytes": 23380,
+      "sha256": "88A726A34CCED3D0CB1B890C80D8A119F1DF0DFECEEB3C0E54414F139F01C7EE"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/Probe.runtimeconfig.json",
+      "bytes": 342,
+      "sha256": "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/SonnetDB.Core.dll",
+      "bytes": 18753024,
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/SonnetDB.Data.dll",
+      "bytes": 2590720,
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/System.IO.Hashing.dll",
+      "bytes": 56104,
+      "sha256": "CEA6795CF9F7B139B2215FF6DE794A6F6E44E78640FB30FA4C0D5FA8472DF8E5"
+    },
+    {
+      "path": "final01/consumer/Probe/bin/Release/net10.0/System.Numerics.Tensors.dll",
+      "bytes": 517928,
+      "sha256": "5831A67BFB44D2034D76CDE54BD349F8479160B4FD20B8FA6FFE5A94230D5352"
+    }
+  ],
+  "chloe": {
+    "commit": "bb7ec8735bd4511c35453eb009f70cc606795703",
+    "source": "https://github.com/maikebing/Chloe",
+    "upstreamPr": 435,
+    "projectVersion": "5.56.0",
+    "trackedDiffExitCode": 0,
+    "untrackedIsolationFiles": [
+      "Directory.Build.props",
+      "Directory.Build.targets",
+      "Directory.Packages.props"
+    ],
+    "formalRelease": false
+  },
+  "build": {
+    "exitCode": 0,
+    "warnings": 38,
+    "warningCode": "CS8632",
+    "warningOrigin": "unmodified upstream Chloe source",
+    "errors": 0,
+    "nativeAotValidated": false
+  },
+  "finalRuns": [
+    {
+      "label": "embedded-ado-exercise",
+      "mode": "ado",
+      "phase": "exercise",
+      "assertions": 346,
+      "issue263Assertions": 336,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 10,
+      "exitCode": 0,
+      "receipt": "final01/embedded-ado-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:36.2661318Z",
+        "executable": "dotnet",
+        "pid": 33960,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      }
+    },
+    {
+      "label": "embedded-ado-reopen",
+      "mode": "ado",
+      "phase": "reopen",
+      "assertions": 168,
+      "issue263Assertions": 168,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/embedded-ado-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:36.8555356Z",
+        "executable": "dotnet",
+        "pid": 59756,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      }
+    },
+    {
+      "label": "embedded-chloe-exercise",
+      "mode": "chloe",
+      "phase": "exercise",
+      "assertions": 612,
+      "issue263Assertions": 588,
+      "ormControlAssertions": 12,
+      "uint64BoundaryAssertions": 12,
+      "exitCode": 0,
+      "receipt": "final01/embedded-chloe-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:37.2814002Z",
+        "executable": "dotnet",
+        "pid": 42200,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      }
+    },
+    {
+      "label": "embedded-chloe-reopen",
+      "mode": "chloe",
+      "phase": "reopen",
+      "assertions": 283,
+      "issue263Assertions": 276,
+      "ormControlAssertions": 7,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/embedded-chloe-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:39.5366921Z",
+        "executable": "dotnet",
+        "pid": 41160,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      }
+    },
+    {
+      "label": "ado-frame-http2-exercise",
+      "mode": "ado",
+      "phase": "exercise",
+      "assertions": 346,
+      "issue263Assertions": 336,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 10,
+      "exitCode": 0,
+      "receipt": "final01/remote/ado-frame-http2-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:09.3725585Z",
+        "executable": "dotnet",
+        "pid": 46320,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      }
+    },
+    {
+      "label": "ado-frame-http2-reopen",
+      "mode": "ado",
+      "phase": "reopen",
+      "assertions": 168,
+      "issue263Assertions": 168,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/remote/ado-frame-http2-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:12.2332957Z",
+        "executable": "dotnet",
+        "pid": 54916,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      }
+    },
+    {
+      "label": "ado-rest-exercise",
+      "mode": "ado",
+      "phase": "exercise",
+      "assertions": 346,
+      "issue263Assertions": 336,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 10,
+      "exitCode": 0,
+      "receipt": "final01/remote/ado-rest-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:01.6445093Z",
+        "executable": "dotnet",
+        "pid": 75664,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      }
+    },
+    {
+      "label": "ado-rest-reopen",
+      "mode": "ado",
+      "phase": "reopen",
+      "assertions": 168,
+      "issue263Assertions": 168,
+      "ormControlAssertions": 0,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/remote/ado-rest-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:07.0859177Z",
+        "executable": "dotnet",
+        "pid": 31304,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      }
+    },
+    {
+      "label": "chloe-frame-http2-exercise",
+      "mode": "chloe",
+      "phase": "exercise",
+      "assertions": 612,
+      "issue263Assertions": 588,
+      "ormControlAssertions": 12,
+      "uint64BoundaryAssertions": 12,
+      "exitCode": 0,
+      "receipt": "final01/remote/chloe-frame-http2-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:10.058092Z",
+        "executable": "dotnet",
+        "pid": 52380,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      }
+    },
+    {
+      "label": "chloe-frame-http2-reopen",
+      "mode": "chloe",
+      "phase": "reopen",
+      "assertions": 283,
+      "issue263Assertions": 276,
+      "ormControlAssertions": 7,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/remote/chloe-frame-http2-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:12.6781546Z",
+        "executable": "dotnet",
+        "pid": 48496,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      }
+    },
+    {
+      "label": "chloe-rest-exercise",
+      "mode": "chloe",
+      "phase": "exercise",
+      "assertions": 612,
+      "issue263Assertions": 588,
+      "ormControlAssertions": 12,
+      "uint64BoundaryAssertions": 12,
+      "exitCode": 0,
+      "receipt": "final01/remote/chloe-rest-exercise.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:03.5126574Z",
+        "executable": "dotnet",
+        "pid": 23696,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      }
+    },
+    {
+      "label": "chloe-rest-reopen",
+      "mode": "chloe",
+      "phase": "reopen",
+      "assertions": 283,
+      "issue263Assertions": 276,
+      "ormControlAssertions": 7,
+      "uint64BoundaryAssertions": 0,
+      "exitCode": 0,
+      "receipt": "final01/remote/chloe-rest-reopen.json",
+      "actualCommand": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:07.4928944Z",
+        "executable": "dotnet",
+        "pid": 58268,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      }
+    }
+  ],
+  "protocols": [
+    {
+      "name": "protocol-frame-http2-exercise",
+      "expected": "HTTP/2",
+      "requests": 393,
+      "frame": 122,
+      "rest": 271,
+      "file": {
+        "path": "final01/remote/protocol-frame-http2-exercise.json",
+        "bytes": 624733,
+        "sha256": "920A923414E36EA0382B8D367CB1A804A03009F0EF2BC86FE4182B07B3EE88CF"
+      }
+    },
+    {
+      "name": "protocol-frame-http2-reopen",
+      "expected": "HTTP/2",
+      "requests": 122,
+      "frame": 122,
+      "rest": 0,
+      "file": {
+        "path": "final01/remote/protocol-frame-http2-reopen.json",
+        "bytes": 174924,
+        "sha256": "19717A56A1A6062F013561B679E0EA7FFB5D5C29672A9BB169BCA44F2AC52294"
+      }
+    },
+    {
+      "name": "protocol-rest-exercise",
+      "expected": "HTTP/1.1",
+      "requests": 393,
+      "frame": 0,
+      "rest": 393,
+      "file": {
+        "path": "final01/remote/protocol-rest-exercise.json",
+        "bytes": 642507,
+        "sha256": "F45A8A1E3009719AAA01678B6A842285B878571C356FDE6B27E95795E6122A52"
+      }
+    },
+    {
+      "name": "protocol-rest-reopen",
+      "expected": "HTTP/1.1",
+      "requests": 122,
+      "frame": 0,
+      "rest": 122,
+      "file": {
+        "path": "final01/remote/protocol-rest-reopen.json",
+        "bytes": 190530,
+        "sha256": "73DDC2B3EADB7C85C69945C3BA594453FE3D98DE18AEE9AEAD63857669BD4300"
+      }
+    }
+  ],
+  "server": {
+    "sourceCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+    "source": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue271-work\\final-public\\remote\\server",
+    "files": 541,
+    "sourceAndCopiedFilesRehashed": true,
+    "mismatchCount": 0,
+    "snapshot": {
+      "path": "final01/remote/server-snapshot.json",
+      "bytes": 86462,
+      "sha256": "8D47093CC2DBF76F42C277EE18822EFED13E4E79210B7EF858D58F3DA0806671"
+    },
+    "primaryFiles": [
+      {
+        "path": "final01/remote/server/SonnetDB.dll",
+        "bytes": 5668352,
+        "sha256": "0C0AAD202A9EC51E9C50776A0B00A01906D2B5BE6FC5919004A4FF90CB880A9F"
+      },
+      {
+        "path": "final01/remote/server/SonnetDB.Core.dll",
+        "bytes": 18859520,
+        "sha256": "49DA9A27C95B69D94C8837A1A1DB4A9633266436169AB34F02B264EA580A282A"
+      },
+      {
+        "path": "final01/remote/server/SonnetDB.pdb",
+        "bytes": 2279888,
+        "sha256": "FBEADCAA577A4DF232E32F9A6C16716E9B8B571ABA2EAF3F521EAA8B4B897C47"
+      },
+      {
+        "path": "final01/remote/server/SonnetDB.Core.pdb",
+        "bytes": 2605912,
+        "sha256": "01D87C01C540AD464E994949E7A7FDB722D019771B4420E037A454813D2F20F5"
+      }
+    ],
+    "publicReleasedServer": false,
+    "stopMethod": "Process.Kill(true) on exact owned Process instances; four final Server launches terminate with exit -1"
+  },
+  "historicalRuns": [
+    {
+      "directory": "run01",
+      "result": "PASS embedded only",
+      "adoExercise": 345,
+      "adoReopen": 168,
+      "chloeExercise": 608,
+      "chloeReopen": 283,
+      "cumulativeWithFinal": false
+    },
+    {
+      "directory": "remote01",
+      "result": "FAIL",
+      "process": "ado-rest-exercise",
+      "exitCode": 1,
+      "reason": "Setup omitted database creation; HTTP 404 db_not_found",
+      "correctedBy": "Explicit authenticated database creation in final runner"
+    },
+    {
+      "directory": "remote02",
+      "result": "FAIL",
+      "process": "ado-rest-exercise",
+      "exitCode": 1,
+      "issue263CoreAssertionsCompleted": 336,
+      "reason": "Additional UInt64-within-Int64 control expected acceptance but public .5 remote binder rejects UInt64",
+      "fullRunRelabeledPass": false
+    }
+  ],
+  "uint64": {
+    "insideInt64Embedded": "exact Int64",
+    "insideInt64Remote": "NotSupportedException",
+    "highEmbedded": "OverflowException",
+    "highRemote": "NotSupportedException",
+    "chloeWrapper": "ChloeException with checked inner type",
+    "issue263Scope": false,
+    "currentSourceSupportIntroducedAfterPackage": "89674db0"
+  },
+  "processAudit": [
+    {
+      "receipt": "run01/build.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 584,
+        "startTimeUtc": "2026-10-15T23:12:59.7156994Z",
+        "arguments": [
+          "build",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\Probe.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-p:UseSharedCompilation=false",
+          "-p:ChloeRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:SourceRevisionId=bb7ec8735bd4511c35453eb009f70cc606795703",
+          "-p:RepositoryCommit=bb7ec8735bd4511c35453eb009f70cc606795703"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/chloe-checkout.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe",
+        "pid": 59720,
+        "startTimeUtc": "2026-10-15T23:12:52.5975765Z",
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "checkout",
+          "--detach",
+          "bb7ec8735bd4511c35453eb009f70cc606795703"
+        ],
+        "executable": "git"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/chloe-clone.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 45284,
+        "startTimeUtc": "2026-10-15T23:12:49.7759641Z",
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "clone",
+          "--no-checkout",
+          "--filter=blob:none",
+          "https://github.com/maikebing/Chloe.git",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe"
+        ],
+        "executable": "git"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/chloe-final-diff.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe",
+        "pid": 82860,
+        "startTimeUtc": "2026-10-15T23:13:10.1818931Z",
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "diff",
+          "--exit-code",
+          "bb7ec8735bd4511c35453eb009f70cc606795703",
+          "--"
+        ],
+        "executable": "git"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/chloe-final-status.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe",
+        "pid": 56440,
+        "startTimeUtc": "2026-10-15T23:13:10.4409196Z",
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "status",
+          "--short",
+          "--untracked-files=normal"
+        ],
+        "executable": "git"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/embedded-ado-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 22712,
+        "startTimeUtc": "2026-10-15T23:13:06.2352749Z",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-r01"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/embedded-ado-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 51424,
+        "startTimeUtc": "2026-10-15T23:13:06.8224976Z",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-r01"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/embedded-chloe-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 10808,
+        "startTimeUtc": "2026-10-15T23:13:07.1799166Z",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-r01"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/embedded-chloe-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 46064,
+        "startTimeUtc": "2026-10-15T23:13:09.1161982Z",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-r01"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/restore.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 43464,
+        "startTimeUtc": "2026-10-15T23:12:54.8000734Z",
+        "arguments": [
+          "restore",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\Probe.csproj",
+          "--configfile",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\NuGet.Config",
+          "--packages",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\packages",
+          "--force",
+          "--no-cache",
+          "-p:ChloeRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\chloe",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:SourceRevisionId=bb7ec8735bd4511c35453eb009f70cc606795703",
+          "-p:RepositoryCommit=bb7ec8735bd4511c35453eb009f70cc606795703"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "run01/sdk.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer",
+        "pid": 67220,
+        "startTimeUtc": "2026-10-15T23:12:49.248488Z",
+        "arguments": [
+          "--info"
+        ],
+        "executable": "dotnet"
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "remote01/ado-rest-exercise.json",
+      "identity": {
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-remote01\\data\\rest"
+        ],
+        "pid": 50672,
+        "startTimeUtc": "2026-10-15T23:14:17.3404095Z",
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package"
+      },
+      "exitCode": 1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "remote01/server-rest-exercise.json",
+      "identity": {
+        "executable": "dotnet",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\remote01\\server\\SonnetDB.dll"
+        ],
+        "pid": 46784,
+        "startTimeUtc": "2026-10-15T23:14:15.8946948Z",
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\remote01\\server"
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    },
+    {
+      "receipt": "remote02/ado-rest-exercise.json",
+      "identity": {
+        "pid": 73740,
+        "executable": "dotnet",
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\run01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-remote02\\data\\rest"
+        ],
+        "startTimeUtc": "2026-10-15T23:15:55.4885624Z"
+      },
+      "exitCode": 1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "remote02/server-rest-exercise.json",
+      "identity": {
+        "pid": 47836,
+        "executable": "dotnet",
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\remote02\\server",
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\remote02\\server\\SonnetDB.dll"
+        ],
+        "startTimeUtc": "2026-10-15T23:15:54.0748034Z"
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    },
+    {
+      "receipt": "final01/build.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:29.3372675Z",
+        "executable": "dotnet",
+        "pid": 79188,
+        "arguments": [
+          "build",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\Probe.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-p:UseSharedCompilation=false",
+          "-p:ChloeRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:SourceRevisionId=bb7ec8735bd4511c35453eb009f70cc606795703",
+          "-p:RepositoryCommit=bb7ec8735bd4511c35453eb009f70cc606795703"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/chloe-checkout.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe",
+        "startTimeUtc": "2026-10-15T23:18:20.3768402Z",
+        "executable": "git",
+        "pid": 59364,
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "checkout",
+          "--detach",
+          "bb7ec8735bd4511c35453eb009f70cc606795703"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/chloe-clone.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:17.9091526Z",
+        "executable": "git",
+        "pid": 84076,
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "clone",
+          "--no-checkout",
+          "--filter=blob:none",
+          "https://github.com/maikebing/Chloe.git",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/chloe-final-diff.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe",
+        "startTimeUtc": "2026-10-15T23:19:13.2403233Z",
+        "executable": "git",
+        "pid": 10628,
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "diff",
+          "--exit-code",
+          "bb7ec8735bd4511c35453eb009f70cc606795703",
+          "--"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/chloe-final-status.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe",
+        "startTimeUtc": "2026-10-15T23:19:13.6591612Z",
+        "executable": "git",
+        "pid": 27960,
+        "arguments": [
+          "-c",
+          "core.longpaths=true",
+          "status",
+          "--short",
+          "--untracked-files=normal"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/embedded-ado-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:36.2661318Z",
+        "executable": "dotnet",
+        "pid": 33960,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/embedded-ado-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:36.8555356Z",
+        "executable": "dotnet",
+        "pid": 59756,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/embedded-chloe-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:37.2814002Z",
+        "executable": "dotnet",
+        "pid": 42200,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/embedded-chloe-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:39.5366921Z",
+        "executable": "dotnet",
+        "pid": 41160,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/restore.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:22.8955316Z",
+        "executable": "dotnet",
+        "pid": 46432,
+        "arguments": [
+          "restore",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\Probe.csproj",
+          "--configfile",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\NuGet.Config",
+          "--packages",
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\packages",
+          "--force",
+          "--no-cache",
+          "-p:ChloeRoot=D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\chloe",
+          "-p:TargetFrameworks=net10.0",
+          "-p:DisableImplicitLibraryPacksFolder=true",
+          "-p:NuGetAudit=false",
+          "-p:SourceRevisionId=bb7ec8735bd4511c35453eb009f70cc606795703",
+          "-p:RepositoryCommit=bb7ec8735bd4511c35453eb009f70cc606795703"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/sdk.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer",
+        "startTimeUtc": "2026-10-15T23:18:17.4011384Z",
+        "executable": "dotnet",
+        "pid": 10300,
+        "arguments": [
+          "--info"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/ado-frame-http2-exercise.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:09.3725585Z",
+        "executable": "dotnet",
+        "pid": 46320,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/ado-frame-http2-reopen.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:12.2332957Z",
+        "executable": "dotnet",
+        "pid": 54916,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/ado-rest-exercise.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:01.6445093Z",
+        "executable": "dotnet",
+        "pid": 75664,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/ado-rest-reopen.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:07.0859177Z",
+        "executable": "dotnet",
+        "pid": 31304,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "ado",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/chloe-frame-http2-exercise.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:10.058092Z",
+        "executable": "dotnet",
+        "pid": 52380,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/chloe-frame-http2-reopen.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:12.6781546Z",
+        "executable": "dotnet",
+        "pid": 48496,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\frame-http2"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/chloe-rest-exercise.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:03.5126574Z",
+        "executable": "dotnet",
+        "pid": 23696,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "exercise",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/chloe-rest-reopen.json",
+      "identity": {
+        "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB\\scripts\\validation\\issue263-public-package",
+        "startTimeUtc": "2026-10-15T23:19:07.4928944Z",
+        "executable": "dotnet",
+        "pid": 58268,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\consumer\\Probe\\bin\\Release\\net10.0\\Probe.dll",
+          "chloe",
+          "reopen",
+          "D:\\sndb-t\\i263-final01\\remote\\data\\rest"
+        ]
+      },
+      "exitCode": 0,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": false,
+      "terminated": null
+    },
+    {
+      "receipt": "final01/remote/server-frame-http2-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server",
+        "startTimeUtc": "2026-10-15T23:19:07.9964925Z",
+        "executable": "dotnet",
+        "pid": 47584,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server\\SonnetDB.dll"
+        ]
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    },
+    {
+      "receipt": "final01/remote/server-frame-http2-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server",
+        "startTimeUtc": "2026-10-15T23:19:10.8752282Z",
+        "executable": "dotnet",
+        "pid": 45012,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server\\SonnetDB.dll"
+        ]
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    },
+    {
+      "receipt": "final01/remote/server-rest-exercise.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server",
+        "startTimeUtc": "2026-10-15T23:19:00.2450494Z",
+        "executable": "dotnet",
+        "pid": 55056,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server\\SonnetDB.dll"
+        ]
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    },
+    {
+      "receipt": "final01/remote/server-rest-reopen.json",
+      "identity": {
+        "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server",
+        "startTimeUtc": "2026-10-15T23:19:05.7397541Z",
+        "executable": "dotnet",
+        "pid": 59740,
+        "arguments": [
+          "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue263-work\\final01\\remote\\server\\SonnetDB.dll"
+        ]
+      },
+      "exitCode": -1,
+      "exited": true,
+      "sameIdentityAlive": false,
+      "pidReused": false,
+      "timedOut": null,
+      "terminated": true
+    }
+  ],
+  "onlineSnapshots": [
+    {
+      "path": "chloe.sonnetdb-versions-failure.json",
+      "bytes": 130,
+      "sha256": "BC77D19FF4D739430021FBB6CF2C75F8570177926AE887FEB74C6908DD119ED2",
+      "snapshotFileWrittenUtc": "2026-10-15T23:14:25.8588039Z"
+    },
+    {
+      "path": "chloe435-online.json",
+      "bytes": 19149,
+      "sha256": "B2CD7653B6E103BDBF11B31873D30218C1D019E4FE3DCB6697795C4AEEAAEC63",
+      "snapshotFileWrittenUtc": "2026-10-15T23:07:02.2929539Z"
+    },
+    {
+      "path": "chloe435-status.json",
+      "bytes": 138,
+      "sha256": "84F277C55D15FDC2F84A16A98FF46168F84FD2D68F21313F8BBF77930548A3C1",
+      "snapshotFileWrittenUtc": "2026-10-15T23:14:23.9238518Z"
+    },
+    {
+      "path": "issue263-online.json",
+      "bytes": 4812,
+      "sha256": "F997324FAC7D9BA177B920FAA10E8FA5F4E94F584A44268EBDE04982D5625CF1",
+      "snapshotFileWrittenUtc": "2026-10-15T23:06:23.9055970Z"
+    },
+    {
+      "path": "server-releases.json",
+      "bytes": 832,
+      "sha256": "4CDFFD6065ABC151D60E0E1C624FC0EA20FA620B3652FFF9E45AD2D84D408EBB",
+      "snapshotFileWrittenUtc": "2026-10-15T23:14:26.7220897Z"
+    },
+    {
+      "path": "sonnetdb-versions.json",
+      "bytes": 265,
+      "sha256": "E158B4E880A8F7EAFCF043511B0F06758E6DF067FFD828A93DA3C133FBE3063B",
+      "snapshotFileWrittenUtc": "2026-10-15T23:14:24.4808874Z"
+    },
+    {
+      "path": "sonnetdb.core-versions.json",
+      "bytes": 265,
+      "sha256": "E158B4E880A8F7EAFCF043511B0F06758E6DF067FFD828A93DA3C133FBE3063B",
+      "snapshotFileWrittenUtc": "2026-10-15T23:14:24.9316800Z"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "run01/build.json",
+      "bytes": 1047,
+      "sha256": "5BB3AC0EA91F6EF1B5BC790B2FC07C23B19375DF15CBF0638A2CE10D349B5A4F"
+    },
+    {
+      "path": "run01/build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/build.stdout.log",
+      "bytes": 29691,
+      "sha256": "EBA219BB4F0F09DC6E385DB6699543EF092117BFE62548CF032E64C68867CF21"
+    },
+    {
+      "path": "run01/chloe-checkout.json",
+      "bytes": 577,
+      "sha256": "8CF557D0659D453FD226A948549DDAC2AF7158A89691F7F3DCE7EBFC2A00B03F"
+    },
+    {
+      "path": "run01/chloe-checkout.stderr.log",
+      "bytes": 66,
+      "sha256": "822365EA6246214EB2DC710780FDE07724B30D2DA3248B420CCE8509F1CD1E3D"
+    },
+    {
+      "path": "run01/chloe-checkout.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/chloe-clone.json",
+      "bytes": 705,
+      "sha256": "F6015464A8C0873E3BA49C61C5628E7200852E732B27A31A01B6125EEDD5CCFE"
+    },
+    {
+      "path": "run01/chloe-clone.stderr.log",
+      "bytes": 100,
+      "sha256": "7437E540D91E0F1EB2251BC5F654EB018196A11FCB96A7CEE184C8F8448EB12C"
+    },
+    {
+      "path": "run01/chloe-clone.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/chloe-final-diff.json",
+      "bytes": 591,
+      "sha256": "7D9DFE18ACE990A6107D6CDB78FBCEAF73A5F07F937DDD1BB9B43F45622B6B9E"
+    },
+    {
+      "path": "run01/chloe-final-diff.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/chloe-final-diff.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/chloe-final-status.json",
+      "bytes": 562,
+      "sha256": "82C32294B2B36F9B9D702F0501A47388272A6CECEC30DE194308377441359294"
+    },
+    {
+      "path": "run01/chloe-final-status.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/chloe-final-status.stdout.log",
+      "bytes": 80,
+      "sha256": "DA77F1C32F0FD543445C4334897BB135F04C697455A898128DD558EBA3ABFAC9"
+    },
+    {
+      "path": "run01/embedded-ado-exercise.json",
+      "bytes": 665,
+      "sha256": "1AD7FF72041E4923AE91B01D0D104354CE0379F0C6EEDA7B77D5CBDF385DDFD1"
+    },
+    {
+      "path": "run01/embedded-ado-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/embedded-ado-exercise.stdout.log",
+      "bytes": 21970,
+      "sha256": "628B0BCAE1C296275D6B5907510346428958D1237072FB48DECEFD59905320AF"
+    },
+    {
+      "path": "run01/embedded-ado-reopen.json",
+      "bytes": 661,
+      "sha256": "D98FAD2E94DDF3B878EF1418EFC7FFF17BEE9DE38E0F2E4879787300806E258D"
+    },
+    {
+      "path": "run01/embedded-ado-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/embedded-ado-reopen.stdout.log",
+      "bytes": 11233,
+      "sha256": "79FAA7508FAF510B12B2381A93AF40555F94D6891773B6F8F5C7A2A7E662BBAB"
+    },
+    {
+      "path": "run01/embedded-chloe-exercise.json",
+      "bytes": 669,
+      "sha256": "6C57DF54F2807044943FC911065486C1748AE50F5EE7DEABEAB75DE06DBE1781"
+    },
+    {
+      "path": "run01/embedded-chloe-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/embedded-chloe-exercise.stdout.log",
+      "bytes": 65271,
+      "sha256": "C8FEF4FBC7C1FE014B46DBF8AC0BACE3D8E8EEFF6AD22A0D00BB5F724B726079"
+    },
+    {
+      "path": "run01/embedded-chloe-reopen.json",
+      "bytes": 665,
+      "sha256": "F2A3861F45B94AA34D248B6A03B1A6E10209E4A87B6FDF1DA2924CAE1E0D581B"
+    },
+    {
+      "path": "run01/embedded-chloe-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/embedded-chloe-reopen.stdout.log",
+      "bytes": 28774,
+      "sha256": "1019785F31FA1A67F4F390E13AA4D7E0DD304C34968732BEBBBE27348C229E8C"
+    },
+    {
+      "path": "run01/manifest.json",
+      "bytes": 13999,
+      "sha256": "03149C6C8F8C7144FAE8C92C3FC249F3A3D0C79BEB9BC28E7347910F643223B1"
+    },
+    {
+      "path": "run01/public-packages.json",
+      "bytes": 1445,
+      "sha256": "DA60D7474E89076A76922B85989A8035C3DBA2D806B78D262E51F593E6DE9ABB"
+    },
+    {
+      "path": "run01/restore.json",
+      "bytes": 1260,
+      "sha256": "6176EDA97F57F916D8DF73748F4049FAC30F5D8753712A4FE594372E0AAB09AF"
+    },
+    {
+      "path": "run01/restore.stderr.log",
+      "bytes": 664,
+      "sha256": "286F0C73239D1D8F037AC08FA7AB358934DA8405A64DEAB07B719FDF605700CA"
+    },
+    {
+      "path": "run01/restore.stdout.log",
+      "bytes": 472,
+      "sha256": "E76CD74AC9457BB974C882E8493944FC89CF6DE067DE0EED3944A1A1BD9A0E80"
+    },
+    {
+      "path": "run01/runtime.json",
+      "bytes": 40,
+      "sha256": "13B5F0BCD69AA170E81919261CFCF2833A289751EEA61F7B24CF210ED9C66AB2"
+    },
+    {
+      "path": "run01/sdk.json",
+      "bytes": 457,
+      "sha256": "8E3DF939BBDC3A41A4FD414A048C15BCCE7CE275455980FB563303096C22518F"
+    },
+    {
+      "path": "run01/sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "run01/sdk.stdout.log",
+      "bytes": 4286,
+      "sha256": "7400CC8D27F0697AC6D8CA5F9052C75FE6B42898B152B118C5BD64B60AF31C5D"
+    },
+    {
+      "path": "remote01/ado-rest-exercise.json",
+      "bytes": 704,
+      "sha256": "92B247B47EC1649C2F4AB5A6663CFE749FFAA70EB62013AF4A9BC7690B97CB6C"
+    },
+    {
+      "path": "remote01/ado-rest-exercise.stderr.log",
+      "bytes": 1518,
+      "sha256": "AC20ADFF229F4A49E332C2437CEEAD2D85BCC62FE50A43432A93035510C350DE"
+    },
+    {
+      "path": "remote01/ado-rest-exercise.stdout.log",
+      "bytes": 599,
+      "sha256": "15705EB8F4C8B2D52020CBFBFCCD92B2B18021CE1D0804F8FA0F688BF1B2F8C1"
+    },
+    {
+      "path": "remote01/manifest.json",
+      "bytes": 5102,
+      "sha256": "79C95E8014A59B28CB97C29241C46E01D487A20DDDF1794708C054EDCCE0BF75"
+    },
+    {
+      "path": "remote01/runtime.json",
+      "bytes": 45,
+      "sha256": "5273DA071434E887C39F7F6BF19B82A8125C3E2DB7BB4B846579132A50B44C03"
+    },
+    {
+      "path": "remote01/server-rest-exercise.json",
+      "bytes": 519,
+      "sha256": "BCB9679A72F4C59B790CF1E4C4C31CB9F6F2772F993581FCE23D421764D56F16"
+    },
+    {
+      "path": "remote01/server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote01/server-rest-exercise.stdout.log",
+      "bytes": 8571,
+      "sha256": "A529C626C7F430FC00D3F7A5F115AA1A1E45C3DA74BF60A815059348BB539C98"
+    },
+    {
+      "path": "remote01/server-snapshot.json",
+      "bytes": 86462,
+      "sha256": "55256AAEB83CFBAA36E10644687F6D875299EBAFBA1397907BDC4CB97BA7AB61"
+    },
+    {
+      "path": "remote02/ado-rest-exercise.json",
+      "bytes": 704,
+      "sha256": "7E64B1A7820757D04D0C772300258F9A9C604A5AF832748CFC71FB33B8043F58"
+    },
+    {
+      "path": "remote02/ado-rest-exercise.stderr.log",
+      "bytes": 1986,
+      "sha256": "AC31578645D723A17A678640FE63C8AE0C2E1C5B69FB401DFF64D220168F3A4C"
+    },
+    {
+      "path": "remote02/ado-rest-exercise.stdout.log",
+      "bytes": 21173,
+      "sha256": "B1C6BEB2BFCC935E7B3A14CB6C512EDDB1772FB6C6F3110697AEA237A98DE006"
+    },
+    {
+      "path": "remote02/create-database-rest.json",
+      "bytes": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4"
+    },
+    {
+      "path": "remote02/manifest.json",
+      "bytes": 5373,
+      "sha256": "CC99DA6FFB1171A7C515C374D6162AE387681E640472649552418672AE4103C0"
+    },
+    {
+      "path": "remote02/runtime.json",
+      "bytes": 45,
+      "sha256": "4AB4C0CA35808E284A8A1D24E54A2141956D92AB1BA6A22E9303BC03EEC2365E"
+    },
+    {
+      "path": "remote02/server-rest-exercise.json",
+      "bytes": 519,
+      "sha256": "64D40555265963EE32250E71FA6638CF926ED265B2EE729ECCE457CD400B4979"
+    },
+    {
+      "path": "remote02/server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote02/server-rest-exercise.stdout.log",
+      "bytes": 571654,
+      "sha256": "7C15BC62287D2A4F4138E821EBC32ADBDAF0A0849125BCE0DAD0386DFD5EFA1C"
+    },
+    {
+      "path": "remote02/server-snapshot.json",
+      "bytes": 86462,
+      "sha256": "9F8F90CBB2449D1423A8AF39E69B197A5EB7C382F97BE83134B5D426C6A81C21"
+    },
+    {
+      "path": "final01/build.json",
+      "bytes": 1055,
+      "sha256": "1F7F15403382ACC9B80E1227CA302D4AF5DCBE9E1073CE9422789711CAB9120D"
+    },
+    {
+      "path": "final01/build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/build.stdout.log",
+      "bytes": 30001,
+      "sha256": "3FA8D1DA944B74F5A2C090F3B48FC01E25DC5EBE0E267F53829AD6FB377BF6EC"
+    },
+    {
+      "path": "final01/chloe-checkout.json",
+      "bytes": 579,
+      "sha256": "7F4B1CB591A88B1D8AF3ABCFF7CFC9DC94CB9E6BE17AA6498DC098456B386CF1"
+    },
+    {
+      "path": "final01/chloe-checkout.stderr.log",
+      "bytes": 66,
+      "sha256": "822365EA6246214EB2DC710780FDE07724B30D2DA3248B420CCE8509F1CD1E3D"
+    },
+    {
+      "path": "final01/chloe-checkout.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/chloe-clone.json",
+      "bytes": 709,
+      "sha256": "A8D6135DCE4FEB5F96E9DC5FBF899CDC7CBD86C484E6F784E095FD1D27C11875"
+    },
+    {
+      "path": "final01/chloe-clone.stderr.log",
+      "bytes": 102,
+      "sha256": "1DA38F5B52363ED94A0B591629AD3D19DE5F0619A4C36FB7D2B76E423F0DAAFA"
+    },
+    {
+      "path": "final01/chloe-clone.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/chloe-final-diff.json",
+      "bytes": 593,
+      "sha256": "AB2D717C173FB94A50180FD9524C8BCEBB0085123D807A915D475CDDD77EB3CE"
+    },
+    {
+      "path": "final01/chloe-final-diff.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/chloe-final-diff.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/chloe-final-status.json",
+      "bytes": 564,
+      "sha256": "FEA92092049E741AC3FD38E1A980CB86BFBB5A5583913E36E2305223A8966872"
+    },
+    {
+      "path": "final01/chloe-final-status.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/chloe-final-status.stdout.log",
+      "bytes": 80,
+      "sha256": "DA77F1C32F0FD543445C4334897BB135F04C697455A898128DD558EBA3ABFAC9"
+    },
+    {
+      "path": "final01/embedded-ado-exercise.json",
+      "bytes": 673,
+      "sha256": "3758177AD9399467DFC11FB55D4FA3C4A059F0A8DFED14A18F1E38E9D7F9EE14"
+    },
+    {
+      "path": "final01/embedded-ado-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/embedded-ado-exercise.stdout.log",
+      "bytes": 22050,
+      "sha256": "B64619F974936F5481D0EAE539B9DF9E462B41C0902B0DADA6BF9F4847F893CA"
+    },
+    {
+      "path": "final01/embedded-ado-reopen.json",
+      "bytes": 669,
+      "sha256": "D959063864C9481413C226FACB416592EFADA6DBA0DF5B8F7DEFF701C540FA6E"
+    },
+    {
+      "path": "final01/embedded-ado-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/embedded-ado-reopen.stdout.log",
+      "bytes": 11233,
+      "sha256": "C3BE9E4DE25462ADF2B8A09F5A1144D344ADADC3697388F223AC9C76B4335C88"
+    },
+    {
+      "path": "final01/embedded-chloe-exercise.json",
+      "bytes": 677,
+      "sha256": "15CA20C530416BDD2180DF6D68775ED368B9E9EC66FE32E6667AF17368094A91"
+    },
+    {
+      "path": "final01/embedded-chloe-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/embedded-chloe-exercise.stdout.log",
+      "bytes": 65664,
+      "sha256": "3416FA33A35C1CFF1479FEC8BA2BBCB7531BF90194E0DDFB330F638A13890D9B"
+    },
+    {
+      "path": "final01/embedded-chloe-reopen.json",
+      "bytes": 673,
+      "sha256": "D5B4C46FB2B1BA922A31EAE5560602822411911D8334246F07B424A0A99A4450"
+    },
+    {
+      "path": "final01/embedded-chloe-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/embedded-chloe-reopen.stdout.log",
+      "bytes": 28774,
+      "sha256": "AAE1B766F08E395E160605FAA0127F8BB046D83E2A10D039B60507B965B36683"
+    },
+    {
+      "path": "final01/manifest.json",
+      "bytes": 27202,
+      "sha256": "4E9F9B1AEA43C6667B6BB7C300EC296FCBFD6FC70FC2863F9127D46EF337F31E"
+    },
+    {
+      "path": "final01/public-packages.json",
+      "bytes": 1449,
+      "sha256": "E0395B99C82C329DE2207C32A7C250B0423750A1F09885C3A218FC3701C8167C"
+    },
+    {
+      "path": "final01/restore.json",
+      "bytes": 1270,
+      "sha256": "BA1BF80C1354FCC9290D74BD22B625F00BB1A65F156A6F240E5A81857783A623"
+    },
+    {
+      "path": "final01/restore.stderr.log",
+      "bytes": 664,
+      "sha256": "286F0C73239D1D8F037AC08FA7AB358934DA8405A64DEAB07B719FDF605700CA"
+    },
+    {
+      "path": "final01/restore.stdout.log",
+      "bytes": 479,
+      "sha256": "559C856D2D8074F1C62CA88EBC624AC771B0BACA737EB9A2AD60826A04348460"
+    },
+    {
+      "path": "final01/runtime.json",
+      "bytes": 44,
+      "sha256": "5E6F6D37337C70AB57592251C1B2FF68DED50CE788BEF9033A89C062F56EC33C"
+    },
+    {
+      "path": "final01/sdk.json",
+      "bytes": 459,
+      "sha256": "7D7E4CC1E7548568F8713EC23AB9080D5A55142E3895946D5A72C0DB0EF89928"
+    },
+    {
+      "path": "final01/sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/sdk.stdout.log",
+      "bytes": 4288,
+      "sha256": "D48374E2248EF420411879FDBF9FA41CFE1A5687BC3B633437F100536D3A57EC"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-exercise.json",
+      "bytes": 727,
+      "sha256": "0D2AC930294F0684B4E8CFA17237543230C132105CC41737A7D98AE62780FF9D"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-exercise.stdout.log",
+      "bytes": 22195,
+      "sha256": "C070F16F7C36A3DA68219656A474054BF58445880AD62204CF22035D1312A4F5"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-reopen.json",
+      "bytes": 723,
+      "sha256": "611D82BF69EBD4E6B809D936FC17D965E0E866F7483A7FE2390E8E8FC45D48BB"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/ado-frame-http2-reopen.stdout.log",
+      "bytes": 11233,
+      "sha256": "C3BE9E4DE25462ADF2B8A09F5A1144D344ADADC3697388F223AC9C76B4335C88"
+    },
+    {
+      "path": "final01/remote/ado-rest-exercise.json",
+      "bytes": 713,
+      "sha256": "04884C2017FC73584ED904BA574CCF2C260E143E0F223C33C4B92179572B4B3C"
+    },
+    {
+      "path": "final01/remote/ado-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/ado-rest-exercise.stdout.log",
+      "bytes": 22195,
+      "sha256": "C070F16F7C36A3DA68219656A474054BF58445880AD62204CF22035D1312A4F5"
+    },
+    {
+      "path": "final01/remote/ado-rest-reopen.json",
+      "bytes": 709,
+      "sha256": "B910103F0201A7DA09BD8BA7ACBFF731F3C070DE6CDB735D5C9022280C2F7637"
+    },
+    {
+      "path": "final01/remote/ado-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/ado-rest-reopen.stdout.log",
+      "bytes": 11233,
+      "sha256": "C3BE9E4DE25462ADF2B8A09F5A1144D344ADADC3697388F223AC9C76B4335C88"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-exercise.json",
+      "bytes": 731,
+      "sha256": "101A29D493F491DE6491F3EC3AFF66F913C5C8B22829FC105D5DC62B6C37E447"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-exercise.stdout.log",
+      "bytes": 65820,
+      "sha256": "9FE5EE4C528E7C327F31793F3ADFAA9DEDA37A10394DA163EE1767E57098D51B"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-reopen.json",
+      "bytes": 727,
+      "sha256": "657037D4D603B6B21252BE07CF2015A5B8740E0AD85FA3F79E9038DC2CE3F583"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/chloe-frame-http2-reopen.stdout.log",
+      "bytes": 28774,
+      "sha256": "AAE1B766F08E395E160605FAA0127F8BB046D83E2A10D039B60507B965B36683"
+    },
+    {
+      "path": "final01/remote/chloe-rest-exercise.json",
+      "bytes": 717,
+      "sha256": "65C55D21FB7F48D0DAFC2E3BF1C8CC0861EF0023318540DE779773842284DEC6"
+    },
+    {
+      "path": "final01/remote/chloe-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/chloe-rest-exercise.stdout.log",
+      "bytes": 65820,
+      "sha256": "9FE5EE4C528E7C327F31793F3ADFAA9DEDA37A10394DA163EE1767E57098D51B"
+    },
+    {
+      "path": "final01/remote/chloe-rest-reopen.json",
+      "bytes": 713,
+      "sha256": "FC2E14E9DA1ADD1DC59E28B764F4CC40F207C3604ECACD40D4C890C19ABBCFF2"
+    },
+    {
+      "path": "final01/remote/chloe-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/chloe-rest-reopen.stdout.log",
+      "bytes": 28774,
+      "sha256": "AAE1B766F08E395E160605FAA0127F8BB046D83E2A10D039B60507B965B36683"
+    },
+    {
+      "path": "final01/remote/create-database-frame-http2.json",
+      "bytes": 44,
+      "sha256": "4C443BD46E745D12DCA237E161C4403846145E745F6B52108FAC9DF720B7B3B2"
+    },
+    {
+      "path": "final01/remote/create-database-rest.json",
+      "bytes": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4"
+    },
+    {
+      "path": "final01/remote/manifest.json",
+      "bytes": 15277,
+      "sha256": "18A44FAC969D4E13EDF0A42672E67513412256BC7692AE60DA4240F755F63B2D"
+    },
+    {
+      "path": "final01/remote/protocol-frame-http2-exercise.json",
+      "bytes": 624733,
+      "sha256": "920A923414E36EA0382B8D367CB1A804A03009F0EF2BC86FE4182B07B3EE88CF"
+    },
+    {
+      "path": "final01/remote/protocol-frame-http2-reopen.json",
+      "bytes": 174924,
+      "sha256": "19717A56A1A6062F013561B679E0EA7FFB5D5C29672A9BB169BCA44F2AC52294"
+    },
+    {
+      "path": "final01/remote/protocol-rest-exercise.json",
+      "bytes": 642507,
+      "sha256": "F45A8A1E3009719AAA01678B6A842285B878571C356FDE6B27E95795E6122A52"
+    },
+    {
+      "path": "final01/remote/protocol-rest-reopen.json",
+      "bytes": 190530,
+      "sha256": "73DDC2B3EADB7C85C69945C3BA594453FE3D98DE18AEE9AEAD63857669BD4300"
+    },
+    {
+      "path": "final01/remote/runtime.json",
+      "bytes": 52,
+      "sha256": "A75C81487AA8FFC30798A20A67E6D16965916F2A9AC6B5CA576378DB4E8547A5"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-exercise.json",
+      "bytes": 540,
+      "sha256": "6D05D274D3C3858F9ADF4BB782B77B2F37C1C4D78EB1DF34C241C74D762C0099"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-exercise.stdout.log",
+      "bytes": 1198439,
+      "sha256": "35C2E8649EAC880A99508ED9C1A518ADE85FAF57973E00DD75526B8CBF5933D4"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-reopen.json",
+      "bytes": 540,
+      "sha256": "86F7297FA8E497BB8461F208268A47E1A571F1D037A3B21DDEEA523504B06B33"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/server-frame-http2-reopen.stdout.log",
+      "bytes": 359589,
+      "sha256": "677C81DCDFCA532A5A50B69414E58E44521E255AF85CDAFFCA3DDCDFEDB4EBB1"
+    },
+    {
+      "path": "final01/remote/server-rest-exercise.json",
+      "bytes": 533,
+      "sha256": "638D85ADB4323E40F30135663BC1E8B1F72D1E67EDD8AF7DD9A918CC11EC5E77"
+    },
+    {
+      "path": "final01/remote/server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/server-rest-exercise.stdout.log",
+      "bytes": 1234814,
+      "sha256": "2883C032EE2E6E614C4C726FD0078F5BA9CBA3331B45652DC33089BE208110CE"
+    },
+    {
+      "path": "final01/remote/server-rest-reopen.json",
+      "bytes": 533,
+      "sha256": "B3B86A51D169ECCC484A918383D4AEED67EC4DE697149B7FC3987F2BC2212FF9"
+    },
+    {
+      "path": "final01/remote/server-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final01/remote/server-rest-reopen.stdout.log",
+      "bytes": 391538,
+      "sha256": "2CC3BF56E6CFAC3E95EBEEC90B8F5AC9A9B361BB1952DB3621A63C9C9F693910"
+    },
+    {
+      "path": "final01/remote/server-snapshot.json",
+      "bytes": 86462,
+      "sha256": "8D47093CC2DBF76F42C277EE18822EFED13E4E79210B7EF858D58F3DA0806671"
+    }
+  ],
+  "releaseSnapshot": {
+    "issue263State": "OPEN",
+    "stableSonnetDb": "4.0.0",
+    "stableCore": "4.0.0",
+    "stableServer": "v4.0.0",
+    "stableServerPublishedUtc": "2026-09-26T18:02:26Z",
+    "chloePrState": "OPEN",
+    "chloePrDraft": true,
+    "chloePrMerged": false,
+    "chloeNugetIndexStatus": 404,
+    "closeAllowed": false
+  },
+  "remaining": [
+    "Formal fixed driver release",
+    "Formal fixed Server release",
+    "Formal Chloe consumer release/merge",
+    "Repeat original consumer matrix using formal releases"
+  ],
+  "delivery": {
+    "productionEdits": false,
+    "committedBySubagent": false,
+    "pushedBySubagent": false,
+    "externallyCommentedBySubagent": false,
+    "fullSolutionRestoreAndFormat": "Parent integration gate pending",
+    "logsPreservedIncludingFailures": true
+  }
+}
