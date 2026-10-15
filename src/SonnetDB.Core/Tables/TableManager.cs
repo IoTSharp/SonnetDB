@@ -1092,7 +1092,13 @@ public sealed partial class TableManager : IDisposable
                 {
                     SqlExecutor.ThrowIfCancellationRequested();
                     if (mutation.NewValues is not null)
+                    {
                         DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
+                        if (mutation.PrimaryKeyValues is not null
+                            && !TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues).AsSpan()
+                                .SequenceEqual(TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues)))
+                            ValidatePrimaryKeyUpdate(tableName);
+                    }
                 }
             }
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
@@ -2031,6 +2037,18 @@ public sealed partial class TableManager : IDisposable
     {
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    internal void ValidatePrimaryKeyUpdate(string tableName)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            if (schema.ForeignKeys.Count != 0 || HasInboundForeignKeyLocked(tableName))
+                throw new NotSupportedException("UPDATE PRIMARY KEY 暂不支持含入站或出站外键的关系表。");
+        }
     }
 
     private bool HasInboundForeignKeyLocked(string tableName)

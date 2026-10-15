@@ -705,7 +705,10 @@ public sealed partial class TableStore : IDisposable
                 if (operation.OldRow is not null)
                     foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.OldRow)) keys.Add(entry.Key);
                 if (operation.NewRow is not null)
+                {
+                    keys.Add(TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span));
                     foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
+                }
             }
             return new TableTransactionUndo(batch.Schema.Name, Generation,
                 TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
@@ -2056,6 +2059,8 @@ public sealed partial class TableStore : IDisposable
             {
                 foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
                     desiredValues[indexEntry.Key] = null;
+                // 旧主行、旧索引和新主行/索引统一进入同一个 WAL mutation batch，读者不会看到中间态。
+                desiredValues[operation.RowKey] = null;
             }
 
             if (operation.NewRow is null)
@@ -2064,7 +2069,8 @@ public sealed partial class TableStore : IDisposable
             }
             else
             {
-                desiredValues[operation.RowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
+                byte[] newRowKey = TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span);
+                desiredValues[newRowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
                 foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
                     desiredValues[indexEntry.Key] = indexEntry.Value;
             }
@@ -2471,6 +2477,7 @@ public sealed partial class TableStore : IDisposable
 
         var operations = new List<TableMutationOperation>(normalizedMutations.Count);
         var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
+        var pendingTargetKeys = new HashSet<string>(StringComparer.Ordinal);
         var pendingUniqueKeys = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var mutation in normalizedMutations)
         {
@@ -2511,9 +2518,25 @@ public sealed partial class TableStore : IDisposable
                 && (oldRow is null || !expectedState.AsSpan().SequenceEqual(TableRowCodec.Encode(schema, oldRow.Values))))
                 throw new TableConstraintException(TableConstraintException.ConcurrencyConflict, schema.Name, "row_state",
                     $"table '{schema.Name}' 的行在事务读取后发生变化，请重试整个事务。");
-            TableRow? newRow = mutation.NewValues is null
-                ? null
-                : new TableRow(mutation.NewValues.ToArray(), primaryKey);
+            TableRow? newRow = null;
+            if (mutation.NewValues is not null)
+            {
+                byte[] newPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                if (!pendingTargetKeys.Add(Convert.ToHexString(newPrimaryKey)))
+                    throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                        schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键重复。");
+                if (!newPrimaryKey.AsSpan().SequenceEqual(primaryKey))
+                {
+                    var primaryColumn = schema.TryGetColumn(schema.PrimaryKey[0])!;
+                    if (schema.PrimaryKey.Count != 1 || primaryColumn.DataType != TableColumnType.Int64
+                        || primaryColumn.IsAutoIncrement || primaryColumn.IsRowVersion)
+                        throw new NotSupportedException("UPDATE PRIMARY KEY 仅支持普通单列 INT 主键。");
+                    if (TryGetByRowKeyLocked(schema, TableIndexCodec.EncodePrimaryRowKey(newPrimaryKey)) is not null)
+                        throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                            schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键已存在。");
+                }
+                newRow = new TableRow(mutation.NewValues.ToArray(), newPrimaryKey);
+            }
             var operation = new TableMutationOperation(rowKey, oldRow, newRow);
             if (operation.NewRow is not null)
             {

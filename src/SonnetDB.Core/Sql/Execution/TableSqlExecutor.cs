@@ -1554,6 +1554,7 @@ internal static class TableSqlExecutor
         }
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        ValidatePrimaryKeyAssignments(tsdb, schema, assignments);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         // IN 子查询可能间接执行用户代码，必须在表管理锁之外完成物化；赋值表达式仍在锁内按最新行求值。
         var where = TableInSubqueryExecutor.Materialize(
@@ -1687,6 +1688,7 @@ internal static class TableSqlExecutor
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        ValidatePrimaryKeyAssignments(tsdb, schema, assignments);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
         var where = TableInSubqueryExecutor.Materialize(
             tsdb,
@@ -1747,6 +1749,7 @@ internal static class TableSqlExecutor
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
 
         // 整条语句全部求值成功后才写入事务缓冲，避免后续行失败时残留部分 UPDATE。
+        ValidatePrimaryKeyUpdateTargets(store, schema, mutations, buffered);
         foreach (var mutation in mutations)
             transaction.AddOrMergeTableMutation(schema, mutation);
 
@@ -2342,8 +2345,8 @@ internal static class TableSqlExecutor
 
             var column = schema.TryGetColumn(assignment.ColumnName)
                 ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{assignment.ColumnName}'。");
-            if (column.IsPrimaryKey)
-                throw new InvalidOperationException("关系表 MVP 暂不支持更新 PRIMARY KEY 列。");
+            if (column.IsPrimaryKey && (schema.PrimaryKey.Count != 1 || column.DataType != TableColumnType.Int64))
+                throw new NotSupportedException("UPDATE PRIMARY KEY 仅支持普通单列 INT 主键。");
             if (column.IsRowVersion)
                 throw new InvalidOperationException($"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
             if (column.IsAutoIncrement)
@@ -2361,6 +2364,33 @@ internal static class TableSqlExecutor
         }
 
         return [.. assignments];
+    }
+
+    private static void ValidatePrimaryKeyAssignments(
+        Tsdb tsdb, TableSchema schema, IReadOnlyList<BoundAssignment> assignments)
+    {
+        if (assignments.Any(static assignment => assignment.Column.IsPrimaryKey))
+            tsdb.Tables.ValidatePrimaryKeyUpdate(schema.Name);
+    }
+
+    private static void ValidatePrimaryKeyUpdateTargets(
+        TableStore store, TableSchema schema, IReadOnlyList<TableRowMutation> mutations,
+        IReadOnlyList<TableRowMutation>? buffered)
+    {
+        var targets = new HashSet<byte[]>(SonnetDB.Kv.KvKeyComparer.Instance);
+        foreach (var mutation in mutations)
+        {
+            byte[] oldKey = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues!);
+            byte[] newKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues!);
+            if (oldKey.AsSpan().SequenceEqual(newKey))
+                continue;
+            if (!targets.Add(newKey)
+                || store.GetByPrimaryKey(ExtractPrimaryKeyValues(schema, mutation.NewValues!)) is not null
+                || (buffered is not null && buffered.Any(previous => previous.NewValues is not null
+                    && TableKeyCodec.EncodePrimaryKey(schema, previous.NewValues).AsSpan().SequenceEqual(newKey))))
+                throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                    schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键已存在；不支持在同一事务中复用仍已持久化的主键。");
+        }
     }
 
     private static object? EvaluateAssignment(
@@ -4783,6 +4813,7 @@ internal static class TableSqlExecutor
         int capacity = SqlRowRetentionBudget.HasExecutionBudget ? 0
             : (baseRows is IReadOnlyCollection<TableRow> collection ? collection.Count : 0) + mutations.Count;
         var order = new List<string>(capacity);
+        var orderedKeys = new HashSet<string>(StringComparer.Ordinal);
         var byKey = new Dictionary<string, TableRow>(capacity, StringComparer.Ordinal);
 
         foreach (var row in baseRows)
@@ -4790,30 +4821,30 @@ internal static class TableSqlExecutor
             SqlRowRetentionBudget.RetainForExecution(row.Values);
             var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, row.Values));
             if (byKey.TryAdd(key, row))
+            {
                 order.Add(key);
+                orderedKeys.Add(key);
+            }
             else
                 byKey[key] = row;
         }
 
         foreach (var mutation in mutations)
         {
+            if (mutation.PrimaryKeyValues is not null)
+            {
+                var oldKey = Convert.ToHexString(TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues));
+                byKey.Remove(oldKey);
+            }
             if (mutation.NewValues is not null)
             {
                 SqlRowRetentionBudget.RetainForExecution(mutation.NewValues);
-                var pk = mutation.PrimaryKeyValues is not null
-                    ? TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues)
-                    : TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                var pk = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
                 var key = Convert.ToHexString(pk);
                 var newRow = new TableRow(mutation.NewValues.ToArray(), pk);
-                if (byKey.TryAdd(key, newRow))
+                if (orderedKeys.Add(key))
                     order.Add(key);
-                else
-                    byKey[key] = newRow;
-            }
-            else
-            {
-                var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues!));
-                byKey.Remove(key);
+                byKey[key] = newRow;
             }
         }
 

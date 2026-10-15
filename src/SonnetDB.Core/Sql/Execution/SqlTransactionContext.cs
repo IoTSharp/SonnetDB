@@ -135,8 +135,29 @@ public sealed partial class SqlTransactionContext
 
             void Replace(TableRowMutation replacement)
             {
-                node.Value = (node.Value.Key, replacement);
-                _undo.Add(() => node.Value = (node.Value.Key, previous));
+                // 写集保留首次持久键及并发基线；查找索引跟随当前可见键，以便继续更新或删除。
+                byte[] previousKey = node.Value.Key;
+                byte[] nextKey = replacement.NewValues is null
+                    ? previousKey : TableKeyCodec.EncodePrimaryKey(schema, replacement.NewValues);
+                bool keyChanged = !KvKeyComparer.Instance.Equals(previousKey, nextKey);
+                if (keyChanged && buffer.ByKey.ContainsKey(nextKey))
+                    throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                        schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键已存在。");
+                if (keyChanged)
+                {
+                    buffer.ByKey.Remove(previousKey);
+                    buffer.ByKey.Add(nextKey, node);
+                }
+                node.Value = (nextKey, replacement);
+                _undo.Add(() =>
+                {
+                    if (keyChanged)
+                    {
+                        buffer.ByKey.Remove(nextKey);
+                        buffer.ByKey[previousKey] = node;
+                    }
+                    node.Value = (previousKey, previous);
+                });
             }
         }
 
@@ -144,13 +165,18 @@ public sealed partial class SqlTransactionContext
 
         void Append()
         {
-            var appended = buffer.Rows.AddLast((mutationKey, mutation));
-            bool indexed = buffer.ByKey.TryAdd(mutationKey, appended);
-            if (!indexed) buffer.DuplicateKeys.Add(mutationKey);
+            byte[] currentKey = mutation.NewValues is null
+                ? mutationKey : TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+            if (!KvKeyComparer.Instance.Equals(currentKey, mutationKey) && buffer.ByKey.ContainsKey(currentKey))
+                throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                    schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键已存在。");
+            var appended = buffer.Rows.AddLast((currentKey, mutation));
+            bool indexed = buffer.ByKey.TryAdd(currentKey, appended);
+            if (!indexed) buffer.DuplicateKeys.Add(currentKey);
             _undo.Add(() =>
             {
                 buffer.Rows.Remove(appended);
-                if (indexed) buffer.ByKey.Remove(mutationKey);
+                if (indexed) buffer.ByKey.Remove(currentKey);
             });
         }
     }
@@ -387,6 +413,7 @@ public sealed partial class SqlTransactionContext
 
     private sealed class MutationBuffer
     {
+        // Key 是当前可见主键；Mutation.PrimaryKeyValues 是需要提交/回滚的原始持久键。
         internal LinkedList<(byte[] Key, TableRowMutation Mutation)> Rows { get; } = new();
         internal Dictionary<byte[], LinkedListNode<(byte[] Key, TableRowMutation Mutation)>> ByKey { get; } =
             new(KvKeyComparer.Instance);
