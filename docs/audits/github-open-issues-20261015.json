@@ -1,0 +1,549 @@
+{
+  "capturedDate": "2026-10-15",
+  "capturedAt": "2026-10-15T23:52:28.8132851+08:00",
+  "timezone": "Asia/Shanghai",
+  "repository": "IoTSharp/SonnetDB",
+  "source": "GitHub API /repos/IoTSharp/SonnetDB/issues?state=open&sort=created&direction=asc&per_page=100",
+  "baselineCommit": "c7b307f6",
+  "initialOpenIssueCount": 46,
+  "preClosureOpenIssueCount": 48,
+  "addedDuringSession": [
+    312,
+    313,
+    314
+  ],
+  "closedDuringSession": [
+    273
+  ],
+  "openIssueCount": 48,
+  "issues": [
+    {
+      "number": 219,
+      "title": "[FreeSql][SQL] 补齐整数左右移位以支持已有位移表达式",
+      "createdAt": "2026-10-08T15:45:52Z",
+      "updatedAt": "2026-10-15T15:49:42Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/219",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 220,
+      "title": "[FreeSql][SQL] 补齐 PadLeft/PadRight 所需的原生字符串填充函数",
+      "createdAt": "2026-10-08T15:45:53Z",
+      "updatedAt": "2026-10-15T15:49:46Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/220",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 221,
+      "title": "[FreeSql][SQL] 补齐 Math 三角函数 Sin/Cos/Tan/Asin/Acos/Atan/Atan2",
+      "createdAt": "2026-10-08T15:45:54Z",
+      "updatedAt": "2026-10-15T15:49:49Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/221",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 222,
+      "title": "[FreeSql][SQL] 在基础 OVER 窗口上支持 Rank、DenseRank、Ntile",
+      "createdAt": "2026-10-08T15:45:57Z",
+      "updatedAt": "2026-10-15T15:49:53Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/222",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 223,
+      "title": "[FreeSql][SQL] 支持 StringAgg/string.Join 所需的分组字符串聚合",
+      "createdAt": "2026-10-08T15:48:53Z",
+      "updatedAt": "2026-10-15T15:49:57Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/223",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 224,
+      "title": "[FreeSql][SQL] 补齐 measurement GroupBy 的 Having、聚合投影与排序链路",
+      "createdAt": "2026-10-08T15:48:54Z",
+      "updatedAt": "2026-10-08T15:48:54Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/224",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 225,
+      "title": "[事务] 修正 Serializable 虚报隔离级别并完成 FreeSql 串行化事务合同",
+      "createdAt": "2026-10-08T15:48:55Z",
+      "updatedAt": "2026-10-15T15:50:01Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/225",
+      "state": "open",
+      "labels": [
+        "bug"
+      ]
+    },
+    {
+      "number": 226,
+      "title": "[DDL] 补齐存量关系表主键重命名和主键定义迁移的可执行合同",
+      "createdAt": "2026-10-08T15:48:57Z",
+      "updatedAt": "2026-10-08T16:37:26Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/226",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 227,
+      "title": "[事务] 支持关系表 CodeFirst 迁移的 DDL 提交与回滚",
+      "createdAt": "2026-10-08T15:49:36Z",
+      "updatedAt": "2026-10-08T16:37:28Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/227",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 228,
+      "title": "[ADO.NET] 修复空查询结果 HasRows 误报为 true",
+      "createdAt": "2026-10-08T15:49:38Z",
+      "updatedAt": "2026-10-15T15:50:07Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/228",
+      "state": "open",
+      "labels": [
+        "bug"
+      ]
+    },
+    {
+      "number": 229,
+      "title": "[ADO.NET] 支持多条关系 SELECT 及 NextResult 以开放 FreeSql 多结果查询",
+      "createdAt": "2026-10-08T15:49:40Z",
+      "updatedAt": "2026-10-08T16:37:30Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/229",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 230,
+      "title": "[FreeSql][发布] 交付已合入的标识符与 measurement 基础分组合同",
+      "createdAt": "2026-10-08T15:49:43Z",
+      "updatedAt": "2026-10-08T16:32:25Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/230",
+      "state": "open",
+      "labels": [
+        "enhancement"
+      ]
+    },
+    {
+      "number": 231,
+      "title": "[Chloe][SQL] 🚧 支持独立序列与事务外的原子取号合同",
+      "createdAt": "2026-10-08T15:52:42Z",
+      "updatedAt": "2026-10-08T15:52:42Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/231",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 232,
+      "title": "[Chloe][SQL] 🚧 支持关系表 schema 命名空间与限定表名",
+      "createdAt": "2026-10-08T15:52:44Z",
+      "updatedAt": "2026-10-08T16:37:33Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/232",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 233,
+      "title": "[Chloe][SQL] 🚧 提供真正的事务内锁定读以满足 LockType.UpdLock",
+      "createdAt": "2026-10-08T15:52:47Z",
+      "updatedAt": "2026-10-08T16:51:41Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/233",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 235,
+      "title": "[Chloe][ADO.NET] 🚧 精确 Decimal 参数绑定写入丢失有效位",
+      "createdAt": "2026-10-08T15:52:52Z",
+      "updatedAt": "2026-10-15T15:50:11Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/235",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 236,
+      "title": "[Chloe][ADO.NET] 🚧 DATETIME 参数写入不应静默丢失亚毫秒精度",
+      "createdAt": "2026-10-08T15:52:54Z",
+      "updatedAt": "2026-10-08T16:37:20Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/236",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 237,
+      "title": "[Chloe][DDL] 🚧 提供持久化表列注释与元数据读取合同",
+      "createdAt": "2026-10-08T15:52:56Z",
+      "updatedAt": "2026-10-08T16:37:22Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/237",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 240,
+      "title": "[XCode][DDL] 支持关系表字符串长度声明、约束及元数据",
+      "createdAt": "2026-10-08T15:54:47Z",
+      "updatedAt": "2026-10-08T16:31:56Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/240",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 241,
+      "title": "[XCode][DDL] 修复 ADD / ALTER DECIMAL(p,s) 静默丢失精度",
+      "createdAt": "2026-10-08T15:54:50Z",
+      "updatedAt": "2026-10-15T15:50:15Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/241",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 242,
+      "title": "[XCode][SQL] 支持 BatchReplace 所需的原子替换语义",
+      "createdAt": "2026-10-08T15:54:54Z",
+      "updatedAt": "2026-10-08T16:32:05Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/242",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 243,
+      "title": "[XCode][SQL] 支持复合主键及无主键关系表的原子有界删除",
+      "createdAt": "2026-10-08T15:55:43Z",
+      "updatedAt": "2026-10-08T16:32:08Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/243",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 244,
+      "title": "[Chloe][SQL] 🚧 INSERT VALUES 支持已有标量表达式、CAST 与函数",
+      "createdAt": "2026-10-08T15:56:05Z",
+      "updatedAt": "2026-10-15T15:50:20Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/244",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 245,
+      "title": "[SqlSugar/SQL] 为 Fastest 补齐原生临时关系表与 CTAS",
+      "createdAt": "2026-10-08T15:57:13Z",
+      "updatedAt": "2026-10-08T15:57:13Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/245",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 247,
+      "title": "[SqlSugar/ADO.NET] 支持标准存储过程命令与输出参数",
+      "createdAt": "2026-10-08T15:57:19Z",
+      "updatedAt": "2026-10-08T15:57:19Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/247",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 248,
+      "title": "[SqlSugar/SQL] 支持 DbLockType.Error 所需的 NOWAIT 锁定读",
+      "createdAt": "2026-10-08T15:57:22Z",
+      "updatedAt": "2026-10-08T15:57:22Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/248",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 249,
+      "title": "[SqlSugar/JSON] 补齐动态 JSON 字段访问与对象数组谓词",
+      "createdAt": "2026-10-08T15:57:25Z",
+      "updatedAt": "2026-10-08T15:57:25Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/249",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 250,
+      "title": "[SqlSugar/DDL] 补齐维护接口的约束目录、索引选项与自增起点",
+      "createdAt": "2026-10-08T15:57:27Z",
+      "updatedAt": "2026-10-08T15:57:27Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/250",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 251,
+      "title": "[Chloe][类型] 🚧 提供 DateTimeOffset 映射的原生读取合同",
+      "createdAt": "2026-10-08T16:06:40Z",
+      "updatedAt": "2026-10-08T16:06:40Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/251",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 252,
+      "title": "[Chloe][类型] 🚧 支持 TimeSpan 时长范围与 ADO.NET 原生值映射",
+      "createdAt": "2026-10-08T16:06:42Z",
+      "updatedAt": "2026-10-08T16:06:42Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/252",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 253,
+      "title": "[Chloe][SQL] 🚧 支持无主键关系表的普通写入",
+      "createdAt": "2026-10-08T16:06:45Z",
+      "updatedAt": "2026-10-08T16:06:45Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/253",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 254,
+      "title": "[Chloe][SQL] 🚧 允许 CAST 包装聚合投影并保留类型语义",
+      "createdAt": "2026-10-08T16:06:47Z",
+      "updatedAt": "2026-10-15T15:50:26Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/254",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 255,
+      "title": "[XCode][SQL] 支持无显式主键关系表的 DML 合同",
+      "createdAt": "2026-10-08T16:07:18Z",
+      "updatedAt": "2026-10-08T16:32:11Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/255",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 256,
+      "title": "[XCode][SQL] 支持 Int64 LIMIT / OFFSET 保留大表分页范围",
+      "createdAt": "2026-10-08T16:07:21Z",
+      "updatedAt": "2026-10-08T16:32:14Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/256",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 257,
+      "title": "[XCode][SQL] 支持已有批量更新入口的无 WHERE 全表 UPDATE",
+      "createdAt": "2026-10-08T16:14:48Z",
+      "updatedAt": "2026-10-08T16:32:17Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/257",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 258,
+      "title": "[Chloe][SQL] 🚧 提供逐行 UUID 生成以支持 Guid.NewGuid 表达式",
+      "createdAt": "2026-10-08T16:17:56Z",
+      "updatedAt": "2026-10-15T15:50:34Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/258",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 259,
+      "title": "[Chloe][SQL] 🚧 支持完整 UInt64 范围的按位与或运算",
+      "createdAt": "2026-10-08T16:17:57Z",
+      "updatedAt": "2026-10-08T16:17:57Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/259",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 260,
+      "title": "[Chloe][类型] 🚧 支持完整 UInt64 范围的字符串解析合同",
+      "createdAt": "2026-10-08T16:20:26Z",
+      "updatedAt": "2026-10-08T16:20:26Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/260",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 261,
+      "title": "[XCode][ADO.NET] 提供空视图和物化视图的完整声明列元数据",
+      "createdAt": "2026-10-08T16:22:29Z",
+      "updatedAt": "2026-10-15T15:50:38Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/261",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 262,
+      "title": "[Chloe][ADO.NET] 🚧 统一远程日期函数投影的原生类型与时区语义",
+      "createdAt": "2026-10-08T16:26:04Z",
+      "updatedAt": "2026-10-08T16:26:04Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/262",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 263,
+      "title": "[Chloe][ADO.NET] 🚧 远程绑定 SByte UInt16 UInt32 应与嵌入式一致",
+      "createdAt": "2026-10-08T16:26:06Z",
+      "updatedAt": "2026-10-15T15:50:43Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/263",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 264,
+      "title": "[Chloe][DDL] 🚧 执行 DECIMAL(p,s) 的精度与小数位约束",
+      "createdAt": "2026-10-08T16:36:08Z",
+      "updatedAt": "2026-10-15T15:50:46Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/264",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 270,
+      "title": "[EF Core] 参数化 string.Contains 的 LIKE 模式未转义，%/_ 误匹配及反斜杠漏匹配",
+      "createdAt": "2026-10-11T02:11:52Z",
+      "updatedAt": "2026-10-11T21:12:42Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/270",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 271,
+      "title": "[EF Core/ADO.NET] BLOB 参数查询报 Byte[] 与 String 无法比较，阻塞 Identity Passkey 查找",
+      "createdAt": "2026-10-11T02:12:11Z",
+      "updatedAt": "2026-10-11T02:12:11Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/271",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 272,
+      "title": "[EF Core] CREATE TABLE 丢失外键名称，按原名 DROP 返回成功但约束仍生效",
+      "createdAt": "2026-10-11T02:12:31Z",
+      "updatedAt": "2026-10-11T02:12:31Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/272",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 312,
+      "title": "[FreeSql][SQL] 支持关系表显式更新普通主键值",
+      "createdAt": "2026-10-15T15:31:33Z",
+      "updatedAt": "2026-10-15T15:31:33Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/312",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 313,
+      "title": "[FreeSql][SQL] 支持 measurement 普通 FIELD 的有界更新",
+      "createdAt": "2026-10-15T15:31:36Z",
+      "updatedAt": "2026-10-15T15:31:36Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/313",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    },
+    {
+      "number": 314,
+      "title": "DECIMAL round 保留十进制精度及 0–28 位舍入，以承接现有 FreeSql Math.Round(decimal)",
+      "createdAt": "2026-10-15T15:42:05Z",
+      "updatedAt": "2026-10-15T15:42:05Z",
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/314",
+      "state": "open",
+      "labels": [
+        null
+      ]
+    }
+  ]
+}

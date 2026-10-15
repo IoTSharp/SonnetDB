@@ -1,9 +1,26 @@
 # SonnetDB 交接记录
 
-交接日期：2026-10-07（Asia/Shanghai）<br>
+交接日期：2026-10-16（Asia/Shanghai）<br>
 当前分支：`main`<br>
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
+
+## 当前检查点（首批十任务，2026-10-15 至 2026-10-16）
+
+- 用户要求先同步主线、清理已合并本地分支，再由多个智能体实施，每批十个产品任务；已完成的 Issue 要回复并关闭，每批结束创建新会话继续。本批主智能体监督三个执行智能体，并由独立复审检查最终源码。
+- 当前目录 `D:\source\SonnetDB`、分支 `main`；接收基线 `c7b307f605d90e4c6638ff3c11bad06e23543c61`，实现提交 `ac71b100a314bfe7a15348568082e00d1023fbea`。本交接及线上操作回执随独立审计提交保存；实际最终 SHA 以 `git log` 为准。均为本地提交，未 push、未新发 NuGet/Server、未创建发布或部署。下一会话必须保留本地领先提交，禁止用 origin/main reset 丢弃。
+- 已 fetch origin 并把 main 从 `5424b666` 快进到 `c7b307f6`，接收 193 个提交。已核 `codex/cap-integration` 的 `8c299f40` 与 `codex/m42-m43-local-slices-20260930` 的 `311078e0` 均为 main 祖先，使用 `git branch -d` 删除；没有未合并本地开发分支。清理 31 条目录已不存在的旧 worktree 登记，没有删除实际目录。`origin/parity-results` 保留为 `2ab6caa9`，未合并或主动改写；所有 tag/stash 保留。
+- [首批十任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：#224 的 HAVING、复合聚合投影、多键排序分页三项；#229 ADO 多结果一项；#257 关系表全表 UPDATE 一项；Int64 mode、Int64 distinct_count 与旧摘要回退、TDigest 校验、HLL rank 校验、Histogram 极值/失败原子性五项。不把测试/文档/构建另计产品任务。
+- 最终审查后 Core 与真实 Server 测试项目 Release 构建均为 0 warning / 0 error；Core SQL/ADO/相关聚合集合 **2938/2938**，真实 Kestrel REST/h2c 回归 **167/167**，全部无 skip。Server 新增 34 项与既有 ADO/Serializable 同跑。最终 `core-reviewed.trx`、`server-transport-reviewed.trx` 和源/DLL/PDB 的 `validation-assets-final.json` 位于本地忽略目录 `artifacts/batch-20261015/`；绑定文件 SHA256 `CE28F29E73C6452ECBBF54DE7428E813B58B0F6F32A9C5380AA1C6CAA58CDE5F`。未运行完整 Core/Server suite、远端 CI、性能/长稳或新的 NativeAOT publish。
+- 初期取消测试错误期待、DataSet 未声明 STRING 长度失败、格式检查两处换行失败和中间验证日志均保留。按已有 Core 取消包装合同修正测试；经典 schema 使用 `ColumnSize=-1` 支持 DataSet/DataTable，强类型 schema 长度仍为 null；独立复审发现并修正嵌入式缺名参数跨 SELECT 的序号回退，远程严格名称合同保留。最后增加 Core 7 / 真实传输 6 项并完整重跑上述集合通过；较早 2931/161 等重叠运行不累加。
+- 每次提交前均执行完整 `dotnet restore SonnetDB.slnx` 与原 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，必须以实际 exit 0 为准。实现提交门禁见 `restore-before-implementation-commit.log` / `format-before-implementation-commit.log`，本交接提交门禁见 `restore-before-handoff-commit.log` / `format-before-handoff-commit.log`。格式工具可能输出工作区加载警告；没有降低 severity 或增加排除目录。
+- GitHub 首读 46 open，第二次 48（新增 #312/#313）；最终快照 48（又记录 #314，#273 已 closed/completed）。已向 **19 条 Issue** 回复：旧实现 #219/#220/#221/#222/#223/#225/#228/#235/#241/#244/#254/#258/#261/#263/#264、本批 #224/#229/#257、公开包验收 #273。实际 comment ID/URL 与状态回读见 [远端回执](docs/audits/issue-actions-20261015.json)，最新顺序见 [开放清单](docs/audits/github-open-issues-20261015.json)，逐项结论见 [审计](docs/audits/issue-closure-audit-20261015.json)。本批三条实现回复明确本地提交尚未推送/发行。
+- #273 用 NuGet.org 公开 `SonnetDB.EntityFrameworkCore/SonnetDB/SonnetDB.Core 4.5.0-preview.ef266.5`（来源 `1af23d8f299febfdf66b040ab3419980396acf46`）在独立消费者、全新缓存、0 ProjectReference 验证。两个 Idempotent flags 各四场景生成阶段明确拒绝，普通脚本保留，真实升级与连续 MigrateAsync、新进程重开保持历史 2 / 数据 1；构建零警告、两个进程退出 0，符合原 Issue 允许的拒绝方案。已回复并关闭 completed，见 [公开包报告](docs/audits/issue-273-public-package-20261015.md)。不表示生成幂等部署脚本已支持，不推导 Server/完整应用。
+- 旧 15 项实现已进入公开 `.ef266.5`，不能再称待实现或没有公开包；各自正式稳定发行/对应 ORM 消费仍待验收。本批新增 #224/#229/#257 不在 `.ef266.5`，正式可安装包与消费者验收另需推进。#270～#272 已有实现/实际应用证据，但缺精确独立公开包原合同重跑，保持 open；不因 preview 而一概拒绝关闭。FreeSql #2234 仍 head `8864fc2942993284ac7b280e602637c4d52a36f4` / 3.1.0；XCode #101 `757fa2a078906f87783e55fe0e9d5f54a9e916b9`、Chloe #435 `bb7ec8735bd4511c35453eb009f70cc606795703`、SqlSugar #1457 `65e8226ce25a8e1cb9cca2590683f1fd6778cab3` 均仍 4.0.0，四 PR 均 open Draft；此为审计时点事实，续作须重读。
+- 本批未改持久化格式。Int64 distinct_count 拒用旧 double 来源 HLL sidecar，回退原块 typed scan；TDigest 保留原有有序 ±Infinity mean；Histogram 保留 Math.Floor 浮点分桶合同。多结果只有多 SELECT，不新增写批次或跨语句快照；省略 WHERE UPDATE 仅关系表。现有 Safe-only、零依赖、source-generated JSON/AOT、SQL 名称及版本约束继续遵守。
+- 下一批先读本文件与 AGENTS、核本地提交和线上状态，按最早真实缺口考虑 #226/#227、#231/#232/#233、#236/#237/#240/#242/#243，拆成十项可验收产品能力。#226 主键迁移与 #227 DDL 事务须共同设计 schema/index/FK/原子交换和恢复；#236 涉及毫秒落盘，不能只改 binder 或无版本改布局。#312 普通主键更新、#313 measurement FIELD 更新、#314 Decimal ROUND 已纳入队列，不能悄悄挤掉更早事项或追加第十一项。#314 当前 decimal→double 且零行 round 声明未知，独立于已关闭仅 INT/FLOAT 的 #192；原作者探针未在本轮重跑。
+- 新会话需继续多智能体、主智能体监督，独占修改范围，串行集成/验证，每批完成后更新 HANDOFF 并创建下一会话。已完成 Issue 继续按真实验收回复并关闭；未满足原验收的精确记录剩余项。正式发布仍遵守独立门禁，不由本批本地测试代替。旧 Workbench/AI/固定硬件/安装/完整 CAP NativeAOT 边界保持历史事实，不重复旧 WB 实现或提升旧失败。
+
 
 ## 当前检查点（WB-59，2026-10-07；VS Code SQL耗时字段兼容，本地验证）
 

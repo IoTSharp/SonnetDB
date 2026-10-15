@@ -1,5 +1,13 @@
 # GitHub Issues Roadmap Snapshot
 
+## Current queue — 2026-10-15
+
+The initial GitHub API read found **46 open issues and no open pull requests**, with the oldest requests created on 2026-10-08. A second read found **48 open issues**, adding #312 (explicit relation primary-key updates) and #313 (bounded measurement FIELD updates). The final snapshot still has **48 open issues**: #314 (exact Decimal ROUND) is newly recorded and #273 is now closed/completed after [public-package verification](audits/issue-273-public-package-20261015.md). The ordered [machine-readable snapshot](audits/github-open-issues-20261015.json) preserves its capture time; the initial counts remain historical facts. The [first ten implementation tasks](audits/implementation-batch-01-20261015.md) distinguish new implementation from release and downstream-provider acceptance.
+
+GH-Issue #219–#223, #225 and #228 already have implementation on the received `c7b307f6` baseline; their open state does not mean the engine work should be repeated. Existing implementations also appear in the publicly listed `4.5.0-preview.ef266.5` packages (source `1af23d8f299febfdf66b040ab3419980396acf46`); preview availability does not prove an issue's explicit stable-release or downstream-provider requirement. This batch completes the local #224, #229 and #257 implementation together with five confirmed aggregate correctness/state-validation gaps from M45/M46: final reviewed Core 2938 and real REST/h2c 167 regressions pass. #226/#227 migration work and the remaining release/consumer stages stay separate. Root HANDOFF records actual issue comments, completed closures and remaining acceptance work.
+
+The sections below retain their original 2026-09 evidence and execution order; they are historical records rather than the current issue queue.
+
 The [2026-09-25 GitHub read-back](audits/github-pr-queue-20260925.md) initially found nine open issues: #184, #187, #189, #190, #191, #194, #195, #197 and #198. The [30-issue audit](audits/github-issues-complete-audit-20260925.md) then recorded 26 closed and four open (#91, #184, #186 and #197); after [PR #201](https://github.com/IoTSharp/SonnetDB/pull/201) merged, the authenticated read-back found 27 closed and three open (#91, #184 and #197). The [combined validation](audits/online-pr-issue-integration-20260925.md) records earlier implementation and seven dependency PRs, which Dependabot closed as superseded after their exact version changes reached `main`. The [`2026-09-23 JSON snapshot`](audits/github-issues-20260923.json) and [`2026-09-21 snapshot`](audits/github-issues-20260921.json) remain historical evidence. Closed issues retain the scope and remaining boundaries recorded at their closure, without implying whole-milestone, hardware or production completion.
 
 `GH-Issue #N` always means the external GitHub issue. Internal roadmap work items keep their existing `#N` notation. The numbers overlap (for example, GH-Issue #174 is a string-function request while internal M25 #174 is Document capacity), so the prefix is required in roadmap and changelog text.
@@ -15,7 +23,7 @@ New requests retain those dependency groups: GH-Issue #196 follows #177's normal
 
 The queue belongs to M43 Step 2, after the current M27 #340 implementation residuals and before the performance and post-deployment evidence queues. SQL planner and execution contracts should be reused rather than creating a second parser or planner.
 
-## Current Status
+## Historical Status — 2026-09-25
 
 The latest authenticated GitHub read-back on 2026-09-25 found 30 Issues: 27 closed with `state_reason=completed` and three open. The closed set is GH-Issue #89, #171–#183, #185–#196 and #198; the open set is #91, #184 and #197. The [per-issue audit](audits/github-issues-complete-audit-20260925.md) records the evidence and remaining gates. Earlier bounded closure notes below describe their evidence at that time; references to pending external confirmation in those historical notes are superseded by the current GitHub state.
 

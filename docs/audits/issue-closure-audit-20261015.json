@@ -1,0 +1,426 @@
+{
+  "audit_date": "2026-10-15",
+  "mode": "Final audited disposition; original read-only audit supplemented by public-package runtime proof and verified issue actions.",
+  "initial_open_count": 46,
+  "live_open_count": 48,
+  "added_issues": [
+    312,
+    313,
+    314
+  ],
+  "removed_issues": [],
+  "public_preview": {
+    "ef_published_utc": "2026-10-13T15:22:45.273Z",
+    "source": "1af23d8f299febfdf66b040ab3419980396acf46",
+    "version": "4.5.0-preview.ef266.5",
+    "ef_nuget_listed": true
+  },
+  "latest_stable": "4.0.0",
+  "consumer_heads": {
+    "Chloe435": "bb7ec8735bd4511c35453eb009f70cc606795703, open, dependency4.0.0",
+    "FreeSql2234": "8864fc2942993284ac7b280e602637c4d52a36f4, open, dependency3.1.0",
+    "SqlSugar1457": "65e8226ce25a8e1cb9cca2590683f1fd6778cab3, open, dependency4.0.0",
+    "XCode101": "757fa2a078906f87783e55fe0e9d5f54a9e916b9, open, dependency4.0.0"
+  },
+  "rows": [
+    {
+      "number": 219,
+      "title": "[FreeSql][SQL] 补齐整数左右移位以支持已有位移表达式",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "原生shift_left/right；在线实现评论：Core70/70、真实REST/h2c17/17。FreeSql2234仍依赖3.1.0，CLR int/long移位、XOR/NOT适配未验。"
+    },
+    {
+      "number": 220,
+      "title": "[FreeSql][SQL] 补齐 PadLeft/PadRight 所需的原生字符串填充函数",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "lpad/rpad；在线实现评论：Core123/123、REST/h2c19/19。FreeSql正式包PadLeft/PadRight及UTF-16/宽度语义未验。"
+    },
+    {
+      "number": 221,
+      "title": "[FreeSql][SQL] 补齐 Math 三角函数 Sin/Cos/Tan/Asin/Acos/Atan/Atan2",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "七种三角函数；在线实现评论：Core213/213、真实传输17/17。FreeSql三角函数及Sign/Log10/Truncate适配未验。"
+    },
+    {
+      "number": 222,
+      "title": "[FreeSql][SQL] 在基础 OVER 窗口上支持 Rank、DenseRank、Ntile",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "关系rank/dense_rank/ntile；在线评论：PR287合并af6f26f9，Core76/76及REST/h2c。FreeSql SqlExt/XCode真实消费未验。"
+    },
+    {
+      "number": 223,
+      "title": "[FreeSql][SQL] 支持 StringAgg/string.Join 所需的分组字符串聚合",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "关系string_agg/group_concat；HANDOFF1999：Core39/39、新27例、传输17/17。FreeSql StringAgg/string.Join消费未验。"
+    },
+    {
+      "number": 224,
+      "title": "[FreeSql][SQL] 补齐 measurement GroupBy 的 Having、聚合投影与排序链路",
+      "state": "open",
+      "status": "local_batch_implemented_pending_release_and_consumer",
+      "can_close": false,
+      "evidence_and_gap": "本批实现提交ac71b100（本地main未推送），Core2938/2938、真实REST/h2c167/167、完整restore/原Format Check通过，已回复进度；正式可安装发行/对应消费者仍待验，.ef266.5不含本批新源码。"
+    },
+    {
+      "number": 225,
+      "title": "[事务] 修正 Serializable 虚报隔离级别并完成 FreeSql 串行化事务合同",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "真实表级乐观Serializable；HANDOFF2172：Core35/35、Server5/5，记录生产依赖为Debug。FreeSql/XCode完整正式隔离消费未验。"
+    },
+    {
+      "number": 226,
+      "title": "[DDL] 补齐存量关系表主键重命名和主键定义迁移的可执行合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "存量主键重命名/类型及定义迁移仍缺原子重建合同。"
+    },
+    {
+      "number": 227,
+      "title": "[事务] 支持关系表 CodeFirst 迁移的 DDL 提交与回滚",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "轻事务DDL仍明确拒绝，CodeFirst多步DDL原子提交回滚未满足。"
+    },
+    {
+      "number": 228,
+      "title": "[ADO.NET] 修复空查询结果 HasRows 误报为 true",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "HasRows预取首行且保留空结果声明；在线评论：Core125/125、HTTP2类19/19。正式版/FreeSql IAdo消费者升级回归未验。"
+    },
+    {
+      "number": 229,
+      "title": "[ADO.NET] 支持多条关系 SELECT 及 NextResult 以开放 FreeSql 多结果查询",
+      "state": "open",
+      "status": "local_batch_implemented_pending_release_and_consumer",
+      "can_close": false,
+      "evidence_and_gap": "本批实现提交ac71b100（本地main未推送），Core2938/2938、真实REST/h2c167/167、完整restore/原Format Check通过，已回复进度；正式可安装发行/对应消费者仍待验，.ef266.5不含本批新源码。"
+    },
+    {
+      "number": 230,
+      "title": "[FreeSql][发布] 交付已合入的标识符与 measurement 基础分组合同",
+      "state": "open",
+      "status": "formal_release_pending",
+      "can_close": false,
+      "evidence_and_gap": "要求同源正式NuGet、tag、发行说明与Server/SDK；当前公开preview.5六包与本地同源Server不足以满足该正式发行合同。"
+    },
+    {
+      "number": 231,
+      "title": "[Chloe][SQL] 🚧 支持独立序列与事务外的原子取号合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "独立持久原子序列未实现。"
+    },
+    {
+      "number": 232,
+      "title": "[Chloe][SQL] 🚧 支持关系表 schema 命名空间与限定表名",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "关系schema命名空间/同名表隔离未实现。"
+    },
+    {
+      "number": 233,
+      "title": "[Chloe][SQL] 🚧 提供真正的事务内锁定读以满足 LockType.UpdLock",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "FOR UPDATE实际读锁仍明确拒绝。"
+    },
+    {
+      "number": 235,
+      "title": "[Chloe][ADO.NET] 🚧 精确 Decimal 参数绑定写入丢失有效位",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "精确Decimal参数/数值字面量；HANDOFF2118：Core221/221、三协议3/3、EF60/60。FreeSql/XCode原入口使用修复正式包未验。"
+    },
+    {
+      "number": 236,
+      "title": "[Chloe][ADO.NET] 🚧 DATETIME 参数写入不应静默丢失亚毫秒精度",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "TableRowCodec仍持久化Unix毫秒，亚毫秒合同未完成。"
+    },
+    {
+      "number": 237,
+      "title": "[Chloe][DDL] 🚧 提供持久化表列注释与元数据读取合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "持久表列注释及元数据完整合同未完成。"
+    },
+    {
+      "number": 240,
+      "title": "[XCode][DDL] 支持关系表字符串长度声明、约束及元数据",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "有界字符串DDL、约束及元数据未完成。"
+    },
+    {
+      "number": 241,
+      "title": "[XCode][DDL] 修复 ADD / ALTER DECIMAL(p,s) 静默丢失精度",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "ADD/ALTER precision/scale保真与旧行无损预检；HANDOFF2141：Core268/268、含新增DDL36例、三协议新旧6/6。XCode建模迁移正式包消费未验。"
+    },
+    {
+      "number": 242,
+      "title": "[XCode][SQL] 支持 BatchReplace 所需的原子替换语义",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "delete+insert原子Replace合同未完成。"
+    },
+    {
+      "number": 243,
+      "title": "[XCode][SQL] 支持复合主键及无主键关系表的原子有界删除",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "复合/无主键原子有界删除完整合同未完成。"
+    },
+    {
+      "number": 244,
+      "title": "[Chloe][SQL] 🚧 INSERT VALUES 支持已有标量表达式、CAST 与函数",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "INSERT VALUES既有标量/CAST/CASE/算术；HANDOFF2232：Core153/153（新30）、三协议新旧6/6。公开修复包上的同原复现与消费者未独立验。"
+    },
+    {
+      "number": 245,
+      "title": "[SqlSugar/SQL] 为 Fastest 补齐原生临时关系表与 CTAS",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "会话临时表/CTAS及事务生命周期未完成。"
+    },
+    {
+      "number": 247,
+      "title": "[SqlSugar/ADO.NET] 支持标准存储过程命令与输出参数",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "存储过程CommandType与输出参数未完成。"
+    },
+    {
+      "number": 248,
+      "title": "[SqlSugar/SQL] 支持 DbLockType.Error 所需的 NOWAIT 锁定读",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "依赖真实锁定读的NOWAIT未完成。"
+    },
+    {
+      "number": 249,
+      "title": "[SqlSugar/JSON] 补齐动态 JSON 字段访问与对象数组谓词",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "逐行动态JSON path及对象数组谓词合同未完成，#266不能自动覆盖。"
+    },
+    {
+      "number": 250,
+      "title": "[SqlSugar/DDL] 补齐维护接口的约束目录、索引选项与自增起点",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "真实约束目录、DESC/INCLUDE、identity起点三项未完整交付。"
+    },
+    {
+      "number": 251,
+      "title": "[Chloe][类型] 🚧 提供 DateTimeOffset 映射的原生读取合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "原生DateTimeOffset通用reader类型合同未完成。"
+    },
+    {
+      "number": 252,
+      "title": "[Chloe][类型] 🚧 支持 TimeSpan 时长范围与 ADO.NET 原生值映射",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "完整正负/超过24h TimeSpan原生合同未完成。"
+    },
+    {
+      "number": 253,
+      "title": "[Chloe][SQL] 🚧 支持无主键关系表的普通写入",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "无显式PK普通DML未完成。"
+    },
+    {
+      "number": 254,
+      "title": "[Chloe][SQL] 🚧 允许 CAST 包装聚合投影并保留类型语义",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "关系CAST聚合/HAVING；HANDOFF2091：Core55/55（新10）、最终传输25/25。公开修复包同原复现/Chloe显式聚合CAST入口未验。"
+    },
+    {
+      "number": 255,
+      "title": "[XCode][SQL] 支持无显式主键关系表的 DML 合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "无显式PK普通DML未完成，与253共享引擎缺口。"
+    },
+    {
+      "number": 256,
+      "title": "[XCode][SQL] 支持 Int64 LIMIT / OFFSET 保留大表分页范围",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "PaginationSpec仍限制Int32.MaxValue，完整Int64位置合同未完成。"
+    },
+    {
+      "number": 257,
+      "title": "[XCode][SQL] 支持已有批量更新入口的无 WHERE 全表 UPDATE",
+      "state": "open",
+      "status": "local_batch_implemented_pending_release_and_consumer",
+      "can_close": false,
+      "evidence_and_gap": "本批实现提交ac71b100（本地main未推送），Core2938/2938、真实REST/h2c167/167、完整restore/原Format Check通过，已回复进度；正式可安装发行/对应消费者仍待验，.ef266.5不含本批新源码。"
+    },
+    {
+      "number": 258,
+      "title": "[Chloe][SQL] 🚧 提供逐行 UUID 生成以支持 Guid.NewGuid 表达式",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "逐次uuid()；HANDOFF1977：Core23/23（新16）、传输17/17。Chloe Guid.NewGuid翻译仍显式拒绝，修复包消费未验。"
+    },
+    {
+      "number": 259,
+      "title": "[Chloe][SQL] 🚧 支持完整 UInt64 范围的按位与或运算",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "完整UInt64位与/或合同未完成。"
+    },
+    {
+      "number": 260,
+      "title": "[Chloe][类型] 🚧 支持完整 UInt64 范围的字符串解析合同",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "完整UInt64严格字符串解析未完成。"
+    },
+    {
+      "number": 261,
+      "title": "[XCode][ADO.NET] 提供空视图和物化视图的完整声明列元数据",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "空普通/物化视图声明元数据与Frame v3；HANDOFF2104：Core168/168、传输26/26。XCode视图反向工程使用正式包未验。"
+    },
+    {
+      "number": 262,
+      "title": "[Chloe][ADO.NET] 🚧 统一远程日期函数投影的原生类型与时区语义",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "非UTC日期函数元数据/Kind跨协议完整合同未完成。"
+    },
+    {
+      "number": 263,
+      "title": "[Chloe][ADO.NET] 🚧 远程绑定 SByte UInt16 UInt32 应与嵌入式一致",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "sbyte/ushort/uint与枚举无损绑定；在线评论：新增三协议21/21、完整远程ADO63/63。Chloe原始DbParam修复包消费者尚未验。"
+    },
+    {
+      "number": 264,
+      "title": "[Chloe][DDL] 🚧 执行 DECIMAL(p,s) 的精度与小数位约束",
+      "state": "open",
+      "status": "implemented_in_public_preview_pending_issue_delivery",
+      "can_close": false,
+      "evidence_and_gap": "显式DECIMAL(p,s)持续写约束，catalog v11；HANDOFF2221：Core190/190、三协议新旧9/9。公开包原精度复现与Chloe显式p/s消费/旧数据回退仍分列。"
+    },
+    {
+      "number": 270,
+      "title": "[EF Core] 参数化 string.Contains 的 LIKE 模式未转义，%/_ 误匹配及反斜杠漏匹配",
+      "state": "open",
+      "status": "implemented_pending_public_contract_verification",
+      "can_close": false,
+      "evidence_and_gap": "实现已存在；还缺固定公开包的%、_、反斜杠及真实作者列表/Count原合同重跑。"
+    },
+    {
+      "number": 271,
+      "title": "[EF Core/ADO.NET] BLOB 参数查询报 Byte[] 与 String 无法比较，阻塞 Identity Passkey 查找",
+      "state": "open",
+      "status": "implemented_pending_public_contract_verification",
+      "can_close": false,
+      "evidence_and_gap": "公开包Passkey读写/重建与真实REST/h2c已有证据；还缺普通byte[]/Any+SequenceEqual原独立复现、边界回滚及SQLite对照重跑。"
+    },
+    {
+      "number": 272,
+      "title": "[EF Core] CREATE TABLE 丢失外键名称，按原名 DROP 返回成功但约束仍生效",
+      "state": "open",
+      "status": "implemented_pending_public_contract_verification",
+      "can_close": false,
+      "evidence_and_gap": "当前源码三通道命名FK合同与旧本地PASS已有证据；还缺独立公开包Drop/替换/回退/重开重跑。"
+    },
+    {
+      "number": 273,
+      "title": "[EF Core] Idempotent 迁移脚本缺少迁移历史保护，首次成功但重放失败",
+      "state": "closed",
+      "status": "public_package_verified_closed",
+      "can_close": true,
+      "evidence_and_gap": "固定公开NuGet .ef266.5，两个flags各四场景生成阶段明确拒绝，真实升级/连续MigrateAsync及新进程重开保持history=2/data=1；已回复并回读closed/completed。"
+    },
+    {
+      "number": 312,
+      "title": "[FreeSql][SQL] 支持关系表显式更新普通主键值",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "本轮新增；普通PRIMARY KEY更新仍被明确拒绝，列入下一批。"
+    },
+    {
+      "number": 313,
+      "title": "[FreeSql][SQL] 支持 measurement 普通 FIELD 的有界更新",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "本轮新增；measurement普通数值FIELD更新仍被明确拒绝，列入下一批。"
+    },
+    {
+      "number": 314,
+      "title": "DECIMAL round 保留十进制精度及 0–28 位舍入，以承接现有 FreeSql Math.Round(decimal)",
+      "state": "open",
+      "status": "feature_or_acceptance_gap",
+      "can_close": false,
+      "evidence_and_gap": "本轮新发现的独立缺口：现有round先decimal→double且仅允许Float路径位数，decimal精确舍入和空行ADO声明待实现；不重开原仅INT/FLOAT的#192，也不混入本批。"
+    }
+  ],
+  "issueActionReceipts": "issue-actions-20261015.json",
+  "final_open_count": 48,
+  "closed_completed": [
+    273
+  ],
+  "implementationCommit": "ac71b100a314bfe7a15348568082e00d1023fbea",
+  "verifiedCommentCount": 19
+}
