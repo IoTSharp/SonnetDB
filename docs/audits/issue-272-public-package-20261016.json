@@ -1,0 +1,761 @@
+{
+  "schemaVersion": 1,
+  "issue": 272,
+  "title": "[EF Core] CREATE TABLE 丢失外键名称，按原名 DROP 返回成功但约束仍生效",
+  "issueStateAtVerification": "OPEN",
+  "issueUpdatedAt": "2026-10-11T02:12:31Z",
+  "issueCommentCount": 0,
+  "issueSnapshotSha256": "50FD1EBA4CE1886CC942773343A6222E7DD0BA041F0848B3007D2CC3026C876C",
+  "baselineCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "scope": "public NuGet embedded consumer and SQLite reference; independent process for each lifecycle phase",
+  "sdk": "10.0.400",
+  "efCoreVersion": "10.0.12",
+  "os": "Windows 10.0.26300 win-x64",
+  "packageVersion": "4.5.0-preview.ef266.5",
+  "packageSourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "startedUtc": "2026-10-15T22:43:58.7251011Z",
+  "completedUtc": "2026-10-15T22:44:28.8216611Z",
+  "originalProcessesPassed": 2,
+  "lifecycleProcessesPassed": 10,
+  "totalConsumerProcessesPassed": 12,
+  "failedConsumerProcesses": 0,
+  "timedOutConsumerProcesses": 0,
+  "releaseBuilds": 2,
+  "buildWarnings": 0,
+  "buildErrors": 0,
+  "noTrx": true,
+  "assertionsAreNotIndependentTestCount": true,
+  "originalSourceMatchesIssuePlusFinalNewline": true,
+  "globalCacheChanged": false,
+  "localProxyOnlyForChildProcesses": true,
+  "nugetAuditEnabled": false,
+  "receipt": {
+    "relativeDirectory": "artifacts\\issue-272-public-20261016-37bab8ef",
+    "originalRunRoot": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef",
+    "filename": "receipt.json",
+    "sha256": "F4EA672BA6CFF2C955982321F6F2FD10049DAF04E668A676B8AF2B22FDC8D3ED"
+  },
+  "packages": [
+    {
+      "id": "sonnetdb",
+      "version": "4.5.0-preview.ef266.5",
+      "source": "https://api.nuget.org/v3/index.json",
+      "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4"
+    },
+    {
+      "id": "sonnetdb.core",
+      "version": "4.5.0-preview.ef266.5",
+      "source": "https://api.nuget.org/v3/index.json",
+      "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268"
+    },
+    {
+      "id": "sonnetdb.entityframeworkcore",
+      "version": "4.5.0-preview.ef266.5",
+      "source": "https://api.nuget.org/v3/index.json",
+      "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "sha256": "9688BA682E160639681AF3E4882DE6A58F70CF289B42552987FA7CD85D87E125"
+    }
+  ],
+  "assets": [
+    {
+      "consumer": "original",
+      "projectReferences": 0,
+      "packageFolders": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\packages"
+      ],
+      "sources": [
+        "https://api.nuget.org/v3/index.json"
+      ],
+      "assetsSha256": "61F9136A1BC1C20F46EE851507503E4C64E348F9AC08B028E085285C5181FF36"
+    },
+    {
+      "consumer": "lifecycle",
+      "projectReferences": 0,
+      "packageFolders": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\packages"
+      ],
+      "sources": [
+        "https://api.nuget.org/v3/index.json"
+      ],
+      "assetsSha256": "7F200A3DB8EDE2FCD7CCB8CD235F5CA65CCF9873E12E54E1786D98E65251D68B"
+    }
+  ],
+  "runtimeDlls": [
+    {
+      "package": "sonnetdb",
+      "dll": "SonnetDB.Data.dll",
+      "consumer": "original",
+      "packageDllSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "runtimeDllSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "match": true
+    },
+    {
+      "package": "sonnetdb",
+      "dll": "SonnetDB.Data.dll",
+      "consumer": "lifecycle",
+      "packageDllSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "runtimeDllSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "match": true
+    },
+    {
+      "package": "sonnetdb.core",
+      "dll": "SonnetDB.Core.dll",
+      "consumer": "original",
+      "packageDllSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "runtimeDllSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "match": true
+    },
+    {
+      "package": "sonnetdb.core",
+      "dll": "SonnetDB.Core.dll",
+      "consumer": "lifecycle",
+      "packageDllSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "runtimeDllSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "match": true
+    },
+    {
+      "package": "sonnetdb.entityframeworkcore",
+      "dll": "SonnetDB.EntityFrameworkCore.dll",
+      "consumer": "original",
+      "packageDllSha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75",
+      "runtimeDllSha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75",
+      "match": true
+    },
+    {
+      "package": "sonnetdb.entityframeworkcore",
+      "dll": "SonnetDB.EntityFrameworkCore.dll",
+      "consumer": "lifecycle",
+      "packageDllSha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75",
+      "runtimeDllSha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75",
+      "match": true
+    }
+  ],
+  "executedSourceCopies": [
+    {
+      "consumer": "original",
+      "source": "docs\\audits\\issue-272-public-probe\\Consumer.csproj",
+      "executedCopy": "original\\Consumer.csproj",
+      "sourceSha256": "2B5C8335E1B43541C0FE8F6A67CBBB9E30A8B9F7B33A5B7F30F727E54C01E2E4",
+      "executedSha256": "2B5C8335E1B43541C0FE8F6A67CBBB9E30A8B9F7B33A5B7F30F727E54C01E2E4",
+      "match": true
+    },
+    {
+      "consumer": "original",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Build.props",
+      "executedCopy": "original\\Directory.Build.props",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "original",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Build.targets",
+      "executedCopy": "original\\Directory.Build.targets",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "original",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Packages.props",
+      "executedCopy": "original\\Directory.Packages.props",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "original",
+      "source": "docs\\audits\\issue-272-public-probe\\NuGet.Config",
+      "executedCopy": "original\\NuGet.Config",
+      "sourceSha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+      "executedSha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+      "match": true
+    },
+    {
+      "consumer": "original",
+      "source": "artifacts\\issue-272-public-20261016-37bab8ef\\original-issue-Program.cs",
+      "executedCopy": "original\\Program.cs",
+      "sourceSha256": "F396B95241C3404E8A15CADB2F5D45FA5C2FAAB7962D3E13799FCCD5DCEA6F44",
+      "executedSha256": "F396B95241C3404E8A15CADB2F5D45FA5C2FAAB7962D3E13799FCCD5DCEA6F44",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\Consumer.csproj",
+      "executedCopy": "lifecycle\\Consumer.csproj",
+      "sourceSha256": "2B5C8335E1B43541C0FE8F6A67CBBB9E30A8B9F7B33A5B7F30F727E54C01E2E4",
+      "executedSha256": "2B5C8335E1B43541C0FE8F6A67CBBB9E30A8B9F7B33A5B7F30F727E54C01E2E4",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Build.props",
+      "executedCopy": "lifecycle\\Directory.Build.props",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Build.targets",
+      "executedCopy": "lifecycle\\Directory.Build.targets",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\Directory.Packages.props",
+      "executedCopy": "lifecycle\\Directory.Packages.props",
+      "sourceSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "executedSha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\NuGet.Config",
+      "executedCopy": "lifecycle\\NuGet.Config",
+      "sourceSha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+      "executedSha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+      "match": true
+    },
+    {
+      "consumer": "lifecycle",
+      "source": "docs\\audits\\issue-272-public-probe\\Program.cs",
+      "executedCopy": "lifecycle\\Program.cs",
+      "sourceSha256": "BEF96E8AC291FAF2A7B0ED7B032AE64AA8FC2FC1BE089942C2793E867D92B64A",
+      "executedSha256": "BEF96E8AC291FAF2A7B0ED7B032AE64AA8FC2FC1BE089942C2793E867D92B64A",
+      "match": true
+    }
+  ],
+  "reproducibleAssets": [
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Consumer.csproj",
+      "bytes": 1222,
+      "sha256": "2B5C8335E1B43541C0FE8F6A67CBBB9E30A8B9F7B33A5B7F30F727E54C01E2E4"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Directory.Build.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Directory.Build.targets",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Directory.Packages.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\NuGet.Config",
+      "bytes": 258,
+      "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Program.cs",
+      "bytes": 18293,
+      "sha256": "BEF96E8AC291FAF2A7B0ED7B032AE64AA8FC2FC1BE089942C2793E867D92B64A"
+    },
+    {
+      "path": "docs\\audits\\issue-272-public-probe\\Run.ps1",
+      "bytes": 9696,
+      "sha256": "569FF3B2B7EBF85A635BB5ACC0CC2FF5D1162EEA5271D613026C9108A682746F"
+    }
+  ],
+  "commands": [
+    {
+      "label": "issue-current",
+      "executable": "gh",
+      "arguments": [
+        "issue",
+        "view",
+        "272",
+        "--repo",
+        "IoTSharp/SonnetDB",
+        "--json",
+        "number,title,state,body,comments,updatedAt,url"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB",
+      "pid": 54940,
+      "startedUtc": "2026-10-15T22:43:58.7251011Z",
+      "endedUtc": "2026-10-15T22:43:59.6038891Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "issue-current.stdout.log",
+        "sha256": "50FD1EBA4CE1886CC942773343A6222E7DD0BA041F0848B3007D2CC3026C876C"
+      },
+      "stderr": {
+        "path": "issue-current.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "sdk",
+      "executable": "dotnet",
+      "arguments": [
+        "--info"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB",
+      "pid": 21364,
+      "startedUtc": "2026-10-15T22:43:59.6354059Z",
+      "endedUtc": "2026-10-15T22:44:00.1225721Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "sdk.stdout.log",
+        "sha256": "B1F51F1E761162AF3191AA942249E945BFD79B0A470E440307EDFE0C15C01DFE"
+      },
+      "stderr": {
+        "path": "sdk.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "original-restore",
+      "executable": "dotnet",
+      "arguments": [
+        "restore",
+        "Consumer.csproj",
+        "--configfile",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original\\NuGet.Config",
+        "--packages",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\packages",
+        "--no-http-cache",
+        "-p:RestoreFallbackFolders=",
+        "-p:RestoreAdditionalProjectFallbackFolders="
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original",
+      "pid": 69896,
+      "startedUtc": "2026-10-15T22:44:00.1755434Z",
+      "endedUtc": "2026-10-15T22:44:04.8728199Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "original-restore.stdout.log",
+        "sha256": "AB02EA578D66B178DC3710DFE1A0A3A6822AD055AEE8E9FC9D01F79C6C48EE12"
+      },
+      "stderr": {
+        "path": "original-restore.stderr.log",
+        "sha256": "F6375461CB3B95101AEBDFD8436664A24635999A2E3E9020845DB4565C08785E"
+      },
+      "completed": null
+    },
+    {
+      "label": "original-build",
+      "executable": "dotnet",
+      "arguments": [
+        "build",
+        "Consumer.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "-nr:false"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original",
+      "pid": 34364,
+      "startedUtc": "2026-10-15T22:44:04.8915005Z",
+      "endedUtc": "2026-10-15T22:44:07.4395649Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "original-build.stdout.log",
+        "sha256": "17ABA02D59CCE5C64E2C7F9418C0679A676F1ACF0310E394D92ADE8EB76385DB"
+      },
+      "stderr": {
+        "path": "original-build.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "lifecycle-restore",
+      "executable": "dotnet",
+      "arguments": [
+        "restore",
+        "Consumer.csproj",
+        "--configfile",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\NuGet.Config",
+        "--packages",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\packages",
+        "--no-http-cache",
+        "-p:RestoreFallbackFolders=",
+        "-p:RestoreAdditionalProjectFallbackFolders="
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 70204,
+      "startedUtc": "2026-10-15T22:44:07.4552979Z",
+      "endedUtc": "2026-10-15T22:44:08.4742113Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-restore.stdout.log",
+        "sha256": "F9D8495189DC1E41E1C22F40F36C1FDE8B7F7CC57FB6B35C90C3958BFBED6A4E"
+      },
+      "stderr": {
+        "path": "lifecycle-restore.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "lifecycle-build",
+      "executable": "dotnet",
+      "arguments": [
+        "build",
+        "Consumer.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "-nr:false"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 53312,
+      "startedUtc": "2026-10-15T22:44:08.4914371Z",
+      "endedUtc": "2026-10-15T22:44:09.6376187Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-build.stdout.log",
+        "sha256": "3FDAAF357CB7B490A05DFB198E6B49C22C76D988F5E949DF631FA2228CE197F2"
+      },
+      "stderr": {
+        "path": "lifecycle-build.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "original-Sqlite",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original",
+      "pid": 23740,
+      "startedUtc": "2026-10-15T22:44:09.7903405Z",
+      "endedUtc": "2026-10-15T22:44:11.3900884Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "original-Sqlite.stdout.log",
+        "sha256": "8DC6AA270BD9DC5EFB34A97479F61BE7405418A5DB2F4804D9D08E8ED9FEB6A7"
+      },
+      "stderr": {
+        "path": "original-Sqlite.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "lifecycle-Sqlite-initial",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite",
+        "initial",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 67040,
+      "startedUtc": "2026-10-15T22:44:11.3906439Z",
+      "endedUtc": "2026-10-15T22:44:14.0607804Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-Sqlite-initial.stdout.log",
+        "sha256": "CA57A0350E4AF9A9332317DCB8A519C5E17F8A739238C24E4C01E1A4A9E76521"
+      },
+      "stderr": {
+        "path": "lifecycle-Sqlite-initial.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|Sqlite|initial|pid=67040"
+    },
+    {
+      "label": "lifecycle-Sqlite-removed",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite",
+        "removed",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 60100,
+      "startedUtc": "2026-10-15T22:44:14.0619708Z",
+      "endedUtc": "2026-10-15T22:44:15.2436689Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-Sqlite-removed.stdout.log",
+        "sha256": "7FEE021869FC5B7D4F01604DBD946D071E296B86F251E34C348B18BB9EEF8B1D"
+      },
+      "stderr": {
+        "path": "lifecycle-Sqlite-removed.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|Sqlite|removed|pid=60100"
+    },
+    {
+      "label": "lifecycle-Sqlite-replacement",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite",
+        "replacement",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 38024,
+      "startedUtc": "2026-10-15T22:44:15.2442005Z",
+      "endedUtc": "2026-10-15T22:44:16.2361455Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-Sqlite-replacement.stdout.log",
+        "sha256": "A5E4B44CF04BF642E65E9015440D33F5783B12547135E5DA58FCC67FAAC7F63D"
+      },
+      "stderr": {
+        "path": "lifecycle-Sqlite-replacement.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|Sqlite|replacement|pid=38024"
+    },
+    {
+      "label": "lifecycle-Sqlite-rollback",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite",
+        "rollback",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 43028,
+      "startedUtc": "2026-10-15T22:44:16.2366568Z",
+      "endedUtc": "2026-10-15T22:44:17.2186563Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-Sqlite-rollback.stdout.log",
+        "sha256": "81BF138D7FD1F07A75AB1EDB7579491C7698A4796575FC1A095B88DBD0100FB0"
+      },
+      "stderr": {
+        "path": "lifecycle-Sqlite-rollback.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|Sqlite|rollback|pid=43028"
+    },
+    {
+      "label": "lifecycle-Sqlite-reopen",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "Sqlite",
+        "reopen",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\Sqlite"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 19948,
+      "startedUtc": "2026-10-15T22:44:17.2192819Z",
+      "endedUtc": "2026-10-15T22:44:18.2480937Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-Sqlite-reopen.stdout.log",
+        "sha256": "98401F4A0051842587CCF5C20DBC69674DE5D7D6C8A0CEAAAE5275044BD3E083"
+      },
+      "stderr": {
+        "path": "lifecycle-Sqlite-reopen.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|Sqlite|reopen|pid=19948"
+    },
+    {
+      "label": "original-SonnetDB",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\original",
+      "pid": 65732,
+      "startedUtc": "2026-10-15T22:44:18.2485763Z",
+      "endedUtc": "2026-10-15T22:44:20.2654341Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "original-SonnetDB.stdout.log",
+        "sha256": "43FEFC00069FD6A080CDA704FDBA13A6EB8A2696FF8C8EA70C7723E2B70611E7"
+      },
+      "stderr": {
+        "path": "original-SonnetDB.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": null
+    },
+    {
+      "label": "lifecycle-SonnetDB-initial",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB",
+        "initial",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 75220,
+      "startedUtc": "2026-10-15T22:44:20.2660456Z",
+      "endedUtc": "2026-10-15T22:44:21.9372865Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-SonnetDB-initial.stdout.log",
+        "sha256": "B98307AFD5BC6E1D97078030B10657FF5C8CD1E90F3DB40FC3CEF1A3C70DF4EA"
+      },
+      "stderr": {
+        "path": "lifecycle-SonnetDB-initial.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|SonnetDB|initial|pid=75220"
+    },
+    {
+      "label": "lifecycle-SonnetDB-removed",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB",
+        "removed",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 53816,
+      "startedUtc": "2026-10-15T22:44:21.9377645Z",
+      "endedUtc": "2026-10-15T22:44:23.4651265Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-SonnetDB-removed.stdout.log",
+        "sha256": "083C2D4B7410CCFD4773BF25AEE1959C2A0B982BCF4777AECECA921A962F163F"
+      },
+      "stderr": {
+        "path": "lifecycle-SonnetDB-removed.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|SonnetDB|removed|pid=53816"
+    },
+    {
+      "label": "lifecycle-SonnetDB-replacement",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB",
+        "replacement",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 78336,
+      "startedUtc": "2026-10-15T22:44:23.4656374Z",
+      "endedUtc": "2026-10-15T22:44:25.2086212Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-SonnetDB-replacement.stdout.log",
+        "sha256": "F3D4AA163773B5FED20C0A2A66089A443D9D5D9B2F1487D696531042D6A74C01"
+      },
+      "stderr": {
+        "path": "lifecycle-SonnetDB-replacement.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|SonnetDB|replacement|pid=78336"
+    },
+    {
+      "label": "lifecycle-SonnetDB-rollback",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB",
+        "rollback",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 76816,
+      "startedUtc": "2026-10-15T22:44:25.2090786Z",
+      "endedUtc": "2026-10-15T22:44:26.8518791Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-SonnetDB-rollback.stdout.log",
+        "sha256": "422B1D20F825FB79416BC9BB0BCF5AAD6E4DA6BD295C19667A986C3E8AFC16F1"
+      },
+      "stderr": {
+        "path": "lifecycle-SonnetDB-rollback.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|SonnetDB|rollback|pid=76816"
+    },
+    {
+      "label": "lifecycle-SonnetDB-reopen",
+      "executable": "dotnet",
+      "arguments": [
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle\\bin\\Release\\net10.0\\Consumer.dll",
+        "SonnetDB",
+        "reopen",
+        "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\databases\\SonnetDB"
+      ],
+      "workingDirectory": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB\\artifacts\\issue-272-public-20261016-37bab8ef\\lifecycle",
+      "pid": 77020,
+      "startedUtc": "2026-10-15T22:44:26.8523343Z",
+      "endedUtc": "2026-10-15T22:44:28.4760731Z",
+      "exitCode": 0,
+      "timedOut": false,
+      "stdout": {
+        "path": "lifecycle-SonnetDB-reopen.stdout.log",
+        "sha256": "3BA727074397B671651CCA205FD062BB27B86BB9BB2BF051D0CE3C5B961DE557"
+      },
+      "stderr": {
+        "path": "lifecycle-SonnetDB-reopen.stderr.log",
+        "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      "completed": "COMPLETE|SonnetDB|reopen|pid=77020"
+    }
+  ],
+  "missingConstraintDrop": {
+    "provider": "SonnetDB",
+    "result": 0,
+    "originalConstraintStillPresent": true,
+    "originalConstraintStillRejectsOrphans": true,
+    "historyUnchanged": true,
+    "correctNamedDropRemovesConstraint": true
+  },
+  "boundaries": [
+    "Embedded public NuGet consumers and SQLite reference only.",
+    "No public Server, REST, h2c, complete ABP BookStore, NativeAOT publishing or remote CI acceptance performed.",
+    "No production code, shared HANDOFF or CHANGELOG changed by this agent.",
+    "No commit, push, new package publication, tag, deployment, issue reply or closure performed by this agent.",
+    "Root supervisor owns integration, complete restore and Format Check, commit, push and online issue action verification."
+  ],
+  "retainedPreliminaryRuns": [
+    {
+      "directory": "artifacts/issue-272-public-20261016-b0e11e2a",
+      "failure": "Direct GitHub connection refused; later runs use existing proxy in child-process environment only."
+    },
+    {
+      "directory": "artifacts/issue-272-public-20261016-dfd58ac3",
+      "failure": "SDK implicit library-packs source rejected by isolation guard; final project disables it."
+    },
+    {
+      "directory": "artifacts/issue-272-public-20261016-a3d97196",
+      "failure": "Probe saved original principal and child in same batch despite final runtime model using replacement principal; fixed probe setup to save principals first. Final run used new caches and databases."
+    }
+  ]
+}
