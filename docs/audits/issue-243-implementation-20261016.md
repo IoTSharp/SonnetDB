@@ -61,3 +61,13 @@ CREATE 在保存前登记回滚责任，因此 rename 成功但目录刷新失�
 根证据位于 `artifacts/issue-supervision-20261016/issue243/`。最终待提交树按仓库规定执行完整 restore 与 Format Check，收据实际均 exit 0 后才执行本次独立提交；SHA 以 Git log 为准。当前本项尚未推送、发包或关闭；首次可安装版本、XCode 最大行数/分批删除消费者验收仍未完成。
 
 本项最终完整门禁通过后独立提交 `b6e674c431cb8841f33d4a14941537d965184366`，已随#226整批正常推送并回读main为 `285186b868a59d4b22e47279ea51deb38a3a1f45`。最终组合源码通过Core3313/3313、Server104/104、实际kill15/15，包含本项回归且与以上旧结果重叠，不累计。评论 `6203689607` 的正文、作者及open状态已回读验证；代码CI `38818030145` 正在执行。正式版本及XCode消费者条件仍未完成，Issue保持开放；见[本批线上回执](issue-supervision-priority-actions-20261016.json)。本段更新此前“尚未推送”的历史状态。
+
+## CI 后续：更新无主键 schema 演进测试
+
+`38818030145` 在精确源码 `285186b8` 上的三平台 NativeAOT 和 Format Check 成功，Ubuntu Core **7168/7168** 通过。Ubuntu 与 Windows rest 的 Server 都为 **1324/1326**：两条旧 `RemoteDdlEvolutionTests.EmptyKeylessTable_EmbeddedAndRemote_AddsKeyAndGeneratedColumns` 仍要求无主键 INSERT 抛错，实际写入已按本次新增合同成功。原 TRX 下载保存在 `artifacts/issue-supervision-20261016/ci-38818030145-ubuntu/` 和 `ci-38818030145-windows-rest/`，没有重跑或改写原失败结果。
+
+本次仅修正这条过时测试：嵌入式/REST分别覆盖空表与已有无主键行，检查增加主键前没有伪造业务主键或隐藏列、迁移保留已有数据、自增高水连续、ROWVERSION回填及重连后的精确行集。没有修改生产代码。最终Release构建 **0 warning / 0 error**；完整Server项目 **1328/1328**、零失败/跳过，其中该类6项均通过，不与前述集合累计。
+
+本地前两次完整运行同样保留：C盘空间耗尽时为1250通过/78失败；切到过深D临时目录后为1272通过/56失败，包含Windows目录持久化API打开长路径失败和后续派生任务失败。未改测试DLL或放宽断言，第三次只改为独占短 `D:\sndb-t\ci243-*` 临时目录后1328项全过。完整命令、退出码、日志和三份TRX位于 `artifacts/issue-supervision-20261016/issue243-ci-contract/`；`short-temp.txt`记录实际路径。此结果不声称修复了既有Windows长路径边界。
+
+为恢复本机空间，#272两份已结束失败run的可再下载包缓存完整移到D盘，逐文件SHA256验证，原路径保留junction；所有内容仍在，回执在 `artifacts/issue-supervision-20261016/relocated-caches-272/receipt.json`。最终公开包、冻结源码与历史测试证据未清理。后续使用D盘私有缓存和短临时路径，完整restore及原Format Check实际通过后才能提交本次测试修正；远端剩余CI与发行/消费者验收另行回读。

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Data;
-using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -91,10 +90,13 @@ public sealed class RemoteDdlEvolutionTests : IAsyncLifetime
         Assert.Equal(1L, reader.GetInt64(1));
     }
 
+    /// <summary>空表及已有无主键行均可增加主键，并保留生成列与自增高水位。</summary>
     [Theory]
-    [InlineData("embedded")]
-    [InlineData("remote")]
-    public void EmptyKeylessTable_EmbeddedAndRemote_AddsKeyAndGeneratedColumns(string mode)
+    [InlineData("embedded", false)]
+    [InlineData("embedded", true)]
+    [InlineData("remote", false)]
+    [InlineData("remote", true)]
+    public void KeylessTable_EmbeddedAndRemote_AddsKeyAndGeneratedColumns(string mode, bool insertBeforeAddingKey)
     {
         string connectionString = mode == "embedded"
             ? $"Data Source={Path.Combine(_root, "keyless-" + Guid.NewGuid().ToString("N"))}"
@@ -104,32 +106,40 @@ public sealed class RemoteDdlEvolutionTests : IAsyncLifetime
 
         Assert.Equal(0, Execute(connection, "CREATE TABLE pending_devices (code STRING NOT NULL)"));
         Assert.Equal(1, Execute(connection, "ALTER TABLE pending_devices ADD COLUMN id INT AUTO_INCREMENT"));
-        var blocked = Record.Exception(() => Execute(connection,
-            "INSERT INTO pending_devices (code) VALUES ('blocked')"));
-        var code = blocked switch
-        {
-            TableConstraintException embedded => embedded.ErrorCode,
-            SndbServerException remote => remote.Error,
-            _ => throw new Xunit.Sdk.XunitException($"意外的无主键写入错误类型：{blocked?.GetType().Name}"),
-        };
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, code);
+        var keylessColumns = connection.GetSchema("Columns", [null, null, "pending_devices", null]);
+        Assert.Equal(2, keylessColumns.Rows.Count);
+        Assert.All(keylessColumns.Rows.Cast<DataRow>(), row => Assert.False((bool)row["IS_PRIMARY_KEY"]));
+        if (insertBeforeAddingKey)
+            Assert.Equal(1, Execute(connection, "INSERT INTO pending_devices (code) VALUES ('before-key')"));
         Assert.Equal(1, Execute(connection,
             "ALTER TABLE pending_devices ADD CONSTRAINT pk_pending_devices PRIMARY KEY (id)"));
         Assert.Equal(1, Execute(connection, "ALTER TABLE pending_devices ADD COLUMN version INT ROWVERSION"));
         Assert.Equal(1, Execute(connection, "INSERT INTO pending_devices (code) VALUES ('one')"));
 
         var columns = connection.GetSchema("Columns", [null, null, "pending_devices", null]);
+        Assert.Equal(3, columns.Rows.Count);
         var id = columns.Rows.Cast<DataRow>().Single(row => (string)row["COLUMN_NAME"] == "id");
         var version = columns.Rows.Cast<DataRow>().Single(row => (string)row["COLUMN_NAME"] == "version");
         Assert.True((bool)id["IS_PRIMARY_KEY"]);
         Assert.True((bool)id["IS_AUTO_INCREMENT"]);
         Assert.True((bool)version["IS_ROW_VERSION"]);
+        connection.Close();
+        connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT id, version FROM pending_devices WHERE code = 'one'";
+        command.CommandText = "SELECT code, id, version FROM pending_devices ORDER BY id";
         using var reader = command.ExecuteReader();
+        if (insertBeforeAddingKey)
+        {
+            Assert.True(reader.Read());
+            Assert.Equal("before-key", reader.GetString(0));
+            Assert.Equal(1L, reader.GetInt64(1));
+            Assert.Equal(1L, reader.GetInt64(2));
+        }
         Assert.True(reader.Read());
-        Assert.Equal(1L, reader.GetInt64(0));
-        Assert.Equal(1L, reader.GetInt64(1));
+        Assert.Equal("one", reader.GetString(0));
+        Assert.Equal(insertBeforeAddingKey ? 2L : 1L, reader.GetInt64(1));
+        Assert.Equal(1L, reader.GetInt64(2));
+        Assert.False(reader.Read());
     }
 
     private static int Execute(SndbConnection connection, string sql)
