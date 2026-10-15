@@ -1,0 +1,1404 @@
+{
+  "issue": 271,
+  "capturedUtc": "2026-10-15T23:05:03.8398665+00:00",
+  "sourceWorktree": "C:/Users/mysti/.codex/worktrees/issue271-public-blob/SonnetDB",
+  "sourceHead": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "evidenceRoot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue271-work",
+  "packageVersion": "4.5.0-preview.ef266.5",
+  "packageCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "serverCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "serverFileCount": 541,
+  "serverOriginalSnapshotSha256": "F3C8003EE04C621A4FBF975E29263414199D8DD521D0071D0048859F14ED7A1D",
+  "abpCommit": "841567fd963621a8656a904121462234c6c80c0e",
+  "sdk": "10.0.400",
+  "results": {
+    "originalSqliteBinaryKey": "PASS",
+    "originalSqlitePasskeyAny": "PASS",
+    "originalSonnetBinaryKey": "PASS",
+    "originalSonnetPasskeyAny": "PASS",
+    "sqliteExerciseAssertions": 119,
+    "sqliteReopenAssertions": 38,
+    "sonnetExerciseAssertions": 124,
+    "sonnetReopenAssertions": 38,
+    "restExerciseAssertions": 124,
+    "restReopenAssertions": 38,
+    "h2cExerciseAssertions": 124,
+    "h2cReopenAssertions": 38,
+    "passkeyTest": {
+      "skipped": 0,
+      "failed": 0,
+      "passed": 1,
+      "total": 1
+    },
+    "accountWithAssetsTest": {
+      "skipped": 0,
+      "failed": 0,
+      "passed": 1,
+      "total": 1
+    },
+    "finalPublicRunner": "PASS",
+    "finalAbpRunner": "PASS",
+    "accountWithoutAssetsTest": {
+      "reason": "Missing wwwroot/libs; original CI npm ci and Copy-BookStoreAssets.cjs were subsequently executed.",
+      "skipped": 0,
+      "failed": 1,
+      "passed": 0,
+      "total": 1
+    }
+  },
+  "boundaries": [
+    "Public clients against source-built frozen Server, not a published Server package.",
+    "ABP original application via WebApplicationFactory/TestServer, not a browser WebAuthn ceremony or remote ABP.",
+    "The verified .5 version is not a claim that no earlier public version contains the fix.",
+    "No AOT, vulnerability audit, package signature revalidation, full A06, or arbitrary crash-point claim."
+  ],
+  "sourceFiles": [
+    {
+      "path": "scripts/validation/issue271-public-package/Common.ps1",
+      "sha256": "92B8708AC767A72C75934EEE9E05BFF81F28C4587A3598E23E4A99205C8ED4B3"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Directory.Build.props",
+      "sha256": "14DA5402C7E6E5D2CF6F5E36B53E789C900DB605AAD0A7DC3AF4F80630379BCC"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Directory.Build.targets",
+      "sha256": "5359906E3197514BDE0B88638BA223A8DB7104295BDD58DF86190117AA70B210"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Directory.Packages.props",
+      "sha256": "9E76B50138F5957E787BCC088A4BF4C89B40748FCCCB9017FC5349AA45794969"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/NuGet.Config",
+      "sha256": "24DAE739826EE08E09AB546E96D4C0120A5CBFFB21430A37DAC4D152A8BFBA41"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/README.md",
+      "sha256": "A3F8200F5B1EAB9EA8D5850654E5DD2D600836BA00880B94F4AD7103EBC1B0B2"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Remote.ps1",
+      "sha256": "BA7DCC75473C83129E0C554C81AB6E9E79C9431CE5CDC37433B3128C85F6C6FD"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Run-Abp.ps1",
+      "sha256": "6D34A7622121D10832C7783E4297835158641259945B7FBBDD4CB2EB8FA22C0A"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Run.ps1",
+      "sha256": "CCE4C6EF42022076445E00662A8111D1C806F3A7EC4CD4E197900909AD69AF52"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Matrix/Matrix.csproj",
+      "sha256": "252407B9A22709AC1B1D8303542FA26242F3B6DCA6F120E47B7BC57CBB0DCBFB"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Matrix/packages.lock.json",
+      "sha256": "1D9C4C71A1A74ABA1ECA64D717EB494C9FD2067527285D4C72B917A3EF50E477"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Matrix/Program.cs",
+      "sha256": "3D5E8ECBCC1F897A45A31D26283021AF0DE3457367079CD4CA2AC9E830D24601"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Original/Original.csproj",
+      "sha256": "252407B9A22709AC1B1D8303542FA26242F3B6DCA6F120E47B7BC57CBB0DCBFB"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Original/packages.lock.json",
+      "sha256": "1D9C4C71A1A74ABA1ECA64D717EB494C9FD2067527285D4C72B917A3EF50E477"
+    },
+    {
+      "path": "scripts/validation/issue271-public-package/Original/Program.cs",
+      "sha256": "FFF416F9142C1CCA3DA95CF680A352BB3BC7DBB8A3E62425EAC1C984ECC16F49"
+    },
+    {
+      "path": "docs/audits/issue-271-public-package-20261016.md",
+      "sha256": "A8EDD020CEFAE7B4F45E09419A3A317BB6CC1FEB5781B96ED4A9D1166377C214"
+    }
+  ],
+  "binaryFiles": [
+    {
+      "path": "final-public/consumer/Original/bin/Release/net10.0/SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "final-public/consumer/Original/bin/Release/net10.0/SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "final-public/consumer/Original/bin/Release/net10.0/SonnetDB.EntityFrameworkCore.dll",
+      "sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+    },
+    {
+      "path": "final-public/consumer/Matrix/bin/Release/net10.0/SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "final-public/consumer/Matrix/bin/Release/net10.0/SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "final-public/consumer/Matrix/bin/Release/net10.0/SonnetDB.EntityFrameworkCore.dll",
+      "sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+    },
+    {
+      "path": "final-abp/abp-checkout/tests/SonnetDB.Abp.BookStore.Tests/bin/Release/net10.0/SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "final-abp/abp-checkout/tests/SonnetDB.Abp.BookStore.Tests/bin/Release/net10.0/SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "final-abp/abp-checkout/tests/SonnetDB.Abp.BookStore.Tests/bin/Release/net10.0/SonnetDB.EntityFrameworkCore.dll",
+      "sha256": "70E8B4676D9D5ED99A68E98915F6F0D9AA670BF1ED75A68E92B908B05B0E2A75"
+    },
+    {
+      "path": "final-public/consumer/Original/bin/Release/net10.0/Original.dll",
+      "sha256": "D27AFFE716F3237D29B3748629214E65F647712383EC6543E100044C39611C01"
+    },
+    {
+      "path": "final-public/consumer/Matrix/bin/Release/net10.0/Matrix.dll",
+      "sha256": "82B7A22250723D33C00985A95E9B9D98267D77CF0D3088960F308D109634BD4C"
+    },
+    {
+      "path": "final-abp/abp-checkout/tests/SonnetDB.Abp.BookStore.Tests/bin/Release/net10.0/SonnetDB.Abp.BookStore.Tests.dll",
+      "sha256": "14999C1053D6768A9F811998BD5DE3B732B6F54635F5B870502B0F769053F27C"
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "path": "final-public/.owner",
+      "bytes": 32,
+      "sha256": "05716D84CE26D7E47429F03C7728DFC6A922359A06FF4C6D47C73017F99BADE6"
+    },
+    {
+      "path": "final-public/manifest.json",
+      "bytes": 28910,
+      "sha256": "AF03050F6893A76AA2D766EC988DD3C2D96FBFE63E3D7B1C2F007455E0D3FE34"
+    },
+    {
+      "path": "final-public/Matrix-build.json",
+      "bytes": 698,
+      "sha256": "F60FD45DD6C905B618C0AA7AF302716A505B5A32F2C60422721555123D6EDB64"
+    },
+    {
+      "path": "final-public/Matrix-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/Matrix-build.stdout.log",
+      "bytes": 227,
+      "sha256": "0C496E45539CA774FB1500A9621A6529E7767350F9B4D2EDA36CC7599BFD5BB5"
+    },
+    {
+      "path": "final-public/Matrix-restore.json",
+      "bytes": 962,
+      "sha256": "120FEF2EFA1EEAB5E78B669EA56810835974A52AF7C4AB8A4F145F48B730E46E"
+    },
+    {
+      "path": "final-public/Matrix-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/Matrix-restore.stdout.log",
+      "bytes": 186,
+      "sha256": "F0EA21A5A4D2BF612720AE79C2635C111C1FF0DC7B90A0789233EE3F52DA9888"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-exercise.json",
+      "bytes": 713,
+      "sha256": "45676D8DCDCCEEA301AC5BF639BE167B97341EA6E4C4C77AABFD35A7FB209AE1"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-exercise.stdout.log",
+      "bytes": 17418,
+      "sha256": "EC97ED27FE279CA4AEB54698FEF87B7BB03FA3D7B21B77698C1D799FAC89DCEF"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-reopen.json",
+      "bytes": 709,
+      "sha256": "91F277D6EE8E1C37E76D731D8158AF3408BB13E306CEA71F8D4D4A23BA9F8DED"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/matrix-SonnetDB-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-exercise.json",
+      "bytes": 707,
+      "sha256": "C9EEB78E236E1D4FCCB20BFE91DE9D0027CCCF87DCE55BA290ADACC8A719D811"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-exercise.stdout.log",
+      "bytes": 16854,
+      "sha256": "4C7C58308A51136D05A05F060F3016298448F7144737D91ADC689F2F2F731ABC"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-reopen.json",
+      "bytes": 703,
+      "sha256": "30CBB07255ABB8F3A02B11ADC59ABCB72D0A7D56DEE714AF490E3DE8993A6507"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/matrix-Sqlite-reopen.stdout.log",
+      "bytes": 5877,
+      "sha256": "03E27E0FA4328773AB98D26B6C8E14A0E61F56F32CC6B1E5D024289D6EE8B349"
+    },
+    {
+      "path": "final-public/Original-build.json",
+      "bytes": 704,
+      "sha256": "B74DE1013FF2C13DA909FC4BDC7777171EEE2F0F2619C4946BB1BECF0AACA197"
+    },
+    {
+      "path": "final-public/Original-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/Original-build.stdout.log",
+      "bytes": 233,
+      "sha256": "B839063BD47F2785E768F794CA1140E493474ABE80CECE387E5361F817E59A2F"
+    },
+    {
+      "path": "final-public/Original-restore.json",
+      "bytes": 968,
+      "sha256": "8CA907D9FCFE8CF952B4603FF9552E3923D8ED61F7732B3C26AB5EE7693EDCC3"
+    },
+    {
+      "path": "final-public/Original-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/Original-restore.stdout.log",
+      "bytes": 188,
+      "sha256": "181F456FA7B4CA8DD179EBA1D1BD4D5C7F4A5812AAFBB1A812CA81BFFF48AF3F"
+    },
+    {
+      "path": "final-public/original-SonnetDB-binary-key.json",
+      "bytes": 658,
+      "sha256": "5BDB34FEBC36074A9E6C1DDABF9D80042F71202FC26D2801EF50AA00A60EC1A1"
+    },
+    {
+      "path": "final-public/original-SonnetDB-binary-key.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/original-SonnetDB-binary-key.stdout.log",
+      "bytes": 478,
+      "sha256": "06FACC90EE7FFA46F004B083509E43C94F5DF0DD95CFA3F59686F5BE753D1100"
+    },
+    {
+      "path": "final-public/original-SonnetDB-passkey-any.json",
+      "bytes": 660,
+      "sha256": "F77B73950F36A5596860894BBF14885273EBBE6216780E478BA053C9A2AC38FD"
+    },
+    {
+      "path": "final-public/original-SonnetDB-passkey-any.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/original-SonnetDB-passkey-any.stdout.log",
+      "bytes": 949,
+      "sha256": "C01A4830D560C80B94166415BA716675102B9AB0208B83A9455691606EB611C9"
+    },
+    {
+      "path": "final-public/original-Sqlite-binary-key.json",
+      "bytes": 654,
+      "sha256": "B8E3FCBCAE91DAAF818D0392FEBF0B8711D5E6BFBFDA3D28F89C9E39E922D709"
+    },
+    {
+      "path": "final-public/original-Sqlite-binary-key.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/original-Sqlite-binary-key.stdout.log",
+      "bytes": 496,
+      "sha256": "57F2FCCDF6FE165DF5DBAC60921FDB9967BAF36C77967A68397F0FC3BA2A0FA7"
+    },
+    {
+      "path": "final-public/original-Sqlite-passkey-any.json",
+      "bytes": 656,
+      "sha256": "04AB77303D2159DCDC7B5319F6C0B140C19AEF7543253BF40CD25F4C2A543067"
+    },
+    {
+      "path": "final-public/original-Sqlite-passkey-any.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/original-Sqlite-passkey-any.stdout.log",
+      "bytes": 973,
+      "sha256": "D6B65B3ADCF0816D9281B8EF0D2A2BD298295BE345FEDC562CF140D272C3968C"
+    },
+    {
+      "path": "final-public/public-packages.json",
+      "bytes": 2340,
+      "sha256": "A1D2437F01C0441C69C0C290F3DD2E16BC2880BF53C3C6DDDB881EC1BE044046"
+    },
+    {
+      "path": "final-public/runtime.json",
+      "bytes": 42,
+      "sha256": "17EA6429032D9DDF7FFD161384254E74911048F68FA0BBBF6487F809BF996DAF"
+    },
+    {
+      "path": "final-public/sdk.json",
+      "bytes": 464,
+      "sha256": "422548572D8B8268A5A6D1DF5064E1AFDB7824EDCB5C34AFCC2DAE292AC17CD5"
+    },
+    {
+      "path": "final-public/sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/sdk.stdout.log",
+      "bytes": 4155,
+      "sha256": "1F8E324F60FC14EAC2A814A23A92A7CD6EA0DD4A9630AABA5C32724DDBB32067"
+    },
+    {
+      "path": "final-public/remote/.owner",
+      "bytes": 32,
+      "sha256": "A7A17C890E9EC1A8634C1D942F78DF20C92A56A1C356FC93A1ACE650466FCB49"
+    },
+    {
+      "path": "final-public/remote/manifest.json",
+      "bytes": 13264,
+      "sha256": "6BF204D5A3E9911D5664DFC24B87DE521727AE247D5155AD0BF9D35BE160B4C3"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-exercise.json",
+      "bytes": 736,
+      "sha256": "C30B44F7F1F93C61ABAEB822190A06DA776E8E9C02B2A0AAE3B8AE6A0A46A395"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-exercise.stdout.log",
+      "bytes": 17468,
+      "sha256": "E1610D1499E07E980FAB6CE51E82A90E96E8851EC5409F5E3EC99C1C53AD453C"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-reopen.json",
+      "bytes": 732,
+      "sha256": "6D55C3A7CE989FF6347BEF4A2D3A63DBB70D826C035A7FC7A7E693E8F87E6F60"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/matrix-frame-http2-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-exercise.json",
+      "bytes": 722,
+      "sha256": "8529D399868F662C8CFAC1F78EB33C99E5322359D695702FB5DB544DA8D5464B"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-exercise.stdout.log",
+      "bytes": 17468,
+      "sha256": "E1610D1499E07E980FAB6CE51E82A90E96E8851EC5409F5E3EC99C1C53AD453C"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-reopen.json",
+      "bytes": 718,
+      "sha256": "7F82481B407E729AD7F3CAD03FEF6296F6C390065E06448BA0C82165D4D2E3BF"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/matrix-rest-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "final-public/remote/protocol-frame-http2-exercise.json",
+      "bytes": 131288,
+      "sha256": "728A23CD49E50776C17C0A6789673C28BDEDC1B988BC89268C2902DBC61B0C5C"
+    },
+    {
+      "path": "final-public/remote/protocol-frame-http2-reopen.json",
+      "bytes": 25955,
+      "sha256": "D86361600A7A32779093D5AAD41E5F252C18CBA08D2FF0E05A81070257066746"
+    },
+    {
+      "path": "final-public/remote/protocol-rest-exercise.json",
+      "bytes": 136666,
+      "sha256": "5B548DFED244313A22FCC3CC24C8DFAE0D4CDE8437F2F399912E507573106282"
+    },
+    {
+      "path": "final-public/remote/protocol-rest-reopen.json",
+      "bytes": 27835,
+      "sha256": "DBA05D78298B86CF6A699BDF7C17BDF3ABF76359093A7B0B43BF7441B96E3EA5"
+    },
+    {
+      "path": "final-public/remote/runtime.json",
+      "bytes": 50,
+      "sha256": "220A2E39AEB2341733370927606E97EEAFCAF65EA238921338B511DDD57E60C4"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-exercise.json",
+      "bytes": 550,
+      "sha256": "3A420458C376D896F3F10797AA74B52C6BB1E69C3FD3780E1D4B28F33F7B5E6E"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-exercise.stdout.log",
+      "bytes": 257445,
+      "sha256": "0B635E1FAA96D17E02339744FDBE36A358092C6CFFD5E4D3191EB29B51B77832"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-reopen.json",
+      "bytes": 550,
+      "sha256": "BB7BB1E11C9A6D3332652392AA04B7C9D320A6D4A6B21E97F40EB0904C512487"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/server-frame-http2-reopen.stdout.log",
+      "bytes": 59837,
+      "sha256": "C0AB0260641A28147F9EE4130E17F24CA489C6B316D97EF24A5E6CC8D0D1F1EC"
+    },
+    {
+      "path": "final-public/remote/server-rest-exercise.json",
+      "bytes": 543,
+      "sha256": "0786808B179C3BF8329E8FD32DB0A6B711B748FF9D286A16141717C44BFAAE19"
+    },
+    {
+      "path": "final-public/remote/server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/server-rest-exercise.stdout.log",
+      "bytes": 268486,
+      "sha256": "1655F960CAA8003DDE5B67CE2CB7110356A5A0724D05E7FF85ABDBD7095033C3"
+    },
+    {
+      "path": "final-public/remote/server-rest-reopen.json",
+      "bytes": 543,
+      "sha256": "69AAA53E25AE82FB09B41BC641EF006EFE0F50719D7D065B3B3E5E2BCD41C364"
+    },
+    {
+      "path": "final-public/remote/server-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-public/remote/server-rest-reopen.stdout.log",
+      "bytes": 63695,
+      "sha256": "285A922A4FD91A79D65A4035B9CA7BD948331B1A022F9FAE8F3518B958509D17"
+    },
+    {
+      "path": "final-public/remote/server-snapshot.json",
+      "bytes": 86454,
+      "sha256": "1EC30A79B2537DCF33F90EBEAAE13D110A164CDE615033C981D87350EBE42223"
+    },
+    {
+      "path": "final-abp/.owner",
+      "bytes": 32,
+      "sha256": "FACA423D2C1380EDCEF8FCC500964D3B7A6630226759F50CEB0F7D295F158E72"
+    },
+    {
+      "path": "final-abp/abp-build.json",
+      "bytes": 748,
+      "sha256": "8E742A0B42E9CFDDA2B4C01EB64F404052F34E8AE7F243446B545D02959F3EAF"
+    },
+    {
+      "path": "final-abp/abp-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-build.stdout.log",
+      "bytes": 3090,
+      "sha256": "C81B1D0CD23BC84FCEF02E24EA81CCEBF6FF0900EF695714B6B136B6292912C1"
+    },
+    {
+      "path": "final-abp/abp-checkout.json",
+      "bytes": 586,
+      "sha256": "0F3AC48DFE3C1120B44AD3CAFD790DBC1E7D958AD96E1454D6E5BACDAACD300D"
+    },
+    {
+      "path": "final-abp/abp-checkout.stderr.log",
+      "bytes": 91,
+      "sha256": "7EECA5C8CD7DF07B2579039302487A3F31A3D749880CD2FB307444261EB02EC5"
+    },
+    {
+      "path": "final-abp/abp-checkout.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-client-libraries.json",
+      "bytes": 690,
+      "sha256": "488F1909799F7B4A367330FD4FD0BD078BB814BDE4F9F4584071C29D049A2A49"
+    },
+    {
+      "path": "final-abp/abp-client-libraries.stderr.log",
+      "bytes": 209,
+      "sha256": "0D5BD0B3D93E24D8B2D74BE2B937F0D2EE36B197047FC51812CBB5D4D5237617"
+    },
+    {
+      "path": "final-abp/abp-client-libraries.stdout.log",
+      "bytes": 25,
+      "sha256": "B4694995393AAE20FD1BB2446084CB86562380703DA5F5BC6C83E189638F0C9D"
+    },
+    {
+      "path": "final-abp/abp-clone.json",
+      "bytes": 742,
+      "sha256": "CAF794782E6A2676D3D159EA560E9001697D83FC2FF9FA8E6E51FD426481D18B"
+    },
+    {
+      "path": "final-abp/abp-clone.stderr.log",
+      "bytes": 111,
+      "sha256": "83EDCFD78611F1739994BE9F310B772274DE703BE2CD6A5FCBF4E3B91BFE4801"
+    },
+    {
+      "path": "final-abp/abp-clone.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-copy-assets.json",
+      "bytes": 528,
+      "sha256": "9675124CCD1F4C97EB0BD956CD46EB109655137D973AF027E9DF0D147668F023"
+    },
+    {
+      "path": "final-abp/abp-copy-assets.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-copy-assets.stdout.log",
+      "bytes": 62,
+      "sha256": "B0E3F64CCA9699AB07FC0D4A27D662FF198512279DA485FE5C81AC821E1815FE"
+    },
+    {
+      "path": "final-abp/abp-final-diff.json",
+      "bytes": 600,
+      "sha256": "12A02017C838FBEC9358A5C77ECC534ED1ED591C31369FFB71624D4612334F5E"
+    },
+    {
+      "path": "final-abp/abp-final-diff.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-final-diff.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-final-status.json",
+      "bytes": 571,
+      "sha256": "9C2C242EDFF543DCFA27CF54781A62D20FF2E6A9EBA57011E06E3AE8CFF800F8"
+    },
+    {
+      "path": "final-abp/abp-final-status.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-final-status.stdout.log",
+      "bytes": 27,
+      "sha256": "33E80B1F06A2B7C0492D93AEC2BB9DA1B1726A7F771369B55D890BC00992B12D"
+    },
+    {
+      "path": "final-abp/abp-head.json",
+      "bytes": 485,
+      "sha256": "AAEF1009D42CA281D298FB61F62EE31FACC65B4F149FBD9A6E05FA877B9C9619"
+    },
+    {
+      "path": "final-abp/abp-head.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-head.stdout.log",
+      "bytes": 41,
+      "sha256": "44998EAB1A24C9AA46D5319BE5E212632B68EA9F42E7001ECB471C81F2232E49"
+    },
+    {
+      "path": "final-abp/abp-restore.json",
+      "bytes": 1015,
+      "sha256": "986C7630AD3329C32FA448B18E25C0A5ACE42027DA2C6B0929FF80F5D1B4506B"
+    },
+    {
+      "path": "final-abp/abp-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-restore.stdout.log",
+      "bytes": 2801,
+      "sha256": "C7C0E38B328EC51FCA501C33EEA0F7DF219DA98072BC3B2EB13AF65DCB3C7135"
+    },
+    {
+      "path": "final-abp/abp-sdk.json",
+      "bytes": 469,
+      "sha256": "1824344B25667C31DF9328A09498228CF6C932F3395E606E158E9AAFA3297A6F"
+    },
+    {
+      "path": "final-abp/abp-sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/abp-sdk.stdout.log",
+      "bytes": 4229,
+      "sha256": "5DBE5B4C5A2E6BB0C81F6A4A74D767E4B37F715FE7E7E3354782F5104A69926A"
+    },
+    {
+      "path": "final-abp/abp-source.json",
+      "bytes": 593,
+      "sha256": "6FC2CD3320C7B69E08A20DA6D6FA9DDC18E78A7F21E186ECE81F18F06871B604"
+    },
+    {
+      "path": "final-abp/application.log",
+      "bytes": 31450,
+      "sha256": "2A751AE28C44462B9A069A8B8ED3B254A1CFF475AFBBC6D2E4FC02DE1ED1B6DD"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetHttpJourneyTests.json",
+      "bytes": 1037,
+      "sha256": "F57DFD521B5E722CE8AC397BC448F38E2321FB114416E25FE45B6499915E4481"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetHttpJourneyTests.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetHttpJourneyTests.stdout.log",
+      "bytes": 555,
+      "sha256": "D9CE9A0F3C6BD30AB44719D4667A1A3D941623D32D02613F4CAB880DAAEFB17C"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetHttpJourneyTests.trx",
+      "bytes": 31024,
+      "sha256": "A12F683937038F8EF050F4DCE53ED72F362BFFE257FEC8CE716484A306D61203"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetPasskeyTests.json",
+      "bytes": 1025,
+      "sha256": "34C9DAF6FC00FA06A5B5AE1297479A22ED0BB6FB06AB5D97C247340DCD4CCE22"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetPasskeyTests.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetPasskeyTests.stdout.log",
+      "bytes": 551,
+      "sha256": "8D4A119C35F64D6892F5C8D2DD1A0981EB72B3496EA23D5415B8265364380C64"
+    },
+    {
+      "path": "final-abp/BookStoreSonnetPasskeyTests.trx",
+      "bytes": 3313,
+      "sha256": "7EF950CE6AABFAF0CB9829D36A7EA68F777D0E893D899736831AF46E90FB6205"
+    },
+    {
+      "path": "final-abp/manifest.json",
+      "bytes": 49748,
+      "sha256": "A61536D91A7239D930986F41163578BAB8094645D6C55317C4A4563C9EC01525"
+    },
+    {
+      "path": "final-abp/public-packages.json",
+      "bytes": 11181,
+      "sha256": "7466895769503C5AF5B453238BA9D23EE61DA619B809EF93205C2812DB0CBEC6"
+    },
+    {
+      "path": "final-abp/runtime.json",
+      "bytes": 46,
+      "sha256": "403997BD04D4722D8F6144F77D1209C5085236D32D939B06A31DC44DE610AF86"
+    },
+    {
+      "path": "public01/.owner",
+      "bytes": 32,
+      "sha256": "7F4E1198F77F54C2C2BA1648BD9F33D48FB0713A5779E6A76A81AB45CAC65429"
+    },
+    {
+      "path": "public01/manifest.json",
+      "bytes": 21028,
+      "sha256": "0C2E3E210922DE8B92A60C6F10920EC7CF428D6592623E45E97592DCBDB4968A"
+    },
+    {
+      "path": "public01/Matrix-build.json",
+      "bytes": 690,
+      "sha256": "06E4AA64416F4EBAAFF3D7B6F01EB99AE177E0BFF8653DDDFD567F9CB62C4684"
+    },
+    {
+      "path": "public01/Matrix-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/Matrix-build.stdout.log",
+      "bytes": 223,
+      "sha256": "B6DD65E4BE908CFD88AC9DA4287DD68017600727F0AC72231EAB0C8ED57DF867"
+    },
+    {
+      "path": "public01/Matrix-restore.json",
+      "bytes": 950,
+      "sha256": "03DE5C5265D687C1553E75CB0E1B0EA1A00B5F0EE4F271655470239038C68645"
+    },
+    {
+      "path": "public01/Matrix-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/Matrix-restore.stdout.log",
+      "bytes": 182,
+      "sha256": "9622AC548DF7ED72873E506DF12524F0F703F9F294944AA31B0B6CC8AE739446"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-exercise.json",
+      "bytes": 766,
+      "sha256": "A5BA5425DF1BD32573555B5A327CD065072801AF4B71FD0A95AA8ABD260DF8A4"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-exercise.stdout.log",
+      "bytes": 17418,
+      "sha256": "EC97ED27FE279CA4AEB54698FEF87B7BB03FA3D7B21B77698C1D799FAC89DCEF"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-reopen.json",
+      "bytes": 763,
+      "sha256": "67B442F4B4C08DB078B7F3AEA09320E211A348695E3A0DD30F6F4F779ABD8619"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/matrix-SonnetDB-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "public01/matrix-Sqlite-exercise.json",
+      "bytes": 761,
+      "sha256": "5B6788D4DC96FDEE5705062ACEC6FFCD9F5E57967A3C081577D1705564504F47"
+    },
+    {
+      "path": "public01/matrix-Sqlite-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/matrix-Sqlite-exercise.stdout.log",
+      "bytes": 16854,
+      "sha256": "4C7C58308A51136D05A05F060F3016298448F7144737D91ADC689F2F2F731ABC"
+    },
+    {
+      "path": "public01/matrix-Sqlite-reopen.json",
+      "bytes": 757,
+      "sha256": "25CFCD7FE37354E4C6173C35BDAADDE66BEA02C966A3D8F7AD9B4FC6068685BF"
+    },
+    {
+      "path": "public01/matrix-Sqlite-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/matrix-Sqlite-reopen.stdout.log",
+      "bytes": 5877,
+      "sha256": "03E27E0FA4328773AB98D26B6C8E14A0E61F56F32CC6B1E5D024289D6EE8B349"
+    },
+    {
+      "path": "public01/Original-build.json",
+      "bytes": 696,
+      "sha256": "B132A8D307831EA89A4EB0866FA82C5ABACC044EB78936B441CACBB5D9B16E66"
+    },
+    {
+      "path": "public01/Original-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/Original-build.stdout.log",
+      "bytes": 229,
+      "sha256": "1538BA2C063A8AA69B3F6F4E1B68239F331AF9A17449318328F0DD35D9A0834C"
+    },
+    {
+      "path": "public01/Original-restore.json",
+      "bytes": 956,
+      "sha256": "B82763D93052AFB6D5B81A8278A2516DD98FC81D3F8CDF087999CCAEE2C087A7"
+    },
+    {
+      "path": "public01/Original-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/Original-restore.stdout.log",
+      "bytes": 184,
+      "sha256": "1362E6420ED0F7E62EBBF7185897E20BE5121DCACD5D4820BB10445F51EAC790"
+    },
+    {
+      "path": "public01/original-SonnetDB-binary-key.json",
+      "bytes": 650,
+      "sha256": "CB131C0CE5D7598DCB9D7782CFDCE2A6022C6F72391E08861EDAB6B023646E77"
+    },
+    {
+      "path": "public01/original-SonnetDB-binary-key.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/original-SonnetDB-binary-key.stdout.log",
+      "bytes": 474,
+      "sha256": "EA087D35FCC1B47391F7DF30E8A24F3D375CBAC026B3A789EDC9DDEB3C867E45"
+    },
+    {
+      "path": "public01/original-SonnetDB-passkey-any.json",
+      "bytes": 652,
+      "sha256": "D6D15A612B4F284146D1F1B378DB4547BCA93ACBED6A9AD244320BAF9E191185"
+    },
+    {
+      "path": "public01/original-SonnetDB-passkey-any.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/original-SonnetDB-passkey-any.stdout.log",
+      "bytes": 945,
+      "sha256": "A3F3722BD401BB506CFBA696A0AE25C33BE896CB591F7565BAE9BDAA9D73F6CE"
+    },
+    {
+      "path": "public01/original-Sqlite-binary-key.json",
+      "bytes": 646,
+      "sha256": "A0C538C4397806311EAC716FDED87DD10BA7FD441AD68F57F562E0DBBA9F10CD"
+    },
+    {
+      "path": "public01/original-Sqlite-binary-key.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/original-Sqlite-binary-key.stdout.log",
+      "bytes": 492,
+      "sha256": "18CF9B36E98A644B5AA8A613DD17F133219CB0E1223A97FD066C6A65B1CAA7B4"
+    },
+    {
+      "path": "public01/original-Sqlite-passkey-any.json",
+      "bytes": 648,
+      "sha256": "1EAFD57D45C22606A3D4381E8AAB71863659535CF3B2DCCF6BF7F3C8ACBA2052"
+    },
+    {
+      "path": "public01/original-Sqlite-passkey-any.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/original-Sqlite-passkey-any.stdout.log",
+      "bytes": 969,
+      "sha256": "6A95FDBBA1543E984A8617CAFE20062119D17CAD0AE92C91B03B764A86505F8F"
+    },
+    {
+      "path": "public01/public-packages.json",
+      "bytes": 2324,
+      "sha256": "A00070CDB576DD119C1AC1EE4472406E1C5FE44C077F49CACD49EB66E68C9DB0"
+    },
+    {
+      "path": "public01/sdk.json",
+      "bytes": 460,
+      "sha256": "D2CF723AAC569FE70D5F19D68BF2E0A2DE8F153F586831AEA919DD5F24468AF2"
+    },
+    {
+      "path": "public01/sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "public01/sdk.stdout.log",
+      "bytes": 4155,
+      "sha256": "1F8E324F60FC14EAC2A814A23A92A7CD6EA0DD4A9630AABA5C32724DDBB32067"
+    },
+    {
+      "path": "remote03/.owner",
+      "bytes": 32,
+      "sha256": "E3AE1E89A9B6BDEC4929BFC00BD235E4C427CA9530E12D2BF18252623BAD790C"
+    },
+    {
+      "path": "remote03/manifest.json",
+      "bytes": 12610,
+      "sha256": "6C59BC94DFE26FEE65B9BADB5E396AD6CEB540AFA79D2EE95FDCC135B21C7DE6"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-exercise.json",
+      "bytes": 722,
+      "sha256": "B55DE2B11680BC4A846E56FE50C6A3259F23E2E77A6DE81F7B4796C8AA3883A5"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-exercise.stdout.log",
+      "bytes": 17468,
+      "sha256": "E1610D1499E07E980FAB6CE51E82A90E96E8851EC5409F5E3EC99C1C53AD453C"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-reopen.json",
+      "bytes": 718,
+      "sha256": "1B5853D35C4CE2B2B7F813048932B0629C2E59A0EE416548DDBE72159995B9F0"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/matrix-frame-http2-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "remote03/matrix-rest-exercise.json",
+      "bytes": 708,
+      "sha256": "CD3B8829092483B3B3EE9C7850E27EC2D051B81F05469CB79C01F8B58EA27036"
+    },
+    {
+      "path": "remote03/matrix-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/matrix-rest-exercise.stdout.log",
+      "bytes": 17468,
+      "sha256": "E1610D1499E07E980FAB6CE51E82A90E96E8851EC5409F5E3EC99C1C53AD453C"
+    },
+    {
+      "path": "remote03/matrix-rest-reopen.json",
+      "bytes": 704,
+      "sha256": "2FB64C7274E3B9FD9EC412A5A66EF26071DA26D141AE1A7A281FBC701B7766CE"
+    },
+    {
+      "path": "remote03/matrix-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/matrix-rest-reopen.stdout.log",
+      "bytes": 5879,
+      "sha256": "35B67F34C357E9B4BDEE9FB2DD0AD98ACA23045595CC16A6AEB996B62D583435"
+    },
+    {
+      "path": "remote03/protocol-frame-http2-exercise.json",
+      "bytes": 131288,
+      "sha256": "65543CB45DB209867B210369E06873577DF507C4A2F9B20254E6D1F7603A6B10"
+    },
+    {
+      "path": "remote03/protocol-frame-http2-reopen.json",
+      "bytes": 25955,
+      "sha256": "24C2C3493843CF34C7F8C0D11D1BDBA421B76DFF8885FD6955E57D10B71260B6"
+    },
+    {
+      "path": "remote03/protocol-rest-exercise.json",
+      "bytes": 136666,
+      "sha256": "622C1C3D6674CB81A9D074658758BC52843E51B0A26291B732F7782DE5923B47"
+    },
+    {
+      "path": "remote03/protocol-rest-reopen.json",
+      "bytes": 27835,
+      "sha256": "88C60D029467BA91827F0E65118F7DD30B584F895684CE4272E301CBF9E84EC9"
+    },
+    {
+      "path": "remote03/runtime.json",
+      "bytes": 40,
+      "sha256": "B627D98B717BA40F6524175D9FA5AE0AC51A9A220C7DE8EA627FADD10AFAE1A4"
+    },
+    {
+      "path": "remote03/server-frame-http2-exercise.json",
+      "bytes": 526,
+      "sha256": "A886E5142C9CA54D23F0CEAFA3AC3F9ABABBECD4AFA062ED718C03F357FD31B3"
+    },
+    {
+      "path": "remote03/server-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/server-frame-http2-exercise.stdout.log",
+      "bytes": 257424,
+      "sha256": "941AFA1644040D51ED84A9A766B93B928B32C96F760116A204552F848D7B6A01"
+    },
+    {
+      "path": "remote03/server-frame-http2-reopen.json",
+      "bytes": 526,
+      "sha256": "7DDE1D2E9995F8B5E387B0D25DF7A2821278F0F8DA7670C4EA628ACA8860D95C"
+    },
+    {
+      "path": "remote03/server-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/server-frame-http2-reopen.stdout.log",
+      "bytes": 59815,
+      "sha256": "89754973B72D529A9AFF7E7EE4D5CB4CE231FF510E3ECA55C4DF309C952AF3B4"
+    },
+    {
+      "path": "remote03/server-rest-exercise.json",
+      "bytes": 519,
+      "sha256": "61BB7467E02BF02B3E12FE5FFC1E26ECBB276E9AD88935BE0C058CBEB34E1BE6"
+    },
+    {
+      "path": "remote03/server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/server-rest-exercise.stdout.log",
+      "bytes": 268469,
+      "sha256": "5622BB6808CAB47460107C13D7C75BAFF828BE96D0C4BD713E733666A8945C66"
+    },
+    {
+      "path": "remote03/server-rest-reopen.json",
+      "bytes": 519,
+      "sha256": "4B144D8DA36178FE482EF2D6970CC504DDFB7ED90E713543D349E597B83F46D9"
+    },
+    {
+      "path": "remote03/server-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "remote03/server-rest-reopen.stdout.log",
+      "bytes": 63672,
+      "sha256": "48DA6B6E3C92BAB4A0646C1909068CD128BC3B026AD1565162397D0CD0534732"
+    },
+    {
+      "path": "remote03/server-snapshot.json",
+      "bytes": 86454,
+      "sha256": "1EC30A79B2537DCF33F90EBEAAE13D110A164CDE615033C981D87350EBE42223"
+    },
+    {
+      "path": "abp01/.owner",
+      "bytes": 32,
+      "sha256": "B2B4763C973B1CF3EAC24D49B54C0680B5914C582FC3545844AECBA19F488D90"
+    },
+    {
+      "path": "abp01/abp-build.json",
+      "bytes": 740,
+      "sha256": "19238D0BED81CA2DE87349ED037C3BEAE09A38F143ED0D440A308CC07968485A"
+    },
+    {
+      "path": "abp01/abp-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-build.stdout.log",
+      "bytes": 3038,
+      "sha256": "A4DDF43D5E249A2F407D4A59BA082C18F811DD4D31914C174B1A3BF7D762E031"
+    },
+    {
+      "path": "abp01/abp-checkout.json",
+      "bytes": 582,
+      "sha256": "C6B268B26B2E98D7EE6039003A5942B3DA7376C345EFB7FB6DA8627393D8B22C"
+    },
+    {
+      "path": "abp01/abp-checkout.stderr.log",
+      "bytes": 91,
+      "sha256": "7EECA5C8CD7DF07B2579039302487A3F31A3D749880CD2FB307444261EB02EC5"
+    },
+    {
+      "path": "abp01/abp-checkout.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-client-libraries.json",
+      "bytes": 686,
+      "sha256": "A9EAFDC8C1DFBC66735947FEEA3335A19BE1B9296110A65823C9754F34724A7A"
+    },
+    {
+      "path": "abp01/abp-client-libraries.stderr.log",
+      "bytes": 209,
+      "sha256": "0D5BD0B3D93E24D8B2D74BE2B937F0D2EE36B197047FC51812CBB5D4D5237617"
+    },
+    {
+      "path": "abp01/abp-client-libraries.stdout.log",
+      "bytes": 25,
+      "sha256": "090A24DAAB7F2EC872313F16724EA48BF6DA5350821907F73FE54A155FF0F528"
+    },
+    {
+      "path": "abp01/abp-clone.json",
+      "bytes": 738,
+      "sha256": "28F2FA407213132303F47CFBB1B879E2280CA8CD12A32D6C5DE35CBDA534202C"
+    },
+    {
+      "path": "abp01/abp-clone.stderr.log",
+      "bytes": 107,
+      "sha256": "A4A0F69B56C6B5328C8022BE96325759D91A89AADD7C291AADFA8AD30E8D332F"
+    },
+    {
+      "path": "abp01/abp-clone.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-copy-assets.json",
+      "bytes": 524,
+      "sha256": "4205167E5F97A3ABF325ECA47D8866AC7106126DE26158E29B12C9BF000D03C7"
+    },
+    {
+      "path": "abp01/abp-copy-assets.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-copy-assets.stdout.log",
+      "bytes": 62,
+      "sha256": "E28A6DA9648A4EB8AB365FAE7A6D29C470D99F535483FA585B3D660B9719B8BC"
+    },
+    {
+      "path": "abp01/abp-final-diff.json",
+      "bytes": 596,
+      "sha256": "001CB1D0D09B375D1B61FCF1817E65B82798CBFCC42EE3D789A41C96134DFE2B"
+    },
+    {
+      "path": "abp01/abp-final-diff.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-final-diff.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-final-status.json",
+      "bytes": 567,
+      "sha256": "E881FFF5A19ADD9E6B5CB778B396ABE849AF4B9797531946F3867B7CEF0C4B82"
+    },
+    {
+      "path": "abp01/abp-final-status.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-final-status.stdout.log",
+      "bytes": 27,
+      "sha256": "33E80B1F06A2B7C0492D93AEC2BB9DA1B1726A7F771369B55D890BC00992B12D"
+    },
+    {
+      "path": "abp01/abp-head.json",
+      "bytes": 481,
+      "sha256": "33DDB561E62D2E2AE0E955E73AC0EEA8D526B21092ADD2619A81BD35DE78E013"
+    },
+    {
+      "path": "abp01/abp-head.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-head.stdout.log",
+      "bytes": 41,
+      "sha256": "44998EAB1A24C9AA46D5319BE5E212632B68EA9F42E7001ECB471C81F2232E49"
+    },
+    {
+      "path": "abp01/abp-restore.json",
+      "bytes": 1003,
+      "sha256": "609E1DD5690C08C08AB0717E72ACFDA3DA55516B7E60042311DDB455F7E591A2"
+    },
+    {
+      "path": "abp01/abp-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-restore.stdout.log",
+      "bytes": 2752,
+      "sha256": "26284A252C128418739AB8029726E89F122A10111D65BFA147B24A0D80E95F2A"
+    },
+    {
+      "path": "abp01/abp-sdk.json",
+      "bytes": 464,
+      "sha256": "33BD8830D0D00F1EDA7B970ED870AD06B5FACE4BFAFBA38372D9CB1AC2F60E61"
+    },
+    {
+      "path": "abp01/abp-sdk.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/abp-sdk.stdout.log",
+      "bytes": 4225,
+      "sha256": "A57B30B1DFE6E748632204AAC5DC06C1A881F87E6445DD091C7BBB9034F3FFA0"
+    },
+    {
+      "path": "abp01/abp-source.json",
+      "bytes": 593,
+      "sha256": "C51711F8B59EEB22865B6F91448BD704E246E841BD79474A7F818865FF843C32"
+    },
+    {
+      "path": "abp01/account-with-assets.json",
+      "bytes": 995,
+      "sha256": "DEE5C3F22A197439DD8531C60C15286C4E1FF0AFE98078138387211B94E4C4B8"
+    },
+    {
+      "path": "abp01/account-with-assets.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/account-with-assets.stdout.log",
+      "bytes": 536,
+      "sha256": "B416ECC899CAD7F4D3E1B2A5A0BB0230A33F2370A1EFDB16AE0E64AA1F2BAEDB"
+    },
+    {
+      "path": "abp01/account-with-assets.trx",
+      "bytes": 31011,
+      "sha256": "85B901E22FE0F311DC54D55ED9459DF0318C78D6BCA1095D540E2DCD10397D80"
+    },
+    {
+      "path": "abp01/application.log",
+      "bytes": 32672,
+      "sha256": "7353B92982088CEC41CA7DC043C1E3E10359AE1BDFF11CB9DEBD01026C1E660F"
+    },
+    {
+      "path": "abp01/BookStoreSonnetHttpJourneyTests.json",
+      "bytes": 1025,
+      "sha256": "D8C1D7734C142F22026FD8CD907B5767B36C56293B62CE91C5A4A1EE2ABE8D91"
+    },
+    {
+      "path": "abp01/BookStoreSonnetHttpJourneyTests.stderr.log",
+      "bytes": 184,
+      "sha256": "23EE7779FB3128B91C3DB0E84E7E9573D60F8CA960B00E45D279FB0E33748C6C"
+    },
+    {
+      "path": "abp01/BookStoreSonnetHttpJourneyTests.stdout.log",
+      "bytes": 2261,
+      "sha256": "C84438D711B6AADD36C75BE7E4000AD2E5BC561F25FF2EBEFD400BE440C19E3B"
+    },
+    {
+      "path": "abp01/BookStoreSonnetHttpJourneyTests.trx",
+      "bytes": 8222,
+      "sha256": "A1334835430C7C9CCB639AA7E67BC70BC8E701CE0E7DCD4CC9BF9D930295E017"
+    },
+    {
+      "path": "abp01/BookStoreSonnetPasskeyTests.json",
+      "bytes": 1013,
+      "sha256": "888A452265E1FEB65092785DD066A3A85E0C3006D2ECAA4F9CF5389F69E1315C"
+    },
+    {
+      "path": "abp01/BookStoreSonnetPasskeyTests.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "abp01/BookStoreSonnetPasskeyTests.stdout.log",
+      "bytes": 543,
+      "sha256": "9AF39A282BADA31B5E3440CF135A473BF4503E55E1245B94AC30CFAD9564085B"
+    },
+    {
+      "path": "abp01/BookStoreSonnetPasskeyTests.trx",
+      "bytes": 3305,
+      "sha256": "1C8602145F83823E8D090FAA215C7455993DA1285988724B9F1EB04F10209A1D"
+    },
+    {
+      "path": "abp01/manifest.json",
+      "bytes": 49825,
+      "sha256": "3A47A81AC61794F3BCF7781D5FFF0B34A130134EDDE8817051E9DEE557F0EC99"
+    },
+    {
+      "path": "abp01/public-packages.json",
+      "bytes": 11077,
+      "sha256": "5D24F817E8F57D90F55F194284701720EFEEA2786A98D885349AF35C10BB5CC3"
+    }
+  ],
+  "serverProcessExitAudit": [
+    {
+      "receipt": "server-frame-http2-exercise.json",
+      "pid": 51984,
+      "startTimeUtc": "2026-10-15T23:03:46.4400187Z",
+      "sameProcessRunning": false
+    },
+    {
+      "receipt": "server-frame-http2-reopen.json",
+      "pid": 19372,
+      "startTimeUtc": "2026-10-15T23:03:49.53703Z",
+      "sameProcessRunning": false
+    },
+    {
+      "receipt": "server-rest-exercise.json",
+      "pid": 51744,
+      "startTimeUtc": "2026-10-15T23:03:40.5689706Z",
+      "sameProcessRunning": false
+    },
+    {
+      "receipt": "server-rest-reopen.json",
+      "pid": 70648,
+      "startTimeUtc": "2026-10-15T23:03:43.8268599Z",
+      "sameProcessRunning": false
+    }
+  ],
+  "originalIssue": {
+    "sha256": "B0BA0155F280EED94030AD6E7F1021858F4071F56195C4DACFE0FBAE863260D8",
+    "originalProgramMatchesOnlineIgnoringLineEndingsAndTrailingWhitespace": true,
+    "snapshot": "C:\\Users\\mysti\\.codex\\worktrees\\issue271-public-blob\\SonnetDB\\artifacts\\issue-271-public-20261016\\issue-online.json"
+  }
+}

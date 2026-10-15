@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SonnetDB.Core" Version="4.5.0-preview.ef266.5" />
+    <PackageReference Include="SonnetDB" Version="4.5.0-preview.ef266.5" />
+    <PackageReference Include="SonnetDB.EntityFrameworkCore" Version="4.5.0-preview.ef266.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+  </ItemGroup>
+</Project>

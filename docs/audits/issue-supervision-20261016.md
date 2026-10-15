@@ -59,6 +59,8 @@
 
 ## 倒序批次02：公开包原复现验收
 
+#272已通过完整门禁并独立提交 `d461f8ab`。#271十七文件已按SHA集成，根复审并核16源、240证据、12运行二进制及最终两份1/1 ABP TRX；报告[公开包BLOB与Passkey验收](issue-271-public-package-20261016.md)明确公开客户端、源码宿主及TestServer应用各自边界。原Issue合同满足，仍须完整门禁/独立提交/批次推送及GitHub回读。`/root/issue314`接续唯一#263，树`issue263-public-integers`；`/root/issue312`继续#264；`/root/issue313`尚在#270最终冻结，#262树准备但未派发。
+
 2026-10-16 后续：#272 已完成公开包原复现及五阶段迁移（SonnetDB/SQLite共12个独立进程全exit 0），交付9文件冻结，根核清单与真实回执后待串行提交。`/root/issue312` 已接续唯一 #264（工作树 `issue264-public-decimal`，基线285186b8），先验公开包原DECIMAL复现及真实Chloe候选，正式稳定发行条件仍独立保留。#270/#271继续当前应用及真实传输验收。
 
 #272九文件已按SHA集成，根另核最终198份证据文件和18条命令记录；原Issue要求的嵌入式命名FK合同满足，待完整门禁、独立提交及批次推送回读后关闭。完整结果见[公开包报告](issue-272-public-package-20261016.md)。#243测试合同修正已通过完整门禁并独立提交 `81095ad0`；#270/#271最终交付仍待冻结复审。下一#263/#262管理树已准备（`issue263-public-integers` / `issue262-datetime-contract`，285186b8），尚未派发；所有新大缓存/产物在D盘，数据库/TEMP用短D路径。#272最终运行证据也完整迁D并逐文件核SHA，原路径保留junction，记录在`relocated-caches-272/final-relocation.json`，没有丢弃缓存或日志内容。
