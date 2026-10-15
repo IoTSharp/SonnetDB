@@ -186,19 +186,18 @@ public sealed class SqlSafeDdlEvolutionTests : IDisposable
         {
             SqlExecutor.Execute(db, "CREATE TABLE devices (code STRING NOT NULL)");
             Assert.Empty(db.Tables.Catalog.TryGet("devices")!.PrimaryKey);
-            var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-                db, "INSERT INTO devices (code) VALUES ('blocked')"));
-            Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
-            Assert.Equal(error.ErrorCode, SqlErrorMapper.Map(error, "insert").Code);
+            SqlExecutor.Execute(db, "INSERT INTO devices (code) VALUES ('keyless'), ('keyless')");
+            Assert.Equal(2, Select(db, "SELECT code FROM devices").Rows.Count);
+            SqlExecutor.Execute(db, "DELETE FROM devices WHERE code='keyless'");
             Assert.Empty(Select(db, "SELECT code FROM devices").Rows);
         }
 
         using (var db = Open())
         {
             SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN id INT AUTO_INCREMENT");
-            var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-                db, "INSERT INTO devices (code) VALUES ('blocked')"));
-            Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
+            SqlExecutor.Execute(db, "INSERT INTO devices (code) VALUES ('generated')");
+            Assert.Equal(1L, Assert.Single(Select(db, "SELECT id FROM devices").Rows)[0]);
+            SqlExecutor.Execute(db, "TRUNCATE TABLE devices");
             SqlExecutor.Execute(db, "ALTER TABLE devices ADD CONSTRAINT pk_devices PRIMARY KEY (id)");
             SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN version INT ROWVERSION");
             SqlExecutor.Execute(db, "INSERT INTO devices (code) VALUES ('first'), ('second')");

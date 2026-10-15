@@ -4,5 +4,5 @@ namespace SonnetDB.Tables;
 /// 关系表行快照。
 /// </summary>
 /// <param name="Values">按 schema 列顺序排列的值。</param>
-/// <param name="PrimaryKey">编码后的主键字节副本。</param>
+/// <param name="PrimaryKey">编码后的主键字节副本；无显式主键表为引擎管理的不透明持久行身份，不属于 SQL 列。</param>
 public sealed record TableRow(IReadOnlyList<object?> Values, ReadOnlyMemory<byte> PrimaryKey = default);

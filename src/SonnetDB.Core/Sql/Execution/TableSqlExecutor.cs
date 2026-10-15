@@ -918,6 +918,8 @@ internal static class TableSqlExecutor
 
     private static void ValidateConflictTarget(TableSchema schema, IReadOnlyList<string> targetColumns)
     {
+        if (schema.PrimaryKey.Count == 0)
+            throw new NotSupportedException("无主键关系表首版不支持 ON CONFLICT；请使用普通 INSERT 或 WHERE UPDATE。");
         if (targetColumns.Count == 0)
             return;
 
@@ -1147,6 +1149,8 @@ internal static class TableSqlExecutor
         }
 
         var store = tsdb is null ? null : tsdb.Tables.Open(schema.Name);
+        if (schema.PrimaryKey.Count == 0 && store is not null)
+            transaction.RecordAutoIncrementReservation(schema.Name, store.ReserveRowIdentityGeneration());
         List<TableRow> visibleRows = statement.OnConflict is null
             ? []
             : transaction.TryGetBufferedMutations(schema.Name, out var buffered)
@@ -1484,7 +1488,7 @@ internal static class TableSqlExecutor
                     return CreateRowsAffectedResult(schema.Name, 0, "delete", returningColumns, returningRows);
                 SqlRowRetentionBudget.RetainForExecution(row.Values);
                 var mutation = new TableRowMutation(keyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
-                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) };
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values), EncodedRowIdentity = schema.PrimaryKey.Count == 0 ? row.PrimaryKey.ToArray() : null };
                 if (returningColumns.Length != 0)
                     returningRows.Add(row.Values.ToArray());
                 _ = tsdb.Tables.ApplyTransaction(
@@ -1509,7 +1513,7 @@ internal static class TableSqlExecutor
                 var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
                 SqlRowRetentionBudget.RetainForExecution(row.Values);
                 mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values))
-                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+                { ExpectedRowState = TableRowCodec.Encode(schema, row.Values), EncodedRowIdentity = schema.PrimaryKey.Count == 0 ? row.PrimaryKey.ToArray() : null });
                 if (returningColumns.Length != 0)
                     returningRows.Add(row.Values.ToArray());
             }
@@ -1608,7 +1612,7 @@ internal static class TableSqlExecutor
             SqlRowRetentionBudget.RetainForExecution(values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
-            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values), EncodedRowIdentity = schema.PrimaryKey.Count == 0 ? row.PrimaryKey.ToArray() : null });
             if (returningColumns.Count != 0)
                 returningRows.Add(values);
         }
@@ -1739,7 +1743,7 @@ internal static class TableSqlExecutor
             SqlRowRetentionBudget.RetainForExecution(values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion)
-            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values), EncodedRowIdentity = schema.PrimaryKey.Count == 0 ? row.PrimaryKey.ToArray() : null });
             transitionBudget?.Add(row.Values, values);
             rowChanges.Add(new TableRowChange(schema, row.Values, values));
             if (returningColumns.Length != 0)
@@ -1770,6 +1774,8 @@ internal static class TableSqlExecutor
         SqlTransactionContext? transaction,
         out IReadOnlyList<TableRowChange> changes)
     {
+        if (schema.PrimaryKey.Count == 0)
+            throw new NotSupportedException("无主键关系表暂不支持 JOIN/FROM UPDATE；请使用单表 WHERE UPDATE。");
         ValidateJoinUpdate(statement, tsdb, schema);
         var assignments = BindJoinAssignments(statement, schema);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1978,7 +1984,7 @@ internal static class TableSqlExecutor
             SqlRowRetentionBudget.RetainForExecution(row.Values);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values))
-            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values) });
+            { ExpectedRowState = TableRowCodec.Encode(schema, row.Values), EncodedRowIdentity = schema.PrimaryKey.Count == 0 ? row.PrimaryKey.ToArray() : null });
             transitionBudget?.Add(row.Values, null);
             rowChanges.Add(new TableRowChange(schema, row.Values, NewValues: null));
             if (returningColumns.Length != 0)
@@ -2377,6 +2383,8 @@ internal static class TableSqlExecutor
         TableStore store, TableSchema schema, IReadOnlyList<TableRowMutation> mutations,
         IReadOnlyList<TableRowMutation>? buffered)
     {
+        if (schema.PrimaryKey.Count == 0)
+            return;
         var targets = new HashSet<byte[]>(SonnetDB.Kv.KvKeyComparer.Instance);
         foreach (var mutation in mutations)
         {
@@ -4819,7 +4827,8 @@ internal static class TableSqlExecutor
         foreach (var row in baseRows)
         {
             SqlRowRetentionBudget.RetainForExecution(row.Values);
-            var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, row.Values));
+            var key = Convert.ToHexString(row.PrimaryKey.IsEmpty
+                ? TableKeyCodec.EncodePrimaryKey(schema, row.Values) : row.PrimaryKey.Span);
             if (byKey.TryAdd(key, row))
             {
                 order.Add(key);
@@ -4833,13 +4842,13 @@ internal static class TableSqlExecutor
         {
             if (mutation.PrimaryKeyValues is not null)
             {
-                var oldKey = Convert.ToHexString(TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues));
+                var oldKey = Convert.ToHexString(TableRowIdentity.TargetKey(schema, mutation));
                 byKey.Remove(oldKey);
             }
             if (mutation.NewValues is not null)
             {
                 SqlRowRetentionBudget.RetainForExecution(mutation.NewValues);
-                var pk = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                var pk = TableRowIdentity.CurrentKey(schema, mutation);
                 var key = Convert.ToHexString(pk);
                 var newRow = new TableRow(mutation.NewValues.ToArray(), pk);
                 if (orderedKeys.Add(key))
@@ -4882,7 +4891,7 @@ internal static class TableSqlExecutor
         bool allowNonEqualityExtraPredicates = false)
     {
         keyValues = Array.Empty<object?>();
-        if (where is null)
+        if (where is null || schema.PrimaryKey.Count == 0)
             return false;
 
         if (!TryCollectEqualityExpressions(

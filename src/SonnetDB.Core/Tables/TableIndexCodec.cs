@@ -306,7 +306,9 @@ internal static class TableIndexCodec
     {
         if (!string.IsNullOrWhiteSpace(index.JsonPath)
             || !entryKey.StartsWith(indexNamePrefix)
-            || !TableKeyCodec.IsEncodedPrimaryKey(schema, primaryKey))
+            || !(schema.PrimaryKey.Count == 0
+                ? TableRowIdentity.IsEncoded(primaryKey)
+                : TableKeyCodec.IsEncodedPrimaryKey(schema, primaryKey)))
         {
             throw new InvalidDataException("Table index: invalid covered entry header or primary key.");
         }

@@ -13,4 +13,7 @@ public sealed record TableRowMutation(
 {
     // SQL 事务保留最初读取的规范行编码，未声明 ROWVERSION 的表同样不能静默丢失更新。
     internal byte[]? ExpectedRowState { get; init; }
+
+    // 无显式主键时使用物理行身份；NULL 主键值仍表示 INSERT，空主键值列表表示既有行变更。
+    internal byte[]? EncodedRowIdentity { get; init; }
 }

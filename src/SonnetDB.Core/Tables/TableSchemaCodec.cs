@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 12;
+    private const int _formatVersion = 13;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -46,10 +46,37 @@ public static class TableSchemaCodec
     /// <param name="schemas">schema 列表。</param>
     /// <param name="tempSuffix">临时文件后缀。</param>
     public static void Save(string path, IReadOnlyList<TableSchema> schemas, string tempSuffix = ".tmp")
+        => SaveCore(path, schemas, tempSuffix, minimumVersion: 0);
+
+    /// <summary>在修改无主键行或执行需恢复的 schema 迁移前持久化 v13 兼容屏障。</summary>
+    internal static void SaveWithRecoveryBarrier(string path, IReadOnlyList<TableSchema> schemas, string tempSuffix = ".tmp")
+    {
+        SaveCore(path, schemas, tempSuffix, minimumVersion: 13);
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
+    }
+
+    /// <summary>读取已有目录的格式下限；目录保存不能悄悄退回旧引擎可读版本。</summary>
+    internal static int ReadFormatVersion(string path)
+    {
+        if (!File.Exists(path)) return 0;
+        using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        Span<byte> header = stackalloc byte[_headerSize];
+        source.ReadExactly(header);
+        if (!header[..8].SequenceEqual(_magic))
+            throw new InvalidDataException("TableSchema: invalid magic in header.");
+        int version = BinaryPrimitives.ReadInt32LittleEndian(header[8..]);
+        if (version is < 1 or > _formatVersion)
+            throw new InvalidDataException($"TableSchema: unsupported format version {version}.");
+        return version;
+    }
+
+    private static void SaveCore(string path, IReadOnlyList<TableSchema> schemas, string tempSuffix, int minimumVersion)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(schemas);
         ArgumentNullException.ThrowIfNull(tempSuffix);
+
+        minimumVersion = Math.Max(minimumVersion, ReadFormatVersion(path));
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string tmpPath = path + tempSuffix;
@@ -57,7 +84,7 @@ public static class TableSchemaCodec
         using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
         using (var bs = new BufferedStream(fs, 65536))
         {
-            Save(schemas, bs);
+            Save(schemas, bs, minimumVersion);
             bs.Flush();
             fs.Flush(flushToDisk: true);
         }
@@ -86,7 +113,7 @@ public static class TableSchemaCodec
         }
     }
 
-    private static IReadOnlyList<TableSchema> Load(Stream source)
+    internal static IReadOnlyList<TableSchema> Load(Stream source)
     {
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
@@ -301,11 +328,13 @@ public static class TableSchemaCodec
         return presence[0] == 0 ? null : ReadString(source, crc, context);
     }
 
-    private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
+    private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination, int minimumVersion)
     {
-        int version = schemas.Any(static schema => schema.Comment is not null
+        int version = schemas.Any(static schema => schema.PrimaryKey.Count == 0) ? 13
+            : schemas.Any(static schema => schema.Comment is not null
             || schema.Columns.Any(static column => column.Comment is not null || column.StringLength is not null))
-            ? _formatVersion : 11;
+                ? 12 : 11;
+        version = Math.Max(version, minimumVersion);
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
         {

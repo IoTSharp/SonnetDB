@@ -93,6 +93,14 @@ public sealed partial class TableManager : IDisposable
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadExisting(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
+        // 已发布的旧无主键表只能为空；在开放 rowstore 前升级兼容屏障，避免首次写入锁序反转。
+        if (Catalog.Snapshot().Any(static schema => schema.PrimaryKey.Count == 0))
+        {
+            if (TableSchemaCodec.ReadFormatVersion(SchemaPath) < 13)
+                TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, Catalog.Snapshot());
+            else
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(_rootDirectory);
+        }
         // 每个管理器只创建一个预算，避免各关系表独立限流后放大总读取并发。
         _diskReadBudget = new KvDiskReadBudget(
             _kvOptions.MaxConcurrentStateReads,
@@ -155,8 +163,12 @@ public sealed partial class TableManager : IDisposable
                     openedStore = OpenStoreLocked(schema);
                     var candidateSchemas = previousSchemas.ToList();
                     candidateSchemas.Add(schema);
-                    TableSchemaCodec.Save(SchemaPath, candidateSchemas);
+                    // 屏障保存的目录 flush 可能在 rename 后抛出；预先登记，失败必须恢复旧 schema。
                     catalogPersisted = true;
+                    if (schema.PrimaryKey.Count == 0)
+                        TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, candidateSchemas);
+                    else
+                        TableSchemaCodec.Save(SchemaPath, candidateSchemas);
                     AfterCatalogPersistedBeforePublishTestHook?.Invoke();
                     Catalog.Add(schema);
                 }
@@ -178,7 +190,10 @@ public sealed partial class TableManager : IDisposable
                     {
                         try
                         {
-                            TableSchemaCodec.Save(SchemaPath, previousSchemas, ".rollback.tmp");
+                            if (schema.PrimaryKey.Count == 0)
+                                TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, previousSchemas, ".rollback.tmp");
+                            else
+                                TableSchemaCodec.Save(SchemaPath, previousSchemas, ".rollback.tmp");
                         }
                         catch (Exception rollbackException)
                         {
@@ -1094,7 +1109,7 @@ public sealed partial class TableManager : IDisposable
                     if (mutation.NewValues is not null)
                     {
                         DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
-                        if (mutation.PrimaryKeyValues is not null
+                        if (schema.PrimaryKey.Count != 0 && mutation.PrimaryKeyValues is not null
                             && !TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues).AsSpan()
                                 .SequenceEqual(TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues)))
                             ValidatePrimaryKeyUpdate(tableName);
@@ -1557,10 +1572,10 @@ public sealed partial class TableManager : IDisposable
                 CheckCascadeExecution(transaction);
                 if (mutation.PrimaryKeyValues is not null)
                 {
-                    byte[] pkBytes = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
+                    byte[] pkBytes = TableRowIdentity.TargetKey(schema, mutation);
                     string pkText = Convert.ToHexString(pkBytes);
                     touchedSet.Add(pkText);
-                    if (mutation.NewValues is null && deletedSet.Add(pkText))
+                    if (mutation.NewValues is null && deletedSet.Add(pkText) && schema.PrimaryKey.Count != 0)
                         queue.Enqueue((tableName, mutation.PrimaryKeyValues));
                 }
             }
@@ -1593,7 +1608,7 @@ public sealed partial class TableManager : IDisposable
                 {
                     CheckCascadeExecution(transaction);
                     var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
-                    byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
+                    byte[] childPkBytes = childRow.PrimaryKey.ToArray();
                     string childPkText = Convert.ToHexString(childPkBytes);
 
                     if (fk.OnDelete == ForeignKeyAction.Cascade)
@@ -1606,8 +1621,10 @@ public sealed partial class TableManager : IDisposable
                             continue;
                         CountGeneratedCascadeRow();
                         childTouchedSet.Add(childPkText);
-                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
-                        queue.Enqueue((childSchema.Name, childPk));
+                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null)
+                        { EncodedRowIdentity = childSchema.PrimaryKey.Count == 0 ? childPkBytes : null });
+                        if (childSchema.PrimaryKey.Count != 0)
+                            queue.Enqueue((childSchema.Name, childPk));
                     }
                     else
                     {
@@ -1624,7 +1641,8 @@ public sealed partial class TableManager : IDisposable
                             nulledValues[column.Ordinal] = null;
                         }
 
-                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues));
+                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues)
+                        { EncodedRowIdentity = childSchema.PrimaryKey.Count == 0 ? childPkBytes : null });
                     }
                 }
             }

@@ -110,7 +110,7 @@ internal static class TableKeyCodec
                 TableConstraintException.SchemaEvolutionUnsupported,
                 schema.Name,
                 null,
-                $"table '{schema.Name}' 是无主键空表；写入前请先使用 ALTER TABLE 添加 PRIMARY KEY。");
+                $"table '{schema.Name}' 无显式主键，不能按主键定位行；请使用 INSERT 或带 WHERE 的 UPDATE/DELETE。");
     }
 
     private static int GetEncodedSize(TableColumn column, object value)

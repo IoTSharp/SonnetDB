@@ -197,6 +197,17 @@ public sealed partial class TableStore : IDisposable
     /// <summary>供 TableManager 在固定顺序下原子捕获多表快照的 rowstore 同步根。</summary>
     internal object SynchronizationRoot => _sync;
 
+    /// <summary>为无主键事务插入捕获代际与可串行化读令牌，二者在同一表锁内固定。</summary>
+    internal long ReserveRowIdentityGeneration()
+    {
+        using (AcquireReadLock())
+        {
+            ThrowIfDisposedLocked();
+            RecordSerializableReadLocked(_keyspace.LastSequence);
+            return _keyspace.Generation;
+        }
+    }
+
     /// <summary>供跨表并发回归在取得物理读取许可后建立确定性同步点。</summary>
     internal void ConfigureDiskReadTestHook(Action? readStarted)
         => _keyspace.ConfigureDiskReadTestHook(readStarted);
@@ -518,6 +529,7 @@ public sealed partial class TableStore : IDisposable
         lock (_sync)
         {
             var schema = _schema;
+            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
             var normalizedValues = values.ToArray();
             DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
             ApplyAutoIncrementLocked(schema, [normalizedValues]);
@@ -547,7 +559,7 @@ public sealed partial class TableStore : IDisposable
             DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
             ApplyAutoIncrementLocked(schema, [normalizedValues]);
             ValidateRow(schema, normalizedValues);
-            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
+            byte[] primaryKey = TableRowIdentity.InsertKey(schema, normalizedValues);
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             if (_keyspace.Get(rowKey) is not null)
                 throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
@@ -584,7 +596,7 @@ public sealed partial class TableStore : IDisposable
             foreach (var values in normalizedRows)
             {
                 ValidateRow(schema, values);
-                byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
+                byte[] primaryKey = TableRowIdentity.InsertKey(schema, values);
                 byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
                 if (!pendingRowKeys.Add(Convert.ToHexString(rowKey)))
                     throw new InvalidOperationException($"table '{schema.Name}' 中同一批 INSERT 存在重复主键。");
@@ -1687,7 +1699,8 @@ public sealed partial class TableStore : IDisposable
                             ToAutoIncrementValue(values[column.Ordinal]!, column.Name));
                     }
 
-                    var transformedPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
+                    var transformedPrimaryKey = schema.PrimaryKey.Count == 0
+                        ? primaryKey : TableKeyCodec.EncodePrimaryKey(schema, values);
                     if (!transformedPrimaryKey.AsSpan().SequenceEqual(primaryKey))
                         throw new InvalidOperationException("ALTER TABLE 当前不支持改变 PRIMARY KEY 值或列定义。");
 
@@ -1837,8 +1850,6 @@ public sealed partial class TableStore : IDisposable
 
     private void ApplyAutoIncrementLocked(TableSchema schema, IReadOnlyList<object?[]> rows)
     {
-        if (rows.Count > 0 && schema.PrimaryKey.Count == 0)
-            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
         var column = schema.AutoIncrementColumn;
         if (column is null || rows.Count == 0)
             return;
@@ -1865,8 +1876,6 @@ public sealed partial class TableStore : IDisposable
         TableSchema schema,
         IReadOnlyList<(object?[] Values, bool AllocateMissing)> rows)
     {
-        if (rows.Count > 0 && schema.PrimaryKey.Count == 0)
-            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
         var column = schema.AutoIncrementColumn;
         if (column is null || rows.Count == 0)
             return;
@@ -2470,7 +2479,7 @@ public sealed partial class TableStore : IDisposable
             var values = mutation.NewValues.ToArray();
             DecimalDeclarationValidator.NormalizeForWrite(schema, values);
             autoIncrementRows.Add((values, mutation.PrimaryKeyValues is null));
-            normalizedMutations.Add(mutation with { NewValues = values });
+            normalizedMutations.Add(TableRowIdentity.PrepareInsert(schema, mutation with { NewValues = values }));
         }
 
         ApplyAutoIncrementMutationsLocked(schema, autoIncrementRows);
@@ -2484,20 +2493,8 @@ public sealed partial class TableStore : IDisposable
             if (mutation.NewValues is not null)
                 ValidateRow(schema, mutation.NewValues);
 
-            byte[] primaryKey;
             bool isInsert = mutation.PrimaryKeyValues is null && mutation.NewValues is not null;
-            if (mutation.PrimaryKeyValues is not null)
-            {
-                primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
-            }
-            else if (mutation.NewValues is not null)
-            {
-                primaryKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
-            }
-            else
-            {
-                throw new InvalidOperationException("DELETE mutation 必须提供主键值。");
-            }
+            byte[] primaryKey = TableRowIdentity.TargetKey(schema, mutation);
 
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             string rowKeyText = Convert.ToHexString(rowKey);
@@ -2521,7 +2518,7 @@ public sealed partial class TableStore : IDisposable
             TableRow? newRow = null;
             if (mutation.NewValues is not null)
             {
-                byte[] newPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                byte[] newPrimaryKey = TableRowIdentity.CurrentKey(schema, mutation);
                 if (!pendingTargetKeys.Add(Convert.ToHexString(newPrimaryKey)))
                     throw new TableConstraintException(TableConstraintException.UniqueViolation,
                         schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键重复。");

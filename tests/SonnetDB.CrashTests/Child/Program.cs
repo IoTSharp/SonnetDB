@@ -28,6 +28,11 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_kill9_keyless_between_tables":
+    case "crash_kill9_keyless_before_complete":
+    case "crash_kill9_keyless_after_complete":
+        KeylessCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "crash_kill9_primary_key_rename_before_catalog":
     case "crash_kill9_primary_key_rename_after_catalog":
         RunKillPrimaryKeyRename(root, readyFile,

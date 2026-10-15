@@ -62,6 +62,7 @@ public sealed partial class SqlTransactionContext
         ArgumentNullException.ThrowIfNull(mutation);
         ThrowIfCompleted();
 
+        mutation = TableRowIdentity.PrepareInsert(schema, mutation);
         if (mutation.NewValues is not null)
             DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
 
@@ -114,7 +115,7 @@ public sealed partial class SqlTransactionContext
                     previous.PrimaryKeyValues,
                     mutation.NewValues,
                     previous.ExpectedRowVersion)
-                { ExpectedRowState = previous.ExpectedRowState });
+                { ExpectedRowState = previous.ExpectedRowState, EncodedRowIdentity = previous.EncodedRowIdentity });
                 return;
             }
 
@@ -130,7 +131,7 @@ public sealed partial class SqlTransactionContext
                 previous.PrimaryKeyValues,
                 mutation.NewValues,
                 previous.ExpectedRowVersion)
-            { ExpectedRowState = previous.ExpectedRowState });
+            { ExpectedRowState = previous.ExpectedRowState, EncodedRowIdentity = previous.EncodedRowIdentity });
             return;
 
             void Replace(TableRowMutation replacement)
@@ -138,7 +139,7 @@ public sealed partial class SqlTransactionContext
                 // 写集保留首次持久键及并发基线；查找索引跟随当前可见键，以便继续更新或删除。
                 byte[] previousKey = node.Value.Key;
                 byte[] nextKey = replacement.NewValues is null
-                    ? previousKey : TableKeyCodec.EncodePrimaryKey(schema, replacement.NewValues);
+                    ? previousKey : TableRowIdentity.CurrentKey(schema, replacement);
                 bool keyChanged = !KvKeyComparer.Instance.Equals(previousKey, nextKey);
                 if (keyChanged && buffer.ByKey.ContainsKey(nextKey))
                     throw new TableConstraintException(TableConstraintException.UniqueViolation,
@@ -166,7 +167,7 @@ public sealed partial class SqlTransactionContext
         void Append()
         {
             byte[] currentKey = mutation.NewValues is null
-                ? mutationKey : TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                ? mutationKey : TableRowIdentity.CurrentKey(schema, mutation);
             if (!KvKeyComparer.Instance.Equals(currentKey, mutationKey) && buffer.ByKey.ContainsKey(currentKey))
                 throw new TableConstraintException(TableConstraintException.UniqueViolation,
                     schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 中目标主键已存在。");
@@ -185,13 +186,7 @@ public sealed partial class SqlTransactionContext
     /// 获取 mutation 的规范主键字节；INSERT 从新行取键，其余操作使用显式主键值。
     /// </summary>
     private static byte[] GetMutationPrimaryKey(TableSchema schema, TableRowMutation mutation)
-    {
-        if (mutation.PrimaryKeyValues is not null)
-            return TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
-        if (mutation.NewValues is not null)
-            return TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
-        throw new InvalidOperationException("关系表 mutation 缺少主键和新行值。");
-    }
+        => TableRowIdentity.TargetKey(schema, mutation);
 
     /// <summary>
     /// 读取某表本事务已缓冲、尚未提交的变更序列（按加入顺序）。供 read-your-writes 叠加使用（#218）。
