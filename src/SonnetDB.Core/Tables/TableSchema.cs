@@ -745,8 +745,8 @@ public sealed class TableSchema
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var column = TryGetColumn(name)
             ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{name}'。");
-        if (column.IsPrimaryKey && (column.DataType != dataType || isNullable))
-            throw new InvalidOperationException("ALTER TABLE ALTER COLUMN 当前不支持修改 PRIMARY KEY 列的类型或空值约束。");
+        if (column.IsPrimaryKey && isNullable)
+            throw new InvalidOperationException("PRIMARY KEY 列不能允许 NULL。");
         if (column.IsRowVersion
             && (column.DataType != dataType || isNullable || defaultExpressionSql is not null))
         {

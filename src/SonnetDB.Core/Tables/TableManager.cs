@@ -89,6 +89,7 @@ public sealed partial class TableManager : IDisposable
         _schemaMutationGuard = schemaMutationGuard;
         Directory.CreateDirectory(_rootDirectory);
 
+        RecoverSchemaMigrationBeforeOpeningStores();
         Catalog = new TableCatalog();
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadExisting(schema);
@@ -545,7 +546,7 @@ public sealed partial class TableManager : IDisposable
             }
     }
 
-    /// <summary>空表重定义主键；已有行或被外键引用时拒绝变更。</summary>
+    /// <summary>有界迁移主键定义，并原子更新存量行、索引和受支持的外键引用。</summary>
     internal void AlterTablePrimaryKey(
         string tableName,
         IReadOnlyList<string> columns,
@@ -570,20 +571,7 @@ public sealed partial class TableManager : IDisposable
                         "当前主键元数据仅支持约定名称 pk_<table>，不能持久化自定义约束名。");
                 }
                 var updated = current.WithPrimaryKey(columns);
-                var store = OpenStoreLocked(current);
-                if (store.RowCount != 0)
-                    throw new TableConstraintException(
-                        TableConstraintException.SchemaEvolutionUnsupported,
-                        tableName,
-                        constraintName,
-                        "ALTER TABLE 修改 PRIMARY KEY 仅支持空表；已有行需要显式迁移。");
-                if (HasInboundForeignKeyLocked(tableName))
-                    throw new TableConstraintException(
-                        TableConstraintException.SchemaEvolutionUnsupported,
-                        tableName,
-                        constraintName,
-                        "ALTER TABLE 修改 PRIMARY KEY 前必须先移除引用该表的外键。");
-                ApplyMetadataSchemaLocked(current, updated, store);
+                ApplyPrimaryKeySchemaMigrationLocked(current, updated, static (_, row) => row.Values);
             }
     }
 
@@ -617,7 +605,8 @@ public sealed partial class TableManager : IDisposable
                 if (changesType)
                 {
                     ArgumentNullException.ThrowIfNull(convertValue);
-                    EnsureColumnTypeIsNotReferencedByForeignKeyLocked(current, currentColumn);
+                    if (!currentColumn.IsPrimaryKey)
+                        EnsureColumnTypeIsNotReferencedByForeignKeyLocked(current, currentColumn);
                 }
 
                 var updated = current.WithAlteredColumn(
@@ -631,6 +620,22 @@ public sealed partial class TableManager : IDisposable
                 if (changeStringLength)
                     updated = updated.WithColumnLength(columnName, stringLength);
                 var store = OpenStoreLocked(current);
+                TableColumn updatedColumn = updated.TryGetColumn(columnName)!;
+                if (currentColumn.IsPrimaryKey && (changesType
+                    || currentColumn.DecimalPrecision != updatedColumn.DecimalPrecision
+                    || currentColumn.DecimalScale != updatedColumn.DecimalScale
+                    || currentColumn.HasExplicitDecimalDeclaration != updatedColumn.HasExplicitDecimalDeclaration))
+                {
+                    ApplyPrimaryKeySchemaMigrationLocked(current, updated,
+                        (_, row) =>
+                        {
+                            var values = row.Values.ToArray();
+                            if (changesType && values[currentColumn.Ordinal] is not null)
+                                values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
+                            return values;
+                        }, validateDecimalValues);
+                    return;
+                }
                 if (!changesType)
                 {
                     if (currentColumn.IsNullable && !isNullable || validateDecimalValues is not null
@@ -902,6 +907,7 @@ public sealed partial class TableManager : IDisposable
         {
             ThrowIfDisposed();
             transaction.ThrowIfCompleted();
+            transaction.ValidateMutationSchemas(Catalog);
             CheckCascadeExecution(transaction);
             var original = transaction.SnapshotTableMutations();
             var expanded = ExpandCascadeDeletesLocked(original, metrics: null, transaction);

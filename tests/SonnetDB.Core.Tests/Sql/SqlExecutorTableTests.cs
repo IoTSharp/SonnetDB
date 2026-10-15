@@ -1916,7 +1916,7 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
-    public void AlterColumn_PrimaryKeyRowVersionAndForeignKeyTypeChanges_AreRejected()
+    public void AlterColumn_PrimaryKeyTypeMigrates_WhileRowVersionAndDirectForeignKeyChangesAreRejected()
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE TABLE parents (id INT, PRIMARY KEY (id))");
@@ -1930,8 +1930,7 @@ public sealed class SqlExecutorTableTests : IDisposable
             )
             """);
 
-        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
-            "ALTER TABLE children ALTER COLUMN id TYPE STRING"));
+        SqlExecutor.Execute(db, "ALTER TABLE children ALTER COLUMN id TYPE STRING");
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
             "ALTER TABLE children ALTER COLUMN id DROP NOT NULL"));
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
@@ -1948,7 +1947,7 @@ public sealed class SqlExecutorTableTests : IDisposable
             "ALTER TABLE children ALTER COLUMN parent_id TYPE STRING"));
 
         var schema = db.Tables.Catalog.TryGet("children")!;
-        Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("id")!.DataType);
+        Assert.Equal(TableColumnType.String, schema.TryGetColumn("id")!.DataType);
         Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("version")!.DataType);
         Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("parent_id")!.DataType);
         Assert.Single(schema.ForeignKeys);

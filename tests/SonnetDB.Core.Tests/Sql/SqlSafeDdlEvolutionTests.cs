@@ -144,22 +144,21 @@ public sealed class SqlSafeDdlEvolutionTests : IDisposable
     }
 
     [Fact]
-    public void AlterPrimaryKey_WithRowsOrForeignKey_RejectsWithoutSchemaChange()
+    public void AlterPrimaryKey_WithRowsOrForeignKey_MigratesSchemaAndRows()
     {
         using var db = Open();
         SqlExecutor.Execute(db, "CREATE TABLE parent (id INT, code STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "CREATE TABLE child (id INT, parent_id INT, PRIMARY KEY (id), FOREIGN KEY (parent_id) REFERENCES parent (id))");
-        var referenced = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-            db, "ALTER TABLE parent ALTER PRIMARY KEY (code)"));
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, referenced.ErrorCode);
-        Assert.Equal(["id"], db.Tables.Catalog.TryGet("parent")!.PrimaryKey);
+        SqlExecutor.Execute(db, "ALTER TABLE parent ALTER PRIMARY KEY (code)");
+        Assert.Equal(["code"], db.Tables.Catalog.TryGet("parent")!.PrimaryKey);
+        Assert.Equal(["code"], Assert.Single(db.Tables.Catalog.TryGet("child")!.ForeignKeys).PrincipalColumns);
+        Assert.Equal(TableColumnType.String, db.Tables.Catalog.TryGet("child")!.TryGetColumn("parent_id")!.DataType);
 
         SqlExecutor.Execute(db, "CREATE TABLE isolated (id INT, code STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO isolated (id, code) VALUES (1, 'one')");
-        var populated = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-            db, "ALTER TABLE isolated ALTER PRIMARY KEY (code)"));
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, populated.ErrorCode);
-        Assert.Equal(["id"], db.Tables.Catalog.TryGet("isolated")!.PrimaryKey);
+        SqlExecutor.Execute(db, "ALTER TABLE isolated ALTER PRIMARY KEY (code)");
+        Assert.Equal(["code"], db.Tables.Catalog.TryGet("isolated")!.PrimaryKey);
+        Assert.Equal(1L, Assert.Single(Select(db, "SELECT id FROM isolated WHERE code='one'").Rows)[0]);
     }
 
     [Fact]

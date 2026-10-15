@@ -62,6 +62,7 @@ public sealed partial class SqlTransactionContext
         ArgumentNullException.ThrowIfNull(mutation);
         ThrowIfCompleted();
 
+        RecordMutationSchema(schema);
         mutation = TableRowIdentity.PrepareInsert(schema, mutation);
         if (mutation.NewValues is not null)
             DecimalDeclarationValidator.ValidateForWrite(schema, mutation.NewValues);
@@ -192,10 +193,11 @@ public sealed partial class SqlTransactionContext
     /// 读取某表本事务已缓冲、尚未提交的变更序列（按加入顺序）。供 read-your-writes 叠加使用（#218）。
     /// 无缓冲变更时返回 <c>false</c>。
     /// </summary>
-    internal bool TryGetBufferedMutations(string tableName, out IReadOnlyList<TableRowMutation> mutations)
+    internal bool TryGetBufferedMutations(TableSchema schema, out IReadOnlyList<TableRowMutation> mutations)
     {
-        if (!_completed && _tableMutations.TryGetValue(tableName, out var buffer) && buffer.Rows.Count > 0)
+        if (!_completed && _tableMutations.TryGetValue(schema.Name, out var buffer) && buffer.Rows.Count > 0)
         {
+            ValidateMutationSchema(schema);
             mutations = buffer.Snapshot();
             return true;
         }
@@ -380,6 +382,7 @@ public sealed partial class SqlTransactionContext
         _completed = true;
         _undo.Clear();
         _tableMutations.Clear();
+        _mutationSchemas.Clear();
         _serializableReads.Clear();
         _serializableReservationAdvances.Clear();
         _autoIncrementReservationGenerations.Clear();

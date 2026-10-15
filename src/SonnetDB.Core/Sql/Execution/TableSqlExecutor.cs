@@ -1153,7 +1153,7 @@ internal static class TableSqlExecutor
             transaction.RecordAutoIncrementReservation(schema.Name, store.ReserveRowIdentityGeneration());
         List<TableRow> visibleRows = statement.OnConflict is null
             ? []
-            : transaction.TryGetBufferedMutations(schema.Name, out var buffered)
+            : transaction.TryGetBufferedMutations(schema, out var buffered)
                 ? ApplyMutationOverlay(schema, store!.Scan(), buffered).ToList()
                 : store!.Scan().ToList();
         var mutations = new List<TableRowMutation>(valuesRows.Count);
@@ -1358,7 +1358,7 @@ internal static class TableSqlExecutor
                     && !ContainsPreviewFunction(statement.Where)))
             && !statement.Projections.Any(projection => ContainsPreviewFunction(projection.Expression))
             && (SqlTransactionContext.Current is not { } transaction
-                || !transaction.TryGetBufferedMutations(schema.Name, out _));
+                || !transaction.TryGetBufferedMutations(schema, out _));
         var projections = BuildProjections(statement.Projections, schema);
         if (statement.Pagination?.Fetch == 0)
             return new SelectExecutionResult(projections.Select(static projection => projection.ColumnName).ToArray(), [])
@@ -1705,7 +1705,7 @@ internal static class TableSqlExecutor
         var returningRows = new List<object?[]>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
-        if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        if (transaction.TryGetBufferedMutations(schema, out var buffered))
         {
             candidateRows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
                 store,
@@ -1954,7 +1954,7 @@ internal static class TableSqlExecutor
         var returningRows = new List<object?[]>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
-        if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        if (transaction.TryGetBufferedMutations(schema, out var buffered))
         {
             // 完整主键条件只需合并目标键；其他条件仍扫描叠加，避免漏掉事务内新增或改键行。
             candidateRows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
@@ -2005,7 +2005,7 @@ internal static class TableSqlExecutor
         SqlExpression where)
     {
         if (TableInSubqueryExecutor.ContainsInSubquery(where)
-            && transaction.TryGetBufferedMutations(schema.Name, out _))
+            && transaction.TryGetBufferedMutations(schema, out _))
         {
             throw new NotSupportedException(
                 $"轻事务中 table '{schema.Name}' 已有缓冲写时，不支持对该表执行带 IN 子查询的 UPDATE/DELETE。");
@@ -2029,6 +2029,7 @@ internal static class TableSqlExecutor
                     SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
             int CommitLocked()
             {
+                transaction.ValidateMutationSchemas(tsdb.Tables.Catalog);
                 // 延迟约束触发器与最终 mutation 快照共享 TableManager 锁，避免跨事务
                 // 的最终状态检查发生 write skew；触发器产生的 mutation 也纳入本次提交。
                 if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
@@ -2038,6 +2039,7 @@ internal static class TableSqlExecutor
                 SqlRoutineRuntime.ExecuteDeferredTriggers(tsdb, transaction);
                 if (transaction.IsolationLevel == SqlTransactionIsolationLevel.Serializable)
                     tsdb.Tables.ExpandSerializableCascades(transaction);
+                transaction.ValidateMutationSchemas(tsdb.Tables.Catalog);
                 var mutations = transaction.SnapshotTableMutations();
                 var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
                 foreach (var (tableName, expectedGeneration) in reservationGenerations)
@@ -3102,7 +3104,7 @@ internal static class TableSqlExecutor
         var plan = PlanExistsAccess(store, schema, where);
         var transaction = SqlTransactionContext.Current;
         IReadOnlyList<TableRow> rows;
-        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema, out var buffered))
             rows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
                 store,
                 schema,
@@ -3145,12 +3147,12 @@ internal static class TableSqlExecutor
         {
             // 显式预算模式不使用先物化候选全集的 IN/索引并集快路径。
             candidates = SqlTransactionContext.Current is { } boundedTransaction
-                && boundedTransaction.TryGetBufferedMutations(schema.Name, out var boundedMutations)
+                && boundedTransaction.TryGetBufferedMutations(schema, out var boundedMutations)
                 ? ApplyMutationOverlay(schema, store.EnumerateScan(), boundedMutations)
                 : store.EnumerateScan();
         }
         else if (SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+            && transaction.TryGetBufferedMutations(schema, out var buffered))
         {
             candidates = TryLoadPrimaryKeyCandidateRowsWithOverlay(
                 store,
@@ -3304,7 +3306,7 @@ internal static class TableSqlExecutor
         }
 
         if (SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(schema.Name, out _))
+            && transaction.TryGetBufferedMutations(schema, out _))
         {
             return CreateTransactionOverlayExistsPlan(where);
         }
@@ -3398,7 +3400,7 @@ internal static class TableSqlExecutor
             return false;
 
         if (SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(schema.Name, out _))
+            && transaction.TryGetBufferedMutations(schema, out _))
         {
             fallbackReason = "transaction_overlay_requires_scan";
             return false;
@@ -3724,7 +3726,7 @@ internal static class TableSqlExecutor
 
         var transaction = SqlTransactionContext.Current;
         var plan = PlanExistsAccess(store, schema, where);
-        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema, out var buffered))
         {
             if (TryLoadPrimaryKeyCandidateRowsWithOverlay(
                 store,
@@ -3824,7 +3826,7 @@ internal static class TableSqlExecutor
         IReadOnlyList<Projection> projections)
     {
         var transaction = SqlTransactionContext.Current;
-        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema, out var buffered))
         {
             if (TryLoadPrimaryKeyCandidateRowsWithOverlay(
                 store,
@@ -4099,7 +4101,7 @@ internal static class TableSqlExecutor
             || statement.OrderByList.Count == 0
             || !TryGetPaginationCandidateLimit(statement.Pagination, out candidateLimit)
             || (SqlTransactionContext.Current is { } transaction
-                && transaction.TryGetBufferedMutations(schema.Name, out _)))
+                && transaction.TryGetBufferedMutations(schema, out _)))
         {
             return false;
         }
@@ -4311,7 +4313,7 @@ internal static class TableSqlExecutor
             || !TryGetPaginationCandidateLimit(statement.Pagination, out _)
             || ContainsDisjunctionOrIn(where)
             || (SqlTransactionContext.Current is { } transaction
-                && transaction.TryGetBufferedMutations(schema.Name, out _)))
+                && transaction.TryGetBufferedMutations(schema, out _)))
         {
             return false;
         }
@@ -5871,7 +5873,7 @@ internal static class TableSqlExecutor
         => ConvertTableValue(EvaluateDefaultExpression(column.DataType == TableColumnType.Decimal
             ? SqlScalarOperations.InDecimalContext(expression) : expression), column);
 
-    private static object? EvaluateAndConvertSchemaDefault(SqlExpression expression, TableColumn column)
+    internal static object? EvaluateAndConvertSchemaDefault(SqlExpression expression, TableColumn column)
         => ConvertTableValueForSchemaChange(EvaluateDefaultExpression(column.DataType == TableColumnType.Decimal
             ? SqlScalarOperations.InDecimalContext(expression) : expression, column.DataType == TableColumnType.Decimal), column);
 
@@ -5956,7 +5958,7 @@ internal static class TableSqlExecutor
     /// Schema 迁移使用的严格类型转换。普通 INSERT 保持既有的数值兼容转换，
     /// 但 ALTER COLUMN 不能静默舍入或丢失整数精度。
     /// </summary>
-    private static object? ConvertTableValueForSchemaChange(object? value, TableColumn column)
+    internal static object? ConvertTableValueForSchemaChange(object? value, TableColumn column)
     {
         if (column.DataType == TableColumnType.Decimal && value is not null)
             return DecimalDeclarationValidator.ConvertExact(value, column.Name);
@@ -5989,7 +5991,22 @@ internal static class TableSqlExecutor
             if (!double.IsFinite(floatingTarget))
                 throw LossySchemaConversion(value, column);
 
-            if (TryGetIntegerNumeric(value, out var integerSource))
+            object precisionSource = value;
+            if (value is string numericText)
+            {
+                if (numericText.Length > 1024)
+                    throw LossySchemaConversion(value, column);
+                if (BigInteger.TryParse(numericText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var textInteger))
+                {
+                    if (floatingTarget != Math.Truncate(floatingTarget) || new BigInteger(floatingTarget) != textInteger)
+                        throw LossySchemaConversion(value, column);
+                    return converted;
+                }
+                // decimal.TryParse 可能越界返回 false 或先舍入文本；不能因此跳过无损检查。
+                // 非整数字面量只有能严格落入 Decimal 实际值域时才尝试既有往返校验。
+                precisionSource = DecimalDeclarationValidator.ConvertExact(numericText, column.Name);
+            }
+            if (TryGetIntegerNumeric(precisionSource, out var integerSource))
             {
                 if (floatingTarget != Math.Truncate(floatingTarget)
                     || new BigInteger(floatingTarget) != integerSource)
@@ -5997,7 +6014,7 @@ internal static class TableSqlExecutor
                     throw LossySchemaConversion(value, column);
                 }
             }
-            else if (TryGetDecimalNumeric(value, out var floatingSource))
+            else if (TryGetDecimalNumeric(precisionSource, out var floatingSource))
             {
                 decimal roundTripped;
                 try

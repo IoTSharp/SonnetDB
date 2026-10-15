@@ -42,7 +42,7 @@ internal static class TableCostPlanner
         ArgumentNullException.ThrowIfNull(schema);
 
         if (SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(schema.Name, out _))
+            && transaction.TryGetBufferedMutations(schema, out _))
         {
             return new TableAccessCostEstimate(
                 "table_scan",

@@ -1000,7 +1000,7 @@ internal static partial class RelationalSelectExecutor
     {
         long rows = tsdb.Tables.Open(schema.Name).RowCount;
         if (SqlTransactionContext.Current is not { } transaction
-            || !transaction.TryGetBufferedMutations(schema.Name, out var mutations))
+            || !transaction.TryGetBufferedMutations(schema, out var mutations))
         {
             return rows;
         }
@@ -2710,7 +2710,7 @@ internal static partial class RelationalSelectExecutor
 
     private static bool HasTransactionOverlay(string tableName)
         => SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(tableName, out _);
+            && transaction.HasBufferedMutations(tableName);
 
     private static bool AreMergeTypesCompatible(TableColumnType? left, TableColumnType? right)
         => left == right && left is TableColumnType.Boolean
