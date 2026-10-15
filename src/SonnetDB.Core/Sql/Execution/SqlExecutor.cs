@@ -2869,7 +2869,7 @@ public static class SqlExecutor
             && tsdb.Measurements.TryGet(update.TableName) is { } measurementSchema)
         {
             if (transaction is not null)
-                throw new NotSupportedException("轻事务当前不支持 measurement VECTOR UPDATE。");
+                throw new NotSupportedException("轻事务当前不支持 measurement FIELD UPDATE。");
             return MeasurementVectorUpdateExecutor.Execute(tsdb, update, measurementSchema);
         }
 

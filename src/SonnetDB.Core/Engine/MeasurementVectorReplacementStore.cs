@@ -8,7 +8,7 @@ using SonnetDB.Storage.Format;
 namespace SonnetDB.Engine;
 
 /// <summary>
-/// 使用内部 KV 原子批次 WAL 保存 measurement VECTOR 的逻辑替换值。
+/// 使用内部 KV 原子批次 WAL 保存 measurement 数值或 VECTOR 的逻辑替换值。
 /// 旧时序点仍留在原段；查询按逻辑键只暴露本表中的替换值。
 /// </summary>
 internal sealed class MeasurementVectorReplacementStore
@@ -19,6 +19,7 @@ internal sealed class MeasurementVectorReplacementStore
     private const int RecoveryPageSize = 64;
     private const byte KeyVersion = 1;
     private const byte ValueVersion = 1;
+    private const byte NumericValueVersion = 2;
 
     private readonly object _sync = new();
     private readonly KvKeyspaceManager _keyspaces;
@@ -65,11 +66,12 @@ internal sealed class MeasurementVectorReplacementStore
                     stale.Add(KvBatchMutation.Delete(entry.Key.ToArray()));
                     continue;
                 }
-                if (column.DataType != FieldType.Vector)
-                    throw new InvalidDataException("measurement VECTOR 替换记录与 schema 类型不一致。");
-
                 var value = DecodeValue(entry.Value.Span);
-                if (value.VectorDimension != column.VectorDimension)
+                // 追加到其它时刻的 FLOAT 可按既有规则提升 INT schema；原段与替换值均保留 Int64 位。
+                bool promotedInteger = column.DataType == FieldType.Float64 && value.Type == FieldType.Int64;
+                if (column.Role != MeasurementColumnRole.Field || column.DataType != value.Type && !promotedInteger)
+                    throw new InvalidDataException("measurement FIELD 替换记录与 schema 类型不一致。");
+                if (value.Type == FieldType.Vector && value.VectorDimension != column.VectorDimension)
                     throw new InvalidDataException("measurement VECTOR 替换记录与 schema 维度不一致。");
                 loadedBytes += EstimateBytes(key, value);
                 if (loadedBytes > MaxReplacementBytes)
@@ -177,9 +179,11 @@ internal sealed class MeasurementVectorReplacementStore
         if (targets.Count == 0)
             return;
         if (targets.Count > MaxRowsPerUpdate)
-            throw new InvalidOperationException($"measurement VECTOR UPDATE 单次最多修改 {MaxRowsPerUpdate} 行。");
-        if (value.Type != FieldType.Vector)
-            throw new ArgumentException("替换值必须是 VECTOR。", nameof(value));
+            throw new InvalidOperationException($"measurement FIELD UPDATE 单次最多修改 {MaxRowsPerUpdate} 行。");
+        if (value.Type is not (FieldType.Vector or FieldType.Int64 or FieldType.Float64))
+            throw new ArgumentException("替换值必须是数值或 VECTOR。", nameof(value));
+        if (value.Type == FieldType.Float64 && !double.IsFinite(value.AsDouble()))
+            throw new ArgumentException("替换值必须是有限数值。", nameof(value));
 
         lock (_sync)
         {
@@ -192,13 +196,13 @@ internal sealed class MeasurementVectorReplacementStore
                 next[key] = value;
             }
             if (next.Count > MaxReplacements)
-                throw new InvalidOperationException($"measurement VECTOR 替换记录最多保留 {MaxReplacements} 项。");
+                throw new InvalidOperationException($"measurement FIELD 替换记录最多保留 {MaxReplacements} 项。");
             long nextBytes = 0;
             foreach (var entry in next)
             {
                 nextBytes += EstimateBytes(entry.Key, entry.Value);
                 if (nextBytes > MaxReplacementBytes)
-                    throw new InvalidOperationException($"measurement VECTOR 替换记录最多保留 {MaxReplacementBytes} 字节。");
+                    throw new InvalidOperationException($"measurement FIELD 替换记录最多保留 {MaxReplacementBytes} 字节。");
             }
 
             var batch = new KvBatchMutation[targets.Count];
@@ -232,13 +236,13 @@ internal sealed class MeasurementVectorReplacementStore
         (ulong SeriesId, string FieldName, long Timestamp) key,
         FieldValue value)
         => 64L + Encoding.UTF8.GetByteCount(key.FieldName)
-            + (long)value.VectorDimension * sizeof(float);
+            + (value.Type == FieldType.Vector ? (long)value.VectorDimension * sizeof(float) : sizeof(long));
 
     private void ThrowIfWriteFaulted()
     {
         if (Volatile.Read(ref _writeFault) is { } fault)
             throw new InvalidOperationException(
-                "VECTOR UPDATE 的提交结果不确定；关闭并重新打开数据库以恢复一致视图。",
+                "FIELD UPDATE 的提交结果不确定；关闭并重新打开数据库以恢复一致视图。",
                 fault);
     }
 
@@ -271,6 +275,18 @@ internal sealed class MeasurementVectorReplacementStore
 
     private static byte[] EncodeValue(FieldValue value)
     {
+        if (value.Type is FieldType.Int64 or FieldType.Float64)
+        {
+            // v1 向量保持原字节；仅新数值记录使用 v2，旧引擎遇到 v2 会明确拒绝恢复。
+            var numericBytes = new byte[10];
+            numericBytes[0] = NumericValueVersion;
+            numericBytes[1] = (byte)value.Type;
+            if (value.Type == FieldType.Int64)
+                BinaryPrimitives.WriteInt64LittleEndian(numericBytes.AsSpan(2), value.AsLong());
+            else
+                BinaryPrimitives.WriteDoubleLittleEndian(numericBytes.AsSpan(2), value.AsDouble());
+            return numericBytes;
+        }
         var vector = value.AsVector().Span;
         var bytes = new byte[5 + vector.Length * 4];
         bytes[0] = ValueVersion;
@@ -282,6 +298,18 @@ internal sealed class MeasurementVectorReplacementStore
 
     private static FieldValue DecodeValue(ReadOnlySpan<byte> bytes)
     {
+        if (bytes.Length == 10 && bytes[0] == NumericValueVersion)
+        {
+            if ((FieldType)bytes[1] == FieldType.Int64)
+                return FieldValue.FromLong(BinaryPrimitives.ReadInt64LittleEndian(bytes[2..]));
+            if ((FieldType)bytes[1] == FieldType.Float64)
+            {
+                double number = BinaryPrimitives.ReadDoubleLittleEndian(bytes[2..]);
+                if (double.IsFinite(number))
+                    return FieldValue.FromDouble(number);
+            }
+            throw new InvalidDataException("measurement 数值替换记录的类型或数值无效。");
+        }
         if (bytes.Length < 9 || bytes[0] != ValueVersion)
             throw new InvalidDataException("measurement VECTOR 替换记录 value 格式无效。");
         int dimension = BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]);

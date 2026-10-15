@@ -2281,15 +2281,7 @@ public sealed class Tsdb : IDisposable
     private void WritePointLocked(Point point)
     {
         var entry = Catalog.GetOrAdd(point);
-
-        foreach (var fieldName in point.Fields.Keys)
-        {
-            if (_vectorReplacements?.TryGet(entry.Id, fieldName, point.Timestamp, out _) == true)
-            {
-                throw new NotSupportedException(
-                    $"字段 '{fieldName}' 的时序点已经 VECTOR UPDATE；同键 INSERT 当前不支持，避免覆盖值与原始点分叉。");
-            }
-        }
+        EnsureNoFieldReplacementConflict(point, entry.Id);
 
         // 若是本进程首次写入该 series，向 WAL 追加 CreateSeries 记录
         if (_seriesWithWalRecord.Add(entry.Id))
@@ -2335,6 +2327,16 @@ public sealed class Tsdb : IDisposable
                     _walSet!.Sync();
                     return operation();
                 }
+    }
+
+    private void EnsureNoFieldReplacementConflict(Point point, ulong seriesId)
+    {
+        foreach (string fieldName in point.Fields.Keys)
+        {
+            if (_vectorReplacements?.TryGet(seriesId, fieldName, point.Timestamp, out _) == true)
+                throw new NotSupportedException(
+                    $"字段 '{fieldName}' 的时序点已经 FIELD UPDATE；同键 INSERT 当前不支持，避免覆盖值与原始点分叉。");
+        }
     }
 
     internal void PruneStaleVectorReplacements()
@@ -2625,6 +2627,10 @@ public sealed class Tsdb : IDisposable
             SchemaDiagnostics.RecordRejected(point.Measurement, "column_conflict", MeasurementSchemaRevision);
             throw;
         }
+        // 在 schema 提升、扩列及批次数据发布之前拒绝覆盖已替换的逻辑键。
+        if (_vectorReplacements?.Count > 0
+            && Catalog.TryGet(new SeriesKey(point.Measurement, point.Tags)) is { } existingSeries)
+            EnsureNoFieldReplacementConflict(point, existingSeries.Id);
         PreflightNewColumnsLocked(point, schema, pendingNewColumns);
         Point normalized;
         try
