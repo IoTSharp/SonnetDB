@@ -2800,6 +2800,8 @@ public static class SqlExecutor
         SqlTransactionContext? transaction)
     {
         update = (UpdateStatement)BindNames(tsdb, update);
+        if (update.WhereClauseIsOmitted && tsdb.Tables.Catalog.TryGet(update.TableName) is null)
+            throw new NotSupportedException("省略 WHERE 的 UPDATE 当前仅支持关系表；其它模型仍须显式声明 WHERE。");
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
         {

@@ -47,6 +47,9 @@ internal static class SelectExecutor
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
         RecordEstimatedRows(tsdb, statement);
 
+        if (UsesGroupedMeasurementPipeline(statement))
+            return ExecuteGroupedAggregate(tsdb, schema, statement, matchedSeries, where);
+
         // 分类投影
         var classified = ClassifyProjections(statement.Projections, schema);
 
@@ -93,10 +96,7 @@ internal static class SelectExecutor
         }
 
         SelectExecutionResult result = hasAggregate
-            ? groupByTags.Count == 0
-                ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
-                : ExecuteGroupedAggregate(
-                    tsdb, schema, classified, matchedSeries, where, groupByTime, groupByTags)
+            ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
 
         return ApplyOrderByAndPagination(result, orderBy, statement.Pagination);
@@ -106,40 +106,30 @@ internal static class SelectExecutor
         MeasurementSchema schema,
         SelectStatement statement)
     {
-        if (statement.Having is not null)
+        if (statement.Having is not null && statement.GroupBy.Count == 0)
             throw new NotSupportedException(
-                "measurement HAVING 尚未接入聚合分组执行器；请改用 WHERE 或关系表聚合。");
+                "measurement HAVING 当前要求显式 GROUP BY TAG 或 time(...)。");
 
-        if (!statement.GroupBy.OfType<IdentifierExpression>().Any())
+        if (!UsesGroupedMeasurementPipeline(statement))
             return;
-
-        foreach (var projection in statement.Projections)
-        {
-            if (projection.Expression is IdentifierExpression
-                || projection.Expression is FunctionCallExpression aggregate
-                    && FunctionRegistry.GetFunctionKind(aggregate.Name) == FunctionKind.Aggregate)
-                continue;
-            throw new NotSupportedException(
-                "measurement TAG 分组当前仅支持分组列与裸聚合函数投影；复合标量表达式暂不支持。");
-        }
 
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
         if (where.Residual is not null || where.GeoFilters.Count != 0)
             throw new NotSupportedException(
-                "measurement TAG 分组当前仅支持可下推的 WHERE；残差/Geo 谓词暂不支持，以避免静默忽略过滤。");
+                "measurement 分组管线当前仅支持可下推的 WHERE；残差/Geo 谓词暂不支持，以避免静默忽略过滤。");
 
-        if (statement.OrderByList.Count != 0
-            && (statement.OrderByList.Count != 1
-                || statement.OrderByList[0].Expression is not IdentifierExpression identifier
-                || !IsTimePseudoColumn(identifier)
-                || !statement.Projections.Any(static projection => projection.Alias is null
-                    && projection.Expression is IdentifierExpression projectedIdentifier
-                    && IsTimePseudoColumn(projectedIdentifier))))
-        {
-            throw new NotSupportedException(
-                "measurement TAG 分组仅支持对未改名的 time 投影进行单键 ORDER BY；TAG、别名与多键排序暂不支持。");
-        }
+        _ = CreateGroupedMeasurementPlan(schema, statement);
     }
+
+    internal static bool UsesGroupedMeasurementPipeline(SelectStatement statement)
+        => statement.GroupBy.OfType<IdentifierExpression>().Any()
+            || statement.GroupBy.Count != 0
+                && (statement.Having is not null
+                    || statement.OrderByList.Count > 1
+                    || statement.OrderByList.Any(static order =>
+                        order.Expression is not IdentifierExpression identifier || !IsTimePseudoColumn(identifier))
+                    || statement.Projections.Any(static item => item.Expression is not IdentifierExpression
+                        && CollectIdentifiers(item.Expression).Any(IsTimePseudoColumn)));
 
     internal static void ValidateMaterializationSupported(MeasurementSchema schema, SelectStatement statement)
     {
@@ -2276,18 +2266,14 @@ internal static class SelectExecutor
     private static SelectExecutionResult ExecuteGroupedAggregate(
         Tsdb tsdb,
         MeasurementSchema schema,
-        IReadOnlyList<Projection> projections,
+        SelectStatement statement,
         IReadOnlyList<SeriesEntry> matchedSeries,
-        WhereClause where,
-        TimeBucketSpec? groupByTime,
-        IReadOnlyList<MeasurementColumn> groupByTags)
+        WhereClause where)
     {
-        var aggregateCalls = projections
-            .Where(static projection =>
-                projection.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression)
-            .SelectMany(static projection => EnumerateAggregateCalls(
-                projection.Function ?? projection.ScalarExpression!))
-            .ToList();
+        var plan = CreateGroupedMeasurementPlan(schema, statement);
+        var groupByTags = plan.Tags;
+        var groupByTime = plan.Time;
+        var aggregateCalls = plan.AggregateCalls;
         var aggSpecs = aggregateCalls
             .Select(fn => ResolveAggregateSpec(fn, FormatFunctionColumnName(fn), schema))
             .ToList();
@@ -2351,35 +2337,174 @@ internal static class SelectExecutor
             }
         }
 
-        var rows = new List<IReadOnlyList<object?>>(groups.Count);
+        var rows = new List<GroupedMeasurementRow>(groups.Count);
         foreach (var (key, slots) in groups)
         {
             SqlExecutor.ThrowIfCancellationRequested();
-            var row = new object?[projections.Count];
             var aggregateValues = new object?[slots.Length];
             for (int slotIndex = 0; slotIndex < slots.Length; slotIndex++)
                 aggregateValues[slotIndex] = slots[slotIndex].Finalize();
 
-            for (int i = 0; i < projections.Count; i++)
+            object? Resolve(IdentifierExpression identifier)
             {
-                var projection = projections[i];
-                row[i] = projection.Kind switch
-                {
-                    ProjectionKind.Time => key.TimeBucket,
-                    ProjectionKind.Tag => key.TagValues[FindGroupTagIndex(groupByTags, projection.Column!)],
-                    ProjectionKind.Aggregate => aggregateValues[
-                        FindAggregateCallIndex(aggregateCalls, projection.Function!)],
-                    ProjectionKind.AggregateExpression => EvaluateAggregateResultExpression(
-                        projection.ScalarExpression!, aggregateCalls, aggregateValues),
-                    _ => throw new InvalidOperationException(
-                        "内部错误：measurement 分组聚合仅支持分组 TAG/time 与聚合投影。"),
-                };
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (plan.AggregateIdentifiers.TryGetValue(identifier, out int slot))
+                    return aggregateValues[slot];
+                if (IsTimePseudoColumn(identifier) && groupByTime is not null)
+                    return key.TimeBucket;
+                return key.TagValues[FindGroupTagIndex(groupByTags, schema.TryGetColumn(identifier.Name)!)];
             }
-            rows.Add(row);
+
+            if (plan.Having is not null)
+            {
+                var predicate = SqlProjectionExpressionEvaluator.Evaluate(plan.Having, Resolve, "measurement HAVING");
+                if (predicate is not null and not bool)
+                    throw new InvalidOperationException("measurement HAVING 必须计算为布尔值。");
+                if (predicate is not true)
+                    continue;
+            }
+
+            var row = plan.Projections.Select(expression =>
+                SqlProjectionExpressionEvaluator.Evaluate(expression, Resolve, "measurement 分组投影")).ToArray();
+            var orderValues = plan.OrderBy.Select(expression =>
+                SqlProjectionExpressionEvaluator.Evaluate(expression,
+                    identifier => plan.OutputIdentifiers.TryGetValue(identifier, out int ordinal)
+                        ? row[ordinal] : Resolve(identifier), "measurement 分组排序")).ToArray();
+            rows.Add(new GroupedMeasurementRow(row, orderValues, rows.Count));
         }
 
-        return new SelectExecutionResult(projections.Select(p => p.ColumnName).ToList(), rows);
+        if (statement.OrderByList.Count != 0)
+        {
+            try
+            {
+                rows.Sort((left, right) =>
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    for (int i = 0; i < statement.OrderByList.Count; i++)
+                    {
+                        object? a = left.OrderValues[i];
+                        object? b = right.OrderValues[i];
+                        int comparison = a is null ? b is null ? 0 : -1
+                            : b is null ? 1 : SqlScalarComparer.Compare(a, b)!.Value;
+                        if (comparison != 0)
+                            return statement.OrderByList[i].Direction == SortDirection.Descending
+                                ? -comparison : comparison;
+                    }
+                    return left.Sequence.CompareTo(right.Sequence);
+                });
+            }
+            catch (InvalidOperationException exception) when (exception.InnerException is OperationCanceledException)
+            {
+                ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                throw;
+            }
+        }
+
+        return ApplyPagination(new SelectExecutionResult(plan.Columns,
+            rows.Select(static item => item.Values).ToArray()), statement.Pagination);
     }
+
+    // 聚合先绑定到内部槽，再复用普通标量求值器；占位节点仅按对象身份识别，
+    // 不占用用户列名，HAVING 与隐藏 ORDER BY 聚合也在扫描前完整校验。
+    private static GroupedMeasurementPlan CreateGroupedMeasurementPlan(
+        MeasurementSchema schema, SelectStatement statement)
+    {
+        var tags = ResolveGroupByTags(statement.GroupBy, schema);
+        var time = ResolveGroupByTime(statement.GroupBy);
+        var aggregates = new List<FunctionCallExpression>();
+        var aggregateIdentifiers = new Dictionary<IdentifierExpression, int>(ReferenceEqualityComparer.Instance);
+        var outputIdentifiers = new Dictionary<IdentifierExpression, int>(ReferenceEqualityComparer.Instance);
+        var projections = statement.Projections.Select(item => Rewrite(item.Expression)).ToArray();
+        var having = statement.Having is null ? null : Rewrite(statement.Having);
+        var order = statement.OrderByList.Select(item => RewriteOrder(item.Expression)).ToArray();
+        if (aggregates.Count == 0)
+            throw new InvalidOperationException("GROUP BY TAG/time(...) 仅在聚合查询中有效。");
+        return new GroupedMeasurementPlan(tags, time, aggregates, aggregateIdentifiers, outputIdentifiers,
+            projections, having, order, ClassifyProjections(statement.Projections, schema)
+                .Select(static projection => projection.ColumnName).ToArray());
+
+        bool IsGroupIdentifier(IdentifierExpression identifier)
+            => aggregateIdentifiers.ContainsKey(identifier) || outputIdentifiers.ContainsKey(identifier)
+                || time is not null && IsTimePseudoColumn(identifier)
+                || tags.Any(tag => string.Equals(tag.Name, identifier.Name, StringComparison.Ordinal));
+
+        SqlExpression RewriteOrder(SqlExpression expression)
+        {
+            if (expression is IdentifierExpression { Qualifier: null } identifier)
+            {
+                for (int i = 0; i < statement.Projections.Count; i++)
+                {
+                    if (statement.Projections[i].Alias is { } alias
+                        && string.Equals(alias, identifier.Name, StringComparison.Ordinal))
+                    {
+                        var output = new IdentifierExpression(alias);
+                        outputIdentifiers.Add(output, i);
+                        return output;
+                    }
+                }
+            }
+            return Rewrite(expression);
+        }
+
+        SqlExpression Rewrite(SqlExpression expression)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            SqlExpression rewritten = expression switch
+            {
+                FunctionCallExpression function when FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Aggregate
+                    => BindAggregate(function),
+                FunctionCallExpression function when function.Over is not null || function.IsDistinct
+                    => throw new NotSupportedException("measurement 分组表达式不支持窗口或标量 DISTINCT。"),
+                FunctionCallExpression function => function with { Arguments = function.Arguments.Select(Rewrite).ToArray() },
+                CastExpression cast => cast with { Operand = Rewrite(cast.Operand) },
+                UnaryExpression unary => unary with { Operand = Rewrite(unary.Operand) },
+                BinaryExpression binary => binary with { Left = Rewrite(binary.Left), Right = Rewrite(binary.Right) },
+                IsNullExpression isNull => isNull with { Operand = Rewrite(isNull.Operand) },
+                InExpression { Subquery: null } inExpression => inExpression with
+                {
+                    Value = Rewrite(inExpression.Value),
+                    Values = inExpression.Values.Select(Rewrite).ToArray(),
+                },
+                CaseExpression conditional => conditional with
+                {
+                    WhenClauses = conditional.WhenClauses.Select(clause => clause with
+                    {
+                        Condition = Rewrite(clause.Condition),
+                        Result = Rewrite(clause.Result),
+                    }).ToArray(),
+                    Else = conditional.Else is null ? null : Rewrite(conditional.Else),
+                },
+                _ => expression,
+            };
+            SqlProjectionExpressionEvaluator.Validate(rewritten, IsGroupIdentifier, "measurement 分组表达式");
+            return rewritten;
+        }
+
+        IdentifierExpression BindAggregate(FunctionCallExpression function)
+        {
+            if (function.Over is not null || function.Arguments.Any(ContainsAggregateCall))
+                throw new NotSupportedException("measurement 分组表达式不支持窗口或嵌套聚合。");
+            _ = ResolveAggregateSpec(function, FormatFunctionColumnName(function), schema);
+            var identifier = new IdentifierExpression(function.Name);
+            aggregateIdentifiers.Add(identifier, aggregates.Count);
+            aggregates.Add(function);
+            return identifier;
+        }
+    }
+
+    private sealed record GroupedMeasurementPlan(
+        IReadOnlyList<MeasurementColumn> Tags,
+        TimeBucketSpec? Time,
+        IReadOnlyList<FunctionCallExpression> AggregateCalls,
+        IReadOnlyDictionary<IdentifierExpression, int> AggregateIdentifiers,
+        IReadOnlyDictionary<IdentifierExpression, int> OutputIdentifiers,
+        IReadOnlyList<SqlExpression> Projections,
+        SqlExpression? Having,
+        IReadOnlyList<SqlExpression> OrderBy,
+        IReadOnlyList<string> Columns);
+
+    private sealed record GroupedMeasurementRow(
+        IReadOnlyList<object?> Values, IReadOnlyList<object?> OrderValues, int Sequence);
 
     private static MeasurementGroupKey CreateMeasurementGroupKey(
         string?[] tagValues,
@@ -2694,6 +2819,10 @@ internal static class SelectExecutor
                 foreach (var aggregate in EnumerateAggregateCalls(unary.Operand))
                     yield return aggregate;
                 yield break;
+            case CastExpression cast:
+                foreach (var aggregate in EnumerateAggregateCalls(cast.Operand))
+                    yield return aggregate;
+                yield break;
             case BinaryExpression binary:
                 foreach (var aggregate in EnumerateAggregateCalls(binary.Left))
                     yield return aggregate;
@@ -2746,6 +2875,9 @@ internal static class SelectExecutor
                 return EvaluateLiteral(literal);
             case DurationLiteralExpression duration:
                 return duration.Milliseconds;
+            case CastExpression cast:
+                return SqlCastOperations.Convert(
+                    EvaluateAggregateResultExpression(cast.Operand, aggregateCalls, aggregateValues), cast.TargetType);
             case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
                 return SqlScalarOperations.Negate(
                     EvaluateAggregateResultExpression(unary.Operand, aggregateCalls, aggregateValues));

@@ -13,6 +13,8 @@ permalink: /sql-reference/
 
 读取普通视图或物化视图的原生声明使用 `SELECT * FROM ViewName LIMIT 0`，并在 ADO reader 上调用 `GetFieldType`、`GetDataTypeName`、`GetSchemaTable` 或 `GetColumnSchema`。无需先 `Read()`；空表、零行和全 NULL 结果保留列名、顺序、SQL/CLR 类型与可空性。直接列投影保留已声明的 `DECIMAL(p,s)`；无界 STRING/BLOB 的长度、未知表达式及无法确定的派生精度保持未知，不按样本或 CLR 默认值制造声明。外连接的 NULL 扩展会扩大对应侧的可空性。`LIMIT 0` 只绑定声明，不执行视图的投影、过滤或排序 UDF。
 
+STRING 未声明长度时，`GetColumnSchema().ColumnSize` 保留 `null`；经典 `GetSchemaTable` 使用 `ColumnSize=-1` 适配 `DataSet.Load` / `DataTable.Load` 的无界文本列，避免未知长度被解释成 0。其它未知类型或声明继续使用原未知值，详见 [ADO 多结果合同](ado-multiple-results.md)。
+
 `SndbConnection.GetSchema("Columns")` 继续只列关系表。provider 不解析视图 SQL 来重建列定义；视图消费方应使用上述零行 reader。
 
 物化视图的声明属于显式 `REFRESH MATERIALIZED VIEW` 发布的代际，并随该代际的 v2 快照持久化，CRC 覆盖声明。旧 v1 快照仍可读行；由于未保存代际声明，完整 reader 元数据 API 明确要求先 REFRESH，不从首行或当前基表重建。成功 REFRESH 才发布 v2，失败保留原活动代际。该升级只涉及独立物化快照，不改变引擎 FileHeader 的文件版本。
@@ -737,7 +739,8 @@ WHERE guid IN (
 - 已发布 `v3.1.0` 不支持关系表 `ON CONFLICT`；当前未发布的 `main` 提供 `DO NOTHING` 及上述 `DO UPDATE`，首次正式发布版本号仍待决定。`DO UPDATE` 必须显式指定主键或唯一索引列，复合键按索引声明的列顺序匹配。当前 `main` 的远程 ADO 轻事务使用服务端会话执行 `DO UPDATE ... RETURNING`，返回行来自实际待提交事务，提交不重放 SQL；实际发布前不能作为已发布包能力。服务端会话绑定数据库和凭据，活动租约为 2 分钟，最多 128 个活动会话；终态保留 2 分钟，可通过 `GET /v1/db/{db}/sql/transactions/{id}` 查询，重复提交或回滚同一终态不会再次执行。旧服务端无会话端点时，客户端保留旧协议且在入队前拒绝此语句。
 - 会话存放于单个 Server 进程内；跨实例路由需固定到创建会话的实例。服务端重启会丢失未提交缓冲及终态缓存，未收到提交响应时须按会话 ID 查询终态，若服务端不可达或缓存已过期则结果未知。已发布包和 FreeSql Provider 仍需按实际版本与部署形态单独验收。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
-- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column WHERE ...` 和 `UPDATE target AS t SET column = s.column FROM source AS s WHERE ...`；`WHERE` 必填，支持关系表、`(SELECT ...) AS s` 与 `(VALUES(...),(...)) AS s(column,...)` 派生来源及 INNER/LEFT JOIN。SELECT 可沿用 UNION ALL 并可声明按位置输出别名；VALUES 必须声明全部输出列，行宽一致，列名不能仅大小写不同。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；触发器及约束按普通 UPDATE 执行。轻事务中目标和来源均读取已缓冲的 INSERT/UPDATE/DELETE；连续联接更新保留首次并发基线，语句失败不发布本条已准备的目标变更。
+- 关系表允许省略 `WHERE`：`UPDATE items SET value=value+@step [RETURNING ...]` 匹配全部行，空表影响数为零；赋值读取每行更新前的值。沿用既有约束、触发器、ROWVERSION、语句原子性、轻事务、物化预算及取消合同，不增加隐式截断。文档集合、measurement 和 Graph 的无条件更新范围不随此项扩展。
+- 关系表联接更新支持 `UPDATE target AS t JOIN source AS s ON ... SET column = s.column [WHERE ...]` 和 `UPDATE target AS t SET column = s.column FROM source AS s [WHERE ...]`；省略 `WHERE` 时不再增加目标行筛选，联接条件仍生效。支持关系表、`(SELECT ...) AS s` 与 `(VALUES(...),(...)) AS s(column,...)` 派生来源及 INNER/LEFT JOIN。SELECT 可沿用 UNION ALL 并可声明按位置输出别名；VALUES 必须声明全部输出列，行宽一致，列名不能仅大小写不同。重复来源按声明扫描顺序取首个匹配，`RETURNING` 与影响数每个目标主键只计一次；触发器及约束按普通 UPDATE 执行。轻事务中目标和来源均读取已缓冲的 INSERT/UPDATE/DELETE；连续联接更新保留首次并发基线，语句失败不发布本条已准备的目标变更。
 - 派生 VALUES 支持参数、NULL 和既有标量表达式，保留 Decimal、TIME 与 UTC 值。单来源上限为 100000 行、4096 列、1000000 单元格和 64 MiB 估算物化字节；解析另有 30 秒上限，执行沿用调用方取消及物化预算。超限拒绝整条语句，不截断来源；空派生来源仍校验 SET/ON/WHERE 列引用。
 
 ```sql
@@ -1520,8 +1523,8 @@ SELECT t.id, (SELECT group_concat(l.name, ',') FROM labels l WHERE l.tenant = t.
 | `count(*)` / `count(field)` | 所有 FIELD 类型 | 返回行数或字段存在数（`long`）。 |
 | `first(field)` / `last(field)` | Float64、Int64、Boolean、String、Vector、GeoPoint | 按时间戳选择首值/末值，保留原始结果类型。 |
 | `min(field)` / `max(field)` | Float64、Int64、Boolean、String | 字符串固定使用 `StringComparison.Ordinal`；布尔按 `false < true`。 |
-| `mode(field)` | Float64、Int64、Boolean、String | 出现次数相同则选择最小值；字符串仍按 Ordinal。 |
-| `distinct_count(field)` | Float64、Int64、Boolean、String | 返回 HyperLogLog 基数估算（`long`）。 |
+| `mode(field)` | Float64、Int64、Boolean、String | 返回原字段类型；Int64 按完整整数身份计数，出现次数相同则选择最小值，字符串按 Ordinal。 |
+| `distinct_count(field)` | Float64、Int64、Boolean、String | 返回 HyperLogLog 基数估算（`long`）；Int64 按完整 64 位整数身份哈希，不先转 Double。 |
 | `sum` / `avg` / `stddev` / `variance` / `spread` | Float64、Int64、Boolean | Boolean 延续历史数值转换规则（`false=0`、`true=1`）。 |
 | `median` / `percentile` / `p50` / `p90` / `p95` / `p99` | Float64、Int64、Boolean | 数值分位统计。 |
 | `histogram` / `tdigest_agg` / `pid` / `pid_estimate` | Float64、Int64、Boolean | 数学统计或控制聚合，不接受字符串。 |
@@ -1545,6 +1548,8 @@ GROUP BY time(60s)
 
 `sum(status)`、`avg(status)` 等数学聚合仍会报错，并明确提示该函数需要数值字段。
 
+Int64 的旧段 HLL 使用 Double 输入，不能区分部分超过 2^53 的相邻整数。`distinct_count` 对这些旧数值摘要回退扫描原始整数，不改写段格式；其它适用摘要保持原路径。HLL 状态读取拒绝超出哈希位数的寄存器。TDigest 状态拒绝未排序或 NaN 均值、非正/非整数/非有限权重及累计 Int64 计数溢出；保留原有可序列化无穷均值边界。`histogram` 要求正有限桶宽，拒绝桶索引溢出、非有限或塌缩的 Double 桶边界，失败不改变已有计数；普通小数保留既有 `Math.Floor` 浮点分桶规则。
+
 示例：
 
 ```sql
@@ -1566,7 +1571,7 @@ SELECT round(avg(usage) + 0.25, 2) AS adjusted_average FROM cpu WHERE host = 'se
 
 标准聚合支持单字段 `DISTINCT` 输入：`count(DISTINCT field)`、`sum(DISTINCT field)`、`avg(DISTINCT field)`、`min(DISTINCT field)` 和 `max(DISTINCT field)` 会在每个查询结果/时间桶中先按 SQL 值相等规则去重，再忽略 `NULL` 求值；`COUNT(DISTINCT *)` 明确拒绝。多表达式 DISTINCT、排序集合聚合和窗口 DISTINCT 不在当前合同内。
 
-### `GROUP BY time(...)`
+### measurement 的 TAG / time 分组、HAVING 与排序
 
 按时间桶聚合：
 
@@ -1579,11 +1584,25 @@ GROUP BY time(1m)
 
 当前限制和真实行为：
 
-- 仅支持 `GROUP BY time(duration)`。
+- 支持一个或多个 TAG，以及可选的 `time(duration)`：例如 `GROUP BY host, region, time(1m)`。同一 TAG 分组可跨多个 series 合并；FIELD 分组及任意表达式分组仍不支持。
 - 仅可用于聚合查询。
-- 不支持 `GROUP BY host` 这类按列分组。
 - 可在投影中显式写 `time`（或 `time AS bucket`）返回桶起始时间；不会自动添加该列。
 - duration 例子：`1000ms`、`30s`、`1m`。
+- `HAVING` 在聚合之后执行，可引用分组键、已有聚合与参数；FALSE/NULL 不保留该组。聚合后可用已有算术、CASE、标量函数与 CAST 组合投影，不允许未分组 FIELD 或嵌套聚合。
+- `ORDER BY` 可使用分组键、投影别名、隐藏聚合与多项升降序；升序 NULL 在前、降序在后。先 HAVING，再投影和排序，最后 LIMIT/OFFSET；需要跨次稳定顺序时应给出完整排序键。
+- 分组查询的 WHERE 仍限已有可下推的 TAG/time 条件；残差/Geo 谓词、窗口、子查询分组与显式物化预算的未支持形态明确拒绝。空输入不生成分组；稀疏 FIELD 按各聚合原有 NULL 规则处理。
+
+```sql
+SELECT host, COUNT(*) AS samples, SUM(value) + 1 AS adjusted_total
+FROM metrics
+WHERE time >= @from_time
+GROUP BY host
+HAVING COUNT(*) > @minimum_count
+ORDER BY adjusted_total DESC, host ASC
+LIMIT 10;
+```
+
+名称保留创建时拼写，未加引号按 OrdinalIgnoreCase 绑定，加双引号精确绑定；分组键与别名使用相同合同。本地源码的实现不代表正式 Core/Data/Server 已发布或 FreeSql Provider 已完成公共入口验收。
 
 ### `DELETE FROM ... WHERE ...`
 

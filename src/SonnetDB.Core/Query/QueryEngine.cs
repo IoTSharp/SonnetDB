@@ -1864,7 +1864,7 @@ public sealed class QueryEngine
     private static bool CanUseAggregateSketchAccumulator(IAggregateAccumulator accumulator)
         => accumulator is PercentileAccumulator
             or TDigestAggAccumulator
-            or DistinctCountAccumulator;
+            or DistinctCountAccumulator { CanMergeLegacyNumericSketch: true };
 
     private static bool CanUseAggregateSketch(
         in BlockDescriptor descriptor,

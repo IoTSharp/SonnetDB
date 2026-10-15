@@ -125,7 +125,7 @@ public sealed class SqlExecutorMeasurementGroupByTests : IDisposable
     }
 
     [Fact]
-    public void Select_GroupByTag_WithResidualOrHaving_RejectsExplicitly()
+    public void Select_GroupByTag_WithResidual_RejectsExplicitlyAndHavingFiltersGroups()
     {
         using var db = OpenAndSeed();
 
@@ -133,9 +133,8 @@ public sealed class SqlExecutorMeasurementGroupByTests : IDisposable
             Select(db, "SELECT host, count(usage) FROM cpu WHERE usage > 1 GROUP BY host"));
         Assert.Contains("残差", residual.Message);
 
-        var having = Assert.Throws<NotSupportedException>(() =>
-            Select(db, "SELECT host, count(usage) FROM cpu GROUP BY host HAVING count(usage) > 1"));
-        Assert.Contains("HAVING", having.Message);
+        Assert.Equal(2, Select(db,
+            "SELECT host, count(usage) FROM cpu GROUP BY host HAVING count(usage) > 1").Rows.Count);
     }
 
     [Fact]
@@ -194,12 +193,20 @@ public sealed class SqlExecutorMeasurementGroupByTests : IDisposable
     [Theory]
     [InlineData("GROUP BY host HAVING count(usage) > 1")]
     [InlineData("GROUP BY time(1s) HAVING count(usage) > 1")]
-    [InlineData("HAVING count(usage) > 1")]
-    public void SelectAndExplain_WithMeasurementHaving_RejectsBeforeScanning(string suffix)
+    public void SelectAndExplain_WithGroupedMeasurementHaving_ValidateOnEmptyInput(string suffix)
     {
         using var db = OpenEmpty();
         string sql = "SELECT count(usage) FROM cpu " + suffix;
 
+        Assert.Empty(Select(db, sql).Rows);
+        Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "EXPLAIN " + sql));
+    }
+
+    [Fact]
+    public void SelectAndExplain_WithUngroupedMeasurementHaving_RejectsExplicitly()
+    {
+        using var db = OpenEmpty();
+        const string sql = "SELECT count(usage) FROM cpu HAVING count(usage)>1";
         Assert.Throws<NotSupportedException>(() => Select(db, sql));
         Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(db, "EXPLAIN " + sql));
     }
@@ -230,23 +237,23 @@ public sealed class SqlExecutorMeasurementGroupByTests : IDisposable
     [Theory]
     [InlineData("ORDER BY host")]
     [InlineData("ORDER BY time, host DESC")]
-    public void SelectAndExplain_GroupByTag_WithUnsupportedOrder_RejectsBeforeScanning(string order)
+    public void SelectAndExplain_GroupByTag_WithTagOrMultiKeyOrder_ValidateOnEmptyInput(string order)
     {
         using var db = OpenEmpty();
         string sql = "SELECT host, time, count(*) FROM cpu GROUP BY host, time(1s) " + order;
 
-        Assert.Throws<NotSupportedException>(() => Select(db, sql));
-        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(db, "EXPLAIN " + sql));
+        Assert.Empty(Select(db, sql).Rows);
+        Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "EXPLAIN " + sql));
     }
 
     [Fact]
-    public void SelectAndExplain_GroupByTag_WithCompoundAggregateProjection_RejectsBeforeScanning()
+    public void SelectAndExplain_GroupByTag_WithCompoundAggregateProjection_ValidateOnEmptyInput()
     {
         using var db = OpenEmpty();
         const string sql = "SELECT host, sum(usage) + 1 FROM cpu GROUP BY host";
 
-        Assert.Throws<NotSupportedException>(() => Select(db, sql));
-        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(db, "EXPLAIN " + sql));
+        Assert.Empty(Select(db, sql).Rows);
+        Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "EXPLAIN " + sql));
     }
 
     private Tsdb OpenAndSeed()

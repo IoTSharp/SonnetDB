@@ -162,20 +162,28 @@ internal sealed class TDigest
             throw new InvalidDataException("TDigest centroid 数量或长度非法。");
 
         var digest = new TDigest();
-        double totalWeight = 0;
+        long totalCount = 0;
+        double previousMean = double.NegativeInfinity;
         for (int i = 0; i < n; i++)
         {
             int offset = 8 + i * 16;
             double mean = System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes[offset..(offset + 8)]);
             double weight = System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes[(offset + 8)..(offset + 16)]);
-            if (double.IsNaN(mean) || weight <= 0 || double.IsNaN(weight) || double.IsInfinity(weight))
+            if (double.IsNaN(mean) || mean < previousMean
+                || !double.IsFinite(weight) || weight <= 0 || weight != Math.Truncate(weight)
+                || weight >= 9223372036854775808d)
                 throw new InvalidDataException("TDigest centroid 内容非法。");
 
+            long count = (long)weight;
+            if (count > long.MaxValue - totalCount)
+                throw new InvalidDataException("TDigest 样本总数超出 Int64 范围。");
+
             digest._centroids.Add(new Centroid(mean, weight));
-            totalWeight += weight;
+            totalCount += count;
+            previousMean = mean;
         }
 
-        digest.Count = checked((long)Math.Round(totalWeight));
+        digest.Count = totalCount;
         return digest;
     }
 

@@ -1601,6 +1601,11 @@ public static class SqlExplainPlanner
         if (statement.TableValuedFunction is not null)
             return ResolveTvfFields(statement, schema);
 
+        // 新分组管线已统一校验投影、HAVING 与排序；所有 FIELD 的时刻并集
+        // 决定分组存在性，也覆盖仅在 HAVING/ORDER BY 中出现的聚合依赖。
+        if (SelectExecutor.UsesGroupedMeasurementPipeline(statement))
+            return schema.FieldColumns.Select(static column => column.Name).ToArray();
+
         var fields = new HashSet<string>(StringComparer.Ordinal);
         var hasAggregate = false;
         var hasNonAggregate = false;

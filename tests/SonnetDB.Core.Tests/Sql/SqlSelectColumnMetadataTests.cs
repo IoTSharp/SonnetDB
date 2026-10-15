@@ -73,7 +73,7 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
         var table = reader.GetSchemaTable()!;
         Assert.Equal((short)20, table.Rows[2][SchemaTableColumn.NumericPrecision]);
         Assert.Equal((short)6, table.Rows[2][SchemaTableColumn.NumericScale]);
-        Assert.Equal(DBNull.Value, table.Rows[1][SchemaTableColumn.ColumnSize]);
+        Assert.Equal(-1, table.Rows[1][SchemaTableColumn.ColumnSize]);
     }
 
     [Fact]

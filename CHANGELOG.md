@@ -11,6 +11,9 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Added
+- GH-Issue #224 / M45-C01：measurement TAG/time 分组复用已有标量求值器处理 HAVING 和复合聚合投影，支持分组键、投影别名与多键排序，并在筛选/排序后分页；残差/Geo WHERE 与显式物化预算的既有拒绝边界保留。
+- GH-Issue #229：ADO 多条 SELECT 在执行前按 SQL 词法边界完整预检，冻结参数，并通过 `NextResult` / `NextResultAsync` 顺序切换结果和元数据，释放前一结果后才执行下一条；经典 schema 对未声明长度的 STRING 返回 `ColumnSize=-1`，支持 DataSet/DataTable 装载而不伪造声明长度。沿用现有嵌入式、REST 和 Frame 通道，不新增批次快照或写入协议。
+- GH-Issue #257：关系表 UPDATE 可省略 WHERE 更新全部行，复用既有表达式、RETURNING、ROWVERSION、约束、事务、取消和物化预算；其它模型仍须声明 WHERE。
 - 保存博客园系列143–157及159、最终主题封面、发布台账与筛选公开证据，增加项目识别/封面门禁和逐篇伴随闪存的独立记录；不改变数据库运行时或默认每日发布上限。
 - CAP #265 与当前主线集成，并将 NuGet 候选提升清单和有界发布循环同步为含 `SonnetDB.CAP` 的八包合同；增加缺少 CAP 包的拒绝检查，保留默认完整 CAP 宿主的上游 NativeAOT 失败边界。分支与 PR 核查见[集成记录](docs/audits/branch-integration-20261015.md)。
 - CAP #265：保留默认序列化/订阅管线的完整 NativeAOT 宿主实测失败边界，46 条上游 DotNetCore.CAP 10.0.2 诊断未压制；普通 CLR 回归通过不代表原生或正式消费者验收，适配器仍为私有未合入检查点。
@@ -520,6 +523,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- M45-C01/C02/C06 与 M46-S06：Int64 `mode` 和 `distinct_count` 保留完整整数身份；后者拒用旧 Double 来源段摘要并扫描原始值，防止超过 2^53 的相邻值混淆，不修改既有段格式。
+- M45-C06/C08：HLL 状态校验寄存器上界，TDigest 拒绝未排序均值、非法权重与累计计数溢出；Histogram 拒绝无法表示的桶索引/边界且保留失败前的状态。
 - 对象回填调用方取消测试先确认真实取消钩子已触达：只在无钩子、无进度、无持久任务时有界推进合法空页，随后严格核对调用方 token、唯一钩子、未提交进度及原恢复结果；不修改生产页预算或放宽异常断言。
 
 - KNN 分配回归将线程分配计数限定在显式无 GC 测量窗口，规避.NET 10后台GC把未使用allocation context计入计数的已复现问题；保留K=8、100000次替换、4096/8192字节阈值与排序断言，并增加真实小对象分配对照。生产算法和GC默认配置不变。

@@ -1,5 +1,7 @@
 # ROADMAP — SonnetDB 4.5
 
+2026-10-15：接收最新 main `c7b307f6`，首次核对 46 条开放 Issue，最终快照 48 条（新增 #312/#313/#314，关闭 #273），清理两个已合并本地分支。本批 [十项实现任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：GH-Issue #224 的 HAVING/复合投影/排序分页，#229 多结果 ADO，#257 全表关系 UPDATE，以及 M45/M46 的 Int64 众数/近似去重和三项聚合状态校验。最终 Core 2938 项、真实 REST/h2c 167 项回归通过；实际提交和远端 Issue 闭环见根 HANDOFF，不重做已合入的 #219～#223/#225/#228，不把局部任务提升为整个里程碑、正式发布或下游 ORM 完成。
+
 更新日期：2026-10-12（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
 
 根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
@@ -122,14 +124,14 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 | ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
 |---|---|---|---|
-| M45-C01 | P0 必选 | 扩展已交付TAG/time分组的支持矩阵，统一类型/NULL/空集/overflow/名称边界 | 首批实现见CHANGELOG；扩展表达式、SELECT/HAVING/分组键在执行前校验，补原名/引号与关系兼容。 |
+| M45-C01 | P0 必选 | 扩展已交付TAG/time分组的支持矩阵，统一类型/NULL/空集/overflow/名称边界 | 2026-10-15 续作 HAVING/复合投影/排序分页与 Int64 mode，见[十任务验收](docs/audits/implementation-batch-01-20261015.md)；剩余预算、完整类型/空集统一仍独立推进。 |
 | M45-C02 | P0 必选 | 版本化聚合 state 与 Add/Merge 复用 | 分别声明结合/交换/顺序敏感性；COUNT/SUM merge 不冒称幂等，投递去重在输入身份层。 |
 | M45-C03 | P0 必选 | 支持源的 before/after、retract、更新/删除修正 | 非可逆 MIN/MAX/sketch 有界重算或拒绝；缺 before-image 不静默按追加处理。 |
 | M45-C04 | P0 必选 | 有限 SQL 的增量物化/rollup 与有界回填 | 复用 generation/位点/调度；快照增量无缺口、失效重算、原子发布与依赖变更。 |
 | M45-C05 | P1 必选 | SQL 批流窗口及分区 event-time 推进 | 复用窗口；乱序/迟到/idle、水位回退/关闭及回填可对拍。 |
-| M45-C06 | P1 必选 | 精确/近似分位、distinct/sketch 准确性和资源 | 复用 TDigest/HLL；误差/merge/偏态/种子公开，不冒称精确结果。 |
+| M45-C06 | P1 必选 | 精确/近似分位、distinct/sketch 准确性和资源 | 2026-10-15 修正 Int64 distinct_count 输入身份及旧 HLL 回退；复用 TDigest/HLL，完整误差/merge/偏态/种子与资源验收仍待补齐，不冒称精确结果。 |
 | M45-C07 | P1 必选 | 时间加权、率、积分、采样/填补边界和 state | 核对已有函数；边界点、重复时间、counter reset、缺失及最大跨度。 |
-| M45-C08 | P1 必选 | 聚合 state 预算、落盘及恢复 | 复用 spill/V45-X02；高基数准入，取消/磁盘满/坏状态不损已提交结果。 |
+| M45-C08 | P1 必选 | 聚合 state 预算、落盘及恢复 | 2026-10-15 增加 TDigest 权重/排序/计数、HLL rank 与 Histogram 极值状态守卫；高基数准入、spill/V45-X02、取消/磁盘满及完整恢复仍独立验收。 |
 | M45-C09 | P0 必选 | 批流、内存/落盘、跨端对拍和观测 | 同事件日志离线/增量等价；重投/更新/删除/重开，计数精确、浮点误差有声明。 |
 | M45-C10 | P2 条件 | ROLLUP/GROUPING SETS、扩展窗口与 ASOF | 真实查询驱动单项选择；CUBE/count/state/change windows/ASOF 不全部默认纳入。 |
 
@@ -146,7 +148,7 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 | M46-S03 | P0 必选 | 无损浮点/Boolean 与高熵回退 | NaN 位模式、±0、Infinity；无默认量化/有损压缩。 |
 | M46-S04 | P1 必选 | 字典高基数与稀疏 presence 成本 | 字典扩张、Unicode、大值及缺失/NULL 分开，超预算不截断。 |
 | M46-S05 | P1 必选 | 分块自适应与范围解码 | 块/检查点结合窄读测 I/O/CPU/分配，防压缩导致读放大。 |
-| M46-S06 | P0 必选 | 统计跳读精度 guard | Int64→double 等边界；不得依据不可靠元数据剪枝，精确差分及旧段回读。 |
+| M46-S06 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收。 |
 | M46-S07 | P1 必选 | 解码分配、缓存与读成本接线 | 接 V45-X01/X02；租约/取消/淘汰/mmap 成本可观测，不新造资源管理器。 |
 | M46-S08 | P1 必选 | small-segment/WAL/compaction 成本 | 复用 manifest/调度；写放大/fsync、合并读尾延迟与恢复共同验收。 |
 | M46-S09 | P0 必选 | 统一语料、兼容/损坏及性能验收 | commit/硬件/配置/原始样本；旧格式可读、不兼容写拒绝，收益与代价分开。 |

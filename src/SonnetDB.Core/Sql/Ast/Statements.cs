@@ -1182,11 +1182,11 @@ public sealed record TruncateTableStatement(string TableName) : SqlStatement
 }
 
 /// <summary>
-/// <c>UPDATE table [AS alias] [JOIN ...] SET col = expr [, ...] [FROM ...] WHERE expr</c>。
+/// <c>UPDATE table [AS alias] [JOIN ...] SET col = expr [, ...] [FROM ...] [WHERE expr]</c>。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
 /// <param name="Assignments">SET 子句中的列赋值列表。</param>
-/// <param name="Where">WHERE 表达式（必填）。</param>
+/// <param name="Where">WHERE 表达式；省略子句时为常量 TRUE，执行器仅允许关系表全表更新。</param>
 /// <param name="TableAlias">目标表可选别名。</param>
 /// <param name="FromClauses">可选的关系表联接来源；每个目标行最多按首个匹配来源更新一次。</param>
 public sealed record UpdateStatement(
@@ -1195,6 +1195,9 @@ public sealed record UpdateStatement(
     SqlExpression Where,
     string? TableAlias = null) : SqlStatement
 {
+    /// <summary>原 SQL 是否省略 WHERE 子句；仅关系表允许按常量 TRUE 更新全部行。</summary>
+    public bool WhereClauseIsOmitted { get; init; }
+
     /// <summary>更新目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 

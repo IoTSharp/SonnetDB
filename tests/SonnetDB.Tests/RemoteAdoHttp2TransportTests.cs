@@ -383,7 +383,7 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Equal("Decimal", schema[2].DataTypeName);
         Assert.Null(schema[1].ColumnSize);
         Assert.Null(schema[3].ColumnSize);
-        Assert.Equal(DBNull.Value, reader.GetSchemaTable()!.Rows[1][SchemaTableColumn.ColumnSize]);
+        Assert.Equal(-1, reader.GetSchemaTable()!.Rows[1][SchemaTableColumn.ColumnSize]);
     }
 
     [Theory]

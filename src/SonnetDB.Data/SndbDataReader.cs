@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 using SonnetDB.Data.Internal;
+using SonnetDB.Exceptions;
 
 namespace SonnetDB.Data;
 
@@ -299,8 +300,10 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             var row = table.NewRow();
             row[SchemaTableColumn.ColumnName] = GetName(ordinal);
             row[SchemaTableColumn.ColumnOrdinal] = ordinal;
+            // DataSet.Load 把 DBNull 的字符串长度解释成 0；经典 schema 用 -1 表示无界，
+            // 强类型 GetColumnSchema 仍以 null 保留没有声明长度的信息。
             row[SchemaTableColumn.ColumnSize] = columnMetadata?.ColumnSize is { } size ? size
-                : columnMetadata.HasValue ? DBNull.Value : GetColumnSize(fieldType);
+                : columnMetadata.HasValue ? fieldType == typeof(string) ? -1 : DBNull.Value : GetColumnSize(fieldType);
             row[SchemaTableColumn.NumericPrecision] = columnMetadata?.NumericPrecision is { } precision ? (short)precision
                 : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericPrecision(fieldType);
             row[SchemaTableColumn.NumericScale] = columnMetadata?.NumericScale is { } scale ? (short)scale
@@ -414,7 +417,13 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     }
 
     /// <inheritdoc />
-    public override bool NextResult() => false;
+    public override bool NextResult()
+        => ReadWithTimeoutAsync(CancellationToken.None, nextResult: true)
+            .ConfigureAwait(false).GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public override Task<bool> NextResultAsync(CancellationToken cancellationToken)
+        => ReadWithTimeoutAsync(cancellationToken, nextResult: true);
 
     /// <inheritdoc />
     public override bool Read()
@@ -446,12 +455,23 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     /// <summary>
     /// 为单次行读取建立独立超时窗口，并与本次 ReadAsync 的调用方令牌组合。
     /// </summary>
-    private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken)
+    private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken, bool nextResult = false)
     {
         callerCancellationToken.ThrowIfCancellationRequested();
         if (_closed) return false;
         _commandCancellationToken.ThrowIfCancellationRequested();
-        if (_bufferedRow)
+        if (nextResult)
+        {
+            _hasRow = false;
+            _hasRows = null;
+            _bufferedRow = false;
+            if ((_behavior & CommandBehavior.SingleResult) != 0)
+            {
+                _hasRows = false;
+                return false;
+            }
+        }
+        else if (_bufferedRow)
         {
             _bufferedRow = false;
             _hasRow = true;
@@ -462,14 +482,14 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         {
             if (!_commandCancellationToken.CanBeCanceled)
             {
-                return SetReadResult(await _result.ReadNextRowAsync(callerCancellationToken).ConfigureAwait(false));
+                return SetOperationResult(await ExecuteReadOperationAsync(callerCancellationToken, nextResult).ConfigureAwait(false), nextResult);
             }
 
             if (!callerCancellationToken.CanBeCanceled)
             {
                 try
                 {
-                    return SetReadResult(await _result.ReadNextRowAsync(_commandCancellationToken).ConfigureAwait(false));
+                    return SetOperationResult(await ExecuteReadOperationAsync(_commandCancellationToken, nextResult).ConfigureAwait(false), nextResult);
                 }
                 catch (OperationCanceledException exception) when (_commandCancellationToken.IsCancellationRequested)
                 {
@@ -482,7 +502,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
                 _commandCancellationToken);
             try
             {
-                return SetReadResult(await _result.ReadNextRowAsync(commandReadCancellation.Token).ConfigureAwait(false));
+                return SetOperationResult(await ExecuteReadOperationAsync(commandReadCancellation.Token, nextResult).ConfigureAwait(false), nextResult);
             }
             catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
             {
@@ -510,7 +530,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
 
         try
         {
-            return SetReadResult(await _result.ReadNextRowAsync(readCancellation.Token).ConfigureAwait(false));
+            return SetOperationResult(await ExecuteReadOperationAsync(readCancellation.Token, nextResult).ConfigureAwait(false), nextResult);
         }
         catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
         {
@@ -534,6 +554,32 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             commandRegistration.Dispose();
             ResetReadTimeoutCancellation(readCancellation);
         }
+
+    }
+
+    private ValueTask<bool> ExecuteReadOperationAsync(CancellationToken token, bool nextResult)
+        => nextResult ? MoveNextResultAsync(token) : _result.ReadNextRowAsync(token);
+
+    private async ValueTask<bool> MoveNextResultAsync(CancellationToken token)
+    {
+        try
+        {
+            return await _result.NextResultAsync(token).ConfigureAwait(false);
+        }
+        catch (RoutineExecutionException exception) when (exception.Code == RoutineErrorCodes.Cancelled
+            && token.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(exception.Message, exception, token);
+        }
+    }
+
+    private bool SetOperationResult(bool result, bool nextResult)
+    {
+        if (!nextResult)
+            return SetReadResult(result);
+        if (!result)
+            _hasRows = false;
+        return result;
     }
 
     private bool SetReadResult(bool hasRow)

@@ -46,6 +46,15 @@ internal sealed class HyperLogLog
         AddHash(XxHash64.HashToUInt64(buf));
     }
 
+    /// <summary>累加 Int64 的完整 little-endian 位模式，避免转换为 Double 丢失整数身份。</summary>
+    /// <param name="value">整数值。</param>
+    public void Add(long value)
+    {
+        Span<byte> buf = stackalloc byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(buf, value);
+        AddHash(XxHash64.HashToUInt64(buf));
+    }
+
     /// <summary>累加字符串值（UTF-8 编码后哈希）。</summary>
     public void Add(string value)
     {
@@ -114,6 +123,12 @@ internal sealed class HyperLogLog
         int registerCount = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes[8..12]);
         if (precision != Precision || registerCount != RegisterCount)
             throw new InvalidDataException("HyperLogLog 精度不匹配。");
+
+        foreach (byte rank in bytes[12..])
+        {
+            if (rank > RemainingBits + 1)
+                throw new InvalidDataException("HyperLogLog 寄存器值超出哈希位数范围。");
+        }
 
         var hll = new HyperLogLog();
         bytes[12..].CopyTo(hll._registers.AsSpan());

@@ -86,6 +86,9 @@ internal interface IExecutionResult : IDisposable
     /// <summary>异步读取下一行，返回 <c>false</c> 表示已结束。</summary>
     ValueTask<bool> ReadNextRowAsync(CancellationToken cancellationToken);
 
+    /// <summary>释放当前结果并切换到下一个；单语句结果默认为 false。</summary>
+    ValueTask<bool> NextResultAsync(CancellationToken cancellationToken) => ValueTask.FromResult(false);
+
     /// <summary>读取指定列在当前行的值。</summary>
     object? GetValue(int ordinal);
 

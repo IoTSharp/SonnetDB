@@ -168,6 +168,8 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
 
     public void Add(double value)
     {
+        if (_fieldType == FieldType.Int64)
+            throw new InvalidOperationException("Int64 mode 必须通过保留原始类型的字段值累加。");
         if (double.IsNaN(value)) return;
         Count++;
         ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
@@ -177,7 +179,7 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
 
     public void Add(FieldValue value)
     {
-        if (_fieldType is not (FieldType.String or FieldType.Boolean))
+        if (_fieldType is not (FieldType.String or FieldType.Boolean or FieldType.Int64))
         {
             if (!value.TryGetNumeric(out double numeric))
                 throw new InvalidOperationException($"mode 不支持 {value.Type} 参数。");
@@ -220,7 +222,7 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
     public object? Finalize()
     {
         if (Count == 0) return null;
-        if (_fieldType is FieldType.String or FieldType.Boolean)
+        if (_fieldType is FieldType.String or FieldType.Boolean or FieldType.Int64)
             return FinalizeCategorical();
 
         long bestCount = 0;
@@ -249,13 +251,21 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
             }
         }
 
-        return _fieldType == FieldType.String ? bestValue.AsString() : bestValue.AsBool();
+        return _fieldType switch
+        {
+            FieldType.String => bestValue.AsString(),
+            FieldType.Int64 => bestValue.AsLong(),
+            _ => bestValue.AsBool(),
+        };
     }
 
     private int Compare(FieldValue left, FieldValue right)
-        => _fieldType == FieldType.String
-            ? string.Compare(left.AsString(), right.AsString(), StringComparison.Ordinal)
-            : left.AsBool().CompareTo(right.AsBool());
+        => _fieldType switch
+        {
+            FieldType.String => string.Compare(left.AsString(), right.AsString(), StringComparison.Ordinal),
+            FieldType.Int64 => left.AsLong().CompareTo(right.AsLong()),
+            _ => left.AsBool().CompareTo(right.AsBool()),
+        };
 }
 
 // ── percentile / median / pXX ────────────────────────────────────────────
@@ -408,8 +418,13 @@ internal sealed class DistinctCountAccumulator : IAggregateAccumulator
 
     public long Count { get; private set; }
 
+    // 现有段内 HLL 将 Int64 转为 Double 后哈希，无法恢复已经合并的大整数身份。
+    internal bool CanMergeLegacyNumericSketch => _fieldType != FieldType.Int64;
+
     public void Add(double value)
     {
+        if (_fieldType == FieldType.Int64)
+            throw new InvalidOperationException("Int64 distinct_count 必须通过保留原始类型的字段值累加。");
         if (double.IsNaN(value)) return;
         Count++;
         _hll.Add(value);
@@ -417,6 +432,14 @@ internal sealed class DistinctCountAccumulator : IAggregateAccumulator
 
     public void Add(FieldValue value)
     {
+        if (_fieldType == FieldType.Int64)
+        {
+            if (value.Type != FieldType.Int64)
+                throw new InvalidOperationException($"distinct_count 期望 Int64 参数，实际为 {value.Type}。");
+            Count++;
+            _hll.Add(value.AsLong());
+            return;
+        }
         if (_fieldType == FieldType.String)
         {
             if (value.Type != FieldType.String)
@@ -449,6 +472,8 @@ internal sealed class DistinctCountAccumulator : IAggregateAccumulator
     internal void MergeSketch(HyperLogLog hll, long count)
     {
         ArgumentNullException.ThrowIfNull(hll);
+        if (!CanMergeLegacyNumericSketch)
+            throw new InvalidOperationException("Int64 distinct_count 不能合并旧版数值 HLL；必须读取原始字段值。");
         _hll.Merge(hll);
         Count += count;
     }
@@ -484,18 +509,33 @@ internal sealed class HistogramAccumulator : IAggregateAccumulator
     private readonly double _binWidth;
     private readonly Dictionary<long, long> _bins = new();
 
-    public HistogramAccumulator(double binWidth) => _binWidth = binWidth;
+    public HistogramAccumulator(double binWidth)
+    {
+        if (!double.IsFinite(binWidth) || binWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(binWidth), "histogram 桶宽必须为正有限数。");
+        _binWidth = binWidth;
+    }
 
     public long Count { get; private set; }
 
     public void Add(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value)) return;
-        Count++;
-        long binIndex = (long)Math.Floor(value / _binWidth);
-        ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
-            .GetValueRefOrAddDefault(_bins, binIndex, out _);
-        slot++;
+        double index = Math.Floor(value / _binWidth);
+        // 2^63 可由 Double 精确表示，而 Int64.MaxValue 不能；上界必须使用严格比较。
+        if (!double.IsFinite(index) || index < long.MinValue || index >= 9223372036854775808d)
+            throw new InvalidOperationException("histogram 桶索引超出 Int64 范围。");
+        long binIndex = (long)index;
+        double lower = binIndex * _binWidth;
+        double upper = lower + _binWidth;
+        if (!double.IsFinite(lower) || !double.IsFinite(upper)
+            || lower >= upper)
+            throw new InvalidOperationException("histogram 桶边界无法用有限 Double 准确表示。");
+
+        long count = checked(Count + 1);
+        long binCount = checked(_bins.GetValueOrDefault(binIndex) + 1);
+        _bins[binIndex] = binCount;
+        Count = count;
     }
 
     public void Merge(IAggregateAccumulator other)

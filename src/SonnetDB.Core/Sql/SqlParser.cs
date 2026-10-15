@@ -3642,13 +3642,23 @@ public sealed class SqlParser
                 fromClauses.Add(updateJoin);
         }
 
-        Expect(TokenKind.KeywordWhere);
-        var where = ParseExpression();
+        bool whereClauseIsOmitted = Current.Kind != TokenKind.KeywordWhere;
+        SqlExpression where;
+        if (whereClauseIsOmitted)
+        {
+            where = new LiteralExpression(SqlLiteralKind.Boolean, BooleanValue: true);
+        }
+        else
+        {
+            Advance();
+            where = ParseExpression();
+        }
         var statement = new UpdateStatement(table, assignments, where, tableAlias)
         {
             TableNameIsQuoted = tableNameIsQuoted,
             TableAliasIsQuoted = tableAliasIsQuoted,
             FromClauses = fromClauses,
+            WhereClauseIsOmitted = whereClauseIsOmitted,
         };
         if (IsIdentifier("returning"))
         {

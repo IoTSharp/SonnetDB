@@ -178,7 +178,10 @@ public sealed class SndbCommand : DbCommand
         if (result.RecordsAffected == -1)
         {
             // SELECT 被误用作 NonQuery 时仍按旧约定消费完整结果，但读取过程也必须响应超时。
-            while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+            do
+            {
+                while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+            } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
         }
 
         return result.RecordsAffected;
@@ -190,13 +193,13 @@ public sealed class SndbCommand : DbCommand
     private async Task<object?> ExecuteScalarCoreAsync(CancellationToken cancellationToken)
     {
         using var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
-        if (result.Columns.Count == 0)
-            return null;
-        if (!await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false))
-            return null;
-
-        var value = result.GetValue(0);
-        while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+        object? value = result.Columns.Count != 0
+            && await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)
+                ? result.GetValue(0) : null;
+        do
+        {
+            while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+        } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
         return value;
     }
 
@@ -373,6 +376,18 @@ public sealed class SndbCommand : DbCommand
         // 嵌入式走 Core AST 值绑定（防注入 + 复用解析缓存）；远程仍在其 impl 内按需绑定。
         if (IsSqlTransactionControl(_commandText))
             throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
+        var batch = SqlSelectBatch.TryCreate(
+            _commandText, _parameters, impl is Embedded.EmbeddedConnectionImpl,
+            cancellationToken, out var frozenParameters);
+        if (batch is not null)
+        {
+            var first = await impl.ExecuteAsync(batch[0], frozenParameters!, behavior, transactionState, cancellationToken)
+                .ConfigureAwait(false);
+            if ((behavior & CommandBehavior.SingleResult) != 0)
+                return first;
+            return new BatchExecutionResult(first, batch.Count,
+                (index, token) => impl.ExecuteAsync(batch[index], frozenParameters!, behavior, transactionState, token));
+        }
         RejectUnsupportedLockingRead(_commandText);
         return await impl.ExecuteAsync(_commandText, _parameters, behavior, transactionState, cancellationToken)
             .ConfigureAwait(false);
