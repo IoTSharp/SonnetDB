@@ -43,3 +43,5 @@
 完整 solution restore、原 CI Format Check、实际提交和 Issue 回复/关闭回读结果见根 [HANDOFF](../../HANDOFF.md) 的本批交接段；只按实际远端结果更新，用户授权的“已完成回复并关闭”不以本地代码存在替代原 Issue 验收条件。
 
 [逐项 Issue 审计](issue-closure-audit-20261015.json)与[远端操作回执](issue-actions-20261015.json)保留实际回复、关闭和剩余项；[GH-Issue #273 公开包报告](issue-273-public-package-20261015.md)记录独立消费者的两种脚本选项、迁移升级、重复迁移与新进程重开。它兑现原 Issue 允许的生成阶段明确拒绝方案，已回复并关闭为 completed，不表示新增幂等脚本支持。
+
+2026-10-16 后续：实现已随 main 推送，维护者明确要求按已合入的引擎/ADO 实现范围结项；#224/#229/#257 已回复并关闭。正式包与 FreeSql/XCode 消费者验收继续由 #230 和适配任务跟踪，未标记为已通过。实际评论及状态见 [两批远端回执](issue-actions-batches-01-02-20261016.json)。
