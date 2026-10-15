@@ -1,0 +1,151 @@
+{
+  "capturedUtc": "2026-10-15T23:34:32.8156523Z",
+  "repository": "IoTSharp/SonnetDB",
+  "branch": "main",
+  "remoteHead": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105",
+  "remoteParityResults": "2ab6caa94b9f07d25fdd0760a7aa682f7ca26295",
+  "pushedIssueCommits": [
+    {
+      "commit": "d461f8abac729b16cf3194edb37bf215f1d671a3",
+      "issue": 272
+    },
+    {
+      "commit": "13f2063bbd255caa8810af3b2b1ce8bb1d66679f",
+      "issue": 271
+    },
+    {
+      "commit": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105",
+      "issue": 270
+    }
+  ],
+  "ci": {
+    "jobs": [
+      {
+        "name": "Format Check",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "AOT Publish (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build & Test (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build & Test (windows-latest, rest)",
+        "status": "in_progress",
+        "conclusion": ""
+      },
+      {
+        "name": "Build & Test (windows-latest, core)",
+        "status": "in_progress",
+        "conclusion": ""
+      },
+      {
+        "name": "AOT Publish (ubuntu-24.04-arm)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "AOT Publish (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38823012523",
+    "runId": 38823012523,
+    "headSha": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105",
+    "conclusion": "",
+    "status": "in_progress"
+  },
+  "issues": [
+    {
+      "number": 272,
+      "title": "[EF Core] CREATE TABLE 丢失外键名称，按原名 DROP 返回成功但约束仍生效",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-11T02:12:31Z",
+      "closedAt": null,
+      "commentCount": 0,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/272"
+    },
+    {
+      "number": 271,
+      "title": "[EF Core/ADO.NET] BLOB 参数查询报 Byte[] 与 String 无法比较，阻塞 Identity Passkey 查找",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-11T02:12:11Z",
+      "closedAt": null,
+      "commentCount": 0,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/271"
+    },
+    {
+      "number": 270,
+      "title": "[EF Core] 参数化 string.Contains 的 LIKE 模式未转义，%/_ 误匹配及反斜杠漏匹配",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-11T21:12:42Z",
+      "closedAt": null,
+      "commentCount": 1,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/270"
+    },
+    {
+      "number": 264,
+      "title": "[Chloe][DDL] 🚧 执行 DECIMAL(p,s) 的精度与小数位约束",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-15T15:50:46Z",
+      "closedAt": null,
+      "commentCount": 1,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/264"
+    },
+    {
+      "number": 263,
+      "title": "[Chloe][ADO.NET] 🚧 远程绑定 SByte UInt16 UInt32 应与嵌入式一致",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-15T15:50:43Z",
+      "closedAt": null,
+      "commentCount": 2,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/263"
+    },
+    {
+      "number": 243,
+      "title": "[XCode][SQL] 支持复合主键及无主键关系表的原子有界删除",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-15T22:35:48Z",
+      "closedAt": null,
+      "commentCount": 3,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/243"
+    },
+    {
+      "number": 226,
+      "title": "[DDL] 补齐存量关系表主键重命名和主键定义迁移的可执行合同",
+      "state": "open",
+      "stateReason": null,
+      "updatedAt": "2026-10-15T22:35:52Z",
+      "closedAt": null,
+      "commentCount": 3,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/226"
+    }
+  ],
+  "repliesPostedThisBatch": [],
+  "closedThisBatch": [],
+  "pending": "Complete the two Windows CI test jobs before reviewing and posting the prepared replies for 272/271/270 and closing completed issues. 264/263 remain open for formal release and consumer delivery.",
+  "localOnlyCommits": [
+    {
+      "commit": "15d8d1802f6e2cd87c66a7ef59e365953ac202eb",
+      "issue": 264
+    },
+    {
+      "commit": "eb80bd22998763e69f77e4f50c292eec04739428",
+      "issue": 263
+    }
+  ],
+  "protectedState": "No force push, no merge/deletion of parity-results, all frozen worktrees and original failure evidence retained."
+}

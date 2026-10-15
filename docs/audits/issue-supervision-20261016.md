@@ -85,3 +85,9 @@
 
 当前代理：issue312已接续#261（D:/source/SonnetDB-worktrees/issue261-public-metadata，codex/issue261-public-metadata，285186b8），只验公开包和XCode真实候选，不与#262并行改共享生产；issue314的#263已完成12个最终消费者进程，整理冻结交付；issue313实施#262日期投影原生类型/Kind和协商。#262真实+08基线6FAIL/3PASS、既有日期参数另2PASS，旧结果保留。下一候选#260需先识别与#262共享标量/类型推断边界；旧树、原始失败、缓存与parity-results均保留。
 #264已完整门禁后独立提交15d8d180，未推送。#263冻结12文件已集成，根核136证据文件/18二进制与12消费进程exit0；详见[小整数公开包与Chloe验收](issue-263-public-package-20261016.md)。两项正式发行和Chloe正式交付未完成，保持OPEN。issue314现接续#260，D:/source/SonnetDB-worktrees/issue260-uint64-parse，分支codex/issue260-uint64-parse，285186b8；与issue313的#262约定：260可先写独立解析helper/tests/FunctionRegistry，但共享RelationalSelectExecutor.cs声明推断等待262冻结，由根同步基线后再接线。issue312的261只验消费者。前批8ead8bf2的CI38823012523仍运行，Format成功，不预写270～272关闭结果。
+
+## 当前接续检查点
+
+批次02推送/CI/Issue实际状态见[线上回执](issue-supervision-batch02-actions-20261016.json)：远端8ead8bf2确认，parity-results未变化；38823012523的Ubuntu完整构建测试、三平台AOT和Format成功，两个Windows测试分片仍运行。270～272仍OPEN、回复尚未发送，待最终CI核对后回复/关闭并回读。264独立提交15d8d180、263独立提交eb80bd22均已通过最终完整门禁，尚未推送，等262批次与前批CI收尾，避免cancel-in-progress取消已有验收。264/263均继续OPEN，正式发行及对应Chloe上游正式交付未被预览/候选替代。
+
+三个唯一任务现在为262（issue313）、261（issue312）、260（issue314）。261公开包矩阵暴露内置concat可推断却仍Object的真实视图声明缺口，已要求继续修复；不把旧8进程探针的unknown断言提升为完整元数据PASS。262还发现泛型DATE_ADD被C# switch隐式提升DateTimeOffset，以及真实Chloe的TO_DATETIME包装会抹Kind，分别实施原生修复和本地候选验收。260明确parse_uint64有界语法与精确Decimal承载。共享SELECT声明/远程测试按262→261→260串行同步，独立helper/registry/测试与消费者可并行。均不外发消费者补丁，正式发行边界保留；任务未全部验收，半小时监督继续ACTIVE。
