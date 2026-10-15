@@ -27,7 +27,8 @@ internal sealed class SqlTransactionSessions : IDisposable
         _sweeper = new Timer(_ => Sweep(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
-    public bool TryCreate(Tsdb database, string databaseName, string authorization, out Session? session)
+    public bool TryCreate(Tsdb database, string databaseName, string authorization, out Session? session,
+        SqlTransactionIsolationLevel isolationLevel = SqlTransactionIsolationLevel.ReadCommitted)
     {
         session = null;
         if (Interlocked.Increment(ref _activeCount) > MaxSessions)
@@ -44,7 +45,7 @@ internal sealed class SqlTransactionSessions : IDisposable
 
         var created = new Session(
             Guid.NewGuid().ToString("N"), database, databaseName, PrincipalKey(authorization),
-            new SqlTransactionContext(), DateTimeOffset.UtcNow + Lease);
+            new SqlTransactionContext(isolationLevel), DateTimeOffset.UtcNow + Lease);
         if (!_sessions.TryAdd(created.Id, created))
         {
             Interlocked.Decrement(ref _activeCount);

@@ -592,7 +592,7 @@ public sealed class SqlExpressionExecutionTests : IDisposable
         var result = Select(database,
             "SELECT json_value(document, '$.value') + 1 AS next_value FROM readings WHERE id = 'r1'");
 
-        Assert.Equal(8d, result.Rows.Single()[0]);
+        Assert.Equal(8L, Assert.IsType<long>(result.Rows.Single()[0]));
     }
 
     /// <summary>
@@ -702,7 +702,7 @@ public sealed class SqlExpressionExecutionTests : IDisposable
             WHERE id = 'r1'
             """);
 
-        Assert.Equal(8d, result.Rows.Single()[0]);
+        Assert.Equal(8L, Assert.IsType<long>(result.Rows.Single()[0]));
     }
 
     /// <summary>

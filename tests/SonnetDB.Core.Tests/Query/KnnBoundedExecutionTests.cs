@@ -68,10 +68,11 @@ public sealed class KnnBoundedExecutionTests(ITestOutputHelper output) : IDispos
         for (int index = 0; index < 256; index++)
             candidates.Add(-index, index, 1);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int index = 256; index < 100_256; index++)
-            candidates.Add(-index, index, 1);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = MeasureThreadAllocation(() =>
+        {
+            for (int index = 256; index < 100_256; index++)
+                candidates.Add(-index, index, 1);
+        });
 
         output.WriteLine("Fixed K=8; 100000 replacement candidates; additional managed allocation={0} bytes.", allocated);
         Assert.InRange(allocated, 0, 4_096);
@@ -103,11 +104,50 @@ public sealed class KnnBoundedExecutionTests(ITestOutputHelper output) : IDispos
     [Fact]
     public void BoundedCandidates_WithHugeK_DoesNotPreallocateRequestedCapacity()
     {
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        using var candidates = new KnnExecutor.BoundedCandidateSet(int.MaxValue, "embedding", null);
-        candidates.Add(0, 1000, 1);
-        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8_192);
-        Assert.Single(candidates.GetResults());
+        KnnExecutor.BoundedCandidateSet? candidates = null;
+        try
+        {
+            long allocated = MeasureThreadAllocation(() =>
+            {
+                candidates = new KnnExecutor.BoundedCandidateSet(int.MaxValue, "embedding", null);
+                candidates.Add(0, 1000, 1);
+            });
+            Assert.InRange(allocated, 0, 8_192);
+            Assert.NotNull(candidates);
+            Assert.Single(candidates.GetResults());
+        }
+        finally
+        {
+            candidates?.Dispose();
+        }
+    }
+
+    /// <summary>测量区仍计入真实托管分配，不能通过关闭 GC 将分配误记为零。</summary>
+    [Fact]
+    public void ThreadAllocationMeasurement_WithKnownAllocation_CountsAllocatedObject()
+    {
+        byte[]? value = null;
+        long allocated = MeasureThreadAllocation(() => value = new byte[37]);
+        Assert.InRange(allocated, 37, 512);
+        GC.KeepAlive(value);
+    }
+
+    private static long MeasureThreadAllocation(Action measure)
+    {
+        // .NET 10 的 BGC 可能把 allocation context 未使用的尾部计入线程计数器
+        // (dotnet/runtime#134855)。只隔离测量窗口；不改变原分配阈值或被测操作。
+        // 16 MiB 是临时 GC 预算，不是容许分配量；真实分配仍由下方计数器逐字节计算。
+        Assert.True(GC.TryStartNoGCRegion(16 * 1024 * 1024), "无法建立有效的无 GC 分配测量窗口。");
+        try
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            measure();
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        finally
+        {
+            GC.EndNoGCRegion();
+        }
     }
 
     /// <summary>取消发生后候选与结果读取都必须拒绝继续执行。</summary>

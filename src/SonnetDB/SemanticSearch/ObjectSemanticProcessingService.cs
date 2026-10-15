@@ -37,6 +37,9 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
     /// <summary>测试在对象入队完成后精确触发页预算取消，不依赖机器速度或睡眠。</summary>
     internal Action<CancellationTokenSource>? AfterBackfillObjectForTest { get; set; }
 
+    /// <summary>测试捕获实际恢复预算，在持久入队后精确区分预算取消与宿主取消。</summary>
+    internal Action<CancellationTokenSource>? BeforeRecoveryBackfillForTest { get; set; }
+
     /// <summary>测试读取排队及执行中去重占位的数量。</summary>
     internal int ScheduledCountForTest => _scheduled.Count;
 
@@ -258,7 +261,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
         // 只在请求内处理一页；后续页由恢复循环继续，避免大桶扫描阻塞 HTTP 请求。
         if (existing is not null && _backfillsInProgress.TryAdd(database + "\n" + bucket, 0))
         {
-            try { existing = ProcessBackfillPage(database, tsdb, existing, cancellationToken); }
+            try { existing = ProcessBackfillPage(database, tsdb, existing, cancellationToken, cancellationToken); }
             finally { _backfillsInProgress.TryRemove(database + "\n" + bucket, out _); }
         }
         var result = existing?.State ?? new ObjectSemanticBackfillState(bucket, null, 0, 0, 0, false, DateTimeOffset.UtcNow);
@@ -379,7 +382,8 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
                 if (migrated.Scanned > 0)
                     _logger.LogDebug("派生旧任务恢复：{Database} 扫描 {Scanned}，调度 {Scheduled}，完成 {Complete}",
                         database, migrated.Scanned, migrated.Scheduled, migrated.Complete);
-                ProcessBackfillPageIfDue(database, tsdb, budget.Token);
+                BeforeRecoveryBackfillForTest?.Invoke(budget);
+                ProcessBackfillPageIfDue(database, tsdb, budget.Token, stoppingToken);
             }
             catch (OperationCanceledException) when (budget.IsCancellationRequested)
             {
@@ -398,7 +402,8 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
     }
 
     /// <summary>恢复循环每轮最多推进一个 Bucket 回填页，页游标持久化后再释放占位。</summary>
-    private void ProcessBackfillPageIfDue(string database, Tsdb tsdb, CancellationToken cancellationToken)
+    private void ProcessBackfillPageIfDue(
+        string database, Tsdb tsdb, CancellationToken workCancellationToken, CancellationToken progressCancellationToken)
     {
         var store = OpenJobStore(tsdb);
         // 每轮最多检查固定数量 Bucket，避免维护循环在 Bucket 数量异常时失去时间上界。
@@ -407,8 +412,8 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
         {
             if (inspected++ >= 64)
                 break;
-            cancellationToken.ThrowIfCancellationRequested();
-            var state = store.ReadBackfill(bucket.Name, cancellationToken);
+            workCancellationToken.ThrowIfCancellationRequested();
+            var state = store.ReadBackfill(bucket.Name, workCancellationToken);
             if (state is null || state.State.Completed)
                 continue;
             string id = database + "\n" + bucket.Name;
@@ -416,7 +421,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
                 continue;
             try
             {
-                ProcessBackfillPage(database, tsdb, state, cancellationToken);
+                ProcessBackfillPage(database, tsdb, state, workCancellationToken, progressCancellationToken);
             }
             finally
             {
@@ -431,9 +436,10 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
         string database,
         Tsdb tsdb,
         ObjectProcessingJobStore.StoredBackfill current,
-        CancellationToken cancellationToken)
+        CancellationToken workCancellationToken,
+        CancellationToken progressCancellationToken)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(workCancellationToken);
         budget.CancelAfter(_processingOptions.BackfillBudgetMilliseconds);
         var objectStore = new SndbObjectStore(tsdb);
         SndbObjectListResult page;
@@ -447,9 +453,9 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
                 delimiter: null,
                 cancellationToken: budget.Token);
         }
-        catch (OperationCanceledException) when (budget.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (budget.IsCancellationRequested && !progressCancellationToken.IsCancellationRequested)
         {
-            // 列表预算不足时还没有登记对象，保持原游标供恢复循环继续；请求取消仍向上传播。
+            // 页或恢复工作预算不足时尚未登记对象，保持游标；真实请求/宿主取消仍向上传播。
             return current;
         }
         int scanned = current.State.ScannedObjects;
@@ -458,7 +464,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
         int processed = 0;
         foreach (var info in page.Objects)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            progressCancellationToken.ThrowIfCancellationRequested();
             if (budget.IsCancellationRequested)
                 break;
             if (EnqueueIfEnabled(database, tsdb, info) is not null)
@@ -469,7 +475,7 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             processed++;
             AfterBackfillObjectForTest?.Invoke(budget);
         }
-        cancellationToken.ThrowIfCancellationRequested();
+        progressCancellationToken.ThrowIfCancellationRequested();
         if (processed == 0 && page.Objects.Count > 0)
             return current;
         bool pageCompleted = processed == page.Objects.Count;
@@ -487,8 +493,9 @@ internal sealed class ObjectSemanticProcessingService : BackgroundService
             UpdatedUtc = DateTimeOffset.UtcNow,
         };
         // 已完成对象的任务已持久化，页预算只阻断后续对象；用独立且响应调用方取消的
-        // 五秒提交窗口保存对应游标/计数，避免过期 token 将正常分批进度变为 HTTP 500。
-        using var commitBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // 五秒提交窗口保存对应游标/计数；恢复工作预算到期停止新对象，不能丢弃已登记进度。
+        // 提交仍响应真实请求或宿主取消，不把该窗口当作跨崩溃的任务/进度原子事务。
+        using var commitBudget = CancellationTokenSource.CreateLinkedTokenSource(progressCancellationToken);
         commitBudget.CancelAfter(TimeSpan.FromSeconds(5));
         var jobStore = OpenJobStore(tsdb);
         if (!jobStore.TryWriteBackfill(current, next, commitBudget.Token))

@@ -3,6 +3,7 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -249,4 +250,78 @@ public sealed class SqlCteTests : IDisposable
         SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, region STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO devices (id, region) VALUES (1, 'west'), (2, 'east'), (3, 'west')");
     }
+
+    [Fact]
+    public void Execute_NestedCteColumnLists_OverrideProjectionAliasesAndPreserveQuotedDots()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateDevices(db);
+        const string source = """
+            WITH renamed ("Device.ID", "Area") AS (
+                SELECT id AS original_id, region AS original_region FROM devices
+            ), nested ("Result.ID") AS (
+                SELECT "Device.ID" AS hidden_id FROM renamed WHERE "Area" = 'west'
+            )
+            """;
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            source + "SELECT \"Result.ID\" FROM nested ORDER BY \"Result.ID\" DESC"));
+        Assert.Equal(["Result.ID"], result.Columns);
+        Assert.Equal([3L, 1L], result.Rows.Select(row => Assert.IsType<long>(row[0])));
+        Assert.Equal(TableColumnType.Int64, Assert.Single(result.ColumnInfo!).DataType);
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            source + "SELECT \"result.id\" FROM nested"));
+    }
+
+    [Fact]
+    public void Execute_EmptyCteColumnList_OverridesAliasesAndKeepsNullTypeMetadata()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateDevices(db);
+        SqlExecutor.Execute(db, "ALTER TABLE devices ADD amount DECIMAL(18,4)");
+        var amount = db.Tables.Catalog.TryGet("devices")!.Columns[2];
+        Assert.Equal((byte)18, amount.DecimalPrecision);
+        Assert.Equal((byte)4, amount.DecimalScale);
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            WITH renamed ("ID.Part", amount) AS (
+                SELECT id AS hidden_id, amount AS hidden_amount FROM devices WHERE id < 0
+            )
+            SELECT "ID.Part", amount FROM renamed ORDER BY "ID.Part" LIMIT 2
+            """));
+        Assert.Empty(result.Rows);
+        Assert.Equal(["ID.Part", "amount"], result.Columns);
+        Assert.Equal(TableColumnType.Int64, result.ColumnInfo![0].DataType);
+        Assert.Equal(TableColumnType.Decimal, result.ColumnInfo[1].DataType);
+        var nullRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            WITH renamed ("ID.Part", amount) AS (
+                SELECT id AS hidden_id, amount AS hidden_amount FROM devices
+            )
+            SELECT "ID.Part", amount FROM renamed ORDER BY "ID.Part"
+            """));
+        Assert.Equal(3, nullRows.Rows.Count);
+        Assert.All(nullRows.Rows, row => Assert.Null(row[1]));
+        Assert.Equal(TableColumnType.Decimal, nullRows.ColumnInfo![1].DataType);
+    }
+
+    [Fact]
+    public void Execute_DerivedColumnAliases_OverrideCteNamesAndKeepOrdinaryQuotedAlias()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        CreateDevices(db);
+        var ordinary = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT s."a.b" FROM devices AS d
+            JOIN (SELECT 1 AS id, 'quoted' AS "a.b") AS s ON d.id = s.id
+            """));
+        Assert.Equal("quoted", Assert.Single(ordinary.Rows)[0]);
+        var renamed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            WITH selected ("Cte.ID", "Cte.Value") AS (
+                SELECT id AS hidden_id, region AS hidden_region FROM devices
+            )
+            SELECT s."Outside.ID", s."Outside.Value" FROM devices AS d
+            JOIN (SELECT "Cte.ID", "Cte.Value" FROM selected) AS s("Outside.ID", "Outside.Value")
+            ON d.id = s."Outside.ID" ORDER BY s."Outside.ID"
+            """));
+        Assert.Equal([1L, 2L, 3L], renamed.Rows.Select(row => Assert.IsType<long>(row[0])));
+        Assert.Equal(["west", "east", "west"], renamed.Rows.Select(row => Assert.IsType<string>(row[1])));
+    }
+
 }

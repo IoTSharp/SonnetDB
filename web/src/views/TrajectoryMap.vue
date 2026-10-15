@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="trajectory-page" :class="{ 'trajectory-page--embedded': embedded }">
     <n-card :bordered="false" class="filter-card">
       <n-space vertical :size="14">
@@ -587,6 +587,11 @@ onBeforeUnmount(() => {
   .trajectory-page {
     grid-template-columns: 1fr;
     grid-template-rows: auto 520px 240px;
+  }
+
+  .trajectory-page--embedded {
+    grid-template-rows: max-content 520px 240px;
+    overflow: auto;
   }
 
   .filter-card {

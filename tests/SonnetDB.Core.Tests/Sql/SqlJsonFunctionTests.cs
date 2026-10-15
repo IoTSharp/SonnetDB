@@ -1,3 +1,4 @@
+using System.Globalization;
 using SonnetDB.Engine;
 using SonnetDB.Query.Functions;
 using SonnetDB.Sql;
@@ -33,6 +34,43 @@ public sealed class SqlJsonFunctionTests : IDisposable
             sql,
             parameters,
             controlPlane: null));
+
+    /// <summary>JSON 大整数投影及参数谓词必须区分相邻 Int64，不经 double 舍入。</summary>
+    [Theory]
+    [InlineData(long.MinValue, long.MinValue + 1)]
+    [InlineData(long.MaxValue - 1, long.MaxValue)]
+    [InlineData(long.MaxValue - 123, long.MaxValue - 122)]
+    [InlineData(9007199254740992L, 9007199254740993L)]
+    public void Execute_JsonValueAdjacentInt64_PreservesProjectionAndPredicate(long lower, long upper)
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE numeric_json (id INT, metadata JSON, PRIMARY KEY (id))");
+        QueryInsert(db, 1, lower);
+        QueryInsert(db, 2, upper);
+
+        var projected = Query(db,
+            "SELECT json_value(metadata, '$.value') FROM numeric_json ORDER BY id", new SqlParameters());
+        Assert.Equal(2, projected.Rows.Count);
+        Assert.Equal(lower, Assert.IsType<long>(projected.Rows[0][0]));
+        Assert.Equal(upper, Assert.IsType<long>(projected.Rows[1][0]));
+
+        var equal = Query(db,
+            "SELECT id FROM numeric_json WHERE json_value(metadata, '$.value') = @expected",
+            new SqlParameters().AddNamed("expected", upper));
+        Assert.Equal(2L, Assert.Single(equal.Rows)[0]);
+
+        var greater = Query(db,
+            "SELECT id FROM numeric_json WHERE json_value(metadata, '$.value') > @expected",
+            new SqlParameters().AddNamed("expected", lower));
+        Assert.Equal(2L, Assert.Single(greater.Rows)[0]);
+    }
+
+    private static void QueryInsert(Tsdb db, long id, long value)
+        => SqlExecutor.Execute(db, databaseName: null,
+            "INSERT INTO numeric_json (id, metadata) VALUES (@id, @document)",
+            new SqlParameters().AddNamed("id", id)
+                .AddNamed("document", "{\"value\":" + value.ToString(CultureInfo.InvariantCulture) + "}"),
+            controlPlane: null);
 
     [Fact]
     public void Execute_RelationJsonFunctions_SupportParameterizedPathAndContainment()

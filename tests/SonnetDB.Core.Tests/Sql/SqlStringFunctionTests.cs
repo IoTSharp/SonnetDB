@@ -20,6 +20,60 @@ public sealed class SqlStringFunctionTests : IDisposable
         catch { /* 测试清理失败不覆盖原始断言结果。 */ }
     }
 
+    /// <summary>SQL LIKE 的百分号通配符遇到文本百分号时仍须保存回溯位置。</summary>
+    [Theory]
+    [InlineData("%leading", "%")]
+    [InlineData("%leading", "%\\%%")]
+    [InlineData("\\%_", "\\\\%")]
+    public void Like_PercentWildcardWithLiteralPercentText_ReturnsMatch(string value, string pattern)
+        => AssertLikeQueryMatch(value, pattern, expected: true);
+
+    /// <summary>实际 SQL 过滤覆盖通配符、转义、Unicode、空值和成功/失败回溯。</summary>
+    [Theory]
+    [InlineData("_leading", "%", true)]
+    [InlineData("%leading", "%%", true)]
+    [InlineData("trailing%", "%\\%%", true)]
+    [InlineData("泵_%\\😀设备", "%\\_%", true)]
+    [InlineData("\\%_", "%\\\\%", true)]
+    [InlineData("\\%_", "%\\\\\\%\\_%", true)]
+    [InlineData("ABC", "%", true)]
+    [InlineData("", "%", true)]
+    [InlineData("", "%%", true)]
+    [InlineData("", "_", false)]
+    [InlineData(null, "%", false)]
+    [InlineData("a", null, false)]
+    [InlineData("abc", "a%_c", true)]
+    [InlineData("abbbc", "a%bc", true)]
+    [InlineData("abbbc", "a%bd", false)]
+    [InlineData("a\\%_b", "a\\\\\\%\\_b", true)]
+    [InlineData("a\\%_b", "a\\\\\\%\\_c", false)]
+    [InlineData("%", "\\%", true)]
+    [InlineData("_", "\\_", true)]
+    [InlineData("\\", "\\\\", true)]
+    [InlineData("AXb", "A_b", true)]
+    [InlineData("AB", "A_b", false)]
+    [InlineData("abc%", "%d%", false)]
+    [InlineData("%", "%%_", true)]
+    [InlineData("a%b", "a%b", true)]
+    [InlineData("a%xb", "a%b", true)]
+    public void Like_EscapedPatternsAndBoundaries_ReturnExpectedRows(string? value, string? pattern, bool expected)
+        => AssertLikeQueryMatch(value, pattern, expected);
+
+    private void AssertLikeQueryMatch(string? value, string? pattern, bool expected)
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(database, "CREATE TABLE like_values (id INT, value STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(database, $"INSERT INTO like_values (id, value) VALUES (1, {ToSqlLiteral(value)})");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database, $"SELECT id FROM like_values WHERE value LIKE {ToSqlLiteral(pattern)}"));
+
+        Assert.Equal(expected ? 1 : 0, result.Rows.Count);
+    }
+
+    private static string ToSqlLiteral(string? value)
+        => value is null ? "NULL" : "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+
     [Fact]
     public void StringFunctions_SelectAndWhere_UseNullAwareSemantics()
     {

@@ -22,13 +22,25 @@ env:
 
 jobs:
   build-and-test:
-    name: Build & Test (${{ matrix.os }})
+    name: Build & Test (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        include:
+          - os: ubuntu-latest
+            label: ubuntu-latest
+            shard: all
+            artifact: test-results-ubuntu-latest
+          - os: windows-latest
+            label: windows-latest, core
+            shard: core
+            artifact: test-results-windows-latest-core
+          - os: windows-latest
+            label: windows-latest, rest
+            shard: rest
+            artifact: test-results-windows-latest-rest
 
     steps:
       - uses: actions/checkout@v7
@@ -63,21 +75,37 @@ jobs:
           ./eng/test-release-artifacts.ps1
           ./eng/test-release-network-defaults.ps1
           ./eng/test-release-readiness.ps1
+          ./eng/test-nuget-candidate-promotion.ps1
+          ./eng/test-ci-test-shards.ps1
           ./eng/test-m43-release-evidence.ps1
 
       - name: Build
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
 
+      - name: Select complete test shard
+        id: tests
+        shell: pwsh
+        env:
+          CI_TEST_SHARD: ${{ matrix.shard }}
+        run: |
+          if ($env:CI_TEST_SHARD -eq 'all') {
+            'solution=SonnetDB.slnx' >> $env:GITHUB_OUTPUT
+          } else {
+            $path = Join-Path $PWD ('.ci-tests-' + $env:CI_TEST_SHARD + '.slnx')
+            ./eng/new-ci-test-solution.ps1 -Shard $env:CI_TEST_SHARD -OutputPath $path
+            "solution=$path" >> $env:GITHUB_OUTPUT
+          }
+
       - name: Test
         # 单项无进展时生成 mini dump 并失败退出；步骤上限为诊断产物上传预留时间。
         timeout-minutes: 50
-        run: dotnet test SonnetDB.slnx --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
+        run: dotnet test "${{ steps.tests.outputs.solution }}" --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
 
       - name: Upload test results and diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-${{ matrix.os }}
+          name: ${{ matrix.artifact }}
           # 保留整个结果目录，包含 TRX、Sequence_*.xml 和挂起转储。
           path: ./TestResults
           if-no-files-found: error

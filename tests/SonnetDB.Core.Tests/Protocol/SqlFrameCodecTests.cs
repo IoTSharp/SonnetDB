@@ -5,6 +5,8 @@ using SonnetDB.Exceptions;
 using SonnetDB.Model;
 using SonnetDB.Protocol;
 using SonnetDB.Sql;
+using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Protocol;
@@ -16,6 +18,59 @@ namespace SonnetDB.Core.Tests.Protocol;
 /// </summary>
 public sealed class SqlFrameCodecTests
 {
+    [Fact]
+    public void MetaV3_Declarations_RoundTripAndPreserveLegacyAndV2Bytes()
+    {
+        var columns = new[] { "amount" };
+        var declared = new[] { new SelectColumnInfo(TableColumnType.Decimal, true)
+            { NumericPrecision = 20, NumericScale = 6 } };
+        var legacy = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryMetaFrame(legacy, 1, columns);
+        var v2 = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryMetaFrame(v2, 1, columns, declared);
+        Assert.Equal(Convert.FromHexString("010106616D6F756E74"), MetaPayload(legacy));
+        Assert.Equal(Convert.FromHexString("010106616D6F756E74010811"), MetaPayload(v2));
+        var v3 = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryMetaFrame(v3, 1, columns, declared, fullDeclarations: true);
+        Assert.Equal(Convert.FromHexString("010106616D6F756E740208111406FFFFFFFF"), MetaPayload(v3));
+        var (_, info) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(MetaPayload(v3));
+        Assert.Equal(declared, info);
+        Assert.Null(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(MetaPayload(v2)).ColumnInfo![0].NumericPrecision);
+
+        var missing = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryMetaFrame(missing, 1, columns,
+            [new SelectColumnInfo(null) { RequiresRefresh = true }], fullDeclarations: true);
+        Assert.True(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(MetaPayload(missing)).ColumnInfo![0].RequiresRefresh);
+        var absent = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryMetaFrame(absent, 1, columns,
+            [new SelectColumnInfo(null) { IsDeclared = false }], fullDeclarations: true);
+        Assert.Equal(Convert.FromHexString("010106616D6F756E7402004000FFFFFFFFFF"), MetaPayload(absent));
+        Assert.False(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(MetaPayload(absent)).ColumnInfo![0].IsDeclared);
+        Assert.True(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(MetaPayload(v3)).ColumnInfo![0].IsDeclared);
+    }
+
+    [Theory]
+    [InlineData(9, 3)]
+    [InlineData(10, 10)]
+    [InlineData(11, 64)]
+    [InlineData(12, 39)]
+    [InlineData(13, 21)]
+    [InlineData(14, 254)]
+    public void MetaV3_InvalidDeclarationVersionTypeFlagsPrecisionScaleOrSize_Rejects(int offset, byte value)
+    {
+        byte[] payload = Convert.FromHexString("010106616D6F756E740208111406FFFFFFFF");
+        payload[offset] = value;
+        Assert.Throws<FrameFormatException>(() => SqlFrameCodec.DecodeQueryMetaFrameWithInfo(payload));
+    }
+
+    private static byte[] MetaPayload(ArrayBufferWriter<byte> writer)
+    {
+        ReadOnlySequence<byte> frames = new(writer.WrittenMemory);
+        Assert.True(FrameCodec.TryReadFrame(ref frames, out _, out var payload));
+        Assert.Equal(0, frames.Length);
+        return payload.ToArray();
+    }
+
     [Fact]
     public void QueryRequest_BigInteger_RejectsWithStableCode()
     {

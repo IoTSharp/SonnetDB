@@ -40,6 +40,26 @@ $case = Copy-Evidence; $case.artifacts[0].created_at = '2026-08-31T00:00:00Z'; A
 $case = Copy-Evidence; $case.jobs += @{ name = 'Publish verified NuGet packages'; status = 'completed'; conclusion = 'skipped'; steps = @() }; Assert-Readiness $case $true 'Expected nonpublishing dispatch'
 if (@(Get-ReleaseWorkflowPolicy -Version $version).Count -ne 12) { throw 'All 12 repository workflows must remain in the release policy.' }
 
+# Windows 的两个完整项目分片都必须实际成功，不能用一个分片或旧单任务收据替代。
+$ciPolicy = @(Get-ReleaseWorkflowPolicy -Version $version | Where-Object File -EQ 'ci.yml')[0]
+$ci = Copy-Evidence
+$ci.run.path = '.github/workflows/ci.yml'
+$ci.jobs = @($ciPolicy.Jobs | ForEach-Object { @{ name = $_; status = 'completed'; conclusion = 'success'; steps = @(Get-RequiredReleaseSteps $_ | ForEach-Object { @{ name = $_; conclusion = 'success' } }) } })
+$ci.artifacts = @($ciPolicy.Artifacts | ForEach-Object { @{ name = $_; expired = $false; size_in_bytes = 42; created_at = '2026-09-01T00:10:00Z' } })
+if (!(Test-ReleaseWorkflowEvidence $ciPolicy $ci $sha $repository).ready) { throw 'Complete CI shards must satisfy readiness.' }
+foreach ($shard in @('core', 'rest')) {
+    $missingJob = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+    $missingJob.jobs = @($missingJob.jobs | Where-Object name -CNE "Build & Test (windows-latest, $shard)")
+    if ((Test-ReleaseWorkflowEvidence $ciPolicy $missingJob $sha $repository).ready) { throw "Missing Windows $shard job must block release." }
+    $missingArtifact = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+    $missingArtifact.artifacts = @($missingArtifact.artifacts | Where-Object name -CNE "test-results-windows-latest-$shard")
+    if ((Test-ReleaseWorkflowEvidence $ciPolicy $missingArtifact $sha $repository).ready) { throw "Missing Windows $shard artifact must block release." }
+    $missingSelection = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+    $shardJob = @($missingSelection.jobs | Where-Object name -CEQ "Build & Test (windows-latest, $shard)")[0]
+    $shardJob.steps = @($shardJob.steps | Where-Object name -CNE 'Select complete test shard')
+    if ((Test-ReleaseWorkflowEvidence $ciPolicy $missingSelection $sha $repository).ready) { throw "Missing Windows $shard selection step must block release." }
+}
+
 # Exercise actual artifact identities from both publishing workflows. A successful
 # dispatch of another package version at the same SHA must never validate this release.
 foreach ($workflow in @('publish.yml', 'connectors-release.yml')) {

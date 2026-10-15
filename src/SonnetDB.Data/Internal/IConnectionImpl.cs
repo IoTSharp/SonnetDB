@@ -104,4 +104,12 @@ internal readonly record struct ExecutionColumnMetadata(
     bool IsNullable,
     bool IsKey,
     bool IsAutoIncrement,
-    bool IsRowVersion);
+    bool IsRowVersion)
+{
+    public TableColumnType? DataType { get; init; }
+    public byte? NumericPrecision { get; init; }
+    public byte? NumericScale { get; init; }
+    public int? ColumnSize { get; init; }
+    public bool RequiresRefresh { get; init; }
+    public bool? DeclaredNullable { get; init; }
+}

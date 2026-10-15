@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Net;
 using System.Text;
 using SonnetDB.Data;
@@ -197,11 +198,118 @@ public sealed class SndbResultPreviewTests
         Assert.False(reader.Truncated);
     }
 
-    private static async Task<SndbDataReader> CreateReaderAsync(string body)
+    [Fact]
+    public async Task HasRows_DisconnectedRemoteStream_PropagatesIncompleteResult()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            """);
+
+        Assert.Throws<InvalidDataException>(() => reader.HasRows);
+    }
+
+    [Fact]
+    public async Task HasRows_RemoteError_PropagatesServerDiagnostic()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"]}
+            {"error":"query_budget_exceeded","message":"budget exhausted"}
+            """);
+
+        var exception = Assert.Throws<SndbServerException>(() => reader.HasRows);
+        Assert.Equal("query_budget_exceeded", exception.Error);
+        Assert.Equal("budget exhausted", exception.ServerMessage);
+    }
+
+    [Fact]
+    public async Task HasRows_BufferedRemoteRow_CallerCancellationDoesNotConsumeIt()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            [42]
+            {"type":"end","rowCount":1,"recordsAffected":-1}
+            """);
+        Assert.True(reader.HasRows);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var exception = await Assert.ThrowsAsync<OperationCanceledException>(() => reader.ReadAsync(cancellation.Token));
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(42L, reader.GetInt64(0));
+        Assert.False(await reader.ReadAsync());
+        Assert.True(reader.HasRows);
+    }
+
+    /// <summary>首行探测后的两种 schema 保留 Int64 与未知 Decimal 声明且不消费缓冲行。</summary>
+    [Fact]
+    public async Task HasRows_NumericSchemaAfterPrefetch_PreservesDeclarationsAndFirstRow()
+    {
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id","amount"],"columnSchemas":[{"dataType":"int64","isNullable":false,"isKey":false,"isAutoIncrement":false,"isRowVersion":false,"numericPrecision":null,"numericScale":null},{"dataType":"decimal","isNullable":true,"isKey":false,"isAutoIncrement":false,"isRowVersion":false,"numericPrecision":null,"numericScale":null}]}
+            [42,12.5]
+            [43,null]
+            {"type":"end","rowCount":2,"recordsAffected":-1}
+            """);
+
+        AssertNumericDeclarations(reader);
+        Assert.True(reader.HasRows);
+        AssertNumericDeclarations(reader);
+        Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(42L, reader.GetInt64(0));
+        Assert.Equal(12.5m, reader.GetDecimal(1));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(43L, reader.GetInt64(0));
+        Assert.True(reader.IsDBNull(1));
+        Assert.False(await reader.ReadAsync());
+
+        static void AssertNumericDeclarations(SndbDataReader reader)
+        {
+            var columns = reader.GetColumnSchema();
+            Assert.Equal(typeof(long), columns[0].DataType);
+            Assert.Equal(19, columns[0].NumericPrecision);
+            Assert.Equal(0, columns[0].NumericScale);
+            Assert.Equal(typeof(decimal), columns[1].DataType);
+            Assert.Null(columns[1].NumericPrecision);
+            Assert.Null(columns[1].NumericScale);
+            using var table = reader.GetSchemaTable();
+            Assert.Equal((short)19, table.Rows[0][SchemaTableColumn.NumericPrecision]);
+            Assert.Equal((short)0, table.Rows[0][SchemaTableColumn.NumericScale]);
+            Assert.Equal(DBNull.Value, table.Rows[1][SchemaTableColumn.NumericPrecision]);
+            Assert.Equal(DBNull.Value, table.Rows[1][SchemaTableColumn.NumericScale]);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HasRows_CommandCancellation_PreservesTokenBeforeAndAfterPrefetch(bool prefetch)
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var reader = await CreateReaderAsync("""
+            {"type":"meta","columns":["id"],"columnTypes":["int64"]}
+            [42]
+            {"type":"end","rowCount":1,"recordsAffected":-1}
+            """, cancellation.Token);
+        if (prefetch)
+            Assert.True(reader.HasRows);
+        cancellation.Cancel();
+
+        var exception = Assert.Throws<OperationCanceledException>(() => prefetch ? reader.Read() : reader.HasRows);
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        var asyncException = await Assert.ThrowsAsync<OperationCanceledException>(() => reader.ReadAsync());
+        Assert.Equal(cancellation.Token, asyncException.CancellationToken);
+        Assert.Throws<InvalidOperationException>(() => reader.GetValue(0));
+    }
+
+    private static async Task<SndbDataReader> CreateReaderAsync(string body, CancellationToken commandCancellationToken = default)
     {
         var stream = new MemoryStream(Encoding.UTF8.GetBytes(body));
         var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
         var result = await RemoteExecutionResult.CreateAsync(response, stream, CancellationToken.None);
-        return new SndbDataReader(result, CommandBehavior.Default, connection: null);
+        return new SndbDataReader(result, CommandBehavior.Default, connection: null,
+            commandCancellationToken: commandCancellationToken);
     }
 }

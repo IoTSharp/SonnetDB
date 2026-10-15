@@ -1,0 +1,111 @@
+name: Promote verified NuGet candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful Publish preflight run containing the approved packages
+        required: true
+        type: string
+      source_commit:
+        description: Exact 40-character candidate source SHA
+        required: true
+        type: string
+      version:
+        description: Exact approved candidate version
+        required: true
+        type: string
+      manifest_sha256:
+        description: Approved canonical manifest SHA256 for all eight package bytes
+        required: true
+        type: string
+      publish:
+        description: Publish only after human approval of this exact immutable candidate
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For publication enter version@source_commit exactly
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nuget-candidate-promotion-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_COMMIT: ${{ inputs.source_commit }}
+      CANDIDATE_VERSION: ${{ inputs.version }}
+      CANDIDATE_MANIFEST: ${{ inputs.manifest_sha256 }}
+      CANDIDATE_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Verify candidate run and source ancestry
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_RUN_ID -notmatch '^\d+$' -or $env:CANDIDATE_COMMIT -notmatch '^[0-9a-f]{40}$') { throw 'Invalid candidate identity.' }
+          if ($env:CANDIDATE_VERSION -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$' -or $env:CANDIDATE_MANIFEST -notmatch '^[0-9a-fA-F]{64}$') { throw 'Invalid candidate version or manifest.' }
+          git merge-base --is-ancestor $env:CANDIDATE_COMMIT HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate source is not integrated into main.' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:CANDIDATE_RUN_ID" | ConvertFrom-Json -DateKind String
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $env:CANDIDATE_COMMIT -or $run.path -cne '.github/workflows/publish.yml' -or $run.event -cne 'workflow_dispatch' -or $run.status -cne 'completed' -or $run.conclusion -cne 'success') { throw 'Candidate preflight is not a successful matching Publish run.' }
+      - uses: actions/download-artifact@v7
+        with:
+          run-id: ${{ inputs.candidate_run_id }}
+          name: nuget-packages-${{ inputs.version }}
+          path: artifacts/approved-nuget
+          github-token: ${{ github.token }}
+      - name: Verify immutable candidate package bytes
+        shell: pwsh
+        run: |
+          ./eng/verify-release-artifacts.ps1 -Stage nuget -Version $env:CANDIDATE_VERSION -ArtifactRoot artifacts/approved-nuget
+          ./eng/verify-nuget-candidate-promotion.ps1 -ArtifactRoot artifacts/approved-nuget -Version $env:CANDIDATE_VERSION -CommitSha $env:CANDIDATE_COMMIT -ManifestSha256 $env:CANDIDATE_MANIFEST -OutputPath artifacts/promotion-verified.json
+      - name: Require all candidate release readiness gates
+        shell: pwsh
+        run: ./eng/verify-release-readiness.ps1 -Repository $env:GITHUB_REPOSITORY -CommitSha $env:CANDIDATE_COMMIT -Version $env:CANDIDATE_VERSION -Token $env:GH_TOKEN -OutputPath artifacts/promotion-readiness.json
+      - name: Publish the approved bytes to NuGet.org
+        if: inputs.publish
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_CONFIRMATION -cne "$env:CANDIDATE_VERSION@$env:CANDIDATE_COMMIT") { throw 'Explicit candidate confirmation is required.' }
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) { throw 'NuGet publication credential is unavailable.' }
+          $verified = ./eng/verify-nuget-candidate-promotion.ps1 -ArtifactRoot artifacts/approved-nuget -Version $env:CANDIDATE_VERSION -CommitSha $env:CANDIDATE_COMMIT -ManifestSha256 $env:CANDIDATE_MANIFEST
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+          for ($index = 0; $index -lt 8 -and $clock.Elapsed.TotalMinutes -lt 20; $index++) {
+            $file = Join-Path 'artifacts/approved-nuget' $verified.packages[$index].file
+            dotnet nuget push $file --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --timeout 120
+            if ($LASTEXITCODE -ne 0) { throw 'Publication incomplete; inspect original package versions before any retry.' }
+          }
+          if ($index -ne 8) { throw 'Publication deadline exceeded.' }
+      - name: Save verification receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-promotion-${{ inputs.version }}-${{ github.run_id }}
+          path: |
+            artifacts/promotion-verified.json
+            artifacts/promotion-readiness.json
+            artifacts/parity-nightly.json
+            artifacts/parity-candidate.json
+          if-no-files-found: warn

@@ -418,7 +418,8 @@ internal static class FrameEndpointHandler
         try
         {
             string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-            bool typedResults = resultVersion == SqlFrameCodec.TypedResultVersion;
+            bool fullDeclarations = resultVersion == SqlFrameCodec.DeclaredResultVersion;
+            bool typedResults = fullDeclarations || resultVersion == SqlFrameCodec.TypedResultVersion;
             if (!typedResults && resultVersion.Length != 0 && resultVersion != "1")
             {
                 metrics.RecordSqlError();
@@ -526,8 +527,9 @@ internal static class FrameEndpointHandler
             // 仅在确认还有后续块时中途 flush，既保留大结果反压，也避免小结果多次微小刷新。
             SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns,
                 typedResults
-                    ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null), select.Columns.Count).ToArray()
-                    : null);
+                    ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
+                    { IsDeclared = false }, select.Columns.Count).ToArray()
+                    : null, fullDeclarations);
 
             int position = 0;
             while (position < select.Rows.Count)

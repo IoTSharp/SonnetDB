@@ -203,11 +203,8 @@ public static class SqlParameterBinder
         for (int i = 0; i < fromClauses.Length; i++)
         {
             var join = update.FromClauses[i];
-            var boundOn = BindExpr(join.On, p);
-            fromClauses[i] = ReferenceEquals(boundOn, join.On)
-                ? join
-                : join with { On = boundOn };
-            changed |= !ReferenceEquals(boundOn, join.On);
+            fromClauses[i] = BindJoin(join, p);
+            changed |= !ReferenceEquals(fromClauses[i], join);
         }
 
         return changed
@@ -273,14 +270,24 @@ public static class SqlParameterBinder
         JoinClause[]? copy = null;
         for (int i = 0; i < joins.Count; i++)
         {
-            var on = BindExpr(joins[i].On, p);
-            if (!ReferenceEquals(on, joins[i].On))
+            var bound = BindJoin(joins[i], p);
+            if (!ReferenceEquals(bound, joins[i]))
             {
                 copy ??= joins.ToArray();
-                copy[i] = joins[i] with { On = on };
+                copy[i] = bound;
             }
         }
         return copy ?? joins;
+    }
+
+    private static JoinClause BindJoin(JoinClause join, SqlParameters p)
+    {
+        var on = BindExpr(join.On, p);
+        var subquery = join.Subquery is null ? null : BindSelect(join.Subquery, p);
+        var values = join.ValuesRows?.Select(row => BindExprList(row, p)).ToArray();
+        return ReferenceEquals(on, join.On) && subquery is null && values is null
+            ? join
+            : join with { On = on, Subquery = subquery, ValuesRows = values };
     }
 
     private static IReadOnlyList<SqlExpression> BindExprList(IReadOnlyList<SqlExpression> list, SqlParameters p)
@@ -408,6 +415,10 @@ public static class SqlParameterBinder
     /// </summary>
     internal static SqlExpression ToLiteral(object? value)
     {
+        // 保留枚举底层整数类型，复用相同的无损字面量与范围限制。
+        if (value is Enum enumValue)
+            value = Convert.ChangeType(enumValue, enumValue.GetTypeCode(), CultureInfo.InvariantCulture);
+
         switch (value)
         {
             case null:

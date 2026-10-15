@@ -60,7 +60,8 @@ internal sealed class FrameChannel
         ReadOnlyMemory<byte> requestFrames,
         CancellationToken cancellationToken,
         bool allowFallback = true,
-        bool sqlResultV2 = false)
+        bool sqlResultV2 = false,
+        string? sqlResultVersion = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_state == CapabilityState.Rest)
@@ -76,8 +77,8 @@ internal sealed class FrameChannel
                 Version = _http.DefaultRequestVersion,
                 VersionPolicy = _http.DefaultVersionPolicy,
             };
-            if (sqlResultV2)
-                request.Headers.Add(SqlFrameCodec.ResultVersionHeader, SqlFrameCodec.TypedResultVersion);
+            if (sqlResultVersion is not null || sqlResultV2)
+                request.Headers.Add(SqlFrameCodec.ResultVersionHeader, sqlResultVersion ?? SqlFrameCodec.TypedResultVersion);
             using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)

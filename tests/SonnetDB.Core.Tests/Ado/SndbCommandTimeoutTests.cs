@@ -152,6 +152,24 @@ public sealed class SndbCommandTimeoutTests
         Assert.True(implementation.ResultDisposed);
     }
 
+    /// <summary>HasRows 首行探测沿用命令正文读取的超时窗口。</summary>
+    [Fact]
+    public async Task HasRows_BlockedFirstRow_RespectsCommandTimeout()
+    {
+        var implementation = new ControllableConnectionImpl(
+            delayExecution: false,
+            resultDelay: Timeout.InfiniteTimeSpan);
+        using var connection = CreateOpenConnection(implementation);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM timeout_probe";
+        command.CommandTimeout = 1;
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var exception = await Assert.ThrowsAsync<TimeoutException>(() => Task.Run(() => reader.HasRows))
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Contains("CommandTimeout=1", exception.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>每次 Read 都重新获得完整窗口，用户处理上一行的空闲时间不计入下一次读取。</summary>
     [Fact]
     public async Task ReaderRead_EachCallUsesIndependentTimeoutWindow()
@@ -341,6 +359,30 @@ public sealed class SndbCommandTimeoutTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => read);
         reader.Close();
         await using var nextReader = await command.ExecuteReaderAsync();
+    }
+
+    /// <summary>首行探测后释放 Reader 必须归还命令租约，使同一命令可以再次执行。</summary>
+    [Fact]
+    public async Task HasRows_DisposeBufferedReader_ReleasesCommandLease()
+    {
+        var implementation = new ControllableConnectionImpl(
+            delayExecution: false,
+            resultDelay: TimeSpan.Zero,
+            resultRowCount: 1);
+        using var connection = CreateOpenConnection(implementation);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM timeout_probe";
+        var reader = await command.ExecuteReaderAsync();
+
+        Assert.True(reader.HasRows);
+        reader.Dispose();
+        reader.Dispose();
+
+        Assert.True(reader.IsClosed);
+        Assert.False(reader.HasRows);
+        Assert.True(implementation.ResultDisposed);
+        await using var nextReader = await command.ExecuteReaderAsync();
+        Assert.True(await nextReader.ReadAsync());
     }
 
     /// <summary>Reader 结果释放和 CloseConnection 同时失败时必须保留最先发生的结果释放异常。</summary>
