@@ -1,0 +1,162 @@
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 2) return 2;
+string connectionString = args[0];
+string protocol = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "Chloe", "Chloe.SonnetDB" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+context.Session.ExecuteNonQuery("CREATE TABLE FlagsRows(Id INT, Bits DECIMAL(20,0) NULL, Required DECIMAL(20,0) NOT NULL, PRIMARY KEY(Id))");
+ulong[] values = [0, 7, long.MaxValue, 1UL << 63, ulong.MaxValue, 9007199254740993];
+for (int index = 0; index < values.Length; index++)
+    context.Insert(new FlagsRow { Id = index + 1, Bits = values[index], Required = values[index] });
+await context.InsertAsync(new FlagsRow { Id = 7, Bits = null, Required = 0 });
+ulong high = 1UL << 63;
+ulong low = 7;
+ulong maximum = ulong.MaxValue;
+
+Run("ordinary-u64-roundtrip", () => Equal(values, context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required).ToList()));
+Run("ordinary-u64-comparison", () => Equal(new[] { 5L }, context.Query<FlagsRow>().Where(row => row.Required == maximum).Select(row => row.Id).ToList()));
+Run("ordinary-u64-division", () => Equal(values.Select(value => value / 2UL), context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required / 2UL).ToList()));
+Run("and-parameter-masks", () =>
+{
+    foreach (ulong mask in new ulong[] { 0, 7, long.MaxValue, 1UL << 63, ulong.MaxValue })
+    {
+        var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required & mask);
+        Trace(query, "bit_and_uint64");
+        Equal(values.Select(value => value & mask), query.ToList());
+    }
+});
+Run("or-parameter-masks", () =>
+{
+    foreach (ulong mask in new ulong[] { 0, 7, long.MaxValue, 1UL << 63, ulong.MaxValue })
+    {
+        var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required | mask);
+        Trace(query, "bit_or_uint64");
+        Equal(values.Select(value => value | mask), query.ToList());
+    }
+});
+Run("and-columns", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required & row.Bits!.Value);
+    Trace(query, "bit_and_uint64");
+    Equal(values, query.ToList());
+});
+Run("or-columns", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required | row.Bits!.Value);
+    Trace(query, "bit_or_uint64");
+    Equal(values, query.ToList());
+});
+Run("and-constant-mask", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required & 7UL);
+    Trace(query, "bit_and_uint64");
+    Equal(values.Select(value => value & 7UL), query.ToList());
+});
+Run("or-constant-mask", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required | 7UL);
+    Trace(query, "bit_or_uint64");
+    Equal(values.Select(value => value | 7UL), query.ToList());
+});
+Run("nullable-and", () =>
+{
+    var query = context.Query<FlagsRow>().OrderBy(row => row.Id).Select(row => row.Bits & high);
+    Trace(query, "bit_and_uint64");
+    Equal(values.Select(value => (ulong?)(value & high)).Append(null), query.ToList());
+});
+Run("nullable-or", () =>
+{
+    var query = context.Query<FlagsRow>().OrderBy(row => row.Id).Select(row => row.Bits | high);
+    Trace(query, "bit_or_uint64");
+    Equal(values.Select(value => (ulong?)(value | high)).Append(null), query.ToList());
+});
+Run("nested-bitwise", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => (row.Required | high) & low);
+    Trace(query, "bit_and_uint64", "bit_or_uint64");
+    Equal(values.Select(value => (value | high) & low), query.ToList());
+});
+Run("high-bit-filter", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => (row.Required & high) != 0UL).OrderBy(row => row.Id).Select(row => row.Id);
+    Trace(query, "bit_and_uint64");
+    Equal(new[] { 4L, 5L }, query.ToList());
+});
+await RunAsync("async-bitwise-projection", async () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id <= 6).OrderBy(row => row.Id).Select(row => row.Required | high);
+    Trace(query, "bit_or_uint64");
+    Equal(values.Select(value => value | high), await query.ToListAsync());
+});
+Run("empty-projection", () =>
+{
+    var query = context.Query<FlagsRow>().Where(row => row.Id < 0).Select(row => row.Required & high);
+    Trace(query, "bit_and_uint64");
+    Require(query.ToList().Count == 0, "Empty result changed.");
+});
+Run("server-bitwise-updates", () =>
+{
+    Require(context.Update<FlagsRow>(row => row.Id == 1, row => new FlagsRow { Required = row.Required | high }) == 1, "OR update count changed.");
+    Require(context.Query<FlagsRow>().Where(row => row.Id == 1).Select(row => row.Required).First() == high, "OR update lost high bit.");
+    Require(context.Update<FlagsRow>(row => row.Id == 1, row => new FlagsRow { Required = row.Required & low }) == 1, "AND update count changed.");
+    Require(context.Query<FlagsRow>().Where(row => row.Id == 1).Select(row => row.Required).First() == 0UL, "AND update incorrect.");
+});
+Console.WriteLine($"COMPLETE|{protocol}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+async Task RunAsync(string name, Func<Task> action)
+{
+    try { await action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Trace<T>(IQuery<T> query, params string[] expectedFunctions)
+{
+    string sql = query.ToString() ?? throw new InvalidOperationException("No generated SQL.");
+    Console.WriteLine("SQL|" + sql.Replace('\r', ' ').Replace('\n', ' '));
+    foreach (string function in expectedFunctions)
+        Require(sql.Contains(function, StringComparison.OrdinalIgnoreCase), "Native bitwise function missing from generated SQL.");
+}
+void Equal<T>(IEnumerable<T> expected, IEnumerable<T> actual)
+{
+    var left = expected.ToArray();
+    var right = actual.ToArray();
+    Console.WriteLine("VALUE|expected=" + string.Join(",", left) + "|actual=" + string.Join(",", right));
+    Require(left.SequenceEqual(right), "Exact UInt64 projection mismatch.");
+}
+void Require(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException(message);
+}
+
+/// <summary>UInt64 消费者实际持久表映射。</summary>
+[Table("FlagsRows")]
+public sealed class FlagsRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>可空 UInt64 位集合。</summary>
+    public ulong? Bits { get; set; }
+    /// <summary>非空 UInt64 位集合。</summary>
+    public ulong Required { get; set; }
+}

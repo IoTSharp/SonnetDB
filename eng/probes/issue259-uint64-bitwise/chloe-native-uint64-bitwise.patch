@@ -1,0 +1,35 @@
+diff --git a/src/Chloe.SonnetDB/SqlGenerator.cs b/src/Chloe.SonnetDB/SqlGenerator.cs
+index c38d336..438f865 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator.cs
+@@ -136,14 +136,28 @@ namespace Chloe.SonnetDB
+         public override DbExpression VisitBitAnd(DbBitAndExpression exp)
+         {
+             if (IsUInt64Expression(exp.Left) || IsUInt64Expression(exp.Right))
+-                throw new NotSupportedException("SonnetDB does not support UInt64 bitwise operations on its DECIMAL representation. See https://github.com/IoTSharp/SonnetDB/issues/259.");
++            {
++                this.SqlBuilder.Append("bit_and_uint64(");
++                exp.Left.Accept(this);
++                this.SqlBuilder.Append(",");
++                exp.Right.Accept(this);
++                this.SqlBuilder.Append(")");
++                return exp;
++            }
+             return base.VisitBitAnd(exp);
+         }
+ 
+         public override DbExpression VisitBitOr(DbBitOrExpression exp)
+         {
+             if (IsUInt64Expression(exp.Left) || IsUInt64Expression(exp.Right))
+-                throw new NotSupportedException("SonnetDB does not support UInt64 bitwise operations on its DECIMAL representation. See https://github.com/IoTSharp/SonnetDB/issues/259.");
++            {
++                this.SqlBuilder.Append("bit_or_uint64(");
++                exp.Left.Accept(this);
++                this.SqlBuilder.Append(",");
++                exp.Right.Accept(this);
++                this.SqlBuilder.Append(")");
++                return exp;
++            }
+             return base.VisitBitOr(exp);
+         }
+ 

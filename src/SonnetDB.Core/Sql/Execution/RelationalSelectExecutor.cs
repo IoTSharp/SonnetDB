@@ -4359,6 +4359,9 @@ internal static partial class RelationalSelectExecutor
         if (InferUInt64ParseColumnInfo(expression, columns) is { } unsignedInteger)
             return unsignedInteger;
 
+        if (InferUInt64BitwiseColumnInfo(expression, columns) is { } unsignedBitwise)
+            return unsignedBitwise;
+
         if (InferConcatDeclaration(expression) is { } concat)
             return concat;
 

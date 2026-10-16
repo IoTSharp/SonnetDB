@@ -124,3 +124,12 @@
 - 之前完整Core原始7198/7199保留，唯一Streaming测试遗漏分支已由独立34/34和本次258/258覆盖；未将其提升为完整Core全绿。根后续按正常push触发新CI确认完整集合。
 - #259冻结18文件已核163资产/6TRX，#258冻结14文件已核69证据/28DLL/14源码副本；二者尚未根集成。接下来259→258独立门禁提交，再与261/260及两个测试修正批次推送并回读SHA/CI/Issue状态。
 - 三代理各一项：issue314→256（D:/source/SonnetDB-worktrees/issue256-int64-pagination，Core SQL3025/3025明确排除旧日期断言、远程6/6，XCode消费继续）；issue312→255（issue255-keyless-xcode，既有243源码与真实XCode验收）；issue313→254（issue254-public-aggregate-cast，既有CAST实现与公开包/Chloe验收）。256独占共享RSE，其他生产缺口须先协调。#226/#243源码恢复补缺已推送不重做，正式消费条件保留；监督ACTIVE，旧树/失败/parity-results全部保留。
+
+
+## 最新监督检查点（2026-10-16，#259 主树验收）
+
+- 本地已独立提交261=b157dddc、262日期旧断言=0a51102c、Streaming测试超时分支=bf59710e、260=f8bce983，均通过最终完整restore/原Format门禁，尚未推送。远端main仍cfa92314，CI38827086358已completed/failure：Format、三平台AOT和Windows rest成功，Ubuntu及Windows Core均因旧日期断言7194/7195失败；原run不改写为成功。
+- #259冻结18文件已按SHA集成，根核163证据资产及六份TRX；两个Release构建零警告/错误，Core83/83、真实Server129/129，零失败/跳过。新增精确Decimal承载的bit_and_uint64/bit_or_uint64，完整UInt64范围不经过浮点或Int64；裸UInt64大于Int64的ADO参数限制单列保留。最终完整门禁在issue259/final，实际通过后才独立提交，正式发行/Chloe正式交付未完成继续OPEN。
+- #258冻结14文档/工具已核69证据、28DLL、14执行源码副本，尚未集成。下一步258独立完整门禁提交，与261/260/259和两项测试修正正常批次push，回读远端SHA、CI及Issue实际回复状态。旧完整Core7198/7199仍保留，不能用后续定向PASS替代新的完整CI。
+- 三代理各一项：issue314→256（Core SQL3032/3032，明确排除已由根修正的日期旧断言，远程126/126及XCode六进程各301检查，整理冻结中）；issue312→255（真实DbPackage.Sync发现SQLite数值NULL在XCode源读取阶段变0，按每调用内部入口修候选并补多页/异常/双向验证，不改共享Sonnet生产）；issue313→254（公开旧包CONCAT元数据13/14失败保留，源码三协议14/14及Chloe候选48/48，整理冻结中）。256独占共享RSE，生产按冻结基线串行交接。
+- #226/#243恢复补缺已提交推送，GitHub两项实际OPEN，原要求的正式发行和消费者证据仍缺；不重复派单。监督继续ACTIVE，所有旧树、失败证据及parity-results保留。
