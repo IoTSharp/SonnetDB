@@ -106,6 +106,9 @@ public sealed record SqlExecutionOptions
     /// <summary>远程旧协议不能接收原生时长；内部子调用继承根执行合同。</summary>
     internal bool AllowDurationResults { get; init; } = true;
 
+    /// <summary>远程 v6 以下的协议不能接收原生 DateTimeOffset。</summary>
+    internal bool AllowDateTimeOffsetResults { get; init; } = true;
+
     internal void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Caller);

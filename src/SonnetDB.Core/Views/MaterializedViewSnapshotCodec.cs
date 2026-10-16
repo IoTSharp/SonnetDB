@@ -10,7 +10,7 @@ namespace SonnetDB.Views;
 
 internal static class MaterializedViewSnapshotCodec
 {
-    private const int FormatVersion = 3;
+    private const int FormatVersion = 4;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxColumnCount = 65_535;
@@ -68,6 +68,13 @@ internal static class MaterializedViewSnapshotCodec
         return Load(file);
     }
 
+    // 这里只供扫描前的声明绑定，不发布或缓存行；真正读取仍校验完整载荷 CRC。
+    internal static SelectExecutionResult LoadDeclaration(string path, out int rowCount)
+    {
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var (columns, columnInfo) = ReadDeclaration(file, out _, out rowCount, out _);
+        return new SelectExecutionResult(columns, []) { ColumnInfo = columnInfo };
+    }
     private static void ValidateShape(SelectExecutionResult result)
     {
         if (result.Columns.Count > MaxColumnCount)
@@ -92,7 +99,9 @@ internal static class MaterializedViewSnapshotCodec
         bool hasDuration = result.ColumnInfo?.Any(static info => info.DataType == TableColumnType.Duration) == true
             || result.ColumnSchema?.Any(static column => column.DataType == TableColumnType.Duration) == true
             || result.Rows.Any(static row => row.Any(static value => value is TimeSpan));
-        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), hasDuration ? FormatVersion : 2);
+        bool hasOffsetDeclaration = result.ColumnInfo?.Any(static info => info.DataType == TableColumnType.DateTimeOffset) == true
+            || result.ColumnSchema?.Any(static column => column.DataType == TableColumnType.DateTimeOffset) == true;
+        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), hasOffsetDeclaration ? FormatVersion : hasDuration ? 3 : 2);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(12, 4), HeaderSize);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(16, 4), result.Columns.Count);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(20, 4), result.Rows.Count);
@@ -130,19 +139,20 @@ internal static class MaterializedViewSnapshotCodec
         destination.Write(footer);
     }
 
-    private static SelectExecutionResult Load(Stream source)
+    private static (string[] Columns, SelectColumnInfo[] ColumnInfo) ReadDeclaration(
+        Stream source, out int version, out int rowCount, out Crc32 crc)
     {
         Span<byte> header = stackalloc byte[HeaderSize];
         ReadExact(source, header, "header");
         if (!header[..Magic.Length].SequenceEqual(Magic))
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header magic.");
-        int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
+        version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
         if (version is < 1 or > FormatVersion)
             throw new InvalidDataException($"MaterializedViewSnapshot: unsupported format version {version}.");
         if (BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize)
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header size.");
         int columnCount = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(16, 4));
-        int rowCount = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(20, 4));
+        rowCount = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(20, 4));
         if (columnCount is < 0 or > MaxColumnCount || rowCount is < 0 or > MaxRowCount)
             throw new InvalidDataException("MaterializedViewSnapshot: invalid result dimensions.");
         if (columnCount == 0 && rowCount != 0)
@@ -157,7 +167,7 @@ internal static class MaterializedViewSnapshotCodec
                 throw new InvalidDataException("MaterializedViewSnapshot: declared dimensions exceed file length.");
         }
 
-        var crc = new Crc32();
+        crc = new Crc32();
         var columns = new string[columnCount];
         for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
             columns[columnIndex] = ReadString(source, crc, MaxColumnNameBytes, $"column {columnIndex}");
@@ -174,7 +184,7 @@ internal static class MaterializedViewSnapshotCodec
             byte precision = ReadByte(source, crc, "declaration precision");
             byte scale = ReadByte(source, crc, "declaration scale");
             int size = ReadInt32(source, crc, "declaration size");
-            if (type > (version >= 3 ? 10 : 9) || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
+            if (type > (version >= 4 ? 11 : version >= 3 ? 10 : 9) || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
                 throw new InvalidDataException("MaterializedViewSnapshot: invalid declaration metadata.");
             var info = new SelectColumnInfo(type == 0 ? null : (TableColumnType)type,
                 (flags & 0x10) == 0 ? null : (flags & 1) != 0,
@@ -187,6 +197,13 @@ internal static class MaterializedViewSnapshotCodec
             ValidateDeclaration(info);
             columnInfo[column] = info;
         }
+        return (columns, columnInfo);
+    }
+
+    private static SelectExecutionResult Load(Stream source)
+    {
+        var (columns, columnInfo) = ReadDeclaration(source, out int version, out int rowCount, out var crc);
+        int columnCount = columns.Length;
         var rows = new IReadOnlyList<object?>[rowCount];
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
         {
@@ -209,7 +226,7 @@ internal static class MaterializedViewSnapshotCodec
 
     private static void ValidateDeclaration(SelectColumnInfo info)
     {
-        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 10
+        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 11
             || info.NumericPrecision.HasValue != info.NumericScale.HasValue
             || info.NumericPrecision is 0 or > 38 || info.NumericScale is > 38
             || info.NumericScale > info.NumericPrecision

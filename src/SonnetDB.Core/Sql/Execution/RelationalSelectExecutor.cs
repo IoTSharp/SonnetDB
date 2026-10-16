@@ -1923,7 +1923,7 @@ internal static partial class RelationalSelectExecutor
 
     private static Relation LoadRecursiveSource(SelectExecutionResult source, string alias)
     {
-        var columns = source.Columns.Select(name => new RelColumn(alias, name, name)).ToArray();
+        var columns = source.Columns.Select((name, ordinal) => FromResultColumn(source, ordinal, alias, name)).ToArray();
         return new Relation(
             columns,
             CloneRows(),
@@ -3483,7 +3483,8 @@ internal static partial class RelationalSelectExecutor
             object normalized = value switch
             {
                 null => 0d,
-                DateTime or DateTimeOffset => (double)ToUnixMilliseconds(value),
+                DateTime => (double)ToUnixMilliseconds(value),
+                DateTimeOffset offset => offset.UtcTicks,
                 byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal
                     => Convert.ToDouble(value, CultureInfo.InvariantCulture),
                 _ => value,
@@ -4305,6 +4306,7 @@ internal static partial class RelationalSelectExecutor
                 SqlDataType.DateTime => TableColumnType.DateTime,
                 SqlDataType.Time => TableColumnType.Time,
                 SqlDataType.Duration => TableColumnType.Duration,
+                SqlDataType.DateTimeOffset => TableColumnType.DateTimeOffset,
                 SqlDataType.Blob => TableColumnType.Blob,
                 SqlDataType.Json => TableColumnType.Json,
                 _ => null,
@@ -4332,7 +4334,7 @@ internal static partial class RelationalSelectExecutor
             if (!IsArithmeticOperator(binary.Operator))
                 type = TableColumnType.Boolean;
             else if (binary.Operator == SqlBinaryOperator.Subtract
-                && left.DataType == TableColumnType.DateTime && right.DataType == TableColumnType.DateTime
+                && left.DataType == right.DataType && left.DataType is TableColumnType.DateTime or TableColumnType.DateTimeOffset
                 || binary.Operator is SqlBinaryOperator.Add or SqlBinaryOperator.Subtract
                 && left.DataType == TableColumnType.Duration && right.DataType == TableColumnType.Duration)
                 type = TableColumnType.Duration;
@@ -4378,6 +4380,8 @@ internal static partial class RelationalSelectExecutor
             string name = temporal.Name.ToLowerInvariant();
             if (temporal.Arguments.Count == 0 && name is "current_datetime" or "current_utc_datetime")
                 return new SelectColumnInfo(TableColumnType.DateTime, false);
+            if (temporal.Arguments.Count == 0 && name is "current_datetime_offset" or "current_utc_datetime_offset")
+                return new SelectColumnInfo(TableColumnType.DateTimeOffset, false);
             if (temporal.Arguments.Count == 1
                 && name is "date_only" or "to_datetime" or "to_utc_datetime" or "to_local_datetime")
             {
@@ -4385,14 +4389,15 @@ internal static partial class RelationalSelectExecutor
                 return new SelectColumnInfo(TableColumnType.DateTime, input.IsNullable)
                 { RequiresRefresh = input.RequiresRefresh };
             }
-            if (temporal.Arguments.Count == 3 && name is "date_add_datetime" or "date_add")
+            if (temporal.Arguments.Count == 3 && name is "date_add_datetime" or "date_add_datetime_offset" or "date_add")
             {
                 var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
-                // DATE_ADD 也能返回 DateTimeOffset；只有已知 DateTime/Unix 毫秒输入可声明 DATETIME。
-                if (name == "date_add_datetime" || input.DataType is TableColumnType.DateTime or TableColumnType.Int64)
+                if (name is "date_add_datetime" or "date_add_datetime_offset"
+                    || input.DataType is TableColumnType.DateTime or TableColumnType.Int64 or TableColumnType.DateTimeOffset)
                 {
                     var amount = InferSelectColumnInfo(temporal.Arguments[1], columns);
-                    return new SelectColumnInfo(TableColumnType.DateTime,
+                    return new SelectColumnInfo(name == "date_add_datetime_offset" || name == "date_add" && input.DataType == TableColumnType.DateTimeOffset
+                        ? TableColumnType.DateTimeOffset : TableColumnType.DateTime,
                         input.IsNullable == true || amount.IsNullable == true ? true
                             : input.IsNullable == false && amount.IsNullable == false ? false : null)
                     { RequiresRefresh = input.RequiresRefresh || amount.RequiresRefresh };
@@ -4583,6 +4588,14 @@ internal static partial class RelationalSelectExecutor
 
         if (rawValues.Length == 0)
             return null;
+
+        if (name is "min" or "max" && rawValues.All(static value => value is DateTimeOffset))
+        {
+            long ticks = ((DateTimeOffset)rawValues[0]!).UtcTicks;
+            foreach (DateTimeOffset instant in rawValues.Cast<DateTimeOffset>())
+                ticks = name == "min" ? Math.Min(ticks, instant.UtcTicks) : Math.Max(ticks, instant.UtcTicks);
+            return new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
 
         // 保留整数类型：当调用方已确认所有非空输入跨整个结果集都是 byte/short/int/long 时，
         // sum/min/max 在所有组上一致返回 long——与 Postgres 等关系库一致，避免同列异质类型
@@ -6077,7 +6090,7 @@ internal static partial class RelationalSelectExecutor
                     ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
                     : dateTime.ToUniversalTime()).ToUnixTimeMilliseconds().GetHashCode();
             if (value is DateTimeOffset dateTimeOffset)
-                return dateTimeOffset.ToUnixTimeMilliseconds().GetHashCode();
+                return dateTimeOffset.UtcTicks.GetHashCode();
             return value.GetHashCode();
         }
     }

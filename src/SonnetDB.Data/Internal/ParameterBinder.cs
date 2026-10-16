@@ -89,7 +89,8 @@ internal static class ParameterBinder
                 string name = sql.Substring(start, end - start);
                 if (!byName.TryGetValue(name, out var p))
                     throw new InvalidOperationException($"未提供参数 '{ch}{name}' 的值。");
-                sb.Append(FormatLiteral(GetBindingValue(p)));
+                sb.Append(p.DbType == System.Data.DbType.DateTimeOffset && p.Value is null or DBNull
+                    ? "CAST(NULL AS DATETIMEOFFSET)" : FormatLiteral(GetBindingValue(p)));
                 i = end;
                 continue;
             }
@@ -103,10 +104,19 @@ internal static class ParameterBinder
     private static bool IsIdentStart(char c) => char.IsLetter(c) || c == '_';
     private static bool IsIdentPart(char c) => char.IsLetterOrDigit(c) || c == '_';
 
-    /// <summary>显式 DbType.Time 沿用一天内钟面合同；默认 TimeSpan 使用完整时长。</summary>
+    /// <summary>在调用方归一显式旧日期/钟面兼容参数；原生类型保留完整 ticks。</summary>
     internal static object? GetBindingValue(SndbParameter parameter)
-        => parameter.DbType == System.Data.DbType.Time && parameter.Value is TimeSpan span
-            ? TimeOnly.FromTimeSpan(span) : parameter.Value;
+    {
+        if (parameter.DbType == System.Data.DbType.Time && parameter.Value is TimeSpan span)
+            return TimeOnly.FromTimeSpan(span);
+        if (parameter.DbType is System.Data.DbType.DateTime or System.Data.DbType.DateTime2
+            && parameter.Value is DateTimeOffset offset)
+            return offset.UtcDateTime;
+        if (parameter.DbType == System.Data.DbType.DateTimeOffset && parameter.Value is DateTime dateTime)
+            return new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime());
+        return parameter.Value;
+    }
 
     internal static string FormatLiteral(object? value)
     {
@@ -137,7 +147,7 @@ internal static class ParameterBinder
             DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
                 : dt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
-            DateTimeOffset dto => dto.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+            DateTimeOffset dto => "CAST(" + dto.UtcTicks.ToString(CultureInfo.InvariantCulture) + " AS DATETIMEOFFSET)",
             TimeOnly time => "'" + time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
             TimeSpan span => "CAST(" + span.Ticks.ToString(CultureInfo.InvariantCulture) + " AS DURATION)",
             GeoPoint p => string.Create(CultureInfo.InvariantCulture, $"POINT({p.Lat:R}, {p.Lon:R})"),

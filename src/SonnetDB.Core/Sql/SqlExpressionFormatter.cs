@@ -202,6 +202,7 @@ internal static class SqlExpressionFormatter
         SqlDataType.DateTime => "DATETIME",
         SqlDataType.Time => "TIME",
         SqlDataType.Duration => "DURATION",
+        SqlDataType.DateTimeOffset => "DATETIMEOFFSET",
         SqlDataType.Blob => "BLOB",
         SqlDataType.Json => "JSON",
         _ => value.ToString().ToUpperInvariant(),

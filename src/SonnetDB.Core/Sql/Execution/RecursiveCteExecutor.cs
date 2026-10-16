@@ -27,12 +27,14 @@ internal static class RecursiveCteExecutor
         long bytes = 0;
         using var memory = SqlQueryResources.Current?.CreateReservation();
         string[] columns;
+        IReadOnlyList<SelectColumnInfo>? columnInfo;
         Type?[] types;
         IReadOnlyList<IReadOnlyList<object?>> frontier;
         using (SqlRowRetentionBudget.EnterRecursive())
         {
             SelectExecutionResult anchorResult = ProbeBranch(tsdb, anchor, MaxCandidateRowsPerRound);
             columns = ResolveColumns(definition, anchorResult.Columns);
+            columnInfo = SqlDateTimeOffsetContract.BindRecursiveColumns(tsdb, definition.Name, columns, anchor, member);
             if (member.Projections.Count != columns.Length)
                 throw new InvalidOperationException(
                     $"递归 CTE 分支列数不一致：期望 {columns.Length} 列，实际 {member.Projections.Count} 列。");
@@ -48,7 +50,7 @@ internal static class RecursiveCteExecutor
 
             using var scope = RecursiveCteScope.Enter(
                 definition.Name,
-                new SelectExecutionResult(columns, frontier));
+                new SelectExecutionResult(columns, frontier) { ColumnInfo = columnInfo });
             int candidateLimit = distinct
                 ? MaxCandidateRowsPerRound
                 : Math.Min(MaxCandidateRowsPerRound, MaxRows - rows.Count);
@@ -64,7 +66,7 @@ internal static class RecursiveCteExecutor
 
         using var finalScope = RecursiveCteScope.Enter(
             definition.Name,
-            new SelectExecutionResult(columns, rows));
+            new SelectExecutionResult(columns, rows) { ColumnInfo = columnInfo });
         using var finalBudget = SqlRowRetentionBudget.EnterRecursive();
         return SqlExecutor.ExecuteSelect(tsdb, statement with
         {

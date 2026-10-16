@@ -148,10 +148,20 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         var result = new SqlParameters();
         foreach (var p in parameters.Items)
         {
-            result.AddPositional(ParameterBinder.GetBindingValue(p));
+            object? value = ParameterBinder.GetBindingValue(p);
+            bool typedNull = p.DbType == System.Data.DbType.DateTimeOffset && value is null or DBNull;
+            if (typedNull)
+                result.AddPositional(null, SonnetDB.Sql.Ast.SqlDataType.DateTimeOffset);
+            else
+                result.AddPositional(value);
             var name = SndbParameterCollection.NormalizeName(p.ParameterName);
             if (!string.IsNullOrEmpty(name))
-                result.AddNamed(name, ParameterBinder.GetBindingValue(p));
+            {
+                if (typedNull)
+                    result.AddNamed(name, null, SonnetDB.Sql.Ast.SqlDataType.DateTimeOffset);
+                else
+                    result.AddNamed(name, value);
+            }
         }
         return result;
     }

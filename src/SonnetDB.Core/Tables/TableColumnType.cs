@@ -34,4 +34,7 @@ public enum TableColumnType : byte
 
     /// <summary>带符号时长，使用 TimeSpan 的 100 纳秒 ticks 完整保存。</summary>
     Duration = 10,
+
+    /// <summary>原生 UTC 时刻，按完整 100 纳秒 ticks 保存并返回 DateTimeOffset。</summary>
+    DateTimeOffset = 11,
 }

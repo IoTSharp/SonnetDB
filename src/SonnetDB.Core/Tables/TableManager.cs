@@ -96,7 +96,7 @@ public sealed partial class TableManager : IDisposable
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
         // 已发布的旧无主键表只能为空；在开放 rowstore 前升级兼容屏障，避免首次写入锁序反转。
         if (Catalog.Snapshot().Any(static schema => schema.PrimaryKey.Count == 0)
-            || TableSchemaCodec.ContainsDuration(Catalog.Snapshot())
+            || TableSchemaCodec.RequiredNativeVersion(Catalog.Snapshot()) >= 14
             || TableSchemaCodec.ReadFormatVersion(SchemaPath) >= 14)
         {
             if (TableSchemaCodec.ReadFormatVersion(SchemaPath) < 13)
@@ -1988,8 +1988,8 @@ public sealed partial class TableManager : IDisposable
         Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
         Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
-        if (current.Columns.Any(static column => column.DataType == TableColumnType.Duration)
-            || updated.Columns.Any(static column => column.DataType == TableColumnType.Duration))
+        if (current.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset)
+            || updated.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset))
         {
             ApplyPrimaryKeySchemaMigrationLocked(current, updated, transform, validate);
             return;

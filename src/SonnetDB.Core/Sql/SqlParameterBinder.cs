@@ -15,7 +15,7 @@ namespace SonnetDB.Sql;
 /// </para>
 /// <para>
 /// CLR 值 → 字面量的类型映射与旧 ADO <c>ParameterBinder.FormatLiteral</c> 语义一致：
-/// <c>DateTime</c>/<c>DateTimeOffset</c> → Unix 毫秒整数；<c>byte[]</c> → 保留类型的二进制内容快照；
+/// <c>DateTime</c> → Unix 毫秒整数；<c>DateTimeOffset</c> → 原生 UTC ticks CAST；<c>byte[]</c> → 保留类型的二进制内容快照；
 /// <c>GeoPoint</c> → <see cref="GeoPointLiteralExpression"/>；<c>float[]</c> / <c>Memory&lt;float&gt;</c> /
 /// <c>ReadOnlyMemory&lt;float&gt;</c> → <see cref="VectorLiteralExpression"/>；数值/布尔/字符串/null 各归对应字面量。
 /// </para>
@@ -438,6 +438,12 @@ public static class SqlParameterBinder
 
         switch (value)
         {
+            case SqlParameters.TypedValue typed:
+                object? input = typed.Value;
+                if (typed.DataType == SqlDataType.DateTimeOffset && input is DateTime dateTime)
+                    input = new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
+                        ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime());
+                return new CastExpression(ToLiteral(input), typed.DataType);
             case null:
             case DBNull:
                 return LiteralExpression.Null();
@@ -476,7 +482,7 @@ public static class SqlParameterBinder
                 var utc = dt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) : dt.ToUniversalTime();
                 return LiteralExpression.Integer(new DateTimeOffset(utc).ToUnixTimeMilliseconds());
             case DateTimeOffset dto:
-                return LiteralExpression.Integer(dto.ToUnixTimeMilliseconds());
+                return new CastExpression(LiteralExpression.Integer(dto.UtcTicks), SqlDataType.DateTimeOffset);
             case TimeOnly time:
                 return LiteralExpression.String(time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
             case TimeSpan span:

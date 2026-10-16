@@ -252,7 +252,7 @@ public sealed partial class TableManager
         {
             // 屏障必须早于 pending 日志。任意一次失败或恢复都不降回允许旧引擎写入的版本。
             TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, previousSchemas,
-                minimumVersion: TableSchemaCodec.ContainsDuration(candidateSchemas) ? 14 : 13);
+                minimumVersion: Math.Max(13, TableSchemaCodec.RequiredNativeVersion(candidateSchemas)));
             SchemaMigrationPhaseTestHook?.Invoke("after-barrier");
             TableSchemaMigrationJournal.Prepare(SchemaMigrationJournalPath, originalCatalog, undoTables);
             journalPrepared = true;

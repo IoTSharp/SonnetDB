@@ -137,7 +137,7 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
         File.WriteAllBytes(path, damagedDeclaration);
         Assert.Contains("CRC", Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path)).Message);
         byte[] unknownVersion = (byte[])baseline.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(unknownVersion.AsSpan(8, 4), 4);
+        BinaryPrimitives.WriteInt32LittleEndian(unknownVersion.AsSpan(8, 4), 5);
         File.WriteAllBytes(path, unknownVersion);
         Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path));
         File.WriteAllBytes(path, baseline[..(metadata + 2)]);

@@ -229,9 +229,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
             IReadOnlyList<FrameMessage>? frames = null;
-            string requestedVersion = SqlFrameCodec.NativeDurationResultVersion;
+            string requestedVersion = SqlFrameCodec.NativeDateTimeOffsetResultVersion;
             // 只有服务端明确在执行前拒绝版本时，才继续旧版协商；旧版不承诺原生日期合同。
-            foreach (string version in new[] { SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
+            foreach (string version in new[] { SqlFrameCodec.NativeDateTimeOffsetResultVersion, SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
                 SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
             {
                 requestedVersion = version;
@@ -245,10 +245,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 if (frames[0].Header.IsError)
                     return BuildSqlResult(frames);
                 var meta = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload,
-                    out bool nativeDateTime, out bool nativeDuration);
+                    out bool nativeDateTime, out bool nativeDuration, out bool nativeDateTimeOffset);
                 if (meta.ColumnInfo is not null
-                    && nativeDateTime == (requestedVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion)
-                    && nativeDuration == (requestedVersion == SqlFrameCodec.NativeDurationResultVersion))
+                    && nativeDateTime == (requestedVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
+                    && nativeDuration == (requestedVersion is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
+                    && nativeDateTimeOffset == (requestedVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion))
                     return BuildSqlResult(frames);
                 throw new SndbServerException("frame_sql_result_version_unsupported",
                     "服务端未协商 SQL Frame 声明结果格式；SQL 已执行，不能自动重发。请升级服务端或在新请求中显式选择 Protocol=rest。",
@@ -285,18 +286,18 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             && frames[0].Header.Op == (byte)SqlFrameOp.Query && frames[0].Header.StreamId == 1
             && FrameCodec.ReadErrorPayload(frames[0].Payload).Code == "unsupported_result_version";
 
-    /// <summary>仅在服务端明确于执行前拒绝 v5 时重建请求降至 v4；普通错误和未知结果绝不重发。</summary>
+    /// <summary>仅在服务端明确于执行前拒绝版本时重建请求按 v6、v5、v4 降级；普通错误和未知结果绝不重发。</summary>
     private async Task<HttpResponseMessage> SendSqlRequestAsync(string url, string json,
         HttpCompletionOption completion, CancellationToken cancellationToken)
     {
-        foreach (string version in new[] { SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion })
+        foreach (string version in new[] { SqlFrameCodec.NativeDateTimeOffsetResultVersion, SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion })
         {
             using var request = CreateRequest(HttpMethod.Post, url,
                 new StringContent(json, Encoding.UTF8, "application/json"));
             request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
             request.Headers.Add(SqlFrameCodec.ResultVersionHeader, version);
             HttpResponseMessage response = await _http!.SendAsync(request, completion, cancellationToken).ConfigureAwait(false);
-            if (version != SqlFrameCodec.NativeDurationResultVersion || response.StatusCode != HttpStatusCode.BadRequest)
+            if (version == SqlFrameCodec.NativeDateTimeResultVersion || response.StatusCode != HttpStatusCode.BadRequest)
                 return response;
             SndbServerException failure;
             try { failure = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false); }
@@ -402,6 +403,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         SelectColumnInfo[]? columnInfo = null;
         bool nativeDateTime = false;
         bool nativeDuration = false;
+        bool nativeDateTimeOffset = false;
         var rows = new List<IReadOnlyList<object?>>();
 
         foreach (FrameMessage frame in frames)
@@ -410,10 +412,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
             {
                 case SqlQueryChunkKind.Meta:
-                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime, out nativeDuration);
+                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime, out nativeDuration, out nativeDateTimeOffset);
                     break;
                 case SqlQueryChunkKind.Rows:
-                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime, nativeDuration))
+                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime, nativeDuration, nativeDateTimeOffset))
                     {
                         if (columnInfo is not null)
                         {
@@ -1251,7 +1253,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 var values = new object?[columns.Length];
                 for (int i = 0; i < values.Length; i++)
                     values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i],
-                        RemoteExecutionResult.HasNativeDateTimeResult(response), RemoteExecutionResult.HasNativeDurationResult(response));
+                        RemoteExecutionResult.HasNativeDateTimeResult(response), RemoteExecutionResult.HasNativeDurationResult(response), RemoteExecutionResult.HasNativeDateTimeOffsetResult(response));
                 rows.Add(values);
                 continue;
             }
@@ -1298,6 +1300,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                                 .ToArray();
                         }
                         columnInfo = RemoteExecutionResult.ReadColumnDeclarations(root, columns.Length);
+                        if (!RemoteExecutionResult.HasNativeDateTimeOffsetResult(response)
+                            && (columnTypes?.Contains("datetimeoffset") == true
+                                || columnInfo?.Any(static column => column.DataType == TableColumnType.DateTimeOffset) == true))
+                            throw new InvalidDataException("远程事务 DATETIMEOFFSET 声明缺少 SQL v6 协商确认。");
+                        if (!RemoteExecutionResult.HasNativeDurationResult(response)
+                            && (columnTypes?.Contains("duration") == true
+                                || columnInfo?.Any(static column => column.DataType == TableColumnType.Duration) == true))
+                            throw new InvalidDataException("远程事务 DURATION 声明缺少 SQL v5 协商确认。");
                         readingRows = true;
                     }
                     break;
@@ -1671,6 +1681,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
             "TIME" or "TIMEONLY" => TableColumnType.Time,
             "DURATION" => TableColumnType.Duration,
+            "DATETIMEOFFSET" => TableColumnType.DateTimeOffset,
             "BLOB" or "BINARY" => TableColumnType.Blob,
             "JSON" => TableColumnType.Json,
             _ => Enum.TryParse<TableColumnType>(value, ignoreCase: true, out var parsed)

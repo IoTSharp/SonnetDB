@@ -52,6 +52,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         statement = (CreateTableStatement)SqlNameBinder.Bind(tsdb, statement);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
         return tsdb.ExecuteSchemaMutation(() => ExecuteCreateTableLocked(tsdb, statement));
     }
@@ -541,6 +542,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
         statement = (InsertStatement)SqlNameBinder.Bind(tsdb, statement);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
@@ -1346,6 +1348,7 @@ internal static class TableSqlExecutor
         statement = SqlNameBinder.BindSelect(tsdb, statement);
 
         ValidateTableAliasReferences(statement);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("关系表 SELECT 不支持 FROM 表值函数。");
         if (statement.GroupBy.Count != 0)
@@ -1460,6 +1463,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
         statement = (DeleteStatement)SqlNameBinder.Bind(tsdb, statement);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
         long? rowLimit = ResolveDeleteRowLimit(statement);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1544,6 +1548,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         statement = (UpdateStatement)SqlNameBinder.Bind(tsdb, statement);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
@@ -3087,6 +3092,7 @@ internal static class TableSqlExecutor
             TableColumnType.Boolean => value is bool,
             TableColumnType.String or TableColumnType.Json => value is string,
             TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
+            TableColumnType.DateTimeOffset => value is DateTimeOffset,
             TableColumnType.Time => value is TimeOnly or TimeSpan or string,
             TableColumnType.Duration => value is TimeSpan or string or long or int or short or sbyte or byte or ushort or uint or ulong,
             TableColumnType.Blob => value is byte[],
@@ -5531,7 +5537,8 @@ internal static class TableSqlExecutor
             decimal => TableColumnType.Decimal,
             bool => TableColumnType.Boolean,
             string => TableColumnType.String,
-            DateTime or DateTimeOffset => TableColumnType.DateTime,
+            DateTime => TableColumnType.DateTime,
+            DateTimeOffset => TableColumnType.DateTimeOffset,
             TimeOnly => TableColumnType.Time,
             TimeSpan => TableColumnType.Duration,
             byte[] => TableColumnType.Blob,
@@ -5558,6 +5565,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(row);
 
         // SQL CHECK 只拒绝明确 FALSE；TRUE 与 UNKNOWN（NULL 传播）均通过。
+        SqlDateTimeOffsetContract.ValidateTableExpression(expression, schema);
         return EvaluateKleene(expression, schema, row) != false;
     }
 
@@ -5941,6 +5949,7 @@ internal static class TableSqlExecutor
                 : Convert.ToDecimal(value, CultureInfo.InvariantCulture),
             TableColumnType.Time => ConvertTimeValue(value, column),
             TableColumnType.Duration => SqlCastOperations.ToDuration(value),
+            TableColumnType.DateTimeOffset => SqlCastOperations.ToDateTimeOffset(value),
             TableColumnType.Boolean => value is bool b
                 ? b
                 : throw TypeMismatch(column, value),
@@ -6646,6 +6655,7 @@ internal static class TableSqlExecutor
         SqlDataType.DateTime => TableColumnType.DateTime,
         SqlDataType.Time => TableColumnType.Time,
         SqlDataType.Duration => TableColumnType.Duration,
+        SqlDataType.DateTimeOffset => TableColumnType.DateTimeOffset,
         SqlDataType.Blob => TableColumnType.Blob,
         SqlDataType.Json => TableColumnType.Json,
         _ => throw new NotSupportedException($"关系表 MVP 暂不支持数据类型 {type}。"),
@@ -6661,6 +6671,7 @@ internal static class TableSqlExecutor
         TableColumnType.DateTime => "datetime",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
+        TableColumnType.DateTimeOffset => "datetimeoffset",
         TableColumnType.Blob => "blob",
         TableColumnType.Json => "json",
         _ => type.ToString().ToLowerInvariant(),

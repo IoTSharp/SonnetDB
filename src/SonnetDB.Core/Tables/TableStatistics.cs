@@ -649,6 +649,10 @@ internal static class TableValueFingerprint
             case TableColumnType.Json:
                 hash.Append(Encoding.UTF8.GetBytes((string)value));
                 break;
+            case TableColumnType.DateTimeOffset:
+                System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(scalar, ((DateTimeOffset)value).UtcTicks);
+                hash.Append(scalar);
+                break;
             case TableColumnType.Duration:
                 System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(scalar, ((TimeSpan)value).Ticks);
                 hash.Append(scalar);

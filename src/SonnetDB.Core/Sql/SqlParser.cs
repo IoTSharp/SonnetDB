@@ -2095,6 +2095,11 @@ public sealed class SqlParser
             Advance();
             return SqlDataType.Duration;
         }
+        if (IsIdentifier("DATETIMEOFFSET"))
+        {
+            Advance();
+            return SqlDataType.DateTimeOffset;
+        }
         if (Current.Kind == TokenKind.KeywordGeoPoint)
             throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
 
@@ -4358,6 +4363,11 @@ public sealed class SqlParser
             Advance();
             return SqlDataType.Duration;
         }
+        if (IsIdentifier("DATETIMEOFFSET"))
+        {
+            Advance();
+            return SqlDataType.DateTimeOffset;
+        }
         var token = Current;
         switch (token.Kind)
         {
@@ -5778,7 +5788,7 @@ public sealed class SqlParser
                 or TokenKind.KeywordBool or TokenKind.KeywordString
                 or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordBlob or TokenKind.KeywordJson
-                or TokenKind.KeywordVector || IsIdentifier("varchar") || IsIdentifier("duration"))
+                or TokenKind.KeywordVector || IsIdentifier("varchar") || IsIdentifier("duration") || IsIdentifier("datetimeoffset"))
             {
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");

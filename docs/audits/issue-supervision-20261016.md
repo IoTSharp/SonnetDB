@@ -267,3 +267,12 @@
 - 251最终core-sql02为3765PASS/1FAIL、core-native06为174PASS/1FAIL，唯一失败均为既有递归10ms取消精确包装断言。根在252冻结DLL确定性复现第1/4候选取消，原断言0PASS/2FAIL；独立修正只改测试及对应说明，不改生产、不掩盖原失败。新测试移除timer，校验直接OCE或Cancelled包装、相同令牌、精确调用数、0内存/ambient释放及后续数据读取；整类25/25通过，实际日志/SHA在recursive-cancellation，永久审计recursive-cancellation-contract-20261016.md。
 - 本修正独立提交前完整restore/规定Format必须在最终树实际通过，回执recursive-cancellation/gate及commit.json。当前交接记录随该真实修正纳入，不为状态另造提交。251继续最终冻结，不覆盖SqlRecursiveCteTests根修订；随后根核哈希集成251并执行最终回归。250/249仍各自准备冻结，待251→250→249核心交接，不重复派单。
 - 主目录main=ffdb734c且clean；当前仅监督树有授权测试修正/交接。旧树、定向stash、失败证据、parity-results全部保留；正式发行及对应ORM上游仍是关闭条件，226/243源码不重做。
+
+## 最新监督检查点（2026-10-16 11:58，#251根复审通过、最终提交门禁待执行）
+
+- 监督HEAD=ea04b240，独立递归取消测试修正已提交；其最终tree1e6a469a333cd7a9fbc133c021e675a499dbd4cc，restore03:34:05Z→03:34:13Z、原Format03:34:13Z→03:35:35Z均exit0，树未变才commit。原a3932c49和252的16b266c2保留，尚未push/comment/close。
+- #251代理已冻结，根核manifest613D27DDA235F29A8DCAEBB30C130B5FCE014C462421F601DD79E20D4A912A13、71交付文件/302证据/23程序集/12TRX及Chloe1210跟踪源码。只复制71文件，未覆盖根取消测试或外部文档。根Core3768/3768、真实远程147/147零失败/跳过，Core/Server最终Release与Data显式AOT/trim零警告/错误。四文件只经格式整理，忽略空白/空行的逐文件比较一致；原冻结SHA、运行DLL及最终源另列，不混称。
+- 根首次远程restore因共享NuGet审计缓存锁失败；第二次独立缓存构建带扩展旧assets的4条NU1900但147测试通过；再独立新缓存force-evaluate restore/构建零警告错误。全部失败/警告记录保留，未关闭审计。原代理3765/3766及174/175失败保留，根新结果不改写旧窗。完整报告issue-251-root-review-20261016.md/json。
+- DTO保存完整UTC ticks/offset0，旧DATETIME保持，默认DTO原生，显式DateTime/2走旧UTC毫秒；混合比较扫描前拒绝。catalog永久v15、snapshot4、结果v6。代理最终Chloe保留262→252→251，三协议42+34，真实旧Server每协议10+6、旧Core拒15且14持久文件SHA不变、DTO7+Duration7强杀已核。无正式发行/上游交付、NativeAOT发布运行或断电证据，保持OPEN。
+- 当前#251交付与根报告/CHANGELOG/交接待独立提交；必须最终全solution restore与原Format通过且树不变才commit，随后把实际SHA交issue313实施唯一#250。issue314的#249继续保留准备，核心顺序251→250→249。空槽下一候选#248已读原文，依赖真实233行锁生命周期；只能先隔离准备，不可将unsupported当完成。
+- 远端main仍ffdb734c，CI38842022794已7作业success，仅覆盖该SHA；parity2ab6caa9保持。主目录main clean。226/243线上原评论及OPEN已回读，无新正式交付，不重复派单或评论。批次252/251/250齐后正常push、回读远端/CI再回复；所有旧树/stash/失败证据保留。

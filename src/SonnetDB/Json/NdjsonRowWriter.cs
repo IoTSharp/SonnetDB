@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using SonnetDB.Model;
@@ -28,11 +28,16 @@ public static class NdjsonRowWriter
 
     /// <summary>按 v5 协商合同写出含原生日期与时长的结果行。</summary>
     public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row, bool nativeDateTime, bool nativeDuration)
+        => WriteRow(writer, row, nativeDateTime, nativeDuration, nativeDateTimeOffset: false);
+
+    /// <summary>按 v6 协商合同写出包含原生 DateTimeOffset 的结果行。</summary>
+    public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row, bool nativeDateTime,
+        bool nativeDuration, bool nativeDateTimeOffset)
     {
         writer.WriteStartArray();
         for (int i = 0; i < row.Count; i++)
         {
-            WriteValue(writer, row[i], nativeDateTime, nativeDuration);
+            WriteValue(writer, row[i], nativeDateTime, nativeDuration, nativeDateTimeOffset);
         }
         writer.WriteEndArray();
     }
@@ -49,6 +54,11 @@ public static class NdjsonRowWriter
 
     /// <summary>按 v5 协商合同以带类型的有符号整数 ticks 写出原生时长。</summary>
     public static void WriteValue(Utf8JsonWriter writer, object? value, bool nativeDateTime, bool nativeDuration)
+        => WriteValue(writer, value, nativeDateTime, nativeDuration, nativeDateTimeOffset: false);
+
+    /// <summary>按 v6 协商合同写出原生 UTC ticks，原始偏移归一为零。</summary>
+    public static void WriteValue(Utf8JsonWriter writer, object? value, bool nativeDateTime,
+        bool nativeDuration, bool nativeDateTimeOffset)
     {
         switch (value)
         {
@@ -109,6 +119,12 @@ public static class NdjsonRowWriter
                 break;
             case DateTime dt:
                 writer.WriteStringValue(dt);
+                break;
+            case DateTimeOffset dto when nativeDateTimeOffset:
+                writer.WriteStartObject();
+                writer.WriteString("$type", "datetimeoffset");
+                writer.WriteNumber("ticks", dto.UtcTicks);
+                writer.WriteEndObject();
                 break;
             case DateTimeOffset dto:
                 writer.WriteStringValue(dto);

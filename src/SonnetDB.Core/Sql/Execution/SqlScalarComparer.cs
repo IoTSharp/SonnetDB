@@ -62,6 +62,13 @@ internal static class SqlScalarComparer
 
     private static bool TryCompareTemporal(object left, object right, out int comparison)
     {
+        if (left is DateTimeOffset leftOffset && right is DateTimeOffset rightOffset)
+        {
+            comparison = leftOffset.UtcTicks.CompareTo(rightOffset.UtcTicks);
+            return true;
+        }
+        if (left is DateTimeOffset || right is DateTimeOffset)
+            throw new InvalidOperationException("DATETIMEOFFSET 比较要求两个操作数均为 DATETIMEOFFSET；请显式 CAST。");
         if (left is TimeSpan leftDuration && right is TimeSpan rightDuration)
         {
             comparison = leftDuration.CompareTo(rightDuration);
@@ -136,9 +143,6 @@ internal static class SqlScalarComparer
                     ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
                     : dateTime.ToUniversalTime();
                 milliseconds = new DateTimeOffset(utc).ToUnixTimeMilliseconds();
-                return true;
-            case DateTimeOffset dateTimeOffset:
-                milliseconds = dateTimeOffset.ToUnixTimeMilliseconds();
                 return true;
             default:
                 milliseconds = 0;

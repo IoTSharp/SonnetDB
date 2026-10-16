@@ -356,8 +356,10 @@ internal static class SqlEndpointHandler
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
-                                AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
-                                    == SqlFrameCodec.NativeDurationResultVersion,
+                                AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
+                                    is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                                AllowDateTimeOffsetResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
+                                    == SqlFrameCodec.NativeDateTimeOffsetResultVersion,
                                 CanWrite = canWrite,
                                 CanAdminister = canAdministerDatabase,
                                 MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -663,9 +665,11 @@ internal static class SqlEndpointHandler
             await using (var rowWriter = new Utf8JsonWriter(body, options))
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeResultVersion
-                        || context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDurationResultVersion,
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDurationResultVersion);
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeResultVersion
+                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
+                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeOffsetResultVersion);
             }
             await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
             count++;
@@ -683,6 +687,7 @@ internal static class SqlEndpointHandler
         TableColumnType.DateTime => "datetime",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
+        TableColumnType.DateTimeOffset => "datetimeoffset",
         TableColumnType.Blob => "blob",
         _ => "string",
     };
@@ -695,7 +700,8 @@ internal static class SqlEndpointHandler
         bool => "boolean",
         DateTime => "datetime",
         TimeSpan => "duration",
-        string or DateTimeOffset or TimeOnly or Guid or byte[] => "string",
+        DateTimeOffset => "datetimeoffset",
+        string or TimeOnly or Guid or byte[] => "string",
         GeoPoint => "geopoint",
         float[] or Memory<float> or ReadOnlyMemory<float> => "vector",
         _ => "object",
@@ -706,7 +712,7 @@ internal static class SqlEndpointHandler
         string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
         if (version.Length == 0 || version is "1" or "2" or "3")
             return true;
-        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion)
+        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
         {
             context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = version;
             return true;

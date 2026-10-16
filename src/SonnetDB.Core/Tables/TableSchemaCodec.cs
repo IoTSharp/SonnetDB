@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 14;
+    private const int _formatVersion = 15;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -78,8 +78,7 @@ public static class TableSchemaCodec
         ArgumentNullException.ThrowIfNull(tempSuffix);
 
         minimumVersion = Math.Max(minimumVersion, ReadFormatVersion(path));
-        if (ContainsDuration(schemas))
-            minimumVersion = Math.Max(minimumVersion, 14);
+        minimumVersion = Math.Max(minimumVersion, RequiredNativeVersion(schemas));
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string tmpPath = path + tempSuffix;
@@ -97,6 +96,10 @@ public static class TableSchemaCodec
         if (minimumVersion >= 14)
             SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
     }
+
+    internal static int RequiredNativeVersion(IReadOnlyList<TableSchema> schemas)
+        => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTimeOffset))
+            ? 15 : ContainsDuration(schemas) ? 14 : 0;
 
     internal static bool ContainsDuration(IReadOnlyList<TableSchema> schemas)
         => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.Duration));
@@ -219,6 +222,8 @@ public static class TableSchemaCodec
             var type = (TableColumnType)flags[0];
             if (!Enum.IsDefined(type))
                 throw new InvalidDataException($"TableSchema: invalid column type {flags[0]} for '{columnName}'.");
+            if (type == TableColumnType.DateTimeOffset && version < 15)
+                throw new InvalidDataException("TableSchema: DATETIMEOFFSET requires format version 15.");
             if (type == TableColumnType.Duration && version < 14)
                 throw new InvalidDataException("TableSchema: DURATION requires format version 14.");
 

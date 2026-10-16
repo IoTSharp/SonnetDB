@@ -175,6 +175,8 @@ internal static class SqlScalarOperations
 
         if (operatorValue == SqlBinaryOperator.Subtract && left is DateTime leftDate && right is DateTime rightDate)
             return leftDate - rightDate;
+        if (operatorValue == SqlBinaryOperator.Subtract && left is DateTimeOffset leftOffset && right is DateTimeOffset rightOffset)
+            return TimeSpan.FromTicks(leftOffset.UtcTicks - rightOffset.UtcTicks);
         if (left is TimeSpan leftDuration && right is TimeSpan rightDuration)
         {
             try

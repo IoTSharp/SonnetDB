@@ -862,6 +862,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.DateTime => "DATETIME",
         TableColumnType.Time => "TIME",
         TableColumnType.Duration => "DURATION",
+        TableColumnType.DateTimeOffset => "DATETIMEOFFSET",
         TableColumnType.Blob => "BLOB",
         TableColumnType.Json => "JSON",
         _ => type.ToString().ToUpperInvariant(),

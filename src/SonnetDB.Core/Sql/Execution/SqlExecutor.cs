@@ -420,6 +420,7 @@ public static class SqlExecutor
         transaction?.ExpandDeferredCascades(tsdb.Tables);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
         RejectDirectModbusSourceWrites(tsdb, statement);
         if (statement is SelectStatement sequenceQuery)
             SqlDurationResultContract.ValidateBeforeSequence(tsdb, sequenceQuery);
@@ -1903,6 +1904,7 @@ public static class SqlExecutor
         using var queryLoad = QueryActivityTracker.Enter();
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
         if (statement.IsRecursive)
             return RecursiveCteExecutor.Execute(tsdb, statement);
@@ -2187,7 +2189,8 @@ public static class SqlExecutor
                         decimal => TableColumnType.Decimal,
                         bool => TableColumnType.Boolean,
                         string => TableColumnType.String,
-                        DateTime or DateTimeOffset => TableColumnType.DateTime,
+                        DateTime => TableColumnType.DateTime,
+                        DateTimeOffset => TableColumnType.DateTimeOffset,
                         TimeOnly => TableColumnType.Time,
                         TimeSpan => TableColumnType.Duration,
                         byte[] => TableColumnType.Blob,

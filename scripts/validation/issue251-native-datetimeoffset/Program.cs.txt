@@ -1,0 +1,124 @@
+using System.Data;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+
+if (args.Length < 2) return 2;
+string phase = args[0];
+string root = args[1];
+string connectionString = Environment.GetEnvironmentVariable("ISSUE251_CONNECTION") ?? "Data Source=" + root;
+foreach (var type in new[] { typeof(SndbConnection), typeof(SonnetDB.Engine.Tsdb), typeof(SonnetDBContext), typeof(DbContext) })
+    Console.WriteLine($"ASSEMBLY|{type.Assembly.GetName().Name}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(type.Assembly.Location)))}|{type.Assembly.Location}");
+int checks = 0;
+var instant = new DateTimeOffset(2026, 10, 8, 12, 34, 56, TimeSpan.Zero).AddTicks(1230001);
+if (args.Length > 2 && args[2] == "old-datetime")
+{
+    using var connection = new SndbConnection(connectionString);
+    connection.Open();
+    using var command = connection.CreateCommand();
+    if (phase == "exercise")
+    {
+        command.CommandText = "CREATE TABLE legacy_dates(id INT, Stamp DATETIME, PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        int id = 0;
+        foreach (var dbType in new[] { DbType.DateTime, DbType.DateTime2 })
+        {
+            command.Parameters.Clear();
+            command.Parameters.Add(new SndbParameter("stamp", instant.ToOffset(TimeSpan.FromHours(8))) { DbType = dbType });
+            command.CommandText = $"INSERT INTO legacy_dates(id,Stamp) VALUES({++id},@stamp)";
+            Equal(1, command.ExecuteNonQuery());
+            command.CommandText = "SELECT Stamp FROM legacy_dates WHERE Stamp=@stamp";
+            Equal(DateTimeOffset.FromUnixTimeMilliseconds(instant.ToUnixTimeMilliseconds()).UtcDateTime, command.ExecuteScalar());
+        }
+    }
+    command.Parameters.Clear();
+    command.CommandText = "SELECT Stamp FROM legacy_dates ORDER BY id";
+    using var reader = command.ExecuteReader();
+    Equal(typeof(DateTime), reader.GetFieldType(0));
+    for (int index = 0; index < 2; index++)
+    {
+        Equal(true, reader.Read());
+        Equal(DateTimeOffset.FromUnixTimeMilliseconds(instant.ToUnixTimeMilliseconds()).UtcDateTime, reader.GetValue(0));
+    }
+    Equal(false, reader.Read());
+    Console.WriteLine($"PASS|old-datetime|{phase}|checks={checks}");
+    return 0;
+}
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+long[] ticks = [0, 1, instant.UtcTicks, instant.UtcTicks + 1, DateTimeOffset.MaxValue.UtcTicks];
+if (phase == "exercise")
+{
+    new SonnetDBTableGenerator(context).CreateTable(typeof(OffsetRow));
+    for (int index = 0; index < ticks.Length; index++)
+    {
+        var value = new DateTimeOffset(ticks[index], TimeSpan.Zero);
+        context.Insert(new OffsetRow { Id = index + 1, Stamp = value, Required = value });
+        Equal(value, context.Query<OffsetRow>().Where(row => row.Required == value).Select(row => row.Required).First());
+    }
+    context.InsertRange(new List<OffsetRow> {
+        new() { Id = 6, Stamp = null, Required = instant },
+        new() { Id = 7, Stamp = instant.ToOffset(TimeSpan.FromHours(8)), Required = instant.ToOffset(TimeSpan.FromHours(-7)) } });
+    context.Session.BeginTransaction();
+    context.Insert(new OffsetRow { Id = 8, Required = DateTimeOffset.MaxValue });
+    Equal(DateTimeOffset.MaxValue, context.Query<OffsetRow>().Where(row => row.Id == 8).Select(row => row.Required).First());
+    context.Session.RollbackTransaction();
+    Equal(7, context.Query<OffsetRow>().Count());
+    context.Session.BeginTransaction();
+    await context.InsertAsync(new OffsetRow { Id = 8, Stamp = null, Required = instant });
+    context.Session.CommitTransaction();
+    context.Session.ExecuteNonQuery("INSERT INTO offset_rows(Id,Stamp,Required) VALUES(9,CAST('2026-10-08T12:34:56.1230001' AS DATETIMEOFFSET),CAST('2026-10-08T12:34:56.1230001Z' AS DATETIMEOFFSET))");
+    Equal(1, context.Update<OffsetRow>(row => row.Id == 8, row => new OffsetRow { Stamp = instant }));
+}
+var rows = await context.Query<OffsetRow>().OrderBy(row => row.Id).ToListAsync();
+Equal(9, rows.Count);
+for (int index = 0; index < ticks.Length; index++)
+{
+    Equal(new DateTimeOffset(ticks[index], TimeSpan.Zero), rows[index].Stamp);
+    Equal(new DateTimeOffset(ticks[index], TimeSpan.Zero), rows[index].Required);
+    Equal(TimeSpan.Zero, rows[index].Required.Offset);
+}
+Equal(null, rows[5].Stamp);
+Equal(instant, rows[6].Required);
+Equal(TimeSpan.Zero, rows[6].Required.Offset);
+Equal(instant, rows[6].Stamp);
+Equal(instant, rows[7].Stamp);
+Equal(instant, rows[8].Stamp);
+Equal(instant, rows[8].Required);
+Equal(0, context.Query<OffsetRow>().Where(row => row.Id < 0).Select(row => row.Stamp).ToList().Count);
+Equal(null, context.Query<OffsetRow>().Where(row => row.Id == 6).Select(row => row.Stamp).First());
+var east = instant.ToOffset(TimeSpan.FromHours(8));
+Equal(5, context.Query<OffsetRow>().Where(row => row.Required == east).Count());
+Equal(instant, context.SqlQuery<DateTimeOffset>("SELECT Required FROM offset_rows WHERE Id=3").Single());
+Equal(null, context.SqlQuery<DateTimeOffset?>("SELECT Stamp FROM offset_rows WHERE Id=6").Single());
+Equal(instant, new Chloe.Infrastructure.DateTimeOffset_ValueConverter().Convert(instant));
+using (var connection = new SndbConnection(connectionString))
+{
+    connection.Open();
+    using var command = connection.CreateCommand();
+    command.CommandText = "SELECT Stamp,Required FROM offset_rows WHERE Id=7";
+    using var reader = command.ExecuteReader();
+    Equal(typeof(DateTimeOffset), reader.GetFieldType(0));
+    Equal(typeof(DateTimeOffset), reader.GetFieldType(1));
+    Equal(true, reader.Read());
+    Equal(instant, reader.GetValue(0));
+    Equal(instant, reader.GetValue(1));
+}
+Console.WriteLine($"PASS|candidate-Chloe-native-offset|{phase}|checks={checks}");
+return 0;
+
+void Equal(object? expected, object? actual)
+{
+    if (!Equals(expected, actual)) throw new Exception($"Expected {expected ?? "null"} ({expected?.GetType().Name}), got {actual ?? "null"} ({actual?.GetType().Name}).");
+    checks++;
+}
+
+[Table("offset_rows")]
+public sealed class OffsetRow
+{
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    public DateTimeOffset? Stamp { get; set; }
+    public DateTimeOffset Required { get; set; }
+}

@@ -418,7 +418,8 @@ internal static class FrameEndpointHandler
         try
         {
             string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-            bool nativeDuration = resultVersion == SqlFrameCodec.NativeDurationResultVersion;
+            bool nativeDateTimeOffset = resultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion;
+            bool nativeDuration = nativeDateTimeOffset || resultVersion == SqlFrameCodec.NativeDurationResultVersion;
             bool nativeDateTime = nativeDuration || resultVersion == SqlFrameCodec.NativeDateTimeResultVersion;
             bool fullDeclarations = nativeDateTime || resultVersion == SqlFrameCodec.DeclaredResultVersion;
             bool typedResults = fullDeclarations || resultVersion == SqlFrameCodec.TypedResultVersion;
@@ -523,6 +524,7 @@ internal static class FrameEndpointHandler
                     CancellationToken = ctx.RequestAborted,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     AllowDurationResults = nativeDuration,
+                    AllowDateTimeOffsetResults = nativeDateTimeOffset,
                     CanWrite = sequenceWrite,
                     CanAdminister = false,
                     MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -550,14 +552,14 @@ internal static class FrameEndpointHandler
                 typedResults
                     ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
                     { IsDeclared = false }, select.Columns.Count).ToArray()
-                    : null, fullDeclarations, nativeDateTime, nativeDuration);
+                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset);
 
             int position = 0;
             while (position < select.Rows.Count)
             {
                 int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
                 SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows,
-                    select.Columns.Count, exactDecimal: typedResults, nativeDateTime, nativeDuration);
+                    select.Columns.Count, exactDecimal: typedResults, nativeDateTime, nativeDuration, nativeDateTimeOffset);
                 position += chunkRows;
                 if (position < select.Rows.Count)
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);

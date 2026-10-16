@@ -232,6 +232,24 @@ public sealed class MaterializedViewManager
         }
     }
 
+    internal SelectExecutionResult ReadSnapshotDeclaration(string name)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            var definition = Catalog.TryGet(name)
+                ?? throw new InvalidOperationException($"materialized view '{name}' 不存在。");
+            if (definition.ActiveGeneration == 0)
+                throw new InvalidOperationException($"materialized view '{name}' 尚无可读代际；请先执行 REFRESH MATERIALIZED VIEW。");
+            if (_snapshotCache.TryGetValue((definition.StorageId, definition.ActiveGeneration), out var cached))
+                return new SelectExecutionResult(cached.Columns, []) { ColumnInfo = cached.ColumnInfo, ColumnSchema = cached.ColumnSchema };
+            var result = MaterializedViewSnapshotCodec.LoadDeclaration(GetGenerationPath(definition), out int rows);
+            if (rows != definition.RowCount)
+                throw new InvalidDataException($"materialized view '{name}' 的目录与物理代际行数不一致。");
+            return result;
+        }
+    }
+
     internal string GetGenerationPath(MaterializedViewDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);

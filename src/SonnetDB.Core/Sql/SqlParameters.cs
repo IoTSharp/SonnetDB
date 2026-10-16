@@ -28,6 +28,13 @@ public sealed class SqlParameters
         return this;
     }
 
+    /// <summary>追加有显式 SQL 类型的参数；NULL 也保留声明类型。</summary>
+    /// <param name="value">CLR 参数值。</param>
+    /// <param name="dataType">显式 SQL CAST 目标类型。</param>
+    /// <returns>当前参数集合。</returns>
+    public SqlParameters AddPositional(object? value, Ast.SqlDataType dataType)
+        => AddPositional(new TypedValue(value, dataType));
+
     /// <summary>设置一个命名参数值（名称去 <c>@</c>/<c>:</c> 前缀，大小写不敏感）。</summary>
     /// <param name="name">参数名（不含前缀）。</param>
     /// <param name="value">CLR 参数值（可为 null）。</param>
@@ -38,6 +45,16 @@ public sealed class SqlParameters
         _named[name] = value;
         return this;
     }
+
+    /// <summary>设置有显式 SQL 类型的命名参数；NULL 也保留声明类型。</summary>
+    /// <param name="name">不含前缀的参数名。</param>
+    /// <param name="value">CLR 参数值。</param>
+    /// <param name="dataType">显式 SQL CAST 目标类型。</param>
+    /// <returns>当前参数集合。</returns>
+    public SqlParameters AddNamed(string name, object? value, Ast.SqlDataType dataType)
+        => AddNamed(name, new TypedValue(value, dataType));
+
+    internal sealed record TypedValue(object? Value, Ast.SqlDataType DataType);
 
     /// <summary>
     /// 解析一个占位符的实际值。命名参数先按名称找，找不到再按序号找；位置参数按序号找。

@@ -33,6 +33,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly bool _inferMissingColumnTypes;
     private readonly bool _nativeDateTime;
     private readonly bool _nativeDuration;
+    private readonly bool _nativeDateTimeOffset;
     private object?[] _currentRow;
     private bool _ended;
     private long _rowsRead;
@@ -56,6 +57,9 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _inferMissingColumnTypes = inferMissingColumnTypes;
         _nativeDateTime = HasNativeDateTimeResult(response);
         _nativeDuration = HasNativeDurationResult(response);
+        _nativeDateTimeOffset = HasNativeDateTimeOffsetResult(response);
+        if (!_nativeDateTimeOffset && columnTypes.Contains(ExecutionFieldTypeKind.DateTimeOffset))
+            throw new InvalidDataException("远程 DATETIMEOFFSET 声明缺少 SQL v6 协商确认。");
         if (!_nativeDuration && columnTypes.Contains(ExecutionFieldTypeKind.Duration))
             throw new InvalidDataException("远程 DURATION 声明缺少 SQL v5 协商确认。");
         _currentRow = new object?[columns.Length];
@@ -133,7 +137,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (n != _columns.Length)
                 throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
             for (int i = 0; i < n; i++)
-                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i], _nativeDateTime, _nativeDuration);
+                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i], _nativeDateTime, _nativeDuration, _nativeDateTimeOffset);
             _rowsRead++;
             return true;
         }
@@ -265,6 +269,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                                             "datetime" => TableColumnType.DateTime,
                                             "time" => TableColumnType.Time,
                                             "duration" => TableColumnType.Duration,
+                                            "datetimeoffset" => TableColumnType.DateTimeOffset,
                                             "blob" => TableColumnType.Blob,
                                             "json" => TableColumnType.Json,
                                             _ => null,
@@ -346,26 +351,33 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _ => null,
     };
 
-    internal static object? ReadScalar(JsonElement element, string? columnType, bool nativeDateTime = false, bool nativeDuration = false)
+    internal static object? ReadScalar(JsonElement element, string? columnType, bool nativeDateTime = false, bool nativeDuration = false, bool nativeDateTimeOffset = false)
         => ReadTypedScalar(element, columnType switch
         {
             "float64" => ExecutionFieldTypeKind.Double,
             "decimal" => ExecutionFieldTypeKind.Decimal,
             "datetime" => ExecutionFieldTypeKind.DateTime,
+            "datetimeoffset" => ExecutionFieldTypeKind.DateTimeOffset,
             "time" => ExecutionFieldTypeKind.TimeOnly,
             "duration" => ExecutionFieldTypeKind.Duration,
             "blob" => ExecutionFieldTypeKind.ByteArray,
             _ => ExecutionFieldTypeKind.Object,
-        }, nativeDateTime, nativeDuration);
+        }, nativeDateTime, nativeDuration, nativeDateTimeOffset);
 
     internal static bool HasNativeDateTimeResult(HttpResponseMessage response)
         => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
             && (versions.SequenceEqual([SqlFrameCodec.NativeDateTimeResultVersion])
-                || versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion]));
+                || versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion])
+                || versions.SequenceEqual([SqlFrameCodec.NativeDateTimeOffsetResultVersion]));
 
     internal static bool HasNativeDurationResult(HttpResponseMessage response)
         => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
-            && versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion]);
+            && (versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion])
+                || versions.SequenceEqual([SqlFrameCodec.NativeDateTimeOffsetResultVersion]));
+
+    internal static bool HasNativeDateTimeOffsetResult(HttpResponseMessage response)
+        => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
+            && versions.SequenceEqual([SqlFrameCodec.NativeDateTimeOffsetResultVersion]);
 
     internal static SelectColumnInfo[]? ReadColumnDeclarations(JsonElement meta, int columnCount)
     {
@@ -390,6 +402,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                 "datetime" => TableColumnType.DateTime,
                 "time" => TableColumnType.Time,
                 "duration" => TableColumnType.Duration,
+                "datetimeoffset" => TableColumnType.DateTimeOffset,
                 "blob" => TableColumnType.Blob,
                 "json" => TableColumnType.Json,
                 _ => (TableColumnType?)null,
@@ -409,8 +422,25 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         return declarations;
     }
 
-    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type, bool nativeDateTime, bool nativeDuration)
+    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type, bool nativeDateTime,
+        bool nativeDuration, bool nativeDateTimeOffset)
     {
+        if (type == ExecutionFieldTypeKind.DateTimeOffset || element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty("$type", out var offsetType) && offsetType.ValueKind == JsonValueKind.String
+            && offsetType.GetString() == "datetimeoffset")
+        {
+            if (!nativeDateTimeOffset)
+                throw new InvalidDataException("远程 DATETIMEOFFSET 值缺少 SQL v6 协商确认。");
+            if (element.ValueKind == JsonValueKind.Null)
+                return null;
+            if (element.ValueKind != JsonValueKind.Object || element.EnumerateObject().Count() != 2
+                || !element.TryGetProperty("$type", out var tag) || tag.ValueKind != JsonValueKind.String
+                || tag.GetString() != "datetimeoffset"
+                || !element.TryGetProperty("ticks", out var tickValue) || tickValue.ValueKind != JsonValueKind.Number
+                || !tickValue.TryGetInt64(out long ticks) || ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
+                throw new InvalidDataException("远程 DATETIMEOFFSET 值必须包含合法的完整 UTC ticks。");
+            return new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
         if (type == ExecutionFieldTypeKind.Duration || element.ValueKind == JsonValueKind.Object
             && element.TryGetProperty("$type", out var durationType) && durationType.ValueKind == JsonValueKind.String
             && durationType.GetString() == "duration")

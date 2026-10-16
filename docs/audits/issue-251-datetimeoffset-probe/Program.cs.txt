@@ -1,0 +1,177 @@
+using System.Data;
+using System.Data.Common;
+using System.Globalization;
+using System.Reflection;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 3) return 2;
+var instant = new DateTimeOffset(2026, 10, 8, 12, 34, 56, 123, TimeSpan.Zero);
+try
+{
+    foreach (string name in new[] { "SonnetDB.Data", "SonnetDB.Core", "Chloe", "Chloe.SonnetDB" })
+    {
+        var assembly = Assembly.Load(name);
+        Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{assembly.Location}");
+    }
+    using (var connection = new SndbConnection(args[1]))
+    {
+        connection.Open();
+        if (args[0] == "initial")
+        {
+            Execute(connection, "CREATE TABLE EventTimes(Id INT NOT NULL,Stamp DATETIME NULL,PRIMARY KEY(Id))");
+            using var transaction = connection.BeginTransaction();
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = "INSERT INTO EventTimes(Id,Stamp) VALUES(1,@zero),(2,@east),(3,@west),(4,NULL),(5,@plain),(6,@utc)";
+            Add(insert, "zero", instant);
+            Add(insert, "east", instant.ToOffset(TimeSpan.FromHours(8)));
+            Add(insert, "west", instant.ToOffset(TimeSpan.FromHours(-7)));
+            Add(insert, "plain", "2026-10-08T12:34:56.123");
+            Add(insert, "utc", instant.UtcDateTime);
+            Require(insert.ExecuteNonQuery() == 6, "public-datetime-batch-accepts-offset-inputs");
+            transaction.Commit();
+            using var rollback = connection.BeginTransaction();
+            using var discard = connection.CreateCommand();
+            discard.Transaction = rollback;
+            discard.CommandText = "INSERT INTO EventTimes(Id,Stamp) VALUES(7,@stamp)";
+            Add(discard, "stamp", instant);
+            Require(discard.ExecuteNonQuery() == 1, "rollback-write");
+            rollback.Rollback();
+        }
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT Stamp FROM EventTimes WHERE Stamp=@stamp ORDER BY Id";
+            Add(command, "stamp", instant.ToOffset(TimeSpan.FromHours(-7)));
+            using var reader = command.ExecuteReader();
+            PrintMetadata(reader, "nonnull-before-read");
+            int rows = 0;
+            while (reader.Read())
+            {
+                object value = reader.GetValue(0);
+                Require(value is DateTime stored && stored.ToUniversalTime() == instant.UtcDateTime, "datetime-retains-utc-instant");
+                Require(reader.GetFieldType(0) == typeof(DateTime), "generic-reader-remains-datetime");
+                Require(reader.GetFieldValue<DateTimeOffset>(0) == instant, "specialized-offset-accessor-succeeds");
+                Console.WriteLine($"VALUE|{rows}|generic={value.GetType()}|field={reader.GetFieldType(0)}|typed={reader.GetFieldValue<DateTimeOffset>(0):O}");
+                rows++;
+            }
+            Require(rows == 5, "parameter-comparison-five-same-instants");
+        }
+        foreach (var query in new[] { (Label: "empty", Sql: "SELECT Stamp FROM EventTimes WHERE Id<0"), (Label: "all-null", Sql: "SELECT Stamp FROM EventTimes WHERE Id=4") })
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = query.Sql;
+            using var reader = command.ExecuteReader();
+            PrintMetadata(reader, query.Label + "-before-read");
+            bool hasRow = reader.Read();
+            Require(query.Label == "empty" ? !hasRow : hasRow && reader.IsDBNull(0) && reader.GetValue(0) is DBNull, "public-" + query.Label + "-shape");
+            PrintMetadata(reader, query.Label + "-after-read");
+        }
+    }
+    using var context = new SonnetDBContext(() => new SndbConnection(args[1]));
+    var commands = new Commands();
+    context.Session.AddInterceptor(commands);
+    int beforeGuard = commands.Count;
+    Expect(() => new SonnetDBTableGenerator(context).CreateTable(typeof(OffsetEntity)),
+        error => error.ToString().Contains("issues/251", StringComparison.Ordinal), "original-provider-ddl-guard");
+    Require(commands.Count == beforeGuard, "ddl-guard-before-execution");
+    Require(context.SqlQuery<DateTime>("SELECT Stamp FROM EventTimes WHERE Id=1").Single().ToUniversalTime() == instant.UtcDateTime, "chloe-datetime-materialization-control");
+    Expect(() => context.SqlQuery<DateTimeOffset>("SELECT Stamp FROM EventTimes WHERE Id=1"), IsOffsetCastFailure, "real-chloe-scalar-offset-materialization-fails");
+    Expect(() => context.SqlQuery<OffsetProjection>("SELECT Stamp FROM EventTimes WHERE Id=1"), IsOffsetCastFailure, "real-chloe-object-offset-materialization-fails");
+    var converted = new Chloe.Infrastructure.DateTimeOffset_ValueConverter().Convert(instant);
+    Require(converted is DateTimeOffset offset && offset == instant, "unchanged-chloe-default-converter-accepts-native-value");
+    Console.WriteLine($"COMPLETE|{args[2]}|{args[0]}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+static bool IsOffsetCastFailure(Exception error)
+{
+    bool invalidCast = false;
+    for (Exception? current = error; current is not null; current = current.InnerException)
+        invalidCast |= current is InvalidCastException;
+    return invalidCast && error.ToString().Contains("DateTimeOffset", StringComparison.Ordinal);
+}
+
+static void PrintMetadata(DbDataReader reader, string label)
+{
+    Console.WriteLine($"METADATA|{label}|field={reader.GetFieldType(0)}|name={reader.GetDataTypeName(0)}");
+    try
+    {
+        var schema = reader.GetSchemaTable();
+        if (schema is not null)
+            foreach (DataRow row in schema.Rows)
+                Console.WriteLine($"SCHEMA|{label}|DataType={row[SchemaTableColumn.DataType]}|AllowDBNull={row[SchemaTableColumn.AllowDBNull]}");
+    }
+    catch (NotSupportedException error) { Console.WriteLine($"METADATA-UNSUPPORTED|{label}|{error.Message}"); }
+}
+
+static void Execute(SndbConnection connection, string sql)
+{
+    using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    command.ExecuteNonQuery();
+}
+
+static void Add(DbCommand command, string name, object value)
+{
+    var parameter = command.CreateParameter();
+    parameter.ParameterName = name;
+    parameter.Value = value;
+    if (value is DateTimeOffset) parameter.DbType = DbType.DateTimeOffset;
+    command.Parameters.Add(parameter);
+}
+
+static void Expect(Action action, Func<Exception, bool> predicate, string label)
+{
+    try { action(); }
+    catch (Exception error) when (predicate(error))
+    {
+        Console.WriteLine($"EXPECTED-FAILURE|{label}|{error}");
+        Console.WriteLine("PASS|" + label);
+        return;
+    }
+    throw new InvalidOperationException("Expected failure not observed: " + label);
+}
+
+static void Require(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException(label);
+    Console.WriteLine("PASS|" + label);
+}
+
+/// <summary>用于验证原始适配器 DateTimeOffset 声明保护的实体。</summary>
+[Table("OffsetEntities")]
+public sealed class OffsetEntity
+{
+    /// <summary>显式主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement]
+    public long Id { get; set; }
+    /// <summary>要求原生读取的带偏移时刻。</summary>
+    public DateTimeOffset? Stamp { get; set; }
+}
+
+/// <summary>通过 Chloe 原生 SqlQuery 对象物化路径读取时刻。</summary>
+public sealed class OffsetProjection
+{
+    /// <summary>待物化的原生带偏移时刻。</summary>
+    public DateTimeOffset Stamp { get; set; }
+}
+
+internal sealed class Commands : IDbCommandInterceptor
+{
+    internal int Count { get; private set; }
+    private void Capture(IDbCommand command) { Count++; Console.WriteLine("CHLOE-SQL|" + command.CommandText); }
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Capture(command);
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Capture(command);
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Capture(command);
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}

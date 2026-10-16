@@ -1,4 +1,4 @@
-﻿namespace SonnetDB.Sql.Ast;
+namespace SonnetDB.Sql.Ast;
 
 /// <summary>列在 measurement schema 中的角色。</summary>
 public enum ColumnKind
@@ -61,6 +61,9 @@ public enum SqlDataType
 
     /// <summary>带符号时长；关系表中按完整 TimeSpan ticks 持久化。</summary>
     Duration,
+
+    /// <summary>原生 UTC 时刻；使用完整 DateTimeOffset UTC ticks。</summary>
+    DateTimeOffset,
 }
 
 /// <summary>SQL 层支持的二元运算符。</summary>

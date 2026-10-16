@@ -28,6 +28,15 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_offset_before-barrier":
+    case "crash_offset_after-barrier":
+    case "crash_offset_after-journal":
+    case "crash_offset_after-table:offsets":
+    case "crash_offset_after-catalog":
+    case "crash_offset_after-complete":
+    case "crash_offset_recovery":
+        DateTimeOffsetMigrationCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "crash_duration_before-barrier":
     case "crash_duration_after-barrier":
     case "crash_duration_after-journal":

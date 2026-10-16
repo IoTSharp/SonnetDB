@@ -35,7 +35,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         {
             Assert.Equal("/v1/frame", request.Path);
             Assert.Equal("HTTP/2", request.Protocol);
-            Assert.Equal("5", request.ResultVersion);
+            Assert.Equal("6", request.ResultVersion);
         });
     }
 
@@ -108,7 +108,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         }
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
         if (protocol != "embedded")
-            Assert.Contains(_requests, request => request.ResultVersion == SqlFrameCodec.NativeDurationResultVersion
+            Assert.Contains(_requests, request => request.ResultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion
                 && request.Protocol == (protocol == "rest" ? "HTTP/1.1" : "HTTP/2"));
     }
 
@@ -238,7 +238,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         var actual = Assert.IsType<DateTime>(await command.ExecuteScalarAsync());
         Assert.Equal(DateTimeKind.Utc, actual.Kind);
         Assert.Equal(new DateTime(2024, 2, 29, 0, 30, 0).Ticks, actual.Ticks);
-        Assert.Equal(new[] { "5", "4", "3" }, _requests.Select(request => request.ResultVersion).ToArray());
+        Assert.Equal(new[] { "6", "5", "4", "3" }, _requests.Select(request => request.ResultVersion).ToArray());
     }
 
     /// <summary>REST 旧客户端继续接收 ISO 字符串；显式 v4 接收 ticks/Kind；未知版本在写入前拒绝。</summary>
@@ -373,7 +373,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
             Assert.Equal(DateTimeKind.Unspecified, actual.Kind);
         }
         Assert.Contains(_requests, request => request.Path.EndsWith("/sql/batch", StringComparison.Ordinal)
-            && request.ResultVersion == "5");
+            && request.ResultVersion == "6");
         transaction.Rollback();
     }
 }

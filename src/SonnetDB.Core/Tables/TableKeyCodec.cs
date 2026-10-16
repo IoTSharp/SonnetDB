@@ -74,6 +74,7 @@ internal static class TableKeyCodec
                 case TableColumnType.Float64:
                 case TableColumnType.DateTime:
                 case TableColumnType.Time:
+                case TableColumnType.DateTimeOffset:
                 case TableColumnType.Duration:
                     if (remaining < sizeof(long))
                         return false;
@@ -117,7 +118,7 @@ internal static class TableKeyCodec
     private static int GetEncodedSize(TableColumn column, object value)
         => column.DataType switch
         {
-            TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration => 8,
+            TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset => 8,
             TableColumnType.Float64 => 8,
             TableColumnType.Decimal => 4 + DecimalText(value).Length,
             TableColumnType.Boolean => 1,
@@ -148,6 +149,9 @@ internal static class TableKeyCodec
                 return;
             case TableColumnType.Time:
                 SortableScalarCodec.WriteTableLegacyInt64(destination, ConvertTimeValue(value).Ticks);
+                return;
+            case TableColumnType.DateTimeOffset:
+                SortableScalarCodec.WriteTableLegacyInt64(destination, ((DateTimeOffset)value).UtcTicks);
                 return;
             case TableColumnType.Duration:
                 SortableScalarCodec.WriteTableLegacyInt64(destination, ((TimeSpan)value).Ticks);

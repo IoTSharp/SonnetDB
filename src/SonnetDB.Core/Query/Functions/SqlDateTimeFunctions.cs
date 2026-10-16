@@ -15,7 +15,7 @@ internal static class SqlDateTimeFunctions
         => DateTime.UtcNow;
 
     internal static object CurrentDateTimeOffset(IReadOnlyList<object?> arguments)
-        => DateTimeOffset.Now;
+        => DateTimeOffset.UtcNow;
 
     internal static object CurrentUtcDateTimeOffset(IReadOnlyList<object?> arguments)
         => DateTimeOffset.UtcNow;
@@ -70,7 +70,7 @@ internal static class SqlDateTimeFunctions
         {
             // 阻止 switch 共同类型推断把 DateTime 隐式提升成 DateTimeOffset（Unspecified 会套用本地时区）。
             DateTime value => (object)Add(value, amount, part),
-            DateTimeOffset value => Add(value, amount, part),
+            DateTimeOffset value => Add(value, amount, part).ToUniversalTime(),
             long unixMilliseconds => Add(
                 DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds).UtcDateTime,
                 amount,
@@ -167,7 +167,7 @@ internal static class SqlDateTimeFunctions
             long unixMilliseconds => DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds),
             var invalid => throw InvalidTemporalArgument("date_add_datetime_offset", invalid),
         };
-        return Add(value, amount, part);
+        return Add(value, amount, part).ToUniversalTime();
     }
 
     internal static object? ToUnixTimeMilliseconds(IReadOnlyList<object?> arguments)

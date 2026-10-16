@@ -1,0 +1,36 @@
+using System.Security.Cryptography;
+using SonnetDB.Engine;
+using SonnetDB.Sql.Execution;
+
+if (args.Length != 2) return 2;
+Console.WriteLine($"CORE|{typeof(Tsdb).Assembly.Location}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(Tsdb).Assembly.Location)))}");
+var options = new TsdbOptions { RootDirectory = args[1] };
+if (args[0] == "create")
+{
+    using var database = Tsdb.Open(options);
+    SqlExecutor.Execute(database, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET, PRIMARY KEY(id))");
+    SqlExecutor.Execute(database, "INSERT INTO offsets(id,Stamp) VALUES(1,CAST(639270596961230001 AS DATETIMEOFFSET))");
+    database.Tables.CheckpointAll();
+    Console.WriteLine("PASS|native-create");
+    return 0;
+}
+if (args[0] == "reject")
+{
+    try { using var rejected = Tsdb.Open(options); }
+    catch (InvalidDataException error) when (error.Message.Contains("15", StringComparison.Ordinal))
+    {
+        Console.WriteLine($"PASS|old-core-rejects-v15|{error.Message}");
+        return 0;
+    }
+    throw new Exception("Old engine did not reject the v15 catalog.");
+}
+if (args[0] == "reopen")
+{
+    using var database = Tsdb.Open(options);
+    var result = (SelectExecutionResult)SqlExecutor.Execute(database, "SELECT Stamp FROM offsets")!;
+    if (result.Rows.Count != 1 || result.Rows[0][0] is not DateTimeOffset value || value.UtcTicks != 639270596961230001)
+        throw new Exception("Native state changed after old engine rejection.");
+    Console.WriteLine("PASS|native-reopen-after-old-rejection");
+    return 0;
+}
+return 2;

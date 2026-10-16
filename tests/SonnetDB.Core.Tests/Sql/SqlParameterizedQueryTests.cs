@@ -201,7 +201,9 @@ public sealed class SqlParameterizedQueryTests : IDisposable
 
         var equal = Query(db, "SELECT id FROM events WHERE occurred_at = @at",
             new SqlParameters().AddNamed("at", first));
-        var offsetEqual = Query(db, "SELECT id FROM events WHERE occurred_at = @at",
+        Assert.Throws<InvalidOperationException>(() => Query(db, "SELECT id FROM events WHERE occurred_at = @at",
+            new SqlParameters().AddNamed("at", new DateTimeOffset(first))));
+        var offsetEqual = Query(db, "SELECT id FROM events WHERE occurred_at = CAST(@at AS DATETIME)",
             new SqlParameters().AddNamed("at", new DateTimeOffset(first)));
         var range = Query(db, "SELECT id FROM events WHERE occurred_at >= @from AND occurred_at < @to ORDER BY id",
             new SqlParameters().AddNamed("from", first).AddNamed("to", second));

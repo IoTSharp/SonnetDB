@@ -5,10 +5,15 @@ using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
 
-/// <summary>在旧传输合同下拒绝原生时长，防止持久写入后才发现结果不可表达。</summary>
+/// <summary>在旧传输合同下拒绝不支持的原生时间类型，防止持久写入后才发现结果不可表达。</summary>
 internal static class SqlDurationResultContract
 {
-    internal static bool IsLegacy => RoutineExecutionContext.Current?.Options.AllowDurationResults == false;
+    internal static bool IsLegacy => !AllowsDuration || !AllowsDateTimeOffset;
+    private static bool AllowsDuration => RoutineExecutionContext.Current?.Options.AllowDurationResults != false;
+    private static bool AllowsDateTimeOffset => RoutineExecutionContext.Current?.Options.AllowDateTimeOffsetResults != false;
+    private static bool UnsupportedType(TableColumnType? type)
+        => type == TableColumnType.Duration && !AllowsDuration
+            || type == TableColumnType.DateTimeOffset && !AllowsDateTimeOffset;
 
     internal static void ValidateBeforeSequence(Tsdb database, SelectStatement statement)
     {
@@ -19,8 +24,6 @@ internal static class SqlDurationResultContract
 
     internal static void ValidateProcedure(Tsdb database, ProcedureDefinition definition)
     {
-        if (!IsLegacy)
-            return;
         var definitions = new Dictionary<string, ProcedureDefinition>(StringComparer.Ordinal);
         var pending = new Stack<ProcedureDefinition>();
         pending.Push(definition);
@@ -57,6 +60,9 @@ internal static class SqlDurationResultContract
             foreach (var statement in procedure.Statements)
             {
                 SqlStatement bound = SqlParameterBinder.Bind(statement, parameters);
+                SqlDateTimeOffsetContract.Validate(database, SqlNameBinder.Bind(database, bound));
+                if (!IsLegacy)
+                    continue;
                 if (bound is SelectStatement select)
                     ValidateSelectDeclaration(database, select);
                 else if (bound is InsertStatement insert)
@@ -97,14 +103,14 @@ internal static class SqlDurationResultContract
                 continue;
             }
             SelectColumnInfo info = RelationalSelectExecutor.InferColumnInfo(projection.Expression, columns);
-            if (info.DataType is null or TableColumnType.Duration)
+            if (info.DataType is null || UnsupportedType(info.DataType))
                 throw Unsupported();
         }
     }
 
     internal static void ValidateReturning(IReadOnlyList<TableColumn> columns)
     {
-        if (IsLegacy && columns.Any(static column => column.DataType == TableColumnType.Duration))
+        if (IsLegacy && columns.Any(static column => UnsupportedType(column.DataType)))
             throw Unsupported();
     }
 
@@ -125,13 +131,13 @@ internal static class SqlDurationResultContract
         for (int column = 0; column < select.Columns.Count; column++)
         {
             TableColumnType? type = select.ColumnSchema?[column].DataType ?? select.ColumnInfo?[column].DataType;
-            if (type == TableColumnType.Duration || requireKnownTypes && type is null)
+            if (UnsupportedType(type) || requireKnownTypes && type is null)
                 throw Unsupported();
         }
-        if (select.Rows.Any(static row => row.Any(static value => value is TimeSpan)))
+        if (select.Rows.Any(static row => row.Any(static value => value is TimeSpan && !AllowsDuration || value is DateTimeOffset && !AllowsDateTimeOffset)))
             throw Unsupported();
     }
 
     private static InvalidOperationException Unsupported()
-        => new("DURATION 或不能在副作用前确认类型的结果需要协商 SQL 结果格式 v5。");
+        => new("DURATION 需要 SQL 结果格式 v5；DATETIMEOFFSET 需要 v6；不能在副作用前确认类型的结果必须升级协议。");
 }

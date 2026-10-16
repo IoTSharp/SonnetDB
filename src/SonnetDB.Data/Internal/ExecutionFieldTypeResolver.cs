@@ -39,6 +39,7 @@ internal static class ExecutionFieldTypeResolver
         TableColumnType.DateTime => ExecutionFieldTypeKind.DateTime,
         TableColumnType.Time => ExecutionFieldTypeKind.TimeOnly,
         TableColumnType.Duration => ExecutionFieldTypeKind.Duration,
+        TableColumnType.DateTimeOffset => ExecutionFieldTypeKind.DateTimeOffset,
         TableColumnType.Blob => ExecutionFieldTypeKind.ByteArray,
         _ => ExecutionFieldTypeKind.Object,
     };

@@ -89,7 +89,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         Assert.Equal(TimeSpan.FromTicks(1), reader.GetValue(0));
         Assert.False(await reader.ReadAsync(deadline.Token));
         if (protocol != "embedded")
-            Assert.Contains(_requests, request => request.ResultVersion == "5"
+            Assert.Contains(_requests, request => request.ResultVersion == "6"
                 && request.Protocol == (protocol == "rest" ? "HTTP/1.1" : "HTTP/2"));
     }
 
@@ -108,14 +108,14 @@ public sealed partial class RemoteAdoHttp2TransportTests
         _requests.Clear();
         command.CommandText = "INSERT INTO once_only(id) VALUES(1)";
         Assert.Equal(1, command.ExecuteNonQuery());
-        Assert.Equal(new[] { "5", "4" }, _requests.Select(request => request.ResultVersion));
+        Assert.Equal(new[] { "6", "5", "4" }, _requests.Select(request => request.ResultVersion));
         command.CommandText = "SELECT COUNT(*) FROM once_only";
         Assert.Equal(1L, command.ExecuteScalar());
         _rejectSqlV5 = false;
         _requests.Clear();
         command.CommandText = "INSERT INTO once_only(id) VALUES(1)";
         Assert.Throws<SndbServerException>(() => command.ExecuteNonQuery());
-        Assert.Equal("5", Assert.Single(_requests).ResultVersion);
+        Assert.Equal("6", Assert.Single(_requests).ResultVersion);
         command.CommandText = "SELECT COUNT(*) FROM once_only";
         Assert.Equal(1L, command.ExecuteScalar());
     }

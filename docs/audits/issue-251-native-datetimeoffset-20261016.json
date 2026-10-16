@@ -1,0 +1,2444 @@
+{
+  "issue": 251,
+  "generatedUtc": "2026-10-16T03:27:58.7010356+00:00",
+  "sourceRoot": "D:/source/SonnetDB-worktrees/issue251-datetimeoffset",
+  "sourceHead": "390af19d2c24ef8e9f0d7ccfa42dbe1f5fd8bb0e",
+  "sourceBranch": "codex/issue251-datetimeoffset",
+  "integrationBaseline": "16b266c2e43d2120dd6538c8ced66f270132958e",
+  "dependencyManifest": {
+    "path": "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue252-work/freeze-manifest-v1.json",
+    "bytes": 100647,
+    "sha256": "521BC1F4DEE62C151CCABB2F89D709E4FC482015561FD3124505B5310D297F70"
+  },
+  "baselineSync": {
+    "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/baseline-252-sync.json",
+    "bytes": 13610,
+    "sha256": "5CB9CCB8D7D0370F45C74C6B9982ED0FF94DF402D2FD2E9DA734070173200866"
+  },
+  "status": "Candidate source complete; parent integration/gates/commit/push pending; formal packages and upstream delivery absent",
+  "newCoreTests": {
+    "frame": 3,
+    "restDecoder": 18,
+    "sql": 61,
+    "passed": 82,
+    "failed": 0
+  },
+  "unchangedDependencyFiles": [
+    "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+    "src/SonnetDB.Core/Sql/Execution/SqlRowRetentionBudget.cs",
+    "src/SonnetDB.Core/Sql/Execution/SqlSpillRowCodec.cs",
+    "src/SonnetDB.Data/SndbDataReader.cs",
+    "tests/SonnetDB.Core.Tests/Protocol/SqlFrameDurationTests.cs",
+    "tests/SonnetDB.Core.Tests/RemoteDurationResponseTests.cs",
+    "tests/SonnetDB.Core.Tests/Sql/SqlDurationTests.cs",
+    "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs",
+    "tests/SonnetDB.CrashTests/Child/DurationMigrationCrashScenario.cs",
+    "tests/SonnetDB.CrashTests/DurationMigrationCrashTests.cs"
+  ],
+  "sourceFiles": [
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-design-20261016.md",
+      "sha256": "EEE51F3204F57464969B5E72064FBB3FCABA8539A718C90DBE51AB2F34D3778E",
+      "bytes": 15467,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Common.ps1",
+      "sha256": "3C1EB793221006534D401D8B348603F798B523FD55F9B068D30BB1EC1D5FC419",
+      "bytes": 5813,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Consumer.csproj",
+      "sha256": "87AB0EF0EB7D1680F8CC1E0779C3AC448D356BF7B55ADF1953DD2553D551BEF7",
+      "bytes": 785,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Directory.Build.props",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "bytes": 12,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Directory.Build.targets",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "bytes": 12,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Directory.Packages.props",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA",
+      "bytes": 12,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/NuGet.Config",
+      "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A",
+      "bytes": 258,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Program.cs.txt",
+      "sha256": "EDF4A2CBD37D8456BAE5D8CDBED9722218DD7E4202B88942977F47E5D961FE7B",
+      "bytes": 8826,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/README.md",
+      "sha256": "A7A4CD4AE1CD5F7AFA9744C001F859E9C66E9458922D4AF5506B5080964BCEBB",
+      "bytes": 1981,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Run-Public.ps1",
+      "sha256": "99B91CD5401C375AE09683CF2DD6D0512259989A4A3E8EC0B4360CDD038C700B",
+      "bytes": 5769,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/audits/issue-251-native-datetimeoffset-20261016.md",
+      "sha256": "E2EB00414A3F523ABC6E000B348BCC79D36233E8DC6D7750CB6FF174839D3BF7",
+      "bytes": 7223,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "docs/compatibility/native-datetimeoffset.md",
+      "sha256": "661514F60011F23469D1ED3F150821C6D3BF914E90C5D30358188BD91B66D0A8",
+      "bytes": 4377,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/.gitattributes",
+      "sha256": "52E02FA237DA9F501A79880D61291ABDB27C69C74F4F77D5C99AB494374E56DD",
+      "bytes": 26,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/CatalogFloorProbe.cs.txt",
+      "sha256": "3620D18F830AE49B9970DC1E08096016E38154C29DCC13427F09E545C8C3E5D5",
+      "bytes": 1552,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/CatalogFloorProbe.csproj",
+      "sha256": "86EFD1B06BEF6FC18F7FC302258C6288629F4C2A8BCA86744A70D527F04E91E2",
+      "bytes": 786,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/chloe-datetimeoffset.patch",
+      "sha256": "77337861A5F7987E6E3017EB3A10B35A8AB6FFCF89CE85F13CD756E443CBD518",
+      "bytes": 2005,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/Common.ps1",
+      "sha256": "D5E9662AD6511CA7DC13CE1A0255BE866CB5FA0FB26EDD57399A8FC02B0C54B8",
+      "bytes": 2965,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/OffsetConsumer.csproj",
+      "sha256": "A027EEB14EBCD5D12143CC4485C549B5B7B8FE4775C72A652D0A233E46804D5A",
+      "bytes": 1069,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/Program.cs.txt",
+      "sha256": "218871803B701DDC86813C3C8B12D17BC0C862E2C0ECCA8636ECE217BD2C2C9E",
+      "bytes": 6302,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/README.md",
+      "sha256": "1DD7772715631F9ABCD152061AD7E0A91745169B5BACBBE1C818720D61EBAAB3",
+      "bytes": 2548,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "scripts/validation/issue251-native-datetimeoffset/Remote.ps1",
+      "sha256": "591D191746107CACEF916EC9269226F5E5680F324480561DF796CDA3AA482433",
+      "bytes": 9005,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Protocol/SqlFrameCodec.cs",
+      "sha256": "9F94DD43DA486563B7059D97E68EFD887C4747CE9825F06B8B71B1DF8ABDB440",
+      "bytes": 58097,
+      "baseline252Sha256": "41C800E91F9CC5EDC4DFCBC4DD88D8B67A085ECBF3131F1B6DB8BDFE51E47552"
+    },
+    {
+      "path": "src/SonnetDB.Core/Query/Functions/SqlDateTimeFunctions.cs",
+      "sha256": "3D52BAE23488F9ECBDBD1B1BDE7EE0BDAF02373C251FEFC80A742EC0759EF1EE",
+      "bytes": 17353,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Ast/Enums.cs",
+      "sha256": "81E46D47BDF37AACCA5848A882C4EB68EE863F335381F950C3348C56E2E2F687",
+      "bytes": 3881,
+      "baseline252Sha256": "235E07A6CAA29E601A2F83F4A1C281D60227E72BB9F51B6881744BE7A03C2548"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RecursiveCteExecutor.cs",
+      "sha256": "BB9F54D87742CA5FFB1C7D50EFA03D199CAD728A72D65AEC873C6B96CDD0D2C2",
+      "bytes": 14601,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "1608BB624FAB89A5CC40900539242A7DE72FEA5FE81521BDB4FBC5EF59E31284",
+      "bytes": 279869,
+      "baseline252Sha256": "CC2072C4E53AFB0CECD439EA2904B956111833A0B3D4160CCB0C17CA2E82A4D4"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlCastOperations.cs",
+      "sha256": "9FD9AF14B26D84380E4D2A163B6780F1473653A3D0198DD56F7778888A832679",
+      "bytes": 12710,
+      "baseline252Sha256": "F709B8471273134418261F0CB7989EE539EEC9652CBCC5A235FD0793D3E5FCBE"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlDateTimeOffsetContract.cs",
+      "sha256": "08A2DBD5D795DC5B2C3B82E9F560754137F73FAF54BAAC419D6585F14CCE013B",
+      "bytes": 19287,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlDurationResultContract.cs",
+      "sha256": "B19A75A4BEC6BD7BD96F386ADAD25AA0ECAB449D6B452F7EDB8F71239F2F933C",
+      "bytes": 7419,
+      "baseline252Sha256": "0C08BF46AF5C171384D37A2BB65A4515CD86007FC9E53F247FA32C672B3E2E40"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "53BB6BC69A265BEF72FA2D2BF21256FCD63A375DE8F0C4577A9256A533215718",
+      "bytes": 9551,
+      "baseline252Sha256": "C9ABA17BE0993E83E2116D8BB82E80F3E920662F78A6CFC631E20BA297EDCAF1"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "7E0ED82702685FADB6E513C7080EAA5A63ABC935FEC36744E2A41699D5F7DA25",
+      "bytes": 159259,
+      "baseline252Sha256": "39FBB658DBDF4E9A7A7CC9B6AFD14AAF194464AA52A204FC910D1CE573BC2F25"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlScalarComparer.cs",
+      "sha256": "1957991C0B7C380CCFBDB74AB1AA777FBC54EA1318C0F41827A2F085F5AD1557",
+      "bytes": 6280,
+      "baseline252Sha256": "4C3FF305E1A6BD65E2880C9D1833BA57ED95D7BD1FC9FE372AF6F6488CB43239"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlScalarOperations.cs",
+      "sha256": "187E6626EE2A36C82A6B74A9806CA91314AD9CB3D3D68F30F549AA6C8AA8B20E",
+      "bytes": 17579,
+      "baseline252Sha256": "B3C7221E2773E7341CFDEAC5CDCC5A8100DAE63E73B316229785A951D60EDCC4"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "4B71E93B0DC87FC67B634931FEA0B94B53B46B8676D99D431C18E0AA080A0395",
+      "bytes": 290437,
+      "baseline252Sha256": "94ABF1935FE9A15601CF50BFE67E7A988F9F23AFEA7E6F7F6684DA9694461660"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlExpressionFormatter.cs",
+      "sha256": "FEE463F577574721798E315EA50E49A06F8368FC4AC366CFBE4218A9034BB169",
+      "bytes": 8709,
+      "baseline252Sha256": "61C2BAF3E7887D49527C373A14B8AEEA25A5857CFCC869C382B5425BB892D38E"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+      "sha256": "9B93B4AB45254569065275DD63E2302D8855898460ECED2FBF6AF373BCF97397",
+      "bytes": 22617,
+      "baseline252Sha256": "C211958BBF436332E976C2726E4A6E1BA15D6E5DF1CE119D9EBC9E29CCFF2EE9"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameters.cs",
+      "sha256": "B7601A24FAEFA076C18EB51B98A7906408622B3D585E173BA2065997927DA901",
+      "bytes": 3672,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "sha256": "6A2946319F241E8AE2B87974EDDDA5A7C9B1DC65644AC1DB578081E246A467BD",
+      "bytes": 238318,
+      "baseline252Sha256": "A3B262513ED6072554FC1E8D5AEE7384F7FAD254A21A6FB81D6FD740BA0F6EB5"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableColumnType.cs",
+      "sha256": "33A0FEAA27E8A66BB22D45A187B1FA1FC7BF2F6F13DB7A917A1922F1F47473EA",
+      "bytes": 1060,
+      "baseline252Sha256": "3DC837F3C108C25A20E8EE45D462722C6061081BEFED4EBAFDB20F6A1D43571F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableIndexCodec.cs",
+      "sha256": "9940EEACC2399BB9B9005A0F13DBABC77E6268A542ABA0E0595445B0A61E231C",
+      "bytes": 22856,
+      "baseline252Sha256": "7EEB1BB0CB6C1FDA1A5E1545BE6C783EAC884B94804C6C47CC4558A807368383"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableKeyCodec.cs",
+      "sha256": "46AB13AA43C5434A61B7EFF1C605557E272ED275F50A41DAFF88E4D56C860CC9",
+      "bytes": 9006,
+      "baseline252Sha256": "DA6560182BB9D25403EE0F07DF17B2429E88746D32EE1AEDCCADC906461CE0BA"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "sha256": "4C67AD1D0C342EEF78EE63DDB16E97F29A568B5B973D5FF7555E6096DC68FC46",
+      "bytes": 93895,
+      "baseline252Sha256": "0A7E4765C19FDDBE1871FF874C9D606F37D7AD3C78995067E4DE7F60FAC74836"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.SchemaMigration.cs",
+      "sha256": "C59DF0A5487167EFCB46A72D6F52A92A54C807DE114A53587260407C3D66D6D2",
+      "bytes": 18181,
+      "baseline252Sha256": "BD2432CCD4640C04A2CB59218623A8B28508E07EF6A154FF3EAC427D98E6223C"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableRowCodec.cs",
+      "sha256": "352996D9C165CF692DA074E366ECF0FEC41CCD1FA85395C116C1FAEF306B0025",
+      "bytes": 10375,
+      "baseline252Sha256": "3FCC567BD67B2E4AD3DEF1425E9A33A499BED2BB053CDAEA3FF15B2341221C6C"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableSchemaCodec.cs",
+      "sha256": "A2840AEED22D0B262E9ED77DC8CED0D60AA281CD06090D83872B5FFB5B09D561",
+      "bytes": 33711,
+      "baseline252Sha256": "6914554A3A822ECD46455FE47E393E7E24C205AA617E10910B7FC6B0CBD291D8"
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableStatistics.cs",
+      "sha256": "FC15A307397D0FDABD6A8D4339AB362DF4F942EB6D75D502D4FE59996963D559",
+      "bytes": 26592,
+      "baseline252Sha256": "389CE5C8D81502179330BDA65D19DC40EF71175F133D8BF97F87DDE8370DDD25"
+    },
+    {
+      "path": "src/SonnetDB.Core/Views/MaterializedViewManager.cs",
+      "sha256": "89E8E6C365ECD09446C5375A6102396DCD455FDA2FC28BF1C350EBC647836A6C",
+      "bytes": 16097,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "src/SonnetDB.Core/Views/MaterializedViewSnapshotCodec.cs",
+      "sha256": "9E71E9F3611A0B6EFF4A64E94B1952A5239E1780B22024868506911D78C26444",
+      "bytes": 23490,
+      "baseline252Sha256": "C8B815E543A13CBD93A5F3750E1936095004BDA2BF03D6CFF86A36CD5A2387A9"
+    },
+    {
+      "path": "src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs",
+      "sha256": "7B2A83BC21D3A71F952F7C9E94D05F8F3735DD80BA70EA8ADF119ADE8101BDDA",
+      "bytes": 15833,
+      "baseline252Sha256": "F675C94A0D8789DE31B01383DFEC4AAEA24F9384C87CD3946DC486DB2F12BC38"
+    },
+    {
+      "path": "src/SonnetDB.Data/Internal/ExecutionFieldTypeResolver.cs",
+      "sha256": "F8684503E0078413C1851E9868988381E3C21E4C83428D3ADF1DD1C71290D66A",
+      "bytes": 3927,
+      "baseline252Sha256": "CFF6B166FBE3FA4C902E1A38D3492C03CF6FEA8848B1DA28F8630D022DF8AC43"
+    },
+    {
+      "path": "src/SonnetDB.Data/Internal/ParameterBinder.cs",
+      "sha256": "983EF2B18AEB1B6B4BFC46DB798A585CDCEFC17C7A7ED0D2AA4E6419160EEA7C",
+      "bytes": 8091,
+      "baseline252Sha256": "2606323F8A96BDF0FEFE76A8C44C1D0EC5BEB1755FEE492E2120574DBE7ACF42"
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+      "sha256": "43CA11FE35CC2618B5480015FD0636146690118A5EAD45A45D93699FF6D38BB9",
+      "bytes": 77239,
+      "baseline252Sha256": "6A3C55A49BACEBB41EC0282B54FD69DBDB1178E1AB2BFF8F97B6F789D7C628B1"
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+      "sha256": "DA658B2757C1FE33BE25498CD0EA95608FEBC00DF63EFBECD2FE030BD74AA2D5",
+      "bytes": 30144,
+      "baseline252Sha256": "5B5468D94925F66E43554D335096208DD8D53C606DEE74BE4D5271FE548971A2"
+    },
+    {
+      "path": "src/SonnetDB.Data/SndbConnection.cs",
+      "sha256": "05DFD3C98D9F5EDE4DDA8EF872C481DB822108BB33B553B3D3B335FFA3115279",
+      "bytes": 37797,
+      "baseline252Sha256": "3373EB40D72F876F73D92084C9EF56147F29CD85719FB20DF94E02E577B60803"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "70E18B32B49BA6379547CD08E3EE2F5CA3E5DBAAD2EA6A338D6EAB271B335370",
+      "bytes": 63861,
+      "baseline252Sha256": "226AC9F380AFA6A57B3FFE1B9246574134D9CFD256FA2D082532CCB3A7840E6A"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "89EAEFF3E95AD9AB79636789B00F2F02BD199A4D5B9265FB4BA7442FA05C251D",
+      "bytes": 46565,
+      "baseline252Sha256": "6F76F077B256060A340BE8E1DE7C626B3C10BFEE80ADE7B29A6C957B114CE249"
+    },
+    {
+      "path": "src/SonnetDB/Json/NdjsonRowWriter.cs",
+      "sha256": "305EC10A8304DABAF67D8506C042974A1D392343FFA3D5D0649F8B27B5C950DF",
+      "bytes": 7832,
+      "baseline252Sha256": "473D07A320D085548055BB82A02EC644F895197C29F80DD69D0A3D82B760A473"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Protocol/SqlFrameDateTimeOffsetTests.cs",
+      "sha256": "38E1A5901C892C2E32BF92894B9AB75326DED2DE27F6193F91299AB5A7A7FF3C",
+      "bytes": 4032,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/RemoteDateTimeOffsetResponseTests.cs",
+      "sha256": "D98D987CD8DA5EBC73578D493DB7BB935D6F75DCBCCF69B0238039A10D078EA2",
+      "bytes": 3612,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlDateTimeOffsetTests.cs",
+      "sha256": "E05AAA24DDAF3176CF867473BB2DDA60B59600BAE5DE77C86C17B591AAF7300C",
+      "bytes": 28313,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlExecutorMaterializedViewTests.cs",
+      "sha256": "A5E32F63649E7532BCA7A3B754324999EE16D17A71FE504FC2296B6612B8C5FE",
+      "bytes": 28164,
+      "baseline252Sha256": "70F27C5E5C20F87DFD1F49EEF2488A02D7C99A272A6B7B0C85A8486341855D52"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlParameterizedQueryTests.cs",
+      "sha256": "32519E5AE6EE4816F3B1D2BF58DFFB2947EBCC747A228E0B8471DED11DA96632",
+      "bytes": 8724,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/DateTimeOffsetMigrationCrashScenario.cs",
+      "sha256": "5CFF709C16FA01FFB0690E30E881B4AEB76908E74F4CB73813501A39C69D524E",
+      "bytes": 1965,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/Child/Program.cs",
+      "sha256": "4903AF6D6314117E41EB8D6D4E48419A20D7FF519488A5464ABF4ECA40E97DEB",
+      "bytes": 32743,
+      "baseline252Sha256": "BCCE68209A8E83D8CC5B793DC87D0826116A1380B56450F2D9E51D97C5AD1FC7"
+    },
+    {
+      "path": "tests/SonnetDB.CrashTests/DateTimeOffsetMigrationCrashTests.cs",
+      "sha256": "59A2D9DDA0D9C45ACDE1BDF7F6898EAED840B89E8EDB3271330D116531E89954",
+      "bytes": 3650,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoDateTimeContractTests.cs",
+      "sha256": "24E68C583BBCE110EDBA1E5A668F152B16BEBD3B50D48813B2EFC3CCB930BEE4",
+      "bytes": 21870,
+      "baseline252Sha256": "7F768E630D6AB3669CA91C69CE3EF091F4225ABB7F1BB9B723E22C3D93D37BA0"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoDateTimeOffsetContractTests.cs",
+      "sha256": "C7BEA55182E0887512C254E68CD9212BD1F128ABACF27FE47DE76FA1AFEBF271",
+      "bytes": 10437,
+      "baseline252Sha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoDurationContractTests.cs",
+      "sha256": "2E4FFE2ED7299FE94DDD72FC894CF2D9DD408E7E36BE04DFEA445BE650AB6249",
+      "bytes": 8555,
+      "baseline252Sha256": "065B66EC716A81DEA6553E1CB053C39769CC9A8D568D3F3CDAB70B817DE07592"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+      "sha256": "C5AF403E6999F50A99A575429CB7E8B5A58DC624E6A8EA92711BB116989FE0B6",
+      "bytes": 5150,
+      "baseline252Sha256": "EC3C3C97F100A303DAEBE22DC44395AE581882DC7FC0382C01C173D8CE3E8475"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+      "sha256": "C5A511B7DA336B394ABC32D9A66D6DA4B3956FAB796678EC09220A44448BBA87",
+      "bytes": 109713,
+      "baseline252Sha256": "CBA30C703B8A1B8A119E48DC3C269E93D45746E9255FE26FB1AF6BD41DCC9949"
+    }
+  ],
+  "productionComparison": [
+    {
+      "path": "src/SonnetDB.Core/Protocol/SqlFrameCodec.cs",
+      "sha256": "9F94DD43DA486563B7059D97E68EFD887C4747CE9825F06B8B71B1DF8ABDB440",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Query/Functions/SqlDateTimeFunctions.cs",
+      "sha256": "3D52BAE23488F9ECBDBD1B1BDE7EE0BDAF02373C251FEFC80A742EC0759EF1EE",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+      "sha256": "25AEEBFE504F2BE01BEF4C60F1D6365B79E6CC23BA7D7995FBE5E33F6442A1EA",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Ast/Enums.cs",
+      "sha256": "81E46D47BDF37AACCA5848A882C4EB68EE863F335381F950C3348C56E2E2F687",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RecursiveCteExecutor.cs",
+      "sha256": "BB9F54D87742CA5FFB1C7D50EFA03D199CAD728A72D65AEC873C6B96CDD0D2C2",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "1608BB624FAB89A5CC40900539242A7DE72FEA5FE81521BDB4FBC5EF59E31284",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlCastOperations.cs",
+      "sha256": "9FD9AF14B26D84380E4D2A163B6780F1473653A3D0198DD56F7778888A832679",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlDateTimeOffsetContract.cs",
+      "sha256": "08A2DBD5D795DC5B2C3B82E9F560754137F73FAF54BAAC419D6585F14CCE013B",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlDurationResultContract.cs",
+      "sha256": "B19A75A4BEC6BD7BD96F386ADAD25AA0ECAB449D6B452F7EDB8F71239F2F933C",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutionOptions.cs",
+      "sha256": "53BB6BC69A265BEF72FA2D2BF21256FCD63A375DE8F0C4577A9256A533215718",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "sha256": "7E0ED82702685FADB6E513C7080EAA5A63ABC935FEC36744E2A41699D5F7DA25",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlRowRetentionBudget.cs",
+      "sha256": "F53642C0EDF151873FE9FDFB09076EB6AC52F458B5AE8EEF9CE1F00BA28EF587",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlScalarComparer.cs",
+      "sha256": "1957991C0B7C380CCFBDB74AB1AA777FBC54EA1318C0F41827A2F085F5AD1557",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlScalarOperations.cs",
+      "sha256": "187E6626EE2A36C82A6B74A9806CA91314AD9CB3D3D68F30F549AA6C8AA8B20E",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlSpillRowCodec.cs",
+      "sha256": "270C416CD2BA101830D9365B0AA74005E44AA8C2245E50BDC72EA6C6D1BE57CB",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "sha256": "4B71E93B0DC87FC67B634931FEA0B94B53B46B8676D99D431C18E0AA080A0395",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlExpressionFormatter.cs",
+      "sha256": "FEE463F577574721798E315EA50E49A06F8368FC4AC366CFBE4218A9034BB169",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+      "sha256": "9B93B4AB45254569065275DD63E2302D8855898460ECED2FBF6AF373BCF97397",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParameters.cs",
+      "sha256": "B7601A24FAEFA076C18EB51B98A7906408622B3D585E173BA2065997927DA901",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "sha256": "6A2946319F241E8AE2B87974EDDDA5A7C9B1DC65644AC1DB578081E246A467BD",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableColumnType.cs",
+      "sha256": "33A0FEAA27E8A66BB22D45A187B1FA1FC7BF2F6F13DB7A917A1922F1F47473EA",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableIndexCodec.cs",
+      "sha256": "9940EEACC2399BB9B9005A0F13DBABC77E6268A542ABA0E0595445B0A61E231C",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableKeyCodec.cs",
+      "sha256": "46AB13AA43C5434A61B7EFF1C605557E272ED275F50A41DAFF88E4D56C860CC9",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "sha256": "4C67AD1D0C342EEF78EE63DDB16E97F29A568B5B973D5FF7555E6096DC68FC46",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableManager.SchemaMigration.cs",
+      "sha256": "C59DF0A5487167EFCB46A72D6F52A92A54C807DE114A53587260407C3D66D6D2",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableRowCodec.cs",
+      "sha256": "352996D9C165CF692DA074E366ECF0FEC41CCD1FA85395C116C1FAEF306B0025",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableSchemaCodec.cs",
+      "sha256": "A2840AEED22D0B262E9ED77DC8CED0D60AA281CD06090D83872B5FFB5B09D561",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Tables/TableStatistics.cs",
+      "sha256": "FC15A307397D0FDABD6A8D4339AB362DF4F942EB6D75D502D4FE59996963D559",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Views/MaterializedViewManager.cs",
+      "sha256": "89E8E6C365ECD09446C5375A6102396DCD455FDA2FC28BF1C350EBC647836A6C",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Core/Views/MaterializedViewSnapshotCodec.cs",
+      "sha256": "9E71E9F3611A0B6EFF4A64E94B1952A5239E1780B22024868506911D78C26444",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs",
+      "sha256": "7B2A83BC21D3A71F952F7C9E94D05F8F3735DD80BA70EA8ADF119ADE8101BDDA",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/Internal/ExecutionFieldTypeResolver.cs",
+      "sha256": "F8684503E0078413C1851E9868988381E3C21E4C83428D3ADF1DD1C71290D66A",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/Internal/ParameterBinder.cs",
+      "sha256": "983EF2B18AEB1B6B4BFC46DB798A585CDCEFC17C7A7ED0D2AA4E6419160EEA7C",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+      "sha256": "43CA11FE35CC2618B5480015FD0636146690118A5EAD45A45D93699FF6D38BB9",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+      "sha256": "DA658B2757C1FE33BE25498CD0EA95608FEBC00DF63EFBECD2FE030BD74AA2D5",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/SndbConnection.cs",
+      "sha256": "05DFD3C98D9F5EDE4DDA8EF872C481DB822108BB33B553B3D3B335FFA3115279",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB.Data/SndbDataReader.cs",
+      "sha256": "8A9B549BDD2FB930F50596B3CC1B3EB6ABEFBA4D3091228974073EC198DA305D",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "70E18B32B49BA6379547CD08E3EE2F5CA3E5DBAAD2EA6A338D6EAB271B335370",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+      "sha256": "89EAEFF3E95AD9AB79636789B00F2F02BD199A4D5B9265FB4BA7442FA05C251D",
+      "matchesCoreFinal01": true
+    },
+    {
+      "path": "src/SonnetDB/Json/NdjsonRowWriter.cs",
+      "sha256": "305EC10A8304DABAF67D8506C042974A1D392343FFA3D5D0649F8B27B5C950DF",
+      "matchesCoreFinal01": true
+    }
+  ],
+  "testResults": [
+    {
+      "label": "core-native01",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native01/results.trx",
+      "sha256": "0CD33F21DC3D6CAAD0BF22750CF76A7987A0CAA7D440E0D9F8C6EAED665D7FEE",
+      "total": 38,
+      "passed": 37,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests.Schema_MigrationSnapshotAndDrop_PreservesNativeVersionFloor"
+      ]
+    },
+    {
+      "label": "core-native02",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native02/results.trx",
+      "sha256": "CB04FA95932A002B6CE97E168B9C592765CC793423E18392D77E2A477CA9DEAD",
+      "total": 110,
+      "passed": 109,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests.NativeExpressions_CaseCoalesceAndRecursiveCte_PreserveDeclaredType(sql: \"WITH RECURSIVE r(x) AS (SELECT CAST(1 AS DATETIMEO\"···)"
+      ]
+    },
+    {
+      "label": "core-native03",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native03/results.trx",
+      "sha256": "9A2D3400BC76CBB40947DB9B31AF73C3A79CF20011E73BB68941B198A4D4998D",
+      "total": 155,
+      "passed": 152,
+      "failed": 3,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests.NativeExpressions_CaseCoalesceAndRecursiveCte_PreserveDeclaredType(sql: \"WITH RECURSIVE r(x) AS (SELECT CAST(1 AS DATETIMEO\"···)",
+        "SonnetDB.Core.Tests.Sql.SqlExecutorMaterializedViewTests.SnapshotCodec_V1LiteralAndV2Declarations_KeepFormatsAndRejectInvalidMetadata",
+        "SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests.Migration_BarrierIoFailure_LeavesOldWalAndNoJournal"
+      ]
+    },
+    {
+      "label": "core-native04",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native04/results.trx",
+      "sha256": "DF2C4F72B12B7586A5611DD79F3DC84C0E31F048E5550040BC1E0939D5C9ABE6",
+      "total": 174,
+      "passed": 174,
+      "failed": 0,
+      "notExecuted": 0,
+      "failedTests": []
+    },
+    {
+      "label": "core-native05",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native05/results.trx",
+      "sha256": "7854881D2D47D2F1DD26271C3DF69A0F6E5D6B0499EBC6229E34A47D4F0068BA",
+      "total": 175,
+      "passed": 174,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests.Snapshot_DeclarationPrecheck_DoesNotReadOrAcceptCorruptedRows"
+      ]
+    },
+    {
+      "label": "core-native06",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-native06/results.trx",
+      "sha256": "3D75AC3460F7FE66C5021EE6C2739357B33AA9B28431C1597326E0B506A985FB",
+      "total": 175,
+      "passed": 174,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlRecursiveCteTests.Execute_ExponentialBranch_CancellationStopsCandidateProbe"
+      ]
+    },
+    {
+      "label": "core-sql01",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-sql01/results.trx",
+      "sha256": "4CB1560212612A0F2E9E835374828793272329B8F3DFA7AEFCDD1BDB2F56757C",
+      "total": 3761,
+      "passed": 3760,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlParameterizedQueryTests.Execute_DateTimeParameters_CompareAgainstDateTimeColumns"
+      ]
+    },
+    {
+      "label": "core-sql02",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/core-sql02/results.trx",
+      "sha256": "6E18F131D87B2BF81339A947D9F07B0A4227617A55C28577A53EDB711C82AAC2",
+      "total": 3766,
+      "passed": 3765,
+      "failed": 1,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Core.Tests.Sql.SqlRecursiveCteTests.Execute_ExponentialBranch_CancellationStopsCandidateProbe"
+      ]
+    },
+    {
+      "label": "remote-ado02",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/remote-ado02/results.trx",
+      "sha256": "F69D887276E13D78F339D37A054171066020500F8073010344E0B94C09A66C1F",
+      "total": 147,
+      "passed": 147,
+      "failed": 0,
+      "notExecuted": 0,
+      "failedTests": []
+    },
+    {
+      "label": "remote-ado03",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/remote-ado03/results.trx",
+      "sha256": "481CF29CCDE06D85C76A03B1DA921D53526BFCACB3510CDEAD1DF88BAA2CE84E",
+      "total": 147,
+      "passed": 144,
+      "failed": 3,
+      "notExecuted": 0,
+      "failedTests": [
+        "SonnetDB.Tests.RemoteAdoHttp2TransportTests.NativeOffsets_TransactionsAndReopen_PreserveGenericReader(protocol: \"rest\")",
+        "SonnetDB.Tests.RemoteAdoHttp2TransportTests.NativeOffsets_TransactionsAndReopen_PreserveGenericReader(protocol: \"embedded\")",
+        "SonnetDB.Tests.RemoteAdoHttp2TransportTests.NativeOffsets_TransactionsAndReopen_PreserveGenericReader(protocol: \"frame-http2\")"
+      ]
+    },
+    {
+      "label": "remote-ado04",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/remote-ado04/results.trx",
+      "sha256": "37D007F45C967BF4D274A22A64A793A0ADFE09BAFE751EC86DEAA907DBFCE80F",
+      "total": 147,
+      "passed": 147,
+      "failed": 0,
+      "notExecuted": 0,
+      "failedTests": []
+    },
+    {
+      "label": "crash-native01",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/trx/crash-native01/results.trx",
+      "sha256": "1FC79C61526BFB5B36A468A9E8BFB1694B5E4C7DE18449BFD7317302AC15FD01",
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "notExecuted": 0,
+      "failedTests": []
+    }
+  ],
+  "productBinaries": [
+    {
+      "group": "finalCoreTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "finalCoreTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll",
+      "sha256": "2249EC72DCAE6877AC66256E78A20D92106446296B6220A87011A98A4CBF8BE7"
+    },
+    {
+      "group": "finalCoreTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Data.dll",
+      "sha256": "F80D66176068C87C39EF6CE9ED05D5ADBFBE76818300B3EA0418E7B2CB806351"
+    },
+    {
+      "group": "finalRemoteTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "finalRemoteTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Data.dll",
+      "sha256": "F80D66176068C87C39EF6CE9ED05D5ADBFBE76818300B3EA0418E7B2CB806351"
+    },
+    {
+      "group": "finalRemoteTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.dll",
+      "sha256": "3A39CE26630442429CDF81F2E9C218407819C54DBC4735E7F3AB6CA26B2BCCC6"
+    },
+    {
+      "group": "finalRemoteTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Tests.dll",
+      "sha256": "0DC094806C169E05AF329067A0F6501096E14CEB3AF67D3498804CF3CB0D3162"
+    },
+    {
+      "group": "finalServer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB\\release\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "finalServer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB\\release\\SonnetDB.dll",
+      "sha256": "3A39CE26630442429CDF81F2E9C218407819C54DBC4735E7F3AB6CA26B2BCCC6"
+    },
+    {
+      "group": "crashTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.CrashTests\\release\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "crashTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.CrashTests\\release\\SonnetDB.CrashTests.Child.dll",
+      "sha256": "12AA9542C5D29BB5B8376ED8B2680FFB6850838477FF06EB828F0432670D9931"
+    },
+    {
+      "group": "crashTests",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build01\\bin\\SonnetDB.CrashTests\\release\\SonnetDB.CrashTests.dll",
+      "sha256": "C7449F71D48DB8189031067F7906DABF1737EF509688ED5088CC5254027582F8"
+    },
+    {
+      "group": "finalConsumer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02\\bin\\OffsetConsumer\\release\\Chloe.dll",
+      "sha256": "1308512460A899BF49DFF0A09DDEEC7A03E3E644AB285B0192714F133F21415D"
+    },
+    {
+      "group": "finalConsumer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02\\bin\\OffsetConsumer\\release\\Chloe.SonnetDB.dll",
+      "sha256": "F34A7C2645156734C5FD77111CDAFEA8E39A98EEA416CAA3CCE2F24F77A8ED07"
+    },
+    {
+      "group": "finalConsumer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02\\bin\\OffsetConsumer\\release\\OffsetConsumer.dll",
+      "sha256": "363D997E4AEBEA3A1364412494D3C84567590CA325F52204736769C85F378004"
+    },
+    {
+      "group": "finalConsumer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02\\bin\\OffsetConsumer\\release\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "finalConsumer",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02\\bin\\OffsetConsumer\\release\\SonnetDB.Data.dll",
+      "sha256": "F80D66176068C87C39EF6CE9ED05D5ADBFBE76818300B3EA0418E7B2CB806351"
+    },
+    {
+      "group": "dataAot",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\aot-build\\bin\\SonnetDB.Data\\release\\SonnetDB.Core.dll",
+      "sha256": "6BA93238BA40F8AA82AEFA985F9B7476441CC30F5C3A36D8A655CF28D707A8DA"
+    },
+    {
+      "group": "dataAot",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\aot-build\\bin\\SonnetDB.Data\\release\\SonnetDB.Data.dll",
+      "sha256": "75A5CA7C1D53089C2AFA78D1836CA6995053EC6AA98EA9AE5796629060D985E4"
+    },
+    {
+      "group": "newCatalogProbe",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-new-build01\\bin\\CatalogFloorProbe\\release\\CatalogFloorProbe.dll",
+      "sha256": "E8E5617C8DEF3032D5800E27F37AFB0A3C58C524BA496B3029009E8CAEDF8312"
+    },
+    {
+      "group": "newCatalogProbe",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-new-build01\\bin\\CatalogFloorProbe\\release\\SonnetDB.Core.dll",
+      "sha256": "5E8DB75C8059DBF97524457D1402BA4A519403A512DF99D69BCB6C7D6D420B3A"
+    },
+    {
+      "group": "oldCatalogProbe",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-old-build01\\bin\\CatalogFloorProbe\\release\\CatalogFloorProbe.dll",
+      "sha256": "18D892B8F0908E896E02E0A7512D4DCE6D192F4D3A21B8163411963BB8D0AC82"
+    },
+    {
+      "group": "oldCatalogProbe",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-old-build01\\bin\\CatalogFloorProbe\\release\\SonnetDB.Core.dll",
+      "sha256": "F4990754A89E74FC81A6BAAF83B25A1CD6C1CB625D9E6F515731E6AD07D75B30"
+    }
+  ],
+  "chloeFinalSource": {
+    "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work/chloe-final-source.json",
+    "bytes": 199603,
+    "sha256": "F5DE34DB2B0FADD94D2DC659FCF3FA49890AB31A49CE9751698985A0D639D6E9"
+  },
+  "evidenceFiles": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\baseline-252-sync.json",
+      "bytes": 13610,
+      "sha256": "5CB9CCB8D7D0370F45C74C6B9982ED0FF94DF402D2FD2E9DA734070173200866"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests01.json",
+      "bytes": 375,
+      "sha256": "B2432F59EFB558E4CF3840EB76BC25984BE8C304CF15DA103A366FC4DDE37FF1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests02.json",
+      "bytes": 398,
+      "sha256": "7A8C27BFD4FEE49A54F0B7F6689765C464FFAB338C904CBD038B7593C5B7D29A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests03.json",
+      "bytes": 398,
+      "sha256": "103826EE0A3B05C69788110B50E7195FB5EA05FDA340FDC8B9FD9DC03D9ADC3A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests04.json",
+      "bytes": 398,
+      "sha256": "1D56C44245E405C71FBE5DE5F3E8544EE4C87E09657682B892EC65C79F852279"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests05.json",
+      "bytes": 398,
+      "sha256": "0CEC8366BAA9E11195917AF1CD4A20A355515042EFE77D3413A95E878BC2C87A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests06.json",
+      "bytes": 398,
+      "sha256": "E45E599A1FDC4906CAFFB1BA8D80048640FFE9B8869F2CD0041068C9357FF45D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests07.json",
+      "bytes": 430,
+      "sha256": "FCC1AEE5A4CCA2DC95DF2348E35BFA2BFACE5AC550A043F18E60990A7D6738D4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-core-tests08.json",
+      "bytes": 430,
+      "sha256": "5CC91FB8FCECF9DC5239DBEC22EC005056C785BD4E9851BA38559CE976EF7445"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-crash01.json",
+      "bytes": 372,
+      "sha256": "06347AAB8CADD83CA614153BF81DFE4D8FD667E8600F0E72CCCBDBC57C7D489D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-crash02.json",
+      "bytes": 393,
+      "sha256": "6BC0A18A33766E50AEA1685914EBAC5950008795A425AB65C519832853FC7B91"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-server-tests01.json",
+      "bytes": 369,
+      "sha256": "42793197D032DEA85AB8B2C004A3CDAA3C9327CFBF97F16CA319D4076D4B498C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-server-tests02.json",
+      "bytes": 369,
+      "sha256": "3500E23239EDE3482E2DE908499AE0E04EC58C314DCB386647DC1D14764BF434"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-server-tests03.json",
+      "bytes": 422,
+      "sha256": "1F3827D1BE705C4C9765E9C9B03758585B98C1FEE516700BE461F7B37A431EB8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\build-server-tests04.json",
+      "bytes": 422,
+      "sha256": "92E43AEA70418AF3FEB3B93515A4360E00804105D1F4B976342BCB3CF845EB85"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-after-old01.json",
+      "bytes": 2031,
+      "sha256": "2E4C70F2CFAF167F25C30D6D884F9BFA694D010E21152DB9187C514252CAB3FB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-before-old01.json",
+      "bytes": 2031,
+      "sha256": "2E4C70F2CFAF167F25C30D6D884F9BFA694D010E21152DB9187C514252CAB3FB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-create01.json",
+      "bytes": 316,
+      "sha256": "F95DB4B8D63E674D8D5D5DC962A7DF006938B1995E8CC49DD2A5D31C5A0623E8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-new-build01.json",
+      "bytes": 720,
+      "sha256": "AAA84E3874D625B4EE6A247BEFE06EF943156B4030E92719BBF533EE9F285A23"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-new-reopen01.json",
+      "bytes": 320,
+      "sha256": "EBF3D451B6D50A31A456E8CC815CFF88D813941DF3DAAA988F9BD73EF98BC87C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-old-build01.json",
+      "bytes": 710,
+      "sha256": "90DF06276EA1507EC46BB7C42FE4739C4A3504C1A8CCC107B74942C30340CEED"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\catalog-old-reject01.json",
+      "bytes": 320,
+      "sha256": "AB64D2D2E0B9E6BD51AE4C05E1EB6728ADC08C93808A79DF17E04E0547601341"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\chloe-candidate-build01.json",
+      "bytes": 559,
+      "sha256": "29A2C71A614AF57ADAF68B28C6C28DC2C328FFFEDA109308BFF101DD73FE4289"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\chloe-final-build01.json",
+      "bytes": 600,
+      "sha256": "6E9F12BEFA99449A23453D4E2F3391CF19C7B8F3D1F132B31D08B879C254EF4A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\chloe-final-source.json",
+      "bytes": 199603,
+      "sha256": "F5DE34DB2B0FADD94D2DC659FCF3FA49890AB31A49CE9751698985A0D639D6E9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build01.json",
+      "bytes": 835,
+      "sha256": "4089C5419DEE0F3905166526148B53103AC0C02230A7E759CAD77220053C093A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build02.json",
+      "bytes": 808,
+      "sha256": "560EC39FB2EC2C6C76DC36EAFDB2B1233631D4ED07E41140BF6A718A8BD2CFDD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-build03.json",
+      "bytes": 861,
+      "sha256": "B95FDADDB8EA9FA34129D55A55DBB4DE879350ABC5A57CADD288102C6975ADE2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-embedded01-exercise.json",
+      "bytes": 290,
+      "sha256": "9AE1FCC74C7E522AB6CFEDD5AC98E81155B8DC7CAD0F6E3FB7E9CF7388C42042"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-embedded01-reopen.json",
+      "bytes": 286,
+      "sha256": "6C44149495AA67697B08485419C23C9755C5FEEB3B35FD60205C40FE15294604"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-embedded02-exercise.json",
+      "bytes": 322,
+      "sha256": "B5D884CE21E6303B7333C328D7C5D339568BB65AE00A46292571E4C461C698D3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-embedded02-reopen.json",
+      "bytes": 318,
+      "sha256": "3A98C440CD4385C17756291EC3BEAD4523D688B5B0AFFF1425416AE53497F0B7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01.json",
+      "bytes": 880,
+      "sha256": "F40F94410E22D63743C1ADE77D7CE897772816EE334405267D2E0F33FB030007"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\.owner",
+      "bytes": 32,
+      "sha256": "3A6980D8644F2B0EC69FB17BCD4EC44A75B83C910E53CE33381EB035125E9CB3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\create-database-frame-http2.json",
+      "bytes": 44,
+      "sha256": "4C443BD46E745D12DCA237E161C4403846145E745F6B52108FAC9DF720B7B3B2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\create-database-rest.json",
+      "bytes": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\manifest.json",
+      "bytes": 12021,
+      "sha256": "8190B6335283BF24AA30002F28006C11F2C29D2E8A7631B8D065AF4C42FB6421"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-exercise.json",
+      "bytes": 734,
+      "sha256": "26EDD041AB50A7F60FEB4C2710BE256F9B449EB6954D3D093C509B39167002DC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-exercise.stdout.log",
+      "bytes": 908,
+      "sha256": "561BA53F39CE792BDAD878A497255DCB6D25FAE23E7AD45B8855EA9DE242D60A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-reopen.json",
+      "bytes": 730,
+      "sha256": "80642DA71F884CA232B3DDCB51488D333F480AB717A26BAB8D646C82C951439A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-frame-http2-reopen.stdout.log",
+      "bytes": 905,
+      "sha256": "763C63EDD8334CF00138204A277687324B63155B35099D92F0D89029D3E1D841"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-exercise.json",
+      "bytes": 718,
+      "sha256": "873AB51491FE0968AE49ED1C3929EFE2033170FA52C0FEF2B9792640E36F172D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-exercise.stdout.log",
+      "bytes": 908,
+      "sha256": "561BA53F39CE792BDAD878A497255DCB6D25FAE23E7AD45B8855EA9DE242D60A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-reopen.json",
+      "bytes": 716,
+      "sha256": "CF29CFE61CCB23D796F98F288BD0C88A7AB1436936CFE2ED18A440ED8956653C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\offset-rest-reopen.stdout.log",
+      "bytes": 905,
+      "sha256": "763C63EDD8334CF00138204A277687324B63155B35099D92F0D89029D3E1D841"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\protocol-frame-http2-exercise.json",
+      "bytes": 17961,
+      "sha256": "50BBC0FF0E0A2FE0C89ED148612617190CAC8FC0FB8C71C8A2AE12093EA156A1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\protocol-frame-http2-reopen.json",
+      "bytes": 2946,
+      "sha256": "B1199A2259125B0C481408AA2C180BB85E1A3A1859FA6C5D2885236C24F8A53F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\protocol-rest-exercise.json",
+      "bytes": 18743,
+      "sha256": "F855CB658C3382E34E61D795501B7887C6B0390DFBFE5E543A49A3D054174CC7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\protocol-rest-reopen.json",
+      "bytes": 3192,
+      "sha256": "E4F28DC96E9FABD4DE530939001C92112CA2A3C2C9C4031D5AF363606990C625"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\runtime.json",
+      "bytes": 48,
+      "sha256": "F10E8CDC4547C51C141540F6CC74B543F15292B1B10CC774CCDBA7665346C4ED"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-exercise.json",
+      "bytes": 550,
+      "sha256": "7D3ADAFC440A705E9A54777233D5E1F224134EFEE9583EEB47EC457C56664709"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-exercise.stdout.log",
+      "bytes": 42174,
+      "sha256": "22D9D44B765DE28B360A92E415EE71932D836275B45EC8DA91E859E1D21788F5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-reopen.json",
+      "bytes": 550,
+      "sha256": "FE21D7D380D0E719176A3192902EB706FF4C7F989C22C2C44F8C92F2CE7C1F85"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-frame-http2-reopen.stdout.log",
+      "bytes": 12724,
+      "sha256": "E2236968B64B79A4A9591711BBF87E2B962A3BADD46BE882DD5EAB68F1C56635"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-exercise.json",
+      "bytes": 543,
+      "sha256": "79E81CCB36D6031EE8E67173B6E123708BC9BEB5ECBC77DD2A3269E31D9B91EE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-exercise.stdout.log",
+      "bytes": 43762,
+      "sha256": "A47D12DD830007A806CEE1BB21F07F9B7B31193E819DF13AFDD090C1E70D01DD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-reopen.json",
+      "bytes": 543,
+      "sha256": "D14359FE38DCFE2E972DBEFE07C0391C489DF533020F85053691B6B5B98C5CFC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-rest-reopen.stdout.log",
+      "bytes": 13216,
+      "sha256": "8CB5A2EF24EC321600FE136E97FF9836652D8E141BE759AF172AF5C214FB159C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-oldserver01\\server-snapshot.json",
+      "bytes": 16571,
+      "sha256": "BB6202A8F3AE9DE6557BE464BDE26D6A4CCB84457A10AF5AC1A003F4473838D6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01.json",
+      "bytes": 888,
+      "sha256": "F8414D48F63DE8651654E5DA31D855C13301B4C56E24627C06C8D418AEF07CEB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\.owner",
+      "bytes": 32,
+      "sha256": "F9852506AFFD2B5284A6D3336F4EFE5BDF5D64B894630AD02DCCC0362FF2A1EE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\create-database-frame-http2.json",
+      "bytes": 44,
+      "sha256": "4C443BD46E745D12DCA237E161C4403846145E745F6B52108FAC9DF720B7B3B2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\create-database-rest.json",
+      "bytes": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\manifest.json",
+      "bytes": 11646,
+      "sha256": "39AA3313A65C11353086AACE9A83824C4FAA8B5C303076CD5DE31EF01C83B27E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-exercise.json",
+      "bytes": 725,
+      "sha256": "7F03B2DA6E96CFE53910C1CC8ABCD3222067FC1E211B9522EF42423E4440980C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-exercise.stdout.log",
+      "bytes": 925,
+      "sha256": "290772F2069D2EDC80FD6CF68A7E598C01F0CC684CFE8A0CA42237B45A77D3F8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-reopen.json",
+      "bytes": 721,
+      "sha256": "1EC111F33E7A1A1F0E5926C3D9E5594AF78A870D46B45F6825CAD3BEA00BA317"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-frame-http2-reopen.stdout.log",
+      "bytes": 923,
+      "sha256": "B85DD608842C63E7655F4D0C15C4077FCBE6D25E556C28C200102972E6DCECDF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-exercise.json",
+      "bytes": 711,
+      "sha256": "05FDDAB3803DE1248EAAE41678A751EAA7A12C8609DCE89FB6F4D1C472803F8B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-exercise.stdout.log",
+      "bytes": 925,
+      "sha256": "290772F2069D2EDC80FD6CF68A7E598C01F0CC684CFE8A0CA42237B45A77D3F8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-reopen.json",
+      "bytes": 707,
+      "sha256": "0E2A0B712AA2D9EC759F51F7F869041251E13F157674F6BE3DC96BE97B04CB7E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\offset-rest-reopen.stdout.log",
+      "bytes": 923,
+      "sha256": "B85DD608842C63E7655F4D0C15C4077FCBE6D25E556C28C200102972E6DCECDF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\protocol-frame-http2-exercise.json",
+      "bytes": 48584,
+      "sha256": "F9ECBE4ACFFD931702635212AD3CE18A4A16606DFB89635072AA2C890D37A1A5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\protocol-frame-http2-reopen.json",
+      "bytes": 10119,
+      "sha256": "448DBA9FFE0459E9D04A6044CD7732DAE7B3F77543D401A4ED6552BFBDCE957A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\protocol-rest-exercise.json",
+      "bytes": 50316,
+      "sha256": "9A24263A5753A04EB0B25AE6DC4285A12CEB32BE6CD1E2709FE7E093583A0B1B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\protocol-rest-reopen.json",
+      "bytes": 10975,
+      "sha256": "64B9D62C49B9C9D2CA9BD41E09BA1D26ED5F0CEB4BBA5519F22D23CF489A2D0E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\runtime.json",
+      "bytes": 45,
+      "sha256": "9BA95D3A4DB0E688E37187323022051E85D151291119725FDE92AECA0C54B449"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-exercise.json",
+      "bytes": 544,
+      "sha256": "0E522F5E31D899BB699BC273A2CFA2FEE74EAFA19B15E1C8FB5CDBFCFD11877D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-exercise.stdout.log",
+      "bytes": 100708,
+      "sha256": "FB437A39D49F0650D4B685F1AD0A272EA85059FD531250E2C06CE00C3FAB43C0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-reopen.json",
+      "bytes": 544,
+      "sha256": "F012BE2BD7026868A7F51E2207E76D237017C66F06544E8EA30D1D4D05197D4C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-frame-http2-reopen.stdout.log",
+      "bytes": 26249,
+      "sha256": "790D676BD642EA8BC11682B78024251CE46921F90C196F6C0CE89167A02B5B44"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-exercise.json",
+      "bytes": 537,
+      "sha256": "0387A8ED74B728DCFB061E92DEC0593851423EC66265B29E461683B95DC9D0EA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-exercise.stdout.log",
+      "bytes": 104265,
+      "sha256": "19A10E85089AB0841E59CAE4DD3328A0FE3988F908E2240F251C4933A7D49E88"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-reopen.json",
+      "bytes": 537,
+      "sha256": "29A3A5E595CE1261FE74D5AAACA946AC877C261239DD95E0D0A9084575B79B50"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-rest-reopen.stdout.log",
+      "bytes": 27999,
+      "sha256": "497C12E41000B77E230E1765725E09EDFB43BDC65F301E57C23383B8424CAD74"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\consumer-remote01\\server-snapshot.json",
+      "bytes": 16623,
+      "sha256": "F4A6CE218CFD689891A3D35CACAEB26A74E5DBF00E573F4398106323AC52E92D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native01.json",
+      "bytes": 467,
+      "sha256": "F1D609E5C694222BB87684A79875600E86B05D94FD5B265905993E68AE73A00E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native02.json",
+      "bytes": 583,
+      "sha256": "E68DAD2D8768B28167C1F31CBC2AA944CE87E496C223167B8CC6AAC80FBBDFB7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native03.json",
+      "bytes": 675,
+      "sha256": "21D945E940BB943FAB9F95B841771D677A51DEDA743264ACC09636E8936BEAE9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native04.json",
+      "bytes": 721,
+      "sha256": "5609AC587A1B6447EDFFD52CB6FB24ADBF055E23DDA41A1ADD6C2DAB82B7395E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native05.json",
+      "bytes": 758,
+      "sha256": "6AF992C9DE163AFAE5BA7E2FF7B2F45E63939727F65274DE73946CF3ECF48917"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-native06.json",
+      "bytes": 758,
+      "sha256": "231D07901003192B88AB94F6A0EAEBDB4D77FC5F2D8DBE39508F3D1257A4661A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-sql01.json",
+      "bytes": 655,
+      "sha256": "13F6227CB4DCB9CE08AF49C8C333A4CDB1CC8DF7BEBC40586B60FF08ABD3D633"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\core-sql02.json",
+      "bytes": 655,
+      "sha256": "14D1EE0F2207D0EE9FFFCB96212505152C798A18230D465FE79C68672310F546"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\crash-child-copy01.json",
+      "bytes": 3939,
+      "sha256": "BDE256C03BD9FE760358AA36812F3EEF8C0334A9F9DDF44D17DE884D427F2544"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\crash-native01.json",
+      "bytes": 507,
+      "sha256": "68AB527E74D46846E60B5B6CEB385BA8E4FEE29BD56B951C8C48074243CBD8B2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\data-aot01.json",
+      "bytes": 490,
+      "sha256": "F8DDB63A3CA8CA81AD2EB11B4C4797EC5881D71882079837674B4C42232D7973"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Edit-Core.ps1",
+      "bytes": 9872,
+      "sha256": "7C59B1AAFE8EE01F275394413D1EC4054047DFF8FE0B79FBF1CA3AB5EB25EEB7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Edit-Frame.ps1",
+      "bytes": 9019,
+      "sha256": "86911BA73BCA9BE2689A13946A9E7F4F59CBA015D0531EF54AB1086987239B38"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Edit-Remote.ps1",
+      "bytes": 14143,
+      "sha256": "E557756ED1E0F4418F549FC377CD4EBBC570D9BADC59AAB41B984DD462F032DC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Freeze.ps1",
+      "bytes": 7947,
+      "sha256": "26342F79036EF35FFDBCC4A0B1C42989C4B2A137564E4A37BEEB52B1A8441D23"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Invoke.ps1",
+      "bytes": 2561,
+      "sha256": "E2C712F8BB5F97D1C1E883C1AA9F2D89F01B4FB8CDD0909F67FEE2AABE8F787E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests01.json",
+      "bytes": 669,
+      "sha256": "DA5C40F46DF63B716238D3A068BA84D59E6F53FA2D7370AF9BCBF253EE3AC031"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests01.stderr.log",
+      "bytes": 487,
+      "sha256": "28AFC45C11834A3671679A073CBC60E05CAE928252505DE6288ABE05D99E1DDE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests01.stdout.log",
+      "bytes": 5191,
+      "sha256": "11C445ED699AA3EDC15254875675CA638D639EB50F7E64E5DA36C01D0D0554F0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests02.json",
+      "bytes": 692,
+      "sha256": "B3D593DDEED709027F78F880B55BD345F40F72F281873DC5B079B9249F2566FF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests02.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests02.stdout.log",
+      "bytes": 1228,
+      "sha256": "823153444C0EEEBE61B8F361258D02A791011D1D7DA07C8E72D2396084648FD5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests03.json",
+      "bytes": 692,
+      "sha256": "CAEB7FB9FDECB54D626FAF72E3EEED0C26C761A0A600E3E01254A4DE028D278D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests03.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests03.stdout.log",
+      "bytes": 1228,
+      "sha256": "B3BE32C1D9173C8E19DA254591EC82B09BD6730E11EE1D1FE3DA0536E3D17132"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests04.json",
+      "bytes": 692,
+      "sha256": "93B9E8C62904481FBA56D791E552042F7364006B14C128F0BA1AA0E1E2A3D61D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests04.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests04.stdout.log",
+      "bytes": 1228,
+      "sha256": "AF547AF6EAC2BF9A80A3B49D8E2E974D46BB9DFA1B8BA965D4714E6F07460EAB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests05.json",
+      "bytes": 692,
+      "sha256": "89D18F2D291579E8E0DF46A4A08D9D96B5BEC9C10E5617D9AD5C445F83F79431"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests05.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests05.stdout.log",
+      "bytes": 1228,
+      "sha256": "C4885F5EA87031FC92F5F81A02C8AA02B57B7FF77E95F479EB6B7B8FE31ACAA8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests06.json",
+      "bytes": 692,
+      "sha256": "7728004775DC16BD3DA1480BC75027370386B0593571CEEC705597CFD43AE9D6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests06.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests06.stdout.log",
+      "bytes": 1228,
+      "sha256": "BDE97381CE136EE057F06B7B1002098C16B8C09A1E1B8082309AD2C993A8E682"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests07.json",
+      "bytes": 697,
+      "sha256": "EF4ECB1B21C218A733AD35BC4C3DEA20C3ADD9669410457003DA16F36C32820C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests07.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests07.stdout.log",
+      "bytes": 1228,
+      "sha256": "B0C9165929172D3C7CE3C3049237FAE469BAFBBD6B0534B37FC091AAEAB614F9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests08.json",
+      "bytes": 697,
+      "sha256": "F2C38DC90E7A9E5A9D3D6BFFCE428270B834937CC71D54C5005C341BA6C2A036"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests08.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-core-tests08.stdout.log",
+      "bytes": 1228,
+      "sha256": "9E74DD8BF42038353D6647F3D5F2D6F8F7D3D12789F512F57132F9F6026D4F0D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash01.json",
+      "bytes": 663,
+      "sha256": "0EEB1934AF8BADC29A33FD0B9C05D6AB74A043561A2265CAAA8E4285871B7780"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash01.stdout.log",
+      "bytes": 1250,
+      "sha256": "016EC88479536DAE70792625C11B84440F2EE530727C1DA03631F20713D18E05"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash02.json",
+      "bytes": 687,
+      "sha256": "28AB0E3C803906CDD7062B6E2C287BC9085F50FFE4351B4CA2F806E0A7EE930F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash02.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-crash02.stdout.log",
+      "bytes": 564,
+      "sha256": "2008AE066D4151066FE3446695AFCFF317F745ECF72EE91345B9698DF4A98B54"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests01.json",
+      "bytes": 661,
+      "sha256": "4ABDA5A14378BBB1D91BA0C8ABC41B4C9849328A2F114563E1B56FCF7BC7669F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests01.stdout.log",
+      "bytes": 84488,
+      "sha256": "A428BB76251FF1293D119327C9ABBDED04953845C3A0C770C878AE9B29B68B5A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests02.json",
+      "bytes": 661,
+      "sha256": "E49B511198BC8A8E4EBA55F7A2FB97B951822F400E5744F416A1743BD042BDD1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests02.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests02.stdout.log",
+      "bytes": 2762,
+      "sha256": "7B6B7C09FFAF711721E736823CE6191B731AE6F2C4E0D92F1A9BE0931FD952B9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests03.json",
+      "bytes": 688,
+      "sha256": "CBBA80FDB11C632E9A49C8260B18495B281292A3F3118705183EEF0B6DC14E86"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests03.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests03.stdout.log",
+      "bytes": 1748,
+      "sha256": "69D6AD02EC117FE77785DA9A5AD91C9754D2CCC73006F14E6F56A4669C715634"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests04.json",
+      "bytes": 689,
+      "sha256": "11433697D736768E1484EAF1C63BD97C561C5C02A42C970CFD88BFEB40F49FB7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests04.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\build-server-tests04.stdout.log",
+      "bytes": 1748,
+      "sha256": "CC0257CFFC4CC9DDCA270424F90CCCECD87855CE07A36A37404D93B07EAD7641"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-create01.json",
+      "bytes": 569,
+      "sha256": "F44B5B0721F16CB197C23EF288F076243F56B7D4667566998F25258F74B46BF0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-create01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-create01.stdout.log",
+      "bytes": 229,
+      "sha256": "8CEEC5B3D9259D35606F740682E1F9132B42495CB764A2B6DF6AC41DD86BD494"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-build01.json",
+      "bytes": 989,
+      "sha256": "5EA914BFEEE2285F2DFD2E18F11EBE392E801A8EF76BFAA12AF4BED2A8B4AAF0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-build01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-build01.stdout.log",
+      "bytes": 450,
+      "sha256": "9052B9ED81E01344A6A99293E2B8F4FD07C8CF579D3214B61BF1E3DA92743DEA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-reopen01.json",
+      "bytes": 573,
+      "sha256": "3176717278A2921BABE507026532D9089EA209473000BB80BE9585A80D48EC6F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-reopen01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-new-reopen01.stdout.log",
+      "bytes": 249,
+      "sha256": "764AF0669647656E3BF23BF2BBAFE5D25D98EB56A9A6A0FC706EB492B36D63E4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-build01.json",
+      "bytes": 979,
+      "sha256": "FE2D019B68AC549A5A86C7F8A99EAE17F720C293FA065BA1D53537E2002CC99B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-build01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-build01.stdout.log",
+      "bytes": 450,
+      "sha256": "6B554B18CB81296959A3D04D7AF6F8749E1E7BB338DB83C8B8F7944CFF513678"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-reject01.json",
+      "bytes": 573,
+      "sha256": "9485D90CED9DAF5E10D96C166141009C31B63C71D75F1592D73E618F325EAF90"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-reject01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\catalog-old-reject01.stdout.log",
+      "bytes": 280,
+      "sha256": "9DDFB98FC0D9CD7C0AF38FD4C9B3B977901F752EF4F1D6E4EEBD88DFCF1B970B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-candidate-build01.json",
+      "bytes": 775,
+      "sha256": "EE2E1373A74B443AA3ECE4A2D0553E028BBFB892FE4D89A0A747BDA9849EE9C4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-candidate-build01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-candidate-build01.stdout.log",
+      "bytes": 30505,
+      "sha256": "3A18161981CD07849A4EF59EDFCE670B52D19BB5F7708732E2601A33A4D90102"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-final-build01.json",
+      "bytes": 871,
+      "sha256": "0D0F0281DCADDC5F47A92FC8CBA6EB37BE492706F3DFE48B8B6C33E50B0E8975"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-final-build01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\chloe-final-build01.stdout.log",
+      "bytes": 722,
+      "sha256": "9388B360822CC66AAFF52673D81627AA35A37C000B090AB35203B21E63B1E3AC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build01.json",
+      "bytes": 1139,
+      "sha256": "577A4DF25074300BF89FCA28F58D62D63C27C913FAC6CED2C5B880A00D2BA27D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build01.stdout.log",
+      "bytes": 1658,
+      "sha256": "7EA549E6770342C222567A5616548244147DA5FF2345F5D5CD71D160DAF77C94"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build02.json",
+      "bytes": 1106,
+      "sha256": "8E7DFB959B89A5BB5CBFAF74EF3B14D58CC05872277B8DC896021EF5233239D8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build02.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build02.stdout.log",
+      "bytes": 435,
+      "sha256": "98BBA80DE8CCC565D35FA314FCEE95DDB8299B62D981086F8A99471325FF581C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build03.json",
+      "bytes": 1131,
+      "sha256": "10111DD6D4AD0808931274765E50781EC995E11570D68302F3732CDC514C4EE4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build03.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-build03.stdout.log",
+      "bytes": 435,
+      "sha256": "7C7D0C6AD9BFC039CC9828F2C4FAE28F9BFEB93F8129919F54EAA4AD51533BF1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-exercise.json",
+      "bytes": 570,
+      "sha256": "35FBEE4BF481B25B87BD8E9343004B9FE1DAE6C65A1862E38E97284350E44891"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-exercise.stdout.log",
+      "bytes": 925,
+      "sha256": "316219F6A5834CBC26E0AA1088B443977A5941A3C4687A34F2314862CCAE5D07"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-reopen.json",
+      "bytes": 566,
+      "sha256": "D64D7EBF070F156BBE6C80E6785A706AACFCD5EE097464D34C1713281D4357AB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded01-reopen.stdout.log",
+      "bytes": 923,
+      "sha256": "4BEF4788CB6AE6E35025169D98F7C6E217C16F161D0EC638DE89C174E21EB454"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-exercise.json",
+      "bytes": 575,
+      "sha256": "F02DBFA58B424F94D7B7786119E76E1D56DEFD19A941A15A82F5F818D245E6C6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-exercise.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-exercise.stdout.log",
+      "bytes": 925,
+      "sha256": "290772F2069D2EDC80FD6CF68A7E598C01F0CC684CFE8A0CA42237B45A77D3F8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-reopen.json",
+      "bytes": 571,
+      "sha256": "3D9E316A199BCE96F3197467B734E7725BFA6228639A7EA401BE42CF9025A61F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-embedded02-reopen.stdout.log",
+      "bytes": 923,
+      "sha256": "B85DD608842C63E7655F4D0C15C4077FCBE6D25E556C28C200102972E6DCECDF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-oldserver01.json",
+      "bytes": 1157,
+      "sha256": "74366AB684990AFFA9A3F9593DC30D3E6E8FE9B0FC90CBDC1BF2798A64EE36C3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-oldserver01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-oldserver01.stdout.log",
+      "bytes": 182,
+      "sha256": "2A7E1F21CDA6206120A8A2660A6B19026255F44FFFB30C863C864E421E4964C1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-remote01.json",
+      "bytes": 1161,
+      "sha256": "FCD981443F014A05B2CBF28DEFE73D38AEEDF269987843BE5171DD685996187D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-remote01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\consumer-remote01.stdout.log",
+      "bytes": 182,
+      "sha256": "2A7E1F21CDA6206120A8A2660A6B19026255F44FFFB30C863C864E421E4964C1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native01.json",
+      "bytes": 751,
+      "sha256": "9D1E09C757FE5B76C1824C197A8A8B9971E2B9954E82BD2FD98E4CEC3B7F5F93"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native01.stderr.log",
+      "bytes": 143,
+      "sha256": "312E3A96A88FF3576AECEF53E7437A1F3A38F132D8EA877AFFC44944E4FD6B7D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native01.stdout.log",
+      "bytes": 1741,
+      "sha256": "E57E350E71087C8EAE52EBFCB9E069457EEB3D93E7FEC14512AD735E5FB8DF53"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native02.json",
+      "bytes": 866,
+      "sha256": "2169EA41F8343E25CDC642EBA274D6B08C736B0811D2077D3422402B96A10FC7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native02.stderr.log",
+      "bytes": 215,
+      "sha256": "D1F8426A672E89200E7A7C91CBF560CAC70740A177CD66A0F1B3BF649BC38C42"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native02.stdout.log",
+      "bytes": 1167,
+      "sha256": "F32EA72492D6956C63430220E8555A9938BA2C898889E8C164717E9FFA1AC8D8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native03.json",
+      "bytes": 959,
+      "sha256": "69F08A443897378B6F8EE102977444F16D409807F8F3C9DAD9ECADC3F0D5320A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native03.stderr.log",
+      "bytes": 520,
+      "sha256": "1C1677D6B8189F64B9B1F8EDE20103221C412CB3B92B393D5F3E9E642D8C5B7A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native03.stdout.log",
+      "bytes": 4541,
+      "sha256": "75795D1444A754D11DD88E9B65F79921D3F83E837838F26A1DA57804BB079A5C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native04.json",
+      "bytes": 1005,
+      "sha256": "78E73674D12ACF9CC6AA55381DB742D0333DE5F64A8AA5D65AA2CB19FF9029FD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native04.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native04.stdout.log",
+      "bytes": 376,
+      "sha256": "6737DA8319972A57EAF637D30C40AF4DA5B2519BB2AAE1AF864362BEC7F3CAD2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native05.json",
+      "bytes": 1015,
+      "sha256": "E11E1E801316A1D35B6A971BC5AB7D320A618C1BD953377C2F92C2B0E7949171"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native05.stderr.log",
+      "bytes": 145,
+      "sha256": "CB19791397BD5B905CF53272980759795152E5A939F2EB00B6746F6FCEA5ADAF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native05.stdout.log",
+      "bytes": 1098,
+      "sha256": "517E7C7B05B8970798EA8B468614D73C9648B2DB27601D62400CCE8B99CDE1FD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native06.json",
+      "bytes": 1015,
+      "sha256": "325B0BA92FE65B78DAE5D91FCCC4D48BF649E5524C2B4C1B9EAF280E1886DC6C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native06.stderr.log",
+      "bytes": 139,
+      "sha256": "0DCF15B8425C3D65919CE9E59C122568FBEF025686DF2B594C20BD79F16CC13A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-native06.stdout.log",
+      "bytes": 5139,
+      "sha256": "6E98B3B8FCAC896B3A09A0ABDA218D2771D0F4963B4B0F0B8A238F14B254B11C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql01.json",
+      "bytes": 939,
+      "sha256": "7D98FA626B39167640BBF76A1B589F9FA48601CAF05E37947BE810C0DF784CED"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql01.stderr.log",
+      "bytes": 144,
+      "sha256": "F94874AE85B999EAEFE13827BCBFBFE71A74C4626832C1BAA473B62051C5EB90"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql01.stdout.log",
+      "bytes": 3119,
+      "sha256": "5FF74D3FEE5994A418CA76122927B1BAFD54590703F89889EC3EF58379D4119C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql02.json",
+      "bytes": 939,
+      "sha256": "AD074AED832BD08BAB02AEB3E323DDB06DB409B97DCE625F055C47C61661AF7B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql02.stderr.log",
+      "bytes": 139,
+      "sha256": "C5F4B89D48785291974F21CE4370806EF7B63F689719B4D7479466987FF2A0AE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\core-sql02.stdout.log",
+      "bytes": 4829,
+      "sha256": "44B7DDA6373887ABCE8085883B22F408EB09F42C1164C94131A4DFC238CA65E5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\crash-native01.json",
+      "bytes": 791,
+      "sha256": "2E60C76A41723EB1EC246F474B34D087E3B41CB9B2A567A7515BA698BAE49C2D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\crash-native01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\crash-native01.stdout.log",
+      "bytes": 377,
+      "sha256": "570A3AF11B1833405117DA269A5DCDEFA8D22B38CDB12B522342D209F17D81F0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\data-aot01.json",
+      "bytes": 761,
+      "sha256": "FFAAA8664C05D714AA7FA029C868C0F7C0228F6B8A2C51205C9D6251999A55EE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\data-aot01.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\data-aot01.stdout.log",
+      "bytes": 665,
+      "sha256": "EB673871EDA633C202F7CBE82A53EF51F2889678DF3BFE1A07C19739B42F02CA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado01.json",
+      "bytes": 745,
+      "sha256": "A5BC5845F309B1C965E111E712F00E073FAA2234702EE3600E44B513765396CD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado01.stderr.log",
+      "bytes": 167,
+      "sha256": "10796ED08858D77FB2AA4F7807CEF33D99718B7A78C3BAA48B3A0936A920D382"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado01.stdout.log",
+      "bytes": 30,
+      "sha256": "4FEE6AF344F6B2D18239A8C1AD735FAC49EBE9E3B0D9AA7B370F2C26193802DD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado02.json",
+      "bytes": 752,
+      "sha256": "34E331FB19682DC1E1F7A948051FDD8D31DF6211D74464CB94381F8B330F0990"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado02.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado02.stdout.log",
+      "bytes": 370,
+      "sha256": "202D110EF16914C34EB1B8DAB46426F6637FA9ED3E5134A9896F78FBB84B3414"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado03.json",
+      "bytes": 763,
+      "sha256": "7C7441D98FD811395697A3E141503A41BCF8DA5C9523DF321A84F97147B38968"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado03.stderr.log",
+      "bytes": 479,
+      "sha256": "D7FA6EBA5110FBAB374C2E5EE17C53329AFE0F38B4E9C8F0763288970835119D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado03.stdout.log",
+      "bytes": 8765,
+      "sha256": "24E2674C2FCA9E1A83EC58CB2275E8AFDCD812EAEDBD8DCA43A3E9E3BF133C00"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado04.json",
+      "bytes": 763,
+      "sha256": "FEB55A8CA12DD8639EABBB4690B0AC8725366BABB0F6814EA739AC0FDC4052B9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado04.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\logs\\remote-ado04.stdout.log",
+      "bytes": 371,
+      "sha256": "53EC79B2C9EE3EAEB8BC8E2331509CE578F4E06E8F01B9824227185129262691"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\preparation-assessment-252-20261016.json",
+      "bytes": 7244,
+      "sha256": "B63860BBA658E88DA5DD9B8E4B5760FE68BC9D603DC4FA6E7D126D6689A2A965"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\preparation-evidence.json",
+      "bytes": 4214,
+      "sha256": "A44A55C808660A6129F71FFC517CE7104A0B48D8F5B46DA76549012955EC1CCA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\chloe-head.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\chloe-head.stdout.log",
+      "bytes": 41,
+      "sha256": "A00F51714D752CF80FFC4BF39D30CE4D3133F0256849276A0C900FEE7465B5D3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\clone.stderr.log",
+      "bytes": 111,
+      "sha256": "5C7CAE8CC98E863852267872D8D2B7E0B47133608964D9CB7AA0DC0018486DAD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\clone.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Common.ps1",
+      "bytes": 5813,
+      "sha256": "3C1EB793221006534D401D8B348603F798B523FD55F9B068D30BB1EC1D5FC419"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Consumer.csproj",
+      "bytes": 785,
+      "sha256": "87AB0EF0EB7D1680F8CC1E0779C3AC448D356BF7B55ADF1953DD2553D551BEF7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Directory.Build.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Directory.Build.targets",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Directory.Packages.props",
+      "bytes": 12,
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\NuGet.Config",
+      "bytes": 258,
+      "sha256": "18C4451BF7C952F6BB2A1029446101CA33B4EC62A9E284269B44BD6EE709DB3A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Program.cs.txt",
+      "bytes": 8826,
+      "sha256": "EDF4A2CBD37D8456BAE5D8CDBED9722218DD7E4202B88942977F47E5D961FE7B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\executed-probe\\Run-Public.ps1",
+      "bytes": 5769,
+      "sha256": "99B91CD5401C375AE09683CF2DD6D0512259989A4A3E8EC0B4360CDD038C700B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-assets.json",
+      "bytes": 33945,
+      "sha256": "8485AD6DD1E337D2445C1E3CCD015D37CC7974485F7793A9491C6C14E0CDB1AC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-build.stdout.log",
+      "bytes": 536,
+      "sha256": "5FEFA334DD425BFEAFB4EC722E7980A1DE5A149FB0520172523588719AB848E6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-initial.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-initial.stdout.log",
+      "bytes": 12404,
+      "sha256": "1E459C05E623AC5B18E3A6E4C5F630B0C4476C3037533F44CB4EFCDBA114F20C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-reopen.stdout.log",
+      "bytes": 12332,
+      "sha256": "390B6609D6405D099E74F1D64754827E9C38D39695C4115118514F3596734F58"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-restore.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\preview-restore.stdout.log",
+      "bytes": 217,
+      "sha256": "D36EA6E5610A52A44BFE2BCC0060C1C0127F39F227772508F12C590449415733"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\receipt.json",
+      "bytes": 120989,
+      "sha256": "834E81D2DFBFE3D7C1E42992AF6095AB7BFD4703A015D2A8D46B22348B9FACEA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-assets.json",
+      "bytes": 33673,
+      "sha256": "E005BA1E0A088FEC18CA86796106635124C1E7C93262580B86837B0175B1395D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-build.stdout.log",
+      "bytes": 32603,
+      "sha256": "76ED1FFCD11BAB90C57BDB82040F681909FF8EF61F716FDED5D34DD49845D511"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-initial.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-initial.stdout.log",
+      "bytes": 12368,
+      "sha256": "E51E4A14088A35D6EB127FF77F8EBF31D2ABAFC8A53F2FB7991BA311DA00A754"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-reopen.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-reopen.stdout.log",
+      "bytes": 12296,
+      "sha256": "63B803F3F67C9B74DDB25C2599F03C1A8FE89EC60F66FA15EC3A1C82DE922E4A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-restore.stderr.log",
+      "bytes": 879,
+      "sha256": "5AA34D2DE9CA4A3DE3A1A2C540E32CDD84B194E632BDB64D50FD27FD96B4DBEB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\public-02\\stable-restore.stdout.log",
+      "bytes": 468,
+      "sha256": "AC74E32CA81D5ABE3CD088C2D1F91145970F4D0C6AEE7B8C7979638056745E1A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\remote-ado01.json",
+      "bytes": 461,
+      "sha256": "DBC38CEC2D3DA212D607530DF41BD74E82025B4E66B1D3E9BED67088E750812C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\remote-ado02.json",
+      "bytes": 469,
+      "sha256": "3DBFB83820C6CC02EB3861F8A2E3A8A81E2F735E547451EE6CE046D95144A434"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\remote-ado03.json",
+      "bytes": 506,
+      "sha256": "B3B1051A15544461109A0B72F6415F4812573F0424343624BC6420003A04666B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\remote-ado04.json",
+      "bytes": 506,
+      "sha256": "1A7A25EDA93865E1B133A2FF2E5D09F7E578C59B3047343BC1770E40B852563D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\source-core-final01.json",
+      "bytes": 10854,
+      "sha256": "47870BC937438A2583D54F3BEA5F03C0641E64ECD6CB48A91ED3FB6C2A5A0C28"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native01\\results.trx",
+      "bytes": 64684,
+      "sha256": "0CD33F21DC3D6CAAD0BF22750CF76A7987A0CAA7D440E0D9F8C6EAED665D7FEE"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native02\\results.trx",
+      "bytes": 174213,
+      "sha256": "CB04FA95932A002B6CE97E168B9C592765CC793423E18392D77E2A477CA9DEAD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native03\\results.trx",
+      "bytes": 249915,
+      "sha256": "9A2D3400BC76CBB40947DB9B31AF73C3A79CF20011E73BB68941B198A4D4998D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native04\\results.trx",
+      "bytes": 268447,
+      "sha256": "DF2C4F72B12B7586A5611DD79F3DC84C0E31F048E5550040BC1E0939D5C9ABE6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native05\\results.trx",
+      "bytes": 271791,
+      "sha256": "7854881D2D47D2F1DD26271C3DF69A0F6E5D6B0499EBC6229E34A47D4F0068BA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-native06\\results.trx",
+      "bytes": 280644,
+      "sha256": "3D75AC3460F7FE66C5021EE6C2739357B33AA9B28431C1597326E0B506A985FB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-sql01\\results.trx",
+      "bytes": 5714919,
+      "sha256": "4CB1560212612A0F2E9E835374828793272329B8F3DFA7AEFCDD1BDB2F56757C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\core-sql02\\results.trx",
+      "bytes": 5726905,
+      "sha256": "6E18F131D87B2BF81339A947D9F07B0A4227617A55C28577A53EDB711C82AAC2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\crash-native01\\results.trx",
+      "bytes": 23451,
+      "sha256": "1FC79C61526BFB5B36A468A9E8BFB1694B5E4C7DE18449BFD7317302AC15FD01"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\remote-ado02\\results.trx",
+      "bytes": 19598270,
+      "sha256": "F69D887276E13D78F339D37A054171066020500F8073010344E0B94C09A66C1F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\remote-ado03\\results.trx",
+      "bytes": 19376667,
+      "sha256": "481CF29CCDE06D85C76A03B1DA921D53526BFCACB3510CDEAD1DF88BAA2CE84E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\trx\\remote-ado04\\results.trx",
+      "bytes": 19618349,
+      "sha256": "37D007F45C967BF4D274A22A64A793A0ADFE09BAFE751EC86DEAA907DBFCE80F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Verify-Final.ps1",
+      "bytes": 5352,
+      "sha256": "61DD3F26317A86A3256C38B4E6BEB7088161A01D880C9C91FC69768E34CFB40E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue251-work\\Verify-Final02.ps1",
+      "bytes": 5655,
+      "sha256": "A8902E4BAE76383E71587302554B53DC79FD849D7D65BB8056661C6DDE7BA47D"
+    }
+  ],
+  "limits": [
+    "Full SQL 3765/3766 and final targeted 174/175 retain one existing cancellation-wrapper assertion failure; parent handles separately.",
+    "No formal package, upstream Chloe patch, NativeAOT executable publish/run, multi-OS/timezone matrix, benchmark or soak completion.",
+    "Default DTO against old DATETIME predicates now requires explicit DbType or CAST; old DATETIME #236 unchanged.",
+    "Earlier passing sets overlap and are not totals; final Core SHA also matches crash/native consumer/server Core."
+  ]
+}

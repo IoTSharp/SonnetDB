@@ -1,0 +1,38 @@
+diff --git a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+index 816a83e..c6317c7 100644
+--- a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
++++ b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+@@ -102,6 +102,8 @@ namespace Chloe.SonnetDB.DDL
+                 return "DECIMAL";
+             if (type == typeof(bool))
+                 return "BOOL";
++            if (type == typeof(DateTimeOffset))
++                return "DATETIMEOFFSET";
+             if (type == typeof(DateTime))
+                 return "DATETIME";
+             if (type == typeof(TimeSpan))
+diff --git a/src/Chloe.SonnetDB/SqlGenerator.cs b/src/Chloe.SonnetDB/SqlGenerator.cs
+index 0e9a28e..776ed2e 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator.cs
+@@ -35,6 +35,7 @@ namespace Chloe.SonnetDB
+             castTypeMap.Add(typeof(decimal), "DECIMAL");
+             castTypeMap.Add(typeof(bool), "BOOL");
+             castTypeMap.Add(typeof(DateTime), "DATETIME");
++            castTypeMap.Add(typeof(DateTimeOffset), "DATETIMEOFFSET");
+             castTypeMap.Add(typeof(TimeSpan), "DURATION");
+             castTypeMap.Add(typeof(Guid), "STRING");
+             CastTypeMap = PublicHelper.Clone(castTypeMap);
+diff --git a/src/Chloe.SonnetDB/Utils.cs b/src/Chloe.SonnetDB/Utils.cs
+index 7a5ca1e..7601734 100644
+--- a/src/Chloe.SonnetDB/Utils.cs
++++ b/src/Chloe.SonnetDB/Utils.cs
+@@ -5,8 +5,6 @@ namespace Chloe.SonnetDB
+         public static void EnsureSupportedMappingType(Type type)
+         {
+             type = Nullable.GetUnderlyingType(type) ?? type;
+-            if (type == typeof(DateTimeOffset))
+-                throw new NotSupportedException("SonnetDB's general ADO.NET reader returns DateTime values for DATETIME columns, which are incompatible with Chloe's DateTimeOffset value converter. See https://github.com/IoTSharp/SonnetDB/issues/251.");
+         }
+ 
+         public static void EnsureSupportedValue(object value)

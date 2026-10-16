@@ -25,6 +25,7 @@ internal static class SqlCastOperations
                 SqlDataType.DateTime => ToDateTime(value),
                 SqlDataType.Time => ToTime(value),
                 SqlDataType.Duration => ToDuration(value),
+                SqlDataType.DateTimeOffset => ToDateTimeOffset(value),
                 SqlDataType.Blob => ToBlob(value),
                 SqlDataType.Json => ToJson(value),
                 SqlDataType.Vector or SqlDataType.GeoPoint => throw new NotSupportedException(
@@ -214,6 +215,22 @@ internal static class SqlCastOperations
         throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DURATION；需要完整时长、整数 ticks 或 invariant c 文本。");
     }
 
+    /// <summary>把完整 UTC ticks、显式偏移文本或 CLR 日期归一为原生 UTC 时刻。</summary>
+    internal static DateTimeOffset ToDateTimeOffset(object value)
+    {
+        if (value is DateTimeOffset offset)
+            return offset.ToUniversalTime();
+        if (value is DateTime dateTime)
+            return new DateTimeOffset(NormalizeUtc(dateTime));
+        if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
+            return new DateTimeOffset(checked(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)), TimeSpan.Zero);
+        if (value is string text && text.Trim().Length >= 10
+            && DateOnly.TryParseExact(text.Trim().AsSpan(0, 10), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)
+            && DateTimeOffset.TryParse(text.Trim(), CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+            return parsed;
+        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIMEOFFSET；需要 UTC ticks 或带日期的时刻。");
+    }
     private static TimeOnly ToTime(object value)
     {
         if (value is TimeOnly time)
