@@ -13,6 +13,52 @@ public sealed class RelationalInputPushdownTests : IDisposable
         Path.GetTempPath(),
         $"sndb-relational-pushdown-{Guid.NewGuid():N}");
 
+    [Theory]
+    [InlineData("JOIN")]
+    [InlineData("LEFT JOIN")]
+    public void Execute_CastProjection_RetainsOperandColumnsAndOuterNulls(string join)
+    {
+        using var database = CreateDatabase();
+
+        var (result, metrics) = Execute(database, $"""
+            SELECT t.id, CAST(CAST(d.region AS STRING) AS STRING) AS region
+            FROM push_tasks t
+            {join} push_devices d ON t.device_id = d.id
+            ORDER BY t.id
+            """);
+
+        var expected = new List<object?[]>
+        {
+            new object?[] { 1L, "north" },
+            new object?[] { 2L, "north" },
+            new object?[] { 3L, "south" },
+        };
+        if (join == "LEFT JOIN")
+            expected.Add(new object?[] { 4L, null });
+        Assert.Equal(expected, result.Rows);
+        Assert.Equal(2, metrics.InputProjectionPushdownCount);
+        Assert.Equal(4, metrics.InputProjectedColumns);
+    }
+
+    [Fact]
+    public void Execute_FunctionInsideCastPredicate_KeepsPredicateResidual()
+    {
+        using var database = CreateDatabase();
+
+        var (result, metrics) = Execute(database, """
+            SELECT t.id
+            FROM push_tasks t
+            JOIN push_devices d ON t.device_id = d.id
+            WHERE CAST(lower(d.region) AS STRING) = 'north'
+            ORDER BY t.id
+            """);
+
+        Assert.Equal([1L, 2L], result.Rows.Select(static row => (long)row[0]!));
+        Assert.Equal(0, metrics.InputPredicatePushdownCount);
+        Assert.Equal(2, metrics.InputProjectionPushdownCount);
+        Assert.Equal(4, metrics.InputProjectedColumns);
+    }
+
     [Fact]
     public void Execute_InnerJoinSingleInputPredicates_UseIndexesAndPruneColumns()
     {

@@ -1,6 +1,6 @@
 # ASP.NET Core MVC + Identity + SonnetDB
 
-此样例使用微软 MVC + Individual Accounts 模板、官方 Identity EF Core Store 和 SonnetDB EF Core Provider。`ApplicationDbContext`、Identity 配置、控制器和视图沿用模板。
+此样例使用微软 MVC + Individual Accounts 模板、官方 Identity EF Core Store 和 SonnetDB EF Core Provider。Identity 配置、控制器和视图沿用模板；`ApplicationDbContext` 在调用基类模型配置后，显式保留已有迁移中 `IdentityUser.LockoutEnd` 的 `DATETIME` 列类型。
 
 从 SQL Server 切换只需替换数据库 Provider、连接字符串和 Provider 专属迁移元数据：
 
@@ -27,6 +27,10 @@ dotnet run
 浏览器打开 `http://localhost:5013`，从 Register 创建用户。模板仍要求确认账号：开发环境在注册确认页点击确认链接后登录，随后使用账户管理页修改资料、密码或设置双因素认证。实际发送邮件及第三方登录仍需按 ASP.NET Core 模板配置对应服务。
 
 EF Core / Identity Store 使用运行时模型，此样例不声明 Native AOT 兼容。
+
+## 既有日期列兼容
+
+Provider 默认将 `DateTimeOffset` 映射为原生 `DATETIMEOFFSET`。本样例已有迁移和模型快照的 `LockoutEnd` 使用 `DATETIME`，因此显式配置 `HasColumnType("DATETIME")`，保持实际数据库布局与迁移模型一致。该列仍按 UTC 毫秒存储；查询时由 Provider 显式转换以兼容原生日期参数。需要完整 100ns ticks 时，应另行执行列类型迁移并同步模型，不能只改已有迁移或快照。
 
 ## 验证
 

@@ -358,3 +358,13 @@
 - 当前249待最终完整restore/Format独立提交；提交后将实际SHA交issue312唯一248，使其独占共享核心实现真实锁/NOWAIT。原issue314在249完成后可转下一实际OPEN倒序245（246不在OPEN）；仅隔离准备临时表/CTAS真实SqlSugar Fastest，不能改共享AST/Parser/Executor/TableManager/事务/ADO，等248→247后。
 - issue313唯一247准备冻结SHA33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，根已核10新源两份、194证据、1144运行文件、603上游源；最终24合同2PASS22FAIL、REST/h2c各原生3/16及SqlSugar2/12，CALL为HTTP2 REST而非Frame；标准命令和方向回写尚未实施。继续等待249→248，禁止提前关闭。
 - parity最近回读042748d841c5eca6e47261cf6b63e220280ee102，主目录main仍ffdb734c且clean。下一次先核实时远端/CI，保留所有旧树/stash/失败证据；提交后状态随下一真实提交，不造巡检提交。
+
+## 最新监督检查点（2026-10-16，249已提交、Identity CI修复验收中）
+
+- #249 已独立提交 edd23c1d72c472c71ea0b8d4939df0ec5c2311e4，最终 tree b66f27dacaf8391535c07e7573180e28e4281421；完整 restore 08:01:19Z→08:01:24Z、原 Format 08:01:24Z→08:02:46Z 均 exit0且树未变。根 Core3972/3972、真实Server239/239、EF295/295、真实SqlSugar初次/独立重开各28/28已验。该提交尚未push/comment/close，待本独立CI修复提交后同批正常推送。
+- 实际远端main仍b568988e。精确CI38869549254已completed/failure：Windows rest/Ubuntu各Identity17/18同一模型差异失败；其余五job成功。两平台EF295/295、Server1389/1389通过，旧日期映射失败已修；原38862841705和38869549254失败均保留。永久回读issue-supervision-ci-38869549254-final-20261016.json。
+- 根旧样例完整17/18复现迁移模型漂移；显式LockoutEnd旧DATETIME后迁移通过但官方GetUsersForClaimAsync的JOIN在CAST列裁剪处失败，第二轮仍17/18。RSE仅补Cast操作数标识符收集与Cast内函数检测6行；旧Core新增3项全失败、整类12/15，新Core15/15及全部SQL3190/3190、最终Identity18/18通过。原迁移/snapshot/Identity测试断言不改，旧UTC毫秒精度保持；最终EF295/295也已通过且构建零警告错误，最终完整门禁待执行，详见ci-38869549254-identity-compatibility-20261016审计与本地原日志。不要把旧失败改写为PASS。
+- 最新用户要求按已实现源码合同关闭并及时提交推送。此前16项314/313/312/264/263/262/261/260/259/258/256/255/254/253/243/226已逐项closed/completed并回读，不重复评论或开放。252/251/250/249等新修复精确CI后核关闭；正式发行与上游交付仍如实标明，250完整CodeFirst事务DDL由227继续跟踪。
+- issue312唯一248已核10准备文件且ff-only到edd23c1d，正在独占共享核心实施普通FOR UPDATE必要基础和NOWAIT。根额外RSE两方法增量已通知，最终按edd基线增量整合保留根修复，不重置活动树。锁资源须覆盖全部writer/DDL/PK迁移/identity/index，manager外等待后重规划/复验，不用乐观重试代替NOWAIT；不宣称233 Chloe/NoLock完成。
+- issue313唯一247仍准备冻结等待248，manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4；2PASS/22FAIL和REST/h2c原生3/16、SqlSugar2/12为真实缺口。issue314完成249后转唯一245，新树issue245-temp-ctas基线edd23c1d，当前只隔离准备：三协议原生各3PASS/22FAIL在TEMP/CTAS解析处拒绝，SqlSugar各5PASS/8FAIL；已有10,000行路径是普通工作表，事务DDL8项拒绝，不宣称原生临时表完成。共享顺序248→247→245，最多3代理。
+- 主目录本地main仍ffdb734c，保留其它会话边界；parity-results最近回读042748d841c5eca6e47261cf6b63e220280ee102，不能回写旧引用。旧树/stash/失败证据全部保留，外部ORM候选不外发。本状态随本真实CI修复提交；提交后push/CI/关闭回执随下一真实Issue提交，不造巡检提交。

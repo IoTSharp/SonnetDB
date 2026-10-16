@@ -1215,6 +1215,8 @@ internal static partial class RelationalSelectExecutor
         {
             case FunctionCallExpression:
                 return true;
+            case CastExpression cast:
+                return ContainsFunctionCall(cast.Operand);
             case UnaryExpression unary:
                 return ContainsFunctionCall(unary.Operand);
             case BinaryExpression binary:
@@ -1287,6 +1289,10 @@ internal static partial class RelationalSelectExecutor
         {
             case IdentifierExpression identifier:
                 yield return identifier;
+                yield break;
+            case CastExpression cast:
+                foreach (var identifier in EnumerateLocalIdentifiers(cast.Operand))
+                    yield return identifier;
                 yield break;
             case UnaryExpression unary:
                 foreach (var identifier in EnumerateLocalIdentifiers(unary.Operand))

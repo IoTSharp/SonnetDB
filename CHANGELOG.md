@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- Identity MVC 样例显式保留既有 `LockoutEnd` 的 `DATETIME` 映射，修复 Provider 默认使用原生 `DATETIMEOFFSET` 后模型与已有迁移不一致的问题；JOIN 列裁剪递归保留 CAST 操作数，CAST 内函数继续遵守谓词下推限制。保持原 UTC 毫秒布局、迁移快照及模型差异断言。
+
 - GH-Issue #249：支持逐行列/表达式 JSON_VALUE path、动态数组下标和 JSON_OBJECT 类型安全对象谓词；对象保留精确 DECIMAL、整数、布尔、NULL 和转义，动态 JSON_VALUE 沿用静态 Int64 优先否则 Double 的取值合同，静态/参数 JSON 索引保持。补文档/文件/向量/时序/JOIN 的精确对象接线、预算/取消释放、真实 SqlSugar 同步异步三协议和重开验证；不改变目录或结果版本，正式包及上游发行仍需另验。
 
 - 修复原生 DATETIMEOFFSET 引入后的 EF Provider 映射兼容：默认 DTO 属性使用原生 UTC ticks，显式旧 DATETIME 布局通过查询列 CAST 保持参数/函数类型一致且继续保留旧毫秒存储精度；补齐 ADO DataTypes 的 DATETIMEOFFSET 目录项和跨协议旧 DATETIME 参数拒绝/显式兼容回归。不改变引擎混合类型比较守卫或持久格式，既有列迁移须显式执行。
