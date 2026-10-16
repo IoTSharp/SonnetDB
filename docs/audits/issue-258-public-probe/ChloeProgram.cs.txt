@@ -1,0 +1,159 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+using static UuidChecks;
+
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 3) return 2;
+string phase = args[0];
+string transport = args[2];
+string state = Path.Combine(Environment.CurrentDirectory, "chloe-state-" + transport + ".txt");
+Guid supplied = Guid.Parse("11111111-2222-4333-8444-555555555555");
+try
+{
+    foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "Chloe", "Chloe.SonnetDB" })
+    {
+        var assembly = Assembly.Load(name);
+        string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+        if (name.StartsWith("SonnetDB", StringComparison.Ordinal)) Require(version.Contains("1af23d8f299febfdf66b040ab3419980396acf46", StringComparison.Ordinal), "public-assembly/" + name);
+        Console.WriteLine($"ASSEMBLY|{name}|{version}|{assembly.Location}");
+    }
+    using var context = new SonnetDBContext(() => new SndbConnection(args[1]));
+    var recorder = new Commands();
+    context.Session.AddInterceptor(recorder);
+    if (phase == "reopen")
+    {
+        Require(context.Query<GuidRow>().OrderBy(row => row.Id).ToList().Select(Row).SequenceEqual(File.ReadAllLines(state)), "independent-reopen-exact-guid-values");
+        var values = context.Query<GuidRow>().Select(row => Guid.NewGuid()).ToList();
+        recorder.RequireServerCalls(1);
+        Distinct(values.Select(v => (object)v.ToString("D")), "reopen-new-guid-projection");
+        Require(!values.Select(v => v.ToString("D")).Intersect(File.ReadAllLines(state).SelectMany(line => line.Split('|').Skip(1))).Any(), "reopen-not-reusing-persisted-values");
+    }
+    else
+    {
+        new SonnetDBTableGenerator(context).CreateTable(typeof(GuidRow));
+        context.InsertRange(new List<GuidRow>
+        {
+            new() { Id = 1 }, new() { Id = 2, Value = supplied }, new() { Id = 3 }, new() { Id = 4 }
+        });
+        Require(context.Query<GuidRow>().Where(row => row.Id == 2).First().Value == supplied, "client-created-guid-control");
+        if (phase == "guard")
+        {
+            int before = recorder.Sql.Count;
+            Expect(() => context.Query<GuidRow>().Select(row => Guid.NewGuid()).ToList(), "258", "original-provider-query-protection");
+            Expect(() => context.Update<GuidRow>(row => row.Id > 0, row => new GuidRow { Value = Guid.NewGuid() }), "258", "original-provider-update-protection");
+            Require(recorder.Sql.Count == before, "guard-rejected-before-command");
+            Require(context.Query<GuidRow>().Where(row => row.Value == null).Count() == 3, "guard-left-null-rows-unchanged");
+        }
+        else
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int round = 0; round < 2; round++)
+            {
+                var projected = context.Query<GuidRow>().OrderBy(row => row.Id).Select(row => new { row.Id, First = Guid.NewGuid(), Second = Guid.NewGuid() }).ToList();
+                recorder.RequireServerCalls(2);
+                Require(projected.Count == 4, "orm-projection-row-count");
+                var values = Distinct(projected.SelectMany(row => new object[] { row.First.ToString("D"), row.Second.ToString("D") }), "orm-projection/" + round);
+                Require(values.All(seen.Add), "query-reexecution-not-folded");
+            }
+            var asynchronous = await context.Query<GuidRow>().Select(row => Guid.NewGuid()).ToListAsync();
+            recorder.RequireServerCalls(1);
+            Require(Distinct(asynchronous.Select(value => (object)value.ToString("D")), "async-query").All(seen.Add), "async-distinct-from-sync");
+            Require(context.Query<GuidRow>().Where(row => row.Id < 0).Select(row => Guid.NewGuid()).ToList().Count == 0, "empty-guid-projection");
+            recorder.RequireServerCalls(1);
+            var coalesced = context.Query<GuidRow>().OrderBy(row => row.Id).Select(row => row.Value ?? Guid.NewGuid()).ToList();
+            recorder.RequireServerCalls(1);
+            Require(coalesced.Count == 4 && coalesced[1] == supplied, "coalesce-keeps-non-null");
+            Distinct(coalesced.Select(value => (object)value.ToString("D")), "coalesce-generated-guids");
+
+            string[] discarded;
+            context.Session.BeginTransaction();
+            try
+            {
+                Require(context.Update<GuidRow>(row => row.Value == null, row => new GuidRow { Value = Guid.NewGuid(), Other = Guid.NewGuid() }) == 3, "rollback-update-count");
+                recorder.RequireServerCalls(2);
+                var pending = context.Query<GuidRow>().Where(row => row.Id != 2).ToList();
+                discarded = Distinct(pending.SelectMany(row => new object[] { row.Value!.Value.ToString("D"), row.Other!.Value.ToString("D") }), "rollback-update-per-row-per-column");
+            }
+            finally { context.Session.RollbackTransaction(); }
+            Require(context.Query<GuidRow>().Where(row => row.Value == null && row.Other == null).Count() == 3, "rollback-restores-null");
+            Require(context.Query<GuidRow>().Where(row => row.Id == 2).First().Value == supplied, "rollback-preserves-existing");
+            context.Session.BeginTransaction();
+            try
+            {
+                Require(context.Update<GuidRow>(row => row.Value == null, row => new GuidRow { Value = Guid.NewGuid() }) == 3, "commit-update-count");
+                recorder.RequireServerCalls(1);
+                var committed = Distinct(context.Query<GuidRow>().Where(row => row.Id != 2).ToList().Select(row => (object)row.Value!.Value.ToString("D")), "commit-update-guids");
+                Require(!committed.Intersect(discarded).Any(), "commit-does-not-reuse-rolled-back-values");
+                context.Session.CommitTransaction();
+            }
+            catch { if (context.Session.IsInTransaction) context.Session.RollbackTransaction(); throw; }
+            Require(await context.UpdateAsync<GuidRow>(row => row.Id > 0, row => new GuidRow { Other = Guid.NewGuid() }) == 4, "async-batch-update-count");
+            recorder.RequireServerCalls(1);
+            Distinct(context.Query<GuidRow>().ToList().Select(row => (object)row.Other!.Value.ToString("D")), "async-batch-update-guids");
+
+            // Chloe 没有新增专属 UPDATE RETURNING API；使用现有真实 Session reader 验证原生返回合同。
+            var returned = new Dictionary<long, string>();
+            using (var reader = context.Session.ExecuteReader("UPDATE GuidRows SET Other=uuid() WHERE Id>0 RETURNING Id,Other"))
+            {
+                while (reader.Read()) returned.Add(Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture), GuidText(reader.GetValue(1)));
+            }
+            recorder.RequireServerCalls(1);
+            Require(returned.Count == 4, "session-returning-count");
+            Distinct(returned.Values.Cast<object>(), "session-returning-distinct");
+            var stored = context.Query<GuidRow>().OrderBy(row => row.Id).ToList();
+            Require(stored.All(row => row.Other!.Value.ToString("D") == returned[row.Id]), "session-returning-matches-orm-guid-converter");
+            Require(stored.Single(row => row.Id == 2).Value == supplied, "batch-update-null-predicate-preserves-client-control");
+            File.WriteAllLines(state, stored.Select(Row), new System.Text.UTF8Encoding(false));
+        }
+    }
+    Console.WriteLine($"COMPLETE|chloe|{transport}|{phase}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+static string Row(GuidRow row) => $"{row.Id}|{row.Value:D}|{row.Other:D}";
+
+/// <summary>原生 STRING 与 Chloe Guid 转换器的实际实体映射。</summary>
+[Table("GuidRows")]
+public class GuidRow
+{
+    /// <summary>手工分配的主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement]
+    public long Id { get; set; }
+    /// <summary>允许 NULL 的 UUID 字符串映射。</summary>
+    public Guid? Value { get; set; }
+    /// <summary>用于独立函数调用及 RETURNING 的第二列。</summary>
+    public Guid? Other { get; set; }
+}
+
+internal sealed class Commands : IDbCommandInterceptor
+{
+    internal List<(string Text, object?[] Values)> Sql { get; } = [];
+    private void Capture(IDbCommand command)
+    {
+        var values = command.Parameters.Cast<IDataParameter>().Select(p => p.Value).ToArray();
+        Sql.Add((command.CommandText, values));
+        Console.WriteLine("EXECUTED-SQL|" + command.CommandText + "|parameters=" + string.Join(';', values.Select(v => v?.GetType().Name + ":" + Convert.ToString(v, CultureInfo.InvariantCulture))));
+    }
+    internal void RequireServerCalls(int occurrences)
+    {
+        var command = Sql[^1];
+        Require(Regex.Matches(command.Text, @"\buuid\s*\(\s*\)", RegexOptions.IgnoreCase).Count == occurrences, "actual-sql-uuid-occurrences/" + occurrences);
+        Require(!command.Values.Any(v => v is Guid || v is string text && Guid.TryParse(text, out _)), "no-client-guid-parameter");
+    }
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Capture(command);
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Capture(command);
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Capture(command);
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}

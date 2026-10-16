@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #258：补齐既有 uuid() 的公开包逐行/每表达式位置、RETURNING、事务和独立重开验收，以及 Chloe Guid.NewGuid 单行翻译候选的真实三协议证据；正式发行及上游交付条件继续保留。
+
 - Streaming 死信恢复测试补齐检查点自身超时先于锁重试结束的既有分支，继续严格核验异常内部信息、恢复拒绝与原spool保留，不修改生产超时合同。
 
 - GH-Issue #262：日期标量回归按已交付合同显式检查 DATE_ADD 的原生 DateTime 类型、UTC Kind 与加日结果，替换旧隐式 DateTimeOffset 期望；保留原 CI 失败证据。

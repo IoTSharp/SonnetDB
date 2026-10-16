@@ -5,13 +5,13 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 最新监督检查点（2026-10-16，#259 主树验收）
+## 最新监督检查点（2026-10-16，#258 集成与本批待推送）
 
-- 本地已独立提交261=b157dddc、262日期旧断言=0a51102c、Streaming测试超时分支=bf59710e、260=f8bce983，均通过最终完整restore/原Format门禁，尚未推送。远端main仍cfa92314，CI38827086358已completed/failure：Format、三平台AOT和Windows rest成功，Ubuntu及Windows Core均因旧日期断言7194/7195失败；原run不改写为成功。
-- #259冻结18文件已按SHA集成，根核163证据资产及六份TRX；两个Release构建零警告/错误，Core83/83、真实Server129/129，零失败/跳过。新增精确Decimal承载的bit_and_uint64/bit_or_uint64，完整UInt64范围不经过浮点或Int64；裸UInt64大于Int64的ADO参数限制单列保留。最终完整门禁在issue259/final，实际通过后才独立提交，正式发行/Chloe正式交付未完成继续OPEN。
-- #258冻结14文档/工具已核69证据、28DLL、14执行源码副本，尚未集成。下一步258独立完整门禁提交，与261/260/259和两项测试修正正常批次push，回读远端SHA、CI及Issue实际回复状态。旧完整Core7198/7199仍保留，不能用后续定向PASS替代新的完整CI。
-- 三代理各一项：issue314→256（Core SQL3032/3032，明确排除已由根修正的日期旧断言，远程126/126及XCode六进程各301检查，整理冻结中）；issue312→255（真实DbPackage.Sync发现SQLite数值NULL在XCode源读取阶段变0，按每调用内部入口修候选并补多页/异常/双向验证，不改共享Sonnet生产）；issue313→254（公开旧包CONCAT元数据13/14失败保留，源码三协议14/14及Chloe候选48/48，整理冻结中）。256独占共享RSE，生产按冻结基线串行交接。
-- #226/#243恢复补缺已提交推送，GitHub两项实际OPEN，原要求的正式发行和消费者证据仍缺；不重复派单。监督继续ACTIVE，所有旧树、失败证据及parity-results保留。
+- #259已通过最终完整restore/Format（issue259/final-corrected-docs）独立提交5d7bf064；主树已提交261=b157dddc、260=f8bce983及日期/Streaming两个测试修正。远端仍cfa92314，其CI38827086358已failure，唯一Core旧日期断言已由0a51102c修正；等待本批正常push后新CI，不改写原run。
+- #258冻结14文档/工具已按SHA集成，另为原始补丁增加局部gitattributes保留字节。根已核69证据、28DLL、14执行源码副本及PS语法；公开预览原生8正向进程，原Chloe3个guard负向、最小候选6正向进程分别成立。无新生产源码，不重做uuid；完整门禁issue258/final实际通过后独立提交，再与261/260/259及两个测试修正批次推送。上述四Issue正式发行/消费者上游交付未完成，回复进展后保持OPEN。
+- #256已冻结30文件（19生产/2测试/9文档工具），根已审读所有生产差异；Core3032/3032（排除旧日期断言）、远程126/126、XCode六进程各301断言。PaginationSpec属性Int32→Int64有ABI变化，保留旧构造器仍需已编译AST消费者重编译，集成时明确记录。#254已冻结文档/候选，源码无重复实现；公开embedded13/14中的CONCAT元数据旧包失败与源码补验14/14单列，Chloe候选48/48。
+- 空槽已复用：issue313→#253，D:/source/SonnetDB-worktrees/issue253-keyless-chloe；issue314→#252，issue252-timespan，均f8bce983基线。253核#243既有无主键DML及Chloe真实消费，不重做引擎；252先审计TimeSpan合同/格式与AOT边界，等根按259/256最终基线交接共享文件。issue312继续255，NULL源读取候选matrix08通过，matrix09补多页、逐列NULL和普通SQLite控制。
+- 下一步正常push当前批、回读SHA/CI/逐Issue评论，再串行集成256/255/254。三代理上限、独立提交及完整门禁不变；#226/#243已交付恢复补缺不重做，正式发行/消费者仍跟踪。监督ACTIVE，旧树/失败证据/parity-results保留。
 
 ## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。
