@@ -1,0 +1,214 @@
+{
+  "issue": 255,
+  "utc": "2026-10-16T01:03:28.8817241Z",
+  "state": "OPEN",
+  "worktree": "D:\\source\\SonnetDB-worktrees\\issue255-keyless-xcode",
+  "branch": "codex/issue255-keyless-xcode",
+  "sourceCommit": "b157dddc2886127e2deddb22a75555a3883e687d",
+  "sonnetProductionChanges": 0,
+  "formalPublicationComplete": false,
+  "upstreamXCodeDeliveryComplete": false,
+  "evidenceRoot": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work",
+  "trackedSourceAndBuildFiles": 1052,
+  "frozenServerAndClientFiles": 107,
+  "publicPackages": [
+    {
+      "id": "sonnetdb",
+      "version": "4.0.0",
+      "source": "https://api.nuget.org/v3/index.json",
+      "sourceCommit": "d49babae0e049ca4554d26772b92493220d42822",
+      "sha256": "6343C5740BA26CE95AAD8AAE8F897B79D7199FC2D26A67E9102F08F625BE0C33"
+    },
+    {
+      "id": "sonnetdb",
+      "version": "4.5.0-preview.ef266.5",
+      "source": "https://api.nuget.org/v3/index.json",
+      "sourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4"
+    },
+    {
+      "id": "sonnetdb.core",
+      "version": "4.0.0",
+      "source": "https://api.nuget.org/v3/index.json",
+      "sourceCommit": "d49babae0e049ca4554d26772b92493220d42822",
+      "sha256": "956EA0E4D6BBA06F0DB04166913D55ECC5DFB84777A0B4A18B884B440D4D61AA"
+    },
+    {
+      "id": "sonnetdb.core",
+      "version": "4.5.0-preview.ef266.5",
+      "source": "https://api.nuget.org/v3/index.json",
+      "sourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268"
+    }
+  ],
+  "xcode": {
+    "commit": "757fa2a078906f87783e55fe0e9d5f54a9e916b9",
+    "upstreamState": "OPEN",
+    "draft": true,
+    "target": "netstandard2.1",
+    "existingWarnings": 105,
+    "consumerTarget": "net10.0",
+    "newCandidateFiles": [
+      "XCode/DataAccessLayer/Common/DbSession.cs",
+      "XCode/DataAccessLayer/DAL_DbOperate.cs",
+      "XCode/DataAccessLayer/DbPackage.cs"
+    ],
+    "newPatchSha256": "AB25A97F825087F0285713DA271E8411478759CA41EC88E17FE43D50779D1CF9",
+    "dependency261PatchSha256": "555B3BF314C6558C0955ECEDAB96C712EA2952A529D6A773C60AE9489FC736AE",
+    "newLifeCoreVersion": "11.19.2026.901",
+    "newLifeCoreSource": "2c5e6afdf0d4c64325d5eb40f699cd4a323206e3",
+    "fixedUpstreamDbTableSourceSha256": "E4618281C1B968FC1162769CE226E7E0120722A625248A8DB212EB9C4AE84E86"
+  },
+  "results": {
+    "publicNegativeProcesses": 4,
+    "publicReceiptWholeRunFailedAfterNegatives": true,
+    "corePositiveProcesses": 2,
+    "adoPositiveProcesses": 6,
+    "xcodePositiveProcesses": 6,
+    "originalXmlBaselineProcesses": 1,
+    "sourcePositiveTotal": 14,
+    "newXunitTests": 0,
+    "verifiedFiles": 2582,
+    "modelXmlFiles": 22,
+    "candidateSources": [
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work\\matrix-11-callback-final\\xcode-source\\XCode\\DataAccessLayer\\Common\\DbSession.cs",
+        "sha256": "D137E0ECEA2D67768F3D8180420CCD3BAF1D17CE6D35BEED7AB61B55429392B7"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work\\matrix-11-callback-final\\xcode-source\\XCode\\DataAccessLayer\\DAL_DbOperate.cs",
+        "sha256": "F0A850061866F5EAFA63DD520B32FEC8E25F5B103C2867324E542D513D888E75"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work\\matrix-11-callback-final\\xcode-source\\XCode\\DataAccessLayer\\DbPackage.cs",
+        "sha256": "A3665F866DD46AF536EF2ED33B9E64055C950E4553D50726FDFDBC021D8A7AA6"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work\\matrix-11-callback-final\\xcode-source\\XCode\\DataAccessLayer\\Database\\SonnetDB.cs",
+        "sha256": "E56FA78C2A06D434A79719551EF644F6955370E328BCDD5954D67AB27D27CE8D"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue255-work\\matrix-11-callback-final\\xcode-source\\XCode\\DataAccessLayer\\Model\\ModelHelper.cs",
+        "sha256": "72E72C254040A7569D7CA83F744328FE8BBE8D627A06134075036EBE963574B4"
+      }
+    ],
+    "realTransport": [
+      {
+        "round": 1,
+        "http1Requests": 108,
+        "http2Requests": 103,
+        "http2FramePost": 40
+      },
+      {
+        "round": 2,
+        "http1Requests": 20,
+        "http2Requests": 19,
+        "http2FramePost": 15
+      }
+    ],
+    "callbackControls": {
+      "protocols": [
+        "embedded",
+        "rest",
+        "frame-http2"
+      ],
+      "calls": 1,
+      "selectedDal": "SqliteAlternate",
+      "rowStart": 1,
+      "rowEnd": 5,
+      "totalCountStart": 41,
+      "totalCountEnd": 41,
+      "pageRows": [
+        2,
+        1
+      ],
+      "defaultForward": "callback returns null, original GetExtracter fallback",
+      "defaultBackward": "constructor GetExtracter delegate",
+      "defaultPageSize": "Db.BatchSize=2",
+      "defaultOnPageRow": 0
+    }
+  },
+  "failureHistory": [
+    {
+      "run": "matrix-01",
+      "reason": "Probe matched issue paraphrase rather than actual rejection text."
+    },
+    {
+      "run": "matrix-02",
+      "reason": "Probe nullable override and incorrect metadata API did not compile."
+    },
+    {
+      "run": "matrix-03",
+      "reason": "Probe attempted inaccessible DbMetaData; corrected to public IMetaData.GetSchemaSQL."
+    },
+    {
+      "run": "matrix-04",
+      "reason": "Source DLL consumer lacked declared dependency System.IO.Hashing."
+    },
+    {
+      "run": "matrix-05",
+      "reason": "All four public negative processes passed; source original probe incorrectly assumed simple-table metadata rejection."
+    },
+    {
+      "run": "matrix-06",
+      "reason": "Weak assertions missed numeric NULL to zero in actual migration SQL; not accepted as full migration pass."
+    },
+    {
+      "run": "matrix-07-strong-baseline",
+      "reason": "Real original reader conversion caused forward-preserves-numeric-null failure; exact layers captured."
+    },
+    {
+      "run": "matrix-08-null-candidate",
+      "reason": "Candidate passed; superseded by stronger final controls, no count accumulation."
+    },
+    {
+      "run": "matrix-09-final",
+      "reason": "Previous PASS did not cover actual default pagination: it used custom callbacks. Review found external standard PagingExtracter was rebound to outer Dal and TotalCount changed. Preserved as incomplete evidence, not final default-path acceptance."
+    },
+    {
+      "run": "matrix-10-callback-baseline",
+      "reason": "Old patch with strengthened real alternate-DAL control failed custom-paging-uses-alternate-dal; actual SQL migrated outer-source marker rows."
+    }
+  ],
+  "receipts": [
+    {
+      "path": "source-01/source-manifest.json",
+      "sha256": "B8A72538DB36E8C8092AA73233C695AB8DDA9FFCC40D315B9D0CCE2D1833F255"
+    },
+    {
+      "path": "matrix-05/receipt.json",
+      "sha256": "0AD9CD8D80DFA0C5DCBBA3AD2B08DD23E1879DDB86A27669D1225A6F8DC2FB8E"
+    },
+    {
+      "path": "matrix-07-strong-baseline/receipt.json",
+      "sha256": "B19FFA7B00AF44AF7ECA2F8933CA8E50E8661D1E448FC2D28EE5DF76C930B03D"
+    },
+    {
+      "path": "matrix-09-final/receipt.json",
+      "sha256": "41E8A9CEC9AA1248EB1B153616F9CBE758DBE922AFC8E1D35203451FEAADD109"
+    },
+    {
+      "path": "matrix-10-callback-baseline/receipt.json",
+      "sha256": "1B5B182E3EEBDFB4289BB54EF18A99FC0AEE15779DF0D5AE68560C6AFF1BC5F7"
+    },
+    {
+      "path": "matrix-11-callback-final/receipt.json",
+      "sha256": "428584C4379D78462E726AEEB1176D5211EB797C1E06B51E767BBEEB64EEBC88"
+    },
+    {
+      "path": "integrity-callback-final.json",
+      "sha256": "61963867A357BC5C480F6F12FAEC40066FDB41374D8312642B91BFBF39F61E6E"
+    },
+    {
+      "path": "delivery-final.json",
+      "sha256": "90EDB0934EA77EEEA60E59144CDC8A62B2D24FC7513CD2A5F579255840BBC5A0"
+    }
+  ],
+  "limitations": [
+    "No formal stable release or upstream PR update.",
+    "No claim for PostgreSQL, keyed/time/custom extractors or backup binary serialization.",
+    "Native AOT publish, full suites, performance and long-duration testing not run.",
+    "Ordinary non-Sonnet DbTable conversion and non-Sonnet migrations retain previous behavior.",
+    "Parent must integrate HANDOFF/CHANGELOG and run final full restore and Format Check before commit."
+  ]
+}

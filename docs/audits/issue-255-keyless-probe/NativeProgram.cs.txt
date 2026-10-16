@@ -1,0 +1,133 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using SonnetDB.Data;
+using SonnetDB.Engine;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Execution;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 3) return 2;
+string phase = args[0];
+try
+{
+    foreach (string name in new[] { "SonnetDB.Data", "SonnetDB.Core" })
+    {
+        var assembly = Assembly.Load(name);
+        Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{assembly.Location}");
+    }
+    if (phase.StartsWith("core-", StringComparison.Ordinal))
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = args[1] });
+        if (phase == "core-initial")
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE logs(Name STRING NULL, Score INT NULL)");
+            SqlExecutor.Execute(db, "INSERT INTO logs(Name,Score) VALUES('same',1),('same',1),(NULL,NULL)");
+            var table = db.Tables.Open("logs");
+            var ids = table.Scan().Select(r => Convert.ToHexString(r.PrimaryKey.Span)).Order().ToArray();
+            Require(ids.Length == 3 && ids.Distinct().Count() == 3, "core-distinct-internal-identities");
+            SqlExecutor.Execute(db, "UPDATE logs SET Score=2 WHERE Name='same'");
+            Require(ids.SequenceEqual(table.Scan().Select(r => Convert.ToHexString(r.PrimaryKey.Span)).Order()), "core-update-preserves-identities");
+            File.WriteAllLines(args[1] + ".identities", ids);
+        }
+        var reopened = db.Tables.Open("logs");
+        Require(reopened.Schema.PrimaryKey.Count == 0 && reopened.Schema.Columns.Count == 2, "core-no-visible-key");
+        Require(File.ReadAllLines(args[1] + ".identities").SequenceEqual(reopened.Scan().Select(r => Convert.ToHexString(r.PrimaryKey.Span)).Order()), "core-durable-identities");
+    }
+    else
+    {
+        using var connection = new SndbConnection(args[1]);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        int Change(string sql, params (string Name, object? Value)[] parameters)
+        {
+            command.CommandText = sql;
+            command.Parameters.Clear();
+            foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Name, parameter.Value ?? DBNull.Value);
+            Console.WriteLine("SQL|" + sql + "|" + string.Join(";", parameters.Select(p => p.Name + "=" + (p.Value ?? "NULL"))));
+            return command.ExecuteNonQuery();
+        }
+        long Scalar(string sql)
+        {
+            command.CommandText = sql;
+            command.Parameters.Clear();
+            return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+        }
+        if (phase == "negative")
+        {
+            Change("CREATE TABLE events (name STRING)");
+            try { Change("INSERT INTO events(name) VALUES(@name)", ("@name", "first")); throw new InvalidOperationException("Public rejection was not reproduced."); }
+            catch (Exception error) when (error.ToString().Contains("无主键空表", StringComparison.Ordinal) && error.ToString().Contains("PRIMARY KEY", StringComparison.Ordinal)) { Console.WriteLine("EXPECTED-REJECTION|" + error); }
+            Require(Scalar("SELECT COUNT(*) FROM events") == 0, "public-rejection-empty-table");
+        }
+        else
+        {
+            if (phase == "initial")
+            {
+                Change("CREATE TABLE events (name STRING)");
+                Require(Change("INSERT INTO events(name) VALUES(@name)", ("@name", "first")) == 1, "original-single-insert");
+                Change("CREATE TABLE logs(Name STRING NULL, Score INT NULL, CHECK(Score>=0))");
+                Change("CREATE INDEX ix_logs_score ON logs(Score)");
+                Require(Change("INSERT INTO logs(Name,Score) VALUES(@name,@score),(@name,@score),(NULL,NULL)", ("@name", "same"), ("@score", 1L)) == 3, "parameterized-duplicates-null");
+                using (var tx = connection.BeginTransaction())
+                {
+                    command.Transaction = tx;
+                    Require(Change("INSERT INTO logs(Name,Score) VALUES('same',1),('same',1)") == 2, "tx-insert");
+                    Require(Change("UPDATE logs SET Score=3 WHERE Name='same'") == 4, "tx-update");
+                    Require(Change("DELETE FROM logs WHERE Score=3 LIMIT 1") == 1, "tx-delete");
+                    Require(Scalar("SELECT COUNT(*) FROM logs WHERE Score=3") == 3, "tx-overlay");
+                    tx.Rollback();
+                }
+                command.Transaction = null;
+                Require(Scalar("SELECT COUNT(*) FROM logs WHERE Score=1") == 2, "rollback-restores-duplicates");
+                foreach (string sql in new[] { "INSERT INTO logs(Name,Score) VALUES('valid',2),('invalid',-1)", "UPDATE logs SET Score=-1 WHERE Name='same'" })
+                {
+                    bool failed = false;
+                    try { Change(sql); } catch (Exception error) { failed = true; Console.WriteLine("EXPECTED-CONSTRAINT|" + error.Message); }
+                    Require(failed && Scalar("SELECT COUNT(*) FROM logs") == 3 && Scalar("SELECT COUNT(*) FROM logs WHERE Score=1") == 2, "constraint-atomicity");
+                }
+                Require(Change("UPDATE logs SET Score=@score WHERE Name=@name", ("@score", 3L), ("@name", "same")) == 2, "update-duplicate-count");
+                Require(Change("DELETE FROM logs WHERE Score=3 LIMIT @maximum", ("@maximum", 0L)) == 0, "delete-zero");
+                Require(Change("DELETE FROM logs WHERE Score=3 LIMIT @maximum", ("@maximum", 1L)) == 1, "delete-one-duplicate");
+                Require(Change("DELETE FROM logs WHERE Name IS NULL") == 1, "delete-null");
+                using (var tx = connection.BeginTransaction())
+                {
+                    command.Transaction = tx;
+                    Require(Change("INSERT INTO logs(Name,Score) VALUES('committed',4),('committed',4)") == 2, "commit-insert");
+                    Require(Change("DELETE FROM logs WHERE Name='committed' LIMIT 1") == 1, "commit-delete");
+                    tx.Commit();
+                }
+                command.Transaction = null;
+                Change("CREATE TABLE parents(Code INT,PRIMARY KEY(Code))");
+                Change("INSERT INTO parents(Code) VALUES(1)");
+                Change("CREATE TABLE children(Code INT NULL,ParentCode INT NULL,FOREIGN KEY(ParentCode) REFERENCES parents(Code))");
+                Change("CREATE UNIQUE INDEX uq_children_code ON children(Code)");
+                Require(Change("INSERT INTO children(Code,ParentCode) VALUES(1,1),(NULL,1),(NULL,1)") == 3, "unique-null-duplicates");
+                foreach (string sql in new[] { "INSERT INTO children(Code,ParentCode) VALUES(2,1),(2,1)", "INSERT INTO children(Code,ParentCode) VALUES(2,1),(3,99)", "DELETE FROM parents WHERE Code=1" })
+                {
+                    bool failed = false;
+                    try { Change(sql); } catch (Exception error) { failed = true; Console.WriteLine("EXPECTED-CONSTRAINT|" + error.Message); }
+                    Require(failed && Scalar("SELECT COUNT(*) FROM children") == 3, "unique-fk-atomicity");
+                }
+            }
+            Require(Scalar("SELECT COUNT(*) FROM events") == 1, "original-reopen");
+            Require(Scalar("SELECT COUNT(*) FROM logs") == 2 && Scalar("SELECT COUNT(*) FROM logs WHERE Score=3") == 1 && Scalar("SELECT COUNT(*) FROM logs WHERE Score=4") == 1, "durable-final-rows");
+            Require(Scalar("SELECT COUNT(*) FROM children") == 3, "durable-constraints");
+            DataTable columns = connection.GetSchema("Columns", [null,null,"logs",null]);
+            Require(columns.Rows.Count == 2 && columns.Rows.Cast<DataRow>().All(r => !(bool)r["IS_PRIMARY_KEY"]), "metadata-no-synthetic-key");
+            command.CommandText = "SELECT * FROM logs LIMIT 0";
+            using var reader = command.ExecuteReader();
+            Require(reader.FieldCount == 2 && reader.GetName(0) == "Name" && reader.GetName(1) == "Score", "reader-no-hidden-column");
+        }
+    }
+    Console.WriteLine($"COMPLETE|native|{args[2]}|{phase}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+static void Require(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException(label);
+    Console.WriteLine("PASS|" + label);
+}

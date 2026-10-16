@@ -1,0 +1,130 @@
+diff --git a/XCode/DataAccessLayer/Common/DbSession.cs b/XCode/DataAccessLayer/Common/DbSession.cs
+index 0dfc5c1..4c1c63d 100644
+--- a/XCode/DataAccessLayer/Common/DbSession.cs
++++ b/XCode/DataAccessLayer/Common/DbSession.cs
+@@ -393,11 +393,40 @@ internal abstract partial class DbSession : DisposeBase, IDbSession, IAsyncDbSes
+ 
+     protected virtual DbTable OnFill(DbDataReader dr)
+     {
++        if (Database.Type == DatabaseType.SonnetDB) return ReadPreservingDbNull(dr);
+         var dt = new DbTable();
+         dt.Read(dr);
+         return dt;
+     }
+ 
++    // 迁移按本次查询选择 NULL 保留，不在共享会话上设置可变模式。
++    internal DbTable QueryPreservingDbNull(SelectBuilder builder)
++    {
++        using var cmd = OnCreateCommand(builder.ToString(), CommandType.Text, builder.Parameters.ToArray());
++        return Execute(cmd, true, command =>
++        {
++            using var reader = command.ExecuteReader();
++            return ReadPreservingDbNull(reader);
++        });
++    }
++
++    private static DbTable ReadPreservingDbNull(DbDataReader reader)
++    {
++        var table = new DbTable();
++        table.ReadHeader(reader);
++        while (reader.Read()) table.Rows.Add(ReadNullableRow(reader));
++        table.Total = table.Rows.Count;
++        return table;
++    }
++
++    private static Object?[] ReadNullableRow(DbDataReader reader)
++    {
++        var row = new Object?[reader.FieldCount];
++        for (var i = 0; i < row.Length; i++)
++            row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
++        return row;
++    }
++
+     private static readonly Regex reg_QueryCount = new(@"^\s*select\s+\*\s+from\s+([\w\W]+)\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+     /// <summary>执行SQL查询，返回总记录数</summary>
+     /// <param name="sql">SQL语句</param>
+@@ -588,6 +617,13 @@ internal abstract partial class DbSession : DisposeBase, IDbSession, IAsyncDbSes
+         {
+             using var dr = await cmd2.ExecuteReaderAsync().ConfigureAwait(false);
+             var dt = new DbTable();
++            if (Database.Type == DatabaseType.SonnetDB)
++            {
++                dt.ReadHeader(dr);
++                while (await dr.ReadAsync().ConfigureAwait(false)) dt.Rows.Add(ReadNullableRow(dr));
++                dt.Total = dt.Rows.Count;
++                return dt;
++            }
+             await dt.ReadAsync(dr).ConfigureAwait(false);
+             return dt;
+         });
+diff --git a/XCode/DataAccessLayer/DAL_DbOperate.cs b/XCode/DataAccessLayer/DAL_DbOperate.cs
+index 336e61d..4a00218 100644
+--- a/XCode/DataAccessLayer/DAL_DbOperate.cs
++++ b/XCode/DataAccessLayer/DAL_DbOperate.cs
+@@ -77,6 +77,13 @@ partial class DAL
+         return QueryWrap(builder, "", "", (ss, sb, k2, k3) => ss.Query(sb), nameof(Query));
+     }
+ 
++    // 单独的查询入口与缓存操作名，避免迁移取得普通 DbTable 查询的默认值结果。
++    internal DbTable QueryPreservingDbNull(SelectBuilder builder, Int64 startRowIndex, Int64 maximumRows)
++    {
++        builder = PageSplit(builder, startRowIndex, maximumRows);
++        return QueryWrap(builder, "", "", (ss, sb, k2, k3) => ((DbSession)ss).QueryPreservingDbNull(sb), nameof(QueryPreservingDbNull));
++    }
++
+     /// <summary>执行SQL查询，返回记录集</summary>
+     /// <param name="sql">SQL语句</param>
+     /// <param name="ps">命令参数</param>
+diff --git a/XCode/DataAccessLayer/DbPackage.cs b/XCode/DataAccessLayer/DbPackage.cs
+index 3b3ffe2..0271b0f 100644
+--- a/XCode/DataAccessLayer/DbPackage.cs
++++ b/XCode/DataAccessLayer/DbPackage.cs
+@@ -1,4 +1,4 @@
+-﻿using System.Diagnostics;
++using System.Diagnostics;
+ using System.IO.Compression;
+ using System.Text;
+ using System.Threading;
+@@ -568,7 +568,32 @@ public class DbPackage
+         writeDb.TracerParent = span;
+         writeDb.Start(cancellationToken);
+ 
+-        var extracer = CreateExtracterCallback?.Invoke(table) ?? GetExtracter(table);
++        var createExtracter = CreateExtracterCallback;
++        var callbackExtracter = createExtracter?.Invoke(table);
++        var extracer = callbackExtracter ?? GetExtracter(table);
++        var hasCustomExtracter = callbackExtracter != null && createExtracter != GetExtracter;
++
++        // 构造函数设置的 GetExtracter 委托仍属默认路径，外部回调的非空结果始终执行自己的 Fetch。
++        IEnumerable<DbTable> FetchPages()
++        {
++            if (hasCustomExtracter || extracer.GetType() != typeof(PagingExtracter) ||
++                (((PagingExtracter)extracer).Dal.DbType != DatabaseType.SonnetDB && dal.DbType != DatabaseType.SonnetDB))
++            {
++                foreach (var page in extracer.Fetch()) yield return page;
++                yield break;
++            }
++
++            var paging = (PagingExtracter)extracer;
++            while (true)
++            {
++                var page = paging.Dal.QueryPreservingDbNull(paging.Builder, paging.Row, paging.BatchSize);
++                var count = page.Rows.Count;
++                if (count == 0) yield break;
++                yield return page;
++                paging.Row += paging.BatchSize;
++                if (count < paging.BatchSize) yield break;
++            }
++        }
+ 
+         // 临时关闭日志
+         var old = Dal.Db.ShowSQL;
+@@ -581,7 +606,7 @@ public class DbPackage
+             // 表结构
+             if (syncSchema) dal.SetTables(table);
+ 
+-            foreach (var dt in extracer.Fetch())
++            foreach (var dt in FetchPages())
+             {
+                 if (cancellationToken.IsCancellationRequested) break;
+ 

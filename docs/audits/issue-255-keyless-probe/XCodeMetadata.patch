@@ -1,0 +1,59 @@
+diff --git a/XCode/DataAccessLayer/Database/SonnetDB.cs b/XCode/DataAccessLayer/Database/SonnetDB.cs
+index da3b325..59d5b94 100644
+--- a/XCode/DataAccessLayer/Database/SonnetDB.cs
++++ b/XCode/DataAccessLayer/Database/SonnetDB.cs
+@@ -426,13 +426,16 @@ internal class SonnetDBMetaData : RemoteDbMetaData
+             column.ColumnName = (String)row[SchemaTableColumn.ColumnName];
+             column.DataType = (Type)row[SchemaTableColumn.DataType];
+             if (column.DataType.FullName == "System.TimeOnly") column.DataType = typeof(TimeSpan);
+-            column.RawType = GetFieldType(column) ?? throw new NotSupportedException($"SonnetDB视图{table.TableName}字段{column.ColumnName}未提供可映射的声明类型。参见SonnetDB issue #261，尚需补齐视图声明元数据并正式发布。");
++            if (column.DataType == typeof(Object) || row.IsNull(SchemaTableColumn.AllowDBNull))
++                throw new NotSupportedException($"SonnetDB视图{table.TableName}字段{column.ColumnName}缺少可映射的声明类型或可空性。参见SonnetDB issue #261；不能根据首行猜测。");
+             column.Nullable = (Boolean)row[SchemaTableColumn.AllowDBNull];
+             column.PrimaryKey = (Boolean)row[SchemaTableColumn.IsKey];
+             column.Identity = (Boolean)row[SchemaTableOptionalColumn.IsAutoIncrement];
+-            column.Length = Math.Max(0, Convert.ToInt32(row[SchemaTableColumn.ColumnSize], CultureInfo.InvariantCulture));
+-            column.Precision = Convert.ToInt32(row[SchemaTableColumn.NumericPrecision], CultureInfo.InvariantCulture);
+-            column.Scale = Convert.ToInt32(row[SchemaTableColumn.NumericScale], CultureInfo.InvariantCulture);
++            // ADO.NET 以 DBNull 表示未知长度/精度；XCode 以 0 保存未声明值，不能伪造上限。
++            column.Length = row.IsNull(SchemaTableColumn.ColumnSize) ? 0 : Math.Max(0, Convert.ToInt32(row[SchemaTableColumn.ColumnSize], CultureInfo.InvariantCulture));
++            column.Precision = row.IsNull(SchemaTableColumn.NumericPrecision) ? 0 : Convert.ToInt32(row[SchemaTableColumn.NumericPrecision], CultureInfo.InvariantCulture);
++            column.Scale = row.IsNull(SchemaTableColumn.NumericScale) ? 0 : Convert.ToInt32(row[SchemaTableColumn.NumericScale], CultureInfo.InvariantCulture);
++            column.RawType = GetFieldType(column) ?? throw new NotSupportedException($"SonnetDB视图{table.TableName}字段{column.ColumnName}未提供可映射的声明类型。参见SonnetDB issue #261。");
+             column.Fix();
+             table.Columns.Add(column);
+         }
+diff --git a/XCode/DataAccessLayer/Model/ModelHelper.cs b/XCode/DataAccessLayer/Model/ModelHelper.cs
+index edbf319..a3700b8 100644
+--- a/XCode/DataAccessLayer/Model/ModelHelper.cs
++++ b/XCode/DataAccessLayer/Model/ModelHelper.cs
+@@ -1,4 +1,4 @@
+-﻿using System.Collections;
++using System.Collections;
+ using System.Collections.Concurrent;
+ using System.Data;
+ using System.Reflection;
+@@ -673,6 +673,9 @@ public static class ModelHelper
+             //ignoreNameCase = (value3.IgnoreNameCase).ToBoolean(true);
+         }
+ 
++        // SonnetDB 的精确引用要求 XML 保留物理名称的原始拼写。
++        var preserveNameCase = value is IDataTable { DbType: DatabaseType.SonnetDB }
++            || value is IDataColumn { Table.DbType: DatabaseType.SonnetDB };
+         String? name = null;
+ 
+         // 基本类型，输出为特性
+@@ -708,11 +711,11 @@ public static class ModelHelper
+                 else if (pi.Name is "TableName" or "ColumnName")
+                 {
+                     if (name == str) continue;
+-                    if (ignoreNameCase)
++                    if (!preserveNameCase && ignoreNameCase)
+                     {
+                         if (name.EqualIgnoreCase(str)) continue;
+                     }
+-                    else
++                    else if (!preserveNameCase)
+                     {
+                         // 如果全小写或者全大写，也不缺分大小写比较
+                         if ((str == str.ToLower() || str == str.ToUpper()) && name.EqualIgnoreCase(str)) continue;

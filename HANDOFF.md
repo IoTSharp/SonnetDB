@@ -1,19 +1,19 @@
 # SonnetDB 交接记录
 
 交接日期：2026-10-16（Asia/Shanghai）<br>
-当前分支：`main`<br>
+当前分支：`codex/issue-supervision-batch05`<br>
 远端基线：`origin/main`
-项目目录：`D:\source\SonnetDB`
+项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
-## 最新监督检查点（2026-10-16，独立整合树接续）
+## 最新监督检查点（2026-10-16，#255返修验收）
 
-- 本监督当前整合树为 D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05，起点f9ee14b7。主目录D:/source/SonnetDB另有活动聊天“更新两份 LLMs 文档”编辑llms.txt，以及“分析 ELK 能力移植”的未交付docs/design/elk-single-node-capability-analysis-20261016.md；这些属于他人，本监督停止修改主目录，不暂存、不清理、不混入。后续在独立树审查/门禁/提交，等主目录工作收尾后串行整合；如主main前进，须保留其提交并重核差异/最终门禁。
-- #256已完整restore/Format后独立提交f9ee14b7aabbe7eb7a3c842319d12bcd402d3175，目前在本地main及本整合树，未推送。根两个Release构建零警告/错误、Core SQL3047/3047、真实Server135/135；公共PaginationSpec属性ABI变更及重编译要求已明确写入CHANGELOG与用户合同。#259/#256共22生产依赖已按SHA交接252，当前无新增生产修改。
-- 批次04已推送76955cf604655c2ec32f4db1cf019441d4e19577，实际评论与OPEN回读见issue-supervision-batch04-actions-20261016.json。CI38831797384最新Format成功，三平台AOT及完整测试仍进行中，不再push取消该run；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。旧cfa的CI failure保留，不用定向PASS改写。
-- #254的16份文档/工具已按SHA集成到本独立树，根核154证据、12运行二进制、3份TRX及PowerShell语法，单文件三行Chloe保护删除已审读。没有新Sonnet生产代码：公开embedded13/14唯一失败为#261旧包CONCAT声明，源码补验及远程各14/14，Chloe候选48/48；正式发行与上游交付未满足继续OPEN。本树完整门禁位于artifacts/issue-supervision-20261016/issue254/final，实际通过后独立提交；不为文档重跑已核的消费者矩阵。
-- #255根复审退回自定义PagingExtracter数据源覆盖问题，issue312当前只返修255，251准备暂停。旧matrix09真实通过但原多页探针走callback，不能称默认路径已验；新矩阵须实际默认BatchSize=2、双向NULL及callback alternate DAL控制，旧失败/清单保留。交付前不整合255。
-- issue313继续253：公开正式/预览原生各3PASS/4拒绝，源码7/7；Chloe原三协议各9PASS/11guard FAIL，候选initial20/20+独立重开5/5，每协议成立，共75/75；Core25/25，远程6项待最终收据/冻结。issue314独占252时长核心实施，DURATION全signed ticks、v14目录屏障/可恢复迁移、物化视图v3及Frame/REST v5要独立验收；251等待252共享最终基线，禁止并行改同一核心。
-- 主目录的HANDOFF暂不再修改，最新接续以本独立树的本文件为准，主main整合时保留其他聊天最新记录并合并此检查点。#226/#243已交付恢复补缺不重做，正式发行及消费者继续跟踪；30分钟监督ACTIVE，三代理上限不变，全部旧树/证据/parity-results保留。
+- 当前独立整合树 D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05；主目录另有“更新两份 LLMs 文档”和ELK分析未交付修改，本监督保持主目录只读，不混入他人文件。#256=f9ee14b7本地main已提交，#254=6749d202已在独立树提交，均未推送；等主目录收尾后保留其提交并串行整合。
+- #254首次完整restore因新树未初始化扩展子模块失败（issue254/final，保留原收据）；随后按Git锁定SHA初始化两个子模块，完整restore与规定Format在issue254/final-with-submodules均exit0才独立提交。没有降低门禁或排除solution项目。#254仅16文档/工具，真实证据与正式发行边界见报告。
+- #255修订18文件已按delivery-callback-final.json（SHA9F9A941A79BC2215494C3597DB5F21614D17FD8FE593C8FB6AF7F077AE3E3E69）集成；根实际核2582证据文件、全部回执SHA与PS语法，审读三文件XCode候选。matrix10以旧候选真实复现custom-paging-uses-alternate-dal失败；matrix11的14个源码正向进程及原XML基线1通过，覆盖真实默认双向多页typed NULL、null callback fallback、构造内建委托、外部callback alternate DAL/调用一次/Row及TotalCount原行为。matrix09不能证明默认路径，已在报告撤销该结论；旧文件/清单/失败原样保留。
+- #255不改Sonnet生产，原#243无主键写入/稳定身份复用；外部候选修NULL源读取和迁移，不新增公开API或会话可变标志。公开4.0.0/.ef266.5拒绝负基线4进程分列。正式发行与上游交付未完成，保持OPEN。本树最终完整门禁issue255/final实际通过后独立提交，不重跑已核独立消费者矩阵。
+- #253已冻结16文件，根核167证据、14运行程序集、两TRX及PS语法，Chloe两处共4行guard删除已审读。源码Core25/25、remote6/6，候选三协议主流程60场景+独立重开15场景通过；公开两版本各3PASS/4FAIL保留。下一步本树独立集成/门禁/提交，不重复引擎实现。
+- 批次04远端仍76955cf6；CI38831797384最新Ubuntu完整Build/Test、三平台AOT及Format已success，两个Windows测试分片仍in_progress。261/260/259/258评论和OPEN回读永久回执已随本地f9ee14b7保存，未推送；旧失败CI保留，暂不push取消新run。parity-results保持2ab6caa9。
+- 当前三个代理各一项：issue314→252（issue252-timespan，独占DURATION核心，已接259/256共22冻结生产依赖）；issue312完成255返修后恢复251审计/探针（issue251-datetimeoffset），等252冻结再动共享类型/协议；issue313→250（issue250-maintenance，f9ee14b7），先约束目录、索引DESC/INCLUDE、自增起点及SqlSugar原包/消费者核对，重叠核心必须串行。#226/#243已交付恢复补缺不重做，正式版本和消费者仍跟踪；监督ACTIVE，三代理上限及所有旧树/证据/parity-results不变。
 
 ## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。

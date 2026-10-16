@@ -1,0 +1,302 @@
+using System.ComponentModel;
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using Microsoft.Data.Sqlite;
+using XCode;
+using XCode.Configuration;
+using XCode.DataAccessLayer;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 4) return 2;
+string phase = args[0];
+try
+{
+    foreach (string name in new[] { "SonnetDB.Data", "SonnetDB.Core", "XCode", "Microsoft.Data.Sqlite" })
+    {
+        var assembly = Assembly.Load(name);
+        Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{assembly.Location}");
+    }
+    DAL.LocalFilter = sql => Console.WriteLine("XCODE-SQL|" + sql);
+    DAL.AddConnStr("Issue255", args[1] + ";Migration=Off", null, "SonnetDB");
+    var dal = DAL.Create("Issue255");
+    Require(dal.DbType == DatabaseType.SonnetDB, "real-xcode-provider");
+    if (phase is "negative" or "source-original")
+    {
+        dal.Execute("CREATE TABLE events(name STRING)");
+        if (phase == "negative")
+        {
+            bool rejected = false;
+            try { dal.Execute("INSERT INTO events(name) VALUES(@name)", new { name = "first" }); }
+            catch (Exception error) when (error.ToString().Contains("无主键空表", StringComparison.Ordinal) && error.ToString().Contains("PRIMARY KEY", StringComparison.Ordinal)) { rejected = true; Console.WriteLine("EXPECTED-REJECTION|" + error); }
+            Require(rejected && dal.ExecuteScalar<long>("SELECT COUNT(*) FROM events") == 0, "xcode-public-negative");
+        }
+        else
+        {
+            Require(dal.Execute("INSERT INTO events(name) VALUES(@name)", new { name = "first" }) == 1, "original-provider-source-write");
+            var model = dal.Db.CreateMetaData().GetTables().Single(t => t.TableName == "events");
+            CheckModel(model, "events", ["name"]);
+            string xml = DAL.Export([model]);
+            File.WriteAllText(Path.Combine(args[3], "original-model.xml"), xml);
+            var restored = DAL.Import(xml).Single();
+            Console.WriteLine("ORIGINAL-XML-MODEL|" + restored.TableName + "|" + string.Join(';', restored.Columns.Select(c => c.ColumnName)));
+            Require(restored.PrimaryKeys.Length == 0, "original-roundtrip-remains-keyless");
+            Require(restored.TableName != "events" || restored.Columns[0].ColumnName != "name", "original-physical-spelling-needs-261");
+        }
+    }
+    else
+    {
+        if (phase == "initial")
+        {
+            dal.Execute("CREATE TABLE events(name STRING)");
+            Require(dal.Execute("INSERT INTO events(name) VALUES(@name)", new { name = "first" }) == 1, "dal-original-single");
+            dal.Execute("CREATE TABLE BatchEvents(Message STRING(100) NULL, Score INT NULL, CHECK(Score>=0))");
+            var table = dal.Db.CreateMetaData().GetTables().Single(t => t.TableName == "BatchEvents");
+            CheckModel(table, "BatchEvents", ["Message", "Score"]);
+            Require(KeylessEvent.Meta.Table.DataTable.PrimaryKeys.Length == 0, "entity-no-synthetic-key");
+            KeylessEvent[] rows = [new() { Message = "same", Score = 1 }, new() { Message = "same", Score = 1 }, new() { Message = null, Score = null }];
+            Require(rows.BatchInsert() == 3, "entity-batchinsert-duplicates-null");
+            Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents WHERE Score IS NULL") == 1, "batchinsert-stores-numeric-null");
+            DumpValues(dal, "BatchEvents", "entity-batch");
+            Require(dal.Insert(new KeylessEvent { Message = "single", Score = 2 }, table) == 1, "dal-idatatable-insert");
+            dal.BeginTransaction();
+            Require(new[] { new KeylessEvent { Message = "same", Score = 1 }, new KeylessEvent { Message = "same", Score = 1 } }.BatchInsert() == 2, "batchinsert-transaction");
+            Require(dal.Execute("UPDATE BatchEvents SET Score=@score WHERE Message=@message", new { score = 3L, message = "same" }) == 4, "dal-tx-update-count");
+            Require(dal.Execute("DELETE FROM BatchEvents WHERE Score=3 LIMIT 1") == 1, "dal-tx-delete-count");
+            Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents WHERE Score=3") == 3, "dal-tx-read-own-writes");
+            dal.Rollback();
+            Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents") == 4 && dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents WHERE Score=1") == 2, "dal-rollback");
+            bool failed = false;
+            try { new[] { new KeylessEvent { Message = "valid", Score = 5 }, new KeylessEvent { Message = "invalid", Score = -1 } }.BatchInsert(); }
+            catch (Exception error) { failed = true; Console.WriteLine("EXPECTED-BATCH-CONSTRAINT|" + error.Message); }
+            Require(failed && dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents") == 4, "batchinsert-failure-atomicity");
+            dal.BeginTransaction();
+            Require(dal.Execute("UPDATE BatchEvents SET Score=4 WHERE Message='same'") == 2, "dal-duplicate-update");
+            Require(dal.Execute("DELETE FROM BatchEvents WHERE Message='same' LIMIT @maximum", new { maximum = 1L }) == 1, "dal-delete-one");
+            dal.Commit();
+            Require(dal.Execute("DELETE FROM BatchEvents WHERE Message IS NULL") == 1, "dal-delete-null");
+            RunMigration(dal, args[3]);
+        }
+        Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM events") == 1, "dal-original-durable");
+        Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents") == 2 && dal.ExecuteScalar<long>("SELECT COUNT(*) FROM BatchEvents WHERE Score=4") == 1, "dal-batch-durable");
+        foreach (var table in dal.Db.CreateMetaData().GetTables())
+        {
+            string[] columns = table.TableName switch { "events" => ["name"], "BatchEvents" => ["Message", "Score"], "MigratedEvents" => ["Message", "Score", "Amount", "Enabled", "Stamp"], _ => throw new InvalidOperationException("Unexpected table") };
+            CheckModel(table, table.TableName, columns);
+            string xml = DAL.Export([table]);
+            File.WriteAllText(Path.Combine(args[3], table.TableName + "-" + phase + ".xml"), xml);
+            CheckModel(DAL.Import(xml).Single(), table.TableName, columns);
+        }
+        Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents") == 3 && dal.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message='migrated'") == 2, "migrated-duplicate-durable");
+        Require(dal.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message IS NULL AND Score IS NULL AND Amount IS NULL AND Enabled IS NULL AND Stamp IS NULL") == 1, "migrated-typed-null-durable");
+        var nullableRows = dal.Query("SELECT * FROM MigratedEvents WHERE Message IS NULL");
+        Require(nullableRows.Rows.Count == 1 && nullableRows.Rows[0].All(v => v is null), "sonnet-dal-typed-null");
+        var asyncRows = dal.QueryAsync("SELECT * FROM MigratedEvents WHERE Message IS NULL").GetAwaiter().GetResult();
+        Require(asyncRows.Rows.Count == 1 && asyncRows.Rows[0].All(v => v is null), "sonnet-async-dal-typed-null");
+        VerifyMigratedValues(dal, "durable-sonnet");
+        using var sqlite = new SqliteConnection("Data Source=" + Path.Combine(args[3], "roundtrip.db"));
+        sqlite.Open();
+        using var count = sqlite.CreateCommand();
+        count.CommandText = "SELECT COUNT(*) FROM MigratedEvents";
+        Require(Convert.ToInt64(count.ExecuteScalar()) == 3, "sqlite-roundtrip-durable");
+    }
+    dal.Db.Dispose();
+    Console.WriteLine($"COMPLETE|xcode|{args[2]}|{phase}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+static void RunMigration(DAL target, string root)
+{
+    Directory.CreateDirectory(root);
+    DAL AddSqlite(string name, string file)
+    {
+        DAL.AddConnStr(name, "Data Source=" + Path.Combine(root,file) + ";Migration=Off", null, "SQLite");
+        var dal = DAL.Create(name);
+        dal.Db.Factory = SqliteFactory.Instance;
+        return dal;
+    }
+    var source = AddSqlite("SqliteSource", "source.db");
+    var alternate = AddSqlite("SqliteAlternate", "alternate.db");
+    source.Db.BatchSize = 2;
+    RunCallbackControl(source, alternate, target);
+    source.Execute("CREATE TABLE MigratedEvents(Message TEXT NULL,Score INTEGER NULL,Amount DECIMAL(18,4) NULL,Enabled BOOLEAN NULL,Stamp DATETIME NULL)");
+    source.Execute("INSERT INTO MigratedEvents(Message,Score,Amount,Enabled,Stamp) VALUES('migrated',7,12.5,1,'2026-01-02 03:04:05'),('migrated',7,12.5,1,'2026-01-02 03:04:05'),(NULL,NULL,NULL,NULL,NULL)");
+    DumpValues(source, "MigratedEvents", "sqlite-source-before-migration");
+    var original = source.Db.CreateMetaData().GetTables().Single(t => t.TableName == "MigratedEvents");
+    CheckModel(original, "MigratedEvents", ["Message", "Score", "Amount", "Enabled", "Stamp"]);
+    string xml = DAL.Export([original]);
+    File.WriteAllText(Path.Combine(root,"sqlite-source.xml"), xml);
+    var imported = DAL.Import(xml).Single();
+    CheckModel(imported, "MigratedEvents", ["Message", "Score", "Amount", "Enabled", "Stamp"]);
+    string ddl = target.Db.CreateMetaData().GetSchemaSQL(DDLSchema.CreateTable, imported) ?? throw new InvalidOperationException("Missing create SQL.");
+    Console.WriteLine("CROSSDB-DDL|SQLite->SonnetDB|" + ddl);
+    Require(!ddl.Contains("PRIMARY KEY",StringComparison.OrdinalIgnoreCase), "crossdb-no-key-ddl");
+    target.Execute(ddl);
+    var forward = new DbPackage { Dal=source, BatchInsert=true, IgnoreError=false, IgnorePageError=false };
+    forward.CreateExtracterCallback = _ => new XCode.Transform.PagingExtracter(source, "MissingSource") { BatchSize=2 };
+    bool readFailed = false;
+    try { forward.Sync(original, target.ConnName, false); }
+    catch (Exception error) { readFailed=true; Console.WriteLine("EXPECTED-MIGRATION-READ-ERROR|" + error.Message); }
+    Require(readFailed && target.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents") == 0, "migration-read-failure-no-writes");
+    DumpValues(source, "MigratedEvents", "sqlite-source-after-read-failure");
+    int fallbackCalls = 0;
+    forward.CreateExtracterCallback = _ => { fallbackCalls++; return null!; };
+    var forwardPages = new List<int>();
+    forward.OnPage += (_, page) =>
+    {
+        Require(page.Row == 0, "forward-default-total-count-unchanged");
+        forwardPages.Add(page.Page!.Rows.Count);
+        DumpPage(page.Page, target, imported, "forward-page");
+    };
+    Require(forward.Sync(original, target.ConnName, false) == 3, "real-dbpackage-sqlite-to-sonnet");
+    Require(fallbackCalls == 1 && forwardPages.SequenceEqual(new[] { 2, 1 }), "null-callback-result-default-multipage");
+    Require(target.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents") == 3, "migration-actually-written");
+    DumpValues(target, "MigratedEvents", "sonnet-after-forward");
+    Require(target.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message IS NULL AND Score IS NULL AND Amount IS NULL AND Enabled IS NULL AND Stamp IS NULL") == 1, "forward-preserves-typed-null");
+    Require(target.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Score=7 AND Amount=12.5 AND Enabled=TRUE") == 2, "forward-preserves-nonnull-values");
+    VerifyMigratedValues(target, "forward-sonnet");
+    var reverse = target.Db.CreateMetaData().GetTables().Single(t => t.TableName == "MigratedEvents");
+    CheckModel(reverse, "MigratedEvents", ["Message", "Score", "Amount", "Enabled", "Stamp"]);
+    var destination = AddSqlite("SqliteDestination", "roundtrip.db");
+    ddl = destination.Db.CreateMetaData().GetSchemaSQL(DDLSchema.CreateTable, reverse) ?? throw new InvalidOperationException("Missing reverse create SQL.");
+    Console.WriteLine("CROSSDB-DDL|SonnetDB->SQLite|" + ddl);
+    Require(!ddl.Contains("PRIMARY KEY",StringComparison.OrdinalIgnoreCase), "roundtrip-no-key-ddl");
+    destination.Execute(ddl);
+    int previousTargetBatchSize = target.Db.BatchSize;
+    target.Db.BatchSize = 2;
+    var backward = new DbPackage { Dal=target, BatchInsert=true, IgnoreError=false, IgnorePageError=false };
+    var backwardPages = new List<int>();
+    backward.OnPage += (_, page) =>
+    {
+        Require(page.Row == 0, "backward-default-total-count-unchanged");
+        backwardPages.Add(page.Page!.Rows.Count);
+        DumpPage(page.Page, destination, reverse, "backward-page");
+    };
+    Require(backward.Sync(reverse, destination.ConnName, false) == 3, "real-dbpackage-sonnet-to-sqlite");
+    Require(backwardPages.SequenceEqual(new[] { 2, 1 }), "constructor-default-multipage");
+    target.Db.BatchSize = previousTargetBatchSize;
+    Require(destination.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message='migrated'") == 2 && destination.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message IS NULL") == 1, "roundtrip-duplicate-and-null");
+    DumpValues(destination, "MigratedEvents", "sqlite-after-backward");
+    Require(destination.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Message IS NULL AND Score IS NULL AND Amount IS NULL AND Enabled IS NULL AND Stamp IS NULL") == 1, "backward-preserves-typed-null");
+    Require(destination.ExecuteScalar<long>("SELECT COUNT(*) FROM MigratedEvents WHERE Score=7 AND Amount=12.5 AND Enabled=1") == 2, "backward-preserves-nonnull-values");
+    VerifyMigratedValues(destination, "backward-sqlite");
+    CheckModel(destination.Db.CreateMetaData().GetTables().Single(t => t.TableName == "MigratedEvents"), "MigratedEvents", ["Message", "Score", "Amount", "Enabled", "Stamp"]);
+    source.Execute("CREATE TABLE LegacyControl(Message TEXT NULL,Score INTEGER NULL)");
+    source.Execute("INSERT INTO LegacyControl(Message,Score) VALUES(NULL,NULL)");
+    var control = AddSqlite("SqliteControl", "control.db");
+    control.Execute("CREATE TABLE LegacyControl(Message TEXT NULL,Score INTEGER NULL)");
+    var legacyModel = source.Db.CreateMetaData().GetTables().Single(t => t.TableName == "LegacyControl");
+    var legacyMigration = new DbPackage { Dal=source, BatchInsert=true, IgnoreError=false, IgnorePageError=false };
+    Require(legacyMigration.Sync(legacyModel, control.ConnName, false) == 1 && control.ExecuteScalar<long>("SELECT COUNT(*) FROM LegacyControl WHERE Message IS NULL AND Score=0") == 1, "non-sonnet-migration-preserves-existing-behavior");
+    var sourceAfter = source.Query("SELECT Score FROM LegacyControl");
+    Require(sourceAfter.Rows[0][0] is long value && value == 0, "ordinary-sqlite-query-preserves-existing-behavior");
+    control.Db.Dispose();
+    alternate.Db.Dispose();
+    source.Db.Dispose();
+    destination.Db.Dispose();
+}
+
+static void RunCallbackControl(DAL source, DAL alternate, DAL target)
+{
+    foreach (var pair in new[] { (Dal: source, Marker: "outer"), (Dal: alternate, Marker: "alternate") })
+    {
+        pair.Dal.Execute("CREATE TABLE CallbackEvents(Message TEXT NULL,Score INTEGER NULL)");
+        for (int score = 1; score <= 4; score++)
+            pair.Dal.Execute("INSERT INTO CallbackEvents(Message,Score) VALUES(@message,@score)", new { message = pair.Marker, score });
+    }
+    target.Execute("CREATE TABLE CallbackEvents(Message STRING NULL,Score INT NULL)");
+    var model = source.Db.CreateMetaData().GetTables().Single(t => t.TableName == "CallbackEvents");
+    var paging = new XCode.Transform.PagingExtracter(alternate, "CallbackEvents", "Score") { BatchSize = 2, Row = 1, TotalCount = 41 };
+    var migration = new DbPackage { Dal=source, BatchInsert=true, IgnoreError=false, IgnorePageError=false };
+    int callbackCalls = 0;
+    migration.CreateExtracterCallback = _ => { callbackCalls++; return paging; };
+    var pages = new List<int>();
+    var progress = new List<long>();
+    migration.OnPage += (_, page) => { pages.Add(page.Page!.Rows.Count); progress.Add(page.Row); };
+    Require(migration.Sync(model, target.ConnName, false) == 3, "custom-paging-migration-count");
+    Require(target.ExecuteScalar<long>("SELECT COUNT(*) FROM CallbackEvents WHERE Message='alternate' AND Score>=2") == 3 &&
+        target.ExecuteScalar<long>("SELECT COUNT(*) FROM CallbackEvents WHERE Message='outer' OR Score=1") == 0, "custom-paging-uses-alternate-dal");
+    Require(callbackCalls == 1 && paging.Row == 5 && paging.TotalCount == 41 &&
+        pages.SequenceEqual(new[] { 2, 1 }) && progress.SequenceEqual(new long[] { 41, 41 }), "custom-paging-original-row-total-count-contract");
+    Console.WriteLine($"CALLBACK-CONTROL|calls={callbackCalls}|source={paging.Dal.ConnName}|Row={paging.Row}|TotalCount={paging.TotalCount}|pages={string.Join(',', pages)}");
+    target.Execute("DROP TABLE CallbackEvents");
+}
+
+static void VerifyMigratedValues(DAL dal, string label)
+{
+    using var connection = dal.Db.OpenConnection();
+    using var command = connection.CreateCommand();
+    command.CommandText = "SELECT Message,Score,Amount,Enabled,Stamp FROM MigratedEvents WHERE Message='migrated'";
+    using var reader = command.ExecuteReader();
+    int count = 0;
+    while(reader.Read())
+    {
+        Require(reader.GetString(0) == "migrated" && reader.GetInt64(1) == 7 && reader.GetDecimal(2) == 12.5m && reader.GetBoolean(3) && reader.GetDateTime(4).Ticks == new DateTime(2026,1,2,3,4,5).Ticks, "exact-migrated-values-" + label);
+        count++;
+    }
+    Require(count == 2, "exact-duplicate-row-count-" + label);
+}
+
+static void DumpValues(DAL dal, string table, string label)
+{
+    string sql = "SELECT * FROM " + table + " WHERE Message IS NULL";
+    using var connection = dal.Db.OpenConnection();
+    using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    using var reader = command.ExecuteReader();
+    Require(reader.Read(), "diagnostic-null-row-" + label);
+    for(int i=0;i<reader.FieldCount;i++) Console.WriteLine($"VALUE-LAYER|{label}|ADO|{reader.GetName(i)}|declared={reader.GetFieldType(i)}|IsDBNull={reader.IsDBNull(i)}|value={reader.GetValue(i)}");
+    var data = dal.Query(sql);
+    foreach(var row in data.Rows) Console.WriteLine("VALUE-LAYER|" + label + "|DbTable|" + string.Join(';',row.Select(v => v is null or DBNull ? "NULL" : v.GetType().Name + ":" + v)));
+}
+
+static void DumpPage(NewLife.Data.DbTable page, DAL target, IDataTable model, string label)
+{
+    foreach(var row in page.Rows)
+    {
+        Console.WriteLine("VALUE-LAYER|" + label + "|OnPage|" + string.Join(';',row.Select(v => v is null or DBNull ? "NULL" : v.GetType().Name + ":" + v)));
+        for(int i=0;i<page.Columns.Length;i++)
+        {
+            var column = model.GetColumn(page.Columns[i]);
+            var parameter = target.Db.CreateParameter("p"+i, row[i], column);
+            Console.WriteLine($"VALUE-LAYER|{label}|Parameter|{page.Columns[i]}|DbType={parameter.DbType}|IsDBNull={parameter.Value is DBNull}|IsNull={parameter.Value is null}|value={parameter.Value}");
+        }
+    }
+}
+
+static void CheckModel(IDataTable table, string name, string[] columns)
+{
+    Require(table.TableName == name && table.PrimaryKeys.Length == 0 && !table.Columns.Any(c => c.Identity) && table.Columns.Select(c => c.ColumnName).SequenceEqual(columns), "model-no-business-key-" + name);
+    if (name == "MigratedEvents") Require(table.Columns.Select(c => c.DataType).SequenceEqual(new[] { typeof(string),typeof(long),typeof(decimal),typeof(bool),typeof(DateTime) }) && table.Columns.All(c => c.Nullable), "migration-model-type-and-nullability");
+    Console.WriteLine("MODEL|" + table.DbType + "|" + table.TableName + "|" + string.Join(';',table.Columns.Select(c => c.ColumnName + ":" + c.DataType.FullName + ":null=" + c.Nullable)));
+}
+
+static void Require(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException(label);
+    Console.WriteLine("PASS|" + label);
+}
+
+/// <summary>用于真实 XCode BatchInsert 的无主键实体。</summary>
+[BindTable("BatchEvents", ConnName="Issue255", DbType=DatabaseType.None)]
+public class KeylessEvent : Entity<KeylessEvent>
+{
+    private string? _message;
+    private long? _score;
+    /// <summary>可重复或为空的消息。</summary>
+    [DataObjectField(false,false,true,100)]
+    [BindColumn("Message","","")]
+    public string? Message { get => _message; set { if (OnPropertyChanging(nameof(Message),value)) { _message=value; OnPropertyChanged(nameof(Message)); } } }
+    /// <summary>可为空的数值。</summary>
+    [DataObjectField(false,false,true,0)]
+    [BindColumn("Score","","")]
+    public long? Score { get => _score; set { if (OnPropertyChanging(nameof(Score),value)) { _score=value; OnPropertyChanged(nameof(Score)); } } }
+    /// <summary>实体字段索引器。</summary>
+    public override object? this[string name]
+    {
+        get => name switch { nameof(Message) => _message!, nameof(Score) => _score!, _ => base[name] };
+        set { switch(name) { case nameof(Message): _message=value as string; break; case nameof(Score): _score=value is null or DBNull ? null : Convert.ToInt64(value,CultureInfo.InvariantCulture); break; default: base[name]=value; break; } }
+    }
+}
