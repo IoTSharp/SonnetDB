@@ -1476,7 +1476,7 @@ internal static partial class RelationalSelectExecutor
     private static int? TryGetSafeFromInputLimit(SelectStatement statement, bool hasSubquery)
     {
         if (hasSubquery
-            || statement.Pagination?.Fetch is not int fetch
+            || statement.Pagination?.Fetch is not long fetch
             || statement.OrderByList.Count != 0
             || statement.Distinct
             || statement.Where is not null
@@ -1490,7 +1490,7 @@ internal static partial class RelationalSelectExecutor
 
         try
         {
-            return checked(statement.Pagination.Offset + fetch);
+            return checked((int)(statement.Pagination.Offset + fetch));
         }
         catch (OverflowException)
         {
@@ -5784,10 +5784,10 @@ internal static partial class RelationalSelectExecutor
     {
         if (pagination is null)
             return result;
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return result with { Rows = [] };
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return result with { Rows = [] };
         return result with
@@ -5805,7 +5805,7 @@ internal static partial class RelationalSelectExecutor
         if (pagination is not null)
         {
             selected = selected.Skip(pagination.Offset);
-            if (pagination.Fetch is int fetch)
+            if (pagination.Fetch is long fetch)
                 selected = selected.Take(fetch);
         }
         var retained = new List<IReadOnlyList<object?>>();

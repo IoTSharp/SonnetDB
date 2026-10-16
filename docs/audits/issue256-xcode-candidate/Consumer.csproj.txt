@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(SonnetDBSourceRoot)/src/SonnetDB.Data/SonnetDB.Data.csproj" />
+    <Reference Include="XCode"><HintPath>$(XCodeDirectory)/XCode.dll</HintPath></Reference>
+    <PackageReference Include="NewLife.Core" Version="11.19.2026.901" />
+  </ItemGroup>
+</Project>

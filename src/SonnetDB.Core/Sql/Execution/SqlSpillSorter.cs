@@ -155,8 +155,8 @@ internal static class SqlSpillSorter
     internal static T[] OrderByThenPaginate<T>(
         IEnumerable<T> rows,
         IComparer<T> comparer,
-        int offset,
-        int? fetch,
+        long offset,
+        long? fetch,
         SqlSpillCodec<T> codec)
     {
         SqlQueryResources resources = SqlQueryResources.Current
@@ -166,13 +166,11 @@ internal static class SqlSpillSorter
         if (fetch is <= 0)
             return [];
 
-        if (fetch is int take)
+        if (fetch is long take && SqlPagination.TryGetInt32Prefix(offset, take, out int needed))
         {
-            long neededLong = (long)offset + take;
-            int needed = neededLong > int.MaxValue ? int.MaxValue : (int)neededLong;
             if (needed <= 0)
                 return [];
-            return OrderBoundedTopN(rows, comparer, offset, take, needed, codec, resources);
+            return OrderBoundedTopN(rows, comparer, (int)offset, (int)take, needed, codec, resources);
         }
 
         using var reservation = resources.CreateReservation();
@@ -820,8 +818,8 @@ internal static class SqlSpillSorter
         SqlQueryResources resources,
         IReadOnlyList<RunInfo> paths,
         IComparer<T> comparer,
-        int offset,
-        int? fetch,
+        long offset,
+        long? fetch,
         SqlSpillCodec<T> codec)
     {
         using MergeMemoryLease mergeReservation = PrepareFinalMerge(
@@ -844,14 +842,16 @@ internal static class SqlSpillSorter
                     queue.Enqueue(cursor, cursor.Current);
             }
 
-            // LIMIT 可能接近 int.MaxValue，结果数量尚未知时只做小幅预分配，避免绕过查询预算触发 OOM。
-            int capacity = fetch is { } take ? Math.Min(Math.Max(0, take), 256) : 0;
+            // LIMIT 允许 Int64.MaxValue，只按小常量预分配，实际结果继续计入预算。
+            int capacity = fetch is { } take ? SqlPagination.InitialCapacity(take) : 0;
             var result = capacity == 0 ? new List<T>() : new List<T>(capacity);
-            long index = 0;
+            long remainingSkip = offset;
             while (queue.TryDequeue(out RunCursor<T>? cursor, out StableItem<T> item))
             {
                 resources.ThrowIfCancellationRequested();
-                if (index++ >= offset)
+                if (remainingSkip > 0)
+                    remainingSkip--;
+                else
                 {
                     SqlRowRetentionBudget.Current?.Retain(codec.Encode(item.Row));
                     result.Add(item.Row);
@@ -951,8 +951,8 @@ internal static class SqlSpillSorter
     private static T[] SortAndPage<T>(
         List<StableItem<T>> items,
         IComparer<T> comparer,
-        int offset,
-        int? fetch,
+        long offset,
+        long? fetch,
         SqlQueryResources resources)
     {
         SortWithCancellation(
@@ -961,12 +961,11 @@ internal static class SqlSpillSorter
             resources);
         if (offset >= items.Count)
             return [];
-        int count = fetch is { } take
-            ? Math.Min(take, items.Count - offset)
-            : items.Count - offset;
+        int start = (int)offset;
+        int count = (int)Math.Min(fetch ?? items.Count - start, items.Count - start);
         var result = new T[count];
         for (int i = 0; i < count; i++)
-            result[i] = items[offset + i].Row;
+            result[i] = items[start + i].Row;
         return result;
     }
 

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using SonnetDB.Graphs;
 using SonnetDB.Modbus;
 using SonnetDB.Sql.Ast;
@@ -3557,7 +3557,13 @@ public sealed class SqlParser
     private SqlExpression ExpectPaginationValue(string errorMessage)
     {
         if (Current.Kind == TokenKind.IntegerLiteral)
-            return LiteralExpression.Integer(ExpectNonNegativeInt(errorMessage));
+        {
+            long value = Current.IntegerValue;
+            if (value < 0)
+                throw Error(errorMessage);
+            Advance();
+            return LiteralExpression.Integer(value);
+        }
 
         if (Current.Kind == TokenKind.Parameter)
             return ParsePrimary();

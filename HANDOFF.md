@@ -5,13 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 最新监督检查点（2026-10-16，#258 集成与本批待推送）
+## 最新监督检查点（2026-10-16，批次04已推送；#256主树验收）
 
-- #259已通过最终完整restore/Format（issue259/final-corrected-docs）独立提交5d7bf064；主树已提交261=b157dddc、260=f8bce983及日期/Streaming两个测试修正。远端仍cfa92314，其CI38827086358已failure，唯一Core旧日期断言已由0a51102c修正；等待本批正常push后新CI，不改写原run。
-- #258冻结14文档/工具已按SHA集成，另为原始补丁增加局部gitattributes保留字节。根已核69证据、28DLL、14执行源码副本及PS语法；公开预览原生8正向进程，原Chloe3个guard负向、最小候选6正向进程分别成立。无新生产源码，不重做uuid；完整门禁issue258/final实际通过后独立提交，再与261/260/259及两个测试修正批次推送。上述四Issue正式发行/消费者上游交付未完成，回复进展后保持OPEN。
-- #256已冻结30文件（19生产/2测试/9文档工具），根已审读所有生产差异；Core3032/3032（排除旧日期断言）、远程126/126、XCode六进程各301断言。PaginationSpec属性Int32→Int64有ABI变化，保留旧构造器仍需已编译AST消费者重编译，集成时明确记录。#254已冻结文档/候选，源码无重复实现；公开embedded13/14中的CONCAT元数据旧包失败与源码补验14/14单列，Chloe候选48/48。
-- 空槽已复用：issue313→#253，D:/source/SonnetDB-worktrees/issue253-keyless-chloe；issue314→#252，issue252-timespan，均f8bce983基线。253核#243既有无主键DML及Chloe真实消费，不重做引擎；252先审计TimeSpan合同/格式与AOT边界，等根按259/256最终基线交接共享文件。issue312继续255，NULL源读取候选matrix08通过，matrix09补多页、逐列NULL和普通SQLite控制。
-- 下一步正常push当前批、回读SHA/CI/逐Issue评论，再串行集成256/255/254。三代理上限、独立提交及完整门禁不变；#226/#243已交付恢复补缺不重做，正式发行/消费者仍跟踪。监督ACTIVE，旧树/失败证据/parity-results保留。
+- 批次04正常push后main已回读76955cf604655c2ec32f4db1cf019441d4e19577，parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。261=b157dddc、260=f8bce983、259=5d7bf064、258=76955cf6及日期/Streaming测试修正均已推送；每次提交前完整restore/Format实际通过。新CI38831797384进行中，旧cfa的38827086358 failure不改写。
+- 261/260/259/258已逐项回复并API核回作者、正文和OPEN状态，评论ID6205519305/6205520541/6205521461/6205522429；正式发行及对应ORM上游交付仍缺。永久回执issue-supervision-batch04-actions-20261016.json已生成，本项纳入提交。没有外发ORM补丁或关闭未满足正式验收的Issue。
+- #256冻结30文件按SHA集成，根核257证据、17二进制及8份TRX。根复审移除误带的JsonFile SkipWhitespace非分页类型修改，作者已确认，原/新SHA记录issue256/root-review/integration.json；外部patch字节通过局部gitattributes保留。两个Release构建零警告/错误，完整Core SQL3047/3047、真实Server组合135/135，零失败/跳过，包含根日期断言修正和既有259。最终完整门禁在issue256/final，实际通过后独立提交，暂不push取消批次04正在运行的CI。
+- #256 PaginationSpec.Offset/Fetch由Int32/int?改为Int64/long?，即使保留旧构造器，属性getter/init ABI已改变，已编译直接AST消费者必须重编译。SQL原Int32输入兼容，不变更存储/协议。正式匹配Core/Data/Server和XCode上游交付仍未完成，保持OPEN。
+- #255冻结18文件收到但复审未通过：默认NULL保留路径按抽取器运行时类型判断，遗漏用户callback返回普通PagingExtracter且指定不同DAL的情况；已要求issue312暂缓251、回到255修正并补真实callback不同源控制，保留matrix09和旧冻结证据。#254冻结16文件，根核154证据、12运行DLL及3份TRX，待独立门禁集成；不受255外部补丁返工影响。
+- 代理：issue313→253，在issue253-keyless-chloe核既有243源码/真实Chloe无主键消费；issue314→252，在issue252-timespan独占新增DURATION合同，根已按SHA交接259/256共22生产依赖。252先完成格式v14永久屏障/旧端拒绝、Frame/REST v5协商和AOT边界，不能把251一起实现。issue312完成255返修后回到251准备，issue251-datetimeoffset树76955cf6已建；251等252最终共享基线再改核心。
+- #226/#243源码恢复补缺已交付推送，不重做；正式发行及消费者验收继续跟踪。监督ACTIVE，三个代理上限不变，旧树/失败/远端parity-results完整保留。
 
 ## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。
@@ -2968,3 +2970,10 @@ canonical 从 codex/m47-preview12-release 切至同 HEAD dcadffc 的 main，原 
 - 新157文档迁移 https://www.cnblogs.com/IoTSharp/p/23313649 与159中文词库 https://www.cnblogs.com/IoTSharp/p/23313689 已各一次发布；原ID完整正文与C#预览、公开标题/封面/双二维码核对通过。伴随闪存3591893/3591896各一次POST并通过官方原ID作者/标签/原文链接/公开标志核对，匿名网页可见性未独立验证。158因同题暂停，后续160/161；当天4篇是常规2+用户明确手动2，自动每日2篇规则保持。
 - 公开证据筛选范围见docs/blogs/publication-evidence.md。原始RPC/网页、进程父链、执行日志与原始生成图留在canonical本地；公开副本不冒称完整机器级审计包。文章/封面SHA保留，产品示例/构建测试、固定硬件、真实模型、生产恢复和长期验收仍沿各自NOT_RUN/NOT_VERIFIED边界。
 - 个人技能通过commit-my-skills流程在私有仓库独立保存；它不属于SonnetDB核心运行时代码。该隔离候选仅在完整solution restore与原CI Format Check通过后提交、正常推送，并独立核远端SHA；不采用force，不合并或删除parity-results。
+
+## ELK 单机能力分析（2026-10-16，研究结论）
+
+- 用户要求分析把 ELK 能力引入 SonnetDB 的可行性，允许先不做分布式。本次已阅读交接、当前路线图、全文/文档/Streaming/Workbench/观测源码，并读取 Elastic 与 OpenTelemetry 官方文档；报告为 docs/design/elk-single-node-capability-analysis-20261016.md。
+- 建议目标是单机日志与事件分析闭环，复用已有持久全文、分词/BM25、typed facet/highlight、文档/TTL、M43 订阅/窗口/DLQ 与 M47；不把已有能力重新派单。发现的静态边界：typed 全文先取候选窗口再过滤，TotalHits/facet 只对应候选；排序当前 ID/score，offset token 没有固定查询视图；全文段全量载入、普通搜索收集全部命中后排序、合并收集存活文档；OTLP exporter 不能作为接收外部日志的证据。具体方法与行号已记录。
+- 下一步如用户决定实施，先冻结日志数据集/字段/持久确认与查询合同，复现超过首窗口及 10000 条的过滤/统计/分页问题，再推进可靠接入、磁盘按需读取、聚合/分区保留、日志探索和规则告警。Logstash HTTP 输出接收适配是候选路线；没有宣布 Elasticsearch API、Kibana 或 OTLP 即插即用。
+- 本次仅源码静态核查、官方资料研究与容量算例，没有运行 build/test/性能/采集器/恢复验证，没有生产代码变更、Issue/PR/提交或外发。报告与本交接追加留在工作树，未暂存提交：共享 main 正由其它 Issue 任务推进且已有暂存内容，本次不混入其提交；亦未执行提交前完整 restore/Format 门禁，后续独立提交必须按 AGENTS 执行。中途观测 HEAD 5d7bf064，之后主树继续推进，实际状态以 git 为准。未修改或清理 parity-results。

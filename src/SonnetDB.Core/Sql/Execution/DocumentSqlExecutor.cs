@@ -235,6 +235,7 @@ internal static class DocumentSqlExecutor
         IReadOnlyList<DocumentRow> rows;
         bool plannerAppliedOrderByAndPagination = false;
         if (match is null
+            && SqlPagination.FitsInt32(statement.Pagination)
             && TryBuildDocumentFilter(statement.Where, out var filter)
             && TryBuildDocumentSort(projections, statement.OrderBy, out var sort))
         {
@@ -244,8 +245,8 @@ internal static class DocumentSqlExecutor
                 new DocumentQuery(
                     Filter: filter,
                     Sort: sort,
-                    Limit: statement.Pagination?.Fetch,
-                    Skip: statement.Pagination?.Offset ?? 0));
+                    Limit: (int?)statement.Pagination?.Fetch,
+                    Skip: (int)(statement.Pagination?.Offset ?? 0)));
             rows = queryResult.Items
                 .Select(static item => new DocumentRow(item.Id, item.Json, item.Version))
                 .ToArray();
@@ -382,12 +383,12 @@ internal static class DocumentSqlExecutor
         string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
         OrderBySpec? orderBy = GetBudgetedOrderBy(statement);
         var rows = new List<IReadOnlyList<object?>>();
-        int? fetch = statement.Pagination?.Fetch;
+        long? fetch = statement.Pagination?.Fetch;
         if (fetch == 0)
             return new SelectExecutionResult(columns, rows);
 
-        int offset = statement.Pagination?.Offset ?? 0;
-        int skipped = 0;
+        long offset = statement.Pagination?.Offset ?? 0;
+        long skipped = 0;
         bool blockingSort = orderBy is not null;
         var store = tsdb.Documents.Open(schema.Name);
         var matchScores = new Dictionary<string, double>(StringComparer.Ordinal);
@@ -707,7 +708,8 @@ internal static class DocumentSqlExecutor
         }
 
         var projections = BuildProjections(statement.Projections);
-        if (TryBuildDocumentFilter(statement.Where, out var filter)
+        if (SqlPagination.FitsInt32(statement.Pagination)
+            && TryBuildDocumentFilter(statement.Where, out var filter)
             && TryBuildDocumentSort(projections, statement.OrderBy, out var sort))
         {
             return DocumentQueryPlanner.Explain(
@@ -717,8 +719,8 @@ internal static class DocumentSqlExecutor
                     Filter: filter,
                     Projection: TryBuildDocumentProjection(projections),
                     Sort: sort,
-                    Limit: statement.Pagination?.Fetch,
-                    Skip: statement.Pagination?.Offset ?? 0));
+                    Limit: (int?)statement.Pagination?.Fetch,
+                    Skip: (int)(statement.Pagination?.Offset ?? 0)));
         }
 
         var (accessPath, indexName, estimatedRows) = ExplainAccess(tsdb, schema, statement.Where);
@@ -1378,9 +1380,7 @@ internal static class DocumentSqlExecutor
         if (pagination is null)
             return 100;
 
-        long topK = pagination.Fetch is int fetch
-            ? (long)pagination.Offset + fetch
-            : (long)pagination.Offset + 100;
+        long topK = SqlPagination.SaturatingAdd(pagination.Offset, pagination.Fetch ?? 100);
 
         if (topK <= 0)
             return 0;
@@ -2238,11 +2238,11 @@ internal static class DocumentSqlExecutor
         if (pagination is null)
             return result;
 
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return new SelectExecutionResult(result.Columns, []);
 
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return new SelectExecutionResult(result.Columns, []);
 

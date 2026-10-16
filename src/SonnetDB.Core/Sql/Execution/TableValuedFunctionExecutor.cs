@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
@@ -257,8 +257,8 @@ internal static class TableValuedFunctionExecutor
                     seriesById.Add(entry.Id, entry);
             }
 
-            int offset = Math.Min(statement.Pagination?.Offset ?? 0, hits.Count);
-            int take = Math.Min(statement.Pagination?.Fetch ?? (hits.Count - offset), hits.Count - offset);
+            int offset = (int)Math.Min(statement.Pagination?.Offset ?? 0, hits.Count);
+            int take = (int)Math.Min(statement.Pagination?.Fetch ?? (hits.Count - offset), hits.Count - offset);
             for (int index = offset; index < offset + take; index++)
             {
                 KnnExecutor.ThrowIfBudgetedCancelled(startedAt);

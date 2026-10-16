@@ -1,0 +1,13 @@
+diff --git a/XCode/DataAccessLayer/Database/SonnetDB.cs b/XCode/DataAccessLayer/Database/SonnetDB.cs
+index da3b325..1486b04 100644
+--- a/XCode/DataAccessLayer/Database/SonnetDB.cs
++++ b/XCode/DataAccessLayer/Database/SonnetDB.cs
+@@ -73,8 +73,6 @@ internal class SonnetDB : RemoteDb
+ 
+     private static String Pagination(Int64 startRowIndex, Int64 maximumRows)
+     {
+-        if (startRowIndex > Int32.MaxValue || maximumRows > Int32.MaxValue)
+-            throw new NotSupportedException("SonnetDB LIMIT/OFFSET目前不能超过Int32.MaxValue。参见SonnetDB issue #256。");
+         var sql = maximumRows > 0 ? $" LIMIT {maximumRows}" : String.Empty;
+         if (startRowIndex > 0) sql += $" OFFSET {startRowIndex}";
+         return sql;

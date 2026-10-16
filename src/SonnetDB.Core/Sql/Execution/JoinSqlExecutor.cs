@@ -638,11 +638,11 @@ internal static class JoinSqlExecutor
         if (pagination is null)
             return result;
 
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return new SelectExecutionResult(result.Columns, []);
 
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return new SelectExecutionResult(result.Columns, []);
 

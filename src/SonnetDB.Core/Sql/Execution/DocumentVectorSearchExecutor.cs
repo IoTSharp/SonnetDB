@@ -212,7 +212,7 @@ internal static class DocumentVectorSearchExecutor
         Projection[] projections = BuildProjections(statement.Projections);
         string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
         var resultRows = new List<IReadOnlyList<object?>>();
-        int? fetch = statement.Pagination?.Fetch;
+        long? fetch = statement.Pagination?.Fetch;
         if (fetch == 0)
             return new SelectExecutionResult(columns, resultRows);
 
@@ -249,8 +249,8 @@ internal static class DocumentVectorSearchExecutor
             throw;
         }
 
-        int offset = statement.Pagination?.Offset ?? 0;
-        for (int rowIndex = offset; rowIndex < rows.Count && (!fetch.HasValue || resultRows.Count < fetch.Value); rowIndex++)
+        long offset = statement.Pagination?.Offset ?? 0;
+        for (int rowIndex = (int)Math.Min(offset, rows.Count); rowIndex < rows.Count && (!fetch.HasValue || resultRows.Count < fetch.Value); rowIndex++)
         {
             ThrowIfBudgetedCancelled(startedAt);
             var output = new object?[projections.Length];
@@ -664,7 +664,7 @@ internal static class DocumentVectorSearchExecutor
         if (pagination.Offset >= rows.Count)
             return [];
 
-        int take = pagination.Fetch ?? (rows.Count - pagination.Offset);
+        long take = pagination.Fetch ?? (rows.Count - pagination.Offset);
         return rows.Skip(pagination.Offset).Take(Math.Min(take, rows.Count - pagination.Offset)).ToList();
     }
 

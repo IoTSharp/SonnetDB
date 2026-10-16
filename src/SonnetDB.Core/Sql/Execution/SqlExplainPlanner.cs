@@ -344,8 +344,8 @@ public static class SqlExplainPlanner
             operators.Add("distinct=blocking_projected_rows");
         if (statement.OrderByList.Count > 0)
         {
-            if (statement.Pagination?.Fetch is int fetch
-                && TryAdd(statement.Pagination.Offset, fetch, out int retainedRows))
+            if (statement.Pagination?.Fetch is long fetch
+                && SqlPagination.TryGetInt32Prefix(statement.Pagination.Offset, fetch, out int retainedRows))
             {
                 operators.Add($"sort=bounded_top_n({retainedRows})");
             }
@@ -356,8 +356,8 @@ public static class SqlExplainPlanner
         }
         else if (statement.Pagination is { } pagination)
         {
-            string stopAfter = pagination.Fetch is int fetch
-                && TryAdd(pagination.Offset, fetch, out int retainedRows)
+            string stopAfter = pagination.Fetch is long fetch
+                && TryAdd(pagination.Offset, fetch, out long retainedRows)
                     ? retainedRows.ToString(CultureInfo.InvariantCulture)
                     : "end";
             operators.Add($"pagination=streaming_stop_after({stopAfter})");
@@ -374,7 +374,7 @@ public static class SqlExplainPlanner
                 && statement.TableValuedFunction is null
                 && statement.GraphTable is null);
 
-    private static bool TryAdd(int left, int right, out int result)
+    private static bool TryAdd(long left, long right, out long result)
     {
         try
         {

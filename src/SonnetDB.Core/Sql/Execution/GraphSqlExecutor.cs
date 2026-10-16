@@ -767,8 +767,8 @@ internal static class GraphSqlExecutor
             return new SelectExecutionResult(columns, sorted);
         }
 
-        int offset = statement.Pagination?.Offset ?? 0;
-        int? fetch = statement.Pagination?.Fetch;
+        long offset = statement.Pagination?.Offset ?? 0;
+        long? fetch = statement.Pagination?.Fetch;
         IEnumerable<IReadOnlyList<object?>> paged = projected.Skip(offset);
         if (fetch is not null)
             paged = paged.Take(fetch.Value);
@@ -786,11 +786,11 @@ internal static class GraphSqlExecutor
         long startedAt = Stopwatch.GetTimestamp();
         ThrowIfBudgetedCancelled(startedAt);
         var rows = new List<IReadOnlyList<object?>>();
-        int? fetch = statement.Pagination?.Fetch;
+        long? fetch = statement.Pagination?.Fetch;
         if (fetch == 0)
             return new SelectExecutionResult(columns, rows);
-        int offset = statement.Pagination?.Offset ?? 0;
-        int skipped = 0;
+        long offset = statement.Pagination?.Offset ?? 0;
+        long skipped = 0;
         foreach (IReadOnlyList<object?> row in sourceRows)
         {
             ThrowIfBudgetedCancelled(startedAt);

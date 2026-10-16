@@ -4492,15 +4492,10 @@ internal static class TableSqlExecutor
         out int candidateLimit)
     {
         candidateLimit = 0;
-        if (pagination?.Fetch is not int fetch)
+        if (pagination?.Fetch is not long fetch)
             return false;
 
-        long requested = (long)pagination.Offset + fetch;
-        if (requested > int.MaxValue)
-            return false;
-
-        candidateLimit = (int)requested;
-        return true;
+        return SqlPagination.TryGetInt32Prefix(pagination.Offset, fetch, out candidateLimit);
     }
 
     /// <summary>
@@ -6192,8 +6187,8 @@ internal static class TableSqlExecutor
         var sortItems = ResolveSortItems(result.Columns, orderBy);
         var comparer = new ResultRowSortComparer(sortItems);
 
-        int offset = pagination?.Offset ?? 0;
-        int? fetch = pagination?.Fetch;
+        long offset = pagination?.Offset ?? 0;
+        long? fetch = pagination?.Fetch;
 
         var rows = TopN.OrderByThenPaginate(
             result.Rows, comparer, offset, fetch, SqlSpillCodecs.ReadOnlyRows);
@@ -6343,11 +6338,11 @@ internal static class TableSqlExecutor
         if (pagination is null)
             return result;
 
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return new SelectExecutionResult(result.Columns, []);
 
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return new SelectExecutionResult(result.Columns, []);
 
@@ -6367,13 +6362,13 @@ internal static class TableSqlExecutor
         if (pagination is null)
             return new SelectExecutionResult(columns, RetainRows(rows).ToArray());
 
-        int offset = pagination.Offset;
-        int take = pagination.Fetch ?? int.MaxValue;
+        long offset = pagination.Offset;
+        long take = pagination.Fetch ?? long.MaxValue;
         if (take <= 0)
             return new SelectExecutionResult(columns, []);
 
-        var selected = new List<IReadOnlyList<object?>>(Math.Min(take, 256));
-        int skipped = 0;
+        var selected = new List<IReadOnlyList<object?>>(SqlPagination.InitialCapacity(take));
+        long skipped = 0;
         foreach (var row in rows)
         {
             if (skipped < offset)
@@ -6398,13 +6393,13 @@ internal static class TableSqlExecutor
         int maxRows,
         long maxBytes)
     {
-        int offset = pagination?.Offset ?? 0;
-        int? fetch = pagination?.Fetch;
+        long offset = pagination?.Offset ?? 0;
+        long? fetch = pagination?.Fetch;
         var selected = new List<IReadOnlyList<object?>>(Math.Min(maxRows, 256));
         if (fetch is 0)
             return new SelectExecutionResult(columns, selected);
 
-        int skipped = 0;
+        long skipped = 0;
         long retainedBytes = 0;
         foreach (IReadOnlyList<object?> row in rows)
         {

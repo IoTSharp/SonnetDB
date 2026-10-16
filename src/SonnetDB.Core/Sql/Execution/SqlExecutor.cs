@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
@@ -1973,7 +1973,7 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ApplyResultPagination(SelectExecutionResult result, PaginationSpec pagination)
     {
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return result with { Rows = [] };
         var skipped = result.Rows.Skip(offset);

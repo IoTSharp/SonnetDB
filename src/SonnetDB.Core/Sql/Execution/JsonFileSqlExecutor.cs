@@ -186,12 +186,12 @@ internal static class JsonFileSqlExecutor
         Projection[] projections = BuildProjections(statement.Projections);
         string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
         var rows = new List<IReadOnlyList<object?>>();
-        int? fetch = statement.Pagination?.Fetch;
+        long? fetch = statement.Pagination?.Fetch;
         if (fetch == 0)
             return new SelectExecutionResult(columns, rows);
 
-        int offset = statement.Pagination?.Offset ?? 0;
-        int skipped = 0;
+        long offset = statement.Pagination?.Offset ?? 0;
+        long skipped = 0;
         SqlExecutionTelemetry.RecordAccessPath("json_file_budgeted_stream");
         foreach (JsonFileRow row in EnumerateBudgetedRows(options, startedAt))
         {
@@ -806,11 +806,11 @@ internal static class JsonFileSqlExecutor
         if (pagination is null)
             return result;
 
-        int offset = pagination.Offset;
+        long offset = pagination.Offset;
         if (offset >= result.Rows.Count)
             return new SelectExecutionResult(result.Columns, []);
 
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return new SelectExecutionResult(result.Columns, []);
 

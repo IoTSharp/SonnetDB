@@ -761,7 +761,7 @@ internal static class HybridSearchExecutor
         if (pagination.Offset >= rows.Count)
             return [];
 
-        int take = pagination.Fetch ?? (rows.Count - pagination.Offset);
+        long take = pagination.Fetch ?? (rows.Count - pagination.Offset);
         if (take <= 0)
             return [];
 
@@ -824,7 +824,7 @@ internal static class HybridSearchExecutor
         if (pagination.Offset >= rows.Count)
             return [];
 
-        int take = pagination.Fetch ?? (rows.Count - pagination.Offset);
+        long take = pagination.Fetch ?? (rows.Count - pagination.Offset);
         if (take <= 0)
             return [];
 
@@ -1665,9 +1665,7 @@ internal static class HybridSearchExecutor
         if (pagination is null)
             return 100;
 
-        long topK = pagination.Fetch is int fetch
-            ? (long)pagination.Offset + fetch
-            : (long)pagination.Offset + 100;
+        long topK = SqlPagination.SaturatingAdd(pagination.Offset, pagination.Fetch ?? 100);
         return topK <= 0 ? 0 : topK > int.MaxValue ? int.MaxValue : (int)topK;
     }
 

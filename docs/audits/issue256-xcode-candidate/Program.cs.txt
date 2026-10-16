@@ -1,0 +1,112 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using NewLife.Data;
+using SonnetDB.Data;
+using XCode.DataAccessLayer;
+
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string phase = args[0];
+string connectionString = Environment.GetEnvironmentVariable("ISSUE256_CONNECTION") ?? "Data Source=" + args[1];
+int checks = 0;
+try
+{
+    foreach (string assemblyName in new[] { "SonnetDB.Data", "SonnetDB.Core", "XCode", "NewLife.Core" })
+    {
+        var assembly = Assembly.Load(assemblyName);
+        string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? assembly.GetName().Version!.ToString();
+        Console.WriteLine($"ASSEMBLY|{assemblyName}|{version}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))}|{assembly.Location}");
+    }
+    string name = "Issue256_" + Environment.ProcessId;
+    DAL.AddConnStr(name, connectionString + ";Migration=Off", null, "SonnetDB");
+    var dal = DAL.Create(name);
+    Require(dal.DbType == DatabaseType.SonnetDB, "actual-provider");
+    if (phase == "original-guard")
+    {
+        foreach ((long offset, long count) in new[] { (2147483648L, 1L), (0L, 2147483648L), (long.MaxValue, long.MaxValue) })
+        {
+            try { dal.Db.PageSplit("SELECT id FROM items", offset, count, null); throw new InvalidOperationException("Missing original guard"); }
+            catch (NotSupportedException error) when (error.Message.Contains("#256", StringComparison.Ordinal)) { Console.WriteLine("EXPECTED-REJECTION|string|" + error.Message); checks++; }
+            try { dal.PageSplit(new SelectBuilder { Table = "items", Column = "id" }, offset, count); throw new InvalidOperationException("Missing original builder guard"); }
+            catch (NotSupportedException error) when (error.Message.Contains("#256", StringComparison.Ordinal)) { Console.WriteLine("EXPECTED-REJECTION|builder|" + error.Message); checks++; }
+        }
+    }
+    else
+    {
+        if (phase == "exercise")
+        {
+            dal.Execute("CREATE TABLE items(id INT,label STRING,PRIMARY KEY(id))");
+            dal.Execute("CREATE TABLE empty_items(id INT,label STRING,PRIMARY KEY(id))");
+            dal.Execute("INSERT INTO items(id,label) VALUES(1,'c'),(2,'a'),(3,'b')");
+        }
+        foreach (string table in new[] { "items", "empty_items" })
+        foreach ((long offset, long count) in new[]
+        {
+            (0L, 0L), (1L, 0L), (0L, 1L), (1L, 1L), (0L, 2147483647L),
+            (0L, 2147483648L), (0L, long.MaxValue), (1L, long.MaxValue),
+            (2147483647L, 1L), (2147483648L, 1L), (long.MaxValue, 1L),
+            (long.MaxValue, long.MaxValue), (long.MaxValue, 0L),
+        })
+        {
+            long[] expected = table == "empty_items" || offset >= 3 ? []
+                : new[] { 1L, 2L, 3L }.Skip((int)offset).Take((int)Math.Min(count == 0 ? 3 : count, 3)).ToArray();
+            var builder = new SelectBuilder { Column = "id", Table = table, OrderBy = "id" };
+            string original = builder.ToString();
+            var split = dal.PageSplit(builder, offset, count);
+            string expectedSql = original + (count > 0 ? $" LIMIT {count}" : "") + (offset > 0 ? $" OFFSET {offset}" : "");
+            Require(split.ToString() == expectedSql, "exact-builder-pagination");
+            Require(builder.ToString() == original, "builder-not-mutated");
+            string sql = dal.Db.PageSplit(original, offset, count, null);
+            Require(sql == expectedSql, "exact-string-pagination");
+            Check(dal.Query(sql), expected, "string");
+            Check(dal.Query(builder, offset, count), expected, "builder-sync");
+            Check(await dal.QueryAsync(builder, offset, count), expected, "builder-async");
+            using var dataSet = dal.Select(builder, offset, count);
+            Require(dataSet.Tables.Count == 1 && dataSet.Tables[0].Columns[0].DataType == typeof(long), "dataset-schema");
+            Require(dataSet.Tables[0].Rows.Cast<DataRow>().Select(row => (long)row[0]).SequenceEqual(expected), "dataset-rows");
+        }
+        var parameters = new Dictionary<string, object> { ["take"] = long.MaxValue, ["skip"] = long.MaxValue };
+        Check(dal.Query("SELECT id FROM items LIMIT @take OFFSET @skip", parameters), [], "xcode-parameters");
+        Check(await dal.QueryAsync("SELECT id FROM items LIMIT @take OFFSET @skip", parameters), [], "xcode-parameters-async");
+        Require((long)parameters["take"] == long.MaxValue && (long)parameters["skip"] == long.MaxValue, "parameters-preserved");
+        using var connection = dal.Db.OpenConnection();
+        using var command = connection.CreateCommand();
+        var take = new SndbParameter("@take", long.MaxValue) { DbType = DbType.Int64 };
+        var skip = new SndbParameter("@skip", 1L) { DbType = DbType.Int64 };
+        command.Parameters.Add(take); command.Parameters.Add(skip);
+        command.CommandText = "SELECT id FROM items ORDER BY id OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
+        using (var reader = await command.ExecuteReaderAsync())
+        {
+            Require(reader.GetFieldType(0) == typeof(long), "native-column-type");
+            foreach (long id in new[] { 2L, 3L }) Require(await reader.ReadAsync() && reader.GetInt64(0) == id, "native-bound-window");
+            Require(!await reader.ReadAsync(), "native-end");
+        }
+        Require((long)take.Value! == long.MaxValue && (long)skip.Value! == 1L && take.DbType == DbType.Int64 && skip.DbType == DbType.Int64, "native-parameter-identity");
+        command.Parameters.Clear();
+        foreach (string invalid in new[] { "-1", "9223372036854775808", "18446744073709551615", "1.5" })
+        {
+            command.CommandText = $"SELECT id FROM empty_items LIMIT {invalid}";
+            Exception? rejection = null;
+            try { using var reader = command.ExecuteReader(); } catch (Exception error) { rejection = error; }
+            Require(rejection is not null, "invalid-rejected-" + invalid);
+        }
+    }
+    dal.Db.Dispose();
+    Console.WriteLine($"COMPLETE|{phase}|checks={checks}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+void Check(DbTable table, long[] expected, string label)
+{
+    Require(table.Columns.Length == 1 && table.Columns[0] == "id" && table.Types[0] == typeof(long), label + "-schema");
+    Require(table.Rows.Select(row => (long)row[0]!).SequenceEqual(expected), label + "-rows");
+}
+void Require(bool condition, string label)
+{
+    if (!condition) throw new InvalidOperationException("FAIL|" + label);
+    checks++;
+}

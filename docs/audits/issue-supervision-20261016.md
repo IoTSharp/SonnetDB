@@ -142,3 +142,14 @@
 - #256已冻结30文件（19生产/2测试/9文档工具），根已审读所有生产差异；Core3032/3032（排除旧日期断言）、远程126/126、XCode六进程各301断言。PaginationSpec属性Int32→Int64有ABI变化，保留旧构造器仍需已编译AST消费者重编译，集成时明确记录。#254已冻结文档/候选，源码无重复实现；公开embedded13/14中的CONCAT元数据旧包失败与源码补验14/14单列，Chloe候选48/48。
 - 空槽已复用：issue313→#253，D:/source/SonnetDB-worktrees/issue253-keyless-chloe；issue314→#252，issue252-timespan，均f8bce983基线。253核#243既有无主键DML及Chloe真实消费，不重做引擎；252先审计TimeSpan合同/格式与AOT边界，等根按259/256最终基线交接共享文件。issue312继续255，NULL源读取候选matrix08通过，matrix09补多页、逐列NULL和普通SQLite控制。
 - 下一步正常push当前批、回读SHA/CI/逐Issue评论，再串行集成256/255/254。三代理上限、独立提交及完整门禁不变；#226/#243已交付恢复补缺不重做，正式发行/消费者仍跟踪。监督ACTIVE，旧树/失败证据/parity-results保留。
+
+
+## 最新监督检查点（2026-10-16，批次04已推送；#256主树验收）
+
+- 批次04正常push后main已回读76955cf604655c2ec32f4db1cf019441d4e19577，parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。261=b157dddc、260=f8bce983、259=5d7bf064、258=76955cf6及日期/Streaming测试修正均已推送；每次提交前完整restore/Format实际通过。新CI38831797384进行中，旧cfa的38827086358 failure不改写。
+- 261/260/259/258已逐项回复并API核回作者、正文和OPEN状态，评论ID6205519305/6205520541/6205521461/6205522429；正式发行及对应ORM上游交付仍缺。永久回执issue-supervision-batch04-actions-20261016.json已生成，本项纳入提交。没有外发ORM补丁或关闭未满足正式验收的Issue。
+- #256冻结30文件按SHA集成，根核257证据、17二进制及8份TRX。根复审移除误带的JsonFile SkipWhitespace非分页类型修改，作者已确认，原/新SHA记录issue256/root-review/integration.json；外部patch字节通过局部gitattributes保留。两个Release构建零警告/错误，完整Core SQL3047/3047、真实Server组合135/135，零失败/跳过，包含根日期断言修正和既有259。最终完整门禁在issue256/final，实际通过后独立提交，暂不push取消批次04正在运行的CI。
+- #256 PaginationSpec.Offset/Fetch由Int32/int?改为Int64/long?，即使保留旧构造器，属性getter/init ABI已改变，已编译直接AST消费者必须重编译。SQL原Int32输入兼容，不变更存储/协议。正式匹配Core/Data/Server和XCode上游交付仍未完成，保持OPEN。
+- #255冻结18文件收到但复审未通过：默认NULL保留路径按抽取器运行时类型判断，遗漏用户callback返回普通PagingExtracter且指定不同DAL的情况；已要求issue312暂缓251、回到255修正并补真实callback不同源控制，保留matrix09和旧冻结证据。#254冻结16文件，根核154证据、12运行DLL及3份TRX，待独立门禁集成；不受255外部补丁返工影响。
+- 代理：issue313→253，在issue253-keyless-chloe核既有243源码/真实Chloe无主键消费；issue314→252，在issue252-timespan独占新增DURATION合同，根已按SHA交接259/256共22生产依赖。252先完成格式v14永久屏障/旧端拒绝、Frame/REST v5协商和AOT边界，不能把251一起实现。issue312完成255返修后回到251准备，issue251-datetimeoffset树76955cf6已建；251等252最终共享基线再改核心。
+- #226/#243源码恢复补缺已交付推送，不重做；正式发行及消费者验收继续跟踪。监督ACTIVE，三个代理上限不变，旧树/失败/远端parity-results完整保留。

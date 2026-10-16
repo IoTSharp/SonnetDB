@@ -267,9 +267,9 @@ public static class SqlParameterBinder
         var offset = BindExpr(pagination.OffsetExpression, p);
         var fetch = pagination.FetchExpression is null ? null : BindExpr(pagination.FetchExpression, p);
 
-        // 分页参数最终仍保持执行层使用的 int 合约；参数值不合法时在绑定阶段给出明确错误。
-        int offsetValue = PaginationSpec.RequireNonNegativeInt(offset, "OFFSET");
-        int? fetchValue = fetch is null ? null : PaginationSpec.RequireNonNegativeInt(fetch, "FETCH/LIMIT");
+        // 行位置和数量保持完整 Int64；执行阶段的物化/内存预算独立限制实际资源。
+        long offsetValue = PaginationSpec.RequireNonNegativeInt64(offset, "OFFSET");
+        long? fetchValue = fetch is null ? null : PaginationSpec.RequireNonNegativeInt64(fetch, "FETCH/LIMIT");
 
         if (ReferenceEquals(offset, pagination.OffsetExpression)
             && ReferenceEquals(fetch, pagination.FetchExpression)

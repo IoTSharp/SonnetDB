@@ -1,4 +1,4 @@
-﻿namespace SonnetDB.Sql.Ast;
+namespace SonnetDB.Sql.Ast;
 
 using SonnetDB.Query;
 
@@ -1095,6 +1095,14 @@ public sealed record PaginationSpec(SqlExpression OffsetExpression, SqlExpressio
     /// <param name="offset">跳过行数（&gt;= 0）。</param>
     /// <param name="fetch">返回行数上限（&gt;= 0）；<c>null</c> 表示不限制。</param>
     public PaginationSpec(int offset, int? fetch)
+        : this((long)offset, fetch.HasValue ? (long?)fetch.Value : null)
+    {
+    }
+
+    /// <summary>用完整 Int64 位置及数量创建分页子句；内存预算独立于分页范围。</summary>
+    /// <param name="offset">跳过行数，范围为 0..Int64.MaxValue。</param>
+    /// <param name="fetch">返回行数上限，范围为 0..Int64.MaxValue；null 表示不限制。</param>
+    public PaginationSpec(long offset, long? fetch)
         : this(ToPaginationLiteral(offset, "OFFSET"), fetch.HasValue ? ToPaginationLiteral(fetch.Value, "FETCH") : null)
     {
     }
@@ -1102,22 +1110,22 @@ public sealed record PaginationSpec(SqlExpression OffsetExpression, SqlExpressio
     /// <summary>
     /// 已绑定后的跳过行数。
     /// </summary>
-    public int Offset
+    public long Offset
     {
-        get => RequireNonNegativeInt(OffsetExpression, "OFFSET");
+        get => RequireNonNegativeInt64(OffsetExpression, "OFFSET");
         init => OffsetExpression = ToPaginationLiteral(value, "OFFSET");
     }
 
     /// <summary>
     /// 已绑定后的返回行数上限；<c>null</c> 表示不限制。
     /// </summary>
-    public int? Fetch
+    public long? Fetch
     {
-        get => FetchExpression is null ? null : RequireNonNegativeInt(FetchExpression, "FETCH/LIMIT");
+        get => FetchExpression is null ? null : RequireNonNegativeInt64(FetchExpression, "FETCH/LIMIT");
         init => FetchExpression = value.HasValue ? ToPaginationLiteral(value.Value, "FETCH") : null;
     }
 
-    internal static int RequireNonNegativeInt(SqlExpression expression, string clauseName)
+    internal static long RequireNonNegativeInt64(SqlExpression expression, string clauseName)
     {
         if (expression is not LiteralExpression { Kind: SqlLiteralKind.Integer } literal)
         {
@@ -1129,15 +1137,10 @@ public sealed record PaginationSpec(SqlExpression OffsetExpression, SqlExpressio
             throw new InvalidOperationException($"分页参数 {clauseName} 必须是非负整数。");
         }
 
-        if (literal.IntegerValue > int.MaxValue)
-        {
-            throw new InvalidOperationException("分页参数过大，必须 <= Int32.MaxValue。");
-        }
-
-        return (int)literal.IntegerValue;
+        return literal.IntegerValue;
     }
 
-    private static LiteralExpression ToPaginationLiteral(int value, string clauseName)
+    private static LiteralExpression ToPaginationLiteral(long value, string clauseName)
     {
         if (value < 0)
         {

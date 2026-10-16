@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Runtime.ExceptionServices;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
@@ -286,7 +286,7 @@ internal static class SelectExecutor
         var orderProjections = GetBudgetedOrderProjections(statement, schema);
         bool blockingSort = orderProjections.Count != 0;
         var candidates = blockingSort ? new List<BudgetedSortRow>() : null;
-        int? fetch = statement.Pagination?.Fetch;
+        long? fetch = statement.Pagination?.Fetch;
         if (fetch == 0 && !blockingSort)
             return new SelectExecutionResult(columns, rows);
 
@@ -294,8 +294,8 @@ internal static class SelectExecutor
         var fieldNames = GetBudgetedFieldNames(projections, schema, where, orderProjections);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
         RecordEstimatedRows(tsdb, statement);
-        int skipped = 0;
-        int offset = statement.Pagination?.Offset ?? 0;
+        long skipped = 0;
+        long offset = statement.Pagination?.Offset ?? 0;
         foreach (var series in matchedSeries)
         {
             SqlExecutor.ThrowIfCancellationRequested();
@@ -710,11 +710,11 @@ internal static class SelectExecutor
         if (offset >= result.Rows.Count)
             return new SelectExecutionResult(result.Columns, []);
 
-        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        long take = pagination.Fetch ?? (result.Rows.Count - offset);
         if (take <= 0)
             return new SelectExecutionResult(result.Columns, []);
 
-        int actualTake = Math.Min(take, result.Rows.Count - offset);
+        int actualTake = (int)Math.Min(take, result.Rows.Count - offset);
         var slicedRows = result.Rows.Skip(offset).Take(actualTake).ToList();
         return new SelectExecutionResult(result.Columns, slicedRows);
     }
@@ -986,7 +986,7 @@ internal static class SelectExecutor
         out SelectExecutionResult result)
     {
         result = null!;
-        if (pagination?.Fetch is not int fetch
+        if (pagination?.Fetch is not long fetch
             || where.Residual is not null
             || where.GeoFilters.Count != 0
             || projections.Any(static projection =>
@@ -1029,8 +1029,8 @@ internal static class SelectExecutor
             : EnumerateOrderedRawRows(
                 tsdb, schema, projections, matchedSeries, where.TimeRange, direction);
 
-        var rows = new List<IReadOnlyList<object?>>(Math.Min(fetch, 256));
-        int skipped = 0;
+        var rows = new List<IReadOnlyList<object?>>(SqlPagination.InitialCapacity(fetch));
+        long skipped = 0;
         foreach (var row in rowStream)
         {
             if (skipped < pagination.Offset)

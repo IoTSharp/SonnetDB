@@ -23,8 +23,8 @@ internal static class TopN
     public static T[] OrderByThenPaginate<T>(
         IEnumerable<T> rows,
         IComparer<T> comparer,
-        int offset,
-        int? fetch,
+        long offset,
+        long? fetch,
         SqlSpillCodec<T>? spillCodec = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
@@ -34,21 +34,18 @@ internal static class TopN
             return SqlSpillSorter.OrderByThenPaginate(rows, comparer, offset, fetch, codec);
         if (rows is IReadOnlyList<T> list)
             return OrderByThenPaginate(list, comparer, offset, fetch, spillCodec);
-        if (fetch is not int take)
-            return OrderByThenPaginate(rows.ToArray(), comparer, offset, fetch);
         if (offset < 0)
             offset = 0;
-        if (take <= 0)
+        if (fetch is <= 0)
             return [];
-
-        long neededLong = (long)offset + take;
-        int needed = neededLong > int.MaxValue ? int.MaxValue : (int)neededLong;
-        if (needed <= 0)
-            return [];
+        if (fetch is not long take || !SqlPagination.TryGetInt32Prefix(offset, take, out int needed))
+            return OrderByThenPaginate(rows.ToArray(), comparer, offset, fetch);
 
         var topPrefix = SelectTopPrefix(rows, comparer, needed);
-        int available = topPrefix.Length - offset;
-        return available <= 0 ? [] : Slice(topPrefix, offset, Math.Min(take, available));
+        if (offset >= topPrefix.Length)
+            return [];
+        int start = (int)offset;
+        return Slice(topPrefix, start, (int)Math.Min(take, topPrefix.Length - start));
     }
 
     /// <summary>
@@ -64,8 +61,8 @@ internal static class TopN
     public static T[] OrderByThenPaginate<T>(
         IReadOnlyList<T> rows,
         IComparer<T> comparer,
-        int offset,
-        int? fetch,
+        long offset,
+        long? fetch,
         SqlSpillCodec<T>? spillCodec = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
@@ -77,36 +74,27 @@ internal static class TopN
         if (offset < 0)
             offset = 0;
 
-        // 无 fetch 上限：全量排序后跳过 offset。
-        if (fetch is not int take)
-        {
-            if (rows.Count == 0 || offset >= rows.Count)
-                return [];
-            var sortedAll = StableSort(rows, comparer);
-            return Slice(sortedAll, offset, sortedAll.Length - offset);
-        }
-
-        if (take <= 0 || rows.Count == 0 || offset >= rows.Count)
+        if (fetch is <= 0 || rows.Count == 0 || offset >= rows.Count)
             return [];
 
-        // 需要的前缀长度 = offset + take（对 int 溢出做保护）。
-        long neededLong = (long)offset + take;
-        int needed = neededLong >= rows.Count ? rows.Count : (int)neededLong;
+        // 仅在实际集合边界内转为数组下标；不计算可能溢出的 Int64 OFFSET + FETCH。
+        int start = (int)offset;
+        int take = (int)Math.Min(fetch ?? rows.Count - start, rows.Count - start);
+        int needed = start + take;
 
         // 前缀已覆盖全部行：直接全量排序 + 分页（有界堆无收益）。
         if (needed >= rows.Count)
         {
             var sortedAll = StableSort(rows, comparer);
-            int available = sortedAll.Length - offset;
-            return Slice(sortedAll, offset, Math.Min(take, available));
+            return Slice(sortedAll, start, take);
         }
 
         // 有界堆 Top-N：维护大小为 needed 的最大堆（堆顶为当前前缀中"最大"的行），
         // 扫描时若新行比堆顶小则替换，最终堆内即排序序最小的 needed 行。
         var topPrefix = SelectTopPrefix(rows, comparer, needed);
         // topPrefix 已按升序排序；跳过 offset 取 take。
-        int avail = topPrefix.Length - offset;
-        return Slice(topPrefix, offset, Math.Min(take, avail));
+        int avail = topPrefix.Length - start;
+        return Slice(topPrefix, start, Math.Min(take, avail));
     }
 
     /// <summary>
@@ -116,7 +104,7 @@ internal static class TopN
     private static T[] SelectTopPrefix<T>(IReadOnlyList<T> rows, IComparer<T> comparer, int count)
     {
         // 用数组做二叉最大堆；元素带原始下标以保证稳定。
-        var heap = new (T Row, int Index)[count];
+        var heap = new (T Row, long Index)[count];
         int size = 0;
 
         for (int i = 0; i < rows.Count; i++)
@@ -137,7 +125,7 @@ internal static class TopN
         }
 
         // 堆内即所需前缀；按稳定序升序排序输出。
-        Array.Sort(heap, 0, size, Comparer<(T Row, int Index)>.Create(
+        Array.Sort(heap, 0, size, Comparer<(T Row, long Index)>.Create(
             (a, b) => CompareStable(a, b, comparer)));
 
         var result = new T[size];
@@ -152,9 +140,9 @@ internal static class TopN
     private static T[] SelectTopPrefix<T>(IEnumerable<T> rows, IComparer<T> comparer, int count)
     {
         // 不按超大 OFFSET 一次性申请数组；只有实际候选数增长时才扩容。
-        var heap = new (T Row, int Index)[Math.Min(count, 256)];
+        var heap = new (T Row, long Index)[Math.Min(count, 256)];
         int size = 0;
-        int index = 0;
+        long index = 0;
         foreach (var row in rows)
         {
             var candidate = (Row: row, Index: index++);
@@ -179,7 +167,7 @@ internal static class TopN
             }
         }
 
-        Array.Sort(heap, 0, size, Comparer<(T Row, int Index)>.Create(
+        Array.Sort(heap, 0, size, Comparer<(T Row, long Index)>.Create(
             (a, b) => CompareStable(a, b, comparer)));
         var result = new T[size];
         for (int i = 0; i < size; i++)
@@ -187,14 +175,14 @@ internal static class TopN
         return result;
     }
 
-    private static int CompareStable<T>(in (T Row, int Index) a, in (T Row, int Index) b, IComparer<T> comparer)
+    private static int CompareStable<T>(in (T Row, long Index) a, in (T Row, long Index) b, IComparer<T> comparer)
     {
         int c = comparer.Compare(a.Row, b.Row);
         return c != 0 ? c : a.Index.CompareTo(b.Index);
     }
 
     // 最大堆：父节点 >= 子节点（按稳定比较序）。堆顶是当前保留集合里排序序最大的一个。
-    private static void SiftUp<T>((T Row, int Index)[] heap, int i, IComparer<T> comparer)
+    private static void SiftUp<T>((T Row, long Index)[] heap, int i, IComparer<T> comparer)
     {
         while (i > 0)
         {
@@ -206,7 +194,7 @@ internal static class TopN
         }
     }
 
-    private static void SiftDown<T>((T Row, int Index)[] heap, int i, int size, IComparer<T> comparer)
+    private static void SiftDown<T>((T Row, long Index)[] heap, int i, int size, IComparer<T> comparer)
     {
         while (true)
         {
@@ -226,7 +214,7 @@ internal static class TopN
 
     private static T[] StableSort<T>(IReadOnlyList<T> rows, IComparer<T> comparer)
     {
-        var indexed = new (T Row, int Index)[rows.Count];
+        var indexed = new (T Row, long Index)[rows.Count];
         for (int i = 0; i < rows.Count; i++)
             indexed[i] = (rows[i], i);
 

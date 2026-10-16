@@ -141,7 +141,7 @@ internal static class SqlRoutineRuntime
                 {
                     int probeLimit = (int)Math.Min(int.MaxValue,
                         (long)context.Options.MaxRoutineResultRows - context.ResultRows + 1);
-                    int fetch = Math.Min(query.Pagination?.Fetch ?? int.MaxValue, probeLimit);
+                    long fetch = Math.Min(query.Pagination?.Fetch ?? long.MaxValue, probeLimit);
                     bound = query with { Pagination = new PaginationSpec(query.Pagination?.Offset ?? 0, fetch) };
                 }
                 lastResult = SqlExecutor.ExecuteStatement(

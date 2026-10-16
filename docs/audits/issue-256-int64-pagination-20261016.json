@@ -1,0 +1,3822 @@
+{
+  "xcode": {
+    "upstreamCommit": "757fa2a078906f87783e55fe0e9d5f54a9e916b9",
+    "upstreamPrChanged": false,
+    "upstreamBuildWarningsOriginal": 105,
+    "upstreamBuildWarningsCandidate": 105,
+    "finalConsumerProcesses": 6,
+    "assertionsPerProcess": 301,
+    "upstreamPr": 101,
+    "newLifeCorePackage": "11.19.2026.901",
+    "targetFramework": "netstandard2.1",
+    "finalProtocols": [
+      {
+        "requestCount": 114,
+        "receipt": {
+          "length": 178046,
+          "sha256": "B56A493455E5F4F495FF062E1E0F84F5DE265153824B304B423117F73123DB8F",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-rest-exercise.json"
+        },
+        "phase": "exercise",
+        "protocol": "rest",
+        "expectedHttp": "HTTP/1.1"
+      },
+      {
+        "requestCount": 111,
+        "receipt": {
+          "length": 173363,
+          "sha256": "47F78FC90EEF85966AAF3D67988A43925985693C6FD919CAB1E6C5A7D5ECB4BA",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-rest-reopen.json"
+        },
+        "phase": "reopen",
+        "protocol": "rest",
+        "expectedHttp": "HTTP/1.1"
+      },
+      {
+        "requestCount": 114,
+        "receipt": {
+          "length": 164322,
+          "sha256": "7BD69DECB7B3D474355547A8428779BAACCE53BE27EEED030D51C87DCDC80F76",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-frame-http2-exercise.json"
+        },
+        "phase": "exercise",
+        "protocol": "frame-http2",
+        "expectedHttp": "HTTP/2"
+      },
+      {
+        "requestCount": 111,
+        "receipt": {
+          "length": 159663,
+          "sha256": "0E723717057B63DC79088522D04826D42BB1C3EA3D60F76AD35B234F1B448C34",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-frame-http2-reopen.json"
+        },
+        "phase": "reopen",
+        "protocol": "frame-http2",
+        "expectedHttp": "HTTP/2"
+      }
+    ],
+    "originalObservedGuardRejections": 6,
+    "localCandidatePatch": {
+      "length": 745,
+      "sha256": "63BFF9E34B372AD0FCF110F4BDBE976076379948A83B79CDAA90BC13062430E6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\XCodeInt64Pagination.patch"
+    }
+  },
+  "finalTests": {
+    "coreCount": 3032,
+    "serverCount": 126,
+    "newlyAddedCoreIncluded": 41,
+    "newlyAddedRemoteIncluded": 6,
+    "excludedOldDateAssertion": "Select_WithDateScalarFunctions_TransformsDateTimeValues; corrected separately by supervisor in 0a51102c",
+    "core": "core-regression-final.trx",
+    "server": "server-regression-final.trx"
+  },
+  "packages": [
+    {
+      "id": "sonnetdb",
+      "files": [
+        {
+          "length": 182,
+          "sha256": "26CD18A8BE79B964E127B72DFE0C3992D2751ECF49C63BEA76375EEAD02DEEB3",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb\\4.5.0-preview.ef266.5\\.nupkg.metadata"
+        },
+        {
+          "length": 896679,
+          "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb\\4.5.0-preview.ef266.5\\sonnetdb.4.5.0-preview.ef266.5.nupkg"
+        },
+        {
+          "length": 88,
+          "sha256": "22081006A1F9D31B183303C29B307CF2B91CEFFE93DA30EA0444D31B05D1C77D",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb\\4.5.0-preview.ef266.5\\sonnetdb.4.5.0-preview.ef266.5.nupkg.sha512"
+        }
+      ],
+      "version": "4.5.0-preview.ef266.5",
+      "metadata": {
+        "version": 2,
+        "contentHash": "2npRi+M2YyKuKmJDE2jCRIfth++brTzhzaTJMEkjpFBl+D17pdFqO9BykfY+nHSIqQBojIoo/afhaeh4MlNniA==",
+        "source": "https://api.nuget.org/v3/index.json"
+      }
+    },
+    {
+      "id": "sonnetdb.core",
+      "files": [
+        {
+          "length": 182,
+          "sha256": "A8BF927CABC145EFC67FA268C01412012060C3C9EF2EA562F05E6186BD856459",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb.core\\4.5.0-preview.ef266.5\\.nupkg.metadata"
+        },
+        {
+          "length": 6959160,
+          "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb.core\\4.5.0-preview.ef266.5\\sonnetdb.core.4.5.0-preview.ef266.5.nupkg"
+        },
+        {
+          "length": 88,
+          "sha256": "D7B4BAAB9F9415EA1169DD17CBFDBAB21A72AAAAB54FE3EEAB3A79FE7CED1172",
+          "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\packages\\sonnetdb.core\\4.5.0-preview.ef266.5\\sonnetdb.core.4.5.0-preview.ef266.5.nupkg.sha512"
+        }
+      ],
+      "version": "4.5.0-preview.ef266.5",
+      "metadata": {
+        "version": 2,
+        "contentHash": "+5DiliK7WzWWh5IYe0vdWzokH1oKdIdHyZJy+26Hu/jcKcQoyGxeNGjqTJklKJ9LHlEB/AtOc02Dfcvgj/FWGw==",
+        "source": "https://api.nuget.org/v3/index.json"
+      }
+    }
+  ],
+  "source": {
+    "committed": false,
+    "rseBaselineSha256": "DAB029172B7D8A8CEF36BAE096FC6DF72CB512290D5747BFC129EC64349EFAB6",
+    "dependency259FinalConfirmedBySupervisor": true,
+    "snapshot": {
+      "files": [
+        {
+          "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+          "sha256": "FD65BAB1EC83897072F9617176E60612AAD5E3172C73B0614A33E6CFF2338B77",
+          "length": 39245
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+          "sha256": "FD210B304670240D1104026186D8765A0B8E216BCB033CD87DD08313CC67B389",
+          "length": 74690
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+          "sha256": "5A045850653D00247598ACFD407495E8EC76313900D42866B3DF068AD23CC79B",
+          "length": 237744
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+          "sha256": "1C6DD34E8851698FE76F7088FF129993EC6DBE16D45026B18380F30179A2C999",
+          "length": 22344
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlPagination.cs",
+          "sha256": "852C3E29B6C6A98CA6E1C6DAED8FDCE8877890F1214E4D737B29E3B72E135D2A",
+          "length": 2243
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/DocumentSqlExecutor.cs",
+          "sha256": "C09CC85A1AE3466E3243FDDF3461EBCBF2C92F7E611D2782A3139C378BF85C48",
+          "length": 108920
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/DocumentVectorSearchExecutor.cs",
+          "sha256": "FD78C699A196449A41A9535DC444D97461D486F72E54D65C51C70326A4CB6B2B",
+          "length": 52580
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/GraphSqlExecutor.cs",
+          "sha256": "2B9FCE4E254256B89FBB227345FE3A301AB4535DF62D4B1F1DB3552EB1D6BC95",
+          "length": 55691
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/HybridSearchExecutor.cs",
+          "sha256": "6156F847C3F8B9883672A913253B15ED621D18B5A9EACB9DF2C54B262B9B5EDD",
+          "length": 95396
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/JoinSqlExecutor.cs",
+          "sha256": "67821665C5FE523485CAC32AC3CB3521BFB64C93178DA37DBA5F20244F62B0FE",
+          "length": 44011
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/JsonFileSqlExecutor.cs",
+          "sha256": "65F50FF07F1C061F1BD684994528DAC11DCF6510B6BB04AF53E9D609381E74A1",
+          "length": 47816
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+          "sha256": "710B0D71918796F42E9ADCDE10552268F4E0A612BE08527921D58C6CDF22DB59",
+          "length": 278433
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+          "sha256": "6394F216732B5ECC947F17D9DBB0092E69BFC5838A4607502F9D6F3A7340832A",
+          "length": 160704
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+          "sha256": "6D06DED72EE17A9F106AB74DEE34AF0D6DC7D8FEB45C64357A5A707A086F7B0B",
+          "length": 158606
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlExplainPlanner.cs",
+          "sha256": "A919D91A49C613AB908B62EEFF03A560FAFDEB2C6125266DADD4CCD7635BDFC6",
+          "length": 86055
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/SqlSpillSorter.cs",
+          "sha256": "5FA84E8BC76EDFEA6AC6A813308C43973CC0CBA3DBA166BEB1EDC958C9880BD5",
+          "length": 45100
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+          "sha256": "ECA81E85477ABA7EC9DB3A677B911F174D611B1127D3BAD29EA34AD164C2EAD3",
+          "length": 289194
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/TableValuedFunctionExecutor.cs",
+          "sha256": "D578F6E7DC26FACF6288866B88B90C5280AD88AFEA4148842F796C753CA87EA2",
+          "length": 41453
+        },
+        {
+          "path": "src/SonnetDB.Core/Sql/Execution/TopN.cs",
+          "sha256": "CC6CFB6396D9F14160BAABDC8B960C1E03FBB000F5B674440EB85BBB2D6B2F46",
+          "length": 9698
+        },
+        {
+          "path": "tests/SonnetDB.Core.Tests/Sql/SqlInt64PaginationTests.cs",
+          "sha256": "8EC73C0BE70B7FCF903AD0F60CC933C954BB75B6B23A7B62D48CC33962278E29",
+          "length": 12929
+        },
+        {
+          "path": "tests/SonnetDB.Tests/RemoteInt64PaginationTests.cs",
+          "sha256": "8DB5B2FECF0D8CCC45019E551EB26EEC1E52AF7B90B8C456FB6C405C7655F484",
+          "length": 7196
+        }
+      ],
+      "base": "cfa92314b5eeb152f358adc1ea99c177cb6b6a91"
+    },
+    "dependencies": [
+      {
+        "files": [
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.UInt64.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "8499012C88326B0F7D695C9CB6E758DFABD88488E33A7C80E4D08D93B0D9F4BA"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteUInt64ParseTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "840DEC574C2890F376DAF7D5D001305B15C16C49F40CD1D281D44CC2C96E9524"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlConcatViewDeclarationTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "CA4462CC1D8CEBB5636CFB5AEB9B8934006E6DB94D3010312837DA090CF5AA48"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlSelectColumnMetadataTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "37288475B286E8BB42ECBD6D1A3E9DCAF2B5913BC2E691C64FAC443779031736"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlUInt64ParseTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "2BC4DBCA98D0B9CE1E615BC99F9B98A4823475556C6970EF88E37479B14F03D3"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "A05A2B83FE5CD5F98A2ABB077C00F6EB1EFA709F0FA0C220198FDC36239BABE7"
+          },
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "E24C062FEB7E76645AEABEC8412740CD658A9BEC41319AE0D09C6ECD22FA35A4"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "C6BB3DD5284E20A8239A3D77A52AAD8BCB9CA7599173C2D7079E0D0A6D937D77"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.ConcatDeclarations.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "1B0F0D377579EB0B548CAA95EF4DFB67B876782125FB738424D30D57101A88F1"
+          },
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/SqlUnsignedIntegerFunctions.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+            "sha256": "BF7E60D4F6BB48275B6CB86B3CAAD742F8DE8582C6ABA162C4AF723A38C13C44"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.UInt64.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "8499012C88326B0F7D695C9CB6E758DFABD88488E33A7C80E4D08D93B0D9F4BA"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteUInt64ParseTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "840DEC574C2890F376DAF7D5D001305B15C16C49F40CD1D281D44CC2C96E9524"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlConcatViewDeclarationTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "CA4462CC1D8CEBB5636CFB5AEB9B8934006E6DB94D3010312837DA090CF5AA48"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlSelectColumnMetadataTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "37288475B286E8BB42ECBD6D1A3E9DCAF2B5913BC2E691C64FAC443779031736"
+          },
+          {
+            "path": "tests/SonnetDB.Core.Tests/Sql/SqlUInt64ParseTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "2BC4DBCA98D0B9CE1E615BC99F9B98A4823475556C6970EF88E37479B14F03D3"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D"
+          },
+          {
+            "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "A05A2B83FE5CD5F98A2ABB077C00F6EB1EFA709F0FA0C220198FDC36239BABE7"
+          },
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "E24C062FEB7E76645AEABEC8412740CD658A9BEC41319AE0D09C6ECD22FA35A4"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "C6BB3DD5284E20A8239A3D77A52AAD8BCB9CA7599173C2D7079E0D0A6D937D77"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.ConcatDeclarations.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "1B0F0D377579EB0B548CAA95EF4DFB67B876782125FB738424D30D57101A88F1"
+          },
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/SqlUnsignedIntegerFunctions.cs",
+            "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "sha256": "BF7E60D4F6BB48275B6CB86B3CAAD742F8DE8582C6ABA162C4AF723A38C13C44"
+          }
+        ],
+        "baseline": "cfa92314",
+        "utc": "2026-10-16T00:08:09.4065511Z"
+      },
+      {
+        "files": [
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs",
+            "sha256": "69024C11AA0A077516A11DA9FF84966A4B2CBFF4106548CD90DBFFDB9FDF31ED"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+            "sha256": "DAB029172B7D8A8CEF36BAE096FC6DF72CB512290D5747BFC129EC64349EFAB6"
+          },
+          {
+            "path": "src/SonnetDB.Core/Query/Functions/SqlUnsignedBitwiseFunctions.cs",
+            "sha256": "AFCE7ADBEA41E0EE88826EEBBEBCE9E09DAF36F85008856DEF4DC260F38F2C45"
+          },
+          {
+            "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.UInt64Bitwise.cs",
+            "sha256": "C6EE6320F7DDE130987821315DF09375CB3A27DE3A74848634E631D3039F2FA3"
+          }
+        ],
+        "target": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+        "utc": "2026-10-16T00:11:52.3962866Z",
+        "source": "D:/source/SonnetDB-worktrees/issue259-uint64-bitwise",
+        "preliminaryCandidateOnly": true
+      }
+    ],
+    "baseCommit": "cfa92314b5eeb152f358adc1ea99c177cb6b6a91",
+    "tree": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+    "rseDelta": {
+      "length": 2221,
+      "sha256": "3C77FAE0FE638A2F9B0D9D738E85D9EF81D68F7AE3421F78C0E023574DAEB4A1",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\rse-pagination-only.patch"
+    },
+    "branch": "codex/issue256-int64-pagination"
+  },
+  "binaries": [
+    {
+      "length": 18863104,
+      "sha256": "B838405885FC15F0874AAEAA2499CD4616D2B879251BC88E69684E24E505ADB6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-frozen\\SonnetDB.Core.dll"
+    },
+    {
+      "length": 2622976,
+      "sha256": "367DCF5EE9FD4D6BBC25E3FD5586DF2FE856797CC78049BA34555D0E113D8306",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-frozen\\SonnetDB.Data.dll"
+    },
+    {
+      "length": 18753024,
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\public-build\\bin\\Probe\\release\\SonnetDB.Core.dll"
+    },
+    {
+      "length": 2590720,
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\public-build\\bin\\Probe\\release\\SonnetDB.Data.dll"
+    },
+    {
+      "length": 1276416,
+      "sha256": "665BDCF07D590EF28E5E4C6F85C58DE85B03DE47688BC8ABA48534F8060C9F1A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-original-frozen\\XCode.dll"
+    },
+    {
+      "length": 16896,
+      "sha256": "1A3966A392EAEC1B5D76169EA2A4B1D16653AB56F6C18C72DC75A08F2F00AADF",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-original-frozen\\Consumer.dll"
+    },
+    {
+      "length": 16896,
+      "sha256": "90A0C0ED4801725E7046585EC753FE05487320779326DA865069F12098A1E24A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll"
+    },
+    {
+      "length": 18869248,
+      "sha256": "B6104BC88750CCC1A8EA925391789F560E46FFD6FA696E4AC6620AF0A023ACD6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\SonnetDB.Core.dll"
+    },
+    {
+      "length": 2622976,
+      "sha256": "64DD45F1E596DA955118892D46D8AEE0FF2CDD65BD9903075C270787F67F7367",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\SonnetDB.Data.dll"
+    },
+    {
+      "length": 1275904,
+      "sha256": "CD664D386794E1216C7C5210D7A99AF9B04158EA2978390A5EE0CC5A09D5E9D3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\XCode.dll"
+    },
+    {
+      "length": 1200128,
+      "sha256": "FE50E1BCF0CAB8FFD282D01DB75F3490AC3DFD260FA1E93AE22B87AD4B06B88F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\NewLife.Core.dll"
+    },
+    {
+      "length": 6042112,
+      "sha256": "BC375463B09068EBA60D6CAF10AA015C46A912045FCE24EEEF8025A9FC3D4CDD",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\SonnetDB.Core.Tests\\release\\SonnetDB.Core.Tests.dll"
+    },
+    {
+      "length": 2924544,
+      "sha256": "71B6ACFF3116CE9F9EB7C876BE7AD0A7C135DFCB6ADD00470C63F1AD2581525D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Tests.dll"
+    },
+    {
+      "length": 5670400,
+      "sha256": "F423F100011FCD7EFD53AD190D3A92D9B048ABF76FA45554C69E4DC92A5FC307",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\SonnetDB\\release\\SonnetDB.dll"
+    },
+    {
+      "length": 18869248,
+      "sha256": "B6104BC88750CCC1A8EA925391789F560E46FFD6FA696E4AC6620AF0A023ACD6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\SonnetDB\\release\\SonnetDB.Core.dll"
+    },
+    {
+      "length": 5670400,
+      "sha256": "F423F100011FCD7EFD53AD190D3A92D9B048ABF76FA45554C69E4DC92A5FC307",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.dll"
+    },
+    {
+      "length": 18869248,
+      "sha256": "B6104BC88750CCC1A8EA925391789F560E46FFD6FA696E4AC6620AF0A023ACD6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.Core.dll"
+    }
+  ],
+  "contract": {
+    "minimum": "0",
+    "maximum": "9223372036854775807",
+    "oldIntConstructorRetained": true,
+    "wireVersionChanged": false,
+    "materializationBudgetsExpanded": false,
+    "xcodeZeroCountMeansUnlimited": true,
+    "storageFormatChanged": false,
+    "astPropertyAbiChanged": true
+  },
+  "issue": 256,
+  "date": "2026-10-16",
+  "evidenceFiles": [
+    {
+      "length": 1242,
+      "sha256": "321B318E8BF0CB40BB4ACFA4524AB87D82440E3881A7FF8AAC39645B66EDB7D9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-build-final.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-build-final.stderr.log"
+    },
+    {
+      "length": 575,
+      "sha256": "E6AA03329941C584DC20EC05816DBE33C62AB25828F7672FF80A61A22FDF2E02",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-build-final.stdout.log"
+    },
+    {
+      "length": 1246,
+      "sha256": "4AD7895405A352C9210F1344CF45237EBFE49800ECD4BE03BAA99ADB095CA9D1",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-candidate-build.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-candidate-build.stderr.log"
+    },
+    {
+      "length": 575,
+      "sha256": "EAD79320AB5395FC1AD76BA9119A64CC0EAA7D286D4F766991468F51AE5E3783",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-candidate-build.stdout.log"
+    },
+    {
+      "length": 1246,
+      "sha256": "4C7EBA3F08A6F3A64061C9D7CDD0B4F518C44F517BAD30AA6176D9F713DDC458",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build01.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build01.stderr.log"
+    },
+    {
+      "length": 1191,
+      "sha256": "816A861750E80E653BB9D4E78B21CA4B34EFCF43DB634688BB2337D15D6AA3A1",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build01.stdout.log"
+    },
+    {
+      "length": 1246,
+      "sha256": "3184BC1A95B2F4CC060CE3C5DD00DAC8DBF4FC85F55958429CF5A1E029511D0E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build02.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build02.stderr.log"
+    },
+    {
+      "length": 575,
+      "sha256": "B847D6D16362BB9AFF8F9FC3634476D83604E1B3C750C086E38C231164B14963",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build02.stdout.log"
+    },
+    {
+      "length": 1078,
+      "sha256": "21F66619D7B2063E76CA68853DB37C52F9D104D6052E8A0CB3821F50D84FD9E6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build-final.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build-final.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "F2336528CF3DF46296C7A65A4377C8D3507149068C0D01D164D5DFDEF7FDEAFE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build-final.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "C59F8DF3E6216A4EDE807421DD773D7621CEA909D84410551E99CF7D84683F8A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build01.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build01.stderr.log"
+    },
+    {
+      "length": 2456,
+      "sha256": "ECA8C0C0CA692446C8E55695E8938B0A7A8836FCDC2F843F6C9982D86A1667F2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build01.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "3CA8FEB17314ED04C45D7B8A70ECBD6E1AF5C9A3A9CE1BFC54B5137A3FEAA705",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build02.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build02.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "21CBA14AC050105482DDCEDEAAF75022851ACDFABFFF200D2B73BC033A9A94DB",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build02.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "B756269A7AFB61406296E202F592653921210A2A00102E2F5C264A84A9B9CA1D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build03.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build03.stderr.log"
+    },
+    {
+      "length": 2079,
+      "sha256": "3D4AE4E417CFB403FC7EBC8DDD9567F0C08566E21B7DF646A38A21A2CEE56833",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build03.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "1214C9E12AD0C3E6EB35B96B11EA9E62BAB70CA5240513767037F973FA8D02A9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build04.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build04.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "9786CC532E3E081C66872CFF28C0CCC3C9DEF414095982817038131984048DF1",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build04.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "186247800488ACDF8D8D9903C575091126B70C8D077592933C4B850906346A2F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build05.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build05.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "D4B864D702481A155C53F71AA8F7CD79FD7095DDB2C05291D2FDCCD6118B57C3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build05.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "E961758B36EB6D83882C9A8200F7353AD84BEA21D361E275B7EB379F6DFB5556",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build06.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build06.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "3F9B5B742D96E4E9ED87B2E51E5D8055FED2FA7C73FEEB56EAC5AD4B9957EDD9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build06.stdout.log"
+    },
+    {
+      "length": 1074,
+      "sha256": "0FA3DF9EF643D9994949D8191F1716B1E66A98467A6A771F77FB47248C17A19D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build07.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build07.stderr.log"
+    },
+    {
+      "length": 1300,
+      "sha256": "7C490792ADA980C30DC4C44A088C637A4D8A841EE978AC6D9DBCCA2771DD441A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build07.stdout.log"
+    },
+    {
+      "length": 758,
+      "sha256": "35965C911B7607144FA09728C5C5BB82100108C4523DF5DCBDD735E983EF70F6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination01.json"
+    },
+    {
+      "length": 144,
+      "sha256": "B55DBF469719AE11729E2554A71B435809FFD5633F3CEC5C470A658FFA9F0505",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination01.stderr.log"
+    },
+    {
+      "length": 3055,
+      "sha256": "1669193C6C5BF15DDB130A57C2DF9D892CED8123CA194E9369DF347A5400905C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination01.stdout.log"
+    },
+    {
+      "length": 758,
+      "sha256": "88D34AE59B90378987E77F5773831C545B5D786C7598ADF96BA9E4CE663498C6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination02.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination02.stderr.log"
+    },
+    {
+      "length": 381,
+      "sha256": "C29AE19ED0B9DED33BFCC75620D9020E058426E948A5C6F74B657E1EC0538EF2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination02.stdout.log"
+    },
+    {
+      "length": 758,
+      "sha256": "049AA5F6827D7832CBC314B4203723FCC4804068B954791DF209B0FF8A9ECB7F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination03.json"
+    },
+    {
+      "length": 592,
+      "sha256": "44D0461FC96E9C5BD3341268A0E61C7EF2E9B4961306D008B1D37FFA5A77016A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination03.stderr.log"
+    },
+    {
+      "length": 8736,
+      "sha256": "201212186D6E617A90CAF118F71EF658EE94314DE095F69051437E490667191B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination03.stdout.log"
+    },
+    {
+      "length": 758,
+      "sha256": "5041E6DA69E2BA9DBB3C808A2BD6011B3DFE0EC3FC4B8DFAE4FFFC1A8F8F4CC8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination04.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination04.stderr.log"
+    },
+    {
+      "length": 381,
+      "sha256": "047918A8A5BEBA059E06A5B423C4337A6A5BBD24D21A7FE6D289606411C2609D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination04.stdout.log"
+    },
+    {
+      "length": 842,
+      "sha256": "883727E735450B699074E7BC4E0A291FF902626191CFE000B8A881B8DE25A428",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression-final.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression-final.stderr.log"
+    },
+    {
+      "length": 390,
+      "sha256": "360208623BDF108F031707B538A62F0915467D72DB29AB5EE4D6752ECA55811D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression-final.stdout.log"
+    },
+    {
+      "length": 834,
+      "sha256": "6C3F9BAE4A631DA4E7C18AA3B38772C2C383853E27E2C34D3823F28413805850",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression01.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression01.stderr.log"
+    },
+    {
+      "length": 386,
+      "sha256": "817DB487C7672D13D325995183E5CC86E7C877F95E1D3CE5A6853DDC73B8BC0C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression01.stdout.log"
+    },
+    {
+      "length": 520,
+      "sha256": "D2C3839E5D677D54D61FDF7F57E2D55CAE09268D00A46A5B1F7901E0F50F6887",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\issue-original.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\issue-original.stderr.log"
+    },
+    {
+      "length": 2759,
+      "sha256": "2715B00B2E3F362A9E92380F6D4A1D775CD33FA245BC81A7E37C63B961659005",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\issue-original.stdout.log"
+    },
+    {
+      "length": 1793,
+      "sha256": "C2C0886B47DC311E3759468B41E710950F490ACF8A8D861578358DE6561676E0",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\owned-whitespace-format.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\owned-whitespace-format.stderr.log"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\owned-whitespace-format.stdout.log"
+    },
+    {
+      "length": 1158,
+      "sha256": "A75B3F3861BAC37DBE4304F5F49797F8872BEC54F01440AFC77392F2E69BD2EC",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-build.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-build.stderr.log"
+    },
+    {
+      "length": 370,
+      "sha256": "97C344D570B51DA78D049782DFCC9A36833B5F488322507B77681BEFC4A4A66D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-build.stdout.log"
+    },
+    {
+      "length": 527,
+      "sha256": "6D3FFF16C5324C57B13F345A7A3E7213C7E9B31375DB1C4306BD3D2A9F6B16A5",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-run.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-run.stderr.log"
+    },
+    {
+      "length": 1282,
+      "sha256": "3A89C5B67E7AB8B42DE86B725077216F0047DE66A7332AACB0D4219F374213E8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-run.stdout.log"
+    },
+    {
+      "length": 1070,
+      "sha256": "6C8DFF203F5954D15ABE36922FA9B98B1B291650A7BF9366D939B5C7FDE5BA1B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build-final.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build-final.stderr.log"
+    },
+    {
+      "length": 1814,
+      "sha256": "A7DA036349B31BB9F0FC420F14664DA1E2A2061F66829150804E6B4435F36257",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build-final.stdout.log"
+    },
+    {
+      "length": 1066,
+      "sha256": "4B159AB84ABED9ECD87A37D663301DAE7782D3B62C381261024BB0460C42D81A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build01.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build01.stderr.log"
+    },
+    {
+      "length": 2760,
+      "sha256": "55EF6DB8F5B5560575F71C955BE35D33302132AC7F7AFBF2274B6E2578433666",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build01.stdout.log"
+    },
+    {
+      "length": 774,
+      "sha256": "C499EE1721767628F133A4B022AE3A5D87752CD12937522753132DEB7FFD2A40",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination01.json"
+    },
+    {
+      "length": 165,
+      "sha256": "026B691E76EC8AD7D2838406A8774FE66DDD10236F861F61E56667A160299D38",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination01.stderr.log"
+    },
+    {
+      "length": 30,
+      "sha256": "4FEE6AF344F6B2D18239A8C1AD735FAC49EBE9E3B0D9AA7B370F2C26193802DD",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination01.stdout.log"
+    },
+    {
+      "length": 782,
+      "sha256": "7F50B2A9EEB40EAC3A10101C15698AF531E4D5413F5B80F3793D6763BC72D5B0",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination02.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination02.stderr.log"
+    },
+    {
+      "length": 378,
+      "sha256": "B21559172A423B5DF3AE1EB4D53B392EE0EEC5E7525EED26176F8BF0DC4663A2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination02.stdout.log"
+    },
+    {
+      "length": 773,
+      "sha256": "2901334E2FAECB7F0414FCCD1E6D6A74704B1D3A2B982DBAC5E896114553068F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-regression-final.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-regression-final.stderr.log"
+    },
+    {
+      "length": 383,
+      "sha256": "03D77EEF2F52F704BBC7F1C4AEF4DEB200D7229A7DC4FC1D7D3B9EC4CC9AF312",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-regression-final.stdout.log"
+    },
+    {
+      "length": 1157,
+      "sha256": "9AC85D9E4778E508826C54B6A0643CBCC19789BDF3F63841C32AEE0884A69B87",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-build.json"
+    },
+    {
+      "length": 487,
+      "sha256": "28AFC45C11834A3671679A073CBC60E05CAE928252505DE6288ABE05D99E1DDE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-build.stderr.log"
+    },
+    {
+      "length": 1351,
+      "sha256": "20304E6F8B729001844C80405616169669E8BB4AC89939BB4273015B5AAF7FA4",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-build.stdout.log"
+    },
+    {
+      "length": 519,
+      "sha256": "1E314193381776E536556186F89DB320BC7CEFB732D359488EC4D3EEE81324BE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-run.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-run.stderr.log"
+    },
+    {
+      "length": 1258,
+      "sha256": "9495B013F0F3D530F2F7DFD7413257E3A3DA94379C918E185B307D20710CFA69",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-run.stdout.log"
+    },
+    {
+      "length": 585,
+      "sha256": "E47ACCB46E10382A1E7EB338512542B0D270969C7CA25732BEBBD3EA372F98C3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\submodules-init.json"
+    },
+    {
+      "length": 213,
+      "sha256": "E6A33680943FCB1643C5D56A8871F579A0E2711C59430451A02BC1B5BAD7F745",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\submodules-init.stderr.log"
+    },
+    {
+      "length": 213,
+      "sha256": "5CCCDECC12089550862AE77C4A1AE27AE28D25B46404D57C63F09F1ACD91F9A6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\submodules-init.stdout.log"
+    },
+    {
+      "length": 974,
+      "sha256": "9236C5864A348A172975E5EFC84CC56C3D575C84B8E351665220776DBA1EB6F4",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-candidate-build.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-candidate-build.stderr.log"
+    },
+    {
+      "length": 85250,
+      "sha256": "C5D5531B9FA9FB27ADE92D8EA630FA4C1F34C4B1D9A6502A5E3751D989256B1D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-candidate-build.stdout.log"
+    },
+    {
+      "length": 545,
+      "sha256": "C21EC4ED841649D3FE8D6A0344F3C8876CAD8FA55A42EB4083FAC1B421B42851",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-checkout.json"
+    },
+    {
+      "length": 87,
+      "sha256": "72997DAEC8B55AE90A2E613FCEEC2E517F011FC2E4A692C9F8484190DE8C47D6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-checkout.stderr.log"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-checkout.stdout.log"
+    },
+    {
+      "length": 599,
+      "sha256": "CC2B82AB901FF43CCF096B81F5EBDE189F95C268B77D42DA9B71179412C173EB",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-clone.json"
+    },
+    {
+      "length": 94,
+      "sha256": "05A2EDE8BD918E7413FB58B1BE87B149D7A907415C0D2FCD9E0B06C4513375F0",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-clone.stderr.log"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-clone.stdout.log"
+    },
+    {
+      "length": 548,
+      "sha256": "EB50F93439D2A6B7902512710AA10E33475363465E517A770CB251F38E3FE7CE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "1E166EF6C6B087E2DE789D561EB60ACBA08F9954F22C79CC97E607443CFF4E33",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-exercise.stdout.log"
+    },
+    {
+      "length": 544,
+      "sha256": "71924415ED441161FF902D02B3834CB9F131E8AEDA91D7895A4F722B4CC6F725",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "98D25189153B3BD6D457E40FBE09CB697350C6F771444EEE032E1F9A93A1B659",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-reopen.stdout.log"
+    },
+    {
+      "length": 560,
+      "sha256": "375CD567D2DD74B1740A7F848BB3A2546DEA30788E456DC6F2B16133F82DBA53",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "DC9FB2A7744573FFDA4306468C41356568449F84A6B8AC17211F7FB9A0CA6BF7",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-exercise.stdout.log"
+    },
+    {
+      "length": 556,
+      "sha256": "2B70FE394A2F782839A0701E9862DE8B76F9E4492CC35F34934CBCC01401E0C5",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "7C42DB993D4C47A5EF749FEE53207400BFDA81FBA5FA8DC2118E795B5A9D8DB7",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-reopen.stdout.log"
+    },
+    {
+      "length": 971,
+      "sha256": "379DD467437EC8E9811ECB8F1EA875E3E570A98F30D4E2BC6A524ED15A756E97",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-build.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-build.stderr.log"
+    },
+    {
+      "length": 85247,
+      "sha256": "D88A6776C1480B929D0AA0779CE1C3F4F4CD190883EE34ADFF10BEB0FF7FBC38",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-build.stdout.log"
+    },
+    {
+      "length": 551,
+      "sha256": "CB4B8BC428164E523DE8284DF988CB3BBAE535A3D7E3355492E064F1CB19EB51",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-guard.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-guard.stderr.log"
+    },
+    {
+      "length": 1732,
+      "sha256": "9FFAD21A4A8BE03B1B7690885E4898BD4B471D5E1FD45C5CE00E50DD756F8F5C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-guard.stdout.log"
+    },
+    {
+      "length": 556,
+      "sha256": "3531B1FD1F1695330E020368E47EBDC31D020FFEE64F5C7BA7E1DB84129A78C3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-pr-snapshot.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-pr-snapshot.stderr.log"
+    },
+    {
+      "length": 306,
+      "sha256": "4D5CA0477994F63AA34793F9A0B7891D87A00CE9E8845BB8CF97AED70EEE71DF",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-pr-snapshot.stdout.log"
+    },
+    {
+      "length": 59466,
+      "sha256": "D3F51BDE3E1C01AB90CA9509738961090D38017B76377FF431F46B641B1A10AD",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination01.trx"
+    },
+    {
+      "length": 53341,
+      "sha256": "72F4704F335D9B46C4E82E55942BF197D9DFA47BDCFEAE25FD30636F4DFD975B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination02.trx"
+    },
+    {
+      "length": 85837,
+      "sha256": "073BF7AC049244196697B34BA04FCAB887380B37646A1D3236A5EEFD18332F71",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination03.trx"
+    },
+    {
+      "length": 64407,
+      "sha256": "F7B4AD16D32C61828B0837235F39653FECB9F31D4D6A3DC24CCF56871A4E44D5",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination04.trx"
+    },
+    {
+      "length": 4600513,
+      "sha256": "BCAB7C5918A2362D0F5143D0C5EE0735AFCE48588AB52C77A4EF0BD3688EC0E9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-regression-final.trx"
+    },
+    {
+      "length": 4589447,
+      "sha256": "6FC4007A01CDD64D9D4ACC56F1D084F16C4084B652F3FF091195FD08756B3607",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-regression01.trx"
+    },
+    {
+      "length": 1152824,
+      "sha256": "4EEF0CF558414691ED19A01F6E1FFA9EBA37303C0D5E80AD1AB39A077F0A9C10",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\server-pagination02.trx"
+    },
+    {
+      "length": 17148113,
+      "sha256": "66EFC7E1B26A2FF5F10B183355A535135B7BC7DBCCB94CA1E5ED1DA4EB38943A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\server-regression-final.trx"
+    },
+    {
+      "length": 32,
+      "sha256": "14E6FFEDAE12E6CF49EA6CC86E0918DEF26F1F1F7607D55E27336D6A60966B7C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\.owner"
+    },
+    {
+      "length": 44,
+      "sha256": "4C443BD46E745D12DCA237E161C4403846145E745F6B52108FAC9DF720B7B3B2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\create-database-frame-http2.json"
+    },
+    {
+      "length": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\create-database-rest.json"
+    },
+    {
+      "length": 9794,
+      "sha256": "F13265F5638E7EC68B2E57D29C76D4DE808B72E6A07ED119D351B6C9BA4FD05D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\manifest.json"
+    },
+    {
+      "length": 164322,
+      "sha256": "E56FDBBADC387872FCAAB07CE78C0A5D7CED87D640DBD97174642C3C39565949",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\protocol-frame-http2-exercise.json"
+    },
+    {
+      "length": 159663,
+      "sha256": "D441CFACE71AFE79B70698E20998CBCF36D60FA1682C6F1BA26FAC3C1692DB77",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\protocol-frame-http2-reopen.json"
+    },
+    {
+      "length": 178046,
+      "sha256": "20DDC4675CEB788C721A25F0F80ECFD587843BF942ED70C59B591F2C48157D3B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\protocol-rest-exercise.json"
+    },
+    {
+      "length": 173363,
+      "sha256": "7678BFB54FDC8DE816821E602FD78A19956D3C34B791A8650DF5A4857C14D7EE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\protocol-rest-reopen.json"
+    },
+    {
+      "length": 51,
+      "sha256": "C5A2F1DDB8D3C5A19400AAD0977524A55236519FF0D6F5A6F3C13CB64F2A3162",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\runtime.json"
+    },
+    {
+      "length": 538,
+      "sha256": "50E32AF7C40826BCE8867E0CB7963A3212167F08E947CF516E9BB30608D7C527",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-exercise.stderr.log"
+    },
+    {
+      "length": 318405,
+      "sha256": "C94C7E9F76E7402AE81CCCE27A8B544A881E69FB39843DDD61679152176A8761",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-exercise.stdout.log"
+    },
+    {
+      "length": 538,
+      "sha256": "8A84740A9F97DBA9D3C4ACCFB01BB3E150BF4BF0D65F7A12A887D533478E0A66",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-reopen.stderr.log"
+    },
+    {
+      "length": 309443,
+      "sha256": "B37BEFC9109F1DB0534A117BA28CFED4319ACC2B3168209DC15359CC71324432",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-reopen.stdout.log"
+    },
+    {
+      "length": 531,
+      "sha256": "A6BE7CCA2FD34D5D8FE67977BB06FB556F929AA51B13CBB2E83C9544ECB5A164",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-exercise.stderr.log"
+    },
+    {
+      "length": 346542,
+      "sha256": "31C25FE044CD3E309341CDEC2D810371F46E5EBC7F02AB899BBBD833F2C141A8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-exercise.stdout.log"
+    },
+    {
+      "length": 531,
+      "sha256": "679CF2D7902AE4B6E9CAF54FB90125C989C41343972235B47395CD2BCAF6C7BD",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-reopen.stderr.log"
+    },
+    {
+      "length": 337503,
+      "sha256": "75788AE062627DD1C6067D0FB66BC7C55D56221A438BA1F8A1C60F8CCF4F3D5B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-reopen.stdout.log"
+    },
+    {
+      "length": 16608,
+      "sha256": "AE1A12BF0C2B00540423355A597AC5ED47BAC48068BA7D0AD507B8901D297E3B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-snapshot.json"
+    },
+    {
+      "length": 677,
+      "sha256": "39234A3C9AD0084A71DB31D7C5DB8FBD734914D0C82A2F524B53A42AC3EA797C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "602D1CF347B304C3B40934016469C032D8FDAF675F83A1A6E5063116AC0A3758",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-exercise.stdout.log"
+    },
+    {
+      "length": 673,
+      "sha256": "8489A9AEEFD42A2183FF0673668FA2ACA115C3360A21B251D287621E7BC0DDE3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "190BFAAE7FFF87F969678698644EB1652C8EDD59435DF59454995E127BC5C803",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-reopen.stdout.log"
+    },
+    {
+      "length": 663,
+      "sha256": "CFF55635CFC3822840EBDC4FAFCF0FEC3B41D07AFD1175959B749F45A7F27F8E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "84A6AD1BFBBEAF0755E6255138A3585FE8485BBD6CF8C86791848045BF313D53",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-exercise.stdout.log"
+    },
+    {
+      "length": 659,
+      "sha256": "FB4CB87AB87B6F7DAFEB484D4A759F64AFE987588F741C5BC9DF2ED325E2F036",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "01222AEC0A2924016D28566488FFC74DBEF1463D3E9A44F560BAD7D67DC04D79",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-reopen.stdout.log"
+    },
+    {
+      "length": 32,
+      "sha256": "DB832BBA696B9CDCB765F10063636EA50652F94A30EA63D6B271BF37661371F6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\.owner"
+    },
+    {
+      "length": 44,
+      "sha256": "4C443BD46E745D12DCA237E161C4403846145E745F6B52108FAC9DF720B7B3B2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\create-database-frame-http2.json"
+    },
+    {
+      "length": 44,
+      "sha256": "5F54FE2253BD5C26401E59783471CC7FA89CAD2F9E9D51D9AE4310FDD12A5EC4",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\create-database-rest.json"
+    },
+    {
+      "length": 9926,
+      "sha256": "1EC918536B51F6AC7581773934E2A8C14B1326B091924E13F66B9BF0166E3CB0",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\manifest.json"
+    },
+    {
+      "length": 164322,
+      "sha256": "7BD69DECB7B3D474355547A8428779BAACCE53BE27EEED030D51C87DCDC80F76",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-frame-http2-exercise.json"
+    },
+    {
+      "length": 159663,
+      "sha256": "0E723717057B63DC79088522D04826D42BB1C3EA3D60F76AD35B234F1B448C34",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-frame-http2-reopen.json"
+    },
+    {
+      "length": 178046,
+      "sha256": "B56A493455E5F4F495FF062E1E0F84F5DE265153824B304B423117F73123DB8F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-rest-exercise.json"
+    },
+    {
+      "length": 173363,
+      "sha256": "47F78FC90EEF85966AAF3D67988A43925985693C6FD919CAB1E6C5A7D5ECB4BA",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\protocol-rest-reopen.json"
+    },
+    {
+      "length": 48,
+      "sha256": "D9E379D1BDBD781E6778A163563466C70460AEC41BCE7715AA39E9B0B097D62C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\runtime.json"
+    },
+    {
+      "length": 546,
+      "sha256": "F1A66B97AA37105393D60DFBF2F987D8469C83FDCD019CB1F5114A062C7F1886",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-exercise.stderr.log"
+    },
+    {
+      "length": 318419,
+      "sha256": "F72084B0AB90FC885C40916534744E6209E1FB6F7722CC197DE8FB55E6815938",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-exercise.stdout.log"
+    },
+    {
+      "length": 546,
+      "sha256": "DEB43D9635B2CEAEBA7DCCA541B7C253401A005D056203DC10C5365D6AA2DE59",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-reopen.stderr.log"
+    },
+    {
+      "length": 309444,
+      "sha256": "DC3D83746E4B95452CC140DD56B91240DB0D8DDE8D4D38F7D50930946AFBB27F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-reopen.stdout.log"
+    },
+    {
+      "length": 539,
+      "sha256": "29B2827A4B0EBB2CFA7426937A9662A5D9E9124E0ABC5CE2DCFC1B1FA660B5D8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-exercise.stderr.log"
+    },
+    {
+      "length": 346542,
+      "sha256": "40EBABB1F0F3EC63D4C1BDC72C7AF2E6ACFFAB5566E3D1EB4F1CF509C3237B21",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-exercise.stdout.log"
+    },
+    {
+      "length": 539,
+      "sha256": "100D5AEA73B00F44552DC556119D32509EBF27816F00D6C327638C713D3DAF0C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-reopen.stderr.log"
+    },
+    {
+      "length": 337514,
+      "sha256": "9966B5E29E699DA16239FB8AB73A67DC29802E072852B908723A6E82FE3209F3",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-reopen.stdout.log"
+    },
+    {
+      "length": 16620,
+      "sha256": "7961D3DCF8C264DFF6D9CE4DFBAA3671E51E7CC75CDF638B26C374D20E316063",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-snapshot.json"
+    },
+    {
+      "length": 674,
+      "sha256": "A4207B847CA69CEF02327A7C3C1F609E88B1988654F56EC6A47237BEBB246E2F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "717F91E44D599BD4AF206F921684C5B9658E04F529354F00235D80A35F5BF85B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-exercise.stdout.log"
+    },
+    {
+      "length": 670,
+      "sha256": "AB3F6F0F4C76B2C2391B4B88A31933D4B755C70E463A6D3B7792591D312C5D40",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "1AB01D58F7C7C7E874C6735C033BF10C269094A3947E6D9FF9F625CAAF02A34E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-reopen.stdout.log"
+    },
+    {
+      "length": 660,
+      "sha256": "C2C1724CA6D0CA05E86EFB2F31436B9D031063AB102E102ADF214C3A42D2D9CB",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-exercise.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-exercise.stderr.log"
+    },
+    {
+      "length": 1053,
+      "sha256": "4D3FCF5ADDCDC3319AE0A72E1A52D45A570641FC61A2E05479EA702AB3F6F889",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-exercise.stdout.log"
+    },
+    {
+      "length": 656,
+      "sha256": "DC5BBDF63CAE9EAB94A4B97A69ACDCCEC779734044510F08581CDB9ABC39C6CE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-reopen.json"
+    },
+    {
+      "length": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-reopen.stderr.log"
+    },
+    {
+      "length": 1051,
+      "sha256": "9E9404DB73BD70735473DD78939F211DAE7803DC4E7F9C28E516A70405AB1F69",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-reopen.stdout.log"
+    },
+    {
+      "length": 936,
+      "sha256": "B9CAAC0AF8812770F5F0627C1C9D640F3536FE6C8BB5016DC0E5FBB6733BFBEE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-build-final.json"
+    },
+    {
+      "length": 940,
+      "sha256": "4C02B9B494F779468ED828BA7BD2446B35D2EF8A30D0233BC42701804FA922F6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-candidate-build.json"
+    },
+    {
+      "length": 940,
+      "sha256": "9C83E925477CBEE655559515A6391D037213CDDEB8D79D8B6EDDC099CCE9F1BF",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-original-build01.json"
+    },
+    {
+      "length": 940,
+      "sha256": "EFBAA30A3FAD2F0B00855C48B42BD14BB6BFCED21DBBC74C6B59081D767C7952",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer-original-build02.json"
+    },
+    {
+      "length": 774,
+      "sha256": "429E8CDA75AFC521268FFD35B2108292ACF0589668E718EC6CAE0072F4FBD675",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build-final.json"
+    },
+    {
+      "length": 772,
+      "sha256": "10D1BEA3FB440A599E114DFFF99619B0A69D458E20C5303002CBE88B70A0B498",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build01.json"
+    },
+    {
+      "length": 772,
+      "sha256": "B22317E021EC376E0457F8461D70C8973CB32D20D4C89F0C38CC6FDC563DCF97",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build02.json"
+    },
+    {
+      "length": 772,
+      "sha256": "E4BCD28F542DCAC9A3EB0669058EA7BB2AF2F37CD9E64711E62704A96F4BB1DB",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build03.json"
+    },
+    {
+      "length": 772,
+      "sha256": "4CCC0B724E1CF621957359CDF9491F7133227DD1E3F30542FC587C20B16ACE7D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build04.json"
+    },
+    {
+      "length": 770,
+      "sha256": "20FC6FB673E3A6A13108D5AC57FF76EDC1FED3E97C7D522A717082838338667E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build05.json"
+    },
+    {
+      "length": 770,
+      "sha256": "A8D936A8BFAC8EF8A3CD30A46941C18D09517A4393BAB9256499C165EF3DDACA",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build06.json"
+    },
+    {
+      "length": 770,
+      "sha256": "EFE0F47CD4E76CB054FA3C81A10DB7C66AFE4CEFB016D9D9A7433538122F427E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-build07.json"
+    },
+    {
+      "length": 470,
+      "sha256": "D23D05E57532043A5630B7297E45C56FCA966C42E812BB9F568248BD7149C8A6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-pagination01.json"
+    },
+    {
+      "length": 470,
+      "sha256": "B9FE3B24DF46E1ADD0FB6F9A56C68C8C9FEE0AC77E868E8FCAFD84ED35891776",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-pagination02.json"
+    },
+    {
+      "length": 470,
+      "sha256": "372E04F8061C11C048DBF880D4EFB077C01DDBDBC6668EAF2758EF018DC6BBC8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-pagination03.json"
+    },
+    {
+      "length": 470,
+      "sha256": "275F002A52ACECF233ECF6F6FE42F2A539760D3ABA6E8BB423B6D9EC09FA55F7",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-pagination04.json"
+    },
+    {
+      "length": 554,
+      "sha256": "6A30061A893B4CB75C1129BB104752193E1507F291399A92CCE2E83104301792",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-regression-final.json"
+    },
+    {
+      "length": 546,
+      "sha256": "B0309BD4FF3A9192F9636F44821516F1A862DAC4B5EDFC1904A25B1288D93427",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\core-regression01.json"
+    },
+    {
+      "length": 9676,
+      "sha256": "68D39F5E4094F4AC2032B2EFFFE06670A0054B12F511CCCF705647FEB611129F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\Freeze-Evidence.ps1"
+    },
+    {
+      "length": 2563,
+      "sha256": "4D558F10ECEE399A29F64BFCF2570AC490762CDF5D4DC8C98F6900172B14934B",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\Invoke.ps1"
+    },
+    {
+      "length": 256,
+      "sha256": "EA6B816B31F900AA3079B6EF474ECB7BD1DF561D93F1EBDF8523F138DFCBF449",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\issue-original-spec.json"
+    },
+    {
+      "length": 964,
+      "sha256": "418BB4FC943EF50AD2A6BC2885A9B7CF9A290C1A62436AB046177AF65EAD03D6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\issue259-to256-integration.json"
+    },
+    {
+      "length": 5645,
+      "sha256": "64EF426852F20074101B9E78D6A8E6DF04050215D9C6E8732A3052FCEF739900",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\issue260-to259-256-integration.json"
+    },
+    {
+      "length": 199,
+      "sha256": "0FD304609B50D6A1C07D9B07DB41286943BF0712EF3AEAD96F1EEF0644DDA597",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\NuGet.Config"
+    },
+    {
+      "length": 1201,
+      "sha256": "8B76E80F206C7CC2407B5AF7E95F356157129627218D0DA624A3EB291A418968",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\owned-code.json"
+    },
+    {
+      "length": 1463,
+      "sha256": "834E9AADE55BA13E6FF385AB168B37A4D0A7E8B58D7EBA1598BE93F096EE9CA2",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\owned-whitespace-format.json"
+    },
+    {
+      "length": 854,
+      "sha256": "35E12FE55BD52E6D3DF8672C0A23BE47E452A4B44F28AA18CB9CB0C9A99B7CA7",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\public-baseline-build.json"
+    },
+    {
+      "length": 246,
+      "sha256": "D7B5E39B0D3DE88ADBDD16E2CEF2C7B9257A3D9ED143EBA94E701F0793921E5D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\public-baseline-run.json"
+    },
+    {
+      "length": 2221,
+      "sha256": "3C77FAE0FE638A2F9B0D9D738E85D9EF81D68F7AE3421F78C0E023574DAEB4A1",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\rse-pagination-only.patch"
+    },
+    {
+      "length": 766,
+      "sha256": "983124FE5A44A20E39476E018A0456CBD18D7F6AD449A6BACC5ED33516FC0993",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\server-build-final.json"
+    },
+    {
+      "length": 762,
+      "sha256": "4946899C655B26E34906B6852911885AC6F3D5B991E20E29D4FBC4F1E685FE21",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\server-build01.json"
+    },
+    {
+      "length": 486,
+      "sha256": "4933F0C71A04B1112CCEFEC9EDD8F2DCC58B5173A99B99F07A18018268580096",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\server-pagination01.json"
+    },
+    {
+      "length": 494,
+      "sha256": "20950F8A8F2C5D3174A3B731BF00D274CA271548C05213EA9EB031AA5B1475E9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\server-pagination02.json"
+    },
+    {
+      "length": 485,
+      "sha256": "A2F7D6A5A3968A5D731D09C4BABD8D6CB552C67CA6288604D2C9AE56BC9D0ABD",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\server-regression-final.json"
+    },
+    {
+      "length": 853,
+      "sha256": "CEECE31D9EA483CA16C6FE4F70BB7A7E5368D4C029D2D228D37194ADF6FE36EE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-build.json"
+    },
+    {
+      "length": 3614,
+      "sha256": "30E8C7DB16FEF656BFE921E5B9030EC0E9BF69A049C809CC0740E82B0D895677",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-frozen.json"
+    },
+    {
+      "length": 238,
+      "sha256": "C73A547EDCE1E3018E048DE53FAB47D7628DCC827384656B9E5FF6B4422C5900",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-run.json"
+    },
+    {
+      "length": 4004,
+      "sha256": "65CA88912A3CC2054D2804BBEECC037BE187D5033D530B042FC74A9FA6B3E5D9",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-before-final-validation.json"
+    },
+    {
+      "length": 316,
+      "sha256": "4929C1C238A19DB29FD7E2523BDE0ADC573C6F2E3BE27716BA772837EDCC7744",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\submodules-init.json"
+    },
+    {
+      "length": 753,
+      "sha256": "7C5AC9D1F41DD02F2935C80461A703549020D278A2FC3C5838983E206C5037FE",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-candidate-build.json"
+    },
+    {
+      "length": 285,
+      "sha256": "65AB0CF5E5DB6653B8D9FB0E3E8936A53C0E2C570F003B4340317C93E298FA41",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-checkout.json"
+    },
+    {
+      "length": 340,
+      "sha256": "992FD5333AD48C3CEAB44C1AD2A6B5CAE9DF640DAF90B1BFF14CFD4218CDF165",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-clone.json"
+    },
+    {
+      "length": 263,
+      "sha256": "57BD47A98791A6D25345139FBA0CD7E859E04442E7A078B140A2F2499CF9511E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-embedded-exercise.json"
+    },
+    {
+      "length": 259,
+      "sha256": "F6D60CDA51028C336E09FD6BB9CFE25E31FB0B889A2967BD6885C3F28C205C07",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-embedded-reopen.json"
+    },
+    {
+      "length": 275,
+      "sha256": "9134049507CD021ACF90E3D339D2DF561F6674F1E641ACA85658E76685F80936",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-final-embedded-exercise.json"
+    },
+    {
+      "length": 271,
+      "sha256": "50AE7AE7D0D597F776627F634681D6A5C6197FA52B3007143C743891345F9546",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-final-embedded-reopen.json"
+    },
+    {
+      "length": 750,
+      "sha256": "A1F621E2D92ACA6C4150228A81FF6909FB4686190F39EA00E350117233BE1C67",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-original-build.json"
+    },
+    {
+      "length": 266,
+      "sha256": "0B68870BAB79B155313528861C25D666B6127FBB4C8366994E46173A16DB99F0",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-original-guard.json"
+    },
+    {
+      "length": 292,
+      "sha256": "77B2D0D97981DE7C2C7E528636EC0D37E6E9DC289E1CB9065A1B62D991F5383F",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-pr-snapshot.json"
+    },
+    {
+      "length": 745,
+      "sha256": "63BFF9E34B372AD0FCF110F4BDBE976076379948A83B79CDAA90BC13062430E6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\XCodeInt64Pagination.patch"
+    },
+    {
+      "length": 32186,
+      "sha256": "A67A339BEE4989CE47D68BFBA58EAE493BD27629B1C466B14554B82EE10F8B8A",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\public-build\\obj\\Probe\\project.assets.json"
+    },
+    {
+      "length": 34556,
+      "sha256": "0641BAEF9BD0ED371033C12E171A4F01BC488FFD864B94FB1076A7CEEEB59C0E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\obj\\Consumer\\project.assets.json"
+    },
+    {
+      "length": 2068,
+      "sha256": "E034CDE6D3E5CC3A9BFF587DEDF499EBB77FB23B2F30446B7C2C01EBE5302F8C",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\baseline\\Program.cs"
+    },
+    {
+      "length": 444,
+      "sha256": "AD876F2A6F0ACE4472F2C4C20C340B5976F17FDCF750832A7C9CC99A427166DB",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\baseline\\Probe.csproj"
+    },
+    {
+      "length": 6805,
+      "sha256": "4ADE69F38D9A0A8AFD03A3E5E2CC749D6E1475FA235D9B6D795489753CD2DEBA",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer\\Program.cs"
+    },
+    {
+      "length": 430,
+      "sha256": "16510BB97229C05124A4C30F69D3E6D03B9B6A54722A4FBDD1764AA8AA0C4DC6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\consumer\\Consumer.csproj"
+    },
+    {
+      "length": 33780,
+      "sha256": "471F8CF600BDC51E0980845FE63E17B56E9DA0A3BB41D6A15D2C28AB065BF33D",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode\\XCode\\DataAccessLayer\\Database\\SonnetDB.cs"
+    },
+    {
+      "length": 3741,
+      "sha256": "8C612CAF85A0D11E391653B4225948528E2E17295FF644E9EDC7F11D8330BE5E",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode\\XCode\\XCode.csproj"
+    },
+    {
+      "length": 8960,
+      "sha256": "EB9E94647C005719EB04A06509DC07A59C57EA407B7ECBFDD4E721B581C20F73",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner\\Remote.ps1"
+    },
+    {
+      "length": 2965,
+      "sha256": "D5E9662AD6511CA7DC13CE1A0255BE866CB5FA0FB26EDD57399A8FC02B0C54B8",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner\\Common.ps1"
+    },
+    {
+      "length": 278422,
+      "sha256": "DAB029172B7D8A8CEF36BAE096FC6DF72CB512290D5747BFC129EC64349EFAB6",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\RelationalSelectExecutor.before-256.cs"
+    }
+  ],
+  "recommendation": "KEEP OPEN: formal Core/Data/Server release and upstream XCode delivery not completed",
+  "validationBoundary": "No commit/push/external issue actions; scoped whitespace only; supervisor must run full restore and original Format Check on integration tree before commit",
+  "publicPackage": {
+    "result": "1 Int32 boundary accepted; 6 oversized inputs rejected; no claim of released support",
+    "version": "4.5.0-preview.ef266.5",
+    "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46"
+  },
+  "sourceBaseline": {
+    "snapshot": {
+      "length": 3614,
+      "sha256": "30E8C7DB16FEF656BFE921E5B9030EC0E9BF69A049C809CC0740E82B0D895677",
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\source-baseline-frozen.json"
+    },
+    "result": "1 Int32 boundary accepted; 6 oversized inputs rejected; exit 0 means observations recorded",
+    "dependency259Included": false
+  },
+  "tests": [
+    {
+      "file": {
+        "length": 59466,
+        "sha256": "D3F51BDE3E1C01AB90CA9509738961090D38017B76377FF431F46B641B1A10AD",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination01.trx"
+      },
+      "notExecuted": 0,
+      "failed": 1,
+      "total": 34,
+      "passed": 33
+    },
+    {
+      "file": {
+        "length": 53341,
+        "sha256": "72F4704F335D9B46C4E82E55942BF197D9DFA47BDCFEAE25FD30636F4DFD975B",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination02.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 34,
+      "passed": 34
+    },
+    {
+      "file": {
+        "length": 85837,
+        "sha256": "073BF7AC049244196697B34BA04FCAB887380B37646A1D3236A5EEFD18332F71",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination03.trx"
+      },
+      "notExecuted": 0,
+      "failed": 3,
+      "total": 43,
+      "passed": 40
+    },
+    {
+      "file": {
+        "length": 64407,
+        "sha256": "F7B4AD16D32C61828B0837235F39653FECB9F31D4D6A3DC24CCF56871A4E44D5",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-pagination04.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 41,
+      "passed": 41
+    },
+    {
+      "file": {
+        "length": 4600513,
+        "sha256": "BCAB7C5918A2362D0F5143D0C5EE0735AFCE48588AB52C77A4EF0BD3688EC0E9",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-regression-final.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 3032,
+      "passed": 3032
+    },
+    {
+      "file": {
+        "length": 4589447,
+        "sha256": "6FC4007A01CDD64D9D4ACC56F1D084F16C4084B652F3FF091195FD08756B3607",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\core-regression01.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 3025,
+      "passed": 3025
+    },
+    {
+      "file": {
+        "length": 1152824,
+        "sha256": "4EEF0CF558414691ED19A01F6E1FFA9EBA37303C0D5E80AD1AB39A077F0A9C10",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\server-pagination02.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 6,
+      "passed": 6
+    },
+    {
+      "file": {
+        "length": 17148113,
+        "sha256": "66EFC7E1B26A2FF5F10B183355A535135B7BC7DBCCB94CA1E5ED1DA4EB38943A",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\test-results\\server-regression-final.trx"
+      },
+      "notExecuted": 0,
+      "failed": 0,
+      "total": 126,
+      "passed": 126
+    }
+  ],
+  "commands": [
+    {
+      "receipt": {
+        "length": 1242,
+        "sha256": "321B318E8BF0CB40BB4ACFA4524AB87D82440E3881A7FF8AAC39645B66EDB7D9",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-build-final.json"
+      },
+      "record": {
+        "label": "consumer-build-final",
+        "timedOut": false,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 50144,
+          "startTimeUtc": "2026-10-16T00:38:14.0831958Z",
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/consumer/Consumer.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat",
+            "-p:XCodeDirectory=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-candidate-bin"
+          ],
+          "executable": "dotnet"
+        },
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:38:17.6411176+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1246,
+        "sha256": "4AD7895405A352C9210F1344CF45237EBFE49800ECD4BE03BAA99ADB095CA9D1",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-candidate-build.json"
+      },
+      "record": {
+        "identity": {
+          "pid": 71404,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:32:08.7406771Z",
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/consumer/Consumer.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat",
+            "-p:XCodeDirectory=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-candidate-bin"
+          ],
+          "executable": "dotnet"
+        },
+        "endedUtc": "2026-10-16T08:32:12.924729+08:00",
+        "label": "consumer-candidate-build",
+        "timedOut": false,
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 1246,
+        "sha256": "4C7EBA3F08A6F3A64061C9D7CDD0B4F518C44F517BAD30AA6176D9F713DDC458",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build01.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:30:51.8838407+08:00",
+        "exitCode": 1,
+        "label": "consumer-original-build01",
+        "timedOut": false,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 51384,
+          "startTimeUtc": "2026-10-16T00:30:48.6593465Z",
+          "executable": "dotnet",
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/consumer/Consumer.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat",
+            "-p:XCodeDirectory=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-original-bin"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 1246,
+        "sha256": "3184BC1A95B2F4CC060CE3C5DD00DAC8DBF4FC85F55958429CF5A1E029511D0E",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\consumer-original-build02.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "label": "consumer-original-build02",
+        "endedUtc": "2026-10-16T08:31:23.4983895+08:00",
+        "identity": {
+          "pid": 66000,
+          "executable": "dotnet",
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/consumer/Consumer.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat",
+            "-p:XCodeDirectory=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-original-bin"
+          ],
+          "startTimeUtc": "2026-10-16T00:31:17.7404051Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 1078,
+        "sha256": "21F66619D7B2063E76CA68853DB37C52F9D104D6052E8A0CB3821F50D84FD9E6",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build-final.json"
+      },
+      "record": {
+        "label": "core-build-final",
+        "timedOut": false,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 54608,
+          "startTimeUtc": "2026-10-16T00:37:08.5411328Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet"
+        },
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:37:57.5170217+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "C59F8DF3E6216A4EDE807421DD773D7621CEA909D84410551E99CF7D84683F8A",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build01.json"
+      },
+      "record": {
+        "label": "core-build01",
+        "identity": {
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet",
+          "pid": 28380,
+          "startTimeUtc": "2026-10-16T00:16:13.5430629Z"
+        },
+        "exitCode": 1,
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:16:48.1973947+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "3CA8FEB17314ED04C45D7B8A70ECBD6E1AF5C9A3A9CE1BFC54B5137A3FEAA705",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build02.json"
+      },
+      "record": {
+        "timedOut": false,
+        "label": "core-build02",
+        "identity": {
+          "pid": 55108,
+          "executable": "dotnet",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:17:44.6253062Z"
+        },
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:18:30.9613019+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "B756269A7AFB61406296E202F592653921210A2A00102E2F5C264A84A9B9CA1D",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build03.json"
+      },
+      "record": {
+        "identity": {
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 40448,
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T00:20:29.3280773Z"
+        },
+        "exitCode": 1,
+        "endedUtc": "2026-10-16T08:21:21.018883+08:00",
+        "timedOut": false,
+        "label": "core-build03"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "1214C9E12AD0C3E6EB35B96B11EA9E62BAB70CA5240513767037F973FA8D02A9",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build04.json"
+      },
+      "record": {
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T00:22:16.0424928Z",
+          "pid": 54560
+        },
+        "label": "core-build04",
+        "exitCode": 0,
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:22:38.0208464+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "186247800488ACDF8D8D9903C575091126B70C8D077592933C4B850906346A2F",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build05.json"
+      },
+      "record": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:27:45.5216818+08:00",
+        "label": "core-build05",
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:26:46.0888305Z",
+          "pid": 50656,
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet"
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "E961758B36EB6D83882C9A8200F7353AD84BEA21D361E275B7EB379F6DFB5556",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build06.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:34:08.6697904Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet",
+          "pid": 72316,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "timedOut": false,
+        "label": "core-build06",
+        "endedUtc": "2026-10-16T08:34:20.1761751+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1074,
+        "sha256": "0FA3DF9EF643D9994949D8191F1716B1E66A98467A6A771F77FB47248C17A19D",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-build07.json"
+      },
+      "record": {
+        "label": "core-build07",
+        "endedUtc": "2026-10-16T08:35:54.0858792+08:00",
+        "exitCode": 0,
+        "timedOut": false,
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:35:41.6567346Z",
+          "pid": 52700,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet"
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 758,
+        "sha256": "35965C911B7607144FA09728C5C5BB82100108C4523DF5DCBDD735E983EF70F6",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination01.json"
+      },
+      "record": {
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:25:01.6968577Z",
+          "pid": 26212,
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SqlInt64PaginationTests",
+            "/Logger:trx;LogFileName=core-pagination01.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet"
+        },
+        "label": "core-pagination01",
+        "exitCode": 1,
+        "endedUtc": "2026-10-16T08:25:04.83905+08:00",
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 758,
+        "sha256": "88D34AE59B90378987E77F5773831C545B5D786C7598ADF96BA9E4CE663498C6",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination02.json"
+      },
+      "record": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:27:49.4945306+08:00",
+        "label": "core-pagination02",
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:27:45.5614667Z",
+          "pid": 57652,
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SqlInt64PaginationTests",
+            "/Logger:trx;LogFileName=core-pagination02.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet"
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 758,
+        "sha256": "049AA5F6827D7832CBC314B4203723FCC4804068B954791DF209B0FF8A9ECB7F",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination03.json"
+      },
+      "record": {
+        "exitCode": 1,
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:34:20.2136412Z",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SqlInt64PaginationTests",
+            "/Logger:trx;LogFileName=core-pagination03.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "executable": "dotnet",
+          "pid": 70984,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "timedOut": false,
+        "label": "core-pagination03",
+        "endedUtc": "2026-10-16T08:34:23.5958473+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 758,
+        "sha256": "5041E6DA69E2BA9DBB3C808A2BD6011B3DFE0EC3FC4B8DFAE4FFFC1A8F8F4CC8",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-pagination04.json"
+      },
+      "record": {
+        "label": "core-pagination04",
+        "endedUtc": "2026-10-16T08:35:57.3230803+08:00",
+        "exitCode": 0,
+        "timedOut": false,
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:35:54.1141302Z",
+          "pid": 64780,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SqlInt64PaginationTests",
+            "/Logger:trx;LogFileName=core-pagination04.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "executable": "dotnet"
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 842,
+        "sha256": "883727E735450B699074E7BC4E0A291FF902626191CFE000B8A881B8DE25A428",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression-final.json"
+      },
+      "record": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:40:08.5534839+08:00",
+        "label": "core-regression-final",
+        "identity": {
+          "pid": 81844,
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:38:43.0277661Z",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SonnetDB.Core.Tests.Sql&FullyQualifiedName!~Select_WithDateScalarFunctions_TransformsDateTimeValues",
+            "/Logger:trx;LogFileName=core-regression-final.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ]
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 834,
+        "sha256": "6C3F9BAE4A631DA4E7C18AA3B38772C2C383853E27E2C34D3823F28413805850",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\core-regression01.json"
+      },
+      "record": {
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:28:42.9298973Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~SonnetDB.Core.Tests.Sql&FullyQualifiedName!~Select_WithDateScalarFunctions_TransformsDateTimeValues",
+            "/Logger:trx;LogFileName=core-regression01.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "pid": 46612,
+          "executable": "dotnet"
+        },
+        "label": "core-regression01",
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:30:39.9287972+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 520,
+        "sha256": "D2C3839E5D677D54D61FDF7F57E2D55CAE09268D00A46A5B1F7901E0F50F6887",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\issue-original.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:09:08.608537+08:00",
+        "timedOut": false,
+        "label": "issue-original",
+        "identity": {
+          "pid": 82304,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "issue",
+            "view",
+            "256",
+            "--repo",
+            "IoTSharp/SonnetDB",
+            "--json",
+            "number,title,state,body,comments,url,updatedAt"
+          ],
+          "executable": "gh",
+          "startTimeUtc": "2026-10-16T00:09:07.5906921Z"
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 1793,
+        "sha256": "C2C0886B47DC311E3759468B41E710950F490ACF8A8D861578358DE6561676E0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\owned-whitespace-format.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:36:41.5319221+08:00",
+        "timedOut": false,
+        "exitCode": 0,
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:36:39.3642616Z",
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "arguments": [
+            "format",
+            "whitespace",
+            "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+            "--folder",
+            "--include",
+            "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+            "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+            "src/SonnetDB.Core/Sql/SqlParser.cs",
+            "src/SonnetDB.Core/Sql/SqlParameterBinder.cs",
+            "src/SonnetDB.Core/Sql/Execution/SqlPagination.cs",
+            "src/SonnetDB.Core/Sql/Execution/DocumentSqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/DocumentVectorSearchExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/GraphSqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/HybridSearchExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/JoinSqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/JsonFileSqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/SqlExplainPlanner.cs",
+            "src/SonnetDB.Core/Sql/Execution/SqlSpillSorter.cs",
+            "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/TableValuedFunctionExecutor.cs",
+            "src/SonnetDB.Core/Sql/Execution/TopN.cs",
+            "tests/SonnetDB.Core.Tests/Sql/SqlInt64PaginationTests.cs",
+            "tests/SonnetDB.Tests/RemoteInt64PaginationTests.cs"
+          ],
+          "pid": 72248
+        },
+        "label": "owned-whitespace-format"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1158,
+        "sha256": "A75B3F3861BAC37DBE4304F5F49797F8872BEC54F01440AFC77392F2E69BD2EC",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-build.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:12:45.865002+08:00",
+        "timedOut": false,
+        "label": "public-baseline-build",
+        "exitCode": 0,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet",
+          "pid": 20508,
+          "startTimeUtc": "2026-10-16T00:12:41.8594318Z",
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/baseline/Probe.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/public-build",
+            "-p:UseSource=false",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 527,
+        "sha256": "6D3FFF16C5324C57B13F345A7A3E7213C7E9B31375DB1C4306BD3D2A9F6B16A5",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\public-baseline-run.json"
+      },
+      "record": {
+        "label": "public-baseline-run",
+        "timedOut": false,
+        "exitCode": 0,
+        "identity": {
+          "executable": "dotnet",
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/public-build/bin/Probe/release/Probe.dll",
+            "D:/sndb-t/i256-public-baseline"
+          ],
+          "startTimeUtc": "2026-10-16T00:13:38.3225122Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 43228
+        },
+        "endedUtc": "2026-10-16T08:13:38.8053956+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1070,
+        "sha256": "6C8DFF203F5954D15ABE36922FA9B98B1B291650A7BF9366D939B5C7FDE5BA1B",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build-final.json"
+      },
+      "record": {
+        "label": "server-build-final",
+        "timedOut": false,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 42076,
+          "startTimeUtc": "2026-10-16T00:37:57.5518868Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet"
+        },
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:38:14.0620577+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 1066,
+        "sha256": "4B159AB84ABED9ECD87A37D663301DAE7782D3B62C381261024BB0460C42D81A",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-build01.json"
+      },
+      "record": {
+        "label": "server-build01",
+        "timedOut": false,
+        "identity": {
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "startTimeUtc": "2026-10-16T00:27:22.133834Z",
+          "pid": 82184,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet"
+        },
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:28:47.5544097+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 774,
+        "sha256": "C499EE1721767628F133A4B022AE3A5D87752CD12937522753132DEB7FFD2A40",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination01.json"
+      },
+      "record": {
+        "identity": {
+          "pid": 68300,
+          "startTimeUtc": "2026-10-16T00:29:12.8345031Z",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Tests/release/SonnetDB.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~Pagination_Int64BoundariesParametersAndReopen",
+            "/Logger:trx;LogFileName=server-pagination01.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet"
+        },
+        "label": "server-pagination01",
+        "endedUtc": "2026-10-16T08:29:13.2566443+08:00",
+        "exitCode": 1,
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 782,
+        "sha256": "7F50B2A9EEB40EAC3A10101C15698AF531E4D5413F5B80F3793D6763BC72D5B0",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-pagination02.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "identity": {
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~Pagination_Int64BoundariesParametersAndReopen",
+            "/Logger:trx;LogFileName=server-pagination02.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "pid": 75668,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:29:43.1907194Z",
+          "executable": "dotnet"
+        },
+        "timedOut": false,
+        "label": "server-pagination02",
+        "endedUtc": "2026-10-16T08:29:49.4984698+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 773,
+        "sha256": "2901334E2FAECB7F0414FCCD1E6D6A74704B1D3A2B982DBAC5E896114553068F",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\server-regression-final.json"
+      },
+      "record": {
+        "label": "server-regression-final",
+        "exitCode": 0,
+        "identity": {
+          "pid": 60272,
+          "executable": "dotnet",
+          "arguments": [
+            "vstest",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.Tests.dll",
+            "/TestCaseFilter:FullyQualifiedName~RemoteAdoHttp2TransportTests",
+            "/Logger:trx;LogFileName=server-regression-final.trx",
+            "/ResultsDirectory:D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/test-results"
+          ],
+          "startTimeUtc": "2026-10-16T00:38:43.1028084Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "endedUtc": "2026-10-16T08:39:42.9162008+08:00",
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 1157,
+        "sha256": "9AC85D9E4778E508826C54B6A0643CBCC19789BDF3F63841C32AEE0884A69B87",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-build.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T08:11:41.0449307+08:00",
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 60752,
+          "arguments": [
+            "build",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/baseline/Probe.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/source-build",
+            "-p:UseSource=true",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/dictionary/dict.dat"
+          ],
+          "startTimeUtc": "2026-10-16T00:10:56.5128598Z",
+          "executable": "dotnet"
+        },
+        "timedOut": false,
+        "label": "source-baseline-build"
+      }
+    },
+    {
+      "receipt": {
+        "length": 519,
+        "sha256": "1E314193381776E536556186F89DB320BC7CEFB732D359488EC4D3EEE81324BE",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\source-baseline-run.json"
+      },
+      "record": {
+        "label": "source-baseline-run",
+        "exitCode": 0,
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:12:40.4653306+08:00",
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:12:40.0467374Z",
+          "executable": "dotnet",
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/source-baseline-frozen/Probe.dll",
+            "D:/sndb-t/i256-source-baseline"
+          ],
+          "pid": 16736
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 585,
+        "sha256": "E47ACCB46E10382A1E7EB338512542B0D270969C7CA25732BEBBD3EA372F98C3",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\submodules-init.json"
+      },
+      "record": {
+        "label": "submodules-init",
+        "identity": {
+          "startTimeUtc": "2026-10-16T00:25:36.963869Z",
+          "arguments": [
+            "-c",
+            "http.proxy=http://127.0.0.1:7890",
+            "submodule",
+            "update",
+            "--init",
+            "--depth",
+            "1",
+            "extensions/IoTSharp.CoAP.NET",
+            "extensions/MQTTnet.AspNetCore.Routing"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "pid": 47888,
+          "executable": "git"
+        },
+        "endedUtc": "2026-10-16T08:25:44.3839039+08:00",
+        "timedOut": false,
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 974,
+        "sha256": "9236C5864A348A172975E5EFC84CC56C3D575C84B8E351665220776DBA1EB6F4",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-candidate-build.json"
+      },
+      "record": {
+        "identity": {
+          "pid": 58468,
+          "workingDirectory": "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode",
+          "startTimeUtc": "2026-10-16T00:32:04.2886947Z",
+          "arguments": [
+            "build",
+            "XCode/XCode.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:TargetFrameworks=netstandard2.1",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:BaseIntermediateOutputPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-candidate-obj/",
+            "-p:OutputPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-candidate-bin/"
+          ],
+          "executable": "dotnet"
+        },
+        "endedUtc": "2026-10-16T08:32:08.7009274+08:00",
+        "label": "xcode-candidate-build",
+        "timedOut": false,
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 545,
+        "sha256": "C21EC4ED841649D3FE8D6A0344F3C8876CAD8FA55A42EB4083FAC1B421B42851",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-checkout.json"
+      },
+      "record": {
+        "timedOut": false,
+        "identity": {
+          "arguments": [
+            "-C",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode",
+            "checkout",
+            "--detach",
+            "757fa2a078906f87783e55fe0e9d5f54a9e916b9"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "git",
+          "pid": 77904,
+          "startTimeUtc": "2026-10-16T00:22:23.7143252Z"
+        },
+        "exitCode": 0,
+        "label": "xcode-checkout",
+        "endedUtc": "2026-10-16T08:22:25.081716+08:00"
+      }
+    },
+    {
+      "receipt": {
+        "length": 599,
+        "sha256": "CC2B82AB901FF43CCF096B81F5EBDE189F95C268B77D42DA9B71179412C173EB",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-clone.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:21:41.1233246+08:00",
+        "identity": {
+          "arguments": [
+            "clone",
+            "--no-hardlinks",
+            "--no-checkout",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue261-work/xcode-original",
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode"
+          ],
+          "executable": "git",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:21:36.0104086Z",
+          "pid": 6112
+        },
+        "timedOut": false,
+        "label": "xcode-clone",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 548,
+        "sha256": "EB50F93439D2A6B7902512710AA10E33475363465E517A770CB251F38E3FE7CE",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-exercise.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:32:46.1776796+08:00",
+        "exitCode": 0,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet",
+          "pid": 81116,
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/Consumer/release/Consumer.dll",
+            "exercise",
+            "D:/sndb-t/i256-xcode-embedded"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:44.0928086Z"
+        },
+        "label": "xcode-embedded-exercise",
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 544,
+        "sha256": "71924415ED441161FF902D02B3834CB9F131E8AEDA91D7895A4F722B4CC6F725",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-embedded-reopen.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:32:48.0811004+08:00",
+        "exitCode": 0,
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "executable": "dotnet",
+          "pid": 69072,
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/Consumer/release/Consumer.dll",
+            "reopen",
+            "D:/sndb-t/i256-xcode-embedded"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:46.2093117Z"
+        },
+        "label": "xcode-embedded-reopen",
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 560,
+        "sha256": "375CD567D2DD74B1740A7F848BB3A2546DEA30788E456DC6F2B16133F82DBA53",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-exercise.json"
+      },
+      "record": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:38:55.2795928+08:00",
+        "exitCode": 0,
+        "identity": {
+          "pid": 55196,
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:38:53.3643643Z",
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/Consumer/release/Consumer.dll",
+            "exercise",
+            "D:/sndb-t/i256-xcode-final-embedded"
+          ]
+        },
+        "label": "xcode-final-embedded-exercise"
+      }
+    },
+    {
+      "receipt": {
+        "length": 556,
+        "sha256": "2B70FE394A2F782839A0701E9862DE8B76F9E4492CC35F34934CBCC01401E0C5",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-final-embedded-reopen.json"
+      },
+      "record": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:38:57.070527+08:00",
+        "exitCode": 0,
+        "identity": {
+          "pid": 73944,
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination",
+          "startTimeUtc": "2026-10-16T00:38:55.309361Z",
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/Consumer/release/Consumer.dll",
+            "reopen",
+            "D:/sndb-t/i256-xcode-final-embedded"
+          ]
+        },
+        "label": "xcode-final-embedded-reopen"
+      }
+    },
+    {
+      "receipt": {
+        "length": 971,
+        "sha256": "379DD467437EC8E9811ECB8F1EA875E3E570A98F30D4E2BC6A524ED15A756E97",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-build.json"
+      },
+      "record": {
+        "identity": {
+          "arguments": [
+            "build",
+            "XCode/XCode.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:TargetFrameworks=netstandard2.1",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/NuGet.Config",
+            "-p:BaseIntermediateOutputPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-original-obj/",
+            "-p:OutputPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode-original-bin/"
+          ],
+          "executable": "dotnet",
+          "pid": 81764,
+          "startTimeUtc": "2026-10-16T00:27:59.3508464Z",
+          "workingDirectory": "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/xcode"
+        },
+        "label": "xcode-original-build",
+        "timedOut": false,
+        "endedUtc": "2026-10-16T08:28:09.3253269+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 551,
+        "sha256": "CB4B8BC428164E523DE8284DF988CB3BBAE535A3D7E3355492E064F1CB19EB51",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-original-guard.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "label": "xcode-original-guard",
+        "endedUtc": "2026-10-16T08:31:24.3764838+08:00",
+        "identity": {
+          "pid": 76028,
+          "executable": "dotnet",
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue256-work/build/bin/Consumer/release/Consumer.dll",
+            "original-guard",
+            "D:/sndb-t/i256-xcode-original"
+          ],
+          "startTimeUtc": "2026-10-16T00:31:23.55256Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "timedOut": false
+      }
+    },
+    {
+      "receipt": {
+        "length": 556,
+        "sha256": "3531B1FD1F1695330E020368E47EBDC31D020FFEE64F5C7BA7E1DB84129A78C3",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\logs\\xcode-pr-snapshot.json"
+      },
+      "record": {
+        "exitCode": 0,
+        "identity": {
+          "pid": 69760,
+          "startTimeUtc": "2026-10-16T00:21:33.3184343Z",
+          "arguments": [
+            "pr",
+            "view",
+            "101",
+            "--repo",
+            "NewLifeX/NewLife.XCode",
+            "--json",
+            "number,state,isDraft,headRefOid,headRefName,headRepositoryOwner,updatedAt,url"
+          ],
+          "executable": "gh",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue256-int64-pagination"
+        },
+        "endedUtc": "2026-10-16T08:21:34.6351083+08:00",
+        "timedOut": false,
+        "label": "xcode-pr-snapshot"
+      }
+    },
+    {
+      "receipt": {
+        "length": 538,
+        "sha256": "50E32AF7C40826BCE8867E0CB7963A3212167F08E947CF516E9BB30608D7C527",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-exercise.json"
+      },
+      "record": {
+        "terminated": true,
+        "exited": true,
+        "protocol": "frame-http2",
+        "h2Port": 51613,
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server",
+          "executable": "dotnet",
+          "pid": 58872,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server\\SonnetDB.dll"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:59.1721896Z"
+        },
+        "exitCode": -1,
+        "httpPort": 51612
+      }
+    },
+    {
+      "receipt": {
+        "length": 538,
+        "sha256": "8A84740A9F97DBA9D3C4ACCFB01BB3E150BF4BF0D65F7A12A887D533478E0A66",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-frame-http2-reopen.json"
+      },
+      "record": {
+        "terminated": true,
+        "exited": true,
+        "protocol": "frame-http2",
+        "h2Port": 51656,
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server",
+          "executable": "dotnet",
+          "pid": 56952,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server\\SonnetDB.dll"
+          ],
+          "startTimeUtc": "2026-10-16T00:33:01.399138Z"
+        },
+        "exitCode": -1,
+        "httpPort": 51655
+      }
+    },
+    {
+      "receipt": {
+        "length": 531,
+        "sha256": "A6BE7CCA2FD34D5D8FE67977BB06FB556F929AA51B13CBB2E83C9544ECB5A164",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-exercise.json"
+      },
+      "record": {
+        "terminated": true,
+        "exited": true,
+        "protocol": "rest",
+        "h2Port": 51498,
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server",
+          "executable": "dotnet",
+          "pid": 73220,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server\\SonnetDB.dll"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:54.9637964Z"
+        },
+        "exitCode": -1,
+        "httpPort": 51497
+      }
+    },
+    {
+      "receipt": {
+        "length": 531,
+        "sha256": "679CF2D7902AE4B6E9CAF54FB90125C989C41343972235B47395CD2BCAF6C7BD",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server-rest-reopen.json"
+      },
+      "record": {
+        "terminated": true,
+        "exited": true,
+        "protocol": "rest",
+        "h2Port": 51552,
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server",
+          "executable": "dotnet",
+          "pid": 48516,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\server\\SonnetDB.dll"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:57.2086544Z"
+        },
+        "exitCode": -1,
+        "httpPort": 51551
+      }
+    },
+    {
+      "receipt": {
+        "length": 677,
+        "sha256": "39234A3C9AD0084A71DB31D7C5DB8FBD734914D0C82A2F524B53A42AC3EA797C",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-exercise.json"
+      },
+      "record": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T08:33:00.5748349+08:00",
+        "label": "xcode-frame-http2-exercise",
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "executable": "dotnet",
+          "pid": 30908,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "exercise",
+            "D:\\sndb-t\\i256-xcode-remote01\\data\\frame-http2"
+          ],
+          "startTimeUtc": "2026-10-16T00:33:00.5777228Z"
+        },
+        "endedUtc": "2026-10-16T08:33:01.3012454+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 673,
+        "sha256": "8489A9AEEFD42A2183FF0673668FA2ACA115C3360A21B251D287621E7BC0DDE3",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-frame-http2-reopen.json"
+      },
+      "record": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T08:33:02.7428822+08:00",
+        "label": "xcode-frame-http2-reopen",
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "executable": "dotnet",
+          "pid": 15252,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "reopen",
+            "D:\\sndb-t\\i256-xcode-remote01\\data\\frame-http2"
+          ],
+          "startTimeUtc": "2026-10-16T00:33:02.7454167Z"
+        },
+        "endedUtc": "2026-10-16T08:33:03.3215961+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 663,
+        "sha256": "CFF55635CFC3822840EBDC4FAFCF0FEC3B41D07AFD1175959B749F45A7F27F8E",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-exercise.json"
+      },
+      "record": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T08:32:56.3901694+08:00",
+        "label": "xcode-rest-exercise",
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "executable": "dotnet",
+          "pid": 47968,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "exercise",
+            "D:\\sndb-t\\i256-xcode-remote01\\data\\rest"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:56.3929023Z"
+        },
+        "endedUtc": "2026-10-16T08:32:57.0822028+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 659,
+        "sha256": "FB4CB87AB87B6F7DAFEB484D4A759F64AFE987588F741C5BC9DF2ED325E2F036",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote01\\xcode-rest-reopen.json"
+      },
+      "record": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T08:32:58.5460993+08:00",
+        "label": "xcode-rest-reopen",
+        "identity": {
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "executable": "dotnet",
+          "pid": 46812,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "reopen",
+            "D:\\sndb-t\\i256-xcode-remote01\\data\\rest"
+          ],
+          "startTimeUtc": "2026-10-16T00:32:58.5484498Z"
+        },
+        "endedUtc": "2026-10-16T08:32:59.1055193+08:00",
+        "exitCode": 0
+      }
+    },
+    {
+      "receipt": {
+        "length": 546,
+        "sha256": "F1A66B97AA37105393D60DFBF2F987D8469C83FDCD019CB1F5114A062C7F1886",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-exercise.json"
+      },
+      "record": {
+        "terminated": true,
+        "exitCode": -1,
+        "protocol": "frame-http2",
+        "httpPort": 49340,
+        "exited": true,
+        "h2Port": 49341,
+        "identity": {
+          "pid": 66408,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server",
+          "startTimeUtc": "2026-10-16T00:39:05.8967965Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.dll"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 546,
+        "sha256": "DEB43D9635B2CEAEBA7DCCA541B7C253401A005D056203DC10C5365D6AA2DE59",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-frame-http2-reopen.json"
+      },
+      "record": {
+        "terminated": true,
+        "exitCode": -1,
+        "protocol": "frame-http2",
+        "httpPort": 49708,
+        "exited": true,
+        "h2Port": 49710,
+        "identity": {
+          "pid": 47068,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server",
+          "startTimeUtc": "2026-10-16T00:39:08.1915382Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.dll"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 539,
+        "sha256": "29B2827A4B0EBB2CFA7426937A9662A5D9E9124E0ABC5CE2DCFC1B1FA660B5D8",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-exercise.json"
+      },
+      "record": {
+        "terminated": true,
+        "exitCode": -1,
+        "protocol": "rest",
+        "httpPort": 53645,
+        "exited": true,
+        "h2Port": 53646,
+        "identity": {
+          "pid": 69508,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server",
+          "startTimeUtc": "2026-10-16T00:39:01.395831Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.dll"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 539,
+        "sha256": "100D5AEA73B00F44552DC556119D32509EBF27816F00D6C327638C713D3DAF0C",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server-rest-reopen.json"
+      },
+      "record": {
+        "terminated": true,
+        "exitCode": -1,
+        "protocol": "rest",
+        "httpPort": 49265,
+        "exited": true,
+        "h2Port": 49266,
+        "identity": {
+          "pid": 76568,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server",
+          "startTimeUtc": "2026-10-16T00:39:03.8183686Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\server\\SonnetDB.dll"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 674,
+        "sha256": "A4207B847CA69CEF02327A7C3C1F609E88B1988654F56EC6A47237BEBB246E2F",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-exercise.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:39:08.1120113+08:00",
+        "label": "xcode-frame-http2-exercise",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T08:39:07.2906412+08:00",
+        "timedOut": false,
+        "identity": {
+          "pid": 46476,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "startTimeUtc": "2026-10-16T00:39:07.2933636Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "exercise",
+            "D:\\sndb-t\\i256-xcode-final\\data\\frame-http2"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 670,
+        "sha256": "AB3F6F0F4C76B2C2391B4B88A31933D4B755C70E463A6D3B7792591D312C5D40",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-frame-http2-reopen.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:39:10.259717+08:00",
+        "label": "xcode-frame-http2-reopen",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T08:39:09.5390369+08:00",
+        "timedOut": false,
+        "identity": {
+          "pid": 50384,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "startTimeUtc": "2026-10-16T00:39:09.5419669Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "reopen",
+            "D:\\sndb-t\\i256-xcode-final\\data\\frame-http2"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 660,
+        "sha256": "C2C1724CA6D0CA05E86EFB2F31436B9D031063AB102E102ADF214C3A42D2D9CB",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-exercise.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:39:03.6902737+08:00",
+        "label": "xcode-rest-exercise",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T08:39:02.8099625+08:00",
+        "timedOut": false,
+        "identity": {
+          "pid": 71168,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "startTimeUtc": "2026-10-16T00:39:02.8126373Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "exercise",
+            "D:\\sndb-t\\i256-xcode-final\\data\\rest"
+          ]
+        }
+      }
+    },
+    {
+      "receipt": {
+        "length": 656,
+        "sha256": "DC5BBDF63CAE9EAB94A4B97A69ACDCCEC779734044510F08581CDB9ABC39C6CE",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-final\\xcode-rest-reopen.json"
+      },
+      "record": {
+        "endedUtc": "2026-10-16T08:39:05.8231621+08:00",
+        "label": "xcode-rest-reopen",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T08:39:05.1582496+08:00",
+        "timedOut": false,
+        "identity": {
+          "pid": 71860,
+          "executable": "dotnet",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\xcode-remote-runner",
+          "startTimeUtc": "2026-10-16T00:39:05.1611965Z",
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue256-work\\build\\bin\\Consumer\\release\\Consumer.dll",
+            "reopen",
+            "D:\\sndb-t\\i256-xcode-final\\data\\rest"
+          ]
+        }
+      }
+    }
+  ],
+  "processAudit": {
+    "processes": [
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:38:14.0831958Z",
+        "pid": 50144,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:08.7406771Z",
+        "pid": 71404,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:30:48.6593465Z",
+        "pid": 51384,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:31:17.7404051Z",
+        "pid": 66000,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:37:08.5411328Z",
+        "pid": 54608,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:16:13.5430629Z",
+        "pid": 28380,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:17:44.6253062Z",
+        "pid": 55108,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:20:29.3280773Z",
+        "pid": 40448,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:22:16.0424928Z",
+        "pid": 54560,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:26:46.0888305Z",
+        "pid": 50656,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:34:08.6697904Z",
+        "pid": 72316,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:35:41.6567346Z",
+        "pid": 52700,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:25:01.6968577Z",
+        "pid": 26212,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:27:45.5614667Z",
+        "pid": 57652,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:34:20.2136412Z",
+        "pid": 70984,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:35:54.1141302Z",
+        "pid": 64780,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:38:43.0277661Z",
+        "pid": 81844,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:28:42.9298973Z",
+        "pid": 46612,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:09:07.5906921Z",
+        "pid": 82304,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:36:39.3642616Z",
+        "pid": 72248,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:12:41.8594318Z",
+        "pid": 20508,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:13:38.3225122Z",
+        "pid": 43228,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:37:57.5518868Z",
+        "pid": 42076,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:27:22.133834Z",
+        "pid": 82184,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:29:12.8345031Z",
+        "pid": 68300,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:29:43.1907194Z",
+        "pid": 75668,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:38:43.1028084Z",
+        "pid": 60272,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:10:56.5128598Z",
+        "pid": 60752,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:12:40.0467374Z",
+        "pid": 16736,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:25:36.963869Z",
+        "pid": 47888,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:04.2886947Z",
+        "pid": 58468,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:22:23.7143252Z",
+        "pid": 77904,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:21:36.0104086Z",
+        "pid": 6112,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:44.0928086Z",
+        "pid": 81116,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:46.2093117Z",
+        "pid": 69072,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:38:53.3643643Z",
+        "pid": 55196,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:38:55.309361Z",
+        "pid": 73944,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:27:59.3508464Z",
+        "pid": 81764,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:31:23.55256Z",
+        "pid": 76028,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:21:33.3184343Z",
+        "pid": 69760,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:59.1721896Z",
+        "pid": 58872,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:33:01.399138Z",
+        "pid": 56952,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:54.9637964Z",
+        "pid": 73220,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:57.2086544Z",
+        "pid": 48516,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:33:00.5777228Z",
+        "pid": 30908,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:33:02.7454167Z",
+        "pid": 15252,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:56.3929023Z",
+        "pid": 47968,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:32:58.5484498Z",
+        "pid": 46812,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:05.8967965Z",
+        "pid": 66408,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:08.1915382Z",
+        "pid": 47068,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:01.395831Z",
+        "pid": 69508,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:03.8183686Z",
+        "pid": 76568,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:07.2933636Z",
+        "pid": 46476,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:09.5419669Z",
+        "pid": 50384,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:02.8126373Z",
+        "pid": 71168,
+        "observedStatus": "exited"
+      },
+      {
+        "sameProcessStillRunning": false,
+        "startTimeUtc": "2026-10-16T00:39:05.1611965Z",
+        "pid": 71860,
+        "observedStatus": "exited"
+      }
+    ],
+    "checkedUtc": "2026-10-16T00:43:05.8000463+00:00",
+    "sameOwnedProcessStillRunning": false
+  }
+}
