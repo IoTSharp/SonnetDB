@@ -1,9 +1,18 @@
 # SonnetDB 交接记录
 
 交接日期：2026-10-16（Asia/Shanghai）<br>
-当前分支：`codex/issue-supervision-batch05`<br>
+当前分支：`main`<br>
 远端基线：`origin/main`
-项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
+项目目录：`D:\source\SonnetDB`
+
+## AI 上下文文件完整更新（2026-10-16，本会话）
+
+- 按用户要求重写根 `llms.txt` 与 `llms-full.txt`，短版负责发现/选择入口，完整版覆盖十四项能力、安装与使用、SQL 名称/类型/事务/新功能、各模型、MCP typed contract、Copilot/持久 RAG/媒体、CDC/流任务、三面管理范围、传输/预算/恢复、诊断、任务模板和权威链接。保持英文机器上下文并补中文定位。
+- 内容源码基线 `f9ee14b7`，包含会话期间新合入的 #256 Int64 分页和 PaginationSpec 属性 ABI 边界。公开版本已用 GitHub Releases API 与 NuGet flat-container 实际回读：稳定版 4.0.0、所列六包 4.5.0-preview.ef266.5、Workbench 4.5.0-preview.1.12；明确其发布范围互不等同，未宣布稳定 4.5.0。Workbench 冻结 notes 仍有发布前 NOT_READY 字样，正文使用实际 release/附件及 P08 后续记录判断公开状态。
+- 验证：4 个从文档抽取的完整 C# 示例在当前源码和独立固定公开预览包中分别执行成功；5 组 SQL 示例在当前源码执行并核对 5 个 SELECT 结果。首次验证发现旧文档使用的不受支持内联 PRIMARY KEY，已改表级 PRIMARY KEY 后通过；原失败日志保留。文档 UTF-8/代码围栏、140 个链接对应的仓库文件目标、9 个 MCP 工具名称、每文件 14 个能力 ID 与 git diff --check 均通过。
+- 本地收据/工具在忽略目录 `artifacts/llms-45-docs-20261016/`：`document-validation.json`、`public-version-check.json`、`source-smoke-fixed.log`、`public-smoke-fixed.log`；初始失败和验证用示例项目一并保留。数据库位于本会话独占 `D:/sndb-t/llms45-*20261016` 目录。网站 HTTP 连通性因当前代理失败未核成 PASS；链接验证仅证明仓库目标存在，未声称线上新内容已部署。
+- 发布接续：用户已明确授权提交并推送。主目录 main 已从 f9ee14b7 快进同步至 390af19d，保留远端批次05的验收、测试与交接记录；本次仅提交两个 llms 文件、CHANGELOG 和本条交接。其他会话未跟踪的 ELK 文档不纳入；未修改生产代码、未发产品包，网页部署仍须单独核验。
+- 提交门禁：完整 dotnet restore 与根 AGENTS 指定的原 Format Check 已实际 exit 0；Format 输出了一条工作区加载警告，未报告格式违规。补录本条后再次执行两项最终检查，成功后才提交。本次交付目标为 origin/main，完整命令日志、最终文件哈希及提交/推送回读保存在 artifacts/llms-45-docs-20261016/publish/，最终状态以 publish-result.json 和 Git 历史为准。下一次核验文档部署，再按实际新增合同维护快照；parity-results 必须保持独立且不删除。
 
 ## 最新监督检查点（2026-10-16 09:30，CI 回填页断言修正）
 
