@@ -175,3 +175,15 @@
 - #253已冻结16文件，根核167证据、14运行程序集、两TRX及PS语法，Chloe两处共4行guard删除已审读。源码Core25/25、remote6/6，候选三协议主流程60场景+独立重开15场景通过；公开两版本各3PASS/4FAIL保留。下一步本树独立集成/门禁/提交，不重复引擎实现。
 - 批次04远端仍76955cf6；CI38831797384最新Ubuntu完整Build/Test、三平台AOT及Format已success，两个Windows测试分片仍in_progress。261/260/259/258评论和OPEN回读永久回执已随本地f9ee14b7保存，未推送；旧失败CI保留，暂不push取消新run。parity-results保持2ab6caa9。
 - 当前三个代理各一项：issue314→252（issue252-timespan，独占DURATION核心，已接259/256共22冻结生产依赖）；issue312完成255返修后恢复251审计/探针（issue251-datetimeoffset），等252冻结再动共享类型/协议；issue313→250（issue250-maintenance，f9ee14b7），先约束目录、索引DESC/INCLUDE、自增起点及SqlSugar原包/消费者核对，重叠核心必须串行。#226/#243已交付恢复补缺不重做，正式版本和消费者仍跟踪；监督ACTIVE，三代理上限及所有旧树/证据/parity-results不变。
+
+
+## 最新监督检查点（2026-10-16，批次05独立整合树）
+
+- 接续目录：D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05。主目录活动聊天“更新两份 LLMs 文档”正在改llms.txt和llms-full.txt，另有ELK分析未交付文件；本监督保持主目录只读，不暂存/清理/混入。待其收尾，再检查主main新提交及工作树，保留他人交付后串行整合。主目录HANDOFF暂不能覆盖，最新状态见本树。
+- 本批独立提交：256=f9ee14b7（本地main及本树）、254=6749d202、255=da1199a2（后两仅本树），均未push。每项实际通过完整restore与原Format；256根Core SQL3047/3047、真实Server135/135、两Release零警告/错误。254首次restore缺扩展失败保留，初始化两个锁定submodule后，最终issue254/final-with-submodules两门禁exit0。255最终issue255/final两门禁exit0；根仅移除Common.ps1末尾空行，SHA映射在issue255/root-review/normalization.json，原交付保留。
+- 本变更承载253的16份复核文档/工具：根核167证据、14运行二进制、两TRX、PS语法及四行Chloe guard删除；源码Core25/25、远程6/6，候选三协议60主流程+15重开场景通过。公开4.0.0/.ef266.5各3PASS/4写入拒绝保留，不重复243源码、不把源码Server称正式发行。完整提交门禁在本树artifacts/issue-supervision-20261016/issue253/final，提交以两条实际exit0为前提。
+- 255两层保真问题均有真实失败及修订证据：源读取NULL变0和旧候选覆盖callback指定DAL。最终matrix11的14正向进程+原XML基线1通过，根核2582文件。使用每调用入口、默认paging.Dal；外部非空callback保持Fetch、调用一次、Row/TotalCount原行为及实际默认双向多页typed NULL均验证。旧matrix09不作为默认路径证明；无Sonnet生产修改或上游外发。
+- 本批256/255/254/253回复草稿在本树artifacts/issue-supervision-20261016/batch05-actions，尚未发送、未关闭；待整合及正常push后核远端SHA/CI，再发送并逐条回读。四项正式Core/ADO/Server或消费者上游交付仍缺，继续OPEN。
+- 已推送批次04仍76955cf604655c2ec32f4db1cf019441d4e19577；CI38831797384最新Ubuntu完整测试、三平台AOT及Format success，Windows core/rest仍运行，避免push取消该run。261/260/259/258实际回复与OPEN回读在issue-supervision-batch04-actions-20261016.json（随本地256提交待推送）。旧cfa CI failure保留；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- 三代理各一项：issue314→252，issue252-timespan独占DURATION类型/100ns、v14屏障和可恢复schema迁移、物化视图v3及Frame/REST v5；已接259/256共22生产依赖，负基线已复现，尚未宣称构建/完整验收。issue312→251，issue251-datetimeoffset只审计/公开包和Chloe探针，等252冻结再改共享类型；四进程已复现通用DateTimeOffset转换失败，专用getter控制通过。issue313→250，issue250-maintenance准备三原生维护缺口与SqlSugar负基线/测试。核心移交顺序252→251→250，版本号按前项实交顺延。
+- 下一步取得本项最终完整门禁并独立提交，保持本树清洁；继续监督代理与Windows CI。主目录他人工作结束后串行整合本批，核最终树/完整提交门禁，正常push、读SHA、核CI、回复Issue。226/243恢复源码补缺已推送不重做，正式发行及对应消费者继续跟踪。30分钟监督ACTIVE，三代理上限、旧树/失败证据/parity-results完整保留。

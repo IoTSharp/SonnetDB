@@ -5,15 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
-## 最新监督检查点（2026-10-16，#255返修验收）
+## 最新监督检查点（2026-10-16，批次05独立整合树）
 
-- 当前独立整合树 D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05；主目录另有“更新两份 LLMs 文档”和ELK分析未交付修改，本监督保持主目录只读，不混入他人文件。#256=f9ee14b7本地main已提交，#254=6749d202已在独立树提交，均未推送；等主目录收尾后保留其提交并串行整合。
-- #254首次完整restore因新树未初始化扩展子模块失败（issue254/final，保留原收据）；随后按Git锁定SHA初始化两个子模块，完整restore与规定Format在issue254/final-with-submodules均exit0才独立提交。没有降低门禁或排除solution项目。#254仅16文档/工具，真实证据与正式发行边界见报告。
-- #255修订18文件已按delivery-callback-final.json（SHA9F9A941A79BC2215494C3597DB5F21614D17FD8FE593C8FB6AF7F077AE3E3E69）集成；根实际核2582证据文件、全部回执SHA与PS语法，审读三文件XCode候选。matrix10以旧候选真实复现custom-paging-uses-alternate-dal失败；matrix11的14个源码正向进程及原XML基线1通过，覆盖真实默认双向多页typed NULL、null callback fallback、构造内建委托、外部callback alternate DAL/调用一次/Row及TotalCount原行为。matrix09不能证明默认路径，已在报告撤销该结论；旧文件/清单/失败原样保留。
-- #255不改Sonnet生产，原#243无主键写入/稳定身份复用；外部候选修NULL源读取和迁移，不新增公开API或会话可变标志。公开4.0.0/.ef266.5拒绝负基线4进程分列。正式发行与上游交付未完成，保持OPEN。本树最终完整门禁issue255/final实际通过后独立提交，不重跑已核独立消费者矩阵。
-- #253已冻结16文件，根核167证据、14运行程序集、两TRX及PS语法，Chloe两处共4行guard删除已审读。源码Core25/25、remote6/6，候选三协议主流程60场景+独立重开15场景通过；公开两版本各3PASS/4FAIL保留。下一步本树独立集成/门禁/提交，不重复引擎实现。
-- 批次04远端仍76955cf6；CI38831797384最新Ubuntu完整Build/Test、三平台AOT及Format已success，两个Windows测试分片仍in_progress。261/260/259/258评论和OPEN回读永久回执已随本地f9ee14b7保存，未推送；旧失败CI保留，暂不push取消新run。parity-results保持2ab6caa9。
-- 当前三个代理各一项：issue314→252（issue252-timespan，独占DURATION核心，已接259/256共22冻结生产依赖）；issue312完成255返修后恢复251审计/探针（issue251-datetimeoffset），等252冻结再动共享类型/协议；issue313→250（issue250-maintenance，f9ee14b7），先约束目录、索引DESC/INCLUDE、自增起点及SqlSugar原包/消费者核对，重叠核心必须串行。#226/#243已交付恢复补缺不重做，正式版本和消费者仍跟踪；监督ACTIVE，三代理上限及所有旧树/证据/parity-results不变。
+- 接续目录：D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05。主目录活动聊天“更新两份 LLMs 文档”正在改llms.txt和llms-full.txt，另有ELK分析未交付文件；本监督保持主目录只读，不暂存/清理/混入。待其收尾，再检查主main新提交及工作树，保留他人交付后串行整合。主目录HANDOFF暂不能覆盖，最新状态见本树。
+- 本批独立提交：256=f9ee14b7（本地main及本树）、254=6749d202、255=da1199a2（后两仅本树），均未push。每项实际通过完整restore与原Format；256根Core SQL3047/3047、真实Server135/135、两Release零警告/错误。254首次restore缺扩展失败保留，初始化两个锁定submodule后，最终issue254/final-with-submodules两门禁exit0。255最终issue255/final两门禁exit0；根仅移除Common.ps1末尾空行，SHA映射在issue255/root-review/normalization.json，原交付保留。
+- 本变更承载253的16份复核文档/工具：根核167证据、14运行二进制、两TRX、PS语法及四行Chloe guard删除；源码Core25/25、远程6/6，候选三协议60主流程+15重开场景通过。公开4.0.0/.ef266.5各3PASS/4写入拒绝保留，不重复243源码、不把源码Server称正式发行。完整提交门禁在本树artifacts/issue-supervision-20261016/issue253/final，提交以两条实际exit0为前提。
+- 255两层保真问题均有真实失败及修订证据：源读取NULL变0和旧候选覆盖callback指定DAL。最终matrix11的14正向进程+原XML基线1通过，根核2582文件。使用每调用入口、默认paging.Dal；外部非空callback保持Fetch、调用一次、Row/TotalCount原行为及实际默认双向多页typed NULL均验证。旧matrix09不作为默认路径证明；无Sonnet生产修改或上游外发。
+- 本批256/255/254/253回复草稿在本树artifacts/issue-supervision-20261016/batch05-actions，尚未发送、未关闭；待整合及正常push后核远端SHA/CI，再发送并逐条回读。四项正式Core/ADO/Server或消费者上游交付仍缺，继续OPEN。
+- 已推送批次04仍76955cf604655c2ec32f4db1cf019441d4e19577；CI38831797384最新Ubuntu完整测试、三平台AOT及Format success，Windows core/rest仍运行，避免push取消该run。261/260/259/258实际回复与OPEN回读在issue-supervision-batch04-actions-20261016.json（随本地256提交待推送）。旧cfa CI failure保留；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- 三代理各一项：issue314→252，issue252-timespan独占DURATION类型/100ns、v14屏障和可恢复schema迁移、物化视图v3及Frame/REST v5；已接259/256共22生产依赖，负基线已复现，尚未宣称构建/完整验收。issue312→251，issue251-datetimeoffset只审计/公开包和Chloe探针，等252冻结再改共享类型；四进程已复现通用DateTimeOffset转换失败，专用getter控制通过。issue313→250，issue250-maintenance准备三原生维护缺口与SqlSugar负基线/测试。核心移交顺序252→251→250，版本号按前项实交顺延。
+- 下一步取得本项最终完整门禁并独立提交，保持本树清洁；继续监督代理与Windows CI。主目录他人工作结束后串行整合本批，核最终树/完整提交门禁，正常push、读SHA、核CI、回复Issue。226/243恢复源码补缺已推送不重做，正式发行及对应消费者继续跟踪。30分钟监督ACTIVE，三代理上限、旧树/失败证据/parity-results完整保留。
 
 ## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。

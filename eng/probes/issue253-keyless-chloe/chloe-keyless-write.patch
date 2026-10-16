@@ -1,0 +1,26 @@
+diff --git a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+index 1345bbe..033c060 100644
+--- a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
++++ b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+@@ -37,8 +37,6 @@ namespace Chloe.SonnetDB.DDL
+                 throw new NotSupportedException("SonnetDB does not support database schemas. See https://github.com/IoTSharp/SonnetDB/issues/232.");
+             if (typeDescriptor.PrimitivePropertyDescriptors.Any(a => a.HasSequence()))
+                 throw new NotSupportedException("SonnetDB does not support database sequences. See https://github.com/IoTSharp/SonnetDB/issues/231.");
+-            if (typeDescriptor.PrimaryKeys.Count == 0)
+-                throw new NotSupportedException("SonnetDB cannot write relational tables without a primary key. See https://github.com/IoTSharp/SonnetDB/issues/253.");
+ 
+             tableName = string.IsNullOrEmpty(tableName) ? typeDescriptor.Table.Name : tableName;
+             string quotedTableName = Utils.QuoteName(tableName);
+diff --git a/src/Chloe.SonnetDB/SonnetDBContextProvider.cs b/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
+index 6eee624..15fa0b6 100644
+--- a/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
++++ b/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
+@@ -244,8 +244,6 @@ namespace Chloe.SonnetDB
+ 
+         static void EnsureInsertMappingSupported(TypeDescriptor typeDescriptor)
+         {
+-            if (typeDescriptor.PrimaryKeys.Count == 0)
+-                throw new NotSupportedException("SonnetDB cannot write relational tables without a primary key. See https://github.com/IoTSharp/SonnetDB/issues/253.");
+             if (typeDescriptor.PrimitivePropertyDescriptors.Any(a => a.HasSequence()))
+                 throw new NotSupportedException("SonnetDB does not support database sequences. See https://github.com/IoTSharp/SonnetDB/issues/231.");
+             foreach (var property in typeDescriptor.PrimitivePropertyDescriptors)

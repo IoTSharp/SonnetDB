@@ -1,0 +1,69 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string label = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var connection = new SndbConnection(args[0]);
+connection.Open();
+using var command = connection.CreateCommand();
+Run("keyless-ddl", () => Exec("CREATE TABLE logs(message STRING NULL,value INT NULL)"));
+Run("empty-keyless-query", () => Require(Scalar("SELECT COUNT(*) FROM logs") == 0L, "Expected initially empty table."));
+Run("single-insert", () => Require(Exec("INSERT INTO logs(message,value) VALUES('event',1)") == 1, "Single INSERT count."));
+Run("parameter-batch-duplicates-null", () =>
+{
+    command.Parameters.AddWithValue("@message", "event");
+    try { Require(Exec("INSERT INTO logs(message,value) VALUES(@message,1),(@message,1),(NULL,NULL)") == 3, "Batch INSERT count."); }
+    finally { command.Parameters.Clear(); }
+});
+Run("insert-returning-declared-columns", () =>
+{
+    command.CommandText = "INSERT INTO logs(message,value) VALUES('return',2),('return',2) RETURNING *";
+    using var reader = command.ExecuteReader();
+    Require(reader.FieldCount == 2 && reader.GetName(0) == "message" && reader.GetName(1) == "value", "Hidden column exposed.");
+    int count = 0;
+    while (reader.Read()) { Require(reader.GetString(0) == "return" && reader.GetInt64(1) == 2, "RETURNING values."); count++; }
+    Require(count == 2, "RETURNING duplicate count.");
+});
+Run("transaction-rollback", () =>
+{
+    long before = Scalar("SELECT COUNT(*) FROM logs");
+    using (var tx = connection.BeginTransaction())
+    {
+        command.Transaction = tx;
+        try
+        {
+            Require(Exec("INSERT INTO logs(message,value) VALUES('rollback',3),('rollback',3)") == 2, "Transaction INSERT count.");
+            Require(Scalar("SELECT COUNT(*) FROM logs") == before + 2, "Transaction visibility.");
+        }
+        finally { tx.Rollback(); command.Transaction = null; }
+    }
+    Require(Scalar("SELECT COUNT(*) FROM logs") == before, "Rollback changed rows.");
+});
+Run("metadata-has-no-business-key", () =>
+{
+    var columns = connection.GetSchema("Columns", [null, null, "logs", null]);
+    Require(columns.Rows.Count == 2, "Unexpected schema column count.");
+    Require(columns.Rows.Cast<DataRow>().All(row => !(bool)row["IS_PRIMARY_KEY"]), "Fabricated business key.");
+});
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+int Exec(string sql) { Console.WriteLine("SQL|" + sql); command.CommandText = sql; return command.ExecuteNonQuery(); }
+long Scalar(string sql) { command.CommandText = sql; return (long)command.ExecuteScalar()!; }
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

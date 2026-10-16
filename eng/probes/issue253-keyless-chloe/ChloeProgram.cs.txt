@@ -1,0 +1,285 @@
+using System.Data;
+using System.Data.Common;
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 3) return 2;
+string connectionString = args[0];
+string protocol = args[1];
+string phase = args[2];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "Chloe", "Chloe.SonnetDB" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+var trace = new CommandTrace();
+context.Session.AddInterceptor(trace);
+if (phase == "reopen")
+{
+    Run("durable-duplicates-and-null", () =>
+    {
+        var persisted = context.Query<KeylessRow>().Where(r => r.Category == "persisted").ToList();
+        Require(persisted.Count == 3 && persisted.Count(r => r.Message == "same" && r.Value == 3) == 2 && persisted.Count(r => r.Message is null && r.Value is null) == 1, "Independent process reopen lost duplicates or NULL.");
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "rollback").Count() == 0, "Rolled back rows survived reopen.");
+    });
+    Run("reopened-where-update", () => Require(context.Update<KeylessRow>(r => r.Category == "persisted" && r.Message == "same", r => new KeylessRow { Value = 4 }) == 2, "Reopened duplicate UPDATE."));
+    Run("reopened-where-delete", () => Require(context.Delete<KeylessRow>(r => r.Category == "persisted" && r.Message == null) == 1, "Reopened NULL DELETE."));
+    Run("reopened-visible-schema", Metadata);
+    Run("reopened-final-values", () =>
+    {
+        var rows = context.Query<KeylessRow>().Where(r => r.Category == "persisted").ToList();
+        Require(rows.Count == 2 && rows.All(r => r.Message == "same" && r.Value == 4), "Reopened duplicate identity lost.");
+    });
+}
+else if (phase == "exercise")
+{
+    Raw("CREATE TABLE KeylessLogs(Message STRING NULL,Value INT NULL,Category STRING,CHECK(Value>=0))");
+    Run("ddl-does-not-invent-primary-key", () =>
+    {
+        new SonnetDBTableGenerator(context).CreateTable(typeof(GeneratedRow));
+        using var connection = Open();
+        var columns = connection.GetSchema("Columns", [null, null, "GeneratedRows", null]);
+        Require(columns.Rows.Count == 2 && columns.Rows.Cast<DataRow>().All(row => !(bool)row["IS_PRIMARY_KEY"]), "Generated schema invented key.");
+        Require(trace.Commands.Any(sql => sql.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase) && sql.Contains("GeneratedRows", StringComparison.Ordinal) && !sql.Contains("PRIMARY KEY", StringComparison.OrdinalIgnoreCase)), "Generated DDL missing or contains synthetic key.");
+    });
+    Run("existing-keyless-empty-read", () => Require(context.Query<KeylessRow>().Count() == 0, "Expected empty keyless table."));
+    Run("entity-insert-duplicates-null", () =>
+    {
+        context.Insert(new KeylessRow { Category = "entity", Message = "same", Value = 1 });
+        context.Insert(new KeylessRow { Category = "entity", Message = "same", Value = 1 });
+        context.Insert(new KeylessRow { Category = "entity" });
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "entity").Count() == 3, "Entity duplicates merged.");
+    });
+    Run("expression-insert-no-fabricated-identity", () =>
+    {
+        string message = "parameter ' quote 中文";
+        object? result = context.Insert(() => new KeylessRow { Category = "expression", Message = message, Value = 2 });
+        Require(result is null, "Keyless expression INSERT should return null identity.");
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "expression").First().Message == message, "Parameterized text differs.");
+    });
+    Run("range-insert-multiple-batches", () =>
+    {
+        context.InsertRange(new List<KeylessRow> { new() { Category = "range", Message = "same", Value = 1 }, new() { Category = "range", Message = "same", Value = 1 }, new() { Category = "range" }, new() { Category = "range" } }, 2, null);
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "range").Count() == 4, "Batched duplicates merged.");
+    });
+    await RunAsync("async-entity-insert", async () =>
+    {
+        await context.InsertAsync(new KeylessRow { Category = "async-entity", Message = "event", Value = 4 });
+        Require(await context.Query<KeylessRow>().Where(r => r.Category == "async-entity").CountAsync() == 1, "Async entity insert.");
+    });
+    await RunAsync("async-expression-insert", async () =>
+    {
+        object? result = await context.InsertAsync(() => new KeylessRow { Category = "async-expression", Message = null, Value = null });
+        Require(result is null && await context.Query<KeylessRow>().Where(r => r.Category == "async-expression").CountAsync() == 1, "Async expression identity or count.");
+    });
+    await RunAsync("async-range-insert", async () =>
+    {
+        await context.InsertRangeAsync(new List<KeylessRow> { new() { Category = "async-range", Value = 5 }, new() { Category = "async-range", Value = 5 } }, 1, null);
+        Require(await context.Query<KeylessRow>().Where(r => r.Category == "async-range").CountAsync() == 2, "Async range duplicate count.");
+    });
+    Run("where-update-duplicate-rows", () =>
+    {
+        Seed("update");
+        Require(context.Update<KeylessRow>(r => r.Category == "update" && r.Message == "same", r => new KeylessRow { Value = r.Value + 4 }) == 2, "WHERE duplicate UPDATE count.");
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "update" && r.Value == 5).Count() == 2, "WHERE duplicate UPDATE values.");
+    });
+    Run("where-delete-duplicates-and-null", () =>
+    {
+        Seed("delete");
+        Require(context.Delete<KeylessRow>(r => r.Category == "delete" && r.Message == "same") == 2, "WHERE duplicate DELETE count.");
+        Require(context.Delete<KeylessRow>(r => r.Category == "delete" && r.Message == null) == 1, "WHERE NULL DELETE count.");
+    });
+    Run("visible-schema-without-primary-key", Metadata);
+    Run("entity-update-delete-still-require-key", () =>
+    {
+        Expect(() => context.Update(new KeylessRow { Category = "entity" }), "primary key");
+        Expect(() => context.Delete(new KeylessRow { Category = "entity" }), "primary key");
+    });
+    Run("multi-batch-constraint-failure-rolls-back", () =>
+    {
+        Expect(() => context.InsertRange(new List<KeylessRow> { new() { Category = "bad-batch", Value = 1 }, new() { Category = "bad-batch", Value = 2 }, new() { Category = "bad-batch", Value = -1 } }, 2, null), "CHECK");
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "bad-batch").Count() == 0, "Earlier batch survived failed transaction.");
+    });
+    Run("transaction-rollback-insert-update-delete", () =>
+    {
+        Seed("tx-rollback");
+        context.Session.BeginTransaction();
+        try
+        {
+            context.Insert(new KeylessRow { Category = "tx-rollback", Message = "same", Value = 1 });
+            Require(context.Update<KeylessRow>(r => r.Category == "tx-rollback" && r.Message == "same", r => new KeylessRow { Value = 9 }) == 3, "Transaction duplicate UPDATE.");
+            Require(context.Delete<KeylessRow>(r => r.Category == "tx-rollback" && r.Message == null) == 1, "Transaction NULL DELETE.");
+        }
+        finally { context.Session.RollbackTransaction(); }
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "tx-rollback").Count() == 3 && context.Query<KeylessRow>().Where(r => r.Category == "tx-rollback" && r.Value == 9).Count() == 0, "Rollback changed original rows.");
+    });
+    Run("transaction-commit-insert-update-delete", () =>
+    {
+        context.Session.BeginTransaction();
+        try
+        {
+            context.InsertRange(new List<KeylessRow> { new() { Category = "tx-commit", Message = "same", Value = 1 }, new() { Category = "tx-commit", Message = "same", Value = 1 }, new() { Category = "tx-commit" } });
+            Require(context.Update<KeylessRow>(r => r.Category == "tx-commit" && r.Message == "same", r => new KeylessRow { Value = 3 }) == 2, "Commit update.");
+            Require(context.Delete<KeylessRow>(r => r.Category == "tx-commit" && r.Message == null) == 1, "Commit delete.");
+            context.Session.CommitTransaction();
+        }
+        catch { if (context.Session.IsInTransaction) context.Session.RollbackTransaction(); throw; }
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "tx-commit" && r.Value == 3).Count() == 2, "Committed duplicates differ.");
+    });
+    Run("native-returning-boundary-no-hidden-columns", () =>
+    {
+        Raw("CREATE TABLE ReturningRows(Message STRING NULL,Value INT NULL)");
+        Returning("INSERT INTO ReturningRows(Message,Value) VALUES('same',1),('same',1),(NULL,NULL) RETURNING *", 3, null);
+        Returning("UPDATE ReturningRows SET Value=2 WHERE Message='same' RETURNING *", 2, 2L);
+        Returning("DELETE FROM ReturningRows WHERE Message='same' RETURNING *", 2, 2L);
+    });
+    Run("keyless-on-conflict-explicitly-rejected", () => Expect(() => Raw("INSERT INTO KeylessLogs(Message,Value,Category) VALUES('x',1,'conflict') ON CONFLICT DO NOTHING"), "主键"));
+    Run("existing-readonly-view-mapping", () =>
+    {
+        Seed("view");
+        Raw("CREATE VIEW KeylessReadView AS SELECT Message,Value,Category FROM KeylessLogs WHERE Category='view'");
+        Require(context.Query<KeylessView>().ToList().Count == 3, "Read-only keyless view blocked.");
+    });
+    await RunAsync("async-where-update-delete", async () =>
+    {
+        Seed("async-where");
+        Require(await context.UpdateAsync<KeylessRow>(r => r.Category == "async-where", r => new KeylessRow { Value = 6 }) == 3, "Async WHERE UPDATE.");
+        Require(await context.DeleteAsync<KeylessRow>(r => r.Category == "async-where") == 3, "Async WHERE DELETE.");
+    });
+    Run("persisted-consumer-commit-and-rollback", () =>
+    {
+        context.InsertRange(new List<KeylessRow> { new() { Category = "persisted", Message = "same", Value = 1 }, new() { Category = "persisted", Message = "same", Value = 1 }, new() { Category = "persisted" } });
+        context.Session.BeginTransaction();
+        try { Require(context.Update<KeylessRow>(r => r.Category == "persisted" && r.Message == "same", r => new KeylessRow { Value = 3 }) == 2, "Persisted update count."); context.Session.CommitTransaction(); }
+        catch { if (context.Session.IsInTransaction) context.Session.RollbackTransaction(); throw; }
+        context.Session.BeginTransaction();
+        try { context.Insert(new KeylessRow { Category = "rollback", Message = "transient", Value = 7 }); context.Delete<KeylessRow>(r => r.Category == "persisted"); }
+        finally { context.Session.RollbackTransaction(); }
+        Require(context.Query<KeylessRow>().Where(r => r.Category == "persisted").Count() == 3, "Pre-reopen committed rows differ.");
+    });
+}
+else return 2;
+Console.WriteLine($"COMPLETE|{protocol}|{phase}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+SndbConnection Open() { var connection = new SndbConnection(connectionString); connection.Open(); return connection; }
+int Raw(string sql) => context.Session.ExecuteNonQuery(sql);
+void Seed(string category) => Raw($"INSERT INTO KeylessLogs(Message,Value,Category) VALUES('same',1,'{category}'),('same',1,'{category}'),(NULL,NULL,'{category}')");
+void Metadata()
+{
+    using var connection = Open();
+    var columns = connection.GetSchema("Columns", [null, null, "KeylessLogs", null]);
+    Require(columns.Rows.Cast<DataRow>().Select(row => (string)row["COLUMN_NAME"]).Order().SequenceEqual(new[] { "Category", "Message", "Value" }), "Unexpected schema columns.");
+    Require(columns.Rows.Cast<DataRow>().All(row => !(bool)row["IS_PRIMARY_KEY"]), "Schema exposes internal key.");
+    using var command = connection.CreateCommand();
+    command.CommandText = "SELECT * FROM KeylessLogs WHERE 1=0";
+    using (var reader = command.ExecuteReader())
+    {
+        Require(reader.FieldCount == 3 && reader.GetColumnSchema().All(column => column.IsKey == false), "Reader exposes internal key.");
+        Require(!reader.Read(), "Empty schema probe has row.");
+    }
+    command.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='KeylessLogs'";
+    using var catalog = command.ExecuteReader();
+    var names = new List<string>();
+    while (catalog.Read()) names.Add(catalog.GetString(0));
+    Require(names.Order().SequenceEqual(new[] { "Category", "Message", "Value" }), "SQL catalog exposes hidden columns.");
+}
+void Returning(string sql, int expectedCount, long? expectedValue)
+{
+    using var reader = context.Session.ExecuteReader(sql);
+    Require(reader.FieldCount == 2 && reader.GetName(0) == "Message" && reader.GetName(1) == "Value", "RETURNING exposes hidden columns.");
+    int count = 0;
+    while (reader.Read()) { if (expectedValue.HasValue) Require(reader.GetInt64(1) == expectedValue.Value, "RETURNING value differs."); count++; }
+    Require(count == expectedCount, "RETURNING duplicate count differs.");
+}
+void Expect(Action action, string message)
+{
+    try { action(); }
+    catch (Exception exception)
+    {
+        Require(exception.ToString().Contains(message, StringComparison.OrdinalIgnoreCase), "Unexpected rejection: " + exception.Message);
+        Console.WriteLine($"EXPECTED-ERROR|{exception.GetType().Name}|{exception.Message}");
+        return;
+    }
+    throw new InvalidOperationException("Expected rejection: " + message);
+}
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{phase}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{phase}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+async Task RunAsync(string name, Func<Task> action)
+{
+    try { await action(); passed++; Console.WriteLine($"PASS|{protocol}|{phase}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{phase}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+
+/// <summary>无业务主键的真实关系表映射。</summary>
+[Table("KeylessLogs")]
+public sealed class KeylessRow
+{
+    /// <summary>可重复且可空的业务消息。</summary>
+    public string? Message { get; set; }
+    /// <summary>可空业务数值。</summary>
+    public long? Value { get; set; }
+    /// <summary>独立场景分组。</summary>
+    public string Category { get; set; } = string.Empty;
+}
+/// <summary>用于验证无主键建表生成器的模型。</summary>
+[Table("GeneratedRows")]
+public sealed class GeneratedRow
+{
+    /// <summary>业务消息。</summary>
+    public string? Message { get; set; }
+    /// <summary>业务数值。</summary>
+    public long? Value { get; set; }
+}
+/// <summary>已有只读视图的无主键映射。</summary>
+[Table("KeylessReadView")]
+public sealed class KeylessView
+{
+    /// <summary>业务消息。</summary>
+    public string? Message { get; set; }
+    /// <summary>业务数值。</summary>
+    public long? Value { get; set; }
+    /// <summary>业务分组。</summary>
+    public string Category { get; set; } = string.Empty;
+}
+/// <summary>记录 ORM 真正提交的 SQL 与参数类型。</summary>
+public sealed class CommandTrace : IDbCommandInterceptor
+{
+    /// <summary>实际执行的 SQL 文本。</summary>
+    public List<string> Commands { get; } = new();
+    private void Record(IDbCommand command)
+    {
+        Commands.Add(command.CommandText);
+        Console.WriteLine("SQL|" + command.CommandText.Replace('\r', ' ').Replace('\n', ' '));
+        foreach (IDataParameter parameter in command.Parameters) Console.WriteLine($"PARAM|{parameter.ParameterName}|{parameter.DbType}|{parameter.Value?.GetType().Name}|{parameter.Value}");
+    }
+    /// <summary>记录读取命令。</summary>
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Record(command);
+    /// <summary>读取完成。</summary>
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+    /// <summary>记录写命令。</summary>
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Record(command);
+    /// <summary>写入完成。</summary>
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+    /// <summary>记录标量命令。</summary>
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Record(command);
+    /// <summary>标量完成。</summary>
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}
