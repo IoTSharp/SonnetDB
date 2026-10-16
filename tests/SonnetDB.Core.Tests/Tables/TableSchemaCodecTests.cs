@@ -199,7 +199,12 @@ public sealed class TableSchemaCodecTests : IDisposable
 
         using (var schemaLock = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
-            var saveTask = Task.Run(() => TableSchemaCodec.Save(path, [updated]));
+            // 保存重试会同步等待；使用专用线程，避免低核环境耗尽线程池后延迟释放文件锁。
+            var saveTask = Task.Factory.StartNew(
+                () => TableSchemaCodec.Save(path, [updated]),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             await Task.Delay(75);
             schemaLock.Dispose();
             await saveTask;

@@ -5,6 +5,24 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16，#250复审、#248准备冻结及独立测试修正）
+
+- 监督基线仍为 aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5；252/251尚未push/comment/close。主目录main和实际远端均ffdb734c，parity-results仍2ab6caa9，主目录clean；CI38842022794精确ffdb的7作业全绿已再次回读，不扩称覆盖当前本地树。
+- issue313唯一250继续独占共享核心。首28合同26/28的INCLUDE迁移载荷和覆盖扫描问题已修，复测28/28，新增载荷测试38/38。regression01运行器300秒终止且未保存stdout/TRX，JSON failure为Process discovery deadline exceeded，不计测试通过。分批storage01=333/337：3旧v5/v6/v7夹具依赖新格式删字节而失效，现改独立冻结旧布局+CRC；1陈旧派生索引损坏键阻止清理，现仅在维护归属识别返回null以允许清理，查询、主行/WAL/目录损坏仍明确抛出。core04覆盖上述修复及v14/v15后231/232，唯一失败为下述旧锁重试测试；仍未冻结最终交付。
+- 根独立已构建Core探针20/20：DESC复合条件、跨零/NULL/分页/残余/别名与无索引对照，INCLUDE经增删非索引列、列和表重命名、主键重命名/UPDATE及重开均一致。DLL SHA42CB16C5DD893248854E6ED650540279422A9299700DA69666909ABADF1ACA3A；证据issue250/root-review-live01。首19/20为探针聚合ORDER BY非投影列触发原合同拒绝，修正投影后20/20；原日志保留，未改生产，不代替最终冻结验收。
+- 锁重试旧测试在251/250两份DLL默认均1/1，但DOTNET_PROCESSOR_COUNT=2均0/1；根单独将测试同步保存改LongRunning专用线程，保原75ms和生产重试。修正完整类链接251冻结Core，CPU2与CPU1各20/20。审计schema-lock-retry-scheduling-20261016.md；修正待最终全solution restore/原Format，独立提交。已通知250仅应用方法增量供其验证，最终集成剔除重复；不复制全测试文件覆盖250新legacy夹具。
+- 250真实remote01六项及compatibility-upgrade01报告到information_schema COUNT(*)才失败；SqlSugar真实维护入口需要该聚合，代理已补原生单COUNT(*)过滤/Int64/分页并加测试，core05待验。真实消费者/重开/旧格式拒绝/强杀/AOT/最终门禁尚未全部完成，不提前验收或推送。
+- issue312唯一248准备已冻结，manifest8127BFF635DBF78684D6E70E7AC8643512E9A1F521FECC6724A718A4CF5C69E4。根逐项核10新文件、87证据、238 DLL、16运行DLL记录、3 TRX、603 SqlSugar原源码，零差异；回执issue248/preparation-root-review01.json。helper18/18仅组件；真实ADO正向草稿0/12全部既有解析守卫拒绝。公开/源码embedded和REST/h2c配置各10控制+28拒绝，远程锁语句在客户端先拒，只有控制查询/事务生命周期命中真实服务；不得称Server锁已测。原缺Newtonsoft与CS4007失败保留，tracked生产修改0。
+- issue314唯一249仍保持准备checkpoint01等待，issue312的248也等待，共享实施顺序250→249→248。226/243源码补缺和原评论不重做，正式发行/对应消费者关闭条件继续追踪。旧树/stash/失败证据全部保留。本次监督记录与CI回读随真实锁重试测试修正提交，不创建纯巡检提交；批次待250最终提交后正常push、回读SHA/精确CI、回复并核完整关闭条件。
+## 提交后监督检查点（2026-10-16 12:49，#251已提交、#250实施与#248准备）
+
+- #251实际独立提交aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5，最终tree9f53eaea36f952086198894709ed6ff4e6fdb059；完整restore04:09:26Z→04:09:34Z、原Format04:09:34Z→04:11:08Z均exit0，树/工作区未变才提交，回执artifacts/issue-supervision-20261016/issue251/commit.json。首门禁Format仅新测试using排序失败，修正后完整复跑；原root-gate失败保留，最终root-gate02通过。Format workspace-load警告保留，无格式违规。
+- 根Core3768/3768、真实远程147/147，Core/Server最终Release和Data显式AOT/trim零警告错误；71冻结文件和302证据已核。最终差异仅四源格式、两审计/脚本行尾和一个测试两个既有using排序，原源/失败/运行DLL与新SHA分开记录。未改变生产语义；原代理3765/3766及174/175失败不改写。251正式包/Chloe交付未齐，尚未push/comment/close。
+- 250代理issue313已在原issue250-maintenance树正常ff-only aa4fbffb，16准备源与checkpoint02逐项SHA相同；已授权唯一共享核心实施真实约束目录、索引DESC/INCLUDE、identity维护三合同。当前新基线catalog15/snapshot4/result6；保226/243及252/251合同。249代理issue314保留checkpoint01准备，等待250冻结后共享接线。
+- 原251代理issue312转唯一248，新隔离树D:/source/SonnetDB-worktrees/issue248-nowait（codex/issue248-nowait，aa4fbffb）。原248/233和SqlSugar PR1457已读；233真实普通行锁尚未实现，248准备必要锁基础与NOWAIT、写者尊重锁/取消超时/释放、真实双连接/SqlSugar负基线。当前仅可写独占helper/测试/消费者/设计，既有共享核心待250→249→248串行交接，不把依赖拒绝或helper通过当SQL能力完成。
+- 12:47两个代理分别模型服务504（250）/502（248）中断。根核250只有准备untracked、248 clean及保存的原Issue JSON，12:48已followup恢复同一代理，无代码丢失、不重派。248已确认恢复并继续准备。该故障不计产品测试失败。
+- main与远端仍ffdb734c且主目录clean，CI38842022794全部7jobsuccess，永久回读docs/audits/issue-supervision-ci-38842022794-20261016.json待下一Issue提交；它不覆盖未推送252/251。parity2ab6caa9保持。25216b266c2、文档mergea3932c49及递归取消ea04b240保留。批次252/251/250齐后正常push、回读SHA/CI再评论；252和251草稿均未发送。
+- 30分钟监督sonnetdb-issue已ACTIVE更新到新提交/代理/失败恢复边界。当前提交后HANDOFF、监督记录及CI回读随下一真实Issue提交，不为状态另造提交。旧树、stash、失败证据和parity全部保留，226/243源码补缺不重做，正式发行与消费者条件继续跟踪。
 ## 最新监督检查点（2026-10-16 11:58，#251根复审通过、最终提交门禁待执行）
 
 - 监督HEAD=ea04b240，独立递归取消测试修正已提交；其最终tree1e6a469a333cd7a9fbc133c021e675a499dbd4cc，restore03:34:05Z→03:34:13Z、原Format03:34:13Z→03:35:35Z均exit0，树未变才commit。原a3932c49和252的16b266c2保留，尚未push/comment/close。
