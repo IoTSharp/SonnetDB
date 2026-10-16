@@ -1,0 +1,112 @@
+{
+  "utc": "2026-10-16T06:47:58.9160734+00:00",
+  "batch": 6,
+  "head": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482",
+  "commits": {
+    "issue252": "16b266c2e43d2120dd6538c8ced66f270132958e",
+    "issue251": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5",
+    "issue250": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482"
+  },
+  "finalCommitReceipt": {
+    "utc": "2026-10-16T14:37:44.7512006+08:00",
+    "issue": 250,
+    "parent": "9b3b983304d249fafe485235761c1f8a70671cab",
+    "tree": "6a9e0170efd52d9d0200eef713d8ab9c05dc4694",
+    "sha": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482",
+    "restore": {
+      "identity": {
+        "startTimeUtc": "2026-10-16T06:35:39.648404Z",
+        "arguments": [
+          "restore",
+          "SonnetDB.slnx"
+        ],
+        "pid": 24372,
+        "executable": "dotnet",
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      },
+      "endedUtc": "2026-10-16T14:35:44.3789498+08:00",
+      "startedUtc": "2026-10-16T14:35:39.6436148+08:00",
+      "timedOut": false,
+      "exitCode": 0,
+      "label": "restore"
+    },
+    "format": {
+      "identity": {
+        "startTimeUtc": "2026-10-16T06:35:44.41361Z",
+        "arguments": [
+          "format",
+          "SonnetDB.slnx",
+          "--verify-no-changes",
+          "--no-restore",
+          "--severity",
+          "warn",
+          "--exclude",
+          "extensions/"
+        ],
+        "pid": 48444,
+        "executable": "dotnet",
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      },
+      "endedUtc": "2026-10-16T14:36:54.6643925+08:00",
+      "startedUtc": "2026-10-16T14:35:44.4114226+08:00",
+      "timedOut": false,
+      "exitCode": 0,
+      "label": "format"
+    },
+    "unchangedTree": true
+  },
+  "remoteRefs": [
+    "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482\trefs/heads/main",
+    "2ab6caa94b9f07d25fdd0760a7aa682f7ca26295\trefs/heads/parity-results"
+  ],
+  "pushExit": 0,
+  "pushLogSha256": "2D03E816A196233E322BD80377E21CD15A370432312573A7639D1A22326159A3",
+  "pushReceiptNote": "Original push.json preserves a serialization depth warning for PowerShell ErrorRecord output; push.log and this fresh remote readback provide normalized proof without rewriting the original.",
+  "ci": {
+    "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38862841705",
+    "databaseId": 38862841705,
+    "status": "in_progress",
+    "conclusion": "",
+    "headSha": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482"
+  },
+  "comments": [
+    {
+      "issue": 252,
+      "id": 6209776617,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/252#issuecomment-6209776617",
+      "author": "maikebing",
+      "body": "2026-10-16 本批源码已正常快进推送至 `main`，远端回读为 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`；`parity-results` 保持 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`。\n\n精确该 SHA 的 CI 为 https://github.com/IoTSharp/SonnetDB/actions/runs/38862841705 ，发帖前回读 **in_progress**，尚无最终结论，未以旧 SHA 的绿灯代替本批验收。最终组合源码在根节点实际通过 Core 3812/3812、真实远程 153/153；完整 solution restore 与规定 Format Check 通过后提交。\n源码实现已完成并推送，独立提交 `16b266c2e43d2120dd6538c8ced66f270132958e`，补齐原生 `DURATION` / `System.TimeSpan` 合同。保留完整 signed Int64 ticks（100ns）、负数、超过24小时、边界和NULL；通用 `GetValue`、`GetFieldType` 及声明元数据返回 TimeSpan，包含空结果及全NULL结果。\n\n默认 TimeSpan 参数走 DURATION；显式 `DbType.Time` 保留原有一天内 TIME/TimeOnly 语义，并已在真实旧Server验证。`DATETIME - DATETIME` 返回按已求值 CLR ticks 相减的时长，既有 DATETIME 列和默认日期参数仍为毫秒；本项不宣称解决 #236。\n\n目录 v14 屏障在迁移前永久持久化，涉及 Duration 的 ALTER 复用有界恢复日志；失败、恢复、DROP 后不降级。含时长的物化快照写 v3，其他继续 v2。Frame/REST 使用结果协议 v5，旧客户端对不支持的 RETURNING、序列及过程输出在持久副作用前拒绝。客户端只对精确的执行前 unsupported_result_version 协商降级，普通 SQL 或不确定网络错误不重放。\n\n该项独立提交前的根验证：Core SQL/协议/迁移 **3139/3139**、真实远程 ADO 整类 **141/141**；Core/Server Release 和 Data 显式 AOT/Trim 分析零警告/错误。根已核对代理真实强杀 **7/7**，Chloe 候选 embedded/REST/h2c 每路径 **26 个主流程 + 17 个独立重开断言**，以及真实旧v4 TIME兼容和旧v13屏障证据；这些集合与根回归有重叠，不累计。最终完整 solution restore、规定 Format Check 实际通过后才提交。\n\n合同和审计已提交：`docs/compatibility/duration-native-contract.md`、`docs/audits/issue-252-implementation-20261016.md`、`docs/audits/issue-252-evidence-20261016.json`。真实旧v13引擎在completed日志上会重写同字节完成标记，仅mtime改变，不能称零文件写入；进程强杀也不等于断电验收。本地AOT分析通过不等于NativeAOT二进制发布验收。\n\n**Issue 保持开放**：仍需包含能力的正式匹配 Core/Data/Server 发行和 Chloe 上游交付。Chloe 五文件补丁目前仅本地候选，没有外发；没有以本地源码、通用reader或候选PASS代替正式包验收。\n\n<!-- sonnetdb-batch-06-20261016:252 -->\n",
+      "state": "OPEN",
+      "verified": true
+    },
+    {
+      "issue": 251,
+      "id": 6209777759,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/251#issuecomment-6209777759",
+      "author": "maikebing",
+      "body": "2026-10-16 本批源码已正常快进推送至 `main`，远端回读为 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`；`parity-results` 保持 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`。\n\n精确该 SHA 的 CI 为 https://github.com/IoTSharp/SonnetDB/actions/runs/38862841705 ，发帖前回读 **in_progress**，尚无最终结论，未以旧 SHA 的绿灯代替本批验收。最终组合源码在根节点实际通过 Core 3812/3812、真实远程 153/153；完整 solution restore 与规定 Format Check 通过后提交。\n独立提交：`aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5`。\n\n已实现独立 `DATETIMEOFFSET` 类型。默认 DateTimeOffset 与显式 DbType.DateTimeOffset 保留完整 UTC ticks（100ns），返回 offset=0；通用 GetValue/GetFieldType/schema、空结果、NULL、参数、批量、事务和重开均保持原生类型。旧 DATETIME 继续返回 DateTime。默认 DTO 与旧 DATETIME 的混合谓词明确拒绝；显式 DbType.DateTime/DateTime2 在客户端先归一 UTC，保持旧毫秒合同。\n\n表目录永久 v15、物化声明快照 v4、REST/Frame 结果 v6。旧引擎拒绝新目录；新客户端只在明确执行前 unsupported_result_version 时降级。旧结果能力在 RETURNING、序列及过程副作用前拒绝不支持类型。\n\n主监督独立复审并执行：Core 扩大回归 **3768/3768**、真实远程 ADO **147/147**，零失败/跳过；Core/Server Release 与 Data 显式 AOT/Trim 分析零警告错误。代理 **DTO 7 + 前置 Duration 7** 项实际终止恢复通过；新 Data 对旧 v5 Server 两协议及旧 Core 拒绝 v15、持久文件 SHA 不变均已核验。原代理旧递归取消断言失败记录保留，独立测试修正 `ea04b240` 与新运行分别记录。\n\n固定 Chloe 候选保留 #262→#252→#251 三组补丁，默认 DateTimeOffset converter 未修改。embedded/REST/h2c 每路径初次 42 检查与独立重开 34 检查通过，远程路径重启真实 Server 后重开。未声明全部 DTO CLR 表达式均有翻译，也未把本地候选作为正式上游交付。\n\n**保持 OPEN**：仍待包含能力的正式 Core/Data/Server 版本及对应 Chloe 正式适配与消费者验收。未执行 NativeAOT 二进制发布运行、断电或跨 OS/时区部署矩阵。\n\n完整合同与原始边界：`docs/compatibility/native-datetimeoffset.md`、`docs/audits/issue-251-native-datetimeoffset-20261016.md`、`docs/audits/issue-251-root-review-20261016.md`。\n\n<!-- sonnetdb-issue-batch06-20261016:251 -->\n",
+      "state": "OPEN",
+      "verified": true
+    },
+    {
+      "issue": 250,
+      "id": 6209778676,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/250#issuecomment-6209778676",
+      "author": "maikebing",
+      "body": "2026-10-16 本批源码已正常快进推送至 `main`，远端回读为 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`；`parity-results` 保持 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`。\n\n精确该 SHA 的 CI 为 https://github.com/IoTSharp/SonnetDB/actions/runs/38862841705 ，发帖前回读 **in_progress**，尚无最终结论，未以旧 SHA 的绿灯代替本批验收。最终组合源码在根节点实际通过 Core 3812/3812、真实远程 153/153；完整 solution restore 与规定 Format Check 通过后提交。\n本 Issue 的三项原生维护合同已提交并推送（独立提交 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`）：\n\n- `information_schema.table_constraints` 返回持久化的主键、外键、CHECK 真实名称、类型和表名；建表/ALTER 可声明主键名称，表列改名保持名称，DROP CONSTRAINT 使用同一名称。旧主键名称在目录开放前迁移落盘，名称碰撞生成未占用名称；删除现有主键复用 #226/#243 的原子迁移和稳定内部行身份。\n- `CREATE INDEX ... (column DESC) INCLUDE(...)` 实际保存方向并编码索引键，包含列保存在有版本的索引载荷内，支持覆盖读取、更新、唯一性、事务、迁移、在线构建暂停/恢复、元数据及重开。包含列不参与唯一键比较。\n- `ALTER TABLE table AUTO_INCREMENT = n` 设置下一值，n 为 1..Int64.MaxValue 且必须大于持久历史高水位；当前下一值可幂等设置，删除最大行不回退，成功返回前同步 WAL，不插入再删除占位数据。Int64.MaxValue 最后一次分配后明确拒绝溢出。\n\n含主键的新建/旧目录升级及新索引选项使用永久目录 v16；在线新索引断点 v2。删除最后一个新特性后也不降级。旧引擎拒绝 v16，回退需要升级前副本；未改变 FileHeader 或 #251/#252 的类型、快照和结果协议合同。\n\n最终根验收：Core **3812/3812**、真实远程 **153/153**，零失败/跳过；Core/Server Release 与 Data 显式 AOT/Trim 均零警告/错误。根已核冻结 66 文件、687 运行时文件、372 证据、25 TRX 及实际候选补丁；代理最终 SQL 三组为 3164 个独立测试，真实进程终止恢复 5/5 和 31/31（后者包含已有 PK/Duration/DTO 用例，不全是新增）。最终完整 restore/原 Format 于 06:35:39Z 至 06:36:54Z 实际 exit0，最终 tree 未变才提交。原失败、修订及新运行分开保留；审计为 `docs/audits/issue-250-root-review-20261016.md/json`。\n\n真实消费者边界：预编译 public4 消费者仅替换源 Core/Data 是候选二进制兼容检查，不是正式新包。固定 SqlSugar 原适配器与本地候选分别验证；候选的两个自增公开入口及原生维护流程已通过，但标准 SugarIndex/CodeFirst 仍在 #227 的事务 DDL 入口拒绝，没有移出事务绕过。旧 4.0 引擎拒绝新目录的检测只核 schema SHA 不变，不宣称所有持久文件零写。\n\n**保持 OPEN**：正式 Core/Data/Server 版本、SqlSugar 对应正式交付及正式包消费者验收仍缺；完整标准 CodeFirst 的事务 DDL 条件仍关联 #227。真实进程终止恢复不等于断电验证，AOT 分析不等于 NativeAOT 二进制发布运行。\n\n<!-- sonnetdb-issue-batch06-20261016:250 -->\n",
+      "state": "OPEN",
+      "verified": true
+    }
+  ],
+  "closed": [],
+  "next": {
+    "sharedOrder": [
+      249,
+      248,
+      247
+    ],
+    "issue314": "249 shared implementation on 67a5c8c8",
+    "issue313": "247 isolated preparation on 67a5c8c8",
+    "issue312": "248 preparation frozen; waits 249"
+  }
+}

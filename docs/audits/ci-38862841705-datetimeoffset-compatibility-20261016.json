@@ -1,0 +1,721 @@
+{
+  "checkedUtc": "2026-10-16T07:44:08.0008716+00:00",
+  "baseCommit": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482",
+  "originalCi": 38862841705,
+  "originalConclusion": "failure",
+  "originalCiTrx": [
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_47_10_net10.0.trx",
+      "sha256": "8157375237C25A565F3D805545DF0529428DC3B9EFE096BA05CA93ED8FF8085E",
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_47_19_net10.0.trx",
+      "sha256": "D799695104880F716233F2FC99E0385A67BBC30FB270F80033E00516265F7EC9",
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_47_34_net10.0.trx",
+      "sha256": "77C29B3C83A734CC132EF74795964D230C4F7404962F1843A4DD4EC26ACE1368",
+      "total": 65,
+      "passed": 65,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_48_21_net10.0.trx",
+      "sha256": "9A60918F671073566836B5CD324D584424E81CF6348BB649B943C262159D8A13",
+      "total": 42,
+      "passed": 42,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_48_29_net10.0.trx",
+      "sha256": "7DFF3D3143BAFFA9ABB4CB4FA1AAE754BC0F170959C7EA981452F852971B44C6",
+      "total": 7472,
+      "passed": 7472,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_53_27_net10.0.trx",
+      "sha256": "CA96BF79C4C89E8DE1993D475C9B9A4E27ABCA673C352259C5D00929ABA1591B",
+      "total": 292,
+      "passed": 291,
+      "failed": 1,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.EntityFrameworkCore.Tests.SonnetDbProviderTests.Query_DateTimeOffsetMembersAndMethods_TranslateAndExecute",
+          "outcome": "Failed",
+          "message": "System.InvalidOperationException : DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        }
+      ]
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_54_13_net10.0.trx",
+      "sha256": "E39E4CFAC6BC9C27A658552FB2701B34A3748203CB822AA260B430F5DC1F85F2",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_54_14_net10.0.trx",
+      "sha256": "E65A003EB042C3BB0947027F39B8A9275D897613C2F0B8B8E510707EBAA06E48",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_54_16_net10.0.trx",
+      "sha256": "D93D3CB6D4A21F956D40181D4B4C3F3B5B9EBA2EE71AC1F65A2B5E4E59E4DD9A",
+      "total": 29,
+      "passed": 29,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-ubuntu-latest\\_runnervm8k3b6_2026-10-16_06_54_19_net10.0.trx",
+      "sha256": "863706D8FB71E52FA2C4FB4795EE0C633FAB12C5A509B66231C9CC2B8015890E",
+      "total": 1389,
+      "passed": 1385,
+      "failed": 4,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.Tests.RemoteAdoEndToEndTests.Remote_DeleteInSubqueryWithDateTimeParameter_DeletesBoundedBatch",
+          "outcome": "Failed",
+          "message": "SonnetDB.Data.SndbServerException : [400 BadRequest] sql_error: DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"rest\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\nExpected: 11\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"frame-http2\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\nExpected: 11\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"embedded\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\nExpected: 11\nActual:   12"
+        }
+      ]
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_48_40_net10.0.trx",
+      "sha256": "EE37B972F25639226C5CF7D9E6EE1D3ADCD74A928568CAA7445562A07E6D0213",
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_48_49_net10.0.trx",
+      "sha256": "24486B71A358BF2C3F65DA33D2DAD9D11651ABEEBF77BBD3C1D9B66F3F993D2D",
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_49_38_net10.0.trx",
+      "sha256": "BB89396AEE923FB99A0DBF0B25C9ECF0D5440FA8914D404E19A9AFAAD40EE455",
+      "total": 65,
+      "passed": 65,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_51_06_net10.0.trx",
+      "sha256": "ADB246DAFC3077178762228E0C48FF2256B8D161A0E53F3C45314903ADED6421",
+      "total": 42,
+      "passed": 42,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_51_33_net10.0.trx",
+      "sha256": "DED2F611932420EBA1094CF657356867716C5DDCC649B1103E23C6F8CD99E74B",
+      "total": 292,
+      "passed": 291,
+      "failed": 1,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.EntityFrameworkCore.Tests.SonnetDbProviderTests.Query_DateTimeOffsetMembersAndMethods_TranslateAndExecute",
+          "outcome": "Failed",
+          "message": "System.InvalidOperationException : DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        }
+      ]
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_55_08_net10.0.trx",
+      "sha256": "04D618632436EAECDE64047FDCF4F169256CC1F4E2E344DF19BC0A9286D9B776",
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_55_09_net10.0.trx",
+      "sha256": "94ECF6292724DDB4A196180D3C24D22E4A8902D884E344AF4CFAF53E4F809F13",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_55_11_net10.0.trx",
+      "sha256": "F492205D2B89C2B1EC177B06A1B84E74978A31E26092E6D6FAF1B2992F6B8FA4",
+      "total": 29,
+      "passed": 29,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_55_18_net10.0.trx",
+      "sha256": "16F5FCACAA6D29DE627FA2C4583E057335EB4701C8B19736EB5645655F21CCF5",
+      "total": 90,
+      "passed": 90,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\original-ci-retry02\\test-results-windows-latest-rest\\runneradmin_runnervm0xl3a_2026-10-16_06_55_54_net10.0.trx",
+      "sha256": "FC753AE75C879B9E51F9097127389ECE206EE036F6C37F5492C808B083C6DF16",
+      "total": 1389,
+      "passed": 1385,
+      "failed": 4,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.Tests.RemoteAdoEndToEndTests.Remote_DeleteInSubqueryWithDateTimeParameter_DeletesBoundedBatch",
+          "outcome": "Failed",
+          "message": "SonnetDB.Data.SndbServerException : [400 BadRequest] sql_error: DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"frame-http2\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"rest\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"embedded\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        }
+      ]
+    }
+  ],
+  "localTrx": [
+    {
+      "path": "artifacts/issue-supervision-20261016/ci38862841705/EfBefore/results/ef-before.trx",
+      "sha256": "E7C3682FF4444FEFF0FE4E91CD9B5BC0A590A2449AABB61176CFCFF11B8464B3",
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.EntityFrameworkCore.Tests.SonnetDbProviderTests.Query_DateTimeOffsetMembersAndMethods_TranslateAndExecute",
+          "outcome": "Failed",
+          "message": "System.InvalidOperationException : DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        }
+      ]
+    },
+    {
+      "path": "artifacts/issue-supervision-20261016/ci38862841705/RemoteBefore/results/remote-before.trx",
+      "sha256": "FBB9D73E47D6693041B8E4906924EBA8EF8632B15CB7B66E1909A9C7DEF9E597",
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"frame-http2\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteAdoEndToEndTests.Remote_DeleteInSubqueryWithDateTimeParameter_DeletesBoundedBatch",
+          "outcome": "Failed",
+          "message": "SonnetDB.Data.SndbServerException : [400 BadRequest] sql_error: DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"embedded\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        },
+        {
+          "test": "SonnetDB.Tests.RemoteRelationTypeBoundaryTests.GetSchema_DataTypes_SeparatesRelationalColumnsFromMeasurementFields(mode: \"rest\")",
+          "outcome": "Failed",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 11\r\nActual:   12"
+        }
+      ]
+    },
+    {
+      "path": "artifacts/issue-supervision-20261016/ci38862841705/EfAfter/results/ef-after.trx",
+      "sha256": "340B8440FBF222767F50A8C46F194867F9BD2861131117A98081FBBC4B54CE53",
+      "total": 295,
+      "passed": 295,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "artifacts/issue-supervision-20261016/ci38862841705/EfAfter02/results/ef-after.trx",
+      "sha256": "FCB1D56E11C60BA1384CC56AED769E305DD3DF324F70188C4F6F9D68985DDA4D",
+      "total": 295,
+      "passed": 295,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    {
+      "path": "artifacts/issue-supervision-20261016/ci38862841705/RemoteAfter/results/remote-after.trx",
+      "sha256": "B5CA72ED4A0E23D1CB7BBDBB1AABDC8ECECF5ADE74D63C46519CCBF2D3803AF4",
+      "total": 80,
+      "passed": 80,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    }
+  ],
+  "commands": [
+    {
+      "label": "build",
+      "timedOut": false,
+      "endedUtc": "2026-10-16T15:23:46.7908783+08:00",
+      "exitCode": 0,
+      "startedUtc": "2026-10-16T15:22:48.5078304+08:00",
+      "identity": {
+        "pid": 60140,
+        "startTimeUtc": "2026-10-16T07:22:48.5134852Z",
+        "executable": "dotnet",
+        "arguments": [
+          "build",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfBefore\\build",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      }
+    },
+    {
+      "label": "test",
+      "timedOut": false,
+      "endedUtc": "2026-10-16T15:23:50.6011391+08:00",
+      "exitCode": 1,
+      "startedUtc": "2026-10-16T15:23:46.8264955+08:00",
+      "identity": {
+        "pid": 70480,
+        "startTimeUtc": "2026-10-16T07:23:46.8287626Z",
+        "executable": "dotnet",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfBefore\\build",
+          "--no-build",
+          "--filter",
+          "FullyQualifiedName~Query_DateTimeOffsetMembersAndMethods_TranslateAndExecute",
+          "--logger",
+          "trx;LogFileName=ef-before.trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfBefore\\results"
+        ],
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      }
+    },
+    {
+      "label": "build",
+      "endedUtc": "2026-10-16T15:28:13.2074304+08:00",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+        "arguments": [
+          "build",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter\\build",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "executable": "dotnet",
+        "startTimeUtc": "2026-10-16T07:26:51.634328Z",
+        "pid": 21288
+      },
+      "startedUtc": "2026-10-16T15:26:51.6276201+08:00",
+      "timedOut": false,
+      "exitCode": 0
+    },
+    {
+      "label": "test",
+      "endedUtc": "2026-10-16T15:29:09.6996588+08:00",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter\\build",
+          "--no-build",
+          "--logger",
+          "trx;LogFileName=ef-after.trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter\\results"
+        ],
+        "executable": "dotnet",
+        "startTimeUtc": "2026-10-16T07:28:13.2778661Z",
+        "pid": 84940
+      },
+      "startedUtc": "2026-10-16T15:28:13.2708901+08:00",
+      "timedOut": false,
+      "exitCode": 0
+    },
+    {
+      "label": "build",
+      "timedOut": false,
+      "endedUtc": "2026-10-16T15:36:24.6432336+08:00",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+        "pid": 83068,
+        "startTimeUtc": "2026-10-16T07:35:14.3761534Z",
+        "arguments": [
+          "build",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "executable": "dotnet"
+      },
+      "startedUtc": "2026-10-16T15:35:14.3702844+08:00",
+      "exitCode": 0
+    },
+    {
+      "label": "test",
+      "timedOut": false,
+      "endedUtc": "2026-10-16T15:37:20.4516249+08:00",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+        "pid": 64260,
+        "startTimeUtc": "2026-10-16T07:36:24.7027338Z",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build",
+          "--no-build",
+          "--logger",
+          "trx;LogFileName=ef-after.trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\results"
+        ],
+        "executable": "dotnet"
+      },
+      "startedUtc": "2026-10-16T15:36:24.699886+08:00",
+      "exitCode": 0
+    },
+    {
+      "timedOut": false,
+      "label": "build",
+      "exitCode": 0,
+      "startedUtc": "2026-10-16T15:32:40.7184229+08:00",
+      "identity": {
+        "pid": 45608,
+        "startTimeUtc": "2026-10-16T07:32:40.7253531Z",
+        "arguments": [
+          "build",
+          "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "executable": "dotnet",
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      },
+      "endedUtc": "2026-10-16T15:34:46.5369945+08:00"
+    },
+    {
+      "timedOut": false,
+      "label": "test",
+      "exitCode": 0,
+      "startedUtc": "2026-10-16T15:34:46.6031042+08:00",
+      "identity": {
+        "pid": 52072,
+        "startTimeUtc": "2026-10-16T07:34:46.608077Z",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build",
+          "--no-build",
+          "--filter",
+          "FullyQualifiedName~RemoteRelationTypeBoundaryTests|FullyQualifiedName~RemoteAdoEndToEndTests",
+          "--logger",
+          "trx;LogFileName=remote-after.trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\results"
+        ],
+        "executable": "dotnet",
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05"
+      },
+      "endedUtc": "2026-10-16T15:35:04.3990115+08:00"
+    },
+    {
+      "endedUtc": "2026-10-16T15:40:30.8103886+08:00",
+      "exitCode": 0,
+      "timedOut": false,
+      "startedUtc": "2026-10-16T15:39:52.1763381+08:00",
+      "label": "build",
+      "identity": {
+        "executable": "dotnet",
+        "pid": 56472,
+        "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+        "arguments": [
+          "build",
+          "src/SonnetDB.Data/SonnetDB.Data.csproj",
+          "-c",
+          "Release",
+          "--artifacts-path",
+          "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\Aot\\build",
+          "-m:2",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false",
+          "-p:IsAotCompatible=true",
+          "-p:EnableAotAnalyzer=true",
+          "-p:EnableTrimAnalyzer=true"
+        ],
+        "startTimeUtc": "2026-10-16T07:39:52.1813104Z"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "path": "src/SonnetDB.Data/SndbConnection.cs",
+      "sha256": "C78FAB2BA54F79CE6752A448F0B076BF0BC188CB5F72BCAA15A44A1623EC283A"
+    },
+    {
+      "path": "src/SonnetDB.EntityFrameworkCore/Query/Internal/SonnetDbQuerySqlGenerator.cs",
+      "sha256": "B40B34A509771C708B676D1D75FCB53511797B42D0C4228456546C9084188D58"
+    },
+    {
+      "path": "src/SonnetDB.EntityFrameworkCore/Storage/Internal/SonnetDbTypeMappingSource.cs",
+      "sha256": "691C9C85C19B8C8D35C7B2BDDFD61EA949F17C4E0DD517E14A131B159C1163B4"
+    },
+    {
+      "path": "src/SonnetDB.EntityFrameworkCore/Storage/Internal/SonnetDbDateTimeOffsetTypeMapping.cs",
+      "sha256": "BA68CB1C1B78CEA84B7B721C96C89C847DC2D60B5E219CE5AB6D7856127570E1"
+    },
+    {
+      "path": "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDbNativeDateTimeOffsetTests.cs",
+      "sha256": "C31B1ECF5D0AD378F3DAC249591DE1E134111E2AE03569A7C0A93DCD27394FA6"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoEndToEndTests.cs",
+      "sha256": "7151B9E42A37873AAC60F704212735603D32EACA5726569BD67405D55B197213"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteRelationTypeBoundaryTests.cs",
+      "sha256": "4683FB2C2261F85B6E09AE6CD973F809D23CAAD6BC9C29B4954F5A513CA843D6"
+    }
+  ],
+  "runtimeDlls": [
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB\\release\\SonnetDB.Core.dll",
+      "sha256": "54AFF6ED4D8C6186E13E9D7288D4CE598DEDD525CC0BF7DE492B18DD370E9958"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB\\release\\SonnetDB.dll",
+      "sha256": "32650685FF3FACE12CA6594274D73EA0BF29E257F51EB5E28DE7ECCEF82C7417"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.Core\\release\\SonnetDB.Core.dll",
+      "sha256": "54AFF6ED4D8C6186E13E9D7288D4CE598DEDD525CC0BF7DE492B18DD370E9958"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Core.dll",
+      "sha256": "54AFF6ED4D8C6186E13E9D7288D4CE598DEDD525CC0BF7DE492B18DD370E9958"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Data.dll",
+      "sha256": "FBDF18A3E454459A04BDB3006493521A4713E544E8342732E6A4DD7A1768FE9C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore\\release\\SonnetDB.Core.dll",
+      "sha256": "54AFF6ED4D8C6186E13E9D7288D4CE598DEDD525CC0BF7DE492B18DD370E9958"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore\\release\\SonnetDB.Data.dll",
+      "sha256": "FBDF18A3E454459A04BDB3006493521A4713E544E8342732E6A4DD7A1768FE9C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore\\release\\SonnetDB.EntityFrameworkCore.dll",
+      "sha256": "794BA005D22BA10CDF9C04C75218C64BB5A78C0D020D3CC42B808E673274B8BC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore.Tests\\release\\SonnetDB.Core.dll",
+      "sha256": "54AFF6ED4D8C6186E13E9D7288D4CE598DEDD525CC0BF7DE492B18DD370E9958"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore.Tests\\release\\SonnetDB.Data.dll",
+      "sha256": "FBDF18A3E454459A04BDB3006493521A4713E544E8342732E6A4DD7A1768FE9C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore.Tests\\release\\SonnetDB.dll",
+      "sha256": "32650685FF3FACE12CA6594274D73EA0BF29E257F51EB5E28DE7ECCEF82C7417"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore.Tests\\release\\SonnetDB.EntityFrameworkCore.dll",
+      "sha256": "794BA005D22BA10CDF9C04C75218C64BB5A78C0D020D3CC42B808E673274B8BC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\EfAfter02\\build\\bin\\SonnetDB.EntityFrameworkCore.Tests\\release\\SonnetDB.EntityFrameworkCore.Tests.dll",
+      "sha256": "638BB9FF3E0467D7B9E370D905EF1D65DA15FB11954E0DF24ED6B3F9BD216E6E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB\\release\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB\\release\\SonnetDB.dll",
+      "sha256": "54150F55EA909DC6AEE05393E394A68DB623B39CAF60E4531DB66D8C4FB29EC6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.Distributed\\release\\SonnetDB.Caching.Distributed.dll",
+      "sha256": "EBC5E7F694AFA959626B07C4D5EA9D6EBCEF1DE6F73BF03B1654A905D9380164"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.Distributed\\release\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.Distributed\\release\\SonnetDB.Data.dll",
+      "sha256": "5D6CB8815D477ACAD959B8718CB3BC52D93FF1147FCA9BD4CD36C00B977518E8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.EasyCaching\\release\\SonnetDB.Caching.EasyCaching.dll",
+      "sha256": "251E7FD8AA548497F658DBE51BD432C8CE724FE155E1C5A3A10068FFCB81B2AC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.EasyCaching\\release\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Caching.EasyCaching\\release\\SonnetDB.Data.dll",
+      "sha256": "5D6CB8815D477ACAD959B8718CB3BC52D93FF1147FCA9BD4CD36C00B977518E8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Core\\release\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Data.dll",
+      "sha256": "5D6CB8815D477ACAD959B8718CB3BC52D93FF1147FCA9BD4CD36C00B977518E8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Caching.Distributed.dll",
+      "sha256": "EBC5E7F694AFA959626B07C4D5EA9D6EBCEF1DE6F73BF03B1654A905D9380164"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Caching.EasyCaching.dll",
+      "sha256": "251E7FD8AA548497F658DBE51BD432C8CE724FE155E1C5A3A10068FFCB81B2AC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Core.dll",
+      "sha256": "965B226EF41A7A5ED9584EB6250541CF0EB9D66A8BA23B6614DF5AE304BA156E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Data.dll",
+      "sha256": "5D6CB8815D477ACAD959B8718CB3BC52D93FF1147FCA9BD4CD36C00B977518E8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.dll",
+      "sha256": "54150F55EA909DC6AEE05393E394A68DB623B39CAF60E4531DB66D8C4FB29EC6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\RemoteAfter\\build\\bin\\SonnetDB.Tests\\release_win-x64\\SonnetDB.Tests.dll",
+      "sha256": "AA00DD0DE48B1A5EAC1812BA30D4B931C6BBA479E9D435C5582E38A1E7229B83"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\Aot\\build\\bin\\SonnetDB.Core\\release\\SonnetDB.Core.dll",
+      "sha256": "D830E60F578E0263F9E7BF32D209D1B786737CB9A5EC88F61F8B7D108D971080"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\Aot\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Core.dll",
+      "sha256": "D830E60F578E0263F9E7BF32D209D1B786737CB9A5EC88F61F8B7D108D971080"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38862841705\\Aot\\build\\bin\\SonnetDB.Data\\release\\SonnetDB.Data.dll",
+      "sha256": "5FAA2A509A6794F3E085CD7242C0B0AB301FE39B09F3DF52DB11439C4F184B32"
+    }
+  ],
+  "scope": "Independent EF native/legacy DateTimeOffset compatibility and ADO DataTypes correction; no Core production changes; #249 remains isolated",
+  "notAsserted": [
+    "formal release",
+    "upstream ORM delivery",
+    "new full CI success",
+    "NativeAOT execution for this fix"
+  ],
+  "gate": "Complete solution restore and prescribed Format must pass after these final files are prepared; exact receipt stored alongside this review."
+}

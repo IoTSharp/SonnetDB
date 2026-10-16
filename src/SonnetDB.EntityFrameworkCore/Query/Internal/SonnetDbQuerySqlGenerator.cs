@@ -105,19 +105,30 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
     }
 
     /// <summary>
-    /// DELETE 谓词引用目标表时只输出列名，因为 SonnetDB DELETE 语法不声明目标别名。
+    /// DELETE 谓词去除目标别名；旧 DATETIME 列上的 DTO 映射通过显式 CAST 进入原生表达式合同。
     /// </summary>
     /// <param name="columnExpression">待生成的列表达式。</param>
     /// <returns>已访问的列表达式。</returns>
     protected override Expression VisitColumn(ColumnExpression columnExpression)
     {
+        bool legacyOffset = columnExpression.TypeMapping is SonnetDbDateTimeOffsetTypeMapping
+            && string.Equals(columnExpression.TypeMapping.StoreType, "DATETIME", StringComparison.OrdinalIgnoreCase);
+        if (legacyOffset)
+            Sql.Append("CAST(");
+
         if (string.Equals(columnExpression.TableAlias, _unqualifiedDeleteAlias, StringComparison.Ordinal))
         {
             Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnExpression.Name));
-            return columnExpression;
+        }
+        else
+        {
+            base.VisitColumn(columnExpression);
         }
 
-        return base.VisitColumn(columnExpression);
+        if (legacyOffset)
+            Sql.Append(" AS DATETIMEOFFSET)");
+
+        return columnExpression;
     }
 
     /// <inheritdoc />

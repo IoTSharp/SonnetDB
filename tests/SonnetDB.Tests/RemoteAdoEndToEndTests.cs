@@ -370,7 +370,11 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
                     LIMIT 2
                 )
                 """;
-            delete.Parameters.AddWithValue("@cutoff", start.AddDays(1));
+            var cutoff = delete.Parameters.AddWithValue("@cutoff", start.AddDays(1));
+            var error = await Assert.ThrowsAsync<SndbServerException>(() => delete.ExecuteNonQueryAsync());
+            Assert.Contains("DATETIMEOFFSET", error.Message, StringComparison.Ordinal);
+            // 旧 DATETIME 列采用显式旧类型参数；默认 DTO 不能静默跨类型比较或删除。
+            cutoff.DbType = System.Data.DbType.DateTime2;
             Assert.Equal(2, await delete.ExecuteNonQueryAsync());
         }
 

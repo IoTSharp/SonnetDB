@@ -34,6 +34,16 @@ command.Parameters.Add(new SndbParameter("stamp", instant)
 
 旧 DATETIME 目标列的写入转换仍可接受 DateTimeOffset 并按旧存储精度截断。此转换不使谓词获得隐式兼容性。默认 DateTime 参数及 DATETIME 文件布局仍有既有毫秒边界；本变更不代表 #236 已完成。
 
+## Entity Framework Core 映射
+
+EF Provider 默认将 CLR `DateTimeOffset` 属性声明为 `DATETIMEOFFSET`，保留完整 UTC ticks；`DateTime` 仍声明为 `DATETIME`。生成的 DTO 字面量显式使用 `CAST(... AS DATETIMEOFFSET)`，参数保持原生 `DbType.DateTimeOffset`。
+
+升级已有 EF 应用时，原数据库中的 `DATETIME` 列不会自动改变声明。若继续使用旧布局，应在模型中显式配置 `HasColumnType("DATETIME")`。Provider 对这种 DTO 属性的查询列生成 `CAST(column AS DATETIMEOFFSET)`，使列、参数、常量和日期函数具有一致的表达式类型；写入仍按旧 `DATETIME` 毫秒精度保存，不能恢复历史已截断的 ticks。查询列的 CAST 可能使旧列索引无法用于该表达式，不承诺原生列相同的查询计划。
+
+如果要迁移为完整 ticks 存储，必须明确执行并验收列迁移，同时更新 EF 模型和迁移快照；本次映射修复不会自动执行 DDL，也不代表事务 DDL #227 已完成。显式旧布局的查询适配要求新引擎支持 `DATETIMEOFFSET`，不承诺新版 EF Provider 可连接旧版 Server。
+
+ADO.NET `GetSchema("DataTypes")` 同时列出 `DATETIME`、`DATETIMEOFFSET`、`TIME` 和 `DURATION`；新增的 `DATETIMEOFFSET` 和 `DURATION` 均不作为 measurement FIELD 类型开放。
+
 ## 持久化与传输
 
 使用该类型的 catalog 永久提升到 v15，升级屏障先于新行及迁移日志写入；删除最后一个新列也不降级。旧引擎必须拒绝 v15，不能直接降级打开。物化快照含原生声明时使用 v4，包括空结果；旧快照仍可读。SQL 临时 spill 复用已有 DateTimeOffset 编码。

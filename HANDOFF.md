@@ -5,6 +5,29 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16，批次06 CI修复与已实现 Issue 关闭）
+
+- 当前监督 HEAD/远端 main 仍67a5c8c8。精确 CI38862841705 最终 failure：Windows rest/Ubuntu 的 EF DTO 映射1项及远程类型目录/旧DTO参数4项失败；Windows Core、三平台AOT、Format success。完整原TRX/日志和本地旧源码0/1、冻结DLL0/4复现已保留。
+- 根独立修复 EF 默认原生DTO/显式旧DATETIME查询CAST及DataTypes漏项，不改Core守卫；EF全套两次295/295、真实远程两整类80/80、EF/Server/Data AOT构建0warning/error。报告 ci-38862841705-datetimeoffset-compatibility-20261016.md/json。当前修复待最终完整restore/Format独立提交及正常push；#249尚未集成。
+- 用户本轮明确要求“把之前的实现了的，记得要关闭issuse”和“代码也要记得提交和推送”。按源码实现和已验证合同关闭16项：314/313/312/264/263/262/261/260/259/258/256/255/254/253/243/226，全部逐条回读closed/completed及maikebing评论。每项提交均为390af19d祖先，该精确CI38836248581全部7job全绿已新回读；评论明确新67a CI仍失败在修，正式发行和对应上游交付未由关闭推定完成。永久回执 issue-implemented-closures-20261016.json。不得再按旧规则重新开放或重复派单；252/251/250待当前CI修复后核关闭。
+- parity-results已由github-actions[bot]正常推进至042748d841c5eca6e47261cf6b63e220280ee102（run38863384603），保留新引用，不回写旧2ab。主目录main仍ffdb734c且clean，不覆盖其它会话。
+- issue314唯一249已冻结：manifest91A1125EA2C529AE69CD82E8E3147D50CB57E340936AD3A76D801DC03C2E40CD，25交付/249证据/869运行文件/14TRX，基线67a；代理3682/3682、邻接265/265、末补四项后的动态类24/24、远程159/159、真实SqlSugar六阶段各28/28、AOT/Server零warning/error、最终完整restore/Format通过。根尚未逐项核验/集成，先提交独立CI修复再接25文件。
+- issue312唯一248准备保持冻结，manifest8127BFF635DBF78684D6E70E7AC8643512E9A1F521FECC6724A718A4CF5C69E4；249根最终提交后才能修改共享核心。必须实施真实FOR UPDATE基础/NOWAIT，覆盖250新增维护入口，不能仅以233阻断停工。
+- issue313唯一247准备已冻结：manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，10新源/1144运行文件/194证据/603上游源/3TRX，tracked生产修改0。最终合同2PASS22FAIL；public4/preview原生2/15、源码3/15，SqlSugar2/11；REST/h2c原生各3/16、SqlSugar各2/12。h2c只有普通SELECT的2请求走Frame，CALL走HTTP2 REST。远程CREATE PROCEDURE体内参数被旧Binder误认为ADO参数，准备使用公开SQL端点预建仅隔离调用；CIM中断/DDL缺参均保留。此为准备完成而非功能完成，等待249→248共享交接。
+- 下一步：CI兼容修复完整门禁、独立commit、普通push/远端和新CI回读；核249冻结/根验收/独立commit并交248，247等待。状态记录随实际修复提交，不造巡检提交，外部ORM候选不外发，旧树/stash/失败证据保留。
+
+## 提交推送后检查点（2026-10-16 14:47，批次06已推送并回复、CI运行中）
+
+- #250 已独立提交 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`，父 `9b3b983304d249fafe485235761c1f8a70671cab`，71 路径，最终 tree `6a9e0170efd52d9d0200eef713d8ab9c05dc4694`。最终完整 restore 06:35:39Z→06:35:44Z、原 Format 06:35:44Z→06:36:54Z 均 exit0，树未变才提交；workspace-load 警告保留，无格式违规。首门禁也返回0，但期间文档行尾/EOF修订，因此最终完整重跑 root-gate02。精确回执 `issue250/commit.json`，根报告已随提交。
+- 本批 #252=`16b266c2`、#251=`aa4fbffb`、#250=`67a5c8c8` 连同原独立测试修正和文档 merge，已普通快进 push HEAD:main。远端 main 回读 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`，parity-results 仍 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`。主目录本地 main 仍 ffdb734c 且 clean，尚未同步，不覆盖其它会话。原 push.json 的 PowerShell ErrorRecord 序列化深度警告保留，push.log及独立新回读提供完整正文与SHA证据。
+- 精确新 SHA 的 CI **38862841705** 已启动，发帖前回读 in_progress，7作业均在运行，尚无最终结论；旧ffdb/390af的绿灯不扩称覆盖本批。同时触发的 CodeQL/Docs Pages/Docker/Connectors 工作流以各自实际状态为准，不能当正式配套包与ORM验收。先等待本CI再下一批push，避免取消运行中的CI。
+- 已逐项发布并回读作者 maikebing、完整正文和 OPEN：252评论 **6209776617**、251评论 **6209777759**、250评论 **6209778676**。评论准确标记新CI未结束、实现及本地/代理测试范围和剩余条件，不重复发帖。三项均未关闭：252/251需正式发行与Chloe交付，250还需SqlSugar正式消费者及#227完整CodeFirst条件。永久批次回执 `docs/audits/issue-supervision-batch06-20261016.json`、初始CI回读 `issue-supervision-ci-38862841705-initial-20261016.json` 待下个真实Issue提交，不为巡检单独提交。
+- 原 issue314 已恢复唯一249，原树正常 ff-only 到67a5c8c8，七准备文件前后SHA一致、tracked修改0，收据 issue249-work/resume-checkpoint01.json；现独占共享执行器接线。原 issue312 唯一248继续冻结等待，原 issue313 已完成250并转唯一247隔离准备，新树 `D:/source/SonnetDB-worktrees/issue247-stored-procedure`、分支 codex/issue247-stored-procedure、基线67a5c8c8。247已读原文/评论及229，229现已CLOSED且通用多结果已实现，但过程仍仅lastResult，需接既有结果链；不能重做229或把CALL当StoredProcedure支持。共享次序249→248→247，不冲突准备可并行。
+- 代理使用独占D盘产物/cache/短TEMP；除独立HTTP缓存外，各自packages根也须独立，或串行restore，避免本次已记录的并发缓存临时文件冲突。GitHub直连本轮两次网络失败，临时使用127.0.0.1:7890代理后实际读写成功，未更改全局配置或泄露凭据。
+- 30分钟监督继续ACTIVE，下一次先核新CI和249进度。226/243源码补缺及原评论不重做，正式发行/对应消费者仍追踪；旧树、stash、失败证据和结果分支保留。本提交后HANDOFF/监督/线上回执暂随下一真实Issue提交，故当前监督树只有这些记录待提交，不另造状态提交。
+
+- 14:50 追加回读：CI 38862841705 的 Format Check 已 completed/success，其余六作业仍 in_progress，整体尚无结论；第二份原始回读为 issue-supervision-ci-38862841705-progress02-20261016.json。249已接线并开始首轮Core验证，根已要求新准入执行器的JSON_OBJECT高精度decimal保真，不能只凭关系路径通过扩称全部入口；247正常准备，248冻结等待。自动化已更新并回读ACTIVE/每30分钟/目标聊天及新SHA、CI。
+
 ## 最新监督检查点（2026-10-16 14:33，#250根最终回归通过、提交门禁待执行）
 
 - #250 冻结清单 `58FC5DB1FA39925B28E9AFED736DDFB41530449E58142850184009282E1B0EF5` 已逐项核 66 交付/687 运行时/372 证据/25 TRX/603 上游源/3 补丁；最终 SQL 按 testId 去重为 3164。首次显示名去重错误在复制前停止，失败说明和原脚本保留。66 文件已集成到 9b3b，根保留该提交 LongRunning 方法原排版/注释及代理旧布局 fixture 修复。
