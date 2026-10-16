@@ -1,5 +1,7 @@
 <template>
   <div>
+    <DatabaseDiagnostics />
+    <template v-if="auth.isSuperuser">
     <n-alert
       v-if="!otelAvailable && !loading"
       type="info"
@@ -10,7 +12,7 @@
       <code>SonnetDBServer:Observability:Prometheus:Enabled = true</code> 并重启服务。
     </n-alert>
 
-    <n-grid :cols="gridCols" :x-gap="16" :y-gap="16">
+    <n-grid v-if="otelAvailable" :cols="gridCols" :x-gap="16" :y-gap="16">
       <n-gi v-for="card in statCards" :key="card.label">
         <n-card size="small">
           <n-statistic :label="card.label" :value="card.value">
@@ -22,7 +24,7 @@
       </n-gi>
     </n-grid>
 
-    <n-grid :cols="chartCols" :x-gap="16" :y-gap="16" style="margin-top:16px;">
+    <n-grid v-if="otelAvailable" :cols="chartCols" :x-gap="16" :y-gap="16" style="margin-top:16px;">
       <n-gi v-for="chart in charts" :key="chart.title">
         <n-card :title="chart.title" size="small">
           <MetricSparkline :points="chart.points" :unit="chart.unit" :color="chart.color" />
@@ -35,6 +37,7 @@
     </n-card>
 
     <n-alert v-if="lastError" type="error" :title="lastError" style="margin-top:16px;" closable />
+    </template>
   </div>
 </template>
 
@@ -44,6 +47,7 @@ import {
   NAlert, NCard, NDataTable, NGi, NGrid, NStatistic, type DataTableColumns,
 } from 'naive-ui';
 import { useAuthStore } from '@/stores/auth';
+import DatabaseDiagnostics from '@/components/DatabaseDiagnostics.vue';
 import {
   collectHistogram, fetchPromSnapshot, histogramQuantile, sumByLabel, sumSamples,
   type PromSnapshot,
@@ -80,6 +84,8 @@ let prevSnapshot: PromSnapshot | null = null;
 let prevWritePoints: number | null = null;
 let prevCopilotRequests: number | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
+let polling = false;
+let disposed = false;
 
 /** 内联 SVG 折线（无第三方图表库，与既有 SqlResultChart 同风格）。 */
 const MetricSparkline = defineComponent({
@@ -209,8 +215,9 @@ function pushPoint(series: { value: SeriesPoint[] }, at: number, value: number |
   series.value = next;
 }
 
-async function poll(): Promise<void> {
+async function readMetrics(): Promise<void> {
   const snapshot = await fetchPromSnapshot(auth.api);
+  if (disposed) return;
   loading.value = false;
   if (snapshot.error) {
     lastError.value = snapshot.error;
@@ -286,12 +293,22 @@ async function poll(): Promise<void> {
   prevSnapshot = snapshot;
 }
 
+async function poll(): Promise<void> {
+  if (polling || disposed || !auth.isSuperuser || document.hidden) return;
+  polling = true;
+  try { await readMetrics(); }
+  catch { if (!disposed) lastError.value = '指标请求失败，请检查连接。'; }
+  finally { polling = false; if (!disposed) loading.value = false; }
+}
+
 onMounted(() => {
+  if (!auth.isSuperuser) return;
   void poll();
   timer = setInterval(() => { void poll(); }, POLL_MS);
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   if (timer) clearInterval(timer);
 });
 </script>

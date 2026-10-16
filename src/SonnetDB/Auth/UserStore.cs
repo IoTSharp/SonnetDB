@@ -391,8 +391,9 @@ public sealed class UserStore
             throw new ArgumentException("用户名最长 64 字符。", nameof(name));
         foreach (var ch in name)
         {
-            if (!(char.IsAsciiLetterOrDigit(ch) || ch == '_' || ch == '-'))
-                throw new ArgumentException($"用户名只允许 [A-Za-z0-9_-]：'{name}'。", nameof(name));
+            // 管理端允许邮箱式登录名；SQL 中仍须用带引号的标识符引用。
+            if (!(char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-' or '.' or '@' or '+'))
+                throw new ArgumentException("用户名只允许 ASCII 字母、数字及 _-.@+。", nameof(name));
         }
     }
 }

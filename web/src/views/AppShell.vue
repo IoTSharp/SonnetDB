@@ -166,8 +166,7 @@ const moduleNavigation: NavigationItem[] = [
   { label: '数据流', key: 'flows', routeName: 'modbus', icon: Network, requiresAdmin: true },
   { label: 'AI 与 MCP', key: 'ai', routeName: 'rag', icon: Bot },
   { label: '治理', key: 'govern', routeName: 'users', icon: ShieldCheck, requiresAdmin: true },
-  // Current landing only: About hosts the settings entry until planned pages land.
-  { label: '设置', key: 'settings', routeName: 'about', icon: Settings },
+  { label: '设置', key: 'settings', routeName: 'settings', icon: Settings },
 ];
 
 const adminNavigation: NavigationItem[] = [
@@ -199,6 +198,7 @@ const titleByKey: Record<string, string> = {
   'ai-settings': 'Copilot',
   'copilot-test': 'Copilot 测试',
   about: '关于',
+  settings: '设置',
 };
 
 const toolLabels: Record<string, string> = {

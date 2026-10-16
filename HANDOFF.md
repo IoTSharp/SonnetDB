@@ -1,5 +1,21 @@
 # SonnetDB 交接记录
 
+## 2026-10-16 Online Studio 修复与主干同步
+
+- 当前 checkout 为 `D:\GitHub\IoTSharp\SonnetDB`，分支 `codex/online-demo-service-20261016`。账号/脱敏补丁 `78197b55` 已提交，`2a6d29b5` 合入当次远端 main `4d6e4f98`，两者已推送该分支；没有改动 canonical 共享工作树或 parity-results。
+- 真实浏览器复现：旧设置入口只跳转关于页；观测接口返回最小指标集，旧面板忽略；演示库原本仅一张 measurement。新增独立设置页（连接检测、浏览器诊断刷新偏好），观测新增授权数据库模型目录、存储/WAL 元信息、九项只读自检和慢查询形状。普通账号不请求实例级指标，不提升为超级用户。
+- 九模型合成样例由交付仓 `deploy/native/scripts/seed-online-sonnetdb.mjs` 补充；仅使用 demo 身份和 demo 库、固定资源名、读取后补缺，不修改其它用户。文档向量与 measurement 向量均有样例；向量是手工构造，不能当真实模型质量证据。
+- 前端类型检查/生产构建与 469 项现有合同通过；本地构建接真实服务的 Chrome 1440/390px 设置/诊断/工作台验证通过（九项自检、九模型可见、零页面异常/横向溢出）。本段记录提交前状态；新二进制发布及公网复验以父仓 `Deployments/iotsharp_online/studio-models-receipt.md` 为准，不能用本地预览替代生产验收。
+- 最新上游引擎/EF 的集成回归、同源两个产品构建以及部署由父仓执行；保留先前失败与后续修正证据，不宣称全套性能、Parity、NativeAOT 发布或真实现场业务闭环完成。
+
+## 2026-10-16 公开演示入口说明
+
+README 中英文及 `web/src/views/WelcomeView.vue` 增加用户明确授权公开的演示地址、账号/密码和长期测试账号说明。共享 demo 每半小时仅恢复凭据；正常注册账号、密码与数据不参与重置且长期保留。前端已构建并随 `20261016-public-demo-access` 发布到演示站，未提交/推送；管理员凭据未进入展示。
+
+## 2026-10-16 IoTSharp Online 消费侧交付补丁
+
+此 checkout 位于 `D:\GitHub\IoTSharp\SonnetDB`，已从旧子模块基线快进获取并 detached 到 `67a5c8c8`，不是 `D:\source\SonnetDB` 的共享脏工作树。邮箱用户名与 PASSWORD 诊断脱敏补丁、配套测试及本交接尚未提交/推送。认证/权限/诊断 53 项、控制面解析 52 项通过；linux-x64 Server 与前端构建成功，已经随 IoTSharp 部署到 `111.228.23.26`，实际登录/权限验证见父仓 `Deployments/iotsharp_online/deployment-receipt.md`。保持原上游监督交接正文，不冒称全仓门禁或正式 Release 完成。今后提交仍须执行本仓规定的完整 restore 与 Format Check。
+
 交接日期：2026-10-16（Asia/Shanghai）<br>
 当前分支：`main`<br>
 远端基线：`origin/main`
@@ -3262,3 +3278,9 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 - 用户要求提交、拉取、同步并合并本地与线上代码。主目录真实起点为 main 4d6e4f988118c7f856211ab1380e4fc31e1ca10a，初始 clean；已 fetch origin。将 origin/codex/m49-connector-batches-roadmap 39437db0189e9f8acbc3efebf890087ed17052f6 普通 merge，CHANGELOG 冲突保留双方全部条目，未覆盖已有 Identity/JSON/DTO 修复。
 - 本次只是既有交付整合；M49 功能与发行边界沿用该分支审计。下一步合入 online-demo 分支、冻结 #248 和准备材料，再执行组合回归及普通 push/精确 CI 回读。旧工作树、stash、失败证据全部保留；parity-results 不合并或清理。定时监督仍 PAUSED，不恢复新 Issue 实施。
 - 本 merge 仅在最终树完整 restore 和原样 Format Check 实际通过后提交；日志保存 artifacts/integration-20261017/logs，提交及后续线上状态以本轮最终整合审计为准。
+
+
+## 人工统一合并：在线演示与配置界面（2026-10-17）
+
+- M49 已以 46e58d82 普通 merge 保留原分支历史。继续普通合入 origin/codex/online-demo-service-20261016 d8d83c5b7ce1e708aaba5125bd4b9ca6b83d7ab7，自动合并无冲突。新增演示账号用户名、敏感 SQL 诊断脱敏、实际生效的实例/数据库配置端点与 Studio 界面，保留鉴权/脱敏/source-generated JSON 合同。
+- 本提交前完整 restore/原 Format 必须在当前组合树重新通过。前端和组合后端测试在最终整合时单列实测；线上分支合并不代表服务部署或正式发包。定时监督继续 PAUSED。

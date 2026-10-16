@@ -18,6 +18,14 @@
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
+## Online demo and testing accounts
+
+- Demo: <https://iotsharp.online/sonnetdb/admin/login>
+- Username: `demo@iotsharp.online`
+- Password: `P@ssw0rd`
+
+Only the shared demo account has its username and password restored every 30 minutes. **Regular registered accounts can be used to test the service. Their accounts, passwords, and business data are not reset and are retained long term.** The public demo account can access only the demonstration database.
+
 ## 🧩 What Is SonnetDB
 
 **SonnetDB is a multi-model data engine.**

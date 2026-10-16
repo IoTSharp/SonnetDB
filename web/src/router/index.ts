@@ -13,6 +13,7 @@ const DashboardView = previewEnabled ? () => import('@/preview/PreviewOverview.v
 const SqlConsoleView = previewEnabled ? () => import('@/preview/PreviewWorkbench.vue') : () => import('@/views/SqlConsoleView.vue');
 const EventsView = () => import('@/views/EventsView.vue');
 const MonitoringView = () => import('@/views/MonitoringView.vue');
+const SettingsView = () => import('@/views/SettingsView.vue');
 const UsersView = () => import('@/views/UsersView.vue');
 const GrantsView = () => import('@/views/GrantsView.vue');
 const TokensView = () => import('@/views/TokensView.vue');
@@ -57,9 +58,7 @@ const router = createRouter({
         { path: 'flows', name: 'flows', redirect: { name: 'modbus' }, meta: { admin: true } },
         { path: 'ai', name: 'ai', redirect: { name: 'rag' } },
         { path: 'govern', name: 'govern', redirect: { name: 'users' }, meta: { admin: true } },
-        // Settings currently lands on the existing About view until planned
-        // preference/server-host pages receive their own production routes.
-        { path: 'settings', name: 'settings', redirect: { name: 'about' } },
+        { path: 'settings', name: 'settings', component: SettingsView },
         { path: 'studio', redirect: { name: 'sql' } },
         { path: 'sql', name: 'sql', component: SqlConsoleView },
         { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },

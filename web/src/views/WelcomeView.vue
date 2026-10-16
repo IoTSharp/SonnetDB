@@ -34,6 +34,14 @@
             <button type="button" class="secondary-action" @click="scrollToSection('database')">了解产品形态</button>
           </div>
 
+          <section class="public-demo" aria-labelledby="public-demo-title">
+            <h2 id="public-demo-title">官方在线演示</h2>
+            <a href="https://iotsharp.online/sonnetdb/admin/login">打开 SonnetDB 管理端演示</a>
+            <p>账号：<code>demo@iotsharp.online</code><br />密码：<code>P@ssw0rd</code></p>
+            <p>仅公共演示账号的用户名和密码每半小时恢复一次，演示账号仅能访问演示数据库。</p>
+            <p><strong>正常注册账号可用于测试服务，账号、密码和业务数据均不参与演示重置，长期保留。</strong></p>
+          </section>
+
           <div class="hero-badges" aria-label="产品要点">
             <article v-for="item in heroHighlights" :key="item.title" class="hero-badge">
               <span>{{ item.title }}</span>
@@ -301,6 +309,21 @@ async function goManage(): Promise<void> {
 </script>
 
 <style scoped>
+.public-demo {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #cbdbe8;
+  border-radius: 12px;
+  background: #f5f9fc;
+  color: #183c56;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.public-demo h2 { margin: 0 0 8px; font-size: 20px; }
+.public-demo p { margin: 8px 0 0; }
+.public-demo a { color: #116887; text-decoration: underline; text-underline-offset: 3px; }
+
 .welcome-page {
   min-height: 100%;
   color: var(--sndb-ink-strong);

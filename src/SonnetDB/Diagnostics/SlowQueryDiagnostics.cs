@@ -65,8 +65,10 @@ internal sealed partial class SlowQueryDiagnostics
         if (!options.Enabled || options.ThresholdMs < 0)
             return;
 
-        var truncatedSql = sql.Length > SqlMaxLength ? sql[..SqlMaxLength] : sql;
         var normalizedSql = SqlFingerprint.Normalize(sql);
+        // 账号维护 SQL 含明文密码；样本、SSE 和诊断环均只保存脱敏形状。
+        var diagnosticSql = sql.Contains("PASSWORD", StringComparison.OrdinalIgnoreCase) ? normalizedSql : sql;
+        var truncatedSql = diagnosticSql.Length > SqlMaxLength ? diagnosticSql[..SqlMaxLength] : diagnosticSql;
         var fingerprint = SqlFingerprint.Compute(normalizedSql);
         var severity = GetSeverity(options, elapsedMs);
         var timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Changed
+- Online Studio：设置入口改为独立连接/观测偏好页；观测展示按授权数据库读取的九模型目录、存储/WAL 元信息、只读 SQL 自检及慢查询形状，明确未采集/失败状态，普通用户不请求实例级 Prometheus 数据。
+- 在项目门面与中英文 README 公布用户授权的受限演示入口和凭据，说明正常注册测试账号及数据长期保留、不参与共享演示账号的周期恢复。
+- IoTSharp Online 交付补丁：允许邮箱式用户名称，并对含 PASSWORD 的 SQL 诊断样本/SSE 使用脱敏形状；账号隔离与凭据保留、解析及诊断回归通过。该本地交付补丁未提交至上游，不代表新的正式 Release。
 - Identity MVC 样例显式保留既有 `LockoutEnd` 的 `DATETIME` 映射，修复 Provider 默认使用原生 `DATETIMEOFFSET` 后模型与已有迁移不一致的问题；JOIN 列裁剪递归保留 CAST 操作数，CAST 内函数继续遵守谓词下推限制。保持原 UTC 毫秒布局、迁移快照及模型差异断言。
 
 - GH-Issue #249：支持逐行列/表达式 JSON_VALUE path、动态数组下标和 JSON_OBJECT 类型安全对象谓词；对象保留精确 DECIMAL、整数、布尔、NULL 和转义，动态 JSON_VALUE 沿用静态 Int64 优先否则 Double 的取值合同，静态/参数 JSON 索引保持。补文档/文件/向量/时序/JOIN 的精确对象接线、预算/取消释放、真实 SqlSugar 同步异步三协议和重开验证；不改变目录或结果版本，正式包及上游发行仍需另验。

@@ -81,6 +81,40 @@ public sealed class UserStoreTests : IDisposable
     }
 
     [Fact]
+    public void UserStore_EmailLoginAndTargetedReset_PreserveOtherUsers()
+    {
+        var store = new UserStore(_dir);
+        const string demo = "demo@example.test";
+        store.CreateUser(demo, "initial-demo", isSuperuser: false);
+        store.CreateUser("admin@example.test", "admin-unchanged", isSuperuser: true);
+        store.CreateUser("customer@example.test", "customer-unchanged", isSuperuser: false);
+        var (oldDemoToken, _) = store.IssueToken(demo);
+        var (customerToken, _) = store.IssueToken("customer@example.test");
+
+        store.ChangePassword(demo, "restored-demo");
+
+        var reopened = new UserStore(_dir);
+        Assert.True(reopened.VerifyPassword("DEMO@example.test", "restored-demo"));
+        Assert.False(reopened.VerifyPassword(demo, "initial-demo"));
+        Assert.True(reopened.VerifyPassword("admin@example.test", "admin-unchanged"));
+        Assert.True(reopened.VerifyPassword("customer@example.test", "customer-unchanged"));
+        Assert.False(reopened.TryAuthenticate(oldDemoToken, out _));
+        Assert.True(reopened.TryAuthenticate(customerToken, out _));
+        Assert.False(reopened.IsSuperuser(demo));
+    }
+
+    [Theory]
+    [InlineData("../demo")]
+    [InlineData("demo user")]
+    [InlineData("demo\nuser")]
+    public void UserStore_EmailSupport_DoesNotAcceptSeparatorsOrWhitespace(string name)
+    {
+        var store = new UserStore(_dir);
+        Assert.Throws<ArgumentException>(() => store.CreateUser(name, "test-password", false));
+        Assert.Equal(0, store.Count);
+    }
+
+    [Fact]
     public void UserStore_CreateUser_DuplicateThrows()
     {
         var store = new UserStore(_dir);

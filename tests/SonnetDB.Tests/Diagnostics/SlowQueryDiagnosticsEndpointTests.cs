@@ -66,6 +66,22 @@ public sealed class SlowQueryDiagnosticsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PasswordMaintenance_DiagnosticsNeverReturnPasswordLiterals()
+    {
+        using var admin = CreateClient(AdminToken);
+        const string password = "diagnostics-must-hide-this";
+        using var response = await admin.PostAsJsonAsync("/v1/sql",
+            new SqlRequest($"CREATE USER \"demo@example.test\" WITH PASSWORD '{password}'"),
+            ServerJsonContext.Default.SqlRequest);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("\"error\"", result, StringComparison.Ordinal);
+        var diagnostics = await admin.GetStringAsync("/v1/diagnostics/slow-queries?limit=32");
+        Assert.DoesNotContain(password, diagnostics, StringComparison.Ordinal);
+        Assert.Contains("PASSWORD", diagnostics, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Diagnostics_WithSlowQueries_ReturnsDetailsTopNAndPermissionFilteredData()
     {
         using var admin = CreateClient(AdminToken);
