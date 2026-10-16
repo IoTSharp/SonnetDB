@@ -5,7 +5,14 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 最新监督检查点（2026-10-16，日期CI断言修正）
+## 最新监督检查点（2026-10-16，#260 主树验收）
+
+- 本地已独立提交261=b157dddc、262日期旧断言=0a51102c、Streaming测试既有超时分支=bf59710e，均已实际通过完整restore/原Format门禁。尚未推送，远端仍cfa92314；其CI三平台AOT/Format成功，Ubuntu和Windows Core均只因旧日期断言7194/7195失败，Windows rest仍待结束，不改写旧run。
+- #260冻结13文件已按SHA集成，根核182证据文件、16二进制、25源码/依赖、105 Server快照文件、四份TRX和6个Chloe候选进程。根两个Release构建均0警告/错误，Core258/258（含解析、日期旧断言及Streaming修正）、真实Server120/120，零失败/跳过；组合与代理集合不累加。最终完整门禁位于issue260/final，实际通过后才独立提交。正式Core/Data/Server与Chloe交付仍缺，保持OPEN。
+- 之前完整Core原始7198/7199保留，唯一Streaming测试遗漏分支已由独立34/34和本次258/258覆盖；未将其提升为完整Core全绿。根后续按正常push触发新CI确认完整集合。
+- #259冻结18文件已核163资产/6TRX，#258冻结14文件已核69证据/28DLL/14源码副本；二者尚未根集成。接下来259→258独立门禁提交，再与261/260及两个测试修正批次推送并回读SHA/CI/Issue状态。
+- 三代理各一项：issue314→256（D:/source/SonnetDB-worktrees/issue256-int64-pagination，Core SQL3025/3025明确排除旧日期断言、远程6/6，XCode消费继续）；issue312→255（issue255-keyless-xcode，既有243源码与真实XCode验收）；issue313→254（issue254-public-aggregate-cast，既有CAST实现与公开包/Chloe验收）。256独占共享RSE，其他生产缺口须先协调。#226/#243源码恢复补缺已推送不重做，正式消费条件保留；监督ACTIVE，旧树/失败/parity-results全部保留。
+## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。
 - 259已冻结18文件，根尚未集成；代理Core145/145、远程9/9+36/36、Chloe候选48/48。issue313接续唯一254，在D:/source/SonnetDB-worktrees/issue254-public-aggregate-cast（0a51102c），既有CAST聚合实现不重做，补公开包及真实Chloe消费；共享RSE等256冻结，255继续XCode无主键消费。下一步根260→259→258串行复审/门禁/提交，再批次推送核CI并按真实正式发行条件回复。
 

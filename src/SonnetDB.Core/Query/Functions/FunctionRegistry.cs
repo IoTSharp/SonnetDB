@@ -163,6 +163,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("pow", 2, 2, EvaluatePow),
         new BuiltInScalarFunction("shift_left", 2, 2, static args => EvaluateShift(args, left: true)),
         new BuiltInScalarFunction("shift_right", 2, 2, static args => EvaluateShift(args, left: false)),
+        new BuiltInScalarFunction("parse_uint64", 1, 1, SqlUnsignedIntegerFunctions.ParseUInt64),
 
         new BuiltInScalarFunction("uuid", 0, 0, static _ => Guid.NewGuid().ToString("D")),
         new BuiltInScalarFunction("sin", 1, 1, static args => EvaluateTrigonometric(args, "sin")),

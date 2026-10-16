@@ -4356,6 +4356,9 @@ internal static partial class RelationalSelectExecutor
             && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
             return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
 
+        if (InferUInt64ParseColumnInfo(expression, columns) is { } unsignedInteger)
+            return unsignedInteger;
+
         if (InferConcatDeclaration(expression) is { } concat)
             return concat;
 

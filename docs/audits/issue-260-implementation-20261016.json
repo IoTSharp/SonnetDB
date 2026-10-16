@@ -1,0 +1,2129 @@
+{
+  "serverSnapshotFileCount": 105,
+  "baseline": {
+    "castSha256": "9216A8A8AB0DC5AB5CD7FB457A145D3B77BC1C7E53A86D9F9FCA54086DC7B18B",
+    "registrySha256": "0568AC359D3788518FA11A96445FA1CC0742F5F08092FBA964592D8240C56EC2",
+    "base": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+    "probeSha256": "B7442E6DA350C27947EBC6E4677DF8AE01ACE1A2B4D498D7A31C883637386D0E",
+    "files": [
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\Probe.deps.json",
+        "sha256": "ED231FA620A8E704DC530C67A473D18E5B58CED35688B379C4825D5CB88DF0A5"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\Probe.dll",
+        "sha256": "2C6E71B98C23EDF04C8EBC6E66616DC89E870677C5908F285F07CB8D5B000D94"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\Probe.exe",
+        "sha256": "6A73705EC9A842FCEFE90776DE53D88384DC4C1F49D6C804AB6E4D8ED65ED62E"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\Probe.pdb",
+        "sha256": "C90020A208B707FC15D4A85E0E5467FEF4D7A2557270D6452FA96196B14E36BA"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\Probe.runtimeconfig.json",
+        "sha256": "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\SonnetDB.Core.dll",
+        "sha256": "934B37370012814EADD394E13183E36EEACD0C03D967392B788638BE4698AC0A"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\SonnetDB.Core.pdb",
+        "sha256": "9F9054570BBE95CB911DD096C1487E072FF6436038194D58368D53E0149E1FBC"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\System.IO.Hashing.dll",
+        "sha256": "CEA6795CF9F7B139B2215FF6DE794A6F6E44E78640FB30FA4C0D5FA8472DF8E5"
+      },
+      {
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\baseline\\frozen-bin\\System.Numerics.Tensors.dll",
+        "sha256": "5831A67BFB44D2034D76CDE54BD349F8479160B4FD20B8FA6FFE5A94230D5352"
+      }
+    ]
+  },
+  "sourceRoot": "D:/source/SonnetDB-worktrees/issue260-uint64-parse",
+  "capturedUtc": "2026-10-16T00:03:17.3665478+00:00",
+  "evidenceRoot": "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work",
+  "evidenceFiles": [
+    {
+      "length": 844,
+      "path": "baseline-build-corrected.json",
+      "sha256": "A5577B812A8AE1E23DFBEF1C2FDF4DC3F8564EECCE118DC99165DB357D78AD1E"
+    },
+    {
+      "length": 813,
+      "path": "baseline-build.json",
+      "sha256": "2F8741E337043D1B814DDFDB0EFD6AB4AF4C6FFF030AAD4073CB8E1C6F870E66"
+    },
+    {
+      "length": 193,
+      "path": "baseline-run.json",
+      "sha256": "BC0B8A13AD1127FFE12DB9A05BD546B84CE5233C7844D5822356539EEC009A1D"
+    },
+    {
+      "length": 1011,
+      "path": "chloe-build-final01.json",
+      "sha256": "E8689A3200ABFF21134A61228F9ACFB065301A88A1816926AB128AD781CF3E93"
+    },
+    {
+      "length": 1015,
+      "path": "chloe-candidate-build01.json",
+      "sha256": "383752F783CB41DA4DA2E84D48862B1B243ED0B28F844988C75FA0B433CDF280"
+    },
+    {
+      "length": 345,
+      "path": "chloe-checkout.json",
+      "sha256": "BFACF3D262743FCF0EF8B6A60C07A08770A8EB333AE94EB0A863770E2E009B8E"
+    },
+    {
+      "length": 351,
+      "path": "chloe-clone.json",
+      "sha256": "1ADC8EA669B2C73D41262D6A5F637D56EF39A2A8764F6C19383C0C5FB0AA7E5C"
+    },
+    {
+      "length": 284,
+      "path": "chloe-embedded-exercise-final01.json",
+      "sha256": "00DB6EDC06781BFF17B35367DAD9153050D8BB3109D966DEE1BD7589CA6EAE00"
+    },
+    {
+      "length": 272,
+      "path": "chloe-embedded-exercise01.json",
+      "sha256": "A42E5FA1364C9CD909583745875DCB115E90D20099B965570CFCA0628DEF6F78"
+    },
+    {
+      "length": 280,
+      "path": "chloe-embedded-reopen-final01.json",
+      "sha256": "A5D24F4990E57AC633480A862C70527B616F2D93800012494597D61E9EAB3FBC"
+    },
+    {
+      "length": 988,
+      "path": "chloe-guard-build.json",
+      "sha256": "A5313399A992A87BB63A9636CCA07FC854EFE7247E56CAD4AAB37B19ABB24037"
+    },
+    {
+      "length": 4825,
+      "path": "chloe-guard-frozen.json",
+      "sha256": "6D4C6579BA894E4C0B5380698EC3BBEBEDBF14E188E7E05E5E6D04C2EC57AE3D"
+    },
+    {
+      "length": 268,
+      "path": "chloe-original-guard.json",
+      "sha256": "4A573BA0D800AD58B6A6F33361032696B59C826FF99EF7B87E56CE61A93A7E11"
+    },
+    {
+      "length": 947,
+      "path": "chloe-remote-final01.json",
+      "sha256": "ED61FD983B46ECD533104AA1F63B01428975236C09B1A8B1C49AFA1AA08D5081"
+    },
+    {
+      "length": 516,
+      "path": "chloe-source-final.json",
+      "sha256": "23B6B1CB39A412F059F6EEC2CEF5D8C89280CF972FCBEE4E9C2D4D0ED33FD933"
+    },
+    {
+      "length": 815,
+      "path": "core-adjacent-final01.json",
+      "sha256": "35F8A5AD8378F68701E98CA167A3EEFD0106EF0EC307C5C523E25A0C7653B7F7"
+    },
+    {
+      "length": 778,
+      "path": "core-build-final01.json",
+      "sha256": "1A0AF1A21F5D197F1DB08468AACDC48208C5EFA49E17BD513BFE635612156B1B"
+    },
+    {
+      "length": 772,
+      "path": "core-build01.json",
+      "sha256": "9010CE8C2D1D133A122C45976F2459D7A1AE1B24EF076690DA3EA7773B5E8B72"
+    },
+    {
+      "length": 456,
+      "path": "core-final01.json",
+      "sha256": "16D588FC983244CA07D7A967DD7040C33B79CA874247E5E72C087F2F297E69DA"
+    },
+    {
+      "length": 544,
+      "path": "core-values01.json",
+      "sha256": "A1FAC25F06AAEC6FF0156357562579A38D615B912930647592C780B11E61FD44"
+    },
+    {
+      "length": 3532,
+      "path": "dependencies-received.json",
+      "sha256": "F1D98E6A4260F056F4A2B7F88F3DEF73CA3CDED4C3C8A29ACDD9B230C46D15C9"
+    },
+    {
+      "length": 320,
+      "path": "Directory.Build.props",
+      "sha256": "D3C8A0FE395973973C998AB26377EA4EB6BC18C9203374F73F910D83F2A242EF"
+    },
+    {
+      "length": 12,
+      "path": "Directory.Build.targets",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "length": 12,
+      "path": "Directory.Packages.props",
+      "sha256": "17284CB74605517CBEC8A8153505DA71A685B28694B67B5EF80608CD79B1C0EA"
+    },
+    {
+      "length": 11571,
+      "path": "Freeze-Evidence.ps1",
+      "sha256": "45DA8D8F1CAA184768ACA192D4B5185346E91B6C305C7420226267C325B12047"
+    },
+    {
+      "length": 350,
+      "path": "freeze-preparation01.json",
+      "sha256": "28291927BF1620ECC85933A6A055FE7F04AF79489A6E35A17BD1F84D78515154"
+    },
+    {
+      "length": 2559,
+      "path": "Invoke.ps1",
+      "sha256": "A8958D5A53A8DB5EB4CCB8922C9BE94E5B431EA0ACB08C6D2FA0FDB41FBC8B3B"
+    },
+    {
+      "length": 199,
+      "path": "NuGet.Config",
+      "sha256": "0FD304609B50D6A1C07D9B07DB41286943BF0712EF3AEAD96F1EEF0644DDA597"
+    },
+    {
+      "length": 6263,
+      "path": "process-exit-check.json",
+      "sha256": "3CB492AC55138A9F744C22F9804CB46CB7DADD06B381EC6E2269EB39EF1E2D6C"
+    },
+    {
+      "length": 278178,
+      "path": "RelationalSelectExecutor.before-260.cs",
+      "sha256": "2531094061562B61BC98F934B932F5BEA85BBA20B05A735A319B8CE0768081D9"
+    },
+    {
+      "length": 531,
+      "path": "remote-adjacent-final01.json",
+      "sha256": "5B2E52F84291781885DC5B4969DB06D0508218691D7BF6AB09956CF6E50AAFE3"
+    },
+    {
+      "length": 770,
+      "path": "remote-build-final01.json",
+      "sha256": "376E470B97B77FCC32917F8DB91D77BCE38917276C5669BF428445FAB909DB2D"
+    },
+    {
+      "length": 764,
+      "path": "remote-build01.json",
+      "sha256": "9D2B2114FAD25E6319D09A8CDCAD5DB168ACAD0F52A0CB4DF196E3CC3BDD4980"
+    },
+    {
+      "length": 764,
+      "path": "remote-build02.json",
+      "sha256": "1217F0C77B91B74AC1CB98B73A2383C734D2160A540490ADDA512010DBB834C9"
+    },
+    {
+      "length": 489,
+      "path": "remote-final01.json",
+      "sha256": "BC8A8837A37757EA385AC46D1913448A88935796E20E4685C2362F7CD00151E8"
+    },
+    {
+      "length": 5523,
+      "path": "source-before-final01.json",
+      "sha256": "9E195F6BB8E9F50EBD4C9F1370BEB4043941EA0E668E9C56E6881CB88CB689A5"
+    },
+    {
+      "length": 349,
+      "path": "submodules-init.json",
+      "sha256": "563ABC016A9403B2545C9F5D98DA011CB875F1A3503DB24E4D1A998A542301E7"
+    },
+    {
+      "length": 1115,
+      "path": "logs/baseline-build-corrected.json",
+      "sha256": "7AFB87687E743530E95247E1B6DE96A1C468A637A6285D0880C41FD646133884"
+    },
+    {
+      "length": 0,
+      "path": "logs/baseline-build-corrected.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 340,
+      "path": "logs/baseline-build-corrected.stdout.log",
+      "sha256": "8F86C1D5B10D5D1963E9115C72A835AB90A1358359FC12651AD17CEC26A41B37"
+    },
+    {
+      "length": 1082,
+      "path": "logs/baseline-build.json",
+      "sha256": "602366833DFD6B9125BAD6C9C0283A96BB7733C13D5C98A192D3FBF0626DD911"
+    },
+    {
+      "length": 487,
+      "path": "logs/baseline-build.stderr.log",
+      "sha256": "28AFC45C11834A3671679A073CBC60E05CAE928252505DE6288ABE05D99E1DDE"
+    },
+    {
+      "length": 1973,
+      "path": "logs/baseline-build.stdout.log",
+      "sha256": "5C66D2DF0A1D811F2558166AD787C57AAF3B390D16866F3F0E5D851F52699066"
+    },
+    {
+      "length": 439,
+      "path": "logs/baseline-run.json",
+      "sha256": "D742BF05EA2E9C7C15F865F395D2081EEE5718A1130D8943917DB44DDBA02BBE"
+    },
+    {
+      "length": 0,
+      "path": "logs/baseline-run.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 668,
+      "path": "logs/baseline-run.stdout.log",
+      "sha256": "FCE1ACD743A50458276F13F3A696B6C08343CB808EA83DFD18AFCC5F98DD2EA2"
+    },
+    {
+      "length": 1317,
+      "path": "logs/chloe-build-final01.json",
+      "sha256": "B75CD8DAA90FF1C72D8D67C771F8567C19AC6D9414AEDCE42B6C5C279C7DA4BC"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-build-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 794,
+      "path": "logs/chloe-build-final01.stdout.log",
+      "sha256": "200AA1C430114A3AD4F7CBE452119173C52B702686E41E095CCC897D80103399"
+    },
+    {
+      "length": 1321,
+      "path": "logs/chloe-candidate-build01.json",
+      "sha256": "0D84C41FB5AD1CD23153DE4B3FACB826A563835537A10DA805BC36C9698A122C"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-candidate-build01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 794,
+      "path": "logs/chloe-candidate-build01.stdout.log",
+      "sha256": "0D24F4D7BF4E777E6764D7A83722AA457814C4B8DFD5552B9C77262516A2A55B"
+    },
+    {
+      "length": 523,
+      "path": "logs/chloe-checkout.json",
+      "sha256": "A7785CDA0512A1A1022F063C252D9A0CE0960E819143D8DD4F657EE4657F787F"
+    },
+    {
+      "length": 66,
+      "path": "logs/chloe-checkout.stderr.log",
+      "sha256": "822365EA6246214EB2DC710780FDE07724B30D2DA3248B420CCE8509F1CD1E3D"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-checkout.stdout.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 610,
+      "path": "logs/chloe-clone.json",
+      "sha256": "0FDCAE8EE76148C8E292B0BF2588F1DD5F9478B0CD343AF3D0D694F0BEFC75FE"
+    },
+    {
+      "length": 94,
+      "path": "logs/chloe-clone.stderr.log",
+      "sha256": "F8278F677BC8AB33AFA5C8B065FEFD2E1CC0CA9155668801C92B9B2710F6E391"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-clone.stdout.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 563,
+      "path": "logs/chloe-embedded-exercise-final01.json",
+      "sha256": "3B128439F8F993A587B75980C83F76BF482D1FCA023881EC7D2BC966EAE3C40D"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-embedded-exercise-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2283,
+      "path": "logs/chloe-embedded-exercise-final01.stdout.log",
+      "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+    },
+    {
+      "length": 551,
+      "path": "logs/chloe-embedded-exercise01.json",
+      "sha256": "3FFD928BD370A2D0E17D48F5E0DF6A36A4C9410CE56855D29A8DF999B873BD6C"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-embedded-exercise01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2283,
+      "path": "logs/chloe-embedded-exercise01.stdout.log",
+      "sha256": "EAF6DB64AE4A12C1A84EC06F8BC35F22C0A0D6957E8FB7692EAD62CE8D9DA96C"
+    },
+    {
+      "length": 559,
+      "path": "logs/chloe-embedded-reopen-final01.json",
+      "sha256": "06524DC903577612B5417F9E1971741FD00AFA4268EAE6C7AE983A4B86145F53"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-embedded-reopen-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 1225,
+      "path": "logs/chloe-embedded-reopen-final01.stdout.log",
+      "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+    },
+    {
+      "length": 1292,
+      "path": "logs/chloe-guard-build.json",
+      "sha256": "6381F7B6D4BEE98B08A399D46F01CC81304AF24468C57E3B3DD0CB6AA68AC7A6"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-guard-build.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 29779,
+      "path": "logs/chloe-guard-build.stdout.log",
+      "sha256": "00D05AFEE277639C842F886C37F22F2529BB1A6CA43F23614261EAFC30E8FFCE"
+    },
+    {
+      "length": 547,
+      "path": "logs/chloe-original-guard.json",
+      "sha256": "06B2258CD5C7028F6B4F84C4015410BE3B2A3B36070047C771B82C2255FEC595"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-original-guard.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 685,
+      "path": "logs/chloe-original-guard.stdout.log",
+      "sha256": "AE16A5E9B7F0214B3EF6FE3EB87FCF3723AB52237A91F936BC30F39FE4B14CAD"
+    },
+    {
+      "length": 1218,
+      "path": "logs/chloe-remote-final01.json",
+      "sha256": "FB24374103A93EA93593E4A422F2892C81FBF35669AEFC4B691EDC59F39EFBDF"
+    },
+    {
+      "length": 0,
+      "path": "logs/chloe-remote-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 178,
+      "path": "logs/chloe-remote-final01.stdout.log",
+      "sha256": "05CC08CF60BF3428B45E0082DF366EAF112045335EE6F67E319889A24595F749"
+    },
+    {
+      "length": 1097,
+      "path": "logs/core-adjacent-final01.json",
+      "sha256": "D310E8F35C05FA6810A8E1A6190B94C433D38D2C64F39394D13046957EF1367A"
+    },
+    {
+      "length": 0,
+      "path": "logs/core-adjacent-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 380,
+      "path": "logs/core-adjacent-final01.stdout.log",
+      "sha256": "EA31FA1D954C1FC31922D9DAF8EB32923A4351DFDCBFB719A6F568D1B39648A2"
+    },
+    {
+      "length": 1076,
+      "path": "logs/core-build-final01.json",
+      "sha256": "170A3EBB119C0CACD8556083679649A43CA1570BD962387DE1155332E292A9BB"
+    },
+    {
+      "length": 0,
+      "path": "logs/core-build-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 1559,
+      "path": "logs/core-build-final01.stdout.log",
+      "sha256": "EE830F0C72C957C95C8D5B84BEB0B11CFFCFCF0C4C0FED46EE57FB7776DDD771"
+    },
+    {
+      "length": 1041,
+      "path": "logs/core-build01.json",
+      "sha256": "2F38E6201259A6CCB3ED4D038D9CDC86FCE51605C4DC1C9DFDC9AC6A3CC08E5F"
+    },
+    {
+      "length": 0,
+      "path": "logs/core-build01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2173,
+      "path": "logs/core-build01.stdout.log",
+      "sha256": "D210161FDA4C0245E3FC09A308808AD15E6563626C054BB1295E5DE84DF5F5EC"
+    },
+    {
+      "length": 738,
+      "path": "logs/core-final01.json",
+      "sha256": "BA480CC53A3BF1A5EABBE94732F4A6FA32D1593EF8188E540A0C6B98B331CDF1"
+    },
+    {
+      "length": 0,
+      "path": "logs/core-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 374,
+      "path": "logs/core-final01.stdout.log",
+      "sha256": "F6F3FAB60D7E23DB07B11420F69C8D4045DD98C3B0500A2B6AE087887874B7C9"
+    },
+    {
+      "length": 797,
+      "path": "logs/core-values01.json",
+      "sha256": "18C59DA6E8533A4F7F2998A467FF2E8F9C863C75892D48C7E9F6374C2CC12468"
+    },
+    {
+      "length": 0,
+      "path": "logs/core-values01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 375,
+      "path": "logs/core-values01.stdout.log",
+      "sha256": "0E75394AF0B0438EF523D3726D5E277F080431AD897769C7F65812011D9FAB4F"
+    },
+    {
+      "length": 813,
+      "path": "logs/remote-adjacent-final01.json",
+      "sha256": "828C1A50CD35BC8676EBA3DA9D1AD0D684D2D8B0466713C7B0802B7B148FF93F"
+    },
+    {
+      "length": 0,
+      "path": "logs/remote-adjacent-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 377,
+      "path": "logs/remote-adjacent-final01.stdout.log",
+      "sha256": "E6F25A1247B2C86E45DADFA605C20BD58BAD9C5E1113F2865DCA561F594ED510"
+    },
+    {
+      "length": 1068,
+      "path": "logs/remote-build-final01.json",
+      "sha256": "0D80D5870C0ADBD1576738C46E99B2549655FAAFC0522B966E93E39E16FA1188"
+    },
+    {
+      "length": 0,
+      "path": "logs/remote-build-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 1814,
+      "path": "logs/remote-build-final01.stdout.log",
+      "sha256": "253946859DA4988D9797E66AFC8A9E276EA936F62245F9120D703911537521DF"
+    },
+    {
+      "length": 1032,
+      "path": "logs/remote-build01.json",
+      "sha256": "D5056F8009EC1AECF732A4074E9D056DAA89C310872FC6C7921385637236A54D"
+    },
+    {
+      "length": 0,
+      "path": "logs/remote-build01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 83398,
+      "path": "logs/remote-build01.stdout.log",
+      "sha256": "81A034BD1A39188D1C64B11E6BA646E9206F6E28919FD1D00D90AF7883578280"
+    },
+    {
+      "length": 1062,
+      "path": "logs/remote-build02.json",
+      "sha256": "3958DD8058264114E571E5452C7F44EBB459055C9BEEDDC762B914578D707F3B"
+    },
+    {
+      "length": 0,
+      "path": "logs/remote-build02.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2729,
+      "path": "logs/remote-build02.stdout.log",
+      "sha256": "A72A38CE268A414CCD7FD16EF3CF9E0B4040F3723F72D11E88463DB09094CFEE"
+    },
+    {
+      "length": 771,
+      "path": "logs/remote-final01.json",
+      "sha256": "9A41C46CF9C3F280A8E3F83AECBEA67BA7EE1C1892F174A3303BA8330FF694C2"
+    },
+    {
+      "length": 0,
+      "path": "logs/remote-final01.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 368,
+      "path": "logs/remote-final01.stdout.log",
+      "sha256": "99295189B611CBF3760E21926D4B1828F6BD82196323337B46A59506C222AF11"
+    },
+    {
+      "length": 616,
+      "path": "logs/submodules-init.json",
+      "sha256": "0440772B25B67D0AD902F2C9145275CD565516529714648780218962DD09963E"
+    },
+    {
+      "length": 205,
+      "path": "logs/submodules-init.stderr.log",
+      "sha256": "42AD7BF4623D02AC6486AD84BB796ED77A86BA1D831AF3656E84ECB9CA48E7BA"
+    },
+    {
+      "length": 213,
+      "path": "logs/submodules-init.stdout.log",
+      "sha256": "5CCCDECC12089550862AE77C4A1AE27AE28D25B46404D57C63F09F1ACD91F9A6"
+    },
+    {
+      "length": 485103,
+      "path": "results/core-adjacent-final01.trx",
+      "sha256": "A073A26C7DC889B9325D1C5CF04CF0023F2216C12DE06E8AE5527ACFD017174C"
+    },
+    {
+      "length": 77063,
+      "path": "results/core-final01.trx",
+      "sha256": "39E459AF3EBD90B1B8D7F7C0723622BA28BC20ED5F8399E4034F5A7200C60964"
+    },
+    {
+      "length": 58178,
+      "path": "results/core-values01.trx",
+      "sha256": "FBAE0FAECC94F0A39934C49701DBBB4F10E58F163FB10820CCC9E446A80D6C90"
+    },
+    {
+      "length": 1486139,
+      "path": "results/remote-adjacent-final01.trx",
+      "sha256": "29A38F012CBF298A7A0060117AE9249B59DDA70FEF0E4D5BAA34090850C02B8D"
+    },
+    {
+      "length": 1141901,
+      "path": "results/remote-final01.trx",
+      "sha256": "848105D01F9839764B42FA0DFB685DA90FC1D14ABFF83DA47BAE208118EBA8EB"
+    },
+    {
+      "length": 2431,
+      "path": "baseline/frozen.json",
+      "sha256": "1A86CADF12DEC2ABE3D9B622D542A1D7DF4AEFD754AA9619C764829D2D40E32A"
+    },
+    {
+      "length": 246,
+      "path": "baseline/Probe.csproj",
+      "sha256": "86D7BF459D0AE981AD7BAB5A136B49D772FCBD6B12A822A989A9E2773E77CCE9"
+    },
+    {
+      "length": 1309,
+      "path": "baseline/Program.cs",
+      "sha256": "B7442E6DA350C27947EBC6E4677DF8AE01ACE1A2B4D498D7A31C883637386D0E"
+    },
+    {
+      "length": 2078,
+      "path": "baseline/frozen-bin/Probe.deps.json",
+      "sha256": "ED231FA620A8E704DC530C67A473D18E5B58CED35688B379C4825D5CB88DF0A5"
+    },
+    {
+      "length": 7168,
+      "path": "baseline/frozen-bin/Probe.dll",
+      "sha256": "2C6E71B98C23EDF04C8EBC6E66616DC89E870677C5908F285F07CB8D5B000D94"
+    },
+    {
+      "length": 162304,
+      "path": "baseline/frozen-bin/Probe.exe",
+      "sha256": "6A73705EC9A842FCEFE90776DE53D88384DC4C1F49D6C804AB6E4D8ED65ED62E"
+    },
+    {
+      "length": 13228,
+      "path": "baseline/frozen-bin/Probe.pdb",
+      "sha256": "C90020A208B707FC15D4A85E0E5467FEF4D7A2557270D6452FA96196B14E36BA"
+    },
+    {
+      "length": 342,
+      "path": "baseline/frozen-bin/Probe.runtimeconfig.json",
+      "sha256": "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+    },
+    {
+      "length": 18859520,
+      "path": "baseline/frozen-bin/SonnetDB.Core.dll",
+      "sha256": "934B37370012814EADD394E13183E36EEACD0C03D967392B788638BE4698AC0A"
+    },
+    {
+      "length": 2614928,
+      "path": "baseline/frozen-bin/SonnetDB.Core.pdb",
+      "sha256": "9F9054570BBE95CB911DD096C1487E072FF6436038194D58368D53E0149E1FBC"
+    },
+    {
+      "length": 56104,
+      "path": "baseline/frozen-bin/System.IO.Hashing.dll",
+      "sha256": "CEA6795CF9F7B139B2215FF6DE794A6F6E44E78640FB30FA4C0D5FA8472DF8E5"
+    },
+    {
+      "length": 517928,
+      "path": "baseline/frozen-bin/System.Numerics.Tensors.dll",
+      "sha256": "5831A67BFB44D2034D76CDE54BD349F8479160B4FD20B8FA6FFE5A94230D5352"
+    },
+    {
+      "length": 756224,
+      "path": "chloe-guard-frozen/Chloe.dll",
+      "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81"
+    },
+    {
+      "length": 312360,
+      "path": "chloe-guard-frozen/Chloe.pdb",
+      "sha256": "EC5F43AFDBC9CDEB3B4ED1968519B95BE2EA5E4F99781661019EAD0C9296153B"
+    },
+    {
+      "length": 52224,
+      "path": "chloe-guard-frozen/Chloe.SonnetDB.dll",
+      "sha256": "5127FABBEFF89B640AA2129A8919577B46508DDD00CB50FB16EB5AAAFFBA5B11"
+    },
+    {
+      "length": 29696,
+      "path": "chloe-guard-frozen/Chloe.SonnetDB.pdb",
+      "sha256": "B1865F5232A426463085C4601C78079920012183C898ABF0EE5FEAB24379367A"
+    },
+    {
+      "length": 1415,
+      "path": "chloe-guard-frozen/Chloe.SonnetDB.xml",
+      "sha256": "786E6BA63AD900C8A953ED5AE94683B7400B49E16F50694981681E084737639D"
+    },
+    {
+      "length": 73556,
+      "path": "chloe-guard-frozen/Chloe.xml",
+      "sha256": "3AD0E46D4192A7B3EEEC4081C7629F1BB3F5127F8F77B301A0C86AF16DF56445"
+    },
+    {
+      "length": 5895,
+      "path": "chloe-guard-frozen/ChloeProbe.deps.json",
+      "sha256": "6CAA6ADEEB6B64B4F66207657E7E14AE146E6451C002D13E8DDD5268B0C9D7E4"
+    },
+    {
+      "length": 19456,
+      "path": "chloe-guard-frozen/ChloeProbe.dll",
+      "sha256": "05DDE21AA8DB1D36D8DDCE148F25FCFF6BEF30CCDA7C96F1766C2740207B27A5"
+    },
+    {
+      "length": 162304,
+      "path": "chloe-guard-frozen/ChloeProbe.exe",
+      "sha256": "8EFC95247DD3242AAFEF9BFFE30320D0F6EA550C96C145485398ED38668A1CFA"
+    },
+    {
+      "length": 14156,
+      "path": "chloe-guard-frozen/ChloeProbe.pdb",
+      "sha256": "B17F5CDBFB33C57432B44408728C8E5825FD2851EC198DC9F8B28E730D25E07C"
+    },
+    {
+      "length": 342,
+      "path": "chloe-guard-frozen/ChloeProbe.runtimeconfig.json",
+      "sha256": "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+    },
+    {
+      "length": 679224,
+      "path": "chloe-guard-frozen/Microsoft.Extensions.AI.Abstractions.dll",
+      "sha256": "C102ABEB64309810483ED4FED82C0853A9F29F31DB989B32939A71E7ED4BB4A6"
+    },
+    {
+      "length": 65872,
+      "path": "chloe-guard-frozen/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "sha256": "DA04EDC338D5AA0F38A1F5FA5FF3EE7E36AFFE9C961DAF3EA724A428BD746BC6"
+    },
+    {
+      "length": 100664,
+      "path": "chloe-guard-frozen/Microsoft.Extensions.VectorData.Abstractions.dll",
+      "sha256": "9A978AEDCB83FF5C5A1F8F3B2137DCA8608DB2A1030E28B6F281A91046C869ED"
+    },
+    {
+      "length": 18861056,
+      "path": "chloe-guard-frozen/SonnetDB.Core.dll",
+      "sha256": "A8807F6B9B9320BAA7188285DB94C8304C8743EC24ECAF1C05481C96C23C9A9D"
+    },
+    {
+      "length": 2615980,
+      "path": "chloe-guard-frozen/SonnetDB.Core.pdb",
+      "sha256": "3FC3CDCA12D5977F911A7012EA616D47250B830FDC50EE8C83B5DCF02D5F0FBE"
+    },
+    {
+      "length": 2620416,
+      "path": "chloe-guard-frozen/SonnetDB.Data.dll",
+      "sha256": "641AB79A18335A19D324EE9EB9EC605C44B13C7DA5577C12492AFE0D2F2A98E6"
+    },
+    {
+      "length": 1123156,
+      "path": "chloe-guard-frozen/SonnetDB.Data.pdb",
+      "sha256": "3A96222C74F9988F0D86E9A0409C696FD50908DA3E4FC69D88DBD2B6ECCB3220"
+    },
+    {
+      "length": 56104,
+      "path": "chloe-guard-frozen/System.IO.Hashing.dll",
+      "sha256": "CEA6795CF9F7B139B2215FF6DE794A6F6E44E78640FB30FA4C0D5FA8472DF8E5"
+    },
+    {
+      "length": 517928,
+      "path": "chloe-guard-frozen/System.Numerics.Tensors.dll",
+      "sha256": "5831A67BFB44D2034D76CDE54BD349F8479160B4FD20B8FA6FFE5A94230D5352"
+    },
+    {
+      "length": 2965,
+      "path": "chloe-remote-runner/Common.ps1",
+      "sha256": "7245DFA9636663E4B95F2D0488CD322609254866349AAC89B9035371AA5CD903"
+    },
+    {
+      "length": 8948,
+      "path": "chloe-remote-runner/Remote.ps1",
+      "sha256": "8D020F7BED9D0D2CF63916C57816908DBC2D24ACCF0022590761AAA92854AA04"
+    },
+    {
+      "length": 32,
+      "path": "chloe-remote-final01/.owner",
+      "sha256": "DC28AC609DFCFC8BFDC0E32E42622FB5C7B5F62F98C57455991D24C69F7FC6D4"
+    },
+    {
+      "length": 695,
+      "path": "chloe-remote-final01/chloe-frame-http2-exercise.json",
+      "sha256": "4AABBD8E571D7A771D36B4F0490E5247E40C4CA40B226903891A8C990E4F17ED"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/chloe-frame-http2-exercise.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2283,
+      "path": "chloe-remote-final01/chloe-frame-http2-exercise.stdout.log",
+      "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+    },
+    {
+      "length": 691,
+      "path": "chloe-remote-final01/chloe-frame-http2-reopen.json",
+      "sha256": "839E3302B5B55ACF152AA86B90845C54B7DCD5BC7FA912609A7A40485B68A294"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/chloe-frame-http2-reopen.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 1225,
+      "path": "chloe-remote-final01/chloe-frame-http2-reopen.stdout.log",
+      "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+    },
+    {
+      "length": 681,
+      "path": "chloe-remote-final01/chloe-rest-exercise.json",
+      "sha256": "A172926DA3E1BD7D55971CC3A65C48D29B7AC0D891F774B93D2A81DBE0F06C7C"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/chloe-rest-exercise.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 2283,
+      "path": "chloe-remote-final01/chloe-rest-exercise.stdout.log",
+      "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+    },
+    {
+      "length": 677,
+      "path": "chloe-remote-final01/chloe-rest-reopen.json",
+      "sha256": "4F34E7DBDD19172CD23A996AAE88889A58DEF081C70F0FAD82A6DB1CA1EDF002"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/chloe-rest-reopen.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 1225,
+      "path": "chloe-remote-final01/chloe-rest-reopen.stdout.log",
+      "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+    },
+    {
+      "length": 44,
+      "path": "chloe-remote-final01/create-database-frame-http2.json",
+      "sha256": "65C343D79B0D9EABECB744C6E7336AE1D7FE75CD7F5CBAED1E6746534A9F008B"
+    },
+    {
+      "length": 44,
+      "path": "chloe-remote-final01/create-database-rest.json",
+      "sha256": "5EBB4729F3B4E5D45A84B4FE1E3A14920718994242EF75CDE29A1660CAE662E4"
+    },
+    {
+      "length": 9984,
+      "path": "chloe-remote-final01/manifest.json",
+      "sha256": "417C4BD34CC024BDE0D8D9566805FB1125A6527E84E457115EEB7986D4A2CD95"
+    },
+    {
+      "length": 61105,
+      "path": "chloe-remote-final01/protocol-frame-http2-exercise.json",
+      "sha256": "2CD67B2ED2BD242C98D5E5F9C61A37F5021519F6684C7D7C8B1711F642FF374D"
+    },
+    {
+      "length": 7253,
+      "path": "chloe-remote-final01/protocol-frame-http2-reopen.json",
+      "sha256": "90BECA99F12803AABD17A1C6AB9A6786B67574B2B2EDF3502142ADD19D3C331C"
+    },
+    {
+      "length": 63059,
+      "path": "chloe-remote-final01/protocol-rest-exercise.json",
+      "sha256": "FC3B7A44149155B63C0E55E34E1B872FFF0B94BFFE41ACA1115D9BBB25A4F05F"
+    },
+    {
+      "length": 7775,
+      "path": "chloe-remote-final01/protocol-rest-reopen.json",
+      "sha256": "54574D0BC56BC0E75013493CEF64F63D2ADE2B796BBDF6F2FE2B4F686BAF0350"
+    },
+    {
+      "length": 57,
+      "path": "chloe-remote-final01/runtime.json",
+      "sha256": "3F28745A8E6545B2E9F9ECA28BA49F10CE73A86FABCEA2F110F2460251892FF2"
+    },
+    {
+      "length": 550,
+      "path": "chloe-remote-final01/server-frame-http2-exercise.json",
+      "sha256": "95F05C889DBEF59ED9A219F9B56E73B6406D47689D17DE766AF9FE19A4A8AB6D"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/server-frame-http2-exercise.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 124210,
+      "path": "chloe-remote-final01/server-frame-http2-exercise.stdout.log",
+      "sha256": "03EDAADBB0BA713224A09A78598E8AAFE78CC44F1C781254E3820833D2D4867E"
+    },
+    {
+      "length": 550,
+      "path": "chloe-remote-final01/server-frame-http2-reopen.json",
+      "sha256": "28002730727DE21DD9D369807E7DE953F3A983842419CFB3D50B9862070C371E"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/server-frame-http2-reopen.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 20840,
+      "path": "chloe-remote-final01/server-frame-http2-reopen.stdout.log",
+      "sha256": "6C432CCB203327CDFD540995B232A63CF17D4074E8681D714EBC4676C06E35A0"
+    },
+    {
+      "length": 543,
+      "path": "chloe-remote-final01/server-rest-exercise.json",
+      "sha256": "66829A79A124E3CAEFF03CF5AB15AE56267614A58FF61297A4F26DC975ED5B83"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/server-rest-exercise.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 128186,
+      "path": "chloe-remote-final01/server-rest-exercise.stdout.log",
+      "sha256": "F8C1298D7EC7A4045698C38D69EF6D887894D7482A33CFDC633DF8645540479D"
+    },
+    {
+      "length": 543,
+      "path": "chloe-remote-final01/server-rest-reopen.json",
+      "sha256": "E6252AC3FD089F09D452D33B53FA1C879359CB6DB24B0F49FCDFA65FC36E8C78"
+    },
+    {
+      "length": 0,
+      "path": "chloe-remote-final01/server-rest-reopen.stderr.log",
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "length": 21913,
+      "path": "chloe-remote-final01/server-rest-reopen.stdout.log",
+      "sha256": "E74CC5EAB01B09358B23E7F23F274F33EE548AE8F5A73F1A84A176E4B1BC82DE"
+    },
+    {
+      "length": 16703,
+      "path": "chloe-remote-final01/server-snapshot.json",
+      "sha256": "1C089BF9C9787D14D2AA9A90FB6D318F5CD4CF60BB9088B2A74FF12A4BB7C910"
+    }
+  ],
+  "receivedDependencies": {
+    "manifestSha256": "CDA36CC23F5B498EA75E43A09A16513C48E6D17D052D7CD2D161CD651A0CF40D",
+    "candidateOnly": true,
+    "source": "D:/source/SonnetDB-worktrees/issue261-public-metadata",
+    "capturedUtc": "2026-10-15T23:54:47.7419183Z",
+    "files": [
+      {
+        "path": "src/SonnetDB.Core/Protocol/SqlFrameCodec.cs",
+        "sha256": "BFA4B5781CD75D0704252F999316B118BFE8BCD8BB3353DD5B9D3B5442FC9CF6"
+      },
+      {
+        "path": "src/SonnetDB.Core/Query/Functions/SqlDateTimeFunctions.cs",
+        "sha256": "6CF6FF1418D4782FCA9AAB8245D5AD31D70B5FD6E316770B124E849DE1AD3664"
+      },
+      {
+        "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+        "sha256": "B3F7B1B3C382FD31F870A58914316FE66CB8C53CE598CBA377E51F5822E7F71E"
+      },
+      {
+        "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+        "sha256": "0D74B0EE9B3DFCC7DDC1D65CC4FE5FB43558C3609A2FAFBBF8FE8D5647EB5813"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+        "sha256": "51894CB0D98298A9853B66CE74FE7310F770A90D0984535823223D0AC4CC65E1"
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+        "sha256": "B2160057AA2176D28E1E6A75211C6C9D8BB0FB2C91DF683C538DF65FBDD17D0C"
+      },
+      {
+        "path": "src/SonnetDB/Json/NdjsonRowWriter.cs",
+        "sha256": "4160065C265FD94872E97BA281EBBB1A5B6B91E3EC04F8BBF7D96519AE885C1D"
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Protocol/SqlFrameCodecTests.cs",
+        "sha256": "91A0E0EECBAF2A64888E4602BB5284B1262145D38D825B2771F32EAF7D25536E"
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Protocol/SqlFrameDateTimeTests.cs",
+        "sha256": "9A0589C639B27B2E58B044D63128B069D83C29A0A233A54EDD86A8579D609A9B"
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/RemoteDateTimeResponseTests.cs",
+        "sha256": "6BF84CBC0A9A1440F639B861273A9F268E07895E581F840704FD54656212A10A"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/RemoteAdoDateTimeContractTests.cs",
+        "sha256": "D19A5BA3D381D3406081290930E5FD203C2191BA85729B1FED410F9F5C0D67E0"
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+        "sha256": "2531094061562B61BC98F934B932F5BEA85BBA20B05A735A319B8CE0768081D9",
+        "issue262BaseSha256": "8F02D2110BBF46CA17F2A3D590F57D5B994A26409545E82F138692E2136CA68F"
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.ConcatDeclarations.cs",
+        "sha256": "1B0F0D377579EB0B548CAA95EF4DFB67B876782125FB738424D30D57101A88F1",
+        "issue262BaseSha256": null
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlConcatViewDeclarationTests.cs",
+        "sha256": "CA4462CC1D8CEBB5636CFB5AEB9B8934006E6DB94D3010312837DA090CF5AA48",
+        "issue262BaseSha256": null
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlSelectColumnMetadataTests.cs",
+        "sha256": "37288475B286E8BB42ECBD6D1A3E9DCAF2B5913BC2E691C64FAC443779031736",
+        "issue262BaseSha256": null
+      },
+      {
+        "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+        "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D",
+        "issue262BaseSha256": "A7587F81C5460D03D798FF2D3BC983CD3D5B931364CDDF04906E19F15378D265"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+        "sha256": "A05A2B83FE5CD5F98A2ABB077C00F6EB1EFA709F0FA0C220198FDC36239BABE7",
+        "issue262BaseSha256": null
+      }
+    ],
+    "target": "D:/source/SonnetDB-worktrees/issue260-uint64-parse"
+  },
+  "sharedHookOnly": true,
+  "chloeSource": {
+    "patchSha256": "DE30AF607A708D22AED44579D7B18B9530CA3E99EB5346D306E56840DFB27B3D",
+    "commit": "bb7ec8735bd4511c35453eb009f70cc606795703",
+    "localTrackedDelta": "src/Chloe.SonnetDB/MethodHandlers/Parse_Handler.cs",
+    "localIsolationFiles": [
+      "Directory.Build.props",
+      "Directory.Build.targets",
+      "Directory.Packages.props"
+    ],
+    "noExternalPublication": true,
+    "patchedFileSha256": "178280166E8A0CB4DAA11E8195AD4CFE754FC85DB10F93BD479D76505F255E13",
+    "repository": "maikebing/Chloe"
+  },
+  "processExitCheck": {
+    "allOwnedProcessesExited": true,
+    "checkedUtc": "2026-10-16T08:01:06.8503204+08:00",
+    "processes": [
+      {
+        "receipt": "logs\\baseline-build-corrected.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:32:22.2879709Z",
+        "pid": 76684
+      },
+      {
+        "receipt": "logs\\baseline-build.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:30:10.9703423Z",
+        "pid": 36488
+      },
+      {
+        "receipt": "logs\\baseline-run.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:32:33.6493731Z",
+        "pid": 38808
+      },
+      {
+        "receipt": "logs\\chloe-build-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:58:08.5877011Z",
+        "pid": 66456
+      },
+      {
+        "receipt": "logs\\chloe-candidate-build01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:44:50.6040871Z",
+        "pid": 66308
+      },
+      {
+        "receipt": "logs\\chloe-checkout.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:41:23.0453178Z",
+        "pid": 84256
+      },
+      {
+        "receipt": "logs\\chloe-clone.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:41:11.8935764Z",
+        "pid": 81008
+      },
+      {
+        "receipt": "logs\\chloe-embedded-exercise-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:58:54.0388942Z",
+        "pid": 54900
+      },
+      {
+        "receipt": "logs\\chloe-embedded-exercise01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:45:06.8034587Z",
+        "pid": 69440
+      },
+      {
+        "receipt": "logs\\chloe-embedded-reopen-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:58:56.5517087Z",
+        "pid": 48144
+      },
+      {
+        "receipt": "logs\\chloe-guard-build.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:43:27.1078457Z",
+        "pid": 61464
+      },
+      {
+        "receipt": "logs\\chloe-original-guard.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:44:25.7242161Z",
+        "pid": 29536
+      },
+      {
+        "receipt": "logs\\chloe-remote-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:58:58.3977168Z",
+        "pid": 50120
+      },
+      {
+        "receipt": "logs\\core-adjacent-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:56:35.4210032Z",
+        "pid": 78060
+      },
+      {
+        "receipt": "logs\\core-build-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:55:23.6136487Z",
+        "pid": 68784
+      },
+      {
+        "receipt": "logs\\core-build01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:33:20.3705959Z",
+        "pid": 82204
+      },
+      {
+        "receipt": "logs\\core-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:56:26.8741386Z",
+        "pid": 54196
+      },
+      {
+        "receipt": "logs\\core-values01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:35:54.2874182Z",
+        "pid": 38684
+      },
+      {
+        "receipt": "logs\\remote-adjacent-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:57:55.1536056Z",
+        "pid": 19420
+      },
+      {
+        "receipt": "logs\\remote-build-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:56:48.9647148Z",
+        "pid": 67452
+      },
+      {
+        "receipt": "logs\\remote-build01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:37:38.8650289Z",
+        "pid": 3052
+      },
+      {
+        "receipt": "logs\\remote-build02.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:39:49.2011076Z",
+        "pid": 71952
+      },
+      {
+        "receipt": "logs\\remote-final01.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:57:44.5448596Z",
+        "pid": 70056
+      },
+      {
+        "receipt": "logs\\submodules-init.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:39:31.5436906Z",
+        "pid": 43328
+      },
+      {
+        "receipt": "chloe-remote-final01\\chloe-frame-http2-exercise.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:11.4390565Z",
+        "pid": 72844
+      },
+      {
+        "receipt": "chloe-remote-final01\\chloe-frame-http2-reopen.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:13.6626686Z",
+        "pid": 55524
+      },
+      {
+        "receipt": "chloe-remote-final01\\chloe-rest-exercise.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:05.578239Z",
+        "pid": 23544
+      },
+      {
+        "receipt": "chloe-remote-final01\\chloe-rest-reopen.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:09.2306164Z",
+        "pid": 52672
+      },
+      {
+        "receipt": "chloe-remote-final01\\server-frame-http2-exercise.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:09.8805615Z",
+        "pid": 76928
+      },
+      {
+        "receipt": "chloe-remote-final01\\server-frame-http2-reopen.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:12.3113873Z",
+        "pid": 68128
+      },
+      {
+        "receipt": "chloe-remote-final01\\server-rest-exercise.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:04.1138864Z",
+        "pid": 80028
+      },
+      {
+        "receipt": "chloe-remote-final01\\server-rest-reopen.json",
+        "sameOwnedProcessStillRunning": false,
+        "startTimeUtc": "2026-10-15T23:59:07.7459175Z",
+        "pid": 79148
+      }
+    ]
+  },
+  "status": "source-and-local-candidate-validated-awaiting-formal-release",
+  "sourceSnapshot": {
+    "files": [
+      {
+        "sha256": "28199C2C4FD7C7C8180801D55FB8DC62BC72B281A7796579DD09F36A923A35BA",
+        "path": "docs/audits/issue-260-chloe-candidate/ChloeProbe.csproj",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "DE30AF607A708D22AED44579D7B18B9530CA3E99EB5346D306E56840DFB27B3D",
+        "path": "docs/audits/issue-260-chloe-candidate/ChloeUInt64Parse.patch",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "6E8A60A19ECBA933E82559B4AD59E8F8A18498D1A9DCB64B19602083E747CC30",
+        "path": "docs/audits/issue-260-chloe-candidate/Program.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "BFA4B5781CD75D0704252F999316B118BFE8BCD8BB3353DD5B9D3B5442FC9CF6",
+        "path": "src/SonnetDB.Core/Protocol/SqlFrameCodec.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "E24C062FEB7E76645AEABEC8412740CD658A9BEC41319AE0D09C6ECD22FA35A4",
+        "path": "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "6CF6FF1418D4782FCA9AAB8245D5AD31D70B5FD6E316770B124E849DE1AD3664",
+        "path": "src/SonnetDB.Core/Query/Functions/SqlDateTimeFunctions.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "BF7E60D4F6BB48275B6CB86B3CAAD742F8DE8582C6ABA162C4AF723A38C13C44",
+        "path": "src/SonnetDB.Core/Query/Functions/SqlUnsignedIntegerFunctions.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "1B0F0D377579EB0B548CAA95EF4DFB67B876782125FB738424D30D57101A88F1",
+        "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.ConcatDeclarations.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "C6BB3DD5284E20A8239A3D77A52AAD8BCB9CA7599173C2D7079E0D0A6D937D77",
+        "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "8499012C88326B0F7D695C9CB6E758DFABD88488E33A7C80E4D08D93B0D9F4BA",
+        "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.UInt64.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "B3F7B1B3C382FD31F870A58914316FE66CB8C53CE598CBA377E51F5822E7F71E",
+        "path": "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "0D74B0EE9B3DFCC7DDC1D65CC4FE5FB43558C3609A2FAFBBF8FE8D5647EB5813",
+        "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "51894CB0D98298A9853B66CE74FE7310F770A90D0984535823223D0AC4CC65E1",
+        "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "B2160057AA2176D28E1E6A75211C6C9D8BB0FB2C91DF683C538DF65FBDD17D0C",
+        "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "4160065C265FD94872E97BA281EBBB1A5B6B91E3EC04F8BBF7D96519AE885C1D",
+        "path": "src/SonnetDB/Json/NdjsonRowWriter.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "91A0E0EECBAF2A64888E4602BB5284B1262145D38D825B2771F32EAF7D25536E",
+        "path": "tests/SonnetDB.Core.Tests/Protocol/SqlFrameCodecTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "9A0589C639B27B2E58B044D63128B069D83C29A0A233A54EDD86A8579D609A9B",
+        "path": "tests/SonnetDB.Core.Tests/Protocol/SqlFrameDateTimeTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "6BF84CBC0A9A1440F639B861273A9F268E07895E581F840704FD54656212A10A",
+        "path": "tests/SonnetDB.Core.Tests/RemoteDateTimeResponseTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "CA4462CC1D8CEBB5636CFB5AEB9B8934006E6DB94D3010312837DA090CF5AA48",
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlConcatViewDeclarationTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "37288475B286E8BB42ECBD6D1A3E9DCAF2B5913BC2E691C64FAC443779031736",
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlSelectColumnMetadataTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "2BC4DBCA98D0B9CE1E615BC99F9B98A4823475556C6970EF88E37479B14F03D3",
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlUInt64ParseTests.cs",
+        "scope": "issue260"
+      },
+      {
+        "sha256": "D19A5BA3D381D3406081290930E5FD203C2191BA85729B1FED410F9F5C0D67E0",
+        "path": "tests/SonnetDB.Tests/RemoteAdoDateTimeContractTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "A05A2B83FE5CD5F98A2ABB077C00F6EB1EFA709F0FA0C220198FDC36239BABE7",
+        "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D",
+        "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+        "scope": "received-dependency"
+      },
+      {
+        "sha256": "840DEC574C2890F376DAF7D5D001305B15C16C49F40CD1D281D44CC2C96E9524",
+        "path": "tests/SonnetDB.Tests/RemoteUInt64ParseTests.cs",
+        "scope": "issue260"
+      }
+    ],
+    "base": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+    "dependencyReceiptSha256": "F1D98E6A4260F056F4A2B7F88F3DEF73CA3CDED4C3C8A29ACDD9B230C46D15C9",
+    "worktree": "D:\\source\\SonnetDB-worktrees\\issue260-uint64-parse",
+    "capturedUtc": "2026-10-16T07:55:55.0943922+08:00"
+  },
+  "earlierRuns": [
+    {
+      "result": "failed",
+      "label": "baseline-build",
+      "reason": "Temporary probe CS8600 and CS8602; fixed probe then recompiled and ran original defect."
+    },
+    {
+      "result": "failed",
+      "label": "remote-build01",
+      "reason": "Uninitialized pinned CoAP/MQTT submodules; 1 warning and 132 errors. Exact pins initialized; later builds passed."
+    },
+    {
+      "result": "38 passed",
+      "label": "core-values01",
+      "boundary": "Earlier value-only subset; not final metadata coverage or final 50-test source."
+    },
+    {
+      "result": "1 guard assertion passed",
+      "label": "chloe-original-guard",
+      "boundary": "Original NotSupportedException observed; not functionality."
+    },
+    {
+      "result": "22 assertions passed",
+      "label": "chloe-embedded-exercise01",
+      "boundary": "Earlier embedded-only consumer; overlaps final matrix and is not added."
+    }
+  ],
+  "serverSnapshot": {
+    "length": 16703,
+    "path": "chloe-remote-final01/server-snapshot.json",
+    "sha256": "1C089BF9C9787D14D2AA9A90FB6D318F5CD4CF60BB9088B2A74FF12A4BB7C910"
+  },
+  "ownFiles": [
+    {
+      "length": 48839,
+      "path": "src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs",
+      "sha256": "E24C062FEB7E76645AEABEC8412740CD658A9BEC41319AE0D09C6ECD22FA35A4"
+    },
+    {
+      "length": 2507,
+      "path": "src/SonnetDB.Core/Query/Functions/SqlUnsignedIntegerFunctions.cs",
+      "sha256": "BF7E60D4F6BB48275B6CB86B3CAAD742F8DE8582C6ABA162C4AF723A38C13C44"
+    },
+    {
+      "length": 278299,
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "C6BB3DD5284E20A8239A3D77A52AAD8BCB9CA7599173C2D7079E0D0A6D937D77"
+    },
+    {
+      "length": 1098,
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.UInt64.cs",
+      "sha256": "8499012C88326B0F7D695C9CB6E758DFABD88488E33A7C80E4D08D93B0D9F4BA"
+    },
+    {
+      "length": 13401,
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlUInt64ParseTests.cs",
+      "sha256": "2BC4DBCA98D0B9CE1E615BC99F9B98A4823475556C6970EF88E37479B14F03D3"
+    },
+    {
+      "length": 11795,
+      "path": "tests/SonnetDB.Tests/RemoteUInt64ParseTests.cs",
+      "sha256": "840DEC574C2890F376DAF7D5D001305B15C16C49F40CD1D281D44CC2C96E9524"
+    },
+    {
+      "length": 3625,
+      "path": "docs/sql-uint64-parse.md",
+      "sha256": "4D04920C6FD0AFEE4B2DFFCBF31FB78DD5BEB5425D8B3B01E84D260AA8A11A65"
+    },
+    {
+      "length": 552,
+      "path": "docs/audits/issue-260-chloe-candidate/ChloeProbe.csproj",
+      "sha256": "28199C2C4FD7C7C8180801D55FB8DC62BC72B281A7796579DD09F36A923A35BA"
+    },
+    {
+      "length": 6876,
+      "path": "docs/audits/issue-260-chloe-candidate/Program.cs",
+      "sha256": "6E8A60A19ECBA933E82559B4AD59E8F8A18498D1A9DCB64B19602083E747CC30"
+    },
+    {
+      "length": 1067,
+      "path": "docs/audits/issue-260-chloe-candidate/ChloeUInt64Parse.patch",
+      "sha256": "DE30AF607A708D22AED44579D7B18B9530CA3E99EB5346D306E56840DFB27B3D"
+    },
+    {
+      "length": 3767,
+      "path": "docs/audits/issue-260-chloe-candidate/README.md",
+      "sha256": "BE996A5022925ACAB46FCB236ED248A221DE8C084CEFE5A71B8078173DBB0CEE"
+    },
+    {
+      "length": 7698,
+      "path": "docs/audits/issue-260-implementation-20261016.md",
+      "sha256": "F831CB4CE8D2B4C08FDD15130FBAEBAC5748DBF61F0DAB99F3218A9F47625892"
+    }
+  ],
+  "baseCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "builds": [
+    {
+      "warnings": 0,
+      "receipt": {
+        "exitCode": 0,
+        "timedOut": false,
+        "label": "core-build-final01",
+        "endedUtc": "2026-10-16T07:56:11.2901965+08:00",
+        "identity": {
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:55:23.6136487Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/dict.dat"
+          ],
+          "pid": 68784,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue260-uint64-parse"
+        }
+      },
+      "errors": 0,
+      "label": "core-build-final01",
+      "caveat": null
+    },
+    {
+      "warnings": 0,
+      "receipt": {
+        "label": "remote-build-final01",
+        "endedUtc": "2026-10-16T07:57:17.7768467+08:00",
+        "timedOut": false,
+        "identity": {
+          "pid": 67452,
+          "startTimeUtc": "2026-10-15T23:56:48.9647148Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/dict.dat"
+          ],
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue260-uint64-parse"
+        },
+        "exitCode": 0
+      },
+      "errors": 0,
+      "label": "remote-build-final01",
+      "caveat": null
+    },
+    {
+      "warnings": 0,
+      "receipt": {
+        "timedOut": false,
+        "label": "chloe-build-final01",
+        "exitCode": 0,
+        "identity": {
+          "startTimeUtc": "2026-10-15T23:58:08.5877011Z",
+          "pid": 66456,
+          "arguments": [
+            "build",
+            "docs/audits/issue-260-chloe-candidate/ChloeProbe.csproj",
+            "-c",
+            "Release",
+            "-m:1",
+            "-nr:false",
+            "-p:UseSharedCompilation=false",
+            "-p:NuGetAudit=false",
+            "-p:RestoreConfigFile=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/NuGet.Config",
+            "-p:UseArtifactsOutput=true",
+            "-p:ArtifactsPath=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/build",
+            "-p:JiebaDictionaryCompilerOutput=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/",
+            "-p:JiebaDictionaryDat=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/dictionary/dict.dat",
+            "-p:ChloeRoot=D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/chloe",
+            "-p:SonnetDbRoot=D:/source/SonnetDB-worktrees/issue260-uint64-parse",
+            "-p:TargetFrameworks=net10.0",
+            "--no-restore"
+          ],
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue260-uint64-parse"
+        },
+        "endedUtc": "2026-10-16T07:58:42.7074414+08:00"
+      },
+      "errors": 0,
+      "label": "chloe-build-final01",
+      "caveat": "Incremental build; original Chloe full build had 38 existing CS8632 warnings."
+    }
+  ],
+  "issue": 260,
+  "tests": [
+    {
+      "passed": 50,
+      "failed": 0,
+      "trx": {
+        "length": 77063,
+        "path": "results/core-final01.trx",
+        "sha256": "39E459AF3EBD90B1B8D7F7C0723622BA28BC20ED5F8399E4034F5A7200C60964"
+      },
+      "skipped": 0,
+      "total": 50,
+      "label": "core-final01"
+    },
+    {
+      "passed": 318,
+      "failed": 0,
+      "trx": {
+        "length": 485103,
+        "path": "results/core-adjacent-final01.trx",
+        "sha256": "A073A26C7DC889B9325D1C5CF04CF0023F2216C12DE06E8AE5527ACFD017174C"
+      },
+      "skipped": 0,
+      "total": 318,
+      "label": "core-adjacent-final01"
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "trx": {
+        "length": 1141901,
+        "path": "results/remote-final01.trx",
+        "sha256": "848105D01F9839764B42FA0DFB685DA90FC1D14ABFF83DA47BAE208118EBA8EB"
+      },
+      "skipped": 0,
+      "total": 6,
+      "label": "remote-final01"
+    },
+    {
+      "passed": 8,
+      "failed": 0,
+      "trx": {
+        "length": 1486139,
+        "path": "results/remote-adjacent-final01.trx",
+        "sha256": "29A38F012CBF298A7A0060117AE9249B59DDA70FEF0E4D5BAA34090850C02B8D"
+      },
+      "skipped": 0,
+      "total": 8,
+      "label": "remote-adjacent-final01"
+    }
+  ],
+  "servers": [
+    {
+      "phase": "exercise",
+      "actualProtocol": "HTTP/1.1",
+      "requestCount": 40,
+      "receipt": {
+        "exited": true,
+        "h2Port": 55504,
+        "identity": {
+          "pid": 80028,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server\\SonnetDB.dll"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:04.1138864Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server"
+        },
+        "exitCode": -1,
+        "terminated": true,
+        "httpPort": 55503,
+        "protocol": "rest"
+      },
+      "frameRequestCount": 0,
+      "protocol": "rest"
+    },
+    {
+      "phase": "reopen",
+      "actualProtocol": "HTTP/1.1",
+      "requestCount": 5,
+      "receipt": {
+        "exited": true,
+        "h2Port": 55516,
+        "identity": {
+          "pid": 79148,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server\\SonnetDB.dll"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:07.7459175Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server"
+        },
+        "exitCode": -1,
+        "terminated": true,
+        "httpPort": 55515,
+        "protocol": "rest"
+      },
+      "frameRequestCount": 0,
+      "protocol": "rest"
+    },
+    {
+      "phase": "exercise",
+      "actualProtocol": "HTTP/2",
+      "requestCount": 40,
+      "receipt": {
+        "exited": true,
+        "h2Port": 64605,
+        "identity": {
+          "pid": 76928,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server\\SonnetDB.dll"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:09.8805615Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server"
+        },
+        "exitCode": -1,
+        "terminated": true,
+        "httpPort": 64604,
+        "protocol": "frame-http2"
+      },
+      "frameRequestCount": 17,
+      "protocol": "frame-http2"
+    },
+    {
+      "phase": "reopen",
+      "actualProtocol": "HTTP/2",
+      "requestCount": 5,
+      "receipt": {
+        "exited": true,
+        "h2Port": 64612,
+        "identity": {
+          "pid": 68128,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server\\SonnetDB.dll"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:12.3113873Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-final01\\server"
+        },
+        "exitCode": -1,
+        "terminated": true,
+        "httpPort": 64611,
+        "protocol": "frame-http2"
+      },
+      "frameRequestCount": 5,
+      "protocol": "frame-http2"
+    }
+  ],
+  "finalConsumers": [
+    {
+      "phase": "exercise",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "identity": {
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/build/bin/ChloeProbe/release_net10.0/ChloeProbe.dll",
+            "exercise",
+            "D:/sndb-t/i260-chloe-final01"
+          ],
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue260-uint64-parse",
+          "executable": "dotnet",
+          "pid": 54900,
+          "startTimeUtc": "2026-10-15T23:58:54.0388942Z"
+        },
+        "endedUtc": "2026-10-16T07:58:55.2425155+08:00",
+        "label": "chloe-embedded-exercise-final01",
+        "exitCode": 0,
+        "timedOut": false
+      },
+      "stdout": {
+        "length": 2283,
+        "path": "logs/chloe-embedded-exercise-final01.stdout.log",
+        "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+      },
+      "assertions": 22,
+      "protocol": "embedded"
+    },
+    {
+      "phase": "reopen",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "label": "chloe-embedded-reopen-final01",
+        "exitCode": 0,
+        "timedOut": false,
+        "identity": {
+          "arguments": [
+            "D:/source/SonnetDB/artifacts/issue-supervision-20261016/issue260-work/build/bin/ChloeProbe/release_net10.0/ChloeProbe.dll",
+            "reopen",
+            "D:/sndb-t/i260-chloe-final01"
+          ],
+          "pid": 48144,
+          "startTimeUtc": "2026-10-15T23:58:56.5517087Z",
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue260-uint64-parse"
+        },
+        "endedUtc": "2026-10-16T07:58:57.1475862+08:00"
+      },
+      "stdout": {
+        "length": 1225,
+        "path": "logs/chloe-embedded-reopen-final01.stdout.log",
+        "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+      },
+      "assertions": 8,
+      "protocol": "embedded"
+    },
+    {
+      "phase": "exercise",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T07:59:07.4991397+08:00",
+        "identity": {
+          "pid": 23544,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\build\\bin\\ChloeProbe\\release_net10.0\\ChloeProbe.dll",
+            "exercise",
+            "D:\\sndb-t\\i260-chloe-remote-final01\\data\\rest"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:05.578239Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-runner"
+        },
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T07:59:05.5742753+08:00",
+        "label": "chloe-rest-exercise"
+      },
+      "stdout": {
+        "length": 2283,
+        "path": "chloe-remote-final01/chloe-rest-exercise.stdout.log",
+        "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+      },
+      "assertions": 22,
+      "protocol": "rest"
+    },
+    {
+      "phase": "reopen",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T07:59:09.814766+08:00",
+        "identity": {
+          "pid": 52672,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\build\\bin\\ChloeProbe\\release_net10.0\\ChloeProbe.dll",
+            "reopen",
+            "D:\\sndb-t\\i260-chloe-remote-final01\\data\\rest"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:09.2306164Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-runner"
+        },
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T07:59:09.2248816+08:00",
+        "label": "chloe-rest-reopen"
+      },
+      "stdout": {
+        "length": 1225,
+        "path": "chloe-remote-final01/chloe-rest-reopen.stdout.log",
+        "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+      },
+      "assertions": 8,
+      "protocol": "rest"
+    },
+    {
+      "phase": "exercise",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T07:59:12.2441004+08:00",
+        "identity": {
+          "pid": 72844,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\build\\bin\\ChloeProbe\\release_net10.0\\ChloeProbe.dll",
+            "exercise",
+            "D:\\sndb-t\\i260-chloe-remote-final01\\data\\frame-http2"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:11.4390565Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-runner"
+        },
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T07:59:11.4281549+08:00",
+        "label": "chloe-frame-http2-exercise"
+      },
+      "stdout": {
+        "length": 2283,
+        "path": "chloe-remote-final01/chloe-frame-http2-exercise.stdout.log",
+        "sha256": "30A9BA6C3EA0EF85C890F2032033E4F83FE84C0606B392C73A665C566D4EE0C3"
+      },
+      "assertions": 22,
+      "protocol": "frame-http2"
+    },
+    {
+      "phase": "reopen",
+      "loadedAssemblies": [
+        {
+          "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2",
+          "assembly": "SonnetDB.Core",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753",
+          "assembly": "SonnetDB.Data",
+          "informationalVersion": "0.0.0-dev+285186b868a59d4b22e47279ea51deb38a3a1f45"
+        },
+        {
+          "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81",
+          "assembly": "Chloe",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        },
+        {
+          "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B",
+          "assembly": "Chloe.SonnetDB",
+          "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+        }
+      ],
+      "receipt": {
+        "timedOut": false,
+        "endedUtc": "2026-10-16T07:59:14.1589904+08:00",
+        "identity": {
+          "pid": 55524,
+          "arguments": [
+            "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\build\\bin\\ChloeProbe\\release_net10.0\\ChloeProbe.dll",
+            "reopen",
+            "D:\\sndb-t\\i260-chloe-remote-final01\\data\\frame-http2"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-15T23:59:13.6626686Z",
+          "workingDirectory": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue260-work\\chloe-remote-runner"
+        },
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T07:59:13.6591983+08:00",
+        "label": "chloe-frame-http2-reopen"
+      },
+      "stdout": {
+        "length": 1225,
+        "path": "chloe-remote-final01/chloe-frame-http2-reopen.stdout.log",
+        "sha256": "59ED5BFACE2700B114D6846F48CB393AC0E29D7A601009200C66183665A4E75D"
+      },
+      "assertions": 8,
+      "protocol": "frame-http2"
+    }
+  ],
+  "binaries": [
+    {
+      "length": 6030848,
+      "path": "build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.Tests.dll",
+      "sha256": "92EE71F2F870E7E93BBD07B79C5EE78BC69AE6F1E0FEBD77BCFE24482D99B600"
+    },
+    {
+      "length": 18863104,
+      "path": "build/bin/SonnetDB.Core.Tests/release/SonnetDB.Core.dll",
+      "sha256": "C15BE1DA02E4E39F700AD7782DD8D68D53B4434409AC4C753A71853B62CD6179"
+    },
+    {
+      "length": 2622976,
+      "path": "build/bin/SonnetDB.Core.Tests/release/SonnetDB.Data.dll",
+      "sha256": "70775C700B1B098E72D9A4971172D4CF93FCD1FAEE5564E972FD7FDD051F3585"
+    },
+    {
+      "length": 2905088,
+      "path": "build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.Tests.dll",
+      "sha256": "F8CC45DD044F7252AD55CB96E5B1325D01C65F613AF5367D519F780B55AF743C"
+    },
+    {
+      "length": 5670400,
+      "path": "build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.dll",
+      "sha256": "03FE75FE6CE22E8BC74DB4B580D28DA4D867E14E4FCB1571C0736CD34686259C"
+    },
+    {
+      "length": 18863104,
+      "path": "build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.Core.dll",
+      "sha256": "C15BE1DA02E4E39F700AD7782DD8D68D53B4434409AC4C753A71853B62CD6179"
+    },
+    {
+      "length": 2622976,
+      "path": "build/bin/SonnetDB.Tests/release_win-x64/SonnetDB.Data.dll",
+      "sha256": "70775C700B1B098E72D9A4971172D4CF93FCD1FAEE5564E972FD7FDD051F3585"
+    },
+    {
+      "length": 19456,
+      "path": "build/bin/ChloeProbe/release_net10.0/ChloeProbe.dll",
+      "sha256": "B827944B02F8C5BE933B5BE885C890AD5014AEF85AB9EC380DEDCE25A640B07D"
+    },
+    {
+      "length": 5895,
+      "path": "build/bin/ChloeProbe/release_net10.0/ChloeProbe.deps.json",
+      "sha256": "6CAA6ADEEB6B64B4F66207657E7E14AE146E6451C002D13E8DDD5268B0C9D7E4"
+    },
+    {
+      "length": 342,
+      "path": "build/bin/ChloeProbe/release_net10.0/ChloeProbe.runtimeconfig.json",
+      "sha256": "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+    },
+    {
+      "length": 18863104,
+      "path": "build/bin/ChloeProbe/release_net10.0/SonnetDB.Core.dll",
+      "sha256": "DDEE8E61C4E318E1357D147925D2BBD61C09CCA04A07B280FB78916111A93AC2"
+    },
+    {
+      "length": 2622976,
+      "path": "build/bin/ChloeProbe/release_net10.0/SonnetDB.Data.dll",
+      "sha256": "C28E9BADF80229ED97F66CF1814241728F7C748B6B62DA6D43D431D2D8238753"
+    },
+    {
+      "length": 756224,
+      "path": "build/bin/ChloeProbe/release_net10.0/Chloe.dll",
+      "sha256": "0B8A5E228D7A369E4891E61DF36159C89FC9738236166B21731E33A9AEE44C81"
+    },
+    {
+      "length": 52224,
+      "path": "build/bin/ChloeProbe/release_net10.0/Chloe.SonnetDB.dll",
+      "sha256": "8E131E8ABBB2A8B68B71BF336E7C535B96447B4A16EED9988D682ABBA886134B"
+    },
+    {
+      "length": 5670400,
+      "path": "chloe-remote-final01/server/SonnetDB.dll",
+      "sha256": "03FE75FE6CE22E8BC74DB4B580D28DA4D867E14E4FCB1571C0736CD34686259C"
+    },
+    {
+      "length": 18863104,
+      "path": "chloe-remote-final01/server/SonnetDB.Core.dll",
+      "sha256": "C15BE1DA02E4E39F700AD7782DD8D68D53B4434409AC4C753A71853B62CD6179"
+    }
+  ],
+  "limitations": [
+    "Bounded ASCII grammar, SQL NULL propagation, and no CLR culture/NumberStyles overload equivalence.",
+    "No new UInt64 storage type, generic UInt64 parameter binding, or bitwise implementation.",
+    "Source Core/Data/Server plus a local fixed-source Chloe candidate; public preview.ef266.5 lacks this function.",
+    "Formal Core/Data/Server release and Chloe upstream integration/publication remain outstanding.",
+    "Full solution restore and original Format Check before commit are the parent integration responsibility; this subtask did not commit, push, or comment externally."
+  ]
+}
