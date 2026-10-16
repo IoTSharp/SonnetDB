@@ -5,6 +5,22 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16 11:26，递归取消断言独立修正）
+
+- 远端main仍ffdb734c，CI38842022794已completed/success、7作业全部成功；它不覆盖未推送的252。parity-results仍2ab6caa9。监督仍在a3932c49上，252原提交16b266c2保留，尚未push/comment/close。
+- 251已报告最终远程remote-ado04为147/147，Chloe最终候选包含262→252→251（未替换converter），三协议各exercise42+reopen34全通过；新Data→真实旧v5Server显式DateTime/2初写及重开4进程通过；旧Core拒绝v15且前后目录SHA一致、新Core重开全ticks通过；Data显式AOT/trim零警告错误。根待核冻结清单/DLL SHA，不把代理报告提前提升为根最终验收。
+- 251最终core-sql02为3765PASS/1FAIL、core-native06为174PASS/1FAIL，唯一失败均为既有递归10ms取消精确包装断言。根在252冻结DLL确定性复现第1/4候选取消，原断言0PASS/2FAIL；独立修正只改测试及对应说明，不改生产、不掩盖原失败。新测试移除timer，校验直接OCE或Cancelled包装、相同令牌、精确调用数、0内存/ambient释放及后续数据读取；整类25/25通过，实际日志/SHA在recursive-cancellation，永久审计recursive-cancellation-contract-20261016.md。
+- 本修正独立提交前完整restore/规定Format必须在最终树实际通过，回执recursive-cancellation/gate及commit.json。当前交接记录随该真实修正纳入，不为状态另造提交。251继续最终冻结，不覆盖SqlRecursiveCteTests根修订；随后根核哈希集成251并执行最终回归。250/249仍各自准备冻结，待251→250→249核心交接，不重复派单。
+- 主目录main=ffdb734c且clean；当前仅监督树有授权测试修正/交接。旧树、定向stash、失败证据、parity-results全部保留；正式发行及对应ORM上游仍是关闭条件，226/243源码不重做。
+
+## 提交后回读（2026-10-16 10:57）
+
+- 本监督HEAD=a3932c49976bc9398beb5139eb2d0c0cab39482b，实际完成普通文档整合merge；父提交16b266c2和ffdb734c均保留。最终tree=2f5cce7cb0cc70ee4ddaf40cd1c088597b5cf986，完整restore于02:53:00Z至02:53:12Z、规定Format于02:53:12Z至02:54:55Z实际exit0，tree/工作区未变才commit；Format仅工作区加载警告，无格式违规，未压制。实际回执main-docs-integration-1051/commit.json。源代码/测试/脚本与16b266c2一致，不重复功能验收；所有已交付文档及之前监督记录/CI回读已纳入。
+- 02:56Z远端main仍ffdb734c、parity仍2ab6caa9；其CI38842022794的三平台AOT和Format已success，Windows两分片及Ubuntu测试仍in_progress。本监督尚未push，252尚未评论/关闭。
+- 根已读251的真实强杀组合crash-native01：14/14零失败/跳过，其中DTO7项、既有Duration7项，不称14项新DTO；Chloe候选构建exit0，但上游38条nullable警告，与Sonnet零警告产品构建分开。代理继续真实消费者和最终回归，不修改其活动生产文件；冻结后按252基线交付，根整合到a3932c49。
+- 代理随后报告core-native04定向174/174零失败/跳过，含forced sort/distinct/group/hash-join spill、递归来源遮蔽和transition trigger；core-sql02扩大回归串行运行。Chloe embedded初写42检查及独立重开通过，最终冻结版本矩阵仍待；这些进展不提前算最终251验收。
+- 此提交后状态随下一Issue提交；不为巡检再造提交。监督树现在仅本条HANDOFF/审计待提交，主目录clean的ffdb734c不修改。自动监督同步新SHA、CI及251/250/249顺序，保持每30分钟ACTIVE。
+
 ## 最新监督检查点（2026-10-16 10:54，已交付文档整合与#251回归）
 
 - 主目录他人文档已分别提交16ff58f8（LLM指南）和ffdb734c（M48规划），实际远端main=ffdb734c7fb9769913088c7bdee2415d73050f1b，主目录clean，两对应聊天idle。监督树以保留原#252提交16b266c2的普通merge整合已发布文档，不重写或重复提交252、不接管其他工作；原两份文档提交完整保留。parity-results仍2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。

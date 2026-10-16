@@ -205,19 +205,43 @@ public sealed class SqlRecursiveCteTests : IDisposable
         Assert.Contains("单轮候选行数超过上限", exception.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Execute_ExponentialBranch_CancellationStopsCandidateProbe()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void Execute_ExponentialBranch_CancellationStopsCandidateProbe(int cancelAt)
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
         SqlExecutor.Execute(db, "CREATE TABLE emit (id INT, parent_id INT, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "INSERT INTO emit (id, parent_id) VALUES (1, 1), (2, 1)");
         using var cancellation = new CancellationTokenSource();
-        cancellation.CancelAfter(TimeSpan.FromMilliseconds(10));
+        int candidateRows = 0;
+        // 在递归成员实际产出候选时取消，避免定时器在绑定、分页或下一轮之间随机触发。
+        db.Functions.RegisterScalar("cancel_probe", arguments =>
+        {
+            if (++candidateRows == cancelAt)
+                cancellation.Cancel();
+            return arguments[0];
+        }, 1, 1);
+        string sql = ExponentialBranchSql.Replace(
+            "SELECT emit.parent_id FROM", "SELECT cancel_probe(emit.parent_id) FROM", StringComparison.Ordinal);
 
-        var exception = Assert.Throws<RoutineExecutionException>(() => SqlExecutor.Execute(
-            db, null, ExponentialBranchSql, null, null,
+        var exception = Record.Exception(() => SqlExecutor.Execute(
+            db, null, sql, null, null,
             new SqlExecutionOptions { CancellationToken = cancellation.Token }));
-        Assert.IsType<OperationCanceledException>(exception.InnerException);
+        // 分页直接传播令牌取消；例程轮询使用稳定错误码包装同一取消令牌。
+        if (exception is RoutineExecutionException routine)
+        {
+            Assert.Equal(RoutineErrorCodes.Cancelled, routine.Code);
+            exception = routine.InnerException;
+        }
+        var cancelled = Assert.IsType<OperationCanceledException>(exception);
+        Assert.Equal(cancellation.Token, cancelled.CancellationToken);
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Equal(cancelAt, candidateRows);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
+        Assert.Null(SqlQueryResources.Current);
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM emit ORDER BY id"));
+        Assert.Equal([1L, 2L], result.Rows.Select(row => Assert.IsType<long>(row[0])));
     }
 
     [Fact]
