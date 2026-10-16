@@ -48,7 +48,7 @@ ABI 新版本、精确类型、参数、每批/累计预算、取消、未知提
 | Windows x64 NativeAOT 动态库/C 消费者 | 首个实际 AOT 构建 PASS；原 C quickstart 与解压工程包的独立 C 消费者 PASS；不是完整九模型 SDK 验收 |
 | Linux glibc x64 托管/AOT/C | NOT_RUN |
 | Linux musl、其余 ARM64、macOS | NOT_RUN |
-| .NET/C 原生 HTTP/2 Frame SDK | NOT_STARTED |
+| .NET/C 原生 HTTP/2 Frame SDK | .NET 单帧传输基础已实现；九模型 typed/多帧待补，C 远程 NOT_STARTED |
 | Go/Rust/Python 两条产品线 | NOT_STARTED |
 | Java 8 远程/JNI | NOT_STARTED；当前 PATH 是 JDK21，不冒称 Java8 验收 |
 | VB6/PureBasic 仅远程 | NOT_STARTED；实际授权编译器/HTTP2运行仍 NOT_RUN |
@@ -61,7 +61,7 @@ Ubuntu 的有界 `command -v` 已核得 `/usr/bin/gcc`、`/usr/bin/clang`、`/us
 
 | 最终目标 | 本片嵌入式证据 | 新远程 SDK 证据 |
 |---|---|---|
-| Windows x64 | Native 托管 10/10、AOT/C SQL 生命周期与独立工程包消费者 PASS；其余首批操作未验 | NOT_STARTED |
+| Windows x64 | Native 托管 10/10、旧 AOT/C SQL 生命周期与独立工程包消费者 PASS；D01新AOT未验 | .NET 单帧传输195/195；九模型 typed 和 C 远程未完成 |
 | Windows ARM64 | NOT_RUN | NOT_STARTED |
 | Linux glibc x64 | 仅 Ubuntu 工具位置/64位环境已核；运行 NOT_RUN | NOT_STARTED |
 | Linux glibc ARM64 | NOT_RUN | NOT_STARTED |
@@ -84,3 +84,11 @@ Ubuntu 的有界 `command -v` 已核得 `/usr/bin/gcc`、`/usr/bin/clang`、`/us
 完整 solution restore 和 CI 分片覆盖（core=1/rest=44/total=45，零交集）已通过；原样全 solution Format Check 的最终结果在根 HANDOFF 登记。工作区加载警告单列，不宣称没有任何工具警告。
 
 当前仍依赖混合 `SonnetDB.Data`；Core 的 `SelectExecutionResult.Rows` 仍完整物化；同一 native result 的 next/value/free 与父连接关闭要求调用方串行。C API 尚无新的取消入口、精确类型或 ABI 版本协商。模拟缺终态的 IOException 不是实际 Frame 缺 end 测试。以上均不升级为 C02、D01、R01～R03 或整个 M49 完成。
+
+## D01 共享协议与 .NET 远程依赖切片
+
+`SonnetDB.Protocol` 已独立于引擎，Core 引用它；`SonnetDB.Client` 只依赖 Protocol。相关托管类型直接改变程序集归属，消费者须重编译，Frame v1/磁盘字节不变。新远程入口验证实际 HTTP2、单帧完整性/预算和总期限，拒绝重定向/回落/已知多帧操作；取消、客户端关闭和传输失败保留未知结果。
+
+本片 Client 195/195（含5个真实h2c）、原Core定向175/175、Native托管10/10及Server零警告构建通过；两个本地工程包的独占缓存消费者真实h2c通过。[入库证据](../audits/m49/d01-20261016/README.md)保存原TRX、显式计数和源码/运行/包哈希。首片旧冻结 Counters 空数组另用[历史补充](../audits/m49/native-lifetime-20261016/README.md)纠正，并标清临时 EXE 已回收，不覆盖原记录。
+
+这些证据不升级为真实九模型 Server、Core 有界、SDK AOT、正式包清单、Core旧包兼容门禁、TLS/ALPN、其它平台或远端CI通过。D01/F01/R01～R03 继续未完；用户要求当前片交付后换电脑，后续从[换机交接](../handoffs/m49-next-computer.md)实施 F01。

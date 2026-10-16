@@ -1,0 +1,19 @@
+{
+  "trx": "native-final.trx.gz",
+  "currentD01AotAcceptance": "NOT_RUN; do not promote the earlier native binary to the new source",
+  "historicalTempExecutableWasReclaimed": true,
+  "consumerRun": {
+    "endUtc": "2026-10-16T10:15:01.4734225Z",
+    "stdoutSha256": "567456F77D89F677163D4C52028619C7540EE2D2864BB24F1212062A30EA1A88",
+    "executablePath": "\"D:/t/m49-01a1440e/consumer-final-build/Release/sonnetdb_result_lifetime.exe\" \"D:/t/m49-01a1440e/consumer-final-data\"",
+    "stdout": "c-consumer.stdout.log.gz",
+    "status": "PASS",
+    "exitCode": 0,
+    "startUtc": "2026-10-16T10:14:59.3538763Z"
+  },
+  "nativeLibraryAndPackageBinariesIncludedInGit": false,
+  "sourceCommit": "1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4",
+  "scope": "Historical native lifecycle acceptance before D01 assembly extraction",
+  "counterExtraction": "XML namespace and GetAttribute; original empty-counter freeze was not overwritten",
+  "compressedTrxSha256": "C06A609E9FE4EF9D30097E9F5D864713F7327F116B6BD9114E07AFA970818298"
+}

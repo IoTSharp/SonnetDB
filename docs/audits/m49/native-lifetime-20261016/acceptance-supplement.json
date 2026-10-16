@@ -1,0 +1,184 @@
+{
+  "scope": "Supplement to immutable M49 freeze; no receipts overwritten and no test rerun",
+  "originalFreeze": {
+    "sha256": "7538E8F8490D29807DE37A75E4EA944F19B46841F113D06C6990F32B9F7FF72C",
+    "path": "artifacts\\m49-implementation-20261016\\source-and-runtime-freeze.json",
+    "testCountersSerializedAsEmptyArray": true
+  },
+  "trx": {
+    "sha256": "8FBB40A11F962EF5A3EBF58DE8D9B96F5D262CDFE9F07210EE81AABE2BAF8C28",
+    "allResultOutcomesPassed": true,
+    "namespace": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010",
+    "testCounters": {
+      "total": 10,
+      "executed": 10,
+      "passed": 10,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "notExecuted": 0
+    },
+    "path": "artifacts\\m49-implementation-20261016\\native-final-2\\native-final.trx",
+    "unitTestResultCount": 10,
+    "counterXPath": "/t:TestRun/t:ResultSummary/t:Counters"
+  },
+  "sourceAndRuntimeBindings": [
+    {
+      "sha256": "1251A6995EBA15B221CBE10C642F6ED12166F30E88BACFD67D4E6FFEA5896D9C",
+      "originalPath": "embedded/native/SonnetDB.Native/SonnetDbNativeExports.cs",
+      "verifiedCurrentPath": "embedded/native/SonnetDB.Native/SonnetDbNativeExports.cs",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "3B5015638D98DE7EEC7DBBDF7EDD04B8F880612C0D0A315A7D745348B8C01142",
+      "originalPath": "embedded/native/SonnetDB.Native/SonnetDB.Native.csproj",
+      "verifiedCurrentPath": "embedded/native/SonnetDB.Native/SonnetDB.Native.csproj",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "1B161238EE8FDA840085BA9DC914C210C7F5F0FF7DF0D2AA276D851288B2C015",
+      "originalPath": "tests/SonnetDB.Native.Tests/NativeResultTests.cs",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/NativeResultTests.cs",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "91947882529F06A88C4ABE20B7A48A262D25EC10C4009A0EFA136D9383E2BA79",
+      "originalPath": "tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "AEF890FE941231CA75F5ED3A5E10703F717906172972245AE9621FC8385302B2",
+      "originalPath": "embedded/c/examples/result_lifetime.c",
+      "verifiedCurrentPath": "embedded/c/examples/result_lifetime.c",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "76FD63E3CEE4C6ADEA6E6C9042B2E6409F4794314CD53084FF37F1D8BDBA5BDB",
+      "originalPath": "embedded/c/examples/CMakeLists.txt",
+      "verifiedCurrentPath": "embedded/c/examples/CMakeLists.txt",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "4B6D48EB9FA931E8FABDF315FE1D50B9A9CE3D1934A42F5BD4F68801912E06F1",
+      "originalPath": "connectors/c/include/sonnetdb.h",
+      "verifiedCurrentPath": "connectors/c/include/sonnetdb.h",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "75F59999E08BBC439903EE39297CE37C69EEFEEFD2930C2EA0ADA80DC20852BF",
+      "originalPath": "connectors/c/CMakeLists.txt",
+      "verifiedCurrentPath": "connectors/c/CMakeLists.txt",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "7A13F49DADEDA61408AC8AD5224809B691D19719388BE21EB4649491981F43D7",
+      "originalPath": "SonnetDB.slnx",
+      "verifiedCurrentPath": "SonnetDB.slnx",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "A8961836B5E367A8A836706BBF3B0A49537CE94B2AEC5F966792C448DFB30ECB",
+      "originalPath": ".agents/skills/sonnetdb-connectors-cmake/SKILL.md",
+      "verifiedCurrentPath": ".agents/skills/sonnetdb-connectors-cmake/SKILL.md",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "C3C8A83EADD4053EBD58CC50D7159E75C4E7092E844AA606081E5E37F13BBC9E",
+      "originalPath": ".agents/skills/sonnetdb-connectors-cmake/scripts/check-sonnetdb-connectors.ps1",
+      "verifiedCurrentPath": ".agents/skills/sonnetdb-connectors-cmake/scripts/check-sonnetdb-connectors.ps1",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "C81043D5CB3054FB5B1068EE44CA69CE9E56D34515B12681C6EFE5BB02392D8D",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.dll",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.dll",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "944EEF9C5D71E3F437082C759879773EDFE028230AF5DF31B575DFEAF18F985E",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.pdb",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.pdb",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "CF78DC9FD443E92075B19C03378EB48AE4FBFB39DA500BC769189D31D6F9B440",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.dll",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.dll",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "082035CE446315EFFE700B65C49600FB71E792BD085D6E7A2C6A9024A5AF29EC",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.pdb",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.pdb",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "F7D4557D19C8B83D60F6CCD9E1A4E979144D391E525DB3E1B72112C67DECFD30",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Data.dll",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Data.dll",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "E59817CDDCC0D47C45C1F86EEC6CEE10CF1001BC769A7FB407D3C3E0C2B508BA",
+      "originalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Core.dll",
+      "verifiedCurrentPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Core.dll",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "8FBB40A11F962EF5A3EBF58DE8D9B96F5D262CDFE9F07210EE81AABE2BAF8C28",
+      "originalPath": "artifacts/m49-implementation-20261016/native-final-2/native-final.trx",
+      "verifiedCurrentPath": "artifacts/m49-implementation-20261016/native-final-2/native-final.trx",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "18396DCD77B964C55E3B88A5E1CC9D1B86110FF8229ED5759FCF770F5D1BE518",
+      "originalPath": "artifacts/m49-implementation-20261016/c-win-x64/native/win-x64/publish/SonnetDB.Native.dll",
+      "verifiedCurrentPath": "artifacts/m49-implementation-20261016/c-win-x64/native/win-x64/publish/SonnetDB.Native.dll",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "12D0790161E5CD7F2E8168790B8DE13104BA804C98129500CBF9286BEC193BD1",
+      "originalPath": "artifacts/m49-implementation-20261016/embedded-c-lifetime-win-x64-final-local.zip",
+      "verifiedCurrentPath": "artifacts/m49-implementation-20261016/embedded-c-lifetime-win-x64-final-local.zip",
+      "originalIsReclaimedHistoricalPath": false
+    },
+    {
+      "sha256": "CF5529591C7C0494A03BAAC87330980F0B6AFC829BB3D1EEB3A9909AB6D3B03A",
+      "originalPath": "D:/t/m49-01a1440e/consumer-final-build/Release/sonnetdb_result_lifetime.exe",
+      "verifiedCurrentPath": "artifacts\\m49-implementation-20261016\\consumer-final-used.exe",
+      "originalIsReclaimedHistoricalPath": true
+    }
+  ],
+  "consumer": {
+    "historicalExecutablePath": "D:/t/m49-01a1440e/consumer-final-build/Release/sonnetdb_result_lifetime.exe",
+    "logBindings": [
+      {
+        "path": "artifacts\\m49-implementation-20261016\\clean-c-final-run.stdout.log",
+        "sha256": "567456F77D89F677163D4C52028619C7540EE2D2864BB24F1212062A30EA1A88"
+      },
+      {
+        "path": "artifacts\\m49-implementation-20261016\\clean-c-final-run.result.json",
+        "sha256": "C8F338E7A77A153BB743D4B5E0FB49226AC630D38178D15EC24CC8A9C20B3C12"
+      },
+      {
+        "path": "artifacts\\m49-implementation-20261016\\clean-c-final-run.spec.json",
+        "sha256": "B130C2CB3D6438F5B84C0791F2B6B7A65339E9A98193C9B05CC4D6F54205E7B2"
+      },
+      {
+        "path": "artifacts\\m49-implementation-20261016\\engineering-package-final-hashes.json",
+        "sha256": "84A53569179F936861FF9EC306F3195A2AEC676B858D7FD2EFBCDEFB0115E702"
+      }
+    ],
+    "packageLibraryMatchesFrozenPublishLibrary": true,
+    "retainedLibrarySha256": "18396DCD77B964C55E3B88A5E1CC9D1B86110FF8229ED5759FCF770F5D1BE518",
+    "historicalPathExistsNow": false,
+    "retainedLibraryPath": "artifacts\\m49-implementation-20261016\\engineering-package-final\\lib\\SonnetDB.Native.dll",
+    "retainedPackage": "artifacts/m49-implementation-20261016/embedded-c-lifetime-win-x64-final-local.zip",
+    "runtimeModuleHashSeparatelyCaptured": false,
+    "retainedAuditCopy": "artifacts\\m49-implementation-20261016\\consumer-final-used.exe"
+  },
+  "fullM49Complete": false
+}

@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4",
+  "buildSource": "Uncommitted D01 development tree, bound by source hashes; local nupkg repository commit is the parent, not a release identity",
+  "tests": [
+    {
+      "name": "client",
+      "sha256": "C560235D122E8B31A311D4414223113EC335FEE5E059194F0CE1DCBE805A23D6",
+      "trx": "client-final.trx.gz",
+      "counters": {
+        "total": 195,
+        "executed": 195,
+        "passed": 195,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "notExecuted": 0
+      },
+      "archiveSha256": "A136A0C7373C62718043D7F2F41E18594F507C43123809AB4D56293F5F879A01"
+    },
+    {
+      "name": "core-focused",
+      "sha256": "C1BA9BCE60F54517DC3AF67BEC9E78B5C7AC7B1FC4E0A9CD70C6CF60E99A90B7",
+      "trx": "core-regression.trx.gz",
+      "counters": {
+        "total": 175,
+        "executed": 175,
+        "passed": 175,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "notExecuted": 0
+      },
+      "archiveSha256": "4ACFD1CFD010A14AF64DE3CAB147D5CE6BE57D84FCBF6B7DC83FBF1C129C9D63"
+    },
+    {
+      "name": "native-managed",
+      "sha256": "7EA045142352543F041DE62D4DD485101B1EC2DD5B782F78B421B40AA391BF6A",
+      "trx": "native-regression.trx.gz",
+      "counters": {
+        "total": 10,
+        "executed": 10,
+        "passed": 10,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "notExecuted": 0
+      },
+      "archiveSha256": "FB7A20B7958CF257AE91CF61A99BD3BC512A2784F2556957BF86DE3BC8FE3212"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "tests/SonnetDB.Client.Tests/SonnetDB.Client.Tests.csproj",
+      "sha256": "F8D43175A0D168877DE349EF44FEDDDDA602D8D354E379C28B8926D356B1802E"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/FrameClientTests.cs",
+      "sha256": "954419AF56AAD37E22AD50148C6DCFE43A7291C6F6CDC21EEF6D09B39A5E960C"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/FrameClientHttp2Tests.cs",
+      "sha256": "6E9E8082A9B25A7C0AFA50DDE6CE04B69F5168317FF69DD300784E136A6FFDDF"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/FrameCodec.cs",
+      "sha256": "2DB620BC48285E6892B6B18E0940481D64DB59A7F38CF43964DBE9010589D678"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/DocFrameOp.cs",
+      "sha256": "E4D733F7F65AEC6963A9482B7F8669C819A72E6B6541F50FB0A3A5056F28EE8B"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/VectorFrameOp.cs",
+      "sha256": "65EB1EE2E032448F3FACEB7BB5C5B021BD095810DE43A78BA5B6AB661BB83AE3"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/TsdbFrameOp.cs",
+      "sha256": "5631A24139CD1451E82A2B951B5F21FD78D2177901C42BD2977F9ACF38A08A6E"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/SqlFrameOp.cs",
+      "sha256": "B0012DDEDC6040470ACD4D021C13B00401FAF637266498E456DB8FD164DED4FE"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/SonnetDB.Protocol.csproj",
+      "sha256": "AF79250476B6EDCD6303F060A574A974D91211C5ACD71905F3DF59D7F0A296F5"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/ObjectFrameOp.cs",
+      "sha256": "D06CD211D4F75D703AE947A2563803F4F2E4F21CB87CFB3C28FABBB42C550956"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/MqFrameOp.cs",
+      "sha256": "C80702F1DA4FFE60C51625D46476C84EA58C4817AD29C6557C5CF40F74EE1A57"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/KvFrameOp.cs",
+      "sha256": "804DC304438B527E95A89B017B7B95A1FDCDFFC63675410E8D046754841E8705"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/FrameHeader.cs",
+      "sha256": "6983FA4A79CFD5A41752E87F3BC708AB2EFF22C5BB139658ED266FFDE2196D53"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/FrameFormatException.cs",
+      "sha256": "AE880992FE8BA768A58F022148DE0B311CA10FC5CD6102B80549897812E71DF7"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/FrameFlags.cs",
+      "sha256": "7CC00A188D9075CD7E4D1D8FA22D0886ACC98C9A1F819434C9BFBD9893811FF2"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/GraphFrameOp.cs",
+      "sha256": "789B8E0C20BCE6B893C35922B130DDF8825AD6CB445DD6ABF8112EC58B41071D"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/FrameService.cs",
+      "sha256": "297587C215B3565CF82BE685AE3AF9DCE6D8DF49C91D144EC13E3AD3C3F08BDF"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/IO/SpanWriter.cs",
+      "sha256": "FF0A29C385A0A08E2B055E25963296A514F26B8A1C0A543B823150BC5EE2F20E"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/IO/SpanReader.cs",
+      "sha256": "A77CEE70257E3B8A866EC8844A956ECFEB70D354C820B622D8ABFA5F3A6FC279"
+    },
+    {
+      "path": "connectors/dotnet/SonnetDB.Client/SndbFrameClient.cs",
+      "sha256": "75CE3757C4FEA812F4DC7E412C3FC14ED11E60D3094BCB77DFB77A65008661D5"
+    },
+    {
+      "path": "connectors/dotnet/SonnetDB.Client/SonnetDB.Client.csproj",
+      "sha256": "2EA449126B86C2140EBCC7EBE046E08E4163F769272855A8904C78877BD5B2ED"
+    },
+    {
+      "path": "connectors/dotnet/SonnetDB.Client/SndbFrameException.cs",
+      "sha256": "0E0E4BB78E3C5181C04FAA147291DF20FBD9FDCC58102BFC58DA3AF790E5A8C2"
+    },
+    {
+      "path": "src/SonnetDB.Core/SonnetDB.Core.csproj",
+      "sha256": "F68371A0F8D0909B89D1EAA6AA82CC88AB382326B0C93696F489E3E2ACCBC822"
+    },
+    {
+      "path": "SonnetDB.slnx",
+      "sha256": "3C02B5A086FF4C634B7FF89D6BE658728A1C85EFB1B235AA6E009943D0F643CD"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Protocol/FrameHeaderTests.cs",
+      "sha256": "21BAADEFA3D16FA6AFF2F6C7C6C697B7A82C63F39FD0759301904B0B27551F5C"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/IO/SpanReaderTests.cs",
+      "sha256": "85D3D062B4C3E0D9DDCB2E8BAA4EB852167640C9A4349670C3D521B97029ECDC"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/IO/SpanWriterTests.cs",
+      "sha256": "515575D48967B410F90653D1024AFABDEC1A041F8702DBAC32B2899BCB64E842"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/IO/SpanRoundTripTests.cs",
+      "sha256": "F57DC7B3C5E710A31432CCBB2B90758852E37E63730A5870F97C131CB7FE64E7"
+    },
+    {
+      "path": "docs/audits/m49/d01-20261016/consumer/Program.cs",
+      "sha256": "200BAAD7DB5E09F236B5620FD6EC4525853CDFC65302242161E0F226F31C41F1"
+    },
+    {
+      "path": "docs/audits/m49/d01-20261016/consumer/Consumer.csproj",
+      "sha256": "FD91ADD98145FC936AD2133C9C64D9C86920F83FE513F262E3F1632164990663"
+    }
+  ],
+  "historicalRuntimeAndPackageHashes": [
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.Tests.dll",
+      "sha256": "6C8D7BE200C3FD6D140C368B51E3CF378681348B145CDD78796877193DF741B8",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.Tests.pdb",
+      "sha256": "6D633AF8145259C83B87585A15BB4042B61F0B8FA27E4426E793CDC63AB9918F",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.dll",
+      "sha256": "1EF114D54C95DFDAE132F45034B59B5BEF2D2980DC999C764049F8C6F04D6278",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.pdb",
+      "sha256": "C2B3C6D4886221AADF446B606E026F3E6953FF7E3C25381E2D77F1CABDAAF768",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Protocol.dll",
+      "sha256": "A4F1B0DB6CA32CB2550C8062C6CCC19F2FAB6EA19C59840279479C3F4563A45F",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Protocol.pdb",
+      "sha256": "E6C99B0BFEC059AD32B890CEFB84327148F3ED51ECF886013229E6E3F28300B8",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.Tests.dll",
+      "sha256": "3A348A9757022284C5733F6EDB9CF04C07FBF451789FFED821576C79AEF2F492",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.Tests.pdb",
+      "sha256": "EEA0C2F4754D28BDFF1B8EC338D0ED6237E0A369E599DF5F15BEBECCE4477238",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.dll",
+      "sha256": "A244EF9CAB9C49CE28952B8C7686F597F536AAB50E66A6660E31950453CC399D",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Protocol.dll",
+      "sha256": "A4F1B0DB6CA32CB2550C8062C6CCC19F2FAB6EA19C59840279479C3F4563A45F",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.dll",
+      "sha256": "DFF27F11533CB9CB35BC8C2AD06690A43B6DA5B293D32573819828EDB9E60EAB",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.pdb",
+      "sha256": "28BCBD93B006FDEB0CB2B972FD7C109ECA7695E020C780B4616D683E14BFE112",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.dll",
+      "sha256": "A80450CDC489D1DD0FCCDF49C064039B1B00B7C0A35DD9BF0AEBC73F750C7CE3",
+      "inGit": false
+    },
+    {
+      "historicalPath": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.pdb",
+      "sha256": "E622FD5C0D55BFEA0D447547231D25500D03755D3966ACD155E2E731E1A0F045",
+      "inGit": false
+    },
+    {
+      "historicalPath": "src/SonnetDB/bin/Release/net10.0/SonnetDB.dll",
+      "sha256": "8ABDB3E26C224E47413879CE2B22AAACA379B07414087D10824461D49FA4E6DE",
+      "inGit": false
+    },
+    {
+      "historicalPath": "artifacts/m49-d01-20261016/packages-3/SonnetDB.Client.0.0.0-local.m49d01.3.nupkg",
+      "sha256": "2B95C255FCBCD61669BAA1C1C4D45A4C3BE4752544813CCFD653EA48B8D00B82",
+      "inGit": false
+    },
+    {
+      "historicalPath": "artifacts/m49-d01-20261016/packages-3/SonnetDB.Protocol.0.0.0-local.m49d01.3.nupkg",
+      "sha256": "D673C6AA45D0E2A3F5AB8F453A4776D085F8E4CB0FEAE9CB769C2CC9071D6417",
+      "inGit": false
+    },
+    {
+      "historicalPath": "D:/t/m49-d01-01a1440e/consumer-3/bin/Release/net10.0/Consumer.dll",
+      "sha256": "24C54EFAD8BE26223DD428198E8D6B1B579CDF911AA63B7D36515C4A80EDE90A",
+      "inGit": false
+    },
+    {
+      "historicalPath": "D:/t/m49-d01-01a1440e/consumer-3/bin/Release/net10.0/SonnetDB.Client.dll",
+      "sha256": "1EF114D54C95DFDAE132F45034B59B5BEF2D2980DC999C764049F8C6F04D6278",
+      "inGit": false
+    },
+    {
+      "historicalPath": "D:/t/m49-d01-01a1440e/consumer-3/bin/Release/net10.0/SonnetDB.Protocol.dll",
+      "sha256": "A4F1B0DB6CA32CB2550C8062C6CCC19F2FAB6EA19C59840279479C3F4563A45F",
+      "inGit": false
+    }
+  ],
+  "serverBuild": {
+    "businessSuite": "NOT_RUN",
+    "status": "PASS",
+    "errors": 0,
+    "exitCode": 0,
+    "warnings": 0
+  },
+  "packageConsumer": {
+    "status": "PASS",
+    "startUtc": "2026-10-16T11:31:33.9155126Z",
+    "stdout": "consumer.stdout.log.gz",
+    "packageVersion": "0.0.0-local.m49d01.3",
+    "tempPathsWillBeReclaimed": true,
+    "exitCode": 0,
+    "fixture": "Real Kestrel HTTP/2 binary echo, not SonnetDB nine-model server",
+    "stdoutSha256": "EC7AC6CB09BCB5A43EA3EC3B1BCEAC70BC41BF732971E9A5D63747C00152DA21",
+    "endUtc": "2026-10-16T11:31:42.2000521Z"
+  },
+  "notRun": [
+    "SDK NativeAOT publish",
+    "D01 NativeAOT/C runtime",
+    "TLS/ALPN",
+    "Linux/macOS/ARM64",
+    "Full Core/Server suites",
+    "Core pack/API baseline gate",
+    "Official package publishing and inventory",
+    "Remote CI",
+    "Nine-model typed SDK"
+  ],
+  "m49Complete": false,
+  "rawEvidenceStorage": "GZip byte-preserving archives; sha256 for TRX/stdout denotes decompressed original bytes; archiveSha256 identifies the stored archive",
+  "precommitFormatFirstRun": {
+    "originalReceipt": "artifacts/m49-d01-20261016/format-final.result.json",
+    "fix": "Newline only; Client rebuilt and 195/195 rerun; final engineering package .3 consumer rerun PASS",
+    "reason": "One constructor whitespace diagnostic",
+    "status": "FAIL"
+  }
+}

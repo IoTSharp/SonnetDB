@@ -6,6 +6,8 @@
 
 Remote targets: .NET, C, Go, Rust, Python, Java, VB6, PureBasic. Embedded targets: the first six languages only. VB6 remains an x86 remote client and needs no 32-bit AOT engine bridge. Platform/AI/CDC/governance APIs are deferred; existing authentication, authorization and data correctness remain required. Remote operations must use Frame; no language has a pre-approved REST fallback.
 
+The first standalone remote dependency slice now lives in `dotnet/SonnetDB.Client`, referencing only `src/SonnetDB.Protocol`. It validates actual HTTP/2 and bounded single-response envelopes; typed nine-model operations and multi-frame SQL remain pending. Shared protocol/IO types moved out of Core without legacy type forwarders, so managed consumers must recompile. See the [D01 evidence](../docs/audits/m49/d01-20261016/README.md) and [next-computer handoff](../docs/handoffs/m49-next-computer.md).
+
 See the [confirmed requirements](../docs/design/connector-embedded-split-requirements-20261016.md), [M49 plan](../docs/design/m49-connector-analytics-bounded-batches.md), [implementation matrix](../docs/design/m49-implementation-matrix.md) and [root roadmap](../ROADMAP.md#milestone-49). C01/C02/D01/R02/R03 have an active first slice; none of the 15 work packages is complete.
 
 ## Current implementation before the refactor

@@ -3180,3 +3180,21 @@ M49 仍 IN_PROGRESS，15 包均未整体完成；不能把这个外层 reader �
 本次提交只纳入自有文件及 ROADMAP/CHANGELOG 的 M49 hunk；继承 M42 专题、M42 热点写规划和 M47 状态表改动继续留在工作树，未覆盖、暂存或删除。已在提交前重新核对上一片 21 个源码/运行资产哈希；产品 C#、工程、头文件和示例未改变，10/10、Windows x64 AOT 与独立 C 包消费者仍属于上片的真实执行，不冒称本轮新测试。本次另在最终待提交树重新完整 restore 和原样 Format Check，只有两者真实通过才允许形成提交；日志/退出码与进程清理分列在上述提交回执根。
 
 embedded 位于实际实施树 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB/embedded。当前聊天默认目录 D:/source/SonnetDB 是共享 main 工作树，那里没有复制这批新目录；后续继续在受管树推进，不能向共享 main 覆盖式同步。剩余实施顺序沿用上一节 D01 依赖隔离、F01 Frame 补齐、R01/R02/R03 Core pull 与各语言/平台验收。parity-results 不合并或删除。
+
+## M49-D01 换机交付：共享 Protocol 与原生 .NET Frame 入口（2026-10-16）
+
+用户最新要求当前片实现、写交接、提交推送后更换电脑，在新会话继续。**本机在本片交付后停止新增实现；下一 F01 交给新电脑会话。** 远端/分支仍为 IoTSharp/SonnetDB 的 codex/m49-connector-batches-roadmap。首片已正常提交推送 1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4，并通过独立 ls-remote 回读；本片随后提交，精确最新 SHA 由该分支 git log/远端回读取得，不把首片 SHA 当成最新。
+
+换机先读 **docs/handoffs/m49-next-computer.md**，再读确认需求/实施矩阵；新电脑不依赖旧 artifacts helper、TEMP、编译器绝对路径或构建 DLL。新 embedded 位于本分支正常 repo 根，不在旧 D:/source/SonnetDB 共享 main 的目录视图中。
+
+本片直接迁移 Frame 信封、八类 opcode 和 SpanReader/SpanWriter 到无引擎依赖的 SonnetDB.Protocol；Core 引用它。新增 connectors/dotnet/SonnetDB.Client，仅依赖 Protocol，使用原生 HTTP2、校验实际响应版本、帧身份/完整性/预算，拒绝重定向和回落；整请求期限覆盖 body，取消/关闭释放在途流，发送后错误保留 OutcomeUnknown，不自动业务重试。单帧 API 明确拒绝已知多帧/双工操作。**托管 API 的程序集归属不兼容，消费者须重编译，无旧类型转发；磁盘和 Frame v1 编码未变。**
+
+真实验证：首轮189、真实h2c加入后193、最终195/195 Client（含5个真实Kestrel h2c）全部PASS；原Core定向175/175、Native托管10/10与Server Release build零warning/error通过。闭包检查和本地0.0.0-local.m49d01.3两包消费者通过：清空默认feed、独占缓存、无ProjectReference，实际h2c/二进制/认证头往返，输出无Core/Data/Native文件。旧AOT/C结果不升级为本片新AOT验证。完整Core/Server套件、TLS/ALPN、SDK/新NativeAOT、其它平台/远端CI均NOT_RUN。
+
+源码/运行/包哈希和原TRX已入库 docs/audits/m49/d01-20261016；其consumer目录保存可重建源码。原Native冻结把XML Counters序列化为空数组，原文件/原FAIL未覆盖；新增摘要明确从原native-final-2 TRX读取total/executed/passed=10，其余指定计数=0，绑定TRX/源码/DLL/PDB/实际运行日志/包和库。已将原TRX字节一致副本和补充摘要入库 docs/audits/m49/native-lifetime-20261016；旧临时EXE已回收，只能引用历史哈希，旧审计副本/库/包二进制不随Git上传，不宣称新电脑仍能读旧路径。
+
+正式包清单、Core旧4.x包API基线门禁未运行且没有关闭/压制/降级；新Protocol依赖和直接类型迁移必须在正式发行前按版本合同处理。本地nupkg来自待提交开发树，nuspec repository commit指向父1d02c1c5，实际源码以本片哈希绑定，不冒充不可变正式候选。每次提交仍先在最终树完整restore/原Format；本次门禁、进程和推送收据在本机 artifacts/m49-d01-20261016，后续新机应重新执行，不能借用旧PASS。
+
+M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余语言绑定/BASIC旧桥接未迁移；九模型typed、多帧SQL/精确参数/事务、对象下载和MQ双工未接新Client；Core仍完整Rows。新机从F01 SQL写入/精确参数和明确版本/能力/终态开始，再推进R01/R02/R03 Core pull、剩余D01/C03与其它语言/平台、真实模型demo/恢复/性能和按批发行。不要重做已证外层reader修复或把193/195传输语料当成九模型验收。
+
+当前实现仍只在既有受管工作区；M42热点写/M47状态表和M42专题继承dirty保留，提交只stage自有路径/hunk。未合并main、未公开发包/部署、未发消息、未安装工具，parity-results永不合并或删除。当前片提交推送完成后由新会话接续，不在本机再扩F01。

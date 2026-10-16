@@ -2,6 +2,8 @@
 
 2026-10-16：按用户确认修订 **[M49：连接器/嵌入式拆分、九模型访问与有界批处理](#milestone-49)**。远程各语言原生 HTTP/2 二进制 Frame，嵌入式 .NET 托管与非 .NET 共用 AOT；VB6/PureBasic 仅远程。首批只做九模型数据访问、先64位、Java8兼容、直接重构不留旧兼容层，允许分批正式发行。D01/F01/C01～C08/R01～R05 共15包，首片已实施、均未整体完成；详见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
 
+M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程序集脱离 Core，Client 只依赖 Protocol；真实 h2c、取消、关闭、预算和干净包消费者证据见 [D01 审计](docs/audits/m49/d01-20261016/README.md)。D01/F01/R01～R03 仍未整体完成，换机接续见 [M49 交接](docs/handoffs/m49-next-computer.md)。
+
 2026-10-16：新增 **[M48：单机日志与事件分析](#milestone-48)**，将 ELK 核心日志场景落实为可靠摄取、联合检索/统计、磁盘访问、生命周期、日志探索和规则告警的增量规划。`M48-L01`～`L20` 为 R1 必选，`L21`～`L24` 为条件候选，当前全部 `📋 planned`；完整字段/确认/查询/恢复合同、24 个工作包、阶段退出与验收矩阵见 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。R1 的目标版本与日期在 L01 冻结，不将全部 M48 自动追加为既有 4.5 正式版或已发布 Workbench 预览的门槛。
 
 2026-10-16：第二批 [十项产品切片](docs/audits/implementation-batch-02-20261016.md)已完成本地实现：GH-Issue #226 存量主键列重命名，#231 持久序列/原子取号/逐行插入，#237 表列注释，#240 字符串长度声明/演进/元数据，以及 #243 有主键和复合主键有界删除。扩大 Core 3157 项、Server SQL/ADO/Frame 412 项（含真实 REST/h2c，本批新增 18 项中 17 项为真实网络）及实际强制终止恢复 2 项回归通过，最终冻结复核与本地提交见根 HANDOFF。表目录含新属性时写 v12，旧引擎拒绝；未改行或键编码。#226 主键类型/定义、#227 DDL 事务、#232/#233/#236 及无主键依赖继续排队；正式发布及 ORM 消费者验收另计，不能由这些切片关闭整个 Issue。

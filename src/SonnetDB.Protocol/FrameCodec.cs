@@ -5,7 +5,7 @@ namespace SonnetDB.Protocol;
 
 /// <summary>
 /// 帧信封编解码：帧头 + payload 的写入与增量解析。
-/// payload 内容的编解码由各 service 的 codec（如 <see cref="MqFrameCodec"/>）负责。
+/// payload 内容的编解码由各 service 的模型 codec 负责。
 /// </summary>
 public static class FrameCodec
 {
