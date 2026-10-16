@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SonnetDB.Contracts;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
@@ -93,7 +93,8 @@ internal static class SchemaEndpointHandler
                     index.IsUnique,
                     ToDateTimeOffset(index.CreatedAtUtcTicks),
                     Rebuildable: true,
-                    JsonPath: index.JsonPath));
+                    JsonPath: index.JsonPath)
+                { Descending = index.Descending.ToList(), IncludedColumns = index.IncludedColumns.ToList() });
             }
 
             var foreignKeys = new List<TableForeignKeyInfo>(schema.ForeignKeys.Count);
@@ -114,7 +115,7 @@ internal static class SchemaEndpointHandler
                 indexes,
                 ToDateTimeOffset(schema.CreatedAtUtcTicks),
                 foreignKeys)
-            { Comment = schema.Comment });
+            { Comment = schema.Comment, PrimaryKeyConstraintName = schema.PrimaryKeyConstraintName });
         }
 
         return result;

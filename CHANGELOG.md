@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #250：补齐持久真实主键名称和 `information_schema.table_constraints`、实际 DESC 索引编码与 INCLUDE 类型化载荷、`ALTER TABLE ... AUTO_INCREMENT = n` 原生下一值维护。约束改名/删除、索引覆盖读取/事务/迁移/在线恢复、真实三协议维护及终止恢复已补验；含主键目录和新索引选项使用永久 v16 屏障，在线新选项断点 v2，旧引擎拒绝且降级须恢复升级前副本，未改变 FileHeader。正式包、SqlSugar 上游交付与标准 CodeFirst 的 #227 事务 DDL 条件仍待完成。
+
 - 表目录临时文件占用回归将同步保存放在专用线程，避免单核/双核测试进程中的线程池饥饿延迟文件锁释放；保留实际 Windows 文件锁、75ms 释放条件及生产重试次数和间隔，旧源码失败与修正后验证分别留档。
 
 - GH-Issue #251：新增独立 DATETIMEOFFSET 声明、UTC 100ns ticks 持久化及通用 ADO.NET 原生读取；默认 DateTimeOffset 参数使用新类型，显式 DbType.DateTime/DateTime2 保留旧 DATETIME 毫秒合同。混合比较在扫描和副作用前明确拒绝。表目录永久提升至 v15、原生物化声明快照 v4、REST/Frame 结果 v6；旧格式可读，旧引擎拒绝新目录，降级须使用升级前副本。附迁移强杀、真实 Chloe 三协议及旧端兼容证据，正式包与 Chloe 上游交付仍待完成。

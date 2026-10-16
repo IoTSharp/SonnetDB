@@ -23,7 +23,7 @@ public sealed partial class CrashReliabilityTests
         AssertMigrationState(root, committed, phase == "after_page" ? 1032 : 2);
         int version = BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(
             Path.Combine(root, "tables", TableSchemaCodec.FileName)).AsSpan(8));
-        Assert.Equal(phase == "before_barrier" ? 11 : 13, version);
+        Assert.Equal(16, version);
     }
 
     [Theory]
@@ -54,7 +54,7 @@ public sealed partial class CrashReliabilityTests
             try { WaitForReady(process, readyFile, TimeSpan.FromSeconds(10)); }
             finally { TerminateAndWait(process, TimeSpan.FromSeconds(10)); }
         }
-        Assert.Equal(13, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(
+        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(
             Path.Combine(root, "tables", TableSchemaCodec.FileName)).AsSpan(8)));
         AssertMigrationState(root, committed: false, expectedRows: 2);
         using (var db = Tsdb.Open(MakeOptions(root)))

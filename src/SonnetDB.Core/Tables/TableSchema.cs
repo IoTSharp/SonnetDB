@@ -24,6 +24,7 @@ public sealed class TableSchema
         Name = name;
         Columns = columns;
         PrimaryKey = primaryKey;
+        PrimaryKeyConstraintName = primaryKey.Count == 0 ? null : CreatePrimaryKeyName(name, foreignKeys, checkConstraints);
         Indexes = indexes;
         ForeignKeys = foreignKeys;
         CheckConstraints = checkConstraints;
@@ -44,6 +45,44 @@ public sealed class TableSchema
 
     /// <summary>按声明顺序排列的主键列名。</summary>
     public IReadOnlyList<string> PrimaryKey { get; }
+
+    /// <summary>持久主键约束名；无主键时为 null，重命名表或列不改变该名称。</summary>
+    public string? PrimaryKeyConstraintName { get; private init; }
+
+    /// <summary>设置真实主键约束名称，并校验单表内约束名称冲突。</summary>
+    /// <param name="name">主键名称；无主键时只能为 null。</param>
+    /// <returns>保留其余元数据的新表结构。</returns>
+    public TableSchema WithPrimaryKeyConstraintName(string? name)
+    {
+        if (PrimaryKey.Count == 0)
+        {
+            if (name is not null) throw new ArgumentException("无主键表不能声明主键约束名。", nameof(name));
+        }
+        else
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(name);
+            if (System.Text.Encoding.UTF8.GetByteCount(name) > ushort.MaxValue)
+                throw new ArgumentException("主键约束名的 UTF-8 长度不能超过 65535 字节。", nameof(name));
+            if (ForeignKeys.Select(static key => key.Name).Concat(CheckConstraints.Select(static check => check.Name))
+                .Any(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException($"约束 '{name}' 已存在。", nameof(name));
+        }
+        return new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+        { Comment = Comment, PrimaryKeyConstraintName = name };
+    }
+
+    private static string CreatePrimaryKeyName(string tableName, IReadOnlyList<TableForeignKey> foreignKeys,
+        IReadOnlyList<TableCheckConstraint> checks)
+    {
+        var used = foreignKeys.Select(static key => key.Name).Concat(checks.Select(static check => check.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string prefix = "pk_" + tableName;
+        if (System.Text.Encoding.UTF8.GetByteCount(prefix) > ushort.MaxValue - 16)
+            prefix = "pk_" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(tableName)));
+        string name = prefix;
+        for (int suffix = 1; used.Contains(name); suffix++) name = prefix + "_" + suffix;
+        return name;
+    }
 
     /// <summary>按创建顺序排列的二级索引声明。</summary>
     public IReadOnlyList<TableIndex> Indexes { get; }
@@ -447,7 +486,7 @@ public sealed class TableSchema
             throw new InvalidOperationException($"table '{Name}' 中索引 '{definition.Name}' 已存在。");
 
         var definitions = Indexes
-            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
+            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath) { Descending = i.Descending, IncludedColumns = i.IncludedColumns })
             .Append(definition)
             .ToArray();
         return CreateWithInheritedMetadata(
@@ -479,7 +518,7 @@ public sealed class TableSchema
 
         var definitions = Indexes
             .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
-            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
+            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath) { Descending = i.Descending, IncludedColumns = i.IncludedColumns })
             .ToArray();
         return CreateWithInheritedMetadata(
             Name,
@@ -809,7 +848,7 @@ public sealed class TableSchema
             throw new InvalidOperationException("ALTER TABLE DROP COLUMN 当前不支持删除 PRIMARY KEY 列。");
         foreach (var index in Indexes)
         {
-            if (index.Columns.Any(c => string.Equals(c, name, StringComparison.Ordinal)))
+            if (index.Columns.Concat(index.IncludedColumns).Any(c => string.Equals(c, name, StringComparison.Ordinal)))
                 throw new InvalidOperationException($"列 '{name}' 被索引 '{index.Name}' 引用，不能删除。");
         }
         foreach (var foreignKey in ForeignKeys)
@@ -933,7 +972,7 @@ public sealed class TableSchema
     /// <param name="comment">注释文本；null 清除注释；持久化 UTF-8 长度最多 65535 字节。</param>
     /// <returns>保留其余定义的新 schema。</returns>
     public TableSchema WithComment(string? comment)
-        => new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks) { Comment = comment };
+        => new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks) { Comment = comment, PrimaryKeyConstraintName = PrimaryKeyConstraintName };
 
     /// <summary>返回设置或清除列注释后的新 schema。</summary>
     /// <param name="columnName">已绑定的原始列名。</param>
@@ -964,7 +1003,7 @@ public sealed class TableSchema
     private TableSchema WithColumnMetadata(TableColumn column)
         => new(Name, Columns.Select(current => current.Ordinal == column.Ordinal ? column : current).ToArray(),
             PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
-        { Comment = Comment };
+        { Comment = Comment, PrimaryKeyConstraintName = PrimaryKeyConstraintName };
 
     private TableSchema InheritMetadata(TableSchema source, (string OldName, string NewName)? rename = null)
     {
@@ -979,7 +1018,7 @@ public sealed class TableSchema
             };
         }).ToArray();
         return new TableSchema(Name, columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
-        { Comment = source.Comment };
+        { Comment = source.Comment }.WithPrimaryKeyConstraintName(PrimaryKey.Count == 0 ? null : source.PrimaryKeyConstraintName ?? PrimaryKeyConstraintName);
     }
 
     private TableSchema CreateWithInheritedMetadata(
@@ -1068,12 +1107,22 @@ public sealed class TableSchema
                     throw new ArgumentException($"JSON path 索引 '{index.Name}' 的列 '{column.Name}' 必须是 JSON 类型。", nameof(indexes));
             }
 
+            if (index.Descending.Count != 0 && index.Descending.Count != index.Columns.Count)
+                throw new ArgumentException("索引方向数必须等于键列数。", nameof(indexes));
+            if (index.JsonPath is not null && (index.Descending.Any(static direction => direction) || index.IncludedColumns.Count != 0))
+                throw new ArgumentException("JSON path 索引不支持方向或包含列。", nameof(indexes));
+            foreach (string included in index.IncludedColumns)
+            {
+                if (!columnNames.Contains(included) || !seenIndexColumns.Add(included))
+                    throw new ArgumentException($"索引 '{index.Name}' 包含列 '{included}' 不存在、重复或与键列重叠。", nameof(indexes));
+            }
             result.Add(new TableIndex(
                 index.Name,
                 indexColumns.AsReadOnly(),
                 index.IsUnique,
                 index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks,
-                index.JsonPath));
+                index.JsonPath)
+            { Descending = index.Descending.ToArray(), IncludedColumns = index.IncludedColumns.ToArray() });
         }
 
         return result;
@@ -1184,7 +1233,11 @@ public sealed class TableSchema
                     .ToArray();
             }
 
-            return new TableIndexDefinition(i.Name, columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath);
+            return new TableIndexDefinition(i.Name, columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath)
+            {
+                Descending = i.Descending,
+                IncludedColumns = i.IncludedColumns.Select(c => renameColumn is { } rename && c == rename.OldName ? rename.NewName : c).ToArray(),
+            };
         }).ToArray();
 
     private IReadOnlyList<TableForeignKeyDefinition> ForeignKeyDefinitions((string OldName, string NewName)? renameColumn = null)

@@ -210,7 +210,7 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
         string schemaPath;
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT)");
             Execute(database, "INSERT INTO offsets(id,Stamp) VALUES(1,639270596961230001)");
             schemaPath = database.Tables.SchemaPath;
             Execute(database, "ALTER TABLE offsets ALTER COLUMN Stamp DATETIMEOFFSET");
@@ -350,7 +350,7 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
     {
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT)");
             Execute(database, "INSERT INTO offsets(id,Stamp) VALUES(1,1),(2,639270596961230001)");
             database.Tables.SchemaMigrationPhaseTestHook = phase =>
             {
@@ -372,7 +372,7 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
         string restored = Path.Combine(_root, "restored");
         using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "source") }))
         {
-            Execute(database, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET NULL, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET NULL)");
             Execute(database, "CREATE INDEX ix_stamp ON offsets(Stamp)");
             Execute(database, "INSERT INTO offsets(id,Stamp) VALUES(1,CAST(1 AS DATETIMEOFFSET)),(2,CAST(3155378975999999999 AS DATETIMEOFFSET)),(3,NULL)");
             new BackupService().Create(database, new BackupCreateOptions { DestinationDirectory = backup });
@@ -391,7 +391,7 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
         string temporary;
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE offsets(id INT, Stamp INT)");
             Execute(database, "INSERT INTO offsets(id,Stamp) VALUES(1,1)");
             temporary = database.Tables.SchemaPath + ".tmp";
             Directory.CreateDirectory(temporary);
@@ -415,13 +415,13 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
         using (var database = OpenDatabase())
         {
             database.Tables.AfterCatalogPersistedBeforePublishTestHook = () => throw new IOException("injected offset publish failure");
-            Assert.Throws<IOException>(() => Execute(database, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET, PRIMARY KEY(id))"));
+            Assert.Throws<IOException>(() => Execute(database, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET)"));
             Assert.Empty(database.Tables.Catalog.Snapshot());
             Assert.Equal(15, TableSchemaCodec.ReadFormatVersion(database.Tables.SchemaPath));
         }
         using var reopened = OpenDatabase();
         Assert.Empty(reopened.Tables.Catalog.Snapshot());
-        Execute(reopened, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET, PRIMARY KEY(id))");
+        Execute(reopened, "CREATE TABLE offsets(id INT, Stamp DATETIMEOFFSET)");
         Execute(reopened, "INSERT INTO offsets(id,Stamp) VALUES(1,CAST(1 AS DATETIMEOFFSET))");
         Assert.Equal(new DateTimeOffset(1, TimeSpan.Zero), Query(reopened, "SELECT Stamp FROM offsets").Rows[0][0]);
     }

@@ -560,6 +560,8 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("ORDINAL_POSITION", typeof(int));
         table.Columns.Add("JSON_PATH", typeof(string));
         table.Columns.Add("CREATED_UTC", typeof(DateTime));
+        table.Columns.Add("SORT_DIRECTION", typeof(string));
+        table.Columns.Add("IS_INCLUDED", typeof(bool));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var indexNameRestriction = Restriction(restrictionValues, 3);
@@ -573,7 +575,8 @@ public sealed class SndbConnection : DbConnection
                 if (!MatchesRestriction(index.Name, indexNameRestriction))
                     continue;
 
-                for (var i = 0; i < index.Columns.Count; i++)
+                var allColumns = index.Columns.Concat(index.IncludedColumns).ToArray();
+                for (var i = 0; i < allColumns.Length; i++)
                 {
                     table.Rows.Add(
                         Database,
@@ -581,10 +584,12 @@ public sealed class SndbConnection : DbConnection
                         schema.Name,
                         index.Name,
                         index.IsUnique,
-                        index.Columns[i],
+                        allColumns[i],
                         i + 1,
                         index.JsonPath ?? string.Empty,
-                        new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc));
+                        new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc),
+                        i < index.Columns.Count ? (index.Descending.Count != 0 && index.Descending[i] ? "DESC" : "ASC") : DBNull.Value,
+                        i >= index.Columns.Count);
                 }
             }
         }

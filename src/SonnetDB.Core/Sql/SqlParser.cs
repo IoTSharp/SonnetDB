@@ -1104,15 +1104,32 @@ public sealed class SqlParser
         Expect(TokenKind.LeftParen);
         var columns = new List<string>();
         var columnIsQuoted = new List<bool>();
-        columns.Add(ExpectIndexColumnOrPath(out bool firstIsQuoted));
-        columnIsQuoted.Add(firstIsQuoted);
-        while (Current.Kind == TokenKind.Comma)
+        var descending = new List<bool>();
+        do
+        {
+            columns.Add(ExpectIndexColumnOrPath(out bool quoted));
+            columnIsQuoted.Add(quoted);
+            descending.Add(Current.Kind == TokenKind.KeywordDesc);
+            if (Current.Kind is TokenKind.KeywordAsc or TokenKind.KeywordDesc) Advance();
+            if (Current.Kind != TokenKind.Comma) break;
+            Advance();
+        } while (true);
+        Expect(TokenKind.RightParen);
+        var included = new List<string>();
+        var includedQuoted = new List<bool>();
+        if (IsIdentifier("include"))
         {
             Advance();
-            columns.Add(ExpectIndexColumnOrPath(out bool nextIsQuoted));
-            columnIsQuoted.Add(nextIsQuoted);
+            Expect(TokenKind.LeftParen);
+            do
+            {
+                included.Add(ExpectIdentifierName(out bool quoted));
+                includedQuoted.Add(quoted);
+                if (Current.Kind != TokenKind.Comma) break;
+                Advance();
+            } while (true);
+            Expect(TokenKind.RightParen);
         }
-        Expect(TokenKind.RightParen);
 
         long? ttlSeconds = null;
         if (ttl)
@@ -1142,6 +1159,9 @@ public sealed class SqlParser
             IndexNameIsQuoted = indexNameIsQuoted,
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnIsQuoted = columnIsQuoted,
+            Descending = descending,
+            IncludedColumns = included,
+            IncludedColumnIsQuoted = includedQuoted,
         };
     }
 
@@ -1396,6 +1416,7 @@ public sealed class SqlParser
         var columns = new List<TableColumnDefinition>();
         var primaryKey = new List<string>();
         var primaryKeyColumnIsQuoted = new List<bool>();
+        string? primaryKeyConstraintName = null;
         var foreignKeys = new List<TableForeignKeyClause>();
         var checkConstraints = new List<TableCheckConstraintClause>();
         while (true)
@@ -1419,7 +1440,14 @@ public sealed class SqlParser
             {
                 Advance();
                 var constraintName = ExpectIdentifierName();
-                if (Current.Kind == TokenKind.KeywordForeign)
+                if (Current.Kind == TokenKind.KeywordPrimary)
+                {
+                    if (primaryKey.Count > 0) throw Error("PRIMARY KEY 子句重复声明");
+                    primaryKey.AddRange(ParsePrimaryKeyClause(out var quotedColumns));
+                    primaryKeyColumnIsQuoted.AddRange(quotedColumns);
+                    primaryKeyConstraintName = constraintName;
+                }
+                else if (Current.Kind == TokenKind.KeywordForeign)
                 {
                     foreignKeys.Add(ParseForeignKeyClause(constraintName));
                 }
@@ -1454,6 +1482,7 @@ public sealed class SqlParser
         {
             NameIsQuoted = nameIsQuoted,
             PrimaryKeyColumnIsQuoted = primaryKeyColumnIsQuoted,
+            PrimaryKeyConstraintName = primaryKeyConstraintName,
             ModbusBinding = modbusBinding,
         };
     }
@@ -5641,6 +5670,17 @@ public sealed class SqlParser
     {
         Expect(TokenKind.KeywordTable);
         var tableName = ExpectIdentifierName(out bool tableNameIsQuoted);
+        if (IsIdentifier("auto_increment"))
+        {
+            Advance();
+            Expect(TokenKind.Equal);
+            if (Current.Kind != TokenKind.IntegerLiteral
+                || !long.TryParse(Current.Text, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out long next) || next <= 0)
+                throw Error("AUTO_INCREMENT 下一值必须为 1..Int64.MaxValue 的整数。");
+            Advance();
+            return new AlterTableAutoIncrementStatement(tableName, next) { TableNameIsQuoted = tableNameIsQuoted };
+        }
         if (Current.Kind == TokenKind.KeywordAlter)
         {
             Advance();

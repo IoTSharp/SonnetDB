@@ -19,7 +19,8 @@ internal static class DateTimeOffsetMigrationCrashScenario
             throw new InvalidOperationException("DateTimeOffset recovery boundary was not reached.");
         }
         using var db = Tsdb.Open(Options(root));
-        SqlExecutor.Execute(db, "CREATE TABLE offsets(id INT,stamp INT,label STRING,PRIMARY KEY(id))");
+        // 无主键夹具保留 DATETIMEOFFSET 独立的 v13→v15 屏障断言，不预先启用命名主键的 v16。
+        SqlExecutor.Execute(db, "CREATE TABLE offsets(id INT,stamp INT,label STRING)");
         SqlExecutor.Execute(db, "CREATE INDEX ix_stamp ON offsets(stamp)");
         SqlExecutor.Execute(db, "INSERT INTO offsets(id,stamp,label) VALUES(1,1,'negative'),(2,639270596961230001,'long')");
         db.Tables.CheckpointAll();

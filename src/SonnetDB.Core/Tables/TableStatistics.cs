@@ -259,7 +259,7 @@ internal static class TableStatisticsCalculator
                         primaryKey.Span,
                         out int keyLength);
                     if (hasIndexEntry)
-                        indexes[index].Add(checked(keyLength + primaryKey.Length));
+                        indexes[index].Add(checked(keyLength + (indexes[index].Index.IncludedColumns.Count == 0 ? primaryKey.Length : TableIndexCodec.EncodeIndexEntryValue(indexes[index].Index, schema, values, primaryKey.Span).Length)));
                 }
             }
         }

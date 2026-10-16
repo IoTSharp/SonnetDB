@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace SonnetDB.Data.Remote;
 
@@ -124,6 +124,9 @@ internal sealed record RemoteTableInfo(
     DateTimeOffset CreatedUtc,
     List<RemoteTableForeignKeyInfo>? ForeignKeys = null)
 {
+    /// <summary>真实持久化的主键约束名称。</summary>
+    public string? PrimaryKeyConstraintName { get; init; }
+
     /// <summary>表注释；null 表示没有注释。</summary>
     public string? Comment { get; init; }
 }
@@ -220,4 +223,10 @@ internal sealed record RemoteTableIndexInfo(
     bool IsUnique,
     DateTimeOffset CreatedUtc,
     bool Rebuildable,
-    string? JsonPath = null);
+    string? JsonPath = null)
+{
+    /// <summary>各键列的 DESC 标记。</summary>
+    public List<bool>? Descending { get; init; }
+    /// <summary>索引包含列。</summary>
+    public List<string>? IncludedColumns { get; init; }
+}

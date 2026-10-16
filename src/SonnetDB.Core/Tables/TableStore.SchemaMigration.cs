@@ -87,12 +87,13 @@ public sealed partial class TableStore
                     {
                         byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(index, values, updated, primaryKey);
                         if (indexKey is null) continue;
-                        _keyspace.ValidateWrite(indexKey, primaryKey);
+                        byte[] indexValue = TableIndexCodec.EncodeIndexEntryValue(index, updated, values, primaryKey);
+                        _keyspace.ValidateWrite(indexKey, indexValue);
                         if (index.IsUnique && !uniqueKeys.Add(indexKey))
                             throw new TableConstraintException(TableConstraintException.UniqueViolation,
                                 updated.Name, index.Name, $"索引 '{index.Name}' 的迁移目标值存在重复。");
-                        budget.Reserve(128L + indexKey.Length * 3L + primaryKey.Length);
-                        after[indexKey] = primaryKey;
+                        budget.Reserve(128L + indexKey.Length * 3L + indexValue.Length);
+                        after[indexKey] = indexValue;
                     }
                 }, cancellationToken);
 

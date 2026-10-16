@@ -1,0 +1,172 @@
+using System.Buffers.Binary;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string mode = args[0];
+string root = Path.GetFullPath(args[1]);
+string schemaPath = Path.Combine(root, "tables", "tables.tblschema");
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+
+try
+{
+    switch (mode)
+    {
+        case "create-legacy":
+            Require(!Directory.Exists(root), "The legacy fixture directory already exists.");
+            using (var connection = Open())
+            {
+                Execute(connection, "CREATE TABLE Parent(Id INT,PRIMARY KEY(Id))");
+                Execute(connection, "CREATE TABLE Legacy(Id INT,ParentId INT,Value INT,PRIMARY KEY(Id),CONSTRAINT pk_Legacy FOREIGN KEY(ParentId) REFERENCES Parent(Id),CONSTRAINT PK_Legacy_1 CHECK(Value>=0))");
+                Execute(connection, "CREATE INDEX IxLegacy ON Legacy(Value)");
+                Execute(connection, "INSERT INTO Parent(Id) VALUES(1)");
+                Execute(connection, "INSERT INTO Legacy(Id,ParentId,Value) VALUES(1,1,1)");
+                Require(Scalar(connection, "SELECT COUNT(*) FROM Legacy") == 1, "Legacy seed row was not stored.");
+            }
+            Console.WriteLine($"LEGACY|version={ReadVersion()}|schemaSha256={HashFile(schemaPath)}");
+            break;
+        case "verify-upgrade":
+            string primaryName;
+            using (var connection = Open())
+            {
+                primaryName = ReadPrimaryName(connection, "Legacy");
+                Require(!string.Equals(primaryName, "pk_Legacy", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(primaryName, "PK_Legacy_1", StringComparison.OrdinalIgnoreCase), "Migrated primary key name collides with a stored constraint.");
+                Require(Scalar(connection, "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_name='Legacy'") == 3, "Constraint directory lost a stored constraint.");
+                Execute(connection, "ALTER TABLE Legacy RENAME TO RenamedLegacy");
+                Execute(connection, "ALTER TABLE RenamedLegacy RENAME COLUMN Id TO RenamedId");
+                Require(primaryName == ReadPrimaryName(connection, "RenamedLegacy"), "Renaming changed the stored primary constraint name.");
+            }
+            using (var reopened = Open())
+            {
+                Require(primaryName == ReadPrimaryName(reopened, "RenamedLegacy"), "Reopening changed the primary constraint name.");
+                Execute(reopened, $"ALTER TABLE RenamedLegacy DROP CONSTRAINT {Quote(primaryName)}");
+                Execute(reopened, "INSERT INTO RenamedLegacy(RenamedId,ParentId,Value) VALUES(1,1,2)");
+                Require(Scalar(reopened, "SELECT COUNT(*) FROM RenamedLegacy WHERE RenamedId=1") == 2, "Dropping the real primary name did not preserve keyless row identities.");
+                Require(Scalar(reopened, "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_name='RenamedLegacy'") == 2, "Dropping the primary constraint changed the foreign/check directory.");
+            }
+            Console.WriteLine($"UPGRADE|primaryName={primaryName}|version={ReadVersion()}|schemaSha256={HashFile(schemaPath)}");
+            break;
+        case "create-options":
+            Require(!Directory.Exists(root), "The options fixture directory already exists.");
+            using (var connection = Open())
+            {
+                Execute(connection, "CREATE TABLE Options(Id INT,Rank INT,Payload STRING,PRIMARY KEY(Id))");
+                Execute(connection, "CREATE INDEX IxOptions ON Options(Rank DESC) INCLUDE(Payload)");
+                Execute(connection, "INSERT INTO Options(Id,Rank,Payload) VALUES(1,1,'kept')");
+                Require(Scalar(connection, "SELECT COUNT(*) FROM Options WHERE Rank=1") == 1, "Options fixture row was not stored.");
+            }
+            Console.WriteLine($"OPTIONS|version={ReadVersion()}|schemaSha256={HashFile(schemaPath)}");
+            break;
+        case "remove-options":
+            int previousVersion = ReadVersion();
+            using (var connection = Open())
+            {
+                Execute(connection, "DROP INDEX IxOptions ON Options");
+                Execute(connection, "DROP TABLE Options");
+            }
+            Require(ReadVersion() == previousVersion, "Removing the last option lowered the permanent schema barrier.");
+            Console.WriteLine($"REMOVED|version={ReadVersion()}|schemaSha256={HashFile(schemaPath)}");
+            break;
+        case "reject-old":
+            string originalSchemaHash = HashFile(schemaPath);
+            Exception? rejection = null;
+            try
+            {
+                using var connection = Open();
+            }
+            catch (Exception exception)
+            {
+                rejection = exception;
+            }
+            Require(rejection is not null, "Old engine opened a directory with an unsupported maintenance format.");
+            Require(EnumerateExceptions(rejection!).Any(exception => exception is InvalidDataException
+                && exception.Message.Contains("unsupported format version", StringComparison.Ordinal)), "Open failed for a reason other than the format barrier.");
+            Require(originalSchemaHash == HashFile(schemaPath), "Rejected old open modified the schema file.");
+            Console.WriteLine($"REJECTED|version={ReadVersion()}|schemaSha256={originalSchemaHash}");
+            break;
+        default:
+            throw new ArgumentException("Unknown compatibility probe mode.");
+    }
+    Console.WriteLine($"COMPLETE|{mode}|PASS");
+    return 0;
+}
+catch (Exception exception)
+{
+    Console.WriteLine($"COMPLETE|{mode}|FAIL|{exception.GetType().Name}|{exception.Message}");
+    return 1;
+}
+
+SndbConnection Open()
+{
+    var connection = new SndbConnection($"Data Source={root}");
+    try
+    {
+        connection.Open();
+        return connection;
+    }
+    catch
+    {
+        connection.Dispose();
+        throw;
+    }
+}
+
+int ReadVersion()
+{
+    using var stream = File.OpenRead(schemaPath);
+    Span<byte> header = stackalloc byte[12];
+    stream.ReadExactly(header);
+    Require(header[..8].SequenceEqual("SDBTBLv1"u8), "Invalid schema file magic.");
+    return BinaryPrimitives.ReadInt32LittleEndian(header[8..]);
+}
+
+static string HashFile(string path)
+{
+    using var file = File.OpenRead(path);
+    return Convert.ToHexString(SHA256.HashData(file));
+}
+
+static string ReadPrimaryName(SndbConnection connection, string tableName)
+{
+    using var command = connection.CreateCommand();
+    command.CommandText = $"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name='{tableName}' AND constraint_type='PRIMARY KEY'";
+    using var reader = command.ExecuteReader();
+    Require(reader.Read(), "Primary constraint directory row is missing.");
+    string name = reader.GetString(0);
+    Require(!reader.Read(), "Primary constraint directory is ambiguous.");
+    return name;
+}
+
+static void Execute(SndbConnection connection, string sql)
+{
+    using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    command.ExecuteNonQuery();
+}
+
+static long Scalar(SndbConnection connection, string sql)
+{
+    using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+}
+
+static IEnumerable<Exception> EnumerateExceptions(Exception exception)
+{
+    for (Exception? current = exception; current is not null; current = current.InnerException)
+        yield return current;
+}
+
+static string Quote(string name) => "\"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+static void Require(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException(message);
+}

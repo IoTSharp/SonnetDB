@@ -222,7 +222,7 @@ CREATE TABLE devices (
 
 规则：
 
-- 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
+- 可声明 `PRIMARY KEY (...)` 或 `CONSTRAINT name PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。无主键关系表使用稳定内部行身份，允许重复行。
 - 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
@@ -323,11 +323,11 @@ ALTER TABLE table_name ALTER [COLUMN] column_name
 - 真正改变物理类型的迁移当前使用单个 KV 原子 batch，受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制（默认分别为 100,000 条 mutation 和 256 MiB WAL）。超出预算时会在写 WAL 前拒绝；应先提高预算，或通过新表分批迁移。`SET/DROP DEFAULT`、`DROP NOT NULL` 和列重命名只发布元数据，不受该 batch 行数限制。
 - `SET NOT NULL` 会分页扫描并验证全部存量行，但不会重写 row payload；`DROP NOT NULL` 与直接写 `NULL` 等价，`NOT NULL` 与 `SET NOT NULL` 等价。
 - `SET DEFAULT` 只影响之后省略该列的 `INSERT`，不会回填存量行；`DROP DEFAULT` 只移除后续插入的默认行为。目标类型或空值约束发生变化时，保留或新设的默认表达式也会按新定义重新校验。
-- PRIMARY KEY 列不能修改类型或改为可空；ROWVERSION 列不能修改类型、空值约束或默认值；参与外键的引用列或被引用列不能修改类型，必须先删除相应外键约束。
+- PRIMARY KEY 列的类型变更与入站外键转换遵循 [持久主键迁移](sql-primary-key-migration.md)；主键仍不能改为可空。ROWVERSION 列不能修改类型、空值约束或默认值；其它受外键依赖的列继续按现有依赖规则拒绝不支持的变更。
 - 被逻辑视图、物化视图、存储过程或触发器依赖的表仍受既有依赖保护，必须先移除依赖对象再修改 schema。
 - `ADD COLUMN ... NOT NULL` 当前即使目标表为空也要求 `DEFAULT`；有入站外键引用的父表不能 `RENAME TABLE` 或 `DROP TABLE`，必须先删除子表外键。
 
-现有关系表可在事务外追加生成列，并在空表上重定义主键：
+现有关系表可在事务外追加生成列，并通过持久迁移重定义主键：
 
 ```sql
 ALTER TABLE devices ADD COLUMN id INT AUTO_INCREMENT;
@@ -338,8 +338,8 @@ ALTER TABLE devices ADD CONSTRAINT pk_devices PRIMARY KEY (id);
 
 - `ADD COLUMN ... AUTO_INCREMENT` 对已有行按旧主键编码顺序分配从 `1` 开始的值；新插入行从现有最大值加一继续。序列高水位与回填行在同一 KV batch 持久化，正常关闭并重开后继续增长。每张表只能有一个 `INT AUTO_INCREMENT`；显式 `NULL`、`DEFAULT`、`ROWVERSION` 组合及非 `INT` 类型被拒绝。
 - `ADD COLUMN ... ROWVERSION` 把已有行初始化为 `1`，后续 `UPDATE` 自动加一；每张表只能有一个 `INT ROWVERSION`，且该列不可空、不可声明默认值或手动赋值。
-- `CREATE TABLE` 可暂不声明主键，形成仅供 schema 演进的无主键空表；该表可以查询和追加列，但补齐主键前任何行写入均以 `table_schema_evolution_unsupported` 拒绝，不分配身份序列。上述 `CREATE TABLE devices (code STRING NOT NULL)` 后追加 `id`、主键与 `version` 的路线可执行；补齐主键后才能开始写入。
-- `ADD [CONSTRAINT pk_<table>] PRIMARY KEY (...)` 和 `ALTER PRIMARY KEY (...)` 仅支持空表。复合主键可用；有任意存量行、入站外键或自定义约束名时返回 `table_schema_evolution_unsupported`。已有行需要在事务外创建带目标主键的新表、分批回填并验证唯一性及约束，再切换应用访问；当前没有原子切换协议。
+- `CREATE TABLE` 可以不声明主键；内部稳定行身份支持持久写入、重复行和事务。之后可追加生成列并建立主键，仍须满足目标唯一性、非空及依赖约束。
+- `ADD [CONSTRAINT name] PRIMARY KEY (...)` 和 `ALTER PRIMARY KEY (...)` 支持已占用表的持久迁移及复合主键；名称实际保存，入站外键按迁移合同处理。详见 [主键迁移](sql-primary-key-migration.md) 与 [约束/自增维护](sql-maintenance.md)，不能将它们概括为任意 schema DDL 都可在轻事务内执行。
 - 生成列追加复用行改写和索引重建路径，保留既有默认值、CHECK 和外键约束；DDL 不允许放在活动轻事务中。行改写受单个 KV batch 预算限制，并沿用上述进程终止/掉电非原子性边界。成功后新 schema 对新的 `DESCRIBE TABLE` 和 ADO.NET `GetSchema("Columns")` 读取可见；失败不更新 catalog。
 
 已有表还可追加或删除外键和检查约束。追加约束前会扫描存量行；任一行违反约束时 DDL 失败且 catalog 保持原状。
@@ -684,6 +684,7 @@ statement 参考的吞吐、关系表 WAL/rowstore 有符号差值、托管内�
 CREATE INDEX idx_devices_tenant ON devices (tenant);
 CREATE UNIQUE INDEX ux_devices_serial ON devices (serial);
 CREATE INDEX IF NOT EXISTS idx_devices_site ON devices (site, name);
+CREATE INDEX idx_devices_cover ON devices (site DESC, name ASC) INCLUDE (id);
 
 DROP INDEX idx_devices_site ON devices;
 ```
@@ -692,6 +693,7 @@ DROP INDEX idx_devices_site ON devices;
 
 - 索引名在单表内唯一。
 - 索引列必须存在，可包含 1 个或多个列。
+- 键列支持 `ASC` / `DESC`，包含列使用 `INCLUDE (...)` 保存真实载荷且不参与唯一性。原生目录与 ADO schema 暴露方向和包含列；在线续建也保存这些选项。格式 v16、覆盖查询及不支持的索引种类见 [维护合同](sql-maintenance.md)。
 - 唯一索引会在 `INSERT` / `UPDATE` / 轻事务提交时校验现有数据和同批数据冲突。
 - `SELECT` / `UPDATE` / `DELETE` 会使用联合索引从首列开始的最长连续等值前缀；索引未覆盖的条件继续对候选行执行完整 `WHERE` 过滤。
 - 连续等值前缀后的下一列为 `INT` 或 `DATETIME` 时，`<`、`<=`、`>`、`>=` 可继续作为索引范围。例如索引 `(a, b, c, d)` 可服务 `a = ? AND b = ? AND c >= ? AND c < ?`，`d` 和其它条件作为残余过滤。

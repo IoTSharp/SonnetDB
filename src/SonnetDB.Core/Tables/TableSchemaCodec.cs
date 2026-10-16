@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 15;
+    private const int _formatVersion = 16;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -53,6 +53,13 @@ public static class TableSchemaCodec
         string tempSuffix = ".tmp", int minimumVersion = 13)
     {
         SaveCore(path, schemas, tempSuffix, minimumVersion: Math.Max(13, minimumVersion));
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
+    }
+
+    /// <summary>在写入新索引编码或在线断点前持久化不可降级的 v16 屏障。</summary>
+    internal static void SaveWithMaintenanceBarrier(string path, IReadOnlyList<TableSchema> schemas)
+    {
+        SaveCore(path, schemas, ".tmp", minimumVersion: 16);
         SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
     }
 
@@ -98,7 +105,9 @@ public static class TableSchemaCodec
     }
 
     internal static int RequiredNativeVersion(IReadOnlyList<TableSchema> schemas)
-        => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTimeOffset))
+        => schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null
+            || schema.Indexes.Any(static index => index.Descending.Any(static direction => direction) || index.IncludedColumns.Count != 0))
+            ? 16 : schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTimeOffset))
             ? 15 : ContainsDuration(schemas) ? 14 : 0;
 
     internal static bool ContainsDuration(IReadOnlyList<TableSchema> schemas)
@@ -314,6 +323,7 @@ public static class TableSchemaCodec
             }
         }
 
+        string? primaryName = version >= 16 ? ReadComment(source, crc, $"table {tableIndex} primary constraint name") : null;
         var schema = TableSchema.LoadWithDefaults(
             name,
             columns,
@@ -331,6 +341,7 @@ public static class TableSchemaCodec
             schema = schema.WithColumnLength(definition.Key, definition.Value);
         foreach (var definition in columnComments)
             schema = schema.WithColumnComment(definition.Key, definition.Value);
+        if (version >= 16) schema = schema.WithPrimaryKeyConstraintName(primaryName);
         return schema;
     }
 
@@ -351,6 +362,7 @@ public static class TableSchemaCodec
             || schema.Columns.Any(static column => column.Comment is not null || column.StringLength is not null))
                 ? 12 : 11;
         version = Math.Max(version, minimumVersion);
+        if (schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null || schema.Indexes.Any(static index => index.Descending.Any(static value => value) || index.IncludedColumns.Count != 0))) version = Math.Max(version, 16);
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
         {
@@ -426,6 +438,12 @@ public static class TableSchemaCodec
             if (jsonPathLength > ushort.MaxValue)
                 throw new InvalidDataException($"Table '{schema.Name}' 的索引 '{index.Name}' JSON path 过长。");
             totalSize += 2 + jsonPathLength;
+            if (version >= 16)
+            {
+                totalSize += index.Columns.Count + 2;
+                if (index.IncludedColumns.Count > ushort.MaxValue) throw new InvalidDataException("索引包含列过多。");
+                foreach (string included in index.IncludedColumns) totalSize += CheckedStringSize(included, "索引包含列名过长。");
+            }
         }
 
         totalSize += 2;
@@ -453,6 +471,7 @@ public static class TableSchemaCodec
                 $"Table '{schema.Name}' 的检查约束 '{checkConstraint.Name}' 表达式过长。");
         }
 
+        if (version >= 16) totalSize += CommentSize(schema.PrimaryKeyConstraintName);
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
         try
         {
@@ -529,6 +548,12 @@ public static class TableSchemaCodec
                     int pathWritten = _utf8.GetBytes(index.JsonPath, writer.FreeSpan);
                     writer.Advance(pathWritten);
                 }
+                if (version >= 16)
+                {
+                    for (int ordinal = 0; ordinal < index.Columns.Count; ordinal++) writer.WriteByte(index.IsDescending(ordinal) ? (byte)1 : (byte)0);
+                    writer.WriteUInt16((ushort)index.IncludedColumns.Count);
+                    foreach (string included in index.IncludedColumns) WriteString(ref writer, included, "索引包含列名过长。");
+                }
             }
 
             writer.WriteUInt16((ushort)schema.ForeignKeys.Count);
@@ -560,6 +585,7 @@ public static class TableSchemaCodec
                     $"Table '{schema.Name}' 的检查约束 '{checkConstraint.Name}' 表达式过长。");
             }
 
+            if (version >= 16) WriteComment(ref writer, schema.PrimaryKeyConstraintName);
             crc.Append(buffer.AsSpan(0, totalSize));
             destination.Write(buffer, 0, totalSize);
         }
@@ -602,7 +628,24 @@ public static class TableSchemaCodec
                 jsonPath = rawPath;
         }
 
-        return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt, jsonPath);
+        var descending = new bool[columnCount];
+        var included = new List<string>();
+        if (version >= 16)
+        {
+            for (int ordinal = 0; ordinal < columnCount; ordinal++)
+            {
+                ReadExactSpan(source, flags, "index direction");
+                crc.Append(flags);
+                if (flags[0] > 1) throw new InvalidDataException("索引方向字节无效。");
+                descending[ordinal] = flags[0] == 1;
+            }
+            ReadExactSpan(source, countBuffer, "included column count");
+            crc.Append(countBuffer);
+            int includedCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+            for (int ordinal = 0; ordinal < includedCount; ordinal++) included.Add(ReadString(source, crc, "included column"));
+        }
+        return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt, jsonPath)
+        { Descending = descending, IncludedColumns = included };
     }
 
     private static TableForeignKeyDefinition ReadForeignKey(Stream source, Crc32 crc, int tableIndex, int foreignKeyIndex, int version)

@@ -231,7 +231,7 @@ public sealed class SqlRelationalColumnMetadataTests : IDisposable
         }
         string path = Path.Combine(_root, "clone.tblschema");
         TableSchemaCodec.Save(path, [clone]);
-        Assert.Equal(12, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
+        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
         var loaded = Assert.Single(TableSchemaCodec.Load(path));
         Assert.Equal(clone.Comment, loaded.Comment);
         Assert.Equal(clone.Columns, loaded.Columns);
@@ -297,7 +297,7 @@ public sealed class SqlRelationalColumnMetadataTests : IDisposable
         string path = Path.Combine(_root, "invalid.tblschema");
         TableSchemaCodec.Save(path, [schema]);
         byte[] bytes = File.ReadAllBytes(path);
-        Assert.Equal(12, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8, 4)));
+        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8, 4)));
         // Header + table name + creation ticks + column count + absent table comment + column name + flags + absent default.
         int lengthOffset = 32 + 2 + "Items"u8.Length + 8 + 2 + 1 + 2 + "Name"u8.Length + 2 + 2;
         if (corruption == "comment") bytes[lengthOffset + 4] = 2;

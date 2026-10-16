@@ -43,6 +43,7 @@ internal static class SqlNameBinder
             AlterTableAddCheckConstraintStatement check => BindAddCheck(tsdb, check),
             AlterTableDropColumnStatement dropColumn => BindDropColumn(tsdb, dropColumn),
             AlterTableDropConstraintStatement dropConstraint => BindDropConstraint(tsdb, dropConstraint),
+            AlterTableAutoIncrementStatement identity => identity with { TableName = ResolveTableName(tsdb, identity.TableName, identity.TableNameIsQuoted) },
             AlterTableRenameColumnStatement renameColumn => BindRenameColumn(tsdb, renameColumn),
             AlterTableRenameTableStatement renameTable => renameTable with
             {
@@ -253,6 +254,8 @@ internal static class SqlNameBinder
         {
             TableName = schema.Name,
             IndexName = Key(statement.IndexName, statement.IndexNameIsQuoted),
+            IncludedColumns = statement.IncludedColumns.Select((name, index) =>
+                RequireColumn(schema, name, IsQuoted(statement.IncludedColumnIsQuoted, index)).Name).ToArray(),
             Columns = statement.Columns.Select((name, index) =>
                 RequireColumn(schema, name, IsQuoted(statement.ColumnIsQuoted, index)).Name).ToArray(),
         };
@@ -282,6 +285,7 @@ internal static class SqlNameBinder
             return statement;
         var matches = schema.ForeignKeys.Select(static key => key.Name)
             .Concat(schema.CheckConstraints.Select(static check => check.Name))
+            .Concat(schema.PrimaryKeyConstraintName is { } primaryName ? [primaryName] : [])
             .Where(name => Matches(name, statement.ConstraintName, statement.ConstraintNameIsQuoted))
             .ToArray();
         if (matches.Length > 1)

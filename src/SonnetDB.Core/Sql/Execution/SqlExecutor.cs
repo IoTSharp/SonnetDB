@@ -509,6 +509,7 @@ public static class SqlExecutor
             CommentOnTableStatement comment => TableSqlExecutor.ExecuteComment(tsdb, comment),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
             AlterTableAlterPrimaryKeyStatement alterPrimaryKey => TableSqlExecutor.ExecuteAlterTablePrimaryKey(tsdb, alterPrimaryKey),
+            AlterTableAutoIncrementStatement identity => ExecuteIdentityMaintenance(tsdb, identity),
             AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(tsdb, alterColumn),
             AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(tsdb, alterAddForeignKey),
             AlterTableAddCheckConstraintStatement alterAddCheckConstraint => TableSqlExecutor.ExecuteAlterTableAddCheckConstraint(tsdb, alterAddCheckConstraint),
@@ -719,6 +720,7 @@ public static class SqlExecutor
             or CommentOnTableStatement
             or AlterTableAddColumnStatement
             or AlterTableAlterPrimaryKeyStatement
+            or AlterTableAutoIncrementStatement
             or AlterTableAlterColumnStatement
             or AlterTableAddForeignKeyStatement
             or AlterTableAddCheckConstraintStatement
@@ -782,6 +784,8 @@ public static class SqlExecutor
         if (tsdb.Documents.Catalog.TryGet(statement.TableName) is not null
             || statement.Columns.Any(static c => c.StartsWith('$')))
         {
+            if (statement.Descending.Any(static direction => direction) || statement.IncludedColumns.Count != 0)
+                throw new NotSupportedException("文档索引不支持 DESC 或 INCLUDE 选项。");
             return DocumentSqlExecutor.ExecuteCreateIndex(
                 tsdb,
                 new CreateDocumentIndexStatement(
@@ -1014,6 +1018,7 @@ public static class SqlExecutor
         {
             return name.Equals("information_schema.tables", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.columns", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.table_constraints", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.indexes", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.foreign_keys", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.views", StringComparison.OrdinalIgnoreCase)
@@ -2394,6 +2399,7 @@ public static class SqlExecutor
         {
             "information_schema.tables" => BuildInformationSchemaTables(tsdb),
             "information_schema.columns" => BuildInformationSchemaColumns(tsdb),
+            "information_schema.table_constraints" => BuildInformationSchemaConstraints(tsdb),
             "information_schema.indexes" => BuildInformationSchemaIndexes(tsdb),
             "information_schema.foreign_keys" => BuildInformationSchemaForeignKeys(tsdb),
             "information_schema.views" => BuildInformationSchemaViews(tsdb),
@@ -2402,6 +2408,22 @@ public static class SqlExecutor
         };
 
         rows = ApplyInformationSchemaWhere(columns, rows, statement.Where);
+        if (statement.Projections is [var countProjection]
+            && countProjection.Expression is FunctionCallExpression { IsStar: true, IsDistinct: false, Over: null } count
+            && string.Equals(count.Name, "COUNT", StringComparison.OrdinalIgnoreCase))
+        {
+            if (statement.Having is not null)
+                throw new InvalidOperationException("INFORMATION_SCHEMA COUNT(*) 当前不支持 HAVING。");
+            columns = [countProjection.Alias ?? "count"];
+            rows = [new object?[] { (long)rows.Count }];
+            rows = ApplyInformationSchemaOrderBy(columns, rows, statement.OrderBy);
+            rows = ApplyInformationSchemaPagination(rows, statement.Pagination);
+            result = new SelectExecutionResult(columns, rows)
+            {
+                ColumnInfo = [new SelectColumnInfo(TableColumnType.Int64)],
+            };
+            return true;
+        }
         rows = ApplyInformationSchemaOrderBy(columns, rows, statement.OrderBy);
         (columns, rows) = ApplyInformationSchemaProjection(columns, rows, statement.Projections);
         rows = ApplyInformationSchemaPagination(rows, statement.Pagination);
@@ -2544,24 +2566,46 @@ public static class SqlExecutor
         return (columns, rows);
     }
 
+    private static object ExecuteIdentityMaintenance(Tsdb tsdb, AlterTableAutoIncrementStatement statement)
+    {
+        tsdb.Tables.SetAutoIncrementNextValue(statement.TableName, statement.NextValue);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_auto_increment");
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaConstraints(Tsdb tsdb)
+    {
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+        {
+            if (table.PrimaryKeyConstraintName is { } primaryName)
+                rows.Add(new object?[] { "main", table.Name, primaryName, "PRIMARY KEY" });
+            foreach (var key in table.ForeignKeys) rows.Add(new object?[] { "main", table.Name, key.Name, "FOREIGN KEY" });
+            foreach (var check in table.CheckConstraints) rows.Add(new object?[] { "main", table.Name, check.Name, "CHECK" });
+        }
+        return (["table_schema", "table_name", "constraint_name", "constraint_type"], rows);
+    }
+
     private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaIndexes(Tsdb tsdb)
     {
-        var columns = new[] { "table_schema", "table_name", "index_name", "column_name", "ordinal_position", "is_unique" };
+        var columns = new[] { "table_schema", "table_name", "index_name", "column_name", "ordinal_position", "is_unique", "sort_direction", "is_included" };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
         {
             foreach (var index in table.Indexes)
             {
-                for (var i = 0; i < index.Columns.Count; i++)
+                var allColumns = index.Columns.Concat(index.IncludedColumns).ToArray();
+                for (var i = 0; i < allColumns.Length; i++)
                 {
                     rows.Add(new object?[]
                     {
                         "main",
                         table.Name,
                         index.Name,
-                        index.Columns[i],
+                        allColumns[i],
                         (long)i + 1,
                         index.IsUnique,
+                        i < index.Columns.Count ? (index.IsDescending(i) ? "DESC" : "ASC") : null,
+                        i >= index.Columns.Count,
                     });
                 }
             }

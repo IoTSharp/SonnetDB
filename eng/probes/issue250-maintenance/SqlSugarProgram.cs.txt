@@ -1,0 +1,129 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using SqlSugar;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string label = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var db = new SqlSugarClient(new ConnectionConfig
+{
+    ConnectionString = args[0],
+    DbType = SqlSugar.DbType.SonnetDB,
+    InitKeyType = InitKeyType.Attribute,
+    IsAutoCloseConnection = true
+});
+var statements = new List<string>();
+db.Aop.OnExecutingChangeSql = (sql, parameters) =>
+{
+    statements.Add(sql);
+    Console.WriteLine("SQL|" + sql.Replace('\r', ' ').Replace('\n', ' '));
+    return new KeyValuePair<string, SugarParameter[]>(sql, parameters);
+};
+Run("control-maintenance-create-and-schema", () =>
+{
+    Require(db.DbMaintenance.CreateTable("Consumer250", new List<DbColumnInfo>
+    {
+        new() { DbColumnName = "Id", DataType = "INT", IsPrimarykey = true, IsIdentity = true },
+        new() { DbColumnName = "Name", DataType = "STRING" },
+        new() { DbColumnName = "Value", DataType = "INT" }
+    }), "CreateTable returned false.");
+    Require(db.DbMaintenance.GetColumnInfosByTableName("Consumer250", false).Count == 3, "Column schema differs.");
+    db.Ado.ExecuteCommand("CREATE TABLE Checks250(Id INT,ParentId INT,Value INT,PRIMARY KEY(Id),CONSTRAINT FKConsumer250 FOREIGN KEY(ParentId) REFERENCES Consumer250(Id),CONSTRAINT CKConsumer250 CHECK(Value>=0))");
+});
+Run("constraint-existing-foreign-name", () => Require(db.DbMaintenance.IsAnyConstraint("FKConsumer250"), "Existing foreign constraint missing."));
+Run("constraint-existing-check-name", () => Require(db.DbMaintenance.IsAnyConstraint("CKConsumer250"), "Existing check constraint missing."));
+Run("constraint-absent-name", () => Require(!db.DbMaintenance.IsAnyConstraint("Missing250"), "Missing constraint reported present."));
+Run("constraint-directory-drop-actual-primary-name", () =>
+{
+    db.DbMaintenance.CreateTable("DropKey250", new List<DbColumnInfo>
+    {
+        new() { DbColumnName = "Id", DataType = "INT", IsPrimarykey = true },
+        new() { DbColumnName = "Name", DataType = "STRING" }
+    });
+    db.Ado.ExecuteCommand("INSERT INTO DropKey250(Id,Name) VALUES(1,'same')");
+    var constraints = db.Ado.GetDataTable("SELECT constraint_name FROM information_schema.table_constraints WHERE table_name='DropKey250' AND constraint_type='PRIMARY KEY'");
+    Require(constraints.Rows.Count == 1, "Expected one native primary name.");
+    string actualName = (string)constraints.Rows[0][0];
+    Require(db.DbMaintenance.IsAnyConstraint(actualName), "Primary directory and IsAnyConstraint disagree.");
+    Require(db.DbMaintenance.DropConstraint("DropKey250", actualName), "DropConstraint returned false.");
+    db.Ado.ExecuteCommand("INSERT INTO DropKey250(Id,Name) VALUES(1,'same')");
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM DropKey250") == 2, "Dropped primary key lost keyless duplicate identity.");
+});
+Run("control-index-ascending-public-entry", () =>
+{
+    Require(db.DbMaintenance.CreateIndex("Consumer250", ["\"Name\" ASC"], "IxConsumerAsc250"), "Ascending CreateIndex returned false.");
+    Require(db.DbMaintenance.IsAnyIndex("IxConsumerAsc250"), "Ascending index missing.");
+});
+Run("index-descending-public-entry", () =>
+{
+    Require(db.DbMaintenance.CreateIndex("Consumer250", ["\"Name\" DESC"], "IxConsumerDesc250"), "Descending CreateIndex returned false.");
+    Require(db.Ado.GetString("SELECT sort_direction FROM information_schema.indexes WHERE index_name='IxConsumerDesc250'") == "DESC", "DESC option ignored.");
+});
+Run("index-include-public-entry", () =>
+{
+    Require(db.DbMaintenance.CreateIndex("Consumer250", ["\"Name\" ASC"], "IxConsumerInclude250{include:Id,Value}"), "Include CreateIndex returned false.");
+    var columns = db.Ado.GetDataTable("SELECT column_name,is_included FROM information_schema.indexes WHERE index_name='IxConsumerInclude250'");
+    Require(columns.Rows.Count == 3 && columns.Rows.Cast<DataRow>().Count(row => Equals(row["is_included"], true)) == 2, "Included values not present in native metadata.");
+});
+Run("sugarindex-standard-codefirst-entry", () =>
+{
+    db.CodeFirst.InitTables<Indexed250>();
+    Require(db.DbMaintenance.IsAnyIndex("IxAttribute250"), "SugarIndex was not created.");
+});
+Run("identity-empty-string-public-entry", () =>
+{
+    statements.Clear();
+    Require(db.DbMaintenance.SetAutoIncrementInitialValue("Consumer250", 50), "Identity maintenance returned false.");
+    Require(!statements.Any(sql => sql.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) || sql.TrimStart().StartsWith("DELETE", StringComparison.OrdinalIgnoreCase)), "Identity maintenance used fake data.");
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM Consumer250") == 0, "Identity maintenance changed rows.");
+    long value = db.Insertable(new Consumer250 { Name = "first", Value = 1 }).ExecuteReturnBigIdentity();
+    Require(value == 50, "Initial identity did not equal 50.");
+});
+Run("identity-existing-type-public-entry", () =>
+{
+    db.Ado.ExecuteCommand("INSERT INTO Consumer250(Id,Name,Value) VALUES(100,'explicit',1)");
+    Require(db.DbMaintenance.SetAutoIncrementInitialValue(typeof(Consumer250), 200), "Type maintenance returned false.");
+    long value = db.Insertable(new Consumer250 { Name = "after", Value = 1 }).ExecuteReturnBigIdentity();
+    Require(value == 200, "Existing identity did not equal 200.");
+});
+Run("control-existing-drop-index-entry", () =>
+{
+    Require(db.DbMaintenance.DropIndex("IxConsumerAsc250", "Consumer250"), "DropIndex returned false.");
+    Require(!db.DbMaintenance.IsAnyIndex("IxConsumerAsc250"), "Dropped index remains in metadata.");
+});
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+
+[SugarTable("Consumer250")]
+public sealed class Consumer250
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+    public long Value { get; set; }
+}
+
+[SugarTable("Attribute250")]
+[SugarIndex("IxAttribute250{include:Id}", nameof(Name), OrderByType.Desc)]
+public sealed class Indexed250
+{
+    [SugarColumn(IsPrimaryKey = true)]
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+}

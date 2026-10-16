@@ -79,6 +79,9 @@ public sealed partial class TableManager
                             store.CleanupPublishedOnlineIndexBuild(pageBudget.Token);
                             return new(tableName, definition.Name, true, pages, rows, "complete");
                         }
+                        if ((definition.Descending.Any(static value => value) || definition.IncludedColumns.Count != 0)
+                            && TableSchemaCodec.ReadFormatVersion(SchemaPath) < 16)
+                            TableSchemaCodec.SaveWithMaintenanceBarrier(SchemaPath, Catalog.Snapshot());
                         var progress = store.AdvanceOnlineIndexBuild(definition, pageBudget.Token);
                         if (progress.WaitingForCheckpoint)
                             return new(tableName, definition.Name, false, pages, rows, "waiting_checkpoint");
@@ -117,7 +120,10 @@ public sealed partial class TableManager
     internal static void EnsureOnlineIndexDefinition(TableIndex index, TableIndexDefinition definition)
     {
         if (index.IsUnique != definition.IsUnique || index.JsonPath != definition.JsonPath
-            || !index.Columns.SequenceEqual(definition.Columns, StringComparer.Ordinal))
+            || !index.Columns.SequenceEqual(definition.Columns, StringComparer.Ordinal)
+            || index.Columns.Select((_, ordinal) => index.IsDescending(ordinal)).SequenceEqual(
+                definition.Columns.Select((_, ordinal) => definition.IsDescending(ordinal))) == false
+            || !index.IncludedColumns.SequenceEqual(definition.IncludedColumns, StringComparer.Ordinal))
             throw new InvalidOperationException($"索引 '{definition.Name}' 已有不同定义，不能继续 ONLINE 构建。");
     }
 
@@ -157,7 +163,7 @@ public sealed partial class TableStore
         if (key is null)
             return entries;
         var combined = entries.ToList();
-        combined.Add(new IndexEntry(pending.Index, -1, key, TableIndexCodec.EncodeIndexEntryValue(row.PrimaryKey.Span)));
+        combined.Add(new IndexEntry(pending.Index, -1, key, TableIndexCodec.EncodeIndexEntryValue(pending.Index, schema, row.Values, row.PrimaryKey.Span)));
         return combined;
     }
 
@@ -184,6 +190,14 @@ public sealed partial class TableStore
             ? _schema.WithoutIndex(published.Name) : _schema;
         if (!pending.SchemaFingerprint.AsSpan().SequenceEqual(TableStoreMaintenanceFile.ComputeSchemaFingerprint(baseSchema)))
             throw new InvalidDataException("在线索引构建的源表结构指纹已变化。");
+        try
+        {
+            _ = baseSchema.WithIndex(pending.ToDefinition());
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException("在线索引声明与源表结构不兼容。", exception);
+        }
         _onlineIndexBuild = pending;
         if (_schema.TryGetIndex(pending.Index.Name) is { } active)
         {
@@ -230,7 +244,7 @@ public sealed partial class TableStore
             ReadOnlyMemory<byte> primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key).ToArray();
             byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(pending.Index, values, _schema, primaryKey.Span);
             if (key is not null)
-                mutations.Add(KvBatchMutation.Put(key, TableIndexCodec.EncodeIndexEntryValue(primaryKey.Span.ToArray())));
+                mutations.Add(KvBatchMutation.Put(key, TableIndexCodec.EncodeIndexEntryValue(pending.Index, _schema, values, primaryKey.Span)));
         }
         var next = pending with
         {
@@ -278,20 +292,27 @@ internal sealed record OnlineIndexBuildState(
     TableIndex Index, long Generation, byte[] SchemaFingerprint, byte[] AfterKey, bool Completed)
 {
     /// <summary>把持久索引还原为具有相同创建时间的 schema 声明。</summary>
-    internal TableIndexDefinition ToDefinition() => new(Index.Name, Index.Columns, false, Index.CreatedAtUtcTicks);
+    internal TableIndexDefinition ToDefinition() => new(Index.Name, Index.Columns, false, Index.CreatedAtUtcTicks) { Descending = Index.Descending, IncludedColumns = Index.IncludedColumns };
 
     /// <summary>编码有版本的内部元数据，不修改已经发布的表或段文件格式。</summary>
     internal byte[] Encode()
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
-        writer.Write(1);
+        bool extended = Index.Descending.Any(static direction => direction) || Index.IncludedColumns.Count != 0;
+        writer.Write(extended ? 2 : 1);
         writer.Write(Generation);
         writer.Write(Index.Name);
         writer.Write(Index.CreatedAtUtcTicks);
         writer.Write(Index.Columns.Count);
         foreach (string column in Index.Columns)
             writer.Write(column);
+        if (extended)
+        {
+            for (int ordinal = 0; ordinal < Index.Columns.Count; ordinal++) writer.Write(Index.IsDescending(ordinal));
+            writer.Write(Index.IncludedColumns.Count);
+            foreach (string included in Index.IncludedColumns) writer.Write(included);
+        }
         writer.Write(SchemaFingerprint);
         writer.Write(AfterKey.Length);
         writer.Write(AfterKey);
@@ -306,7 +327,8 @@ internal sealed record OnlineIndexBuildState(
             throw new InvalidDataException("在线索引元数据超过大小上限。");
         using var stream = new MemoryStream(payload, writable: false);
         using var reader = new BinaryReader(stream, Encoding.UTF8);
-        if (reader.ReadInt32() != 1)
+        int version = reader.ReadInt32();
+        if (version is < 1 or > 2)
             throw new InvalidDataException("在线索引元数据版本不支持。");
         long generation = reader.ReadInt64();
         string name = reader.ReadString();
@@ -317,6 +339,20 @@ internal sealed record OnlineIndexBuildState(
         var columns = new string[columnCount];
         for (int index = 0; index < columnCount; index++)
             columns[index] = reader.ReadString();
+        var descending = new bool[columnCount];
+        var included = new List<string>();
+        if (version >= 2)
+        {
+            for (int ordinal = 0; ordinal < columnCount; ordinal++)
+            {
+                byte direction = reader.ReadByte();
+                if (direction > 1) throw new InvalidDataException("在线索引方向无效。");
+                descending[ordinal] = direction == 1;
+            }
+            int count = reader.ReadInt32();
+            if (count is < 0 or > 1024) throw new InvalidDataException("在线索引包含列数无效。");
+            for (int ordinal = 0; ordinal < count; ordinal++) included.Add(reader.ReadString());
+        }
         byte[] fingerprint = reader.ReadBytes(32);
         int cursorLength = reader.ReadInt32();
         if (fingerprint.Length != 32 || cursorLength is < 0 or > 65536)
@@ -326,6 +362,6 @@ internal sealed record OnlineIndexBuildState(
         if (cursor.Length != cursorLength || (cursor.Length > 0 && cursor[0] != (byte)'r')
             || stream.Position != stream.Length)
             throw new InvalidDataException("在线索引元数据内容不完整。");
-        return new(new TableIndex(name, columns, false, createdAt), generation, fingerprint, cursor, completed);
+        return new(new TableIndex(name, columns, false, createdAt) { Descending = descending, IncludedColumns = included }, generation, fingerprint, cursor, completed);
     }
 }

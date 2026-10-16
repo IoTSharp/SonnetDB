@@ -164,7 +164,7 @@ public sealed class SqlDurationTests : IDisposable
         string schemaPath;
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE durations(id INT, elapsed INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE durations(id INT, elapsed INT)");
             Execute(database, "INSERT INTO durations(id,elapsed) VALUES(1,-1),(2,972000000001)");
             schemaPath = database.Tables.SchemaPath;
             Assert.True(TableSchemaCodec.ReadFormatVersion(schemaPath) < 14);
@@ -261,7 +261,7 @@ public sealed class SqlDurationTests : IDisposable
     {
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE durations(id INT, elapsed INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE durations(id INT, elapsed INT)");
             Execute(database, "INSERT INTO durations(id,elapsed) VALUES(1,-1),(2,972000000001)");
             database.Tables.SchemaMigrationPhaseTestHook = phase =>
             {
@@ -283,7 +283,7 @@ public sealed class SqlDurationTests : IDisposable
         string restored = Path.Combine(_root, "restored");
         using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "source") }))
         {
-            Execute(database, "CREATE TABLE durations(id INT, elapsed DURATION NULL, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE durations(id INT, elapsed DURATION NULL)");
             Execute(database, "CREATE INDEX ix_elapsed ON durations(elapsed)");
             Execute(database, "INSERT INTO durations(id,elapsed) VALUES(1,CAST(-9223372036854775808 AS DURATION)),(2,CAST(9223372036854775807 AS DURATION)),(3,NULL)");
             new BackupService().Create(database, new BackupCreateOptions { DestinationDirectory = backup });
@@ -302,7 +302,7 @@ public sealed class SqlDurationTests : IDisposable
         string temporary;
         using (var database = OpenDatabase())
         {
-            Execute(database, "CREATE TABLE durations(id INT, elapsed INT, PRIMARY KEY(id))");
+            Execute(database, "CREATE TABLE durations(id INT, elapsed INT)");
             Execute(database, "INSERT INTO durations(id,elapsed) VALUES(1,-1)");
             temporary = database.Tables.SchemaPath + ".tmp";
             Directory.CreateDirectory(temporary);
@@ -326,13 +326,13 @@ public sealed class SqlDurationTests : IDisposable
         using (var database = OpenDatabase())
         {
             database.Tables.AfterCatalogPersistedBeforePublishTestHook = () => throw new IOException("injected publish failure");
-            Assert.Throws<IOException>(() => Execute(database, "CREATE TABLE durations(id INT, elapsed DURATION, PRIMARY KEY(id))"));
+            Assert.Throws<IOException>(() => Execute(database, "CREATE TABLE durations(id INT, elapsed DURATION)"));
             Assert.Empty(database.Tables.Catalog.Snapshot());
             Assert.Equal(14, TableSchemaCodec.ReadFormatVersion(database.Tables.SchemaPath));
         }
         using var reopened = OpenDatabase();
         Assert.Empty(reopened.Tables.Catalog.Snapshot());
-        Execute(reopened, "CREATE TABLE durations(id INT, elapsed DURATION, PRIMARY KEY(id))");
+        Execute(reopened, "CREATE TABLE durations(id INT, elapsed DURATION)");
         Execute(reopened, "INSERT INTO durations(id,elapsed) VALUES(1,CAST(-1 AS DURATION))");
         Assert.Equal(TimeSpan.FromTicks(-1), Query(reopened, "SELECT elapsed FROM durations").Rows[0][0]);
     }

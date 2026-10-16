@@ -94,6 +94,10 @@ public sealed partial class TableManager : IDisposable
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadExisting(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
+        // 旧目录中的默认主键名先迁移落盘，再允许任何目录读取或 rowstore 操作。
+        if (Catalog.Snapshot().Any(static schema => schema.PrimaryKeyConstraintName is not null)
+            && TableSchemaCodec.ReadFormatVersion(SchemaPath) < 16)
+            TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, Catalog.Snapshot());
         // 已发布的旧无主键表只能为空；在开放 rowstore 前升级兼容屏障，避免首次写入锁序反转。
         if (Catalog.Snapshot().Any(static schema => schema.PrimaryKey.Count == 0)
             || TableSchemaCodec.RequiredNativeVersion(Catalog.Snapshot()) >= 14
@@ -250,6 +254,8 @@ public sealed partial class TableManager : IDisposable
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
                 OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
                 var updated = current.WithIndex(definition);
+                if (definition.Descending.Any(static value => value) || definition.IncludedColumns.Count != 0)
+                    TableSchemaCodec.SaveWithMaintenanceBarrier(SchemaPath, Catalog.Snapshot());
                 var store = OpenStoreLocked(current);
                 store.ApplySchema(updated);
                 Catalog.LoadOrReplace(updated);
@@ -563,16 +569,8 @@ public sealed partial class TableManager : IDisposable
                 ThrowIfDisposed();
                 var current = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                if (constraintName is not null
-                    && !string.Equals(constraintName, "pk_" + tableName, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new TableConstraintException(
-                        TableConstraintException.SchemaEvolutionUnsupported,
-                        tableName,
-                        constraintName,
-                        "当前主键元数据仅支持约定名称 pk_<table>，不能持久化自定义约束名。");
-                }
                 var updated = current.WithPrimaryKey(columns);
+                if (constraintName is not null) updated = updated.WithPrimaryKeyConstraintName(constraintName);
                 ApplyPrimaryKeySchemaMigrationLocked(current, updated, static (_, row) => row.Values);
             }
     }

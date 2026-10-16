@@ -464,9 +464,7 @@ public sealed class TableSchemaCodecTests : IDisposable
             ["id"],
             createdAtUtcTicks: 1234);
         string path = Path.Combine(_root, TableSchemaCodec.FileName);
-        TableSchemaCodec.Save(path, [schema]);
-
-        DowngradeSingleColumnSchema(path, formatVersion);
+        LegacyTableSchemaFixture.Write(path, schema, formatVersion);
 
         var loaded = Assert.Single(TableSchemaCodec.Load(path));
         Assert.Equal("legacy", loaded.Name);
@@ -483,57 +481,12 @@ public sealed class TableSchemaCodecTests : IDisposable
             ["id"],
             createdAtUtcTicks: 1234);
         string path = Path.Combine(_root, TableSchemaCodec.FileName);
-        TableSchemaCodec.Save(path, [schema]);
-
-        DowngradeSingleColumnSchema(path, formatVersion: 7);
+        LegacyTableSchemaFixture.Write(path, schema, 7);
 
         var loaded = Assert.Single(TableSchemaCodec.Load(path));
         Assert.Equal("legacy", loaded.Name);
         Assert.False(loaded.Columns[0].IsAutoIncrement);
         Assert.Null(loaded.AutoIncrementColumn);
-    }
-
-    private static void DowngradeSingleColumnSchema(string path, int formatVersion)
-    {
-        const int headerSize = 32;
-        const int footerSize = 16;
-        byte[] content = File.ReadAllBytes(path);
-
-        if (formatVersion < 7)
-        {
-            int tableNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
-                content.AsSpan(headerSize, sizeof(ushort)));
-            int columnOffset = headerSize + sizeof(ushort) + tableNameLength + sizeof(long) + sizeof(ushort);
-            int columnNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
-                content.AsSpan(columnOffset, sizeof(ushort)));
-            int defaultOffset = columnOffset + sizeof(ushort) + columnNameLength + 2;
-            int defaultLength = BinaryPrimitives.ReadUInt16LittleEndian(
-                content.AsSpan(defaultOffset, sizeof(ushort)));
-            content = RemoveRange(content, defaultOffset, sizeof(ushort) + defaultLength);
-        }
-
-        if (formatVersion < 6)
-        {
-            int checkConstraintCountOffset = content.Length - footerSize - sizeof(ushort);
-            content = RemoveRange(content, checkConstraintCountOffset, sizeof(ushort));
-        }
-
-        BinaryPrimitives.WriteInt32LittleEndian(content.AsSpan(8, sizeof(int)), formatVersion);
-        int footerOffset = content.Length - footerSize;
-        var crc = new Crc32();
-        crc.Append(content.AsSpan(headerSize, footerOffset - headerSize));
-        BinaryPrimitives.WriteUInt32LittleEndian(
-            content.AsSpan(footerOffset, sizeof(uint)),
-            crc.GetCurrentHashAsUInt32());
-        File.WriteAllBytes(path, content);
-    }
-
-    private static byte[] RemoveRange(byte[] source, int offset, int count)
-    {
-        var result = new byte[source.Length - count];
-        source.AsSpan(0, offset).CopyTo(result);
-        source.AsSpan(offset + count).CopyTo(result.AsSpan(offset));
-        return result;
     }
 
     private static void WriteLegacySchema(

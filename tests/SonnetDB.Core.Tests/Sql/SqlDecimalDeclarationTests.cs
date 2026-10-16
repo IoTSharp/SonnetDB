@@ -270,7 +270,7 @@ public sealed class SqlDecimalDeclarationTests : IDisposable
         Assert.Equal((byte)0, clone.TryGetColumn("untouched")!.DecimalScale);
         string path = Path.Combine(_root, "schema.tblschema");
         TableSchemaCodec.Save(path, [clone]);
-        Assert.Equal(11, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
+        Assert.Equal(16, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
         var loaded = Assert.Single(TableSchemaCodec.Load(path));
         Assert.Equal(clone.Columns, loaded.Columns);
     }

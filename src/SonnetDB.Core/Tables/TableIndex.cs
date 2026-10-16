@@ -13,7 +13,16 @@ public sealed record TableIndex(
     IReadOnlyList<string> Columns,
     bool IsUnique,
     long CreatedAtUtcTicks,
-    string? JsonPath = null);
+    string? JsonPath = null)
+{
+    /// <summary>各键列是否按 DESC 编码；空集合表示全部 ASC。</summary>
+    public IReadOnlyList<bool> Descending { get; init; } = [];
+
+    /// <summary>存于索引值内的包含列，不参与唯一键比较。</summary>
+    public IReadOnlyList<string> IncludedColumns { get; init; } = [];
+
+    internal bool IsDescending(int ordinal) => Descending.Count != 0 && Descending[ordinal];
+}
 
 /// <summary>
 /// 创建或加载索引时使用的轻量声明。
@@ -28,4 +37,13 @@ public sealed record TableIndexDefinition(
     IReadOnlyList<string> Columns,
     bool IsUnique,
     long CreatedAtUtcTicks = 0,
-    string? JsonPath = null);
+    string? JsonPath = null)
+{
+    /// <summary>各键列是否按 DESC 编码；空集合表示全部 ASC。</summary>
+    public IReadOnlyList<bool> Descending { get; init; } = [];
+
+    /// <summary>存于索引值内的包含列，不参与唯一键比较。</summary>
+    public IReadOnlyList<string> IncludedColumns { get; init; } = [];
+
+    internal bool IsDescending(int ordinal) => Descending.Count != 0 && Descending[ordinal];
+}

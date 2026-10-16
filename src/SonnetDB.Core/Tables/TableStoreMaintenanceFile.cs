@@ -114,6 +114,14 @@ internal static class TableStoreMaintenanceFile
                 foreach (string columnName in index.Columns)
                     writer.Write(columnName);
             }
+            foreach (var index in schema.Indexes.Where(static index => index.Descending.Any(static value => value) || index.IncludedColumns.Count != 0))
+            {
+                writer.Write("maintenance-v16");
+                writer.Write(index.Name);
+                for (int ordinal = 0; ordinal < index.Columns.Count; ordinal++) writer.Write(index.IsDescending(ordinal));
+                writer.Write(index.IncludedColumns.Count);
+                foreach (string column in index.IncludedColumns) writer.Write(column);
+            }
         }
 
         return SHA256.HashData(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length)));

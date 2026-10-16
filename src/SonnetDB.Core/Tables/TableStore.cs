@@ -1127,6 +1127,7 @@ public sealed partial class TableStore : IDisposable
                 Prefix = prefix,
                 StartInclusive = keyRange.StartInclusive,
                 EndExclusive = keyRange.EndExclusive,
+                Descending = range is not null && index.IsDescending(indexColumnValues.Count),
                 PageSize = 256,
             });
             while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
@@ -1142,7 +1143,7 @@ public sealed partial class TableStore : IDisposable
                     object?[] values = TableIndexCodec.DecodeCoveredValues(
                         index, tableSnapshot.Schema, entry.Key.Span, entry.Value.Span, indexNamePrefix);
                     emitted++;
-                    yield return new TableRow(values, entry.Value.ToArray());
+                    yield return new TableRow(values, TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
                 }
             }
         }
@@ -1199,14 +1200,14 @@ public sealed partial class TableStore : IDisposable
             KvEntry? entry = snapshot.GetEntry(prefix);
             if (entry is not null)
             {
-                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span));
                 KvEntry? payload = snapshot.GetEntry(rowKey);
                 if (payload is not null)
                 {
                     RowDecodedTestHook?.Invoke(1);
                     yield return new TableRow(
                         TableRowCodec.Decode(schema, payload.Value.Span),
-                        entry.Value.ToArray());
+                        TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
                 }
             }
             yield break;
@@ -1230,7 +1231,7 @@ public sealed partial class TableStore : IDisposable
                 if (limit is int && emitted >= limit.Value)
                     yield break;
 
-                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span));
                 var payload = snapshot.GetEntry(rowKey);
                 if (payload is null)
                     continue;
@@ -1239,7 +1240,7 @@ public sealed partial class TableStore : IDisposable
                 RowDecodedTestHook?.Invoke(emitted);
                 yield return new TableRow(
                     TableRowCodec.Decode(schema, payload.Value.Span),
-                    entry.Value.ToArray());
+                    TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
             }
         }
     }
@@ -1330,7 +1331,7 @@ public sealed partial class TableStore : IDisposable
                 Prefix = prefix,
                 StartInclusive = keyRange.StartInclusive,
                 EndExclusive = keyRange.EndExclusive,
-                Descending = descending,
+                Descending = descending ^ index.IsDescending(equalityPrefixValues.Count),
                 PageSize = 256,
             });
 
@@ -1345,7 +1346,7 @@ public sealed partial class TableStore : IDisposable
                     if (emitted >= take)
                         yield break;
 
-                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span));
                     var payload = snapshot.GetEntry(rowKey);
                     if (payload is null)
                         continue;
@@ -1354,7 +1355,7 @@ public sealed partial class TableStore : IDisposable
                     RowDecodedTestHook?.Invoke(emitted);
                     yield return new TableRow(
                         TableRowCodec.Decode(schema, payload.Value.Span),
-                        entry.Value.ToArray());
+                        TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
                 }
             }
         }
@@ -1451,7 +1452,7 @@ public sealed partial class TableStore : IDisposable
                     StartInclusive = keyRange.StartInclusive,
                     EndExclusive = keyRange.EndExclusive,
                     AfterKey = afterKey,
-                    Descending = descending,
+                    Descending = descending ^ index.IsDescending(equalityPrefixValues.Count),
                     PageSize = pageLimit,
                     MaxPageBytes = RangeScanPageByteLimitTestOverride ?? int.MaxValue,
                 });
@@ -1567,6 +1568,11 @@ public sealed partial class TableStore : IDisposable
             equalityPrefixValues,
             upper.Value,
             schema);
+        if (index.IsDescending(equalityPrefixValues.Count))
+        {
+            (lowerPrefix, upperPrefix) = (upperPrefix, lowerPrefix);
+            (lower, upper) = (upper, lower);
+        }
         byte[] startInclusive = lower.Inclusive
             ? lowerPrefix
             : TableIndexCodec.GetPrefixSuccessor(lowerPrefix);
@@ -1584,7 +1590,7 @@ public sealed partial class TableStore : IDisposable
         KvEntry entry,
         CancellationToken cancellationToken = default)
     {
-        byte[] primaryKey = entry.Value.Span.ToArray();
+        byte[] primaryKey = TableIndexCodec.DecodeIndexPrimaryKey(schema, entry.Key.Span, entry.Value.Span).ToArray();
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
         KvEntry? payload = snapshot.GetEntry(rowKey, cancellationToken);
         return payload is null
@@ -2018,7 +2024,7 @@ public sealed partial class TableStore : IDisposable
                 if (!entry.Key.Span.SequenceEqual(indexKey))
                     continue;
 
-                if (operation.OldRow is not null && entry.Value.Span.SequenceEqual(operation.OldRow.PrimaryKey.Span))
+                if (operation.OldRow is not null && TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).SequenceEqual(operation.OldRow.PrimaryKey.Span))
                     continue;
 
                 throw UniqueViolation(schema, index);
@@ -2133,7 +2139,7 @@ public sealed partial class TableStore : IDisposable
             byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
             if (key is null)
                 continue;
-            byte[] value = TableIndexCodec.EncodeIndexEntryValue(row.PrimaryKey.Span);
+            byte[] value = TableIndexCodec.EncodeIndexEntryValue(index, schema, row.Values, row.PrimaryKey.Span);
             entries.Add(new IndexEntry(index, indexOrdinal, key, value));
         }
 
@@ -2166,12 +2172,12 @@ public sealed partial class TableStore : IDisposable
             materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
         foreach (TableIndex index in _schema.Indexes)
         {
-            foreach (string columnName in index.Columns)
+            foreach (string columnName in index.Columns.Concat(index.IncludedColumns))
                 materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
         }
         if (_onlineIndexBuild is { } pending)
         {
-            foreach (string columnName in pending.Index.Columns)
+            foreach (string columnName in pending.Index.Columns.Concat(pending.Index.IncludedColumns))
                 materializedColumns[_schema.TryGetColumn(columnName)!.Ordinal] = true;
         }
         return materializedColumns;
@@ -2208,7 +2214,8 @@ public sealed partial class TableStore : IDisposable
                     if (desiredEntries.TryGetValue(entry.Key, out var previous))
                     {
                         if (uniqueIndex is not null
-                            && !previous.Entry.Value.AsSpan().SequenceEqual(entry.Value))
+                            && !TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, previous.Entry.Value)
+                                .SequenceEqual(TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, entry.Value)))
                         {
                             throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
                         }
@@ -2231,6 +2238,7 @@ public sealed partial class TableStore : IDisposable
 
                 if (persistedValue is not null
                     && desired.UniqueIndex is { } uniqueIndex
+                    && !TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, persistedValue).SequenceEqual(TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, desired.Entry.Value))
                     && IsLiveUniqueIndexConflictLocked(desired.Entry.Key, persistedValue, materializedColumns))
                 {
                     throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
@@ -2280,7 +2288,8 @@ public sealed partial class TableStore : IDisposable
                 var uniqueIndex = _schema.Indexes[entry.UniqueIndexOrdinal];
                 if (pendingUniqueValues.TryGetValue(entry.Key, out byte[]? pendingValue))
                 {
-                    if (!pendingValue.AsSpan().SequenceEqual(entry.Value))
+                    if (!TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, pendingValue)
+                        .SequenceEqual(TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, entry.Value)))
                         throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
                     continue;
                 }
@@ -2293,6 +2302,7 @@ public sealed partial class TableStore : IDisposable
                 }
 
                 if (persistedValue is not null
+                    && !TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, persistedValue).SequenceEqual(TableIndexCodec.DecodeIndexPrimaryKey(uniqueIndex, entry.Value))
                     && IsLiveUniqueIndexConflictLocked(entry.Key, persistedValue, materializedColumns))
                 {
                     throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
@@ -2347,14 +2357,17 @@ public sealed partial class TableStore : IDisposable
     /// <summary>核对一个现有索引条目是否仍由其指向的当前主行产生。</summary>
     private bool IsCurrentIndexEntryLocked(KvEntry entry, bool[] materializedColumns)
     {
-        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+        TableIndex? index = TableIndexCodec.FindIndex(_schema, entry.Key.Span);
+        index ??= _onlineIndexBuild?.Index is { } pending && entry.Key.Span.StartsWith(TableIndexCodec.EncodeLookupPrefix(pending, [], _schema)) ? pending : null;
+        if (index is null) return false;
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span));
         byte[]? rowPayload = _keyspace.Get(rowKey);
         if (rowPayload is null)
             return false;
 
         var row = new TableRow(
             TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
-            entry.Value.ToArray());
+            TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
         return BuildMutationIndexEntries(_schema, row).Any(expected =>
             expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
             && expected.Value.AsSpan().SequenceEqual(entry.Value.Span));
@@ -2365,18 +2378,21 @@ public sealed partial class TableStore : IDisposable
     /// </summary>
     private bool IsLiveUniqueIndexConflictLocked(ReadOnlySpan<byte> indexKey, ReadOnlySpan<byte> persistedPrimaryKey, bool[] materializedColumns)
     {
-        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(persistedPrimaryKey);
+        TableIndex index = TableIndexCodec.FindIndex(_schema, indexKey)
+            ?? throw new InvalidDataException("唯一索引引用未知目录项。");
+        ReadOnlySpan<byte> primaryKey = TableIndexCodec.DecodeIndexPrimaryKey(index, persistedPrimaryKey);
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
         byte[]? rowPayload = _keyspace.Get(rowKey);
         if (rowPayload is null)
             return false;
 
         var row = new TableRow(
             TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
-            persistedPrimaryKey.ToArray());
+            primaryKey.ToArray());
         foreach (var entry in BuildIndexEntries(_schema, row))
         {
             if (entry.Key.AsSpan().SequenceEqual(indexKey)
-                && entry.Value.AsSpan().SequenceEqual(persistedPrimaryKey))
+                && TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value).SequenceEqual(primaryKey))
             {
                 return true;
             }

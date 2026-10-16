@@ -162,20 +162,29 @@ public sealed class SqlSafeDdlEvolutionTests : IDisposable
     }
 
     [Fact]
-    public void AlterPrimaryKey_WithCompositeKey_UpdatesEmptyTableAndRejectsCustomName()
+    public void AlterPrimaryKey_WithCompositeKey_PersistsCustomNameAndSupportsNativeDrop()
     {
-        using var db = Open();
-        SqlExecutor.Execute(db, "CREATE TABLE items (tenant INT, code STRING, id INT, PRIMARY KEY (id))");
-        var customName = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-            db, "ALTER TABLE items ADD CONSTRAINT custom_pk PRIMARY KEY (tenant, code)"));
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, customName.ErrorCode);
+        using (var db = Open())
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE items (tenant INT, code STRING, id INT, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "ALTER TABLE items ADD CONSTRAINT custom_pk PRIMARY KEY (tenant, code)");
+            Assert.Equal(["tenant", "code"], db.Tables.Catalog.TryGet("items")!.PrimaryKey);
+            Assert.Equal("custom_pk", db.Tables.Catalog.TryGet("items")!.PrimaryKeyConstraintName);
+            SqlExecutor.Execute(db, "INSERT INTO items (tenant, code, id) VALUES (1, 'x', 1)");
+            var duplicate = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
+                db, "INSERT INTO items (tenant, code, id) VALUES (1, 'x', 2)"));
+            Assert.Equal(TableConstraintException.UniqueViolation, duplicate.ErrorCode);
+        }
 
-        SqlExecutor.Execute(db, "ALTER TABLE items ADD CONSTRAINT pk_items PRIMARY KEY (tenant, code)");
-        Assert.Equal(["tenant", "code"], db.Tables.Catalog.TryGet("items")!.PrimaryKey);
-        SqlExecutor.Execute(db, "INSERT INTO items (tenant, code, id) VALUES (1, 'x', 1)");
-        var duplicate = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(
-            db, "INSERT INTO items (tenant, code, id) VALUES (1, 'x', 2)"));
-        Assert.Equal(TableConstraintException.UniqueViolation, duplicate.ErrorCode);
+        using var reopened = Open();
+        Assert.Equal("custom_pk", reopened.Tables.Catalog.TryGet("items")!.PrimaryKeyConstraintName);
+        Assert.Equal("custom_pk", Assert.Single(Select(reopened,
+            "SELECT constraint_name FROM information_schema.table_constraints WHERE table_name='items'").Rows)[0]);
+        SqlExecutor.Execute(reopened, "ALTER TABLE items DROP CONSTRAINT custom_pk");
+        SqlExecutor.Execute(reopened, "INSERT INTO items (tenant, code, id) VALUES (1, 'x', 2)");
+        Assert.Empty(reopened.Tables.Catalog.TryGet("items")!.PrimaryKey);
+        Assert.Null(reopened.Tables.Catalog.TryGet("items")!.PrimaryKeyConstraintName);
+        Assert.Equal(2, Select(reopened, "SELECT id FROM items").Rows.Count);
     }
 
     [Fact]

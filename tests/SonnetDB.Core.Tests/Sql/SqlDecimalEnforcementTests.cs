@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
@@ -158,11 +157,7 @@ public sealed class SqlDecimalEnforcementTests : IDisposable
             new Dictionary<string, (byte Precision, byte Scale)> { ["amount"] = (5, 2), ["bare"] = (38, 28) },
             new HashSet<string>(StringComparer.Ordinal));
         string file = Path.Combine(_root, "legacy.tblschema");
-        TableSchemaCodec.Save(file, [schema]);
-        byte[] bytes = File.ReadAllBytes(file);
-        Assert.Equal(11, BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8, 4)));
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), version);
-        File.WriteAllBytes(file, bytes);
+        SonnetDB.Core.Tests.Tables.LegacyTableSchemaFixture.Write(file, schema, version);
         var loaded = Assert.Single(TableSchemaCodec.Load(file));
         Assert.True(loaded.TryGetColumn("amount")!.HasExplicitDecimalDeclaration);
         Assert.False(loaded.TryGetColumn("bare")!.HasExplicitDecimalDeclaration);
@@ -184,9 +179,8 @@ public sealed class SqlDecimalEnforcementTests : IDisposable
             db.Tables.Open("ledger").Insert([1L, 1.234m]);
             schemaPath = db.Tables.SchemaPath;
         }
-        byte[] bytes = File.ReadAllBytes(schemaPath);
-        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8, 4), 10);
-        File.WriteAllBytes(schemaPath, bytes);
+        var legacySchema = Assert.Single(TableSchemaCodec.Load(schemaPath));
+        SonnetDB.Core.Tests.Tables.LegacyTableSchemaFixture.Write(schemaPath, legacySchema, 10);
         using var reopened = Open();
         Assert.True(reopened.Tables.Catalog.TryGet("ledger")!.TryGetColumn("amount")!.HasExplicitDecimalDeclaration);
         Assert.Equal(1.234m, Assert.Single(Rows(reopened, "SELECT amount FROM ledger"))[0]);

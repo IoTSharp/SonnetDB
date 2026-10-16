@@ -40,6 +40,9 @@ public sealed record TableInfo(
     DateTimeOffset CreatedUtc,
     List<TableForeignKeyInfo>? ForeignKeys = null)
 {
+    /// <summary>真实持久化的主键约束名称。</summary>
+    public string? PrimaryKeyConstraintName { get; init; }
+
     /// <summary>表注释；null 表示没有注释。</summary>
     public string? Comment { get; init; }
 }
@@ -102,7 +105,13 @@ public sealed record TableIndexInfo(
     bool IsUnique,
     DateTimeOffset CreatedUtc,
     bool Rebuildable,
-    string? JsonPath = null);
+    string? JsonPath = null)
+{
+    /// <summary>各键列的 DESC 标记。</summary>
+    public List<bool>? Descending { get; init; }
+    /// <summary>索引包含列。</summary>
+    public List<string>? IncludedColumns { get; init; }
+}
 
 /// <summary>一个 JSON 文档集合的 schema 信息。</summary>
 public sealed record DocumentCollectionInfo(

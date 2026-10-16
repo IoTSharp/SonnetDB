@@ -28,6 +28,20 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_kill9_maintenance_drop_before-barrier":
+    case "crash_kill9_maintenance_drop_after-barrier":
+    case "crash_kill9_maintenance_drop_after-journal":
+    case "crash_kill9_maintenance_drop_after-table:devices":
+    case "crash_kill9_maintenance_drop_after-catalog":
+    case "crash_kill9_maintenance_drop_after-complete":
+    case "crash_kill9_maintenance_drop_recovery":
+    case "crash_kill9_maintenance_identity_empty":
+    case "crash_kill9_maintenance_identity_existing":
+    case "crash_kill9_maintenance_identity_deleted":
+    case "crash_kill9_maintenance_identity_rejected":
+    case "crash_kill9_maintenance_identity_maximum":
+        MaintenanceCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "crash_offset_before-barrier":
     case "crash_offset_after-barrier":
     case "crash_offset_after-journal":

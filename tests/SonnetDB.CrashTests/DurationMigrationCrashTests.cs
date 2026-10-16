@@ -29,7 +29,7 @@ public sealed partial class CrashReliabilityTests
         }
         using (var db = Tsdb.Open(MakeOptions(root)))
         {
-            Assert.Equal(phase == "before-barrier" ? 11 : 14, DurationVersion(root));
+            Assert.Equal(phase == "before-barrier" ? 13 : 14, DurationVersion(root));
             AssertDurationRows(db, committed);
             if (!committed) SqlExecutor.Execute(db, "ALTER TABLE durations ALTER COLUMN elapsed TYPE DURATION");
             AssertDurationRows(db, true);

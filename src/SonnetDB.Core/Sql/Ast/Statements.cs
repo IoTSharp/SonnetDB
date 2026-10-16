@@ -47,6 +47,9 @@ public sealed partial record CreateTableStatement(
     /// <summary>主键列名中按位置标记使用双引号的名称。</summary>
     public IReadOnlyList<bool> PrimaryKeyColumnIsQuoted { get; init; } = Array.Empty<bool>();
 
+    /// <summary>显式主键约束名；未声明时由目录生成并持久化。</summary>
+    public string? PrimaryKeyConstraintName { get; init; }
+
     /// <summary>当前表级外键声明。</summary>
     public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses => ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
 
@@ -329,6 +332,13 @@ public sealed record CreateTableIndexStatement(
     DocumentIndexOptions? DocumentOptions = null,
     bool Online = false) : SqlStatement
 {
+    /// <summary>各键列是否降序。</summary>
+    public IReadOnlyList<bool> Descending { get; init; } = [];
+    /// <summary>独立的包含列名。</summary>
+    public IReadOnlyList<string> IncludedColumns { get; init; } = [];
+    /// <summary>包含列名的双引号标记。</summary>
+    public IReadOnlyList<bool> IncludedColumnIsQuoted { get; init; } = [];
+
     /// <summary>索引名是否使用双引号。</summary>
     public bool IndexNameIsQuoted { get; init; }
 

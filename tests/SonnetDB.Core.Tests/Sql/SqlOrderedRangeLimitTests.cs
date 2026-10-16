@@ -270,6 +270,10 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
             "('z', 'north', 10, 'x'),('aa', 'north', 10, 'z'),('b', 'north', 20, 'a')");
         var observedLimits = new List<int>();
         db.Tables.Open("ordered_captures").RangeScanLimitTestHook = observedLimits.Add;
+        int decoded = 0;
+        db.Tables.Open("ordered_captures").RowDecodedTestHook = _ => decoded++;
+        var metrics = new SqlExecutionMetrics();
+        using var telemetry = SqlExecutionTelemetry.Enter(metrics);
 
         var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
             SELECT Id, CaptureTime FROM ordered_captures
@@ -279,7 +283,10 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
             """));
 
         Assert.Equal("aa", Assert.Single(result.Rows)[0]);
-        Assert.Equal([int.MaxValue], observedLimits);
+        // 全覆盖投影完整读取三个索引候选，再排序和分页；不进入回表范围截断路径。
+        Assert.Empty(observedLimits);
+        Assert.Equal(3, metrics.Complete().CandidateRows);
+        Assert.Equal(0, decoded);
     }
 
     /// <summary>
@@ -438,6 +445,10 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
             "('z', 'north', 10, 'keep'),('aa', 'north', 10, 'keep'),('b', 'north', 20, 'keep')");
         var observedLimits = new List<int>();
         db.Tables.Open("ordered_captures").RangeScanLimitTestHook = observedLimits.Add;
+        int decoded = 0;
+        db.Tables.Open("ordered_captures").RowDecodedTestHook = _ => decoded++;
+        var metrics = new SqlExecutionMetrics();
+        using var telemetry = SqlExecutionTelemetry.Enter(metrics);
 
         var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
             SELECT Id, CaptureTime FROM ordered_captures
@@ -446,7 +457,9 @@ public sealed class SqlOrderedRangeLimitTests : IDisposable
             """));
 
         Assert.Equal(["aa", "z", "b"], result.Rows.Select(static row => (string)row[0]!).ToArray());
-        Assert.Equal([int.MaxValue], observedLimits);
+        Assert.Empty(observedLimits);
+        Assert.Equal(3, metrics.Complete().CandidateRows);
+        Assert.Equal(0, decoded);
     }
 
     /// <summary>

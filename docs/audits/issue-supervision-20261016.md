@@ -296,3 +296,34 @@
 - 250真实remote01六项及compatibility-upgrade01报告到information_schema COUNT(*)才失败；SqlSugar真实维护入口需要该聚合，代理已补原生单COUNT(*)过滤/Int64/分页并加测试，core05待验。真实消费者/重开/旧格式拒绝/强杀/AOT/最终门禁尚未全部完成，不提前验收或推送。
 - issue312唯一248准备已冻结，manifest8127BFF635DBF78684D6E70E7AC8643512E9A1F521FECC6724A718A4CF5C69E4。根逐项核10新文件、87证据、238 DLL、16运行DLL记录、3 TRX、603 SqlSugar原源码，零差异；回执issue248/preparation-root-review01.json。helper18/18仅组件；真实ADO正向草稿0/12全部既有解析守卫拒绝。公开/源码embedded和REST/h2c配置各10控制+28拒绝，远程锁语句在客户端先拒，只有控制查询/事务生命周期命中真实服务；不得称Server锁已测。原缺Newtonsoft与CS4007失败保留，tracked生产修改0。
 - issue314唯一249仍保持准备checkpoint01等待，issue312的248也等待，共享实施顺序250→249→248。226/243源码补缺和原评论不重做，正式发行/对应消费者关闭条件继续追踪。旧树/stash/失败证据全部保留。本次监督记录与CI回读随真实锁重试测试修正提交，不创建纯巡检提交；批次待250最终提交后正常push、回读SHA/精确CI、回复并核完整关闭条件。
+
+## 提交后检查点（2026-10-16 13:44，文件锁测试修正已提交）
+
+- 实际HEAD=9b3b983304d249fafe485235761c1f8a70671cab，独立test(storage)提交保留aa4fbffb的全部生产代码。最终tree a94d28119cfe4697d3a0a982a752c996063e56dc；全solution restore05:40:42Z→05:40:46Z、规定原Format05:40:46Z→05:41:58Z均exit0且树未变才commit。Format一条workspace-load警告保留，无格式违规。回执artifacts/issue-supervision-20261016/schema-lock-retry/commit.json；ffdb全绿CI永久JSON随该提交纳入。
+- 根已实际回读250的core06=238/238、remote02=6/6，零失败/跳过，仍属未冻结候选。代理报告预编译public4消费者替换新DLL10/10、public4 v10目录升级和真实PK碰撞命名/rename/reopen/drop通过；根尚待最终清单核验，不提升为正式包消费。原SqlSugar+新引擎9PASS/3FAIL（两identity适配器未接，一CodeFirst受227）；候选继续。crash01=0/5是child DLL未部署，未启动强杀子进程；代理按同构建SHA部署后重跑中，不能说恢复已验收。
+- 250已获最小LongRunning测试方法增量和9b3b实际SHA；不对活动树pull/reset，不覆盖其v5/v6/v7夹具修复。最终按aa4fbffb列交付，根集成到9b3b保独立测试提交。249/248准备冻结等待保持，共享次序250→249→248。
+- 13:44再次回读main仍ffdb734c、parity仍2ab6caa9、主目录clean；本批尚未push/comment/close。30分钟自动化sonnetdb-issue已更新并回读ACTIVE，保存9b3b、250真实进度/失败边界及248冻结SHA。当前仅本次提交后HANDOFF/监督状态随下一真实Issue提交，不为巡检另造提交。
+
+## 最新监督检查点（2026-10-16 14:01，#250扩大回归与优先任务交叉核验）
+
+- 监督 HEAD 仍 `9b3b983304d249fafe485235761c1f8a70671cab`；14:00 远端 main=`ffdb734c7fb9769913088c7bdee2415d73050f1b`、parity=`2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`，主目录 clean。ffdb 精确 CI 38842022794 回读 completed/success，不覆盖未推送批次。226/243/250/251/252/249/248 的线上原文和评论已保存 `issue250/root-live-1355`，均 OPEN、没有新正式交付或评论，不重复回复。
+- 根回读 #250 的 core06=238/238、remote02=6/6、storage02=337/337；扩大 SQL 第一组1249/1250唯一旧自定义 PK 拒绝断言，代理已按新合同改持久名称/重开/实际 DROP 正向，13:55 Core 重建零警告错误，复跑待。原失败不改写，生产自 impl02 未再变。
+- crash02 的 identity 真实终止为5/5；crash03 的31/31已核 TRX 和源码，分为命名 PK 删除携 DESC/INCLUDE 新7项（六阶段及恢复再终止）、旧PK迁移10、Duration7、DTO7，零失败/跳过。不称31个新用例或断电；原未部署child的crash01=0/5保留。
+- SqlSugar 候选impl02为11 PASS/1 FAIL，两identity入口通过，唯一标准SugarIndex/CodeFirst因#227事务DDL拒绝，仍不能称完整交付。public4预编译消费者替换Core/Data10/10和真实v10副本升级/碰撞名pk_Legacy_2/rename/reopen/drop通过。旧4.0拒v16只核schema SHA不变，不扩称全目录零写。正式包/上游交付仍缺。
+- 根独立交叉探针 `issue250/root-cross-226-243`：9/9，构建零警告错误，Core SHA `482EEA5CA5AC4C491C1FB6647065C3417A6D56D5A8FC2ADBBCFCFA426D2F69E9`。在DESC/INCLUDE下验证主键类型转换与入站FK、跨类型主键替换、载荷事务回滚/提交、受引用PK删除拒绝、移除FK/PK后的重复行和LIMIT1删除、重开及keyless→命名复合PK再次重开，decimal scale保真。原20/20探针另保留，最终冻结再核源/程序集绑定，不当正式包证据。
+- issue313继续#250最后验证：SQL余下批次/失败组、147+6真实远程、显式AOT、SqlSugar远程和文档/patch冻结。249和248仍为准备完成，共享核心按250→249→248，复用原代理、不重复派单。根集成到9b3b时保留其独立锁测试修正，最终完整restore/Format后独立提交；252/251/250批次未push/comment/close。
+- 自动化sonnetdb-issue已更新且回读ACTIVE，每30分钟不变。交接两文件随下一真实Issue提交，不为本次巡检单独提交；226/243源码不重做，其正式发行与消费者条件继续追踪。
+
+## 追加监督检查点（2026-10-16 14:14，#250最终代理回归通过、冻结待交付）
+
+- 最终SQL三组1250/1250、1003/1003、911/911及remote03整类153/153已根回读，零失败/跳过。原三组1249/1250、1000/1003、905/911分别保留；旧名称/目录版本/回表hook断言已修，两覆盖扫描保完整3候选、0回表及原排序分页，keyless仍先核13再核新PK16；生产未再改变。
+- 真实SqlSugar REST/h2c每路11 PASS/1个#227失败、实际宿主强停重开各5/5已读；外部三文件patch在独立git目录实际apply并核候选SHA。固定上游依赖ProjectReference重开探针4项NU1902/NU1903失败保留；直接引用冻结完整DLL用于消费者运行，不声明依赖审计通过，未关审计/降警告/升级固定上游。
+- Data显式AOT/Trim零警告错误；Server强制全图AOT有4条NETSDK1210，随后按原项目作用域AOT声明Rebuild实际零警告错误，两运行分开。未做NativeAOT发布运行。
+- 代理正在文档/复现说明/最终SHA冻结；根已备Run-RootChecks.ps1和250评论草稿但未接源或外发。监督HEAD9b3b、远端ffdb/parity2ab6不变；250→249→248保持，下一空槽候选247仅只读原文、未派单。自动化同步最新结果，两份交接随下一真实Issue提交。
+## 最新监督检查点（2026-10-16 14:33，#250根最终回归通过、提交门禁待执行）
+
+- #250 冻结清单 `58FC5DB1FA39925B28E9AFED736DDFB41530449E58142850184009282E1B0EF5` 已逐项核 66 交付/687 运行时/372 证据/25 TRX/603 上游源/3 补丁；最终 SQL 按 testId 去重为 3164。首次显示名去重错误在复制前停止，失败说明和原脚本保留。66 文件已集成到 9b3b，根保留该提交 LongRunning 方法原排版/注释及代理旧布局 fixture 修复。
+- 根最终 Core 扩大回归 3812/3812、真实远程 153/153，零失败/跳过；Core/Server Release 和 Data 显式 AOT/Trim 构建零警告错误。首次 Core/AOT 并行 restore 在共享 packages 缺 NuGet 临时文件，未启动产品测试；原失败保留，串行还原/构建后通过，没有清缓存或关闭审计。根候选 20/20 索引探针与 9/9 的 226/243 交叉探针单列，不冒称最终 DLL 运行。
+- 代理真实 identity 终止 5/5，扩展 31/31（新 PK 删除及 DESC/INCLUDE 7、旧 PK 10、Duration 7、DTO 7）；SqlSugar 三协议本地候选各 11/12，唯一 #227 CodeFirst 事务 DDL 失败，REST/h2c 强停重开各 5/5。正式包和 SqlSugar 上游交付仍缺，旧 v4 拒绝仅核 schema SHA，AOT 分析不等于发布运行，250 保持 OPEN。详细根报告 `docs/audits/issue-250-root-review-20261016.md/json`。
+- 当前 HEAD 仍 9b3b，本轮 250/CHANGELOG/交接/根报告待独立提交。最终完整 restore/规定 Format 通过且树不变才 commit；随后把实际 SHA 交原 issue314 实施 249，issue312 的 248 继续等待，空闲 issue313 可转 247 隔离准备。共享顺序 250→249→248→247，不重复派单。
+- 14:29 核主目录 clean、远端 main=ffdb734c、parity=2ab6caa9。252/251/250 本批尚未 push/comment/close，待 250 提交后正常 push HEAD:main、回读 SHA 和精确 CI，再逐项回复。正式交付不齐不关闭，226/243源码不重做；旧树、stash、失败证据和结果分支全部保留。

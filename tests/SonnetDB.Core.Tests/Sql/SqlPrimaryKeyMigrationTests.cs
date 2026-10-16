@@ -45,7 +45,7 @@ public sealed class SqlPrimaryKeyMigrationTests : IDisposable
         Assert.Equal(10L, inserted[0]);
         Assert.Equal("after-reopen", inserted[1]);
         Assert.Equal(1L, inserted[2]);
-        Assert.Equal(13, ReadCatalogVersion());
+        Assert.Equal(16, ReadCatalogVersion());
     }
 
     /// <summary>父主键严格转型时，真实子表 FK 值、类型、默认表达式和索引一并演进。</summary>
@@ -160,7 +160,7 @@ public sealed class SqlPrimaryKeyMigrationTests : IDisposable
         }
         using var reopened = Open();
         Assert.Equal("after-rollback", Row(reopened, "SELECT label FROM parents WHERE id=1")[0]);
-        Assert.Equal(13, ReadCatalogVersion());
+        Assert.Equal(16, ReadCatalogVersion());
     }
 
     /// <summary>Prepare 的 rename 已生效但同步结果未知时，管理器禁止新写直到重开。</summary>
@@ -187,7 +187,7 @@ public sealed class SqlPrimaryKeyMigrationTests : IDisposable
         using var reopened = Open();
         Assert.Equal(["id"], reopened.Tables.Catalog.TryGet("parents")!.PrimaryKey);
         Assert.Equal("one", Row(reopened, "SELECT label FROM parents WHERE id=1")[0]);
-        Assert.Equal(13, ReadCatalogVersion());
+        Assert.Equal(16, ReadCatalogVersion());
     }
 
     /// <summary>完整提交标记已写但 flush 抛异常时不能反向 undo，重开读取持久决定。</summary>
@@ -273,7 +273,7 @@ public sealed class SqlPrimaryKeyMigrationTests : IDisposable
             using (RoutineExecutionContext.EnterRoot(new SqlExecutionOptions { CancellationToken = stop.Token }))
                 Assert.Throws<RoutineExecutionException>(() => db.Tables.AlterTablePrimaryKey("parents", ["code"], null));
             db.Tables.SchemaMigrationPhaseTestHook = null;
-            if (afterRaw) Assert.Equal(13, ReadCatalogVersion());
+            if (afterRaw) Assert.Equal(16, ReadCatalogVersion());
             else
             {
                 Assert.Equal(catalog, File.ReadAllBytes(db.Tables.SchemaPath));

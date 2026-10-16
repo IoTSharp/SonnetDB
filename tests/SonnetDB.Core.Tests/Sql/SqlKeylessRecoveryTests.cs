@@ -149,11 +149,12 @@ public sealed class SqlKeylessRecoveryTests : IDisposable
             Assert.Equal(13, TableSchemaCodec.ReadFormatVersion(schemaPath));
             Execute(db, "INSERT INTO logs(value) VALUES(1),(1)");
             Execute(db, "DROP TABLE logs");
-            Execute(db, "CREATE TABLE keyed(id INT,PRIMARY KEY(id))");
             Assert.Equal(13, TableSchemaCodec.ReadFormatVersion(schemaPath));
+            Execute(db, "CREATE TABLE keyed(id INT,PRIMARY KEY(id))");
+            Assert.Equal(16, TableSchemaCodec.ReadFormatVersion(schemaPath));
         }
         using var reopened = Open();
-        Assert.Equal(13, TableSchemaCodec.ReadFormatVersion(schemaPath));
+        Assert.Equal(16, TableSchemaCodec.ReadFormatVersion(schemaPath));
         Assert.Empty(reopened.Tables.Open("keyed").Scan());
     }
 

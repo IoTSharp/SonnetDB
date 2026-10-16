@@ -6,7 +6,7 @@ using SonnetDB.Storage.Codecs;
 
 namespace SonnetDB.Tables;
 
-internal static class TableIndexCodec
+internal static partial class TableIndexCodec
 {
     private static readonly Encoding _utf8 = Encoding.UTF8;
     private static readonly Encoding _strictUtf8 = new UTF8Encoding(false, true);
@@ -54,10 +54,12 @@ internal static class TableIndexCodec
         }
         else
         {
-            foreach (var columnName in index.Columns)
+            for (int ordinal = 0; ordinal < index.Columns.Count; ordinal++)
             {
-                var column = schema.TryGetColumn(columnName)!;
-                offset += WriteEncodedValue(buffer.AsSpan(offset), column, rowValues[column.Ordinal]);
+                var column = schema.TryGetColumn(index.Columns[ordinal])!;
+                int length = WriteEncodedValue(buffer.AsSpan(offset), column, rowValues[column.Ordinal]);
+                if (index.IsDescending(ordinal)) Invert(buffer.AsSpan(offset, length));
+                offset += length;
             }
         }
 
@@ -114,7 +116,9 @@ internal static class TableIndexCodec
             for (int i = 0; i < indexColumnValues.Count; i++)
             {
                 var column = schema.TryGetColumn(index.Columns[i])!;
-                offset += WriteEncodedValue(buffer.AsSpan(offset), column, indexColumnValues[i]);
+                int length = WriteEncodedValue(buffer.AsSpan(offset), column, indexColumnValues[i]);
+                if (index.IsDescending(i)) Invert(buffer.AsSpan(offset, length));
+                offset += length;
             }
         }
 
@@ -301,9 +305,10 @@ internal static class TableIndexCodec
         TableIndex index,
         TableSchema schema,
         ReadOnlySpan<byte> entryKey,
-        ReadOnlySpan<byte> primaryKey,
+        ReadOnlySpan<byte> entryValue,
         ReadOnlySpan<byte> indexNamePrefix)
     {
+        ReadOnlySpan<byte> primaryKey = DecodeIndexPrimaryKey(index, entryValue);
         if (!string.IsNullOrWhiteSpace(index.JsonPath)
             || !entryKey.StartsWith(indexNamePrefix)
             || !(schema.PrimaryKey.Count == 0
@@ -315,10 +320,14 @@ internal static class TableIndexCodec
 
         int offset = indexNamePrefix.Length;
         var values = new object?[schema.Columns.Count];
-        foreach (string columnName in index.Columns)
+        byte[]? restoredKey = index.Descending.Any(static value => value) ? entryKey.ToArray() : null;
+        if (restoredKey is not null) entryKey = restoredKey;
+        for (int ordinal = 0; ordinal < index.Columns.Count; ordinal++)
         {
+            string columnName = index.Columns[ordinal];
             TableColumn column = schema.TryGetColumn(columnName)
                 ?? throw new InvalidDataException("Table index: unknown covered column.");
+            if (index.IsDescending(ordinal)) RestoreDescendingColumn(restoredKey!, offset, column.DataType);
             EnsureCoveredBytes(entryKey, offset, 1);
             byte present = entryKey[offset++];
             values[column.Ordinal] = present switch
@@ -340,6 +349,7 @@ internal static class TableIndexCodec
         }
         if (offset != entryKey.Length)
             throw new InvalidDataException("Table index: trailing bytes in covered entry.");
+        DecodeIncludedValues(index, schema, entryValue, values);
         return values;
     }
 

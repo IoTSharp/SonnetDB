@@ -29,7 +29,7 @@ public sealed partial class CrashReliabilityTests
         }
         using (var db = Tsdb.Open(MakeOptions(root)))
         {
-            Assert.Equal(phase == "before-barrier" ? 11 : 15, DateTimeOffsetVersion(root));
+            Assert.Equal(phase == "before-barrier" ? 13 : 15, DateTimeOffsetVersion(root));
             AssertDateTimeOffsetRows(db, committed);
             if (!committed) SqlExecutor.Execute(db, "ALTER TABLE offsets ALTER COLUMN stamp TYPE DATETIMEOFFSET");
             AssertDateTimeOffsetRows(db, true);

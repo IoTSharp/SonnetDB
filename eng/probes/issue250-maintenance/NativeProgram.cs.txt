@@ -1,0 +1,108 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string label = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var connection = new SndbConnection(args[0]);
+connection.Open();
+using var command = connection.CreateCommand();
+Run("control-existing-schema-and-identity", () =>
+{
+    Exec("CREATE TABLE Parent250(Id INT,PRIMARY KEY(Id))");
+    Exec("CREATE TABLE Schema250(Id INT AUTO_INCREMENT,Name STRING,ParentId INT,Value INT,PRIMARY KEY(Id),CONSTRAINT Fk250 FOREIGN KEY(ParentId) REFERENCES Parent250(Id),CONSTRAINT Ck250 CHECK(Value >= 0))");
+    Exec("INSERT INTO Parent250(Id) VALUES(1)");
+    Exec("INSERT INTO Schema250(Name,ParentId,Value) VALUES('first',1,1)");
+    Require(Scalar("SELECT Id FROM Schema250 WHERE Name='first'") == 1, "Existing identity allocation failed.");
+});
+Run("control-foreign-key-real-name", () =>
+{
+    var keys = connection.GetSchema("ForeignKeys", [null, null, "Schema250", null]);
+    Require(keys.Rows.Cast<DataRow>().Any(row => (string)row["CONSTRAINT_NAME"] == "Fk250"), "Existing foreign key name missing.");
+});
+Run("constraint-directory-real-names", () =>
+{
+    var rows = Query("SELECT constraint_name,constraint_type,table_name FROM information_schema.table_constraints WHERE table_name='Schema250'");
+    Require(rows.Count == 3, "Expected primary, foreign and check constraints.");
+    Require(rows.Any(row => Equals(row[0], "Fk250") && Equals(row[1], "FOREIGN KEY")), "Foreign key name/type differs.");
+    Require(rows.Any(row => Equals(row[0], "Ck250") && Equals(row[1], "CHECK")), "Check name/type differs.");
+    Require(rows.Single(row => Equals(row[1], "PRIMARY KEY"))[0] is string { Length: > 0 }, "Primary constraint lacks its native name.");
+});
+Run("named-primary-key-create-and-drop", () =>
+{
+    Exec("CREATE TABLE Named250(Id INT,Name STRING,CONSTRAINT PkNamed250 PRIMARY KEY(Id))");
+    Exec("INSERT INTO Named250(Id,Name) VALUES(1,'same')");
+    Require(Scalar("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_name='PkNamed250'") == 1, "Explicit primary name missing.");
+    Exec("ALTER TABLE Named250 DROP CONSTRAINT PkNamed250");
+    Exec("INSERT INTO Named250(Id,Name) VALUES(1,'same')");
+    Require(Scalar("SELECT COUNT(*) FROM Named250") == 2, "Dropping primary key did not retain independent duplicate rows.");
+});
+Run("index-explicit-ascending", () =>
+{
+    Exec("CREATE INDEX IxAsc250 ON Schema250(Name ASC)");
+    var rows = Query("SELECT sort_direction FROM information_schema.indexes WHERE index_name='IxAsc250'");
+    Require(rows.Count == 1 && Equals(rows[0][0], "ASC"), "Ascending metadata differs.");
+});
+Run("index-descending", () =>
+{
+    Exec("CREATE INDEX IxDesc250 ON Schema250(Value DESC)");
+    var rows = Query("SELECT sort_direction FROM information_schema.indexes WHERE index_name='IxDesc250'");
+    Require(rows.Count == 1 && Equals(rows[0][0], "DESC"), "Descending metadata differs.");
+});
+Run("index-descending-include", () =>
+{
+    Exec("CREATE INDEX IxInclude250 ON Schema250(Name DESC) INCLUDE(Id,Value)");
+    var rows = Query("SELECT column_name,is_included FROM information_schema.indexes WHERE index_name='IxInclude250'");
+    Require(rows.Count == 3 && rows.Count(row => Equals(row[1], true)) == 2, "Included columns were not retained.");
+});
+Run("identity-empty-next-value", () =>
+{
+    Exec("CREATE TABLE EmptyIdentity250(Id INT AUTO_INCREMENT,Name STRING,PRIMARY KEY(Id))");
+    Exec("ALTER TABLE EmptyIdentity250 AUTO_INCREMENT = 50");
+    Require(Scalar("SELECT COUNT(*) FROM EmptyIdentity250") == 0, "Maintenance inserted a fake row.");
+    Exec("INSERT INTO EmptyIdentity250(Name) VALUES('after')");
+    Require(Scalar("SELECT Id FROM EmptyIdentity250") == 50, "Empty table next value differs.");
+});
+Run("identity-existing-high-water", () =>
+{
+    Exec("CREATE TABLE ExistingIdentity250(Id INT AUTO_INCREMENT,Name STRING,PRIMARY KEY(Id))");
+    Exec("INSERT INTO ExistingIdentity250(Id,Name) VALUES(100,'existing')");
+    Exec("ALTER TABLE ExistingIdentity250 AUTO_INCREMENT = 200");
+    Exec("INSERT INTO ExistingIdentity250(Name) VALUES('after')");
+    Require(Scalar("SELECT Id FROM ExistingIdentity250 WHERE Name='after'") == 200, "Existing table next value differs.");
+});
+Run("control-explicit-key-advances-high-water", () =>
+{
+    Exec("INSERT INTO Schema250(Id,Name,ParentId,Value) VALUES(300,'explicit',1,1)");
+    Exec("INSERT INTO Schema250(Name,ParentId,Value) VALUES('after-explicit',1,1)");
+    Require(Scalar("SELECT Id FROM Schema250 WHERE Name='after-explicit'") == 301, "Existing explicit key behavior regressed.");
+});
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+int Exec(string sql) { Console.WriteLine("SQL|" + sql); command.CommandText = sql; return command.ExecuteNonQuery(); }
+long Scalar(string sql) { command.CommandText = sql; return Convert.ToInt64(command.ExecuteScalar()); }
+List<object[]> Query(string sql)
+{
+    command.CommandText = sql;
+    using var reader = command.ExecuteReader();
+    var rows = new List<object[]>();
+    while (reader.Read()) { var row = new object[reader.FieldCount]; reader.GetValues(row); rows.Add(row); }
+    return rows;
+}
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

@@ -1630,7 +1630,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 index.Columns,
                 index.IsUnique,
                 index.CreatedUtc.UtcDateTime.Ticks,
-                index.JsonPath))
+                index.JsonPath)
+            { Descending = index.Descending ?? [], IncludedColumns = index.IncludedColumns ?? [] })
             .ToArray();
         var foreignKeys = (table.ForeignKeys ?? [])
             .Select(static foreignKey => new TableForeignKeyDefinition(
@@ -1654,6 +1655,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions);
         schema = schema.WithComment(table.Comment);
+        if (table.PrimaryKeyConstraintName is not null) schema = schema.WithPrimaryKeyConstraintName(table.PrimaryKeyConstraintName);
         foreach (var column in table.Columns)
         {
             schema = schema.WithColumnLength(column.Name, column.StringLength);

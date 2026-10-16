@@ -1,0 +1,66 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using SqlSugar;
+
+if (args.Length != 2) return 2;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}");
+}
+using var db = new SqlSugarClient(new ConnectionConfig
+{
+    ConnectionString = args[0], DbType = DbType.SonnetDB,
+    InitKeyType = InitKeyType.Attribute, IsAutoCloseConnection = true
+});
+int passed = 0;
+int failed = 0;
+Run("constraint-names-after-host-restart", () =>
+{
+    Require(db.DbMaintenance.IsAnyConstraint("FKConsumer250"), "Foreign constraint missing.");
+    Require(db.DbMaintenance.IsAnyConstraint("CKConsumer250"), "Check constraint missing.");
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_name='DropKey250'") == 0, "Dropped primary returned.");
+});
+Run("keyless-duplicates-after-host-restart", () =>
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM DropKey250 WHERE Id=1") == 2, "Keyless duplicate rows lost."));
+Run("index-options-after-host-restart", () =>
+{
+    Require(db.Ado.GetString("SELECT sort_direction FROM information_schema.indexes WHERE index_name='IxConsumerDesc250'") == "DESC", "Direction lost.");
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM information_schema.indexes WHERE index_name='IxConsumerInclude250' AND is_included=TRUE") == 2, "Includes lost.");
+    Require(!db.DbMaintenance.IsAnyIndex("IxConsumerAsc250"), "Dropped index returned.");
+});
+Run("identity-and-existing-rows-after-host-restart", () =>
+{
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM Consumer250") == 3, "Expected exactly original three rows.");
+    Require(db.Insertable(new Consumer250 { Name = "reopened", Value = 2 }).ExecuteReturnBigIdentity() == 201, "Identity did not continue.");
+});
+Run("identity-deleted-maximum-and-conflict", () =>
+{
+    db.Ado.ExecuteCommand("DELETE FROM Consumer250 WHERE Id=201");
+    Require(db.DbMaintenance.SetAutoIncrementInitialValue(typeof(Consumer250), 300), "Identity maintenance failed.");
+    bool rejected = false;
+    try { db.DbMaintenance.SetAutoIncrementInitialValue("Consumer250", 200); }
+    catch (Exception) { rejected = true; }
+    Require(rejected, "Conflicting next value accepted.");
+    Require(db.Insertable(new Consumer250 { Name = "final", Value = 3 }).ExecuteReturnBigIdentity() == 300, "Conflict changed next value.");
+    Require(db.Ado.GetInt("SELECT COUNT(*) FROM Consumer250") == 4, "Maintenance changed rows.");
+});
+Console.WriteLine($"COMPLETE|{args[1]}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{args[1]}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{args[1]}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+
+[SugarTable("Consumer250")]
+public sealed class Consumer250
+{
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
+    public long Value { get; set; }
+}

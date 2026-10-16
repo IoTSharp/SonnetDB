@@ -155,6 +155,8 @@ internal static class TableSqlExecutor
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions,
             explicitDecimalDeclarations: explicitDecimalDeclarations);
+        if (statement.PrimaryKeyConstraintName is not null)
+            schema = schema.WithPrimaryKeyConstraintName(statement.PrimaryKeyConstraintName);
         foreach (var column in statement.Columns)
             if (column.StringLength is { } length)
                 schema = schema.WithColumnLength(column.Name, length);
@@ -199,7 +201,7 @@ internal static class TableSqlExecutor
 
         return tsdb.Tables.CreateIndex(
             statement.TableName,
-            new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique));
+            new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique) { Descending = statement.Descending, IncludedColumns = statement.IncludedColumns });
     }
 
     /// <summary>
@@ -219,7 +221,7 @@ internal static class TableSqlExecutor
                 "ONLINE 目前仅支持普通非唯一关系表索引，不支持 UNIQUE、JSON path、SPARSE、TTL 或 partial 选项。");
         }
 
-        var definition = new TableIndexDefinition(statement.IndexName, statement.Columns, IsUnique: false);
+        var definition = new TableIndexDefinition(statement.IndexName, statement.Columns, IsUnique: false) { Descending = statement.Descending, IncludedColumns = statement.IncludedColumns };
         var progress = tsdb.Tables.CreateIndexOnline(
             statement.TableName,
             definition,
@@ -509,8 +511,7 @@ internal static class TableSqlExecutor
 
         SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
 
-        bool removed = tsdb.Tables.DropForeignKey(statement.TableName, statement.ConstraintName)
-            || tsdb.Tables.DropCheckConstraint(statement.TableName, statement.ConstraintName);
+        bool removed = tsdb.Tables.DropConstraint(statement.TableName, statement.ConstraintName);
         return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "alter_table_drop_constraint");
     }
 
@@ -3252,9 +3253,9 @@ internal static class TableSqlExecutor
             && string.IsNullOrWhiteSpace(plan.Index.JsonPath)
             && IsWhereFullyCoveredByIndexPlan(where, schema, plan)
             && requiredColumns.All(column =>
-                plan.Index.Columns.Contains(column, StringComparer.Ordinal)
+                plan.Index.Columns.Concat(plan.Index.IncludedColumns).Contains(column, StringComparer.Ordinal)
                 // 既有 DECIMAL 索引使用 G29 文本，无法还原行值的 scale（例如 CAST AS STRING）。
-                && schema.TryGetColumn(column)?.DataType != TableColumnType.Decimal);
+                && (plan.Index.IncludedColumns.Contains(column, StringComparer.Ordinal) || schema.TryGetColumn(column)?.DataType != TableColumnType.Decimal));
 
     /// <summary>
     /// 为单表 EXISTS 生成与实际候选读取共用的访问计划。
@@ -3935,6 +3936,17 @@ internal static class TableSqlExecutor
                 true);
         }
 
+        // 有界 Top-N 继续使用上方的范围计划；普通覆盖扫描由 SQL 排序校正逻辑顺序。
+        if (plan is not null && CanUseCoveringStatement(schema, statement, plan, projections))
+        {
+            return (
+                ObserveCandidateRows(
+                    store.EnumerateCoveredIndex(plan.Index, plan.EqualityPrefixValues, plan.Range,
+                        cancellationToken: SqlQueryResources.Current?.CancellationToken ?? default),
+                    "secondary_index_only", plan.Index.Name, fallbackReason: null),
+                false);
+        }
+
         if (TryChooseOrderedResidualRangeAccessPlan(
             store,
             schema,
@@ -4027,6 +4039,29 @@ internal static class TableSqlExecutor
                 indexName: null,
                 unionFallback ?? "no_sargable_predicate"),
             false);
+    }
+
+    private static bool CanUseCoveringStatement(TableSchema schema, SelectStatement statement,
+        TableIndexAccessPlan plan, IReadOnlyList<Projection> projections)
+    {
+        var required = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var projection in projections)
+        {
+            if (projection.Kind == ProjectionKind.Expression) return false;
+            if (projection.Column is not null) required.Add(projection.Column.Name);
+        }
+        foreach (var order in statement.OrderByList)
+        {
+            if (order.Expression is not IdentifierExpression identifier) return false;
+            var projection = projections.FirstOrDefault(item => item.ColumnName == identifier.Name);
+            if (projection is not null)
+            {
+                if (projection.Column is not null) required.Add(projection.Column.Name);
+            }
+            else if (schema.TryGetColumn(identifier.Name) is { } column) required.Add(column.Name);
+            else return false;
+        }
+        return CanUseCoveringIndexOnly(schema, statement.Where, plan, required);
     }
 
     /// <summary>在不物化惰性候选的前提下记录实际访问路径，并在枚举结束时批量累计检查数量。</summary>
