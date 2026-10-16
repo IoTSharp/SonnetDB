@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
@@ -1581,15 +1581,19 @@ public sealed class Tsdb : IDisposable
         try
         {
             BeforeSchemaMutationLockTestHook?.Invoke();
-            lock (_schemaSync)
+            return TableLockOperation.Run(Tables.RowLocks, () =>
             {
-                SchemaMutationLockAcquiredTestHook?.Invoke();
-                // Admission is the linearization point for this mutation.  Once it has
-                // succeeded, shutdown waits for it instead of rejecting it merely because
-                // the lifecycle-closing bit was raised while it was waiting for the lock.
-                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
-                return action();
-            }
+                TableLockOperation.Require(Tables.RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
+                lock (_schemaSync)
+                {
+                    SchemaMutationLockAcquiredTestHook?.Invoke();
+                    // Admission is the linearization point for this mutation.  Once it has
+                    // succeeded, shutdown waits for it instead of rejecting it merely because
+                    // the lifecycle-closing bit was raised while it was waiting for the lock.
+                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+                    return action();
+                }
+            });
         }
         finally
         {

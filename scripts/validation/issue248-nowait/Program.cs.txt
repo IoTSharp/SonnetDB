@@ -1,0 +1,124 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+using SqlSugar;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+string connectionString = Environment.GetEnvironmentVariable("ISSUE248_CONNECTION") ?? "Data Source=" + args[0];
+string label = args[1];
+foreach (var name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    Console.WriteLine($"ASSEMBLY|{name}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))}|{assembly.Location}");
+}
+int controls = 0;
+int unsupported = 0;
+using var first = new SndbConnection(connectionString);
+using var second = new SndbConnection(connectionString);
+first.Open();
+await second.OpenAsync();
+using (var setup = first.CreateCommand())
+{
+    setup.CommandText = "CREATE TABLE lock_target(id INT,value INT,PRIMARY KEY(id))";
+    setup.ExecuteNonQuery();
+    setup.CommandText = "INSERT INTO lock_target(id,value) VALUES(1,10),(2,20)";
+    Equal(2, setup.ExecuteNonQuery());
+}
+foreach (bool asyncMode in new[] { false, true })
+{
+    using var tx1 = first.BeginTransaction();
+    using var tx2 = second.BeginTransaction();
+    foreach (var pair in new[] { (first, tx1), (second, tx2) })
+    {
+        using var query = pair.Item1.CreateCommand();
+        query.Transaction = pair.Item2;
+        foreach (long id in new[] { 1L, 404L })
+        {
+            foreach (string suffix in new[] { "FOR UPDATE", "FOR UPDATE NOWAIT" })
+            {
+                query.CommandText = $"SELECT id FROM lock_target WHERE id={id} {suffix}";
+                await Rejected($"ADO|async={asyncMode}|connection={(ReferenceEquals(pair.Item1, first) ? 1 : 2)}|id={id}|{suffix}", async () =>
+                {
+                    if (asyncMode) { using var reader = await query.ExecuteReaderAsync(); }
+                    else { using var reader = query.ExecuteReader(); }
+                });
+            }
+        }
+    }
+    tx1.Rollback();
+    tx2.Commit();
+}
+using var sugar1 = Sugar();
+using var sugar2 = Sugar();
+foreach (bool asyncMode in new[] { false, true })
+{
+    sugar1.Ado.BeginTran();
+    sugar2.Ado.BeginTran();
+    foreach (var client in new[] { sugar1, sugar2 })
+    {
+        foreach (var mode in new[] { DbLockType.Wait, DbLockType.Error })
+        {
+            string sql = client.Queryable<LockRow>().Where(row => row.Id == 1).TranLock(mode).ToSql().Key;
+            string expected = mode == DbLockType.Error ? "for update nowait" : "for update";
+            if (!sql.TrimEnd().EndsWith(expected, StringComparison.OrdinalIgnoreCase)) throw new Exception("Wrong lock SQL: " + sql);
+            Console.WriteLine("SQL|" + sql.Replace('\r', ' ').Replace('\n', ' '));
+            controls++;
+            await Rejected($"SUGAR|async={asyncMode}|{mode}", async () =>
+            {
+                if (asyncMode) await client.Queryable<LockRow>().Where(row => row.Id == 1).TranLock(mode).ToListAsync();
+                else client.Queryable<LockRow>().Where(row => row.Id == 1).TranLock(mode).ToList();
+            });
+        }
+        await Rejected($"STORAGEABLE|async={asyncMode}|Error", async () =>
+        {
+            var save = client.Storageable(new LockRow { Id = 1, Value = 30 }).TranLock(DbLockType.Error);
+            if (asyncMode) await save.ExecuteCommandAsync();
+            else save.ExecuteCommand();
+        });
+    }
+    sugar1.Ado.RollbackTran();
+    sugar2.Ado.CommitTran();
+}
+using (var control = second.CreateCommand())
+{
+    control.CommandText = "SELECT value FROM lock_target WHERE id=1";
+    Equal(10L, control.ExecuteScalar());
+}
+Console.WriteLine($"NEGATIVE_BASELINE_CONFIRMED|{label}|controls={controls}|unsupported={unsupported}|rowLocksImplemented=false");
+if (unsupported != 28) throw new Exception($"Expected 28 explicit unsupported failures, got {unsupported}.");
+return 0;
+
+SqlSugarClient Sugar() => new(new ConnectionConfig
+{
+    DbType = SqlSugar.DbType.SonnetDB, ConnectionString = connectionString,
+    InitKeyType = InitKeyType.Attribute, IsAutoCloseConnection = false,
+});
+
+void Equal(object? expected, object? actual)
+{
+    if (!Equals(expected, actual)) throw new Exception($"Expected {expected}, got {actual}.");
+    controls++;
+}
+
+async Task Rejected(string name, Func<Task> action)
+{
+    try { await action(); }
+    catch (Exception error)
+    {
+        string messages = error.ToString();
+        if (!messages.Contains("锁定读", StringComparison.Ordinal) && !messages.Contains("sql_locking_read_unsupported", StringComparison.Ordinal)) throw;
+        Console.WriteLine($"EXPECTED_UNSUPPORTED|{name}|{error.GetType().FullName}|{error.Message.Replace('\r', ' ').Replace('\n', ' ')}");
+        unsupported++;
+        return;
+    }
+    throw new Exception("Locking operation unexpectedly succeeded: " + name);
+}
+
+[SugarTable("lock_target")]
+public sealed class LockRow
+{
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true)] public long Id { get; set; }
+    [SugarColumn(ColumnName = "value")] public long Value { get; set; }
+}

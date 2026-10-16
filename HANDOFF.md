@@ -3284,3 +3284,12 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 
 - M49 已以 46e58d82 普通 merge 保留原分支历史。继续普通合入 origin/codex/online-demo-service-20261016 d8d83c5b7ce1e708aaba5125bd4b9ca6b83d7ab7，自动合并无冲突。新增演示账号用户名、敏感 SQL 诊断脱敏、实际生效的实例/数据库配置端点与 Studio 界面，保留鉴权/脱敏/source-generated JSON 合同。
 - 本提交前完整 restore/原 Format 必须在当前组合树重新通过。前端和组合后端测试在最终整合时单列实测；线上分支合并不代表服务部署或正式发包。定时监督继续 PAUSED。
+
+
+## 人工统一合并：#248 最终冻结接入（2026-10-17）
+
+- #248 原代理完成既有任务收尾并冻结；manifest SHA256 850E256D4C1078140B1E12AE4590CDCA27E64F580FEA8F9B8CEC6DD3E0B05736。根已逐项重核 40 交付源、257 证据、837 运行文件及两份 TRX，零差异；Core3986/3986、真实Server342/342和原版SqlSugar三协议各34/34是冻结树实测。
+- 按 edd23c1d 基线三方合入40文件，唯一需要合成的新main改动为 Tsdb.RuntimeOptions，已保留；50f的RSE CAST遍历和Identity兼容、M49 Protocol迁移、在线配置功能均保持。根集成记录及最终组合验收保存在 artifacts/integration-20261017。
+- 本次提交仅在根组合树完整restore/原Format及组合回归通过后执行；冻结树PASS不替代根门禁。锁语句限显式事务、单关系基表；无gap/phantom保护，DDL/延迟触发器COMMIT保守使用库级锁。REST/h2c事务走既有JSON事务端点，不冒称Frame事务或NativeAOT发布运行。定时监督继续PAUSED，不实施新Issue；#247/#245仅保存准备材料。
+
+- #248 根组合复审已完成：完整 Core7606/7606，整套Release构建、Data显式AOT/Trim、ServerRebuild零警告错误；新编译原SqlSugar三协议各34/34且DLL绑定一致。完整solution首轮独立Docker上下文忽略失败另案，最终整合仍继续；详见docs/audits/issue-248-root-review-20261017.md/json。

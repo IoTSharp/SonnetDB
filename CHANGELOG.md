@@ -61,6 +61,8 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Added
+
+- GH-Issue #248：显式事务的单关系基表支持真实 `FOR UPDATE [NOWAIT]` 行锁；写入与 COMMIT、表维护共享锁资源，支持等待/取消/超时、死锁与预算拒绝、锁后版本及排序谓词复验、保存点和连接/会话结束释放。普通 SELECT 保持不加锁；轻事务写入仍在 COMMIT 复验，不承诺 gap/phantom 保护，也不宣称 #233 的全部 ORM 条件完成。
 - GH-Issue #252：新增原生 DURATION/TimeSpan，保留完整有符号 Int64 ticks、100ns、NULL、批量/事务/重开与真实 Chloe 候选；TIME/显式 DbType.Time 保持一天内合同。关系目录启用永久 v14 屏障及可恢复迁移，含时长物化快照写 v3（其他仍 v2），SQL Frame/REST 协商 v5；旧引擎拒绝升级目录，回退须使用升级前副本，未修改 FileHeader。正式包与 Chloe 上游交付仍待完成。
 
 - GH-Issue #259：新增 bit_and_uint64 / bit_or_uint64，覆盖完整 UInt64 值域并以 DECIMAL(20,0) 精确返回；补参数/列/NULL、失败原子性、三协议与真实 Chloe 候选验收，正式发行与适配交付继续跟踪。

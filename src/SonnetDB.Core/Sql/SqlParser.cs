@@ -2923,12 +2923,26 @@ public sealed class SqlParser
         var orderByItems = ParseOptionalOrderBy();
         var orderBy = orderByItems.Count > 0 ? orderByItems[0] : null;
         var pagination = ParseOptionalPagination();
+        bool forUpdate = false;
+        bool noWait = false;
+        if (Current.Kind == TokenKind.KeywordFor && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind == TokenKind.KeywordUpdate)
+        {
+            Advance();
+            Advance();
+            forUpdate = true;
+            if (IsIdentifier("nowait"))
+            {
+                noWait = true;
+                Advance();
+            }
+        }
         if (Current.Kind == TokenKind.KeywordFor
             || IsIdentifier("nowait")
             || IsIdentifier("skip"))
         {
             throw new SqlParseException(
-                "SELECT 锁定读（FOR UPDATE / NOWAIT / SKIP LOCKED）当前不受支持。",
+                "仅支持 FOR UPDATE [NOWAIT]；此锁定读修饰词不受支持。",
                 Current.Position,
                 SqlErrorCodes.LockingReadUnsupported,
                 "select_locking_read",
@@ -2940,7 +2954,9 @@ public sealed class SqlParser
             SetOperations = setOperations,
             OrderBy = orderBy,
             OrderByItems = orderByItems,
-            Pagination = pagination
+            Pagination = pagination,
+            ForUpdate = forUpdate,
+            NoWait = noWait,
         };
     }
 

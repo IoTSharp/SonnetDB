@@ -503,20 +503,24 @@ public sealed partial class TableStore : IDisposable
     /// <returns>完成预留时底层 rowstore 的 generation。</returns>
     internal long ApplyAutoIncrement(IReadOnlyList<object?[]> rows)
     {
-        ArgumentNullException.ThrowIfNull(rows);
-        using (AcquireReadLock())
+        return RunRowLocked(() =>
         {
-            long beforeSequence = _keyspace.LastSequence;
-            if (rows.Count > 0)
+
+            ArgumentNullException.ThrowIfNull(rows);
+            using (AcquireReadLock())
             {
-                foreach (var row in rows)
-                    DecimalDeclarationValidator.NormalizeForWrite(_schema, row);
-                ApplyAutoIncrementLocked(_schema, rows);
+                long beforeSequence = _keyspace.LastSequence;
+                if (rows.Count > 0)
+                {
+                    foreach (var row in rows)
+                        DecimalDeclarationValidator.NormalizeForWrite(_schema, row);
+                    ApplyAutoIncrementLocked(_schema, rows);
+                }
+                SonnetDB.Sql.Execution.SqlTransactionContext.Current?.RecordSerializableReservation(
+                    this, _schema, _keyspace.Generation, beforeSequence, _keyspace.LastSequence);
+                return _keyspace.Generation;
             }
-            SonnetDB.Sql.Execution.SqlTransactionContext.Current?.RecordSerializableReservation(
-                this, _schema, _keyspace.Generation, beforeSequence, _keyspace.LastSequence);
-            return _keyspace.Generation;
-        }
+        });
     }
 
     /// <summary>
@@ -525,24 +529,29 @@ public sealed partial class TableStore : IDisposable
     /// <param name="values">按 schema 列顺序排列的行值。</param>
     public void Upsert(IReadOnlyList<object?> values)
     {
-        ArgumentNullException.ThrowIfNull(values);
-        lock (_sync)
+        RunRowLocked(() =>
         {
-            var schema = _schema;
-            TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
-            var normalizedValues = values.ToArray();
-            DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
-            ApplyAutoIncrementLocked(schema, [normalizedValues]);
-            ValidateRow(schema, normalizedValues);
-            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-            var oldRow = TryGetByRowKeyLocked(schema, rowKey);
-            var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(normalizedValues, primaryKey));
-            ValidateUniqueIndexesLocked(schema, operation);
-            ApplyMutationLocked(schema, operation);
-            if (oldRow is null)
-                _rowCount++;
-        }
+
+            ArgumentNullException.ThrowIfNull(values);
+            lock (_sync)
+            {
+                var schema = _schema;
+                TableKeyCodec.EnsurePrimaryKeyForWrite(schema);
+                var normalizedValues = values.ToArray();
+                DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
+                _ = PrepareInsertRowLocks(schema, [normalizedValues]);
+                ApplyAutoIncrementLocked(schema, [normalizedValues]);
+                ValidateRow(schema, normalizedValues);
+                byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+                var oldRow = TryGetByRowKeyLocked(schema, rowKey);
+                var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(normalizedValues, primaryKey));
+                ValidateUniqueIndexesLocked(schema, operation);
+                ApplyMutationLocked(schema, operation);
+                if (oldRow is null)
+                    _rowCount++;
+            }
+        });
     }
 
     /// <summary>
@@ -551,25 +560,29 @@ public sealed partial class TableStore : IDisposable
     /// <param name="values">按 schema 列顺序排列的行值。</param>
     public void Insert(IReadOnlyList<object?> values)
     {
-        ArgumentNullException.ThrowIfNull(values);
-        lock (_sync)
+        RunRowLocked(() =>
         {
-            var schema = _schema;
-            var normalizedValues = values.ToArray();
-            DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
-            ApplyAutoIncrementLocked(schema, [normalizedValues]);
-            ValidateRow(schema, normalizedValues);
-            byte[] primaryKey = TableRowIdentity.InsertKey(schema, normalizedValues);
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-            if (_keyspace.Get(rowKey) is not null)
-                throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
 
-            var newRow = new TableRow(normalizedValues, primaryKey);
-            var operation = TableMutationOperation.Insert(rowKey, newRow);
-            ValidateUniqueIndexesLocked(schema, operation);
-            ApplyMutationLocked(schema, operation);
-            _rowCount++;
-        }
+            ArgumentNullException.ThrowIfNull(values);
+            lock (_sync)
+            {
+                var schema = _schema;
+                var normalizedValues = values.ToArray();
+                DecimalDeclarationValidator.NormalizeForWrite(schema, normalizedValues);
+                byte[] primaryKey = PrepareInsertRowLocks(schema, [normalizedValues])[0];
+                ApplyAutoIncrementLocked(schema, [normalizedValues]);
+                ValidateRow(schema, normalizedValues);
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+                if (_keyspace.Get(rowKey) is not null)
+                    throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
+
+                var newRow = new TableRow(normalizedValues, primaryKey);
+                var operation = TableMutationOperation.Insert(rowKey, newRow);
+                ValidateUniqueIndexesLocked(schema, operation);
+                ApplyMutationLocked(schema, operation);
+                _rowCount++;
+            }
+        });
     }
 
     /// <summary>
@@ -579,64 +592,70 @@ public sealed partial class TableStore : IDisposable
     /// <returns>成功插入的行数。</returns>
     public int InsertMany(IReadOnlyList<IReadOnlyList<object?>> rows)
     {
-        ArgumentNullException.ThrowIfNull(rows);
-        if (rows.Count == 0)
-            return 0;
-
-        lock (_sync)
+        return RunRowLocked(() =>
         {
-            var schema = _schema;
-            var normalizedRows = rows.Select(static row => row.ToArray()).ToArray();
-            foreach (var values in normalizedRows)
-                DecimalDeclarationValidator.NormalizeForWrite(schema, values);
-            ApplyAutoIncrementLocked(schema, normalizedRows);
-            var operations = new List<TableMutationOperation>(rows.Count);
-            var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
-            var pendingUniqueKeys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var values in normalizedRows)
-            {
-                ValidateRow(schema, values);
-                byte[] primaryKey = TableRowIdentity.InsertKey(schema, values);
-                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-                if (!pendingRowKeys.Add(Convert.ToHexString(rowKey)))
-                    throw new InvalidOperationException($"table '{schema.Name}' 中同一批 INSERT 存在重复主键。");
-                if (_keyspace.Get(rowKey) is not null)
-                    throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
 
-                var row = new TableRow(values.ToArray(), primaryKey);
-                foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
+            ArgumentNullException.ThrowIfNull(rows);
+            if (rows.Count == 0)
+                return 0;
+
+            lock (_sync)
+            {
+                var schema = _schema;
+                var normalizedRows = rows.Select(static row => row.ToArray()).ToArray();
+                foreach (var values in normalizedRows)
+                    DecimalDeclarationValidator.NormalizeForWrite(schema, values);
+                var lockedKeys = PrepareInsertRowLocks(schema, normalizedRows);
+                ApplyAutoIncrementLocked(schema, normalizedRows);
+                var operations = new List<TableMutationOperation>(rows.Count);
+                var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
+                var pendingUniqueKeys = new HashSet<string>(StringComparer.Ordinal);
+                for (int rowIndex = 0; rowIndex < normalizedRows.Length; rowIndex++)
                 {
-                    byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, primaryKey);
-                    if (indexKey is null)
-                        continue;
-                    string uniqueKey = index.Name + ":" + Convert.ToHexString(indexKey);
-                    if (!pendingUniqueKeys.Add(uniqueKey))
-                        throw UniqueViolation(schema, index);
-                    byte[] prefix = TableIndexCodec.TryEncodeIndexPrefix(index, row.Values, schema)!;
-                    foreach (var entry in _keyspace.ScanPrefix(prefix))
+                    var values = normalizedRows[rowIndex];
+                    ValidateRow(schema, values);
+                    byte[] primaryKey = lockedKeys[rowIndex];
+                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+                    if (!pendingRowKeys.Add(Convert.ToHexString(rowKey)))
+                        throw new InvalidOperationException($"table '{schema.Name}' 中同一批 INSERT 存在重复主键。");
+                    if (_keyspace.Get(rowKey) is not null)
+                        throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
+
+                    var row = new TableRow(values.ToArray(), primaryKey);
+                    foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
                     {
-                        if (entry.Key.Span.SequenceEqual(indexKey))
+                        byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, primaryKey);
+                        if (indexKey is null)
+                            continue;
+                        string uniqueKey = index.Name + ":" + Convert.ToHexString(indexKey);
+                        if (!pendingUniqueKeys.Add(uniqueKey))
                             throw UniqueViolation(schema, index);
+                        byte[] prefix = TableIndexCodec.TryEncodeIndexPrefix(index, row.Values, schema)!;
+                        foreach (var entry in _keyspace.ScanPrefix(prefix))
+                        {
+                            if (entry.Key.Span.SequenceEqual(indexKey))
+                                throw UniqueViolation(schema, index);
+                        }
                     }
+
+                    operations.Add(TableMutationOperation.Insert(rowKey, row));
                 }
 
-                operations.Add(TableMutationOperation.Insert(rowKey, row));
-            }
+                var applied = new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1));
+                try
+                {
+                    ApplyMutationsLocked(schema, operations, applied);
+                    _rowCount = checked(_rowCount + operations.Count);
+                }
+                catch
+                {
+                    RollbackAppliedLocked(applied);
+                    throw;
+                }
 
-            var applied = new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1));
-            try
-            {
-                ApplyMutationsLocked(schema, operations, applied);
-                _rowCount = checked(_rowCount + operations.Count);
+                return operations.Count;
             }
-            catch
-            {
-                RollbackAppliedLocked(applied);
-                throw;
-            }
-
-            return operations.Count;
-        }
+        });
     }
 
     /// <summary>
@@ -646,50 +665,60 @@ public sealed partial class TableStore : IDisposable
     /// <returns>实际写入或删除的行数。</returns>
     public int ApplyBatch(IReadOnlyList<TableRowMutation> mutations)
     {
-        ArgumentNullException.ThrowIfNull(mutations);
-        if (mutations.Count == 0)
-            return 0;
-
-        lock (_sync)
+        return RunRowLocked(() =>
         {
-            var batch = PrepareBatchLocked(mutations);
-            try
-            {
-                ApplyPreparedBatchLocked(batch);
-            }
-            catch
-            {
-                RollbackAppliedLocked(batch.Applied);
-                throw;
-            }
 
-            return batch.AffectedRows;
-        }
+            ArgumentNullException.ThrowIfNull(mutations);
+            if (mutations.Count == 0)
+                return 0;
+
+            lock (_sync)
+            {
+                var batch = PrepareBatchLocked(mutations);
+                try
+                {
+                    ApplyPreparedBatchLocked(batch);
+                }
+                catch
+                {
+                    RollbackAppliedLocked(batch.Applied);
+                    throw;
+                }
+
+                return batch.AffectedRows;
+            }
+        });
     }
 
     internal PreparedTableBatch PrepareBatch(IReadOnlyList<TableRowMutation> mutations)
     {
         ArgumentNullException.ThrowIfNull(mutations);
-        lock (_sync)
-            return PrepareBatchLocked(mutations);
+        return RunRowLocked(() =>
+        {
+            lock (_sync)
+                return PrepareBatchLocked(mutations);
+        });
     }
 
     internal int ApplyPreparedBatch(PreparedTableBatch batch)
     {
-        ArgumentNullException.ThrowIfNull(batch);
-        lock (_sync)
+        return RunRowLocked(() =>
         {
-            try
+            ArgumentNullException.ThrowIfNull(batch);
+            lock (_sync)
             {
-                ApplyPreparedBatchLocked(batch);
-                return batch.AffectedRows;
+                try
+                {
+                    ApplyPreparedBatchLocked(batch);
+                    return batch.AffectedRows;
+                }
+                catch
+                {
+                    RollbackAppliedLocked(batch.Applied);
+                    throw;
+                }
             }
-            catch
-            {
-                RollbackAppliedLocked(batch.Applied);
-                throw;
-            }
-        }
+        });
     }
 
     internal void RollbackPreparedBatch(PreparedTableBatch batch)
@@ -848,19 +877,23 @@ public sealed partial class TableStore : IDisposable
     /// <returns>存在并删除时返回 true。</returns>
     public bool DeleteByPrimaryKey(IReadOnlyList<object?> primaryKeyValues)
     {
-        lock (_sync)
+        return RunRowLocked(() =>
         {
-            var schema = _schema;
-            byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
-            var oldRow = TryGetByRowKeyLocked(schema, rowKey);
-            if (oldRow is null)
-                return false;
 
-            ApplyMutationLocked(schema, TableMutationOperation.Delete(rowKey, oldRow));
-            _rowCount--;
-            return true;
-        }
+            lock (_sync)
+            {
+                var schema = _schema;
+                byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
+                var oldRow = TryGetByRowKeyLocked(schema, rowKey);
+                if (oldRow is null)
+                    return false;
+
+                ApplyMutationLocked(schema, TableMutationOperation.Delete(rowKey, oldRow));
+                _rowCount--;
+                return true;
+            }
+        });
     }
 
     /// <summary>切换到底层 KV 的新 generation，并返回被清空的关系行数。</summary>
@@ -1947,6 +1980,8 @@ public sealed partial class TableStore : IDisposable
         if (!changed)
             return;
 
+        RequireIdentityWrite();
+
         Span<byte> buffer = stackalloc byte[sizeof(long)];
         BinaryPrimitives.WriteInt64LittleEndian(buffer, current);
         _keyspace.Put(_autoIncrementStateKey, buffer.ToArray());
@@ -2063,6 +2098,7 @@ public sealed partial class TableStore : IDisposable
         List<RollbackAction>? applied)
     {
         ThrowIfDisposedLocked();
+        RequireRowWrites(operations);
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
         for (int i = 0; i < operations.Count; i++)
         {
@@ -2482,6 +2518,7 @@ public sealed partial class TableStore : IDisposable
     {
         ThrowIfDisposedLocked();
         var schema = _schema;
+        mutations = PrepareLockingMutations(mutations);
         var normalizedMutations = new List<TableRowMutation>(mutations.Count);
         var autoIncrementRows = new List<(object?[] Values, bool AllocateMissing)>(mutations.Count);
         foreach (var mutation in mutations)
@@ -2499,6 +2536,7 @@ public sealed partial class TableStore : IDisposable
         }
 
         ApplyAutoIncrementMutationsLocked(schema, autoIncrementRows);
+        RequireMutationRows(schema, normalizedMutations);
 
         var operations = new List<TableMutationOperation>(normalizedMutations.Count);
         var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -2574,13 +2612,22 @@ public sealed partial class TableStore : IDisposable
             operations,
             affected,
             new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1)),
-            rowCountDelta);
+            rowCountDelta,
+            _keyspace.LastSequence,
+            _keyspace.Generation);
     }
 
     private void ApplyPreparedBatchLocked(PreparedTableBatch batch)
     {
+        ThrowIfDisposedLocked();
+        RequireRowWrites(batch.Operations);
         if (!ReferenceEquals(batch.Schema, _schema))
             throw new InvalidOperationException($"table '{_schema.Name}' schema 已变化，无法提交已准备的轻事务批次。");
+        // TableManager 在准备到应用期间持有外层操作及全部表监视器。独立内部调用
+        // 允许在两阶段间释放租约，但必须在重新取得行锁后拒绝任何陈旧批次（包括 ABA）。
+        if (batch.Sequence != _keyspace.LastSequence || batch.Generation != _keyspace.Generation)
+            throw new TableConstraintException(TableConstraintException.ConcurrencyConflict,
+                _schema.Name, "prepared_batch", $"table '{_schema.Name}' 在批次准备后发生变化，请重新准备整个事务。");
 
         ApplyMutationsLocked(batch.Schema, batch.Operations, batch.Applied);
 
@@ -2653,7 +2700,9 @@ public sealed partial class TableStore : IDisposable
         IReadOnlyList<TableMutationOperation> Operations,
         int AffectedRows,
         List<RollbackAction> Applied,
-        int RowCountDelta)
+        int RowCountDelta,
+        long Sequence,
+        long Generation)
     {
         public bool RowCountApplied { get; set; }
         public IReadOnlyList<TableRow> FinalRows

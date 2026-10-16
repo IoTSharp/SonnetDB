@@ -1,0 +1,177 @@
+using System.Data;
+using SonnetDB.Data;
+using SonnetDB.Sql;
+using Xunit;
+
+namespace SonnetDB.Core.Tests.Sql;
+
+/// <summary>
+/// #248 的真实 ADO 双连接锁定读、冲突及事务生命周期验收。
+/// </summary>
+public sealed class SqlRowLockAcceptanceTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "sndb-i248-accept-" + Guid.NewGuid().ToString("N"));
+
+    /// <summary>检查 NOWAIT 在持有者尚未释放时返回稳定冲突，且未等到命令的一般超时。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Select_HeldTarget_FailsBeforeHolderRelease(bool asyncMode)
+    {
+        using var first = Open();
+        using var second = Open();
+        Setup(first);
+        using var holder = first.BeginTransaction(IsolationLevel.ReadCommitted);
+        using var contender = second.BeginTransaction(IsolationLevel.ReadCommitted);
+        Assert.Equal(1L, Assert.Single(await Select(first, holder, "id=1", false)));
+        await AssertConflict(second, contender, "id=1", asyncMode);
+        Assert.Equal(2L, Assert.Single(await Select(second, contender, "id=2", asyncMode)));
+        Assert.Equal(1L, Assert.Single(await Select(first, holder, "id=1", asyncMode)));
+    }
+
+    /// <summary>提交、回滚和事务释放后，第二连接可取得目标；独立行与空匹配可直接读取。</summary>
+    [Theory]
+    [InlineData(false, "commit")]
+    [InlineData(true, "commit")]
+    [InlineData(false, "rollback")]
+    [InlineData(true, "rollback")]
+    [InlineData(false, "dispose")]
+    [InlineData(true, "dispose")]
+    public async Task Select_TransactionFinishes_ReleasesTarget(bool asyncMode, string completion)
+    {
+        using var first = Open();
+        using var second = Open();
+        Setup(first);
+        using var holder = first.BeginTransaction(IsolationLevel.ReadCommitted);
+        using var contender = second.BeginTransaction(IsolationLevel.ReadCommitted);
+        Assert.Equal(1L, Assert.Single(await Select(first, holder, "id=1", asyncMode)));
+        Assert.Equal(2L, Assert.Single(await Select(second, contender, "id=2", asyncMode)));
+        Assert.Empty(await Select(second, contender, "id=404", asyncMode));
+        await AssertConflict(second, contender, "id=1", asyncMode);
+        switch (completion)
+        {
+            case "commit": holder.Commit(); break;
+            case "rollback": holder.Rollback(); break;
+            case "dispose": holder.Dispose(); break;
+            default: throw new InvalidOperationException(completion);
+        }
+        Assert.Equal(1L, Assert.Single(await Select(second, contender, "id=1", asyncMode)));
+    }
+
+    /// <summary>多行 NOWAIT 失败不会遗留新锁，也不会释放当前事务先前成功持有的锁。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Select_PartialConflict_RetainsOnlyPriorStatementLocks(bool asyncMode)
+    {
+        using var first = Open();
+        using var second = Open();
+        using var observer = Open();
+        Setup(first);
+        using var holder = first.BeginTransaction(IsolationLevel.ReadCommitted);
+        using var contender = second.BeginTransaction(IsolationLevel.ReadCommitted);
+        using var observerTransaction = observer.BeginTransaction(IsolationLevel.ReadCommitted);
+        Assert.Equal(1L, Assert.Single(await Select(first, holder, "id=1", asyncMode)));
+        Assert.Equal(2L, Assert.Single(await Select(second, contender, "id=2", asyncMode)));
+        await AssertConflict(second, contender, "id IN (1,3)", asyncMode);
+        Assert.Equal(3L, Assert.Single(await Select(observer, observerTransaction, "id=3", asyncMode)));
+        await AssertConflict(observer, observerTransaction, "id=2", asyncMode);
+    }
+
+    /// <summary>空匹配不建立间隙锁，另一连接可插入该键并提交。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Select_MissingTarget_DoesNotBlockAnotherConnectionInsert(bool asyncMode)
+    {
+        using var first = Open();
+        using var second = Open();
+        Setup(first);
+        using var holder = first.BeginTransaction(IsolationLevel.ReadCommitted);
+        Assert.Empty(await Select(first, holder, "id=404", asyncMode));
+        using (var writer = second.BeginTransaction(IsolationLevel.ReadCommitted))
+        {
+            using var command = second.CreateCommand();
+            command.Transaction = writer;
+            command.CommandTimeout = 5;
+            command.CommandText = "INSERT INTO row_lock_acceptance(id,value) VALUES(404,40)";
+            Assert.Equal(1, asyncMode ? await command.ExecuteNonQueryAsync() : command.ExecuteNonQuery());
+            writer.Commit();
+        }
+        Assert.Equal(404L, Assert.Single(await Select(first, holder, "id=404", asyncMode)));
+    }
+
+    private SndbConnection Open()
+    {
+        var connection = new SndbConnection("Data Source=" + _root);
+        connection.Open();
+        return connection;
+    }
+
+    /// <summary>连接关闭与释放回滚当前事务并归还锁。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Select_ConnectionFinishes_ReleasesTarget(bool dispose)
+    {
+        using var first = Open();
+        using var second = Open();
+        Setup(first);
+        using var holder = first.BeginTransaction();
+        using var observer = second.BeginTransaction();
+        await Select(first, holder, "id=1", false);
+        await AssertConflict(second, observer, "id=1", false);
+        if (dispose) first.Dispose(); else first.Close();
+        Assert.Equal(1L, Assert.Single(await Select(second, observer, "id=1", false)));
+    }
+
+    private static void Setup(SndbConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE row_lock_acceptance(id INT,value INT,PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        command.CommandText = "INSERT INTO row_lock_acceptance(id,value) VALUES(1,10),(2,20),(3,30)";
+        Assert.Equal(3, command.ExecuteNonQuery());
+    }
+
+    private static async Task AssertConflict(SndbConnection connection, SndbTransaction transaction, string predicate, bool asyncMode)
+    {
+        // 持有者直到该调用结束才释放。5 秒只是故障看门狗；命令一般超时为 30 秒。
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Exception? error = await Record.ExceptionAsync(async () =>
+            await Select(connection, transaction, predicate, asyncMode, cancellation.Token));
+        Assert.NotNull(error);
+        Assert.False(cancellation.IsCancellationRequested, "NOWAIT 不得等待看门狗取消或命令一般超时。");
+        Assert.Equal("sql_lock_not_available", SqlErrorMapper.Map(error!, "execute").Code);
+    }
+
+    private static async Task<long[]> Select(SndbConnection connection, SndbTransaction transaction,
+        string predicate, bool asyncMode, CancellationToken cancellationToken = default)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandTimeout = 30;
+        command.CommandText = $"SELECT id FROM row_lock_acceptance WHERE {predicate} ORDER BY id FOR UPDATE NOWAIT";
+        using var registration = cancellationToken.Register(command.Cancel);
+        if (!asyncMode)
+        {
+            return await Task.Run(() =>
+            {
+                using var reader = command.ExecuteReader();
+                List<long> values = [];
+                while (reader.Read()) values.Add(reader.GetInt64(0));
+                return values.ToArray();
+            }, cancellationToken);
+        }
+        using var asyncReader = await command.ExecuteReaderAsync(cancellationToken);
+        List<long> asyncValues = [];
+        while (await asyncReader.ReadAsync(cancellationToken)) asyncValues.Add(asyncReader.GetInt64(0));
+        return asyncValues.ToArray();
+    }
+
+    /// <summary>仅清理本测试生成的临时数据库目录。</summary>
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
+}

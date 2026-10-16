@@ -232,6 +232,7 @@ public sealed class SndbMultipleResultTests : IDisposable
     [InlineData("CALL routine()")]
     [InlineData("SELECT FROM")]
     [InlineData("SELECT id FROM items FOR UPDATE")]
+    [InlineData("SELECT * FROM (SELECT id FROM items FOR UPDATE NOWAIT) locked")]
     public void ExecuteReader_InvalidLaterStatement_PreflightExecutesNothing(string second)
     {
         using var implementation = new ProbeConnectionImpl();

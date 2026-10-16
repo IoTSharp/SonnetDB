@@ -751,7 +751,7 @@ internal static class SqlEndpointHandler
         string operation)
     {
         SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
-        if (detail.Code == KvReadOverloadedException.Code || exception is SequenceException)
+        if (detail.Code == KvReadOverloadedException.Code || exception is SequenceException or SqlRowLockException)
             transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
     }
@@ -770,6 +770,7 @@ internal static class SqlEndpointHandler
                 "forbidden" or RoutineErrorCodes.Forbidden => StatusCodes.Status403Forbidden,
                 "db_not_found" => StatusCodes.Status404NotFound,
                 "unauthorized" => StatusCodes.Status401Unauthorized,
+                SqlRowLockException.NotAvailable or SqlRowLockException.Deadlock => StatusCodes.Status409Conflict,
                 KvReadOverloadedException.Code => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,

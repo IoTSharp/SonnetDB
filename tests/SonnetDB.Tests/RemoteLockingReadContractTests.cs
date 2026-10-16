@@ -14,7 +14,7 @@ using Xunit;
 
 namespace SonnetDB.Tests;
 
-/// <summary>GH-Issue #190 的嵌入式和真实 REST ADO.NET 拒绝及乐观并发验收。</summary>
+/// <summary>GH-Issue #190/#248 的嵌入式和真实 REST ADO.NET 锁定读边界及乐观并发验收。</summary>
 public sealed class RemoteLockingReadContractTests : IAsyncLifetime
 {
     private const string DatabaseName = "locking_read";
@@ -63,7 +63,7 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
     [Theory]
     [InlineData("embedded")]
     [InlineData("remote")]
-    public async Task LockingRead_InTransactions_ThrowsBeforeReadAndLeavesOtherConnectionUsable(string mode)
+    public async Task LockingRead_SupportedNowaitAndUnsupportedSkip_LeaveOrdinaryReadsUsable(string mode)
     {
         using var first = Open(mode);
         using var second = Open(mode);
@@ -75,8 +75,10 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
             using var command = first.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = "SELECT id FROM jobs WHERE id = 1 FOR UPDATE NOWAIT";
-            var error = Assert.Throws<SqlParseException>(() => command.ExecuteReader());
-            Assert.Equal(SqlErrorCodes.LockingReadUnsupported, error.Code);
+            using var reader = command.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.False(reader.Read());
             Assert.Equal(1L, ReadVersion(second));
             transaction.Rollback();
         }

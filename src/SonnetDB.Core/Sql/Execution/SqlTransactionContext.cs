@@ -14,7 +14,8 @@ namespace SonnetDB.Sql.Execution;
 /// 隔离级别：<b>读已提交 + 本事务 read-your-writes</b>（#218）。事务内的关系表 SELECT
 /// 会在已提交基线之上叠加本事务尚未提交的缓冲 insert/update/delete（见 <see cref="Current"/> /
 /// <see cref="TryGetBufferedMutations"/>），因此能看到自身写入；对其他并发写入仍是读已提交
-/// （不做快照，不加读锁）。measurement / document 写入在事务内被拒绝（#199），故 read-your-writes
+/// （不做快照，普通 SELECT 不加读锁）。显式 FOR UPDATE 将选中行的排他锁保留到事务结束；
+/// 回滚保存点保留这些锁。measurement / document 写入在事务内被拒绝（#199），故 read-your-writes
 /// 只覆盖关系表。
 /// </para>
 /// <para>显式 Serializable 使用表级首次读版本的乐观提交校验；并发变化可在提交前被读到，
@@ -380,6 +381,7 @@ public sealed partial class SqlTransactionContext
     {
         ThrowIfCompleted();
         _completed = true;
+        ReleaseRowLocks();
         _undo.Clear();
         _tableMutations.Clear();
         _mutationSchemas.Clear();

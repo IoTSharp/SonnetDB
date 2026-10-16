@@ -16,7 +16,7 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>
 /// 关系表 MVP 的 SQL 执行辅助。表数据存放在 <see cref="TableStore"/> 的 KV-backed rowstore 中。
 /// </summary>
-internal static class TableSqlExecutor
+internal static partial class TableSqlExecutor
 {
     private const int MaxIndexUnionBranches = 32;
     private const int MaxIndexUnionCandidates = 65_536;
@@ -1652,6 +1652,8 @@ internal static class TableSqlExecutor
                 return function.Arguments.Any(argument => ContainsUserScalarFunction(functions, argument));
             case UnaryExpression unary:
                 return ContainsUserScalarFunction(functions, unary.Operand);
+            case CastExpression cast:
+                return ContainsUserScalarFunction(functions, cast.Operand);
             case BinaryExpression binary:
                 return ContainsUserScalarFunction(functions, binary.Left)
                     || ContainsUserScalarFunction(functions, binary.Right);

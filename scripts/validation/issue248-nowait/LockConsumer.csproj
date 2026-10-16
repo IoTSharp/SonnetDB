@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs.txt" />
+    <Reference Include="$(SugarBin)/*.dll" Exclude="$(SugarBin)/SonnetDB*.dll" />
+    <Reference Include="SonnetDB.Core"><HintPath>$(EngineBin)/SonnetDB.Core.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Data"><HintPath>$(EngineBin)/SonnetDB.Data.dll</HintPath></Reference>
+    <Reference Include="System.IO.Hashing"><HintPath>$(EngineBin)/System.IO.Hashing.dll</HintPath></Reference>
+    <Reference Include="System.Numerics.Tensors"><HintPath>$(EngineBin)/System.Numerics.Tensors.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(SugarPackages)/newtonsoft.json/13.0.2/lib/net6.0/Newtonsoft.Json.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

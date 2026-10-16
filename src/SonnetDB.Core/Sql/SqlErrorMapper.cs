@@ -25,6 +25,8 @@ public static class SqlErrorMapper
 
         return exception switch
         {
+            SqlRowLockException rowLock => new SqlErrorInfo(rowLock.Code, rowLock.Message, operation,
+                hint: "等待持有者结束事务，或回滚当前事务后重新执行。"),
             SequenceException sequence => new SqlErrorInfo(sequence.Code, sequence.Message, operation,
                 hint: "检查序列名称、Int64 范围与调用位置；已预留的号码不会回收。"),
             KvReadOverloadedException overloaded => new SqlErrorInfo(

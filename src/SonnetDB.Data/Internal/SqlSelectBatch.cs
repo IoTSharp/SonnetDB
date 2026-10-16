@@ -107,6 +107,11 @@ internal static class SqlSelectBatch
             string statement = text.ToString();
             if (SqlParser.Parse(statement) is not SelectStatement)
                 throw new NotSupportedException("多结果查询只允许 SELECT；不能混入写入、DDL 或事务控制语句。");
+            var statementTokens = SqlLexer.Tokenize(statement);
+            for (int index = 1; index < statementTokens.Count; index++)
+                if (statementTokens[index - 1].Kind == TokenKind.KeywordFor
+                    && statementTokens[index].Kind == TokenKind.KeywordUpdate)
+                    throw new NotSupportedException("多结果只读批次不能包含锁定读；请在显式事务中单独执行 FOR UPDATE。");
             statements.Add(statement);
         }
         cancellationToken.ThrowIfCancellationRequested();

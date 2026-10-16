@@ -1,0 +1,118 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+using SonnetDB.Exceptions;
+using SqlSugar;
+
+if (args.Length != 2) return 2;
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+string connectionString = Environment.GetEnvironmentVariable("ISSUE248_CONNECTION") ?? "Data Source=" + args[0];
+foreach (var name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    Console.WriteLine($"ASSEMBLY|{name}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))}|{assembly.Location}");
+}
+int checks = 0;
+using var setup = new SndbConnection(connectionString);
+setup.Open();
+using (var command = setup.CreateCommand())
+{
+    command.CommandText = "CREATE TABLE lock_target(id INT,value INT,PRIMARY KEY(id))";
+    command.ExecuteNonQuery();
+    command.CommandText = "INSERT INTO lock_target(id,value) VALUES(1,10),(2,20),(3,30)";
+    Equal(3, command.ExecuteNonQuery());
+}
+foreach (bool asynchronous in new[] { false, true })
+{
+    using var first = Sugar();
+    using var second = Sugar();
+    foreach (bool commit in new[] { false, true })
+    {
+        first.Ado.BeginTran(); second.Ado.BeginTran();
+        Equal(1L, (await Query(first, 1, DbLockType.Wait, asynchronous)).Single().Id);
+        await Conflict(() => Query(second, 1, DbLockType.Error, asynchronous));
+        Equal(2L, (await Query(second, 2, DbLockType.Error, asynchronous)).Single().Id);
+        Equal(0, (await Query(second, 404, DbLockType.Error, asynchronous)).Count);
+        if (commit) first.Ado.CommitTran(); else first.Ado.RollbackTran();
+        Equal(1L, (await Query(second, 1, DbLockType.Error, asynchronous)).Single().Id);
+        second.Ado.RollbackTran();
+    }
+    first.Ado.BeginTran(); second.Ado.BeginTran();
+    Equal(1L, (await Query(first, 1, DbLockType.Wait, asynchronous)).Single().Id);
+    using var started = new ManualResetEventSlim();
+    Task<List<LockRow>> waiting = Task.Run(async () => { started.Set(); return await Query(second, 1, DbLockType.Wait, asynchronous); });
+    if (!started.Wait(TimeSpan.FromSeconds(5))) throw new Exception("Waiting consumer did not start.");
+    first.Ado.CommitTran();
+    Equal(1L, (await waiting.WaitAsync(TimeSpan.FromSeconds(10))).Single().Id);
+    second.Ado.RollbackTran();
+
+    first.Ado.BeginTran(); second.Ado.BeginTran();
+    Equal(1, await Store(first, 71, DbLockType.Wait, asynchronous));
+    await Conflict(async () => { await Store(second, 72, DbLockType.Error, asynchronous); });
+    first.Ado.CommitTran();
+    Equal(1, await Store(second, 72, DbLockType.Error, asynchronous));
+    second.Ado.CommitTran();
+    Equal(72L, first.Queryable<LockRow>().Where(row => row.Id == 1).Single().Value);
+}
+using (var command = setup.CreateCommand())
+{
+    command.CommandText = "SELECT value FROM lock_target WHERE id=1";
+    Equal(72L, await command.ExecuteScalarAsync());
+}
+Console.WriteLine($"POSITIVE_CONTRACT_CONFIRMED|{args[1]}|checks={checks}|originalSqlSugarSource=true");
+if (checks != 34) throw new Exception($"Expected 34 checks, got {checks}.");
+return 0;
+
+SqlSugarClient Sugar() => new(new ConnectionConfig
+{
+    DbType = SqlSugar.DbType.SonnetDB, ConnectionString = connectionString,
+    InitKeyType = InitKeyType.Attribute, IsAutoCloseConnection = false,
+});
+
+async Task<List<LockRow>> Query(SqlSugarClient client, long id, DbLockType mode, bool asynchronous)
+{
+    var query = client.Queryable<LockRow>().Where(row => row.Id == id).TranLock(mode);
+    string sql = query.ToSql().Key;
+    string suffix = mode == DbLockType.Error ? "for update nowait" : "for update";
+    if (!sql.TrimEnd().EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) throw new Exception("Wrong generated lock SQL.");
+    Console.WriteLine($"SQL|query|async={asynchronous}|{sql.Replace('\r', ' ').Replace('\n', ' ')}");
+    return asynchronous ? await query.ToListAsync() : query.ToList();
+}
+
+async Task<int> Store(SqlSugarClient client, long value, DbLockType mode, bool asynchronous)
+{
+    var operation = client.Storageable(new LockRow { Id = 1, Value = value }).TranLock(mode);
+    Console.WriteLine($"SQL|Storageable|async={asynchronous}|mode={mode}");
+    return asynchronous ? await operation.ExecuteCommandAsync() : operation.ExecuteCommand();
+}
+
+void Equal(object? expected, object? actual)
+{
+    if (!Equals(expected, actual)) throw new Exception($"Expected {expected}, got {actual}.");
+    checks++;
+}
+
+async Task Conflict(Func<Task> action)
+{
+    try { await Task.Run(action).WaitAsync(TimeSpan.FromSeconds(5)); }
+    catch (Exception error)
+    {
+        for (Exception? current = error; current is not null; current = current.InnerException)
+        {
+            string? code = current is SqlRowLockException local ? local.Code : (current as SndbServerException)?.Error;
+            if (code != SqlRowLockException.NotAvailable) continue;
+            Console.WriteLine($"EXPECTED_CONFLICT|{code}|{current.GetType().FullName}");
+            checks++;
+            return;
+        }
+        throw;
+    }
+    throw new Exception("NOWAIT did not reject while the holder was active.");
+}
+
+[SugarTable("lock_target")]
+public sealed class LockRow
+{
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true)] public long Id { get; set; }
+    [SugarColumn(ColumnName = "value")] public long Value { get; set; }
+}

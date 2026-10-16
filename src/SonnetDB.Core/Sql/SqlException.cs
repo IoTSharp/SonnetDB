@@ -81,7 +81,7 @@ public static class SqlErrorCodes
     /// <summary>SQL 执行超过时间预算。</summary>
     public const string Timeout = "sql_timeout";
 
-    /// <summary>SELECT 锁定读未提供行锁语义。</summary>
+    /// <summary>该 SELECT 组合或锁修饰词尚未提供行锁语义。</summary>
     public const string LockingReadUnsupported = "sql_locking_read_unsupported";
 }
 

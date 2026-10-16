@@ -1,0 +1,366 @@
+{
+  "issue": 248,
+  "date": "2026-10-17",
+  "integrationBase": "8f28c82fa96468d98e7a1843a348973ae0a27a6b",
+  "manifestSha256": "850e256d4c1078140b1e12ae4590cdca27e64f580fea8f9b8cec6dd3e0b05736",
+  "verifiedFrozen": {
+    "sourceFiles": 40,
+    "evidenceFiles": 257,
+    "runtimeFiles": 837,
+    "upstreamSourceFiles": 603,
+    "mismatches": 0
+  },
+  "integration": {
+    "headBeforeIntegration": "8f28c82fa96468d98e7a1843a348973ae0a27a6b",
+    "base": "edd23c1d72c472c71ea0b8d4939df0ec5c2311e4",
+    "files": [
+      {
+        "path": "docs/audits/issue-248-implementation-20261016.md",
+        "frozenSha256": "3E2FF6A96A4C0685CE73CC9E3289A7204FE41EFC366325C0C28D104F8F83B0C8",
+        "mergedSha256": "3e2ff6a96a4c0685ce73cc9e3289a7204fe41efc366325c0c28d104f8f83b0c8",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "docs/audits/issue-248-preparation-20261016.md",
+        "frozenSha256": "6BC0E517AAF3CD9561BDAFF028E29EE88A177D67336BCEDD620A15B4517EF1E4",
+        "mergedSha256": "6bc0e517aaf3cd9561bdaff028e29ee88a177d67336bcedd620a15b4517ef1e4",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/AcceptanceTests.cs.txt",
+        "frozenSha256": "C24ACF5258C174C6143ACBFCCC6F26C32DFAB2A20E391C9637EA4E07C682706C",
+        "mergedSha256": "c24acf5258c174c6143acbfccc6f26c32dfab2a20e391c9637ea4e07c682706c",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/Common.ps1",
+        "frozenSha256": "D5E9662AD6511CA7DC13CE1A0255BE866CB5FA0FB26EDD57399A8FC02B0C54B8",
+        "mergedSha256": "d5e9662ad6511ca7dc13ce1a0255be866cb5fa0fb26edd57399a8fc02b0c54b8",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/LockConsumer.csproj",
+        "frozenSha256": "204B4EDC2ED5FFC44CAD64F61AD66A2FF1F62655BC550D8B722F9828E0864B86",
+        "mergedSha256": "204b4edc2ed5ffc44cad64f61ad66a2ff1f62655bc550d8b722f9828e0864b86",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/PositiveConsumer.csproj",
+        "frozenSha256": "73C816F8BF01A70C1722A078472161B9E3772BBB99402345CF7A731AAD2270D8",
+        "mergedSha256": "73c816f8bf01a70c1722a078472161b9e3772bbb99402345cf7a731aad2270d8",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/PositiveProgram.cs.txt",
+        "frozenSha256": "2500811CCC9BED0D3B352BE7088EA6471A6B2DFD2B027DEABEC6692480A615C9",
+        "mergedSha256": "2500811ccc9bed0d3b352be7088ea6471a6b2dfd2b027deabec6692480a615c9",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/Program.cs.txt",
+        "frozenSha256": "C94EA5B93B37DBA1F1990C2118788C748EEB7BED96E931F5A1F573AC5DEA5A29",
+        "mergedSha256": "c94ea5b93b37dba1f1990c2118788c748eeb7bed96e931f5a1f573ac5dea5a29",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/README.md",
+        "frozenSha256": "06B45FEA70466C70A6C63E54F8F4E499E599F50813FEBBB07E4AA48D1CB6572F",
+        "mergedSha256": "06b45fea70466c70a6c63e54f8f4e499e599f50813febbb07e4aa48d1cb6572f",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "scripts/validation/issue248-nowait/Remote-Negative.ps1",
+        "frozenSha256": "B1FBE9597B4969105E329572A8414721ACBF1A9D00AF7C90A9788A11BF8E8E32",
+        "mergedSha256": "b1fbe9597b4969105e329572a8414721acbf1a9d00af7c90a9788a11bf8e8e32",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Engine/Tsdb.cs",
+        "frozenSha256": "B53FCE7972C6166786F49BB42E098FEF8874410D0BD25815A8F157C65219FEE9",
+        "mergedSha256": "4959a6da14f51ba438b08b1479bd18c1e7db06b8359970283e0e23ea3ef90eca",
+        "mergedWithNewerMain": true
+      },
+      {
+        "path": "src/SonnetDB.Core/Exceptions/SqlRowLockException.cs",
+        "frozenSha256": "E37C901F0D6B0D0AB376F75F34EB2A3258C0C527084D828C11BAB3CE8447D8E0",
+        "mergedSha256": "e37c901f0d6b0d0ab376f75f34eb2a3258c0c527084d828c11bab3ce8447d8e0",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Routines/SqlRoutineRuntime.cs",
+        "frozenSha256": "F46A932874F39121F1B348BBE0CE1F03F796AAB4E61C578C35E1691DA6CA34C6",
+        "mergedSha256": "f46a932874f39121f1b348bbe0ce1f03f796aab4e61c578c35e1691da6ca34c6",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+        "frozenSha256": "A5BA35D20D814237DCC6B6DDD6482B4F79BC6683EEA6D5634D6E5250DF0532A4",
+        "mergedSha256": "a5ba35d20d814237dcc6b6ddd6482b4f79bc6683eea6d5634d6e5250df0532a4",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+        "frozenSha256": "FFC2842B4BE39C8719FF86677B068A0EFFA4DB31E48A21A74396D3B64C197D41",
+        "mergedSha256": "ffc2842b4be39c8719ff86677b068a0effa4db31e48a21a74396d3b64c197d41",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/SqlLockingReadContract.cs",
+        "frozenSha256": "416C49B40BE248D293AC887B7A69BDB4D2049D82BA181FE4EDDEF54B3A24781A",
+        "mergedSha256": "416c49b40be248d293ac887b7a69bdb4d2049d82ba181fe4eddef54b3a24781a",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/SqlStatementFingerprint.cs",
+        "frozenSha256": "4FC48CD5C58B7D804676631E262C600B0375970CF733978C2F9E70BDB0281C27",
+        "mergedSha256": "4fc48cd5c58b7d804676631e262c600b0375970cf733978c2f9e70bdb0281c27",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/SqlTransactionContext.cs",
+        "frozenSha256": "F4F7910C68B4E374F7E8F00A3C862028C4EB8D07251018428CAF6D1805977367",
+        "mergedSha256": "f4f7910c68b4e374f7e8f00a3c862028c4eb8d07251018428caf6d1805977367",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/SqlTransactionContext.RowLocks.cs",
+        "frozenSha256": "25561D7683778707CB50C80DF06D624C0992A4B7FCF33A436A96729692A0C660",
+        "mergedSha256": "25561d7683778707cb50c80df06d624c0992a4b7fcf33a436a96729692a0c660",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+        "frozenSha256": "EEA5477EB4E6E3F782067D4381146CEC5E9EA383D278740F387AD273F2F9E955",
+        "mergedSha256": "eea5477eb4e6e3f782067d4381146cec5e9ea383d278740f387ad273f2f9e955",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.RowLocks.cs",
+        "frozenSha256": "2E8EC2DB8BEA9866561421EE0DAB556A1DEB7CF3D6A60E9BA0187646EC8EFD00",
+        "mergedSha256": "2e8ec2db8bea9866561421ee0dab556a1deb7cf3d6a60e9ba0187646ec8efd00",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/SqlErrorMapper.cs",
+        "frozenSha256": "90500D69416F9384458929EE8A5EF5EFB4EF126F1D189AE11B1D3DEC885E9CDE",
+        "mergedSha256": "90500d69416f9384458929ee8a5ef5efb4ef126f1d189ae11b1d3dec885e9cde",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/SqlException.cs",
+        "frozenSha256": "9AEE086801DC18B1F3203866967DFFD1CE3512EA922A777F6C2B9CCBA4501E32",
+        "mergedSha256": "9aee086801dc18b1f3203866967dffd1ce3512ea922a777f6c2b9ccba4501e32",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+        "frozenSha256": "633DF5D6DB81516543D544FBB00A7DF830982603973886134CEA4CAD83FD7131",
+        "mergedSha256": "633df5d6db81516543d544fbb00a7df830982603973886134cea4cad83fd7131",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableLockOperation.cs",
+        "frozenSha256": "ABC8255A074848C98CB9910200C6EDA68C0E7E88F800DEA0A3DDA096FB3DBB68",
+        "mergedSha256": "abc8255a074848c98cb9910200c6eda68c0e7e88f800dea0a3dda096fb3dbb68",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableMaintenance.cs",
+        "frozenSha256": "D93BE710555A43C9FD861A931C9D4B47ED06F62DDEF9CDE495AF6273FE51E0D9",
+        "mergedSha256": "d93be710555a43c9fd861a931c9d4b47ed06f62ddef9cde495af6273fe51e0d9",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+        "frozenSha256": "858CCF7160A8411D659985E6253996622999BE8D6959CE9F8F495C1BE708FC08",
+        "mergedSha256": "858ccf7160a8411d659985e6253996622999be8d6959ce9f8f495c1be708fc08",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableOnlineIndexBuild.cs",
+        "frozenSha256": "4CDAA708B92FF95B9118FD803965641E632EB759B001F39C48D0CEE09DAE7214",
+        "mergedSha256": "4cdaa708b92ff95b9118fd803965641e632eb759b001f39c48d0cee09dae7214",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableRowLockManager.cs",
+        "frozenSha256": "0A85331B8EB6F412BFF808E838DF92DA260508EEF88D8F7478A014928E13ABCB",
+        "mergedSha256": "0a85331b8eb6f412bff808e838df92da260508eef88d8f7478a014928e13abcb",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableStore.cs",
+        "frozenSha256": "BEFE0CBEA98D4A866875EBD91B078E701EF3A6B9181DFB0E59553BDC8197FAE3",
+        "mergedSha256": "befe0cbea98d4a866875ebd91b078e701ef3a6b9181dfb0e59553bdc8197fae3",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Core/Tables/TableStore.RowLocks.cs",
+        "frozenSha256": "C91D51DD87CC40E09D98066B9DAF324805D8366CBDA8DAF35049A3DDB1619F58",
+        "mergedSha256": "c91d51dd87cc40e09d98066b9daf324805d8366cbda8daf35049a3ddb1619f58",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB.Data/Internal/SqlSelectBatch.cs",
+        "frozenSha256": "38BB9DD84B69D7BB189903F499AEA2375488F757D48D75BBB012BF14101D071C",
+        "mergedSha256": "38bb9dd84b69d7bb189903f499aea2375488f757d48d75bbb012bf14101d071c",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs",
+        "frozenSha256": "C5526F132924AE38D8F5919F946E766D269A546D0F25863BE518CDC1CDC205DB",
+        "mergedSha256": "c5526f132924ae38d8f5919f946e766d269a546d0f25863be518cdc1cdc205db",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Ado/SndbMultipleResultTests.cs",
+        "frozenSha256": "38D2361106759C32116469A826CC07FC8E3C590234A655456E136CBE9E79E187",
+        "mergedSha256": "38d2361106759c32116469a826cc07fc8e3c590234a655456e136cbe9e79e187",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlLockingReadContractTests.cs",
+        "frozenSha256": "C3414E436F5316F21B1A5EFE342847A8F488365136363FED6FBD3DDD090A1C8E",
+        "mergedSha256": "c3414e436f5316f21b1a5efe342847a8f488365136363fed6fbd3ddd090a1c8e",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlRowLockAcceptanceTests.cs",
+        "frozenSha256": "AAF62FB3E9F01974CD960CA1AB245EB6D09529DABCDE49CDD7C5F3AD5D1C93F1",
+        "mergedSha256": "aaf62fb3e9f01974cd960ca1ab245eb6d09529dabcde49cdd7c5f3ad5d1c93f1",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Sql/SqlRowLockConcurrencyTests.cs",
+        "frozenSha256": "AAC4B62907853E934E777DBFADB80F668E245BE45F4F75BD7ED750852CF3AA19",
+        "mergedSha256": "aac4b62907853e934e777dbfadb80f668e245be45f4f75bd7ed750852cf3aa19",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/Tables/TableRowLockManagerTests.cs",
+        "frozenSha256": "957DF5FEFBCD9C254AF1FCAB2F11E0E52BC0018E276BDB72BD00EB2F4159A7E5",
+        "mergedSha256": "957df5fefbcd9c254af1fcab2f11e0e52bc0018e276bdb72bd00eb2f4159a7e5",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.RowLocks.cs",
+        "frozenSha256": "3016CD6BD7B394ABA38F2CF961CC1A8CE602E865DE13136942B329829CE67355",
+        "mergedSha256": "3016cd6bd7b394aba38f2cf961cc1a8ce602e865de13136942b329829ce67355",
+        "mergedWithNewerMain": false
+      },
+      {
+        "path": "tests/SonnetDB.Tests/RemoteLockingReadContractTests.cs",
+        "frozenSha256": "7B367CCE924A94F6F0C9DFF1BCAE94D364FF5B291A032E8DC4E68CB7D55E9872",
+        "mergedSha256": "7b367cce924a94f6f0c9dff1bcae94d364ff5b291a032e8dc4e68cb7d55e9872",
+        "mergedWithNewerMain": false
+      }
+    ],
+    "conflicts": []
+  },
+  "rootCoreTests": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_05_23_net10.0.trx",
+      "sha256": "4f02c384643675e45720437e3ce440afd222bdb655de33485e7c6c21a5cd53b9",
+      "counters": {
+        "total": "7606",
+        "executed": "7606",
+        "passed": "7606",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      }
+    }
+  ],
+  "consumerBindings": [
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\consumer-embedded.stdout.log",
+      "assembly": "SonnetDB.Core",
+      "sha256": "6133EA2B174F83586D0EE5A51B39B6ABF827FF9824FBF5929EC846D4247ECA77"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\consumer-embedded.stdout.log",
+      "assembly": "SonnetDB.Data",
+      "sha256": "20A3E74DE7FE0D2638C406ED7602F9A53EBBE19A21E745A97B90F4093D2F3B74"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\consumer-embedded.stdout.log",
+      "assembly": "SqlSugar",
+      "sha256": "FF9B19F1887519673B9D6B05D2042378BE364DC3B44003F5E0F9D592B5471AB6"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\consumer-embedded.stdout.log",
+      "assembly": "SqlSugar.SonnetDBCore",
+      "sha256": "A149ABA2948C897A437601F677D98EA30C93B5D76582B8019CF8120FB586C48F"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-rest-exercise.stdout.log",
+      "assembly": "SonnetDB.Core",
+      "sha256": "6133EA2B174F83586D0EE5A51B39B6ABF827FF9824FBF5929EC846D4247ECA77"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-rest-exercise.stdout.log",
+      "assembly": "SonnetDB.Data",
+      "sha256": "20A3E74DE7FE0D2638C406ED7602F9A53EBBE19A21E745A97B90F4093D2F3B74"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-rest-exercise.stdout.log",
+      "assembly": "SqlSugar",
+      "sha256": "FF9B19F1887519673B9D6B05D2042378BE364DC3B44003F5E0F9D592B5471AB6"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-rest-exercise.stdout.log",
+      "assembly": "SqlSugar.SonnetDBCore",
+      "sha256": "A149ABA2948C897A437601F677D98EA30C93B5D76582B8019CF8120FB586C48F"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-frame-http2-exercise.stdout.log",
+      "assembly": "SonnetDB.Core",
+      "sha256": "6133EA2B174F83586D0EE5A51B39B6ABF827FF9824FBF5929EC846D4247ECA77"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-frame-http2-exercise.stdout.log",
+      "assembly": "SonnetDB.Data",
+      "sha256": "20A3E74DE7FE0D2638C406ED7602F9A53EBBE19A21E745A97B90F4093D2F3B74"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-frame-http2-exercise.stdout.log",
+      "assembly": "SqlSugar",
+      "sha256": "FF9B19F1887519673B9D6B05D2042378BE364DC3B44003F5E0F9D592B5471AB6"
+    },
+    {
+      "log": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\consumer-remote\\lock-frame-http2-exercise.stdout.log",
+      "assembly": "SqlSugar.SonnetDBCore",
+      "sha256": "A149ABA2948C897A437601F677D98EA30C93B5D76582B8019CF8120FB586C48F"
+    }
+  ],
+  "rootConsumers": {
+    "embedded": 34,
+    "rest": 34,
+    "http2": 34
+  },
+  "builds": {
+    "solutionRelease": "0 warnings/errors",
+    "DataExplicitAotTrim": "0 warnings/errors",
+    "ServerRebuild": "0 warnings/errors"
+  },
+  "boundaries": [
+    "Parent retains independent 50f598cc changes and owns root HANDOFF/CHANGELOG, final restore/Format, commit/push/CI/comment/closure.",
+    "Single relational base table FOR UPDATE [NOWAIT] in explicit transaction; ordinary SELECT unlocked; no gap or phantom protection.",
+    "Existing lightweight writes are buffered optimistically and wait/revalidate at COMMIT.",
+    "DDL and deferred-trigger COMMIT use conservative database-exclusive in-memory locking.",
+    "REST/h2c explicit transactions use HTTP JSON transaction endpoints, not Frame binary transactions.",
+    "Original negative and intermediate failure evidence remains historical; successful source verification is not formal package or other ORM delivery.",
+    "AOT evidence is analyzer build only; no NativeAOT publish/runtime claim."
+  ],
+  "fullSolutionRun": "In progress at review creation; independent Docker context ignore failure preserved and scheduled for its own fix. See final integration audit."
+}

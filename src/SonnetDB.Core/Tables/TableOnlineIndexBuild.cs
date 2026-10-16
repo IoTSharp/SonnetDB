@@ -53,6 +53,10 @@ public sealed partial class TableManager
             pageBudget.CancelAfter(TimeSpan.FromMilliseconds(250));
             try
             {
+                using var lockOwner = RowLocks.CreateOwner();
+                using var rowLock = RowLocks.Acquire(lockOwner,
+                    [TableRowLockManager.Resource.DatabaseExclusive], false,
+                    TimeSpan.FromSeconds(30), pageBudget.Token);
                 using (EnterOnlineIndexLock(_schemaSync, pageBudget.Token))
                 using (EnterOnlineIndexLock(_sync, pageBudget.Token))
                 {

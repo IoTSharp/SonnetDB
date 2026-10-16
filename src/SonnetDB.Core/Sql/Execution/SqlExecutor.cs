@@ -387,6 +387,7 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
         statement = BindNames(tsdb, statement);
+        SqlLockingReadContract.Validate(statement);
         using var deadlineSource = options.CreateDeadlineSource();
         if (deadlineSource is not null)
         {
@@ -1892,6 +1893,7 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         statement = BindSelectNames(tsdb, statement);
+        SqlLockingReadContract.Validate(statement);
         SqlSerializableSourceValidator.Validate(tsdb, statement, SqlTransactionContext.Current,
             RoutineExecutionContext.Current?.Options.CancellationToken ?? default);
         // EXPLAIN ANALYZE 和例程内嵌 SELECT 复用当前根调用的治理选项，
@@ -1910,6 +1912,9 @@ public static class SqlExecutor
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
         SqlDateTimeOffsetContract.Validate(tsdb, statement);
+
+        if (statement.ForUpdate)
+            return TableSqlExecutor.ExecuteLockingSelect(tsdb, statement);
 
         if (statement.IsRecursive)
             return RecursiveCteExecutor.Execute(tsdb, statement);

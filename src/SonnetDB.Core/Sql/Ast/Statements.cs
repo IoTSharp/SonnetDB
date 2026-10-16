@@ -934,6 +934,12 @@ public sealed partial record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>在显式事务中锁定实际选中的关系基表行。</summary>
+    public bool ForUpdate { get; init; }
+
+    /// <summary>锁定读遇到竞争目标立即返回稳定冲突，不排队等待。</summary>
+    public bool NoWait { get; init; }
+
     /// <summary>FROM 名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 

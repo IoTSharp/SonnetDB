@@ -8,25 +8,30 @@ public sealed partial class TableManager
     /// <returns>存在并删除约束时为 true。</returns>
     public bool DropConstraint(string tableName, string constraintName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
-        lock (_schemaSync)
-            lock (_sync)
-            {
-                ThrowIfDisposed();
-                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-                var current = Catalog.TryGet(tableName)
-                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                if (string.Equals(current.PrimaryKeyConstraintName, constraintName, StringComparison.Ordinal))
+        return TableLockOperation.Run(RowLocks, () =>
+        {
+            TableLockOperation.Require(RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
+
+            ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+            lock (_schemaSync)
+                lock (_sync)
                 {
-                    if (Catalog.Snapshot().Any(schema => schema.ForeignKeys.Any(key =>
-                        string.Equals(key.PrincipalTable, tableName, StringComparison.Ordinal))))
-                        throw new InvalidOperationException($"主键 '{constraintName}' 仍被外键引用。");
-                    ApplyPrimaryKeySchemaMigrationLocked(current, current.WithPrimaryKey([]), static (_, row) => row.Values);
-                    return true;
+                    ThrowIfDisposed();
+                    _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                    var current = Catalog.TryGet(tableName)
+                        ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                    if (string.Equals(current.PrimaryKeyConstraintName, constraintName, StringComparison.Ordinal))
+                    {
+                        if (Catalog.Snapshot().Any(schema => schema.ForeignKeys.Any(key =>
+                            string.Equals(key.PrincipalTable, tableName, StringComparison.Ordinal))))
+                            throw new InvalidOperationException($"主键 '{constraintName}' 仍被外键引用。");
+                        ApplyPrimaryKeySchemaMigrationLocked(current, current.WithPrimaryKey([]), static (_, row) => row.Values);
+                        return true;
+                    }
+                    return DropForeignKey(tableName, constraintName) || DropCheckConstraint(tableName, constraintName);
                 }
-                return DropForeignKey(tableName, constraintName) || DropCheckConstraint(tableName, constraintName);
-            }
+        });
     }
 
     /// <summary>持久设置自增下一值；不能回退到已分配的高水位，成功返回前同步 WAL。</summary>
@@ -34,17 +39,22 @@ public sealed partial class TableManager
     /// <param name="nextValue">1 到 Int64.MaxValue 之间的下一值。</param>
     public void SetAutoIncrementNextValue(string tableName, long nextValue)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(nextValue);
-        lock (_schemaSync)
-            lock (_sync)
-            {
-                ThrowIfDisposed();
-                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-                var schema = Catalog.TryGet(tableName)
-                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                OpenStoreLocked(schema).SetAutoIncrementNextValue(nextValue);
-            }
+        TableLockOperation.Run(RowLocks, () =>
+        {
+            TableLockOperation.Require(RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
+
+            ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(nextValue);
+            lock (_schemaSync)
+                lock (_sync)
+                {
+                    ThrowIfDisposed();
+                    _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                    var schema = Catalog.TryGet(tableName)
+                        ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                    OpenStoreLocked(schema).SetAutoIncrementNextValue(nextValue);
+                }
+        });
     }
 }
 
