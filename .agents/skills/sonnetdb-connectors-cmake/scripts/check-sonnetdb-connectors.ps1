@@ -211,7 +211,7 @@ if ($RunNativePublish) {
     }
 
     Invoke-Step "C NativeAOT publish fallback" {
-        & dotnet publish "connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" `
+        & dotnet publish "embedded/native/SonnetDB.Native/SonnetDB.Native.csproj" `
             --configuration Release `
             --runtime win-x64 `
             /p:SelfContained=true `

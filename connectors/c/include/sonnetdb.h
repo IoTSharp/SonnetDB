@@ -38,8 +38,14 @@ typedef enum sonnetdb_value_type {
 } sonnetdb_value_type;
 
 SONNETDB_API sonnetdb_connection* sonnetdb_open(const char* data_source);
+/* Closing a connection disposes its active SQL results; their handles must still be freed. */
 SONNETDB_API void sonnetdb_close(sonnetdb_connection* connection);
 
+/* SQL results own their reader and command. No rows are prefetched by this ABI layer.
+ * Row text pointers expire at the next result_next or result_free.
+ * Serialize next/value/free/connection-close calls for the same result handle.
+ * End returns 0, failure returns -1 and remains a failure on later next calls.
+ * The Core execution path may still materialize its own complete result. */
 SONNETDB_API sonnetdb_result* sonnetdb_execute(sonnetdb_connection* connection, const char* sql);
 SONNETDB_API void sonnetdb_result_free(sonnetdb_result* result);
 

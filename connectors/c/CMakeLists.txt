@@ -57,8 +57,8 @@ message(STATUS "SonnetDB C connector RID: ${SONNETDB_C_EFFECTIVE_RID}")
 
 set(SONNETDB_C_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(SONNETDB_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-set(SONNETDB_NATIVE_PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/native/SonnetDB.Native/SonnetDB.Native.csproj")
-set(SONNETDB_NATIVE_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/native/SonnetDB.Native")
+set(SONNETDB_NATIVE_PROJECT "${SONNETDB_REPO_ROOT}/embedded/native/SonnetDB.Native/SonnetDB.Native.csproj")
+set(SONNETDB_NATIVE_PROJECT_DIR "${SONNETDB_REPO_ROOT}/embedded/native/SonnetDB.Native")
 set(SONNETDB_NATIVE_PUBLISH_DIR "${CMAKE_CURRENT_BINARY_DIR}/native/${SONNETDB_C_EFFECTIVE_RID}/publish")
 set(SONNETDB_NATIVE_STAMP "${CMAKE_CURRENT_BINARY_DIR}/native/${SONNETDB_C_EFFECTIVE_RID}/sonnetdb-native.stamp")
 
@@ -75,6 +75,8 @@ file(GLOB_RECURSE SONNETDB_NATIVE_SOURCE_FILES CONFIGURE_DEPENDS
     "${SONNETDB_NATIVE_PROJECT_DIR}/*.cs"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/*.cs"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Data/*.cs")
+# Generated C# must not make every subsequent build republish the AOT library.
+list(FILTER SONNETDB_NATIVE_SOURCE_FILES EXCLUDE REGEX "/(bin|obj)/")
 
 set(SONNETDB_DOTNET_BUILD_FILES
     "${SONNETDB_REPO_ROOT}/Directory.Build.props"
@@ -133,6 +135,19 @@ if(SONNETDB_C_BUILD_EXAMPLES)
     if(UNIX AND NOT APPLE)
         set_target_properties(sonnetdb_quickstart PROPERTIES
             BUILD_RPATH "$ORIGIN")
+    endif()
+
+    add_executable(sonnetdb_result_lifetime "${SONNETDB_REPO_ROOT}/embedded/c/examples/result_lifetime.c")
+    target_compile_features(sonnetdb_result_lifetime PRIVATE c_std_99)
+    target_link_libraries(sonnetdb_result_lifetime PRIVATE sonnetdb_c)
+    add_dependencies(sonnetdb_result_lifetime sonnetdb_native_publish)
+    add_custom_command(TARGET sonnetdb_result_lifetime POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${SONNETDB_NATIVE_LIBRARY}"
+            "$<TARGET_FILE_DIR:sonnetdb_result_lifetime>"
+        VERBATIM)
+    if(UNIX AND NOT APPLE)
+        set_target_properties(sonnetdb_result_lifetime PROPERTIES BUILD_RPATH "$ORIGIN")
     endif()
 endif()
 

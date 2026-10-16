@@ -1,5 +1,15 @@
 # SonnetDB Connectors
 
+## Confirmed refactor target — 2026-10-16
+
+**Implementation started; the sections below retain the existing implementation's scope.** The sole AOT export project has moved to `embedded/native`; CMake points to it, and SQL results now own a pull reader instead of copying all rows at the ABI layer. Data/Core dependency separation and native per-language remote SDKs remain pending. `connectors/` will contain native per-language HTTP/2 binary Frame clients; a parallel `embedded/` will contain managed .NET and shared Native AOT C ABI bindings. First scope: nine-model data access, 64-bit engine/library targets, Java 8 compatibility, direct API refactoring without a legacy compatibility layer. Formal packages may ship in batches with their actual language/platform/operation matrix.
+
+Remote targets: .NET, C, Go, Rust, Python, Java, VB6, PureBasic. Embedded targets: the first six languages only. VB6 remains an x86 remote client and needs no 32-bit AOT engine bridge. Platform/AI/CDC/governance APIs are deferred; existing authentication, authorization and data correctness remain required. Remote operations must use Frame; no language has a pre-approved REST fallback.
+
+See the [confirmed requirements](../docs/design/connector-embedded-split-requirements-20261016.md), [M49 plan](../docs/design/m49-connector-analytics-bounded-batches.md), [implementation matrix](../docs/design/m49-implementation-matrix.md) and [root roadmap](../ROADMAP.md#milestone-49). C01/C02/D01/R02/R03 have an active first slice; none of the 15 work packages is complete.
+
+## Current implementation before the refactor
+
 This directory contains language and driver connectors built on top of SonnetDB.
 
 The connector layout follows the same layering used by mature time-series database ecosystems:
@@ -18,6 +28,10 @@ The first implemented connector is the C connector because it defines the small 
 ## Connector Roadmap
 
 Connectors have their own product route. They are not just embedded-engine samples.
+
+The confirmed [M49 refactor](../docs/design/m49-connector-analytics-bounded-batches.md) adds D01/F01 to C01–C08/R01–R05: dependency/directory separation, missing Frame operations, native remote SDKs and embedded bindings, with shared types, bounded batches, cancellation and terminal-state semantics. Direct refactoring replaces the former compatibility-layer plan. Java 8/JNI is the baseline; FFM is optional.
+
+The C ABI no longer makes a complete copy of SQL reader rows before returning its result handle. The embedded Core result is still materialized, so end-to-end bounded execution remains pending. M49 addresses execution, managed/AOT local consumption and native HTTP/2 Frame consumption separately. Each delivered batch needs its own real operation, failure, cancellation, recovery, resource and clean-package evidence. VB6/PureBasic require remote runtime evidence only. ODBC and external object-storage backends remain separate future work.
 
 The native C ABI remains the shared foundation for languages that need a stable binary boundary. The first supported ABI surface covered SQL:
 

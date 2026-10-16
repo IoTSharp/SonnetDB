@@ -8,6 +8,11 @@
 ## [Unreleased]
 
 ### Changed
+
+- M49 首个实现切片：Native SQL result 改为持有 reader/command 并按需逐行读取，移除 ABI 层完整结果副本；EOF 后拒绝旧行，失败终态保留，提前释放/连接关闭清理活动结果。唯一 AOT 导出工程迁到 `embedded/native`，同步 CMake、solution 和独立 Native 测试入口。仍依赖混合 Data/Core 物化路径，D01/R01/R02/R03 尚未完成；不宣称端到端有界、新远程 SDK 或全平台交付。
+
+- **连接器/嵌入式双产品线需求与规划修订（2026-10-16）**：按用户答复更新[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)和[M49](docs/design/m49-connector-analytics-bounded-batches.md)，远程原生HTTP/2二进制Frame，嵌入式.NET托管/非.NET共用AOT，BASIC仅远程，Java8兼容，先64位，不保留旧兼容层。首批只做九模型数据访问、允许分批正式发行，共15包；当前首片进度与实际验证见[实施矩阵](docs/design/m49-implementation-matrix.md)，其它平台API后续。
+
 - GH-Issue #250：补齐持久真实主键名称和 `information_schema.table_constraints`、实际 DESC 索引编码与 INCLUDE 类型化载荷、`ALTER TABLE ... AUTO_INCREMENT = n` 原生下一值维护。约束改名/删除、索引覆盖读取/事务/迁移/在线恢复、真实三协议维护及终止恢复已补验；含主键目录和新索引选项使用永久 v16 屏障，在线新选项断点 v2，旧引擎拒绝且降级须恢复升级前副本，未改变 FileHeader。正式包、SqlSugar 上游交付与标准 CodeFirst 的 #227 事务 DDL 条件仍待完成。
 
 - 表目录临时文件占用回归将同步保存放在专用线程，避免单核/双核测试进程中的线程池饥饿延迟文件锁释放；保留实际 Windows 文件锁、75ms 释放条件及生产重试次数和间隔，旧源码失败与修正后验证分别留档。

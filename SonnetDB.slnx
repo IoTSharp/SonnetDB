@@ -14,8 +14,8 @@
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
     <Project Path="src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj" />
   </Folder>
-  <Folder Name="/connectors/">
-    <Project Path="connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" />
+  <Folder Name="/embedded/">
+    <Project Path="embedded/native/SonnetDB.Native/SonnetDB.Native.csproj" />
   </Folder>
   <Folder Name="/extensions/">
     <Project Path="extensions/SonnetDB.CAP/SonnetDB.CAP.csproj" />
@@ -50,6 +50,7 @@
     <Project Path="tests/SonnetDB.IoTSharpCompat.Tests/SonnetDB.IoTSharpCompat.Tests.csproj" />
     <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Media.Tests/SonnetDB.Media.Tests.csproj" />
+    <Project Path="tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj" />
     <Project Path="tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
     <Project Path="tests/SonnetDB.TriggerAdmission/SonnetDB.TriggerAdmission.csproj" />
