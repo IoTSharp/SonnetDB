@@ -1,9 +1,16 @@
 # SonnetDB 交接记录
 
 交接日期：2026-10-16（Asia/Shanghai）<br>
-当前分支：`codex/issue-supervision-batch05`<br>
+当前分支：`main`<br>
 远端基线：`origin/main`
-项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
+项目目录：`D:\source\SonnetDB`
+
+## 主目录提交推送核查（2026-10-16）
+
+- 用户要求立即提交并推送。会话开始时主目录工作树干净，`main` 为 `ffdb734c`，没有待提交代码；获取远端后确认已有九个后续提交已推送至 `50f598ccc8bcaea8a832473232d860ce7baf6da3`，主目录已通过 `git merge --ff-only origin/main` 同步至该提交。本节更新此前“主目录仍 ffdb734c”和“249/Identity 修复尚未推送”的历史快照，不改写原测试失败记录。
+- 本次仅提交本交接记录，不包含其它工作树的在途实现；提交前在最终树执行完整 `dotnet restore SonnetDB.slnx` 与原 CI Format Check，两项实际退出 0 后才允许提交。命令日志、实际退出码及提交/推送/远端回读收据保存在本机忽略目录 `artifacts/commit-push-20261016/`，最终 SHA 以 Git 历史与该收据为准。
+- 本次未重新运行产品功能、恢复或性能测试，格式门禁不能代替这些验证，也不代表远端 CI 全绿。下一步仍按原监督交接核验 `50f598cc` 对应 CI，再接续各独立工作树的 #248 → #247 → #245；本会话不接管或关闭这些任务。
+- 获取远端时确认 `parity-results` 已由远端推进至 `042748d841c5eca6e47261cf6b63e220280ee102`；保留该分支、远端引用、其它工作树及原失败证据，提交推送仅针对 `main`。
 
 ## 最新监督检查点（2026-10-16，249已提交、Identity CI修复验收中）
 
