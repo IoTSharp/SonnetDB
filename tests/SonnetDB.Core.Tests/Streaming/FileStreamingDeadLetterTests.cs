@@ -283,6 +283,11 @@ public sealed class FileStreamingDeadLetterTests
                 // wrapper 取消分支不保留原 OperationCanceledException。
                 Assert.Null(failure.InnerException);
             }
+            else if (failure.Message == $"Streaming 检查点操作超过 {options.OperationTimeoutMilliseconds} 毫秒超时边界。")
+            {
+                // 检查点自己的超时可能先于锁重试超时完成，仍不保留取消异常。
+                Assert.Null(failure.InnerException);
+            }
             else
             {
                 Assert.Equal($"无法在 {options.OperationTimeoutMilliseconds} 毫秒内取得检查点文件锁。", failure.Message);

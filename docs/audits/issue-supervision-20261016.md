@@ -111,3 +111,8 @@
 261已完整门禁后独立提交b157dddc，尚未推送。远端cfa92314的CI38827086358三平台AOT与Format成功，Ubuntu Core7194/7195唯一失败为旧DATE_ADD期待DateTimeOffset；Server1347/1347。根原DLL复现baseline0/1并保留；仅改为DateTime类型、值和Kind.UTC三项断言，Release构建零警告/错误，完整Core结果另从issue262-ci-contract/full-core.trx核回，原run不改写为PASS。完整提交门禁在issue262-ci-contract/final。
 
 258冻结14文件已核69证据、28DLL与14执行副本，尚未集成；issue312接续唯一255，b157dddc新D树，核#243既有无主键实现与真实XCode消费。259/256继续当前任务，生产共享冻结交接已完成；255不重写243、不与256抢共享文件。
+
+## 2026-10-16 全Core回归中的超时断言分支
+
+- 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。
+- 259已冻结18文件，根尚未集成；代理Core145/145、远程9/9+36/36、Chloe候选48/48。issue313接续唯一254，在D:/source/SonnetDB-worktrees/issue254-public-aggregate-cast（0a51102c），既有CAST聚合实现不重做，补公开包及真实Chloe消费；共享RSE等256冻结，255继续XCode无主键消费。下一步根260→259→258串行复审/门禁/提交，再批次推送核CI并按真实正式发行条件回复。

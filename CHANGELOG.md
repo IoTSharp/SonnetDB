@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- Streaming 死信恢复测试补齐检查点自身超时先于锁重试结束的既有分支，继续严格核验异常内部信息、恢复拒绝与原spool保留，不修改生产超时合同。
+
 - GH-Issue #262：日期标量回归按已交付合同显式检查 DATE_ADD 的原生 DateTime 类型、UTC Kind 与加日结果，替换旧隐式 DateTimeOffset 期望；保留原 CI 失败证据。
 
 - GH-Issue #263：补齐公开预览包原始SByte/UInt16/UInt32及枚举/NULL参数、Chloe DbParam/Session/SqlQuery、批量/回滚/重开的三协议消费证据；明确公开旧包UInt64额外控制限制，正式发行和Chloe正式交付仍待完成。

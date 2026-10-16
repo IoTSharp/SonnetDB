@@ -6,6 +6,8 @@
 项目目录：`D:\source\SonnetDB`
 
 ## 最新监督检查点（2026-10-16，日期CI断言修正）
+- 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。
+- 259已冻结18文件，根尚未集成；代理Core145/145、远程9/9+36/36、Chloe候选48/48。issue313接续唯一254，在D:/source/SonnetDB-worktrees/issue254-public-aggregate-cast（0a51102c），既有CAST聚合实现不重做，补公开包及真实Chloe消费；共享RSE等256冻结，255继续XCode无主键消费。下一步根260→259→258串行复审/门禁/提交，再批次推送核CI并按真实正式发行条件回复。
 
 - #261 已通过最终完整 restore/Format 并独立提交 b157dddc2886127e2deddb22a75555a3883e687d，尚未推送。远端仍 cfa92314。该远端CI38827086358的三平台AOT和Format已成功，Ubuntu Core7194/7195：唯一失败是SqlExecutorTableTests旧DATE_ADD断言期待DateTimeOffset，新#262合同实际返回DateTime；Ubuntu Server1347/1347，其余Windows job尚在运行。原run不能标成功。
 - 根已在原DLL复现同一失败（baseline.trx 0/1），仅修正该断言为DateTime原生类型、AddDays值和Kind.Utc；没有改生产。Release构建零警告/错误，完整Core正在运行，结果须从 issue262-ci-contract/full-core.trx 核验。完整restore/Format门禁保存 issue262-ci-contract/final，实际通过后再独立提交。
