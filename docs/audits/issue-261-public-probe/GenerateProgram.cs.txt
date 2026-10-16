@@ -1,0 +1,74 @@
+using System.ComponentModel;
+using System.Data;
+using System.Reflection;
+using XCode;
+using XCode.Code;
+using XCode.Configuration;
+using XCode.DataAccessLayer;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 3) return 2;
+try
+{
+    if (args[0] == "generate")
+    {
+        DAL.AddConnStr("Issue261_Generate", "Data Source=" + args[1] + ";Migration=Off", null, "SonnetDB");
+        var dal = DAL.Create("Issue261_Generate");
+        foreach (string sql in new[]
+        {
+            "CREATE TABLE BuildItems(id INT,name STRING,amount DECIMAL(20,6),PRIMARY KEY(id))",
+            "INSERT INTO BuildItems(id,name,amount) VALUES(1,'text',12.345678),(2,NULL,NULL)",
+            "CREATE VIEW GeneratedView AS SELECT id AS ItemID,name AS Value,amount AS Amount FROM BuildItems",
+            "CREATE VIEW LowerModel AS SELECT id AS value FROM BuildItems",
+            "CREATE VIEW UpperModel AS SELECT id AS VALUE FROM BuildItems",
+            "CREATE VIEW UnicodeModel AS SELECT name AS \"显示 名\" FROM BuildItems",
+            "CREATE MATERIALIZED VIEW GeneratedSnapshot AS SELECT * FROM GeneratedView",
+            "REFRESH MATERIALIZED VIEW GeneratedSnapshot"
+        }) dal.Execute(sql);
+        var tables = dal.Db.CreateMetaData().GetTables().Where(t => t.IsView).ToList();
+        if (tables.Count != 5 || tables.Any(t => t.DbType != DatabaseType.SonnetDB)) throw new InvalidOperationException("Provider metadata missing.");
+        Directory.CreateDirectory(args[2]);
+        File.WriteAllText(Path.Combine(args[2], "models.xml"), DAL.Export(tables));
+        foreach (var table in tables)
+        {
+            var builder = new EntityBuilder
+            {
+                AllTables = tables,
+                MaxCacheCount = 0,
+                Option = new EntityBuilderOption { Namespace = "Issue261.Generated", ConnName = "AcceptanceOnly", Nullable = true, BaseClass = "Entity" }
+            };
+            builder.Load(table);
+            builder.Execute();
+            File.WriteAllText(Path.Combine(args[2], table.Name + ".cs"), builder.ToString());
+            builder.Clear();
+            builder.Business = true;
+            builder.Execute();
+            File.WriteAllText(Path.Combine(args[2], table.Name + ".Biz.cs"), builder.ToString());
+            Console.WriteLine("GENERATED|" + table.TableName + "|" + string.Join(';', table.Columns.Select(c => c.Name + "->" + c.ColumnName)));
+        }
+        dal.Db.Dispose();
+    }
+    else
+    {
+        var models = DAL.Import(File.ReadAllText(args[1]));
+        Assembly generated = Assembly.LoadFrom(args[2]);
+        foreach (var table in models)
+        {
+            Type type = generated.GetTypes().Single(t => t.GetCustomAttribute<BindTableAttribute>()?.Name == table.TableName);
+            foreach (var column in table.Columns)
+            {
+                var property = type.GetProperties().Single(p => p.GetCustomAttribute<BindColumnAttribute>()?.Name == column.ColumnName);
+                var binding = property.GetCustomAttribute<BindColumnAttribute>()!;
+                var nullable = property.GetCustomAttribute<DataObjectFieldAttribute>()!;
+                if (property.Name != column.Name || property.PropertyType != column.DataType || nullable.IsNullable != column.Nullable)
+                    throw new InvalidOperationException("Generated mapping differs: " + table.TableName + "." + column.ColumnName);
+                if (column.DataType == typeof(decimal) && (binding.Precision != 20 || binding.Scale != 6))
+                    throw new InvalidOperationException("Generated precision differs.");
+                Console.WriteLine($"COMPILED-MAPPING|{table.TableName}|{property.Name}|{binding.Name}|{property.PropertyType.FullName}|nullable={nullable.IsNullable}|p={binding.Precision}|s={binding.Scale}");
+            }
+        }
+    }
+    Console.WriteLine("COMPLETE|generated|" + args[0]);
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }

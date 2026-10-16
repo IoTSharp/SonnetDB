@@ -1,0 +1,81 @@
+using System.Data.Common;
+using System.Globalization;
+using System.Reflection;
+using XCode.DataAccessLayer;
+
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 2) return 2;
+try
+{
+    foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "XCode" })
+    {
+        var assembly = Assembly.Load(name);
+        Console.WriteLine($"ASSEMBLY|{name}|{assembly.Location}");
+    }
+    DAL.AddConnStr("SourceConcat", "Data Source=" + args[1] + ";Migration=Off", null, "SonnetDB");
+    var dal = DAL.Create("SourceConcat");
+    if (args[0] == "initial")
+    {
+        foreach (string sql in new[]
+        {
+            "CREATE TABLE ConcatItems(id INT,name STRING,PRIMARY KEY(id))",
+            "CREATE VIEW ConcatView AS SELECT CONCAT(name,NULL) AS Joined, CONCAT(NULL,NULL) AS AllNull, CONCAT('id=',CAST(id AS STRING)) AS Identifier, CONCAT(CAST(CONCAT(name,'!') AS STRING),'!') AS Nested FROM ConcatItems",
+            "CREATE VIEW NestedConcat AS SELECT * FROM ConcatView",
+            "CREATE MATERIALIZED VIEW ConcatSnapshot AS SELECT * FROM NestedConcat",
+            "REFRESH MATERIALIZED VIEW ConcatSnapshot"
+        }) dal.Execute(sql);
+        Verify(dal, false);
+        dal.Execute("INSERT INTO ConcatItems(id,name) VALUES(1,NULL),(2,'文字')");
+        dal.Execute("REFRESH MATERIALIZED VIEW ConcatSnapshot");
+    }
+    Verify(dal, true);
+    dal.Db.Dispose();
+    Console.WriteLine("COMPLETE|source-concat-xcode|" + args[0]);
+    return 0;
+}
+catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+
+static void Verify(DAL dal, bool populated)
+{
+    var tables = dal.Db.CreateMetaData().GetTables().Where(t => t.IsView).ToList();
+    if (tables.Count != 3) throw new InvalidOperationException("Missing CONCAT views.");
+    foreach (var source in new[] { tables, DAL.Import(DAL.Export(tables)).ToList() })
+    {
+        foreach (var table in source)
+        {
+            if (!table.Columns.Select(c => c.ColumnName).SequenceEqual(new[] { "Joined", "AllNull", "Identifier", "Nested" })
+                || table.Columns.Any(c => c.DataType != typeof(string) || c.Nullable || c.Length != 0 || c.RawType != "STRING"))
+                throw new InvalidOperationException("CONCAT declaration differs: " + table.TableName);
+            Console.WriteLine($"MODEL|{table.TableName}|populated={populated}|String|nullable=False|length=0");
+        }
+    }
+    using var connection = dal.Db.OpenConnection();
+    foreach (var table in tables)
+    {
+        foreach (string suffix in new[] { " LIMIT 0", " WHERE 1=0", " ORDER BY Identifier" })
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT * FROM " + table.TableName + suffix;
+            using var reader = command.ExecuteReader();
+            CheckSchema(reader);
+            if (populated && suffix.StartsWith(" ORDER", StringComparison.Ordinal))
+            {
+                foreach (string[] row in new[] { new[] { "", "", "id=1", "!!" }, new[] { "文字", "", "id=2", "文字!!" } })
+                {
+                    if (!reader.Read()) throw new InvalidOperationException("Missing row.");
+                    for (int i = 0; i < row.Length; i++) if (reader.GetString(i) != row[i]) throw new InvalidOperationException("Wrong row.");
+                    CheckSchema(reader);
+                }
+            }
+            if (reader.Read()) throw new InvalidOperationException("Unexpected row.");
+            CheckSchema(reader);
+        }
+    }
+}
+
+static void CheckSchema(DbDataReader reader)
+{
+    if (reader.FieldCount != 4 || reader.GetColumnSchema().Any(c => c.DataType != typeof(string) || c.AllowDBNull != false || c.ColumnSize is not null))
+        throw new InvalidOperationException("Reader declaration differs.");
+}

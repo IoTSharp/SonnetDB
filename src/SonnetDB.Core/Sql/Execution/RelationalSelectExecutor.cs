@@ -4356,6 +4356,9 @@ internal static partial class RelationalSelectExecutor
             && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
             return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
 
+        if (InferConcatDeclaration(expression) is { } concat)
+            return concat;
+
         if (expression is FunctionCallExpression temporal && !temporal.IsStar
             && FunctionRegistry.GetFunctionKind(temporal.Name) == FunctionKind.Scalar
             && UserFunctionRegistry.Current?.TryGetScalar(temporal.Name, out _) != true)

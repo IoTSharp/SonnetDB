@@ -97,3 +97,11 @@
 远端代码批次8ead8bf2的CI38823012523七个job全部success，#272/#271/#270已分别回复并关闭completed。评论ID为6204704191、6204705523、6204706988，逐条核回作者maikebing、正文及state/state_reason；[永久回执](issue-supervision-batch02-actions-20261016.json)保存实际结果，没有把草稿当作发送。公开预览满足这三条原Issue公开修复包要求；264/263及后续明确正式发行的要求仍分别保留。
 
 #262冻结13份候选按SHA整合到根及#261隔离树，旧目标均核同基线且未修改。根Release三构建零警告/错误、China Standard Time下Core164/164、Server189/189通过；代理最终Core91/91、Server152/152和Data/Server显式AOT分析通过，重叠结果不相加。真实Chloe原provider每协议5PASS/9FAIL，最小六文件本地候选三协议42项全PASS，原失败保留，外部未发PR/未正式发行。生产/测试已冻结，报告/工具交付整理中，因此本阶段主树候选仍未提交。261已接concat缺口继续验证，260等261共享基线；现有代理/工作树复用，无重复派单。下一步按每Issue最终完整restore/Format、独立提交和批次推送继续。
+
+## 2026-10-16 #261 根集成与下一批衔接
+
+批次03已推送 cfa92314，264/263/262已逐条回复并回读，仍OPEN；实际回执见 issue-supervision-batch03-actions-20261016.json。CI38827086358运行中，Format/Linux x64 AOT已成功，尚不能宣称完整CI通过。前批272/271/270完成关闭状态不变。
+
+261已按冻结27文件集成，根核406证据文件、5二进制、16个物化快照及两份原TRX；两个Release构建0警告/错误，Core44/44、Server114/114。审计JSON转LF的哈希映射保存在issue261/root-review/line-ending-normalization.json；XCode补丁保留原始上下文字节，以局部.gitattributes标识，不降低dotnet门禁。本项完整restore/Format实际通过后才独立提交，门禁收据issue261/final。正式发行与XCode上游交付仍缺，保持OPEN。
+
+260冻结13文件尚待根集成，原生50+318/远程6+8/Chloe6进程证据已初步核回。原代理各接唯一259/258/256，使用D盘树cfa92314基线；261+260共11依赖已按SHA同步259/256，259首轮3/3生产冻结4文件已同步256，后者可继续RSE分页实现。258报告公开包/Chloe矩阵通过仍待冻结；两项源码/公开包/候选/正式交付分别记录。未重复派单，无清理旧树或parity-results，监督继续。

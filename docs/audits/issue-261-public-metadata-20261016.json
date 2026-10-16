@@ -1,0 +1,588 @@
+{
+  "issue": 261,
+  "date": "2026-10-16",
+  "timezone": "Asia/Shanghai",
+  "sourceBase": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "sourceFrozenManifestSha256": "CDA36CC23F5B498EA75E43A09A16513C48E6D17D052D7CD2D161CD651A0CF40D",
+  "issue262CandidateManifestSha256": "1040936A4A260F647C0087FF438D7E0A69208DA2D29375F00E580C33A91B682A",
+  "sourceFiles": [
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "2531094061562B61BC98F934B932F5BEA85BBA20B05A735A319B8CE0768081D9",
+      "issue262BaseSha256": "8F02D2110BBF46CA17F2A3D590F57D5B994A26409545E82F138692E2136CA68F"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.ConcatDeclarations.cs",
+      "sha256": "1B0F0D377579EB0B548CAA95EF4DFB67B876782125FB738424D30D57101A88F1",
+      "issue262BaseSha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlConcatViewDeclarationTests.cs",
+      "sha256": "CA4462CC1D8CEBB5636CFB5AEB9B8934006E6DB94D3010312837DA090CF5AA48",
+      "issue262BaseSha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlSelectColumnMetadataTests.cs",
+      "sha256": "37288475B286E8BB42ECBD6D1A3E9DCAF2B5913BC2E691C64FAC443779031736",
+      "issue262BaseSha256": null
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs",
+      "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D",
+      "issue262BaseSha256": "A7587F81C5460D03D798FF2D3BC983CD3D5B931364CDDF04906E19F15378D265"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.ConcatDeclarations.cs",
+      "sha256": "A05A2B83FE5CD5F98A2ABB077C00F6EB1EFA709F0FA0C220198FDC36239BABE7",
+      "issue262BaseSha256": null
+    }
+  ],
+  "sourceBuilds": {
+    "serverWarnings": 0,
+    "coreWarnings": 0,
+    "coreErrors": 0,
+    "serverErrors": 0
+  },
+  "sourceTests": [
+    {
+      "name": "core",
+      "total": 59,
+      "passed": 59,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "BB16D8DE9A59FA4700E71875077DABA1A4642DE9E0085DB0F156A29813458100"
+    },
+    {
+      "name": "server",
+      "total": 114,
+      "passed": 114,
+      "failed": 0,
+      "notExecuted": 0,
+      "sha256": "3BF5653B8AD7C6123CFF1FEA7D93C38ABBB798B84645B887731526D6C108994C"
+    }
+  ],
+  "sourceBins": [
+    {
+      "path": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.Tests.dll",
+      "sha256": "EB72013140BCC13329CD443B60689CF0F230F650647DAA72390F438CD92F0F7F"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Tests.dll",
+      "sha256": "2F302D9170480BBD17F39B19515CB7F18821C02E2EC0240F317F372F72FBE65A"
+    },
+    {
+      "path": "src/SonnetDB.Core/bin/Release/net10.0/SonnetDB.Core.dll",
+      "sha256": "E92A5487AA25BFF3ED7E3FC6D836530BC65D24AA4BC6B8A62A299538B381B155"
+    },
+    {
+      "path": "src/SonnetDB.Data/bin/Release/net10.0/SonnetDB.Data.dll",
+      "sha256": "D17F4C30E915AE5D47A89193C4E7541800A0E56450401ABFC964F8EF9696B138"
+    },
+    {
+      "path": "src/SonnetDB/bin/Release/net10.0/SonnetDB.dll",
+      "sha256": "7FEFC494FB283FBDE53C155EFD98903A57612F90FAD0444F37347D0F6F70DD04"
+    }
+  ],
+  "publicPackageVersion": "4.5.0-preview.ef266.5",
+  "publicSourceCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "publicPackages": [
+    {
+      "id": "sonnetdb",
+      "version": "4.5.0-preview.ef266.5",
+      "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4",
+      "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "source": "https://api.nuget.org/v3/index.json",
+      "dlls": [
+        {
+          "name": "SonnetDB.Data.dll",
+          "packageSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+          "runtimeSha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+        }
+      ]
+    },
+    {
+      "id": "sonnetdb.core",
+      "version": "4.5.0-preview.ef266.5",
+      "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268",
+      "repositoryCommit": "1af23d8f299febfdf66b040ab3419980396acf46",
+      "source": "https://api.nuget.org/v3/index.json",
+      "dlls": [
+        {
+          "name": "SonnetDB.Core.dll",
+          "packageSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+          "runtimeSha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+        }
+      ]
+    }
+  ],
+  "xcodeSourceCommit": "757fa2a078906f87783e55fe0e9d5f54a9e916b9",
+  "xcodePatchSha256": "555B3BF314C6558C0955ECEDAB96C712EA2952A529D6A773C60AE9489FC736AE",
+  "serverSourceCommit": "285186b868a59d4b22e47279ea51deb38a3a1f45",
+  "serverManifestSha256": "F3C8003EE04C621A4FBF975E29263414199D8DD521D0071D0048859F14ED7A1D",
+  "scope": {
+    "nativeProcesses": 8,
+    "nativeCompleteDeclarationShapes": 14,
+    "nativeCharacterizationShapes": 2,
+    "xcodeNegativeBaselineProcesses": 2,
+    "xcodeCandidateProcesses": 6,
+    "xcodeCompleteDeclarationShapes": 18,
+    "generatedEntityModels": 5,
+    "generatedPartialFiles": 10,
+    "compiledProperties": 9,
+    "generatedWarnings": 0,
+    "generatedErrors": 0,
+    "xcodeUpstreamWarnings": 105,
+    "sourceConcatXcodeProcesses": 2,
+    "sourceConcatXcodeIsPublicPackageAcceptance": false,
+    "newCoreTests": 4,
+    "newRealRemoteTests": 2
+  },
+  "runs": [
+    {
+      "name": "native-03",
+      "receipt": "artifacts/issue-supervision-20261016/issue261-work/native-03/receipt.json",
+      "receiptSha256": "CE0F81182A132D490EBAA9E9431AD0B175F33D6DB5949279D89739EE46026E48",
+      "commands": [
+        {
+          "label": "sdk",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "embedded-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "embedded-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "core-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "core-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "rest-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "frame-http2-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "rest-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "frame-http2-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "hosts": [
+        {
+          "pid": 38776,
+          "startedUtc": "2026-10-15T23:27:28.4754899Z",
+          "endedUtc": "2026-10-15T23:27:30.9592308Z",
+          "exitCode": -1,
+          "killedForReopen": true
+        },
+        {
+          "pid": 78484,
+          "startedUtc": "2026-10-15T23:27:30.9595847Z",
+          "endedUtc": "2026-10-15T23:27:33.0492239Z",
+          "exitCode": -1,
+          "killedForReopen": true
+        }
+      ]
+    },
+    {
+      "name": "xcode-05",
+      "receipt": "artifacts/issue-supervision-20261016/issue261-work/xcode-05/receipt.json",
+      "receiptSha256": "ACF3D2AF1D7851F01E3D2CAEFF7517CADAE1647C3B5E4EEB00A305C63DCE9B38",
+      "commands": [
+        {
+          "label": "clone",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "xcode-head",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "sdk",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "stable-restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "stable-build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "stable-guard",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "preview-restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "preview-build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "preview-guard",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "patch-check",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "patch-apply",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "candidate-diff",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "candidate-build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "embedded-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "embedded-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "rest-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "frame-http2-initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "rest-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "frame-http2-reopen",
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "hosts": [
+        {
+          "pid": 61560,
+          "startedUtc": "2026-10-15T23:38:46.7016464Z",
+          "endedUtc": "2026-10-15T23:38:49.6230246Z",
+          "exitCode": -1,
+          "killedForReopen": true
+        },
+        {
+          "pid": 80764,
+          "startedUtc": "2026-10-15T23:38:49.623359Z",
+          "endedUtc": "2026-10-15T23:38:52.0961738Z",
+          "exitCode": -1,
+          "killedForReopen": true
+        }
+      ]
+    },
+    {
+      "name": "generated-02",
+      "receipt": "artifacts/issue-supervision-20261016/issue261-work/generated-02/receipt.json",
+      "receiptSha256": "DF6BC49380A8351D80473402A6F868913F9FD78C334603132144545ACE45FB8C",
+      "commands": [
+        {
+          "label": "clone",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "xcode-head",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "patch-check",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "patch-apply",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "candidate-diff",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "sdk",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "consumer-restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "consumer-build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "generate",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "entities-restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "entities-build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "verify",
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "hosts": []
+    },
+    {
+      "name": "source-02",
+      "receipt": "artifacts/issue-supervision-20261016/issue261-work/source-02/receipt.json",
+      "receiptSha256": "4D8739D195B21FF4D6DAA1B1CD52A8D4514A2EDBDC5F3289E69830A0D7236E0A",
+      "commands": [
+        {
+          "label": "restore-server",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "build-SonnetDB.Core.Tests",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "build-SonnetDB.Tests",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "core-tests",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "server-tests",
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "hosts": []
+    },
+    {
+      "name": "source-xcode-01",
+      "receipt": "artifacts/issue-supervision-20261016/issue261-work/source-xcode-01/receipt.json",
+      "receiptSha256": "AD53279BCDD24FE004A92D364CDD8F87501B04A00641DE1D9C21D961FC98C204",
+      "commands": [
+        {
+          "label": "restore",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "build",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "initial",
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "label": "reopen",
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "hosts": []
+    }
+  ],
+  "snapshots": [
+    {
+      "runtime": "i261-native-03",
+      "path": "core-db\\materialized-views\\data\\0efadd84289b4266b98b093177f43c88\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "core-db\\materialized-views\\data\\2f317f31bcb54e22bb923208bb31a991\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "embedded-db\\materialized-views\\data\\8f582e85365342f383b35fbf2b657e1b\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "embedded-db\\materialized-views\\data\\ef1e386cbc254acebff078d331ffd351\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "server-data\\metadata_frame\\materialized-views\\data\\5075761f91294485a713ea999fa4c14e\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "server-data\\metadata_frame\\materialized-views\\data\\ec4bf5db71e547e2b0004cf746450bcd\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "server-data\\metadata_rest\\materialized-views\\data\\89fe9edd3e774adea3a0794ec66dcdd5\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-native-03",
+      "path": "server-data\\metadata_rest\\materialized-views\\data\\ba58469fc12247f6814e6207753f9abf\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "embedded-db\\materialized-views\\data\\5403e1e863694944a90721593a1eca18\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "embedded-db\\materialized-views\\data\\c65edefbb2ff48d08a9a3858c678adf8\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "server-data\\xcode_frame\\materialized-views\\data\\67d22777350e42c5948b89cb3e1153fc\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "server-data\\xcode_frame\\materialized-views\\data\\72926f646a9646c89fc72939ff326767\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "server-data\\xcode_rest\\materialized-views\\data\\6072b4786a4e4fbda964297022eadbf0\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "285F21B6A4E46AF41726D6C26343CF4EF64E580BEDC57FD7606CD00A68B7B96F"
+    },
+    {
+      "runtime": "i261-xcode-05",
+      "path": "server-data\\xcode_rest\\materialized-views\\data\\67af16e37f244d3b803e4829f3a946cb\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "A64051D988B4505D225CDB16A0B7C512023F840DD88DA2415E1912C989D35BE2"
+    },
+    {
+      "runtime": "i261-generated-02",
+      "path": "database\\materialized-views\\data\\ef645345845b4fad9b4cb7afde029521\\generation-00000000000000000001.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "3BC028BA90D540535321F4D0812746E7EE55C5F805009E8616A14443666AFD28"
+    },
+    {
+      "runtime": "i261-source-xcode-01",
+      "path": "database\\materialized-views\\data\\58c956dce3244a4cbb3137f5ecea40a0\\generation-00000000000000000002.sdbmvsnap",
+      "magic": "SDBMVS01",
+      "version": 2,
+      "sha256": "87A934CD45AD67B99E22057055068ED96B5C78A5DC7881D92BB1D8535ACF9291"
+    }
+  ],
+  "ownedDotnetRemaining": [],
+  "stableReleaseSatisfied": false,
+  "upstreamXCodeDelivered": false,
+  "canClose": false,
+  "commit": false,
+  "push": false,
+  "finalSolutionGate": "root-pending"
+}

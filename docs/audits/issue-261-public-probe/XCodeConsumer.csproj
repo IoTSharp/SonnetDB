@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <NuGetAudit>false</NuGetAudit>
+    <DisableImplicitLibraryPacksFolder>true</DisableImplicitLibraryPacksFolder>
+    <PublicVersion Condition="'$(PublicVersion)' == ''">4.5.0-preview.ef266.5</PublicVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="XCodeProgram.cs.txt" />
+    <Compile Include="MetadataCases.cs" />
+    <PackageReference Include="SonnetDB" Version="[$(PublicVersion)]" />
+    <PackageReference Include="SonnetDB.Core" Version="[$(PublicVersion)]" />
+    <ProjectReference Include="$(XCodeSourceRoot)/XCode/XCode.csproj" />
+  </ItemGroup>
+</Project>

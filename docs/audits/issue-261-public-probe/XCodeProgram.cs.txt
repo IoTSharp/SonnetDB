@@ -1,0 +1,154 @@
+using System.Data;
+using System.Globalization;
+using System.Reflection;
+using SonnetDB.Data;
+using XCode.Code;
+using XCode.DataAccessLayer;
+
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 3) return 2;
+string phase = args[0];
+string transport = args[2];
+string name = "Issue261_" + Environment.ProcessId;
+try
+{
+    foreach (string assemblyName in new[] { "SonnetDB.Data", "SonnetDB.Core", "XCode" })
+    {
+        var assembly = Assembly.Load(assemblyName);
+        string version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? assembly.GetName().Version!.ToString();
+        Console.WriteLine($"ASSEMBLY|{assemblyName}|{version}|{assembly.Location}");
+    }
+    DAL.AddConnStr(name, args[1] + ";Migration=Off", null, "SonnetDB");
+    var dal = DAL.Create(name);
+    MetadataCases.Require(dal.DbType == DatabaseType.SonnetDB, "real-provider");
+    if (phase.EndsWith("-guard", StringComparison.Ordinal))
+    {
+        dal.Execute("CREATE TABLE items(id INT, name STRING, PRIMARY KEY(id))");
+        dal.Execute("INSERT INTO items(id,name) VALUES(1,'first')");
+        dal.Execute("CREATE VIEW item_view AS SELECT id,name FROM items");
+        using var connection = dal.Db.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM item_view LIMIT 0";
+        using var reader = command.ExecuteReader();
+        Console.WriteLine($"BASELINE-SCHEMA|{phase}|{reader.GetFieldType(0)}|{reader.GetFieldType(1)}");
+        try
+        {
+            dal.Db.CreateMetaData().GetTables();
+            throw new InvalidOperationException("Expected original provider rejection.");
+        }
+        catch (NotSupportedException error) when (phase == "stable-guard" && error.Message.Contains("#261", StringComparison.Ordinal))
+        {
+            Console.WriteLine("EXPECTED-REJECTION|stable-original|" + error);
+        }
+        catch (InvalidCastException error) when (phase == "preview-guard")
+        {
+            Console.WriteLine("EXPECTED-REJECTION|preview-original|" + error);
+        }
+    }
+    else
+    {
+        if (phase == "initial")
+        {
+            foreach (string sql in MetadataCases.Create.Where(sql => !sql.Contains("CREATE VIEW MixedView",StringComparison.Ordinal) && !sql.Contains("CREATE VIEW UnknownView",StringComparison.Ordinal))) dal.Execute(sql);
+            foreach (string sql in new[]
+            {
+                "CREATE VIEW case_lower AS SELECT DeviceID AS value FROM ViewItems",
+                "CREATE VIEW case_upper AS SELECT DeviceID AS VALUE FROM ViewItems",
+                "CREATE VIEW \"中文视图\" AS SELECT Name AS \"显示 名\" FROM ViewItems",
+                "CREATE VIEW \"Quote\"\"View\" AS SELECT Name AS \"值\"\"标签\" FROM ViewItems"
+            }) dal.Execute(sql);
+            Verify(dal, false, "empty");
+            foreach (string sql in MetadataCases.Populate) dal.Execute(sql);
+        }
+        Verify(dal, true, "populated");
+        dal.Execute("CREATE VIEW UnknownView AS SELECT concat('id=', CAST(DeviceID AS STRING)) AS Rendered FROM ViewItems");
+        try
+        {
+            dal.Db.CreateMetaData().GetTables();
+            throw new InvalidOperationException("Undeclared expression must remain rejected.");
+        }
+        catch (NotSupportedException error) when (error.Message.Contains("#261",StringComparison.Ordinal))
+        {
+            Console.WriteLine("EXPECTED-REJECTION|unknown-expression|" + error.Message);
+        }
+        dal.Execute("DROP VIEW UnknownView");
+        Verify(dal, true, "after-guard");
+    }
+    dal.Db.Dispose();
+    Console.WriteLine($"COMPLETE|xcode|{transport}|{phase}|pid={Environment.ProcessId}");
+    return 0;
+}
+catch (Exception error)
+{
+    Console.Error.WriteLine(error);
+    return 1;
+}
+
+void Verify(DAL dal, bool populated, string state)
+{
+    ViewCase[] exactNames =
+    [
+        new("case_lower",[new("value",typeof(long),"Int64",false,19,0)],populated ? [[1L],[2L]] : []),
+        new("case_upper",[new("VALUE",typeof(long),"Int64",false,19,0)],populated ? [[1L],[2L]] : []),
+        new("中文视图",[new("显示 名",typeof(string),"String",true)],populated ? [[null],["第二行"]] : []),
+        new("Quote\"View",[new("值\"标签",typeof(string),"String",true)],populated ? [[null],["第二行"]] : [])
+    ];
+    var expected = MetadataCases.Cases(populated).Where(c => c.Name is not "MixedView" and not "UnknownView").Concat(exactNames).ToArray();
+    var tables = dal.Db.CreateMetaData().GetTables();
+    foreach (ViewCase item in expected)
+    {
+        var table = tables.Single(t => t.TableName == item.Name);
+        CheckTable(table, item);
+        using var connection = dal.Db.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM " + dal.Db.FormatName(item.Name);
+        using var reader = command.ExecuteReader();
+        MetadataCases.AssertSchema(reader,item,"xcode-before-read");
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            var values = new object[reader.FieldCount];
+            reader.GetValues(values);
+            rows.Add(values);
+        }
+        MetadataCases.AssertRows(rows,item.Rows,"xcode/" + item.Name);
+        MetadataCases.AssertSchema(reader,item,"xcode-eof");
+    }
+    string artifact = Path.Combine(Environment.CurrentDirectory,"generated",transport + "-" + phase + "-" + state);
+    Directory.CreateDirectory(artifact);
+    string xml = DAL.Export(tables.Where(t => t.IsView));
+    File.WriteAllText(Path.Combine(artifact,"models.xml"),xml,new System.Text.UTF8Encoding(false));
+    var imported = DAL.Import(xml);
+    foreach (ViewCase item in expected) CheckTable(imported.Single(t => t.TableName == item.Name),item);
+    var target = tables.Single(t => t.TableName == "SnapshotView");
+    var builder = new EntityBuilder
+    {
+        AllTables = tables,
+        Option = new EntityBuilderOption { Namespace = "Issue261.Generated", ConnName = "AcceptanceOnly", Nullable = true, Output = artifact, BaseClass = "Entity" }
+    };
+    builder.Load(target);
+    builder.Execute();
+    string code = builder.ToString();
+    MetadataCases.Require(code.Contains("Int64",StringComparison.Ordinal) && code.Contains("Decimal",StringComparison.Ordinal) && code.Contains("Byte[]",StringComparison.Ordinal),"generated-types");
+    File.WriteAllText(Path.Combine(artifact,"SnapshotView.cs"),code,new System.Text.UTF8Encoding(false));
+    Console.WriteLine($"EXPORT|{transport}|{phase}|{state}|views={imported.Count}|{artifact}");
+}
+
+static void CheckTable(IDataTable table, ViewCase item)
+{
+    MetadataCases.Require(table.IsView && table.Columns.Count == item.Columns.Length,item.Name + "/xcode-view");
+    MetadataCases.Require(table.DbType == DatabaseType.SonnetDB,item.Name + "/actual-database-type");
+    for (int i=0;i<item.Columns.Length;i++)
+    {
+        var actual = table.Columns[i];
+        var expected = item.Columns[i];
+        MetadataCases.Require(actual.ColumnName == expected.Name && actual.DataType == expected.Type,item.Name + "/xcode-name-type/" + expected.Name);
+        MetadataCases.Require(actual.Nullable == expected.Nullable,item.Name + "/xcode-nullable/" + expected.Name);
+        MetadataCases.Require(actual.Precision == (expected.Precision ?? 0) && actual.Scale == (expected.Scale ?? 0),item.Name + "/xcode-p-s/" + expected.Name + "=" + actual.Precision + "," + actual.Scale);
+        MetadataCases.Require(actual.Length == 0,item.Name + "/xcode-unknown-length/" + expected.Name + "=" + actual.Length);
+        if (expected.Type == typeof(decimal) && expected.Precision is not null)
+            MetadataCases.Require(actual.RawType == $"DECIMAL({expected.Precision},{expected.Scale})",item.Name + "/xcode-raw-type");
+        Console.WriteLine($"XCODE-COLUMN|{item.Name}|{i}|{actual.ColumnName}|{actual.DataType.FullName}|{actual.RawType}|nullable={actual.Nullable}|p={actual.Precision}|s={actual.Scale}|length={actual.Length}");
+    }
+}

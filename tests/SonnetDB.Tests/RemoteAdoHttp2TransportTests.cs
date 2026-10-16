@@ -259,10 +259,10 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
                 "INSERT INTO ViewItems (DeviceID, Name, Amount, Payload) VALUES (1, NULL, NULL, NULL)",
                 "CREATE VIEW ItemView AS SELECT DeviceID AS ItemID, Name, Amount, Payload FROM ViewItems",
                 "CREATE VIEW NestedView AS SELECT * FROM ItemView",
-                "CREATE VIEW UnknownView AS SELECT concat('id=', CAST(DeviceID AS STRING)) AS Rendered FROM ViewItems",
+                "CREATE VIEW UnknownView AS SELECT CASE WHEN DeviceID = 1 THEN concat('id=', CAST(DeviceID AS STRING)) ELSE DeviceID END AS Rendered FROM ViewItems",
                 "CREATE TABLE BranchKeys (id INT, PRIMARY KEY(id))",
                 "INSERT INTO BranchKeys (id) VALUES (1), (2)",
-                "CREATE VIEW UnknownSource AS SELECT id, concat('id=', CAST(id AS STRING)) AS Rendered FROM BranchKeys WHERE id = 1",
+                "CREATE VIEW UnknownSource AS SELECT id, CASE WHEN id = 1 THEN concat('id=', CAST(id AS STRING)) ELSE id END AS Rendered FROM BranchKeys WHERE id = 1",
                 "CREATE VIEW UnknownBranches AS SELECT l.id, CASE WHEN l.id = 1 THEN r.Rendered ELSE 0 END AS chosen, "
                     + "COALESCE(r.Rendered, 0) AS filled, CASE WHEN l.id = 1 THEN l.id ELSE NULL END AS genuine_null, "
                     + "CASE WHEN l.id = 1 THEN l.id END AS implicit_null, COALESCE(NULL, l.id) AS null_first, "
@@ -327,7 +327,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
             await using var unknown = await command.ExecuteReaderAsync(deadline.Token);
             Assert.Equal(typeof(object), unknown.GetFieldType(0));
             Assert.Null(unknown.GetColumnSchema()[0].NumericPrecision);
-            Assert.Null(unknown.GetColumnSchema()[0].AllowDBNull);
+            Assert.False(unknown.GetColumnSchema()[0].AllowDBNull);
             Assert.True(await unknown.ReadAsync(deadline.Token));
             Assert.Equal("id=1", unknown.GetString(0));
             Assert.Equal(typeof(object), unknown.GetFieldType(0));

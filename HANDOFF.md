@@ -5,7 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 当前检查点（Issue 倒序持续监督启动，2026-10-16）
+## 最新监督检查点（2026-10-16，#261 根复审）
+
+- 远端 main 已确认 cfa92314b5eeb152f358adc1ea99c177cb6b6a91，#264 15d8d180、#263 eb80bd22、#262 cfa92314 均已推送。三项已实际回复并回读，评论 6204869653 / 6204870590 / 6204871633；正式发行/对应消费者上游交付尚缺，继续 OPEN，永久回执 docs/audits/issue-supervision-batch03-actions-20261016.json。CI 38827086358 最近回读仍 in_progress，Format 与 Linux x64 AOT success；等待其它 job，不为文档再次推送取消该 run。parity-results 保留 2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- #261 冻结 27 文件已按 SHA 集成。根核 406 证据文件、5 源码二进制、16 个 version 2 物化快照和代理两份 TRX；根两个 Release build 均零警告/错误，Core 44/44、真实 Server 114/114，零失败/跳过。与代理 Core59/Server114 重叠不累计。仅审计 JSON 归一 LF，候选补丁保留字节并有局部 .gitattributes；本项将在最终完整 restore/原 Format Check 实际通过后独立提交，收据 issue261/final。XCode 候选已实际反向工程和生成编译，正式发行和上游交付仍缺，不可关闭。
+- #260 已冻结 13 文件，在 issue260-uint64-parse 树保留，根尚未集成或提交。代理 Core50+318、远程6+8、Chloe六进程通过；根已核198证据/二进制、25源码依赖和四份实际TRX。下一步按 #261→#260 串行集成、复审和独立门禁提交，齐批后正常推送并回读。
+- 三个唯一代理现在为 issue313→#259（issue259-uint64-bitwise）、issue312→#258（issue258-public-uuid）、issue314→#256（issue256-int64-pagination），均在 D:/source/SonnetDB-worktrees 下，基线 cfa92314。已按 SHA 将 #261+#260 最终11依赖同步259/256；259首轮3/3后冻结4份生产文件并同步256，故共享修改顺序 #259→#256。259继续完整回归，258已报告公开包/真实Chloe矩阵通过仍待冻结，256实施Int64分页。代理不提交或外发，历史树/失败证据保留。
+- #226/#243 源码补缺已推送且记录恢复验证，仍待正式发行和对应ORM消费者；不重复派单。#272/#271/#270 在前批 CI38823012523 七个job成功后已回复并关闭 completed，见 batch02 永久回执。30分钟自动监督继续 ACTIVE；下一批按最新线上状态从255向下，禁止合并/清理 parity-results。缓存/产物用D，TEMP/数据库用D:/sndb-t独占短路径。
+
+## 历史监督检查点（以下为当时快照，以最新检查点为准）
 
 - 2026-10-16 当前检查点：批次02已推送main到8ead8bf2ce9f62f2c6258552a1cf8c13a6229105；CI 38823012523 已 completed/success，Format、三平台AOT、Ubuntu测试及两个Windows测试分片全部通过。#272/#271/#270 已按原合同回复并关闭completed，评论ID依次6204704191/6204705523/6204706988，作者、正文和关闭状态均已API回读；永久回执 docs/audits/issue-supervision-batch02-actions-20261016.json。parity-results保留2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
 - 本项集成前主树HEAD为c1babefd，#264 15d8d180、#263 eb80bd22已完整restore/Format后独立提交，尚未推送，待#262本批完成一起正常push；两项正式发行/Chloe正式交付条件未满足，保持OPEN。#226/#243源码补齐已提交推送，尚待正式发行/对应ORM验收，不能重做或误称缺少本轮已交付源码。

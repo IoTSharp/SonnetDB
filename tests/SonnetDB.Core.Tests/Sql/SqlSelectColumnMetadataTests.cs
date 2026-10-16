@@ -140,7 +140,7 @@ public sealed class SqlSelectColumnMetadataTests : IDisposable
         {
             "CREATE TABLE BranchKeys (id INT, PRIMARY KEY(id))",
             "INSERT INTO BranchKeys (id) VALUES (1), (2)",
-            "CREATE VIEW UnknownSource AS SELECT id, concat('id=', CAST(id AS STRING)) AS Rendered FROM BranchKeys WHERE id = 1",
+            "CREATE VIEW UnknownSource AS SELECT id, CASE WHEN id = 1 THEN concat('id=', CAST(id AS STRING)) ELSE id END AS Rendered FROM BranchKeys WHERE id = 1",
             "CREATE VIEW UnknownBranches AS SELECT l.id, CASE WHEN l.id = 1 THEN r.Rendered ELSE 0 END AS chosen, "
                 + "COALESCE(r.Rendered, 0) AS filled, CASE WHEN l.id = 1 THEN l.id ELSE NULL END AS genuine_null, "
                 + "CASE WHEN l.id = 1 THEN l.id END AS implicit_null, COALESCE(NULL, l.id) AS null_first, "
