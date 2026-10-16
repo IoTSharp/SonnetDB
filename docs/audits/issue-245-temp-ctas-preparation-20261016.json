@@ -1,0 +1,125 @@
+{
+  "sourceHead": "edd23c1d72c472c71ea0b8d4939df0ec5c2311e4",
+  "issue": 245,
+  "runtimeBuild": "Parent final same-source build before edd23c1d commit",
+  "state": "Preparation only; no production implementation",
+  "upstreamCommit": "65e8226ce25a8e1cb9cca2590683f1fd6778cab3",
+  "runtimeInputManifestSha256": "67E7C5EAEBDEEB5CA8F57F5F11A7A35B15C1C803D4AE2B0FE2C954550E54A655",
+  "utc": "2026-10-16T08:30:51.1310766+00:00",
+  "sourceChanges": "Only new isolated probes, design, candidate patch, evidence summary",
+  "results": [
+    {
+      "failed": 27,
+      "unreachedAssertions": true,
+      "assemblyLines": [
+        "ASSEMBLY|SonnetDB.Core|0.0.0-dev+b568988e5b568ba5bb3abea9574c048a02e0e3f8|8995B3C13DA64DF11FA363AF62726ECFA43D595565291FA3BD49F5F4F76D02AF|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SonnetDB.Core.dll",
+        "ASSEMBLY|SonnetDB.Data|0.0.0-dev+b568988e5b568ba5bb3abea9574c048a02e0e3f8|BEED26E4C75B293CB1486124ACA17AD9713B8265C93DB623CB5098CAFD4B0369|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SonnetDB.Data.dll",
+        "ASSEMBLY|SqlSugar|5.1.4.221+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|9DCC01D6BC847A050D8C6A49C851A9F388D10FEA1BAB78C04FD1AA0FFAC7B3CC|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SqlSugar.dll",
+        "ASSEMBLY|SqlSugar.SonnetDBCore|1.0.0+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|471EF3C0BBAD7D14616A7D8D1BB1B87463A85A2D89356F9908C90F202670120B|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SqlSugar.SonnetDBCore.dll"
+      ],
+      "name": "native-source-final03",
+      "exitCode": 1,
+      "passed": 3
+    },
+    {
+      "failed": 8,
+      "unreachedAssertions": false,
+      "assemblyLines": [
+        "ASSEMBLY|SonnetDB.Core|0.0.0-dev+b568988e5b568ba5bb3abea9574c048a02e0e3f8|8995B3C13DA64DF11FA363AF62726ECFA43D595565291FA3BD49F5F4F76D02AF|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SonnetDB.Core.dll",
+        "ASSEMBLY|SonnetDB.Data|0.0.0-dev+b568988e5b568ba5bb3abea9574c048a02e0e3f8|BEED26E4C75B293CB1486124ACA17AD9713B8265C93DB623CB5098CAFD4B0369|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SonnetDB.Data.dll",
+        "ASSEMBLY|SqlSugar|5.1.4.221+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|9DCC01D6BC847A050D8C6A49C851A9F388D10FEA1BAB78C04FD1AA0FFAC7B3CC|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SqlSugar.dll",
+        "ASSEMBLY|SqlSugar.SonnetDBCore|1.0.0+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|471EF3C0BBAD7D14616A7D8D1BB1B87463A85A2D89356F9908C90F202670120B|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\consumer-build04\\bin\\TempCtasProbe\\release\\SqlSugar.SonnetDBCore.dll"
+      ],
+      "name": "sugar-source-final03",
+      "exitCode": 1,
+      "passed": 6
+    },
+    {
+      "failed": 8,
+      "unreachedAssertions": false,
+      "assemblyLines": [
+        "ASSEMBLY|SonnetDB.Core|4.0.0+d49babae0e049ca4554d26772b92493220d42822|3AF977BC19AD406A59BC70CD0B600E12769C0D1627D4D39E485D1E56FA017055|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\public4-consumer\\SonnetDB.Core.dll",
+        "ASSEMBLY|SonnetDB.Data|4.0.0+d49babae0e049ca4554d26772b92493220d42822|42539D99F521045295A33D0AB8126AB17B769FAAA67D37A9392801202F3B0A1B|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\public4-consumer\\SonnetDB.Data.dll",
+        "ASSEMBLY|SqlSugar|5.1.4.221+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|9DCC01D6BC847A050D8C6A49C851A9F388D10FEA1BAB78C04FD1AA0FFAC7B3CC|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\public4-consumer\\SqlSugar.dll",
+        "ASSEMBLY|SqlSugar.SonnetDBCore|1.0.0+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|471EF3C0BBAD7D14616A7D8D1BB1B87463A85A2D89356F9908C90F202670120B|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\public4-consumer\\SqlSugar.SonnetDBCore.dll"
+      ],
+      "name": "sugar-public4-final01",
+      "exitCode": 1,
+      "passed": 6
+    },
+    {
+      "failed": 8,
+      "unreachedAssertions": false,
+      "assemblyLines": [
+        "ASSEMBLY|SonnetDB.Core|4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46|45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\preview-consumer\\SonnetDB.Core.dll",
+        "ASSEMBLY|SonnetDB.Data|4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46|1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\preview-consumer\\SonnetDB.Data.dll",
+        "ASSEMBLY|SqlSugar|5.1.4.221+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|9DCC01D6BC847A050D8C6A49C851A9F388D10FEA1BAB78C04FD1AA0FFAC7B3CC|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\preview-consumer\\SqlSugar.dll",
+        "ASSEMBLY|SqlSugar.SonnetDBCore|1.0.0+65e8226ce25a8e1cb9cca2590683f1fd6778cab3|471EF3C0BBAD7D14616A7D8D1BB1B87463A85A2D89356F9908C90F202670120B|D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue245-work\\runtime\\preview-consumer\\SqlSugar.SonnetDBCore.dll"
+      ],
+      "name": "sugar-preview-final01",
+      "exitCode": 1,
+      "passed": 6
+    },
+    {
+      "exitCode": 1,
+      "requestCount": 144,
+      "unreachedAssertions": true,
+      "frameRequests": 0,
+      "expectedProtocol": "HTTP/1.1",
+      "name": "rest-native",
+      "failed": 27,
+      "passed": 3,
+      "transactionRequests": 35
+    },
+    {
+      "exitCode": 1,
+      "requestCount": 252,
+      "unreachedAssertions": false,
+      "frameRequests": 0,
+      "expectedProtocol": "HTTP/1.1",
+      "name": "rest-sugar",
+      "failed": 8,
+      "passed": 6,
+      "transactionRequests": 24
+    },
+    {
+      "exitCode": 1,
+      "requestCount": 144,
+      "unreachedAssertions": true,
+      "frameRequests": 15,
+      "expectedProtocol": "HTTP/2",
+      "name": "frame-http2-native",
+      "failed": 27,
+      "passed": 3,
+      "transactionRequests": 35
+    },
+    {
+      "exitCode": 1,
+      "requestCount": 252,
+      "unreachedAssertions": false,
+      "frameRequests": 24,
+      "expectedProtocol": "HTTP/2",
+      "name": "frame-http2-sugar",
+      "failed": 8,
+      "passed": 6,
+      "transactionRequests": 24
+    }
+  ],
+  "provider": {
+    "fullStrictBuild": "Failed with four pre-existing nullable errors in three unrelated provider files; no warnings suppressed",
+    "patchApply": "git apply --check/apply; normalized-LF equality; raw hashes retained in patch-verify01.json",
+    "singleFastBuilderCompile": "0 warnings, 0 errors; component compilation only",
+    "realCandidateFastestExecution": "Not performed; no complete candidate provider"
+  },
+  "notCompleted": [
+    "Native temporary session implementation",
+    "CTAS implementation",
+    "Session-owned temporary transaction foundation",
+    "Native candidate provider Fastest runtime",
+    "Feature AOT and NativeAOT runtime",
+    "Fault recovery, lost-session lease, query budget and concurrency acceptance",
+    "Full solution commit gates",
+    "Commit push issue close",
+    "Formal release and upstream publication"
+  ]
+}

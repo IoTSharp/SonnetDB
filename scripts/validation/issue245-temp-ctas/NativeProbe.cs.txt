@@ -1,0 +1,367 @@
+using System.Data;
+using System.Data.Common;
+using System.Globalization;
+using SonnetDB.Data;
+using static ProbeRun;
+
+internal static class NativeProbe
+{
+    internal static async Task Run(ProbeRun run)
+    {
+        foreach (bool asynchronous in new[] { false, true })
+        {
+            string mode = asynchronous ? "async" : "sync";
+            await run.Check($"control-ordinary-dml-commit-rollback-{mode}", async () =>
+            {
+                await using var first = await Open(run, asynchronous);
+                await using var second = await Open(run, asynchronous);
+                string table = Name("control");
+                await Exec(first, $"CREATE TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))", asynchronous);
+                await Exec(first, $"INSERT INTO {table}(Id,Value) VALUES(1,10)", asynchronous);
+                await using (var tx = await Begin(first, asynchronous))
+                {
+                    await Exec(first, $"UPDATE {table} SET Value=20 WHERE Id=1", asynchronous, tx);
+                    Equal(20L, await Scalar(first, $"SELECT Value FROM {table}", asynchronous, tx));
+                    Equal(10L, await Scalar(second, $"SELECT Value FROM {table}", asynchronous));
+                    if (asynchronous) await tx.RollbackAsync(); else tx.Rollback();
+                }
+                await using (var tx = await Begin(first, asynchronous))
+                {
+                    await Exec(first, $"UPDATE {table} SET Value=30 WHERE Id=1", asynchronous, tx);
+                    if (asynchronous) await tx.CommitAsync(); else tx.Commit();
+                }
+                Equal(30L, await Scalar(second, $"SELECT Value FROM {table}", asynchronous));
+            });
+            await run.Check($"temp-two-connections-isolated-{mode}", async () =>
+            {
+                await using var first = await Open(run, asynchronous);
+                await using var second = await Open(run, asynchronous);
+                string table = Name("staged");
+                await Exec(first, $"CREATE TEMP TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))", asynchronous);
+                await RejectMissing(second, $"SELECT * FROM {table}", asynchronous);
+                await Exec(second, $"CREATE TEMP TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))", asynchronous);
+                await Exec(first, $"INSERT INTO {table}(Id,Value) VALUES(1,10)", asynchronous);
+                await Exec(second, $"INSERT INTO {table}(Id,Value) VALUES(1,20)", asynchronous);
+                Equal(10L, await Scalar(first, $"SELECT Value FROM {table}", asynchronous));
+                Equal(20L, await Scalar(second, $"SELECT Value FROM {table}", asynchronous));
+                await Exec(first, $"DROP TABLE {table}", asynchronous);
+                Equal(20L, await Scalar(second, $"SELECT Value FROM {table}", asynchronous));
+            });
+            await run.Check($"temp-close-reopen-cleans-{mode}", async () =>
+            {
+                string table = Name("close");
+                await using (var first = await Open(run, asynchronous))
+                {
+                    await Exec(first, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", asynchronous);
+                    await Exec(first, $"INSERT INTO {table}(Id) VALUES(1)", asynchronous);
+                    if (asynchronous) await first.CloseAsync(); else first.Close();
+                    if (asynchronous) await first.OpenAsync(); else first.Open();
+                    await RejectMissing(first, $"SELECT * FROM {table}", asynchronous);
+                    await Exec(first, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", asynchronous);
+                    Equal(0L, await Scalar(first, $"SELECT COUNT(*) FROM {table}", asynchronous));
+                }
+                await using var second = await Open(run, asynchronous);
+                await RejectMissing(second, $"SELECT * FROM {table}", asynchronous);
+            });
+            foreach (bool temporary in new[] { false, true })
+            foreach (bool empty in new[] { false, true })
+            {
+                await run.Check($"ctas-{(temporary ? "temp" : "persistent")}-{(empty ? "empty" : "rows")}-types-{mode}", async () =>
+                {
+                    await using var connection = await Open(run, asynchronous);
+                    string source = Name("typed");
+                    string target = Name("copy");
+                    await CreateTyped(connection, source, asynchronous);
+                    string query = $"SELECT Id AS DeviceID,Amount,AtTime,Stamp,Enabled,Payload,Bytes,Elapsed,Zoned FROM {source}" + (empty ? " WHERE Id<0" : "");
+                    var expected = await Read(connection, query, asynchronous);
+                    Equal(9, expected.Types.Length);
+                    await Exec(connection, $"CREATE {(temporary ? "TEMP " : "")}TABLE {target} AS {query}", asynchronous);
+                    var actual = await Read(connection, $"SELECT * FROM {target}", asynchronous);
+                    EqualRows(expected, actual);
+                    Equal(empty ? 0 : 1, actual.Rows.Count);
+                    if (!temporary)
+                    {
+                        await connection.CloseAsync();
+                        await connection.OpenAsync();
+                        EqualRows(expected, await Read(connection, $"SELECT * FROM {target}", asynchronous));
+                    }
+                });
+            }
+            foreach (bool commit in new[] { false, true })
+            {
+                await run.Check($"temp-10000-set-update-{(commit ? "commit" : "rollback")}-{mode}", async () =>
+                {
+                    await using var connection = await Open(run, asynchronous);
+                    await using var observer = await Open(run, asynchronous);
+                    string target = Name("target");
+                    string staged = Name("stage");
+                    await Exec(connection, $"CREATE TABLE {target}(Id INT,Value INT,PRIMARY KEY(Id))", asynchronous);
+                    await InsertBatches(connection, target, 0, asynchronous);
+                    await using var tx = await Begin(connection, asynchronous);
+                    await Exec(connection, $"CREATE TEMP TABLE {staged} AS SELECT Id,Value FROM {target} WHERE Id<0", asynchronous, tx);
+                    await InsertBatches(connection, staged, 5, asynchronous, tx);
+                    Equal(10000, await Exec(connection, $"UPDATE {target} AS T SET Value=S.Value FROM {staged} AS S WHERE T.Id=S.Id", asynchronous, tx));
+                    await Exec(connection, $"DROP TABLE {staged}", asynchronous, tx);
+                    Equal(50000L, await Scalar(connection, $"SELECT SUM(Value) FROM {target}", asynchronous, tx));
+                    Equal(0L, await Scalar(observer, $"SELECT SUM(Value) FROM {target}", asynchronous));
+                    if (commit) { if (asynchronous) await tx.CommitAsync(); else tx.Commit(); }
+                    else { if (asynchronous) await tx.RollbackAsync(); else tx.Rollback(); }
+                    Equal(commit ? 50000L : 0L, await Scalar(observer, $"SELECT SUM(Value) FROM {target}", asynchronous));
+                    await RejectMissing(connection, $"SELECT * FROM {staged}", asynchronous);
+                });
+            }
+        }
+        await run.Check("control-source-types-empty-and-values", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string source = Name("controltypes");
+            await CreateTyped(connection, source, true);
+            var full = await Read(connection, $"SELECT * FROM {source}", true);
+            var empty = await Read(connection, $"SELECT * FROM {source} WHERE Id<0", true);
+            Equal(1, full.Rows.Count);
+            Equal(0, empty.Rows.Count);
+            Equal(string.Join('|', full.Types), string.Join('|', empty.Types));
+            Equal(string.Join('|', full.Declarations), string.Join('|', empty.Declarations));
+            Equal(1234567890123456.123456789012m, full.Rows[0][1]);
+            Equal(TimeSpan.FromTicks(-864000000001), full.Rows[0][7]);
+            Equal(DateTimeOffset.Parse("2026-10-16T12:34:56.1234567+08:00", CultureInfo.InvariantCulture), full.Rows[0][8]);
+        });
+        await run.Check("temp-name-case-and-catalog-isolation", async () =>
+        {
+            await using var first = await Open(run, true);
+            await using var second = await Open(run, true);
+            string table = "Mixed" + Guid.NewGuid().ToString("N");
+            await Exec(first, $"CREATE TEMP TABLE \"{table}\"(\"DeviceID\" INT,PRIMARY KEY(\"DeviceID\"))", true);
+            await Exec(first, $"INSERT INTO {table.ToUpperInvariant()}(deviceid) VALUES(1)", true);
+            Equal(1L, await Scalar(first, $"SELECT \"DeviceID\" FROM \"{table}\"", true));
+            await RejectAny(first, $"CREATE TEMP TABLE \"{table.ToLowerInvariant()}\"(Id INT,PRIMARY KEY(Id))", true);
+            await RejectAny(first, $"SELECT \"deviceid\" FROM \"{table}\"", true);
+            Require(first.GetSchema("Tables").Rows.Cast<DataRow>().Any(r => (string)r["TABLE_NAME"] == table), "Owner catalog omitted temp table.");
+            Require(!second.GetSchema("Tables").Rows.Cast<DataRow>().Any(r => (string)r["TABLE_NAME"] == table), "Temp table leaked into another connection's catalog.");
+        });
+        await run.Check("ctas-no-primary-default-identity-inheritance", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string source = Name("identity");
+            string target = Name("noconstr");
+            await Exec(connection, $"CREATE TABLE {source}(Id INT AUTO_INCREMENT,Value INT DEFAULT 7,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {source}(Value) VALUES(9)", true);
+            await Exec(connection, $"CREATE TABLE {target} AS SELECT Id,Value FROM {source}", true);
+            DataTable schema = connection.GetSchema("Columns", [null, null, target, null]);
+            Require(schema.Rows.Cast<DataRow>().All(r => !(bool)r["IS_PRIMARY_KEY"] && !(bool)r["IS_AUTO_INCREMENT"] && r["COLUMN_DEFAULT"] is DBNull), "CTAS inherited source constraints.");
+            Equal(2, await Exec(connection, $"INSERT INTO {target}(Id,Value) VALUES(1,8),(1,9)", true));
+        });
+        await run.Check("ctas-failed-materialization-publishes-nothing", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string source = Name("badsource");
+            string target = Name("failedcopy");
+            await Exec(connection, $"CREATE TABLE {source}(Id INT,TextValue STRING,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {source}(Id,TextValue) VALUES(1,'1'),(2,'not-an-int')", true);
+            // A successful empty CTAS is required before accepting the deliberately failing projection.
+            await Exec(connection, $"CREATE TEMP TABLE {Name("admission")} AS SELECT Id FROM {source} WHERE Id<0", true);
+            await RejectAny(connection, $"CREATE TEMP TABLE {target} AS SELECT CAST(TextValue AS INT) AS Value FROM {source}", true);
+            await RejectMissing(connection, $"SELECT * FROM {target}", true);
+            await Exec(connection, $"CREATE TEMP TABLE {target}(Id INT,PRIMARY KEY(Id))", true);
+        });
+        await run.Check("temp-rollback-restores-preexisting-rows", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string table = Name("rollback");
+            await Exec(connection, $"CREATE TEMP TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {table}(Id,Value) VALUES(1,10)", true);
+            await using (var tx = await Begin(connection, true))
+            {
+                await Exec(connection, $"UPDATE {table} SET Value=20", true, tx);
+                await tx.RollbackAsync();
+            }
+            Equal(10L, await Scalar(connection, $"SELECT Value FROM {table}", true));
+        });
+        await run.Check("temp-create-rollback-removes-object", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string table = Name("rolledcreate");
+            await using (var tx = await Begin(connection, true))
+            {
+                await Exec(connection, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", true, tx);
+                await tx.RollbackAsync();
+            }
+            await RejectMissing(connection, $"SELECT * FROM {table}", true);
+        });
+        await run.Check("temp-drop-rollback-restores-object", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string table = Name("rolleddrop");
+            await Exec(connection, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {table}(Id) VALUES(1)", true);
+            await using (var tx = await Begin(connection, true))
+            {
+                await Exec(connection, $"DROP TABLE {table}", true, tx);
+                await tx.RollbackAsync();
+            }
+            Equal(1L, await Scalar(connection, $"SELECT Id FROM {table}", true));
+        });
+        await run.Check("temp-create-commit-retains-object-until-close", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string table = Name("committedtemp");
+            await using (var tx = await Begin(connection, true))
+            {
+                await Exec(connection, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", true, tx);
+                await Exec(connection, $"INSERT INTO {table}(Id) VALUES(8)", true, tx);
+                await tx.CommitAsync();
+            }
+            Equal(8L, await Scalar(connection, $"SELECT Id FROM {table}", true));
+            await connection.CloseAsync();
+            await connection.OpenAsync();
+            await RejectMissing(connection, $"SELECT * FROM {table}", true);
+        });
+        await run.Check("temp-reader-close-preserves-session", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string table = Name("readerclose");
+            await Exec(connection, $"CREATE TEMP TABLE {table}(Id INT,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {table}(Id) VALUES(3)", true);
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = $"SELECT * FROM {table}";
+                await using var reader = await command.ExecuteReaderAsync();
+                Require(await reader.ReadAsync(), "Temporary row was missing.");
+            }
+            Equal(3L, await Scalar(connection, $"SELECT Id FROM {table}", true));
+        });
+        await run.Check("ctas-typed-null-empty-declarations", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string source = Name("typednull");
+            string target = Name("nullcopy");
+            await Exec(connection, $"CREATE TABLE {source}(Id INT,PRIMARY KEY(Id))", true);
+            string query = $"SELECT CAST(NULL AS DECIMAL(28,12)) AS Amount,CAST(NULL AS DURATION) AS Elapsed,CAST(NULL AS DATETIMEOFFSET) AS Zoned FROM {source}";
+            var expected = await Read(connection, query, true);
+            await Exec(connection, $"CREATE TEMP TABLE {target} AS {query}", true);
+            EqualRows(expected, await Read(connection, $"SELECT * FROM {target}", true));
+        });
+        await run.Check("ctas-duplicate-case-aliases-rejected-atomically", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string source = Name("aliassource");
+            string target = Name("aliascopy");
+            await Exec(connection, $"CREATE TABLE {source}(Id INT,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"CREATE TEMP TABLE {Name("admission")} AS SELECT Id FROM {source}", true);
+            await RejectAny(connection, $"CREATE TEMP TABLE {target} AS SELECT Id AS \"DeviceID\",Id AS \"deviceid\" FROM {source}", true);
+            await RejectMissing(connection, $"SELECT * FROM {target}", true);
+        });
+        await run.Check("temp-cancelled-command-rolls-back-user-work", async () =>
+        {
+            await using var connection = await Open(run, true);
+            string target = Name("canceluser");
+            string staged = Name("canceltemp");
+            await Exec(connection, $"CREATE TABLE {target}(Id INT,Value INT,PRIMARY KEY(Id))", true);
+            await Exec(connection, $"INSERT INTO {target}(Id,Value) VALUES(1,10)", true);
+            await using (var tx = await Begin(connection, true))
+            {
+                await Exec(connection, $"CREATE TEMP TABLE {staged}(Id INT,PRIMARY KEY(Id))", true, tx);
+                await Exec(connection, $"UPDATE {target} SET Value=20", true, tx);
+                using var cancelled = new CancellationTokenSource();
+                cancelled.Cancel();
+                await using var command = connection.CreateCommand();
+                command.Transaction = (SndbTransaction)tx;
+                command.CommandText = $"INSERT INTO {staged}(Id) VALUES(1)";
+                bool cancellationObserved = false;
+                try { await command.ExecuteNonQueryAsync(cancelled.Token); }
+                catch (OperationCanceledException) { cancellationObserved = true; }
+                Require(cancellationObserved, "Cancelled temporary write did not observe cancellation.");
+                await tx.RollbackAsync();
+            }
+            Equal(10L, await Scalar(connection, $"SELECT Value FROM {target}", true));
+            await RejectMissing(connection, $"SELECT * FROM {staged}", true);
+        });
+    }
+
+    private static string Name(string prefix) => "i245_" + prefix + "_" + Guid.NewGuid().ToString("N")[..8];
+    private static async Task<SndbConnection> Open(ProbeRun run, bool asynchronous)
+    {
+        var connection = new SndbConnection(run.ConnectionString);
+        if (asynchronous) await connection.OpenAsync(); else connection.Open();
+        return connection;
+    }
+    private static async Task<DbTransaction> Begin(SndbConnection connection, bool asynchronous)
+        => asynchronous ? await connection.BeginTransactionAsync() : connection.BeginTransaction();
+    private static async Task<int> Exec(SndbConnection connection, string sql, bool asynchronous, DbTransaction? transaction = null)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Transaction = (SndbTransaction?)transaction;
+        return asynchronous ? await command.ExecuteNonQueryAsync() : command.ExecuteNonQuery();
+    }
+    private static async Task<object?> Scalar(SndbConnection connection, string sql, bool asynchronous, DbTransaction? transaction = null)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Transaction = (SndbTransaction?)transaction;
+        return asynchronous ? await command.ExecuteScalarAsync() : command.ExecuteScalar();
+    }
+    private static async Task RejectAny(SndbConnection connection, string sql, bool asynchronous)
+    {
+        try { await Exec(connection, sql, asynchronous); }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return; }
+        throw new InvalidOperationException("Expected rejection: " + sql);
+    }
+    private static async Task RejectMissing(SndbConnection connection, string sql, bool asynchronous)
+    {
+        try { await Scalar(connection, sql, asynchronous); }
+        catch (Exception exception) when (exception.Message.Contains("不存在", StringComparison.Ordinal) || exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)) { return; }
+        throw new InvalidOperationException("Expected missing relation: " + sql);
+    }
+    private static async Task InsertBatches(SndbConnection connection, string table, long value, bool asynchronous, DbTransaction? transaction = null)
+    {
+        for (int offset = 0; offset < 10000; offset += 1000)
+        {
+            string rows = string.Join(',', Enumerable.Range(offset + 1, 1000).Select(id => $"({id},{value})"));
+            Equal(1000, await Exec(connection, $"INSERT INTO {table}(Id,Value) VALUES{rows}", asynchronous, transaction));
+        }
+    }
+    private static async Task CreateTyped(SndbConnection connection, string table, bool asynchronous)
+    {
+        await Exec(connection, $"CREATE TABLE {table}(Id INT,Amount DECIMAL(28,12),AtTime TIME,Stamp DATETIME,Enabled BOOL,Payload JSON,Bytes BLOB,Elapsed DURATION,Zoned DATETIMEOFFSET,PRIMARY KEY(Id))", asynchronous);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"INSERT INTO {table}(Id,Amount,AtTime,Stamp,Enabled,Payload,Bytes,Elapsed,Zoned) VALUES(@id,@amount,@time,@stamp,@flag,@json,@blob,@elapsed,@zoned)";
+        foreach (var (name, value) in new (string, object)[]
+        {
+            ("id", 1L), ("amount", 1234567890123456.123456789012m), ("time", new TimeOnly(12, 34, 56).Add(TimeSpan.FromTicks(1234567))),
+            ("stamp", DateTime.Parse("2026-10-16T01:02:03.1234567Z", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)),
+            ("flag", true), ("json", "{\"a\":1}"), ("blob", new byte[] { 0, 1, 255 }),
+            ("elapsed", TimeSpan.FromTicks(-864000000001)), ("zoned", DateTimeOffset.Parse("2026-10-16T12:34:56.1234567+08:00", CultureInfo.InvariantCulture))
+        }) command.Parameters.Add(new SndbParameter(name, value));
+        Equal(1, asynchronous ? await command.ExecuteNonQueryAsync() : command.ExecuteNonQuery());
+    }
+    private static async Task<QueryRows> Read(SndbConnection connection, string sql, bool asynchronous)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await using var reader = asynchronous ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+        var columns = reader.GetColumnSchema();
+        string[] names = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray();
+        Type[] types = Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType).ToArray();
+        string[] declarations = Enumerable.Range(0, reader.FieldCount).Select(i => $"{reader.GetDataTypeName(i)}:{columns[i].NumericPrecision}:{columns[i].NumericScale}").ToArray();
+        var rows = new List<object?[]>();
+        while (asynchronous ? await reader.ReadAsync() : reader.Read())
+            rows.Add(Enumerable.Range(0, reader.FieldCount).Select(reader.GetValue).Cast<object?>().ToArray());
+        return new(names, types, declarations, rows);
+    }
+    private static void EqualRows(QueryRows expected, QueryRows actual)
+    {
+        Equal(string.Join('|', expected.Names), string.Join('|', actual.Names));
+        Equal(string.Join('|', expected.Types), string.Join('|', actual.Types));
+        Equal(string.Join('|', expected.Declarations), string.Join('|', actual.Declarations));
+        Equal(expected.Rows.Count, actual.Rows.Count);
+        for (int row = 0; row < expected.Rows.Count; row++)
+        for (int column = 0; column < expected.Types.Length; column++)
+        {
+            object? value = expected.Rows[row][column];
+            if (value is byte[] bytes) Require(actual.Rows[row][column] is byte[] other && bytes.SequenceEqual(other), "BLOB changed.");
+            else Equal(value, actual.Rows[row][column]);
+        }
+    }
+    private sealed record QueryRows(string[] Names, Type[] Types, string[] Declarations, List<object?[]> Rows);
+}

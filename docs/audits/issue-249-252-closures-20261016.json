@@ -1,0 +1,51 @@
+{
+  "issues": [
+    {
+      "reason": "completed",
+      "commentId": 6212084783,
+      "bodyVerified": true,
+      "body": "按维护者 2026-10-16 的最新要求，已完成源码实现和验证的 Issue 按 completed 关闭。\n\n已完成：原生 DURATION/TimeSpan、完整正负 Int64 ticks、通用 ADO 读取、参数/批量/事务/重开与真实 Chloe 候选三协议验证。显式 DbType.Time 继续使用原 TIME 合同。\n\n独立实现提交：`16b266c2e43d2120dd6538c8ced66f270132958e`，已包含在远端 main `50f598ccc8bcaea8a832473232d860ce7baf6da3`；[实现与验证记录](https://github.com/IoTSharp/SonnetDB/blob/50f598ccc8bcaea8a832473232d860ce7baf6da3/docs/audits/issue-252-implementation-20261016.md)。精确 [CI 38874082676](https://github.com/IoTSharp/SonnetDB/actions/runs/38874082676) 已回读为 completed/success，全部 7 个作业成功。此前 38862841705、38869549254 的失败与后续独立修复仍完整保留，不改写原 run。\n\n关闭确认源码合同完成，不表示正式匹配 Core/Data/Server 包或 ORM 上游发行已经交付。正式发布及对应消费者复验仍需跟踪；本地外部候选没有外发，不能由 Issue 关闭推定已发布或所有平台/断电条件已验收。\n\n<!-- sonnetdb-source-completed-20261016:252 -->\n",
+      "implementationCommit": "16b266c2e43d2120dd6538c8ced66f270132958e",
+      "state": "closed",
+      "number": 252,
+      "closedAt": "2026-10-16T09:08:32Z",
+      "author": "maikebing"
+    },
+    {
+      "reason": "completed",
+      "commentId": 6212087033,
+      "bodyVerified": true,
+      "body": "按维护者 2026-10-16 的最新要求，已完成源码实现和验证的 Issue 按 completed 关闭。\n\n已完成：独立 DATETIMEOFFSET、通用 ADO 原生值、完整 UTC ticks/offset=0、混合比较提前拒绝、旧 DATETIME 显式兼容及真实 Chloe 默认转换器三协议验证。\n\n独立实现提交：`aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5`，已包含在远端 main `50f598ccc8bcaea8a832473232d860ce7baf6da3`；[实现与验证记录](https://github.com/IoTSharp/SonnetDB/blob/50f598ccc8bcaea8a832473232d860ce7baf6da3/docs/audits/issue-251-root-review-20261016.md)。精确 [CI 38874082676](https://github.com/IoTSharp/SonnetDB/actions/runs/38874082676) 已回读为 completed/success，全部 7 个作业成功。此前 38862841705、38869549254 的失败与后续独立修复仍完整保留，不改写原 run。\n\n关闭确认源码合同完成，不表示正式匹配 Core/Data/Server 包或 ORM 上游发行已经交付。正式发布及对应消费者复验仍需跟踪；本地外部候选没有外发，不能由 Issue 关闭推定已发布或所有平台/断电条件已验收。\n\n<!-- sonnetdb-source-completed-20261016:251 -->\n",
+      "implementationCommit": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5",
+      "state": "closed",
+      "number": 251,
+      "closedAt": "2026-10-16T09:08:40Z",
+      "author": "maikebing"
+    },
+    {
+      "reason": "completed",
+      "commentId": 6212089175,
+      "bodyVerified": true,
+      "body": "按维护者 2026-10-16 的最新要求，已完成源码实现和验证的 Issue 按 completed 关闭。\n\n已完成：三项原生维护合同：真实持久 PK/FK/CHECK 约束目录和名称、实际 DESC/INCLUDE 索引与恢复、AUTO_INCREMENT 下一值维护及成功返回前同步 WAL。完整标准 CodeFirst 的事务 DDL 仍由独立 #227 继续实施，本项不宣称该依赖已完成。\n\n独立实现提交：`67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`，已包含在远端 main `50f598ccc8bcaea8a832473232d860ce7baf6da3`；[实现与验证记录](https://github.com/IoTSharp/SonnetDB/blob/50f598ccc8bcaea8a832473232d860ce7baf6da3/docs/audits/issue-250-root-review-20261016.md)。精确 [CI 38874082676](https://github.com/IoTSharp/SonnetDB/actions/runs/38874082676) 已回读为 completed/success，全部 7 个作业成功。此前 38862841705、38869549254 的失败与后续独立修复仍完整保留，不改写原 run。\n\n关闭确认源码合同完成，不表示正式匹配 Core/Data/Server 包或 ORM 上游发行已经交付。正式发布及对应消费者复验仍需跟踪；本地外部候选没有外发，不能由 Issue 关闭推定已发布或所有平台/断电条件已验收。\n\n<!-- sonnetdb-source-completed-20261016:250 -->\n",
+      "implementationCommit": "67a5c8c8d64c36002aee5ebcfcb40634e7d5f482",
+      "state": "closed",
+      "number": 250,
+      "closedAt": "2026-10-16T09:08:47Z",
+      "author": "maikebing"
+    },
+    {
+      "reason": "completed",
+      "commentId": 6212090968,
+      "bodyVerified": true,
+      "body": "按维护者 2026-10-16 的最新要求，已完成源码实现和验证的 Issue 按 completed 关闭。\n\n已完成：逐行列/表达式 JSON_VALUE path、动态下标、多层字段、缺失/NULL/非法路径；JSON_OBJECT 与对象数组谓词保字符串、布尔、整数、精确 decimal、NULL 和转义。动态 JSON_VALUE 保原静态 Int64 优先否则 Double，静态/参数 path 与 JSON 索引不退化，catalog16/snapshot4/result6 不变。\n\n独立实现提交：`edd23c1d72c472c71ea0b8d4939df0ec5c2311e4`，已包含在远端 main `50f598ccc8bcaea8a832473232d860ce7baf6da3`；[实现与验证记录](https://github.com/IoTSharp/SonnetDB/blob/50f598ccc8bcaea8a832473232d860ce7baf6da3/docs/audits/issue-249-root-review-20261016.md)。精确 [CI 38874082676](https://github.com/IoTSharp/SonnetDB/actions/runs/38874082676) 已回读为 completed/success，全部 7 个作业成功。此前 38862841705、38869549254 的失败与后续独立修复仍完整保留，不改写原 run。\n\n本项根独立复审已核 25 交付文件、249 证据、869 运行文件和 14 TRX；Core 3972/3972、真实 Server 239/239、EF 295/295、真实 SqlSugar 消费者初次/独立重开各 28/28。代理另验 embedded/REST/h2c 同步异步和重开，不累计重叠集合。后续独立 Identity/JOIN CAST 修复通过 SQL 3190/3190、Identity 18/18 和 EF 295/295。\n\n关闭确认源码合同完成，不表示正式匹配 Core/Data/Server 包或 ORM 上游发行已经交付。正式发布及对应消费者复验仍需跟踪；本地外部候选没有外发，不能由 Issue 关闭推定已发布或所有平台/断电条件已验收。\n\n<!-- sonnetdb-source-completed-20261016:249 -->\n",
+      "implementationCommit": "edd23c1d72c472c71ea0b8d4939df0ec5c2311e4",
+      "state": "closed",
+      "number": 249,
+      "closedAt": "2026-10-16T09:08:54Z",
+      "author": "maikebing"
+    }
+  ],
+  "head": "50f598ccc8bcaea8a832473232d860ce7baf6da3",
+  "ci": 38874082676,
+  "formalReleaseAsserted": false
+}

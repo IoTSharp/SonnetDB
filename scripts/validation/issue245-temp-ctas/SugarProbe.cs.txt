@@ -1,0 +1,136 @@
+using System.Data;
+using SonnetDB.Data;
+using SqlSugar;
+using static ProbeRun;
+
+internal static class SugarProbe
+{
+    internal static async Task Run(ProbeRun run, bool requireNative)
+    {
+        await run.Check("fastest-10000-bulkcopy-control", async () =>
+        {
+            using var db = Client(run);
+            string table = "i245_copy_" + Guid.NewGuid().ToString("N")[..8];
+            db.Ado.ExecuteCommand($"CREATE TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))");
+            var rows = Enumerable.Range(1, 10000).Select(i => new BulkRow { Id = i, Value = 3 }).ToList();
+            Equal(10000, await db.Fastest<BulkRow>().AS(table).BulkCopyAsync(rows));
+            Equal(10000, db.Ado.GetInt($"SELECT COUNT(*) FROM {table}"));
+            Equal(30000L, db.Ado.GetLong($"SELECT SUM(Value) FROM {table}"));
+        });
+        foreach (bool asynchronous in new[] { false, true })
+        foreach (bool merge in new[] { false, true })
+        foreach (string transactionMode in new[] { "none", "commit", "rollback" })
+        {
+            string name = $"fastest-10000-{(merge ? "merge" : "update")}-{transactionMode}-{(asynchronous ? "async" : "sync")}";
+            await run.Check(name, async () =>
+            {
+                using var db = Client(run);
+                string table = "i245_bulk_" + Guid.NewGuid().ToString("N")[..8];
+                db.Ado.ExecuteCommand($"CREATE TABLE {table}(Id INT,Value INT,PRIMARY KEY(Id))");
+                var initial = Enumerable.Range(1, merge ? 5000 : 10000).Select(i => new BulkRow { Id = i, Value = 1 }).ToList();
+                Equal(initial.Count, await db.Fastest<BulkRow>().AS(table).BulkCopyAsync(initial));
+                var commands = new List<string>();
+                db.Aop.OnLogExecuting = (sql, parameters) =>
+                {
+                    // Fastest disables ordinary log events before its public Begin callback.
+                    // Re-enable observation through the public property; do not alter SQL or execution.
+                    if (sql.StartsWith("Begin Bulk", StringComparison.Ordinal))
+                    {
+                        db.Ado.IsEnableLogEvent = true;
+                        return;
+                    }
+                    commands.Add(sql);
+                    Console.WriteLine($"COMMAND|{name}|{sql}|parameters={parameters.Length}");
+                };
+                if (transactionMode != "none") db.Ado.BeginTran();
+                bool completed = false;
+                try
+                {
+                    var rows = Enumerable.Range(1, 10000).Select(i => new BulkRow { Id = i, Value = 7 }).ToList();
+                    var fastest = db.Fastest<BulkRow>().AS(table);
+                    int affected = merge
+                        ? (asynchronous ? await fastest.BulkMergeAsync(rows) : fastest.BulkMerge(rows))
+                        : (asynchronous ? await fastest.BulkUpdateAsync(rows) : fastest.BulkUpdate(rows));
+                    Equal(10000, affected);
+                    if (requireNative)
+                    {
+                        Equal(1, commands.Count(sql => sql.StartsWith("CREATE TEMP TABLE ", StringComparison.OrdinalIgnoreCase) && sql.Contains(" AS SELECT ", StringComparison.OrdinalIgnoreCase)));
+                        Equal(0, commands.Count(sql => sql.StartsWith("CREATE TABLE ", StringComparison.OrdinalIgnoreCase)));
+                    }
+                    Equal(70000L, db.Ado.GetLong($"SELECT SUM(Value) FROM {table}"));
+                    Require(commands.Count(sql => sql.StartsWith("UPDATE ", StringComparison.OrdinalIgnoreCase) && sql.Contains(" FROM ", StringComparison.OrdinalIgnoreCase)) == 1, "Expected one set UPDATE FROM.");
+                    Equal(10, commands.Count(sql => sql.StartsWith("INSERT INTO ", StringComparison.OrdinalIgnoreCase) && sql.Contains(" VALUES ", StringComparison.OrdinalIgnoreCase)));
+                    Equal(merge ? 1 : 0, commands.Count(sql => sql.StartsWith("INSERT INTO ", StringComparison.OrdinalIgnoreCase) && sql.Contains(" SELECT ", StringComparison.OrdinalIgnoreCase)));
+                    Require(!commands.Any(sql => sql.StartsWith("SELECT ", StringComparison.OrdinalIgnoreCase) && sql.Contains(" WHERE ", StringComparison.OrdinalIgnoreCase)), "Unexpected per-row existence query.");
+                    if (transactionMode != "none")
+                    {
+                        using var observer = Client(run);
+                        Equal((long)initial.Count, observer.Ado.GetLong($"SELECT SUM(Value) FROM {table}"));
+                        if (transactionMode == "commit") db.Ado.CommitTran(); else db.Ado.RollbackTran();
+                    }
+                    completed = true;
+                    using var reader = Client(run);
+                    Equal(transactionMode == "rollback" ? (long)initial.Count : 70000L, reader.Ado.GetLong($"SELECT SUM(Value) FROM {table}"));
+                    Equal(transactionMode == "rollback" ? initial.Count : 10000, reader.Ado.GetInt($"SELECT COUNT(*) FROM {table}"));
+                    Require(!reader.DbMaintenance.GetTableInfoList(false).Any(t => t.Name.StartsWith("sonnet_bulk_", StringComparison.Ordinal)), "Ordinary staging table leaked after successful Fastest.");
+                    Console.WriteLine($"SHAPE|{name}|createTemp={commands.Count(s => s.StartsWith("CREATE TEMP ", StringComparison.OrdinalIgnoreCase))}|createOrdinary={commands.Count(s => s.StartsWith("CREATE TABLE ", StringComparison.OrdinalIgnoreCase))}|setUpdate=1|stagingInsert=10|setInsert={(merge ? 1 : 0)}");
+                }
+                finally
+                {
+                    if (!completed && transactionMode != "none")
+                    {
+                        try { db.Ado.RollbackTran(); }
+                        catch (Exception exception) { Console.WriteLine($"CLEANUP|{name}|{exception.GetType().Name}|{exception.Message}"); }
+                        using var observer = Client(run);
+                        Equal((long)initial.Count, observer.Ado.GetLong($"SELECT SUM(Value) FROM {table}"));
+                    }
+                }
+            });
+        }
+        await run.Check("fastest-engine-failure-cleans-staging", async () =>
+        {
+            using var db = Client(run);
+            string table = "i245_fail_" + Guid.NewGuid().ToString("N")[..8];
+            db.Ado.ExecuteCommand($"CREATE TABLE {table}(Id INT,Value INT,CHECK(Value>=0),PRIMARY KEY(Id))");
+            db.Ado.ExecuteCommand($"INSERT INTO {table}(Id,Value) VALUES(1,1)");
+            string? staging = null;
+            bool setUpdateReached = false;
+            db.Aop.OnLogExecuting = (sql, _) =>
+            {
+                if (sql.StartsWith("Begin Bulk", StringComparison.Ordinal))
+                {
+                    db.Ado.IsEnableLogEvent = true;
+                    return;
+                }
+                Console.WriteLine($"COMMAND|fastest-engine-failure-cleans-staging|{sql}");
+                if (sql.StartsWith("CREATE TABLE ", StringComparison.OrdinalIgnoreCase) || sql.StartsWith("CREATE TEMP TABLE ", StringComparison.OrdinalIgnoreCase)) staging = sql.Split('"')[1];
+                if (sql.StartsWith("UPDATE ", StringComparison.OrdinalIgnoreCase)) setUpdateReached = true;
+            };
+            Exception? failure = null;
+            try { await db.Fastest<BulkRow>().AS(table).BulkUpdateAsync([new BulkRow { Id = 1, Value = -1 }]); }
+            catch (Exception exception) { failure = exception; }
+            Require(failure != null && failure.ToString().Contains("CHECK", StringComparison.OrdinalIgnoreCase), "Expected engine CHECK rejection.");
+            Require(setUpdateReached, "Failure occurred before the set update.");
+            using var observer = Client(run);
+            Equal(1L, observer.Ado.GetLong($"SELECT Value FROM {table}"));
+            Require(staging != null && !observer.DbMaintenance.GetTableInfoList(false).Any(t => t.Name == staging), "Failed Fastest leaked its work table.");
+        });
+    }
+
+    private static SqlSugarClient Client(ProbeRun run) => new(new ConnectionConfig
+    {
+        ConnectionString = run.ConnectionString,
+        DbType = SqlSugar.DbType.SonnetDB,
+        IsAutoCloseConnection = false,
+        InitKeyType = InitKeyType.Attribute
+    });
+}
+
+/// <summary>真实 Fastest 消费者的整型主键实体。</summary>
+public sealed class BulkRow
+{
+    /// <summary>目标表主键。</summary>
+    [SugarColumn(IsPrimaryKey = true)] public long Id { get; set; }
+    /// <summary>用于核对集合写入的值。</summary>
+    public long Value { get; set; }
+}

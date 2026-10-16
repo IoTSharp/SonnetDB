@@ -1,0 +1,179 @@
+using System.Data;
+using System.Data.Common;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+using SqlSugar;
+
+if (args.Length != 3) return 2;
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+string connectionString = args[0] == "--connection-env"
+    ? Environment.GetEnvironmentVariable("ISSUE247_CONNECTION") ?? throw new InvalidOperationException("Connection environment is missing.")
+    : args[0];
+string label = args[1];
+string mode = args[2];
+bool externalFixture = Environment.GetEnvironmentVariable("ISSUE247_EXTERNAL_FIXTURE") == "1";
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    Assembly assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}");
+}
+Console.WriteLine($"FIXTURE|{(externalFixture ? "public-http-sql-setup" : "ado-setup")}");
+if (mode == "native") await Native();
+else if (mode == "sqlsugar") await Sugar();
+else return 2;
+Console.WriteLine($"COMPLETE|{label}|{mode}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+async Task Native()
+{
+    using var connection = new SndbConnection(connectionString);
+    await connection.OpenAsync();
+    if (!externalFixture)
+    {
+        Exec(connection, "CREATE TABLE n_items(id INT,value INT,PRIMARY KEY(id))");
+        Exec(connection, "CREATE PROCEDURE n_echo(IN p_left INT,IN p_right INT) LANGUAGE SQL AS BEGIN SELECT @p_left*10+@p_right AS result; END");
+        Exec(connection, "CREATE PROCEDURE n_write(IN p_left INT,IN p_right INT) LANGUAGE SQL AS BEGIN INSERT INTO n_items(id,value) VALUES(@p_left,@p_left*10+@p_right); END");
+        Exec(connection, "CREATE PROCEDURE n_two() LANGUAGE SQL AS BEGIN SELECT 11 AS first; SELECT 'second' AS second; END");
+    }
+    else await Run("remote-ado-procedure-ddl", () =>
+    {
+        Exec(connection, "CREATE PROCEDURE n_ddl(IN p_value INT) LANGUAGE SQL AS BEGIN SELECT @p_value AS result; END");
+        return Task.CompletedTask;
+    });
+    foreach (bool asynchronous in new[] { false, true })
+    {
+        await Run($"control-text-call-{asynchronous}", async () =>
+        {
+            using var command = new SndbCommand("CALL n_echo(4,2)", connection);
+            Require(Equals(42L, asynchronous ? await command.ExecuteScalarAsync() : command.ExecuteScalar()), "CALL result differs.");
+        });
+        foreach (string entry in new[] { "scalar", "reader", "nonquery" })
+            await Run($"standard-named-{entry}-{asynchronous}", async () =>
+            {
+                using var command = new SndbCommand(entry == "nonquery" ? "n_write" : "n_echo", connection) { CommandType = CommandType.StoredProcedure };
+                command.Parameters.Add(new SndbParameter("@p_right", 2L));
+                command.Parameters.Add(new SndbParameter("p_left", asynchronous && entry == "nonquery" ? 5L : 4L));
+                if (entry == "scalar") Require(Equals(42L, asynchronous ? await command.ExecuteScalarAsync() : command.ExecuteScalar()), "Scalar differs.");
+                else if (entry == "nonquery") Require((asynchronous ? await command.ExecuteNonQueryAsync() : command.ExecuteNonQuery()) == 1, "Affected rows differ.");
+                else
+                {
+                    using DbDataReader reader = asynchronous ? await command.ExecuteReaderAsync() : command.ExecuteReader();
+                    Require(asynchronous ? await reader.ReadAsync() : reader.Read(), "No result row.");
+                    Require(reader.GetInt64(0) == 42, "Reader value differs.");
+                }
+            });
+    }
+    await Run("dependency229-text-select-batch", async () =>
+    {
+        using var command = new SndbCommand("SELECT 11 AS first; SELECT 'second' AS second", connection);
+        using var reader = await command.ExecuteReaderAsync();
+        Require(await reader.ReadAsync() && reader.GetInt64(0) == 11, "First batch value differs.");
+        Require(await reader.NextResultAsync() && await reader.ReadAsync() && reader.GetString(0) == "second", "Second batch value missing.");
+    });
+    await Run("procedure-call-two-results", async () =>
+    {
+        using var command = new SndbCommand("CALL n_two()", connection);
+        using var reader = await command.ExecuteReaderAsync();
+        Console.WriteLine($"OBSERVED|procedure-first-column={reader.GetName(0)}");
+        Require(reader.GetName(0) == "first" && await reader.ReadAsync() && reader.GetInt64(0) == 11, "Procedure discarded its first result.");
+        Require(await reader.NextResultAsync(), "Procedure second result missing.");
+    });
+    foreach (string direction in new[] { "OUT", "INOUT" })
+        await Run("native-declaration-" + direction, () =>
+        {
+            Exec(connection, $"CREATE PROCEDURE n_{direction}({direction} p_value INT) LANGUAGE SQL AS BEGIN SET @p_value=42; END");
+            return Task.CompletedTask;
+        });
+    await Run("native-return-declaration", () =>
+    {
+        Exec(connection, "CREATE PROCEDURE n_return() LANGUAGE SQL AS BEGIN RETURN 7; END");
+        return Task.CompletedTask;
+    });
+    await Run("text-output-direction-not-silently-ignored", () =>
+    {
+        using var command = new SndbCommand("CALL n_echo(@left,@right)", connection);
+        command.Parameters.Add(new SndbParameter("left", 4L) { Direction = ParameterDirection.Output });
+        command.Parameters.Add(new SndbParameter("right", 2L));
+        bool rejected = false;
+        try { _ = command.ExecuteScalar(); } catch (NotSupportedException) { rejected = true; } catch (ArgumentException) { rejected = true; }
+        Require(rejected, "Text execution consumed an Output parameter as ordinary input and discarded its direction.");
+        return Task.CompletedTask;
+    });
+    await Run("standard-caller-transaction", async () =>
+    {
+        using var transaction = connection.BeginTransaction();
+        using var command = new SndbCommand("n_write", connection) { CommandType = CommandType.StoredProcedure, Transaction = transaction };
+        command.Parameters.Add(new SndbParameter("p_left", 8L));
+        command.Parameters.Add(new SndbParameter("p_right", 2L));
+        Require(await command.ExecuteNonQueryAsync() == 1, "No write.");
+        await transaction.RollbackAsync();
+        using var check = new SndbCommand("SELECT COUNT(*) FROM n_items WHERE id=8", connection);
+        Require(Equals(0L, check.ExecuteScalar()), "Procedure escaped caller transaction.");
+    });
+}
+
+async Task Sugar()
+{
+    if (!externalFixture)
+    {
+        using SqlSugarClient setup = NewSugar();
+        setup.Ado.ExecuteCommand("CREATE TABLE s_items(id INT,value INT,PRIMARY KEY(id))");
+        setup.Ado.ExecuteCommand("CREATE PROCEDURE s_echo(IN p_left INT,IN p_right INT) LANGUAGE SQL AS BEGIN SELECT @p_left*10+@p_right AS result; END");
+        setup.Ado.ExecuteCommand("CREATE PROCEDURE s_write(IN p_left INT,IN p_right INT) LANGUAGE SQL AS BEGIN INSERT INTO s_items(id,value) VALUES(@p_left,@p_left*10+@p_right); END");
+    }
+    else await Run("remote-sqlsugar-procedure-ddl", () =>
+    {
+        using SqlSugarClient db = NewSugar();
+        db.Ado.ExecuteCommand("CREATE PROCEDURE s_ddl(IN p_value INT) LANGUAGE SQL AS BEGIN SELECT @p_value AS result; END");
+        return Task.CompletedTask;
+    });
+    foreach (bool asynchronous in new[] { false, true })
+    {
+        await Run($"control-sqlsugar-text-call-{asynchronous}", async () =>
+        {
+            using SqlSugarClient db = NewSugar();
+            object result = asynchronous ? await db.Ado.GetScalarAsync("CALL s_echo(4,2)") : db.Ado.GetScalar("CALL s_echo(4,2)");
+            Require(Convert.ToInt64(result) == 42, "SqlSugar CALL differs.");
+        });
+        foreach (string entry in new[] { "scalar", "reader", "nonquery" })
+            await Run($"sqlsugar-use-stored-procedure-{entry}-{asynchronous}", async () =>
+            {
+                using SqlSugarClient db = NewSugar();
+                SugarParameter[] parameters = [new("@p_right", 2L), new("@p_left", asynchronous && entry == "nonquery" ? 5L : 4L)];
+                IAdo ado = db.Ado.UseStoredProcedure();
+                if (entry == "scalar") Require(Convert.ToInt64(asynchronous ? await ado.GetScalarAsync("s_echo", parameters) : ado.GetScalar("s_echo", parameters)) == 42, "Scalar differs.");
+                else if (entry == "nonquery") Require((asynchronous ? await ado.ExecuteCommandAsync("s_write", parameters) : ado.ExecuteCommand("s_write", parameters)) == 1, "Affected rows differ.");
+                else
+                {
+                    using IDataReader reader = asynchronous ? await ado.GetDataReaderAsync("s_echo", parameters) : ado.GetDataReader("s_echo", parameters);
+                    Require(reader.Read() && reader.GetInt64(0) == 42, "Reader differs.");
+                }
+            });
+    }
+    foreach (ParameterDirection direction in new[] { ParameterDirection.Output, ParameterDirection.InputOutput, ParameterDirection.ReturnValue })
+        await Run("sqlsugar-direction-" + direction, async () =>
+        {
+            using SqlSugarClient db = NewSugar();
+            string name = "s_output_" + direction;
+            if (direction == ParameterDirection.ReturnValue)
+                db.Ado.ExecuteCommand($"CREATE PROCEDURE {name}() LANGUAGE SQL AS BEGIN RETURN 7; END");
+            else
+                db.Ado.ExecuteCommand($"CREATE PROCEDURE {name}({(direction == ParameterDirection.Output ? "OUT" : "INOUT")} p_value INT) LANGUAGE SQL AS BEGIN SET @p_value=42; END");
+            var parameter = new SugarParameter("@p_value", 10L) { Direction = direction, DbType = System.Data.DbType.Int64 };
+            await db.Ado.UseStoredProcedure().ExecuteCommandAsync(name, parameter);
+            Require(Convert.ToInt64(parameter.Value) == (direction == ParameterDirection.ReturnValue ? 7 : 42), "SugarParameter was not written back.");
+        });
+}
+
+SqlSugarClient NewSugar() => new(new ConnectionConfig { ConnectionString = connectionString, DbType = SqlSugar.DbType.SonnetDB, InitKeyType = InitKeyType.Attribute, IsAutoCloseConnection = true });
+async Task Run(string name, Func<Task> action)
+{
+    try { await action(); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception error) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{error.GetType().Name}|{error.Message.Replace('\r',' ').Replace('\n',' ')}"); }
+}
+static void Exec(SndbConnection connection, string sql) { using var command = new SndbCommand(sql, connection); command.ExecuteNonQuery(); }
+static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }

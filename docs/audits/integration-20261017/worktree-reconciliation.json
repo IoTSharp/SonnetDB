@@ -1,0 +1,308 @@
+{
+  "date": "2026-10-17",
+  "originalMain": "4d6e4f988118c7f856211ab1380e4fc31e1ca10a",
+  "worktreeCount": 32,
+  "dirtyFileCount": 739,
+  "snapshotRoot": "D:/source/SonnetDB/artifacts/integration-20261017/snapshots",
+  "oldTreesAndStash": "Preserved without reset/clean/delete. The applied stash is retained. parity-results excluded from merges.",
+  "newWork": {
+    "issue248": "40 final frozen files integrated by three-way merge",
+    "issue247": "10 preparation files saved; contract test source archived as cs.txt because feature remains unimplemented",
+    "issue245": "10 preparation files saved; feature remains unimplemented",
+    "supervision": "Pause, exact CI and issue-closure receipts saved"
+  },
+  "manualReviewNotes": {
+    "batch02-metadata": "Length/comment AST, binder/parser, validation, metadata and transport tests are in main; schema copies additionally preserve newer persistent PK names; error expectations reflect actual supported type contracts.",
+    "batch02-primary-rename": "ApplyColumnRenameLocked and schema metadata transforms are in main, with later persistent constraint-name preservation.",
+    "batch02-sequences": "Sequence scopes/DDL/default validation are in main; DELETE detection additionally traverses RowLimit.",
+    "issue250-maintenance": "LongRunning lock-release regression and frozen legacy-format writer are already in main; preserve the independent root scheduling fix.",
+    "issue251-datetimeoffset": "Four source/helper variants match aa4fbffb after whitespace normalization; tests intentionally use keyless old-v13 fixtures so later PK-v16 barriers do not invalidate the DTO-v15 path.",
+    "issue256-int64-pagination": "All SQL pagination offset/fetch counters use Int64; bounded 256MiB whitespace scan remains safely Int32. The old incidental loop widening is not a missing pagination feature."
+  },
+  "oldVariants": [
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Ast/Statements.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\00-Statements.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\01-SqlExecutor.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\02-TableSqlExecutor.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\03-SqlParser.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\04-TableManager.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Tables/TableSchema.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\05-TableSchema.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB.Core/Tables/TableStore.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\06-TableStore.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "src/SonnetDB/Endpoints/Handlers/SchemaEndpointHandler.cs",
+      "normalizedHistoricalMatch": "89674db059928aa7f1bea1cfef8a13e97c43d648"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-metadata\\SonnetDB",
+      "path": "tests/SonnetDB.Tests/SqlRelationalColumnMetadataTransportTests.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\08-SqlRelationalColumnMetadataTransportTests.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-primary-rename\\SonnetDB",
+      "path": "src/SonnetDB.Core/Tables/TableManager.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\09-TableManager.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-primary-rename\\SonnetDB",
+      "path": "src/SonnetDB.Core/Tables/TableSchema.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\10-TableSchema.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-sequences\\SonnetDB",
+      "path": "src/SonnetDB.Core/Routines/SqlRoutineAnalysis.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\11-SqlRoutineAnalysis.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-sequences\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\12-SqlExecutor.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-sequences\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlSequenceRuntime.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\13-SqlSequenceRuntime.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-sequences\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/Execution/TableSqlExecutor.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\14-TableSqlExecutor.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\batch02-sequences\\SonnetDB",
+      "path": "src/SonnetDB.Core/Sql/SqlParser.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\15-SqlParser.cs.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue226-primary-key-migration\\SonnetDB",
+      "path": "CHANGELOG.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\16-CHANGELOG.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue226-primary-key-migration\\SonnetDB",
+      "path": "HANDOFF.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\17-HANDOFF.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue226-primary-key-migration\\SonnetDB",
+      "path": "docs/audits/issue-226-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\18-issue-226-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue243-keyless-delete\\SonnetDB",
+      "path": "CHANGELOG.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\19-CHANGELOG.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue243-keyless-delete\\SonnetDB",
+      "path": "HANDOFF.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\20-HANDOFF.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue243-keyless-delete\\SonnetDB",
+      "path": "docs/audits/issue-243-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\21-issue-243-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue262-datetime-contract\\SonnetDB",
+      "path": "docs/audits/issue-262-native-datetime-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\22-issue-262-native-datetime-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue263-public-integers\\SonnetDB",
+      "path": "docs/audits/issue-263-public-package-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\23-issue-263-public-package-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue264-public-decimal\\SonnetDB",
+      "path": "docs/audits/issue-264-public-package-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\24-issue-264-public-package-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB",
+      "path": "docs/audits/issue-270-public-package-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\25-issue-270-public-package-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue270-public-contains\\SonnetDB",
+      "path": "eng/probes/issue270-public-consumer/bookstore-method.cs.txt",
+      "normalizedHistoricalMatch": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue271-public-blob\\SonnetDB",
+      "path": "docs/audits/issue-271-public-package-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\27-issue-271-public-package-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue272-public-fk\\SonnetDB",
+      "path": "docs/audits/issue-272-public-package-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\28-issue-272-public-package-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue312-primary-key-update\\SonnetDB",
+      "path": "CHANGELOG.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\29-CHANGELOG.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue312-primary-key-update\\SonnetDB",
+      "path": "HANDOFF.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\30-HANDOFF.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue312-primary-key-update\\SonnetDB",
+      "path": "docs/audits/issue-312-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\31-issue-312-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue313-measurement-update\\SonnetDB",
+      "path": "CHANGELOG.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\32-CHANGELOG.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue313-measurement-update\\SonnetDB",
+      "path": "HANDOFF.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\33-HANDOFF.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue313-measurement-update\\SonnetDB",
+      "path": "docs/audits/issue-313-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\34-issue-313-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue314-decimal-round\\SonnetDB",
+      "path": "HANDOFF.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\35-HANDOFF.md.diff"
+    },
+    {
+      "worktree": "C:\\Users\\mysti\\.codex\\worktrees\\issue314-decimal-round\\SonnetDB",
+      "path": "docs/audits/issue-314-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\36-issue-314-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue250-maintenance",
+      "path": "tests/SonnetDB.Core.Tests/Tables/TableSchemaCodecTests.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\37-TableSchemaCodecTests.cs.diff"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue251-datetimeoffset",
+      "path": "docs/audits/issue-251-datetimeoffset-probe/Common.ps1",
+      "normalizedHistoricalMatch": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue251-datetimeoffset",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlDateTimeOffsetContract.cs",
+      "normalizedHistoricalMatch": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue251-datetimeoffset",
+      "path": "src/SonnetDB.Core/Sql/Execution/SqlExecutor.cs",
+      "normalizedHistoricalMatch": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue251-datetimeoffset",
+      "path": "src/SonnetDB.Data/Remote/RemoteExecutionResult.cs",
+      "normalizedHistoricalMatch": "aa4fbffba0caf7d400cb10e7ebb1d45cc99ff5c5"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue251-datetimeoffset",
+      "path": "tests/SonnetDB.Core.Tests/Sql/SqlDateTimeOffsetTests.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\42-SqlDateTimeOffsetTests.cs.diff"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue255-keyless-xcode",
+      "path": "docs/audits/issue-255-keyless-probe/Common.ps1",
+      "normalizedHistoricalMatch": "da1199a21854c4a32e5910531e95b547c62825e4"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue256-int64-pagination",
+      "path": "src/SonnetDB.Core/Sql/Execution/JsonFileSqlExecutor.cs",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\44-JsonFileSqlExecutor.cs.diff"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue260-uint64-parse",
+      "path": "docs/audits/issue-260-implementation-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\45-issue-260-implementation-20261016.md.diff"
+    },
+    {
+      "worktree": "D:\\source\\SonnetDB-worktrees\\issue261-public-metadata",
+      "path": "docs/audits/issue-261-public-metadata-20261016.md",
+      "normalizedHistoricalMatch": null,
+      "delta": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\old-deltas\\46-issue-261-public-metadata-20261016.md.diff"
+    }
+  ],
+  "legacyArchives": {
+    "notes": 22,
+    "sourceDeltas": 18
+  },
+  "boundaries": [
+    "No old snapshot replaces newer main implementations.",
+    "No public package publication, upstream ORM PR or server deployment performed.",
+    "Scheduled automation sonnetdb-issue remains PAUSED."
+  ]
+}

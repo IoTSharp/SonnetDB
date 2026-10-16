@@ -1,0 +1,49 @@
+diff --git a/Src/Asp.NetCore2/SqlSugar.SonnetDBCore/SonnetDB/SqlBuilder/SonnetDBFastBuilder.cs b/Src/Asp.NetCore2/SqlSugar.SonnetDBCore/SonnetDB/SqlBuilder/SonnetDBFastBuilder.cs
+index 4a0ff435..47c5840b 100644
+--- a/Src/Asp.NetCore2/SqlSugar.SonnetDBCore/SonnetDB/SqlBuilder/SonnetDBFastBuilder.cs
++++ b/Src/Asp.NetCore2/SqlSugar.SonnetDBCore/SonnetDB/SqlBuilder/SonnetDBFastBuilder.cs
+@@ -61,33 +61,21 @@ namespace SqlSugar.SonnetDB
+             }
+         }
+ 
+-        public override Task CreateTempAsync<T>(DataTable table)
++        public override async Task CreateTempAsync<T>(DataTable table)
+         {
+-            // 沿用 Fastest 的 staging 生命周期；表结构交给已有维护接口生成。
+             targetTableName = table.TableName;
+-            var columns = Context.DbMaintenance.GetColumnInfosByTableName(table.TableName, false)
+-                .Where(column => table.Columns.Contains(column.DbColumnName)).ToList();
+-            foreach (var column in columns)
+-            {
+-                column.IsIdentity = false;
+-                column.IsPrimarykey = false;
+-                column.ColumnDescription = null;
+-                column.DefaultValue = null;
+-            }
+-            columns.Add(new DbColumnInfo
+-            {
+-                DbColumnName = "sonnet_bulk_row_" + Guid.NewGuid().ToString("N"),
+-                DataType = "INT",
+-                IsPrimarykey = true,
+-                IsIdentity = true
+-            });
+-            table.TableName = "sonnet_bulk_" + Guid.NewGuid().ToString("N");
+-            Context.DbMaintenance.CreateTable(table.TableName, columns);
+-            stagingTableName = table.TableName;
++            var builder = Context.Queryable<object>().SqlBuilder;
++            var columns = string.Join(",", table.Columns.Cast<DataColumn>()
++                .Select(column => builder.GetTranslationColumnName(column.ColumnName)));
++            var name = "sonnet_bulk_" + Guid.NewGuid().ToString("N");
++            await Context.Ado.ExecuteCommandAsync(
++                "CREATE TEMP TABLE " + builder.GetTranslationTableName(name) +
++                " AS SELECT " + columns + " FROM " +
++                builder.GetTranslationTableName(targetTableName) + " WHERE 1=0");
++            table.TableName = name;
++            stagingTableName = name;
+             isStaging = true;
+-            return Task.CompletedTask;
+         }
+-
+         public override async Task<int> UpdateByTempAsync(string tableName, string tempName, string[] updateColumns, string[] whereColumns)
+         {
+             var builder = Context.Queryable<object>().SqlBuilder;

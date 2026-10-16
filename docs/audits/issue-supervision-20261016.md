@@ -368,3 +368,46 @@
 - issue312唯一248已核10准备文件且ff-only到edd23c1d，正在独占共享核心实施普通FOR UPDATE必要基础和NOWAIT。根额外RSE两方法增量已通知，最终按edd基线增量整合保留根修复，不重置活动树。锁资源须覆盖全部writer/DDL/PK迁移/identity/index，manager外等待后重规划/复验，不用乐观重试代替NOWAIT；不宣称233 Chloe/NoLock完成。
 - issue313唯一247仍准备冻结等待248，manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4；2PASS/22FAIL和REST/h2c原生3/16、SqlSugar2/12为真实缺口。issue314完成249后转唯一245，新树issue245-temp-ctas基线edd23c1d，当前只隔离准备：三协议原生各3PASS/22FAIL在TEMP/CTAS解析处拒绝，SqlSugar各5PASS/8FAIL；已有10,000行路径是普通工作表，事务DDL8项拒绝，不宣称原生临时表完成。共享顺序248→247→245，最多3代理。
 - 主目录本地main仍ffdb734c，保留其它会话边界；parity-results最近回读042748d841c5eca6e47261cf6b63e220280ee102，不能回写旧引用。旧树/stash/失败证据全部保留，外部ORM候选不外发。本状态随本真实CI修复提交；提交后push/CI/关闭回执随下一真实Issue提交，不造巡检提交。
+
+## 提交推送后检查点（2026-10-16 16:31，249与Identity修复已推送）
+
+- 监督HEAD与实际远端main均50f598ccc8bcaea8a832473232d860ce7baf6da3，已普通快进push并回读；同时包含249独立edd23c1d。parity-results仍042748d841c5eca6e47261cf6b63e220280ee102；主目录main仍ffdb734c且clean，不覆盖其它会话。
+- 独立CI修复50f598cc保Identity旧DATETIME映射并补JOIN CAST输入遍历。最终SQL3190/3190、Identity18/18、EF295/295，构建零警告错误；全部原失败保留。最终tree2444b99b6aabf8765a3d653483bb8438e828bd7d，完整restore08:26:13Z→08:26:20Z、原Format08:26:20Z→08:27:42Z均exit0，树未变才commit。Format保一条workspace-load警告，无格式违规。回执ci38869549254/commit.json及push-readback.json，原CI38869549254仍failure。
+- 新精确SHA CI38874082676已in_progress，尚无整体结论；CodeQL38874082703、Docker38874082690、Connectors38874082685分别运行，Docs38874082684已success。不把辅助工作流当正式Core/Data发行和ORM消费者交付。新CI初始永久回读issue-supervision-ci-38874082676-initial-20261016.json。
+- 已实现16历史Issue仍closed/completed。252/251/250/249尚OPEN，新的CI全7job成功后逐条评论并closed/completed；根已备带精确CI/远端/祖先/评论回读守卫的artifacts/issue-supervision-20261016/ci38869549254/Close-Implemented.ps1，参数HeadSha=50f598ccc8bcaea8a832473232d860ce7baf6da3、RunId=38874082676。249此前零评论，脚本含完整合同/根验收摘要；其余已有实现评论，追加一次关闭说明。先读原文与当前评论，避免重复。正式发行/上游仍未宣称完成；250标准CodeFirst事务DDL继续由227处理。
+- issue312唯一248在edd基线持续实施，最新真实ADO12+helper18=30/30只是局部候选。轻事务仍缓冲，真正COMMIT须等待行锁并复验原行；自动提交/Store写入等待，DDL采用保守库级维护屏障，最终验收仍待。已通知根两方法6行修复，不对活动树pull/reset。issue313唯一247冻结等待；issue314唯一245隔离准备，三协议负基线保留。共享顺序248→247→245。
+- 本次所有生产代码和测试均已提交推送。提交后的HANDOFF、监督记录和新CI回读暂随下一真实Issue提交，不制造纯巡检提交；旧树、stash、结果引用、失败证据与外部ORM候选边界保持。30分钟监督继续，先核新CI再完成四项关闭；避免下一push取消未完CI。
+
+## 准备交付复核（2026-10-16 16:39，245冻结、248继续实施）
+
+- 245准备manifest2B2180627B19C7D0BD6467AFD4A43BBABE12B382C4F5F608595C231E99CEB2D5根已逐项核10源两份、143证据、1022运行文件、691上游源/候选与4编译输入，零差异。根回执artifacts/issue-supervision-20261016/issue245/preparation-root-review01.json；原树HEAD=edd23c1d，tracked修改0。只是准备完成，未集成/提交/推送/关闭。
+- 最终原生embedded/REST/h2c各3PASS/27FAIL，临时表/CTAS在解析阶段拒绝，后续生命周期/类型/事务断言未到达。真实原SqlSugar三协议及public4/preview各6PASS/8FAIL，普通工作表10000行集合路径及CHECK失败清理通过，但已有事务在DDL守卫拒绝；h2c Frame与事务REST请求分开记录。候选补丁实际apply后LF归一一致、单FastBuilder编译零警告；完整provider严格编译因既有三个文件4条nullable错误失败，未关门禁，不当候选运行通过。
+- 根接受首版在可见命名空间内临时/持久对象同名或仅大小写不同明确拒绝、不同会话同名隔离的设计，保#211引号语义；正式实施后仍需正反碰撞、真实事务10000行、会话失联/释放/恢复/预算以及#248锁/#247过程上下文验收。245保持冻结等待248→247，不另派单。
+- 248当前仍为活动实施，core-rowlocks03=45/69、04=54/69；根已回读原失败而非验收。TableLockOperation整体重试必须证明在竞争前尚无identity/序列/WAL/触发器/级联的可见副作用，完整资源锁先于apply且manager/store监视器外等待；该审查点已发原代理。247准备等待正常。
+- 精确50f的CI38874082676最新回读Format、Ubuntu x64/ARM AOT成功，Windows AOT和三个测试job继续运行；整体未结束，不执行四Issue关闭脚本、不推新提交。HEAD/main/parity和主目录clean边界不变。记录随下一真实Issue提交，不为本检查造提交。
+
+- 16:40 追加：代理报告248 core-rowlocks05为67/69，原14项已结束异常来自新测试finally重复MarkCompleted，另两项为ALTER缺TYPE和DELETE结果类型断言；正在修正，根未作最终验收。根提出多表identity预留先取完整资源锁、触发器/级联重试无副作用的要求已接受并待补验。CI08:40Z仍三job成功、其余4运行；自动化已同步245冻结和此边界。
+
+## 最新监督检查点（2026-10-16 17:15，精确 CI 全绿与四项关闭）
+
+- 监督 HEAD 与实际远端 main 均为 `50f598ccc8bcaea8a832473232d860ce7baf6da3`；该提交精确 CI **38874082676** 已 completed/success，七个作业（Windows Core/rest、Ubuntu tests、三平台 AOT、Format）均成功。永久回读 `docs/audits/issue-supervision-ci-38874082676-final-20261016.json`；此前 38862841705、38869549254 的失败及独立修复仍保留。同 SHA 的 Connectors 38874082685、Docker 38874082690、Docs 38874082684、CodeQL 38874082703 也已 completed/success，不能据此推定匹配 Core/Data/Server 正式包及 ORM 上游均已交付。
+- 按用户最新“已实现要关闭、代码要提交推送”的要求，重读原文和评论、核实现提交祖先、精确 CI 及实际远端后，已逐项评论并回读作者 maikebing/完整正文，再 closed/completed：#252 评论 **6212084783**、#251 **6212087033**、#250 **6212089175**、#249 **6212090968**，关闭时间为 09:08:32Z 至 09:08:54Z。永久回执 `docs/audits/issue-249-252-closures-20261016.json`；原始回读在 `artifacts/issue-supervision-20261016/batch07-actions`。本轮四项加之前16项均已关闭，不重复评论、派单或重新开放。正式发行及上游交付事实仍写明；#250 标准 CodeFirst 的事务 DDL 继续由独立 #227 处理。
+- 远端 parity-results 仍为 `042748d841c5eca6e47261cf6b63e220280ee102`。主目录本地 main 仍 ffdb734c 且 clean，未替其它会话同步。最新 OPEN 队列从 248、247、245、244、242、241、236、235、233、232、230、228、227、225、223、222、221、220、219 继续；最多三个代理、共享核心顺序 **248→247→245**。
+- issue312 唯一 #248 在 issue248-nowait（edd23c1d 基线）仍正常实施。根实读 core-rowlocks07 **74/74**、core-regression-fixes01 **232/232**、真实 remote-rowlocks03 **12/12** 的 TRX 与 exit0/零跳过，并核原版 SqlSugar embedded/REST/h2c 各 **34/34** 确认日志。首次扩大回归 **3611/3620，9 FAIL** 仍保留，相关修复通过不替代最终扩大回归。根回执 `issue248/implementation-progress-root-review01.json`；代理进度索引 `issue248-work/implementation-progress01.json` SHA `A2C9F65B2E84FA549EC183885709BE5CDCD69EA561338809145530DDB5468AB5`，不是最终冻结。
+- #248 多表 identity 正常路径在完整写集预检后才持久化，高水位溢出保留旧“不复用已预留号码”合同；DDL 队列允许其持锁事务完成写集。根只读复审了锁管理器、操作重试、identity 预演和锁后序列复验；已要求最终核连接/会话结束与超时释放、直接 Prepare/ApplyPrepared 跨阶段锁持续性、普通远程等待/取消和扩大回归/AOT。50f 的 RSE 两方法六行须在最终 edd 增量整合时保留，不 pull/reset 活动树；本项未交付、未提交/推送/关闭。
+- issue313 唯一 #247 与 issue314 唯一 #245 均为准备冻结完成，未生产接线，保持等待。247 manifest `33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4`；245 manifest `2B2180627B19C7D0BD6467AFD4A43BBABE12B382C4F5F608595C231E99CEB2D5`。不把代理 completed 视为 Issue 完成，不重复派单。
+- 本轮没有新的生产代码提交或重复 push；已完成的生产/测试提交均在远端。HANDOFF、监督审计、初始/最终 CI 与关闭回执暂随下一真实 Issue 提交，不为巡检制造提交；届时最终树须完整重新通过 restore 与规定 Format。旧树/stash/失败证据/结果引用和外部 ORM 候选边界不变，30分钟监督继续。
+
+- 17:18 追加：根已实读 #248 remote-regression01 为 **175/175**、零失败/跳过、exit0，包含新普通等待/取消四项，原12项包含在该集合中不累计。代理随后新增独立 Prepare/ApplyPrepared 应用前重取行锁与 schema/sequence/generation 复验，以及连接 Close、会话 lease 到期、失败 Commit 释放测试；这些后续新改动和测试仍待最终运行，不能由175项提前背书。扩大 Core 回归正在原代理串行执行，未冻结。根新检查点写入的 CRLF 被 git diff --check 识别，原输出保留 batch07-actions/checkpoint-line-endings-original.log；仅新段改 LF 后 git diff --check 通过，未提交。
+
+## 用户暂停监督（2026-10-16 17:32，Asia/Shanghai）
+
+- 用户明确要求“现在停止当前定时任务”。automation `sonnetdb-issue` 已通过工具更新为 `PAUSED`，配置回读确认；调度、目标聊天和原提示内容保留。后续不得自动巡检、派单或恢复，等待用户明确恢复。
+- 活动代理 issue312（唯一 #248）已通知停止后中断，回读状态 `interrupted`；issue313（#247）与 issue314（#245）保持准备完成等待，无新派单。保留全部工作树、未提交代码、证据和失败记录。
+- 暂停前 issue312 报告最终 Core 3986/3986、Server 342/342，相关日志在 issue248-work 的 core-regression-final01/remote-regression-final01；此为代理报告，根尚未最终冻结核验。最后报告 Data AOT/Trim 在运行；中断代理不构成底层进程终止或后续门禁通过的证明。恢复后先核实际进程、源码、冻结清单及结果，不重复派单。
+- 监督 HEAD 仍 `50f598ccc8bcaea8a832473232d860ce7baf6da3`。已完成四项关闭与先前推送不变；#248 尚未冻结、提交、推送或关闭。本次仅记录暂停，不启动新构建/格式检查、提交、推送或线上 Issue 操作；HANDOFF、监督审计及既有回执留在工作树，待用户恢复后按原门禁处理。
+
+
+## 2026-10-17 人工整合后续
+
+用户停止定时监督后，另明确要求提交、拉取、合并并同步所有已有代码。现有#248已冻结并根复审独立提交86dcecee；M49与online-demo以普通merge保留祖先，#247/#245仅存档准备材料。详细状态与实际回读入口见根HANDOFF最前的2026-10-17记录及docs/audits/integration-20261017，旧日期的OPEN/基线/代理状态只是历史快照。automation仍PAUSED，不恢复定时实施或派新单。

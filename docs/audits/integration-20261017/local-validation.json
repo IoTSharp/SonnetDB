@@ -1,0 +1,599 @@
+{
+  "solutionBuild": {
+    "label": "combined-build",
+    "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\combined-build.stderr.log",
+    "startedUtc": "2026-10-16T16:59:56.5228334+00:00",
+    "identity": {
+      "executable": "dotnet",
+      "startedUtc": "2026-10-16T16:59:56.5268712Z",
+      "arguments": [
+        "build",
+        "SonnetDB.slnx",
+        "-c",
+        "Release",
+        "--no-restore",
+        "/warnaserror",
+        "-m:2",
+        "-p:UseSharedCompilation=false",
+        "-nodeReuse:false"
+      ],
+      "workingDirectory": "D:/source/SonnetDB",
+      "pid": 50908
+    },
+    "timedOut": false,
+    "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\combined-build.stdout.log",
+    "endedUtc": "2026-10-16T17:02:27.1202563+00:00",
+    "exitCode": 0
+  },
+  "fullSolutionFirstRun": {
+    "label": "combined-tests",
+    "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\combined-tests.stderr.log",
+    "startedUtc": "2026-10-16T17:02:27.1343586+00:00",
+    "identity": {
+      "executable": "dotnet",
+      "startedUtc": "2026-10-16T17:02:27.1384076Z",
+      "arguments": [
+        "test",
+        "SonnetDB.slnx",
+        "-c",
+        "Release",
+        "--no-build",
+        "--no-restore",
+        "-m:1",
+        "--logger",
+        "trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\trx",
+        "--blame-hang-timeout",
+        "10m",
+        "--blame-hang-dump-type",
+        "mini"
+      ],
+      "workingDirectory": "D:/source/SonnetDB",
+      "pid": 49172
+    },
+    "timedOut": false,
+    "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\combined-tests.stdout.log",
+    "endedUtc": "2026-10-16T17:16:32.4785200+00:00",
+    "exitCode": 1
+  },
+  "projectResults": [
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Accuracy.Tests\\bin\\Release\\net10.0\\SonnetDB.Accuracy.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_03_06_net10.0.trx",
+      "counters": {
+        "total": "9",
+        "executed": "9",
+        "passed": "8",
+        "failed": "1",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": [
+        {
+          "name": "SonnetDB.Accuracy.Tests.DockerBuildContextTests.TestcontainersDockerfileArchive_WithRepositoryContext_ExcludesBuildOutputs",
+          "error": "\n      \n        \n          Assert.DoesNotContain() Failure: Filter matched in collection\r\n                                                                                                                    ↓ (pos 2215)\r\nCollection: [···, \".git/refs/heads/codex/issue261-public-metadata\", \".git/refs/heads/codex/m48-log-event-analysis\", \"artifacts/issue-supervision-20261016/issue251-work\"···, \"artifacts/issue-supervision-20261016/issue251-work\"···, \"artifacts/issue-supervision-20261016/issue252-work\"···, ···]\n             at SonnetDB.Accuracy.Tests.DockerBuildContextTests.TestcontainersDockerfileArchive_WithRepositoryContext_ExcludesBuildOutputs() in D:\\source\\SonnetDB\\tests\\SonnetDB.Accuracy.Tests\\DockerBuildContextTests.cs:line 49\r\n--- End of stack trace from previous location ---\n        \n      \n    "
+        }
+      ]
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.AspNetCoreWebMvcWithIdentity.Tests\\bin\\Release\\net10.0\\SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_03_31_net10.0.trx",
+      "counters": {
+        "total": "18",
+        "executed": "18",
+        "passed": "18",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Benchmarks.Tests\\bin\\Release\\net10.0\\SonnetDB.Benchmarks.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_03_45_net10.0.trx",
+      "counters": {
+        "total": "65",
+        "executed": "65",
+        "passed": "65",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.CAP.Tests\\bin\\Release\\net10.0\\SonnetDB.CAP.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_05_14_net10.0.trx",
+      "counters": {
+        "total": "42",
+        "executed": "42",
+        "passed": "42",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Client.Tests\\bin\\Release\\net10.0\\SonnetDB.Client.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_05_20_net10.0.trx",
+      "counters": {
+        "total": "195",
+        "executed": "195",
+        "passed": "195",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_05_23_net10.0.trx",
+      "counters": {
+        "total": "7606",
+        "executed": "7606",
+        "passed": "7606",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.EntityFrameworkCore.Tests\\bin\\Release\\net10.0\\SonnetDB.EntityFrameworkCore.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_12_46_net10.0.trx",
+      "counters": {
+        "total": "295",
+        "executed": "295",
+        "passed": "295",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.IoTSharpCompat.Tests\\bin\\Release\\net10.0\\SonnetDB.IoTSharpCompat.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_13_43_net10.0.trx",
+      "counters": {
+        "total": "1",
+        "executed": "1",
+        "passed": "1",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.LanguageServer.Tests\\bin\\Release\\net10.0\\SonnetDB.LanguageServer.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_13_44_net10.0.trx",
+      "counters": {
+        "total": "6",
+        "executed": "6",
+        "passed": "6",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Media.Tests\\bin\\Release\\net10.0\\SonnetDB.Media.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_13_46_net10.0.trx",
+      "counters": {
+        "total": "29",
+        "executed": "29",
+        "passed": "29",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Native.Tests\\bin\\Release\\net10.0\\SonnetDB.Native.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_13_48_net10.0.trx",
+      "counters": {
+        "total": "10",
+        "executed": "10",
+        "passed": "10",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Studio.Tests\\bin\\Release\\net10.0-windows\\SonnetDB.Studio.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_13_50_net10.0.trx",
+      "counters": {
+        "total": "90",
+        "executed": "90",
+        "passed": "90",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    },
+    {
+      "source": "D:\\source\\SonnetDB\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll",
+      "trx": "artifacts\\integration-20261017\\trx\\mysti_MAIKEBING_2026-10-17_01_14_23_net10.0.trx",
+      "counters": {
+        "total": "1430",
+        "executed": "1430",
+        "passed": "1430",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "errors": []
+    }
+  ],
+  "firstRunTotals": {
+    "total": 9796,
+    "passed": 9795,
+    "failed": 1,
+    "skipped": 0
+  },
+  "knownIndependentFailure": "Docker build-context gitignore negation; original TRX retained; follow-up fix and rerun recorded in Docker audit.",
+  "rootConsumerChecks": {
+    "embedded": 34,
+    "rest": 34,
+    "http2": 34
+  },
+  "web": {
+    "contracts": 469,
+    "build": "success"
+  },
+  "boundaries": [
+    "AOT/Trim analyzer builds are not NativeAOT binary publication/runtime acceptance.",
+    "External Docker/Influx tests use fixture readiness behavior; count alone does not prove live external services.",
+    "CI result for final pushed HEAD must be independently read, not inferred from local tests."
+  ],
+  "dockerFinalReplacement": {
+    "date": "2026-10-17",
+    "originalFailure": "DockerBuildContextTests in full solution first run; source gitignore negation re-included build artifacts.",
+    "fix": "Place !**/.gitignore immediately after its matching exclusion, before generated-directory exclusions, in both ignore files.",
+    "regression": "Real Testcontainers archive with an owned artifacts subtree containing .gitignore; assert root .gitignore stays included and all build outputs excluded.",
+    "finalReceipt": {
+      "startedUtc": "2026-10-16T17:24:30.1043690+00:00",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\docker-context-tests03.stdout.log",
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\docker-context-tests03.stderr.log",
+      "exitCode": 0,
+      "identity": {
+        "executable": "dotnet",
+        "arguments": [
+          "test",
+          "tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj",
+          "-c",
+          "Release",
+          "--no-restore",
+          "-p:BuildProjectReferences=false",
+          "--filter",
+          "FullyQualifiedName~DockerBuildContextTests",
+          "--logger",
+          "trx",
+          "--results-directory",
+          "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\docker-context-trx03",
+          "-m:1",
+          "-p:UseSharedCompilation=false",
+          "-nodeReuse:false"
+        ],
+        "pid": 73060,
+        "workingDirectory": "D:/source/SonnetDB",
+        "startedUtc": "2026-10-16T17:24:30.1079192Z"
+      },
+      "endedUtc": "2026-10-16T17:25:23.4529572+00:00",
+      "timedOut": false,
+      "label": "docker-context-tests03"
+    },
+    "trx": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\docker-context-trx03\\mysti_MAIKEBING_2026-10-17_01_25_23_net10.0.trx",
+    "sha256": "36113e60672ab4c90f2bbd8a7cf4a4b81b0cc9ccd2e4ece1ef366386d9b94a12",
+    "counters": {
+      "total": "1",
+      "executed": "1",
+      "passed": "1",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    },
+    "earlierRuns": {
+      "firstCandidate": "1/1, before root .gitignore inclusion assertion",
+      "secondAttempt": "Build only failed with MSB3027/MSB3021 because prior owned testhost still held xunit.abstractions.dll; no tests ran. Preserved; rerun serially.",
+      "thirdFinal": "1/1 with both exclusion and inclusion assertions; zero build warnings/errors."
+    },
+    "cleanup": "Only the test-owned GUID sentinel and tar archive are removed. Existing evidence/worktrees/caches remain untouched."
+  },
+  "commitSequence": [
+    "46e58d822cc8e19a259e5560f0fb1da3c8f261a2",
+    "8f28c82fa96468d98e7a1843a348973ae0a27a6b",
+    "86dcecee7210d069d6abedb676f9eb4a370ea3e5",
+    "6fbc2d783aa2f1dcf84bbd237c103ff3ce3c78cd"
+  ],
+  "ciScripts": [
+    {
+      "endedUtc": "2026-10-16T17:27:11.8050472+00:00",
+      "timedOut": false,
+      "label": "ci-test-ci-test-shards",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-ci-test-shards.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-ci-test-shards.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-ci-test-shards.ps1"
+        ],
+        "pid": 30568,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:11.0125026Z"
+      },
+      "startedUtc": "2026-10-16T17:27:11.0070844+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:21.3911548+00:00",
+      "timedOut": false,
+      "label": "ci-test-m43-release-evidence",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-m43-release-evidence.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-m43-release-evidence.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-m43-release-evidence.ps1"
+        ],
+        "pid": 39436,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:11.8189334Z"
+      },
+      "startedUtc": "2026-10-16T17:27:11.8141339+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:10.9972516+00:00",
+      "timedOut": false,
+      "label": "ci-test-nuget-candidate-promotion",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-nuget-candidate-promotion.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-nuget-candidate-promotion.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-nuget-candidate-promotion.ps1"
+        ],
+        "pid": 54228,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:09.7664466Z"
+      },
+      "startedUtc": "2026-10-16T17:27:09.7595531+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:06.6488852+00:00",
+      "timedOut": false,
+      "label": "ci-test-release-artifacts",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-artifacts.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-artifacts.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-release-artifacts.ps1"
+        ],
+        "pid": 73740,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:04.6848810Z"
+      },
+      "startedUtc": "2026-10-16T17:27:04.6771696+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:07.5241011+00:00",
+      "timedOut": false,
+      "label": "ci-test-release-network-defaults",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-network-defaults.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-network-defaults.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-release-network-defaults.ps1"
+        ],
+        "pid": 71732,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:06.6660252Z"
+      },
+      "startedUtc": "2026-10-16T17:27:06.6606000+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:09.7443508+00:00",
+      "timedOut": false,
+      "label": "ci-test-release-readiness",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-readiness.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-test-release-readiness.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/test-release-readiness.ps1"
+        ],
+        "pid": 83208,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:27:07.5446733Z"
+      },
+      "startedUtc": "2026-10-16T17:27:07.5346735+00:00"
+    },
+    {
+      "endedUtc": "2026-10-16T17:27:04.6283553+00:00",
+      "timedOut": false,
+      "label": "ci-verify-dependency-licenses",
+      "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-verify-dependency-licenses.stdout.log",
+      "exitCode": 0,
+      "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\ci-verify-dependency-licenses.stderr.log",
+      "identity": {
+        "workingDirectory": "D:/source/SonnetDB",
+        "arguments": [
+          "-NoProfile",
+          "-File",
+          "eng/verify-dependency-licenses.ps1"
+        ],
+        "pid": 78592,
+        "executable": "pwsh",
+        "startedUtc": "2026-10-16T17:26:56.7339354Z"
+      },
+      "startedUtc": "2026-10-16T17:26:56.7277341+00:00"
+    }
+  ]
+}

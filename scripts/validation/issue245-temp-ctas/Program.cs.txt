@@ -1,0 +1,52 @@
+using System.Reflection;
+using System.Security.Cryptography;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 3 || args[0] is not ("native" or "sugar" or "sugar-native")) return 2;
+string connectionString = args[1].StartsWith("env:", StringComparison.Ordinal)
+    ? Environment.GetEnvironmentVariable(args[1][4..]) ?? throw new InvalidOperationException("Missing connection environment.")
+    : args[1];
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    Assembly assembly = Assembly.Load(name);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))}|{assembly.Location}");
+}
+var probe = new ProbeRun(connectionString, args[2]);
+if (args[0] == "native") await NativeProbe.Run(probe);
+else await SugarProbe.Run(probe, args[0] == "sugar-native");
+Console.WriteLine($"SUMMARY|{args[0]}|{args[2]}|pass={probe.Passed}|fail={probe.Failed}");
+return probe.Failed == 0 ? 0 : 1;
+
+internal sealed class ProbeRun(string connectionString, string label)
+{
+    internal string ConnectionString { get; } = connectionString;
+    internal int Passed { get; private set; }
+    internal int Failed { get; private set; }
+    internal async Task Check(string name, Func<Task> action)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await action();
+            Passed++;
+            Console.WriteLine($"PASS|{label}|{name}|ms={watch.ElapsedMilliseconds}");
+        }
+        catch (Exception exception)
+        {
+            Failed++;
+            Console.WriteLine($"FAIL|{label}|{name}|ms={watch.ElapsedMilliseconds}|{exception.GetType().Name}|{exception.Message.Replace('\r', ' ').Replace('\n', ' ')}");
+            Console.WriteLine($"DETAIL|{name}|{exception}");
+        }
+    }
+
+    internal static void Equal<T>(T expected, T actual)
+    {
+        if (!EqualityComparer<T>.Default.Equals(expected, actual))
+            throw new InvalidOperationException($"Expected {expected}; actual {actual}.");
+    }
+
+    internal static void Require(bool value, string message)
+    {
+        if (!value) throw new InvalidOperationException(message);
+    }
+}
