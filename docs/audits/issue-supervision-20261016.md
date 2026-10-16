@@ -349,3 +349,12 @@
 - issue312唯一248准备保持冻结，manifest8127BFF635DBF78684D6E70E7AC8643512E9A1F521FECC6724A718A4CF5C69E4；249根最终提交后才能修改共享核心。必须实施真实FOR UPDATE基础/NOWAIT，覆盖250新增维护入口，不能仅以233阻断停工。
 - issue313唯一247准备已冻结：manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，10新源/1144运行文件/194证据/603上游源/3TRX，tracked生产修改0。最终合同2PASS22FAIL；public4/preview原生2/15、源码3/15，SqlSugar2/11；REST/h2c原生各3/16、SqlSugar各2/12。h2c只有普通SELECT的2请求走Frame，CALL走HTTP2 REST。远程CREATE PROCEDURE体内参数被旧Binder误认为ADO参数，准备使用公开SQL端点预建仅隔离调用；CIM中断/DDL缺参均保留。此为准备完成而非功能完成，等待249→248共享交接。
 - 下一步：CI兼容修复完整门禁、独立commit、普通push/远端和新CI回读；核249冻结/根验收/独立commit并交248，247等待。状态记录随实际修复提交，不造巡检提交，外部ORM候选不外发，旧树/stash/失败证据保留。
+
+## 最新监督检查点（2026-10-16，CI修复已推送、249根回归完成）
+
+- 根独立日期兼容修复已commit并正常push `b568988e5b568ba5bb3abea9574c048a02e0e3f8`，远端回读匹配；最终tree199a558689815ea804eee6c3e7c83296a2f7006b，restore07:45:04Z→07:45:10Z、规定Format07:45:10Z→07:46:35Z均exit0，树未变才commit。预门禁JSON CRLF差异在两命令前修正并保原副本；workspace-load警告保留无格式违规。精确新CI38869549254运行中，不能称全绿，也不取消它来抢推249。原38862841705仍failure，审计已随b568提交。
+- 用户要求已实现Issue记得关闭、代码记得提交和推送已落实：16历史Issue均closed/completed并逐项回读，列表/评论/实现SHA见已提交issue-implemented-closures-20261016.json；原发布/上游交付未冒称完成。252/251/250尚OPEN，待b568修复CI实际验收后按新要求关闭，250的完整CodeFirst事务DDL仍归227。
+- 249已按冻结25文件集成到b568，根核工作树/冻结两份源、249证据、869运行文件、14TRX及两SqlSugar源码全匹配，未改生产语义或覆盖CI修复。根Core3972/3972、真实Server239/239、EF295/295、独立SqlSugar初次/重开各28/28全部零失败/跳过；四构建含Data显式AOT/Trim均0warning/error。报告issue-249-root-review-20261016.md/json，冻结manifest91A1125EA2C529AE69CD82E8E3147D50CB57E340936AD3A76D801DC03C2E40CD；最后四新增测试已包含根3972。代理原失败和旧包拒绝保留，正式发行不由源码通过推定。
+- 当前249待最终完整restore/Format独立提交；提交后将实际SHA交issue312唯一248，使其独占共享核心实现真实锁/NOWAIT。原issue314在249完成后可转下一实际OPEN倒序245（246不在OPEN）；仅隔离准备临时表/CTAS真实SqlSugar Fastest，不能改共享AST/Parser/Executor/TableManager/事务/ADO，等248→247后。
+- issue313唯一247准备冻结SHA33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，根已核10新源两份、194证据、1144运行文件、603上游源；最终24合同2PASS22FAIL、REST/h2c各原生3/16及SqlSugar2/12，CALL为HTTP2 REST而非Frame；标准命令和方向回写尚未实施。继续等待249→248，禁止提前关闭。
+- parity最近回读042748d841c5eca6e47261cf6b63e220280ee102，主目录main仍ffdb734c且clean。下一次先核实时远端/CI，保留所有旧树/stash/失败证据；提交后状态随下一真实提交，不造巡检提交。

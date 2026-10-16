@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #249：支持逐行列/表达式 JSON_VALUE path、动态数组下标和 JSON_OBJECT 类型安全对象谓词；对象保留精确 DECIMAL、整数、布尔、NULL 和转义，动态 JSON_VALUE 沿用静态 Int64 优先否则 Double 的取值合同，静态/参数 JSON 索引保持。补文档/文件/向量/时序/JOIN 的精确对象接线、预算/取消释放、真实 SqlSugar 同步异步三协议和重开验证；不改变目录或结果版本，正式包及上游发行仍需另验。
+
 - 修复原生 DATETIMEOFFSET 引入后的 EF Provider 映射兼容：默认 DTO 属性使用原生 UTC ticks，显式旧 DATETIME 布局通过查询列 CAST 保持参数/函数类型一致且继续保留旧毫秒存储精度；补齐 ADO DataTypes 的 DATETIMEOFFSET 目录项和跨协议旧 DATETIME 参数拒绝/显式兼容回归。不改变引擎混合类型比较守卫或持久格式，既有列迁移须显式执行。
 
 - GH-Issue #250：补齐持久真实主键名称和 `information_schema.table_constraints`、实际 DESC 索引编码与 INCLUDE 类型化载荷、`ALTER TABLE ... AUTO_INCREMENT = n` 原生下一值维护。约束改名/删除、索引覆盖读取/事务/迁移/在线恢复、真实三协议维护及终止恢复已补验；含主键目录和新索引选项使用永久 v16 屏障，在线新选项断点 v2，旧引擎拒绝且降级须恢复升级前副本，未改变 FileHeader。正式包、SqlSugar 上游交付与标准 CodeFirst 的 #227 事务 DDL 条件仍待完成。

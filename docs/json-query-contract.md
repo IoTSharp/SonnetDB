@@ -5,7 +5,7 @@ description: "JSON 标量、数组包含、参数路径、资源预算与索引�
 permalink: /json-query-contract/
 ---
 
-# SQL JSON 查询合同（GH-Issue #180）
+# SQL JSON 查询合同（GH-Issue #180、#249）
 
 `json_exists(json, path)`、`json_array_length(json, path)` 和 `json_contains(json, path, candidate)` 可用于关系表 `JSON` 列、文档集合的 `document` / `json` 伪列，以及字符串表达式。它们沿用 SQL 函数和 ADO.NET 参数接口；不需要 PostgreSQL JSONB 运算符。
 
@@ -20,9 +20,42 @@ WHERE json_exists(metadata, @first_path)
 
 ## path 和输入类型
 
-JSON 和 path 参数必须为 SQL `STRING` 或 `NULL`；关系 `JSON` 列读取为 JSON 文本并使用相同解析器。path 可以是 SQL 字符串字面量或绑定的字符串参数。参数在执行前绑定，嵌入式、REST 和 Frame 使用相同的 JSON path 语法。
+JSON 和 path 参数必须为 SQL `STRING` 或 `NULL`；关系 `JSON` 列读取为 JSON 文本并使用相同解析器。path 可以是 SQL 字符串字面量、绑定的字符串参数、列或标量表达式。参数在执行前绑定，列/表达式 path 按当前行求值；嵌入式、REST 和 Frame 使用相同的 JSON path 语法。
 
 支持根 `$`、点属性 `$.owner.name`、引用属性 `$['display-name']` 和显式非负数组下标 `$.tags[0]`；它们可以组合。引用属性中的单引号按两个单引号表示，例如把 path 参数绑定为 `$['O''Reilly']` 可读取 `O'Reilly` 属性。属性名和字符串值均按大小写敏感的 ordinal 规则比较。通配符、负数下标、递归下降和隐式数组 fan-out 不属于这些标量函数的 path 合同；无效 path 返回执行错误。路径存在与否与值是否为 JSON `null` 是两个不同问题。
+
+## 动态字段与类型安全对象谓词
+
+```sql
+SELECT JSON_VALUE(metadata, path_text) AS selected,
+       JSON_VALUE(metadata, CONCAT('$.items[', item_index, ']')) AS item
+FROM devices;
+
+SELECT id FROM devices
+WHERE JSON_CONTAINS(metadata, '$.objects', JSON_OBJECT(@key, @value));
+```
+
+`JSON_VALUE` 对 SQL NULL 输入/path、缺失路径、数组越界及 JSON null 返回 SQL NULL。
+找到的数字优先返回 Int64，否则返回 Double；字符串、布尔和容器 JSON 文本保持原类型。
+动态路径不会按首行缓存，也不承诺使用 JSON path 索引。
+
+`JSON_OBJECT(key, value, ...)` 返回 JSON 对象字符串，空参数返回 `{}`；字段名和值可以是
+参数、列或标量表达式。字段名必须为非 NULL 字符串，按 Ordinal 拒绝重复名；值接受
+字符串、布尔、整数、decimal、有限浮点数或 SQL NULL。字符串始终写成 JSON 字符串，
+即使内容以 `{` 或 `[` 开头；SQL NULL 写为 JSON null，decimal 写入不经过 Double。
+精确小数使用 decimal 参数/列、`DECIMAL '9007199254740993.01'` 或
+`CAST('9007199254740993.01' AS DECIMAL)`；普通小数字面量仍遵守 FLOAT 合同。
+对象包含按单个数组元素匹配所有字段，不会把不同元素的字段拼起来满足对象候选。
+
+动态 JSON_VALUE 采用 8 Mi 字符输入、1024 字符/64 片段 path 和 64 层 JSON 深度上限。
+JSON_OBJECT 最多 4096 个交替字段/值参数，字段名最多 1024 字符；输出按每个 UTF-16
+code unit 最坏六字节转义计算 8 MiB 编码上界，保守上界超限也会拒绝。两者检查查询
+取消并遵守共享临时内存预算；文档、JSON 文件和文档向量入口也支持原有显式物化预算。
+JSON_OBJECT 的结果声明为 String，包括空结果；JSON_VALUE 保留多态的 object 声明。
+
+真实 SqlSugar 的 `JsonField`、`JsonIndex`、`JsonListObjectAny` 直接使用这些 SQL。
+本地源码消费者验证不等同于正式 NuGet 或 SqlSugar provider 已发布；发布状态以实际
+包及发布后的消费者证据为准。
 
 ## NULL、数组、对象和标量
 

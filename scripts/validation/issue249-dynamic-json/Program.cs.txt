@@ -1,0 +1,268 @@
+using System.Data.Common;
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using SonnetDB.Data;
+using SqlSugar;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+if (args.Length != 3) return 2;
+string mode = args[0];
+string connectionString = args[1].StartsWith("env:", StringComparison.Ordinal)
+    ? Environment.GetEnvironmentVariable(args[1][4..]) ?? throw new InvalidOperationException("Missing connection environment.")
+    : args[1];
+string label = args[2];
+bool candidate = mode is "candidate" or "reopen";
+bool reopen = mode == "reopen";
+if (mode is not ("candidate" or "reopen" or "baseline")) return 2;
+int passed = 0;
+int failed = 0;
+int expectedRejections = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assembly.Location)))}|{assembly.Location}");
+}
+
+using (var connection = new SndbConnection(connectionString))
+{
+    connection.Open();
+    if (!reopen)
+    {
+        using var setup = connection.CreateCommand();
+        setup.CommandText = "CREATE TABLE expr_rows(id INT, doc_payload JSON NULL, path_text STRING NULL, field_name STRING, item_index INT, wanted STRING, amount DECIMAL(28,12), PRIMARY KEY(id))";
+        setup.ExecuteNonQuery();
+        setup.CommandText = "INSERT INTO expr_rows(id,doc_payload,path_text,field_name,item_index,wanted,amount) VALUES(@id,@doc,@path,@field,@index,@wanted,@amount)";
+        void Insert(long id, string? document, string? path, string field)
+        {
+            setup.Parameters.Clear();
+            setup.Parameters.Add(new SndbParameter("id", id));
+            setup.Parameters.Add(new SndbParameter("doc", document));
+            setup.Parameters.Add(new SndbParameter("path", path));
+            setup.Parameters.Add(new SndbParameter("field", field));
+            setup.Parameters.Add(new SndbParameter("index", 1L));
+            setup.Parameters.Add(new SndbParameter("wanted", "pump"));
+            setup.Parameters.Add(new SndbParameter("amount", 1234567890123456.123456789012m));
+            setup.ExecuteNonQuery();
+        }
+        Insert(1, """{"site":"west","nested":{"value":"one"},"values":["zero","one"],"objects":[{"kind":"pump","active":true,"count":9007199254740993,"amount":1234567890123456.123456789012,"nil":null}]}""", "$.site", "site");
+        Insert(2, """{"site":"east","quoted'key":"escaped","nested":{"value":"two"},"values":["alpha","beta"],"objects":[{"kind":"fan"}]}""", "$.nested.value", "quoted'key");
+        if (candidate)
+        {
+            Insert(3, null, "$.site", "site");
+            Insert(4, "{\"site\":\"four\"}", null, "site");
+            setup.CommandText = "CREATE JSON INDEX ix_site ON expr_rows(doc_payload,'$.site')";
+            setup.Parameters.Clear();
+            setup.ExecuteNonQuery();
+        }
+    }
+
+    async Task<object?> Scalar(string sql, params SndbParameter[] parameters)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddRange(parameters);
+        var value = await command.ExecuteScalarAsync();
+        return value is DBNull ? null : value;
+    }
+    await Check("native-static-path", false, async () => Equal("west", await Scalar("SELECT JSON_VALUE(doc_payload,'$.site') FROM expr_rows WHERE id=1")));
+    await Check("native-parameter-path", false, async () => Equal("west", await Scalar("SELECT JSON_VALUE(doc_payload,@path) FROM expr_rows WHERE id=1", new SndbParameter("path", "$.site"))));
+    await Check("native-existing-contains", false, async () => Equal(true, await Scalar("SELECT JSON_CONTAINS(doc_payload,'$.values','one') FROM expr_rows WHERE id=1")));
+    await Check("native-column-path", true, async () => Equal("two", await Scalar("SELECT JSON_VALUE(doc_payload,path_text) FROM expr_rows WHERE id=2")));
+    await Check("native-expression-path", true, async () => Equal("west", await Scalar("SELECT JSON_VALUE(doc_payload,CONCAT('$.','site')) FROM expr_rows WHERE id=1")));
+    await Check("native-array-index-column", true, async () => Equal("one", await Scalar("SELECT JSON_VALUE(doc_payload,CONCAT('$.values[',item_index,']')) FROM expr_rows WHERE id=1")));
+    await Check("native-json-object", true, async () => Equal("{\"kind\":\"pump\"}", await Scalar("SELECT JSON_OBJECT('kind',wanted) FROM expr_rows WHERE id=1")));
+    await Check("native-object-array-predicate", true, async () => Equal(true, await Scalar("SELECT JSON_CONTAINS(doc_payload,'$.objects',JSON_OBJECT('kind',wanted)) FROM expr_rows WHERE id=1")));
+    await Check("native-object-decimal-preservation", true, async () => Equal(true, await Scalar("SELECT JSON_CONTAINS(doc_payload,'$.objects',JSON_OBJECT('amount',amount)) FROM expr_rows WHERE id=1")));
+    await Check("native-object-null-preservation", true, async () => Equal(true, await Scalar("SELECT JSON_CONTAINS(doc_payload,'$.objects',JSON_OBJECT('nil',NULL)) FROM expr_rows WHERE id=1")));
+    if (candidate)
+    {
+        await Check("native-sync-async-rows-and-clr", true, async () =>
+        {
+            const string sql = "SELECT id,JSON_VALUE(doc_payload,path_text),JSON_VALUE(doc_payload,CONCAT('$.objects[0].','count')),JSON_VALUE(doc_payload,CONCAT('$.objects[0].','active')) FROM expr_rows ORDER BY id";
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            var sync = new List<object?[]>();
+            using (var reader = command.ExecuteReader())
+                while (reader.Read()) sync.Add(Enumerable.Range(0, reader.FieldCount).Select(i => reader.IsDBNull(i) ? null : reader.GetValue(i)).ToArray());
+            var asynchronous = new List<object?[]>();
+            using (var reader = await command.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) asynchronous.Add(Enumerable.Range(0, reader.FieldCount).Select(i => reader.IsDBNull(i) ? null : reader.GetValue(i)).ToArray());
+            Equal(4, sync.Count);
+            Equal(sync.Count, asynchronous.Count);
+            for (int row = 0; row < sync.Count; row++)
+                for (int column = 0; column < sync[row].Length; column++) Equal(sync[row][column], asynchronous[row][column]);
+            Equal("west", sync[0][1]); Equal("two", sync[1][1]); Equal(null, sync[2][1]); Equal(null, sync[3][1]);
+            Equal(9007199254740993L, sync[0][2]); Equal(true, sync[0][3]);
+        });
+        await Check("native-static-dynamic-clr-contract", true, async () =>
+        {
+            foreach (string path in new[] { "$.objects[0].count", "$.objects[0].amount", "$.objects[0].active", "$.objects[0].nil", "$.missing", "$.site" })
+            {
+                object? expected = await Scalar("SELECT JSON_VALUE(doc_payload,@path) FROM expr_rows WHERE id=1", new SndbParameter("path", path));
+                object? actual = await Scalar("SELECT JSON_VALUE(doc_payload,CONCAT(@path,'')) FROM expr_rows WHERE id=1", new SndbParameter("path", path));
+                Equal(expected, actual);
+                Equal(expected?.GetType(), actual?.GetType());
+            }
+        });
+        await Check("native-missing-array-null-path", true, async () =>
+        {
+            foreach (string path in new[] { "$.missing", "$.values[99]", "$.objects[0].nil" })
+                Equal(null, await Scalar("SELECT JSON_VALUE(doc_payload,CONCAT(@path,'')) FROM expr_rows WHERE id=1", new SndbParameter("path", path)));
+            Equal(null, await Scalar("SELECT JSON_VALUE(doc_payload,path_text) FROM expr_rows WHERE id=3"));
+            Equal(null, await Scalar("SELECT JSON_VALUE(doc_payload,path_text) FROM expr_rows WHERE id=4"));
+        });
+        await Check("native-invalid-path-diagnostic", true, async () =>
+        {
+            try { await Scalar("SELECT JSON_VALUE(doc_payload,CONCAT('$','[-1]')) FROM expr_rows WHERE id=1"); }
+            catch (Exception exception) when (exception.Message.Contains("JSON path", StringComparison.OrdinalIgnoreCase)) { return; }
+            throw new ProbeAssertionException("Invalid dynamic path was not diagnosed.");
+        });
+        await Check("native-decimal-adjacent-object-parameters", true, async () =>
+        {
+            const string sql = "SELECT JSON_CONTAINS(doc_payload,'$.objects',JSON_OBJECT(@key,@value)) FROM expr_rows WHERE id=1";
+            Equal(true, await Scalar(sql, new SndbParameter("key", "amount"), new SndbParameter("value", 1234567890123456.123456789012m)));
+            Equal(false, await Scalar(sql, new SndbParameter("key", "amount"), new SndbParameter("value", 1234567890123456.123456789013m)));
+        });
+        await Check("native-object-types-and-escaping", true, async () =>
+        {
+            const string escaped = "'\"\\\n中文{\"x\":1}";
+            string json = (string)(await Scalar("SELECT JSON_OBJECT(@key,@text,'amount',@amount,'integer',9007199254740993,'bool',true,'nil',NULL) FROM expr_rows WHERE id=1",
+                new SndbParameter("key", "quote'\"key"), new SndbParameter("text", escaped), new SndbParameter("amount", 9007199254740993.01m)))!;
+            using var parsed = JsonDocument.Parse(json);
+            Equal(escaped, parsed.RootElement.GetProperty("quote'\"key").GetString());
+            Equal(9007199254740993.01m, parsed.RootElement.GetProperty("amount").GetDecimal());
+            Equal(9007199254740993L, parsed.RootElement.GetProperty("integer").GetInt64());
+            Equal(true, parsed.RootElement.GetProperty("bool").GetBoolean());
+            Equal(JsonValueKind.Null, parsed.RootElement.GetProperty("nil").ValueKind);
+        });
+        await Check("native-empty-object-reader-metadata", true, async () =>
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT JSON_OBJECT('kind',wanted) AS object_value FROM expr_rows WHERE id<0";
+            using var reader = await command.ExecuteReaderAsync();
+            Equal(typeof(string), reader.GetFieldType(0));
+            Equal(false, await reader.ReadAsync());
+        });
+        await Check("native-index-static-and-dynamic-control", true, async () =>
+        {
+            Equal(1L, await Scalar("SELECT id FROM expr_rows WHERE JSON_VALUE(doc_payload,@path)=@value", new SndbParameter("path", "$.site"), new SndbParameter("value", "west")));
+            Equal(1L, await Scalar("SELECT id FROM expr_rows WHERE JSON_VALUE(doc_payload,path_text)=@value", new SndbParameter("value", "west")));
+        });
+    }
+}
+
+using var sugar = new SqlSugarClient(new ConnectionConfig
+{
+    ConnectionString = connectionString,
+    DbType = SqlSugar.DbType.SonnetDB,
+    InitKeyType = InitKeyType.Attribute,
+    IsAutoCloseConnection = true,
+});
+sugar.Aop.OnExecutingChangeSql = (sql, parameters) =>
+{
+    Console.WriteLine("SQL|" + sql.Replace('\r', ' ').Replace('\n', ' '));
+    foreach (var parameter in parameters)
+        Console.WriteLine($"PARAMETER|{parameter.ParameterName}|{parameter.Value?.GetType().FullName ?? "null"}|{Convert.ToString(parameter.Value, CultureInfo.InvariantCulture)}");
+    return new KeyValuePair<string, SugarParameter[]>(sql, parameters);
+};
+await Check("sugar-static-JsonField", false, () =>
+{
+    Equal("west", sugar.Queryable<ExprRow>().Where(row => row.Id == 1).Select(row => SqlFunc.JsonField(row.DocPayload, "site")).ToList().Single());
+    return Task.CompletedTask;
+});
+await Check("sugar-column-JsonField", true, () =>
+{
+    Equal("escaped", sugar.Queryable<ExprRow>().Where(row => row.Id == 2).Select(row => SqlFunc.JsonField(row.DocPayload, row.FieldName)).ToList().Single());
+    return Task.CompletedTask;
+});
+await Check("sugar-dynamic-nested-JsonField-async", true, async () =>
+{
+    Equal("one", (await sugar.Queryable<ExprRow>().Where(row => row.Id == 1).Select(row => SqlFunc.JsonField(row.DocPayload, "nested", row.Wanted.Replace("pump", "value"))).ToListAsync()).Single());
+});
+await Check("sugar-column-JsonIndex", true, () =>
+{
+    Equal("one", sugar.Queryable<ExprRow>().Where(row => row.Id == 1).Select(row => SqlFunc.JsonIndex(SqlFunc.JsonField(row.DocPayload, "values"), row.ItemIndex)).ToList().Single());
+    return Task.CompletedTask;
+});
+await Check("sugar-JsonListObjectAny", true, async () =>
+{
+    var rows = await sugar.Queryable<ExprRow>().Where(row => SqlFunc.JsonListObjectAny(SqlFunc.JsonField(row.DocPayload, "objects"), "kind", row.Wanted)).Select(row => row.Id).ToListAsync();
+    Equal(1, rows.Count);
+    Equal(1L, rows[0]);
+});
+if (candidate)
+{
+    await Check("sugar-column-JsonField-async", true, async () =>
+        Equal("escaped", (await sugar.Queryable<ExprRow>().Where(row => row.Id == 2).Select(row => SqlFunc.JsonField(row.DocPayload, row.FieldName)).ToListAsync()).Single()));
+    await Check("sugar-column-JsonIndex-async", true, async () =>
+        Equal("one", (await sugar.Queryable<ExprRow>().Where(row => row.Id == 1).Select(row => SqlFunc.JsonIndex(SqlFunc.JsonField(row.DocPayload, "values"), row.ItemIndex)).ToListAsync()).Single()));
+    await Check("sugar-JsonListObjectAny-sync", true, () =>
+    {
+        Equal(1L, sugar.Queryable<ExprRow>().Where(row => SqlFunc.JsonListObjectAny(SqlFunc.JsonField(row.DocPayload, "objects"), "kind", row.Wanted)).Select(row => row.Id).ToList().Single());
+        return Task.CompletedTask;
+    });
+    await Check("sugar-object-decimal-parameter", true, async () =>
+    {
+        decimal amount = 1234567890123456.123456789012m;
+        Equal(1, (await sugar.Queryable<ExprRow>().Where(row => SqlFunc.JsonListObjectAny(SqlFunc.JsonField(row.DocPayload, "objects"), "amount", amount)).Select(row => row.Id).ToListAsync()).Count);
+        amount = 1234567890123456.123456789013m;
+        Equal(0, (await sugar.Queryable<ExprRow>().Where(row => SqlFunc.JsonListObjectAny(SqlFunc.JsonField(row.DocPayload, "objects"), "amount", amount)).Select(row => row.Id).ToListAsync()).Count);
+    });
+    await Check("sugar-object-decimal-column", true, async () =>
+        Equal(1L, (await sugar.Queryable<ExprRow>().Where(row => SqlFunc.JsonListObjectAny(SqlFunc.JsonField(row.DocPayload, "objects"), "amount", row.Amount)).Select(row => row.Id).ToListAsync()).Single()));
+}
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|expectedRejections={expectedRejections}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+async Task Check(string name, bool knownGap, Func<Task> action)
+{
+    try
+    {
+        await action();
+        if (knownGap && !candidate)
+        {
+            failed++;
+            Console.WriteLine($"UNEXPECTED_ACCEPTANCE|{name}");
+        }
+        else { passed++; Console.WriteLine($"PASS|{name}"); }
+    }
+    catch (Exception exception)
+    {
+        if (knownGap && !candidate && exception is not ProbeAssertionException && IsExpectedGap(exception))
+        {
+            expectedRejections++;
+            Console.WriteLine($"EXPECTED_REJECTION|{name}|{exception.GetType().FullName}|{exception.Message}");
+        }
+        else
+        {
+            failed++;
+            Console.WriteLine($"FAIL|{name}|{exception}");
+        }
+    }
+}
+static void Equal(object? expected, object? actual)
+{
+    if (!Equals(expected, actual)) throw new ProbeAssertionException($"Expected {expected ?? "null"} ({expected?.GetType().Name}), got {actual ?? "null"} ({actual?.GetType().Name}).");
+}
+static bool IsExpectedGap(Exception exception)
+{
+    string diagnostic = exception.ToString();
+    return diagnostic.Contains("JSON path", StringComparison.OrdinalIgnoreCase)
+        || diagnostic.Contains("FunctionCallExpression", StringComparison.Ordinal)
+        || diagnostic.Contains("json_object", StringComparison.OrdinalIgnoreCase)
+        || diagnostic.Contains("json_value", StringComparison.OrdinalIgnoreCase);
+}
+
+public sealed class ProbeAssertionException(string message) : Exception(message);
+[SugarTable("expr_rows")]
+public sealed class ExprRow
+{
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true)] public long Id { get; set; }
+    [SugarColumn(ColumnName = "doc_payload")] public string DocPayload { get; set; } = "";
+    [SugarColumn(ColumnName = "field_name")] public string FieldName { get; set; } = "";
+    [SugarColumn(ColumnName = "item_index")] public int ItemIndex { get; set; }
+    [SugarColumn(ColumnName = "wanted")] public string Wanted { get; set; } = "";
+    [SugarColumn(ColumnName = "amount")] public decimal Amount { get; set; }
+}

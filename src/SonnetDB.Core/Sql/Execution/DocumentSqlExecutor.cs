@@ -351,10 +351,10 @@ internal static class DocumentSqlExecutor
                 }
                 if (function.Name.Equals("json_value", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (function.Arguments.Count != 2 || function.Arguments[1] is not
-                        LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
-                        throw new NotSupportedException("Document SQL 物化预算要求 json_value 使用固定 JSON path。");
-                    _ = JsonPath.Parse(path);
+                    if (function.Arguments.Count != 2)
+                        throw new InvalidOperationException("json_value 需要两个参数：JSON 文本和 JSON path。");
+                    if (function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
+                        _ = JsonPath.Parse(path);
                 }
                 else if (function.Name.Equals("regexp_like", StringComparison.OrdinalIgnoreCase))
                 {
@@ -2106,7 +2106,7 @@ internal static class DocumentSqlExecutor
 
         if (!function.IsStar && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
         {
-            var arguments = function.Arguments
+            var arguments = SqlJsonObjectArguments.Prepare(function)
                 .Select(argument => EvaluateScalar(argument, row, matchScores))
                 .ToArray();
             return scalarFunction.Evaluate(arguments);

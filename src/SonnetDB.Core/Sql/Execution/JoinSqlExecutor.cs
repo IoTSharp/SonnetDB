@@ -595,7 +595,7 @@ internal static class JoinSqlExecutor
         if (!FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
             throw new InvalidOperationException($"JOIN 不支持标量函数 '{function.Name}'。");
 
-        var arguments = function.Arguments
+        var arguments = SqlJsonObjectArguments.Prepare(function)
             .Select(argument => EvaluateScalar(argument, context))
             .ToArray();
         return scalarFunction.Evaluate(arguments);

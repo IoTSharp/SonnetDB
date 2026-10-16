@@ -2915,7 +2915,7 @@ internal static class SelectExecutor
                 return aggregateValues[FindAggregateCallIndex(aggregateCalls, function)];
             case FunctionCallExpression function when !function.IsStar
                 && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction):
-                var arguments = function.Arguments
+                var arguments = SqlJsonObjectArguments.Prepare(function)
                     .Select(argument => EvaluateAggregateResultExpression(
                         argument, aggregateCalls, aggregateValues))
                     .ToArray();

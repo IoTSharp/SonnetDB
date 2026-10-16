@@ -4450,7 +4450,8 @@ internal static partial class RelationalSelectExecutor
             return new SelectColumnInfo(TableColumnType.Int64, false);
 
         if (expression is FunctionCallExpression jsonSetter
-            && string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(jsonSetter.Name, "json_object", StringComparison.OrdinalIgnoreCase))
             && FunctionRegistry.GetFunctionKind(jsonSetter.Name) == FunctionKind.Scalar
             && UserFunctionRegistry.Current?.TryGetScalar(jsonSetter.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);

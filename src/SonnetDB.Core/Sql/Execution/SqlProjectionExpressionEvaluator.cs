@@ -151,7 +151,7 @@ internal static class SqlProjectionExpressionEvaluator
         if (function.IsStar || !FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
             throw new InvalidOperationException($"{context} 不支持标量函数 '{function.Name}'。");
 
-        var arguments = function.Arguments
+        var arguments = SqlJsonObjectArguments.Prepare(function)
             .Select(argument => Evaluate(argument, resolveIdentifier, context))
             .ToArray();
         return scalarFunction.Evaluate(arguments);

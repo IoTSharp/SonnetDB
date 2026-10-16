@@ -5,6 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16，CI修复已推送、249根回归完成）
+
+- 根独立日期兼容修复已commit并正常push `b568988e5b568ba5bb3abea9574c048a02e0e3f8`，远端回读匹配；最终tree199a558689815ea804eee6c3e7c83296a2f7006b，restore07:45:04Z→07:45:10Z、规定Format07:45:10Z→07:46:35Z均exit0，树未变才commit。预门禁JSON CRLF差异在两命令前修正并保原副本；workspace-load警告保留无格式违规。精确新CI38869549254运行中，不能称全绿，也不取消它来抢推249。原38862841705仍failure，审计已随b568提交。
+- 用户要求已实现Issue记得关闭、代码记得提交和推送已落实：16历史Issue均closed/completed并逐项回读，列表/评论/实现SHA见已提交issue-implemented-closures-20261016.json；原发布/上游交付未冒称完成。252/251/250尚OPEN，待b568修复CI实际验收后按新要求关闭，250的完整CodeFirst事务DDL仍归227。
+- 249已按冻结25文件集成到b568，根核工作树/冻结两份源、249证据、869运行文件、14TRX及两SqlSugar源码全匹配，未改生产语义或覆盖CI修复。根Core3972/3972、真实Server239/239、EF295/295、独立SqlSugar初次/重开各28/28全部零失败/跳过；四构建含Data显式AOT/Trim均0warning/error。报告issue-249-root-review-20261016.md/json，冻结manifest91A1125EA2C529AE69CD82E8E3147D50CB57E340936AD3A76D801DC03C2E40CD；最后四新增测试已包含根3972。代理原失败和旧包拒绝保留，正式发行不由源码通过推定。
+- 当前249待最终完整restore/Format独立提交；提交后将实际SHA交issue312唯一248，使其独占共享核心实现真实锁/NOWAIT。原issue314在249完成后可转下一实际OPEN倒序245（246不在OPEN）；仅隔离准备临时表/CTAS真实SqlSugar Fastest，不能改共享AST/Parser/Executor/TableManager/事务/ADO，等248→247后。
+- issue313唯一247准备冻结SHA33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，根已核10新源两份、194证据、1144运行文件、603上游源；最终24合同2PASS22FAIL、REST/h2c各原生3/16及SqlSugar2/12，CALL为HTTP2 REST而非Frame；标准命令和方向回写尚未实施。继续等待249→248，禁止提前关闭。
+- parity最近回读042748d841c5eca6e47261cf6b63e220280ee102，主目录main仍ffdb734c且clean。下一次先核实时远端/CI，保留所有旧树/stash/失败证据；提交后状态随下一真实提交，不造巡检提交。
+
 ## 最新监督检查点（2026-10-16，批次06 CI修复与已实现 Issue 关闭）
 
 - 当前监督 HEAD/远端 main 仍67a5c8c8。精确 CI38862841705 最终 failure：Windows rest/Ubuntu 的 EF DTO 映射1项及远程类型目录/旧DTO参数4项失败；Windows Core、三平台AOT、Format success。完整原TRX/日志和本地旧源码0/1、冻结DLL0/4复现已保留。

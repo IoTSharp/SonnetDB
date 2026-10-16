@@ -2292,12 +2292,7 @@ internal static class TableSqlExecutor
                         || FunctionRegistry.TryGetAggregate(function.Name, out _)
                         || FunctionRegistry.TryGetWindow(function.Name, out _))
                         throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}' 的调用形式。");
-                    if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (function.Arguments.Count != 2 || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String })
-                            throw new InvalidOperationException("json_value 需要两个参数，第二个参数必须是 JSON path 字符串字面量。");
-                    }
-                    else if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+                    if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
                         ValidateScalarFunctionArgumentCount(function, scalarFunction);
                     else
                         throw new InvalidOperationException($"INSERT VALUES 不支持标量函数 '{function.Name}'。");
@@ -2533,21 +2528,21 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
-    /// 校验关系表 json_value 的固定参数形状，并递归校验 JSON 来源表达式。
+    /// 校验关系表 json_value 的参数形状，并递归校验 JSON 来源与逐行路径表达式。
     /// </summary>
     private static void ValidateJsonValueFunction(
         FunctionCallExpression function,
         TableSchema schema,
         string context)
     {
-        if (function.IsStar
-            || function.Arguments.Count != 2
-            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String })
+        if (function.IsStar || function.IsDistinct || function.Over is not null
+            || function.Arguments.Count != 2)
         {
-            throw new InvalidOperationException("json_value 需要两个参数，第二个参数必须是 JSON path 字符串字面量。");
+            throw new InvalidOperationException("json_value 需要两个标量参数：JSON 文本和 JSON path。");
         }
 
         ValidateTableValueExpression(function.Arguments[0], schema, context);
+        ValidateTableValueExpression(function.Arguments[1], schema, context);
     }
 
     /// <summary>
