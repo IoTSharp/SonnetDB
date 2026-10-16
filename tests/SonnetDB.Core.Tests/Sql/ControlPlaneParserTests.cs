@@ -26,6 +26,17 @@ public sealed class ControlPlaneParserTests
     }
 
     [Fact]
+    public void Parse_EmailUser_ControlPlaneStatementsUseQuotedIdentifiers()
+    {
+        var create = Assert.IsType<CreateUserStatement>(SqlParser.Parse("CREATE USER \"demo@example.test\" WITH PASSWORD 'example-only'"));
+        var alter = Assert.IsType<AlterUserPasswordStatement>(SqlParser.Parse("ALTER USER \"demo@example.test\" WITH PASSWORD 'replacement-only'"));
+        var grant = Assert.IsType<GrantStatement>(SqlParser.Parse("GRANT WRITE ON DATABASE demo TO \"demo@example.test\""));
+        Assert.Equal("demo@example.test", create.UserName);
+        Assert.Equal(create.UserName, alter.UserName);
+        Assert.Equal(create.UserName, grant.UserName);
+    }
+
+    [Fact]
     public void Parse_CreateUser_WithEscapedQuoteInPassword()
     {
         var stmt = (CreateUserStatement)SqlParser.Parse("CREATE USER bob WITH PASSWORD 'O''Hara'");

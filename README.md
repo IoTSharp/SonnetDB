@@ -22,6 +22,14 @@
 
 首个Web预览限定Windows 11 x64、同源环回Web＋匹配NativeAOT Server。候选10已完成本机R1实物验收及四附件准备，产品仍 **NOT_READY**；P07门禁和P08授权发布未完成，暂无该预览公开下载。可评估有界SQL、关系表、measurement和一次授权单行插入；七个专用模型工作台、Studio与VS Code延期。[使用、限制、升级/回退与反馈](docs/design/m47-unified-management-workbench/sonnetdb-workbench-web-4.5.0-preview.1.10-notes.md)和[独立分发状态](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)描述实际范围。
 
+## 在线演示与测试账号
+
+- 演示地址：<https://iotsharp.online/sonnetdb/admin/login>
+- 演示账号：`demo@iotsharp.online`
+- 演示密码：`P@ssw0rd`
+
+仅公共演示账号的用户名和密码每半小时恢复一次。**正常注册账号可用于测试服务，账号、密码和业务数据均不参与演示重置，长期保留。** 公共演示账号仅能访问演示数据库。
+
 ## 🧩 SonnetDB 是什么
 
 **SonnetDB 是一款多模型数据引擎。**

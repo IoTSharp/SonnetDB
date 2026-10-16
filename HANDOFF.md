@@ -1,5 +1,13 @@
 # SonnetDB 交接记录
 
+## 2026-10-16 公开演示入口说明
+
+README 中英文及 `web/src/views/WelcomeView.vue` 增加用户明确授权公开的演示地址、账号/密码和长期测试账号说明。共享 demo 每半小时仅恢复凭据；正常注册账号、密码与数据不参与重置且长期保留。前端已构建并随 `20261016-public-demo-access` 发布到演示站，未提交/推送；管理员凭据未进入展示。
+
+## 2026-10-16 IoTSharp Online 消费侧交付补丁
+
+此 checkout 位于 `D:\GitHub\IoTSharp\SonnetDB`，已从旧子模块基线快进获取并 detached 到 `67a5c8c8`，不是 `D:\source\SonnetDB` 的共享脏工作树。邮箱用户名与 PASSWORD 诊断脱敏补丁、配套测试及本交接尚未提交/推送。认证/权限/诊断 53 项、控制面解析 52 项通过；linux-x64 Server 与前端构建成功，已经随 IoTSharp 部署到 `111.228.23.26`，实际登录/权限验证见父仓 `Deployments/iotsharp_online/deployment-receipt.md`。保持原上游监督交接正文，不冒称全仓门禁或正式 Release 完成。今后提交仍须执行本仓规定的完整 restore 与 Format Check。
+
 交接日期：2026-10-16（Asia/Shanghai）<br>
 当前分支：`codex/issue-supervision-batch05`<br>
 远端基线：`origin/main`
