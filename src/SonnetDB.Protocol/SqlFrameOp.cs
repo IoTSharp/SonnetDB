@@ -10,4 +10,10 @@ public enum SqlFrameOp : byte
     /// meta 帧 → 0..N 个 rows 帧 → end 帧，均回显请求 streamId。
     /// </summary>
     Query = 1,
+
+    /// <summary>
+    /// 执行一条自动提交的写语句（INSERT / UPDATE / DELETE 或受支持的 DDL）。
+    /// 响应为单个 committed 结果帧；RETURNING、事务控制和多结果语句显式拒绝。
+    /// </summary>
+    Execute = 2,
 }

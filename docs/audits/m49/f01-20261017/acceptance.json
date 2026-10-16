@@ -1,0 +1,1034 @@
+{
+  "date": "2026-10-17 Asia/Shanghai",
+  "baseline": "39437db0189e9f8acbc3efebf890087ed17052f6",
+  "branch": "codex/m49-connector-batches-roadmap",
+  "scope": "M49-F01 relational autocommit Execute slice only",
+  "sources": [
+    {
+      "path": "src/SonnetDB.Protocol/SqlFrameOp.cs",
+      "sha256": "73A1A9DEE2513B3F92DEAF06A850134946AF0667568A591D32820D7E2EC68157"
+    },
+    {
+      "path": "src/SonnetDB.Protocol/SqlExecuteFrameCodec.cs",
+      "sha256": "1CFD6C19CB53F15CC00A9276770743D5CAEC7BE72D5FC20CFB4AC63DAB1EA19B"
+    },
+    {
+      "path": "connectors/dotnet/SonnetDB.Client/SndbFrameClient.cs",
+      "sha256": "4CC8E4FF044476233FDA68838DC4A666C7867ADCE8E9F9DB78B68B0DBC384FB0"
+    },
+    {
+      "path": "src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs",
+      "sha256": "FF35F0B08AAF253802C459CE83E1E276406DDDC5434686DF2DE2A39FC572B094"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/FrameClientTests.cs",
+      "sha256": "67A32E68ADF45461211E9DEFA76D18A85766E02A63F645628A08812AB67BFE87"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/SqlExecuteFrameCodecTests.cs",
+      "sha256": "1F058816AC2A625D1A638FDB1EE40E168B53E953590F2BD5E944B0D66A8FECA6"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+      "sha256": "0B85BDBF19EA93191D38A10CB49D36CE565E96322A1DDE8C3D2DA58A9EF63F16"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/SqlExecuteFrameEndpointTests.cs",
+      "sha256": "220DA862951A658D549578887E997A3786CAB079ACC438C910BB19C9C3664F94"
+    }
+  ],
+  "runtime": [
+    {
+      "path": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.Tests.dll",
+      "sha256": "B00DF916B3D971EB9B8E6CD6588201405CB4C1DA115DA8002055292A69CED8DE"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.Tests.pdb",
+      "sha256": "04EFD4093B6059BBA3DE7AD95E5DC7942EDC2722764E66D2A32C5B728F0BAD93"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Client.dll",
+      "sha256": "226767E52EFF35ADA0F4566B909F1E0056AAF591541C87F7F87AFEF9BB47F70F"
+    },
+    {
+      "path": "tests/SonnetDB.Client.Tests/bin/Release/net10.0/SonnetDB.Protocol.dll",
+      "sha256": "F0D73A98BCC54BE600F6B6DB7BF6B67ADA0124674C4DF0869471B99A1000F5FE"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Tests.dll",
+      "sha256": "316C24298B51B29968A21DF51F632657AD9F052A12D232397CFFEB65AFA65B0D"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Tests.pdb",
+      "sha256": "2BB513E8D70273310A69F39966C27E76BABFBF1175B75FA6AB18F6E6E2D4B9FD"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.dll",
+      "sha256": "C16E9B1DBA1180566A73D5F26041ACF8BCF501D38E61A3F5F58B0B934E8D9ED4"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Client.dll",
+      "sha256": "226767E52EFF35ADA0F4566B909F1E0056AAF591541C87F7F87AFEF9BB47F70F"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Protocol.dll",
+      "sha256": "F0D73A98BCC54BE600F6B6DB7BF6B67ADA0124674C4DF0869471B99A1000F5FE"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Core.dll",
+      "sha256": "00014AA799F18E945664524BC7AC5A4459C5EC14348C57AFE2CE81D59DE0BA8F"
+    },
+    {
+      "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Data.dll",
+      "sha256": "2A2807B8E8F167C9FFA15985DD655697B631DC82DD86A5A7CC9D885795B5045F"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/bin/Release/net10.0/SonnetDB.Core.Tests.dll",
+      "sha256": "56118B089E622064F0C2C535F82D6C6BFA7B6C752D539162C5A6F17900FBAC03"
+    },
+    {
+      "path": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.Tests.dll",
+      "sha256": "255FA638F9B8623B877EC90EDF5360247DE777F41B4D2F517070A27513FD3663"
+    },
+    {
+      "path": "tests/SonnetDB.Native.Tests/bin/Release/net10.0/SonnetDB.Native.dll",
+      "sha256": "8A9C6D4B7F350CB580E5BAEA1F72B66C56234461AA56EE2635C5031424425394"
+    }
+  ],
+  "formatBinding": {
+    "expandedRunTestIdentity": [
+      {
+        "path": "tests/SonnetDB.Tests/SqlExecuteFrameEndpointTests.cs",
+        "sha256": "F2F1E8D95D47277178784C2C6AF3B151F82136C77BF13B5D6E20DD2ED0FBDCB0"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Tests.dll",
+        "sha256": "1ED9BE1DCE447C1B1A7163DECCF5B0729C788735C7A5121BA434ADB13E1262E1"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/bin/Release/net10.0/win-x64/SonnetDB.Tests.pdb",
+        "sha256": "E471123F554C8F8F802FFDD9D8E3F27ED1B846003E1B0C6D261DBA49D1EFAE67"
+      }
+    ],
+    "scope": "Only two object initializer layouts in new Server test changed after expanded run; production sources unchanged. Final new test class rerun after formatting.",
+    "whitespaceOnlyVerified": true,
+    "postFormatRun": "server-after-format"
+  },
+  "unchangedLegacyPaths": [
+    "src/SonnetDB.Data/Remote/RemoteConnectionImpl.cs",
+    "src/SonnetDB.Data/Remote/FrameChannel.cs",
+    "tests/SonnetDB.Tests/RemoteAdoHttp2TransportTests.cs"
+  ],
+  "tests": [
+    {
+      "name": "client-01",
+      "final": true,
+      "counters": {
+        "total": 211,
+        "executed": 211,
+        "passed": 211,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Client.Tests.FrameClientHttp2Tests",
+          "total": 5,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Client.Tests.FrameClientTests",
+          "total": 21,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Client.Tests.SqlExecuteFrameCodecTests",
+          "total": 12,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanReaderTests",
+          "total": 30,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanRoundTripTests",
+          "total": 83,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanWriterTests",
+          "total": 49,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.Protocol.FrameHeaderTests",
+          "total": 11,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "5F59CBFDC5F372FEAFE15CA70A25AC2B6727313E54D4E3B7E71A09707236B940",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/client-01.trx.gz",
+        "sha256": "B8D9DD30B66C85C28852D7F338CE9A6ADB78EF5E01EF28C7B34E4254D11A8BEA"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-01",
+      "final": false,
+      "counters": {
+        "total": 16,
+        "executed": 16,
+        "passed": 1,
+        "failed": 15,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 16,
+          "failed": 15
+        }
+      ],
+      "trxSha256": "E66417570BD4CAD642CCCAFB6491086BDF80BD2D2A77E27462C73226B014AE35",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-01.trx.gz",
+        "sha256": "F2B7929A1B272D8BD8C6B62694175DC5D0F4A5D712ADBBA316D17642F933CE30"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-02",
+      "final": false,
+      "counters": {
+        "total": 18,
+        "executed": 18,
+        "passed": 17,
+        "failed": 1,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 18,
+          "failed": 1
+        }
+      ],
+      "trxSha256": "2E3224AAC9E2D4B107A9D22A7F882FB3E15D8EECDABCBA0F19C54FCAD43F4FF9",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-02.trx.gz",
+        "sha256": "BCCD05254FAAB90FDBD51F886053CC2673E08E9169867148074937B51A4A46F7"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-03",
+      "final": false,
+      "counters": {
+        "total": 18,
+        "executed": 18,
+        "passed": 17,
+        "failed": 1,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 18,
+          "failed": 1
+        }
+      ],
+      "trxSha256": "EB08C3D658B240E990C20B438385B051BA3A5C3BEC0D02A2D2CB0985C1D41C4E",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-03.trx.gz",
+        "sha256": "1A62D40AA1BB2E05F91BFB7F64D1471890ACA5BCFD23B74C14981C301152491F"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-final",
+      "final": false,
+      "counters": {
+        "total": 255,
+        "executed": 255,
+        "passed": 254,
+        "failed": 1,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.FrameEndpointTests",
+          "total": 14,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.FramePipeReaderLifetimeTests",
+          "total": 5,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.KvObjectDocFrameEndpointTests",
+          "total": 16,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.RemoteAdoHttp2TransportTests",
+          "total": 153,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 20,
+          "failed": 1
+        },
+        {
+          "class": "SonnetDB.Tests.SqlFrameEndpointTests",
+          "total": 29,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.TsdbFrameEndpointTests",
+          "total": 7,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.VectorFrameEndpointTests",
+          "total": 11,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "FB033E417D6F726C85371675F782730ECDED63C906C630C9F448FFF64BCAC829",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-final.trx.gz",
+        "sha256": "F3E28B436939A1375722D769BD59FF7ED00F9C6160F0306A9993648136CF0E0B"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-final-02",
+      "final": true,
+      "counters": {
+        "total": 256,
+        "executed": 256,
+        "passed": 256,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.FrameEndpointTests",
+          "total": 14,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.FramePipeReaderLifetimeTests",
+          "total": 5,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.KvObjectDocFrameEndpointTests",
+          "total": 16,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.RemoteAdoHttp2TransportTests",
+          "total": 153,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 21,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.SqlFrameEndpointTests",
+          "total": 29,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.TsdbFrameEndpointTests",
+          "total": 7,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Tests.VectorFrameEndpointTests",
+          "total": 11,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "67B05CFCAA628C4F5E2A75A5B32E941B42CE1703C075C881D5A8FBE0B5E3FF7D",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-final-02.trx.gz",
+        "sha256": "65F840413789482BF7393F2F271862489DBC87163DB75FEABDC94107D48AA55D"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "server-after-format",
+      "final": true,
+      "counters": {
+        "total": 21,
+        "executed": 21,
+        "passed": 21,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Tests.SqlExecuteFrameEndpointTests",
+          "total": 21,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "F04626944675CECB0FFE9C82E0A09924DE26ECDA4894FDC8903B5647F2DD3CAF",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/server-after-format.trx.gz",
+        "sha256": "19AF6EA89CF9B4925C72262E17151F6B97F7658BCF82D90174BD7C3733E3DB65"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "core-final",
+      "final": true,
+      "counters": {
+        "total": 207,
+        "executed": 207,
+        "passed": 207,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanReaderTests",
+          "total": 30,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanRoundTripTests",
+          "total": 83,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.IO.SpanWriterTests",
+          "total": 49,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.Protocol.FrameHeaderTests",
+          "total": 11,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.Protocol.SqlFrameCodecTests",
+          "total": 32,
+          "failed": 0
+        },
+        {
+          "class": "SonnetDB.Core.Tests.Vector.IO.Crc32Tests",
+          "total": 2,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "C3FE7F4662530D8E97B5BD05C718AAF593B39CA2591268E54C165D803AB395F2",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/core-final.trx.gz",
+        "sha256": "8478A347946135DCD8C8BFE0BC3B34B80121C006B6D506007103712F7D015BF6"
+      },
+      "gzipVerified": true
+    },
+    {
+      "name": "native-final",
+      "final": true,
+      "counters": {
+        "total": 10,
+        "executed": 10,
+        "passed": 10,
+        "failed": 0,
+        "error": 0,
+        "timeout": 0,
+        "aborted": 0,
+        "inconclusive": 0,
+        "passedButRunAborted": 0,
+        "notRunnable": 0,
+        "notExecuted": 0,
+        "disconnected": 0,
+        "warning": 0,
+        "completed": 0,
+        "inProgress": 0,
+        "pending": 0
+      },
+      "classes": [
+        {
+          "class": "SonnetDB.Native.Tests.NativeResultTests",
+          "total": 10,
+          "failed": 0
+        }
+      ],
+      "trxSha256": "EA17EF7637C24805790FF5405D83D19D938C090A6211568C2FCFE6837F5AB53A",
+      "gzip": {
+        "path": "docs/audits/m49/f01-20261017/native-final.trx.gz",
+        "sha256": "79BBC01DEEA7682AA536565DC074F3BA72DC30C0120A106F3BC6DE70AB859BA8"
+      },
+      "gzipVerified": true
+    }
+  ],
+  "commands": [
+    {
+      "name": "runner-probe",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "--version"
+      ],
+      "timeoutSeconds": 10,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:21:46.439369Z",
+      "endUtc": "2026-10-16T17:21:47.7772221Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 41772,
+        "parentPid": 56208,
+        "createdUtc": "2026-10-16T17:21:47.1519661Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"--version\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 2,
+      "stdoutSha256": "6D5AB2A4EF35CEEC908F01287257F530B0C0D68F0E84326DF2EBCEA641F9134B",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "client-01",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Client.Tests/SonnetDB.Client.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--logger",
+        "trx;LogFileName=client-01.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/client-01"
+      ],
+      "timeoutSeconds": 180,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:22:38.90807Z",
+      "endUtc": "2026-10-16T17:23:06.5440064Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 25288,
+        "parentPid": 33900,
+        "createdUtc": "2026-10-16T17:22:39.7569537Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Client.Tests/SonnetDB.Client.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--logger\" \"trx;LogFileName=client-01.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/client-01\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 12,
+      "stdoutSha256": "9DBE0085C50A61C4E5B797C5CA740AFFA74B727E2E8477BC29DB59A5CFA5F5F5",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "server-01",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests",
+        "--logger",
+        "trx;LogFileName=server-01.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-01"
+      ],
+      "timeoutSeconds": 240,
+      "status": "FAIL",
+      "startUtc": "2026-10-16T17:22:38.9442118Z",
+      "endUtc": "2026-10-16T17:25:13.5274526Z",
+      "exitCode": 1,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 6140,
+        "parentPid": 58876,
+        "createdUtc": "2026-10-16T17:22:39.7900434Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests\" \"--logger\" \"trx;LogFileName=server-01.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-01\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 29,
+      "stdoutSha256": "28A26D08B2700FE4A24A9CEB322DD2EC1585B2936BD8557747237020D766FB34",
+      "stderrSha256": "94CA58166CE37AF9E7551A0001A87E7CC63FC886DB7F716F252CE94673CF3817"
+    },
+    {
+      "name": "server-02",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests",
+        "--logger",
+        "trx;LogFileName=server-02.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-02"
+      ],
+      "timeoutSeconds": 240,
+      "status": "FAIL",
+      "startUtc": "2026-10-16T17:26:31.3760657Z",
+      "endUtc": "2026-10-16T17:27:41.6466059Z",
+      "exitCode": 1,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 30820,
+        "parentPid": 4600,
+        "createdUtc": "2026-10-16T17:26:31.7109209Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests\" \"--logger\" \"trx;LogFileName=server-02.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-02\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 17,
+      "stdoutSha256": "95F08636E03A696EBE4551EB3ED0A3D6E02361EBD4FAA0EC335857E28351AADA",
+      "stderrSha256": "0C2E6C7F9BA8871077B11B3DB5CAE70D6F276898D4BF37877391DAB296C0F313"
+    },
+    {
+      "name": "server-03",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests",
+        "--logger",
+        "trx;LogFileName=server-03.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-03"
+      ],
+      "timeoutSeconds": 180,
+      "status": "FAIL",
+      "startUtc": "2026-10-16T17:30:22.7729669Z",
+      "endUtc": "2026-10-16T17:30:45.0199013Z",
+      "exitCode": 1,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 43940,
+        "parentPid": 56776,
+        "createdUtc": "2026-10-16T17:30:23.1100574Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests\" \"--logger\" \"trx;LogFileName=server-03.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-03\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 15,
+      "stdoutSha256": "19A9677EF92703B4D6924E926C0D1E90B5BD2D5E8E200637DC52F01AF0A3C504",
+      "stderrSha256": "BE9DA70F84B0F7B130ED2FACCB95D80063573FC3186260A8D0661BE5231CFCF8"
+    },
+    {
+      "name": "server-final",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests|FullyQualifiedName~FrameEndpointTests|FullyQualifiedName~FramePipeReaderLifetimeTests",
+        "--logger",
+        "trx;LogFileName=server-final.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-final"
+      ],
+      "timeoutSeconds": 420,
+      "status": "FAIL",
+      "startUtc": "2026-10-16T17:32:04.8460818Z",
+      "endUtc": "2026-10-16T17:34:14.858625Z",
+      "exitCode": 1,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 27308,
+        "parentPid": 16672,
+        "createdUtc": "2026-10-16T17:32:05.1645763Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests|FullyQualifiedName~FrameEndpointTests|FullyQualifiedName~FramePipeReaderLifetimeTests\" \"--logger\" \"trx;LogFileName=server-final.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-final\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 15,
+      "stdoutSha256": "DE2F6774ECB3886DD95F0C90AF9F0243BD314E2B61061D77BF8B17238EF879B5",
+      "stderrSha256": "BEC2ED9BA87BF597ADBCCBA1FD76DF1225B48088CB7DA93870191BEDA2C1A4E0"
+    },
+    {
+      "name": "server-final-02",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests|FullyQualifiedName~FrameEndpointTests|FullyQualifiedName~FramePipeReaderLifetimeTests",
+        "--logger",
+        "trx;LogFileName=server-final-02.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-final-02"
+      ],
+      "timeoutSeconds": 420,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:34:39.0652417Z",
+      "endUtc": "2026-10-16T17:37:20.2752487Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 13300,
+        "parentPid": 28472,
+        "createdUtc": "2026-10-16T17:34:39.4326505Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests|FullyQualifiedName~FrameEndpointTests|FullyQualifiedName~FramePipeReaderLifetimeTests\" \"--logger\" \"trx;LogFileName=server-final-02.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-final-02\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 17,
+      "stdoutSha256": "B43D1A03B88070641A9D43A48A1B6E313F8D3583B4B3CA0E836F51996A299F88",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "server-after-format",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Tests/SonnetDB.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~SqlExecuteFrameEndpointTests",
+        "--logger",
+        "trx;LogFileName=server-after-format.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/server-after-format"
+      ],
+      "timeoutSeconds": 180,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:44:44.3569845Z",
+      "endUtc": "2026-10-16T17:45:10.5216494Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 55960,
+        "parentPid": 25280,
+        "createdUtc": "2026-10-16T17:44:44.8962989Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Tests/SonnetDB.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~SqlExecuteFrameEndpointTests\" \"--logger\" \"trx;LogFileName=server-after-format.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/server-after-format\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 15,
+      "stdoutSha256": "E61C100151F0831DE2548EA169B8C8BD513D85BE182F917D60B8407626E9B73F",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "core-final",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--filter",
+        "FullyQualifiedName~.IO.|FullyQualifiedName~Protocol.FrameHeaderTests|FullyQualifiedName~Protocol.SqlFrameCodecTests",
+        "--logger",
+        "trx;LogFileName=core-final.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/core-final"
+      ],
+      "timeoutSeconds": 240,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:37:44.5713629Z",
+      "endUtc": "2026-10-16T17:38:21.707797Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 58628,
+        "parentPid": 4172,
+        "createdUtc": "2026-10-16T17:37:45.0162131Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--filter\" \"FullyQualifiedName~.IO.|FullyQualifiedName~Protocol.FrameHeaderTests|FullyQualifiedName~Protocol.SqlFrameCodecTests\" \"--logger\" \"trx;LogFileName=core-final.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/core-final\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 17,
+      "stdoutSha256": "B53A84B3D37DBEF6F35E7D3EF0EEE2E98760135A6CAB2FFD5A937AE27E268DF7",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "native-final",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "--logger",
+        "trx;LogFileName=native-final.trx",
+        "--results-directory",
+        "artifacts/m49-f01-20261017/native-final"
+      ],
+      "timeoutSeconds": 180,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:39:09.2979764Z",
+      "endUtc": "2026-10-16T17:39:20.855849Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 8252,
+        "parentPid": 34440,
+        "createdUtc": "2026-10-16T17:39:09.6048083Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"test\" \"tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj\" \"-c\" \"Release\" \"--no-restore\" \"--logger\" \"trx;LogFileName=native-final.trx\" \"--results-directory\" \"artifacts/m49-f01-20261017/native-final\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 10,
+      "stdoutSha256": "5C2F20B57291AEE5A9338DCEFB668031E5462AEDC65BC0A531D9CEC8045CE6BB",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "remote-before",
+      "executable": "C:/Program Files/Git/cmd/git.exe",
+      "arguments": [
+        "ls-remote",
+        "--heads",
+        "origin",
+        "refs/heads/codex/m49-connector-batches-roadmap",
+        "refs/heads/parity-results"
+      ],
+      "timeoutSeconds": 45,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:37:09.6996264Z",
+      "endUtc": "2026-10-16T17:37:11.8441457Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 58804,
+        "parentPid": 55968,
+        "createdUtc": "2026-10-16T17:37:10.2273821Z",
+        "commandLine": "\"C:/Program Files/Git/cmd/git.exe\" \"ls-remote\" \"--heads\" \"origin\" \"refs/heads/codex/m49-connector-batches-roadmap\" \"refs/heads/parity-results\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 2,
+      "stdoutSha256": "27B2C08B6E1198CBDB8FE6037C08A8285E1AA2B4E0606F7BE09BFFAAA41EF10D",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "final-restore",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "restore",
+        "SonnetDB.slnx"
+      ],
+      "timeoutSeconds": 240,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:41:03.7638763Z",
+      "endUtc": "2026-10-16T17:41:14.9087282Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 35684,
+        "parentPid": 9736,
+        "createdUtc": "2026-10-16T17:41:04.0601122Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"restore\" \"SonnetDB.slnx\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 44,
+      "stdoutSha256": "353A79AB22E7DE348BEB99393E3B817F271411F6B36BE728EAA7D077D3A11CE2",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "final-format",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "format",
+        "SonnetDB.slnx",
+        "--verify-no-changes",
+        "--no-restore",
+        "--severity",
+        "warn",
+        "--exclude",
+        "extensions/"
+      ],
+      "timeoutSeconds": 360,
+      "status": "FAIL",
+      "startUtc": "2026-10-16T17:41:56.7654551Z",
+      "endUtc": "2026-10-16T17:44:11.7758874Z",
+      "exitCode": 2,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 1736,
+        "parentPid": 50524,
+        "createdUtc": "2026-10-16T17:41:57.0677092Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"format\" \"SonnetDB.slnx\" \"--verify-no-changes\" \"--no-restore\" \"--severity\" \"warn\" \"--exclude\" \"extensions/\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 5,
+      "stdoutSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "stderrSha256": "9807299395B035E90898369158B4C082F79097157AD5B58E792BB8A72EFFBBB5"
+    },
+    {
+      "name": "final-restore-02",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "restore",
+        "SonnetDB.slnx"
+      ],
+      "timeoutSeconds": 240,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:46:13.110668Z",
+      "endUtc": "2026-10-16T17:46:24.5989877Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 30060,
+        "parentPid": 12456,
+        "createdUtc": "2026-10-16T17:46:13.6422518Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"restore\" \"SonnetDB.slnx\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 44,
+      "stdoutSha256": "0A5293E62D3BB4D8819D8D749F51206D3AA424744E622337BEE96070823F245B",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "name": "final-format-02",
+      "executable": "C:/Program Files/dotnet/dotnet.exe",
+      "arguments": [
+        "format",
+        "SonnetDB.slnx",
+        "--verify-no-changes",
+        "--no-restore",
+        "--severity",
+        "warn",
+        "--exclude",
+        "extensions/"
+      ],
+      "timeoutSeconds": 360,
+      "status": "PASS",
+      "startUtc": "2026-10-16T17:47:31.8865871Z",
+      "endUtc": "2026-10-16T17:50:35.2517802Z",
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "root": {
+        "pid": 34484,
+        "parentPid": 5368,
+        "createdUtc": "2026-10-16T17:47:32.4253111Z",
+        "commandLine": "\"C:/Program Files/dotnet/dotnet.exe\" \"format\" \"SonnetDB.slnx\" \"--verify-no-changes\" \"--no-restore\" \"--severity\" \"warn\" \"--exclude\" \"extensions/\"",
+        "kernelJobMember": true
+      },
+      "identityCount": 5,
+      "stdoutSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "stderrSha256": "662C0F5A2A49E585D512D36424F272DDE8C5035DE2F7201240D57A044890407B"
+    }
+  ],
+  "notRun": [
+    "entire Core and Server suites",
+    "TLS/ALPN",
+    "NativeAOT publish/run",
+    "other OS/architectures/languages",
+    "formal package consumers",
+    "remote CI",
+    "public release",
+    "production deployment"
+  ],
+  "limitations": [
+    "Legacy DATETIME requires millisecond alignment; full ticks use DATETIMEOFFSET",
+    "Existing mixed Data ADO REST/session migration pending multiframe/transactions",
+    "Core Rows materialization unchanged",
+    "Engine durability configuration unchanged; no new fsync guarantee"
+  ],
+  "generatedUtc": "2026-10-16T17:52:44.2624305Z"
+}

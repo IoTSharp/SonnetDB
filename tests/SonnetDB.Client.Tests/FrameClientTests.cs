@@ -47,6 +47,65 @@ public sealed class FrameClientTests
         Assert.Equal(1, handler.Calls);
     }
 
+    [Fact]
+    public async Task ExecuteSqlAsync_UsesExecuteOpcodeAndExactParameters()
+    {
+        var handler = new Handler(async (request, cancellation) =>
+        {
+            Assert.Equal(HttpVersion.Version20, request.Version);
+            byte[] bytes = await request.Content!.ReadAsByteArrayAsync(cancellation);
+            var sequence = new ReadOnlySequence<byte>(bytes);
+            Assert.True(FrameCodec.TryReadFrame(ref sequence, out var header, out var payload));
+            Assert.Equal((byte)FrameService.Sql, header.Service);
+            Assert.Equal((byte)SqlFrameOp.Execute, header.Op);
+            Assert.Equal(7u, header.StreamId);
+            var decoded = SqlExecuteFrameCodec.DecodeRequest(payload.ToArray());
+            Assert.Equal("demo", decoded.Db);
+            Assert.Equal("INSERT INTO t (id, note) VALUES (@id, @note)", decoded.Sql);
+            Assert.Equal(2, decoded.Parameters.Count);
+            Assert.Equal(long.MaxValue, decoded.Parameters[0].Value);
+            Assert.Equal("remote", decoded.Parameters[1].Value);
+
+            var output = new ArrayBufferWriter<byte>();
+            SqlExecuteFrameCodec.EncodeResponse(output, 7, 1);
+            var responseSequence = new ReadOnlySequence<byte>(output.WrittenMemory);
+            Assert.True(FrameCodec.TryReadFrame(ref responseSequence, out _, out var responsePayload));
+            return Response(responsePayload.ToArray(), (byte)FrameService.Sql, (byte)SqlFrameOp.Execute, 7);
+        });
+        using var http = new HttpClient(handler);
+        using var client = new SndbFrameClient(http, Server);
+        var result = await client.ExecuteSqlAsync(
+            "demo",
+            "INSERT INTO t (id, note) VALUES (@id, @note)",
+            [
+                SqlExecuteFrameCodec.FromClr("id", long.MaxValue),
+                SqlExecuteFrameCodec.FromClr("note", "remote"),
+            ],
+            streamId: 7);
+        Assert.Equal(1, result.RecordsAffected);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("invalid")]
+    [InlineData("version")]
+    public async Task ExecuteSqlAsync_InvalidTerminal_PreservesUnknownWithoutRetry(string mode)
+    {
+        var handler = new Handler((_, _) =>
+        {
+            byte[] payload = mode == "missing" ? [] : new byte[10];
+            if (payload.Length > 0) payload[0] = mode == "version" ? (byte)2 : SqlExecuteFrameCodec.CurrentVersion;
+            return Task.FromResult(Response(payload, (byte)FrameService.Sql, (byte)SqlFrameOp.Execute, 1));
+        });
+        using var http = new HttpClient(handler);
+        using var client = new SndbFrameClient(http, Server);
+        var error = await Assert.ThrowsAsync<SndbFrameException>(() => client.ExecuteSqlAsync("db", "DELETE FROM t WHERE id=1"));
+        Assert.Equal("frame_sql_terminal", error.Code);
+        Assert.True(error.OutcomeUnknown);
+        Assert.Equal(1, handler.Calls);
+    }
+
     [Theory]
     [InlineData("version", "frame_identity")]
     [InlineData("service", "frame_identity")]
@@ -141,10 +200,13 @@ public sealed class FrameClientTests
     }
 
     private static HttpResponseMessage Reply(byte[] payload)
+        => Response(payload, 5, 1, 42);
+
+    private static HttpResponseMessage Response(byte[] payload, byte service, byte operation, uint streamId)
     {
         var output = new ArrayBufferWriter<byte>();
         FrameCodec.WriteFrame(output, new FrameHeader((uint)payload.Length,
-            FrameHeader.CurrentVersion, 5, 1, (byte)FrameFlags.Response, 42), payload);
+            FrameHeader.CurrentVersion, service, operation, (byte)FrameFlags.Response, streamId), payload);
         return Response(output.WrittenMemory.ToArray());
     }
 

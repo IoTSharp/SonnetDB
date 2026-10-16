@@ -3206,3 +3206,13 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 - 提交前完整 `dotnet restore SonnetDB.slnx` 与原样 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均 PASS；唯一 workspace-load warning 保留记录。
 - 当前工作树保留三项未提交继承 dirty：`CHANGELOG.md`、`ROADMAP.md` 和 `docs/design/m42-relational-hot-write-concurrency.md`，未进入 D01 提交。新会话须先检查这些文件归属，不得 reset/clean/stash-all。
 - D01 交付后立即进入 F01：当前 `SqlFrameOp.Query=1` 仍只读；新增 SQL 写入/精确参数/适用事务 Frame 之前先核现有 server codec/handler、事务边界和版本/能力拒绝合同，禁止 REST/HTTP1 回落。
+
+## F01 关系 SQL 自动提交写入交付（2026-10-17，Asia/Shanghai）
+
+- 本次继续使用受管工作区与分支 `codex/m49-connector-batches-roadmap`，基线 `39437db0189e9f8acbc3efebf890087ed17052f6`。准确交付 SHA 请读取该分支最新提交；远端正常 push 后必须独立回读。本章随代码、审计和换机文档提交，不合并 main、不发布包或部署。
+- 新增 `SqlFrameOp.Execute=2`/payload v1、4 MiB 累计输入预算、命名或位置精确参数/类型化 NULL、committed + 非负影响行数终态。Decimal 用四个 Int32 保留 scale/符号，原生 DateTimeOffset/Duration 保留 ticks；旧 DATETIME 要求毫秒对齐，超精度执行前拒绝，UTF-8 严格校验。协议见 `docs/sql-execute-frame.md`。
+- 新独立 `SonnetDB.Client.ExecuteSqlAsync` → 实际 HTTP/2 → Server 接通关系表 CREATE/DROP TABLE 和无 RETURNING 的 INSERT/UPDATE/DELETE，保留 Write 权限、admission、AST 参数绑定及既有引擎语句原子性；取消、缺失/非法终态与断连均保持未知结果、无业务重试。事务/RETURNING/过程/控制面/其它模型写入与 Workbench Preview 明确拒绝。
+- 中间版本直接切换旧 ADO 写路径造成 153 项中 31 项失败（含已有 RETURNING 功能回归及旧传输断言）；已撤出本次对 `RemoteConnectionImpl`、`FrameChannel` 和原 ADO 测试的修改，最终逐字与基线相同。旧混合 Data 的 REST/session 仍是迁移缺口，必须等 Frame 多结果与事务合同齐备后接入，不能用拒绝已有功能来虚称迁移完成。新 Client 不加载 Data，独立无回落合同不受影响。
+- 新真实测试覆盖 Client 直连产品 Server、Int64/Decimal/Blob/DateTime/Offset/Time/Duration/NULL 落盘和完整宿主重开、位置参数/SQL 注入文本、权限、约束整句回滚、能力/版本/畸形输入拒绝，以及提交后断响应时仍有一条数据且没有重试。最终计数、原 TRX/GZip、源码和运行身份见 `docs/audits/m49/f01-20261017/acceptance.json`；早期失败保留，完整 Core/Server、TLS/ALPN、AOT 发布运行、其它平台与正式消费者未验证。
+- 继承 dirty 仍为 CHANGELOG/ROADMAP 的 M42/M47/D01 旧规划及 `docs/design/m42-relational-hot-write-concurrency.md`；仅暂存本片自有路径/hunk。不 reset/clean/stash-all，不改/合并/删除 parity-results。临时资源和有界 Job 回执存 `artifacts/m49-f01-20261017`；清理只针对本任务有 owner 标记的 TEMP。
+- 下一会话先读 `docs/handoffs/m49-next-computer.md`：先补 SQL Frame 多结果/RETURNING 与适用事务，再迁移旧 ADO；随后衔接 R01/R02/R03 Core pull，不能把完整 Rows 外切批当有界。D01 Native 混合依赖、各语言绑定与九模型其它操作继续按矩阵推进。`embedded` 在本分支仓库根，旧共享 main 的目录视图不同。

@@ -9,6 +9,8 @@
 
 ### Changed
 
+- M49-F01 关系 SQL 写入首片：新增独立 `Sql/Execute=2`、显式 payload v1、4 MiB 累计输入预算与精确参数/类型化 NULL；新 `SonnetDB.Client.ExecuteSqlAsync` 仅使用实际 HTTP/2，Server 支持关系表 CREATE/DROP TABLE 和无 RETURNING 的 INSERT/UPDATE/DELETE，复用 Write 权限、admission、AST 参数绑定及语句原子性。响应缺失/畸形、取消或断连保留未知提交且不重试；事务/多结果/其它模型显式拒绝。旧混合 Data 的 ADO/REST/session 迁移待完整 Frame 合同，未自动改接。见[协议与边界](docs/sql-execute-frame.md)及[验收](docs/audits/m49/f01-20261017/README.md)，F01/M49 继续进行中。
+
 - M49-D01：将 Frame 信封/opcode 和 SpanReader/SpanWriter 直接迁入零引擎依赖的 SonnetDB.Protocol，新增只依赖它的原生 .NET HTTP/2 单响应远程入口；真实 h2c、取消/关闭、预算、干净包消费者和依赖隔离已验证。托管 API 类型归属改变，消费者须重新编译；九模型 typed API、多帧 SQL/参数/事务、Core 有界执行和正式发行门禁仍待完成。换机入口见 docs/handoffs/m49-next-computer.md。
 
 - M49 首个实现切片：Native SQL result 改为持有 reader/command 并按需逐行读取，移除 ABI 层完整结果副本；EOF 后拒绝旧行，失败终态保留，提前释放/连接关闭清理活动结果。唯一 AOT 导出工程迁到 `embedded/native`，同步 CMake、solution 和独立 Native 测试入口。仍依赖混合 Data/Core 物化路径，D01/R01/R02/R03 尚未完成；不宣称端到端有界、新远程 SDK 或全平台交付。

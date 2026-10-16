@@ -23,6 +23,7 @@ using SonnetDB.SemanticSearch;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using SonnetMQ;
 
 namespace SonnetDB.Endpoints;
@@ -103,7 +104,12 @@ internal static class FrameEndpointHandler
 
                         EnsureFrameResponseStarted(ctx);
                         if (header.Service == (byte)FrameService.Sql)
-                            await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                        {
+                            if (header.Op == (byte)SqlFrameOp.Execute)
+                                await ExecuteSqlWriteAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                            else
+                                await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                        }
                         else if (header.Service == (byte)FrameService.Vector)
                             await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                         else if (header.Service == (byte)FrameService.Object)
@@ -226,7 +232,7 @@ internal static class FrameEndpointHandler
         }
         else if (header.Service == (byte)FrameService.Sql)
         {
-            if (header.Op != (byte)SqlFrameOp.Query)
+            if (header.Op is not ((byte)SqlFrameOp.Query) and not ((byte)SqlFrameOp.Execute))
             {
                 errorCode = "unsupported_op";
                 return $"sql service 不支持 op {header.Op}。";
@@ -608,6 +614,239 @@ internal static class FrameEndpointHandler
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
     }
+
+    /// <summary>
+    /// 执行 SQL Execute=2 写入帧：单条自动提交、精确参数、单一 committed 终态。
+    /// 事务控制、RETURNING、过程多结果和控制面语句在执行前显式拒绝，避免客户端把未知提交
+    /// 误判为未执行或自动重放。
+    /// </summary>
+    private static async Task ExecuteSqlWriteAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        ServerMetrics metrics,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlySequence<byte> payload)
+    {
+        metrics.RecordSqlRequest();
+        SqlExecuteFrameRequest request;
+        try
+        {
+            if (ctx.Request.Protocol != "HTTP/2")
+            {
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "unsupported_transport", "SQL Execute Frame 要求实际 HTTP/2。");
+                return;
+            }
+            if (WorkbenchPreviewSql.IsRequested(ctx))
+            {
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "preview_action_denied", "Workbench Preview 尚未开放 SQL Execute Frame。");
+                return;
+            }
+            if (payload.Length > SqlExecuteFrameCodec.MaxRequestPayloadBytes)
+                throw new FrameFormatException("SQL Execute 请求超过累计编码字节上限。");
+            if (!payload.IsEmpty && payload.FirstSpan.Length > 0
+                && payload.FirstSpan[0] != SqlExecuteFrameCodec.CurrentVersion)
+            {
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "unsupported_execute_version", "不支持请求的 SQL Execute payload 版本。");
+                return;
+            }
+            byte[]? rented = null;
+            try
+            {
+                ReadOnlyMemory<byte> payloadMemory;
+                if (payload.IsSingleSegment)
+                {
+                    payloadMemory = payload.First;
+                }
+                else
+                {
+                    rented = ArrayPool<byte>.Shared.Rent(checked((int)payload.Length));
+                    payload.CopyTo(rented);
+                    payloadMemory = rented.AsMemory(0, checked((int)payload.Length));
+                }
+
+                request = SqlExecuteFrameCodec.DecodeRequest(payloadMemory.Span);
+            }
+            finally
+            {
+                if (rented is not null)
+                    ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+        catch (FrameFormatException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+            return;
+        }
+
+        try
+        {
+            SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+                ctx, registry, grants, request.Db, DatabasePermission.Write, out Tsdb tsdb);
+            if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+            {
+                metrics.RecordSqlError();
+                string code = access.Status switch
+                {
+                    SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+                    SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+                    _ => "bad_request",
+                };
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+                return;
+            }
+
+            using var admissionLease = await ctx.RequestServices
+                .GetRequiredService<SqlHttpRequestAdmission>()
+                .AcquireAsync(request.Db, ctx.RequestAborted)
+                .ConfigureAwait(false);
+            if (!admissionLease.IsAcquired)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "sql_overloaded", $"数据库 '{request.Db}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。");
+                return;
+            }
+
+            SqlStatement parsed = SqlParser.Parse(request.Sql);
+            var parameters = new SqlParameters();
+            foreach (SqlExecuteFrameParameter parameter in request.Parameters)
+            {
+                if (parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime inputDateTime
+                    && inputDateTime.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                {
+                    FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                        "unsupported_parameter_precision", "既有 DATETIME 存储只支持毫秒；需要完整 ticks 时请使用 DATETIMEOFFSET。");
+                    return;
+                }
+                object? value = parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime dateTime
+                    ? dateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+                    : parameter.Value;
+                SqlDataType? dataType = parameter.Kind switch
+                {
+                    SqlFrameParameterKind.Int64 or SqlFrameParameterKind.Timestamp => SqlDataType.Int64,
+                    SqlFrameParameterKind.Float64 => SqlDataType.Float64,
+                    SqlFrameParameterKind.Boolean => SqlDataType.Boolean,
+                    SqlFrameParameterKind.String => SqlDataType.String,
+                    SqlFrameParameterKind.Blob => SqlDataType.Blob,
+                    SqlFrameParameterKind.DateTime => SqlDataType.DateTime,
+                    SqlFrameParameterKind.DateTimeOffset => SqlDataType.DateTimeOffset,
+                    SqlFrameParameterKind.Duration => SqlDataType.Duration,
+                    SqlFrameParameterKind.Decimal => SqlDataType.Decimal,
+                    SqlFrameParameterKind.Time => SqlDataType.Time,
+                    _ => null,
+                };
+                if (parameter.Name.Length == 0)
+                {
+                    if (dataType is { } positionalType) parameters.AddPositional(value, positionalType);
+                    else parameters.AddPositional(value);
+                }
+                else
+                {
+                    if (dataType is { } namedType) parameters.AddNamed(parameter.Name, value, namedType);
+                    else parameters.AddNamed(parameter.Name, value);
+                }
+            }
+            parsed = SqlParameterBinder.Bind(parsed, parameters);
+
+            bool supported = parsed switch
+            {
+                CreateTableStatement { ModbusBinding: null } or DropTableStatement => true,
+                InsertStatement insert => insert.ReturningColumns.Count == 0
+                    && tsdb.Tables.Catalog.Resolve(insert.Measurement, insert.MeasurementIsQuoted) is not null,
+                UpdateStatement update => update.ReturningColumns.Count == 0
+                    && tsdb.Tables.Catalog.Resolve(update.TableName, update.TableNameIsQuoted) is not null,
+                DeleteStatement delete => delete.ReturningColumns.Count == 0
+                    && tsdb.Tables.Catalog.Resolve(delete.Measurement, delete.MeasurementIsQuoted) is not null,
+                _ => false,
+            };
+            if (!supported)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "unsupported_capability",
+                    "SQL Execute Frame 当前仅支持关系表 CREATE/DROP TABLE 和无 RETURNING 的 INSERT/UPDATE/DELETE；其它能力尚未开放。");
+                return;
+            }
+
+            var routineOptions = ctx.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
+            object? result = SqlExecutor.ExecuteStatement(
+                tsdb,
+                request.Db,
+                parsed,
+                controlPlane: null,
+                transaction: null,
+                new SqlExecutionOptions
+                {
+                    CancellationToken = ctx.RequestAborted,
+                    Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
+                    CanWrite = true,
+                    CanAdminister = false,
+                    MaxRoutineStatements = routineOptions.MaxRoutineStatements,
+                    MaxRoutineDepth = routineOptions.MaxRoutineDepth,
+                    MaxRoutineResultRows = routineOptions.MaxRoutineResultRows,
+                    MaxTriggerTransitionRows = routineOptions.MaxTriggerTransitionRows,
+                    MaxTriggerTransitionBytes = routineOptions.MaxTriggerTransitionBytes,
+                    MaxDeferredTriggerInvocations = routineOptions.MaxDeferredTriggerInvocations,
+                    MaxDeferredTriggerBytes = routineOptions.MaxDeferredTriggerBytes,
+                    TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
+                });
+
+            SqlExecuteFrameCodec.EncodeResponse(writer, header.StreamId,
+                parsed is CreateTableStatement or DropTableStatement ? 0 : GetRecordsAffected(result));
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (ControlPlaneAccessDeniedException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "forbidden", ex.Message);
+        }
+        catch (TableConstraintException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.ErrorCode, ex.Message);
+        }
+        catch (RoutineExecutionException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.Code, ex.Message);
+        }
+        catch (NotSupportedException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_capability", ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_error", ex.Message);
+        }
+    }
+
+    private static long GetRecordsAffected(object? result)
+        => result switch
+        {
+            InsertExecutionResult insert => insert.RowsInserted,
+            DeleteExecutionResult delete => delete.TombstonesAdded,
+            RowsAffectedExecutionResult affected => affected.RowsAffected,
+            int count => count,
+            long count => count,
+            null => 0,
+            _ => throw new InvalidOperationException("SQL Execute 返回了未支持的结果类型；不能确认响应终态。"),
+        };
 
     /// <summary>
     /// 执行 vector search 帧（#239）：解码（查询向量 f32 二进制）→ 鉴权（Read）→
