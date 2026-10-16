@@ -37,20 +37,26 @@ public sealed class DockerBuildContextTests
             BindingFlags.Instance | BindingFlags.Public)
             ?? throw new MissingMethodException(archiveType.FullName, "Tar");
 
-        var tarPath = await (Task<string>)tarMethod.Invoke(archive, [CancellationToken.None])!;
-
+        // 即使根 ignore 显式保留 .gitignore，产物树内的同名文件也必须继续排除。
+        var sentinelDirectory = Path.Combine(repositoryRoot, "artifacts", "docker-context-" + Guid.NewGuid().ToString("N"));
+        string? tarPath = null;
         try
         {
+            Directory.CreateDirectory(sentinelDirectory);
+            await File.WriteAllTextAsync(Path.Combine(sentinelDirectory, ".gitignore"), "*\n");
+            tarPath = await (Task<string>)tarMethod.Invoke(archive, [CancellationToken.None])!;
             var entries = ReadEntryNames(tarPath);
 
             Assert.Contains("Dockerfile", entries);
+            Assert.Contains(".gitignore", entries);
             Assert.Contains("Directory.Build.props", entries);
             Assert.Contains("src/SonnetDB/SonnetDB.csproj", entries);
             Assert.DoesNotContain(entries, IsBuildOutput);
         }
         finally
         {
-            File.Delete(tarPath);
+            if (tarPath is not null) File.Delete(tarPath);
+            if (Directory.Exists(sentinelDirectory)) Directory.Delete(sentinelDirectory, recursive: true);
         }
     }
 

@@ -588,6 +588,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+
+- 修复 Docker 构建上下文的忽略顺序：保留源码 `.gitignore` 的例外先于产物目录排除，避免旧验证产物中的嵌套 `.gitignore` 被重新打包；使用真实 Testcontainers 归档器和独占嵌套哨兵覆盖该边界，不清理历史证据。
 - GH-Issue #261：空/NULL/非空普通及物化视图中的内置 CONCAT 提供 STRING、非空声明，同名 UDF 保留未知类型；补齐真实 XCode 反向工程、XML 名称往返及实体生成编译证据，正式发行和上游交付另计。
 
 - GH-Issue #262：关系日期函数投影提供原生 DateTime 声明；SQL 结果 v4 在 REST 与 Frame 中显式协商并保留墙钟 ticks 和 Kind，修复泛型 DATE_ADD 将 DateTime 隐式提升为 DateTimeOffset 的问题。旧结果编码和参数/持久 DATETIME 的 UTC Unix 毫秒合同保留；真实三协议 Chloe 候选验证另附，正式引擎/驱动/Server 与 Chloe 发布验收仍待完成。

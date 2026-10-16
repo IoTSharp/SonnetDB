@@ -3293,3 +3293,11 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 - 本次提交仅在根组合树完整restore/原Format及组合回归通过后执行；冻结树PASS不替代根门禁。锁语句限显式事务、单关系基表；无gap/phantom保护，DDL/延迟触发器COMMIT保守使用库级锁。REST/h2c事务走既有JSON事务端点，不冒称Frame事务或NativeAOT发布运行。定时监督继续PAUSED，不实施新Issue；#247/#245仅保存准备材料。
 
 - #248 根组合复审已完成：完整 Core7606/7606，整套Release构建、Data显式AOT/Trim、ServerRebuild零警告错误；新编译原SqlSugar三协议各34/34且DLL绑定一致。完整solution首轮独立Docker上下文忽略失败另案，最终整合仍继续；详见docs/audits/issue-248-root-review-20261017.md/json。
+
+
+## 独立整合修复：Docker 上下文产物排除（2026-10-17）
+
+- 整套 solution 首轮 Accuracy 的归档测试在当前有大量保留证据的工作区失败：`!**/.gitignore` 位于末尾，重新包含 artifacts 中的上游 `.gitignore`。原失败 TRX 和日志保留。
+- 将该例外移到根与 Dockerfile 专用 ignore 的排除规则之前，保留必要 Git 元数据例外；真实 Testcontainers 归档测试增加独占 artifacts 子目录 `.gitignore` 哨兵。仅清理该测试新建的哨兵和归档，不删除原工作树或证据。本修复单独提交，测试/完整restore/Format成功后才提交。
+
+- Docker最终串行复测03为1/1、零失败跳过，包含根.gitignore保留和产物排除双断言。02因与01旧testhost重叠而文件占用，只有构建失败、未执行测试；原MSB3027/MSB3021及首次全套失败保留。最终修复与1/1结果绑定见docs/audits/integration-docker-context-20261017.json。首全套其余9795项通过，此修复只改ignore及对应测试，未重跑无关生产测试。

@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-17",
+  "originalFailure": "DockerBuildContextTests in full solution first run; source gitignore negation re-included build artifacts.",
+  "fix": "Place !**/.gitignore immediately after its matching exclusion, before generated-directory exclusions, in both ignore files.",
+  "regression": "Real Testcontainers archive with an owned artifacts subtree containing .gitignore; assert root .gitignore stays included and all build outputs excluded.",
+  "finalReceipt": {
+    "startedUtc": "2026-10-16T17:24:30.1043690+00:00",
+    "stdout": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\docker-context-tests03.stdout.log",
+    "stderr": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\logs\\docker-context-tests03.stderr.log",
+    "exitCode": 0,
+    "identity": {
+      "executable": "dotnet",
+      "arguments": [
+        "test",
+        "tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj",
+        "-c",
+        "Release",
+        "--no-restore",
+        "-p:BuildProjectReferences=false",
+        "--filter",
+        "FullyQualifiedName~DockerBuildContextTests",
+        "--logger",
+        "trx",
+        "--results-directory",
+        "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\docker-context-trx03",
+        "-m:1",
+        "-p:UseSharedCompilation=false",
+        "-nodeReuse:false"
+      ],
+      "pid": 73060,
+      "workingDirectory": "D:/source/SonnetDB",
+      "startedUtc": "2026-10-16T17:24:30.1079192Z"
+    },
+    "endedUtc": "2026-10-16T17:25:23.4529572+00:00",
+    "timedOut": false,
+    "label": "docker-context-tests03"
+  },
+  "trx": "D:\\source\\SonnetDB\\artifacts\\integration-20261017\\docker-context-trx03\\mysti_MAIKEBING_2026-10-17_01_25_23_net10.0.trx",
+  "sha256": "36113e60672ab4c90f2bbd8a7cf4a4b81b0cc9ccd2e4ece1ef366386d9b94a12",
+  "counters": {
+    "total": "1",
+    "executed": "1",
+    "passed": "1",
+    "failed": "0",
+    "error": "0",
+    "timeout": "0",
+    "aborted": "0",
+    "inconclusive": "0",
+    "passedButRunAborted": "0",
+    "notRunnable": "0",
+    "notExecuted": "0",
+    "disconnected": "0",
+    "warning": "0",
+    "completed": "0",
+    "inProgress": "0",
+    "pending": "0"
+  },
+  "earlierRuns": {
+    "firstCandidate": "1/1, before root .gitignore inclusion assertion",
+    "secondAttempt": "Build only failed with MSB3027/MSB3021 because prior owned testhost still held xunit.abstractions.dll; no tests ran. Preserved; rerun serially.",
+    "thirdFinal": "1/1 with both exclusion and inclusion assertions; zero build warnings/errors."
+  },
+  "cleanup": "Only the test-owned GUID sentinel and tar archive are removed. Existing evidence/worktrees/caches remain untouched."
+}

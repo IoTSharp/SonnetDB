@@ -4,6 +4,7 @@
 **/.env
 **/.git
 **/.gitignore
+!**/.gitignore
 **/.playwright-cli
 **/.project
 **/.settings
@@ -35,7 +36,6 @@
 **/values.dev.yaml
 LICENSE
 README.md
-!**/.gitignore
 !.git/HEAD
 !.git/config
 !.git/packed-refs
