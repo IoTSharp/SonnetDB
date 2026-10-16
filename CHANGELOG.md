@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- Online Studio：设置入口改为独立连接/观测偏好页；观测展示按授权数据库读取的九模型目录、存储/WAL 元信息、只读 SQL 自检及慢查询形状，明确未采集/失败状态，普通用户不请求实例级 Prometheus 数据。
 - 在项目门面与中英文 README 公布用户授权的受限演示入口和凭据，说明正常注册测试账号及数据长期保留、不参与共享演示账号的周期恢复。
 - IoTSharp Online 交付补丁：允许邮箱式用户名称，并对含 PASSWORD 的 SQL 诊断样本/SSE 使用脱敏形状；账号隔离与凭据保留、解析及诊断回归通过。该本地交付补丁未提交至上游，不代表新的正式 Release。
 - Identity MVC 样例显式保留既有 `LockoutEnd` 的 `DATETIME` 映射，修复 Provider 默认使用原生 `DATETIMEOFFSET` 后模型与已有迁移不一致的问题；JOIN 列裁剪递归保留 CAST 操作数，CAST 内函数继续遵守谓词下推限制。保持原 UTC 毫秒布局、迁移快照及模型差异断言。

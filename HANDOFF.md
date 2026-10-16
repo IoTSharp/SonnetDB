@@ -1,5 +1,13 @@
 # SonnetDB 交接记录
 
+## 2026-10-16 Online Studio 修复与主干同步
+
+- 当前 checkout 为 `D:\GitHub\IoTSharp\SonnetDB`，分支 `codex/online-demo-service-20261016`。账号/脱敏补丁 `78197b55` 已提交，`2a6d29b5` 合入当次远端 main `4d6e4f98`，两者已推送该分支；没有改动 canonical 共享工作树或 parity-results。
+- 真实浏览器复现：旧设置入口只跳转关于页；观测接口返回最小指标集，旧面板忽略；演示库原本仅一张 measurement。新增独立设置页（连接检测、浏览器诊断刷新偏好），观测新增授权数据库模型目录、存储/WAL 元信息、九项只读自检和慢查询形状。普通账号不请求实例级指标，不提升为超级用户。
+- 九模型合成样例由交付仓 `deploy/native/scripts/seed-online-sonnetdb.mjs` 补充；仅使用 demo 身份和 demo 库、固定资源名、读取后补缺，不修改其它用户。文档向量与 measurement 向量均有样例；向量是手工构造，不能当真实模型质量证据。
+- 前端类型检查/生产构建与 469 项现有合同通过；本地构建接真实服务的 Chrome 1440/390px 设置/诊断/工作台验证通过（九项自检、九模型可见、零页面异常/横向溢出）。本段记录提交前状态；新二进制发布及公网复验以父仓 `Deployments/iotsharp_online/studio-models-receipt.md` 为准，不能用本地预览替代生产验收。
+- 最新上游引擎/EF 的集成回归、同源两个产品构建以及部署由父仓执行；保留先前失败与后续修正证据，不宣称全套性能、Parity、NativeAOT 发布或真实现场业务闭环完成。
+
 ## 2026-10-16 公开演示入口说明
 
 README 中英文及 `web/src/views/WelcomeView.vue` 增加用户明确授权公开的演示地址、账号/密码和长期测试账号说明。共享 demo 每半小时仅恢复凭据；正常注册账号、密码与数据不参与重置且长期保留。前端已构建并随 `20261016-public-demo-access` 发布到演示站，未提交/推送；管理员凭据未进入展示。

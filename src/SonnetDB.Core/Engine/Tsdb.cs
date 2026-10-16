@@ -132,6 +132,9 @@ public sealed class Tsdb : IDisposable
     /// <summary>数据库根目录路径。</summary>
     public string RootDirectory => _options.RootDirectory;
 
+    /// <summary>供受授权的管理接口读取本实例实际打开时采用的配置，不提供修改入口。</summary>
+    internal TsdbOptions RuntimeOptions => _options;
+
     /// <summary>当前数据库的 SQL 阻塞算子内存配置。</summary>
     internal SqlMemoryOptions SqlMemoryOptions => _options.SqlMemory;
 

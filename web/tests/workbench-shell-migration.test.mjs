@@ -63,7 +63,7 @@ test('module entries map to implemented pages without claiming planned pages', (
     ['flows', 'modbus'],
     ['ai', 'rag'],
     ['govern', 'users'],
-    ['settings', 'about'],
+    ['settings', 'settings'],
   ]) {
     assert.match(block, new RegExp(`key: '${key}', routeName: '${route}'`));
   }
@@ -81,10 +81,10 @@ test('module aliases and legacy paths retain stable routing contracts', () => {
     ['flows', 'modbus'],
     ['ai', 'rag'],
     ['govern', 'users'],
-    ['settings', 'about'],
   ]) {
     assert.match(routerSource, new RegExp(`path: '${path}', name: '${path}', redirect: \\{ name: '${name}' \\}`));
   }
+  assert.match(routerSource, /path: 'settings', name: 'settings', component: SettingsView/);
   assert.match(routerSource, /path: 'studio', redirect: \{ name: 'sql' \}/);
   assert.match(routerSource, /path: 'databases',\s*(?:name: 'databases',\s*)?redirect: \{ name: 'sql' \}/);
   assert.match(routerSource, /path: 'trajectory-map',[\s\S]{0,180}query: \{ tool: 'trajectory' \}/);
