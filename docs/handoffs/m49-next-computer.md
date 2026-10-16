@@ -5,7 +5,7 @@
 ## 取得正确代码
 
 - 远端：GitHub `IoTSharp/SonnetDB`；分支 `codex/m49-connector-batches-roadmap`。
-- 首个 Native 切片已提交推送为 `1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4`；共享协议/Client 切片及本文件在它后面。以该远端分支最新 HEAD 为新会话起点，不停在首片提交。
+- 首个 Native 切片已提交推送为 `1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4`；D01 共享协议/Client 切片最终提交为 `6a606c6ba4170f775f1a3fe6b3c9e333f09f2409`，远端分支已回读一致。以该远端分支最新 HEAD 为新会话起点，不停在首片提交。
 - 新电脑取得完整仓库和固定 submodule 后，核 `git branch --show-current`、`git rev-parse HEAD`、`git status --short`，先阅读根 HANDOFF 最新章节、AGENTS、M49 确认需求和实施矩阵。不要把默认 main 当成本分支，也不要复制旧电脑 TEMP、凭据或构建输出作开发基线。
 - 旧电脑实际实施目录为 `C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB`；`D:/source/SonnetDB` 是另有共享修改的 main 树，因此之前用户在它的目录视图里看不到新 embedded。**新电脑可使用本机自己的正常 checkout 路径，后续命令显式使用该路径。**
 

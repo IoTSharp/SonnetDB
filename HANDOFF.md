@@ -3183,7 +3183,7 @@ embedded 位于实际实施树 C:/Users/mysti/.codex/worktrees/connector-batch-r
 
 ## M49-D01 换机交付：共享 Protocol 与原生 .NET Frame 入口（2026-10-16）
 
-用户最新要求当前片实现、写交接、提交推送后更换电脑，在新会话继续。**本机在本片交付后停止新增实现；下一 F01 交给新电脑会话。** 远端/分支仍为 IoTSharp/SonnetDB 的 codex/m49-connector-batches-roadmap。首片已正常提交推送 1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4，并通过独立 ls-remote 回读；本片随后提交，精确最新 SHA 由该分支 git log/远端回读取得，不把首片 SHA 当成最新。
+用户最新要求当前片实现、写交接、提交推送后更换电脑，在新会话继续。**本机在本片交付后停止新增实现；下一 F01 交给新电脑会话。** 远端/分支仍为 IoTSharp/SonnetDB 的 codex/m49-connector-batches-roadmap。首片已正常提交推送 1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4；D01 最终提交为 6a606c6ba4170f775f1a3fe6b3c9e333f09f2409，远端 ls-remote 回读一致，不把首片 SHA 当成最新。
 
 换机先读 **docs/handoffs/m49-next-computer.md**，再读确认需求/实施矩阵；新电脑不依赖旧 artifacts helper、TEMP、编译器绝对路径或构建 DLL。新 embedded 位于本分支正常 repo 根，不在旧 D:/source/SonnetDB 共享 main 的目录视图中。
 
@@ -3198,3 +3198,11 @@ embedded 位于实际实施树 C:/Users/mysti/.codex/worktrees/connector-batch-r
 M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余语言绑定/BASIC旧桥接未迁移；九模型typed、多帧SQL/精确参数/事务、对象下载和MQ双工未接新Client；Core仍完整Rows。新机从F01 SQL写入/精确参数和明确版本/能力/终态开始，再推进R01/R02/R03 Core pull、剩余D01/C03与其它语言/平台、真实模型demo/恢复/性能和按批发行。不要重做已证外层reader修复或把193/195传输语料当成九模型验收。
 
 当前实现仍只在既有受管工作区；M42热点写/M47状态表和M42专题继承dirty保留，提交只stage自有路径/hunk。未合并main、未公开发包/部署、未发消息、未安装工具，parity-results永不合并或删除。当前片提交推送完成后由新会话接续，不在本机再扩F01。
+
+## D01 最终提交回读（2026-10-17，Asia/Shanghai）
+
+- D01 最终提交：`6a606c6ba4170f775f1a3fe6b3c9e333f09f2409`。
+- `origin/codex/m49-connector-batches-roadmap` 独立 `ls-remote` 回读为同一 SHA；`origin/parity-results` 仍为 `042748d841c5eca6e47261cf6b63e220280ee102`，未合并/删除。
+- 提交前完整 `dotnet restore SonnetDB.slnx` 与原样 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均 PASS；唯一 workspace-load warning 保留记录。
+- 当前工作树保留三项未提交继承 dirty：`CHANGELOG.md`、`ROADMAP.md` 和 `docs/design/m42-relational-hot-write-concurrency.md`，未进入 D01 提交。新会话须先检查这些文件归属，不得 reset/clean/stash-all。
+- D01 交付后立即进入 F01：当前 `SqlFrameOp.Query=1` 仍只读；新增 SQL 写入/精确参数/适用事务 Frame 之前先核现有 server codec/handler、事务边界和版本/能力拒绝合同，禁止 REST/HTTP1 回落。
