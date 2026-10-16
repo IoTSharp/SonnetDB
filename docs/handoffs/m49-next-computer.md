@@ -1,57 +1,54 @@
-# M49 换机后接续入口
+# M49 换机接续入口
 
-更新时间：2026-10-16（Asia/Shanghai）。用户要求当前片实现、交接、提交推送后更换电脑，新会话继续。**本机在本片交付后停止新增实现；F01 留给新会话。整个 M49 继续 IN_PROGRESS，15 个工作包均未整体完成。**
+更新：2026-10-17，Asia/Shanghai。**本次交付为 F01 关系 SQL 自动提交写入切片；M49 与其 15 包仍未整体完成。**
 
-## 取得正确代码
+## 取得正确分支
 
-- 远端：GitHub `IoTSharp/SonnetDB`；分支 `codex/m49-connector-batches-roadmap`。
-- 首个 Native 切片已提交推送为 `1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4`；D01 共享协议/Client 切片最终提交为 `6a606c6ba4170f775f1a3fe6b3c9e333f09f2409`，远端分支已回读一致。以该远端分支最新 HEAD 为新会话起点，不停在首片提交。
-- 新电脑取得完整仓库和固定 submodule 后，核 `git branch --show-current`、`git rev-parse HEAD`、`git status --short`，先阅读根 HANDOFF 最新章节、AGENTS、M49 确认需求和实施矩阵。不要把默认 main 当成本分支，也不要复制旧电脑 TEMP、凭据或构建输出作开发基线。
-- 旧电脑实际实施目录为 `C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB`；`D:/source/SonnetDB` 是另有共享修改的 main 树，因此之前用户在它的目录视图里看不到新 embedded。**新电脑可使用本机自己的正常 checkout 路径，后续命令显式使用该路径。**
+- 仓库：GitHub `IoTSharp/SonnetDB`；分支：`codex/m49-connector-batches-roadmap`。先取得此分支最新提交及固定 submodule，再核 `git branch --show-current`、`git rev-parse HEAD`、`git status --short`。准确交付 SHA 以分支最新提交和远端回读为准。
+- 本片基线为 `39437db0189e9f8acbc3efebf890087ed17052f6`。历史 Native 首片为 `1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4`，D01 为 `6a606c6ba4170f775f1a3fe6b3c9e333f09f2409`；它们均不是接续时应固定停留的 HEAD。
+- 旧机实施目录是 `C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB`，默认 `D:/source/SonnetDB` 是另有修改的共享 main。因此此前在默认目录里看不到 `embedded/`；它已提交在此分支的仓库根，并没有丢失。新电脑使用自己的正常 checkout 路径即可。
+- 先读根 `HANDOFF.md` 最新章节、`AGENTS.md`、[确认需求](../design/connector-embedded-split-requirements-20261016.md)、[实施矩阵](../design/m49-implementation-matrix.md)及 [SQL Execute 协议](../sql-execute-frame.md)。不要复制旧 TEMP、凭据或构建 DLL 作开发基线。
 
-## 已落地
+## 本分支实际已落地
 
-1. `embedded/native/SonnetDB.Native` 是唯一 AOT 导出项目。NativeResult 不再复制完整 reader 到 List；EOF/失败/取消/提前 free/父连接关闭清理 reader/command，已释放结果的 RecordsAffected 也拒绝。Core 本身仍完整物化。
-2. `src/SonnetDB.Protocol` 是无引擎依赖的信封/opcode/Span IO 程序集；Core 引用它。**托管类型从 Core 迁入 Protocol，不留旧类型转发，消费者须重编译；没有更改磁盘或 Frame v1 字节格式。**
-3. `connectors/dotnet/SonnetDB.Client` 只依赖 Protocol，提供原生 HTTP/2 单帧远程传输。拒绝 HTTP1/重定向/错误帧身份/截断/额外数据，整请求期限覆盖响应读取；调用方取消和客户端关闭释放在途流，发送后失败保留未知结果，无业务重试。
-4. 九模型 typed API、多帧 SQL/向量/图、对象下载、MQ 双工未接入新 Client；这些操作目前在单帧入口明确拒绝。不能把该基础入口当成完整 SDK。
+1. `embedded/native/SonnetDB.Native` 是唯一 AOT 导出工程。NativeResult 持有 reader/command，按 next 读取，不再在 ABI 层全量复制；EOF、失败、取消、提前 free、父连接关闭均清理资源。Core 自身仍完整物化。
+2. `src/SonnetDB.Protocol` 已脱离引擎，承载 Frame 信封/opcode/Span IO。类型迁移没有旧 type forwarding，消费者须重编译；没有修改磁盘和既有 Frame v1 字节。
+3. `connectors/dotnet/SonnetDB.Client` 只依赖 Protocol。单帧入口验证实际 HTTP/2、身份/预算/终态，拒绝 HTTP1、重定向和回落，整请求期限覆盖响应读取，取消/关闭释放在途流，未知结果不重试。
+4. 本次新增 `Sql/Execute=2`、独立 payload v1、精确参数/类型化 NULL 和 committed/影响行数终态。允许关系表 CREATE/DROP TABLE、无 RETURNING 的 INSERT/UPDATE/DELETE；Server 复用 Write 权限、SQL admission、AST 参数绑定和既有引擎原子性。
+5. 新测试直接通过新 Client 访问真实 h2c 产品 Server，验证精确值、完整宿主重开、权限、约束整句回滚、拒绝能力/畸形输入，以及引擎已提交后断响应仍保持未知且没有重试。最终计数和绑定身份见入库审计。
 
-## 现有证据
+## 仍未完成及已纠正的中间尝试
 
-| 证据 | 位置与含义 |
+- Execute 首片显式拒绝事务控制、RETURNING、过程/多结果、只读 SQL、其它 DDL/模型操作与 Workbench Preview。新 Client 尚无 SQL 多帧查询 API。禁止借旧 REST 补新 Client 的能力缺口。
+- 中间版本曾把旧 ADO 非事务写直接切到单响应 Execute，完整 ADO 153 项中出现 31 失败，含已有 RETURNING 功能回归和旧 REST/版本断言。**已撤出对 RemoteConnectionImpl、FrameChannel 和原 ADO 测试的修改，最终逐字与基线一致。** 旧混合 Data/ADO 的 REST/session 路径继续存在；先补 Frame 多结果/事务，再迁移，不能用拒绝已有功能虚称重构完成。
+- Core `SelectExecutionResult.Rows` 仍全量物化。R01/R02/R03、Native 脱离混合 Data、其余 embedded 绑定/BASIC 旧桥接迁移、各语言原生远程、九模型其它操作、性能/恢复及正式发行继续待办。
+- TLS/ALPN、SDK/Server NativeAOT 发布运行、其它平台/语言、完整 Core/Server、固定硬件/长稳、正式包消费者与远端 CI 均不能从本片局部通过推断。
+
+## 证据与新机复验
+
+| 范围 | 入库证据 |
 |---|---|
-| 首片 Native 10/10、旧 AOT/C 消费者 | `docs/audits/m49/native-lifetime-20261016`，含原 TRX 和补充计数；绝对临时路径是历史记录，EXE 已回收 |
-| D01 Client 195/195、Core 定向175/175、Native托管10/10、Server构建 | `docs/audits/m49/d01-20261016` 的 TRX/acceptance；各自 DLL/PDB/源码/包身份分列 |
-| 干净包真实HTTP2消费者源 | 上述目录 `consumer/`；只依赖本地生成的 Client/Protocol 包，无 Core/项目引用；宿主是协议回显，不是九模型 Server |
-| 本轮门禁 | 完整 solution restore、原 Format Check 和 CI 分片检查由对应提交前真实回执确认；workspace-load warning 单列 |
+| Native 历史托管 10/10 与 AOT/C 工程消费者 | `docs/audits/m49/native-lifetime-20261016`，原 TRX/补充计数；旧临时 EXE 已回收 |
+| D01 Client 195/195、Core 定向 175/175、Native 10/10、干净工程包 h2c | `docs/audits/m49/d01-20261016`，消费者是协议回显宿主 |
+| 本次 F01 新 Client、真实产品 Server、旧 ADO 回归 | `docs/audits/m49/f01-20261017`，以 `acceptance.json` 最终计数、源码/运行哈希和 TRX 为准，首轮失败保留 |
 
-本地 artifacts、nupkg/DLL、进程原始收据不随 Git 上传；重要计数、原 TRX、哈希、消费者源码和边界已入库。换机后不能继续依赖旧绝对路径，也不能把旧二进制成功算作新源码成功。
-
-## 新机最小复验
-
-先核 PS7、.NET 10 SDK、仓库/分支、submodule、网络代理和授权凭据。工具用 PATH、登记配置和已知小目录发现；旧机器 VS 路径、Ubuntu 工具路径只是历史信息，不能当新机已安装。长命令继续按 AGENTS 设置迭代/数量和墙钟上限、进程身份与自有 TEMP 回收，不直接套用 artifacts 中依赖旧 `D:/source/...` helper 的脚本。
-
-在正确 checkout 中依次运行：
+完整原始进程/命令收据在旧机 `artifacts/m49-f01-20261017`，重建不依赖它们。新机重新核 PS7、.NET 10、submodule、代理与授权凭据；编译器仅按 PATH/显式配置发现，不扫描大目录。长命令须有墙钟/次数边界、进程身份与完整自有子树清理。
 
 ```text
 dotnet restore SonnetDB.slnx
 dotnet test tests/SonnetDB.Client.Tests/SonnetDB.Client.Tests.csproj -c Release
-dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --filter "FullyQualifiedName~.IO.|FullyQualifiedName~Protocol.FrameHeaderTests"
+dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --filter "FullyQualifiedName~SqlExecuteFrameEndpointTests|FullyQualifiedName~SqlFrameEndpointTests|FullyQualifiedName~RemoteAdoHttp2TransportTests"
 dotnet test tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj -c Release
 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/
 ```
 
-这只是当前片复验，不替代完整 Core/Server、AOT、正式包或全部平台门禁。工程包的复现方法见 D01 审计 README；它们不是已公开的 NuGet 版本。
+每次提交仍须在最终源码上完整 restore 和原样 Format Check；不能拿本片 PASS 替代新机复验。正式包 API/兼容性门禁保持开启，没有因 Protocol 拆分而关闭或降级。
 
-## 下一片实现顺序
+## 下一会话顺序与保护边界
 
-1. **F01 SQL 写入/精确参数 Frame**：当前 `SqlFrameOp.Query=1` 只读，新 Client 拒绝这类多帧操作；设计新 opcode/明确版本与能力拒绝，补服务端参数绑定、写入/适用事务、响应终态和鉴权授权。不得复用编号改变语义，不得回落 REST/HTTP1，不拼 SQL 参数。
-2. **R01/R02/R03**：简单关系/measurement 的真实 Core pull 执行；快照、执行上下文、行/字节/期限和取消范围延续到消费结束。处理慢消费、缺 end、未知提交、提前释放和资源归零。不能用现有 MaterializedExecutionResult 或外层切帧冒称全链路有界。
-3. **继续 D01/C03**：Native 解除混合 Data/remote 依赖；迁移 C 头文件/构建、各语言 embedded 绑定和包；BASIC 仅远程，旧桥接待删除。把 .NET/C 两条真实链路按模型补齐，再扩 Go/Rust/Python/Java8 JNI、VB6/PureBasic 远程。
-4. **发行前单独收口**：Core 旧包兼容/API门禁、Protocol/Client 正式发布清单、NativeAOT、TLS/ALPN、Windows/Linux glibc/musl/macOS及适用x64/ARM64、真实九模型 demo/恢复/性能/干净正式消费者、远端CI。现有门禁没有关闭或降级；允许分批发行，但每批只声明实际通过矩阵。
+1. SQL Frame 多结果/RETURNING 的协议与新 Client 解码；再补适用事务、取消/未知提交和权限。完整合同齐备后迁移旧 ADO，逐项复验，避免丢失现有功能。
+2. R01/R02/R03 接简单关系/measurement 的真实 Core pull：快照/上下文/预算/取消保留至消费结束，不在完整 Rows 外包装分页。
+3. 继续 D01/C03：Native 脱离混合 Data，迁移 C 头/包/其它 embedded 绑定，删除 BASIC 嵌入式桥接；逐模型打通 .NET/C，然后扩 Go/Rust/Python/Java8 JNI 与 BASIC 远程。
+4. 每个正式批次独立收口：AOT、真实 HTTP2、模型 demo、恢复/性能、干净正式消费者和目标平台。首批仍只做九模型数据访问，AI/RAG/CDC/通用治理、外部对象存储和普通32位引擎后续。
 
-首批继续只做九模型数据访问。AI/RAG、CDC/通用流处理、备份/用户角色治理、普通32位引擎、外部对象存储和 FFM 非首批必选。Graph 保持 beta；本进程多线程，不新增多进程同目录共享写。确认需求以 `docs/design/connector-embedded-split-requirements-20261016.md` 为准，不再重复旧问卷。
-
-## 保护边界
-
-旧树未暂存的 M42 热点写规划、M47 状态表和 M42 专题是继承内容，未混入 M49 提交；它们可能不会出现在新电脑的这个分支，不能据此认定丢失或重做。M48 原 main 规划保留。只 stage 自有文件/hunk，不 reset/clean/stash-all 共享工作。`parity-results` 及远端引用永不合并或删除。当前授权是实现、验证、代码提交推送；公开发包/Release、部署、付费和对他人发消息不随之扩大。
+旧机 CHANGELOG/ROADMAP 的 M42/M47/D01 继承改动和 `docs/design/m42-relational-hot-write-concurrency.md` 未混入提交；不能 reset/clean/stash-all。只暂存本次自有路径/hunk，parity-results 及远端引用永不合并或删除。当前授权为实现、验证、交接、commit/push；公开发包、Release、部署、付费或对他人发消息另行处理。

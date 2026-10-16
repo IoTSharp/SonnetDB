@@ -56,10 +56,12 @@ public sealed class SndbFrameClient : IDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfGreaterThan(payload.Length, _maxPayloadBytes);
-        if (service is (byte)FrameService.Sql or (byte)FrameService.Vector or (byte)FrameService.Graph
+        if (service is (byte)FrameService.Vector or (byte)FrameService.Graph
             || service == (byte)FrameService.Object && operation == (byte)ObjectFrameOp.Get
             || service == (byte)FrameService.Mq && operation is (byte)MqFrameOp.Subscribe or (byte)MqFrameOp.Unsubscribe)
             throw new NotSupportedException("此操作需要多帧或双工合同，不能通过单响应入口执行。");
+        if (service == (byte)FrameService.Sql && operation != (byte)SqlFrameOp.Execute)
+            throw new NotSupportedException("SQL Query 需要多帧结果合同，不能通过单响应入口执行。");
 
         var buffer = new ArrayBufferWriter<byte>(checked(FrameHeader.Size + payload.Length));
         var header = new FrameHeader((uint)payload.Length, FrameHeader.CurrentVersion,
@@ -129,6 +131,40 @@ public sealed class SndbFrameClient : IDisposable
         catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException or FrameFormatException)
         {
             throw new SndbFrameException("frame_transport", "Frame 请求未取得可信的完整响应；结果可能未知。", exception);
+        }
+    }
+
+    /// <summary>通过 HTTP/2 Frame 执行一条自动提交 SQL 写语句。</summary>
+    /// <param name="db">目标数据库名。</param>
+    /// <param name="sql">单条 INSERT、UPDATE、DELETE 或受支持的 DDL。</param>
+    /// <param name="parameters">命名或位置参数；参数值以 Protocol 精确类型编码。</param>
+    /// <param name="streamId">请求关联编号。</param>
+    /// <param name="cancellationToken">调用方取消令牌。</param>
+    /// <returns>已提交的受影响行数。</returns>
+    public async Task<SqlExecuteFrameResponse> ExecuteSqlAsync(
+        string db,
+        string sql,
+        IReadOnlyList<SqlExecuteFrameParameter>? parameters = null,
+        uint streamId = 1,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        var encoded = new ArrayBufferWriter<byte>();
+        SqlExecuteFrameCodec.EncodeRequest(encoded, streamId, db, sql, parameters);
+        ReadOnlyMemory<byte> response = await SendUnaryAsync(
+            (byte)FrameService.Sql,
+            (byte)SqlFrameOp.Execute,
+            streamId,
+            encoded.WrittenMemory[FrameHeader.Size..],
+            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return SqlExecuteFrameCodec.DecodeResponse(response.Span);
+        }
+        catch (FrameFormatException exception)
+        {
+            throw new SndbFrameException("frame_sql_terminal", "SQL Execute 缺少可信的完成终态；结果可能未知。", exception);
         }
     }
 

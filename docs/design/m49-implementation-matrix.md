@@ -85,6 +85,12 @@ Ubuntu 的有界 `command -v` 已核得 `/usr/bin/gcc`、`/usr/bin/clang`、`/us
 
 当前仍依赖混合 `SonnetDB.Data`；Core 的 `SelectExecutionResult.Rows` 仍完整物化；同一 native result 的 next/value/free 与父连接关闭要求调用方串行。C API 尚无新的取消入口、精确类型或 ABI 版本协商。模拟缺终态的 IOException 不是实际 Frame 缺 end 测试。以上均不升级为 C02、D01、R01～R03 或整个 M49 完成。
 
+## F01 关系 SQL Execute=2 切片（2026-10-17）
+
+新独立 Client 已接通关系表自动提交写入：显式 payload v1、精确参数/类型化 NULL、4 MiB 累计输入、HTTP/2 exact、权限与准入、完整终态和未知提交无重试。支持 CREATE/DROP TABLE、无 RETURNING 的 INSERT/UPDATE/DELETE；事务/多结果/其它模型及 Preview 明确拒绝。协议与类型表见[SQL Execute](../sql-execute-frame.md)，真实宿主重开、原子性/断连与最终计数见[本片审计](../audits/m49/f01-20261017/README.md)。
+
+早期尝试自动迁移旧 ADO 导致 RETURNING 与旧协议回归，已撤出这些修改，旧 Data/ADO/session 行为保持基线；其迁移是尚未完成的 D01/F01 工作。不能用新 Client 的局部通过关闭旧路径、多结果/事务、九模型 F01 或 R01～R03。Core 仍完整物化，TLS/ALPN、NativeAOT 发布运行、跨平台、性能和正式消费者未验收。
+
 ## D01 共享协议与 .NET 远程依赖切片
 
 `SonnetDB.Protocol` 已独立于引擎，Core 引用它；`SonnetDB.Client` 只依赖 Protocol。相关托管类型直接改变程序集归属，消费者须重编译，Frame v1/磁盘字节不变。新远程入口验证实际 HTTP2、单帧完整性/预算和总期限，拒绝重定向/回落/已知多帧操作；取消、客户端关闭和传输失败保留未知结果。

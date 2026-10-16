@@ -18,6 +18,7 @@
 - GH-Issue #249：支持逐行列/表达式 JSON_VALUE path、动态数组下标和 JSON_OBJECT 类型安全对象谓词；对象保留精确 DECIMAL、整数、布尔、NULL 和转义，动态 JSON_VALUE 沿用静态 Int64 优先否则 Double 的取值合同，静态/参数 JSON 索引保持。补文档/文件/向量/时序/JOIN 的精确对象接线、预算/取消释放、真实 SqlSugar 同步异步三协议和重开验证；不改变目录或结果版本，正式包及上游发行仍需另验。
 
 - 修复原生 DATETIMEOFFSET 引入后的 EF Provider 映射兼容：默认 DTO 属性使用原生 UTC ticks，显式旧 DATETIME 布局通过查询列 CAST 保持参数/函数类型一致且继续保留旧毫秒存储精度；补齐 ADO DataTypes 的 DATETIMEOFFSET 目录项和跨协议旧 DATETIME 参数拒绝/显式兼容回归。不改变引擎混合类型比较守卫或持久格式，既有列迁移须显式执行。
+- M49-F01 关系 SQL 写入首片：新增独立 `Sql/Execute=2`、显式 payload v1、4 MiB 累计输入预算与精确参数/类型化 NULL；新 `SonnetDB.Client.ExecuteSqlAsync` 仅使用实际 HTTP/2，Server 支持关系表 CREATE/DROP TABLE 和无 RETURNING 的 INSERT/UPDATE/DELETE，复用 Write 权限、admission、AST 参数绑定及语句原子性。响应缺失/畸形、取消或断连保留未知提交且不重试；事务/多结果/其它模型显式拒绝。旧混合 Data 的 ADO/REST/session 迁移待完整 Frame 合同，未自动改接。见[协议与边界](docs/sql-execute-frame.md)及[验收](docs/audits/m49/f01-20261017/README.md)，F01/M49 继续进行中。
 
 - M49-D01：将 Frame 信封/opcode 和 SpanReader/SpanWriter 直接迁入零引擎依赖的 SonnetDB.Protocol，新增只依赖它的原生 .NET HTTP/2 单响应远程入口；真实 h2c、取消/关闭、预算、干净包消费者和依赖隔离已验证。托管 API 类型归属改变，消费者须重新编译；九模型 typed API、多帧 SQL/参数/事务、Core 有界执行和正式发行门禁仍待完成。换机入口见 docs/handoffs/m49-next-computer.md。
 
