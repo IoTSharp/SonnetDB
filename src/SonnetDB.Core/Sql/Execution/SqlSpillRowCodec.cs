@@ -26,6 +26,7 @@ internal static class SqlSpillRowCodec
         DateTimeOffset,
         Guid,
         Char,
+        Duration,
     }
 
     internal static long EstimateRowBytes(IReadOnlyList<object?> row)
@@ -149,6 +150,10 @@ internal static class SqlSpillRowCodec
                 writer.Write((byte)ValueKind.Char);
                 writer.Write(item);
                 break;
+            case TimeSpan item:
+                writer.Write((byte)ValueKind.Duration);
+                writer.Write(item.Ticks);
+                break;
             default:
                 throw new NotSupportedException(
                     $"SQL spill 不支持标量类型 '{value.GetType().FullName}'；查询已中止且未截断结果。");
@@ -178,6 +183,7 @@ internal static class SqlSpillRowCodec
             ValueKind.DateTimeOffset => new DateTimeOffset(reader.ReadInt64(), new TimeSpan(reader.ReadInt64())),
             ValueKind.Guid => new Guid(ReadExactBytes(reader, 16)),
             ValueKind.Char => reader.ReadChar(),
+            ValueKind.Duration => TimeSpan.FromTicks(reader.ReadInt64()),
             var kind => throw new InvalidDataException($"SQL spill 标量标记 {(byte)kind} 非法。"),
         };
 

@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 13;
+    private const int _formatVersion = 14;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -49,9 +49,10 @@ public static class TableSchemaCodec
         => SaveCore(path, schemas, tempSuffix, minimumVersion: 0);
 
     /// <summary>在修改无主键行或执行需恢复的 schema 迁移前持久化 v13 兼容屏障。</summary>
-    internal static void SaveWithRecoveryBarrier(string path, IReadOnlyList<TableSchema> schemas, string tempSuffix = ".tmp")
+    internal static void SaveWithRecoveryBarrier(string path, IReadOnlyList<TableSchema> schemas,
+        string tempSuffix = ".tmp", int minimumVersion = 13)
     {
-        SaveCore(path, schemas, tempSuffix, minimumVersion: 13);
+        SaveCore(path, schemas, tempSuffix, minimumVersion: Math.Max(13, minimumVersion));
         SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
     }
 
@@ -77,6 +78,8 @@ public static class TableSchemaCodec
         ArgumentNullException.ThrowIfNull(tempSuffix);
 
         minimumVersion = Math.Max(minimumVersion, ReadFormatVersion(path));
+        if (ContainsDuration(schemas))
+            minimumVersion = Math.Max(minimumVersion, 14);
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string tmpPath = path + tempSuffix;
@@ -90,7 +93,13 @@ public static class TableSchemaCodec
         }
 
         MoveWithTransientRetry(tmpPath, path);
+        // v14 是目录永久格式下限；目录刷新完成前不能开放 DURATION 行写入。
+        if (minimumVersion >= 14)
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
     }
+
+    internal static bool ContainsDuration(IReadOnlyList<TableSchema> schemas)
+        => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.Duration));
 
     /// <summary>对杀毒扫描或并发读句柄造成的短暂占用执行有上限的原子移动重试。</summary>
     private static void MoveWithTransientRetry(string sourcePath, string destinationPath)
@@ -210,6 +219,8 @@ public static class TableSchemaCodec
             var type = (TableColumnType)flags[0];
             if (!Enum.IsDefined(type))
                 throw new InvalidDataException($"TableSchema: invalid column type {flags[0]} for '{columnName}'.");
+            if (type == TableColumnType.Duration && version < 14)
+                throw new InvalidDataException("TableSchema: DURATION requires format version 14.");
 
             bool isPrimaryKey = (flags[1] & 0b0000_0001) != 0;
             bool isNullable = (flags[1] & 0b0000_0010) != 0;

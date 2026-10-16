@@ -421,8 +421,10 @@ public static class SqlExecutor
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
         RejectDirectModbusSourceWrites(tsdb, statement);
+        if (statement is SelectStatement sequenceQuery)
+            SqlDurationResultContract.ValidateBeforeSequence(tsdb, sequenceQuery);
 
-        return statement switch
+        object? executionResult = statement switch
         {
             CreateSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
             {
@@ -577,6 +579,9 @@ public static class SqlExecutor
             _ => throw new NotSupportedException(
                 $"SQL 语句类型 '{statement.GetType().Name}' 尚未实现。"),
         };
+        // 过程内 SELECT 必须在其拥有的事务提交前验证，动态表达式也不能逃过旧协议拒绝。
+        SqlDurationResultContract.Validate(executionResult);
+        return executionResult;
     }
 
     /// <summary>
@@ -2184,6 +2189,7 @@ public static class SqlExecutor
                         string => TableColumnType.String,
                         DateTime or DateTimeOffset => TableColumnType.DateTime,
                         TimeOnly => TableColumnType.Time,
+                        TimeSpan => TableColumnType.Duration,
                         byte[] => TableColumnType.Blob,
                         _ => null,
                     };
@@ -2719,6 +2725,7 @@ public static class SqlExecutor
             TableColumnType.String => "string",
             TableColumnType.DateTime => "datetime",
             TableColumnType.Time => "time",
+            TableColumnType.Duration => "duration",
             TableColumnType.Blob => "blob",
             TableColumnType.Json => "json",
             _ => type.ToString().ToLowerInvariant(),

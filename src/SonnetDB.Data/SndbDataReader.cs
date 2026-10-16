@@ -706,6 +706,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
                                 ? (short)15
                                 : fieldType == typeof(decimal)
                                     ? (short)29
+                                    : fieldType == typeof(TimeSpan) ? (short)19
                                     : fieldType == typeof(TimeOnly)
                                         ? (short)7
                                     : (short)0;
@@ -713,7 +714,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     private static short GetNumericScale(Type fieldType)
         => fieldType == typeof(float) || fieldType == typeof(double) || fieldType == typeof(decimal)
             ? (short)15
-            : fieldType == typeof(TimeOnly) ? (short)7
+            : fieldType == typeof(TimeOnly) || fieldType == typeof(TimeSpan) ? (short)7
             : (short)0;
 
     private static DbType GetProviderType(Type fieldType)

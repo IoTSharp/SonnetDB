@@ -173,6 +173,25 @@ internal static class SqlScalarOperations
         if (left is null || right is null)
             return null;
 
+        if (operatorValue == SqlBinaryOperator.Subtract && left is DateTime leftDate && right is DateTime rightDate)
+            return leftDate - rightDate;
+        if (left is TimeSpan leftDuration && right is TimeSpan rightDuration)
+        {
+            try
+            {
+                return operatorValue switch
+                {
+                    SqlBinaryOperator.Add => leftDuration + rightDuration,
+                    SqlBinaryOperator.Subtract => leftDuration - rightDuration,
+                    _ => throw new InvalidOperationException("DURATION 只支持时长加减。"),
+                };
+            }
+            catch (OverflowException exception)
+            {
+                throw new InvalidOperationException("DURATION 运算超出 Int64 ticks 范围。", exception);
+            }
+        }
+
         if (operatorValue is SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr)
         {
             if (!IsIntegral(left) || !IsIntegral(right))
@@ -228,6 +247,14 @@ internal static class SqlScalarOperations
     {
         if (value is null)
             return null;
+        if (value is TimeSpan duration)
+        {
+            try { return duration.Negate(); }
+            catch (OverflowException exception)
+            {
+                throw new InvalidOperationException("DURATION 取负超出 Int64 ticks 范围。", exception);
+            }
+        }
         if (!IsNumeric(value))
             throw new InvalidOperationException("一元负号只支持数值操作数。");
 

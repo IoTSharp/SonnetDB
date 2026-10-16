@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
@@ -229,9 +229,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
             IReadOnlyList<FrameMessage>? frames = null;
-            string requestedVersion = SqlFrameCodec.NativeDateTimeResultVersion;
+            string requestedVersion = SqlFrameCodec.NativeDurationResultVersion;
             // 只有服务端明确在执行前拒绝版本时，才继续旧版协商；旧版不承诺原生日期合同。
-            foreach (string version in new[] { SqlFrameCodec.NativeDateTimeResultVersion,
+            foreach (string version in new[] { SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
                 SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
             {
                 requestedVersion = version;
@@ -244,9 +244,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             {
                 if (frames[0].Header.IsError)
                     return BuildSqlResult(frames);
-                var meta = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload, out bool nativeDateTime);
+                var meta = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload,
+                    out bool nativeDateTime, out bool nativeDuration);
                 if (meta.ColumnInfo is not null
-                    && nativeDateTime == (requestedVersion == SqlFrameCodec.NativeDateTimeResultVersion))
+                    && nativeDateTime == (requestedVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion)
+                    && nativeDuration == (requestedVersion == SqlFrameCodec.NativeDurationResultVersion))
                     return BuildSqlResult(frames);
                 throw new SndbServerException("frame_sql_result_version_unsupported",
                     "服务端未协商 SQL Frame 声明结果格式；SQL 已执行，不能自动重发。请升级服务端或在新请求中显式选择 Protocol=rest。",
@@ -258,12 +260,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var body = new SqlRequestBody { Sql = sql };
         var json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlRequestBody);
 
-        using var request = CreateRequest(
-            HttpMethod.Post,
-            url,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-
-        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+        var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         try
         {
@@ -287,6 +284,32 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             && frames[0].Header.Service == (byte)FrameService.Sql
             && frames[0].Header.Op == (byte)SqlFrameOp.Query && frames[0].Header.StreamId == 1
             && FrameCodec.ReadErrorPayload(frames[0].Payload).Code == "unsupported_result_version";
+
+    /// <summary>仅在服务端明确于执行前拒绝 v5 时重建请求降至 v4；普通错误和未知结果绝不重发。</summary>
+    private async Task<HttpResponseMessage> SendSqlRequestAsync(string url, string json,
+        HttpCompletionOption completion, CancellationToken cancellationToken)
+    {
+        foreach (string version in new[] { SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion })
+        {
+            using var request = CreateRequest(HttpMethod.Post, url,
+                new StringContent(json, Encoding.UTF8, "application/json"));
+            request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
+            request.Headers.Add(SqlFrameCodec.ResultVersionHeader, version);
+            HttpResponseMessage response = await _http!.SendAsync(request, completion, cancellationToken).ConfigureAwait(false);
+            if (version != SqlFrameCodec.NativeDurationResultVersion || response.StatusCode != HttpStatusCode.BadRequest)
+                return response;
+            SndbServerException failure;
+            try { failure = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false); }
+            catch { response.Dispose(); throw; }
+            if (failure.Error != "unsupported_result_version")
+            {
+                response.Dispose();
+                throw failure;
+            }
+            response.Dispose();
+        }
+        throw new InvalidOperationException("SQL 结果格式协商未产生响应。");
+    }
 
     /// <summary>
     /// 判别 SQL 是否为可走帧的只读数据面语句（SELECT / SHOW-数据面 / DESCRIBE / EXPLAIN）。
@@ -378,6 +401,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string[] columns = [];
         SelectColumnInfo[]? columnInfo = null;
         bool nativeDateTime = false;
+        bool nativeDuration = false;
         var rows = new List<IReadOnlyList<object?>>();
 
         foreach (FrameMessage frame in frames)
@@ -386,10 +410,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
             {
                 case SqlQueryChunkKind.Meta:
-                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime);
+                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime, out nativeDuration);
                     break;
                 case SqlQueryChunkKind.Rows:
-                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime))
+                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime, nativeDuration))
                     {
                         if (columnInfo is not null)
                         {
@@ -973,11 +997,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             new SqlBatchRequestBody { Statements = [.. statements] },
             RemoteJsonContext.Default.SqlBatchRequestBody);
 
-        using var request = CreateRequest(
-            HttpMethod.Post,
-            url,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
+        using var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -1139,14 +1159,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var json = JsonSerializer.Serialize(
             new SqlBatchRequestBody { Statements = [.. statements] },
             RemoteJsonContext.Default.SqlBatchRequestBody);
-        using var request = CreateRequest(
-            HttpMethod.Post,
-            url,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-        using var response = await _http.SendAsync(
-                request,
-                HttpCompletionOption.ResponseContentRead,
-                cancellationToken)
+        using var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -1207,14 +1220,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var json = JsonSerializer.Serialize(
             new SqlBatchRequestBody { Statements = statements },
             RemoteJsonContext.Default.SqlBatchRequestBody);
-        using var request = CreateRequest(
-            HttpMethod.Post,
-            url,
-            new StringContent(json, Encoding.UTF8, "application/json"));
-        using var response = await _http.SendAsync(
-                request,
-                HttpCompletionOption.ResponseContentRead,
-                cancellationToken)
+        using var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -1245,7 +1251,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 var values = new object?[columns.Length];
                 for (int i = 0; i < values.Length; i++)
                     values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i],
-                        RemoteExecutionResult.HasNativeDateTimeResult(response));
+                        RemoteExecutionResult.HasNativeDateTimeResult(response), RemoteExecutionResult.HasNativeDurationResult(response));
                 rows.Add(values);
                 continue;
             }
@@ -1664,6 +1670,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             "STRING" or "TEXT" => TableColumnType.String,
             "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
             "TIME" or "TIMEONLY" => TableColumnType.Time,
+            "DURATION" => TableColumnType.Duration,
             "BLOB" or "BINARY" => TableColumnType.Blob,
             "JSON" => TableColumnType.Json,
             _ => Enum.TryParse<TableColumnType>(value, ignoreCase: true, out var parsed)

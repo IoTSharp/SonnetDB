@@ -5,6 +5,29 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16 10:08，#252 根验收与基线交接）
+
+- 当前监督树仍 D:/source/SonnetDB-worktrees/issue-supervision-batch05，基线 HEAD390af19d；本条随 #252 的独立实现提交，提交前必须在最终树实际通过完整 restore 与原 Format Check（root-gate）。本项尚未推送、未回复252、未关闭；完整正式发行/Chloe上游交付仍缺。
+- #252 冻结manifest SHA521BC1F4DEE62C151CCABB2F89D709E4FC482015561FD3124505B5310D297F70，根核70源码、341证据、31运行程序集及4TRX后只集成54文件，16未变依赖不覆盖。清单旧integrationRoot指向主目录f9，但所有前置文件SHA与实际390监督树匹配，实际映射另存。原主目录他人文档及所有旧树/失败证据保留。
+- 根最终源码：Core SQL/协议/迁移3139/3139、真实远程整类141/141，两个Release及Data显式AOT/Trim构建均零警告/错误。代理冻结Core3084/3084、定向44/44、远程126/126、强杀7/7；Chloe每协议26+17，旧v4TIME每协议5+2，旧v13屏障6阶段共18次探针。重叠计数不累加；根核原证据未重复消费者/强杀。旧引擎对completed日志重复写同字节完成标记，仅mtime变，不能称零文件写；没有断电或NativeAOT发布证据。
+- #252 使用DURATION完整Int64 ticks、100ns，显式DbType.Time保留TIME旧Server兼容；schema v14永久屏障与恢复、含时长snapshot v3、Frame/REST v5。DATETIME列/默认日期参数仍毫秒，不冒称解决236。正式报告issue-252-implementation-20261016.md及完整哈希issue-252-evidence-20261016.json；首轮暂存CRLF仅CHANGELOG新行，原件保存后归一LF，生产未改。
+- issue312已在issue251-datetimeoffset保留准备后快进390af并按SHA接54文件，交接baseline-252-sync.json SHA5CB9CCB8D7D0370F45C74C6B9982ED0FF94DF402D2FD2E9DA734070173200866。现在唯一共享生产写入者，实施DTO原生UTC instant，保留DATETIME及显式旧DbType，混合DTO/DateTime/整数比较须在所有快捷路径前一致拒绝；版本从252顺延，Chloe继承252五文件候选。
+- issue313唯一250在issue250-maintenance等待251交付；准备checkpoint02 SHA1BEA7DF2693AEE9128BE1294EFE421AA56943D1103E4376D1A56944527A58C68，根核16源码，Core1PASS/27FAIL、三协议6FAIL，5个kill例仅编译未接dispatcher。不得把失败准备提交成完成，三合同不能因227停做，CodeFirst真实阻断保留。
+- issue314完成252转唯一249，树D:/source/SonnetDB-worktrees/issue249-dynamic-json（codex/issue249-dynamic-json，390af）。真实公开4.0/预览/旧源码每份4静态控制PASS+11缺口拒绝；原First()排序失败保留。批准新增独占JSON helper/测试/消费者准备，现有FunctionRegistry/TableSqlExecutor/RSE及文档执行器接线等251→250冻结；decimal对象构造/谓词须保真，动态JSON_VALUE沿用静态Int64优先否则Double合同。
+- 批次05远端main仍390af19d，parity-results保持2ab6caa9。CI38836248581最新六job已success（含先前失败的Windows rest），仅Windows Core运行；不为本记录push取消CI。256/255/254/253既有评论及OPEN回读不重复；批次05永久回执随本项纳入提交。旧CI38831797384仍failure，原证据不改写。
+- 226=285186b8、243=b6e674c4源码恢复补缺已推送，线上原评论及OPEN已再次核实无新变化，不重做；正式包/对应消费者条件继续跟踪。下一步完成252独立提交、继续监督251，冻结后交250；249独立文件可并行、共享接线串行。批次齐后正常push、回读main/parity及CI、逐项回复再核关闭条件。主目录仍main=f9加他人未提交文档，不混入或清理。
+
+## 最新监督检查点（2026-10-16，批次05已推送与回复）
+
+- 当前监督树仍 D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05，HEAD与远端main实际回读390af19d2c24ef8e9f0d7ccfa42dbe1f5fd8bb0e。已用普通快进git push origin HEAD:refs/heads/main推送；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- 本批已推送独立提交：256=f9ee14b7、254=6749d202、255=da1199a2、253=18d9019f；另有独立对象回填页预算测试修正390af19d（仅测试，确定性旧断言2PASS/1FAIL，新整组20/20，两次Release零警告/错误）。该修正初轮完整门禁通过后暂存检查发现新审计JSON的CRLF，原文件留证并仅归一LF；最终final-lf完整restore/Format均实际exit0，暂存检查通过才commit。
+- 256/255/254/253已逐项回复并回读作者maikebing、完整正文和OPEN状态，评论ID依次6206069579/6206070592/6206071543/6206072464。永久回执docs/audits/issue-supervision-batch05-actions-20261016.json。正式匹配Core/Data/Server与对应ORM上游交付仍缺，四项未关闭；外部候选未外发。
+- 新精确SHA CI38836248581已启动，当前in_progress，尚不能宣称全绿；继续回读，避免为记录再push取消它。旧批次04 CI38831797384保持failure，六job成功、Windows rest唯一页预算断言失败；原日志、10TRX、确定性复现及SHA保留在永久审计，不以本地20/20覆盖旧run。
+- 主目录D:/source/SonnetDB仍本地main=f9ee14b7、落后origin/main4提交；其它文档会话虽已结束，仍留下CHANGELOG/HANDOFF/llms.txt/llms-full.txt和ELK分析未交付文件，本监督未修改或暂存这些内容。后续同步须保留他人差异及交接，不重置/丢弃/混入，继续在独立树推进。
+- 代理issue314唯一252尚未冻结：远程整类126/126、实际迁移强杀7/7及旧13打开/新恢复/再拒14的18步已由代理报告。旧13对pending/recovery文件hash和mtime不变；complete仅重复写同字节日志完成标记导致mtime变，raw/WAL和字节不变，不能称旧进程完全零文件写。新Data显式DbType.Time+一天内TimeSpan在真实旧v4Server两协议写查重启通过，27h显式TIME拒绝；Chloe批量入口候选亦修正，但最终全Core/AOT与冻结清单仍待根复审，不提前算验收完成。
+- issue312的251准备完成，等待252最终共享基线；issue313的250只准备约束/方向/INCLUDE/自增及真实SqlSugar证据，不预占版本或改共享生产。依赖交接252→251→250保持。226/243源码及恢复补缺已推送不重做，正式发行/对应消费者继续跟踪。
+- 本检查点和批次05回执在push后产生，暂留本监督树待下一Issue独立提交时随交接纳入，不为巡检单独制造提交或push；主目录他人交接不覆盖。30分钟监督ACTIVE，当前队列已更新；全部旧树/失败证据/parity-results保留。
+
 ## 最新监督检查点（2026-10-16 09:30，CI 回填页断言修正）
 
 - 本监督继续在 D:/source/SonnetDB-worktrees/issue-supervision-batch05（codex/issue-supervision-batch05）工作。批次05四项独立提交已齐：256=f9ee14b7、254=6749d202、255=da1199a2、253=18d9019f，目前尚未推送。各项既有完整门禁实际通过，不重做；四项正式发行/对应ORM上游交付尚缺，推送后回复并保持OPEN。

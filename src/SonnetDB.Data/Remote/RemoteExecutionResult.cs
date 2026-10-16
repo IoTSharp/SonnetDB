@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Data.Internal;
@@ -32,6 +32,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly ExecutionColumnMetadata[]? _columnMetadata;
     private readonly bool _inferMissingColumnTypes;
     private readonly bool _nativeDateTime;
+    private readonly bool _nativeDuration;
     private object?[] _currentRow;
     private bool _ended;
     private long _rowsRead;
@@ -54,6 +55,9 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _columnMetadata = columnMetadata;
         _inferMissingColumnTypes = inferMissingColumnTypes;
         _nativeDateTime = HasNativeDateTimeResult(response);
+        _nativeDuration = HasNativeDurationResult(response);
+        if (!_nativeDuration && columnTypes.Contains(ExecutionFieldTypeKind.Duration))
+            throw new InvalidDataException("远程 DURATION 声明缺少 SQL v5 协商确认。");
         _currentRow = new object?[columns.Length];
         RecordsAffected = -1; // SELECT 默认；非 SELECT 在末行被覆盖
     }
@@ -129,7 +133,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (n != _columns.Length)
                 throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
             for (int i = 0; i < n; i++)
-                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i], _nativeDateTime);
+                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i], _nativeDateTime, _nativeDuration);
             _rowsRead++;
             return true;
         }
@@ -260,6 +264,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                                             "string" => TableColumnType.String,
                                             "datetime" => TableColumnType.DateTime,
                                             "time" => TableColumnType.Time,
+                                            "duration" => TableColumnType.Duration,
                                             "blob" => TableColumnType.Blob,
                                             "json" => TableColumnType.Json,
                                             _ => null,
@@ -341,20 +346,26 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _ => null,
     };
 
-    internal static object? ReadScalar(JsonElement element, string? columnType, bool nativeDateTime = false)
+    internal static object? ReadScalar(JsonElement element, string? columnType, bool nativeDateTime = false, bool nativeDuration = false)
         => ReadTypedScalar(element, columnType switch
         {
             "float64" => ExecutionFieldTypeKind.Double,
             "decimal" => ExecutionFieldTypeKind.Decimal,
             "datetime" => ExecutionFieldTypeKind.DateTime,
             "time" => ExecutionFieldTypeKind.TimeOnly,
+            "duration" => ExecutionFieldTypeKind.Duration,
             "blob" => ExecutionFieldTypeKind.ByteArray,
             _ => ExecutionFieldTypeKind.Object,
-        }, nativeDateTime);
+        }, nativeDateTime, nativeDuration);
 
     internal static bool HasNativeDateTimeResult(HttpResponseMessage response)
         => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
-            && versions.SequenceEqual([SqlFrameCodec.NativeDateTimeResultVersion]);
+            && (versions.SequenceEqual([SqlFrameCodec.NativeDateTimeResultVersion])
+                || versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion]));
+
+    internal static bool HasNativeDurationResult(HttpResponseMessage response)
+        => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
+            && versions.SequenceEqual([SqlFrameCodec.NativeDurationResultVersion]);
 
     internal static SelectColumnInfo[]? ReadColumnDeclarations(JsonElement meta, int columnCount)
     {
@@ -378,6 +389,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                 "string" => TableColumnType.String,
                 "datetime" => TableColumnType.DateTime,
                 "time" => TableColumnType.Time,
+                "duration" => TableColumnType.Duration,
                 "blob" => TableColumnType.Blob,
                 "json" => TableColumnType.Json,
                 _ => (TableColumnType?)null,
@@ -397,8 +409,24 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         return declarations;
     }
 
-    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type, bool nativeDateTime)
+    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type, bool nativeDateTime, bool nativeDuration)
     {
+        if (type == ExecutionFieldTypeKind.Duration || element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty("$type", out var durationType) && durationType.ValueKind == JsonValueKind.String
+            && durationType.GetString() == "duration")
+        {
+            if (!nativeDuration)
+                throw new InvalidDataException("远程 DURATION 值缺少 SQL v5 协商确认。");
+            if (element.ValueKind == JsonValueKind.Null)
+                return null;
+            if (element.ValueKind != JsonValueKind.Object || element.EnumerateObject().Count() != 2
+                || !element.TryGetProperty("$type", out var tag) || tag.ValueKind != JsonValueKind.String
+                || tag.GetString() != "duration"
+                || !element.TryGetProperty("ticks", out var tickValue) || tickValue.ValueKind != JsonValueKind.Number
+                || !tickValue.TryGetInt64(out long ticks))
+                throw new InvalidDataException("远程 DURATION 值必须包含完整的有符号 Int64 ticks。");
+            return TimeSpan.FromTicks(ticks);
+        }
         if (element.ValueKind == JsonValueKind.Null)
             return null;
         if (nativeDateTime && (type == ExecutionFieldTypeKind.DateTime
@@ -528,6 +556,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             "datetime" => ExecutionFieldTypeKind.DateTime,
             "datetimeoffset" => ExecutionFieldTypeKind.DateTimeOffset,
             "time" => ExecutionFieldTypeKind.TimeOnly,
+            "duration" => ExecutionFieldTypeKind.Duration,
             "guid" => ExecutionFieldTypeKind.Guid,
             "geopoint" => ExecutionFieldTypeKind.GeoPoint,
             "blob" => ExecutionFieldTypeKind.ByteArray,

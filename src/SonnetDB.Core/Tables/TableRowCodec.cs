@@ -122,7 +122,7 @@ internal static class TableRowCodec
             TableColumnType.Int64 => 8,
             TableColumnType.Float64 => 8,
             TableColumnType.Decimal => 16,
-            TableColumnType.Time => 8,
+            TableColumnType.Time or TableColumnType.Duration => 8,
             TableColumnType.Boolean => 1,
             TableColumnType.DateTime => 8,
             TableColumnType.String or TableColumnType.Json => 4 + _utf8.GetByteCount((string)value),
@@ -146,6 +146,9 @@ internal static class TableRowCodec
                 return;
             case TableColumnType.Time:
                 writer.WriteInt64(ConvertTimeValue(value).Ticks);
+                return;
+            case TableColumnType.Duration:
+                writer.WriteInt64(((TimeSpan)value).Ticks);
                 return;
             case TableColumnType.Boolean:
                 writer.WriteByte((bool)value ? (byte)1 : (byte)0);
@@ -173,6 +176,7 @@ internal static class TableRowCodec
             TableColumnType.Float64 => reader.ReadDouble(),
             TableColumnType.Decimal => ReadDecimal(ref reader),
             TableColumnType.Time => TimeOnly.FromTimeSpan(TimeSpan.FromTicks(reader.ReadInt64())),
+            TableColumnType.Duration => TimeSpan.FromTicks(reader.ReadInt64()),
             TableColumnType.Boolean => reader.ReadByte() != 0,
             TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(reader.ReadInt64()).UtcDateTime,
             TableColumnType.String => ReadString(ref reader),

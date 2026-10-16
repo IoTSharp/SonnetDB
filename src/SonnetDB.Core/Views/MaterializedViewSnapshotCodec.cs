@@ -10,7 +10,7 @@ namespace SonnetDB.Views;
 
 internal static class MaterializedViewSnapshotCodec
 {
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxColumnCount = 65_535;
@@ -35,6 +35,7 @@ internal static class MaterializedViewSnapshotCodec
         Blob = 10,
         Vector = 11,
         GeoPoint = 12,
+        Duration = 13,
     }
 
     public static void Save(string path, SelectExecutionResult result)
@@ -88,7 +89,10 @@ internal static class MaterializedViewSnapshotCodec
         Span<byte> header = stackalloc byte[HeaderSize];
         header.Clear();
         Magic.CopyTo(header);
-        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), FormatVersion);
+        bool hasDuration = result.ColumnInfo?.Any(static info => info.DataType == TableColumnType.Duration) == true
+            || result.ColumnSchema?.Any(static column => column.DataType == TableColumnType.Duration) == true
+            || result.Rows.Any(static row => row.Any(static value => value is TimeSpan));
+        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), hasDuration ? FormatVersion : 2);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(12, 4), HeaderSize);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(16, 4), result.Columns.Count);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(20, 4), result.Rows.Count);
@@ -133,7 +137,7 @@ internal static class MaterializedViewSnapshotCodec
         if (!header[..Magic.Length].SequenceEqual(Magic))
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header magic.");
         int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
-        if (version is not (1 or FormatVersion))
+        if (version is < 1 or > FormatVersion)
             throw new InvalidDataException($"MaterializedViewSnapshot: unsupported format version {version}.");
         if (BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize)
             throw new InvalidDataException("MaterializedViewSnapshot: invalid header size.");
@@ -146,7 +150,7 @@ internal static class MaterializedViewSnapshotCodec
         if (source.CanSeek)
         {
             long minimumRemaining = checked(
-                (long)columnCount * (sizeof(int) + (version == 2 ? 8 : 0))
+                (long)columnCount * (sizeof(int) + (version >= 2 ? 8 : 0))
                 + (long)rowCount * columnCount
                 + FooterSize);
             if (source.Length - source.Position < minimumRemaining)
@@ -170,7 +174,7 @@ internal static class MaterializedViewSnapshotCodec
             byte precision = ReadByte(source, crc, "declaration precision");
             byte scale = ReadByte(source, crc, "declaration scale");
             int size = ReadInt32(source, crc, "declaration size");
-            if (type > 9 || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
+            if (type > (version >= 3 ? 10 : 9) || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
                 throw new InvalidDataException("MaterializedViewSnapshot: invalid declaration metadata.");
             var info = new SelectColumnInfo(type == 0 ? null : (TableColumnType)type,
                 (flags & 0x10) == 0 ? null : (flags & 1) != 0,
@@ -188,7 +192,7 @@ internal static class MaterializedViewSnapshotCodec
         {
             var row = new object?[columnCount];
             for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
-                row[columnIndex] = ReadValue(source, crc, rowIndex, columnIndex);
+                row[columnIndex] = ReadValue(source, crc, rowIndex, columnIndex, version);
             rows[rowIndex] = row;
         }
 
@@ -205,7 +209,7 @@ internal static class MaterializedViewSnapshotCodec
 
     private static void ValidateDeclaration(SelectColumnInfo info)
     {
-        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 9
+        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 10
             || info.NumericPrecision.HasValue != info.NumericScale.HasValue
             || info.NumericPrecision is 0 or > 38 || info.NumericScale is > 38
             || info.NumericScale > info.NumericPrecision
@@ -255,6 +259,10 @@ internal static class MaterializedViewSnapshotCodec
                 WriteInt64(destination, crc, dateTimeOffset.Ticks);
                 WriteInt64(destination, crc, dateTimeOffset.Offset.Ticks);
                 return;
+            case TimeSpan duration:
+                WriteByte(destination, crc, (byte)ValueKind.Duration);
+                WriteInt64(destination, crc, duration.Ticks);
+                return;
             case byte[] bytes:
                 WriteByte(destination, crc, (byte)ValueKind.Blob);
                 WriteBytes(destination, crc, bytes, MaxValueBytes);
@@ -278,7 +286,7 @@ internal static class MaterializedViewSnapshotCodec
         }
     }
 
-    private static object? ReadValue(Stream source, Crc32 crc, int rowIndex, int columnIndex)
+    private static object? ReadValue(Stream source, Crc32 crc, int rowIndex, int columnIndex, int version)
     {
         var kind = (ValueKind)ReadByte(source, crc, $"row {rowIndex} column {columnIndex} kind");
         return kind switch
@@ -293,6 +301,7 @@ internal static class MaterializedViewSnapshotCodec
             ValueKind.String => ReadString(source, crc, MaxValueBytes, "string value"),
             ValueKind.DateTime => ReadDateTime(source, crc),
             ValueKind.DateTimeOffset => ReadDateTimeOffset(source, crc),
+            ValueKind.Duration when version >= 3 => TimeSpan.FromTicks(ReadInt64(source, crc, "duration ticks")),
             ValueKind.Blob => ReadBytes(source, crc, MaxValueBytes, "blob value"),
             ValueKind.Vector => ReadVector(source, crc),
             ValueKind.GeoPoint => GeoPoint.Create(

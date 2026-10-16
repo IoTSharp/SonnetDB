@@ -58,6 +58,9 @@ public enum SqlDataType
     Json,
     /// <summary>仅时间值；关系表中按 TimeOnly ticks 持久化，不包含日期或时区。</summary>
     Time,
+
+    /// <summary>带符号时长；关系表中按完整 TimeSpan ticks 持久化。</summary>
+    Duration,
 }
 
 /// <summary>SQL 层支持的二元运算符。</summary>

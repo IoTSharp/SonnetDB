@@ -4304,6 +4304,7 @@ internal static partial class RelationalSelectExecutor
                 SqlDataType.String => TableColumnType.String,
                 SqlDataType.DateTime => TableColumnType.DateTime,
                 SqlDataType.Time => TableColumnType.Time,
+                SqlDataType.Duration => TableColumnType.Duration,
                 SqlDataType.Blob => TableColumnType.Blob,
                 SqlDataType.Json => TableColumnType.Json,
                 _ => null,
@@ -4330,6 +4331,11 @@ internal static partial class RelationalSelectExecutor
             TableColumnType? type = null;
             if (!IsArithmeticOperator(binary.Operator))
                 type = TableColumnType.Boolean;
+            else if (binary.Operator == SqlBinaryOperator.Subtract
+                && left.DataType == TableColumnType.DateTime && right.DataType == TableColumnType.DateTime
+                || binary.Operator is SqlBinaryOperator.Add or SqlBinaryOperator.Subtract
+                && left.DataType == TableColumnType.Duration && right.DataType == TableColumnType.Duration)
+                type = TableColumnType.Duration;
             else if (binary.Operator is SqlBinaryOperator.BitwiseAnd or SqlBinaryOperator.BitwiseOr)
                 type = left.DataType == TableColumnType.Int64 && right.DataType == TableColumnType.Int64
                     ? TableColumnType.Int64 : null;

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -356,6 +356,8 @@ internal static class SqlEndpointHandler
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
+                                AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
+                                    == SqlFrameCodec.NativeDurationResultVersion,
                                 CanWrite = canWrite,
                                 CanAdminister = canAdministerDatabase,
                                 MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -661,7 +663,9 @@ internal static class SqlEndpointHandler
             await using (var rowWriter = new Utf8JsonWriter(body, options))
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeResultVersion);
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeResultVersion
+                        || context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDurationResultVersion,
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDurationResultVersion);
             }
             await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
             count++;
@@ -678,6 +682,7 @@ internal static class SqlEndpointHandler
         TableColumnType.Boolean => "boolean",
         TableColumnType.DateTime => "datetime",
         TableColumnType.Time => "time",
+        TableColumnType.Duration => "duration",
         TableColumnType.Blob => "blob",
         _ => "string",
     };
@@ -689,6 +694,7 @@ internal static class SqlEndpointHandler
         decimal => "decimal",
         bool => "boolean",
         DateTime => "datetime",
+        TimeSpan => "duration",
         string or DateTimeOffset or TimeOnly or Guid or byte[] => "string",
         GeoPoint => "geopoint",
         float[] or Memory<float> or ReadOnlyMemory<float> => "vector",
@@ -700,7 +706,7 @@ internal static class SqlEndpointHandler
         string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
         if (version.Length == 0 || version is "1" or "2" or "3")
             return true;
-        if (version == SqlFrameCodec.NativeDateTimeResultVersion)
+        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion)
         {
             context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = version;
             return true;

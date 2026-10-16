@@ -72,9 +72,9 @@ public sealed class SqlTimeTests : IDisposable
         SqlExecutor.Execute(db, "CREATE TABLE schedule (id INT, starts TIME, PRIMARY KEY (id))");
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
             db, "INSERT INTO schedule (id, starts) VALUES (1, '24:00:00')"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => SqlParameterBinder.Bind(
-            SqlParser.Parse("SELECT @starts"),
-            new SqlParameters().AddNamed("starts", TimeSpan.FromDays(1))));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            db, databaseName: null, sql: "INSERT INTO schedule(id,starts) VALUES(1,@starts)",
+            parameters: new SqlParameters().AddNamed("starts", TimeSpan.FromDays(1)), controlPlane: null));
     }
 
     private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });

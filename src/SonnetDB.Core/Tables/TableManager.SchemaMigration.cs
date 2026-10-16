@@ -97,7 +97,7 @@ public sealed partial class TableManager
         TableSchema current, TableSchema updated, IReadOnlyList<TableSchema> schemas)
     {
         var changedTypes = current.Columns.Where(column =>
-            column.DataType != updated.Columns[column.Ordinal].DataType).Select(static column => column.Name)
+            column.DataType != updated.TryGetColumn(column.Name)?.DataType).Select(static column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
         if (current.ForeignKeys.Any(foreignKey => foreignKey.Columns.Any(changedTypes.Contains)))
             throw SchemaMigrationUnsupported(current.Name, "主键类型迁移暂不支持同时承担出站外键的列。");
@@ -251,7 +251,8 @@ public sealed partial class TableManager
         try
         {
             // 屏障必须早于 pending 日志。任意一次失败或恢复都不降回允许旧引擎写入的版本。
-            TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, previousSchemas);
+            TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, previousSchemas,
+                minimumVersion: TableSchemaCodec.ContainsDuration(candidateSchemas) ? 14 : 13);
             SchemaMigrationPhaseTestHook?.Invoke("after-barrier");
             TableSchemaMigrationJournal.Prepare(SchemaMigrationJournalPath, originalCatalog, undoTables);
             journalPrepared = true;

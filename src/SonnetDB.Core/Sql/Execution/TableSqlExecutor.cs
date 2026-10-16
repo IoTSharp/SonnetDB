@@ -1256,7 +1256,10 @@ internal static class TableSqlExecutor
             return [];
 
         if (requestedColumns.Count == 1 && requestedColumns[0] == "*")
+        {
+            SqlDurationResultContract.ValidateReturning(schema.Columns);
             return [.. schema.Columns];
+        }
 
         var columns = new TableColumn[requestedColumns.Count];
         for (int i = 0; i < columns.Length; i++)
@@ -1267,6 +1270,7 @@ internal static class TableSqlExecutor
                     $"table '{schema.Name}' 的 RETURNING 中不存在列 '{name}'。");
         }
 
+        SqlDurationResultContract.ValidateReturning(columns);
         return columns;
     }
 
@@ -3084,6 +3088,7 @@ internal static class TableSqlExecutor
             TableColumnType.String or TableColumnType.Json => value is string,
             TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
             TableColumnType.Time => value is TimeOnly or TimeSpan or string,
+            TableColumnType.Duration => value is TimeSpan or string or long or int or short or sbyte or byte or ushort or uint or ulong,
             TableColumnType.Blob => value is byte[],
             TableColumnType.Decimal => value is
                 byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal,
@@ -5528,6 +5533,7 @@ internal static class TableSqlExecutor
             string => TableColumnType.String,
             DateTime or DateTimeOffset => TableColumnType.DateTime,
             TimeOnly => TableColumnType.Time,
+            TimeSpan => TableColumnType.Duration,
             byte[] => TableColumnType.Blob,
             _ => null,
         }, value is null);
@@ -5934,6 +5940,7 @@ internal static class TableSqlExecutor
                 ? DecimalDeclarationValidator.ConvertForWrite(value, column)
                 : Convert.ToDecimal(value, CultureInfo.InvariantCulture),
             TableColumnType.Time => ConvertTimeValue(value, column),
+            TableColumnType.Duration => SqlCastOperations.ToDuration(value),
             TableColumnType.Boolean => value is bool b
                 ? b
                 : throw TypeMismatch(column, value),
@@ -6638,6 +6645,7 @@ internal static class TableSqlExecutor
         SqlDataType.String => TableColumnType.String,
         SqlDataType.DateTime => TableColumnType.DateTime,
         SqlDataType.Time => TableColumnType.Time,
+        SqlDataType.Duration => TableColumnType.Duration,
         SqlDataType.Blob => TableColumnType.Blob,
         SqlDataType.Json => TableColumnType.Json,
         _ => throw new NotSupportedException($"关系表 MVP 暂不支持数据类型 {type}。"),
@@ -6652,6 +6660,7 @@ internal static class TableSqlExecutor
         TableColumnType.String => "string",
         TableColumnType.DateTime => "datetime",
         TableColumnType.Time => "time",
+        TableColumnType.Duration => "duration",
         TableColumnType.Blob => "blob",
         TableColumnType.Json => "json",
         _ => type.ToString().ToLowerInvariant(),

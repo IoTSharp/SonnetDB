@@ -24,6 +24,7 @@ internal static class SqlCastOperations
                 SqlDataType.String => ToStringValue(value),
                 SqlDataType.DateTime => ToDateTime(value),
                 SqlDataType.Time => ToTime(value),
+                SqlDataType.Duration => ToDuration(value),
                 SqlDataType.Blob => ToBlob(value),
                 SqlDataType.Json => ToJson(value),
                 SqlDataType.Vector or SqlDataType.GeoPoint => throw new NotSupportedException(
@@ -44,6 +45,8 @@ internal static class SqlCastOperations
 
     private static long ToInt64(object value)
     {
+        if (value is TimeSpan duration)
+            return duration.Ticks;
         if (value is bool boolean)
             return boolean ? 1L : 0L;
         if (value is string text)
@@ -197,6 +200,18 @@ internal static class SqlCastOperations
         if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
             return DateTimeOffset.FromUnixTimeMilliseconds(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)).UtcDateTime;
         throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIME。");
+    }
+
+    /// <summary>将原生时长、整数 ticks 或 invariant c 文本转换为完整时长。</summary>
+    internal static TimeSpan ToDuration(object value)
+    {
+        if (value is TimeSpan duration)
+            return duration;
+        if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
+            return TimeSpan.FromTicks(checked(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)));
+        if (value is string text && TimeSpan.TryParseExact(text.Trim(), "c", CultureInfo.InvariantCulture, out duration))
+            return duration;
+        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DURATION；需要完整时长、整数 ticks 或 invariant c 文本。");
     }
 
     private static TimeOnly ToTime(object value)

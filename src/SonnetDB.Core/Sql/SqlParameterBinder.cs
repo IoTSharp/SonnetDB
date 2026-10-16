@@ -479,10 +479,8 @@ public static class SqlParameterBinder
                 return LiteralExpression.Integer(dto.ToUnixTimeMilliseconds());
             case TimeOnly time:
                 return LiteralExpression.String(time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
-            case TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1):
-                return LiteralExpression.String(TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
-            case TimeSpan:
-                throw new ArgumentOutOfRangeException(nameof(value), "TIME 参数必须落在 [00:00:00, 24:00:00) 范围内。");
+            case TimeSpan span:
+                return new CastExpression(LiteralExpression.Integer(span.Ticks), SqlDataType.Duration);
             case float[] vector:
                 return ToVectorLiteral(vector);
             case Memory<float> vector:

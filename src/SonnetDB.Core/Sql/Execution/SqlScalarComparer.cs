@@ -62,6 +62,24 @@ internal static class SqlScalarComparer
 
     private static bool TryCompareTemporal(object left, object right, out int comparison)
     {
+        if (left is TimeSpan leftDuration && right is TimeSpan rightDuration)
+        {
+            comparison = leftDuration.CompareTo(rightDuration);
+            return true;
+        }
+        // 原 TIME 参数接受一天内 TimeSpan；原生 DURATION 不改变此有界比较合同。
+        if (left is TimeOnly leftClock && right is TimeSpan rightClock
+            && rightClock >= TimeSpan.Zero && rightClock < TimeSpan.FromDays(1))
+        {
+            comparison = leftClock.Ticks.CompareTo(rightClock.Ticks);
+            return true;
+        }
+        if (right is TimeOnly rightOnly && left is TimeSpan leftClockDuration
+            && leftClockDuration >= TimeSpan.Zero && leftClockDuration < TimeSpan.FromDays(1))
+        {
+            comparison = leftClockDuration.Ticks.CompareTo(rightOnly.Ticks);
+            return true;
+        }
         if (left is TimeOnly leftTime && right is TimeOnly rightTime)
         {
             comparison = leftTime.CompareTo(rightTime);

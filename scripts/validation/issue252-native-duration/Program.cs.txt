@@ -1,0 +1,123 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using Chloe.SonnetDB.DDL;
+using SonnetDB.Data;
+
+if (args.Length < 2) return 2;
+string phase = args[0];
+string root = args[1];
+string connectionString = Environment.GetEnvironmentVariable("ISSUE252_CONNECTION") ?? "Data Source=" + root;
+foreach (var type in new[] { typeof(SndbConnection), typeof(SonnetDB.Engine.Tsdb), typeof(SonnetDBContext), typeof(DbContext) })
+    Console.WriteLine($"ASSEMBLY|{type.Assembly.GetName().Name}|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(type.Assembly.Location)))}|{type.Assembly.Location}");
+int checks = 0;
+if (args.Length > 2 && args[2] == "oldtime")
+{
+    using var connection = new SndbConnection(connectionString);
+    connection.Open();
+    using var command = connection.CreateCommand();
+    if (phase == "exercise")
+    {
+        command.CommandText = "CREATE TABLE clocks(id INT, starts TIME, PRIMARY KEY(id))";
+        command.ExecuteNonQuery();
+        command.Parameters.Add(new SndbParameter("time", TimeSpan.FromHours(12).Add(TimeSpan.FromTicks(1))) { DbType = DbType.Time });
+        command.CommandText = "INSERT INTO clocks(id,starts) VALUES(1,@time)";
+        Equal(1, command.ExecuteNonQuery());
+        command.CommandText = "SELECT starts FROM clocks WHERE starts=@time";
+        Equal(new TimeOnly(12, 0).Add(TimeSpan.FromTicks(1)), command.ExecuteScalar());
+        command.Parameters[0].Value = TimeSpan.FromHours(27);
+        command.CommandText = "INSERT INTO clocks(id,starts) VALUES(2,@time)";
+        try { command.ExecuteNonQuery(); throw new Exception("Explicit TIME accepted 27h."); }
+        catch (ArgumentOutOfRangeException) { checks++; }
+    }
+    command.Parameters.Clear();
+    command.CommandText = "SELECT starts FROM clocks";
+    Equal(new TimeOnly(12, 0).Add(TimeSpan.FromTicks(1)), command.ExecuteScalar());
+    command.CommandText = "SELECT COUNT(*) FROM clocks";
+    Equal(1L, command.ExecuteScalar());
+    Console.WriteLine($"PASS|oldtime|{phase}|checks={checks}");
+    return 0;
+}
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+if (phase == "negative")
+{
+    ExpectUnsupported(() => new SonnetDBTableGenerator(context).CreateTable(typeof(DurationRow)), "duration-DDL");
+    context.Session.ExecuteNonQuery("CREATE TABLE duration_rows(Id INT,Elapsed DURATION NULL,Required DURATION,PRIMARY KEY(Id))");
+    ExpectUnsupported(() => context.Insert(new DurationRow { Id = 1, Required = TimeSpan.FromHours(27) }), "duration-insert");
+    ExpectUnsupported(() => context.Query<DurationRow>().Select(row => row.Required).ToList(), "duration-projection");
+    Console.WriteLine($"PASS|original-Chloe-rejection|checks={checks}");
+    return 0;
+}
+long[] ticks = [long.MinValue, -1, 0, 972000000001, long.MaxValue];
+if (phase == "exercise")
+{
+    new SonnetDBTableGenerator(context).CreateTable(typeof(DurationRow));
+    for (int index = 0; index < ticks.Length; index++)
+    {
+        var duration = TimeSpan.FromTicks(ticks[index]);
+        context.Insert(new DurationRow { Id = index + 1, Elapsed = duration, Required = duration });
+        Equal(duration, context.Query<DurationRow>().Where(row => row.Required == duration).Select(row => row.Required).First());
+    }
+    context.InsertRange(new List<DurationRow> {
+        new() { Id = 6, Elapsed = null, Required = TimeSpan.Zero },
+        new() { Id = 7, Elapsed = TimeSpan.FromHours(-27), Required = TimeSpan.FromHours(-27) } });
+    context.Session.BeginTransaction();
+    context.Insert(new DurationRow { Id = 8, Required = TimeSpan.FromTicks(1) });
+    Equal(TimeSpan.FromTicks(1), context.Query<DurationRow>().Where(row => row.Id == 8).Select(row => row.Required).First());
+    context.Session.RollbackTransaction();
+    Equal(7, context.Query<DurationRow>().Count());
+    context.Session.BeginTransaction();
+    await context.InsertAsync(new DurationRow { Id = 8, Required = TimeSpan.MaxValue });
+    context.Session.CommitTransaction();
+    new SonnetDBTableGenerator(context).CreateTable(typeof(DateRow));
+    var start = new DateTime(2026, 10, 15, 0, 0, 0, DateTimeKind.Utc);
+    var end = start.AddHours(27);
+    context.Insert(new DateRow { Id = 1, Start = start, End = end });
+    Equal(TimeSpan.FromHours(27), context.Query<DateRow>().Select(row => row.End.Subtract(row.Start)).First());
+    Equal(TimeSpan.FromHours(-27), context.Query<DateRow>().Select(row => row.Start - row.End).First());
+}
+var rows = await context.Query<DurationRow>().OrderBy(row => row.Id).ToListAsync();
+Equal(8, rows.Count);
+for (int index = 0; index < ticks.Length; index++)
+{
+    Equal(TimeSpan.FromTicks(ticks[index]), rows[index].Elapsed);
+    Equal(TimeSpan.FromTicks(ticks[index]), rows[index].Required);
+}
+Equal(null, rows[5].Elapsed);
+Equal(TimeSpan.FromHours(-27), rows[6].Required);
+Equal(TimeSpan.MaxValue, rows[7].Required);
+Equal(0, context.Query<DurationRow>().Where(row => row.Id < 0).Select(row => row.Elapsed).ToList().Count);
+Equal(null, context.Query<DurationRow>().Where(row => row.Id == 6).Select(row => row.Elapsed).First());
+Equal(TimeSpan.FromHours(27), context.Query<DateRow>().Select(row => row.End.Subtract(row.Start)).First());
+Console.WriteLine($"PASS|candidate-Chloe|{phase}|checks={checks}");
+return 0;
+
+void Equal(object? expected, object? actual)
+{
+    if (!Equals(expected, actual)) throw new Exception($"Expected {expected ?? "null"} ({expected?.GetType().Name}), got {actual ?? "null"} ({actual?.GetType().Name}).");
+    checks++;
+}
+void ExpectUnsupported(Action action, string label)
+{
+    try { action(); throw new Exception("Unexpected original provider acceptance: " + label); }
+    catch (NotSupportedException exception) when (exception.Message.Contains("252"))
+    { checks++; Console.WriteLine($"EXPECTED_REJECTION|{label}|{exception.Message}"); }
+}
+
+[Table("duration_rows")]
+public sealed class DurationRow
+{
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    public TimeSpan? Elapsed { get; set; }
+    public TimeSpan Required { get; set; }
+}
+[Table("date_rows")]
+public sealed class DateRow
+{
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    public DateTime Start { get; set; }
+    public DateTime End { get; set; }
+}

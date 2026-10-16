@@ -121,7 +121,7 @@ internal sealed class SqlRowRetentionBudget : IDisposable
         string text => 24L + (text.Length * 2L),
         byte[] data => 24L + data.Length,
         bool or byte or sbyte or short or ushort or int or uint or long or ulong or float or double
-            or decimal or char or DateTime or DateTimeOffset or TimeOnly or Guid => 24,
+            or decimal or char or DateTime or DateTimeOffset or TimeOnly or TimeSpan or Guid => 24,
         _ => throw new NotSupportedException("SQL 物化预算只支持标准 SQL 标量、字符串和二进制值。"),
     };
 

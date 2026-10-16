@@ -31,4 +31,7 @@ public enum TableColumnType : byte
 
     /// <summary>仅时间值，使用 TimeOnly ticks 精确保存。</summary>
     Time = 9,
+
+    /// <summary>带符号时长，使用 TimeSpan 的 100 纳秒 ticks 完整保存。</summary>
+    Duration = 10,
 }

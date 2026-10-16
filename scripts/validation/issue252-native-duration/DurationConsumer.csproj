@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>false</IsAotCompatible><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup><Compile Include="Program.cs.txt" />
+    <Reference Include="Chloe"><HintPath>$(ChloeBin)/Chloe.dll</HintPath></Reference>
+    <Reference Include="Chloe.SonnetDB"><HintPath>$(ChloeBin)/Chloe.SonnetDB.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Core"><HintPath>$(EngineBin)/SonnetDB.Core.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Data"><HintPath>$(EngineBin)/SonnetDB.Data.dll</HintPath></Reference>
+    <Reference Include="System.IO.Hashing"><HintPath>$(DependencyBin)/System.IO.Hashing.dll</HintPath></Reference>
+    <Reference Include="System.Numerics.Tensors"><HintPath>$(DependencyBin)/System.Numerics.Tensors.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 
 using SonnetDB.Model;
 using SonnetDB.Tables;
@@ -20,6 +20,7 @@ internal enum ExecutionFieldTypeKind
     DateTime,
     DateTimeOffset,
     TimeOnly,
+    Duration,
     Guid,
     GeoPoint,
     ByteArray,
@@ -37,6 +38,7 @@ internal static class ExecutionFieldTypeResolver
         TableColumnType.String or TableColumnType.Json => ExecutionFieldTypeKind.String,
         TableColumnType.DateTime => ExecutionFieldTypeKind.DateTime,
         TableColumnType.Time => ExecutionFieldTypeKind.TimeOnly,
+        TableColumnType.Duration => ExecutionFieldTypeKind.Duration,
         TableColumnType.Blob => ExecutionFieldTypeKind.ByteArray,
         _ => ExecutionFieldTypeKind.Object,
     };
@@ -58,6 +60,7 @@ internal static class ExecutionFieldTypeResolver
             DateTime => ExecutionFieldTypeKind.DateTime,
             DateTimeOffset => ExecutionFieldTypeKind.DateTimeOffset,
             TimeOnly => ExecutionFieldTypeKind.TimeOnly,
+            TimeSpan => ExecutionFieldTypeKind.Duration,
             Guid => ExecutionFieldTypeKind.Guid,
             GeoPoint => ExecutionFieldTypeKind.GeoPoint,
             byte[] => ExecutionFieldTypeKind.ByteArray,
@@ -85,6 +88,7 @@ internal static class ExecutionFieldTypeResolver
             ExecutionFieldTypeKind.DateTime => typeof(DateTime),
             ExecutionFieldTypeKind.DateTimeOffset => typeof(DateTimeOffset),
             ExecutionFieldTypeKind.TimeOnly => typeof(TimeOnly),
+            ExecutionFieldTypeKind.Duration => typeof(TimeSpan),
             ExecutionFieldTypeKind.Guid => typeof(Guid),
             ExecutionFieldTypeKind.GeoPoint => typeof(GeoPoint),
             ExecutionFieldTypeKind.ByteArray => typeof(byte[]),

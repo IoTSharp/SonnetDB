@@ -111,6 +111,7 @@ internal static class SqlRoutineRuntime
                 $"调用 procedure '{definition.Name}' 需要当前数据库写权限。");
         }
 
+        SqlDurationResultContract.ValidateProcedure(tsdb, definition);
         SqlParameters parameters = BindArguments(definition, statement.Arguments);
         SqlTransactionContext? effectiveTransaction = transaction;
         bool ownsTransaction = false;

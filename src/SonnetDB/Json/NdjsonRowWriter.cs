@@ -24,11 +24,15 @@ public static class NdjsonRowWriter
 
     /// <summary>按协商的日期合同写出一行；原生日期仅用于明确协商为 v4 的 SQL 结果。</summary>
     public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row, bool nativeDateTime)
+        => WriteRow(writer, row, nativeDateTime, nativeDuration: false);
+
+    /// <summary>按 v5 协商合同写出含原生日期与时长的结果行。</summary>
+    public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row, bool nativeDateTime, bool nativeDuration)
     {
         writer.WriteStartArray();
         for (int i = 0; i < row.Count; i++)
         {
-            WriteValue(writer, row[i], nativeDateTime);
+            WriteValue(writer, row[i], nativeDateTime, nativeDuration);
         }
         writer.WriteEndArray();
     }
@@ -41,6 +45,10 @@ public static class NdjsonRowWriter
 
     /// <summary>按协商的日期合同写出标量；DateTime ticks 使用整数，避免 ISO 时区转换。</summary>
     public static void WriteValue(Utf8JsonWriter writer, object? value, bool nativeDateTime)
+        => WriteValue(writer, value, nativeDateTime, nativeDuration: false);
+
+    /// <summary>按 v5 协商合同以带类型的有符号整数 ticks 写出原生时长。</summary>
+    public static void WriteValue(Utf8JsonWriter writer, object? value, bool nativeDateTime, bool nativeDuration)
     {
         switch (value)
         {
@@ -108,6 +116,14 @@ public static class NdjsonRowWriter
             case TimeOnly time:
                 writer.WriteStringValue(time.ToString("HH:mm:ss.fffffff", System.Globalization.CultureInfo.InvariantCulture));
                 break;
+            case TimeSpan duration when nativeDuration:
+                writer.WriteStartObject();
+                writer.WriteString("$type", "duration");
+                writer.WriteNumber("ticks", duration.Ticks);
+                writer.WriteEndObject();
+                break;
+            case TimeSpan:
+                throw new InvalidOperationException("DURATION 结果需要协商 SQL 结果格式 v5。");
             case Guid g:
                 writer.WriteStringValue(g);
                 break;

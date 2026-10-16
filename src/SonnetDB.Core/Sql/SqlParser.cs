@@ -2090,6 +2090,11 @@ public sealed class SqlParser
         }
         if (Current.Kind == TokenKind.KeywordVector)
             throw Error("关系表 MVP 暂不支持 VECTOR 类型");
+        if (IsIdentifier("DURATION"))
+        {
+            Advance();
+            return SqlDataType.Duration;
+        }
         if (Current.Kind == TokenKind.KeywordGeoPoint)
             throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
 
@@ -4348,6 +4353,11 @@ public sealed class SqlParser
 
     private SqlDataType ParseCastDataType()
     {
+        if (IsIdentifier("DURATION"))
+        {
+            Advance();
+            return SqlDataType.Duration;
+        }
         var token = Current;
         switch (token.Kind)
         {
@@ -5768,7 +5778,7 @@ public sealed class SqlParser
                 or TokenKind.KeywordBool or TokenKind.KeywordString
                 or TokenKind.KeywordDateTime or TokenKind.KeywordTime
                 or TokenKind.KeywordBlob or TokenKind.KeywordJson
-                or TokenKind.KeywordVector || IsIdentifier("varchar"))
+                or TokenKind.KeywordVector || IsIdentifier("varchar") || IsIdentifier("duration"))
             {
                 if (dataType is not null)
                     throw Error("ALTER COLUMN 数据类型重复声明");

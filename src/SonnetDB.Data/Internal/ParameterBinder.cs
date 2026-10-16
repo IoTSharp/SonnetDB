@@ -89,7 +89,7 @@ internal static class ParameterBinder
                 string name = sql.Substring(start, end - start);
                 if (!byName.TryGetValue(name, out var p))
                     throw new InvalidOperationException($"未提供参数 '{ch}{name}' 的值。");
-                sb.Append(FormatLiteral(p.Value));
+                sb.Append(FormatLiteral(GetBindingValue(p)));
                 i = end;
                 continue;
             }
@@ -102,6 +102,11 @@ internal static class ParameterBinder
 
     private static bool IsIdentStart(char c) => char.IsLetter(c) || c == '_';
     private static bool IsIdentPart(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    /// <summary>显式 DbType.Time 沿用一天内钟面合同；默认 TimeSpan 使用完整时长。</summary>
+    internal static object? GetBindingValue(SndbParameter parameter)
+        => parameter.DbType == System.Data.DbType.Time && parameter.Value is TimeSpan span
+            ? TimeOnly.FromTimeSpan(span) : parameter.Value;
 
     internal static string FormatLiteral(object? value)
     {
@@ -134,9 +139,7 @@ internal static class ParameterBinder
                 : dt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
             DateTimeOffset dto => dto.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
             TimeOnly time => "'" + time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
-            TimeSpan span when span >= TimeSpan.Zero && span < TimeSpan.FromDays(1)
-                => "'" + TimeOnly.FromTimeSpan(span).ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
-            TimeSpan => throw new ArgumentOutOfRangeException(nameof(value), "TIME 参数必须落在 [00:00:00, 24:00:00) 范围内。"),
+            TimeSpan span => "CAST(" + span.Ticks.ToString(CultureInfo.InvariantCulture) + " AS DURATION)",
             GeoPoint p => string.Create(CultureInfo.InvariantCulture, $"POINT({p.Lat:R}, {p.Lon:R})"),
             float[] vector => FormatVectorLiteral(vector),
             Memory<float> vector => FormatVectorLiteral(vector.Span),

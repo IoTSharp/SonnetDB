@@ -40,6 +40,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
     private bool _suppressSqlResultVersion;
     private bool _rejectSqlV3;
     private bool _rejectSqlV4;
+    private bool _rejectSqlV5;
     private bool _disableTransactionSessions;
     private bool _rejectAllSqlVersions;
     private bool _corruptSqlResponse;
@@ -349,7 +350,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
             || request.Path == "/v1/frame"), request => Assert.Equal(expectedHttp, request.Protocol));
         if (protocol == "frame-http2")
             Assert.Contains(_requests, request => request.Path == "/v1/frame"
-                && request.ResultVersion == SqlFrameCodec.NativeDateTimeResultVersion);
+                && request.ResultVersion == SqlFrameCodec.NativeDurationResultVersion);
     }
 
     private static void AssertRealUnknownBranchDeclarations(DbDataReader reader)
@@ -496,7 +497,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.Null(reader.GetColumnSchema()[1].NumericScale);
         Assert.False(await reader.ReadAsync());
         var requests = _requests.ToArray();
-        Assert.Equal(new[] { "4", "3", "2" }, requests.Select(request => request.ResultVersion).ToArray());
+        Assert.Equal(new[] { "5", "4", "3", "2" }, requests.Select(request => request.ResultVersion).ToArray());
         Assert.All(requests, request => Assert.Equal("/v1/frame", request.Path));
         Assert.All(requests, request => Assert.Equal(protocol == "auto" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
     }
@@ -513,7 +514,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT * FROM missing_view_declaration_source";
         await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
-        Assert.Equal("4", Assert.Single(_requests).ResultVersion);
+        Assert.Equal("5", Assert.Single(_requests).ResultVersion);
         Assert.Equal("/v1/frame", Assert.Single(_requests).Path);
     }
 
@@ -528,7 +529,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
         command.CommandText = "SELECT 1";
         var error = await Assert.ThrowsAsync<SndbServerException>(async () => await command.ExecuteReaderAsync());
         Assert.Equal("unsupported_result_version", error.Error);
-        Assert.Equal(new[] { "4", "3", "2" }, _requests.Select(request => request.ResultVersion).ToArray());
+        Assert.Equal(new[] { "5", "4", "3", "2" }, _requests.Select(request => request.ResultVersion).ToArray());
     }
 
     public async Task InitializeAsync()
@@ -560,6 +561,14 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
             }
+            if (_rejectSqlV5 && context.Request.Path.StartsWithSegments($"/v1/db/{DatabaseName}/sql")
+                && context.Request.Headers[SqlFrameCodec.ResultVersionHeader] == "5")
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"error\":\"unsupported_result_version\",\"message\":\"Rejected before SQL execution\"}");
+                return;
+            }
             if (context.Request.Path == "/v1/frame"
                 && context.Request.Headers.ContainsKey(SqlFrameCodec.ResultVersionHeader))
             {
@@ -570,8 +579,8 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
                     return;
                 }
                 string requested = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-                if (_rejectAllSqlVersions || _rejectSqlV3 && requested is "3" or "4"
-                    || _rejectSqlV4 && requested == "4")
+                if (_rejectAllSqlVersions || _rejectSqlV3 && requested is "3" or "4" or "5"
+                    || _rejectSqlV4 && requested is "4" or "5" || _rejectSqlV5 && requested == "5")
                 {
                     var rejected = new ArrayBufferWriter<byte>();
                     FrameCodec.WriteErrorFrame(rejected, (byte)FrameService.Sql, (byte)SqlFrameOp.Query, 1,
@@ -790,7 +799,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
         ObservedRequest[] requests = _requests.Where(r => r.LocalPort == h2Port).ToArray();
         Assert.Contains(requests, r => r.Path == $"/v1/db/{DatabaseName}/sql");
         Assert.Contains(requests, r => r.Path == "/v1/frame");
-        Assert.Equal(SqlFrameCodec.NativeDateTimeResultVersion, requests.Last(r => r.Path == "/v1/frame").ResultVersion);
+        Assert.Equal(SqlFrameCodec.NativeDurationResultVersion, requests.Last(r => r.Path == "/v1/frame").ResultVersion);
         Assert.All(requests, r => Assert.Equal("HTTP/2", r.Protocol));
 
         using (var update = connection.CreateCommand())
@@ -1331,7 +1340,7 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
         var declaration = Assert.Single(SqlFrameCodec.DecodeQueryMetaFrameWithInfo(declared[0].Payload).ColumnInfo!);
         Assert.Equal((byte)24, declaration.NumericPrecision);
         Assert.Equal((byte)6, declaration.NumericScale);
-        var unsupported = await SendSqlFrameAsync(sql, "5");
+        var unsupported = await SendSqlFrameAsync(sql, "99");
         Assert.True(Assert.Single(unsupported).Header.IsError);
         Assert.Equal("unsupported_result_version", FrameCodec.ReadErrorPayload(unsupported[0].Payload).Code);
         Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.Protocol == "HTTP/2");

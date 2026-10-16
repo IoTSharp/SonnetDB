@@ -34,6 +34,8 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Added
+- GH-Issue #252：新增原生 DURATION/TimeSpan，保留完整有符号 Int64 ticks、100ns、NULL、批量/事务/重开与真实 Chloe 候选；TIME/显式 DbType.Time 保持一天内合同。关系目录启用永久 v14 屏障及可恢复迁移，含时长物化快照写 v3（其他仍 v2），SQL Frame/REST 协商 v5；旧引擎拒绝升级目录，回退须使用升级前副本，未修改 FileHeader。正式包与 Chloe 上游交付仍待完成。
+
 - GH-Issue #259：新增 bit_and_uint64 / bit_or_uint64，覆盖完整 UInt64 值域并以 DECIMAL(20,0) 精确返回；补参数/列/NULL、失败原子性、三协议与真实 Chloe 候选验收，正式发行与适配交付继续跟踪。
 
 - GH-Issue #260：新增 parse_uint64(text)，以有界ASCII整数语法解析完整UInt64值域并精确返回DECIMAL(20,0)；拒绝负号、小数、指数、溢出和超预算输入，保留NULL、空结果声明、语句原子性及真实三协议/Chloe候选证据，不新增存储格式。

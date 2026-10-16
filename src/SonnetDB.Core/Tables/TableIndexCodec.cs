@@ -345,7 +345,7 @@ internal static class TableIndexCodec
 
     private static object ReadCoveredValue(ReadOnlySpan<byte> source, ref int offset, TableColumnType type)
     {
-        if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.Time)
+        if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration)
         {
             EnsureCoveredBytes(source, offset, sizeof(long));
             long bits = BinaryPrimitives.ReadInt64BigEndian(source[offset..]);
@@ -357,6 +357,7 @@ internal static class TableIndexCodec
                     TableColumnType.Int64 => bits,
                     TableColumnType.Float64 => BitConverter.Int64BitsToDouble(bits),
                     TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(bits).UtcDateTime,
+                    TableColumnType.Duration => TimeSpan.FromTicks(bits),
                     _ => new TimeOnly(bits),
                 };
             }
@@ -415,7 +416,7 @@ internal static class TableIndexCodec
             ? 1
             : column.DataType switch
             {
-                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time => 1 + 8,
+                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration => 1 + 8,
                 TableColumnType.Float64 => 1 + 8,
                 TableColumnType.Boolean => 1 + 1,
                 TableColumnType.String or TableColumnType.Json => 1 + 4 + _utf8.GetByteCount((string)value),
@@ -462,6 +463,9 @@ internal static class TableIndexCodec
                 return 9;
             case TableColumnType.Time:
                 SortableScalarCodec.WriteTableLegacyInt64(payload, ConvertTimeValue(value).Ticks);
+                return 9;
+            case TableColumnType.Duration:
+                SortableScalarCodec.WriteTableLegacyInt64(payload, ((TimeSpan)value).Ticks);
                 return 9;
             case TableColumnType.String:
             case TableColumnType.Json:

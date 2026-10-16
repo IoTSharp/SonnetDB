@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using SonnetDB.Data.Embedded;
@@ -741,6 +741,7 @@ public sealed class SndbConnection : DbConnection
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
         AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
         AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
+        AddDataType(table, "DURATION", DbType.Object, typeof(TimeSpan), 19, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true, supportsMeasurementField: false);
         AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'", supportsMeasurementField: false);
         AddDataType(table, "VECTOR", DbType.Object, typeof(float[]), int.MaxValue, searchable: false,
@@ -860,6 +861,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.String => "STRING",
         TableColumnType.DateTime => "DATETIME",
         TableColumnType.Time => "TIME",
+        TableColumnType.Duration => "DURATION",
         TableColumnType.Blob => "BLOB",
         TableColumnType.Json => "JSON",
         _ => type.ToString().ToUpperInvariant(),
@@ -876,6 +878,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.Float64 => 15,
         TableColumnType.Decimal => column.DecimalPrecision,
         TableColumnType.Time => 7,
+        TableColumnType.Duration => 19,
         _ => 0,
     };
 
@@ -885,6 +888,7 @@ public sealed class SndbConnection : DbConnection
             TableColumnType.Float64 => 15,
             TableColumnType.Decimal => column.DecimalScale,
             TableColumnType.Time => 7,
+            TableColumnType.Duration => 7,
             _ => 0,
         };
 }

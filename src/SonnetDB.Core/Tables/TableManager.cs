@@ -95,7 +95,9 @@ public sealed partial class TableManager : IDisposable
             Catalog.LoadExisting(schema);
         Catalog.MutationGuard = EnsureManagedCatalogMutation;
         // 已发布的旧无主键表只能为空；在开放 rowstore 前升级兼容屏障，避免首次写入锁序反转。
-        if (Catalog.Snapshot().Any(static schema => schema.PrimaryKey.Count == 0))
+        if (Catalog.Snapshot().Any(static schema => schema.PrimaryKey.Count == 0)
+            || TableSchemaCodec.ContainsDuration(Catalog.Snapshot())
+            || TableSchemaCodec.ReadFormatVersion(SchemaPath) >= 14)
         {
             if (TableSchemaCodec.ReadFormatVersion(SchemaPath) < 13)
                 TableSchemaCodec.SaveWithRecoveryBarrier(SchemaPath, Catalog.Snapshot());
@@ -1986,6 +1988,12 @@ public sealed partial class TableManager : IDisposable
         Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
         Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
+        if (current.Columns.Any(static column => column.DataType == TableColumnType.Duration)
+            || updated.Columns.Any(static column => column.DataType == TableColumnType.Duration))
+        {
+            ApplyPrimaryKeySchemaMigrationLocked(current, updated, transform, validate);
+            return;
+        }
         var rollback = store.ApplySchemaTransform(updated, transform, validate);
         Catalog.LoadOrReplace(updated);
         try

@@ -201,6 +201,7 @@ internal static class SqlExpressionFormatter
         SqlDataType.GeoPoint => "GEOPOINT",
         SqlDataType.DateTime => "DATETIME",
         SqlDataType.Time => "TIME",
+        SqlDataType.Duration => "DURATION",
         SqlDataType.Blob => "BLOB",
         SqlDataType.Json => "JSON",
         _ => value.ToString().ToUpperInvariant(),

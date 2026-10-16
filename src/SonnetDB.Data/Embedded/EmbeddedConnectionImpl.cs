@@ -148,10 +148,10 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         var result = new SqlParameters();
         foreach (var p in parameters.Items)
         {
-            result.AddPositional(p.Value);
+            result.AddPositional(ParameterBinder.GetBindingValue(p));
             var name = SndbParameterCollection.NormalizeName(p.ParameterName);
             if (!string.IsNullOrEmpty(name))
-                result.AddNamed(name, p.Value);
+                result.AddNamed(name, ParameterBinder.GetBindingValue(p));
         }
         return result;
     }

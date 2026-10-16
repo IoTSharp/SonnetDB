@@ -28,6 +28,15 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_duration_before-barrier":
+    case "crash_duration_after-barrier":
+    case "crash_duration_after-journal":
+    case "crash_duration_after-table:durations":
+    case "crash_duration_after-catalog":
+    case "crash_duration_after-complete":
+    case "crash_duration_recovery":
+        DurationMigrationCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "crash_kill9_primary_key_migration_before_barrier":
     case "crash_kill9_primary_key_migration_after_barrier":
     case "crash_kill9_primary_key_migration_after_journal":

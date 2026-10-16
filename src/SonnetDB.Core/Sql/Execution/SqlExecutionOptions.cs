@@ -103,6 +103,9 @@ public sealed record SqlExecutionOptions
     /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
     internal SqlExecutionMetrics? Metrics { get; init; }
 
+    /// <summary>远程旧协议不能接收原生时长；内部子调用继承根执行合同。</summary>
+    internal bool AllowDurationResults { get; init; } = true;
+
     internal void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Caller);

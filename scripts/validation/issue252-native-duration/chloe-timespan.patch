@@ -1,0 +1,78 @@
+diff --git a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+index 890de9e..816a83e 100644
+--- a/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
++++ b/src/Chloe.SonnetDB/DDL/SonnetDBTableGenerator.cs
+@@ -104,6 +104,8 @@ namespace Chloe.SonnetDB.DDL
+                 return "BOOL";
+             if (type == typeof(DateTime))
+                 return "DATETIME";
++            if (type == typeof(TimeSpan))
++                return "DURATION";
+             if (type == typeof(byte[]))
+                 return "BLOB";
+ 
+diff --git a/src/Chloe.SonnetDB/MethodHandlers/Subtract_Handler.cs b/src/Chloe.SonnetDB/MethodHandlers/Subtract_Handler.cs
+index 10ca84f..d68c24e 100644
+--- a/src/Chloe.SonnetDB/MethodHandlers/Subtract_Handler.cs
++++ b/src/Chloe.SonnetDB/MethodHandlers/Subtract_Handler.cs
+@@ -8,7 +8,11 @@ namespace Chloe.SonnetDB.MethodHandlers
+     {
+         public override void Process(DbMethodCallExpression exp, SqlGeneratorBase generator)
+         {
+-            throw new NotSupportedException("SonnetDB does not support CLR TimeSpan duration results from DateTime.Subtract(). See https://github.com/IoTSharp/SonnetDB/issues/252.");
++            generator.SqlBuilder.Append("(");
++            exp.Object.Accept(generator);
++            generator.SqlBuilder.Append(" - ");
++            exp.Arguments[0].Accept(generator);
++            generator.SqlBuilder.Append(")");
+         }
+     }
+ }
+diff --git a/src/Chloe.SonnetDB/SonnetDBContextProvider.cs b/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
+index b8fedbc..3e14bcb 100644
+--- a/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
++++ b/src/Chloe.SonnetDB/SonnetDBContextProvider.cs
+@@ -313,6 +313,8 @@ namespace Chloe.SonnetDB
+                                 value = Convert.ChangeType(value, Enum.GetUnderlyingType(value.GetType()));
+                             DbType? dbType = property.Column.DbType;
+                             Type underlyingType = Nullable.GetUnderlyingType(valueType) ?? valueType;
++                            if (underlyingType == typeof(TimeSpan))
++                                dbType = DbType.Object;
+                             if (underlyingType.IsEnum)
+                                 underlyingType = Enum.GetUnderlyingType(underlyingType);
+                             if (underlyingType == typeof(sbyte) || underlyingType == typeof(ushort) || underlyingType == typeof(uint))
+diff --git a/src/Chloe.SonnetDB/SqlGenerator.cs b/src/Chloe.SonnetDB/SqlGenerator.cs
+index d65f5b8..0e9a28e 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator.cs
+@@ -35,6 +35,7 @@ namespace Chloe.SonnetDB
+             castTypeMap.Add(typeof(decimal), "DECIMAL");
+             castTypeMap.Add(typeof(bool), "BOOL");
+             castTypeMap.Add(typeof(DateTime), "DATETIME");
++            castTypeMap.Add(typeof(TimeSpan), "DURATION");
+             castTypeMap.Add(typeof(Guid), "STRING");
+             CastTypeMap = PublicHelper.Clone(castTypeMap);
+ 
+@@ -319,6 +320,9 @@ namespace Chloe.SonnetDB
+             Type paramType = exp.Type.GetUnderlyingType();
+             Utils.EnsureSupportedMappingType(paramType);
+             DbType? dbType = exp.DbType;
++            // DURATION preserves the full signed TimeSpan range; DbType.Time is explicitly time-of-day.
++            if (paramType == typeof(TimeSpan))
++                dbType = DbType.Object;
+             if (paramType.IsEnum)
+             {
+                 paramType = Enum.GetUnderlyingType(paramType);
+diff --git a/src/Chloe.SonnetDB/Utils.cs b/src/Chloe.SonnetDB/Utils.cs
+index 4c0e7da..7a5ca1e 100644
+--- a/src/Chloe.SonnetDB/Utils.cs
++++ b/src/Chloe.SonnetDB/Utils.cs
+@@ -7,8 +7,6 @@ namespace Chloe.SonnetDB
+             type = Nullable.GetUnderlyingType(type) ?? type;
+             if (type == typeof(DateTimeOffset))
+                 throw new NotSupportedException("SonnetDB's general ADO.NET reader returns DateTime values for DATETIME columns, which are incompatible with Chloe's DateTimeOffset value converter. See https://github.com/IoTSharp/SonnetDB/issues/251.");
+-            if (type == typeof(TimeSpan))
+-                throw new NotSupportedException("SonnetDB TIME represents a time of day and cannot preserve the full CLR TimeSpan duration range. See https://github.com/IoTSharp/SonnetDB/issues/252.");
+         }
+ 
+         public static void EnsureSupportedValue(object value)

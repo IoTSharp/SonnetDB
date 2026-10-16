@@ -31,6 +31,9 @@ public static class SqlFrameCodec
     /// <summary>保留 DateTime 钟面 ticks 与 Kind 的结果格式版本；必须显式协商。</summary>
     public const string NativeDateTimeResultVersion = "4";
 
+    /// <summary>保留完整 TimeSpan ticks 的结果格式版本，同时包含 v4 原生日期合同。</summary>
+    public const string NativeDurationResultVersion = "5";
+
     /// <summary>名字（db / 列名 / 参数名）UTF-8 字节数上限。</summary>
     public const int MaxNameBytes = 512;
 
@@ -269,17 +272,29 @@ public static class SqlFrameCodec
         => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
             streamId, columns, columnInfo, fullDeclarations, nativeDateTime);
 
+    /// <summary>编码协商为 v5 的原生时长声明；旧版本不允许携带 DURATION 类型。</summary>
+    public static void EncodeQueryMetaFrame(
+        IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns,
+        IReadOnlyList<SelectColumnInfo>? columnInfo, bool fullDeclarations, bool nativeDateTime, bool nativeDuration)
+        => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, columns, columnInfo, fullDeclarations, nativeDateTime, nativeDuration);
+
     /// <summary>
     /// meta 帧编码内核：块布局固定，帧头 service/op 由调用方指定
     /// （sql query 与 vector search 共用同一响应块词汇表）。
     /// </summary>
     internal static void EncodeMetaFrameCore(
         IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns,
-        IReadOnlyList<SelectColumnInfo>? columnInfo = null, bool fullDeclarations = false, bool nativeDateTime = false)
+        IReadOnlyList<SelectColumnInfo>? columnInfo = null, bool fullDeclarations = false,
+        bool nativeDateTime = false, bool nativeDuration = false)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (nativeDateTime && (!fullDeclarations || columnInfo is null))
             throw new ArgumentException("原生日期结果必须携带完整声明。", nameof(nativeDateTime));
+        if (nativeDuration && !nativeDateTime)
+            throw new ArgumentException("原生时长结果必须同时启用原生日期合同。", nameof(nativeDuration));
+        if (!nativeDuration && columnInfo?.Any(static info => info.DataType == TableColumnType.Duration) == true)
+            throw new InvalidOperationException("DURATION 结果需要协商 SQL 结果格式 v5。");
         if (columns.Count > MaxColumnCount)
             throw new ArgumentException($"列数 {columns.Count} 超过上限 {MaxColumnCount}。", nameof(columns));
         if (columnInfo is not null && columnInfo.Count != columns.Count)
@@ -304,7 +319,7 @@ public static class SqlFrameCodec
             w.WriteVarString(columns[i]);
         if (columnInfo is not null)
         {
-            w.WriteByte(nativeDateTime ? (byte)3 : fullDeclarations ? (byte)2 : (byte)1);
+            w.WriteByte(nativeDuration ? (byte)4 : nativeDateTime ? (byte)3 : fullDeclarations ? (byte)2 : (byte)1);
             foreach (var info in columnInfo)
             {
                 w.WriteByte(info.DataType is { } type ? (byte)type : (byte)0);
@@ -347,7 +362,18 @@ public static class SqlFrameCodec
     public static (string[] Columns, SelectColumnInfo[]? ColumnInfo) DecodeQueryMetaFrameWithInfo(
         ReadOnlySpan<byte> payload, out bool nativeDateTime)
     {
+        var result = DecodeQueryMetaFrameWithInfo(payload, out nativeDateTime, out bool nativeDuration);
+        if (nativeDuration)
+            throw new FrameFormatException("v5 结果必须使用支持原生时长的解码重载。");
+        return result;
+    }
+
+    /// <summary>解码声明并返回服务端确认的原生日期与原生时长合同。</summary>
+    public static (string[] Columns, SelectColumnInfo[]? ColumnInfo) DecodeQueryMetaFrameWithInfo(
+        ReadOnlySpan<byte> payload, out bool nativeDateTime, out bool nativeDuration)
+    {
         nativeDateTime = false;
+        nativeDuration = false;
         var reader = new SpanReader(payload);
         RequireChunkKind(ref reader, SqlQueryChunkKind.Meta);
         uint columnCount = reader.ReadVarUInt32();
@@ -363,9 +389,10 @@ public static class SqlFrameCodec
         if (reader.Remaining != 0)
         {
             byte declarationVersion = reader.ReadByte();
-            nativeDateTime = declarationVersion == 3;
-            bool fullDeclarations = declarationVersion is 2 or 3;
-            if (declarationVersion is not (1 or 2 or 3) || reader.Remaining != (fullDeclarations ? 8 : 2) * columns.Length)
+            nativeDuration = declarationVersion == 4;
+            nativeDateTime = declarationVersion is 3 or 4;
+            bool fullDeclarations = declarationVersion is 2 or 3 or 4;
+            if (declarationVersion is not (1 or 2 or 3 or 4) || reader.Remaining != (fullDeclarations ? 8 : 2) * columns.Length)
                 throw new FrameFormatException("meta 帧体声明列信息长度或版本无效。");
             columnInfo = new SelectColumnInfo[columns.Length];
             for (int i = 0; i < columns.Length; i++)
@@ -376,6 +403,7 @@ public static class SqlFrameCodec
                 {
                     0 => null,
                     >= 1 and <= 9 => (TableColumnType)typeCode,
+                    10 when nativeDuration => TableColumnType.Duration,
                     _ => throw new FrameFormatException("meta 帧体包含不支持的声明列类型。"),
                 };
                 if ((flags & ~(fullDeclarations ? 0x7F : 0x1F)) != 0 || fullDeclarations && (flags & 0x11) == 1)
@@ -459,6 +487,13 @@ public static class SqlFrameCodec
         => EncodeRowsFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
             streamId, rows, start, count, columnCount, exactDecimal, nativeDateTime);
 
+    /// <summary>编码 v5 原生时长行；必须同时启用原生日期与精确十进制合同。</summary>
+    public static void EncodeQueryRowsFrame(
+        IBufferWriter<byte> writer, uint streamId, IReadOnlyList<IReadOnlyList<object?>> rows,
+        int start, int count, int columnCount, bool exactDecimal, bool nativeDateTime, bool nativeDuration)
+        => EncodeRowsFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, rows, start, count, columnCount, exactDecimal, nativeDateTime, nativeDuration);
+
     /// <summary>
     /// rows 帧编码内核：块布局固定，帧头 service/op 由调用方指定。
     /// </summary>
@@ -472,9 +507,12 @@ public static class SqlFrameCodec
         int count,
         int columnCount,
         bool exactDecimal = false,
-        bool nativeDateTime = false)
+        bool nativeDateTime = false,
+        bool nativeDuration = false)
     {
         ArgumentNullException.ThrowIfNull(rows);
+        if (nativeDuration && (!nativeDateTime || !exactDecimal))
+            throw new ArgumentException("原生时长要求完整的 v5 值合同。", nameof(nativeDuration));
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(count, MaxChunkRows);
@@ -495,7 +533,7 @@ public static class SqlFrameCodec
             + SpanWriter.MeasureVarUInt32((uint)columnCount);
         for (int c = 0; c < columnCount; c++)
         {
-            plans[c] = PlanColumn(rows, start, count, c, exactDecimal, nativeDateTime);
+            plans[c] = PlanColumn(rows, start, count, c, exactDecimal, nativeDateTime, nativeDuration);
             payloadLength += plans[c].Bytes;
         }
 
@@ -511,7 +549,7 @@ public static class SqlFrameCodec
         w.WriteVarUInt32((uint)count);
         w.WriteVarUInt32((uint)columnCount);
         for (int c = 0; c < columnCount; c++)
-            WriteColumn(ref w, rows, start, count, c, plans[c], exactDecimal, nativeDateTime);
+            WriteColumn(ref w, rows, start, count, c, plans[c], exactDecimal, nativeDateTime, nativeDuration);
         writer.Advance(FrameHeader.Size + (int)payloadLength);
     }
 
@@ -524,7 +562,13 @@ public static class SqlFrameCodec
 
     /// <summary>解码 SQL 行；只有 meta 已确认 v4 时才接受原生日期标记。</summary>
     public static object?[][] DecodeQueryRowsFrame(ReadOnlySpan<byte> payload, bool nativeDateTime)
+        => DecodeQueryRowsFrame(payload, nativeDateTime, nativeDuration: false);
+
+    /// <summary>解码 SQL 行；原生时长标记只在 meta 确认 v5 后允许。</summary>
+    public static object?[][] DecodeQueryRowsFrame(ReadOnlySpan<byte> payload, bool nativeDateTime, bool nativeDuration)
     {
+        if (nativeDuration && !nativeDateTime)
+            throw new FrameFormatException("原生时长要求完整的 v5 值合同。");
         var reader = new SpanReader(payload);
         RequireChunkKind(ref reader, SqlQueryChunkKind.Rows);
         uint rowCount = reader.ReadVarUInt32();
@@ -552,12 +596,12 @@ public static class SqlFrameCodec
                 {
                     byte tag = reader.ReadByte();
                     if (tag != (byte)SqlValueKind.Null)
-                        rows[r][c] = ReadValue(ref reader, tag, nativeDateTime);
+                        rows[r][c] = ReadValue(ref reader, tag, nativeDateTime, nativeDuration);
                 }
                 continue;
             }
 
-            RequireValueKind(kind, nativeDateTime);
+            RequireValueKind(kind, nativeDateTime, nativeDuration);
             byte hasNulls = reader.ReadByte();
             if (hasNulls > 1)
                 throw new FrameFormatException($"rows 帧 hasNulls 标记 {hasNulls} 非法（0/1）。");
@@ -565,7 +609,7 @@ public static class SqlFrameCodec
             if (hasNulls == 0)
             {
                 for (int r = 0; r < rows.Length; r++)
-                    rows[r][c] = ReadValue(ref reader, kind, nativeDateTime);
+                    rows[r][c] = ReadValue(ref reader, kind, nativeDateTime, nativeDuration);
                 continue;
             }
 
@@ -574,7 +618,7 @@ public static class SqlFrameCodec
             for (int r = 0; r < rows.Length; r++)
             {
                 if ((bitmap[r >> 3] & (1 << (r & 7))) != 0)
-                    rows[r][c] = ReadValue(ref reader, kind, nativeDateTime);
+                    rows[r][c] = ReadValue(ref reader, kind, nativeDateTime, nativeDuration);
             }
         }
 
@@ -683,7 +727,7 @@ public static class SqlFrameCodec
     }
 
     private static ColumnPlan PlanColumn(
-        IReadOnlyList<IReadOnlyList<object?>> rows, int start, int count, int col, bool exactDecimal, bool nativeDateTime)
+        IReadOnlyList<IReadOnlyList<object?>> rows, int start, int count, int col, bool exactDecimal, bool nativeDateTime, bool nativeDuration)
     {
         byte kind = (byte)SqlValueKind.Null;
         bool variant = false;
@@ -694,7 +738,7 @@ public static class SqlFrameCodec
             if (value is null)
                 continue;
             presentCount++;
-            byte k = (byte)ClassifyValue(value, exactDecimal, nativeDateTime);
+            byte k = (byte)ClassifyValue(value, exactDecimal, nativeDateTime, nativeDuration);
             if (kind == (byte)SqlValueKind.Null)
                 kind = k;
             else if (kind != k)
@@ -717,7 +761,7 @@ public static class SqlFrameCodec
             {
                 object? value = rows[r][col];
                 if (value is not null)
-                    bytes += MeasureValue(ClassifyValue(value, exactDecimal, nativeDateTime), value);
+                    bytes += MeasureValue(ClassifyValue(value, exactDecimal, nativeDateTime, nativeDuration), value);
             }
             plan.Bytes = bytes;
             return plan;
@@ -745,7 +789,7 @@ public static class SqlFrameCodec
         int count,
         int col,
         in ColumnPlan plan,
-        bool exactDecimal, bool nativeDateTime)
+        bool exactDecimal, bool nativeDateTime, bool nativeDuration)
     {
         writer.WriteByte(plan.Kind);
         if (plan.Kind == (byte)SqlValueKind.Null)
@@ -761,7 +805,7 @@ public static class SqlFrameCodec
                     writer.WriteByte((byte)SqlValueKind.Null);
                     continue;
                 }
-                SqlValueKind k = ClassifyValue(value, exactDecimal, nativeDateTime);
+                SqlValueKind k = ClassifyValue(value, exactDecimal, nativeDateTime, nativeDuration);
                 writer.WriteByte((byte)k);
                 WriteValue(ref writer, k, value);
             }
@@ -800,7 +844,7 @@ public static class SqlFrameCodec
     /// <see cref="Guid"/> 与未识别类型 → String（ToString 回退）。整型与浮点混列不合并（走 variant），
     /// 避免大 long → double 的精度损失。
     /// </summary>
-    private static SqlValueKind ClassifyValue(object value, bool exactDecimal, bool nativeDateTime) => value switch
+    private static SqlValueKind ClassifyValue(object value, bool exactDecimal, bool nativeDateTime, bool nativeDuration) => value switch
     {
         bool => SqlValueKind.Boolean,
         byte or sbyte or short or ushort or int or uint or long => SqlValueKind.Int64,
@@ -811,6 +855,8 @@ public static class SqlFrameCodec
         decimal => exactDecimal ? SqlValueKind.Decimal : SqlValueKind.Float64,
         string => SqlValueKind.String,
         DateTime when nativeDateTime => SqlValueKind.NativeDateTime,
+        TimeSpan when nativeDuration => SqlValueKind.Duration,
+        TimeSpan => throw new InvalidOperationException("DURATION 结果需要协商 SQL 结果格式 v5。"),
         DateTime or DateTimeOffset => SqlValueKind.Timestamp,
         byte[] => SqlValueKind.Bytes,
         float[] => SqlValueKind.Vector,
@@ -820,7 +866,7 @@ public static class SqlFrameCodec
 
     private static long MeasureValue(SqlValueKind kind, object value) => kind switch
     {
-        SqlValueKind.Int64 or SqlValueKind.Float64 or SqlValueKind.Timestamp => 8,
+        SqlValueKind.Int64 or SqlValueKind.Float64 or SqlValueKind.Timestamp or SqlValueKind.Duration => 8,
         SqlValueKind.NativeDateTime => 9,
         SqlValueKind.Boolean => 1,
         SqlValueKind.GeoPoint => 16,
@@ -865,6 +911,9 @@ public static class SqlFrameCodec
                 writer.WriteInt64(dateTime.Ticks);
                 writer.WriteByte((byte)dateTime.Kind);
                 break;
+            case SqlValueKind.Duration:
+                writer.WriteInt64(((TimeSpan)value).Ticks);
+                break;
             case SqlValueKind.Vector:
                 {
                     var vector = (float[])value;
@@ -892,7 +941,7 @@ public static class SqlFrameCodec
         _ => value.ToString() ?? string.Empty,
     };
 
-    private static object ReadValue(ref SpanReader reader, byte tag, bool nativeDateTime)
+    private static object ReadValue(ref SpanReader reader, byte tag, bool nativeDateTime, bool nativeDuration)
     {
         switch ((SqlValueKind)tag)
         {
@@ -934,6 +983,8 @@ public static class SqlFrameCodec
                         throw new FrameFormatException("原生日期的 ticks 或 Kind 无效。");
                     return new DateTime(ticks, (DateTimeKind)kind);
                 }
+            case SqlValueKind.Duration when nativeDuration:
+                return TimeSpan.FromTicks(reader.ReadInt64());
             case SqlValueKind.Vector:
                 {
                     uint dim = reader.ReadVarUInt32();
@@ -990,9 +1041,10 @@ public static class SqlFrameCodec
             throw new FrameFormatException($"期望块类型 {(byte)expected}（{expected}），实际 {kind}。");
     }
 
-    private static void RequireValueKind(byte kind, bool nativeDateTime)
+    private static void RequireValueKind(byte kind, bool nativeDateTime, bool nativeDuration)
     {
-        if (kind < (byte)SqlValueKind.Int64 || kind > (byte)(nativeDateTime ? SqlValueKind.NativeDateTime : SqlValueKind.Decimal))
+        if (kind < (byte)SqlValueKind.Int64 || kind > (byte)(nativeDuration ? SqlValueKind.Duration
+            : nativeDateTime ? SqlValueKind.NativeDateTime : SqlValueKind.Decimal))
             throw new FrameFormatException($"列值类型标记 {kind} 非法。");
     }
 
@@ -1072,6 +1124,9 @@ public enum SqlValueKind : byte
 
     /// <summary>v4 DateTime（i64 LE 钟面 ticks + u8 Kind），不依赖客户端时区。</summary>
     NativeDateTime = 10,
+
+    /// <summary>v5 完整时长（i64 LE TimeSpan ticks）。</summary>
+    Duration = 11,
 }
 
 /// <summary>
