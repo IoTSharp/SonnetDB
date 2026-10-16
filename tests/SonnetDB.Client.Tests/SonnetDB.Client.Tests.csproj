@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../connectors/dotnet/SonnetDB.Client/SonnetDB.Client.csproj" />
+    <Compile Include="../SonnetDB.Core.Tests/Protocol/FrameHeaderTests.cs" Link="Shared/FrameHeaderTests.cs" />
+    <Compile Include="../SonnetDB.Core.Tests/IO/SpanReaderTests.cs" Link="Shared/SpanReaderTests.cs" />
+    <Compile Include="../SonnetDB.Core.Tests/IO/SpanWriterTests.cs" Link="Shared/SpanWriterTests.cs" />
+    <Compile Include="../SonnetDB.Core.Tests/IO/SpanRoundTripTests.cs" Link="Shared/SpanRoundTripTests.cs" />
+  </ItemGroup>
+</Project>

@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -29,6 +30,8 @@ internal enum NativeValueType
 
 internal sealed class NativeConnection : IDisposable
 {
+    private readonly object _sync = new();
+    private readonly HashSet<NativeResult> _results = [];
     private SndbConnection? _connection;
 
     public NativeConnection(string connectionStringOrDataSource)
@@ -36,7 +39,13 @@ internal sealed class NativeConnection : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringOrDataSource);
         ConnectionString = BuildConnectionString(connectionStringOrDataSource);
         _connection = new SndbConnection(ConnectionString);
-        _connection.Open();
+        try { _connection.Open(); }
+        catch
+        {
+            _connection.Dispose();
+            _connection = null;
+            throw;
+        }
     }
 
     public string ConnectionString { get; }
@@ -44,40 +53,87 @@ internal sealed class NativeConnection : IDisposable
     public NativeResult Execute(string sql)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
-        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        using var reader = command.ExecuteReader();
-        return NativeResult.From(reader);
+        lock (_sync)
+        {
+            var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+            var command = connection.CreateCommand();
+            DbDataReader? reader = null;
+            try
+            {
+                command.CommandText = sql;
+                reader = command.ExecuteReader();
+                var result = NativeResult.From(reader, command, RemoveResult);
+                _results.Add(result);
+                return result;
+            }
+            catch (Exception exception)
+            {
+                var failure = ExceptionDispatchInfo.Capture(exception);
+                try { reader?.Dispose(); }
+                catch (Exception) { /* 保留执行根因，仍继续释放 command。 */ }
+                try { command.Dispose(); }
+                catch (Exception) { /* 执行根因优先。 */ }
+                failure.Throw();
+                throw;
+            }
+        }
     }
 
     public NativeResult ExecuteBulk(NativeBulk bulk)
     {
         ArgumentNullException.ThrowIfNull(bulk);
-        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
-        using var command = connection.CreateCommand();
-        command.CommandType = CommandType.TableDirect;
-        command.CommandText = bulk.Payload;
-        AddBulkParameter(command, "measurement", bulk.Measurement);
-        AddBulkParameter(command, "onerror", bulk.OnError);
-        AddBulkParameter(command, "flush", bulk.Flush);
-        return NativeResult.NonQuery(command.ExecuteNonQuery());
+        lock (_sync)
+        {
+            var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+            using var command = connection.CreateCommand();
+            command.CommandType = CommandType.TableDirect;
+            command.CommandText = bulk.Payload;
+            AddBulkParameter(command, "measurement", bulk.Measurement);
+            AddBulkParameter(command, "onerror", bulk.OnError);
+            AddBulkParameter(command, "flush", bulk.Flush);
+            return NativeResult.NonQuery(command.ExecuteNonQuery());
+        }
     }
 
     public void Flush()
     {
-        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
-        if (connection.UnderlyingTsdb is not { } tsdb)
-            throw new NotSupportedException("sonnetdb_flush is only available for embedded connections.");
+        lock (_sync)
+        {
+            var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+            if (connection.UnderlyingTsdb is not { } tsdb)
+                throw new NotSupportedException("sonnetdb_flush is only available for embedded connections.");
 
-        tsdb.FlushNow();
+            tsdb.FlushNow();
+        }
     }
 
     public void Dispose()
     {
-        var connection = _connection;
-        _connection = null;
-        connection?.Dispose();
+        SndbConnection? connection;
+        NativeResult[] results;
+        lock (_sync)
+        {
+            connection = _connection;
+            _connection = null;
+            results = [.. _results];
+            _results.Clear();
+        }
+
+        ExceptionDispatchInfo? failure = null;
+        foreach (var result in results)
+        {
+            try { result.Dispose(); }
+            catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        }
+        try { connection?.Dispose(); }
+        catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        failure?.Throw();
+    }
+
+    private void RemoveResult(NativeResult result)
+    {
+        lock (_sync)
+            _results.Remove(result);
     }
 
     private static string BuildConnectionString(string connectionStringOrDataSource)
@@ -128,23 +184,40 @@ internal sealed class NativeConnection : IDisposable
 internal sealed class NativeResult : IDisposable
 {
     private readonly IReadOnlyList<string> _columns;
-    private readonly IReadOnlyList<IReadOnlyList<object?>> _rows;
     private readonly Dictionary<int, IntPtr> _columnNamePointers = new();
     private readonly Dictionary<int, IntPtr> _valueTextPointers = new();
-    private int _rowIndex = -1;
+    private DbDataReader? _reader;
+    private DbCommand? _command;
+    private Action<NativeResult>? _onReleased;
+    private ExceptionDispatchInfo? _failure;
+    private int _recordsAffected;
+    private bool _hasRow;
+    private bool _ended;
     private bool _disposed;
 
     private NativeResult(
         IReadOnlyList<string> columns,
-        IReadOnlyList<IReadOnlyList<object?>> rows,
-        int recordsAffected)
+        int recordsAffected,
+        DbDataReader? reader = null,
+        DbCommand? command = null,
+        Action<NativeResult>? onReleased = null)
     {
         _columns = columns;
-        _rows = rows;
         RecordsAffected = recordsAffected;
+        _reader = reader;
+        _command = command;
+        _onReleased = onReleased;
     }
 
-    public int RecordsAffected { get; }
+    public int RecordsAffected
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _recordsAffected;
+        }
+        private set => _recordsAffected = value;
+    }
 
     public int ColumnCount
     {
@@ -155,7 +228,10 @@ internal sealed class NativeResult : IDisposable
         }
     }
 
-    public static NativeResult From(DbDataReader reader)
+    public static NativeResult From(
+        DbDataReader reader,
+        DbCommand? command = null,
+        Action<NativeResult>? onReleased = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
@@ -163,21 +239,8 @@ internal sealed class NativeResult : IDisposable
         for (int i = 0; i < columns.Length; i++)
             columns[i] = reader.GetName(i);
 
-        var rows = new List<IReadOnlyList<object?>>();
-        while (reader.Read())
-        {
-            var values = new object[columns.Length];
-            reader.GetValues(values);
-            var row = new object?[columns.Length];
-            for (int i = 0; i < values.Length; i++)
-            {
-                row[i] = values[i] is DBNull ? null : values[i];
-            }
-
-            rows.Add(row);
-        }
-
-        return new NativeResult(columns, rows, reader.RecordsAffected);
+        // 所有权仅在构造成功后转移；失败时仍由调用方释放 reader/command。
+        return new NativeResult(columns, reader.RecordsAffected, reader, command, onReleased);
     }
 
     public IntPtr GetColumnName(int ordinal)
@@ -196,13 +259,32 @@ internal sealed class NativeResult : IDisposable
     public int MoveNext()
     {
         ThrowIfDisposed();
+        _failure?.Throw();
         ReleaseValueTextPointers();
+        _hasRow = false;
 
-        if (_rowIndex + 1 >= _rows.Count)
+        if (_ended)
             return 0;
 
-        _rowIndex++;
-        return 1;
+        try
+        {
+            if (_reader is not null && _reader.Read())
+            {
+                _hasRow = true;
+                return 1;
+            }
+            if (_reader is not null)
+                RecordsAffected = _reader.RecordsAffected;
+            _ended = true;
+            ReleaseReader()?.Throw();
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            _failure = ReleaseReader(ExceptionDispatchInfo.Capture(exception));
+            _failure!.Throw();
+            throw;
+        }
     }
 
     public NativeValueType GetValueType(int ordinal)
@@ -285,23 +367,43 @@ internal sealed class NativeResult : IDisposable
         if (_disposed)
             return;
 
+        _disposed = true;
+        _hasRow = false;
         ReleaseValueTextPointers();
         foreach (var ptr in _columnNamePointers.Values)
             Marshal.FreeCoTaskMem(ptr);
         _columnNamePointers.Clear();
-        _disposed = true;
+        ReleaseReader()?.Throw();
     }
 
     public static NativeResult NonQuery(int recordsAffected)
-        => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected);
+        => new(Array.Empty<string>(), recordsAffected);
 
     private object? GetCurrentValue(int ordinal)
     {
         ThrowIfDisposed();
         ValidateColumnOrdinal(ordinal);
-        if (_rowIndex < 0 || _rowIndex >= _rows.Count)
+        if (!_hasRow || _reader is null)
             throw new InvalidOperationException("Result is not positioned on a row.");
-        return _rows[_rowIndex][ordinal];
+        var value = _reader.GetValue(ordinal);
+        return value is DBNull ? null : value;
+    }
+
+    private ExceptionDispatchInfo? ReleaseReader(ExceptionDispatchInfo? failure = null)
+    {
+        var reader = _reader;
+        var command = _command;
+        var onReleased = _onReleased;
+        _reader = null;
+        _command = null;
+        _onReleased = null;
+        try { reader?.Dispose(); }
+        catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        try { command?.Dispose(); }
+        catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        try { onReleased?.Invoke(this); }
+        catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        return failure;
     }
 
     private void ValidateColumnOrdinal(int ordinal)

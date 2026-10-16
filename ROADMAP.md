@@ -1,5 +1,9 @@
 # ROADMAP — SonnetDB 4.5 与后续里程碑
 
+2026-10-16：按用户确认修订 **[M49：连接器/嵌入式拆分、九模型访问与有界批处理](#milestone-49)**。远程各语言原生 HTTP/2 二进制 Frame，嵌入式 .NET 托管与非 .NET 共用 AOT；VB6/PureBasic 仅远程。首批只做九模型数据访问、先64位、Java8兼容、直接重构不留旧兼容层，允许分批正式发行。D01/F01/C01～C08/R01～R05 共15包，首片已实施、均未整体完成；详见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
+
+M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程序集脱离 Core，Client 只依赖 Protocol；真实 h2c、取消、关闭、预算和干净包消费者证据见 [D01 审计](docs/audits/m49/d01-20261016/README.md)。D01/F01/R01～R03 仍未整体完成，换机接续见 [M49 交接](docs/handoffs/m49-next-computer.md)。
+
 2026-10-16：新增 **[M48：单机日志与事件分析](#milestone-48)**，将 ELK 核心日志场景落实为可靠摄取、联合检索/统计、磁盘访问、生命周期、日志探索和规则告警的增量规划。`M48-L01`～`L20` 为 R1 必选，`L21`～`L24` 为条件候选，当前全部 `📋 planned`；完整字段/确认/查询/恢复合同、24 个工作包、阶段退出与验收矩阵见 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。R1 的目标版本与日期在 L01 冻结，不将全部 M48 自动追加为既有 4.5 正式版或已发布 Workbench 预览的门槛。
 
 2026-10-16：第二批 [十项产品切片](docs/audits/implementation-batch-02-20261016.md)已完成本地实现：GH-Issue #226 存量主键列重命名，#231 持久序列/原子取号/逐行插入，#237 表列注释，#240 字符串长度声明/演进/元数据，以及 #243 有主键和复合主键有界删除。扩大 Core 3157 项、Server SQL/ADO/Frame 412 项（含真实 REST/h2c，本批新增 18 项中 17 项为真实网络）及实际强制终止恢复 2 项回归通过，最终冻结复核与本地提交见根 HANDOFF。表目录含新属性时写 v12，旧引擎拒绝；未改行或键编码。#226 主键类型/定义、#227 DDL 事务、#232/#233/#236 及无主键依赖继续排队；正式发布及 ORM 消费者验收另计，不能由这些切片关闭整个 Issue。
@@ -32,7 +36,7 @@
 
 1. 代码必须存在且由真实产品入口调用；原型、未调用类型和文档计划不算功能交付。
 2. 实现合同、本地回归、真实服务、固定硬件、真实模型、长期运行及远程发布分别记录；一个层级的 PASS 不升级其它层级。
-3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
+3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`M49-Cxx/Rxx/D01/F01`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
 4. P0 为基础合同与优先交付，P1 为本版深化与验收，P2 为条件候选；只有明确必选范围参与 4.5 完成判定，条件项未经独立评审不成为版本承诺。
 5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；未校准保持 `NOT_READY`，不以自造数据或缩规模 PASS 代替真实效果。
 6. Core 保持 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT/trim 零相关警告及 public API 中文 XML 文档。API/帧保持兼容；新落盘格式必须版本化、拒绝不兼容旧 writer，提供迁移或明确拒绝及恢复方案。SQL 名称遵守 GH-Issue #211。
@@ -49,6 +53,8 @@ M48 已纳入后续增量路线，R1 必选 L01～L20 与条件 L21～L24 分开
 
 本版不纳入 TsFile 适配、导入导出或替换持久格式。参考其它产品机制后按 SonnetDB 当前存储、类型、事务和嵌入式边界独立改进，不以复制语法、算法数量或商业功能清单作为完成条件。完整分片集群、九模型分布式事务、任意外部副作用 exactly-once、完整 SQL/GQL/S3 兼容均不由本路线自动承诺。
 
+M49 按用户确认拆为原生 Frame 远程与托管/AOT 嵌入式两条线；首批只做九模型数据访问，其它平台能力后续，允许分批正式发行。C01 冻结每批语言/64位平台/操作和适用门槛，不等待整个目标矩阵；复用 V45-X01/X02、M46 的预算与有界合同，不降低既有4.5引擎门槛或重开已发布预览。VB6/PureBasic 仅远程，Java8兼容，不保留旧 SDK/API/ABI 兼容层；外部对象存储后端仍暂缓。
+
 ### 代表产品研究与采纳原则
 
 按产品家族覆盖主流关系、分析、时序、文档、缓存、搜索、向量、图和持续计算产品。官方来源、版本/商业边界及未核实项写在专题中；不声称穷尽所有产品或已完成同条件性能对照。
@@ -59,6 +65,7 @@ M48 已纳入后续增量路线，R1 必选 L01～L20 与条件 L21～L24 分开
 | DuckDB / ClickHouse | 批执行、聚合 state、并行合并、统计跳读与列式成本 | 在 M33/M41 深化，兼顾嵌入式及多模型并发。 |
 | TDengine / IoTDB / TimescaleDB | 设备/维度分析、时间函数、rollup、迟到修正与持续聚合 | TAG 分组扩展为通用聚合/增量计算，区分静态属性与观测。 |
 | InfluxDB / QuestDB / VictoriaMetrics / DolphinDB | 窗口、ASOF、采样/填补与流聚合资源取舍 | 逐项核对已有函数；内存态流聚合不等同持久 event-time 计算。 |
+| ArcticDB | 面向分析用户的数据批读写、类型/版本可见性、时间/列裁剪及原生处理 | M49 将体验推广到全部已实现连接器，复用 M41/M42/M46；现有 schema/稀疏/编码不重做，外部对象存储暂缓。 |
 | Flink / Materialize / RisingWave | merge/retract、event time、检查点与增量物化 | 复用 M43 任务/投递，首批限定可证明等价的 SQL 子集。 |
 | MongoDB / Redis | 管道聚合、索引、持久性取舍与状态 | 文档/KV/MQ 参与应用，不伪称跨模型原子事务。 |
 | Elasticsearch / Qdrant / Weaviate / pgvector | 混合召回、过滤、重排、相关性与向量工作集 | 延续 M35/M36 的索引与 RRF，强化真实语料、ACL、删除同步。 |
@@ -67,7 +74,7 @@ M48 已纳入后续增量路线，R1 必选 L01～L20 与条件 L21～L24 分开
 | Snowflake Cortex / Databricks 等 AI 平台 | 质量/成本、批量推理、评测与应用闭环 | 学习治理与旅程；托管商业功能不算开源引擎现状。 |
 | dbx / Tabularis / DBeaver / DataGrip / pgAdmin / Compass / RedisInsight / Kafka UI / MinIO Console / Neo4j Browser | 统一 Explorer、SQL/Notebook、结果平面、模型专用工作台、MCP/插件和发布分发 | 由 M47 统一三面工作台；复用交互语义与安全边界，不复制通用多库协议或商业功能清单。 |
 
-来源与选择理由见 [AI 专题](docs/design/sonnetdb-45-ai-applications.md)、[聚合专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)、[存储专题](docs/design/sonnetdb-45-storage-performance.md)、[M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)、[ELK 分析](docs/design/elk-single-node-capability-analysis-20261016.md)和 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。采纳代码前逐组件核查许可：TDengine AGPL 核心不可直接搬入继续只标 MIT，其他许可也保留相应声明，不从 SDK 许可推断全产品许可。
+来源与选择理由见 [AI 专题](docs/design/sonnetdb-45-ai-applications.md)、[聚合专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)、[存储专题](docs/design/sonnetdb-45-storage-performance.md)、[M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)、[ELK 分析](docs/design/elk-single-node-capability-analysis-20261016.md)、[M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)和 [M49 连接器专题](docs/design/m49-connector-analytics-bounded-batches.md)。采纳代码前逐组件核查许可：TDengine AGPL 核心不可直接搬入继续只标 MIT，其他许可也保留相应声明，不从 SDK 许可推断全产品许可。
 
 ## 里程碑总览
 
@@ -263,11 +270,40 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 ## 4.5 跨模型能力与性能闭环
 
 沿用既有归属，不重复建设核心服务。
+<a id="milestone-49"></a>
+## Milestone 49 — 连接器/嵌入式拆分、九模型访问与有界批处理
+
+2026-10-16 按用户确认修订，实施已开始：C01/C02/D01/R02/R03 首片进行中，其余 planned，15 包均未整体完成。[实施矩阵](docs/design/m49-implementation-matrix.md)跟踪实际边界。`connectors/` 为各语言原生 HTTP/2 二进制 Frame，平行 `embedded/` 为托管 .NET 与统一 AOT C ABI 绑定。远程八语言，嵌入式六语言；VB6/PureBasic 仅远程，VB6 固有 x86 不需要 32位 AOT 桥接。Linux/Windows/macOS、适用 x64/ARM64/glibc/musl 按每批矩阵验收，普通32位后续；Java8兼容，FFM按需。用户明确直接重构，不保留旧兼容层。
+
+**首批只做九模型数据访问，允许分批正式发行，剩余语言/平台/能力后续完成。** AI/RAG、通用流处理/CDC/备份治理API后续；现有鉴权授权、资源预算、持久性和恢复验证继续执行。当前Frame操作不完整，F01必须补齐，不能经REST绕过；仅确有语言限制才讨论有证据的例外。已存在的批量/参数/类型/多结果和 M41/M42/M46 实现继续复用，物化缺口仍需端到端修复。
+
+| ID | 优先级 / 依赖 | 工作与退出条件 |
+|---|---|---|
+| M49-C01 | P0；先行 | 冻结首批九模型操作、两条产品线、每批语言/64位平台与证据基线；复现物化，核 Java 8/BASIC HTTP/2 候选，分批正式发行范围可审查。 |
+| M49-C02 | P0；C01 | 冻结精确类型/参数、批 schema、预算/终态/错误/未知提交与 ABI/Frame 版本；共享语义和黄金语料，不强制远程复用 C ABI，不维护旧 API 兼容层。 |
+| M49-D01 | P0；C02 | 直接拆分 connectors/embedded 的目录、包、依赖与构建入口；.NET 嵌入式托管，非 .NET 共用 AOT；BASIC 仅远程，去除旧门面/桥接依赖；不改磁盘格式。 |
+| M49-F01 | P0；C02；与 D01 按切片衔接 | 逐模型补齐 HTTP/2 Frame 服务端操作、参数/适用事务、完整错误/终态/取消与必要认证路径；远程不得以 REST/HTTP1 回落代替缺口，例外逐项留证。 |
+| M49-C03 | P0；D01/F01、R01/R02/R03 对应切片 | 打通 .NET 托管和 C→AOT 嵌入式，以及 .NET/C 原生 Frame 远程路径；精确类型、九模型、批次/取消/重开与适用 AOT 分别验收；生态接口按新边界调整。 |
+| M49-C04 | P1；C03 对应切片 | Go/Rust 各实现原生 Frame 远程 SDK 与独立 embedded FFI；惯用迭代/批写、context/取消、RAII/所有权和 database/sql 适用语义逐端实跑。 |
+| M49-C05 | P1；C03 对应切片 | Java 8 兼容原生 Frame 远程库与 JNI 嵌入式绑定；AutoCloseable/精确类型/取消/异常和缓冲生命周期实跑；必要时拆 Java8 包，FFM 可选。 |
+| M49-C06 | P1；C03 对应切片 | Python 原生 Frame 远程 SDK 与 embedded ctypes 分开交付；DB-API/有界批与可选 Pandas 映射，dtype/NULL/时间/大整数和整结果容量明确。 |
+| M49-C07 | P1；F01/C02 对应切片 | VB6/PureBasic 仅实现原生远程 Frame；允许系统网络库，验证实际 HTTP/2、二进制/Int64/取消与适用订阅；不建 AOT/x86 引擎桥接，缺授权工具链保留 NOT_RUN。 |
+| M49-C08 | P1；本批适用 C03～C07/R05 | 按本批语言/平台/操作交付正式候选包、匹配共享库/头文件、模型 demo、文档与干净消费者；批次可独立完成，构建/发布/下载回读分列，不等全矩阵。 |
+| M49-R01 | P0；C01/C02 | 复用 M41/M42 为有限关系/measurement 扫描建立 pull/批执行；不先生成全量 Rows，排序/JOIN/聚合等阻塞路径明确预算/spill/拒绝。 |
+| M49-R02 | P0；R01/C02、D01/F01 对应切片 | 托管/AOT 嵌入式与 Server→Frame→各语言原生远程路径贯通批大小、背压、能力/版本与完整终态；不经 C ABI 中转远程，缺 end 不算成功 EOF。 |
+| M49-R03 | P0；C02，贯穿 R01/R02/C03/F01 | 接 V45-X02，对执行/编码/解码/预取/缓存租约及累计请求计费，验证公平准入与取消/关闭释放；估算预算与实测 RSS 分列。 |
+| M49-R04 | P1；R01～R03、M46 适用切片 | 列/时间裁剪、范围解码、批传递和复制成本优化；宽/窄、冷/热、稀疏/高熵对拍，不牺牲精确类型和取消安全。 |
+| M49-R05 | P1；本批适用 C03～C07/R01～R04/F01 | 每批分别验收目标语言的 embedded/真实 HTTP2 Frame、失败/取消/断连/重开、资源/性能和新版本协商；公开限制，单端 PASS 不升级未交付矩阵。 |
+
+推进顺序：**C01 → C02 → D01/F01 + R01/R02/R03/C03 → C04～C07 → R04/R05 → 按批 C08**，依赖按可验收切片处理。建议先 .NET/C 的 Windows/Linux x64，再扩语言与平台；正式批次只声明实际通过的矩阵，不等待整个M49完成，也不把局部PASS升级为九模型全部支持。详细边界见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
+
+不改变磁盘格式规则，不盲重放未知写，不隐藏全量物化/无界预取。外部对象存储、普通32位库、平台能力API与通用历史修订保持后续边界；Core Safe-only、零第三方运行时依赖、source-generated JSON 与适用 AOT 零警告保持。已开始 Native SQL reader 生命周期与唯一 AOT 工程迁移；Core 物化、远程新 SDK、性能和包验收不能从本片推断通过。
+
 
 | ID / 归属 | 优先级 / 范围 | 交付与验收 |
 |---|---|---|
-| V45-X01 / M41、M42 | P0 必选 | 执行器→REST/Frame→ADO/SDK 批/惰性读取、首行、取消/断连、行/字节准入及工作集；明确阻塞/spill，不把切帧/预览当全链路有界。 |
-| V45-X02 / M42 | P0 必选 | 基于 SQL worker/内存、KV I/O 和缓存，增加数据库/进程总预算、分类归属及公平准入；治理 reader 缓存随段数放大、共享 HNSW 跨库配置、AI/后台与前台竞争，记录 CPU/I/O/heap/排队/释放。 |
+| V45-X01 / M41、M42 | P0 必选 | 执行器→REST/Frame→ADO/SDK 批/惰性读取、首行、取消/断连、行/字节准入及工作集；以 M49-R01/R02 接通托管/AOT嵌入式与各语言原生Frame连接器，明确阻塞/spill，不把切帧/预览当全链路有界。 |
+| V45-X02 / M42 | P0 必选 | 基于 SQL worker/内存、KV I/O 和缓存，增加数据库/进程总预算、分类归属及公平准入；接 M49-R03 的批次/编码/预取/客户端消费，治理 reader 缓存随段数放大、共享 HNSW 跨库配置、AI/后台与前台竞争，记录 CPU/I/O/heap/排队/释放。 |
 | V45-X03 / M43 | P0 必选 | 已有本地 CDC/桥接/任务之外的有界远程合同：schema/version、历史增量、冲突/删除/TTL、续传/积压/offset；首批限定源和拓扑，不把副本称为 HA。 |
 | V45-X04 / M36、M43 | P0 必选 | MQ 实例 snapshot/restore 与数据库恢复组合；对账 offset、任务/checkpoint、物化结果、派生 AI 索引/模型引用的一致性点与顺序，公开 RPO/RTO 和非原子边界，单库备份不含 `.system/mq`。 |
 | V45-X05 / M35、M36、M29 | P1 必选 | 全文相关性/重建、filtered ANN/Recall、KV continuation/TTL、对象高变更率分页与大文件校验、图有界结果、SDK/CLI/Workbench 对拍；按明确缺口实施，UI 不先于入口。 |
@@ -291,8 +327,8 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 
 
 
-1. **基线与合同冻结：** M44-A01/A02/A06、M45-C01/C02/C09、M46-S01/S09、V45-X06；冻结支持矩阵、语料与门槛，不重做归档实现。
-2. **基础实现与成本治理：** M45 分组/state、M46 编码/精度 guard、V45-X01/X02；每包有必要定向回归、Release 和适用 AOT。
+1. **基线与合同冻结：** M44-A01/A02/A06、M45-C01/C02/C09、M46-S01/S09、M49-C01/C02、V45-X06；冻结支持矩阵、语料与门槛，不重做归档实现。
+2. **基础实现与成本治理：** M45 分组/state、M46 编码/精度 guard、V45-X01/X02；读取按 M49-R01/R02/R03+C03 接通公共链路，再逐语言 C04～C07；每包有必要定向回归、Release 和适用 AOT。
 3. **持续计算与恢复：** M45-C03/C04/C05/C08 接既有 M43，V45-X03/X04/X08；不支持源/操作及未知结果明确拒绝或进入恢复。
 4. **AI 应用与九模型旅程：** M44-A03/A04/A05/A07、M45-C06/C07、M46 深化和 V45-X05；条件项独立证明收益后决定。
 5. **性能、质量与发布论证：** 执行既有目标机队列和新应用/聚合/编码 gate，绑定同一候选；本机合成数字不升级生产结论。
@@ -341,6 +377,7 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 #382~#384、本地 CDC/窗口/任务/DLQ/自动投递/桥接及汇总工具移至 CHANGELOG；这里只保留剩余。M44 应用、M45 计算语义、M46 编码各自归属新里程碑。
 
 | 范围 | 状态 | 剩余交付 |
+| M49（两条产品线） | 首批九模型、真实托管/AOT嵌入式和原生HTTP2 Frame、精确类型/预算/取消/恢复及独立包消费者 | 首片进行中，15包均未整体完成；先64位，Java8兼容，BASIC仅远程，按实际矩阵分批正式发行；平台API后续。 |
 |---|---|---|
 | #385~#390 | 🚧 | 远程同步、schema/冲突、离线续传、客户端及现场故障/容量。 |
 | #391~#395 | 🚧 | 远程投递/接管、权限、业务副作用边界与现场恢复，已有本地底座不重做。 |

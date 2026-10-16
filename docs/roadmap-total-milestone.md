@@ -2,6 +2,8 @@
 
 核查基线：2026-10-03，`4b004946`。**根 [ROADMAP.md](../ROADMAP.md) 是 4.5 主执行路线；本文件保存既有归属、十四能力当前边界与 M43 细分，避免重复派单。** 新增 M44/M45/M46 均为 planned，不把研究文档当实现。
 
+2026-10-16 增量：接收基线 `67a5c8c8`，按用户确认修订 [M49 两条产品线与九模型访问](design/m49-connector-analytics-bounded-batches.md)：D01/F01/C01～C08/R01～R05共15包；C01/C02/D01/R02/R03 首片进行中，其余planned，均未整体完成。connectors原生HTTP/2 Frame，embedded托管.NET/统一AOT；VB6/PureBasic仅远程，Java8兼容，先64位，直接重构不留旧兼容层。首批只做九模型数据访问，允许分批正式发行；其它平台API后续。复用M36/M41/M42/M43、V45-X01/X02/M46；ODBC及外部对象存储仍后续。详见[确认需求](design/connector-embedded-split-requirements-20261016.md)与[实施矩阵](design/m49-implementation-matrix.md)，不以局部结果提升下文历史实测。
+
 已完成代码/本地合同见 [本轮 CHANGELOG 归档](../CHANGELOG.md#roadmap-completed-archive-2026-10-03-45)和[原归档](../CHANGELOG.md#roadmap-completed-archive-2026-09-21)。历史设计见[历史路线](roadmap-history.md)，本轮核查见[规划记录](audits/sonnetdb-45-roadmap-planning-20261003.md)。既有内部 PR 与外部 `GH-Issue` 不混号，新规划工作 ID 不代表已创建远程事项。
 
 ## 一、当前结论
@@ -16,6 +18,7 @@
 | M45 聚合与持续计算 | C01~C09：类型/分组、state、修正、增量view、批流窗口、sketch、时间函数、预算及对拍 | C10扩展分组/窗口/ASOF按需求纳入 | [聚合专题](design/sonnetdb-45-aggregation-continuous-compute.md) |
 | M46 存储编码与执行成本 | S01~S09：基线/策略、整数/浮点/字典、范围读、统计、缓存/维护及兼容收益 | 默认auto/具体codec由冻结语料决定，不预填倍数 | [存储专题](design/sonnetdb-45-storage-performance.md) |
 | M47 统一数据库管理工作台与三面发布 | U01~U09：共享合同、九模型 adapter、Web Admin/Studio/VS Code、AI/MCP 入驻、原型与发布矩阵 | U10 manifest/签名/插件目录按核心工作台和安全评审后纳入 | [M47 统一管理工作台专题](design/m47-unified-management-workbench.md) |
+| M49 连接器/嵌入式拆分与九模型有界访问 | D01/F01/C01～C08/R01～R05：目录/依赖、Frame补齐、语言双路径、精确类型/预算/取消与按批消费者；首片进行中，15包均未整体完成 | 首批九模型，先64位，Java8兼容，BASIC仅远程；分批正式发行；平台API/普通32位/FFM后续 | [M49 详细设计](design/m49-connector-analytics-bounded-batches.md) |
 
 TsFile 不纳入 4.5；完整分片/自动故障转移、九模型分布式事务及任意外部副作用 exactly-once 不由规划自动承诺。原生属性图保持现有 Beta 门禁。
 

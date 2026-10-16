@@ -12,7 +12,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+    <ProjectReference Include="../../../src/SonnetDB.Data/SonnetDB.Data.csproj" />
+    <InternalsVisibleTo Include="SonnetDB.Native.Tests" />
   </ItemGroup>
 
 </Project>

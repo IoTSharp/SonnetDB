@@ -5,6 +5,7 @@
     <Project Path="eng/tools/connectors-release/connectors-release.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/SonnetDB.Protocol/SonnetDB.Protocol.csproj" />
     <Project Path="src/SonnetDB.Cli/SonnetDB.Cli.csproj" />
     <Project Path="src/SonnetDB.Core/SonnetDB.Core.csproj" />
     <Project Path="src/SonnetDB.Data/SonnetDB.Data.csproj" />
@@ -14,8 +15,11 @@
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
     <Project Path="src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj" />
   </Folder>
+  <Folder Name="/embedded/">
+    <Project Path="embedded/native/SonnetDB.Native/SonnetDB.Native.csproj" />
+  </Folder>
   <Folder Name="/connectors/">
-    <Project Path="connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" />
+    <Project Path="connectors/dotnet/SonnetDB.Client/SonnetDB.Client.csproj" />
   </Folder>
   <Folder Name="/extensions/">
     <Project Path="extensions/SonnetDB.CAP/SonnetDB.CAP.csproj" />
@@ -38,6 +42,7 @@
     <Project Path="samples/SonnetDB.SemanticImages/SonnetDB.SemanticImages.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SonnetDB.Client.Tests/SonnetDB.Client.Tests.csproj" />
     <Project Path="tests/SonnetDB.CAP.Tests/SonnetDB.CAP.Tests.csproj" />
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />
     <Project Path="tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj" />
@@ -50,6 +55,7 @@
     <Project Path="tests/SonnetDB.IoTSharpCompat.Tests/SonnetDB.IoTSharpCompat.Tests.csproj" />
     <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Media.Tests/SonnetDB.Media.Tests.csproj" />
+    <Project Path="tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj" />
     <Project Path="tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
     <Project Path="tests/SonnetDB.TriggerAdmission/SonnetDB.TriggerAdmission.csproj" />

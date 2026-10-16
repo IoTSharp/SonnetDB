@@ -3180,3 +3180,85 @@ canonical 从 codex/m47-preview12-release 切至同 HEAD dcadffc 的 main，原 
 - 建议目标是单机日志与事件分析闭环，复用已有持久全文、分词/BM25、typed facet/highlight、文档/TTL、M43 订阅/窗口/DLQ 与 M47；不把已有能力重新派单。发现的静态边界：typed 全文先取候选窗口再过滤，TotalHits/facet 只对应候选；排序当前 ID/score，offset token 没有固定查询视图；全文段全量载入、普通搜索收集全部命中后排序、合并收集存活文档；OTLP exporter 不能作为接收外部日志的证据。具体方法与行号已记录。
 - 下一步如用户决定实施，先冻结日志数据集/字段/持久确认与查询合同，复现超过首窗口及 10000 条的过滤/统计/分页问题，再推进可靠接入、磁盘按需读取、聚合/分区保留、日志探索和规则告警。Logstash HTTP 输出接收适配是候选路线；没有宣布 Elasticsearch API、Kibana 或 OTLP 即插即用。
 - 本次仅源码静态核查、官方资料研究与容量算例，没有运行 build/test/性能/采集器/恢复验证，没有生产代码变更、Issue/PR/提交或外发。报告与本交接追加留在工作树，未暂存提交：共享 main 正由其它 Issue 任务推进且已有暂存内容，本次不混入其提交；亦未执行提交前完整 restore/Format 门禁，后续独立提交必须按 AGENTS 执行。中途观测 HEAD 5d7bf064，之后主树继续推进，实际状态以 git 为准。未修改或清理 parity-results。
+
+
+## M49 跨连接器分析与有界批处理路线（2026-10-16，Asia/Shanghai）
+
+- 用户将 ArcticDB 分析后的两项投入明确扩大到其它连接器，要求先拉取代码再修改路线；外部对象存储暂时不做。已按PS7直接fetch一次（连接重置，失败保留）及代理fallback一次成功取得origin/main 67a5c8c8d64c36002aee5ebcfcb40634e7d5f482；三次有界Job含git版本微试均cleanupComplete，未触动parity-results。
+- canonical D:/source/SonnetDB 仍为main/dcadffc，初始167项dirty，7个tracked文件与远端更新重叠（ROADMAP/CHANGELOG/HANDOFF及4个发布文件）。为保留共享状态，未在canonical覆盖式pull/reset/stash；使用Codex受管工作区 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB，基线67a5c8c8，分支codex/m49-connector-batches-roadmap。本段在两个工作区分别独占尾追加并核原字节前缀；当前聊天cwd仍是canonical，后继M49工作须显式使用受管路径。
+- 受管树将canonical ROADMAP/CHANGELOG的既有规划与新main作三方合成，唯一ROADMAP规划ID冲突保留M42-H与M48-L双方；复制原未提交的docs/design/m42-relational-hot-write-concurrency.md逐字节保持，以避免丢失原路线引用。三项继承内容及原/远端/合成快照在canonical artifacts/connectors-roadmap-20261016/inherited-planning.json和*.planning-baseline，本轮M49 owned补丁单独存*.owned.patch。没有搬运或修改发布账本和其余共享研发。
+- 新增docs/design/m49-connector-analytics-bounded-batches.md，更新受管ROADMAP、docs/roadmap-total-milestone.md、connectors/README.md、CHANGELOG。M49-C01～C08/R01～R05共13包全部planned；.NET、C、Go、Rust、Java JNI/FFM、Python、VB6、PureBasic逐端验收，ODBC只保留后续独立driver。已有多结果/参数/bulk/schema/稀疏/编码复用；外部S3/Azure后端和冷数据适配暂缓，不新增产品实现。
+- 当前代码确有NativeResult.From把reader全量收集到List，embedded MaterializedExecutionResult包装完整Rows；公共链路优先于仅Python包装。下一顺序C01基线→C02共享类型/预算/生命周期/终态→R01/R02/R03+C03真实.NET/C贯通→C04/C05/C06/C07各语言→R04/R05性能/资源/故障→C08包消费者。未知提交、慢消费、取消/提前释放、旧新兼容、VB6/PureBasic真实工具链和明确NOT_RUN均保留，不以单端通过关闭整体。
+- 本轮文档核验：根路线与专题13个ID一致且唯一，23个相关本地链接通过，无冲突标记；git diff --check通过，原canonical ROADMAP/CHANGELOG hash及继承M42专题hash保持，M48及远端实现记录保留。产品源码未改，未build/test/性能验证或安装工具，没有子代理、服务、提交、推送或发布；全部新增功能NOT_STARTED/运行NOT_RUN。文档与交接暂未提交，用户本轮要求拉取与修改规划，未执行提交前完整restore/Format；后续提交必须在最终树取得原门禁，且区分继承规划与本轮新增。
+
+## M49 双产品线确认与分批正式发行（2026-10-16，本轮规划修订）
+
+- 用户本聊天确认：connectors 各语言原生HTTP/2二进制Frame（只有确有语言能力限制才讨论例外）；embedded .NET直接托管，C/Go/Rust/Python/Java共用AOT C ABI；VB6/PureBasic仅远程。先64位，全平台目标逐批验收，普通32位后续；VB6固有x86仅远程，不建64→32/AOT引擎桥接。直接重构不保留旧SDK/API/ABI兼容层，存储格式规则仍适用。Java8兼容，必要时独立包，优先单库/JNI，FFM按需。
+- 三项集中澄清已全部收到直接答复：首批只做九模型数据访问；后续AI允许显式配置外部模型/API联网；允许分批正式发行，剩余后续完成。不再把AI/RAG、通用流处理/CDC/备份治理API或整个最终平台集合加为首批统一阻断；既有鉴权授权、预算、持久性和模型恢复验证继续强制。前一需求段“全部未回答”已由本段及确认需求取代，不重复提问。
+- 本轮规划写入已有受管树 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB，分支codex/m49-connector-batches-roadmap、HEAD67a5c8c8d64c36002aee5ebcfcb40634e7d5f482。修订ROADMAP、docs/roadmap-total-milestone、connectors/README、CHANGELOG及M49专题，新增确认需求镜像；canonical D:/source/SonnetDB/main/dcadffc仅更新自有需求文档与HANDOFF尾部，不覆盖原路线/发布/实现。未fetch/pull、创建工作树、改分支或碰parity-results。
+- M49保留C01～C08/R01～R05，新增D01目录/依赖直接拆分、F01首批九模型Frame补齐，共15个planned包。C04～C06两路径分验，C07仅BASIC远程，R05/C08按本批矩阵收口、可分批正式发行；整体M49完成与每批正式发行分别判断。建议下一顺序C01→C02→D01/F01+R01/R02/R03/C03，先.NET/C的Windows/Linux x64纵向切片，再扩语言/平台；此为执行建议，尚无产品实施。
+- 本轮静态检查已通过：根路线与专题15个ID一致且唯一，6份受管规划文件完整内容独立读回符合预期；3份新/修订需求专题共7个本地链接存在，围栏/冲突/自有空白检查通过；受管规划范围git diff --check exit0。已有canonical HANDOFF历史空白未修，原内容前缀字节保留。检查只证明文档一致性，全部构建/测试/AOT/真实HTTP2/故障恢复/性能/包消费者/CI为NOT_RUN，新增实现NOT_STARTED。
+- 官方在线核对NativeAOT平台/共享库边界、WinHTTP启用HTTP2与查询实际协议；WinHTTP启用标志仍允许旧HTTP，须真实读回并拒绝回落，不能据候选API宣称BASIC运行通过。Apache官方存在纯Java HTTP2实现，但Java8指定库版本/ALPN/双工仍须C01实测。无子代理、工具安装、后台服务、提交/推送/发布、下载交付物或本轮临时文件；短exec均已返回，无任务后台树需终止。
+- 暂不提交：本轮范围是需求确认与规划，共享树已有其它未提交内容，未执行提交前完整restore/Format Check。后继提交仍须在最终树通过原门禁并只stage本轮拥有的内容；当前规划是未提交文档，不是代码或发行结果。
+
+## M49 首个实现切片：Native SQL 生命周期与 AOT 工程迁移（2026-10-16）
+
+- 已在指定既有受管树 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB 接管实施，分支 codex/m49-connector-batches-roadmap，HEAD 仍为 67a5c8c8d64c36002aee5ebcfcb40634e7d5f482；索引为空、未提交。没有在 D:/source/SonnetDB 写入产品代码，没有新建工作树、pull/reset/stash、推送、PR/Issue 写入、公开发行或部署。继承 M42 专题 SHA256 仍为 5C06350BFC77739FD0375FD99AEEAAC95C34E1BD99AD7B57C7CB7F3D598CD3A9，M42/M48 规划保留；共享文件提交只能取自有 hunk。
+- 实现：唯一 AOT 导出工程从 connectors/c/native/SonnetDB.Native 迁至 embedded/native/SonnetDB.Native，同步 solution、CMake 和仓库 CMake 技能路径，移除旧位置的生成型 .csproj.lscache。NativeResult.From 不再 Read/GetValues 后复制完整 List，而接管 reader/command、每次 next 至多一次上游 Read；EOF 清当前行并释放资源，列名保留至 free；读取/取消/清理失败保持原终态，后续 next 不变成功 EOF。NativeConnection 跟踪活动 SQL 结果，连接关闭先清理结果；释放后的 RecordsAffected 也明确拒绝。新增 embedded/c 生命周期 demo、独立包消费者 CMake 与 Native 测试项目。
+- 原实现确定性基线 4/4 FAIL：全量预取、提前释放不拥有 reader、读取故障消失、EOF 后旧行仍可读。修复前 3 轮为 8 PASS/1 FAIL，均为我使用了不符合本库类型/表级主键/INSERT 列清单语法的 SQL 夹具；纠正夹具后第 4 轮 9/9 PASS。迁移和真实 SndbCommand.Cancel 用例加入后 10/10 PASS；补释放后 RecordsAffected 拒绝后最终仍 10/10，0 skip。原 FAIL/TRX 没有覆盖。真实数据库用例包含 Int64 极值、UTF-8、NULL、多结果句柄互不干扰、提前 free、父连接关闭、flush/正常重开。
+- Windows x64 最终 CMake/NativeAOT 构建 PASS，无 IL/AOT 或编译警告诊断；最终源码匹配的 0.0.0-local.m49-lifetime.2 工程包解压后独立 CMake 配置、编译和运行 PASS，不引用仓库 .NET 工程、不运行 dotnet，包含 C 端父连接关闭后 RecordsAffected 的真实拒绝；同候选原 C quickstart 重新运行 PASS。包仅为 SQL 生命周期工程探针，不是 C08 九模型发行。CMake 排除 bin/obj 下生成 C# 依赖后，生成依赖中的 obj C# 为零，实际增量构建约 4 秒且未再次 publish AOT。
+- 最终完整 solution restore PASS；原样 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ PASS（仍有一条 workspace-load warning）；CI 分片 core=1/rest=44/total=45、无交集 PASS。所有源码、测试 DLL/PDB、最终 TRX、AOT DLL、C 工程包与实际 C 消费者 EXE 的哈希绑定在 artifacts/m49-implementation-20261016/source-and-runtime-freeze.json；各命令 spec/result/stdout/stderr/进程身份与最终摘要同目录。首轮和最终工程包分别保留，没有冒称公开包、远端 CI、真实 HTTP2、性能或全平台证据。
+- 旧错误边界：一次重复 CMake 发布主动取消，helper 原回执为 ERROR/retained identity changed/cleanupComplete=false；Job close 后独立核查那 12 个记录 PID 为零存活，不改原 ERROR。一次 90 秒发布复跑超时 ERROR，cleanupComplete=true；后续按实际构建时长给 600 秒上限，最终构建成功。WSL 直交通用 helper 首次参数传递 exit127，PS7 结构化调用复试成功；仅核 Ubuntu /usr/bin/gcc、/usr/bin/clang、/usr/bin/dotnet、/usr/bin/cmake 和 64位 x86_64，没有 Linux build。未安装工具或启动后台业务服务。
+- 资源审计覆盖此前已完成 32 份回执/242 条记录身份，liveOwned=0；审计与清理各自 Job 回执 PASS/cleanupComplete=true。专属 D:/t/m49-01a1440e（475项）和旧 native 路径已核由本任务创建的 bin（9项）/obj（24项）均完成回收；日志、源码/运行哈希、工程包、当前候选构建输出留作交付证据。复用 Run-M49.ps1 前须重新创建其专属 TEMP 并写 owner.txt=01a1440e-m49，或为下一片配置新的独占 TEMP，不能引用已删除的 TEMP。origin/parity-results 末次仍在 1b2e51ecb92cf7b34331a0945f86fb4215a7b3c5；本地 heads/parity-results 未存在，本轮没有任何 ref 删除/合并操作。
+
+M49 仍 IN_PROGRESS，15 包均未整体完成；不能把这个外层 reader 修复冒称端到端有界。Native 仍依赖混合 SonnetDB.Data，Core SelectExecutionResult.Rows 仍全量物化；同句柄 next/value/free 与父连接 close 要求串行。新 ABI 版本/精确类型/参数/总请求预算、C 取消入口、新远程 SDK 和九模型操作尚未交付。缺 end 测试当前只是 reader IOException 注入，不是实际 Frame 故障证据。Graph beta、其它目标语言/平台、恢复/性能、干净正式包、远端 CI 与公开发行边界均保留。
+
+下一片直接接续实现，不重做已完成基线：
+
+1. D01 解除 embedded/native 对混合 Data/remote 的依赖，迁移剩余本地 C 头文件/构建/语言绑定与包入口，移除 BASIC 嵌入式桥接；建立脱离 Core 的 .NET 原生 Frame 远程包，保持用户要求直接重构。
+2. F01 从 SQL 写入/精确参数/适用事务切片补齐 FrameEndpointHandler 与 SqlFrameOp/codec；当前仅 Query=1，RemoteConnectionImpl 写请求仍走旧 REST 路径，新 SDK 必须拒绝这种回落并验证实际 HTTP2。逐模型按 docs/design/m49-implementation-matrix.md 补齐，不以 SQL 可达推断模型操作已完备。
+3. R01/R02/R03 建立简单关系/measurement 的真实 Core pull 执行，把快照、SQL 执行上下文、预算、取消/截止时间和释放范围保持到消费结束；不能只改 MaterializedExecutionResult 名称或在完整 Rows 外切批。随后接新 ABI/Frame 版本、缺 end/未知提交/慢消费/资源试验。
+4. 再扩各语言、Java8/JNI、Linux glibc/musl/x64/ARM64、Windows ARM64、macOS 与 BASIC 远程，按实际矩阵推进 R04/R05/C08；每模型 demo 和干净消费者单列。允许分批正式发行，但本轮工程包不等于任何正式批次完成。
+
+本片保留为未提交的可审查候选：继承规划仍有共享 hunk，M49 继续实施；本轮未执行提交或推送。后续若交付提交，须先核自有清单和继承内容，在最终待提交树重新执行完整 restore/原 Format，再只 stage 自有路径或共享文件自有 hunk，不把本段当作 main 已交付。
+
+## M49 首片提交与推送接续（2026-10-16）
+
+用户本轮明确要求“提交代码并推送”。交付范围为 M49 确认需求/路线、Native SQL 生命周期修复、唯一 AOT 工程迁移、C 工程示例和 Native 测试；实现状态继续 IN_PROGRESS，整个 M49 的 15 包均未整体完成。此前“未提交”段落为当时阶段快照。本段随交付提交保存，提交身份由本分支 git log 获取，正常推送和独立远端 SHA 回读结果存 artifacts/m49-commit-20261016，不能把本次分支推送视为 main 合并或产品发行。
+
+本次提交只纳入自有文件及 ROADMAP/CHANGELOG 的 M49 hunk；继承 M42 专题、M42 热点写规划和 M47 状态表改动继续留在工作树，未覆盖、暂存或删除。已在提交前重新核对上一片 21 个源码/运行资产哈希；产品 C#、工程、头文件和示例未改变，10/10、Windows x64 AOT 与独立 C 包消费者仍属于上片的真实执行，不冒称本轮新测试。本次另在最终待提交树重新完整 restore 和原样 Format Check，只有两者真实通过才允许形成提交；日志/退出码与进程清理分列在上述提交回执根。
+
+embedded 位于实际实施树 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB/embedded。当前聊天默认目录 D:/source/SonnetDB 是共享 main 工作树，那里没有复制这批新目录；后续继续在受管树推进，不能向共享 main 覆盖式同步。剩余实施顺序沿用上一节 D01 依赖隔离、F01 Frame 补齐、R01/R02/R03 Core pull 与各语言/平台验收。parity-results 不合并或删除。
+
+## M49-D01 换机交付：共享 Protocol 与原生 .NET Frame 入口（2026-10-16）
+
+用户最新要求当前片实现、写交接、提交推送后更换电脑，在新会话继续。**本机在本片交付后停止新增实现；下一 F01 交给新电脑会话。** 远端/分支仍为 IoTSharp/SonnetDB 的 codex/m49-connector-batches-roadmap。首片已正常提交推送 1d02c1c5f410b2ca90e83c56fd9993e52c1f77f4；D01 最终提交为 6a606c6ba4170f775f1a3fe6b3c9e333f09f2409，远端 ls-remote 回读一致，不把首片 SHA 当成最新。
+
+换机先读 **docs/handoffs/m49-next-computer.md**，再读确认需求/实施矩阵；新电脑不依赖旧 artifacts helper、TEMP、编译器绝对路径或构建 DLL。新 embedded 位于本分支正常 repo 根，不在旧 D:/source/SonnetDB 共享 main 的目录视图中。
+
+本片直接迁移 Frame 信封、八类 opcode 和 SpanReader/SpanWriter 到无引擎依赖的 SonnetDB.Protocol；Core 引用它。新增 connectors/dotnet/SonnetDB.Client，仅依赖 Protocol，使用原生 HTTP2、校验实际响应版本、帧身份/完整性/预算，拒绝重定向和回落；整请求期限覆盖 body，取消/关闭释放在途流，发送后错误保留 OutcomeUnknown，不自动业务重试。单帧 API 明确拒绝已知多帧/双工操作。**托管 API 的程序集归属不兼容，消费者须重编译，无旧类型转发；磁盘和 Frame v1 编码未变。**
+
+真实验证：首轮189、真实h2c加入后193、最终195/195 Client（含5个真实Kestrel h2c）全部PASS；原Core定向175/175、Native托管10/10与Server Release build零warning/error通过。闭包检查和本地0.0.0-local.m49d01.3两包消费者通过：清空默认feed、独占缓存、无ProjectReference，实际h2c/二进制/认证头往返，输出无Core/Data/Native文件。旧AOT/C结果不升级为本片新AOT验证。完整Core/Server套件、TLS/ALPN、SDK/新NativeAOT、其它平台/远端CI均NOT_RUN。
+
+源码/运行/包哈希和原TRX已入库 docs/audits/m49/d01-20261016；其consumer目录保存可重建源码。原Native冻结把XML Counters序列化为空数组，原文件/原FAIL未覆盖；新增摘要明确从原native-final-2 TRX读取total/executed/passed=10，其余指定计数=0，绑定TRX/源码/DLL/PDB/实际运行日志/包和库。已将原TRX字节一致副本和补充摘要入库 docs/audits/m49/native-lifetime-20261016；旧临时EXE已回收，只能引用历史哈希，旧审计副本/库/包二进制不随Git上传，不宣称新电脑仍能读旧路径。
+
+正式包清单、Core旧4.x包API基线门禁未运行且没有关闭/压制/降级；新Protocol依赖和直接类型迁移必须在正式发行前按版本合同处理。本地nupkg来自待提交开发树，nuspec repository commit指向父1d02c1c5，实际源码以本片哈希绑定，不冒充不可变正式候选。每次提交仍先在最终树完整restore/原Format；本次门禁、进程和推送收据在本机 artifacts/m49-d01-20261016，后续新机应重新执行，不能借用旧PASS。
+
+M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余语言绑定/BASIC旧桥接未迁移；九模型typed、多帧SQL/精确参数/事务、对象下载和MQ双工未接新Client；Core仍完整Rows。新机从F01 SQL写入/精确参数和明确版本/能力/终态开始，再推进R01/R02/R03 Core pull、剩余D01/C03与其它语言/平台、真实模型demo/恢复/性能和按批发行。不要重做已证外层reader修复或把193/195传输语料当成九模型验收。
+
+当前实现仍只在既有受管工作区；M42热点写/M47状态表和M42专题继承dirty保留，提交只stage自有路径/hunk。未合并main、未公开发包/部署、未发消息、未安装工具，parity-results永不合并或删除。当前片提交推送完成后由新会话接续，不在本机再扩F01。
+
+## D01 最终提交回读（2026-10-17，Asia/Shanghai）
+
+- D01 最终提交：`6a606c6ba4170f775f1a3fe6b3c9e333f09f2409`。
+- `origin/codex/m49-connector-batches-roadmap` 独立 `ls-remote` 回读为同一 SHA；`origin/parity-results` 仍为 `042748d841c5eca6e47261cf6b63e220280ee102`，未合并/删除。
+- 提交前完整 `dotnet restore SonnetDB.slnx` 与原样 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 均 PASS；唯一 workspace-load warning 保留记录。
+- 当前工作树保留三项未提交继承 dirty：`CHANGELOG.md`、`ROADMAP.md` 和 `docs/design/m42-relational-hot-write-concurrency.md`，未进入 D01 提交。新会话须先检查这些文件归属，不得 reset/clean/stash-all。
+- D01 交付后立即进入 F01：当前 `SqlFrameOp.Query=1` 仍只读；新增 SQL 写入/精确参数/适用事务 Frame 之前先核现有 server codec/handler、事务边界和版本/能力拒绝合同，禁止 REST/HTTP1 回落。
+
+
+## 人工统一合并（2026-10-17，M49 远端分支）
+
+- 用户要求提交、拉取、同步并合并本地与线上代码。主目录真实起点为 main 4d6e4f988118c7f856211ab1380e4fc31e1ca10a，初始 clean；已 fetch origin。将 origin/codex/m49-connector-batches-roadmap 39437db0189e9f8acbc3efebf890087ed17052f6 普通 merge，CHANGELOG 冲突保留双方全部条目，未覆盖已有 Identity/JSON/DTO 修复。
+- 本次只是既有交付整合；M49 功能与发行边界沿用该分支审计。下一步合入 online-demo 分支、冻结 #248 和准备材料，再执行组合回归及普通 push/精确 CI 回读。旧工作树、stash、失败证据全部保留；parity-results 不合并或清理。定时监督仍 PAUSED，不恢复新 Issue 实施。
+- 本 merge 仅在最终树完整 restore 和原样 Format Check 实际通过后提交；日志保存 artifacts/integration-20261017/logs，提交及后续线上状态以本轮最终整合审计为准。

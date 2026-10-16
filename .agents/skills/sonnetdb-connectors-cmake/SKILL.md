@@ -43,7 +43,7 @@ Use `"Visual Studio 17 2022"` when the machine has VS2022 instead of VS2026.
 NativeAOT fallback check:
 
 ```powershell
-dotnet publish connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj `
+dotnet publish embedded/native/SonnetDB.Native/SonnetDB.Native.csproj `
   --configuration Release `
   --runtime win-x64 `
   /p:SelfContained=true `
