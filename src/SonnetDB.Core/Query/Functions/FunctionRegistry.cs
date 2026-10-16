@@ -197,6 +197,8 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("ends_with", 2, 2, EvaluateEndsWith),
         new BuiltInScalarFunction("endswith", 2, 2, EvaluateEndsWith),
         new BuiltInScalarFunction("contains", 2, 2, EvaluateContains),
+        new BuiltInScalarFunction("json_value", 2, 2, JsonDynamicSqlFunctions.Value),
+        new BuiltInScalarFunction("json_object", 0, 4096, JsonDynamicSqlFunctions.CreateObject),
         new BuiltInScalarFunction("json_exists", 2, 2, JsonSqlFunctions.Exists),
         new BuiltInScalarFunction("json_array_length", 2, 2, JsonSqlFunctions.ArrayLength),
         new BuiltInScalarFunction("json_contains", 3, 3, JsonSqlFunctions.Contains),

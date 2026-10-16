@@ -181,7 +181,6 @@ public sealed class DocumentVectorMaterializationBudgetTests : IDisposable
     [InlineData("SELECT id FROM vector_search(docs, [0,0,0], 3) UNION ALL SELECT 'x'")]
     [InlineData("SELECT id FROM (SELECT id FROM vector_search(docs, [0,0,0], 3)) AS source")]
     [InlineData("WITH source AS (SELECT id FROM vector_search(docs, [0,0,0], 3)) SELECT id FROM source")]
-    [InlineData("SELECT json_value(document, id) FROM vector_search(docs, [0,0,0], 3)")]
     [InlineData("SELECT CAST(id AS VECTOR) FROM vector_search(docs, [0,0,0], 3)")]
     [InlineData("SELECT CAST(id AS GEOPOINT) FROM vector_search(docs, [0,0,0], 3)")]
     public void Execute_UnsupportedShape_RejectsBeforeCandidateRead(string sql)

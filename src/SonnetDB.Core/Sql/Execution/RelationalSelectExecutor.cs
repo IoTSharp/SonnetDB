@@ -1215,6 +1215,8 @@ internal static partial class RelationalSelectExecutor
         {
             case FunctionCallExpression:
                 return true;
+            case CastExpression cast:
+                return ContainsFunctionCall(cast.Operand);
             case UnaryExpression unary:
                 return ContainsFunctionCall(unary.Operand);
             case BinaryExpression binary:
@@ -1287,6 +1289,10 @@ internal static partial class RelationalSelectExecutor
         {
             case IdentifierExpression identifier:
                 yield return identifier;
+                yield break;
+            case CastExpression cast:
+                foreach (var identifier in EnumerateLocalIdentifiers(cast.Operand))
+                    yield return identifier;
                 yield break;
             case UnaryExpression unary:
                 foreach (var identifier in EnumerateLocalIdentifiers(unary.Operand))
@@ -4450,7 +4456,8 @@ internal static partial class RelationalSelectExecutor
             return new SelectColumnInfo(TableColumnType.Int64, false);
 
         if (expression is FunctionCallExpression jsonSetter
-            && string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(jsonSetter.Name, "json_set_value", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(jsonSetter.Name, "json_object", StringComparison.OrdinalIgnoreCase))
             && FunctionRegistry.GetFunctionKind(jsonSetter.Name) == FunctionKind.Scalar
             && UserFunctionRegistry.Current?.TryGetScalar(jsonSetter.Name, out _) != true)
             return new SelectColumnInfo(TableColumnType.String, false);

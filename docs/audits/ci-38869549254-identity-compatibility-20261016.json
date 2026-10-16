@@ -1,0 +1,512 @@
+{
+  "base": "edd23c1d72c472c71ea0b8d4939df0ec5c2311e4",
+  "ciRun": 38869549254,
+  "ciHead": "b568988e5b568ba5bb3abea9574c048a02e0e3f8",
+  "ciStatus": "completed",
+  "ciConclusion": "failure",
+  "ciJobs": [
+    {
+      "name": "Build & Test (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "failure",
+      "databaseId": 116870156666
+    },
+    {
+      "name": "AOT Publish (windows-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 116870156703
+    },
+    {
+      "name": "AOT Publish (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 116870156704
+    },
+    {
+      "name": "Format Check",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 116870156758
+    },
+    {
+      "name": "Build & Test (windows-latest, core)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 116870156816
+    },
+    {
+      "name": "Build & Test (windows-latest, rest)",
+      "status": "completed",
+      "conclusion": "failure",
+      "databaseId": 116870156898
+    },
+    {
+      "name": "AOT Publish (ubuntu-24.04-arm)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 116870157103
+    }
+  ],
+  "runs": [
+    {
+      "stage": "Before",
+      "total": 18,
+      "passed": 17,
+      "failed": 1,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\Before\\results\\identity.trx",
+      "sha256": "4F4DE89550A33B3DCCE4174CDEC031BB074AF557BFE597608FE8EE4968106492",
+      "build": {
+        "endedUtc": "2026-10-16T16:07:52.4839439+08:00",
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Before\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ],
+          "pid": 83488,
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:07:12.5647667Z"
+        },
+        "startedUtc": "2026-10-16T16:07:12.5590262+08:00",
+        "timedOut": false,
+        "exitCode": 0,
+        "label": "build"
+      },
+      "test": {
+        "endedUtc": "2026-10-16T16:08:07.45157+08:00",
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "test",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Before\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=identity.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Before\\results"
+          ],
+          "pid": 54088,
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:07:52.5243419Z"
+        },
+        "startedUtc": "2026-10-16T16:07:52.5218356+08:00",
+        "timedOut": false,
+        "exitCode": 1,
+        "label": "test"
+      },
+      "failures": [
+        {
+          "name": "SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.IdentityIntegrationTests.Migrate_WithSampleContext_CreatesSchemaIndexesAndIdempotentHistory",
+          "message": "Assert.False() Failure\r\nExpected: False\r\nActual:   True"
+        }
+      ]
+    },
+    {
+      "stage": "After",
+      "total": 18,
+      "passed": 17,
+      "failed": 1,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\After\\results\\identity.trx",
+      "sha256": "C6181D6F9027FD1D028F478F9855FB0592D4B91859992F5754FBB06773A480C1",
+      "build": {
+        "startedUtc": "2026-10-16T16:13:49.0820209+08:00",
+        "identity": {
+          "pid": 67460,
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:13:49.0873952Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ]
+        },
+        "timedOut": false,
+        "label": "build",
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T16:14:30.4671823+08:00"
+      },
+      "test": {
+        "startedUtc": "2026-10-16T16:14:30.5090919+08:00",
+        "identity": {
+          "pid": 14396,
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:14:30.5114558Z",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "test",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=identity.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After\\results"
+          ]
+        },
+        "timedOut": false,
+        "label": "test",
+        "exitCode": 1,
+        "endedUtc": "2026-10-16T16:14:44.4290577+08:00"
+      },
+      "failures": [
+        {
+          "name": "SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.IdentityIntegrationTests.IdentityStores_WithClaimsLoginsTokensAndRoles_PersistsAndCascadesDeletion",
+          "message": "System.InvalidOperationException : 引用了未知列 'a0.LockoutEnd'。"
+        }
+      ]
+    },
+    {
+      "stage": "CoreBefore",
+      "total": 15,
+      "passed": 12,
+      "failed": 3,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\CoreBefore\\results\\results.trx",
+      "sha256": "67793A683D95BE8FFBF87A3A79886447524EEDCE82643459E694074EE1C734C5",
+      "build": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T16:17:32.3499765+08:00",
+        "endedUtc": "2026-10-16T16:18:25.2968228+08:00",
+        "identity": {
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreBefore\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ],
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "startTimeUtc": "2026-10-16T08:17:32.3556201Z",
+          "pid": 26584
+        },
+        "exitCode": 0,
+        "label": "build"
+      },
+      "test": {
+        "timedOut": false,
+        "startedUtc": "2026-10-16T16:18:25.3418615+08:00",
+        "endedUtc": "2026-10-16T16:18:28.6465836+08:00",
+        "identity": {
+          "arguments": [
+            "test",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreBefore\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=results.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreBefore\\results",
+            "--filter",
+            "FullyQualifiedName~RelationalInputPushdownTests"
+          ],
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "startTimeUtc": "2026-10-16T08:18:25.3444986Z",
+          "pid": 83568
+        },
+        "exitCode": 1,
+        "label": "test"
+      },
+      "failures": [
+        {
+          "name": "SonnetDB.Core.Tests.Sql.RelationalInputPushdownTests.Execute_FunctionInsideCastPredicate_KeepsPredicateResidual",
+          "message": "System.InvalidOperationException : 引用了未知列 'd.region'。"
+        },
+        {
+          "name": "SonnetDB.Core.Tests.Sql.RelationalInputPushdownTests.Execute_CastProjection_RetainsOperandColumnsAndOuterNulls(join: \"JOIN\")",
+          "message": "System.InvalidOperationException : 引用了未知列 'd.region'。"
+        },
+        {
+          "name": "SonnetDB.Core.Tests.Sql.RelationalInputPushdownTests.Execute_CastProjection_RetainsOperandColumnsAndOuterNulls(join: \"LEFT JOIN\")",
+          "message": "System.InvalidOperationException : 引用了未知列 'd.region'。"
+        }
+      ]
+    },
+    {
+      "stage": "CoreAfter",
+      "total": 15,
+      "passed": 15,
+      "failed": 0,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\CoreAfter\\results\\results.trx",
+      "sha256": "DCD7F53DCCD4E1A2E79AE9AC02845DAD99055C253280FF3F403A64EB8E388BCB",
+      "build": {
+        "endedUtc": "2026-10-16T16:20:00.4154117+08:00",
+        "identity": {
+          "pid": 79792,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreAfter\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:19:08.3150926Z"
+        },
+        "label": "build",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T16:19:08.3095295+08:00",
+        "timedOut": false
+      },
+      "test": {
+        "endedUtc": "2026-10-16T16:20:03.540706+08:00",
+        "identity": {
+          "pid": 37296,
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "arguments": [
+            "test",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreAfter\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=results.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreAfter\\results",
+            "--filter",
+            "FullyQualifiedName~RelationalInputPushdownTests"
+          ],
+          "executable": "dotnet",
+          "startTimeUtc": "2026-10-16T08:20:00.4560344Z"
+        },
+        "label": "test",
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T16:20:00.4535238+08:00",
+        "timedOut": false
+      },
+      "failures": []
+    },
+    {
+      "stage": "CoreSql",
+      "total": 3190,
+      "passed": 3190,
+      "failed": 0,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\CoreSql\\results\\results.trx",
+      "sha256": "4D245976F28BCF75420667CCD8CD6619D014AB6D1EA6E08C05A5B43B184B5174",
+      "build": null,
+      "test": {
+        "endedUtc": "2026-10-16T16:21:59.8028572+08:00",
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "startTimeUtc": "2026-10-16T08:20:26.9474667Z",
+          "arguments": [
+            "test",
+            "tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreAfter\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=results.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\CoreSql\\results",
+            "--filter",
+            "FullyQualifiedName~.Sql."
+          ],
+          "pid": 53176,
+          "executable": "dotnet"
+        },
+        "label": "test",
+        "timedOut": false,
+        "exitCode": 0,
+        "startedUtc": "2026-10-16T16:20:26.9404829+08:00"
+      },
+      "failures": []
+    },
+    {
+      "stage": "After02",
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\After02\\results\\results.trx",
+      "sha256": "007BC14B9968ADE9364071374229ABB994FA07FA90403451A1038C2965440164",
+      "build": {
+        "endedUtc": "2026-10-16T16:22:54.2047164+08:00",
+        "exitCode": 0,
+        "identity": {
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "startTimeUtc": "2026-10-16T08:22:00.4120936Z",
+          "pid": 62716,
+          "arguments": [
+            "build",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After02\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ]
+        },
+        "timedOut": false,
+        "startedUtc": "2026-10-16T16:22:00.4064789+08:00",
+        "label": "build"
+      },
+      "test": {
+        "endedUtc": "2026-10-16T16:23:17.0632772+08:00",
+        "exitCode": 0,
+        "identity": {
+          "executable": "dotnet",
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "startTimeUtc": "2026-10-16T08:22:54.2531181Z",
+          "pid": 60720,
+          "arguments": [
+            "test",
+            "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After02\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=results.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\After02\\results"
+          ]
+        },
+        "timedOut": false,
+        "startedUtc": "2026-10-16T16:22:54.2500694+08:00",
+        "label": "test"
+      },
+      "failures": []
+    },
+    {
+      "stage": "Ef",
+      "total": 295,
+      "passed": 295,
+      "failed": 0,
+      "notExecuted": 0,
+      "trx": "artifacts\\issue-supervision-20261016\\ci38869549254\\Ef\\results\\results.trx",
+      "sha256": "74E2A25161FCF502B8A3D7BE02E684C43A2D74A7A566CF538E87A0704FD7C692",
+      "build": {
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "executable": "dotnet",
+          "pid": 44192,
+          "startTimeUtc": "2026-10-16T08:23:17.6485683Z",
+          "arguments": [
+            "build",
+            "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Ef\\build",
+            "-m:2",
+            "-p:UseSharedCompilation=false",
+            "-nodeReuse:false"
+          ]
+        },
+        "timedOut": false,
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T16:24:24.9152674+08:00",
+        "label": "build",
+        "startedUtc": "2026-10-16T16:23:17.6420522+08:00"
+      },
+      "test": {
+        "identity": {
+          "workingDirectory": "D:/source/SonnetDB-worktrees/issue-supervision-batch05",
+          "executable": "dotnet",
+          "pid": 77684,
+          "startTimeUtc": "2026-10-16T08:24:24.9600535Z",
+          "arguments": [
+            "test",
+            "tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj",
+            "-c",
+            "Release",
+            "--artifacts-path",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Ef\\build",
+            "--no-build",
+            "--logger",
+            "trx;LogFileName=results.trx",
+            "--results-directory",
+            "D:\\source\\SonnetDB-worktrees\\issue-supervision-batch05\\artifacts\\issue-supervision-20261016\\ci38869549254\\Ef\\results"
+          ]
+        },
+        "timedOut": false,
+        "exitCode": 0,
+        "endedUtc": "2026-10-16T16:25:38.6298396+08:00",
+        "label": "test",
+        "startedUtc": "2026-10-16T16:24:24.95749+08:00"
+      },
+      "failures": []
+    }
+  ],
+  "sources": [
+    {
+      "path": "samples/SonnetDB.AspNetCoreWebMvcWithIdentity/Data/ApplicationDbContext.cs",
+      "sha256": "25CB6404A1695171F8C502143CC491220503B5228FE2ADCC9784ECA28E5968D3"
+    },
+    {
+      "path": "src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs",
+      "sha256": "50723A35E7A24B6A00E5ECE48015DB01DDE1377D652F2B7E5589E84038EC82B5"
+    },
+    {
+      "path": "tests/SonnetDB.Core.Tests/Sql/RelationalInputPushdownTests.cs",
+      "sha256": "C43C92E088AA3C3E049260B59D740B66FF43F4C9F86B471603237F436619DB97"
+    },
+    {
+      "path": "tests/SonnetDB.AspNetCoreWebMvcWithIdentity.Tests/IdentityIntegrationTests.cs",
+      "sha256": "66A893EB0DADB5B8786BA0F8638F3A7EA3714AD1712D4C8386515106C728DFC8"
+    },
+    {
+      "path": "samples/SonnetDB.AspNetCoreWebMvcWithIdentity/Data/Migrations/ApplicationDbContextModelSnapshot.cs",
+      "sha256": "7BA516E1ED4B9DA659A54BA2BFBE95C8995FAEBDDABB4029F4436780370B08DF"
+    },
+    {
+      "path": "samples/SonnetDB.AspNetCoreWebMvcWithIdentity/Data/Migrations/20261007135609_CreateIdentitySchema.cs",
+      "sha256": "DAFEFE1D047F64C74C815C6C581066C607911D66EF93AD4ABED6D98876BC7668"
+    }
+  ],
+  "assemblies": [],
+  "unchangedMigrationsAndIdentityTests": true,
+  "limitations": [
+    "Original CI remains failed; final pushed SHA requires a new CI run.",
+    "No new release, upstream delivery, SMTP/OAuth/Passkey acceptance, or NativeAOT sample support is claimed.",
+    "Legacy DATETIME retains UTC millisecond precision; no implicit schema migration."
+  ]
+}

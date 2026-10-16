@@ -158,10 +158,10 @@ internal static class JsonFileSqlExecutor
                     throw new NotSupportedException("JSON 文件 SQL 物化预算不支持用户回调、聚合或窗口函数。");
                 if (function.Name.Equals("json_value", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (function.Arguments.Count != 2 || function.Arguments[1] is not
-                        LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
-                        throw new NotSupportedException("JSON 文件 SQL 物化预算要求 json_value 使用固定 JSON path。");
-                    _ = JsonPath.Parse(path);
+                    if (function.Arguments.Count != 2)
+                        throw new InvalidOperationException("json_value 需要两个参数：JSON 文本和 JSON path。");
+                    if (function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
+                        _ = JsonPath.Parse(path);
                 }
                 else if (function.Name.Equals("regexp_like", StringComparison.OrdinalIgnoreCase))
                 {
@@ -727,7 +727,7 @@ internal static class JsonFileSqlExecutor
 
         if (!function.IsStar && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
         {
-            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            var arguments = SqlJsonObjectArguments.Prepare(function).Select(argument => EvaluateScalar(argument, row)).ToArray();
             return scalarFunction.Evaluate(arguments);
         }
 

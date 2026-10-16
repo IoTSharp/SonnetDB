@@ -137,10 +137,10 @@ internal static class DocumentVectorSearchExecutor
                 }
                 else if (function.Name.Equals("json_value", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (function.Arguments.Count != 2 || function.Arguments[1] is not
-                        LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
-                        throw new NotSupportedException("vector_search SQL 物化预算要求 json_value 使用固定 JSON path。");
-                    _ = JsonPath.Parse(path);
+                    if (function.Arguments.Count != 2)
+                        throw new InvalidOperationException("json_value 需要两个参数：JSON 文本和 JSON path。");
+                    if (function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: { } path })
+                        _ = JsonPath.Parse(path);
                 }
                 else if (!FunctionRegistry.TryGetScalar(function.Name, out _))
                     throw new NotSupportedException($"vector_search SQL 物化预算不支持函数 '{function.Name}'。");
@@ -797,7 +797,7 @@ internal static class DocumentVectorSearchExecutor
 
         if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
         {
-            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            var arguments = SqlJsonObjectArguments.Prepare(function).Select(argument => EvaluateScalar(argument, row)).ToArray();
             return scalarFunction.Evaluate(arguments);
         }
 

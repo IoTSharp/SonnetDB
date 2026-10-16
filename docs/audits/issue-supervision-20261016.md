@@ -327,3 +327,44 @@
 - 代理真实 identity 终止 5/5，扩展 31/31（新 PK 删除及 DESC/INCLUDE 7、旧 PK 10、Duration 7、DTO 7）；SqlSugar 三协议本地候选各 11/12，唯一 #227 CodeFirst 事务 DDL 失败，REST/h2c 强停重开各 5/5。正式包和 SqlSugar 上游交付仍缺，旧 v4 拒绝仅核 schema SHA，AOT 分析不等于发布运行，250 保持 OPEN。详细根报告 `docs/audits/issue-250-root-review-20261016.md/json`。
 - 当前 HEAD 仍 9b3b，本轮 250/CHANGELOG/交接/根报告待独立提交。最终完整 restore/规定 Format 通过且树不变才 commit；随后把实际 SHA 交原 issue314 实施 249，issue312 的 248 继续等待，空闲 issue313 可转 247 隔离准备。共享顺序 250→249→248→247，不重复派单。
 - 14:29 核主目录 clean、远端 main=ffdb734c、parity=2ab6caa9。252/251/250 本批尚未 push/comment/close，待 250 提交后正常 push HEAD:main、回读 SHA 和精确 CI，再逐项回复。正式交付不齐不关闭，226/243源码不重做；旧树、stash、失败证据和结果分支全部保留。
+
+## 提交推送后检查点（2026-10-16 14:47，批次06已推送并回复、CI运行中）
+
+- #250 已独立提交 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`，父 `9b3b983304d249fafe485235761c1f8a70671cab`，71 路径，最终 tree `6a9e0170efd52d9d0200eef713d8ab9c05dc4694`。最终完整 restore 06:35:39Z→06:35:44Z、原 Format 06:35:44Z→06:36:54Z 均 exit0，树未变才提交；workspace-load 警告保留，无格式违规。首门禁也返回0，但期间文档行尾/EOF修订，因此最终完整重跑 root-gate02。精确回执 `issue250/commit.json`，根报告已随提交。
+- 本批 #252=`16b266c2`、#251=`aa4fbffb`、#250=`67a5c8c8` 连同原独立测试修正和文档 merge，已普通快进 push HEAD:main。远端 main 回读 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`，parity-results 仍 `2ab6caa94b9f07d25fdd0760a7aa682f7ca26295`。主目录本地 main 仍 ffdb734c 且 clean，尚未同步，不覆盖其它会话。原 push.json 的 PowerShell ErrorRecord 序列化深度警告保留，push.log及独立新回读提供完整正文与SHA证据。
+- 精确新 SHA 的 CI **38862841705** 已启动，发帖前回读 in_progress，7作业均在运行，尚无最终结论；旧ffdb/390af的绿灯不扩称覆盖本批。同时触发的 CodeQL/Docs Pages/Docker/Connectors 工作流以各自实际状态为准，不能当正式配套包与ORM验收。先等待本CI再下一批push，避免取消运行中的CI。
+- 已逐项发布并回读作者 maikebing、完整正文和 OPEN：252评论 **6209776617**、251评论 **6209777759**、250评论 **6209778676**。评论准确标记新CI未结束、实现及本地/代理测试范围和剩余条件，不重复发帖。三项均未关闭：252/251需正式发行与Chloe交付，250还需SqlSugar正式消费者及#227完整CodeFirst条件。永久批次回执 `docs/audits/issue-supervision-batch06-20261016.json`、初始CI回读 `issue-supervision-ci-38862841705-initial-20261016.json` 待下个真实Issue提交，不为巡检单独提交。
+- 原 issue314 已恢复唯一249，原树正常 ff-only 到67a5c8c8，七准备文件前后SHA一致、tracked修改0，收据 issue249-work/resume-checkpoint01.json；现独占共享执行器接线。原 issue312 唯一248继续冻结等待，原 issue313 已完成250并转唯一247隔离准备，新树 `D:/source/SonnetDB-worktrees/issue247-stored-procedure`、分支 codex/issue247-stored-procedure、基线67a5c8c8。247已读原文/评论及229，229现已CLOSED且通用多结果已实现，但过程仍仅lastResult，需接既有结果链；不能重做229或把CALL当StoredProcedure支持。共享次序249→248→247，不冲突准备可并行。
+- 代理使用独占D盘产物/cache/短TEMP；除独立HTTP缓存外，各自packages根也须独立，或串行restore，避免本次已记录的并发缓存临时文件冲突。GitHub直连本轮两次网络失败，临时使用127.0.0.1:7890代理后实际读写成功，未更改全局配置或泄露凭据。
+- 30分钟监督继续ACTIVE，下一次先核新CI和249进度。226/243源码补缺及原评论不重做，正式发行/对应消费者仍追踪；旧树、stash、失败证据和结果分支保留。本提交后HANDOFF/监督/线上回执暂随下一真实Issue提交，故当前监督树只有这些记录待提交，不另造状态提交。
+- 14:50 追加回读：CI 38862841705 的 Format Check 已 completed/success，其余六作业仍 in_progress，整体尚无结论；第二份原始回读为 issue-supervision-ci-38862841705-progress02-20261016.json。249已接线并开始首轮Core验证，根已要求新准入执行器的JSON_OBJECT高精度decimal保真，不能只凭关系路径通过扩称全部入口；247正常准备，248冻结等待。自动化已更新并回读ACTIVE/每30分钟/目标聊天及新SHA、CI。
+
+## 最新监督检查点（2026-10-16，批次06 CI修复与已实现 Issue 关闭）
+
+- 当前监督 HEAD/远端 main 仍67a5c8c8。精确 CI38862841705 最终 failure：Windows rest/Ubuntu 的 EF DTO 映射1项及远程类型目录/旧DTO参数4项失败；Windows Core、三平台AOT、Format success。完整原TRX/日志和本地旧源码0/1、冻结DLL0/4复现已保留。
+- 根独立修复 EF 默认原生DTO/显式旧DATETIME查询CAST及DataTypes漏项，不改Core守卫；EF全套两次295/295、真实远程两整类80/80、EF/Server/Data AOT构建0warning/error。报告 ci-38862841705-datetimeoffset-compatibility-20261016.md/json。当前修复待最终完整restore/Format独立提交及正常push；#249尚未集成。
+- 用户本轮明确要求“把之前的实现了的，记得要关闭issuse”和“代码也要记得提交和推送”。按源码实现和已验证合同关闭16项：314/313/312/264/263/262/261/260/259/258/256/255/254/253/243/226，全部逐条回读closed/completed及maikebing评论。每项提交均为390af19d祖先，该精确CI38836248581全部7job全绿已新回读；评论明确新67a CI仍失败在修，正式发行和对应上游交付未由关闭推定完成。永久回执 issue-implemented-closures-20261016.json。不得再按旧规则重新开放或重复派单；252/251/250待当前CI修复后核关闭。
+- parity-results已由github-actions[bot]正常推进至042748d841c5eca6e47261cf6b63e220280ee102（run38863384603），保留新引用，不回写旧2ab。主目录main仍ffdb734c且clean，不覆盖其它会话。
+- issue314唯一249已冻结：manifest91A1125EA2C529AE69CD82E8E3147D50CB57E340936AD3A76D801DC03C2E40CD，25交付/249证据/869运行文件/14TRX，基线67a；代理3682/3682、邻接265/265、末补四项后的动态类24/24、远程159/159、真实SqlSugar六阶段各28/28、AOT/Server零warning/error、最终完整restore/Format通过。根尚未逐项核验/集成，先提交独立CI修复再接25文件。
+- issue312唯一248准备保持冻结，manifest8127BFF635DBF78684D6E70E7AC8643512E9A1F521FECC6724A718A4CF5C69E4；249根最终提交后才能修改共享核心。必须实施真实FOR UPDATE基础/NOWAIT，覆盖250新增维护入口，不能仅以233阻断停工。
+- issue313唯一247准备已冻结：manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，10新源/1144运行文件/194证据/603上游源/3TRX，tracked生产修改0。最终合同2PASS22FAIL；public4/preview原生2/15、源码3/15，SqlSugar2/11；REST/h2c原生各3/16、SqlSugar各2/12。h2c只有普通SELECT的2请求走Frame，CALL走HTTP2 REST。远程CREATE PROCEDURE体内参数被旧Binder误认为ADO参数，准备使用公开SQL端点预建仅隔离调用；CIM中断/DDL缺参均保留。此为准备完成而非功能完成，等待249→248共享交接。
+- 下一步：CI兼容修复完整门禁、独立commit、普通push/远端和新CI回读；核249冻结/根验收/独立commit并交248，247等待。状态记录随实际修复提交，不造巡检提交，外部ORM候选不外发，旧树/stash/失败证据保留。
+
+## 最新监督检查点（2026-10-16，CI修复已推送、249根回归完成）
+
+- 根独立日期兼容修复已commit并正常push `b568988e5b568ba5bb3abea9574c048a02e0e3f8`，远端回读匹配；最终tree199a558689815ea804eee6c3e7c83296a2f7006b，restore07:45:04Z→07:45:10Z、规定Format07:45:10Z→07:46:35Z均exit0，树未变才commit。预门禁JSON CRLF差异在两命令前修正并保原副本；workspace-load警告保留无格式违规。精确新CI38869549254运行中，不能称全绿，也不取消它来抢推249。原38862841705仍failure，审计已随b568提交。
+- 用户要求已实现Issue记得关闭、代码记得提交和推送已落实：16历史Issue均closed/completed并逐项回读，列表/评论/实现SHA见已提交issue-implemented-closures-20261016.json；原发布/上游交付未冒称完成。252/251/250尚OPEN，待b568修复CI实际验收后按新要求关闭，250的完整CodeFirst事务DDL仍归227。
+- 249已按冻结25文件集成到b568，根核工作树/冻结两份源、249证据、869运行文件、14TRX及两SqlSugar源码全匹配，未改生产语义或覆盖CI修复。根Core3972/3972、真实Server239/239、EF295/295、独立SqlSugar初次/重开各28/28全部零失败/跳过；四构建含Data显式AOT/Trim均0warning/error。报告issue-249-root-review-20261016.md/json，冻结manifest91A1125EA2C529AE69CD82E8E3147D50CB57E340936AD3A76D801DC03C2E40CD；最后四新增测试已包含根3972。代理原失败和旧包拒绝保留，正式发行不由源码通过推定。
+- 当前249待最终完整restore/Format独立提交；提交后将实际SHA交issue312唯一248，使其独占共享核心实现真实锁/NOWAIT。原issue314在249完成后可转下一实际OPEN倒序245（246不在OPEN）；仅隔离准备临时表/CTAS真实SqlSugar Fastest，不能改共享AST/Parser/Executor/TableManager/事务/ADO，等248→247后。
+- issue313唯一247准备冻结SHA33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4，根已核10新源两份、194证据、1144运行文件、603上游源；最终24合同2PASS22FAIL、REST/h2c各原生3/16及SqlSugar2/12，CALL为HTTP2 REST而非Frame；标准命令和方向回写尚未实施。继续等待249→248，禁止提前关闭。
+- parity最近回读042748d841c5eca6e47261cf6b63e220280ee102，主目录main仍ffdb734c且clean。下一次先核实时远端/CI，保留所有旧树/stash/失败证据；提交后状态随下一真实提交，不造巡检提交。
+
+## 最新监督检查点（2026-10-16，249已提交、Identity CI修复验收中）
+
+- #249 已独立提交 edd23c1d72c472c71ea0b8d4939df0ec5c2311e4，最终 tree b66f27dacaf8391535c07e7573180e28e4281421；完整 restore 08:01:19Z→08:01:24Z、原 Format 08:01:24Z→08:02:46Z 均 exit0且树未变。根 Core3972/3972、真实Server239/239、EF295/295、真实SqlSugar初次/独立重开各28/28已验。该提交尚未push/comment/close，待本独立CI修复提交后同批正常推送。
+- 实际远端main仍b568988e。精确CI38869549254已completed/failure：Windows rest/Ubuntu各Identity17/18同一模型差异失败；其余五job成功。两平台EF295/295、Server1389/1389通过，旧日期映射失败已修；原38862841705和38869549254失败均保留。永久回读issue-supervision-ci-38869549254-final-20261016.json。
+- 根旧样例完整17/18复现迁移模型漂移；显式LockoutEnd旧DATETIME后迁移通过但官方GetUsersForClaimAsync的JOIN在CAST列裁剪处失败，第二轮仍17/18。RSE仅补Cast操作数标识符收集与Cast内函数检测6行；旧Core新增3项全失败、整类12/15，新Core15/15及全部SQL3190/3190、最终Identity18/18通过。原迁移/snapshot/Identity测试断言不改，旧UTC毫秒精度保持；最终EF295/295也已通过且构建零警告错误，最终完整门禁待执行，详见ci-38869549254-identity-compatibility-20261016审计与本地原日志。不要把旧失败改写为PASS。
+- 最新用户要求按已实现源码合同关闭并及时提交推送。此前16项314/313/312/264/263/262/261/260/259/258/256/255/254/253/243/226已逐项closed/completed并回读，不重复评论或开放。252/251/250/249等新修复精确CI后核关闭；正式发行与上游交付仍如实标明，250完整CodeFirst事务DDL由227继续跟踪。
+- issue312唯一248已核10准备文件且ff-only到edd23c1d，正在独占共享核心实施普通FOR UPDATE必要基础和NOWAIT。根额外RSE两方法增量已通知，最终按edd基线增量整合保留根修复，不重置活动树。锁资源须覆盖全部writer/DDL/PK迁移/identity/index，manager外等待后重规划/复验，不用乐观重试代替NOWAIT；不宣称233 Chloe/NoLock完成。
+- issue313唯一247仍准备冻结等待248，manifest33AFDE6D08794EE1D4AFB352551FCB0E1A678EA4C63F29C3BD12C4EEAC4FDEB4；2PASS/22FAIL和REST/h2c原生3/16、SqlSugar2/12为真实缺口。issue314完成249后转唯一245，新树issue245-temp-ctas基线edd23c1d，当前只隔离准备：三协议原生各3PASS/22FAIL在TEMP/CTAS解析处拒绝，SqlSugar各5PASS/8FAIL；已有10,000行路径是普通工作表，事务DDL8项拒绝，不宣称原生临时表完成。共享顺序248→247→245，最多3代理。
+- 主目录本地main仍ffdb734c，保留其它会话边界；parity-results最近回读042748d841c5eca6e47261cf6b63e220280ee102，不能回写旧引用。旧树/stash/失败证据全部保留，外部ORM候选不外发。本状态随本真实CI修复提交；提交后push/CI/关闭回执随下一真实Issue提交，不造巡检提交。

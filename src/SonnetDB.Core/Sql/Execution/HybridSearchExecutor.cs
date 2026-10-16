@@ -1444,7 +1444,7 @@ internal static class HybridSearchExecutor
 
         if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
         {
-            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            var arguments = SqlJsonObjectArguments.Prepare(function).Select(argument => EvaluateScalar(argument, row)).ToArray();
             return scalarFunction.Evaluate(arguments);
         }
 
@@ -1493,7 +1493,7 @@ internal static class HybridSearchExecutor
 
         if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
         {
-            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            var arguments = SqlJsonObjectArguments.Prepare(function).Select(argument => EvaluateScalar(argument, row)).ToArray();
             return scalarFunction.Evaluate(arguments);
         }
 

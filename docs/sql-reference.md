@@ -898,6 +898,8 @@ FROM devices;
 - SQL `UPDATE` 使用 `SET document = '<json>'` 做整体替换；局部更新操作符通过 Document HTTP API 或 `SndbDocumentClient.UpdateOneAsync/UpdateManyAsync` 调用。
 - 单条 SQL `UPDATE` / `DELETE` 会先完成候选规划，再用一个 KV 原子 batch 提交；取消、校验失败或批次预算拒绝不会留下部分修改。该 batch 受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制，超限时会在追加 WAL 前整体拒绝；引擎不会为绕过限制自动拆批，因为拆批会破坏语句原子性。
 - `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
+- `json_value(json, path_column)` 与 `json_value(json, CONCAT('$.items[', index_column, ']'))` 按当前行计算路径；静态/参数路径保持原索引规则，动态路径不承诺可索引。SQL NULL、缺失、JSON null 和数组越界返回 NULL；数值仍为 Int64 优先、否则 Double。
+- `json_object(key, value, ...)` 构造类型安全的对象字符串，可传入参数或列并嵌套于 `json_contains`。字符串、布尔、整数、decimal、NULL 和转义保持类型；精确小数用 decimal 参数/列或显式 DECIMAL 字面量，普通小数字面量仍为 FLOAT。空对象返回 `{}`，重复或 NULL 字段名拒绝。完整预算与对象数组匹配语义见下方 JSON 查询合同。
 - `json_exists(json, path)` 返回 path 是否存在；path 指向 JSON `null` 时仍返回 `TRUE`，path 缺失返回 `FALSE`。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
 - `json_array_length(json, path)` 返回 path 指向数组的元素数（`BIGINT`）；path 缺失或指向 JSON `null` 时返回 SQL `NULL`，指向非数组值时返回执行错误。JSON 或 path 参数为 `NULL` 时返回 SQL `NULL`。
 - `json_contains(json, path, candidate)` 判断 path 结果是否包含候选值。候选字符串按普通 SQL 字符串比较；以 `{` 或 `[` 开头的字符串会按 JSON 对象或数组解析。数组候选按无序子集匹配，对象候选按字段子集匹配；对对象传入普通字符串还可判断字段名是否存在。path 缺失或指向 JSON `null` 返回 `FALSE`，任一参数为 `NULL` 返回 SQL `NULL`。

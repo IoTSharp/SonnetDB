@@ -745,6 +745,7 @@ public sealed class SndbConnection : DbConnection
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
         AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
+        AddDataType(table, "DATETIMEOFFSET", DbType.DateTimeOffset, typeof(DateTimeOffset), 8, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "DURATION", DbType.Object, typeof(TimeSpan), 19, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true, supportsMeasurementField: false);
