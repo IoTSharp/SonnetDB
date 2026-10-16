@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #254：补齐既有聚合CAST的公开包、源码补验及真实Chloe三协议消费证据，保留旧公开包CONCAT声明失败与最小翻译候选；正式发行和上游交付继续跟踪，不重复引擎实现。
+
 - GH-Issue #256：SQL LIMIT/OFFSET及绑定/执行支持完整非负Int64，实际物化、Top-N和外排仍受资源预算限制。**公共API二进制兼容变更**：PaginationSpec.Offset/Fetch属性改为long/long?，旧int构造器保留，但直接使用这些属性的已编译消费者须重新编译；原Int32 SQL输入兼容，不改变存储或协议格式。附真实XCode分页及三协议/重开验收，正式发行与上游交付继续跟踪。
 
 - GH-Issue #258：补齐既有 uuid() 的公开包逐行/每表达式位置、RETURNING、事务和独立重开验收，以及 Chloe Guid.NewGuid 单行翻译候选的真实三协议证据；正式发行及上游交付条件继续保留。

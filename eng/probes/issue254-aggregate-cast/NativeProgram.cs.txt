@@ -1,0 +1,88 @@
+using System.Data.Common;
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 2) return 2;
+string protocol = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var connection = new SndbConnection(args[0]);
+connection.Open();
+using var command = connection.CreateCommand();
+Exec("CREATE TABLE cast_rows(id INT, tenant INT, value INT NULL, amount DECIMAL(28,6), PRIMARY KEY(id))");
+Exec("INSERT INTO cast_rows(id,tenant,value,amount) VALUES(1,1,3,'9007199254740993.125'),(2,1,5,'0.875'),(3,2,7,'0.1'),(4,3,NULL,NULL)");
+string projection = "SELECT CAST(SUM(value) AS INT), CAST(AVG(value) AS FLOAT), CAST(MIN(value) AS DECIMAL), CAST(MAX(value) AS STRING), CAST(COUNT(value) AS INT), CAST(COUNT(*) AS FLOAT), CAST(SUM(amount) AS DECIMAL) FROM cast_rows ";
+Type[] types = [typeof(long), typeof(double), typeof(decimal), typeof(string), typeof(long), typeof(double), typeof(decimal)];
+bool?[] nullable = [true, true, true, true, false, false, true];
+Run("five-aggregates-cast-values", () => Rows(projection + "WHERE tenant=1", types, nullable, [8L, 4d, 3m, "5", 2L, 2d, 9007199254740994m]));
+Run("empty-input-values-metadata", () => Rows(projection + "WHERE id<0", types, nullable, [DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, 0L, 0d, DBNull.Value]));
+Run("all-null-values-metadata", () => Rows(projection + "WHERE tenant=3", types, nullable, [DBNull.Value, DBNull.Value, DBNull.Value, DBNull.Value, 0L, 1d, DBNull.Value]));
+Run("grouped-having-cast", () => Rows("SELECT tenant,CAST(SUM(value) AS INT),CAST(AVG(value) AS FLOAT),CAST(SUM(amount) AS DECIMAL),concat('n=',CAST(COUNT(*) AS STRING)) FROM cast_rows GROUP BY tenant HAVING CAST(SUM(value) AS INT)>7 ORDER BY tenant", [typeof(long), typeof(long), typeof(double), typeof(decimal), typeof(string)], null, [1L, 8L, 4d, 9007199254740994m, "n=2"]));
+Run("grouped-null-having", () => Rows("SELECT tenant,CAST(SUM(value) AS INT),CAST(COUNT(*) AS FLOAT) FROM cast_rows GROUP BY tenant HAVING CAST(SUM(value) AS INT) IS NULL", [typeof(long), typeof(long), typeof(double)], null, [3L, DBNull.Value, 1d]));
+Run("empty-group-metadata", () => Rows("SELECT tenant,CAST(SUM(amount) AS DECIMAL) FROM cast_rows WHERE id<0 GROUP BY tenant", [typeof(long), typeof(decimal)], null));
+Run("decimal-exact-aggregates", () => Rows("SELECT CAST(SUM(amount) AS DECIMAL),CAST(AVG(amount) AS DECIMAL),CAST(MIN(amount) AS DECIMAL),CAST(MAX(amount) AS INT),CAST(SUM(amount)+CAST('0.1' AS DECIMAL) AS DECIMAL) FROM cast_rows WHERE tenant=1", [typeof(decimal), typeof(decimal), typeof(decimal), typeof(long), typeof(decimal)], null, [9007199254740994m,4503599627370497m,0.875m,9007199254740993L,9007199254740994.1m]));
+Run("nested-coalesce-case-count-distinct", () => Rows("SELECT CASE WHEN CAST(COUNT(*) AS INT)>0 THEN CAST(COALESCE(SUM(value),0) AS FLOAT) ELSE CAST(0 AS FLOAT) END,CAST(COUNT(DISTINCT tenant) AS DECIMAL),CAST(AVG(value) AS INT) FROM cast_rows", [typeof(double),typeof(decimal),typeof(long)], null, [15d,3m,5L]));
+Exec("CREATE TABLE cast_bigints(id INT,value INT,PRIMARY KEY(id))");
+Exec("INSERT INTO cast_bigints(id,value) VALUES(1,9223372036854775807),(2,1)");
+Run("outer-cast-does-not-rescue-int-sum-overflow", () => Error("SELECT CAST(SUM(value) AS DECIMAL) FROM cast_bigints", "SUM(INT) 的 Int64 累加发生溢出"));
+Run("cast-inside-sum-widens-exactly", () => Rows("SELECT CAST(SUM(CAST(value AS DECIMAL)) AS DECIMAL) FROM cast_bigints", [typeof(decimal)], null, [9223372036854775808m]));
+Run("outer-int-cast-overflow", () => Error("SELECT CAST(SUM(CAST(value AS DECIMAL)) AS INT) FROM cast_bigints", "Int64"));
+Exec("CREATE TABLE cast_decimal_bounds(id INT,amount DECIMAL(29,0),PRIMARY KEY(id))");
+Exec("INSERT INTO cast_decimal_bounds(id,amount) VALUES(1,'79228162514264337593543950335'),(2,'1')");
+Run("decimal-maximum-exact", () => Rows("SELECT CAST(MAX(amount) AS DECIMAL) FROM cast_decimal_bounds", [typeof(decimal)], null, [decimal.MaxValue]));
+Run("decimal-aggregate-overflow", () => Error("SELECT CAST(SUM(amount) AS DECIMAL) FROM cast_decimal_bounds", "DECIMAL 聚合发生溢出"));
+Run("connection-remains-usable-after-overflow", () => Rows("SELECT CAST(AVG(value) AS FLOAT) FROM cast_rows WHERE tenant=1", [typeof(double)], null, [4d]));
+Console.WriteLine($"COMPLETE|{protocol}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+void Exec(string sql) { command.CommandText = sql; command.ExecuteNonQuery(); }
+void Rows(string sql, Type[] expectedTypes, bool?[]? expectedNullable, params object[][] expected)
+{
+    Console.WriteLine("SQL|" + sql);
+    command.CommandText = sql;
+    using var reader = command.ExecuteReader();
+    Console.WriteLine("METADATA|" + string.Join("|", Enumerable.Range(0, reader.FieldCount).Select(i => $"{reader.GetName(i)}:{reader.GetFieldType(i).Name}")));
+    Require(expectedTypes.SequenceEqual(Enumerable.Range(0, reader.FieldCount).Select(reader.GetFieldType)), "Declared CLR types differ before Read.");
+    if (expectedNullable is not null) Require(expectedNullable.SequenceEqual(reader.GetColumnSchema().Select(c => c.AllowDBNull)), "Nullability differs before Read.");
+    int index = 0;
+    while (reader.Read())
+    {
+        object[] values = Enumerable.Range(0, reader.FieldCount).Select(reader.GetValue).ToArray();
+        Console.WriteLine("ROW|" + string.Join("|", values.Select(v => $"{v.GetType().Name}:{v}")));
+        Require(index < expected.Length && expected[index].SequenceEqual(values), "Exact row values or runtime types differ.");
+        for (int column = 0; column < values.Length; column++)
+            if (expectedTypes[column] == typeof(double) && values[column] != DBNull.Value)
+                Require(reader.GetFieldValue<double>(column).Equals(expected[index][column]) && reader.GetDouble(column).Equals(expected[index][column]), "Double typed getter mismatch.");
+        index++;
+    }
+    Require(index == expected.Length, "Row count differs.");
+}
+void Error(string sql, string expectedMessage)
+{
+    command.CommandText = sql;
+    Console.WriteLine("SQL|" + sql);
+    try { using var reader = command.ExecuteReader(); while (reader.Read()) { } }
+    catch (Exception exception)
+    {
+        Console.WriteLine($"EXPECTED-ERROR|{exception.GetType().Name}|{exception.Message}");
+        Require(exception.ToString().Contains(expectedMessage, StringComparison.Ordinal), "Overflow stage or message differs.");
+        return;
+    }
+    throw new InvalidOperationException("Expected overflow was accepted.");
+}
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

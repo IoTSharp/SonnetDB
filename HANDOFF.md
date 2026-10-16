@@ -5,15 +5,15 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 最新监督检查点（2026-10-16，批次04已推送；#256主树验收）
+## 最新监督检查点（2026-10-16，独立整合树接续）
 
-- 批次04正常push后main已回读76955cf604655c2ec32f4db1cf019441d4e19577，parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。261=b157dddc、260=f8bce983、259=5d7bf064、258=76955cf6及日期/Streaming测试修正均已推送；每次提交前完整restore/Format实际通过。新CI38831797384进行中，旧cfa的38827086358 failure不改写。
-- 261/260/259/258已逐项回复并API核回作者、正文和OPEN状态，评论ID6205519305/6205520541/6205521461/6205522429；正式发行及对应ORM上游交付仍缺。永久回执issue-supervision-batch04-actions-20261016.json已生成，本项纳入提交。没有外发ORM补丁或关闭未满足正式验收的Issue。
-- #256冻结30文件按SHA集成，根核257证据、17二进制及8份TRX。根复审移除误带的JsonFile SkipWhitespace非分页类型修改，作者已确认，原/新SHA记录issue256/root-review/integration.json；外部patch字节通过局部gitattributes保留。两个Release构建零警告/错误，完整Core SQL3047/3047、真实Server组合135/135，零失败/跳过，包含根日期断言修正和既有259。最终完整门禁在issue256/final，实际通过后独立提交，暂不push取消批次04正在运行的CI。
-- #256 PaginationSpec.Offset/Fetch由Int32/int?改为Int64/long?，即使保留旧构造器，属性getter/init ABI已改变，已编译直接AST消费者必须重编译。SQL原Int32输入兼容，不变更存储/协议。正式匹配Core/Data/Server和XCode上游交付仍未完成，保持OPEN。
-- #255冻结18文件收到但复审未通过：默认NULL保留路径按抽取器运行时类型判断，遗漏用户callback返回普通PagingExtracter且指定不同DAL的情况；已要求issue312暂缓251、回到255修正并补真实callback不同源控制，保留matrix09和旧冻结证据。#254冻结16文件，根核154证据、12运行DLL及3份TRX，待独立门禁集成；不受255外部补丁返工影响。
-- 代理：issue313→253，在issue253-keyless-chloe核既有243源码/真实Chloe无主键消费；issue314→252，在issue252-timespan独占新增DURATION合同，根已按SHA交接259/256共22生产依赖。252先完成格式v14永久屏障/旧端拒绝、Frame/REST v5协商和AOT边界，不能把251一起实现。issue312完成255返修后回到251准备，issue251-datetimeoffset树76955cf6已建；251等252最终共享基线再改核心。
-- #226/#243源码恢复补缺已交付推送，不重做；正式发行及消费者验收继续跟踪。监督ACTIVE，三个代理上限不变，旧树/失败/远端parity-results完整保留。
+- 本监督当前整合树为 D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05，起点f9ee14b7。主目录D:/source/SonnetDB另有活动聊天“更新两份 LLMs 文档”编辑llms.txt，以及“分析 ELK 能力移植”的未交付docs/design/elk-single-node-capability-analysis-20261016.md；这些属于他人，本监督停止修改主目录，不暂存、不清理、不混入。后续在独立树审查/门禁/提交，等主目录工作收尾后串行整合；如主main前进，须保留其提交并重核差异/最终门禁。
+- #256已完整restore/Format后独立提交f9ee14b7aabbe7eb7a3c842319d12bcd402d3175，目前在本地main及本整合树，未推送。根两个Release构建零警告/错误、Core SQL3047/3047、真实Server135/135；公共PaginationSpec属性ABI变更及重编译要求已明确写入CHANGELOG与用户合同。#259/#256共22生产依赖已按SHA交接252，当前无新增生产修改。
+- 批次04已推送76955cf604655c2ec32f4db1cf019441d4e19577，实际评论与OPEN回读见issue-supervision-batch04-actions-20261016.json。CI38831797384最新Format成功，三平台AOT及完整测试仍进行中，不再push取消该run；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。旧cfa的CI failure保留，不用定向PASS改写。
+- #254的16份文档/工具已按SHA集成到本独立树，根核154证据、12运行二进制、3份TRX及PowerShell语法，单文件三行Chloe保护删除已审读。没有新Sonnet生产代码：公开embedded13/14唯一失败为#261旧包CONCAT声明，源码补验及远程各14/14，Chloe候选48/48；正式发行与上游交付未满足继续OPEN。本树完整门禁位于artifacts/issue-supervision-20261016/issue254/final，实际通过后独立提交；不为文档重跑已核的消费者矩阵。
+- #255根复审退回自定义PagingExtracter数据源覆盖问题，issue312当前只返修255，251准备暂停。旧matrix09真实通过但原多页探针走callback，不能称默认路径已验；新矩阵须实际默认BatchSize=2、双向NULL及callback alternate DAL控制，旧失败/清单保留。交付前不整合255。
+- issue313继续253：公开正式/预览原生各3PASS/4拒绝，源码7/7；Chloe原三协议各9PASS/11guard FAIL，候选initial20/20+独立重开5/5，每协议成立，共75/75；Core25/25，远程6项待最终收据/冻结。issue314独占252时长核心实施，DURATION全signed ticks、v14目录屏障/可恢复迁移、物化视图v3及Frame/REST v5要独立验收；251等待252共享最终基线，禁止并行改同一核心。
+- 主目录的HANDOFF暂不再修改，最新接续以本独立树的本文件为准，主main整合时保留其他聊天最新记录并合并此检查点。#226/#243已交付恢复补缺不重做，正式发行及消费者继续跟踪；30分钟监督ACTIVE，三代理上限不变，全部旧树/证据/parity-results保留。
 
 ## 此前检查点（日期CI断言修正）
 - 补充实际结果：#262日期断言修正已通过完整restore/Format并独立提交0a51102c，定向197/197通过。其后原完整Core最终7198/7199，唯一失败为Streaming死信测试遗漏检查点自身超时消息，日期项通过；原失败TRX保持。根单独给该测试补第三种既有Timeout分支，仍校验InnerException、截止未取消、原spool/意图恢复不变；独立产物构建并回归FileStreamingDeadLetter/CheckpointStore共34/34。此补丁仅测试，完整门禁在streaming-timeout-contract/final，实际通过后独立提交，不把34项提升为完整Core PASS。原cfa的Windows Core也仅同一旧DATE_ADD失败，三平台AOT/Format成功；Windows rest尚运行。

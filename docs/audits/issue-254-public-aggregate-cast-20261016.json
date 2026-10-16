@@ -1,0 +1,1026 @@
+{
+  "issue": 254,
+  "checkedAtUtc": "2026-10-16T00:40:56.5572582Z",
+  "sourceHead": "0a51102cf4e1b203565d6b02af7d5fb4c73513a8",
+  "publicVersion": "4.5.0-preview.ef266.5",
+  "publicSourceRevision": "1af23d8f299febfdf66b040ab3419980396acf46",
+  "chloeHead": "bb7ec8735bd4511c35453eb009f70cc606795703",
+  "closure": "OPEN: formal stable release and upstream Chloe delivery remain unverified",
+  "nativePublicEmbeddedBoundary": "13 PASS / 1 FAIL: concat metadata is Object in .ef266.5; the adjacent #261 declaration fix exists only in current source",
+  "sourceEmbeddedSupplement": "Same native consumer with current source Core/Data: 14 PASS / 0 FAIL",
+  "sourceServerBoundary": "Real REST/h2c use current source Server, not a released Server binary",
+  "originalChloeBuildBoundary": "Archive build initially inherited ancestor revision; final build explicitly pins SourceRevisionId. Original Chloe rebuild has 38 upstream warnings; no warning suppression.",
+  "retainedFailureBoundary": "Initial remote xUnit run with network proxy: 1 PASS / 1 h2c connection FAIL. Same DLL without proxy: 2 PASS.",
+  "runs": [
+    {
+      "label": "native-public-final-embedded",
+      "protocol": "embedded",
+      "passed": 13,
+      "failed": 1,
+      "exitCode": 1,
+      "failures": [
+        "FAIL|embedded|grouped-having-cast|InvalidOperationException|Declared CLR types differ before Read."
+      ]
+    },
+    {
+      "label": "native-public-final-rest",
+      "protocol": "rest",
+      "passed": 14,
+      "failed": 0,
+      "exitCode": 0,
+      "failures": []
+    },
+    {
+      "label": "native-public-final-frame-http2",
+      "protocol": "frame-http2",
+      "passed": 14,
+      "failed": 0,
+      "exitCode": 0,
+      "failures": []
+    },
+    {
+      "label": "chloe-original-final-embedded",
+      "protocol": "embedded",
+      "passed": 4,
+      "failed": 12,
+      "exitCode": 1,
+      "failures": [
+        "FAIL|embedded|explicit-sum-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-average-to-decimal|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-min-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-max-to-int|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-count-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-empty-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-all-null-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-group-having|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-empty-group|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-decimal-to-int-precision|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-async-projection|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|embedded|explicit-outer-cast-overflow|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254."
+      ]
+    },
+    {
+      "label": "chloe-original-final-rest",
+      "protocol": "rest",
+      "passed": 4,
+      "failed": 12,
+      "exitCode": 1,
+      "failures": [
+        "FAIL|rest|explicit-sum-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-average-to-decimal|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-min-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-max-to-int|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-count-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-empty-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-all-null-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-group-having|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-empty-group|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-decimal-to-int-precision|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-async-projection|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|rest|explicit-outer-cast-overflow|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254."
+      ]
+    },
+    {
+      "label": "chloe-original-final-frame-http2",
+      "protocol": "frame-http2",
+      "passed": 4,
+      "failed": 12,
+      "exitCode": 1,
+      "failures": [
+        "FAIL|frame-http2|explicit-sum-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-average-to-decimal|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-min-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-max-to-int|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-count-to-float|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-empty-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-all-null-values|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-group-having|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-empty-group|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-decimal-to-int-precision|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-async-projection|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.",
+        "FAIL|frame-http2|explicit-outer-cast-overflow|NotSupportedException|SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254."
+      ]
+    },
+    {
+      "label": "chloe-candidate-final-embedded",
+      "protocol": "embedded",
+      "passed": 16,
+      "failed": 0,
+      "exitCode": 0,
+      "failures": []
+    },
+    {
+      "label": "chloe-candidate-final-rest",
+      "protocol": "rest",
+      "passed": 16,
+      "failed": 0,
+      "exitCode": 0,
+      "failures": []
+    },
+    {
+      "label": "chloe-candidate-final-frame-http2",
+      "protocol": "frame-http2",
+      "passed": 16,
+      "failed": 0,
+      "exitCode": 0,
+      "failures": []
+    }
+  ],
+  "actualRequests": [
+    {
+      "phase": "native-public-final",
+      "restSqlRequests": 20,
+      "h2FrameRequests": 14,
+      "httpPort": 54717,
+      "h2Port": 54718,
+      "serverExited": true
+    },
+    {
+      "phase": "chloe-original-final",
+      "restSqlRequests": 25,
+      "h2FrameRequests": 19,
+      "httpPort": 54719,
+      "h2Port": 54720,
+      "serverExited": true
+    },
+    {
+      "phase": "chloe-candidate-final",
+      "restSqlRequests": 37,
+      "h2FrameRequests": 31,
+      "httpPort": 61492,
+      "h2Port": 61493,
+      "serverExited": true
+    }
+  ],
+  "tests": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-core.trx",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "notExecuted": 0
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-remote.trx",
+      "total": 2,
+      "passed": 1,
+      "failed": 1,
+      "notExecuted": 0
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-remote-final.trx",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "notExecuted": 0
+    }
+  ],
+  "publicAssets": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\obj\\project.assets.json",
+      "sha256": "9C637FEDCAD10282F0EF0BD1D9A04CA7F2ABD9E0282D6E3685E7130379F584E9",
+      "projectReferenceCount": 0,
+      "version": "4.5.0-preview.ef266.5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-consumer-source\\obj\\project.assets.json",
+      "sha256": "5FE69ECFB1BAA8B92B802CC7DA739A2811F2594FD2A52001B5F469CC894727F3",
+      "projectReferenceCount": 0,
+      "version": "4.5.0-preview.ef266.5"
+    }
+  ],
+  "executedBinaries": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\Chloe.dll",
+      "sha256": "3278A9C62CBDA03AE8859102B19498E2DA38625F9CEDD32B59078BFD3E84B138",
+      "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\Chloe.SonnetDB.dll",
+      "sha256": "ED03E68486C97B26670530E1BEA68A7C108A2119A53ADF63F58B5773574236AC",
+      "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\SonnetDB.Core.dll",
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\SonnetDB.Data.dll",
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A",
+      "informationalVersion": "4.5.0-preview.ef266.5+1af23d8f299febfdf66b040ab3419980396acf46"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\Chloe.dll",
+      "sha256": "3278A9C62CBDA03AE8859102B19498E2DA38625F9CEDD32B59078BFD3E84B138",
+      "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\Chloe.SonnetDB.dll",
+      "sha256": "A3DBC50AA56FD45A355BA830B3005DE24C20328D3883DCB1B27B778B8EE9B4E5",
+      "informationalVersion": "5.56.0+bb7ec8735bd4511c35453eb009f70cc606795703"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source-check\\SonnetDB.Core.dll",
+      "sha256": "1B5F338D7405CCD498A66676F4CAA53E06860B631F67B0181C96E13ED94228C5",
+      "informationalVersion": "0.0.0-dev+0a51102cf4e1b203565d6b02af7d5fb4c73513a8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source-check\\SonnetDB.Data.dll",
+      "sha256": "D014E31FB7C8B4765291624C6DECFC0380360B63F14441A07BA24BCC3C9CC32E",
+      "informationalVersion": "0.0.0-dev+0a51102cf4e1b203565d6b02af7d5fb4c73513a8"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-build.json",
+      "bytes": 1480,
+      "sha256": "9AA5DA4AFF4B613573F83B866529875309F1C8B25AA7AD92B5EC06510CEF9027"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-server-build.stdout.log",
+      "bytes": 2604,
+      "sha256": "DE3BF8B92CE9E6AAB704862794EB8B4EB6214C92F5EB167DA01755FBC492725E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\submodule-locked-init.json",
+      "bytes": 2173,
+      "sha256": "EE5AF1A49D1E04EDDBDEC22570BBE9F956B1A4B26A31C840802F21537D90D71D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\submodule-locked-init.stderr.log",
+      "bytes": 223,
+      "sha256": "BE93D9753391508F208123E2859F813F549928DC0D5942FAA29ADAA29879D597"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\submodule-locked-init.stdout.log",
+      "bytes": 213,
+      "sha256": "5CCCDECC12089550862AE77C4A1AE27AE28D25B46404D57C63F09F1ACD91F9A6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-core.trx",
+      "bytes": 16432,
+      "sha256": "6A60E1BAB5C3092BB6B67CDB45872E9B69FF4D0B2C95567531CEAA3474887968"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-remote-final.trx",
+      "bytes": 219750,
+      "sha256": "D94B252F326BCC155E1651FEA44198212F9B51AA7DB43FD9C54AA30C1F5B39B7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\test-results\\aggregate-cast-remote.trx",
+      "bytes": 146345,
+      "sha256": "C7937560AE19DD1093FD5BC3D892EBABE10AECA346B427657D5A14579FE271B6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\source-snapshots\\native-01\\AggregateCastNative.csproj",
+      "bytes": 963,
+      "sha256": "EC785C413C317AE9AA6DEB0AF205CD0EC7695DBE63339A1E6C8203E5618721B0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\source-snapshots\\native-01\\NativeProgram.cs.txt",
+      "bytes": 7234,
+      "sha256": "89813951965FC26BCD33E4930C8DC981F6A23CDEE234BCF6A683C3A55048F2F3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\source-snapshots\\native-final\\AggregateCastNative.csproj",
+      "bytes": 963,
+      "sha256": "EC785C413C317AE9AA6DEB0AF205CD0EC7695DBE63339A1E6C8203E5618721B0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\source-snapshots\\native-final\\NativeProgram.cs.txt",
+      "bytes": 7395,
+      "sha256": "22B38261A1E6F1806003D3535F0085858E6D6B157130FEA6C0DBA1270DAF3C0A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\.nupkg.metadata",
+      "bytes": 182,
+      "sha256": "26CD18A8BE79B964E127B72DFE0C3992D2751ECF49C63BEA76375EEAD02DEEB3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\.signature.p7s",
+      "bytes": 12983,
+      "sha256": "7C41332C59472474D1D0CC87DCF4D475A625D31EF9B08AC7DC18B87DC3C08562"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\favicon.png",
+      "bytes": 111675,
+      "sha256": "180698189799D38B92228C4E8815DAE9FE279322D425DE375DBD3EB470110FDA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\PackageReadme.md",
+      "bytes": 7733,
+      "sha256": "92F66EBA8828AC0E32BF2F79D2D255638A1C916B6BCEB248CB3730E24BDDAC45"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-server-build.stderr.log",
+      "bytes": 664,
+      "sha256": "286F0C73239D1D8F037AC08FA7AB358934DA8405A64DEAB07B719FDF605700CA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\sonnetdb.4.5.0-preview.ef266.5.nupkg",
+      "bytes": 896679,
+      "sha256": "0CDC30620AE08658F1A2E7227F95870ED7DE64EF1095C725A8FB17B69B7D2AC4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-server-build.json",
+      "bytes": 1753,
+      "sha256": "D24DD73793C94EF81FA28A7E90C7B0F8CDCBEA935E997682611673B40417699E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests.stderr.log",
+      "bytes": 166,
+      "sha256": "ECFE70FDBC2493930AE956EAE017B5057A70C5109C50F890823D661E40E1238B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-rest.json",
+      "bytes": 797,
+      "sha256": "9173F0A350A42683C41D91F1778DBE8B4A3034625ADBCA19B7B75E9C4A49B3C6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-rest.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-rest.stdout.log",
+      "bytes": 4951,
+      "sha256": "611A0EE83D234585DCBFD10D05881FA2A37AB094A61E8C98136E2BFEA300BC78"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-server.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-server.stdout.log",
+      "bytes": 127745,
+      "sha256": "DEFDDEEAF6D33C4B9E046FEC787B5073FDAF3CE2C05EF5EBF42C884AC8631E87"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-source-embedded-final.json",
+      "bytes": 647,
+      "sha256": "26DDEB16EF2F5F4966E670E8DCE6687FF3F72EB0B96BB2D526F1D9AB85DF095B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-source-embedded-final.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-source-embedded-final.stdout.log",
+      "bytes": 4893,
+      "sha256": "C56F1958BF676079FEEFD1CA72AE8D11C0BF9FF5342964618E508162D4BEB67D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-core-tests.json",
+      "bytes": 3871,
+      "sha256": "64393A0C947D83537D0841A5AA21323DAA9F50B86C8F3DF0D483D10A6312305F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-core-tests.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-core-tests.stdout.log",
+      "bytes": 2626,
+      "sha256": "2E4D0BC83107DA17AF4F02825E8CBEBEF29DC7E7EC3993D74E0E54E7CB89F2C2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests-final.json",
+      "bytes": 3854,
+      "sha256": "D0CC4E92445AB409743220599378DAD863BB2A7772648276CE9E228181E1AD1B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests-final.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests-final.stdout.log",
+      "bytes": 487,
+      "sha256": "698BBE658F5CE37FE80ABC36F59675D471BDE0FDC0BB6970C29AB70F1C94BC21"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests.json",
+      "bytes": 2066,
+      "sha256": "A63B43A77DC4736F82993C0BA97D32C06FD35180453ADA07B3839229E61894CD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\source-remote-tests.stdout.log",
+      "bytes": 5886,
+      "sha256": "16C3ADE1E1768FA6BB10CD36A556C629CD13DFC1AB0E2ED2EF2E69CD2EB5D3B9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\sonnetdb.4.5.0-preview.ef266.5.nupkg.sha512",
+      "bytes": 88,
+      "sha256": "22081006A1F9D31B183303C29B307CF2B91CEFFE93DA30EA0444D31B05D1C77D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb\\4.5.0-preview.ef266.5\\sonnetdb.nuspec",
+      "bytes": 1329,
+      "sha256": "8E92F4B7207418B69AF8A2CAA25434B3E9C63C923186BE72FB007ABB71B6E01F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\.nupkg.metadata",
+      "bytes": 182,
+      "sha256": "A8BF927CABC145EFC67FA268C01412012060C3C9EF2EA562F05E6186BD856459"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\Chloe.dll",
+      "bytes": 756224,
+      "sha256": "3278A9C62CBDA03AE8859102B19498E2DA38625F9CEDD32B59078BFD3E84B138"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\Chloe.SonnetDB.dll",
+      "bytes": 52224,
+      "sha256": "A3DBC50AA56FD45A355BA830B3005DE24C20328D3883DCB1B27B778B8EE9B4E5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source-check\\SonnetDB.Core.dll",
+      "bytes": 18861568,
+      "sha256": "1B5F338D7405CCD498A66676F4CAA53E06860B631F67B0181C96E13ED94228C5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source-check\\SonnetDB.Data.dll",
+      "bytes": 2622976,
+      "sha256": "D014E31FB7C8B4765291624C6DECFC0380360B63F14441A07BA24BCC3C9CC32E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\src\\SonnetDB\\bin\\Release\\net10.0\\SonnetDB.dll",
+      "bytes": 5670400,
+      "sha256": "16C48620E5A3E5812B0EB00E6848094BD9B42A641FA51E498F2BB154CC7A3014"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\src\\SonnetDB\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+      "bytes": 18861568,
+      "sha256": "1B5F338D7405CCD498A66676F4CAA53E06860B631F67B0181C96E13ED94228C5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\src\\SonnetDB.Core\\Sql\\Execution\\RelationalSelectExecutor.cs",
+      "bytes": 278178,
+      "sha256": "2531094061562B61BC98F934B932F5BEA85BBA20B05A735A319B8CE0768081D9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\src\\SonnetDB.Data\\Remote\\RemoteExecutionResult.cs",
+      "bytes": 25745,
+      "sha256": "0D74B0EE9B3DFCC7DDC1D65CC4FE5FB43558C3609A2FAFBBF8FE8D5647EB5813"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\tests\\SonnetDB.Core.Tests\\Sql\\SqlAggregateCastTests.cs",
+      "bytes": 10781,
+      "sha256": "3769AAB1C545CB7EA03D6B8B15A21E50272E33135AB3F9B3C995EF06DFD2B48B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\tests\\SonnetDB.Tests\\RemoteAdoHttp2TransportTests.cs",
+      "bytes": 108855,
+      "sha256": "BE22873DBAE717FC4AF5E33448A172E2528974AFEB2ECCAFD6272EC89BB8833D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\tests\\SonnetDB.Core.Tests\\bin\\Release\\net10.0\\SonnetDB.Core.Tests.dll",
+      "bytes": 6017536,
+      "sha256": "5E146196E8874741048D8B07A6DB0FA84492D84AB8B8F86AE010ED6ED4B34D26"
+    },
+    {
+      "path": "D:\\source\\SonnetDB-worktrees\\issue254-public-aggregate-cast\\tests\\SonnetDB.Tests\\bin\\Release\\net10.0\\win-x64\\SonnetDB.Tests.dll",
+      "bytes": 2882560,
+      "sha256": "65F1B3246F0C648E81E8879E03821255C3CE49DBC593693DA9557802CDA0B0EF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\AggregateCastChloe.dll",
+      "bytes": 33792,
+      "sha256": "7173A03035B726049B79D391EB5A6C2EF39E1E6290378FEA7D9A94ED1D7C4052"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\bin\\Release\\net10.0\\AggregateCastNative.dll",
+      "bytes": 18432,
+      "sha256": "A08F4CA7EAB578A6B90B9445ED03832B081397E1279BD4E431F38217044CE092"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\patch-verification.json",
+      "bytes": 555,
+      "sha256": "EF40170D739244625AB3D7A7C833348834861CD79FAC7ABE6732B5B1801882B4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\SonnetDB.Data.dll",
+      "bytes": 2590720,
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-candidate-final\\SonnetDB.Core.dll",
+      "bytes": 18753024,
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\Chloe.SonnetDB.dll",
+      "bytes": 52224,
+      "sha256": "ED03E68486C97B26670530E1BEA68A7C108A2119A53ADF63F58B5773574236AC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\Chloe.dll",
+      "bytes": 756224,
+      "sha256": "3278A9C62CBDA03AE8859102B19498E2DA38625F9CEDD32B59078BFD3E84B138"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\.signature.p7s",
+      "bytes": 12984,
+      "sha256": "2917B2746B7E3210D4548A48BEFB8F6678B3696402EF6C6A860D32984A1ACC58"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\favicon.png",
+      "bytes": 111675,
+      "sha256": "180698189799D38B92228C4E8815DAE9FE279322D425DE375DBD3EB470110FDA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\PackageReadme.md",
+      "bytes": 3140,
+      "sha256": "4CDAA36103EEE43D5A3B9CF00A548D861B59A75A728900AF959B268DED5D7211"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\sonnetdb.core.4.5.0-preview.ef266.5.nupkg",
+      "bytes": 6959160,
+      "sha256": "10D1A1B43F4B310007DE4E2D009DA5BA36F1AD9CB84558C0B330AA000CD1C268"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\sonnetdb.core.4.5.0-preview.ef266.5.nupkg.sha512",
+      "bytes": 88,
+      "sha256": "D7B4BAAB9F9415EA1169DD17CBFDBAB21A72AAAAB54FE3EEAB3A79FE7CED1172"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\p\\sonnetdb.core\\4.5.0-preview.ef266.5\\sonnetdb.core.nuspec",
+      "bytes": 1248,
+      "sha256": "4A1D60B6909C0C29E6C39E461EB89F273BD129BFB1C6F480D78D15FD4E677541"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\AggregateCastNative.csproj",
+      "bytes": 963,
+      "sha256": "EC785C413C317AE9AA6DEB0AF205CD0EC7695DBE63339A1E6C8203E5618721B0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-matrix.json",
+      "bytes": 987,
+      "sha256": "853B9F027A976917AE413E7C1FD71BEC07E8C1D1EFA9ABE389F442C83A6F0873"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\NativeProgram.cs.txt",
+      "bytes": 7395,
+      "sha256": "22B38261A1E6F1806003D3535F0085858E6D6B157130FEA6C0DBA1270DAF3C0A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-consumer-source\\AggregateCastChloe.csproj",
+      "bytes": 1152,
+      "sha256": "4838B7BA11A1E714F38E4C9987560D75574B92F6598CD3BD66AC39E9BE675576"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-consumer-source\\ChloeProgram.cs.txt",
+      "bytes": 8926,
+      "sha256": "C5B67F4162332F5BA5E74D5AE08879286AE53E3DE7D2F7390E17D295ECBE6AE0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-consumer-source\\obj\\project.assets.json",
+      "bytes": 32921,
+      "sha256": "5FE69ECFB1BAA8B92B802CC7DA739A2811F2594FD2A52001B5F469CC894727F3"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\bin\\Release\\net10.0\\SonnetDB.Core.dll",
+      "bytes": 18753024,
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\bin\\Release\\net10.0\\SonnetDB.Data.dll",
+      "bytes": 2590720,
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\SonnetDB.Core.dll",
+      "bytes": 18753024,
+      "sha256": "45D28D5D664AA60F3B6179E6D6181D25E79FEC0ECDC055C138E27A1AFE3236C2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-original-final\\SonnetDB.Data.dll",
+      "bytes": 2590720,
+      "sha256": "1238EB255D4AB70D2E1528A533BA92BD0FB16CEB96B99F64F8F13D64CDFB5E4A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\native-source\\obj\\project.assets.json",
+      "bytes": 32900,
+      "sha256": "9C637FEDCAD10282F0EF0BD1D9A04CA7F2ABD9E0282D6E3685E7130379F584E9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-frame-http2.stdout.log",
+      "bytes": 5032,
+      "sha256": "18A92951298F3ACB2BBBF016330E6601277BBDF8E87233B3D46400EC56D8844C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-frame-http2.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-frame-http2.json",
+      "bytes": 825,
+      "sha256": "D8320252B5958EC2228EF03A6AA0CE456B9A88CDC92FF5A2F389305D60D0988E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-frame-http2.json",
+      "bytes": 830,
+      "sha256": "FE7D337ED755C93C8748772DAF39860E7EB6C1FAE4C82A9E4D0931934663FA52"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-frame-http2.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-frame-http2.stdout.log",
+      "bytes": 4171,
+      "sha256": "3FB8C74A358EBDCFE51C86F2C5C97E273CB830E4E9EC0C5070C862A7CBE969B1"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-matrix.json",
+      "bytes": 987,
+      "sha256": "87D7BFC70656EBB9C20505521D6542F37EEC7D62A1C2490522C5856740D860C8"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-rest.json",
+      "bytes": 802,
+      "sha256": "2FED1B9B6B7D85009D8A1FE395FBEB2D67F0A59B0DFC52BE9433C28B4B20B045"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-rest.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-rest.stdout.log",
+      "bytes": 4052,
+      "sha256": "2EE80CD72AFC77B422E4E037D5C90447E7A5A1CCA2CB39B2434F343C6AEA33B7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-server.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-server.stdout.log",
+      "bytes": 2964,
+      "sha256": "0A1E44B4ADB37F1646BB17E3BEF38DF7874F0934C65309557F5D781734CFAE9F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-build.json",
+      "bytes": 1809,
+      "sha256": "84092769011D8B109A93D63144B8FD07442C227B856D8D2C16B5C9F19FDEFB98"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-build.stdout.log",
+      "bytes": 30051,
+      "sha256": "A67220A89E90AD86193F114CB4101405F7482CE16C371A38D66BAC3B4C6813FA"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-embedded.json",
+      "bytes": 1422,
+      "sha256": "20E12F5953CF8C0094F24E805114B774A215645DEB7AFFBD908B6B2833F63701"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-embedded.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-embedded.stdout.log",
+      "bytes": 4036,
+      "sha256": "EA22187FD52F32B719A2F219F14D82CEDDC22794E0094F331A25F07BD8DFF63E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-embedded.stdout.log",
+      "bytes": 4120,
+      "sha256": "F239D86DCE7AA2B21BA2F84F47D882799CFFBCB216A491DB1096D960B636BF01"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-embedded.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-01-embedded.json",
+      "bytes": 761,
+      "sha256": "27A9B9A0BEFA92A1A1D3653B93FDB8A1FCFDA917AD592ED4A018DC5853DCA22E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-consumer-build.stdout.log",
+      "bytes": 435,
+      "sha256": "34223AA92E43C744A736CA357F2BD2BD5638E8FB106EA2FD5AD771B88B6071FD"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-build.stdout.log",
+      "bytes": 381,
+      "sha256": "90CA2855456D8F5A7BEA65730005DEED8C3EEC4C5420D6593C29E5B2F8A0953B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-embedded.json",
+      "bytes": 1429,
+      "sha256": "1659D1744BC343389C25E635B235E4ECF8A81EEBFFE1C3B65301444DE6800774"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-embedded.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-embedded.stdout.log",
+      "bytes": 4535,
+      "sha256": "0762244EFD9798F3DF09912D5DB89F70DD60E0BA1C63E23529F505F43082A3E0"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-frame-http2.json",
+      "bytes": 811,
+      "sha256": "7F41C5BDD3F2272286DF5816CEE0122FA45A0EDEBDFED294D7A4569E590E6DD7"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-frame-http2.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-frame-http2.json",
+      "bytes": 1611,
+      "sha256": "8C1C02B4B985142BD997BFE24B3C8252647C3963501C7EB940C7864B4BF24A6B"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-frame-http2.stdout.log",
+      "bytes": 4606,
+      "sha256": "74457035E4C63812C0AB24A8851660FF4CB92A477A62D7837BA59AA2F407E31D"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-rest.json",
+      "bytes": 783,
+      "sha256": "1312B2092E5DCDC34C699A9108015748B31F18188964036B35DEADD0E0C836B6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-rest.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-rest.stdout.log",
+      "bytes": 4495,
+      "sha256": "CE7E3835272B235FF4C267A7659BB752743C55C4C04877D92A8721F6A9DBB049"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-server.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-server.stdout.log",
+      "bytes": 225076,
+      "sha256": "2E319DC292B24CE2FE24E23F315BEC7B96D50E27985332350627E58112A0D0FB"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-consumer-build.json",
+      "bytes": 1442,
+      "sha256": "1AC1876C2E03F0AB1FCCE1EBA3F030D09932B860221F49BE5477264841432E1F"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-consumer-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-candidate-final-matrix.json",
+      "bytes": 982,
+      "sha256": "664E33EE0DD45FE180E84D823EA7D8538BD45975119FFC178CB85D7118100C81"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\chloe-source\\src\\Chloe.SonnetDB\\SqlGenerator.cs",
+      "bytes": 17086,
+      "sha256": "4310E69BC69C2077BDAB39B6D08BACCBD16BDBE81DC1B216FC728E4EFF1955D9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-frame-http2.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-matrix.json",
+      "bytes": 978,
+      "sha256": "44D0D581B19248A9E970FCAE8ABA93E6BB7BFCA5E0863A00268FE4DA188459E4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-matrix.json",
+      "bytes": 546,
+      "sha256": "B4067B014F4F8E441EBCAE049D906F0B51A4F01A4E62D4A7B91928B4D3E18145"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-server.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-server.stdout.log",
+      "bytes": 2964,
+      "sha256": "6152C5EBF91040EEB610681BA18C36F31FEBC6492BB33BAD66264B7F6AF1C1D6"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-build.json",
+      "bytes": 1109,
+      "sha256": "D8F71632DF2E39487EBE3A809618AF391CACE3A137D1055E58883BFF369F8926"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-build.stdout.log",
+      "bytes": 420,
+      "sha256": "468F6AF33942833D830A688C9A1E63B6E6C7982B309197322718ECDD606A7076"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic-build.json",
+      "bytes": 689,
+      "sha256": "5DEE500A642D2B70AD97F4746B4D03C141839D1A6532E435A4FFEE56D9E254E5"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic-build.stdout.log",
+      "bytes": 238,
+      "sha256": "E4DC348F51A33631EAC870FA17F1D293497F89E13DBB58E13B64E19BEA5E8464"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic.json",
+      "bytes": 643,
+      "sha256": "9CE058D044D04D16AC4DED533368D570961E48643C7533FAFF9EA98F6C868846"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-diagnostic.stdout.log",
+      "bytes": 4940,
+      "sha256": "58F23753B8060D0C129449ECD0B5BA8235AEA840FCA9DAF93648AA3FD6C1ADEF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-embedded.json",
+      "bytes": 1469,
+      "sha256": "31F031F6867E12C01FC7778E78B0D36E6D5E7C6946191531031D852935109E82"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-embedded.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-final-embedded.stdout.log",
+      "bytes": 4940,
+      "sha256": "58F23753B8060D0C129449ECD0B5BA8235AEA840FCA9DAF93648AA3FD6C1ADEF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-embedded.stdout.log",
+      "bytes": 3936,
+      "sha256": "EDB5642983D98C19B660CF8F04409341692E67062CBC667400F90F4A4A515B43"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-embedded.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\native-public-01-embedded.json",
+      "bytes": 752,
+      "sha256": "52F59F0337C9022FB8BA363B1B6B486235265DD67BD3E08A61FBC8757E1F920A"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\issue254-original.stdout.log",
+      "bytes": 2699,
+      "sha256": "03F91CECDC91E19BC33D694DDCC455CFC91F2A291C8FB1453A7DFF9DAAB270C9"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-rest.json",
+      "bytes": 781,
+      "sha256": "DADBA8CB232DF45F4008E9A21D8EA49C7D455FB02F8FBF463D8714463ED382C4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-rest.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-rest.stdout.log",
+      "bytes": 3968,
+      "sha256": "C99ECCBD6E92CF0759B57A67472D4F7A99BC3D1621FE21BFBEE39C312600DDFC"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-server.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-server.stdout.log",
+      "bytes": 156407,
+      "sha256": "EA51BF519DFD85D5FA90EBEE926C21A6025F1F5B25A3482C0710E74872DCDFDF"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-pinned-build.json",
+      "bytes": 1486,
+      "sha256": "11B3A8FA3DBE4E894AB54440FAB34F13EAAE4A0A81031BA4D8EF36DBB085644C"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-pinned-build.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-final-frame-http2.stdout.log",
+      "bytes": 4087,
+      "sha256": "E41EFA15206CF7DE954E0E6DE8D279F1854C6FB4C053292D3F50A5437201C9B2"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-original-pinned-build.stdout.log",
+      "bytes": 29712,
+      "sha256": "F38CCFB8D3C0659311A56E298AA82BF31B579E27D1CFEBFDBD50EB4BFBA47D0E"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-original.stderr.log",
+      "bytes": 90,
+      "sha256": "270BC91862945C2B2D9F5240CADC9D78E8EC0CCA592B86D0E5EBBF4F8F46E743"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-original.stdout.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-verified.json",
+      "bytes": 708,
+      "sha256": "06AAF3B13A48AA820859A49EE0B778984462175DA070A3B20ED7C8178B84B5D4"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-verified.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-verified.stdout.log",
+      "bytes": 317,
+      "sha256": "C3767B637915D8287DB4A28CDED9F880EEF8D4E4B10FDEC2994D0988311E7332"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\issue254-original.json",
+      "bytes": 689,
+      "sha256": "ECCA3EC95210E5F86B610190FA3278EE0A4355D2748DF3FC844118AA2FC64E58"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\issue254-original.stderr.log",
+      "bytes": 0,
+      "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue-supervision-20261016\\issue254-work\\artifacts\\checks\\chloe-pr435-original.json",
+      "bytes": 709,
+      "sha256": "002B6594017CE46A9534771355456AC57093E5B9D095716FEC860C81DE047A35"
+    },
+    {
+      "path": "D:\\sndb-t\\i254-patch\\original\\src\\Chloe.SonnetDB\\SqlGenerator.cs",
+      "bytes": 17694,
+      "sha256": "116C38DC4C9106CEB21886366D293A8E3F0F90702E65B37BC9838C43D6C2168C"
+    }
+  ]
+}

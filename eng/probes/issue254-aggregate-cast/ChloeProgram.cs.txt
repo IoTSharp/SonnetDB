@@ -1,0 +1,155 @@
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 2) return 2;
+string protocol = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "Chloe", "Chloe.SonnetDB" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var context = new SonnetDBContext(() => new SndbConnection(args[0]));
+context.Session.ExecuteNonQuery("CREATE TABLE CastRows(Id INT,Tenant INT,Value INT NULL,Amount DECIMAL(29,3) NULL,PRIMARY KEY(Id))");
+context.Insert(new CastRow { Id = 1, Tenant = 1, Value = 3, Amount = 9007199254740993.125m });
+context.Insert(new CastRow { Id = 2, Tenant = 1, Value = 5, Amount = 0.875m });
+context.Insert(new CastRow { Id = 3, Tenant = 2, Value = 7, Amount = 0.1m });
+context.Insert(new CastRow { Id = 4, Tenant = 3 });
+var rows = context.Query<CastRow>();
+Run("ordinary-five-aggregates", () =>
+{
+    Require(rows.Count() == 4 && rows.LongCount() == 4L, "COUNT differs.");
+    Require(rows.Sum(r => r.Value) == 15L && rows.Average(r => r.Value) == 5d && rows.Min(r => r.Value) == 3L && rows.Max(r => r.Value) == 7L, "Ordinary aggregate value differs.");
+    var query = rows.Select(r => new { Sum = Sql.Sum(r.Value), Average = Sql.Average(r.Value), Min = Sql.Min(r.Value), Max = Sql.Max(r.Value), Count = Sql.Count(r.Value) });
+    Trace(query, "SUM(", "AVG(", "MIN(", "MAX(", "COUNT(");
+    var result = query.ToList().Single();
+    Require(result.Sum == 15 && result.Average == 5 && result.Min == 3 && result.Max == 7 && result.Count == 3, "Sql aggregates differ.");
+});
+Run("ordinary-empty-and-null", () =>
+{
+    foreach (var query in new[] { rows.Where(r => r.Id < 0), rows.Where(r => r.Tenant == 3) })
+    {
+        Require(query.Sum(r => r.Value) is null && query.Average(r => r.Value) is null && query.Min(r => r.Value) is null && query.Max(r => r.Value) is null, "Nullable empty aggregate differs.");
+        var projection = query.Select(r => new { Count = Sql.Count(r.Value), Sum = Sql.Sum(r.Value) });
+        Trace(projection, "COUNT(", "SUM(");
+        var result = projection.ToList().Single();
+        Require(result.Count == 0 && result.Sum is null, "NULL aggregate projection differs.");
+    }
+});
+Run("ordinary-decimal-exact", () =>
+{
+    var query = rows.Where(r => r.Tenant == 1).Select(r => new { Sum = Sql.Sum(r.Amount), Average = Sql.Average(r.Amount), Min = Sql.Min(r.Amount), Max = Sql.Max(r.Amount) });
+    Trace(query, "SUM(", "AVG(");
+    var result = query.ToList().Single();
+    Require(result.Sum == 9007199254740994m && result.Average == 4503599627370497m && result.Min == 0.875m && result.Max == 9007199254740993.125m, "Decimal precision differs.");
+});
+Run("ordinary-group-having", () =>
+{
+    var query = rows.GroupBy(r => r.Tenant).Having(r => Sql.Count() > 1).Select(r => new { r.Tenant, Sum = Sql.Sum(r.Value), Count = Sql.Count() });
+    Trace(query, "GROUP BY", "HAVING");
+    var result = query.ToList().Single();
+    Require(result.Tenant == 1 && result.Sum == 8 && result.Count == 2, "Grouped aggregate differs.");
+});
+Run("explicit-sum-to-float", () => Equal(15d, rows.Select(r => (double?)Sql.Sum(r.Value)), "CAST(", "SUM("));
+Run("explicit-average-to-decimal", () => Equal(5m, rows.Select(r => (decimal?)Sql.Average(r.Value)), "CAST(", "AVG("));
+Run("explicit-min-to-float", () => Equal(3d, rows.Select(r => (double?)Sql.Min(r.Value)), "CAST(", "MIN("));
+Run("explicit-max-to-int", () => Equal(9007199254740993L, rows.Select(r => (long?)Sql.Max(r.Amount)), "CAST(", "MAX("));
+Run("explicit-count-to-float", () => Equal(3d, rows.Select(r => (double)Sql.Count(r.Value)), "CAST(", "COUNT("));
+Run("explicit-empty-values", () =>
+{
+    var query = rows.Where(r => r.Id < 0).Select(r => new { Sum = (double?)Sql.Sum(r.Value), Average = (decimal?)Sql.Average(r.Value), Min = (double?)Sql.Min(r.Value), Max = (long?)Sql.Max(r.Amount), Count = (double)Sql.Count(r.Value) });
+    Trace(query, "CAST(");
+    var result = query.ToList().Single();
+    Require(result.Sum is null && result.Average is null && result.Min is null && result.Max is null && result.Count == 0d, "Empty cast values differ.");
+});
+Run("explicit-all-null-values", () =>
+{
+    var query = rows.Where(r => r.Tenant == 3).Select(r => new { Sum = (double?)Sql.Sum(r.Value), Average = (decimal?)Sql.Average(r.Value), Min = (double?)Sql.Min(r.Value), Max = (long?)Sql.Max(r.Amount), Count = (double)Sql.Count(r.Value) });
+    Trace(query, "CAST(");
+    var result = query.ToList().Single();
+    Require(result.Sum is null && result.Average is null && result.Min is null && result.Max is null && result.Count == 0d, "All NULL cast values differ.");
+});
+Run("explicit-group-having", () =>
+{
+    var query = rows.GroupBy(r => r.Tenant).Having(r => (double?)Sql.Sum(r.Value) > 7d).Select(r => new { r.Tenant, Sum = (double?)Sql.Sum(r.Value), Average = (decimal?)Sql.Average(r.Value), Count = (double)Sql.Count() });
+    Trace(query, "CAST(", "GROUP BY", "HAVING");
+    var result = query.ToList().Single();
+    Require(result.Tenant == 1 && result.Sum == 8d && result.Average == 4m && result.Count == 2d, "CAST must evaluate per group.");
+});
+Run("explicit-empty-group", () =>
+{
+    var query = rows.Where(r => r.Id < 0).GroupBy(r => r.Tenant).Select(r => new { r.Tenant, Value = (double?)Sql.Sum(r.Value) });
+    Trace(query, "CAST(", "GROUP BY");
+    Require(query.ToList().Count == 0, "Empty group should not produce rows.");
+});
+Run("explicit-decimal-to-int-precision", () => Equal(9007199254740994L, rows.Where(r => r.Tenant == 1).Select(r => (long?)Sql.Sum(r.Amount)), "CAST(", "SUM("));
+await RunAsync("explicit-async-projection", async () =>
+{
+    var query = rows.Select(r => (double?)Sql.Sum(r.Value));
+    Trace(query, "CAST(", "SUM(");
+    Require((await query.ToListAsync()).Single() == 15d, "Async aggregate differs.");
+});
+context.Insert(new CastRow { Id = 5, Tenant = 4, Value = 1, Amount = 9223372036854775808m });
+Run("explicit-outer-cast-overflow", () =>
+{
+    var query = rows.Where(r => r.Tenant == 4).Select(r => (long?)Sql.Sum(r.Amount));
+    Trace(query, "CAST(", "SUM(");
+    try { _ = query.ToList(); }
+    catch (Exception exception)
+    {
+        Require(exception.ToString().Contains("Int64", StringComparison.Ordinal), "Expected engine Int64 cast overflow.");
+        Console.WriteLine($"EXPECTED-ERROR|{exception.GetType().Name}|{exception.Message}");
+        return;
+    }
+    throw new InvalidOperationException("Expected outer CAST overflow.");
+});
+Console.WriteLine($"COMPLETE|{protocol}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+async Task RunAsync(string name, Func<Task> action)
+{
+    try { await action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{exception.GetType().Name}|{exception.Message}"); }
+}
+void Trace<T>(IQuery<T> query, params string[] expectedSql)
+{
+    string sql = query.ToString() ?? throw new InvalidOperationException("No SQL.");
+    Console.WriteLine("SQL|" + sql.Replace('\r', ' ').Replace('\n', ' '));
+    foreach (string fragment in expectedSql) Require(sql.Contains(fragment, StringComparison.OrdinalIgnoreCase), "Missing SQL fragment " + fragment);
+}
+void Equal<T>(T expected, IQuery<T> query, params string[] expectedSql)
+{
+    Trace(query, expectedSql);
+    T actual = query.ToList().Single();
+    Console.WriteLine($"VALUE|{typeof(T)}|expected={expected}|actual={actual}");
+    Require(EqualityComparer<T>.Default.Equals(expected, actual), "Exact aggregate value differs.");
+}
+void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+
+/// <summary>实际 Chloe 聚合消费者的关系表映射。</summary>
+[Table("CastRows")]
+public sealed class CastRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>聚合分组。</summary>
+    public long Tenant { get; set; }
+    /// <summary>可空整数聚合输入。</summary>
+    public long? Value { get; set; }
+    /// <summary>精确小数聚合输入。</summary>
+    public decimal? Amount { get; set; }
+}

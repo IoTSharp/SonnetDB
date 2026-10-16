@@ -1,0 +1,14 @@
+diff --git a/src/Chloe.SonnetDB/SqlGenerator.cs b/src/Chloe.SonnetDB/SqlGenerator.cs
+index c38d336..bde9e83 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator.cs
+@@ -223,9 +223,6 @@ namespace Chloe.SonnetDB
+             exp = (DbConvertExpression)stripedExp;
+             Utils.EnsureSupportedMappingType(exp.Type);
+ 
+-            if (exp.Operand is DbAggregateExpression || (exp.Operand is DbMethodCallExpression aggregateMethod && aggregateMethod.Method.DeclaringType == PublicConstants.TypeOfSql && (aggregateMethod.Method.Name == "Sum" || aggregateMethod.Method.Name == "Average" || aggregateMethod.Method.Name == "Max" || aggregateMethod.Method.Name == "Min" || aggregateMethod.Method.Name == "Count" || aggregateMethod.Method.Name == "LongCount")))
+-                throw new NotSupportedException("SonnetDB does not support CAST around an aggregate expression. See https://github.com/IoTSharp/SonnetDB/issues/254.");
+-
+             Type sourceType = exp.Operand.Type.GetUnderlyingType();
+             if (exp.Type.GetUnderlyingType() == typeof(ulong) && (sourceType == typeof(float) || sourceType == typeof(double) || sourceType == typeof(decimal)))
+             {
