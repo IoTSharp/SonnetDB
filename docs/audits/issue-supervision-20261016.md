@@ -187,3 +187,14 @@
 - 已推送批次04仍76955cf604655c2ec32f4db1cf019441d4e19577；CI38831797384最新Ubuntu完整测试、三平台AOT及Format success，Windows core/rest仍运行，避免push取消该run。261/260/259/258实际回复与OPEN回读在issue-supervision-batch04-actions-20261016.json（随本地256提交待推送）。旧cfa CI failure保留；parity-results保持2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
 - 三代理各一项：issue314→252，issue252-timespan独占DURATION类型/100ns、v14屏障和可恢复schema迁移、物化视图v3及Frame/REST v5；已接259/256共22生产依赖，负基线已复现，尚未宣称构建/完整验收。issue312→251，issue251-datetimeoffset只审计/公开包和Chloe探针，等252冻结再改共享类型；四进程已复现通用DateTimeOffset转换失败，专用getter控制通过。issue313→250，issue250-maintenance准备三原生维护缺口与SqlSugar负基线/测试。核心移交顺序252→251→250，版本号按前项实交顺延。
 - 下一步取得本项最终完整门禁并独立提交，保持本树清洁；继续监督代理与Windows CI。主目录他人工作结束后串行整合本批，核最终树/完整提交门禁，正常push、读SHA、核CI、回复Issue。226/243恢复源码补缺已推送不重做，正式发行及对应消费者继续跟踪。30分钟监督ACTIVE，三代理上限、旧树/失败证据/parity-results完整保留。
+
+
+## 最新监督检查点（2026-10-16 09:30，CI 回填页断言修正）
+
+- 本监督继续在 D:/source/SonnetDB-worktrees/issue-supervision-batch05（codex/issue-supervision-batch05）工作。批次05四项独立提交已齐：256=f9ee14b7、254=6749d202、255=da1199a2、253=18d9019f，目前尚未推送。各项既有完整门禁实际通过，不重做；四项正式发行/对应ORM上游交付尚缺，推送后回复并保持OPEN。
+- 批次04精确SHA76955cf6的CI38831797384已completed/failure：Format、三平台NativeAOT、Ubuntu完整测试和Windows Core六job成功，Windows rest唯一失败为ObjectProcessingSchedulerTests预算恢复例Expected3/Actual2（Server1363/1364，其余rest项目全通过）。原失败日志、10份TRX及SHA保留，永久核查见issue-supervision-ci-38831797384-20261016.json；不得改写为全绿。
+- 根确认默认250ms页预算可合法在第3条注入钩子之前结束；生产已持久保存两条前缀及游标。增加第二条提前结束前页的确定性用例，在旧断言下真实复现2PASS/1FAIL；修订为只续读逐页计数/游标已验证的合法前缀，并要求目标取消钩子确实执行。服务重建续读和重复扫描去重仍严格核验，不重试失败断言、不修改生产预算/恢复逻辑。修订Release零警告/错误，ObjectProcessingSchedulerTests完整20/20、零失败/跳过；仅为此测试范围PASS。
+- 本项修正单独提交，提交前须在本最终树完成完整restore和原Format，回执artifacts/issue-supervision-20261016/backfill-budget-contract/final-lf。接着普通快进push本独立树HEAD:main、回读main/parity SHA并跟踪新CI；批次05回复草稿已备，发送后逐条回读且保存永久回执。
+- 主目录其他文档聊天已结束，但仍有未提交CHANGELOG/HANDOFF/llms.txt/llms-full.txt及ELK分析文件，本监督保持不混入、不丢弃；可从独立树完成快进推送，主目录本地main暂留f9ee14b7并待保留其修改后同步。不要为了主目录同步接管他人未交付提交。
+- 三代理复用：issue314唯一252继续DURATION/v14/v5实施；37项定向通过但恢复、真实消费者及完整回归未完成。根复审发现显式DbType.Time被绑定为DURATION导致旧Server兼容风险，代理已调整两入口并补真实旧DLL/Chloe控制，待完整验收。issue312的251准备已完成等待252冻结；issue313的250只做真实负基线、设计和独立测试准备，不改共享生产。共享核心移交仍252→251→250。
+- 30分钟监督sonnetdb-issue已更新当前目录、队列及已完成优先任务边界，仍ACTIVE。226=285186b8、243=b6e674c4源码及恢复补缺已推送不重做；正式版本/对应消费者继续跟踪。保留全部旧树/失败证据/parity-results，不强推。

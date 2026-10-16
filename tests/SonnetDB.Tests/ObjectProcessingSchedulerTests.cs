@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SkiaSharp;
 using SonnetDB.Configuration;
+using SonnetDB.Contracts;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
@@ -322,26 +323,37 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
 
     /// <summary>预算在持久入队后耗尽时保存精确进度，重建服务后续页不丢失或重复入队。</summary>
     [Theory]
-    [InlineData(1)]
-    [InlineData(3)]
-    public async Task EnqueueBucket_BudgetExpiresAfterDurableEnqueue_PreservesProgressAndResumes(int processedBeforeExpiry)
+    [InlineData(1, false)]
+    [InlineData(3, false)]
+    [InlineData(3, true)]
+    public async Task EnqueueBucket_BudgetExpiresAfterDurableEnqueue_PreservesProgressAndResumes(
+        int processedBeforeExpiry, bool expireEarlierPage)
     {
         await SeedBackfillObjectsAsync();
         using var fixture = CreateService();
         int processed = 0;
+        bool cancelledAtTarget = false;
         fixture.Service.AfterBackfillObjectForTest = budget =>
         {
-            if (++processed == processedBeforeExpiry)
+            processed++;
+            if (processed == processedBeforeExpiry)
+            {
+                cancelledAtTarget = true;
+                budget.Cancel();
+            }
+            else if (expireEarlierPage && processed == 2)
                 budget.Cancel();
         };
 
-        var first = fixture.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+        var jobs = new ObjectProcessingJobStore(_db);
+        var first = await AdvanceAsync(fixture.Service, processedBeforeExpiry, skipExisting: false);
+        Assert.True(cancelledAtTarget);
+        Assert.Equal(processedBeforeExpiry, processed);
         Assert.Equal(processedBeforeExpiry, first.ScannedObjects);
         Assert.Equal(processedBeforeExpiry, first.QueuedObjects);
         Assert.Equal(0, first.SkippedObjects);
         Assert.Equal(processedBeforeExpiry < 3, first.HasMore);
         Assert.Equal(processedBeforeExpiry == 3, first.Completed);
-        var jobs = new ObjectProcessingJobStore(_db);
         var persisted = jobs.ReadBackfill("backfill", _deadline.Token)!;
         Assert.Equal(first.ScannedObjects, persisted.State.ScannedObjects);
         Assert.Equal(first.QueuedObjects, persisted.State.QueuedObjects);
@@ -351,14 +363,14 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         if (first.HasMore)
         {
             Assert.NotNull(first.ContinuationToken);
-            var resumed = restarted.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+            var resumed = await AdvanceAsync(restarted.Service, 3, skipExisting: false);
             Assert.True(resumed.Completed);
             Assert.False(resumed.HasMore);
             Assert.Equal(3, resumed.ScannedObjects);
             Assert.Equal(3, resumed.QueuedObjects);
             Assert.Equal(0, resumed.SkippedObjects);
         }
-        var repeated = restarted.Service.EnqueueBucket("images", _db, "backfill", _deadline.Token);
+        var repeated = await AdvanceAsync(restarted.Service, 3, skipExisting: true);
         Assert.True(repeated.Completed);
         Assert.Equal(3, repeated.ScannedObjects);
         Assert.Equal(0, repeated.QueuedObjects);
@@ -366,6 +378,39 @@ public sealed class ObjectProcessingSchedulerTests : IDisposable
         Assert.Equal(3, jobs.ReadDue(DateTimeOffset.UtcNow, 10, _deadline.Token).Count);
         Assert.Equal(3, _db.Keyspaces.Open(ObjectProcessingJobStore.KeyspaceName)
             .ScanPrefix(ObjectProcessingJobStore.JobPrefix, 10).Count);
+
+        async Task<ObjectBucketSemanticBackfillResponse> AdvanceAsync(
+            ObjectSemanticProcessingService service, int stopAt, bool skipExisting)
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
+            deadline.CancelAfter(TimeSpan.FromSeconds(10));
+            int previousScanned = 0;
+            // 250ms 页预算可能在目标钩子之前耗尽；仅续读已核对的合法持久前缀，
+            // 不重试失败断言。额外用例在第二条主动结束前页，确定性覆盖此路径。
+            for (int attempt = 0; attempt < 32; attempt++)
+            {
+                deadline.Token.ThrowIfCancellationRequested();
+                var page = service.EnqueueBucket("images", _db, "backfill", deadline.Token);
+                Assert.InRange(page.ScannedObjects, previousScanned, stopAt);
+                Assert.Equal(skipExisting ? 0 : page.ScannedObjects, page.QueuedObjects);
+                Assert.Equal(skipExisting ? page.ScannedObjects : 0, page.SkippedObjects);
+                Assert.Equal(page.ScannedObjects == 3, page.Completed);
+                Assert.Equal(!page.Completed, page.HasMore);
+                var state = jobs.ReadBackfill("backfill", deadline.Token)!.State;
+                Assert.Equal(page.ScannedObjects, state.ScannedObjects);
+                Assert.Equal(page.QueuedObjects, state.QueuedObjects);
+                Assert.Equal(page.SkippedObjects, state.SkippedObjects);
+                Assert.Equal(page.ContinuationToken, state.ContinuationToken);
+                Assert.Equal(page.Completed, state.Completed);
+                if (page.ScannedObjects is > 0 and < 3)
+                    Assert.NotNull(page.ContinuationToken);
+                if (page.ScannedObjects == stopAt)
+                    return page;
+                previousScanned = page.ScannedObjects;
+                await Task.Delay(25, deadline.Token);
+            }
+            throw new InvalidOperationException("回填未在有界续页次数内到达目标取消点。");
+        }
     }
 
     /// <summary>调用方取消仍中断请求，已经持久入队的对象可恢复且不会重复登记。</summary>

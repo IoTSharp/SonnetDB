@@ -5,6 +5,16 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB-worktrees\issue-supervision-batch05`
 
+## 最新监督检查点（2026-10-16 09:30，CI 回填页断言修正）
+
+- 本监督继续在 D:/source/SonnetDB-worktrees/issue-supervision-batch05（codex/issue-supervision-batch05）工作。批次05四项独立提交已齐：256=f9ee14b7、254=6749d202、255=da1199a2、253=18d9019f，目前尚未推送。各项既有完整门禁实际通过，不重做；四项正式发行/对应ORM上游交付尚缺，推送后回复并保持OPEN。
+- 批次04精确SHA76955cf6的CI38831797384已completed/failure：Format、三平台NativeAOT、Ubuntu完整测试和Windows Core六job成功，Windows rest唯一失败为ObjectProcessingSchedulerTests预算恢复例Expected3/Actual2（Server1363/1364，其余rest项目全通过）。原失败日志、10份TRX及SHA保留，永久核查见issue-supervision-ci-38831797384-20261016.json；不得改写为全绿。
+- 根确认默认250ms页预算可合法在第3条注入钩子之前结束；生产已持久保存两条前缀及游标。增加第二条提前结束前页的确定性用例，在旧断言下真实复现2PASS/1FAIL；修订为只续读逐页计数/游标已验证的合法前缀，并要求目标取消钩子确实执行。服务重建续读和重复扫描去重仍严格核验，不重试失败断言、不修改生产预算/恢复逻辑。修订Release零警告/错误，ObjectProcessingSchedulerTests完整20/20、零失败/跳过；仅为此测试范围PASS。
+- 本项修正单独提交，提交前须在本最终树完成完整restore和原Format，回执artifacts/issue-supervision-20261016/backfill-budget-contract/final-lf。接着普通快进push本独立树HEAD:main、回读main/parity SHA并跟踪新CI；批次05回复草稿已备，发送后逐条回读且保存永久回执。
+- 主目录其他文档聊天已结束，但仍有未提交CHANGELOG/HANDOFF/llms.txt/llms-full.txt及ELK分析文件，本监督保持不混入、不丢弃；可从独立树完成快进推送，主目录本地main暂留f9ee14b7并待保留其修改后同步。不要为了主目录同步接管他人未交付提交。
+- 三代理复用：issue314唯一252继续DURATION/v14/v5实施；37项定向通过但恢复、真实消费者及完整回归未完成。根复审发现显式DbType.Time被绑定为DURATION导致旧Server兼容风险，代理已调整两入口并补真实旧DLL/Chloe控制，待完整验收。issue312的251准备已完成等待252冻结；issue313的250只做真实负基线、设计和独立测试准备，不改共享生产。共享核心移交仍252→251→250。
+- 30分钟监督sonnetdb-issue已更新当前目录、队列及已完成优先任务边界，仍ACTIVE。226=285186b8、243=b6e674c4源码及恢复补缺已推送不重做；正式版本/对应消费者继续跟踪。保留全部旧树/失败证据/parity-results，不强推。
+
 ## 最新监督检查点（2026-10-16，批次05独立整合树）
 
 - 接续目录：D:/source/SonnetDB-worktrees/issue-supervision-batch05，分支codex/issue-supervision-batch05。主目录活动聊天“更新两份 LLMs 文档”正在改llms.txt和llms-full.txt，另有ELK分析未交付文件；本监督保持主目录只读，不暂存/清理/混入。待其收尾，再检查主main新提交及工作树，保留他人交付后串行整合。主目录HANDOFF暂不能覆盖，最新状态见本树。

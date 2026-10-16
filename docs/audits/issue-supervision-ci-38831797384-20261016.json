@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-16T01:31:13.5751426+00:00",
+  "repository": "IoTSharp/SonnetDB",
+  "ci": {
+    "runId": 38831797384,
+    "headSha": "76955cf604655c2ec32f4db1cf019441d4e19577",
+    "conclusion": "failure",
+    "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38831797384",
+    "jobs": [
+      {
+        "name": "Format Check",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:46Z",
+        "completedAt": "2026-10-16T00:53:37Z"
+      },
+      {
+        "name": "Build & Test (windows-latest, rest)",
+        "status": "completed",
+        "conclusion": "failure",
+        "startedAt": "2026-10-16T00:50:47Z",
+        "completedAt": "2026-10-16T01:20:17Z"
+      },
+      {
+        "name": "AOT Publish (ubuntu-24.04-arm)",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:49Z",
+        "completedAt": "2026-10-16T00:57:45Z"
+      },
+      {
+        "name": "AOT Publish (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:46Z",
+        "completedAt": "2026-10-16T00:57:50Z"
+      },
+      {
+        "name": "Build & Test (windows-latest, core)",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:46Z",
+        "completedAt": "2026-10-16T01:13:55Z"
+      },
+      {
+        "name": "AOT Publish (windows-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:47Z",
+        "completedAt": "2026-10-16T00:59:52Z"
+      },
+      {
+        "name": "Build & Test (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-10-16T00:50:46Z",
+        "completedAt": "2026-10-16T01:03:23Z"
+      }
+    ],
+    "windowsRestTrx": [
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_00_55_30_net10.0.trx",
+        "sha256": "E0512D40F156D5CF1008584A14786A4435720A763F70843ABE27B40BA0CF29B0",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_00_55_38_net10.0.trx",
+        "sha256": "830C7D1E1BC91BAB97588317C71EC2D217E967FAC4C013CCA0C97D015DFE7315",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_00_57_09_net10.0.trx",
+        "sha256": "8CEFE6FF9C6E54C532BB0AD3F65E10987639F6381D57B8640AC2625D4BD6D04A",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_00_58_35_net10.0.trx",
+        "sha256": "DF63328CA6CE7EA3D9FE3D5CEC523BF01F71BF66D1D033D8A1338F56C2E3F15F",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_00_59_42_net10.0.trx",
+        "sha256": "57078E0B8B01F7DE3FF939C8248A1416C4BC81B3C2986660BB22B7A49C465A7D",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_01_04_35_net10.0.trx",
+        "sha256": "8B989AF09AF80E7A334AF37F911F9C7840FF4F4B693639AE6E11C1E9911C3736",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_01_04_36_net10.0.trx",
+        "sha256": "453F41269C95607BAB2215B34A6AB46F8063D1C26919FFBE64D12029C5383EB1",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_01_04_39_net10.0.trx",
+        "sha256": "5E86D324AC8C9FF11C19C0FF2215FC88ACCE1251F34EB8FF45E5344999410045",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_01_04_48_net10.0.trx",
+        "sha256": "AA52A023938E531B0A3D89FCDA17C9125DB4C71DB79B9F4A3A93E214F2372B08",
+        "counters": [],
+        "failed": []
+      },
+      {
+        "file": "runneradmin_runnervm0xl3a_2026-10-16_01_05_30_net10.0.trx",
+        "sha256": "6ABD5BBD67157518A9D6EE864E87FD41EF2CEDE47A81FED3F759F7969628E3D0",
+        "counters": [],
+        "failed": [
+          {
+            "testName": "SonnetDB.Tests.ObjectProcessingSchedulerTests.EnqueueBucket_BudgetExpiresAfterDurableEnqueue_PreservesProgressAndResumes(processedBeforeExpiry: 3)",
+            "message": "Assert.Equal() Failure: Values differ\r\nExpected: 3\r\nActual:   2"
+          }
+        ]
+      }
+    ]
+  },
+  "correction": {
+    "parentCommit": "18d9019f234c98c9a323d23d8672bb2f7274f523",
+    "scope": "ObjectProcessingSchedulerTests only; no production budget or persistence change",
+    "cause": "A valid 250ms page may stop after two objects before the test cancels at the third object.",
+    "reproduction": "Force the preceding page budget to expire after object two; retain the original exact first-call assertion.",
+    "baseline": {
+      "path": "artifacts/issue-supervision-20261016/backfill-budget-contract/baseline/mysti_MAIKEBING_2026-10-16_09_28_09_net10.0.trx",
+      "sha256": "2BF4FBCE251A34AF6DD5450377309C049E54FAF4E782391FD388A8AB6F7B7DBC",
+      "total": 3,
+      "passed": 2,
+      "failed": 1,
+      "notExecuted": 0,
+      "failures": [
+        {
+          "name": "SonnetDB.Tests.ObjectProcessingSchedulerTests.EnqueueBucket_BudgetExpiresAfterDurableEnqueue_PreservesProgressAndResumes(processedBeforeExpiry: 3, expireEarlierPage: True)",
+          "message": "Assert.Equal() Failure: Values differ\r\nExpected: 3\r\nActual:   2"
+        }
+      ]
+    },
+    "fixed": {
+      "path": "artifacts/issue-supervision-20261016/backfill-budget-contract/fixed/mysti_MAIKEBING_2026-10-16_09_29_51_net10.0.trx",
+      "sha256": "23F21ED50BBEB3E8B9E3ADD7170A133B4D77FA21D2E1F3AB1BA5E20AEB053DF6",
+      "total": 20,
+      "passed": 20,
+      "failed": 0,
+      "notExecuted": 0,
+      "failures": []
+    },
+    "assertions": [
+      "Bounded page continuation with no failed-assertion retry",
+      "Exact cumulative queued/skipped/scanned counts and persisted cursor on every page",
+      "Target cancellation hook must execute at the requested object count",
+      "Recreated service resumes and repeated scan does not enqueue duplicates"
+    ],
+    "buildReceipts": [
+      "backfill-budget-contract/baseline-build.json",
+      "backfill-budget-contract/fixed-build.json"
+    ],
+    "finalGateDirectory": "artifacts/issue-supervision-20261016/backfill-budget-contract/final-lf",
+    "sourceSha256": "C4AEFEB7AC666BEEAB3E1E5CA6606BBDD0F7A01BCBDC05518E569D1FB3CDA7A7",
+    "baselineSourceSha256": "F8C4973D2C7E2FD3E741DFEE6E1B0492C0C2029972A0EE82DF5D34ACECDFDBE7"
+  },
+  "limitation": "Local 20/20 does not change the failed historical CI conclusion. A new pushed commit needs its own CI result."
+}
