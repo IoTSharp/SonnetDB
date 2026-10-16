@@ -5,6 +5,14 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
+## M48 单机日志与事件分析规划（2026-10-16）
+
+- 用户明确要求把 ELK 能力计划纳入路线图，增加里程碑、详尽独立说明并提交推送。本轮在 `D:/source/SonnetDB-worktrees/m48-log-event-analysis`、分支 `codex/m48-log-event-analysis` 工作，从 `390af19d` 接续并在文档门禁前快进纳入 `16ff58f8` 的 LLM 文档交付；主目录其它任务的修改未混入本次变更。
+- 根 ROADMAP 新增 M48 与稳定锚点，包含 24 个工作包的交付/依赖/退出条件、G0～G4 顺序、真机待办和版本边界。`docs/design/m48-single-node-log-event-analytics.md` 详述事件/时间精度、LogStream/滚动、逐项与 HTTP 批次确认、幂等、处理管线、统一过滤/快照/聚合、生命周期、权限、预算、告警/outbox、恢复、SDK/迁移和发布验收；归档前轮 ELK 研究并双向链接。CHANGELOG 仅记录文档交付。
+- L01～L20 是独立 R1 的必选，L21～L24 为 OTLP Logs、Trace、语义及生态条件项；全部 planned。目标版本/日期/平台/负载在 L01 冻结，不默认扩大原 4.5 及已发布 Workbench 预览范围，不新增第十模型。首个实施切片为 L01 的真实语料、合同、目标 profile 与既有查询差距复现；没有在本轮启动功能开发、外部 Issue、产品发布或采集/通知。
+- 文档验证已核 UTF-8、围栏/空白、62 个本地链接、根/专题各 24 个唯一工作包及 20 必选/4 条件一致；收据在本工作树 `artifacts/m48-plan-20261016/document-validation.json`。本次只改文档，未运行新的产品功能/性能/恢复测试。最终完整 solution restore 和原 CI Format Check 的原始日志/实际退出码记录在同目录 `restore-final.log`、`format-final.log` 与 `gates.json`，仅两项实际退出 0 才允许提交推送；它们不等于 M48 功能或容量验收。
+- 交付策略：仅本轮 ROADMAP、CHANGELOG、HANDOFF、ELK 研究和 M48 专题五文件进入提交；普通快进推送 `origin/main`，远端 SHA 与 parity-results 回读保存本目录的发布收据。若主目录并行任务再次产生修改，保留其工作树；不得覆盖 pull、混入他人暂存、强推或修改/合并/删除 parity-results。后续接续先核实际 Git/远端与发布收据，不把上述门禁执行前的条件描述当作 PASS。
+
 ## AI 上下文文件完整更新（2026-10-16，本会话）
 
 - 按用户要求重写根 `llms.txt` 与 `llms-full.txt`，短版负责发现/选择入口，完整版覆盖十四项能力、安装与使用、SQL 名称/类型/事务/新功能、各模型、MCP typed contract、Copilot/持久 RAG/媒体、CDC/流任务、三面管理范围、传输/预算/恢复、诊断、任务模板和权威链接。保持英文机器上下文并补中文定位。
