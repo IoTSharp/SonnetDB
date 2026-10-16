@@ -2,6 +2,9 @@
 
 ## 当前人工统一整合（2026-10-17，Asia/Shanghai）
 
+- 线上 `d65e7884597d37ef18690b4eb451717349438a2c` 已正常推送，本地/跟踪/实际 main 一致，两个远端开发分支与全部本地开发头均为祖先，开放 PR 为0。该 SHA 的 Docker Publish38940523381 因缺少 Protocol 项目失败，Connectors Release38940523472 仅 Windows x64 因 Native 迁移后错误搜索旧路径而缺少 .lib 失败，原日志保留。当前补齐 Docker 两层COPY/Protocol触发路径、MQTT源生成项目restore输入、Native发布/Rust路径和CMake的Protocol依赖；完整说明见 `docs/audits/integration-20261017/build-wiring.md`。
+- 本机实际 VS2026 CMake配置/构建、NativeAOT发布、C quickstart与result-lifetime均通过，发布工具Release零警告错误，反射调用其真实路径选择/环境/打包方法核DLL与LIB同源SHA一致，Docker七项目传递引用闭包完整。本机缺Java/Go/Rust工具，不把C链接当这些连接器验收；完整Docker正在下载基础镜像，尚无构建通过结论。最终提交前重新完整restore/原Format；最终远端精确CI、Docker及连接器状态只按新SHA回执，不能用d65的成功作业扩称覆盖修复。
+
 - 工作目录 `D:/source/SonnetDB`，分支 `main`。用户要求把已有代码提交、拉取、全部合并并同步线上。本次是人工整合；automation `sonnetdb-issue` 已配置回读为 **PAUSED**，不自动巡检、派单或继续 #247/#245。
 - 保留历史普通 merge：M49 `46e58d822cc8e19a259e5560f0fb1da3c8f261a2` 纳入远端39437db0；在线演示/Studio配置 `8f28c82fa96468d98e7a1843a348973ae0a27a6b` 纳入远端d8d83c5b。#248最终冻结独立提交 `86dcecee7210d069d6abedb676f9eb4a370ea3e5`；Docker忽略顺序修复独立 `6fbc2d783aa2f1dcf84bbd237c103ff3ce3c78cd`。旧工作树、stash和所有失败证据保留，parity-results不合并或清理。
 - 根实际组合验证：完整solution Release零warning/error；13项目首轮 **9795/9796、0 skipped**，唯一Docker上下文失败已经独立修复，最终原测试连同嵌套.gitignore与源码保留双断言 **1/1**。其中Core7606、Server1430、EF295、Identity18、Client195、Native10均全PASS；前端469/469和build通过，原SqlSugar三协议各34/34，Data显式AOT/Trim及ServerRebuild零warning/error。不是第二次完整solution全PASS的声明；外部容器就绪控制也不当真实外部服务验收。

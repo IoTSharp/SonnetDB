@@ -825,7 +825,7 @@ static class ConnectorReleaseTool
         var candidates = context.IsWindowsRid
             ? new[]
             {
-                Path.Combine(context.RepoRoot, "connectors", "c", "native", "SonnetDB.Native", "bin", context.Configuration, "net10.0", context.Rid, "native", name),
+                Path.Combine(context.RepoRoot, "embedded", "native", "SonnetDB.Native", "bin", context.Configuration, "net10.0", context.Rid, "native", name),
                 Path.Combine(context.BuildRoot, "c", context.Rid, context.Configuration, name),
                 Path.Combine(context.BuildRoot, "c", context.Rid, name),
                 Path.Combine(context.BuildRoot, "c", context.Rid, "native", context.Rid, "publish", name)
@@ -834,7 +834,7 @@ static class ConnectorReleaseTool
             {
                 Path.Combine(context.BuildRoot, "c", context.Rid, name),
                 Path.Combine(context.BuildRoot, "c", context.Rid, "native", context.Rid, "publish", name),
-                Path.Combine(context.RepoRoot, "connectors", "c", "native", "SonnetDB.Native", "bin", context.Configuration, "net10.0", context.Rid, "native", name)
+                Path.Combine(context.RepoRoot, "embedded", "native", "SonnetDB.Native", "bin", context.Configuration, "net10.0", context.Rid, "native", name)
             };
 
         foreach (var candidate in candidates)

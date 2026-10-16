@@ -34,6 +34,7 @@ COPY eng/image-codec-notices.targets eng/
 COPY .config/dotnet-tools.json .config/
 COPY src/SonnetDB/SonnetDB.csproj src/SonnetDB/
 COPY src/SonnetDB.Core/SonnetDB.Core.csproj src/SonnetDB.Core/
+COPY src/SonnetDB.Protocol/SonnetDB.Protocol.csproj src/SonnetDB.Protocol/
 COPY extensions/IoTSharp.CoAP.NET/CoAP.NET/CoAP.NET.csproj extensions/IoTSharp.CoAP.NET/CoAP.NET/
 COPY extensions/IoTSharp.CoAP.NET/CoAP.NET.SourceGeneration/CoAP.NET.SourceGeneration.csproj extensions/IoTSharp.CoAP.NET/CoAP.NET.SourceGeneration/
 # MQTTnet.AspNetCore.Routing is consumed as a git-submodule ProjectReference (M28 P5b #242).
@@ -41,6 +42,7 @@ COPY extensions/IoTSharp.CoAP.NET/CoAP.NET.SourceGeneration/CoAP.NET.SourceGener
 # vendored library keeps its inline package versions; copy them alongside the csproj for restore.
 COPY extensions/MQTTnet.AspNetCore.Routing/Directory.Build.props extensions/MQTTnet.AspNetCore.Routing/Directory.Packages.props extensions/MQTTnet.AspNetCore.Routing/
 COPY extensions/MQTTnet.AspNetCore.Routing/Source/MQTTnet.AspNetCore.Routing.csproj extensions/MQTTnet.AspNetCore.Routing/Source/
+COPY extensions/MQTTnet.AspNetCore.Routing/SourceGeneration/MQTTnet.AspNetCore.Routing.SourceGeneration.csproj extensions/MQTTnet.AspNetCore.Routing/SourceGeneration/
 
 RUN dotnet restore src/SonnetDB/SonnetDB.csproj
 RUN dotnet tool restore
@@ -49,6 +51,7 @@ RUN dotnet tool restore
 COPY llms.txt llms-full.txt ./
 COPY src/SonnetDB/ src/SonnetDB/
 COPY src/SonnetDB.Core/ src/SonnetDB.Core/
+COPY src/SonnetDB.Protocol/ src/SonnetDB.Protocol/
 COPY extensions/IoTSharp.CoAP.NET/ extensions/IoTSharp.CoAP.NET/
 COPY extensions/MQTTnet.AspNetCore.Routing/ extensions/MQTTnet.AspNetCore.Routing/
 COPY docs/ docs/

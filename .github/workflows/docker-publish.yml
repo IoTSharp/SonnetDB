@@ -9,6 +9,7 @@ on:
       - '.github/workflows/docker-publish.yml'
       - 'src/SonnetDB/**'
       - 'src/SonnetDB.Core/**'
+      - 'src/SonnetDB.Protocol/**'
       - 'extensions/IoTSharp.CoAP.NET/**'
       - 'extensions/MQTTnet.AspNetCore.Routing/**'
       - 'copilot/**'

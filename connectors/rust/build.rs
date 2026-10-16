@@ -33,7 +33,7 @@ fn default_native_dir(target_os: &str) -> Option<PathBuf> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").ok()?);
     match target_os {
         "windows" => {
-            Some(manifest_dir.join("../c/native/SonnetDB.Native/bin/Release/net10.0/win-x64/native"))
+            Some(manifest_dir.join("../../embedded/native/SonnetDB.Native/bin/Release/net10.0/win-x64/native"))
         }
         "linux" => Some(manifest_dir.join("../../artifacts/connectors/c/linux-x64")),
         _ => None,

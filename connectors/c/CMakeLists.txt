@@ -74,6 +74,7 @@ endif()
 file(GLOB_RECURSE SONNETDB_NATIVE_SOURCE_FILES CONFIGURE_DEPENDS
     "${SONNETDB_NATIVE_PROJECT_DIR}/*.cs"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/*.cs"
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Protocol/*.cs"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Data/*.cs")
 # Generated C# must not make every subsequent build republish the AOT library.
 list(FILTER SONNETDB_NATIVE_SOURCE_FILES EXCLUDE REGEX "/(bin|obj)/")
@@ -83,6 +84,7 @@ set(SONNETDB_DOTNET_BUILD_FILES
     "${SONNETDB_REPO_ROOT}/Directory.Packages.props"
     "${SONNETDB_NATIVE_PROJECT}"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/SonnetDB.Core.csproj"
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Protocol/SonnetDB.Protocol.csproj"
     "${SONNETDB_REPO_ROOT}/src/SonnetDB.Data/SonnetDB.Data.csproj")
 
 add_custom_command(
