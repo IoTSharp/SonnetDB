@@ -68,7 +68,8 @@ internal static class SqlDateTimeFunctions
         string part = RequirePart(arguments[2], "date_add");
         return valueArgument switch
         {
-            DateTime value => Add(value, amount, part),
+            // 阻止 switch 共同类型推断把 DateTime 隐式提升成 DateTimeOffset（Unspecified 会套用本地时区）。
+            DateTime value => (object)Add(value, amount, part),
             DateTimeOffset value => Add(value, amount, part),
             long unixMilliseconds => Add(
                 DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds).UtcDateTime,

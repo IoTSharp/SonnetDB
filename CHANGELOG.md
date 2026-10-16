@@ -537,6 +537,7 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - SQL 与 Bulk VALUES 的未知字符串列默认推断为 `FIELD STRING`；新增 `INSERT` 列列表中的 `TAG` / `FIELD` 显式角色提示，现有列仍以持久化 schema 为准。原本依赖字符串自动成为 TAG 的写入需显式声明 TAG 或先执行 `CREATE MEASUREMENT`。
 
 ### Fixed
+- GH-Issue #262：关系日期函数投影提供原生 DateTime 声明；SQL 结果 v4 在 REST 与 Frame 中显式协商并保留墙钟 ticks 和 Kind，修复泛型 DATE_ADD 将 DateTime 隐式提升为 DateTimeOffset 的问题。旧结果编码和参数/持久 DATETIME 的 UTC Unix 毫秒合同保留；真实三协议 Chloe 候选验证另附，正式引擎/驱动/Server 与 Chloe 发布验收仍待完成。
 - GH-Issue #314：`round` 对 DECIMAL 直接使用十进制 ToEven 舍入，支持 0～28 位并明确拒绝非法位数；参数、关系 SELECT/WHERE/UPDATE 与嵌入式/REST/h2c ADO 保持精度及 Decimal 零行声明，不伪报输入 precision/scale。保留 INT/FLOAT 与 NULL 拒绝合同；首次可安装版本及 FreeSql 发布包消费者仍待验收。
 - M45-C01/C02/C06 与 M46-S06：Int64 `mode` 和 `distinct_count` 保留完整整数身份；后者拒用旧 Double 来源段摘要并扫描原始值，防止超过 2^53 的相邻值混淆，不修改既有段格式。
 - M45-C06/C08：HLL 状态校验寄存器上界，TDigest 拒绝未排序均值、非法权重与累计计数溢出；Histogram 拒绝无法表示的桶索引/边界且保留失败前的状态。

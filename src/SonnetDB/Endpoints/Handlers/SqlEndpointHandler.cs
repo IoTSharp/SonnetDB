@@ -15,6 +15,7 @@ using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Modbus;
 using SonnetDB.Model;
+using SonnetDB.Protocol;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -111,6 +112,8 @@ internal static class SqlEndpointHandler
         IControlPlane controlPlane)
     {
         ArgumentNullException.ThrowIfNull(controlPlane);
+        if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
+            return;
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         var resultBounds = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
         context.Response.StatusCode = StatusCodes.Status200OK;
@@ -230,6 +233,8 @@ internal static class SqlEndpointHandler
         SqlTransactionContext? existingTransaction = null,
         bool retainTransaction = false)
     {
+        if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
+            return;
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
         context.Response.StatusCode = StatusCodes.Status200OK;
@@ -655,7 +660,8 @@ internal static class SqlEndpointHandler
             context.RequestAborted.ThrowIfCancellationRequested();
             await using (var rowWriter = new Utf8JsonWriter(body, options))
             {
-                NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r]);
+                NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeResultVersion);
             }
             await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
             count++;
@@ -682,11 +688,31 @@ internal static class SqlEndpointHandler
         float or double => "float64",
         decimal => "decimal",
         bool => "boolean",
-        string or DateTime or DateTimeOffset or TimeOnly or Guid or byte[] => "string",
+        DateTime => "datetime",
+        string or DateTimeOffset or TimeOnly or Guid or byte[] => "string",
         GeoPoint => "geopoint",
         float[] or Memory<float> or ReadOnlyMemory<float> => "vector",
         _ => "object",
     };
+
+    private static async Task<bool> NegotiateDateTimeResultAsync(HttpContext context)
+    {
+        string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
+        if (version.Length == 0 || version is "1" or "2" or "3")
+            return true;
+        if (version == SqlFrameCodec.NativeDateTimeResultVersion)
+        {
+            context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = version;
+            return true;
+        }
+        // 在执行 SQL 前拒绝未知版本，尤其不能在批次写入后才发现合同不兼容。
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        context.Response.ContentType = "application/json; charset=utf-8";
+        await JsonSerializer.SerializeAsync(context.Response.Body,
+            new ErrorResponse("unsupported_result_version", "不支持请求的 SQL 结果格式版本。"),
+            ServerJsonContext.Default.ErrorResponse, context.RequestAborted).ConfigureAwait(false);
+        return false;
+    }
 
     private static async Task WriteEndAsync(
         HttpContext context,

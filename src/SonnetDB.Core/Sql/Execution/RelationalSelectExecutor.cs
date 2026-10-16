@@ -4356,6 +4356,35 @@ internal static partial class RelationalSelectExecutor
             && scalar.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
             return MergeExpressionDeclarations(scalar.Arguments, columns, coalesce: true);
 
+        if (expression is FunctionCallExpression temporal && !temporal.IsStar
+            && FunctionRegistry.GetFunctionKind(temporal.Name) == FunctionKind.Scalar
+            && UserFunctionRegistry.Current?.TryGetScalar(temporal.Name, out _) != true)
+        {
+            string name = temporal.Name.ToLowerInvariant();
+            if (temporal.Arguments.Count == 0 && name is "current_datetime" or "current_utc_datetime")
+                return new SelectColumnInfo(TableColumnType.DateTime, false);
+            if (temporal.Arguments.Count == 1
+                && name is "date_only" or "to_datetime" or "to_utc_datetime" or "to_local_datetime")
+            {
+                var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
+                return new SelectColumnInfo(TableColumnType.DateTime, input.IsNullable)
+                { RequiresRefresh = input.RequiresRefresh };
+            }
+            if (temporal.Arguments.Count == 3 && name is "date_add_datetime" or "date_add")
+            {
+                var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
+                // DATE_ADD 也能返回 DateTimeOffset；只有已知 DateTime/Unix 毫秒输入可声明 DATETIME。
+                if (name == "date_add_datetime" || input.DataType is TableColumnType.DateTime or TableColumnType.Int64)
+                {
+                    var amount = InferSelectColumnInfo(temporal.Arguments[1], columns);
+                    return new SelectColumnInfo(TableColumnType.DateTime,
+                        input.IsNullable == true || amount.IsNullable == true ? true
+                            : input.IsNullable == false && amount.IsNullable == false ? false : null)
+                    { RequiresRefresh = input.RequiresRefresh || amount.RequiresRefresh };
+                }
+            }
+        }
+
         if (expression is FunctionCallExpression round
             && round.Name.Equals("round", StringComparison.OrdinalIgnoreCase)
             && round.Arguments.Count is 1 or 2

@@ -50,7 +50,7 @@ public sealed class SqlFrameCodecTests
     }
 
     [Theory]
-    [InlineData(9, 3)]
+    [InlineData(9, 4)]
     [InlineData(10, 10)]
     [InlineData(11, 64)]
     [InlineData(12, 39)]

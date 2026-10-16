@@ -91,3 +91,9 @@
 批次02推送/CI/Issue实际状态见[线上回执](issue-supervision-batch02-actions-20261016.json)：远端8ead8bf2确认，parity-results未变化；38823012523的Ubuntu完整构建测试、三平台AOT和Format成功，两个Windows测试分片仍运行。270～272仍OPEN、回复尚未发送，待最终CI核对后回复/关闭并回读。264独立提交15d8d180、263独立提交eb80bd22均已通过最终完整门禁，尚未推送，等262批次与前批CI收尾，避免cancel-in-progress取消已有验收。264/263均继续OPEN，正式发行及对应Chloe上游正式交付未被预览/候选替代。
 
 三个唯一任务现在为262（issue313）、261（issue312）、260（issue314）。261公开包矩阵暴露内置concat可推断却仍Object的真实视图声明缺口，已要求继续修复；不把旧8进程探针的unknown断言提升为完整元数据PASS。262还发现泛型DATE_ADD被C# switch隐式提升DateTimeOffset，以及真实Chloe的TO_DATETIME包装会抹Kind，分别实施原生修复和本地候选验收。260明确parse_uint64有界语法与精确Decimal承载。共享SELECT声明/远程测试按262→261→260串行同步，独立helper/registry/测试与消费者可并行。均不外发消费者补丁，正式发行边界保留；任务未全部验收，半小时监督继续ACTIVE。
+
+## 2026-10-16 07:51 批次02线上闭环与日期候选复审
+
+远端代码批次8ead8bf2的CI38823012523七个job全部success，#272/#271/#270已分别回复并关闭completed。评论ID为6204704191、6204705523、6204706988，逐条核回作者maikebing、正文及state/state_reason；[永久回执](issue-supervision-batch02-actions-20261016.json)保存实际结果，没有把草稿当作发送。公开预览满足这三条原Issue公开修复包要求；264/263及后续明确正式发行的要求仍分别保留。
+
+#262冻结13份候选按SHA整合到根及#261隔离树，旧目标均核同基线且未修改。根Release三构建零警告/错误、China Standard Time下Core164/164、Server189/189通过；代理最终Core91/91、Server152/152和Data/Server显式AOT分析通过，重叠结果不相加。真实Chloe原provider每协议5PASS/9FAIL，最小六文件本地候选三协议42项全PASS，原失败保留，外部未发PR/未正式发行。生产/测试已冻结，报告/工具交付整理中，因此本阶段主树候选仍未提交。261已接concat缺口继续验证，260等261共享基线；现有代理/工作树复用，无重复派单。下一步按每Issue最终完整restore/Format、独立提交和批次推送继续。

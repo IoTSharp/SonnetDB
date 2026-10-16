@@ -1,0 +1,87 @@
+diff --git a/src/Chloe.SonnetDB/PropertyHandlers/Date_Handler.cs b/src/Chloe.SonnetDB/PropertyHandlers/Date_Handler.cs
+index 5ad0b61..a129eae 100644
+--- a/src/Chloe.SonnetDB/PropertyHandlers/Date_Handler.cs
++++ b/src/Chloe.SonnetDB/PropertyHandlers/Date_Handler.cs
+@@ -8,9 +8,9 @@ namespace Chloe.SonnetDB.PropertyHandlers
+     {
+         public override void Process(DbMemberAccessExpression exp, SqlGeneratorBase generator)
+         {
+-            generator.SqlBuilder.Append("TO_DATETIME(DATE_ONLY(");
++            generator.SqlBuilder.Append("DATE_ONLY(");
+             exp.Expression.Accept(generator);
+-            generator.SqlBuilder.Append("))");
++            generator.SqlBuilder.Append(")");
+         }
+     }
+ }
+diff --git a/src/Chloe.SonnetDB/PropertyHandlers/Now_Handler.cs b/src/Chloe.SonnetDB/PropertyHandlers/Now_Handler.cs
+index 87d8faa..f1f1c8b 100644
+--- a/src/Chloe.SonnetDB/PropertyHandlers/Now_Handler.cs
++++ b/src/Chloe.SonnetDB/PropertyHandlers/Now_Handler.cs
+@@ -9,7 +9,7 @@ namespace Chloe.SonnetDB.PropertyHandlers
+         public override void Process(DbMemberAccessExpression exp, SqlGeneratorBase generator)
+         {
+             Utils.EnsureSupportedMappingType(exp.Type);
+-            generator.SqlBuilder.Append("TO_DATETIME(CURRENT_DATETIME())");
++            generator.SqlBuilder.Append("CURRENT_DATETIME()");
+         }
+     }
+ }
+diff --git a/src/Chloe.SonnetDB/PropertyHandlers/Today_Handler.cs b/src/Chloe.SonnetDB/PropertyHandlers/Today_Handler.cs
+index 0d8a1c0..3426a21 100644
+--- a/src/Chloe.SonnetDB/PropertyHandlers/Today_Handler.cs
++++ b/src/Chloe.SonnetDB/PropertyHandlers/Today_Handler.cs
+@@ -8,7 +8,7 @@ namespace Chloe.SonnetDB.PropertyHandlers
+     {
+         public override void Process(DbMemberAccessExpression exp, SqlGeneratorBase generator)
+         {
+-            generator.SqlBuilder.Append("TO_DATETIME(DATE_ONLY(CURRENT_DATETIME()))");
++            generator.SqlBuilder.Append("DATE_ONLY(CURRENT_DATETIME())");
+         }
+     }
+ }
+diff --git a/src/Chloe.SonnetDB/PropertyHandlers/UtcNow_Handler.cs b/src/Chloe.SonnetDB/PropertyHandlers/UtcNow_Handler.cs
+index 4d9026f..49759ca 100644
+--- a/src/Chloe.SonnetDB/PropertyHandlers/UtcNow_Handler.cs
++++ b/src/Chloe.SonnetDB/PropertyHandlers/UtcNow_Handler.cs
+@@ -9,7 +9,7 @@ namespace Chloe.SonnetDB.PropertyHandlers
+         public override void Process(DbMemberAccessExpression exp, SqlGeneratorBase generator)
+         {
+             Utils.EnsureSupportedMappingType(exp.Type);
+-            generator.SqlBuilder.Append("TO_DATETIME(CURRENT_UTC_DATETIME())");
++            generator.SqlBuilder.Append("CURRENT_UTC_DATETIME()");
+         }
+     }
+ }
+diff --git a/src/Chloe.SonnetDB/SqlGenerator_Helper.cs b/src/Chloe.SonnetDB/SqlGenerator_Helper.cs
+index ba8b4e9..eabb940 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator_Helper.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator_Helper.cs
+@@ -39,11 +39,11 @@ namespace Chloe.SonnetDB
+ 
+         public static void DbFunction_DATEADD(SqlGeneratorBase generator, string interval, DbMethodCallExpression exp)
+         {
+-            generator.SqlBuilder.Append("TO_DATETIME(DATE_ADD_DATETIME(");
++            generator.SqlBuilder.Append("DATE_ADD_DATETIME(");
+             exp.Object.Accept(generator);
+             generator.SqlBuilder.Append(",");
+             exp.Arguments[0].Accept(generator);
+-            generator.SqlBuilder.Append(",'", interval, "'))");
++            generator.SqlBuilder.Append(",'", interval, "')");
+         }
+ 
+         public static void DbFunction_DATEPART(SqlGeneratorBase generator, string interval, DbExpression exp)
+diff --git a/src/Chloe.SonnetDB/Utils.cs b/src/Chloe.SonnetDB/Utils.cs
+index 767a322..a3d69a9 100644
+--- a/src/Chloe.SonnetDB/Utils.cs
++++ b/src/Chloe.SonnetDB/Utils.cs
+@@ -19,9 +19,6 @@ namespace Chloe.SonnetDB
+ 
+         public static object NormalizeParameterValue(object value)
+         {
+-            if (value is DateTime dateTime && dateTime.Kind == DateTimeKind.Local)
+-                return DateTime.SpecifyKind(dateTime, DateTimeKind.Unspecified);
+-
+             return value;
+         }
+ 

@@ -20,11 +20,15 @@ public static class NdjsonRowWriter
     /// 把一行（<see cref="object"/> 数组）写成 JSON 数组形式 <c>[v0, v1, v2]</c>。
     /// </summary>
     public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row)
+        => WriteRow(writer, row, nativeDateTime: false);
+
+    /// <summary>按协商的日期合同写出一行；原生日期仅用于明确协商为 v4 的 SQL 结果。</summary>
+    public static void WriteRow(Utf8JsonWriter writer, IReadOnlyList<object?> row, bool nativeDateTime)
     {
         writer.WriteStartArray();
         for (int i = 0; i < row.Count; i++)
         {
-            WriteValue(writer, row[i]);
+            WriteValue(writer, row[i], nativeDateTime);
         }
         writer.WriteEndArray();
     }
@@ -33,6 +37,10 @@ public static class NdjsonRowWriter
     /// 写出单个标量值。未识别类型回退到 <c>ToString()</c>（以字符串形式输出，避免抛出）。
     /// </summary>
     public static void WriteValue(Utf8JsonWriter writer, object? value)
+        => WriteValue(writer, value, nativeDateTime: false);
+
+    /// <summary>按协商的日期合同写出标量；DateTime ticks 使用整数，避免 ISO 时区转换。</summary>
+    public static void WriteValue(Utf8JsonWriter writer, object? value, bool nativeDateTime)
     {
         switch (value)
         {
@@ -83,6 +91,13 @@ public static class NdjsonRowWriter
                 break;
             case string s:
                 writer.WriteStringValue(s);
+                break;
+            case DateTime dt when nativeDateTime:
+                writer.WriteStartObject();
+                writer.WriteString("$type", "datetime");
+                writer.WriteNumber("ticks", dt.Ticks);
+                writer.WriteNumber("kind", (int)dt.Kind);
+                writer.WriteEndObject();
                 break;
             case DateTime dt:
                 writer.WriteStringValue(dt);

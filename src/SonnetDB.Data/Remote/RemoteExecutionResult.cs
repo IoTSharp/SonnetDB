@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Data.Internal;
 using SonnetDB.Model;
+using SonnetDB.Protocol;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Remote;
@@ -29,6 +31,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly ExecutionFieldTypeKind[] _columnTypes;
     private readonly ExecutionColumnMetadata[]? _columnMetadata;
     private readonly bool _inferMissingColumnTypes;
+    private readonly bool _nativeDateTime;
     private object?[] _currentRow;
     private bool _ended;
     private long _rowsRead;
@@ -50,6 +53,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _columnTypes = columnTypes;
         _columnMetadata = columnMetadata;
         _inferMissingColumnTypes = inferMissingColumnTypes;
+        _nativeDateTime = HasNativeDateTimeResult(response);
         _currentRow = new object?[columns.Length];
         RecordsAffected = -1; // SELECT 默认；非 SELECT 在末行被覆盖
     }
@@ -125,7 +129,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             if (n != _columns.Length)
                 throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
             for (int i = 0; i < n; i++)
-                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i]);
+                _currentRow[i] = ReadTypedScalar(root[i], _columnTypes[i], _nativeDateTime);
             _rowsRead++;
             return true;
         }
@@ -337,21 +341,80 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _ => null,
     };
 
-    internal static object? ReadScalar(JsonElement element, string? columnType)
-        => columnType switch
+    internal static object? ReadScalar(JsonElement element, string? columnType, bool nativeDateTime = false)
+        => ReadTypedScalar(element, columnType switch
         {
-            "float64" => ReadTypedScalar(element, ExecutionFieldTypeKind.Double),
-            "decimal" => ReadDecimal(element),
-            "datetime" => ReadTypedScalar(element, ExecutionFieldTypeKind.DateTime),
-            "time" => ReadTypedScalar(element, ExecutionFieldTypeKind.TimeOnly),
-            "blob" => ReadTypedScalar(element, ExecutionFieldTypeKind.ByteArray),
-            _ => ReadScalar(element),
-        };
+            "float64" => ExecutionFieldTypeKind.Double,
+            "decimal" => ExecutionFieldTypeKind.Decimal,
+            "datetime" => ExecutionFieldTypeKind.DateTime,
+            "time" => ExecutionFieldTypeKind.TimeOnly,
+            "blob" => ExecutionFieldTypeKind.ByteArray,
+            _ => ExecutionFieldTypeKind.Object,
+        }, nativeDateTime);
 
-    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type)
+    internal static bool HasNativeDateTimeResult(HttpResponseMessage response)
+        => response.Headers.TryGetValues(SqlFrameCodec.ResultVersionHeader, out var versions)
+            && versions.SequenceEqual([SqlFrameCodec.NativeDateTimeResultVersion]);
+
+    internal static SelectColumnInfo[]? ReadColumnDeclarations(JsonElement meta, int columnCount)
+    {
+        if (!meta.TryGetProperty("columnSchemas", out var schemas))
+            return null;
+        if (schemas.ValueKind != JsonValueKind.Array || schemas.GetArrayLength() != columnCount)
+            throw new InvalidDataException("远程事务预览列声明与列名数量不一致。");
+        var declarations = new SelectColumnInfo[columnCount];
+        for (int index = 0; index < columnCount; index++)
+        {
+            var schema = schemas[index];
+            if (schema.ValueKind != JsonValueKind.Object || !schema.TryGetProperty("dataType", out var type)
+                || type.ValueKind != JsonValueKind.String)
+                throw new InvalidDataException("远程事务预览列声明缺少 dataType。");
+            declarations[index] = new SelectColumnInfo(type.GetString() switch
+            {
+                "int64" => TableColumnType.Int64,
+                "float64" => TableColumnType.Float64,
+                "decimal" => TableColumnType.Decimal,
+                "boolean" => TableColumnType.Boolean,
+                "string" => TableColumnType.String,
+                "datetime" => TableColumnType.DateTime,
+                "time" => TableColumnType.Time,
+                "blob" => TableColumnType.Blob,
+                "json" => TableColumnType.Json,
+                _ => (TableColumnType?)null,
+            }, schema.TryGetProperty("declaredNullable", out var nullable)
+                ? nullable.ValueKind == JsonValueKind.Null ? null : nullable.GetBoolean()
+                : ReadSchemaBoolean(schema, "isNullable"),
+                ReadSchemaBoolean(schema, "isKey"), ReadSchemaBoolean(schema, "isAutoIncrement"),
+                ReadSchemaBoolean(schema, "isRowVersion"))
+            {
+                NumericPrecision = ReadOptionalByte(schema, "numericPrecision"),
+                NumericScale = ReadOptionalByte(schema, "numericScale"),
+                ColumnSize = schema.TryGetProperty("columnSize", out var size) && size.ValueKind != JsonValueKind.Null
+                    ? size.GetInt32() : null,
+                RequiresRefresh = schema.TryGetProperty("requiresRefresh", out var refresh) && refresh.GetBoolean(),
+            };
+        }
+        return declarations;
+    }
+
+    private static object? ReadTypedScalar(JsonElement element, ExecutionFieldTypeKind type, bool nativeDateTime)
     {
         if (element.ValueKind == JsonValueKind.Null)
             return null;
+        if (nativeDateTime && (type == ExecutionFieldTypeKind.DateTime
+            || element.ValueKind == JsonValueKind.Object && element.TryGetProperty("$type", out var temporalType)
+                && temporalType.ValueKind == JsonValueKind.String && temporalType.GetString() == "datetime"))
+        {
+            if (element.ValueKind != JsonValueKind.Object || element.EnumerateObject().Count() != 3
+                || !element.TryGetProperty("$type", out var tag) || tag.ValueKind != JsonValueKind.String
+                || tag.GetString() != "datetime"
+                || !element.TryGetProperty("ticks", out var ticksElement) || ticksElement.ValueKind != JsonValueKind.Number
+                || !ticksElement.TryGetInt64(out long ticks) || ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks
+                || !element.TryGetProperty("kind", out var kindElement) || kindElement.ValueKind != JsonValueKind.Number
+                || !kindElement.TryGetInt32(out int kind) || kind is < 0 or > 2)
+                throw new InvalidDataException("远程 SQL v4 原生日期值的 ticks 或 Kind 无效。");
+            return new DateTime(ticks, (DateTimeKind)kind);
+        }
         if (type == ExecutionFieldTypeKind.Decimal)
             return ReadDecimal(element);
         if (type == ExecutionFieldTypeKind.Double)

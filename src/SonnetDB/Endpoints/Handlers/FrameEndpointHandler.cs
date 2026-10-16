@@ -418,7 +418,8 @@ internal static class FrameEndpointHandler
         try
         {
             string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-            bool fullDeclarations = resultVersion == SqlFrameCodec.DeclaredResultVersion;
+            bool nativeDateTime = resultVersion == SqlFrameCodec.NativeDateTimeResultVersion;
+            bool fullDeclarations = nativeDateTime || resultVersion == SqlFrameCodec.DeclaredResultVersion;
             bool typedResults = fullDeclarations || resultVersion == SqlFrameCodec.TypedResultVersion;
             if (!typedResults && resultVersion.Length != 0 && resultVersion != "1")
             {
@@ -547,14 +548,14 @@ internal static class FrameEndpointHandler
                 typedResults
                     ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
                     { IsDeclared = false }, select.Columns.Count).ToArray()
-                    : null, fullDeclarations);
+                    : null, fullDeclarations, nativeDateTime);
 
             int position = 0;
             while (position < select.Rows.Count)
             {
                 int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
                 SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows,
-                    select.Columns.Count, exactDecimal: typedResults);
+                    select.Columns.Count, exactDecimal: typedResults, nativeDateTime);
                 position += chunkRows;
                 if (position < select.Rows.Count)
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);

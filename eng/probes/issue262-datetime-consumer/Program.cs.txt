@@ -1,0 +1,104 @@
+using System.Globalization;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Length != 2) return 2;
+string connectionString = args[0];
+string protocol = args[1];
+int passed = 0;
+var failures = new List<string>();
+Console.WriteLine($"ENV|{protocol}|{TimeZoneInfo.Local.Id}|{TimeZoneInfo.Local.BaseUtcOffset}|pid={Environment.ProcessId}");
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "Chloe", "Chloe.SonnetDB" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+context.Session.ExecuteNonQuery("CREATE TABLE DateRows(Id INT, Stamp DATETIME NULL, PRIMARY KEY(Id))");
+var utc = new DateTime(2024, 2, 29, 12, 30, 0, DateTimeKind.Utc);
+var local = new DateTime(2024, 2, 29, 0, 30, 0, DateTimeKind.Local);
+var unspecified = new DateTime(2024, 2, 29, 0, 30, 0, DateTimeKind.Unspecified);
+context.Insert(new DateRow { Id = 1, Stamp = utc });
+context.Insert(new DateRow { Id = 2, Stamp = local });
+context.Insert(new DateRow { Id = 3, Stamp = unspecified });
+await context.InsertAsync(new DateRow { Id = 4, Stamp = null });
+
+Run("stored-utc", () => Equal(utc, context.Query<DateRow>().Where(row => row.Id == 1).Select(row => row.Stamp!.Value).First()));
+Run("stored-local-instant", () => Equal(local.ToUniversalTime(), context.Query<DateRow>().Where(row => row.Id == 2).Select(row => row.Stamp!.Value).First()));
+Run("stored-unspecified-assumed-utc", () => Equal(DateTime.SpecifyKind(unspecified, DateTimeKind.Utc), context.Query<DateRow>().Where(row => row.Id == 3).Select(row => row.Stamp!.Value).First()));
+Run("date-column", () => Equal(utc.Date, context.Query<DateRow>().Where(row => row.Id == 1).Select(row => row.Stamp!.Value.Date).First()));
+Run("adddays-column", () => Equal(utc.AddDays(1), context.Query<DateRow>().Where(row => row.Id == 1).Select(row => row.Stamp!.Value.AddDays(1)).First()));
+Run("nested-midnight-leapday", () => Equal(utc.Date.AddDays(1), context.Query<DateRow>().Where(row => row.Id == 1).Select(row => row.Stamp!.Value.Date.AddDays(1)).First()));
+Run("nullable-date", () =>
+{
+    var result = context.Query<DateRow>().Where(row => row.Id == 4).Select(row => row.Stamp.HasValue ? (DateTime?)row.Stamp.Value.Date : null).First();
+    Require(result is null, "NULL date became a value");
+});
+Run("empty-date", () => Require(context.Query<DateRow>().Where(row => row.Id < 0).Select(row => row.Stamp!.Value.Date).ToList().Count == 0, "Empty result changed"));
+Run("now", () => Clock(() => context.Query<DateRow>().Where(row => row.Id == 1).Select(row => DateTime.Now).First(), utcClock: false, dateOnly: false));
+Run("today", () => Clock(() => context.Query<DateRow>().Where(row => row.Id == 1).Select(row => DateTime.Today).First(), utcClock: false, dateOnly: true));
+Run("utcnow", () => Clock(() => context.Query<DateRow>().Where(row => row.Id == 1).Select(row => DateTime.UtcNow).First(), utcClock: true, dateOnly: false));
+Run("now-date-add", () =>
+{
+    DateTime before = DateTime.Now.Date.AddDays(1);
+    DateTime actual = context.Query<DateRow>().Where(row => row.Id == 1).Select(row => DateTime.Now.Date.AddDays(1)).First();
+    DateTime after = DateTime.Now.Date.AddDays(1);
+    Console.WriteLine($"VALUE|nested-current|{actual:O}|ticks={actual.Ticks}|kind={actual.Kind}");
+    Require(actual.Kind == DateTimeKind.Local && actual.Ticks >= before.Ticks && actual.Ticks <= after.Ticks, "Nested current wall-clock/Kind mismatch");
+});
+Run("local-parameter-comparison", () => Require(context.Query<DateRow>().Where(row => row.Stamp == local).Count() == 1, "Local parameter comparison changed"));
+Run("native-parameter-millisecond-boundary", () =>
+{
+    using var connection = new SndbConnection(connectionString);
+    connection.Open();
+    using var command = connection.CreateCommand();
+    command.CommandText = "SELECT @stamp";
+    command.Parameters.Add(new SndbParameter("@stamp", local));
+    Require(command.ExecuteScalar() is long result && result == new DateTimeOffset(local).ToUnixTimeMilliseconds(), "Existing native parameter contract changed");
+});
+
+Console.WriteLine($"COMPLETE|{protocol}|passed={passed}|failed={failures.Count}");
+return failures.Count == 0 ? 0 : 1;
+
+void Run(string label, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{label}"); }
+    catch (Exception error) { failures.Add(label); Console.WriteLine($"FAIL|{protocol}|{label}|{error.GetType().Name}|{error.Message}"); }
+}
+void Equal(DateTime expected, DateTime actual)
+{
+    Console.WriteLine($"VALUE|expected={expected:O}/{expected.Kind}/{expected.Ticks}|actual={actual:O}/{actual.Kind}/{actual.Ticks}");
+    Require(expected.Ticks == actual.Ticks && expected.Kind == actual.Kind, "DateTime value or Kind mismatch");
+}
+void Clock(Func<DateTime> query, bool utcClock, bool dateOnly)
+{
+    DateTime before = utcClock ? DateTime.UtcNow : DateTime.Now;
+    DateTime actual = query();
+    DateTime after = utcClock ? DateTime.UtcNow : DateTime.Now;
+    DateTime lower = dateOnly ? before.Date : before.AddSeconds(-1);
+    DateTime upper = dateOnly ? after.Date : after.AddSeconds(1);
+    Console.WriteLine($"VALUE|clock|{actual:O}|ticks={actual.Ticks}|kind={actual.Kind}|lower={lower:O}|upper={upper:O}");
+    Require(actual.Kind == (utcClock ? DateTimeKind.Utc : DateTimeKind.Local)
+        && actual.Ticks >= lower.Ticks && actual.Ticks <= upper.Ticks, "Clock wall-clock or Kind mismatch");
+}
+void Require(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException(message);
+}
+
+/// <summary>日期消费者实际持久表映射。</summary>
+[Table("DateRows")]
+public sealed class DateRow
+{
+    /// <summary>业务主键。</summary>
+    [Column(IsPrimaryKey = true), NonAutoIncrement] public long Id { get; set; }
+    /// <summary>可空日期值。</summary>
+    public DateTime? Stamp { get; set; }
+}

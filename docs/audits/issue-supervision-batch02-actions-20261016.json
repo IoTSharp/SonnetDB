@@ -1,5 +1,5 @@
 {
-  "capturedUtc": "2026-10-15T23:34:32.8156523Z",
+  "capturedUtc": "2026-10-15T23:51:57.0387097Z",
   "repository": "IoTSharp/SonnetDB",
   "branch": "main",
   "remoteHead": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105",
@@ -37,13 +37,13 @@
       },
       {
         "name": "Build & Test (windows-latest, rest)",
-        "status": "in_progress",
-        "conclusion": ""
+        "status": "completed",
+        "conclusion": "success"
       },
       {
         "name": "Build & Test (windows-latest, core)",
-        "status": "in_progress",
-        "conclusion": ""
+        "status": "completed",
+        "conclusion": "success"
       },
       {
         "name": "AOT Publish (ubuntu-24.04-arm)",
@@ -59,38 +59,38 @@
     "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38823012523",
     "runId": 38823012523,
     "headSha": "8ead8bf2ce9f62f2c6258552a1cf8c13a6229105",
-    "conclusion": "",
-    "status": "in_progress"
+    "conclusion": "success",
+    "status": "completed"
   },
   "issues": [
     {
       "number": 272,
       "title": "[EF Core] CREATE TABLE 丢失外键名称，按原名 DROP 返回成功但约束仍生效",
-      "state": "open",
-      "stateReason": null,
-      "updatedAt": "2026-10-11T02:12:31Z",
-      "closedAt": null,
-      "commentCount": 0,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-15T23:50:50Z",
+      "closedAt": "2026-10-15T23:50:50Z",
+      "commentCount": 1,
       "url": "https://github.com/IoTSharp/SonnetDB/issues/272"
     },
     {
       "number": 271,
       "title": "[EF Core/ADO.NET] BLOB 参数查询报 Byte[] 与 String 无法比较，阻塞 Identity Passkey 查找",
-      "state": "open",
-      "stateReason": null,
-      "updatedAt": "2026-10-11T02:12:11Z",
-      "closedAt": null,
-      "commentCount": 0,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-15T23:50:56Z",
+      "closedAt": "2026-10-15T23:50:56Z",
+      "commentCount": 1,
       "url": "https://github.com/IoTSharp/SonnetDB/issues/271"
     },
     {
       "number": 270,
       "title": "[EF Core] 参数化 string.Contains 的 LIKE 模式未转义，%/_ 误匹配及反斜杠漏匹配",
-      "state": "open",
-      "stateReason": null,
-      "updatedAt": "2026-10-11T21:12:42Z",
-      "closedAt": null,
-      "commentCount": 1,
+      "state": "closed",
+      "stateReason": "completed",
+      "updatedAt": "2026-10-15T23:51:03Z",
+      "closedAt": "2026-10-15T23:51:03Z",
+      "commentCount": 2,
       "url": "https://github.com/IoTSharp/SonnetDB/issues/270"
     },
     {
@@ -134,9 +134,56 @@
       "url": "https://github.com/IoTSharp/SonnetDB/issues/226"
     }
   ],
-  "repliesPostedThisBatch": [],
-  "closedThisBatch": [],
-  "pending": "Complete the two Windows CI test jobs before reviewing and posting the prepared replies for 272/271/270 and closing completed issues. 264/263 remain open for formal release and consumer delivery.",
+  "repliesPostedThisBatch": [
+    {
+      "author": "maikebing",
+      "createdAt": "2026-10-15T23:50:47Z",
+      "issue": 272,
+      "readbackVerified": true,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/272#issuecomment-6204704191",
+      "id": 6204704191
+    },
+    {
+      "author": "maikebing",
+      "createdAt": "2026-10-15T23:50:54Z",
+      "issue": 271,
+      "readbackVerified": true,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/271#issuecomment-6204705523",
+      "id": 6204705523
+    },
+    {
+      "author": "maikebing",
+      "createdAt": "2026-10-15T23:51:00Z",
+      "issue": 270,
+      "readbackVerified": true,
+      "url": "https://github.com/IoTSharp/SonnetDB/issues/270#issuecomment-6204706988",
+      "id": 6204706988
+    }
+  ],
+  "closedThisBatch": [
+    {
+      "issue": 272,
+      "readbackVerified": true,
+      "reason": "completed",
+      "closedAt": "2026-10-15T23:50:50Z",
+      "state": "closed"
+    },
+    {
+      "issue": 271,
+      "readbackVerified": true,
+      "reason": "completed",
+      "closedAt": "2026-10-15T23:50:56Z",
+      "state": "closed"
+    },
+    {
+      "issue": 270,
+      "readbackVerified": true,
+      "reason": "completed",
+      "closedAt": "2026-10-15T23:51:03Z",
+      "state": "closed"
+    }
+  ],
+  "pending": "Batch02 CI succeeded in all 7 jobs and issues 272/271/270 were replied to and closed as completed with API readback. Local 264/263 commits await the 262 batch push; formal release/consumer delivery conditions remain open. Issue262 frozen production candidate passed independent root validation; final delivery documentation is being completed.",
   "localOnlyCommits": [
     {
       "commit": "15d8d1802f6e2cd87c66a7ef59e365953ac202eb",

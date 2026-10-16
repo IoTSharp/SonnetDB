@@ -228,21 +228,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             var w = new ArrayBufferWriter<byte>();
             SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
-            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
-                allowFallback: false, sqlResultVersion: SqlFrameCodec.DeclaredResultVersion)
-                .ConfigureAwait(false);
-            if (frames is { Count: 1 } && frames[0].Header.IsError
-                && frames[0].Header.Version == FrameHeader.CurrentVersion
-                && frames[0].Header.Flags == (byte)(FrameFlags.Response | FrameFlags.Error)
-                && frames[0].Header.Service == (byte)FrameService.Sql
-                && frames[0].Header.Op == (byte)SqlFrameOp.Query && frames[0].Header.StreamId == 1
-                && FrameCodec.ReadErrorPayload(frames[0].Payload).Code == "unsupported_result_version")
+            IReadOnlyList<FrameMessage>? frames = null;
+            string requestedVersion = SqlFrameCodec.NativeDateTimeResultVersion;
+            // 只有服务端明确在执行前拒绝版本时，才继续旧版协商；旧版不承诺原生日期合同。
+            foreach (string version in new[] { SqlFrameCodec.NativeDateTimeResultVersion,
+                SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
+            {
+                requestedVersion = version;
                 frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
-                    allowFallback: false, sqlResultV2: true).ConfigureAwait(false);
+                    allowFallback: false, sqlResultVersion: version).ConfigureAwait(false);
+                if (!IsUnsupportedSqlResultVersion(frames))
+                    break;
+            }
             if (frames is not null)
             {
-                if (frames[0].Header.IsError
-                    || SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload).ColumnInfo is not null)
+                if (frames[0].Header.IsError)
+                    return BuildSqlResult(frames);
+                var meta = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload, out bool nativeDateTime);
+                if (meta.ColumnInfo is not null
+                    && nativeDateTime == (requestedVersion == SqlFrameCodec.NativeDateTimeResultVersion))
                     return BuildSqlResult(frames);
                 throw new SndbServerException("frame_sql_result_version_unsupported",
                     "服务端未协商 SQL Frame 声明结果格式；SQL 已执行，不能自动重发。请升级服务端或在新请求中显式选择 Protocol=rest。",
@@ -275,6 +279,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw;
         }
     }
+
+    private static bool IsUnsupportedSqlResultVersion(IReadOnlyList<FrameMessage>? frames)
+        => frames is { Count: 1 } && frames[0].Header.IsError
+            && frames[0].Header.Version == FrameHeader.CurrentVersion
+            && frames[0].Header.Flags == (byte)(FrameFlags.Response | FrameFlags.Error)
+            && frames[0].Header.Service == (byte)FrameService.Sql
+            && frames[0].Header.Op == (byte)SqlFrameOp.Query && frames[0].Header.StreamId == 1
+            && FrameCodec.ReadErrorPayload(frames[0].Payload).Code == "unsupported_result_version";
 
     /// <summary>
     /// 判别 SQL 是否为可走帧的只读数据面语句（SELECT / SHOW-数据面 / DESCRIBE / EXPLAIN）。
@@ -365,6 +377,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     {
         string[] columns = [];
         SelectColumnInfo[]? columnInfo = null;
+        bool nativeDateTime = false;
         var rows = new List<IReadOnlyList<object?>>();
 
         foreach (FrameMessage frame in frames)
@@ -373,10 +386,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
             {
                 case SqlQueryChunkKind.Meta:
-                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload);
+                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime);
                     break;
                 case SqlQueryChunkKind.Rows:
-                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload))
+                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime))
                     {
                         if (columnInfo is not null)
                         {
@@ -998,7 +1011,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
             .ConfigureAwait(false);
         return MaterializedExecutionResult.FromSelect(
-            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
+            new SelectExecutionResult(preview.Columns, preview.Rows)
+            { Truncated = preview.Truncated, ColumnInfo = preview.ColumnInfo },
             preview.RecordsAffected);
     }
 
@@ -1064,7 +1078,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .ConfigureAwait(false);
         transaction.Add(sql);
         return MaterializedExecutionResult.FromSelect(
-            new SelectExecutionResult(preview.Columns, preview.Rows) { Truncated = preview.Truncated },
+            new SelectExecutionResult(preview.Columns, preview.Rows)
+            { Truncated = preview.Truncated, ColumnInfo = preview.ColumnInfo },
             preview.RecordsAffected);
     }
 
@@ -1206,6 +1221,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         string[] columns = [];
         string[]? columnTypes = null;
+        SelectColumnInfo[]? columnInfo = null;
         var rows = new List<IReadOnlyList<object?>>();
         var readingRows = false;
         var sawResult = false;
@@ -1228,7 +1244,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     throw new InvalidDataException("远程事务预览行列数与 meta 不一致。");
                 var values = new object?[columns.Length];
                 for (int i = 0; i < values.Length; i++)
-                    values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i]);
+                    values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i],
+                        RemoteExecutionResult.HasNativeDateTimeResult(response));
                 rows.Add(values);
                 continue;
             }
@@ -1274,6 +1291,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                                 .Select(static type => type.GetString() ?? string.Empty)
                                 .ToArray();
                         }
+                        columnInfo = RemoteExecutionResult.ReadColumnDeclarations(root, columns.Length);
                         readingRows = true;
                     }
                     break;
@@ -1301,7 +1319,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 
-        return new TransactionPreviewResult(columns, rows, recordsAffected, truncated);
+        return new TransactionPreviewResult(columns, rows, recordsAffected, truncated, columnInfo);
     }
 
     private static TableColumn[] ResolveReturningColumns(InsertStatement statement, TableSchema schema)
@@ -1474,7 +1492,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         IReadOnlyList<string> Columns,
         IReadOnlyList<IReadOnlyList<object?>> Rows,
         int RecordsAffected,
-        bool Truncated);
+        bool Truncated,
+        IReadOnlyList<SelectColumnInfo>? ColumnInfo);
 
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {
@@ -1543,12 +1562,15 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private HttpRequestMessage CreateRequest(HttpMethod method, string url, HttpContent? content = null)
     {
         var http = _http ?? throw new InvalidOperationException("连接未打开。");
-        return new HttpRequestMessage(method, url)
+        var request = new HttpRequestMessage(method, url)
         {
             Version = http.DefaultRequestVersion,
             VersionPolicy = http.DefaultVersionPolicy,
             Content = content,
         };
+        if (url.EndsWith("/sql", StringComparison.Ordinal) || url.EndsWith("/sql/batch", StringComparison.Ordinal))
+            request.Headers.Add(SqlFrameCodec.ResultVersionHeader, SqlFrameCodec.NativeDateTimeResultVersion);
+        return request;
     }
 
     private static RemoteTransactionState GetRequiredTransactionState(object transactionState)
