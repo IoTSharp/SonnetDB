@@ -1,0 +1,902 @@
+{
+  "capturedAtUtc": "2026-10-16T02:16:04.3355027+00:00",
+  "repository": "IoTSharp/SonnetDB",
+  "scope": "Batch05 exact-SHA CI; excludes unpushed issue252 commit",
+  "workflow": {
+    "conclusion": "success",
+    "databaseId": 38836248581,
+    "headSha": "390af19d2c24ef8e9f0d7ccfa42dbe1f5fd8bb0e",
+    "jobs": [
+      {
+        "completedAt": "2026-10-16T01:45:48Z",
+        "conclusion": "success",
+        "databaseId": 116765945440,
+        "name": "AOT Publish (ubuntu-24.04-arm)",
+        "startedAt": "2026-10-16T01:39:03Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:05Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:09Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:16Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:32Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:41:47Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB.Cli (Native AOT)",
+            "number": 5,
+            "startedAt": "2026-10-16T01:39:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:10Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB (Native AOT)",
+            "number": 6,
+            "startedAt": "2026-10-16T01:41:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:18Z",
+            "conclusion": "success",
+            "name": "Publish image codec smoke (Native AOT)",
+            "number": 7,
+            "startedAt": "2026-10-16T01:45:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:25Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 8,
+            "startedAt": "2026-10-16T01:45:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:26Z",
+            "conclusion": "success",
+            "name": "Run image codec smoke (Native AOT)",
+            "number": 9,
+            "startedAt": "2026-10-16T01:45:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:26Z",
+            "conclusion": "success",
+            "name": "Show AOT artifacts",
+            "number": 10,
+            "startedAt": "2026-10-16T01:45:26Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:35Z",
+            "conclusion": "success",
+            "name": "Upload AOT artifacts",
+            "number": 11,
+            "startedAt": "2026-10-16T01:45:26Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:46Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 20,
+            "startedAt": "2026-10-16T01:45:35Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:46Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 21,
+            "startedAt": "2026-10-16T01:45:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:46Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 22,
+            "startedAt": "2026-10-16T01:45:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:45:46Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 23,
+            "startedAt": "2026-10-16T01:45:46Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945440"
+      },
+      {
+        "completedAt": "2026-10-16T01:44:44Z",
+        "conclusion": "success",
+        "databaseId": 116765945614,
+        "name": "AOT Publish (ubuntu-latest)",
+        "startedAt": "2026-10-16T01:39:00Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:07Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:17Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:07Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:30Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:41:29Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB.Cli (Native AOT)",
+            "number": 5,
+            "startedAt": "2026-10-16T01:39:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:16Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB (Native AOT)",
+            "number": 6,
+            "startedAt": "2026-10-16T01:41:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:23Z",
+            "conclusion": "success",
+            "name": "Publish image codec smoke (Native AOT)",
+            "number": 7,
+            "startedAt": "2026-10-16T01:44:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:24Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 8,
+            "startedAt": "2026-10-16T01:44:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:25Z",
+            "conclusion": "success",
+            "name": "Run image codec smoke (Native AOT)",
+            "number": 9,
+            "startedAt": "2026-10-16T01:44:24Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:25Z",
+            "conclusion": "success",
+            "name": "Show AOT artifacts",
+            "number": 10,
+            "startedAt": "2026-10-16T01:44:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:36Z",
+            "conclusion": "success",
+            "name": "Upload AOT artifacts",
+            "number": 11,
+            "startedAt": "2026-10-16T01:44:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:43Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 20,
+            "startedAt": "2026-10-16T01:44:36Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:43Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 21,
+            "startedAt": "2026-10-16T01:44:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:43Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 22,
+            "startedAt": "2026-10-16T01:44:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:44:43Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 23,
+            "startedAt": "2026-10-16T01:44:43Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945614"
+      },
+      {
+        "completedAt": "2026-10-16T02:07:46Z",
+        "conclusion": "success",
+        "databaseId": 116765945679,
+        "name": "Build & Test (windows-latest, core)",
+        "startedAt": "2026-10-16T01:39:00Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:16Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:56Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:00Z",
+            "conclusion": "success",
+            "name": "Show .NET info",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:41Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 5,
+            "startedAt": "2026-10-16T01:40:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:46Z",
+            "conclusion": "success",
+            "name": "Restore",
+            "number": 6,
+            "startedAt": "2026-10-16T01:40:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:47Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 7,
+            "startedAt": "2026-10-16T01:40:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:59Z",
+            "conclusion": "success",
+            "name": "Test release gate contracts",
+            "number": 8,
+            "startedAt": "2026-10-16T01:40:47Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:43:31Z",
+            "conclusion": "success",
+            "name": "Build",
+            "number": 9,
+            "startedAt": "2026-10-16T01:40:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:43:32Z",
+            "conclusion": "success",
+            "name": "Select complete test shard",
+            "number": 10,
+            "startedAt": "2026-10-16T01:43:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:06:45Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 11,
+            "startedAt": "2026-10-16T01:43:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:06:46Z",
+            "conclusion": "success",
+            "name": "Upload test results and diagnostics",
+            "number": 12,
+            "startedAt": "2026-10-16T02:06:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:07:41Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 22,
+            "startedAt": "2026-10-16T02:06:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:07:41Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 23,
+            "startedAt": "2026-10-16T02:07:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:07:44Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 24,
+            "startedAt": "2026-10-16T02:07:41Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T02:07:44Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-16T02:07:44Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945679"
+      },
+      {
+        "completedAt": "2026-10-16T01:57:17Z",
+        "conclusion": "success",
+        "databaseId": 116765945684,
+        "name": "Build & Test (windows-latest, rest)",
+        "startedAt": "2026-10-16T01:39:01Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:16Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:43Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:46Z",
+            "conclusion": "success",
+            "name": "Show .NET info",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:29Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 5,
+            "startedAt": "2026-10-16T01:39:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:33Z",
+            "conclusion": "success",
+            "name": "Restore",
+            "number": 6,
+            "startedAt": "2026-10-16T01:40:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:34Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 7,
+            "startedAt": "2026-10-16T01:40:33Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:42Z",
+            "conclusion": "success",
+            "name": "Test release gate contracts",
+            "number": 8,
+            "startedAt": "2026-10-16T01:40:34Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:43Z",
+            "conclusion": "success",
+            "name": "Build",
+            "number": 9,
+            "startedAt": "2026-10-16T01:40:42Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:44Z",
+            "conclusion": "success",
+            "name": "Select complete test shard",
+            "number": 10,
+            "startedAt": "2026-10-16T01:42:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:56:08Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 11,
+            "startedAt": "2026-10-16T01:42:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:56:16Z",
+            "conclusion": "success",
+            "name": "Upload test results and diagnostics",
+            "number": 12,
+            "startedAt": "2026-10-16T01:56:08Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:57:12Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 22,
+            "startedAt": "2026-10-16T01:56:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:57:13Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 23,
+            "startedAt": "2026-10-16T01:57:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:57:15Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 24,
+            "startedAt": "2026-10-16T01:57:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:57:15Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-16T01:57:15Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945684"
+      },
+      {
+        "completedAt": "2026-10-16T01:48:37Z",
+        "conclusion": "success",
+        "databaseId": 116765945700,
+        "name": "AOT Publish (windows-latest)",
+        "startedAt": "2026-10-16T01:39:02Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:05Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:23Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:58Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:38Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:43:45Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB.Cli (Native AOT)",
+            "number": 5,
+            "startedAt": "2026-10-16T01:40:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:47:39Z",
+            "conclusion": "success",
+            "name": "Publish SonnetDB (Native AOT)",
+            "number": 6,
+            "startedAt": "2026-10-16T01:43:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:47:51Z",
+            "conclusion": "success",
+            "name": "Publish image codec smoke (Native AOT)",
+            "number": 7,
+            "startedAt": "2026-10-16T01:47:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:47:51Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 8,
+            "startedAt": "2026-10-16T01:47:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:47:52Z",
+            "conclusion": "success",
+            "name": "Run image codec smoke (Native AOT)",
+            "number": 9,
+            "startedAt": "2026-10-16T01:47:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:47:52Z",
+            "conclusion": "success",
+            "name": "Show AOT artifacts",
+            "number": 10,
+            "startedAt": "2026-10-16T01:47:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:48:11Z",
+            "conclusion": "success",
+            "name": "Upload AOT artifacts",
+            "number": 11,
+            "startedAt": "2026-10-16T01:47:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:48:31Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 20,
+            "startedAt": "2026-10-16T01:48:11Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:48:31Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 21,
+            "startedAt": "2026-10-16T01:48:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:48:35Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 22,
+            "startedAt": "2026-10-16T01:48:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:48:36Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 23,
+            "startedAt": "2026-10-16T01:48:35Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945700"
+      },
+      {
+        "completedAt": "2026-10-16T01:42:31Z",
+        "conclusion": "success",
+        "databaseId": 116765945713,
+        "name": "Format Check",
+        "startedAt": "2026-10-16T01:39:01Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:08Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:16Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:08Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:31Z",
+            "conclusion": "success",
+            "name": "Restore",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:28Z",
+            "conclusion": "success",
+            "name": "Format check",
+            "number": 5,
+            "startedAt": "2026-10-16T01:39:31Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:28Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 9,
+            "startedAt": "2026-10-16T01:42:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:28Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 10,
+            "startedAt": "2026-10-16T01:42:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:28Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-16T01:42:28Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945713"
+      },
+      {
+        "completedAt": "2026-10-16T01:52:12Z",
+        "conclusion": "success",
+        "databaseId": 116765945798,
+        "name": "Build & Test (ubuntu-latest)",
+        "startedAt": "2026-10-16T01:39:01Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-16T01:39:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-16T01:39:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:07Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v7",
+            "number": 2,
+            "startedAt": "2026-10-16T01:39:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:17Z",
+            "conclusion": "success",
+            "name": "Run actions/setup-dotnet@v6",
+            "number": 3,
+            "startedAt": "2026-10-16T01:39:07Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:18Z",
+            "conclusion": "success",
+            "name": "Show .NET info",
+            "number": 4,
+            "startedAt": "2026-10-16T01:39:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:32Z",
+            "conclusion": "success",
+            "name": "Cache NuGet packages",
+            "number": 5,
+            "startedAt": "2026-10-16T01:39:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:39Z",
+            "conclusion": "success",
+            "name": "Restore",
+            "number": 6,
+            "startedAt": "2026-10-16T01:39:32Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:39:50Z",
+            "conclusion": "success",
+            "name": "Verify restored dependency licenses",
+            "number": 7,
+            "startedAt": "2026-10-16T01:39:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:40:03Z",
+            "conclusion": "success",
+            "name": "Test release gate contracts",
+            "number": 8,
+            "startedAt": "2026-10-16T01:39:50Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:37Z",
+            "conclusion": "success",
+            "name": "Build",
+            "number": 9,
+            "startedAt": "2026-10-16T01:40:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:42:38Z",
+            "conclusion": "success",
+            "name": "Select complete test shard",
+            "number": 10,
+            "startedAt": "2026-10-16T01:42:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:51:54Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 11,
+            "startedAt": "2026-10-16T01:42:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:51:57Z",
+            "conclusion": "success",
+            "name": "Upload test results and diagnostics",
+            "number": 12,
+            "startedAt": "2026-10-16T01:51:54Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:52:09Z",
+            "conclusion": "success",
+            "name": "Post Cache NuGet packages",
+            "number": 22,
+            "startedAt": "2026-10-16T01:51:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:52:09Z",
+            "conclusion": "success",
+            "name": "Post Run actions/setup-dotnet@v6",
+            "number": 23,
+            "startedAt": "2026-10-16T01:52:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:52:09Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v7",
+            "number": 24,
+            "startedAt": "2026-10-16T01:52:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-16T01:52:09Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-16T01:52:09Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/38836248581/job/116765945798"
+      }
+    ],
+    "status": "completed",
+    "updatedAt": "2026-10-16T02:07:47Z"
+  },
+  "priorFailedRun": 38831797384,
+  "priorFailurePreserved": true,
+  "formalPublicationSatisfied": false
+}

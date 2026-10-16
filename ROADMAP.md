@@ -1,10 +1,12 @@
-# ROADMAP — SonnetDB 4.5
+# ROADMAP — SonnetDB 4.5 与后续里程碑
+
+2026-10-16：新增 **[M48：单机日志与事件分析](#milestone-48)**，将 ELK 核心日志场景落实为可靠摄取、联合检索/统计、磁盘访问、生命周期、日志探索和规则告警的增量规划。`M48-L01`～`L20` 为 R1 必选，`L21`～`L24` 为条件候选，当前全部 `📋 planned`；完整字段/确认/查询/恢复合同、24 个工作包、阶段退出与验收矩阵见 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。R1 的目标版本与日期在 L01 冻结，不将全部 M48 自动追加为既有 4.5 正式版或已发布 Workbench 预览的门槛。
 
 2026-10-16：第二批 [十项产品切片](docs/audits/implementation-batch-02-20261016.md)已完成本地实现：GH-Issue #226 存量主键列重命名，#231 持久序列/原子取号/逐行插入，#237 表列注释，#240 字符串长度声明/演进/元数据，以及 #243 有主键和复合主键有界删除。扩大 Core 3157 项、Server SQL/ADO/Frame 412 项（含真实 REST/h2c，本批新增 18 项中 17 项为真实网络）及实际强制终止恢复 2 项回归通过，最终冻结复核与本地提交见根 HANDOFF。表目录含新属性时写 v12，旧引擎拒绝；未改行或键编码。#226 主键类型/定义、#227 DDL 事务、#232/#233/#236 及无主键依赖继续排队；正式发布及 ORM 消费者验收另计，不能由这些切片关闭整个 Issue。
 
 2026-10-15：接收最新 main `c7b307f6`，首次核对 46 条开放 Issue，最终快照 48 条（新增 #312/#313/#314，关闭 #273），清理两个已合并本地分支。本批 [十项实现任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：GH-Issue #224 的 HAVING/复合投影/排序分页，#229 多结果 ADO，#257 全表关系 UPDATE，以及 M45/M46 的 Int64 众数/近似去重和三项聚合状态校验。最终 Core 2938 项、真实 REST/h2c 167 项回归通过；实际提交和远端 Issue 闭环见根 HANDOFF，不重做已合入的 #219～#223/#225/#228，不把局部任务提升为整个里程碑、正式发布或下游 ORM 完成。
 
-更新日期：2026-10-12（Asia/Shanghai）。**当前优先交付 Workbench Preview 1；先发布 Web Admin 的已验收子集，Studio 与 VS Code 通过各自门禁后再纳入。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
+更新日期：2026-10-16（Asia/Shanghai）。**Workbench 继续按 Web 预览后续、Studio 与 VS Code 各自门禁推进；M48 单独冻结日志 R1 范围。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
 
 根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
 
@@ -30,7 +32,7 @@
 
 1. 代码必须存在且由真实产品入口调用；原型、未调用类型和文档计划不算功能交付。
 2. 实现合同、本地回归、真实服务、固定硬件、真实模型、长期运行及远程发布分别记录；一个层级的 PASS 不升级其它层级。
-3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
+3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
 4. P0 为基础合同与优先交付，P1 为本版深化与验收，P2 为条件候选；只有明确必选范围参与 4.5 完成判定，条件项未经独立评审不成为版本承诺。
 5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；未校准保持 `NOT_READY`，不以自造数据或缩规模 PASS 代替真实效果。
 6. Core 保持 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT/trim 零相关警告及 public API 中文 XML 文档。API/帧保持兼容；新落盘格式必须版本化、拒绝不兼容旧 writer，提供迁移或明确拒绝及恢复方案。SQL 名称遵守 GH-Issue #211。
@@ -42,6 +44,8 @@
 **把九模型从可组合的数据能力推进到有真实效果、有资源边界、可恢复的 AI 与分析应用底座。** 应用覆盖工业诊断、业务经营分析、文档知识与资产检索；工业是重点场景，产品保持通用多模型引擎定位。
 
 本版必选：M44-A01~A07、M45-C01~C09、M46-S01~S09、M47-U01~U09，以及 V45-X01~X06、X08 中注明的有界合同和适用验收。M44-A08/A09、M45-C10、M47-U10、V45-X07 是条件项；M44-A10 是后续候选。每包拆成单一职责 PR，不将完整研究集合塞入一个实现。
+
+M48 已纳入后续增量路线，R1 必选 L01～L20 与条件 L21～L24 分开验收；它复用本版底层合同，但不改变上述 4.5 必选集合。M48 的版本/平台/负载与发布时间须在其 L01/L20 独立冻结，不以“单机”降低可靠性、权限、预算或恢复要求。
 
 本版不纳入 TsFile 适配、导入导出或替换持久格式。参考其它产品机制后按 SonnetDB 当前存储、类型、事务和嵌入式边界独立改进，不以复制语法、算法数量或商业功能清单作为完成条件。完整分片集群、九模型分布式事务、任意外部副作用 exactly-once、完整 SQL/GQL/S3 兼容均不由本路线自动承诺。
 
@@ -58,15 +62,16 @@
 | Flink / Materialize / RisingWave | merge/retract、event time、检查点与增量物化 | 复用 M43 任务/投递，首批限定可证明等价的 SQL 子集。 |
 | MongoDB / Redis | 管道聚合、索引、持久性取舍与状态 | 文档/KV/MQ 参与应用，不伪称跨模型原子事务。 |
 | Elasticsearch / Qdrant / Weaviate / pgvector | 混合召回、过滤、重排、相关性与向量工作集 | 延续 M35/M36 的索引与 RRF，强化真实语料、ACL、删除同步。 |
+| Elasticsearch / Logstash / Kibana / OpenTelemetry Collector | 可靠采集与处理、倒排/统计列分工、数据流滚动、固定视图分页、日志探索与规则状态 | M48 复用九模型和 M43/M45/M47 形成单机日志旅程；先验证通用 HTTP 接入，不承诺完整 Elasticsearch/Kibana/OTLP 兼容。 |
 | Neo4j GraphRAG / TDgpt / IoTDB AINode / pgai | 图证据、时序推理、模型调用与版本 | 已有预测/RAG/GraphRAG/provider 推进到受治理应用。 |
 | Snowflake Cortex / Databricks 等 AI 平台 | 质量/成本、批量推理、评测与应用闭环 | 学习治理与旅程；托管商业功能不算开源引擎现状。 |
 | dbx / Tabularis / DBeaver / DataGrip / pgAdmin / Compass / RedisInsight / Kafka UI / MinIO Console / Neo4j Browser | 统一 Explorer、SQL/Notebook、结果平面、模型专用工作台、MCP/插件和发布分发 | 由 M47 统一三面工作台；复用交互语义与安全边界，不复制通用多库协议或商业功能清单。 |
 
-来源与选择理由见 [AI 专题](docs/design/sonnetdb-45-ai-applications.md)、[聚合专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)、[存储专题](docs/design/sonnetdb-45-storage-performance.md) 和 [M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)。采纳代码前逐组件核查许可：TDengine AGPL 核心不可直接搬入继续只标 MIT，其他许可也保留相应声明，不从 SDK 许可推断全产品许可。
+来源与选择理由见 [AI 专题](docs/design/sonnetdb-45-ai-applications.md)、[聚合专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)、[存储专题](docs/design/sonnetdb-45-storage-performance.md)、[M47 统一管理工作台专题](docs/design/m47-unified-management-workbench.md)、[ELK 分析](docs/design/elk-single-node-capability-analysis-20261016.md)和 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。采纳代码前逐组件核查许可：TDengine AGPL 核心不可直接搬入继续只标 MIT，其他许可也保留相应声明，不从 SDK 许可推断全产品许可。
 
 ## 里程碑总览
 
-| Milestone | 主题 | 状态 | 4.5 保留工作 |
+| Milestone | 主题 | 状态 | 剩余工作 / 版本归属 |
 |---|---|---|---|
 | 14 / 27 | Copilot、AI/Agent 数据访问与治理 | 🚧 | 真实 provider 质量/成本、双网与 Studio 实机；Agent Framework 迁移单独评估，自研 CopilotAgent 不改称已基于该框架。 |
 | 19 / 25 | 时序与文档容量 | 🟡 | 四档时序、million/ten-million 文档固定硬件与恢复，复用 runner/verifier。 |
@@ -82,6 +87,7 @@
 | **45** | **聚合与持续计算深化** | **🚧** | 扩展分组支持矩阵，补通用state、更新删除修正、增量物化/rollup与批流等价。 |
 | **46** | **存储编码与执行成本优化** | **📋** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
 | **47** | **统一数据库管理工作台与三面发布** | **🚧 / Web Preview 1已发布** | P01～P08 Web预览已收尾，再补Studio/VS Code；正式版共享合同、九模型完整权限/预算/恢复、AI/MCP与逐页矩阵继续验收。已完成切片见CHANGELOG。 |
+| **48** | **单机日志与事件分析** | **📋 planned** | 独立增量 R1：L01～L20 覆盖接入、检索/统计、容量、生命周期、Web 排障与告警；L21～L24 为 OTLP/Trace/语义/生态条件项。版本与时间待冻结，功能未实施。 |
 
 M22 保持上层应用候选；样例验证通用合同，行业规则不直接内置引擎。M0~M13、M15~M18、M21、M23/M24/M26/M28/M30~M34/M37/M38 及其它完成代码范围只在 CHANGELOG 追溯。
 
@@ -207,6 +213,53 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 M47-U01 的设计基线及既有页面/合同切片已归档，后续不重新派单。Studio/VS Code 延期只调整首版预览的分发范围，4.5 正式版原 M47-U01～U09 必选合同继续保留。任一宿主未通过自己的实物安装/真实服务/用户旅程，不能把三面整体标为发布完成。
 
 
+<a id="milestone-48"></a>
+
+## Milestone 48 — 单机日志与事件分析
+
+目标是把日志从可靠接入推进到检索、统计、排障、告警、保留与恢复，复用已有文档/全文/时序、M43 订阅与 DLQ、M45 聚合和 M47 Workbench。LogStream 是已有模型的逻辑资源，不新增第十模型。**当前只完成规划；以下 24 项全部 `📋 planned`，不是已创建的 Issue 或已交付功能。** 详细字段模型、状态机、实现边界与逐项验收见 [M48 专题](docs/design/m48-single-node-log-event-analytics.md)。
+
+### 首版范围与工作包
+
+R1 必选 **L01～L20**：一个节点可以接收多主机日志；先支持 .NET 结构化日志与 Web 访问日志、真实 Logstash HTTP 批量适配、Web 日志探索及一个受控 Webhook 通道。L01 冻结目标版本、平台、硬件、真实语料、负载和门槛；不自动扩大既有 4.5 发布范围。P0/P1 均为 R1 必选，P2 为后续条件。
+
+| ID / 优先级 | 具体交付与主要依赖 | 完成与验收条件 |
+|---|---|---|
+| M48-L01 / P0 | 源码缺口复核、真实日志语料、范围/版本/负载 profile；复用 V45-X06 | 固定预期结果、来源/哈希、硬件/持久性/内存/SLO；复现候选窗口与 10000 条边界，未校准不称达标。 |
+| M48-L02 / P0 | 事件信封、时间/精度/字段/来源身份；依赖 L01 | 缺失/NULL/整数、时区/源精度、数组/点号/大小写、重复身份冲突均明确；DTO/source generation 与拒绝矩阵齐全。 |
+| M48-L03 / P0 | LogStream 目录、模板、分区与滚动；依赖 L02 | 默认按摄取时间/容量滚动，event_time 用于检索；并发写/崩溃后单一写目标，schema/流重建代际不串用。 |
+| M48-L04 / P0 | 批量接入、逐项/通用批次确认、幂等/未知提交；依赖 L02/L03 | 区分已接收/耐久/可搜索；混合有效无效、ACK 丢失、重复冲突、超限/满盘可对账，不把内存入队当持久。 |
+| M48-L05 / P0 | 版本化处理管线、模拟、转换/脱敏/失败分流；依赖 L02/L04 | 两类真实模板、日期与类型错误、脱敏失败、配置换代和原版本重放；禁止无界匹配/任意脚本。 |
+| M48-L06 / P0 | .NET 示例和真实 Logstash HTTP/json_batch；依赖 L04/L05 | 固定消费者版本，实际 JSON 数组/鉴权/重试/429/503/断网；HTTP 成功不可掩盖未处理的批内失败。 |
+| M48-L07 / P0 | M43 spool/检查点/重投/背压/DLQ 日志集成；依赖 L03/L04 | 来源位点不先于持久决定；提交前后/ACK 丢失/暂停/隔离/重放/满队列恢复，未知状态明确交接。 |
+| M48-L08 / P0 | 文本+时间+精确字段+权限统一过滤；依赖 L02/L03 | 纯过滤、窗口外命中、超过 10000 条与全扫描参考对拍；总数/分面不再冒称候选窗口为完整集合。 |
+| M48-L09 / P0 | 磁盘全文块访问、缓存、批量段/Top-K/合并；复用 M35/M42/M46 | 大于内存工作集、冷读/损坏/取消/满盘和前后台竞争；不全量加载或无界合并后宣称预算成立，格式升级可回退。 |
+| M48-L10 / P0 | 固定读取视图、稳定时间排序/游标、上下文/有界导出；依赖 L03/L08/L09 | 写入/滚动/删除/同时间戳/撤权/过期不静默漏读重复；资源租约与游标绑定明确，当前窗口导出与完整导出区分。 |
+| M48-L11 / P1 | 全过滤集合 facet/时间桶/统计列/精确和近似聚合；依赖 L08～L10/M45 | UTC 半开桶、missing/NULL/多值/Top-N、Int64/误差与高基数验证；派生水位/代际可查，批流同一致性点对拍。 |
+| M48-L12 / P1 | 保留、封存、回收和归档；依赖 L03/L07/L09/L10 | 迟到、未来时间、保留缩短、活跃视图与删除中崩溃；原事件/索引/派生引用一致，归档不冒称可直接查询。 |
+| M48-L13 / P0 | 采集/读取/管理权限、隔离/审计/原文与 DLQ 脱敏；贯穿 | 两库及多身份真实拒绝，hits/facet/总数/上下文/导出/规则一致；现有权限不足时用数据库隔离，不靠 UI 隐藏。 |
+| M48-L14 / P0 | 全链路预算、公平性、取消与观测；复用 M42/V45-X01/X02 | 解析/候选/posting/排序/聚合/响应/spool/合并费用归属，临时峰值计费；超限明确拒绝，取消释放，有限指标标签。 |
+| M48-L15 / P1 | Web 日志探索/时间轴/筛选/详情/上下文；依赖 L08/L10/L11/L13/L14 | 真实 Server/浏览器完整旅程，迟返/撤权/资源错误/视图过期可理解；消费实际 typed 入口。 |
+| M48-L16 / P1 | 保存查询、轻量看板、联动/共享/导出；依赖 L10/L11/L13/L15 | 定义版本/权限/恢复、流删除/schema 改变失效、多面板预算与下载；不保存 token 或静默跨库。 |
+| M48-L17 / P1 | 阈值规则、持久状态/静默/恢复通知/Webhook outbox；依赖 L07/L11/L13/L14/M45 | 迟到/重复/零分母/规则换代/数据中断/发送回执丢失；Unknown 不当作零或恢复，外部通知至少一次。 |
+| M48-L18 / P0 | 备份恢复、强杀/磁盘故障/版本迁移与回退；依赖已交付核心切片 | 目录/事件/源位点/幂等/派生/定义/规则逐项对账；外部 spool 或 `.system/mq` 单列，kill 不代替掉电。 |
+| M48-L19 / P1 | typed SDK/CLI/能力发现、真实示例与迁移运维说明；依赖实际入口 | embedded/REST/适用 Frame 独立矩阵，字段转换与失败回执可重现；不承诺原 ES 客户端/Kibana 即插即用。 |
+| M48-L20 / P0 | 固定 profile/168 小时/原生候选/发行收口；依赖 L01～L19 | 同候选真实采集器、权限、容量、恢复、AOT/原发布 policy、安装首跑齐全；未验项保持 NOT_READY。 |
+| M48-L21 / P2 | OTLP Logs 接收与真实 Collector 适配；R1 后条件项 | 独立冻结 transport/encoding/partial success/字段/精度；Logs 不自动涵盖 Metrics/Traces。 |
+| M48-L22 / P2 | Trace 接收/查询与日志关联视图；依赖 L21/独立 span 合同 | 真实 span/父子/采样/迟到/重复验证；相同 trace_id 日志聚合不称完整 APM。 |
+| M48-L23 / P2 | 语义日志与设备/业务关联；复用 M27/M35/M44 | 真实相关性/误报/成本、ACL/删除/模型换代及有证据解释；hash/合成不计语义质量。 |
+| M48-L24 / P2 | 扩展采集器/字段包和必要的协议迁移子集 | 具体消费者、版本/请求/错误矩阵与许可评审；不默认重做完整 ELK/Fleet/插件生态。 |
+
+### 依赖与阶段退出
+
+1. **G0 合同与基线：** L01/L02 及 L13/L14 合同；先复现并冻结语料/范围/门槛，不把已有分词、BM25、窗口或页面重新派单。
+2. **G1 可靠接入与基础查询：** L03～L08 + 适用权限/预算；真实采集器、持久确认和过滤通过后只标受限 pilot。
+3. **G2 容量与生命周期：** L09～L12、完善 L13/L14 与 L18 基础恢复；大于内存工作集、固定视图、统计/保留及故障可对账。
+4. **G3 排障闭环：** L15～L19；两条真实日志旅程、保存查询/看板、规则通知、运维与完整恢复，按实际宿主分别验收。
+5. **G4 R1 发行：** L20 汇总 L01～L20；同候选适用发布门禁、固定 profile 168 小时、实际包/首跑核验；L21～L24 独立评审。
+
+L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选范围完成后收口；功能实现、本地测试、真实服务、固定硬件、恢复、长稳与发行分列。R1 不提供分片/复制/自动接管、任意外部副作用 exactly-once、完整 Elasticsearch API/Kibana 兼容或完整 SIEM/APM。近期首个实施切片为 L01，不因本规划提交自动启动采集或功能开发。
+
 ## 4.5 跨模型能力与性能闭环
 
 沿用既有归属，不重复建设核心服务。
@@ -266,6 +319,7 @@ M47-U01 的设计基线及既有页面/合同切片已归档，后续不重新�
 | M44 | 三条旅程真实质量/成本、防泄漏、删除/回滚/任务恢复 | 新规划，fixture/hash 不计效果。 |
 | M45 | batch↔stream、merge/retract、late/update/delete、rollup/spill/reopen | 新规划，冻结首批子集/误差。 |
 | M46 | 编码/高熵回退、旧新格式、损坏/极值/放大/冷读 | 新规划，不预填提升倍数。 |
+| M48（独立 R1） | 固定日志 profile、真实 Logstash、窗口外检索/全量统计、磁盘容量、保留/恢复、规则通知及 168 小时 | 全部 planned；版本/阈值待 L01 冻结，不由研究或已有模型局部 PASS 宣布日志平台完成。 |
 
 
 ## 待补验收证据

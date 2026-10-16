@@ -222,3 +222,32 @@
 - issue314完成252转唯一249，树D:/source/SonnetDB-worktrees/issue249-dynamic-json（codex/issue249-dynamic-json，390af）。真实公开4.0/预览/旧源码每份4静态控制PASS+11缺口拒绝；原First()排序失败保留。批准新增独占JSON helper/测试/消费者准备，现有FunctionRegistry/TableSqlExecutor/RSE及文档执行器接线等251→250冻结；decimal对象构造/谓词须保真，动态JSON_VALUE沿用静态Int64优先否则Double合同。
 - 批次05远端main仍390af19d，parity-results保持2ab6caa9。CI38836248581最新六job已success（含先前失败的Windows rest），仅Windows Core运行；不为本记录push取消CI。256/255/254/253既有评论及OPEN回读不重复；批次05永久回执随本项纳入提交。旧CI38831797384仍failure，原证据不改写。
 - 226=285186b8、243=b6e674c4源码恢复补缺已推送，线上原评论及OPEN已再次核实无新变化，不重做；正式包/对应消费者条件继续跟踪。下一步完成252独立提交、继续监督251，冻结后交250；249独立文件可并行、共享接线串行。批次齐后正常push、回读main/parity及CI、逐项回复再核关闭条件。主目录仍main=f9加他人未提交文档，不混入或清理。
+
+## 最新监督检查点（2026-10-16 10:15，#252已提交、批次05 CI全绿）
+
+- 监督树 HEAD=16b266c2e43d2120dd6538c8ced66f270132958e，#252独立提交完成，尚未推送/回复/关闭。最终树a6f837f88c4efcd5e7f6272ecb694b81c855c209在02:11:14Z开始完整restore、02:11:24Z开始原Format，均实际exit0，Format于02:13:43Z结束；核最终树未变后才commit。较早门禁也通过，但审计EOF随后修正，故完整复跑；原回执保留root-gate-before-audit-eof-fix。root-review/commit.json记录提交及最终门禁，生产54交付文件与冻结manifest一致。
+- 根Core3139/3139、真实远程141/141，Core/Server Release及显式Data AOT/Trim零警告/错误；代理强杀7/7、Chloe/旧端证据已核。#252正式包及Chloe上游交付仍缺，不能关闭。批次05的256/255/254/253实际评论回执已随16b266c2提交，不重复发送。
+- 精确远端main390af19d的CI38836248581现已completed/success，全部7个作业success，包括两Windows分片、Ubuntu完整测试、三平台AOT与Format。永久回读docs/audits/issue-supervision-ci-38836248581-20261016.json待下一Issue提交。它不覆盖尚未推送252；旧38831797384仍failure，原失败不改写。parity-results仍2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- issue312唯一251已收252最终SHA且独占共享生产，完成第一轮DTO接线，正首次Core/Data构建纠错与补验；源码尚未验收。issue313唯一250准备完毕等待251核心冻结，不重复派单。issue314唯一249在新树并行独占helper/测试/消费者准备，24/24 helper通过；旧Core SQL集成1PASS/10FAIL真实保留，尚未接共享执行器，不能称249完成。共享修改仍251→250→249接线。
+- 主目录仍main=f9ee14b7，其他会话CHANGELOG/HANDOFF/llms两文件和ELK分析未交付差异原样保留。226/243源码补缺已推送，不重做；正式发行和消费者继续跟踪。当前批次待251/250交付后正常推送、回读SHA/CI、回复并核关闭条件。
+- 此提交后检查点、全绿CI回读暂留监督树，随下一Issue独立提交纳入；不为状态记录另造提交。30分钟监督继续ACTIVE，保留所有旧树/失败证据/parity-results，不强推、不外发ORM候选。
+
+## 最新监督检查点（2026-10-16 10:30，#251复审与#249准备冻结）
+
+- 线上再次回读main仍390af19d2c24ef8e9f0d7ccfa42dbe1f5fd8bb0e，parity-results仍2ab6caa94b9f07d25fdd0760a7aa682f7ca26295；精确CI38836248581保持7作业success。本轮没有push/comment/close。监督HEAD仍16b266c2，#252已独立提交但未推送；回复草稿已保存artifacts/issue-supervision-20261016/batch06-actions/issue252-comment-draft.md，发送前必须补本批实际push、远端SHA及对应CI回执。
+- issue312唯一#251仍独占共享核心并运行。Core首轮37PASS/1FAIL（快照声明编号）已修源码；第二轮DTO/Duration组合109PASS/1FAIL（递归CTE值正确但ColumnInfo丢失）。代理已修递归声明传播并补入口检查，正第4次Core构建，尚无最终验收。原失败回执保留issue251-work/logs/core-native01/02及对应TRX。
+- 根用02:23的Core DLL独立复制后运行17条SQL×空表/有行两阶段探针。相关子查询、CTE/派生表、CASE/COALESCE、BETWEEN和显式旧CAST的类型拒绝一致；复合别名ORDER/HAVING原已被名称绑定拒绝，未冒称新缺陷。发现MAX(Stamp)标量子查询有行时报数值参数错误而声明推断DTO；已协调代理增加按UtcTicks的MIN/MAX实际聚合分支及回归。MV类型检查曾加载全代际，代理已改仅读持久声明且每层遍历检查取消，完整读取仍校验CRC；这些新修改待实际重建验证。
+- 根探针和SHA回执在监督树artifacts/issue-supervision-20261016/issue251/root-review-live01；它只是活动构建快照的复审，不能作为最终冻结验收。此前根关于ExecuteStatement验证位于queryResources前的定位不准确，重读确认其实际已在资源作用域内；反馈已纠正。
+- issue314唯一#249准备现已冻结并等待：preparation-checkpoint01.json SHA ADD52AD46E455D74FE2F7ED76D4B64854B5F5747388BC835627667E53D8A7856，根逐份核7源码/39证据均一致，既有tracked生产修改=0；helper24/24，旧SQL1PASS/10FAIL、三消费者各4PASS/11准确拒绝仍是准备证据，未接共享执行器、未提交。issue313唯一#250继续保留已核checkpoint02等待#251；不重复派单。共享写入次序仍251→250→249。
+- #226/#243原文及评论再次实际回读OPEN，无新验收交付；GitHub发行列表正式仍v4.0.0（2026-09-26），最新workbench-preview-1.12为预发行，不代表匹配Core/Data/Server正式包。226/243源码补缺已推送不重做，正式发行/对应消费者条件仍需跟踪；252当前线上尚无评论，不提前发送草稿。
+- 主目录main仍f9ee14b7，其他会话CHANGELOG/HANDOFF/llms两文件及ELK分析保留；本轮只改监督树交接/审计及ignored复审产物。当前两份交接改动与全绿CI回读随下一Issue提交，不为巡检另造提交；下一步继续251真实远程/恢复/Chloe/AOT及冻结，根验证提交后交250，再按批次推送验收。
+
+## 最新监督检查点（2026-10-16 10:54，已交付文档整合与#251回归）
+
+- 主目录他人文档已分别提交16ff58f8（LLM指南）和ffdb734c（M48规划），实际远端main=ffdb734c7fb9769913088c7bdee2415d73050f1b，主目录clean，两对应聊天idle。监督树以保留原#252提交16b266c2的普通merge整合已发布文档，不重写或重复提交252、不接管其他工作；原两份文档提交完整保留。parity-results仍2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
+- 此整合仅新增远端文档与监督记录，src/tests/scripts与252最终提交完全相同；ROADMAP、LLM两文件和两份设计与ffdb734c字节对应版本一致。原未提交交接/CI回读先保存副本及SHA并定向stash，合并后成功apply，stash保留不删；根目录分支/路径已校正到本监督树。保留252实现记录和两个外部交接段，不覆盖任一交付。
+- 这是真实分支整合，提交前必须在本最终树实际通过完整restore与规定Format，原始日志/退出码/最终tree/commit保存在artifacts/issue-supervision-20261016/main-docs-integration-1051/。本轮不push，避免取消ffdb734c的新CI38842022794（02:45Z启动，核查时in_progress）；此前390af19d的38836248581仍是其自身SHA全绿，不扩称覆盖252或新main。
+- issue312唯一251继续实施：前一候选真实RemoteAdoHttp2TransportTests147/147零跳过，Server构建零警告/错误；较大Core SQL/Tables/Protocol/ADO为3760PASS/1FAIL，唯一旧默认DTO参数直接比较DATETIME断言已按新明确合同改为拒绝+显式CAST正向，尚待最终复跑。此前core-native03的152PASS/3FAIL原证据仍保留，不能跳过失败记录。
+- 251已补DTO MIN/MAX实际UtcTicks聚合、递归声明传播、MV仅读声明和取消检查，以及既有*_datetime_offset函数原生声明/UTC归一；新触发器scope和forced-spill断言正待最终Core重建。当前开始真实终止恢复测试，Chloe候选已继承252五文件补丁，251增量仅3文件(+3/-2)，仍待三协议实际消费、最终远程重验及AOT/冻结。早期147/147不覆盖后续语义改动。
+- 根本轮只读审查251并整合已交付文档；代理活动树无需pull/reset，生产基线仍252冻结54文件。250/249各自准备冻结继续保留，共享写入次序251→250→249。252回复草稿未发送，252/251/250批次完成后才普通push、核main/parity及精确CI、逐条回复并按正式发行/消费者条件验收关闭。
+- 226/243源码及恢复补缺已推送，不重做；正式发布及对应ORM条件仍追踪。30分钟监督保持ACTIVE，全部旧树/失败证据及parity-results保留；下一步接251最终冻结，根复审独立提交后交250。
