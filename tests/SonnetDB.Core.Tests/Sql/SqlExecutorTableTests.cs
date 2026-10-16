@@ -657,7 +657,9 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc), row[0]);
         Assert.Equal(2026, row[1]);
         Assert.Equal((int)DayOfWeek.Friday, row[2]);
-        Assert.Equal(new DateTimeOffset(occurredAt.AddDays(1)), row[3]);
+        var addedDate = Assert.IsType<DateTime>(row[3]);
+        Assert.Equal(occurredAt.AddDays(1), addedDate);
+        Assert.Equal(DateTimeKind.Utc, addedDate.Kind);
     }
 
     [Fact]

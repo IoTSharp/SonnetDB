@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #262：日期标量回归按已交付合同显式检查 DATE_ADD 的原生 DateTime 类型、UTC Kind 与加日结果，替换旧隐式 DateTimeOffset 期望；保留原 CI 失败证据。
+
 - GH-Issue #263：补齐公开预览包原始SByte/UInt16/UInt32及枚举/NULL参数、Chloe DbParam/Session/SqlQuery、批量/回滚/重开的三协议消费证据；明确公开旧包UInt64额外控制限制，正式发行和Chloe正式交付仍待完成。
 - GH-Issue #264：补齐公开预览包DECIMAL精度/失败原子性/跨进程恢复及固定Chloe源码DDL候选的嵌入式、REST、HTTP/2消费证据；附可复现工具和独立候选补丁，正式发行及Chloe上游交付仍待完成。
 - GH-Issue #270：补齐公开 `.5` 参数化字面 Contains/StartsWith/EndsWith 的原复现、SQLite对照、真实REST/h2c和官方BookStore作者HTTP列表/Count/分页验收；附隔离消费者及来源/哈希收据，不修改生产或应用业务。

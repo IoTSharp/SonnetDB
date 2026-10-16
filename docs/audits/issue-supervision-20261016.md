@@ -105,3 +105,9 @@
 261已按冻结27文件集成，根核406证据文件、5二进制、16个物化快照及两份原TRX；两个Release构建0警告/错误，Core44/44、Server114/114。审计JSON转LF的哈希映射保存在issue261/root-review/line-ending-normalization.json；XCode补丁保留原始上下文字节，以局部.gitattributes标识，不降低dotnet门禁。本项完整restore/Format实际通过后才独立提交，门禁收据issue261/final。正式发行与XCode上游交付仍缺，保持OPEN。
 
 260冻结13文件尚待根集成，原生50+318/远程6+8/Chloe6进程证据已初步核回。原代理各接唯一259/258/256，使用D盘树cfa92314基线；261+260共11依赖已按SHA同步259/256，259首轮3/3生产冻结4文件已同步256，后者可继续RSE分页实现。258报告公开包/Chloe矩阵通过仍待冻结；两项源码/公开包/候选/正式交付分别记录。未重复派单，无清理旧树或parity-results，监督继续。
+
+## 2026-10-16 日期CI断言修正
+
+261已完整门禁后独立提交b157dddc，尚未推送。远端cfa92314的CI38827086358三平台AOT与Format成功，Ubuntu Core7194/7195唯一失败为旧DATE_ADD期待DateTimeOffset；Server1347/1347。根原DLL复现baseline0/1并保留；仅改为DateTime类型、值和Kind.UTC三项断言，Release构建零警告/错误，完整Core结果另从issue262-ci-contract/full-core.trx核回，原run不改写为PASS。完整提交门禁在issue262-ci-contract/final。
+
+258冻结14文件已核69证据、28DLL与14执行副本，尚未集成；issue312接续唯一255，b157dddc新D树，核#243既有无主键实现与真实XCode消费。259/256继续当前任务，生产共享冻结交接已完成；255不重写243、不与256抢共享文件。

@@ -5,7 +5,13 @@
 远端基线：`origin/main`
 项目目录：`D:\source\SonnetDB`
 
-## 最新监督检查点（2026-10-16，#261 根复审）
+## 最新监督检查点（2026-10-16，日期CI断言修正）
+
+- #261 已通过最终完整 restore/Format 并独立提交 b157dddc2886127e2deddb22a75555a3883e687d，尚未推送。远端仍 cfa92314。该远端CI38827086358的三平台AOT和Format已成功，Ubuntu Core7194/7195：唯一失败是SqlExecutorTableTests旧DATE_ADD断言期待DateTimeOffset，新#262合同实际返回DateTime；Ubuntu Server1347/1347，其余Windows job尚在运行。原run不能标成功。
+- 根已在原DLL复现同一失败（baseline.trx 0/1），仅修正该断言为DateTime原生类型、AddDays值和Kind.Utc；没有改生产。Release构建零警告/错误，完整Core正在运行，结果须从 issue262-ci-contract/full-core.trx 核验。完整restore/Format门禁保存 issue262-ci-contract/final，实际通过后再独立提交。
+- #258冻结14文档/工具，根核69证据、28DLL、14执行源码副本；原生8正向、Chloe3负向保护/6正向候选分别成立，正式发行与上游交付未满足仍OPEN。issue312已接续唯一#255，在D:/source/SonnetDB-worktrees/issue255-keyless-xcode（b157dddc）；核验既有#243无主键DML的XCode真实消费，不重做源码。issue313继续259、issue314继续256。根随后串行提交260、259和258，批次推送/回读；所有旧树/失败/parity-results保留。
+
+## 此前检查点（#261 根复审，以下为当时状态）
 
 - 远端 main 已确认 cfa92314b5eeb152f358adc1ea99c177cb6b6a91，#264 15d8d180、#263 eb80bd22、#262 cfa92314 均已推送。三项已实际回复并回读，评论 6204869653 / 6204870590 / 6204871633；正式发行/对应消费者上游交付尚缺，继续 OPEN，永久回执 docs/audits/issue-supervision-batch03-actions-20261016.json。CI 38827086358 最近回读仍 in_progress，Format 与 Linux x64 AOT success；等待其它 job，不为文档再次推送取消该 run。parity-results 保留 2ab6caa94b9f07d25fdd0760a7aa682f7ca26295。
 - #261 冻结 27 文件已按 SHA 集成。根核 406 证据文件、5 源码二进制、16 个 version 2 物化快照和代理两份 TRX；根两个 Release build 均零警告/错误，Core 44/44、真实 Server 114/114，零失败/跳过。与代理 Core59/Server114 重叠不累计。仅审计 JSON 归一 LF，候选补丁保留字节并有局部 .gitattributes；本项将在最终完整 restore/原 Format Check 实际通过后独立提交，收据 issue261/final。XCode 候选已实际反向工程和生成编译，正式发行和上游交付仍缺，不可关闭。
