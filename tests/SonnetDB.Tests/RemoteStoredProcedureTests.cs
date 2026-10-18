@@ -1,8 +1,10 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -26,7 +28,9 @@ public sealed class RemoteStoredProcedureTests : IAsyncLifetime
     private string _rest = string.Empty, _frames = string.Empty;
     private int _abortNextProcedure;
     private int _corruptNextProcedure;
+    private int _downgradeNextProcedure;
     private bool _disposed;
+    private bool _simulateV6ProcedureServer;
 
     public async Task InitializeAsync()
     {
@@ -51,7 +55,11 @@ public sealed class RemoteStoredProcedureTests : IAsyncLifetime
                 }
                 _requests.Enqueue((context.Request.Path.Value ?? string.Empty, context.Request.Protocol, op));
                 bool procedure = op == (byte)SqlFrameOp.Procedure || context.Request.Path.Value?.EndsWith("/sql/procedure", StringComparison.Ordinal) == true;
-                if (procedure && Interlocked.Exchange(ref _corruptNextProcedure, 0) != 0)
+                if (procedure && _simulateV6ProcedureServer)
+                    context.Request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
+                bool corruptResponse = procedure && Interlocked.Exchange(ref _corruptNextProcedure, 0) != 0;
+                bool downgradeResponse = procedure && Interlocked.Exchange(ref _downgradeNextProcedure, 0) != 0;
+                if (corruptResponse || downgradeResponse)
                 {
                     Stream actual = context.Response.Body;
                     using var held = new MemoryStream();
@@ -59,7 +67,10 @@ public sealed class RemoteStoredProcedureTests : IAsyncLifetime
                     try { await next(context); }
                     finally { context.Response.Body = actual; }
                     context.Response.ContentLength = null;
-                    await context.Response.Body.WriteAsync(new byte[] { 1, 2, 3 }, _deadline.Token);
+                    byte[] response = downgradeResponse
+                        ? DowngradeDateTime2Metadata(held.ToArray(), rest: op != (byte)SqlFrameOp.Procedure)
+                        : [1, 2, 3];
+                    await context.Response.Body.WriteAsync(response, _deadline.Token);
                     return;
                 }
                 if (procedure && Interlocked.Exchange(ref _abortNextProcedure, 0) != 0)
@@ -170,6 +181,73 @@ public sealed class RemoteStoredProcedureTests : IAsyncLifetime
         Assert.Equal(7L, command.Parameters["status"].Value);
         AssertProcedureRequest(protocol);
         command.Dispose();
+    }
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task StandardProcedure_LegacyV6Result_UsesOneRequestAndPreservesOutputs(string protocol)
+    {
+        // 使用真实服务的旧 meta5/v6 路径；这是能力模拟，不是旧 Server 二进制验收。
+        _simulateV6ProcedureServer = true;
+        using var connection = Open(protocol);
+        using var command = Call(connection);
+        Assert.Equal(12L, await command.ExecuteScalarAsync(_deadline.Token));
+        Assert.Equal("done", command.Parameters["output"].Value);
+        Assert.Equal(12L, command.Parameters["state"].Value);
+        Assert.Equal(7L, command.Parameters["status"].Value);
+        AssertProcedureRequest(protocol);
+    }
+
+    [Theory]
+    [InlineData("rest", false)]
+    [InlineData("frame-http2", false)]
+    [InlineData("rest", true)]
+    [InlineData("frame-http2", true)]
+    public async Task DateTime2Procedure_LegacyCapabilityOrMalformedMeta_DoesNotPublishOutputs(string protocol, bool malformed)
+    {
+        using var connection = Open(protocol);
+        Execute(connection, "CREATE PROCEDURE date2_completion(OUT output STRING) LANGUAGE SQL AS BEGIN INSERT INTO items(id,value) VALUES(1,1); SELECT CAST(621355968000000001 AS DATETIME2) AS d; SET @output='done'; END");
+        _simulateV6ProcedureServer = !malformed;
+        if (malformed) Interlocked.Exchange(ref _downgradeNextProcedure, 1);
+        _requests.Clear();
+        using var command = new SndbCommand("date2_completion", connection) { CommandType = CommandType.StoredProcedure };
+        command.Parameters.Add(new SndbParameter("output", "old") { DbType = DbType.String, Direction = ParameterDirection.Output });
+        var error = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteScalarAsync(_deadline.Token));
+        if (malformed) Assert.Equal("procedure_outcome_unknown", error.Error);
+        else Assert.Equal("routine_execution_failed", error.Error);
+        Assert.Equal("old", command.Parameters["output"].Value);
+        AssertProcedureRequest(protocol);
+        using var independent = Open("rest");
+        using var count = new SndbCommand("SELECT COUNT(*) FROM items", independent);
+        // v6 在保存点内拒绝并回滚；损坏响应发生在真实提交后，客户端保留 unknown。
+        Assert.Equal(malformed ? 1L : 0L, await count.ExecuteScalarAsync(_deadline.Token));
+    }
+
+    private static byte[] DowngradeDateTime2Metadata(byte[] body, bool rest)
+    {
+        byte[] payload;
+        if (rest)
+        {
+            using var json = JsonDocument.Parse(body);
+            payload = json.RootElement.GetProperty("payload").GetBytesFromBase64();
+        }
+        else
+        {
+            var frames = new System.Buffers.ReadOnlySequence<byte>(body);
+            Assert.True(FrameCodec.TryReadFrame(ref frames, out _, out var bytes));
+            Assert.Equal(0, frames.Length);
+            payload = bytes.ToArray();
+        }
+        var completed = SqlProcedureFrameCodec.DecodeResponse(payload);
+        byte[] result = Assert.Single(completed.ResultFrames);
+        // 首列名为 d，因此 meta 的声明版本位于 chunk kind/count/长度/d 之后。
+        Assert.Equal(6, result[FrameHeader.Size + 4]);
+        Assert.Equal(12, result[FrameHeader.Size + 5]);
+        result[FrameHeader.Size + 4] = 5;
+        byte[] changed = SqlProcedureFrameCodec.EncodeResponsePayload(completed);
+        return rest ? Encoding.UTF8.GetBytes("{\"version\":1,\"payload\":\"" + Convert.ToBase64String(changed) + "\"}")
+            : SqlProcedureFrameCodec.WrapFrame(changed, response: true);
     }
 
     [Theory]

@@ -37,6 +37,9 @@ public static class SqlFrameCodec
     /// <summary>包含原生 DateTimeOffset UTC ticks 的 SQL 结果版本。</summary>
     public const string NativeDateTimeOffsetResultVersion = "6";
 
+    /// <summary>保留 DATETIME2 声明和完整 DateTime ticks 的 SQL 结果版本。</summary>
+    public const string NativeDateTime2ResultVersion = "7";
+
     /// <summary>名字（db / 列名 / 参数名）UTF-8 字节数上限。</summary>
     public const int MaxNameBytes = 512;
 
@@ -119,6 +122,13 @@ public static class SqlFrameCodec
     /// 解码查询请求帧体。参数集合已物化为 <see cref="SqlParameters"/>（无参数时为 null）。
     /// </summary>
     public static SqlQueryFrameRequest DecodeQueryRequest(ReadOnlySpan<byte> payload)
+        => DecodeQueryRequest(payload, allowTypedParameters: false);
+
+    /// <summary>解码查询；只有显式协商 v7 后才允许复用 Execute 的精确参数载荷。</summary>
+    /// <param name="payload">查询帧体。</param>
+    /// <param name="allowTypedParameters">是否已确认 v7 能力。</param>
+    /// <returns>持有型请求和绑定参数。</returns>
+    public static SqlQueryFrameRequest DecodeQueryRequest(ReadOnlySpan<byte> payload, bool allowTypedParameters)
     {
         var reader = new SpanReader(payload);
         string db = ReadBoundedString(ref reader, "db", MaxNameBytes);
@@ -127,6 +137,24 @@ public static class SqlFrameCodec
             throw new FrameFormatException("sql 文本不可为空。");
 
         uint paramCount = reader.ReadVarUInt32();
+        if (paramCount == MaxParameterCount + 1 && allowTypedParameters)
+        {
+            if (payload.Length > SqlExecuteFrameCodec.MaxRequestPayloadBytes)
+                throw new FrameFormatException("精确查询参数超过累计编码字节上限。");
+            var request = SqlExecuteFrameCodec.DecodeRequest(payload[^reader.Remaining..]);
+            if (request.Db != db || request.Sql != sql)
+                throw new FrameFormatException("精确参数载荷与查询身份不一致。");
+            int prefixLength = SpanWriter.MeasureVarString(db) + SpanWriter.MeasureVarString(sql)
+                + SpanWriter.MeasureVarUInt32(MaxParameterCount + 1);
+            var expectedPrefix = new byte[prefixLength];
+            var prefixWriter = new SpanWriter(expectedPrefix);
+            prefixWriter.WriteVarString(db);
+            prefixWriter.WriteVarString(sql);
+            prefixWriter.WriteVarUInt32(MaxParameterCount + 1);
+            if (payload.Length - reader.Remaining != prefixLength || !payload[..prefixLength].SequenceEqual(expectedPrefix))
+                throw new FrameFormatException("精确查询前缀必须使用规范 UTF-8 和长度编码。");
+            return new SqlQueryFrameRequest(db, sql, SqlTypedParameterCodec.ToSqlParameters(request.Parameters));
+        }
         if (paramCount > MaxParameterCount)
             throw new FrameFormatException($"参数数 {paramCount} 超过上限 {MaxParameterCount}。");
 
@@ -143,6 +171,33 @@ public static class SqlFrameCodec
         if (reader.Remaining != 0)
             throw new FrameFormatException("query 请求帧体尾部有多余字节。");
         return new SqlQueryFrameRequest(db, sql, parameters);
+    }
+
+    /// <summary>使用已有 Execute 参数类型编码 v7 查询；旧查询重载的字节合同保持不变。</summary>
+    /// <param name="writer">目标缓冲。</param>
+    /// <param name="streamId">流编号。</param>
+    /// <param name="db">数据库名。</param>
+    /// <param name="sql">查询 SQL。</param>
+    /// <param name="parameters">命名或位置参数。</param>
+    public static void EncodeTypedQueryRequest(IBufferWriter<byte> writer, uint streamId, string db, string sql,
+        IReadOnlyList<SqlExecuteFrameParameter> parameters)
+    {
+        var typed = new ArrayBufferWriter<byte>();
+        SqlExecuteFrameCodec.EncodeRequest(typed, streamId, db, sql, parameters);
+        int prefixLength = SpanWriter.MeasureVarString(db) + SpanWriter.MeasureVarString(sql)
+            + SpanWriter.MeasureVarUInt32(MaxParameterCount + 1);
+        int length = checked(prefixLength + typed.WrittenCount - FrameHeader.Size);
+        if (length > SqlExecuteFrameCodec.MaxRequestPayloadBytes)
+            throw new ArgumentException("精确查询参数超过累计编码字节上限。", nameof(parameters));
+        Span<byte> destination = writer.GetSpan(FrameHeader.Size + length);
+        new FrameHeader((uint)length, FrameHeader.CurrentVersion, (byte)FrameService.Sql,
+            (byte)SqlFrameOp.Query, (byte)FrameFlags.None, streamId).Write(destination);
+        var prefix = new SpanWriter(destination.Slice(FrameHeader.Size, prefixLength));
+        prefix.WriteVarString(db);
+        prefix.WriteVarString(sql);
+        prefix.WriteVarUInt32(MaxParameterCount + 1);
+        typed.WrittenSpan[FrameHeader.Size..].CopyTo(destination[(FrameHeader.Size + prefixLength)..]);
+        writer.Advance(FrameHeader.Size + length);
     }
 
     private static long MeasureParameterValue(object? value) => value switch
@@ -290,6 +345,14 @@ public static class SqlFrameCodec
         => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
             streamId, columns, columnInfo, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset);
 
+    /// <summary>编码 v7 DATETIME2 声明，保留全部 v6 值合同。</summary>
+    public static void EncodeQueryMetaFrame(
+        IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns,
+        IReadOnlyList<SelectColumnInfo>? columnInfo, bool fullDeclarations, bool nativeDateTime,
+        bool nativeDuration, bool nativeDateTimeOffset, bool nativeDateTime2)
+        => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, columns, columnInfo, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset, nativeDateTime2);
+
     /// <summary>
     /// meta 帧编码内核：块布局固定，帧头 service/op 由调用方指定
     /// （sql query 与 vector search 共用同一响应块词汇表）。
@@ -297,7 +360,7 @@ public static class SqlFrameCodec
     internal static void EncodeMetaFrameCore(
         IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns,
         IReadOnlyList<SelectColumnInfo>? columnInfo = null, bool fullDeclarations = false,
-        bool nativeDateTime = false, bool nativeDuration = false, bool nativeDateTimeOffset = false)
+        bool nativeDateTime = false, bool nativeDuration = false, bool nativeDateTimeOffset = false, bool nativeDateTime2 = false)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (nativeDateTime && (!fullDeclarations || columnInfo is null))
@@ -306,6 +369,10 @@ public static class SqlFrameCodec
             throw new ArgumentException("原生时长结果必须同时启用原生日期合同。", nameof(nativeDuration));
         if (nativeDateTimeOffset && !nativeDuration)
             throw new ArgumentException("原生 DateTimeOffset 要求完整 v6 合同。", nameof(nativeDateTimeOffset));
+        if (nativeDateTime2 && !nativeDateTimeOffset)
+            throw new ArgumentException("DATETIME2 要求完整 v7 合同。", nameof(nativeDateTime2));
+        if (!nativeDateTime2 && columnInfo?.Any(static info => info.DataType == TableColumnType.DateTime2) == true)
+            throw new InvalidOperationException("DATETIME2 结果需要协商 SQL 结果格式 v7。");
         if (!nativeDateTimeOffset && columnInfo?.Any(static info => info.DataType == TableColumnType.DateTimeOffset) == true)
             throw new InvalidOperationException("DATETIMEOFFSET 结果需要协商 SQL 结果格式 v6。");
         if (!nativeDuration && columnInfo?.Any(static info => info.DataType == TableColumnType.Duration) == true)
@@ -334,7 +401,7 @@ public static class SqlFrameCodec
             w.WriteVarString(columns[i]);
         if (columnInfo is not null)
         {
-            w.WriteByte(nativeDateTimeOffset ? (byte)5 : nativeDuration ? (byte)4 : nativeDateTime ? (byte)3 : fullDeclarations ? (byte)2 : (byte)1);
+            w.WriteByte(nativeDateTime2 ? (byte)6 : nativeDateTimeOffset ? (byte)5 : nativeDuration ? (byte)4 : nativeDateTime ? (byte)3 : fullDeclarations ? (byte)2 : (byte)1);
             foreach (var info in columnInfo)
             {
                 w.WriteByte(info.DataType is { } type ? (byte)type : (byte)0);
@@ -397,6 +464,19 @@ public static class SqlFrameCodec
     public static (string[] Columns, SelectColumnInfo[]? ColumnInfo) DecodeQueryMetaFrameWithInfo(
         ReadOnlySpan<byte> payload, out bool nativeDateTime, out bool nativeDuration, out bool nativeDateTimeOffset)
     {
+        var result = DecodeQueryMetaFrameWithInfo(payload, out nativeDateTime, out nativeDuration,
+            out nativeDateTimeOffset, out bool nativeDateTime2);
+        if (nativeDateTime2)
+            throw new FrameFormatException("v7 结果必须使用支持 DATETIME2 声明的解码重载。");
+        return result;
+    }
+
+    /// <summary>解码声明并返回完整 v7 时间合同；值编码复用 v6 原生日期。</summary>
+    public static (string[] Columns, SelectColumnInfo[]? ColumnInfo) DecodeQueryMetaFrameWithInfo(
+        ReadOnlySpan<byte> payload, out bool nativeDateTime, out bool nativeDuration,
+        out bool nativeDateTimeOffset, out bool nativeDateTime2)
+    {
+        nativeDateTime2 = false;
         nativeDateTimeOffset = false;
         nativeDateTime = false;
         nativeDuration = false;
@@ -415,11 +495,12 @@ public static class SqlFrameCodec
         if (reader.Remaining != 0)
         {
             byte declarationVersion = reader.ReadByte();
-            nativeDateTimeOffset = declarationVersion == 5;
-            nativeDuration = declarationVersion is 4 or 5;
-            nativeDateTime = declarationVersion is 3 or 4 or 5;
-            bool fullDeclarations = declarationVersion is 2 or 3 or 4 or 5;
-            if (declarationVersion is not (1 or 2 or 3 or 4 or 5) || reader.Remaining != (fullDeclarations ? 8 : 2) * columns.Length)
+            nativeDateTime2 = declarationVersion == 6;
+            nativeDateTimeOffset = declarationVersion is 5 or 6;
+            nativeDuration = declarationVersion is 4 or 5 or 6;
+            nativeDateTime = declarationVersion is 3 or 4 or 5 or 6;
+            bool fullDeclarations = declarationVersion is 2 or 3 or 4 or 5 or 6;
+            if (declarationVersion is not (1 or 2 or 3 or 4 or 5 or 6) || reader.Remaining != (fullDeclarations ? 8 : 2) * columns.Length)
                 throw new FrameFormatException("meta 帧体声明列信息长度或版本无效。");
             columnInfo = new SelectColumnInfo[columns.Length];
             for (int i = 0; i < columns.Length; i++)
@@ -432,6 +513,7 @@ public static class SqlFrameCodec
                     >= 1 and <= 9 => (TableColumnType)typeCode,
                     10 when nativeDuration => TableColumnType.Duration,
                     11 when nativeDateTimeOffset => TableColumnType.DateTimeOffset,
+                    12 when nativeDateTime2 => TableColumnType.DateTime2,
                     _ => throw new FrameFormatException("meta 帧体包含不支持的声明列类型。"),
                 };
                 if ((flags & ~(fullDeclarations ? 0x7F : 0x1F)) != 0 || fullDeclarations && (flags & 0x11) == 1)

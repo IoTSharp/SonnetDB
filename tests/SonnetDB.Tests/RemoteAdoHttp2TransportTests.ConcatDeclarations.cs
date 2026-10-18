@@ -49,7 +49,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         Assert.All(_requests.Where(request => request.Path.StartsWith("/v1/db/", StringComparison.Ordinal)
             || request.Path == "/v1/frame"), request => Assert.Equal(expectedProtocol, request.Protocol));
         if (protocol == "frame-http2")
-            Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.ResultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion);
+            Assert.Contains(_requests, request => request.Path == "/v1/frame" && request.ResultVersion == SqlFrameCodec.NativeDateTime2ResultVersion);
     }
 
     private static async Task VerifyConcatViewsAsync(SndbConnection connection, bool populated, CancellationToken token)

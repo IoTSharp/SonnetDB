@@ -116,6 +116,9 @@ public sealed record SqlExecutionOptions
     /// <summary>远程 v6 以下的协议不能接收原生 DateTimeOffset。</summary>
     internal bool AllowDateTimeOffsetResults { get; init; } = true;
 
+    /// <summary>远程 v7 以下的协议不能接收精确 DATETIME2 声明。</summary>
+    internal bool AllowDateTime2Results { get; init; } = true;
+
     internal void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Caller);

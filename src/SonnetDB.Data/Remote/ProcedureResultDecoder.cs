@@ -27,7 +27,7 @@ internal static class ProcedureResultDecoder
             {
                 case SqlQueryChunkKind.Meta when columns is null:
                     (columns, info) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame,
-                        out nativeDateTime, out nativeDuration, out nativeOffset);
+                        out nativeDateTime, out nativeDuration, out nativeOffset, out _);
                     break;
                 case SqlQueryChunkKind.Rows when columns is not null:
                     var prefix = new SpanReader(frame);
@@ -40,8 +40,12 @@ internal static class ProcedureResultDecoder
                     {
                         if (row.Length != columns.Length) throw new InvalidDataException("过程结果列数不匹配。");
                         for (int column = 0; column < row.Length; column++)
+                        {
+                            if (info?[column].DataType == TableColumnType.DateTime2 && row[column] is not (null or DateTime))
+                                throw new InvalidDataException("过程 DATETIME2 声明与原生日期值不一致；提交状态可能未知。");
                             if (info?[column].DataType == TableColumnType.Time && row[column] is string text)
                                 row[column] = TimeOnly.ParseExact(text, "HH:mm:ss.fffffff", CultureInfo.InvariantCulture);
+                        }
                         rows.Add(row);
                         if (rows.Count > 100_000) throw new InvalidDataException("过程结果行数超过客户端上限。");
                     }

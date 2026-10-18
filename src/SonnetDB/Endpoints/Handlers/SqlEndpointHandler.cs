@@ -240,6 +240,22 @@ internal static class SqlEndpointHandler
     {
         if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
             return;
+        try
+        {
+            // 整批预检精确载荷；不允许较早语句先消耗序列或执行写入。
+            foreach (var statement in statements)
+                if (statement.TypedParameters is not null)
+                {
+                    if (context.Response.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion)
+                        throw new InvalidOperationException("精确 SQL 参数需要 v7 能力。");
+                    _ = BindParameters(SqlParser.Parse(statement.Sql), statement);
+                }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FrameFormatException)
+        {
+            await WriteErrorAsync(context, "unsupported_parameter_contract", exception.Message).ConfigureAwait(false);
+            return;
+        }
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
         context.Response.StatusCode = StatusCodes.Status200OK;
@@ -374,9 +390,11 @@ internal static class SqlEndpointHandler
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
                                 AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
-                                    is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                                    is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
                                 AllowDateTimeOffsetResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
-                                    == SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                                    .ToString() is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
+                                AllowDateTime2Results = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
+                                    == SqlFrameCodec.NativeDateTime2ResultVersion,
                                 CanWrite = canWrite,
                                 CanAdminister = canAdministerDatabase,
                                 MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -584,6 +602,15 @@ internal static class SqlEndpointHandler
 
     private static SqlStatement BindParameters(SqlStatement statement, SqlRequest request)
     {
+        if (request.TypedParameters is { } payload)
+        {
+            if (request.Parameters is { Count: > 0 })
+                throw new InvalidOperationException("基础参数与精确参数不能混用。");
+            var typed = SqlExecuteFrameCodec.DecodeRequest(payload);
+            if (typed.Db.Length != 0 || typed.Sql != request.Sql)
+                throw new FrameFormatException("精确参数载荷与 SQL 请求身份不一致。");
+            return SqlParameterBinder.Bind(statement, SqlTypedParameterCodec.ToSqlParameters(typed.Parameters));
+        }
         if (request.Parameters is null || request.Parameters.Count == 0)
             return statement;
 
@@ -700,10 +727,10 @@ internal static class SqlEndpointHandler
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
                     context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeResultVersion
-                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
                     context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
-                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeOffsetResultVersion);
+                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion);
             }
             await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
             count++;
@@ -719,6 +746,7 @@ internal static class SqlEndpointHandler
         TableColumnType.Decimal => "decimal",
         TableColumnType.Boolean => "boolean",
         TableColumnType.DateTime => "datetime",
+        TableColumnType.DateTime2 => "datetime2",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
         TableColumnType.DateTimeOffset => "datetimeoffset",
@@ -746,7 +774,7 @@ internal static class SqlEndpointHandler
         string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
         if (version.Length == 0 || version is "1" or "2" or "3")
             return true;
-        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
+        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion)
         {
             context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = version;
             return true;

@@ -417,7 +417,8 @@ internal static partial class FrameEndpointHandler
                     payloadMemory = rented.AsMemory(0, (int)payload.Length);
                 }
 
-                request = SqlFrameCodec.DecodeQueryRequest(payloadMemory.Span);
+                request = SqlFrameCodec.DecodeQueryRequest(payloadMemory.Span,
+                    ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTime2ResultVersion);
             }
             finally
             {
@@ -435,7 +436,8 @@ internal static partial class FrameEndpointHandler
         try
         {
             string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-            bool nativeDateTimeOffset = resultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion;
+            bool nativeDateTime2 = resultVersion == SqlFrameCodec.NativeDateTime2ResultVersion;
+            bool nativeDateTimeOffset = nativeDateTime2 || resultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion;
             bool nativeDuration = nativeDateTimeOffset || resultVersion == SqlFrameCodec.NativeDurationResultVersion;
             bool nativeDateTime = nativeDuration || resultVersion == SqlFrameCodec.NativeDateTimeResultVersion;
             bool fullDeclarations = nativeDateTime || resultVersion == SqlFrameCodec.DeclaredResultVersion;
@@ -550,6 +552,7 @@ internal static partial class FrameEndpointHandler
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     AllowDurationResults = nativeDuration,
                     AllowDateTimeOffsetResults = nativeDateTimeOffset,
+                    AllowDateTime2Results = nativeDateTime2,
                     CanWrite = sequenceWrite,
                     CanAdminister = false,
                     MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -577,7 +580,7 @@ internal static partial class FrameEndpointHandler
                 typedResults
                     ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
                     { IsDeclared = false }, select.Columns.Count).ToArray()
-                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset);
+                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset, nativeDateTime2);
 
             int position = 0;
             while (position < select.Rows.Count)
@@ -744,6 +747,7 @@ internal static partial class FrameEndpointHandler
             foreach (SqlExecuteFrameParameter parameter in request.Parameters)
             {
                 if (parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime inputDateTime
+                    && ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion
                     && inputDateTime.Ticks % TimeSpan.TicksPerMillisecond != 0)
                 {
                     FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
@@ -751,6 +755,7 @@ internal static partial class FrameEndpointHandler
                     return;
                 }
                 object? value = parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime dateTime
+                    && ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion
                     ? dateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
                     : parameter.Value;
                 SqlDataType? dataType = parameter.Kind switch
@@ -760,7 +765,8 @@ internal static partial class FrameEndpointHandler
                     SqlFrameParameterKind.Boolean => SqlDataType.Boolean,
                     SqlFrameParameterKind.String => SqlDataType.String,
                     SqlFrameParameterKind.Blob => SqlDataType.Blob,
-                    SqlFrameParameterKind.DateTime => SqlDataType.DateTime,
+                    SqlFrameParameterKind.DateTime => ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTime2ResultVersion
+                        ? SqlDataType.DateTime2 : SqlDataType.DateTime,
                     SqlFrameParameterKind.DateTimeOffset => SqlDataType.DateTimeOffset,
                     SqlFrameParameterKind.Duration => SqlDataType.Duration,
                     SqlFrameParameterKind.Decimal => SqlDataType.Decimal,

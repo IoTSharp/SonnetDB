@@ -50,6 +50,12 @@ internal static class ProcedureEndpointHandler
         TsdbRegistry registry, GrantsStore grants, ServerMetrics metrics, bool rest = false)
     {
         metrics.RecordSqlRequest();
+        string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
+        bool nativeDateTime2 = version == SqlFrameCodec.NativeDateTime2ResultVersion;
+        if (version.Length != 0 && version is not (SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion))
+            throw new ProcedureRequestException(400, "unsupported_result_version", "过程不支持请求的 SQL 结果版本。");
+        context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = nativeDateTime2
+            ? SqlFrameCodec.NativeDateTime2ResultVersion : SqlFrameCodec.NativeDateTimeOffsetResultVersion;
         if (WorkbenchPreviewSql.IsRequested(context))
             throw new ProcedureRequestException(403, "preview_action_denied", "Workbench Preview 尚未开放过程执行。");
         var access = SonnetDbEndpoints.EvaluateDatabaseAccess(context, registry, grants, request.Db,
@@ -99,6 +105,7 @@ internal static class ProcedureEndpointHandler
             MaxDeferredTriggerInvocations = resources.MaxDeferredTriggerInvocations,
             MaxDeferredTriggerBytes = resources.MaxDeferredTriggerBytes,
             TransactionCommitTimeoutMilliseconds = resources.TransactionCommitTimeoutMilliseconds,
+            AllowDateTime2Results = nativeDateTime2,
         };
         if (request.Parameters.Count(static parameter => parameter.Direction == SqlProcedureFrameDirection.ReturnValue) > 1)
             throw new ProcedureRequestException(400, "bad_request", "过程只能有一个返回值声明。");
@@ -140,7 +147,7 @@ internal static class ProcedureEndpointHandler
                             ? completed.ReturnValue : completed.OutputParameters[parameter.Value.Name];
                         _ = SqlProcedureFrameCodec.ConvertDeclaredValue(parameter, value);
                     }
-                    payload = EncodeCompleted(completed, context.RequestAborted);
+                    payload = EncodeCompleted(completed, context.RequestAborted, nativeDateTime2);
                     if (rest)
                     {
                         payload = JsonSerializer.SerializeToUtf8Bytes(new ProcedureJsonEnvelope { Version = 1, Payload = payload },
@@ -165,7 +172,7 @@ internal static class ProcedureEndpointHandler
         finally { session?.Gate.Release(); }
     }
 
-    private static byte[] EncodeCompleted(ProcedureExecutionResult completed, CancellationToken cancellationToken)
+    private static byte[] EncodeCompleted(ProcedureExecutionResult completed, CancellationToken cancellationToken, bool nativeDateTime2)
     {
         var results = new List<byte[]>();
         int remaining = SqlProcedureFrameCodec.MaxResponseBytes;
@@ -175,7 +182,7 @@ internal static class ProcedureEndpointHandler
             var buffer = new BoundedWriter(remaining);
             var declarations = result.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null) { IsDeclared = false }, result.Columns.Count).ToArray();
             SqlFrameCodec.EncodeQueryMetaFrame(buffer, 1, result.Columns, declarations,
-                fullDeclarations: true, nativeDateTime: true, nativeDuration: true, nativeDateTimeOffset: true);
+                fullDeclarations: true, nativeDateTime: true, nativeDuration: true, nativeDateTimeOffset: true, nativeDateTime2: nativeDateTime2);
             int start = 0;
             for (int chunk = 0; start < result.Rows.Count && chunk < 100_000; chunk++)
             {

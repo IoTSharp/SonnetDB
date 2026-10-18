@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Runtime.ExceptionServices;
 using SonnetDB.Data.Internal;
 using SonnetDB.Exceptions;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data;
 
@@ -310,10 +311,12 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             row[SchemaTableColumn.NumericPrecision] = columnMetadata?.NumericPrecision is { } precision ? (short)precision
                 : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericPrecision(fieldType);
             row[SchemaTableColumn.NumericScale] = columnMetadata?.NumericScale is { } scale ? (short)scale
+                : columnMetadata?.DataType == TableColumnType.DateTime2 ? (short)7
                 : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericScale(fieldType);
             row[SchemaTableColumn.DataType] = fieldType;
             row["DataTypeName"] = GetDataTypeName(ordinal);
-            row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
+            row[SchemaTableColumn.ProviderType] = (int)(columnMetadata?.DataType == TableColumnType.DateTime2
+                ? DbType.DateTime2 : GetProviderType(fieldType));
             row[SchemaTableColumn.IsLong] = fieldType == typeof(byte[]) || fieldType == typeof(string);
             row[SchemaTableColumn.AllowDBNull] = columnMetadata?.DeclaredNullable is { } nullable ? nullable
                 : columnMetadata.HasValue ? DBNull.Value : true;
@@ -356,6 +359,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             NumericPrecision = metadata?.NumericPrecision is { } precision ? precision
                 : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericPrecision(fieldType);
             NumericScale = metadata?.NumericScale is { } scale ? scale
+                : metadata?.DataType == TableColumnType.DateTime2 ? 7
                 : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericScale(fieldType);
             AllowDBNull = metadata.HasValue ? metadata.Value.DeclaredNullable : true;
             IsKey = metadata?.IsKey ?? false;

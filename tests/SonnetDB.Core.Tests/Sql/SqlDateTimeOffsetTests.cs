@@ -122,7 +122,7 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
     [Theory]
     [InlineData(DbType.DateTime)]
     [InlineData(DbType.DateTime2)]
-    public void LegacyDateTime_ExplicitParameterType_PreservesMillisecondsAndGeneralDateTime(DbType dbType)
+    public void LegacyDateTime_ExplicitParameterType_RejectsPrecisionLossAndAcceptsAlignedValue(DbType dbType)
     {
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
@@ -131,10 +131,18 @@ public sealed class SqlDateTimeOffsetTests : IDisposable
         var stamp = new DateTimeOffset(2026, 10, 8, 20, 34, 56, TimeSpan.FromHours(8)).AddTicks(1230001);
         command.Parameters.Add(new SndbParameter("stamp", stamp));
         command.CommandText = "INSERT INTO dates(id,Stamp) VALUES(1,@stamp)";
+        Assert.Throws<InvalidOperationException>(() => command.ExecuteNonQuery());
+        command.Parameters[0].Value = DateTimeOffset.FromUnixTimeMilliseconds(stamp.ToUnixTimeMilliseconds());
         command.ExecuteNonQuery();
+        command.Parameters[0].Value = stamp;
         command.CommandText = "SELECT Stamp FROM dates WHERE Stamp=@stamp";
         Assert.Throws<InvalidOperationException>(() => command.ExecuteReader());
         command.Parameters[0].DbType = dbType;
+        if (dbType == DbType.DateTime)
+            Assert.Throws<ArgumentException>(() => command.ExecuteReader());
+        else
+            Assert.Throws<InvalidOperationException>(() => command.ExecuteReader());
+        command.Parameters[0].Value = DateTimeOffset.FromUnixTimeMilliseconds(stamp.ToUnixTimeMilliseconds());
         using var reader = command.ExecuteReader();
         Assert.Equal(typeof(DateTime), reader.GetFieldType(0));
         Assert.True(reader.Read());

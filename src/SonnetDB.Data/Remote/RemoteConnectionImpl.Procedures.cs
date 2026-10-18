@@ -31,6 +31,8 @@ internal sealed partial class RemoteConnectionImpl
                 using var message = CreateRequest(HttpMethod.Post,
                     $"v1/db/{Uri.EscapeDataString(_database)}/sql/procedure",
                     new StringContent(json, Encoding.UTF8, "application/json"));
+                message.Headers.TryAddWithoutValidation(SqlFrameCodec.ResultVersionHeader,
+                    SqlFrameCodec.NativeDateTime2ResultVersion);
                 dispatched = true;
                 using var response = await _http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
@@ -60,7 +62,7 @@ internal sealed partial class RemoteConnectionImpl
                 dispatched = true;
                 var frames = await _frames.TrySendAsync(SqlProcedureFrameCodec.WrapFrame(request, response: false), cancellationToken,
                     allowFallback: false, maximumResponseBytes: SqlProcedureFrameCodec.MaxResponseBytes + FrameHeader.Size,
-                    requireHttp2: true).ConfigureAwait(false);
+                    requireHttp2: true, sqlResultVersion: SqlFrameCodec.NativeDateTime2ResultVersion).ConfigureAwait(false);
                 if (frames is null || frames.Count != 1) throw new InvalidDataException("过程帧响应不完整；提交状态未知，未回落 REST。");
                 var frame = frames[0];
                 if (!frame.Header.IsResponse || frame.Header.Version != FrameHeader.CurrentVersion

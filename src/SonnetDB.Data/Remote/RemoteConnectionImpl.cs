@@ -98,9 +98,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
         var transaction = GetTransactionState(transactionState);
 
-        // #213：远程线协议仅接受 SQL 字符串（无结构化参数字段），故命名参数仍在客户端做字面量替换后再发送，
-        // 保留 byte[]/DateTime/GeoPoint 等类型的既有序列化保真度；SndbCommand 不再预替换，此处补上。
-        sql = ParameterBinder.Bind(sql, parameters);
+        byte[]? typedParameters = ParameterBinder.PrepareRemoteRequest(ref sql, parameters);
 
         // 客户端拦截 SQL Console 风格元命令：USE <db> 切换当前库；SELECT current_database() / SHOW CURRENT_DATABASE 返回当前库。
         // 这两类命令不会发往服务端，避免命中 SqlParser 的"未知关键字"错误。
@@ -125,9 +123,11 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         if (transaction is not null)
         {
             if (transaction.SessionId is { } sessionId)
-                return ExecuteSqlRequest(sql, CancellationToken.None, SessionUrl(sessionId) + "/sql")
+                return ExecuteSqlRequest(sql, CancellationToken.None, SessionUrl(sessionId) + "/sql", typedParameters)
                     .GetAwaiter().GetResult();
 
+            if (typedParameters is not null)
+                throw new NotSupportedException("精确日期参数需要真实远程事务会话，不能通过 SQL 重放降精度。");
             if (IsFrameEligibleReadOnly(sql))
             {
                 return ExecuteTransactionalReadRequestAsync(transaction, sql, CancellationToken.None)
@@ -166,7 +166,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             return MaterializedExecutionResult.NonQuery(0);
         }
 
-        return ExecuteSqlRequest(sql, CancellationToken.None).GetAwaiter().GetResult();
+        return ExecuteSqlRequest(sql, CancellationToken.None, typedParameters: typedParameters).GetAwaiter().GetResult();
     }
 
     public async Task<IExecutionResult> ExecuteAsync(
@@ -181,8 +181,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         cancellationToken.ThrowIfCancellationRequested();
         var transaction = GetTransactionState(transactionState);
 
-        // #213：远程仍在客户端做参数字面量替换（线协议只接受 SQL 字符串），SndbCommand 不再预替换。
-        sql = ParameterBinder.Bind(sql, parameters);
+        byte[]? typedParameters = ParameterBinder.PrepareRemoteRequest(ref sql, parameters);
 
         var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
         if (meta == MetaKind.CurrentDatabase)
@@ -203,8 +202,10 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         if (transaction is not null)
         {
             if (transaction.SessionId is { } sessionId)
-                return await ExecuteSqlRequest(sql, cancellationToken, SessionUrl(sessionId) + "/sql").ConfigureAwait(false);
+                return await ExecuteSqlRequest(sql, cancellationToken, SessionUrl(sessionId) + "/sql", typedParameters).ConfigureAwait(false);
 
+            if (typedParameters is not null)
+                throw new NotSupportedException("精确日期参数需要真实远程事务会话，不能通过 SQL 重放降精度。");
             if (IsFrameEligibleReadOnly(sql))
                 return await ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken).ConfigureAwait(false);
 
@@ -221,26 +222,35 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             return MaterializedExecutionResult.NonQuery(0);
         }
 
-        return await ExecuteSqlRequest(sql, cancellationToken).ConfigureAwait(false);
+        return await ExecuteSqlRequest(sql, cancellationToken, typedParameters: typedParameters).ConfigureAwait(false);
     }
 
     private async Task<IExecutionResult> ExecuteSqlRequest(
-        string sql, CancellationToken cancellationToken, string? sessionUrl = null)
+        string sql, CancellationToken cancellationToken, string? sessionUrl = null, byte[]? typedParameters = null)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
+
+        if (typedParameters is not null)
+            await EnsureDateTime2CapabilityAsync(cancellationToken).ConfigureAwait(false);
 
         // #241：只读语句优先走二进制帧（sql service）；写/控制面/解析失败回落 REST NDJSON。
         // 命名参数已由 ParameterBinder.Bind 内联进 sql 字面量，故帧编码 parameters:null。
         if (sessionUrl is null && _frames is { } fx && fx.ShouldTryFrames() && IsFrameEligibleReadOnly(sql))
         {
             var w = new ArrayBufferWriter<byte>();
-            SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
+            if (typedParameters is null)
+                SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
+            else
+                SqlFrameCodec.EncodeTypedQueryRequest(w, 1, _database, sql,
+                    SqlExecuteFrameCodec.DecodeRequest(typedParameters).Parameters);
             IReadOnlyList<FrameMessage>? frames = null;
-            string requestedVersion = SqlFrameCodec.NativeDateTimeOffsetResultVersion;
+            string requestedVersion = SqlFrameCodec.NativeDateTime2ResultVersion;
             // 只有服务端明确在执行前拒绝版本时，才继续旧版协商；旧版不承诺原生日期合同。
-            foreach (string version in new[] { SqlFrameCodec.NativeDateTimeOffsetResultVersion, SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
-                SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
+            foreach (string version in typedParameters is not null ? new[] { SqlFrameCodec.NativeDateTime2ResultVersion }
+                : new[] { SqlFrameCodec.NativeDateTime2ResultVersion, SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                    SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
+                    SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
             {
                 requestedVersion = version;
                 frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
@@ -253,11 +263,12 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                 if (frames[0].Header.IsError)
                     return BuildSqlResult(frames);
                 var meta = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frames[0].Payload,
-                    out bool nativeDateTime, out bool nativeDuration, out bool nativeDateTimeOffset);
+                    out bool nativeDateTime, out bool nativeDuration, out bool nativeDateTimeOffset, out bool nativeDateTime2);
                 if (meta.ColumnInfo is not null
-                    && nativeDateTime == (requestedVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
-                    && nativeDuration == (requestedVersion is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
-                    && nativeDateTimeOffset == (requestedVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion))
+                    && nativeDateTime == (requestedVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion)
+                    && nativeDuration == (requestedVersion is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion)
+                    && nativeDateTimeOffset == (requestedVersion is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion)
+                    && nativeDateTime2 == (requestedVersion == SqlFrameCodec.NativeDateTime2ResultVersion))
                     return BuildSqlResult(frames);
                 throw new SndbServerException("frame_sql_result_version_unsupported",
                     "服务端未协商 SQL Frame 声明结果格式；SQL 已执行，不能自动重发。请升级服务端或在新请求中显式选择 Protocol=rest。",
@@ -266,22 +277,34 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         }
 
         var url = sessionUrl ?? $"v1/db/{Uri.EscapeDataString(_database)}/sql";
-        var body = new SqlRequestBody { Sql = sql };
+        var body = new SqlRequestBody { Sql = sql, TypedParameters = typedParameters };
         var json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlRequestBody);
 
-        var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
+        HttpResponseMessage? response = null;
         try
         {
+            response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseHeadersRead, cancellationToken, typedParameters is not null)
+                .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
             var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             return await RemoteExecutionResult.CreateAsync(response, stream, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException exception) when (typedParameters is not null && !IsFrameEligibleReadOnly(sql))
+        {
+            response?.Dispose();
+            throw new OperationCanceledException("精确 SQL 请求发送后被取消；提交状态可能未知，未自动重发或降级。", exception, cancellationToken);
+        }
+        catch (Exception exception) when (typedParameters is not null && !IsFrameEligibleReadOnly(sql)
+            && exception is HttpRequestException or IOException or InvalidDataException or JsonException)
+        {
+            response?.Dispose();
+            throw new SndbServerException("sql_outcome_unknown", "精确 SQL 请求已发送但响应未完整验证；提交状态未知，未自动重发或降级。", HttpStatusCode.OK, exception);
+        }
         catch
         {
-            response.Dispose();
+            response?.Dispose();
             throw;
         }
     }
@@ -296,21 +319,27 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
 
     /// <summary>仅在服务端明确于执行前拒绝版本时重建请求按 v6、v5、v4 降级；普通错误和未知结果绝不重发。</summary>
     private async Task<HttpResponseMessage> SendSqlRequestAsync(string url, string json,
-        HttpCompletionOption completion, CancellationToken cancellationToken)
+        HttpCompletionOption completion, CancellationToken cancellationToken, bool requireDateTime2 = false)
     {
-        foreach (string version in new[] { SqlFrameCodec.NativeDateTimeOffsetResultVersion, SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion })
+        foreach (string version in requireDateTime2 ? new[] { SqlFrameCodec.NativeDateTime2ResultVersion }
+            : new[] { SqlFrameCodec.NativeDateTime2ResultVersion, SqlFrameCodec.NativeDateTimeOffsetResultVersion, SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion })
         {
             using var request = CreateRequest(HttpMethod.Post, url,
                 new StringContent(json, Encoding.UTF8, "application/json"));
             request.Headers.Remove(SqlFrameCodec.ResultVersionHeader);
             request.Headers.Add(SqlFrameCodec.ResultVersionHeader, version);
             HttpResponseMessage response = await _http!.SendAsync(request, completion, cancellationToken).ConfigureAwait(false);
+            if (requireDateTime2 && response.IsSuccessStatusCode && !RemoteExecutionResult.HasNativeDateTime2Result(response))
+            {
+                response.Dispose();
+                throw new InvalidDataException("服务端未确认 SQL v7；发送后的结果未知，未重发或降级。");
+            }
             if (version == SqlFrameCodec.NativeDateTimeResultVersion || response.StatusCode != HttpStatusCode.BadRequest)
                 return response;
             SndbServerException failure;
             try { failure = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false); }
             catch { response.Dispose(); throw; }
-            if (failure.Error != "unsupported_result_version")
+            if (failure.Error != "unsupported_result_version" || requireDateTime2)
             {
                 response.Dispose();
                 throw failure;
@@ -318,6 +347,22 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             response.Dispose();
         }
         throw new InvalidOperationException("SQL 结果格式协商未产生响应。");
+    }
+
+    private async Task EnsureDateTime2CapabilityAsync(CancellationToken cancellationToken)
+    {
+        string url = $"v1/db/{Uri.EscapeDataString(_database)}/sql";
+        string json = JsonSerializer.Serialize(new SqlRequestBody { Sql = "SELECT 1" }, RemoteJsonContext.Default.SqlRequestBody);
+        using var response = await SendSqlRequestAsync(url, json, HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken, requireDateTime2: true).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        using var result = await RemoteExecutionResult.CreateAsync(response,
+            await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+        int rows = 0;
+        for (; rows < 2 && await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false); rows++) { }
+        if (rows != 1)
+            throw new InvalidDataException("SQL v7 能力探测结果不完整；业务请求尚未发送。");
     }
 
     /// <summary>
@@ -405,30 +450,42 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
     /// 把 sql service 的响应帧序列（meta → rows × N → end）物化为 <see cref="IExecutionResult"/>。
     /// end 前收到错误帧则中止查询并上抛。
     /// </summary>
-    private static IExecutionResult BuildSqlResult(IReadOnlyList<FrameMessage> frames)
+    internal static IExecutionResult BuildSqlResult(IReadOnlyList<FrameMessage> frames)
     {
         string[] columns = [];
         SelectColumnInfo[]? columnInfo = null;
         bool nativeDateTime = false;
         bool nativeDuration = false;
         bool nativeDateTimeOffset = false;
+        bool hasMeta = false;
+        bool ended = false;
         var rows = new List<IReadOnlyList<object?>>();
 
         foreach (FrameMessage frame in frames)
         {
+            if (!frame.Header.IsResponse || frame.Header.Version != FrameHeader.CurrentVersion
+                || frame.Header.Service != (byte)FrameService.Sql || frame.Header.Op != (byte)SqlFrameOp.Query
+                || frame.Header.StreamId != 1 || frame.Header.PayloadLength != frame.Payload.Length
+                || (frame.Header.Flags & ~(byte)(FrameFlags.Response | FrameFlags.Error)) != 0 || ended)
+                throw new InvalidDataException("SQL Frame 响应身份或终态顺序无效；结果状态未知，未重试。");
             FrameChannel.ThrowIfError(frame.Header, frame.Payload);
             switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
             {
-                case SqlQueryChunkKind.Meta:
-                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime, out nativeDuration, out nativeDateTimeOffset);
+                case SqlQueryChunkKind.Meta when !hasMeta:
+                    (columns, columnInfo) = SqlFrameCodec.DecodeQueryMetaFrameWithInfo(frame.Payload, out nativeDateTime, out nativeDuration, out nativeDateTimeOffset, out _);
+                    hasMeta = true;
                     break;
-                case SqlQueryChunkKind.Rows:
+                case SqlQueryChunkKind.Rows when hasMeta:
                     foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload, nativeDateTime, nativeDuration, nativeDateTimeOffset))
                     {
+                        if (row.Length != columns.Length)
+                            throw new InvalidDataException("SQL Frame 行列数与声明不一致；结果状态未知。");
                         if (columnInfo is not null)
                         {
                             for (int column = 0; column < row.Length; column++)
                             {
+                                if (columnInfo[column].DataType == TableColumnType.DateTime2 && row[column] is not (null or DateTime))
+                                    throw new InvalidDataException("SQL Frame DATETIME2 声明与原生日期值不一致；结果状态未知。");
                                 if (columnInfo[column].DataType != TableColumnType.Time || row[column] is not string text)
                                     continue;
                                 if (!TimeOnly.TryParseExact(text, "HH:mm:ss.fffffff", CultureInfo.InvariantCulture,
@@ -440,11 +497,17 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                         rows.Add(row);
                     }
                     break;
-                case SqlQueryChunkKind.End:
-                    _ = SqlFrameCodec.DecodeQueryEndFrame(frame.Payload);
+                case SqlQueryChunkKind.End when hasMeta:
+                    if (SqlFrameCodec.DecodeQueryEndFrame(frame.Payload).RowCount != rows.Count)
+                        throw new InvalidDataException("SQL Frame 终态行数与实际结果不一致；结果状态未知。");
+                    ended = true;
                     break;
+                default:
+                    throw new InvalidDataException("SQL Frame 缺少或重复列声明；结果状态未知，未重试。");
             }
         }
+        if (!hasMeta || !ended)
+            throw new InvalidDataException("SQL Frame 缺少 meta 或 end；不能确认结果完整，未重试。");
 
         return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows)
         {
@@ -1262,7 +1325,8 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                 var values = new object?[columns.Length];
                 for (int i = 0; i < values.Length; i++)
                     values[i] = RemoteExecutionResult.ReadScalar(root[i], columnTypes?[i],
-                        RemoteExecutionResult.HasNativeDateTimeResult(response), RemoteExecutionResult.HasNativeDurationResult(response), RemoteExecutionResult.HasNativeDateTimeOffsetResult(response));
+                        RemoteExecutionResult.HasNativeDateTimeResult(response), RemoteExecutionResult.HasNativeDurationResult(response),
+                        RemoteExecutionResult.HasNativeDateTimeOffsetResult(response), RemoteExecutionResult.HasNativeDateTime2Result(response));
                 rows.Add(values);
                 continue;
             }
@@ -1309,6 +1373,10 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                                 .ToArray();
                         }
                         columnInfo = RemoteExecutionResult.ReadColumnDeclarations(root, columns.Length);
+                        if (!RemoteExecutionResult.HasNativeDateTime2Result(response)
+                            && (columnTypes?.Contains("datetime2") == true
+                                || columnInfo?.Any(static column => column.DataType == TableColumnType.DateTime2) == true))
+                            throw new InvalidDataException("远程事务 DATETIME2 声明缺少 SQL v7 协商确认。");
                         if (!RemoteExecutionResult.HasNativeDateTimeOffsetResult(response)
                             && (columnTypes?.Contains("datetimeoffset") == true
                                 || columnInfo?.Any(static column => column.DataType == TableColumnType.DateTimeOffset) == true))
@@ -1691,6 +1759,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             "BOOL" or "BOOLEAN" => TableColumnType.Boolean,
             "STRING" or "TEXT" => TableColumnType.String,
             "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
+            "DATETIME2" => TableColumnType.DateTime2,
             "TIME" or "TIMEONLY" => TableColumnType.Time,
             "DURATION" => TableColumnType.Duration,
             "DATETIMEOFFSET" => TableColumnType.DateTimeOffset,

@@ -191,16 +191,16 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         foreach (var p in parameters.Items)
         {
             object? value = ParameterBinder.GetBindingValue(p);
-            bool typedNull = p.DbType == System.Data.DbType.DateTimeOffset && value is null or DBNull;
-            if (typedNull)
-                result.AddPositional(null, SonnetDB.Sql.Ast.SqlDataType.DateTimeOffset);
+            var declaredType = ParameterBinder.GetDeclaredType(p);
+            if (declaredType is { } positionalType)
+                result.AddPositional(value is DBNull ? null : value, positionalType);
             else
                 result.AddPositional(value);
             var name = SndbParameterCollection.NormalizeName(p.ParameterName);
             if (!string.IsNullOrEmpty(name))
             {
-                if (typedNull)
-                    result.AddNamed(name, null, SonnetDB.Sql.Ast.SqlDataType.DateTimeOffset);
+                if (declaredType is { } namedType)
+                    result.AddNamed(name, value is DBNull ? null : value, namedType);
                 else
                     result.AddNamed(name, value);
             }

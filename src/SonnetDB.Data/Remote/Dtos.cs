@@ -25,6 +25,10 @@ internal sealed class SqlRequestBody
 {
     [JsonPropertyName("sql")]
     public string Sql { get; set; } = string.Empty;
+
+    [JsonPropertyName("typedParameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? TypedParameters { get; set; }
 }
 
 /// <summary>

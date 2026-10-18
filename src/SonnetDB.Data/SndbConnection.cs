@@ -750,6 +750,7 @@ public sealed class SndbConnection : DbConnection
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
         AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
+        AddDataType(table, "DATETIME2", DbType.DateTime2, typeof(DateTime), 8, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "DATETIMEOFFSET", DbType.DateTimeOffset, typeof(DateTimeOffset), 8, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "DURATION", DbType.Object, typeof(TimeSpan), 19, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
@@ -821,7 +822,7 @@ public sealed class SndbConnection : DbConnection
             searchableWithLike,
             false,
             maximumScale,
-            (short)0,
+            typeName == "DATETIME2" ? (short)7 : (short)0,
             literalPrefix,
             literalSuffix,
             supportsRelationalColumn,
@@ -871,6 +872,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.Boolean => "BOOL",
         TableColumnType.String => "STRING",
         TableColumnType.DateTime => "DATETIME",
+        TableColumnType.DateTime2 => "DATETIME2",
         TableColumnType.Time => "TIME",
         TableColumnType.Duration => "DURATION",
         TableColumnType.DateTimeOffset => "DATETIMEOFFSET",
@@ -901,6 +903,7 @@ public sealed class SndbConnection : DbConnection
             TableColumnType.Decimal => column.DecimalScale,
             TableColumnType.Time => 7,
             TableColumnType.Duration => 7,
+            TableColumnType.DateTime2 => 7,
             _ => 0,
         };
 }

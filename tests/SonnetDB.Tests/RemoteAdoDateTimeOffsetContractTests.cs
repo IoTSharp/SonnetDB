@@ -118,7 +118,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         Assert.True(reader.IsDBNull(0));
         Assert.False(await reader.ReadAsync(deadline.Token));
         if (protocol != "embedded")
-            Assert.Contains(_requests, request => request.ResultVersion == "6"
+            Assert.Contains(_requests, request => request.ResultVersion == "7"
                 && request.Protocol == (protocol == "rest" ? "HTTP/1.1" : "HTTP/2"));
     }
 
@@ -133,20 +133,20 @@ public sealed partial class RemoteAdoHttp2TransportTests
         await using var command = connection.CreateCommand();
         command.CommandText = "CREATE TABLE legacy_offsets(id INT, Stamp DATETIME, PRIMARY KEY(id))";
         command.ExecuteNonQuery();
-        var value = new DateTimeOffset(2026, 10, 8, 20, 34, 56, TimeSpan.FromHours(8)).AddTicks(1230001);
-        command.Parameters.Add(new SndbParameter("stamp", value) { DbType = DbType.DateTime2 });
+        var value = new DateTimeOffset(2026, 10, 8, 20, 34, 56, TimeSpan.FromHours(8)).AddTicks(1230000);
+        command.Parameters.Add(new SndbParameter("stamp", value) { DbType = DbType.DateTime });
         _rejectSqlV6 = true;
         _requests.Clear();
         command.CommandText = "INSERT INTO legacy_offsets(id,Stamp) VALUES(1,@stamp)";
         Assert.Equal(1, command.ExecuteNonQuery());
-        Assert.Equal(new[] { "6", "5" }, _requests.Select(request => request.ResultVersion));
+        Assert.Equal(new[] { "7", "6", "5" }, _requests.Select(request => request.ResultVersion));
         command.CommandText = "SELECT Stamp FROM legacy_offsets WHERE Stamp=@stamp";
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(value.ToUnixTimeMilliseconds()).UtcDateTime, command.ExecuteScalar());
         _rejectSqlV6 = false;
         _requests.Clear();
         command.CommandText = "INSERT INTO legacy_offsets(id,Stamp) VALUES(1,@stamp)";
         Assert.Throws<SndbServerException>(() => command.ExecuteNonQuery());
-        Assert.Equal("6", Assert.Single(_requests).ResultVersion);
+        Assert.Equal("7", Assert.Single(_requests).ResultVersion);
     }
 
     /// <summary>旧协议看到原生声明时必须在 RETURNING、序列及过程副作用之前拒绝。</summary>
