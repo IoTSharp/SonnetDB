@@ -3412,3 +3412,9 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #315 本地整合门禁前
 
 已普通merge --no-commit纳入CodeQL action 4.38.3；前序十个依赖PR均已逐个本地提交，尚未统一推送。此项仅工作流Action版本更新，不改变CodeQL扫描范围、权限、failure策略或发布门禁。后续整合RAG真实取消修复及#247未完成原生/ADO/远程链。
+
+## 2026-10-19 RAG 取消点修复整合检查点
+
+11个依赖PR已本地普通逐个合并，最新724c3d89，未推送。RAG内部入口新增可选调用方取消令牌，保留原timeout/Ctrl+C；真实HTTP请求后取消、审计、未发布、持久续跑与提前取消共11项在独立树通过，整合新依赖后重新验证。原main空audit失败与PR326历史50分钟超时分列，后者仍UNKNOWN。此次同时修正六条本批依赖CHANGELOG记录的Unreleased位置，保留执行历史。
+
+#247 Core 16文件205定向通过，但最后ABI修订未重编；根复核发现旧Text/CALL IN转换兼容变化，将独立修正并加回归后再纳入。ADO/Protocol/Server代理接专用类型化过程入口、完整输出终态和Reader关闭回写；#245独立会话准备，等待根Core基线。源版本升级为routine目录v5仍须单独CHANGELOG与拒旧/恢复门禁，不能据核心局部测试关闭Issue。

@@ -9,6 +9,14 @@
 
 ### Changed
 
+- RAG CLI 支持由调用方传入取消令牌并保留原总期限；真实请求收到后触发取消的回归验证一次请求、审计终态、未发布与持久续跑，另验输入前取消无数据库/审计/HTTP副作用。
+- 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。
+- 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。
+- 合入 PR #318 的 Microsoft.AspNetCore.Identity.UI 10.0.13。
+- 合入 PR #317 的 Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.13；并保留 #327 的并行预热修复。
+- 合入 PR #316 的 Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore 10.0.13。
+- 合入 PR #315 的 github/codeql-action 4.38.3，保留原扫描范围和真实门禁。
+
 - 合入 PR #327 的 Microsoft.Extensions.Caching.Abstractions 10.0.13；修复其真实 CI 暴露的关系表并行预热竞态，短锁保护共享行锁身份目录，保持不同表并行打开、行锁身份隔离及重命名后的稳定性。
 - 合入 PR #326 的 Microsoft.Extensions.AI 10.11.0；历史 PR CI 的 Windows Core 超时保留为待最终候选复核的独立失败证据。
 - 合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Microsoft.EntityFrameworkCore.Relational 10.0.13，为后续 Design/Tools 10.0.13 更新消除已观测的 NU1605 降级。
@@ -2545,10 +2553,3 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 
 - 2026-10-12 批次04 #282及remoteNULL补测：新增一个REST/HTTP2双模式回归，区分捕获NULL可合法折叠FALSE与typed NULL raw wire实际捕获；实际空列表/计数0/空分页和协议断言通过，命名外键原范围保持。完整EF160/160，焦点5不重复累计；Core78未重跑，正式270/272验收仍开放。
-
-- 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。
-- 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。
-- 合入 PR #318 的 Microsoft.AspNetCore.Identity.UI 10.0.13。
-- 合入 PR #317 的 Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.13；并保留 #327 的并行预热修复。
-- 合入 PR #316 的 Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore 10.0.13。
-- 合入 PR #315 的 github/codeql-action 4.38.3，保留原扫描范围和真实门禁。

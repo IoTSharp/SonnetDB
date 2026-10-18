@@ -111,14 +111,51 @@ public sealed class RagOnlineCommandTests : IDisposable
     [Fact]
     public void Ingest_CancelledHttpCall_LeavesTaskResumable()
     {
-        using (var handler = new Handler(async (_, token) => { await Task.Delay(TimeSpan.FromSeconds(5), token); return Success(); }))
-            Assert.ThrowsAny<OperationCanceledException>(() => Run(handler, Bundle("alpha"), timeout: "1"));
+        using var cancellation = new CancellationTokenSource();
+        using (var handler = new Handler(async (request, token) =>
+        {
+            Assert.Equal("https://embedding.example/v1/embeddings", request.RequestUri!.AbsoluteUri);
+            Assert.False(token.IsCancellationRequested);
+            // 收到真实请求后才取消，避免把读取输入或打开数据库的期限误当成 HTTP 取消。
+            cancellation.Cancel();
+            await Task.Delay(TimeSpan.FromSeconds(5), token);
+            return Success();
+        }))
+        {
+            Assert.ThrowsAny<OperationCanceledException>(() => Run(handler, Bundle("alpha"), cancellationToken: cancellation.Token));
+            Assert.Equal(1, handler.Calls);
+        }
+        string cancelledAudit = File.ReadAllText(AuditPath);
+        Assert.Contains("started", cancelledAudit);
+        Assert.Contains("cancelled", cancelledAudit);
+        Assert.DoesNotContain("succeeded", cancelledAudit);
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = DatabasePath }))
+            Assert.Throws<SonnetDB.Generations.DatabaseGenerationException>(() => database.Generations.AcquireActive("docs"));
+
         using var retry = new Handler((_, _) => Task.FromResult(Success()));
         Assert.Equal(0, Run(retry, new() { Profile = Profile }, resume: true));
+        Assert.Equal(1, retry.Calls);
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = DatabasePath });
+        using var active = reopened.Generations.AcquireActive("docs");
+        Assert.Equal(1, active.Generation.Revision);
         Assert.Contains("cancelled", File.ReadAllText(AuditPath));
     }
 
-    private int Run(Handler handler, RagCliBundle bundle, bool dryRun = false, bool resume = false, string timeout = "30")
+    /// <summary>验证输入读取前的取消不会被误认为一次已发送的 HTTP 调用。</summary>
+    [Fact]
+    public void Ingest_AlreadyCancelled_DoesNotOpenDatabaseAuditOrSendRequest()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        using var handler = new Handler((_, _) => throw new InvalidOperationException("must not send"));
+        Assert.ThrowsAny<OperationCanceledException>(() => Run(handler, Bundle("alpha"), cancellationToken: cancellation.Token));
+        Assert.Equal(0, handler.Calls);
+        Assert.False(Directory.Exists(DatabasePath));
+        Assert.False(File.Exists(AuditPath));
+    }
+
+    private int Run(Handler handler, RagCliBundle bundle, bool dryRun = false, bool resume = false, string timeout = "30",
+        CancellationToken cancellationToken = default)
     {
         string input = Path.Combine(_root, "bundle.json");
         File.WriteAllText(input, JsonSerializer.Serialize(bundle, RagCliJsonContext.Default.RagCliBundle));
@@ -126,7 +163,7 @@ public sealed class RagOnlineCommandTests : IDisposable
             "--stream", "docs", "--endpoint", "https://embedding.example/v1/", "--api-key-env", _keyVariable,
             "--allow-egress", "--audit", AuditPath, "--timeout", timeout };
         if (!resume) args.Add(dryRun ? "--dry-run" : "--replace-snapshot");
-        return new RagCommandRunner(new StringWriter(), () => handler).Run(args);
+        return new RagCommandRunner(new StringWriter(), () => handler).Run(args, cancellationToken);
     }
 
     private static RagCliBundle Bundle(string text)

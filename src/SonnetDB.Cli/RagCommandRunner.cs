@@ -14,12 +14,13 @@ internal sealed class RagCommandRunner(TextWriter output, Func<HttpMessageHandle
     private const int MaxVectors = 100_000;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    internal int Run(IReadOnlyList<string> args)
-        => RunAsync(Parse(args)).GetAwaiter().GetResult();
+    internal int Run(IReadOnlyList<string> args, CancellationToken cancellationToken = default)
+        => RunAsync(Parse(args), cancellationToken).GetAwaiter().GetResult();
 
-    private async Task<int> RunAsync(Options options)
+    private async Task<int> RunAsync(Options options, CancellationToken callerToken)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
         ConsoleCancelEventHandler cancel = (_, args) => { args.Cancel = true; deadline.Cancel(); };
         Console.CancelKeyPress += cancel;
         try
