@@ -3403,3 +3403,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #318 本地整合门禁前
 
 #318 与 #324/#325 共享 Directory.Packages.props，冲突已解析为 Identity.UI 10.0.13 并保留前序 EF 四包 10.0.13；Dependabot 旧文档删除未采用。RAG取消测试的11/11证据属于后续独立缺陷修复，不由本依赖更新冒称整体CI通过。
+## 2026-10-19 PR #317 本地整合门禁前
+
+#317 与前序依赖发生同文件冲突，已解析为 Identity.EntityFrameworkCore 10.0.13、Identity.UI 10.0.13 与 EF Core 四包10.0.13的统一版本；Dependabot旧文档删除未采用。原 PR Ubuntu warmup失败由#327的共享字典短锁修复覆盖，仍待最终整合SHA CI。
