@@ -2550,3 +2550,4 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。
 - 合入 PR #318 的 Microsoft.AspNetCore.Identity.UI 10.0.13。
 - 合入 PR #317 的 Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.13；并保留 #327 的并行预热修复。
+- 合入 PR #316 的 Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore 10.0.13。
