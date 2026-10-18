@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 17;
+    private const int _formatVersion = 18;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -105,7 +105,10 @@ public static class TableSchemaCodec
     }
 
     internal static int RequiredNativeVersion(IReadOnlyList<TableSchema> schemas)
-        => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTime2))
+        => schemas.Any(static schema => !schema.ObjectName.IsDefaultSchema
+            || schema.ForeignKeys.Any(static foreignKey => !foreignKey.PrincipalObjectName.IsDefaultSchema))
+            ? 18
+            : schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTime2))
             ? 17
             : schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null
             || schema.Indexes.Any(static index => index.Descending.Any(static direction => direction) || index.IncludedColumns.Count != 0))
@@ -197,6 +200,9 @@ public static class TableSchemaCodec
 
     private static TableSchema ReadTable(Stream source, Crc32 crc, int tableIndex, int version)
     {
+        string schemaName = version >= 18
+            ? ReadString(source, crc, $"table {tableIndex} schema name")
+            : TableObjectName.DefaultSchemaName;
         string name = ReadString(source, crc, $"table {tableIndex} name");
 
         Span<byte> createdBuffer = stackalloc byte[8];
@@ -345,6 +351,7 @@ public static class TableSchemaCodec
             schema = schema.WithColumnLength(definition.Key, definition.Value);
         foreach (var definition in columnComments)
             schema = schema.WithColumnComment(definition.Key, definition.Value);
+        schema = schema.WithSchemaName(schemaName);
         if (version >= 16) schema = schema.WithPrimaryKeyConstraintName(primaryName);
         return schema;
     }
@@ -368,6 +375,8 @@ public static class TableSchemaCodec
         version = Math.Max(version, minimumVersion);
         if (schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null || schema.Indexes.Any(static index => index.Descending.Any(static value => value) || index.IncludedColumns.Count != 0))) version = Math.Max(version, 16);
         if (schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTime2))) version = Math.Max(version, 17);
+        if (schemas.Any(static schema => !schema.ObjectName.IsDefaultSchema
+            || schema.ForeignKeys.Any(static foreignKey => !foreignKey.PrincipalObjectName.IsDefaultSchema))) version = Math.Max(version, 18);
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
         {
@@ -396,11 +405,15 @@ public static class TableSchemaCodec
 
     private static void WriteTable(Stream destination, TableSchema schema, Crc32 crc, int version)
     {
+        int schemaNameLength = version >= 18 ? _utf8.GetByteCount(schema.SchemaName) : 0;
+        if (schemaNameLength > ushort.MaxValue)
+            throw new InvalidDataException($"Table schema '{schema.SchemaName}' 名称过长。");
         int nameLength = _utf8.GetByteCount(schema.Name);
         if (nameLength > ushort.MaxValue)
             throw new InvalidDataException($"Table '{schema.Name}' 名称过长。");
 
-        int totalSize = 2 + nameLength + 8 + 2 + (version >= 12 ? CommentSize(schema.Comment) : 0);
+        int totalSize = (version >= 18 ? 2 + schemaNameLength : 0)
+            + 2 + nameLength + 8 + 2 + (version >= 12 ? CommentSize(schema.Comment) : 0);
         var columnNameLengths = new int[schema.Columns.Count];
         for (int i = 0; i < schema.Columns.Count; i++)
         {
@@ -458,6 +471,8 @@ public static class TableSchemaCodec
             totalSize += 2;
             foreach (var column in foreignKey.Columns)
                 totalSize += CheckedStringSize(column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 列名过长。");
+            if (version >= 18)
+                totalSize += CheckedStringSize(foreignKey.PrincipalSchemaName, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用 schema 名过长。");
             totalSize += CheckedStringSize(foreignKey.PrincipalTable, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用表名过长。");
             totalSize += 2;
             foreach (var column in foreignKey.PrincipalColumns)
@@ -482,6 +497,12 @@ public static class TableSchemaCodec
         {
             buffer.AsSpan(0, totalSize).Clear();
             var writer = new SpanWriter(buffer.AsSpan(0, totalSize));
+            if (version >= 18)
+            {
+                writer.WriteUInt16((ushort)schemaNameLength);
+                int schemaWritten = _utf8.GetBytes(schema.SchemaName, writer.FreeSpan);
+                writer.Advance(schemaWritten);
+            }
             writer.WriteUInt16((ushort)nameLength);
             int written = _utf8.GetBytes(schema.Name, writer.FreeSpan);
             writer.Advance(written);
@@ -569,6 +590,8 @@ public static class TableSchemaCodec
                 writer.WriteUInt16((ushort)foreignKey.Columns.Count);
                 foreach (var column in foreignKey.Columns)
                     WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 列名过长。");
+                if (version >= 18)
+                    WriteString(ref writer, foreignKey.PrincipalSchemaName, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用 schema 名过长。");
                 WriteString(ref writer, foreignKey.PrincipalTable, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用表名过长。");
                 writer.WriteUInt16((ushort)foreignKey.PrincipalColumns.Count);
                 foreach (var column in foreignKey.PrincipalColumns)
@@ -667,6 +690,9 @@ public static class TableSchemaCodec
         for (int i = 0; i < columnCount; i++)
             columns.Add(ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} column {i} name"));
 
+        string principalSchemaName = version >= 18
+            ? ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} principal schema")
+            : TableObjectName.DefaultSchemaName;
         string principalTable = ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} principal table");
         ReadExactSpan(source, countBuffer, $"table {tableIndex} foreignKey {foreignKeyIndex} principalColumnCount");
         crc.Append(countBuffer);
@@ -689,7 +715,8 @@ public static class TableSchemaCodec
             onDelete = (ForeignKeyAction)actionByte[0];
         }
 
-        return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly(), onDelete);
+        return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly(), onDelete)
+        { PrincipalSchemaName = principalSchemaName };
     }
 
     private static int CommentSize(string? comment)

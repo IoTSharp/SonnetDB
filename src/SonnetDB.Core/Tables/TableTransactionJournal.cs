@@ -5,7 +5,7 @@ using System.Text;
 namespace SonnetDB.Tables;
 
 internal sealed record TableTransactionUndo(
-    string TableName, long Generation, byte[] SchemaFingerprint,
+    TableObjectName TableObjectName, long Generation, byte[] SchemaFingerprint,
     IReadOnlyList<TableStore.RollbackAction> Actions);
 
 // 单个 TableManager 串行提交，最多保留一个待恢复事务。先同步 before-images，
@@ -28,7 +28,7 @@ internal static class TableTransactionJournal
         long size = 4;
         foreach (var table in tables)
         {
-            int nameBytes = Utf8.GetByteCount(table.TableName);
+            int nameBytes = TableObjectNameCodec.EncodeIdentity(table.TableObjectName).Length;
             if (nameBytes is < 1 or > 1024 || table.SchemaFingerprint.Length != 32
                 || table.Actions.Count > MaxActions)
                 throw new InvalidOperationException("关系事务恢复日志的表或操作数量无效。");
@@ -45,7 +45,7 @@ internal static class TableTransactionJournal
             writer.Write(tables.Count);
             foreach (var table in tables)
             {
-                WriteBytes(writer, Utf8.GetBytes(table.TableName));
+                WriteBytes(writer, TableObjectNameCodec.EncodeIdentity(table.TableObjectName));
                 writer.Write(table.Generation);
                 writer.Write(table.SchemaFingerprint);
                 writer.Write(table.Actions.Count);
@@ -60,7 +60,7 @@ internal static class TableTransactionJournal
         Span<byte> header = stackalloc byte[HeaderSize];
         header.Clear();
         Magic.CopyTo(header);
-        BinaryPrimitives.WriteInt32LittleEndian(header[8..], 1);
+        BinaryPrimitives.WriteInt32LittleEndian(header[8..], 2);
         BinaryPrimitives.WriteInt32LittleEndian(header[12..], bytes.Length);
         BinaryPrimitives.WriteUInt32LittleEndian(header[16..], Crc32.HashToUInt32(bytes));
         BinaryPrimitives.WriteUInt32LittleEndian(header[20..], Crc32.HashToUInt32(header[..20]));
@@ -89,8 +89,9 @@ internal static class TableTransactionJournal
             throw new InvalidDataException("TableTransactionJournal: invalid file length.");
         Span<byte> header = stackalloc byte[HeaderSize];
         file.ReadExactly(header);
+        int version = BinaryPrimitives.ReadInt32LittleEndian(header[8..]);
         if (!header[..8].SequenceEqual(Magic)
-            || BinaryPrimitives.ReadInt32LittleEndian(header[8..]) != 1
+            || version is not (1 or 2)
             || BinaryPrimitives.ReadUInt32LittleEndian(header[20..]) != Crc32.HashToUInt32(header[..20]))
             throw new InvalidDataException("TableTransactionJournal: invalid header or unsupported version.");
         int length = BinaryPrimitives.ReadInt32LittleEndian(header[12..]);
@@ -115,11 +116,14 @@ internal static class TableTransactionJournal
         if (count is < 1 or > MaxTables)
             throw new InvalidDataException("TableTransactionJournal: invalid table count.");
         var tables = new List<TableTransactionUndo>(count);
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new HashSet<TableObjectName>(TableObjectName.ExactComparer);
         for (int index = 0; index < count; index++)
         {
-            string name = Utf8.GetString(ReadBytes(reader, 1024, nullable: false)!);
-            if (string.IsNullOrWhiteSpace(name) || !names.Add(name))
+            byte[] encodedName = ReadBytes(reader, 4096, nullable: false)!;
+            TableObjectName name = version == 1
+                ? new TableObjectName(Utf8.GetString(encodedName))
+                : TableObjectNameCodec.DecodeIdentity(encodedName);
+            if (!names.Add(name))
                 throw new InvalidDataException("TableTransactionJournal: invalid or duplicate table name.");
             long generation = reader.ReadInt64();
             byte[] fingerprint = reader.ReadBytes(32);

@@ -1,5 +1,13 @@
 # SonnetDB 交接记录
 
+## 2026-10-19 Issue #232 Core schema namespace slice
+
+- 工作树 `D:\source\SonnetDB\.codex-temp\issue232-schemas-20261019`，分支 `codex/issue232-schemas-20261019`，基线 `9eb4028745f6f20b92b8e314faf84ff8303dbe71`。本轮只改 Core 与 Core tests，未提交、未推送；根的 #245 Data/Server 生命周期和 Windows 长路径修复未覆盖。
+- 已实现 `TableObjectName`/SQL qualified-name、`main` 默认 schema、逐段 quoted/unquoted 解析、三段名拒绝、schema 拼写 canonicalization、v1-v17 旧目录归入 `main`、catalog format v18、非 main 长度编码 rowstore/KV identity，以及 catalog/session/store/事务/锁/CTAS journal 的 pair identity 接线。事务 journal 现支持 v1 读取并写 v2 成对身份；#227 后续需保留 DDL journal floor v19。
+- SQL parser/binder/executor 已覆盖 CREATE/CTAS/SELECT/JOIN/INSERT/REPLACE/UPDATE/DELETE/TRUNCATE/DROP/index/FK/trigger 目标；真实测试证明 `main.items` 与 `sales.items` 可独立 CRUD、关闭重开后仍路由正确。Data/Server/ADO/remote schema metadata 尚未实施，不能宣称 Issue #232 全部验收。
+- 验证：Core Release build 0 warning/0 error；schema/codec/parser/identity/manager 与真实双 schema SQL 定向测试最终 `51/51`，新增真实 SQL 重开测试 `1/1`。此前一次 no-build 测试使用旧 DLL 导致空名称误报，已在重建测试项目后复核通过。
+- 下一步：在此工作树执行完整 `dotnet restore SonnetDB.slnx` 与规定 `dotnet format ... --verify-no-changes --no-restore --severity warn --exclude extensions/`，保存 manifest/门禁收据后创建本地 commit；root 先整合 #236，再 cherry-pick 本提交并继续 Data/Server/remote。
+
 ## 2026-10-19 pg_vectorsearch / PRISM 路线图登记
 
 用户要求将 Tiger Data 于 2026-10-13 发布的 `pg_vectorsearch` alpha、PRISM 分区式 ANN 记录进路线图。产品文档仅修改 `ROADMAP.md` 的性能观察项，新增 PF4 外部评测候选，挂接现有 M46/V45-X05 评审；明确对比 HNSW、IVF-Flat、IVF-PQ 与精确扫描，覆盖长尾/分区倾斜/高频更新、Recall@K、尾延迟、建索引、磁盘/内存和重建成本。厂商自测与 alpha 结果不计入门禁，未新增实现、未修改存储格式、未运行基准、未提交或推送；当前工作树其它脏改动保持不动。

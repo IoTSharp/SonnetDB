@@ -6,18 +6,18 @@ public sealed partial class SqlTransactionContext
 {
     // 所有隔离级别的缓冲行都绑定首次解释其列序和键语义的不可变 schema。
     // 纯 INSERT 不一定建立 Serializable 读令牌，因此不能用读集代替此写集身份。
-    private readonly Dictionary<string, TableSchema> _mutationSchemas = new(StringComparer.Ordinal);
+    private readonly Dictionary<TableObjectName, TableSchema> _mutationSchemas = new(TableObjectName.ExactComparer);
 
     private void RecordMutationSchema(TableSchema schema)
     {
         ValidateMutationSchema(schema);
-        if (_mutationSchemas.TryAdd(schema.Name, schema))
-            _undo.Add(() => _mutationSchemas.Remove(schema.Name));
+        if (_mutationSchemas.TryAdd(schema.ObjectName, schema))
+            _undo.Add(() => _mutationSchemas.Remove(schema.ObjectName));
     }
 
     private void ValidateMutationSchema(TableSchema schema)
     {
-        if (_mutationSchemas.TryGetValue(schema.Name, out TableSchema? expected)
+        if (_mutationSchemas.TryGetValue(schema.ObjectName, out TableSchema? expected)
             && !ReferenceEquals(expected, schema))
             throw MutationSchemaConflict(schema.Name);
     }
@@ -30,12 +30,15 @@ public sealed partial class SqlTransactionContext
             SqlExecutor.ThrowIfCancellationRequested();
             CheckCommitDeadline();
             if (!ReferenceEquals(expected, catalog.TryGet(name)))
-                throw MutationSchemaConflict(name);
+                throw MutationSchemaConflict(name.Name);
         }
     }
 
     // 仅供执行计划判断是否必须进入 overlay 路径；消费行时必须提供 schema 校验身份。
     internal bool HasBufferedMutations(string tableName)
+        => HasBufferedMutations(new TableObjectName(tableName));
+
+    internal bool HasBufferedMutations(TableObjectName tableName)
         => !_completed && _tableMutations.TryGetValue(tableName, out var buffer) && buffer.Rows.Count > 0;
 
     private static TableConstraintException MutationSchemaConflict(string name)

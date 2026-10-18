@@ -13,9 +13,9 @@ namespace SonnetDB.Tables;
 /// </summary>
 public sealed partial class TableManager : IDisposable
 {
-    private static readonly IReadOnlyDictionary<string, IReadOnlyList<TableRow>> _emptyFinalRows =
-        new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<TableRow>>(
-            new Dictionary<string, IReadOnlyList<TableRow>>(StringComparer.Ordinal));
+    private static readonly IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>> _emptyFinalRows =
+        new System.Collections.ObjectModel.ReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>>(
+            new Dictionary<TableObjectName, IReadOnlyList<TableRow>>(TableObjectName.ExactComparer));
 
     private readonly object _sync = new();
     private readonly TableCatalog _catalog;
@@ -25,8 +25,8 @@ public sealed partial class TableManager : IDisposable
     private readonly KvDiskReadBudget _diskReadBudget;
     private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Action<string, string>? _schemaMutationGuard;
-    private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, object> _tableLockTokens = new(StringComparer.Ordinal);
+    private readonly Dictionary<TableObjectName, TableStore> _stores = new(TableObjectName.ExactComparer);
+    private readonly Dictionary<TableObjectName, object> _tableLockTokens = new(TableObjectName.ExactComparer);
     internal TableRowLockManager RowLocks { get; } = new();
     internal Action? LockCandidatesSelectedTestHook { get; set; }
     private readonly TableStatisticsRefreshBudget _statisticsRefreshBudget = new();
@@ -122,8 +122,8 @@ public sealed partial class TableManager : IDisposable
         {
             foreach (var undo in TableTransactionJournal.ReadPending(TransactionJournalPath))
             {
-                var schema = _catalog.TryGet(undo.TableName)
-                    ?? throw new InvalidDataException($"事务恢复引用了不存在的 table '{undo.TableName}'。");
+                var schema = _catalog.TryGet(undo.TableObjectName)
+                    ?? throw new InvalidDataException($"事务恢复引用了不存在的 table {undo.TableObjectName}。");
                 OpenStoreLocked(schema).RestoreTransactionUndo(undo);
             }
             if (File.Exists(TransactionJournalPath))
@@ -159,6 +159,7 @@ public sealed partial class TableManager : IDisposable
     public void Create(TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        schema = _catalog.CanonicalizeSchema(schema);
         if (TryCreateSessionTable(schema))
             return;
         TableLockOperation.Run(RowLocks, () =>
@@ -169,10 +170,11 @@ public sealed partial class TableManager : IDisposable
             lock (_schemaSync)
                 lock (_sync)
                 {
-                    _nameAvailabilityGuard?.Invoke(schema.Name, "table");
+                    if (schema.ObjectName.IsDefaultSchema)
+                        _nameAvailabilityGuard?.Invoke(schema.Name, "table");
                     ThrowIfDisposed();
-                    if (_catalog.Snapshot().Any(existing => string.Equals(existing.Name, schema.Name, StringComparison.OrdinalIgnoreCase)))
-                        throw new InvalidOperationException($"table '{schema.Name}' 已存在。");
+                    if (_catalog.Resolve(schema.ObjectName, schemaIsQuoted: false, nameIsQuoted: false) is not null)
+                        throw new InvalidOperationException($"table {schema.ObjectName} 已存在。");
 
                     IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
                     TableStore? openedStore = null;
@@ -200,7 +202,7 @@ public sealed partial class TableManager : IDisposable
                         // 发布失败时同时恢复内存目录和已替换的 schema 文件，避免 API 报错后重启却出现新表。
                         try
                         {
-                            _ = _catalog.Remove(schema.Name);
+                            _ = _catalog.Remove(schema.ObjectName);
                         }
                         catch (Exception rollbackException)
                         {
@@ -225,7 +227,7 @@ public sealed partial class TableManager : IDisposable
                         // 创建失败时，本次打开的 store 必须移出管理器并释放文件租约，
                         // 使同一进程和重启后的同名 CREATE 都可以立即重试。
                         if (openedStore is not null
-                            && _stores.Remove(schema.Name, out TableStore? store))
+                            && _stores.Remove(schema.ObjectName, out TableStore? store))
                         {
                             try
                             {
@@ -258,12 +260,15 @@ public sealed partial class TableManager : IDisposable
     /// <param name="definition">索引声明。</param>
     /// <returns>新建的索引声明。</returns>
     public TableIndex CreateIndex(string tableName, TableIndexDefinition definition)
+        => CreateIndex(new TableObjectName(tableName), definition);
+
+    /// <summary>按完整关系表身份创建二级索引。</summary>
+    public TableIndex CreateIndex(TableObjectName tableName, TableIndexDefinition definition)
     {
         return TableLockOperation.Run(RowLocks, () =>
         {
             TableLockOperation.Require(RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
 
-            ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
             ArgumentNullException.ThrowIfNull(definition);
             lock (_schemaSync)
                 lock (_sync)
@@ -302,12 +307,15 @@ public sealed partial class TableManager : IDisposable
     /// <param name="indexName">索引名。</param>
     /// <returns>索引存在并删除时返回 true。</returns>
     public bool DropIndex(string tableName, string indexName)
+        => DropIndex(new TableObjectName(tableName), indexName);
+
+    /// <summary>按完整关系表身份删除二级索引。</summary>
+    public bool DropIndex(TableObjectName tableName, string indexName)
     {
         return TableLockOperation.Run(RowLocks, () =>
         {
             TableLockOperation.Require(RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
 
-            ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
             ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
             lock (_schemaSync)
                 lock (_sync)
@@ -818,7 +826,7 @@ public sealed partial class TableManager : IDisposable
                         !string.Equals(existing.Name, oldName, StringComparison.Ordinal)
                         && string.Equals(existing.Name, newName, StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidOperationException($"table '{newName}' 已存在。");
-                    EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
+                    EnsureTableIsNotReferencedByForeignKeyLocked(current.ObjectName, "重命名");
                     OpenStoreLocked(current).EnsureNoOnlineIndexBuild();
 
                     var updated = current.WithName(newName);
@@ -827,16 +835,18 @@ public sealed partial class TableManager : IDisposable
                     if (Directory.Exists(newDirectory))
                         throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
 
-                    _stores.TryGetValue(oldName, out TableStore? existingStore);
+                    var oldObjectName = current.ObjectName;
+                    var newObjectName = updated.ObjectName;
+                    _stores.TryGetValue(oldObjectName, out TableStore? existingStore);
                     using IDisposable? statisticsPause = existingStore?.PauseAutomaticStatisticsRefreshForRename();
                     existingStore?.Dispose();
-                    _stores.Remove(oldName);
+                    _stores.Remove(oldObjectName);
 
                     _catalog.Remove(oldName);
                     _catalog.Add(updated);
-                    object stableLockToken = _tableLockTokens.GetValueOrDefault(oldName) ?? new object();
-                    _tableLockTokens.Remove(oldName);
-                    _tableLockTokens[newName] = stableLockToken;
+                    object stableLockToken = _tableLockTokens.GetValueOrDefault(oldObjectName) ?? new object();
+                    _tableLockTokens.Remove(oldObjectName);
+                    _tableLockTokens[newObjectName] = stableLockToken;
                     try
                     {
                         if (Directory.Exists(oldDirectory))
@@ -850,8 +860,8 @@ public sealed partial class TableManager : IDisposable
                             Directory.Move(newDirectory, oldDirectory);
                         _catalog.Remove(newName);
                         _catalog.LoadExisting(current);
-                        _tableLockTokens.Remove(newName);
-                        _tableLockTokens[oldName] = stableLockToken;
+                        _tableLockTokens.Remove(newObjectName);
+                        _tableLockTokens[oldObjectName] = stableLockToken;
                         PersistCatalogLocked();
                         _ = OpenStoreLocked(current);
                         throw;
@@ -894,6 +904,10 @@ public sealed partial class TableManager : IDisposable
     /// <param name="name">表名。</param>
     /// <returns>存在并删除时返回 true。</returns>
     public bool Drop(string name)
+        => Drop(new TableObjectName(name));
+
+    /// <summary>按完整关系表身份删除 schema 与 rowstore。</summary>
+    public bool Drop(TableObjectName name)
     {
         if (TemporaryManager(name) is { } temporary)
             return temporary.Drop(name);
@@ -901,25 +915,27 @@ public sealed partial class TableManager : IDisposable
         {
             TableLockOperation.Require(RowLocks, [TableRowLockManager.Resource.DatabaseExclusive], retain: false);
 
-            ArgumentNullException.ThrowIfNull(name);
             lock (_schemaSync)
             {
                 SchemaMutationLockAcquiredTestHook?.Invoke("DROP TABLE");
                 lock (_sync)
                 {
-                    _schemaMutationGuard?.Invoke(name, "DROP TABLE");
+                    if (name.IsDefaultSchema)
+                        _schemaMutationGuard?.Invoke(name.Name, "DROP TABLE");
                     ThrowIfDisposed();
-                    if (_catalog.TryGet(name) is null)
+                    TableSchema? existingSchema = _catalog.TryGet(name);
+                    if (existingSchema is null)
                         return false;
-                    EnsureTableIsNotReferencedByForeignKeyLocked(name, "删除");
+                    TableObjectName objectName = existingSchema.ObjectName;
+                    EnsureTableIsNotReferencedByForeignKeyLocked(objectName, "删除");
                     _ = _catalog.Remove(name);
-                    _tableLockTokens.Remove(name);
+                    _tableLockTokens.Remove(objectName);
 
-                    if (_stores.Remove(name, out var store))
+                    if (_stores.Remove(objectName, out var store))
                         store.Dispose();
 
                     PersistCatalogLocked();
-                    string tableDirectory = TableDirectory(name);
+                    string tableDirectory = TableDirectory(objectName);
                     if (Directory.Exists(tableDirectory))
                         Directory.Delete(tableDirectory, recursive: true);
 
@@ -939,6 +955,16 @@ public sealed partial class TableManager : IDisposable
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
     /// <returns>实际影响的行数。</returns>
     public int ApplyTransaction(IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
+        => ApplyTransaction(
+            mutationsByTable.ToDictionary(
+                static pair => new TableObjectName(pair.Key),
+                static pair => pair.Value,
+                TableObjectName.ExactComparer),
+            metrics: null);
+
+    /// <summary>按完整关系表身份提交多表 DML。</summary>
+    public int ApplyTransaction(
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable)
         => ApplyTransaction(mutationsByTable, metrics: null);
 
     /// <summary>
@@ -1039,39 +1065,38 @@ public sealed partial class TableManager : IDisposable
     /// 在同一个 TableManager 临界区内取得多张表的稳定读快照。
     /// SQL 多表提交无法穿过捕获窗口，返回后读取仅持有各 rowstore 的不可变 KV lease。
     /// </summary>
-    internal IReadOnlyDictionary<string, TableReadBinding> AcquireReadSnapshots(
-        IEnumerable<string> tableNames)
+    internal IReadOnlyDictionary<TableObjectName, TableReadBinding> AcquireReadSnapshots(
+        IEnumerable<TableObjectName> tableNames)
     {
         ArgumentNullException.ThrowIfNull(tableNames);
-        string[] names = tableNames
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(static name => name, StringComparer.Ordinal)
+        TableObjectName[] names = tableNames
+            .Distinct(TableObjectName.ExactComparer)
+            .OrderBy(static name => name.SchemaName, StringComparer.Ordinal)
+            .ThenBy(static name => name.Name, StringComparer.Ordinal)
             .ToArray();
-        if (names.Any(string.IsNullOrWhiteSpace))
-            throw new ArgumentException("关系读快照的表名不能为空。", nameof(tableNames));
 
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
             SonnetDbMeter.RecordTableManagerLockWait(lockWait);
             ThrowIfDisposed();
-            var stores = new List<(string Name, TableStore Store)>(names.Length);
-            foreach (string name in names)
+            var stores = new List<(TableObjectName Name, TableStore Store)>(names.Length);
+            foreach (TableObjectName name in names)
             {
                 SqlTransactionContext.Current?.CheckCommitDeadline();
                 stores.Add((name, OpenReadSourceLocked(name)));
             }
 
-            var bindings = new Dictionary<string, TableReadBinding>(names.Length, StringComparer.Ordinal);
+            var bindings = new Dictionary<TableObjectName, TableReadBinding>(names.Length, TableObjectName.ExactComparer);
             int locksHeld = 0;
             try
             {
-                foreach ((string _, TableStore store) in stores)
+                foreach ((TableObjectName _, TableStore store) in stores)
                 {
                     store.EnterReadLock();
                     locksHeld++;
                 }
-                foreach ((string name, TableStore store) in stores)
+                foreach ((TableObjectName name, TableStore store) in stores)
                 {
                     SqlTransactionContext.Current?.CheckCommitDeadline();
                     bindings.Add(name, new TableReadBinding(store, store.AcquireTableReadSnapshot()));
@@ -1090,6 +1115,16 @@ public sealed partial class TableManager : IDisposable
                     Monitor.Exit(stores[index].Store.SynchronizationRoot);
             }
         }
+    }
+
+    internal IReadOnlyDictionary<string, TableReadBinding> AcquireReadSnapshots(IEnumerable<string> tableNames)
+    {
+        ArgumentNullException.ThrowIfNull(tableNames);
+        var pairs = tableNames.Select(static name => new TableObjectName(name)).ToArray();
+        return AcquireReadSnapshots(pairs).ToDictionary(
+            static pair => pair.Key.Name,
+            static pair => pair.Value,
+            StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -1200,26 +1235,52 @@ public sealed partial class TableManager : IDisposable
     /// <param name="metrics">级联删除展开阶段的执行计数。</param>
     /// <returns>实际影响的行数。</returns>
     internal int ApplyTransaction(
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable,
         CascadeDeleteExecutionMetrics? metrics)
         => ApplyTransactionCore(mutationsByTable, metrics, includeFinalRows: false, out _);
 
+    internal int ApplyTransaction(
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        CascadeDeleteExecutionMetrics? metrics)
+        => ApplyTransaction(
+            mutationsByTable.ToDictionary(
+                static pair => new TableObjectName(pair.Key),
+                static pair => pair.Value,
+                TableObjectName.ExactComparer),
+            metrics);
+
     /// <summary>提交多表 DML，并返回准备阶段生成且实际提交的最终行快照。</summary>
+    internal int ApplyTransaction(
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        out IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>> finalRows)
+        => ApplyTransactionCore(mutationsByTable, metrics: null, includeFinalRows: true, out finalRows);
+
     internal int ApplyTransaction(
         IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
         out IReadOnlyDictionary<string, IReadOnlyList<TableRow>> finalRows)
-        => ApplyTransactionCore(mutationsByTable, metrics: null, includeFinalRows: true, out finalRows);
+    {
+        var pairs = mutationsByTable.ToDictionary(
+            static pair => new TableObjectName(pair.Key),
+            static pair => pair.Value,
+            TableObjectName.ExactComparer);
+        int affected = ApplyTransaction(pairs, out var pairRows);
+        finalRows = pairRows.ToDictionary(
+            static pair => pair.Key.Name,
+            static pair => pair.Value,
+            StringComparer.Ordinal);
+        return affected;
+    }
 
     private int ApplyTransactionCore(
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable,
         CascadeDeleteExecutionMetrics? metrics,
         bool includeFinalRows,
-        out IReadOnlyDictionary<string, IReadOnlyList<TableRow>> finalRows)
+        out IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>> finalRows)
     {
         ArgumentNullException.ThrowIfNull(mutationsByTable);
         if (TemporaryMutationManager(mutationsByTable) is { } temporary)
             return temporary.ApplyTransactionCore(mutationsByTable, metrics, includeFinalRows, out finalRows);
-        IReadOnlyDictionary<string, IReadOnlyList<TableRow>> rows = _emptyFinalRows;
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>> rows = _emptyFinalRows;
         int affected = TableLockOperation.Run(RowLocks, () =>
             ApplyTransactionCoreLocked(mutationsByTable, metrics, includeFinalRows, out rows));
         finalRows = rows;
@@ -1227,10 +1288,10 @@ public sealed partial class TableManager : IDisposable
     }
 
     private int ApplyTransactionCoreLocked(
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable,
         CascadeDeleteExecutionMetrics? metrics,
         bool includeFinalRows,
-        out IReadOnlyDictionary<string, IReadOnlyList<TableRow>> finalRows)
+        out IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRow>> finalRows)
     {
         ArgumentNullException.ThrowIfNull(mutationsByTable);
         if (mutationsByTable.Count == 0)
@@ -1260,15 +1321,17 @@ public sealed partial class TableManager : IDisposable
                         if (schema.PrimaryKey.Count != 0 && mutation.PrimaryKeyValues is not null
                             && !TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues).AsSpan()
                                 .SequenceEqual(TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues)))
-                            ValidatePrimaryKeyUpdate(tableName);
+                            ValidatePrimaryKeyUpdate(tableName.Name);
                     }
                 }
             }
-            var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
+            var prepared = new Dictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)>(TableObjectName.ExactComparer);
             var lockedStores = new List<TableStore>(expandedMutations.Count);
             try
             {
-                foreach (string tableName in expandedMutations.Keys.Order(StringComparer.Ordinal))
+                foreach (TableObjectName tableName in expandedMutations.Keys
+                    .OrderBy(static name => name.SchemaName, StringComparer.Ordinal)
+                    .ThenBy(static name => name.Name, StringComparer.Ordinal))
                 {
                     var schema = _catalog.TryGet(tableName)
                         ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -1276,7 +1339,7 @@ public sealed partial class TableManager : IDisposable
                     Monitor.Enter(store.SynchronizationRoot);
                     lockedStores.Add(store);
                 }
-                var lockedMutations = new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal);
+                var lockedMutations = new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer);
                 foreach (var (tableName, mutations) in expandedMutations)
                     lockedMutations.Add(tableName, _stores[tableName].PrepareLockingMutations(mutations));
                 foreach (var (tableName, mutations) in lockedMutations)
@@ -1302,7 +1365,7 @@ public sealed partial class TableManager : IDisposable
                     {
                         affected += entry.Store.ApplyPreparedBatch(entry.Batch);
                         applied.Add(entry);
-                        ApplyTransactionAfterTableTestHook?.Invoke(tableName);
+                        ApplyTransactionAfterTableTestHook?.Invoke(DisplayName(tableName));
                     }
                     if (journaled)
                     {
@@ -1327,7 +1390,7 @@ public sealed partial class TableManager : IDisposable
                         if (journaled)
                         {
                             foreach (var undo in undoTables)
-                                prepared[undo.TableName].Store.RestoreTransactionUndo(undo);
+                                prepared[undo.TableObjectName].Store.RestoreTransactionUndo(undo);
                             TableTransactionJournal.Complete(TransactionJournalPath);
                         }
                         else
@@ -1350,7 +1413,7 @@ public sealed partial class TableManager : IDisposable
                     ? prepared.ToDictionary(
                         static pair => pair.Key,
                         static pair => pair.Value.Batch.FinalRows,
-                        StringComparer.Ordinal)
+                        TableObjectName.ExactComparer)
                     : _emptyFinalRows;
                 return affected;
             }
@@ -1367,15 +1430,19 @@ public sealed partial class TableManager : IDisposable
     /// </summary>
     /// <param name="name">表名。</param>
     public TableStore Open(string name)
+        => Open(new TableObjectName(name));
+
+    /// <summary>按完整身份打开已存在的关系表。</summary>
+    /// <param name="objectName">schema 与表名组成的身份。</param>
+    public TableStore Open(TableObjectName objectName)
     {
-        ArgumentNullException.ThrowIfNull(name);
-        if (TemporaryManager(name) is { } temporary)
-            return temporary.Open(name);
+        if (TemporaryManager(objectName) is { } temporary)
+            return temporary.Open(objectName);
         lock (_sync)
         {
             ThrowIfDisposed();
-            var schema = _catalog.TryGet(name)
-                ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+            var schema = _catalog.TryGet(objectName)
+                ?? throw new InvalidOperationException($"table {objectName} 不存在。");
             return OpenStoreLocked(schema);
         }
     }
@@ -1385,14 +1452,18 @@ public sealed partial class TableManager : IDisposable
     /// </summary>
     /// <param name="name">表名。</param>
     public TableStore? TryOpen(string name)
+        => TryOpen(new TableObjectName(name));
+
+    /// <summary>按完整身份尝试打开关系表。</summary>
+    /// <param name="objectName">schema 与表名组成的身份。</param>
+    public TableStore? TryOpen(TableObjectName objectName)
     {
-        ArgumentNullException.ThrowIfNull(name);
-        if (TemporaryManager(name) is { } temporary)
-            return temporary.TryOpen(name);
+        if (TemporaryManager(objectName) is { } temporary)
+            return temporary.TryOpen(objectName);
         lock (_sync)
         {
             ThrowIfDisposed();
-            var schema = _catalog.TryGet(name);
+            var schema = _catalog.TryGet(objectName);
             return schema is null ? null : OpenStoreLocked(schema);
         }
     }
@@ -1429,11 +1500,11 @@ public sealed partial class TableManager : IDisposable
                 foreach (TableSchema catalogSchema in schemas)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    TableSchema? current = _catalog.TryGet(catalogSchema.Name);
+                    TableSchema? current = _catalog.TryGet(catalogSchema.ObjectName);
                     if (current is null)
                         continue;
-                    warmedTables.Add(current.Name);
-                    if (_stores.ContainsKey(current.Name))
+                    warmedTables.Add(DisplayName(current.ObjectName));
+                    if (_stores.ContainsKey(current.ObjectName))
                         continue;
                     unopenedSchemas.Add(current);
                 }
@@ -1452,8 +1523,8 @@ public sealed partial class TableManager : IDisposable
                 }
 
                 // 管理器锁在整个阶段阻止查询和 DDL 观察半完成状态；各表目录相互独立，可安全并行恢复。
-                var openedStores = new System.Collections.Concurrent.ConcurrentDictionary<string, TableStore>(
-                    StringComparer.Ordinal);
+                var openedStores = new System.Collections.Concurrent.ConcurrentDictionary<TableObjectName, TableStore>(
+                    TableObjectName.ExactComparer);
                 try
                 {
                     Parallel.ForEach(
@@ -1467,7 +1538,7 @@ public sealed partial class TableManager : IDisposable
                         {
                             WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
                             TableStore store = CreateStore(schema);
-                            if (!openedStores.TryAdd(schema.Name, store))
+                            if (!openedStores.TryAdd(schema.ObjectName, store))
                             {
                                 store.Dispose();
                                 throw new InvalidOperationException($"table '{schema.Name}' 被重复安排启动预热。");
@@ -1478,7 +1549,7 @@ public sealed partial class TableManager : IDisposable
                         });
 
                     foreach (TableSchema schema in unopenedSchemas)
-                        _stores.Add(schema.Name, openedStores[schema.Name]);
+                        _stores.Add(schema.ObjectName, openedStores[schema.ObjectName]);
                     return warmedTables;
                 }
                 catch
@@ -1611,27 +1682,27 @@ public sealed partial class TableManager : IDisposable
 
     private TableStore OpenStoreLocked(TableSchema schema)
     {
-        if (_stores.TryGetValue(schema.Name, out var existing))
+        if (_stores.TryGetValue(schema.ObjectName, out var existing))
             return existing;
 
         TableStore store = CreateStore(schema);
-        _stores[schema.Name] = store;
+        _stores[schema.ObjectName] = store;
         return store;
     }
 
     /// <summary>打开单张关系表的独立 KV 存储；失败时释放已经取得的目录租约。</summary>
     private TableStore CreateStore(TableSchema schema)
     {
-        string tableDirectory = TableDirectory(schema.Name);
-        var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions, _diskReadBudget);
+        string tableDirectory = TableDirectory(schema.ObjectName);
+        var kv = KvKeyspace.Open(KeyspaceName(schema.ObjectName), tableDirectory, _kvOptions, _diskReadBudget);
         try
         {
             object token;
             // 并行预热线程共享身份目录；不能重取由等待这些线程的调用方持有的 _sync。
             lock (_tableLockTokens)
             {
-                if (!_tableLockTokens.TryGetValue(schema.Name, out object? existingToken))
-                    _tableLockTokens.Add(schema.Name, existingToken = new object());
+                if (!_tableLockTokens.TryGetValue(schema.ObjectName, out object? existingToken))
+                    _tableLockTokens.Add(schema.ObjectName, existingToken = new object());
                 token = existingToken;
             }
             return new TableStore(schema, kv, _statisticsRefreshBudget)
@@ -1654,7 +1725,23 @@ public sealed partial class TableManager : IDisposable
         }
     }
 
-    private string TableDirectory(string name) => Path.Combine(_rootDirectory, "rowstore", EncodeName(name));
+    private string TableDirectory(string name) => TableDirectory(new TableObjectName(name));
+
+    private string TableDirectory(TableObjectName objectName)
+    {
+        string path = Path.Combine(_rootDirectory, "rowstore");
+        foreach (string segment in TableObjectNameCodec.EncodeStoragePath(objectName))
+            path = Path.Combine(path, segment);
+        return path;
+    }
+
+    private static string KeyspaceName(TableObjectName objectName)
+        => objectName.IsDefaultSchema
+            ? "table." + objectName.Name
+            : "table.schema-v1." + Convert.ToHexString(TableObjectNameCodec.EncodeIdentity(objectName));
+
+    private static string DisplayName(TableObjectName objectName)
+        => objectName.IsDefaultSchema ? objectName.Name : objectName.ToString();
 
     private void PersistCatalogLocked()
         => TableSchemaCodec.Save(SchemaPath, _catalog.Snapshot());
@@ -1665,8 +1752,8 @@ public sealed partial class TableManager : IDisposable
     /// SET NULL 追加"把子行外键列置空"的更新（不再传播）。
     /// 已经在事务里被用户显式修改或已计划删除的子行不会被重复加入；其它修改类型的 mutation 原样保留。
     /// </summary>
-    private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+    private IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutationsByTable,
         CascadeDeleteExecutionMetrics? metrics,
         SqlTransactionContext? transaction = null)
     {
@@ -1679,14 +1766,14 @@ public sealed partial class TableManager : IDisposable
         if (metrics is not null)
             metrics.CatalogSnapshotCount++;
 
-        var schemasByName = new Dictionary<string, TableSchema>(schemas.Count, StringComparer.Ordinal);
+        var schemasByName = new Dictionary<TableObjectName, TableSchema>(schemas.Count, TableObjectName.ExactComparer);
         foreach (var schema in schemas)
         {
             CheckCascadeExecution(transaction);
-            schemasByName.Add(schema.Name, schema);
+            schemasByName.Add(schema.ObjectName, schema);
         }
 
-        var lookupsByPrincipal = new Dictionary<string, List<CascadeForeignKeyLookup>>(StringComparer.Ordinal);
+        var lookupsByPrincipal = new Dictionary<TableObjectName, List<CascadeForeignKeyLookup>>(TableObjectName.ExactComparer);
         foreach (var childSchema in schemas)
         {
             foreach (var fk in childSchema.ForeignKeys)
@@ -1694,7 +1781,7 @@ public sealed partial class TableManager : IDisposable
                 CheckCascadeExecution(transaction);
                 if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull))
                     continue;
-                if (!schemasByName.TryGetValue(fk.PrincipalTable, out var principalSchema))
+                if (!schemasByName.TryGetValue(fk.PrincipalObjectName, out var principalSchema))
                     continue;
                 if (!fk.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
                 {
@@ -1705,10 +1792,10 @@ public sealed partial class TableManager : IDisposable
                 TableIndex? index = childSchema.Indexes.FirstOrDefault(candidate =>
                     candidate.JsonPath is null
                     && candidate.Columns.SequenceEqual(fk.Columns, StringComparer.Ordinal));
-                if (!lookupsByPrincipal.TryGetValue(fk.PrincipalTable, out var lookups))
+                if (!lookupsByPrincipal.TryGetValue(fk.PrincipalObjectName, out var lookups))
                 {
                     lookups = new List<CascadeForeignKeyLookup>();
-                    lookupsByPrincipal.Add(fk.PrincipalTable, lookups);
+                    lookupsByPrincipal.Add(fk.PrincipalObjectName, lookups);
                 }
                 lookups.Add(new CascadeForeignKeyLookup(principalSchema, childSchema, fk, index));
             }
@@ -1719,10 +1806,10 @@ public sealed partial class TableManager : IDisposable
         // 构造可变工作集（保留 mutation 顺序），以及每表"已触及行"的 PK 集合（HEX 编码）：
         // pendingDeletePks 驱动删除去重与 CASCADE 的 BFS；touchedPks 额外覆盖用户显式修改与
         // SET NULL 置空，用来避免同一行在一个 batch 内被多次修改（PrepareBatch 会拒绝）。
-        var working = new Dictionary<string, List<TableRowMutation>>(StringComparer.Ordinal);
-        var pendingDeletePks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        var touchedPks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        var queue = new Queue<(string Table, IReadOnlyList<object?> Pk)>();
+        var working = new Dictionary<TableObjectName, List<TableRowMutation>>(TableObjectName.ExactComparer);
+        var pendingDeletePks = new Dictionary<TableObjectName, HashSet<string>>(TableObjectName.ExactComparer);
+        var touchedPks = new Dictionary<TableObjectName, HashSet<string>>(TableObjectName.ExactComparer);
+        var queue = new Queue<(TableObjectName Table, IReadOnlyList<object?> Pk)>();
 
         foreach (var (tableName, mutations) in mutationsByTable)
         {
@@ -1762,15 +1849,15 @@ public sealed partial class TableManager : IDisposable
                 var childSchema = lookup.ChildSchema;
                 var fk = lookup.ForeignKey;
                 var childStore = OpenStoreLocked(childSchema);
-                var childDeleteSet = pendingDeletePks.TryGetValue(childSchema.Name, out var existingDeleteSet)
+                var childDeleteSet = pendingDeletePks.TryGetValue(childSchema.ObjectName, out var existingDeleteSet)
                     ? existingDeleteSet
-                    : pendingDeletePks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
-                var childTouchedSet = touchedPks.TryGetValue(childSchema.Name, out var existingTouchedSet)
+                    : pendingDeletePks[childSchema.ObjectName] = new HashSet<string>(StringComparer.Ordinal);
+                var childTouchedSet = touchedPks.TryGetValue(childSchema.ObjectName, out var existingTouchedSet)
                     ? existingTouchedSet
-                    : touchedPks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
-                var childList = working.TryGetValue(childSchema.Name, out var existingList)
+                    : touchedPks[childSchema.ObjectName] = new HashSet<string>(StringComparer.Ordinal);
+                var childList = working.TryGetValue(childSchema.ObjectName, out var existingList)
                     ? existingList
-                    : working[childSchema.Name] = new List<TableRowMutation>();
+                    : working[childSchema.ObjectName] = new List<TableRowMutation>();
 
                 foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics, transaction))
                 {
@@ -1792,7 +1879,7 @@ public sealed partial class TableManager : IDisposable
                         childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null)
                         { EncodedRowIdentity = childSchema.PrimaryKey.Count == 0 ? childPkBytes : null });
                         if (childSchema.PrimaryKey.Count != 0)
-                            queue.Enqueue((childSchema.Name, childPk));
+                            queue.Enqueue((childSchema.ObjectName, childPk));
                     }
                     else
                     {
@@ -1816,7 +1903,7 @@ public sealed partial class TableManager : IDisposable
             }
         }
 
-        var result = new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal);
+        var result = new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer);
         foreach (var (k, v) in working)
             result[k] = v;
         return result;
@@ -1915,13 +2002,13 @@ public sealed partial class TableManager : IDisposable
 
     private void ValidateAddedForeignKeyLocked(TableSchema childSchema, TableForeignKey foreignKey)
     {
-        var principalSchema = _catalog.TryGet(foreignKey.PrincipalTable)
+        var principalSchema = _catalog.TryGet(foreignKey.PrincipalObjectName)
             ?? throw new InvalidOperationException($"外键 '{foreignKey.Name}' 引用的表 '{foreignKey.PrincipalTable}' 不存在。");
         if (!foreignKey.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
             throw new NotSupportedException($"外键 '{foreignKey.Name}' 第一版仅支持引用被引用表 PRIMARY KEY。");
 
         var childStore = OpenStoreLocked(childSchema);
-        var emptyPrepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
+        var emptyPrepared = new Dictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)>(TableObjectName.ExactComparer);
         foreach (var row in childStore.Scan())
         {
             var keyValues = ExtractForeignKeyValues(childSchema, row, foreignKey);
@@ -1949,7 +2036,7 @@ public sealed partial class TableManager : IDisposable
     }
 
     private static void ValidateCheckConstraintsLocked(
-        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+        IReadOnlyDictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
     {
         foreach (var entry in prepared.Values)
         {
@@ -1978,7 +2065,7 @@ public sealed partial class TableManager : IDisposable
     }
 
     private void ValidateForeignKeysLocked(
-        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+        IReadOnlyDictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
     {
         foreach (var (tableName, entry) in prepared)
         {
@@ -1992,7 +2079,7 @@ public sealed partial class TableManager : IDisposable
 
         foreach (var principalSchema in _catalog.Snapshot())
         {
-            if (!prepared.TryGetValue(principalSchema.Name, out var principalEntry))
+            if (!prepared.TryGetValue(principalSchema.ObjectName, out var principalEntry))
                 continue;
             if (principalEntry.Batch.DeletedRows.Count == 0)
                 continue;
@@ -2000,7 +2087,7 @@ public sealed partial class TableManager : IDisposable
             foreach (var childSchema in _catalog.Snapshot())
             {
                 foreach (var foreignKey in childSchema.ForeignKeys.Where(fk =>
-                    string.Equals(fk.PrincipalTable, principalSchema.Name, StringComparison.Ordinal)))
+                    fk.PrincipalObjectName == principalSchema.ObjectName))
                 {
                     ValidatePrincipalDeletesLocked(principalEntry.Batch, childSchema, foreignKey, prepared);
                 }
@@ -2009,14 +2096,14 @@ public sealed partial class TableManager : IDisposable
     }
 
     private void ValidateForeignKeyRowLocked(
-        string tableName,
+        TableObjectName tableName,
         TableRow row,
         TableForeignKey foreignKey,
-        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+        IReadOnlyDictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
     {
         var childSchema = _catalog.TryGet(tableName)
             ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-        var principalSchema = _catalog.TryGet(foreignKey.PrincipalTable)
+        var principalSchema = _catalog.TryGet(foreignKey.PrincipalObjectName)
             ?? throw new InvalidOperationException($"外键 '{foreignKey.Name}' 引用的表 '{foreignKey.PrincipalTable}' 不存在。");
         if (!foreignKey.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
             throw new NotSupportedException($"外键 '{foreignKey.Name}' 第一版仅支持引用被引用表 PRIMARY KEY。");
@@ -2029,7 +2116,7 @@ public sealed partial class TableManager : IDisposable
         {
             throw new TableConstraintException(
                 TableConstraintException.ForeignKeyViolation,
-                tableName,
+                tableName.Name,
                 foreignKey.Name,
                 $"外键 '{foreignKey.Name}' 冲突：table '{tableName}' 引用了不存在的 '{foreignKey.PrincipalTable}' 主键。");
         }
@@ -2039,7 +2126,7 @@ public sealed partial class TableManager : IDisposable
         TableStore.PreparedTableBatch principalBatch,
         TableSchema childSchema,
         TableForeignKey foreignKey,
-        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+        IReadOnlyDictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
     {
         var childStore = OpenStoreLocked(childSchema);
         foreach (var deleted in principalBatch.DeletedRows)
@@ -2047,7 +2134,7 @@ public sealed partial class TableManager : IDisposable
             var deletedKeyValues = ExtractPrimaryKeyValues(principalBatch.Schema, deleted);
             foreach (var childRow in childStore.Scan())
             {
-                if (prepared.TryGetValue(childSchema.Name, out var childPrepared)
+                if (prepared.TryGetValue(childSchema.ObjectName, out var childPrepared)
                     && RowIsDeletedOrReplaced(childPrepared.Batch, childRow))
                 {
                     continue;
@@ -2058,7 +2145,7 @@ public sealed partial class TableManager : IDisposable
                     throw ForeignKeyDeleteViolation(childSchema, foreignKey);
             }
 
-            if (prepared.TryGetValue(childSchema.Name, out var preparedChild))
+            if (prepared.TryGetValue(childSchema.ObjectName, out var preparedChild))
             {
                 foreach (var childRow in preparedChild.Batch.FinalRows)
                 {
@@ -2073,9 +2160,9 @@ public sealed partial class TableManager : IDisposable
     private bool PrincipalExistsAfterTransactionLocked(
         TableSchema principalSchema,
         IReadOnlyList<object?> keyValues,
-        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+        IReadOnlyDictionary<TableObjectName, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
     {
-        if (prepared.TryGetValue(principalSchema.Name, out var principalPrepared))
+        if (prepared.TryGetValue(principalSchema.ObjectName, out var principalPrepared))
         {
             if (principalPrepared.Batch.FinalRows.Any(row => ValuesEqual(ExtractPrimaryKeyValues(principalSchema, row), keyValues)))
                 return true;
@@ -2247,13 +2334,13 @@ public sealed partial class TableManager : IDisposable
         => _catalog.Snapshot().Any(schema => schema.ForeignKeys.Any(foreignKey =>
             string.Equals(foreignKey.PrincipalTable, tableName, StringComparison.Ordinal)));
 
-    private void EnsureTableIsNotReferencedByForeignKeyLocked(string tableName, string operation)
+    private void EnsureTableIsNotReferencedByForeignKeyLocked(TableObjectName tableName, string operation)
     {
         foreach (var schema in _catalog.Snapshot())
         {
             foreach (var foreignKey in schema.ForeignKeys)
             {
-                if (!string.Equals(foreignKey.PrincipalTable, tableName, StringComparison.Ordinal))
+                if (foreignKey.PrincipalObjectName != tableName)
                     continue;
 
                 throw new InvalidOperationException(

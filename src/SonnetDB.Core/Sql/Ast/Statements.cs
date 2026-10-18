@@ -41,6 +41,9 @@ public sealed partial record CreateTableStatement(
     IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
     IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份；旧构造方为空时按 main 处理。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>是否创建当前逻辑连接拥有的临时关系表。</summary>
     public bool IsTemporary { get; init; }
 
@@ -86,6 +89,9 @@ public sealed record TableForeignKeyClause(
     IReadOnlyList<string> PrincipalColumns,
     ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
 {
+    /// <summary>保留逐段引号状态的被引用表身份。</summary>
+    public SqlQualifiedObjectName? PrincipalQualifiedName { get; init; }
+
     /// <summary>被引用表名是否使用双引号。</summary>
     public bool PrincipalTableIsQuoted { get; init; }
 
@@ -293,6 +299,9 @@ public sealed record CreateTriggerStatement(
     string BodySql,
     string Language = "SQL") : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>触发器目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 
@@ -375,6 +384,9 @@ public sealed record CreateTableIndexStatement(
     DocumentIndexOptions? DocumentOptions = null,
     bool Online = false) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>各键列是否降序。</summary>
     public IReadOnlyList<bool> Descending { get; init; } = [];
     /// <summary>独立的包含列名。</summary>
@@ -840,6 +852,9 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>关系表目标的结构化身份；measurement 写入保持为空。</summary>
+    public SqlQualifiedObjectName? TargetQualifiedName { get; init; }
+
     /// <summary>目标表或 measurement 名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 
@@ -980,6 +995,9 @@ public sealed partial record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>关系 FROM 源的结构化身份；measurement、CTE、TVF 与虚拟源可为空。</summary>
+    public SqlQualifiedObjectName? SourceQualifiedName { get; init; }
+
     /// <summary>在显式事务中锁定实际选中的关系基表行。</summary>
     public bool ForUpdate { get; init; }
 
@@ -1097,6 +1115,9 @@ public sealed record JoinClause(
     SelectStatement? Subquery = null,
     JoinKind Kind = JoinKind.Inner)
 {
+    /// <summary>关系 JOIN 源的结构化身份；派生表和值来源为空。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>派生 VALUES 来源；为空表示关系表或 SELECT 来源。</summary>
     public IReadOnlyList<IReadOnlyList<SqlExpression>>? ValuesRows { get; init; }
 
@@ -1237,6 +1258,9 @@ public sealed record DeleteStatement(
     string Measurement,
     SqlExpression Where) : SqlStatement
 {
+    /// <summary>关系表删除目标的结构化身份；measurement 删除保持为空。</summary>
+    public SqlQualifiedObjectName? TargetQualifiedName { get; init; }
+
     /// <summary>删除目标名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 
@@ -1254,6 +1278,9 @@ public sealed record DeleteStatement(
 /// <param name="TableName">目标关系表名称。</param>
 public sealed record TruncateTableStatement(string TableName) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 }
@@ -1272,6 +1299,9 @@ public sealed record UpdateStatement(
     SqlExpression Where,
     string? TableAlias = null) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>原 SQL 是否省略 WHERE 子句；仅关系表允许按常量 TRUE 更新全部行。</summary>
     public bool WhereClauseIsOmitted { get; init; }
 
@@ -1313,6 +1343,9 @@ public sealed record UpdateAssignment(string ColumnName, SqlExpression Value)
 /// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时表不存在视为成功（0 行受影响），否则报错。</param>
 public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool NameIsQuoted { get; init; }
 }
@@ -1373,6 +1406,9 @@ public sealed record DropTriggerStatement(string Name, bool IfExists = false) : 
 /// <param name="TableName">表名。</param>
 public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>索引名是否使用双引号。</summary>
     public bool IndexNameIsQuoted { get; init; }
 

@@ -19,8 +19,11 @@ public sealed class TableSchema
         IReadOnlyList<TableIndex> indexes,
         IReadOnlyList<TableForeignKey> foreignKeys,
         IReadOnlyList<TableCheckConstraint> checkConstraints,
-        long createdAtUtcTicks)
+        long createdAtUtcTicks,
+        string schemaName = TableObjectName.DefaultSchemaName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaName);
+        SchemaName = schemaName;
         Name = name;
         Columns = columns;
         PrimaryKey = primaryKey;
@@ -39,6 +42,12 @@ public sealed class TableSchema
 
     /// <summary>表名。</summary>
     public string Name { get; }
+
+    /// <summary>关系表 schema 的原始保存拼写。</summary>
+    public string SchemaName { get; }
+
+    /// <summary>schema 与表名组成的持久对象身份。</summary>
+    public TableObjectName ObjectName => new(SchemaName, Name);
 
     /// <summary>按声明顺序排列的列。</summary>
     public IReadOnlyList<TableColumn> Columns { get; }
@@ -67,7 +76,7 @@ public sealed class TableSchema
                 .Any(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
                 throw new ArgumentException($"约束 '{name}' 已存在。", nameof(name));
         }
-        return new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+        return new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks, SchemaName)
         { Comment = Comment, PrimaryKeyConstraintName = name };
     }
 
@@ -550,7 +559,8 @@ public sealed class TableSchema
 
         var definitions = ForeignKeys
             .Where(f => !string.Equals(f.Name, target.Name, StringComparison.Ordinal))
-            .Select(static f => new TableForeignKeyDefinition(f.Name, f.Columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete))
+            .Select(static f => new TableForeignKeyDefinition(f.Name, f.Columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete)
+            { PrincipalSchemaName = f.PrincipalSchemaName })
             .ToArray();
         return CreateWithInheritedMetadata(
             Name,
@@ -932,7 +942,8 @@ public sealed class TableSchema
                     ? foreignKey.PrincipalColumns.Select(name =>
                         string.Equals(name, oldName, StringComparison.Ordinal) ? newName : name).ToArray()
                     : foreignKey.PrincipalColumns,
-                foreignKey.OnDelete)).ToArray(),
+                foreignKey.OnDelete)
+            { PrincipalSchemaName = foreignKey.PrincipalSchemaName }).ToArray(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
@@ -960,6 +971,32 @@ public sealed class TableSchema
             AutoIncrementColumnNames(),
             DecimalDefinitions(), ExplicitDecimalDeclarations());
 
+    /// <summary>返回使用新 schema 和表名的结构，其余定义与持久元数据保持不变。</summary>
+    /// <param name="objectName">新的成对关系对象身份。</param>
+    public TableSchema WithObjectName(TableObjectName objectName)
+    {
+        TableSchema renamed = string.Equals(Name, objectName.Name, StringComparison.Ordinal)
+            ? this
+            : WithName(objectName.Name);
+        return new TableSchema(
+            renamed.Name,
+            renamed.Columns,
+            renamed.PrimaryKey,
+            renamed.Indexes,
+            renamed.ForeignKeys,
+            renamed.CheckConstraints,
+            renamed.CreatedAtUtcTicks,
+            objectName.SchemaName)
+        {
+            Comment = renamed.Comment,
+            PrimaryKeyConstraintName = renamed.PrimaryKeyConstraintName,
+        };
+    }
+
+    /// <summary>返回仅改变 schema 身份的结构。</summary>
+    /// <param name="schemaName">新的 schema 名。</param>
+    public TableSchema WithSchemaName(string schemaName) => WithObjectName(new TableObjectName(schemaName, Name));
+
     /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? RowVersionColumn
         => Columns.FirstOrDefault(static c => c.IsRowVersion);
@@ -972,7 +1009,7 @@ public sealed class TableSchema
     /// <param name="comment">注释文本；null 清除注释；持久化 UTF-8 长度最多 65535 字节。</param>
     /// <returns>保留其余定义的新 schema。</returns>
     public TableSchema WithComment(string? comment)
-        => new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks) { Comment = comment, PrimaryKeyConstraintName = PrimaryKeyConstraintName };
+        => new(Name, Columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks, SchemaName) { Comment = comment, PrimaryKeyConstraintName = PrimaryKeyConstraintName };
 
     /// <summary>返回设置或清除列注释后的新 schema。</summary>
     /// <param name="columnName">已绑定的原始列名。</param>
@@ -1002,7 +1039,7 @@ public sealed class TableSchema
 
     private TableSchema WithColumnMetadata(TableColumn column)
         => new(Name, Columns.Select(current => current.Ordinal == column.Ordinal ? column : current).ToArray(),
-            PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+            PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks, SchemaName)
         { Comment = Comment, PrimaryKeyConstraintName = PrimaryKeyConstraintName };
 
     private TableSchema InheritMetadata(TableSchema source, (string OldName, string NewName)? rename = null)
@@ -1017,7 +1054,7 @@ public sealed class TableSchema
                 Comment = previous.Comment,
             };
         }).ToArray();
-        return new TableSchema(Name, columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks)
+        return new TableSchema(Name, columns, PrimaryKey, Indexes, ForeignKeys, CheckConstraints, CreatedAtUtcTicks, source.SchemaName)
         { Comment = source.Comment }.WithPrimaryKeyConstraintName(PrimaryKey.Count == 0 ? null : source.PrimaryKeyConstraintName ?? PrimaryKeyConstraintName);
     }
 
@@ -1176,7 +1213,8 @@ public sealed class TableSchema
                 foreignKey.Columns.ToArray(),
                 foreignKey.PrincipalTable,
                 foreignKey.PrincipalColumns.ToArray(),
-                foreignKey.OnDelete));
+                foreignKey.OnDelete)
+            { PrincipalSchemaName = foreignKey.PrincipalSchemaName });
         }
 
         return result;
@@ -1259,7 +1297,8 @@ public sealed class TableSchema
                     string.Equals(column, principalRename.OldName, StringComparison.Ordinal)
                         ? principalRename.NewName : column).ToArray();
             }
-            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, principalColumns, f.OnDelete);
+            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, principalColumns, f.OnDelete)
+            { PrincipalSchemaName = f.PrincipalSchemaName };
         }).ToArray();
 
     private IReadOnlyList<TableCheckConstraintDefinition> CheckConstraintDefinitions()

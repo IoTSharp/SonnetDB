@@ -24,12 +24,12 @@ public sealed partial class TableCatalog
             throw new InvalidOperationException("连接会话的联合目录是只读视图，不能直接发布或持久化。");
     }
 
-    private TableSchema? ResolveSession(string name, bool quoted)
+    private TableSchema? ResolveSession(TableObjectName objectName, bool schemaIsQuoted, bool nameIsQuoted)
     {
-        TableSchema? persistent = _persistent!.Resolve(name, quoted);
-        TableSchema? temporary = _session!.VisibleTables?.Catalog.Resolve(name, quoted);
+        TableSchema? persistent = _persistent!.Resolve(objectName, schemaIsQuoted, nameIsQuoted);
+        TableSchema? temporary = _session!.VisibleTables?.Catalog.Resolve(objectName, schemaIsQuoted, nameIsQuoted);
         if (persistent is not null && temporary is not null)
-            throw new InvalidOperationException($"SQL 数据源 '{name}' 的持久表与连接临时表存在名称歧义。");
+            throw new InvalidOperationException($"SQL 数据源 {objectName} 的持久表与连接临时表存在名称歧义。");
         return temporary ?? persistent;
     }
 
@@ -37,10 +37,13 @@ public sealed partial class TableCatalog
     {
         IReadOnlyList<TableSchema> persistent = _persistent!.Snapshot();
         IReadOnlyList<TableSchema> temporary = _session!.VisibleTables?.Catalog.Snapshot() ?? [];
-        var names = new HashSet<string>(persistent.Select(static schema => schema.Name), StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<TableObjectName>(persistent.Select(static schema => schema.ObjectName), TableObjectName.UnquotedComparer);
         foreach (TableSchema schema in temporary)
-            if (!names.Add(schema.Name))
-                throw new InvalidOperationException($"SQL 数据源 '{schema.Name}' 的持久表与连接临时表存在名称歧义。");
-        return persistent.Concat(temporary).OrderBy(static schema => schema.Name, StringComparer.Ordinal).ToArray();
+            if (!names.Add(schema.ObjectName))
+                throw new InvalidOperationException($"SQL 数据源 {schema.ObjectName} 的持久表与连接临时表存在名称歧义。");
+        return persistent.Concat(temporary)
+            .OrderBy(static schema => schema.SchemaName, StringComparer.Ordinal)
+            .ThenBy(static schema => schema.Name, StringComparer.Ordinal)
+            .ToArray();
     }
 }

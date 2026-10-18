@@ -11,6 +11,9 @@ public sealed record CreateTableAsStatement(
     bool IsTemporary = false,
     bool IfNotExists = false) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>目标名称是否使用双引号。</summary>
     public bool NameIsQuoted { get; init; }
 }

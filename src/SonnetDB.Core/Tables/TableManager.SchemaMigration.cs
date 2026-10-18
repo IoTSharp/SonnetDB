@@ -55,7 +55,7 @@ public sealed partial class TableManager
             }
             var budget = new TableSchemaMigrationBudget();
             var plans = new Dictionary<string, (TableStore Store, TableStore.SchemaMigrationPlan Plan)>(StringComparer.Ordinal);
-            TableStore principalStore = _stores[current.Name];
+            TableStore principalStore = _stores[current.ObjectName];
             TableStore.SchemaMigrationPlan principalPlan = principalStore.PrepareSchemaMigration(updated, transform,
                 (schema, values) =>
                 {
@@ -68,7 +68,7 @@ public sealed partial class TableManager
                 static row => row.UpdatedRow, KvKeyComparer.Instance);
             foreach (var child in children)
             {
-                TableStore store = _stores[child.Original.Name];
+                TableStore store = _stores[child.Original.ObjectName];
                 var plan = store.PrepareSchemaMigration(child.Updated,
                     (_, row) => TransformSchemaMigrationChildRow(current, updated, child, row, principalByOriginalKey),
                     ValidateSchemaMigrationRow, TableRowIdentity.Create, budget);
@@ -208,7 +208,7 @@ public sealed partial class TableManager
                     if (values is null) continue;
                     bool exists = primaryKeys.TryGetValue(principal.Name, out var preparedKeys)
                         ? preparedKeys.Contains(TableKeyCodec.EncodePrimaryKeyValues(principal, values))
-                        : _stores[principal.Name].GetByPrimaryKey(values) is not null;
+                        : _stores[principal.ObjectName].GetByPrimaryKey(values) is not null;
                     if (!exists)
                         throw new TableConstraintException(TableConstraintException.ForeignKeyViolation,
                             schema.Name, foreignKey.Name, "主键迁移后的行不满足外键约束。");

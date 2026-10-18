@@ -37,20 +37,20 @@ public sealed partial class TableManager
     }
 
     internal int ApplySerializableTransaction(SqlTransactionContext transaction,
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutations)
+        IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutations)
     {
         // 调用方持有 manager 锁；触发器与级联已完成，固定实际读、写和外键校验依赖。
         transaction.CheckCommitDeadline();
         long started = Stopwatch.GetTimestamp();
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        void Add(string name)
+        var names = new HashSet<TableObjectName>(TableObjectName.ExactComparer);
+        void Add(TableObjectName name)
         {
             transaction.CheckCommitDeadline();
             names.Add(name);
             if (names.Count > SqlTransactionContext.MaximumSerializableTables)
                 throw new NotSupportedException("Serializable 提交最多锁定 4096 张实际依赖表。");
         }
-        foreach (var read in transaction.SerializableReads) Add(read.Schema.Name);
+        foreach (var read in transaction.SerializableReads) Add(read.Schema.ObjectName);
         int mutationRows = 0;
         foreach (var (name, rows) in mutations)
         {
@@ -67,23 +67,26 @@ public sealed partial class TableManager
                 foreach (var foreignKey in schema.ForeignKeys)
                 {
                     transaction.CheckCommitDeadline();
-                    if (mutations.ContainsKey(schema.Name) || mutations.ContainsKey(foreignKey.PrincipalTable))
+                    if (mutations.ContainsKey(schema.ObjectName) || mutations.ContainsKey(foreignKey.PrincipalObjectName))
                     {
-                        Add(schema.Name);
-                        Add(foreignKey.PrincipalTable);
+                        Add(schema.ObjectName);
+                        Add(foreignKey.PrincipalObjectName);
                     }
                 }
             }
         }
-        string[] orderedNames = names.Order(StringComparer.Ordinal).ToArray();
+        TableObjectName[] orderedNames = names
+            .OrderBy(static name => name.SchemaName, StringComparer.Ordinal)
+            .ThenBy(static name => name.Name, StringComparer.Ordinal)
+            .ToArray();
         var stores = new List<TableStore>(orderedNames.Length);
         try
         {
-            foreach (string name in orderedNames)
+            foreach (TableObjectName name in orderedNames)
             {
                 transaction.CheckCommitDeadline();
                 var schema = _catalog.TryGet(name);
-                if (schema is null) throw SerializationConflict(name);
+                if (schema is null) throw SerializationConflict(name.Name);
                 TableStore store = OpenStoreLocked(schema);
                 transaction.CheckCommitDeadline();
                 bool taken = false;
@@ -117,9 +120,9 @@ public sealed partial class TableManager
         foreach (var read in transaction.SerializableReads)
         {
             transaction.CheckCommitDeadline();
-            if (_catalog.TryGet(read.Schema.Name) is not { } schema
+            if (_catalog.TryGet(read.Schema.ObjectName) is not { } schema
                 || !ReferenceEquals(schema, read.Schema)
-                || !_stores.TryGetValue(read.Schema.Name, out var store)
+                || !_stores.TryGetValue(read.Schema.ObjectName, out var store)
                 || !store.MatchesSerializableRead(read, transaction.SerializableExpectedSequence(read)))
                 throw SerializationConflict(read.Schema.Name);
         }

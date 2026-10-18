@@ -751,7 +751,7 @@ public sealed partial class TableStore : IDisposable
                     foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
                 }
             }
-            return new TableTransactionUndo(batch.Schema.Name, Generation,
+            return new TableTransactionUndo(batch.Schema.ObjectName, Generation,
                 TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
                 keys.Select(key => new RollbackAction(key, _keyspace.Get(key))).ToArray());
         }

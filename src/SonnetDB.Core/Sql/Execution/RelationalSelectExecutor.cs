@@ -307,7 +307,7 @@ internal static partial class RelationalSelectExecutor
         if (statement.Where is null
             || statement.FromSubquery is not null
             || statement.JoinClauses.Count != 0
-            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } tableSchema)
+            || ResolveTable(tsdb, statement) is not { } tableSchema)
         {
             return false;
         }
@@ -385,7 +385,7 @@ internal static partial class RelationalSelectExecutor
         if (statement.Where is null
             || statement.FromSubquery is not null
             || statement.JoinClauses.Count != 0
-            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } outerSchema)
+            || ResolveTable(tsdb, statement) is not { } outerSchema)
         {
             return null;
         }
@@ -417,7 +417,7 @@ internal static partial class RelationalSelectExecutor
             return null;
         }
 
-        long outerRows = tsdb.Tables.Open(outerSchema.Name).RowCount;
+        long outerRows = tsdb.Tables.Open(outerSchema.ObjectName).RowCount;
         long innerRows = tsdb.Tables.Catalog.TryGet(subquery.Measurement) is { } innerSchema
             ? tsdb.Tables.Open(innerSchema.Name).RowCount
             : 0;
@@ -792,9 +792,9 @@ internal static partial class RelationalSelectExecutor
         relation = new Relation(
             columns,
             [],
-            EstimateTableInput(tsdb.Tables.Open(schema.Name), schema, selectedColumns, inputPlan),
+            EstimateTableInput(tsdb.Tables.Open(schema.ObjectName), schema, selectedColumns, inputPlan),
             new TableRelationInput(
-                tsdb.Tables.Open(schema.Name),
+                tsdb.Tables.Open(schema.ObjectName),
                 schema,
                 alias,
                 selectedColumns,
@@ -920,7 +920,7 @@ internal static partial class RelationalSelectExecutor
             return BuildExistsFallbackPlan(tsdb, subquery, "correlated_value_requires_runtime_binding");
         }
 
-        TableStore store = tsdb.Tables.Open(schema.Name);
+        TableStore store = tsdb.Tables.Open(schema.ObjectName);
         var access = TableSqlExecutor.PlanExistsAccessForExplain(store, schema, boundWhere);
         long tableRows = EstimateExistsTableRows(tsdb, schema);
         TableAccessCostEstimate? costEstimate = access.UsesPrimaryKey
@@ -998,7 +998,7 @@ internal static partial class RelationalSelectExecutor
     /// </summary>
     private static long EstimateExistsTableRows(Tsdb tsdb, TableSchema schema)
     {
-        long rows = tsdb.Tables.Open(schema.Name).RowCount;
+        long rows = tsdb.Tables.Open(schema.ObjectName).RowCount;
         if (SqlTransactionContext.Current is not { } transaction
             || !transaction.TryGetBufferedMutations(schema, out var mutations))
         {
@@ -1549,7 +1549,7 @@ internal static partial class RelationalSelectExecutor
     {
         sources = [];
         if (statement.FromSubquery is not null
-            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } fromSchema)
+            || ResolveTable(tsdb, statement) is not { } fromSchema)
         {
             return false;
         }
@@ -1565,7 +1565,7 @@ internal static partial class RelationalSelectExecutor
         {
             JoinClause join = statement.JoinClauses[index];
             if (join.ValuesRows is not null || join.Subquery is not null
-                || tsdb.Tables.Catalog.TryGet(join.TableName) is not { } schema)
+                || ResolveTable(tsdb, join) is not { } schema)
             {
                 return false;
             }
@@ -1891,7 +1891,9 @@ internal static partial class RelationalSelectExecutor
             return LoadRecursiveSource(recursiveSource, alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(statement.Measurement) is { } transitionSchema)
             return LoadTransitionTable(statement.Measurement, alias, transitionSchema);
-        var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        var schema = statement.SourceQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (schema is not null)
             return LoadTable(tsdb, schema, alias, plan, memo);
         if (tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement) is not null)
@@ -1914,7 +1916,9 @@ internal static partial class RelationalSelectExecutor
             return LoadRecursiveSource(recursiveSource, join.Alias);
         if (SonnetDB.Routines.TriggerTransitionTables.FindSchema(join.TableName) is { } transitionSchema)
             return LoadTransitionTable(join.TableName, join.Alias, transitionSchema);
-        var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
+        var schema = join.TableQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(join.TableName);
         if (schema is not null)
             return LoadTable(tsdb, schema, join.Alias, plan, memo);
         if (tsdb.MaterializedViews.Catalog.TryGet(join.TableName) is not null)
@@ -1961,7 +1965,7 @@ internal static partial class RelationalSelectExecutor
             var column = selectedColumns[i];
             columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType) { Info = SelectColumnInfo.FromColumn(column) };
         }
-        TableStore store = tsdb.Tables.Open(schema.Name);
+        TableStore store = tsdb.Tables.Open(schema.ObjectName);
         RelationalJoinInputEstimate estimate = EstimateTableInput(store, schema, selectedColumns, plan);
         if (plan.RowLimit == 0)
         {
@@ -5215,7 +5219,7 @@ internal static partial class RelationalSelectExecutor
 
         SqlExecutor.ThrowIfCancellationRequested();
         var candidates = TableSqlExecutor.LoadExistsCandidateRows(
-            tsdb.Tables.Open(schema.Name),
+            tsdb.Tables.Open(schema.ObjectName),
             schema,
             boundWhere);
         int examinedRows = 0;
@@ -6449,6 +6453,16 @@ internal static partial class RelationalSelectExecutor
             return CompareScalar(x, y) ?? 0;
         }
     }
+
+    private static TableSchema? ResolveTable(Tsdb tsdb, SelectStatement statement)
+        => statement.SourceQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(statement.Measurement);
+
+    private static TableSchema? ResolveTable(Tsdb tsdb, JoinClause join)
+        => join.TableQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(join.TableName);
 }
 
 /// <summary>

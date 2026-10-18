@@ -33,8 +33,15 @@ public sealed partial class TableManager
         TableIndexDefinition definition,
         CancellationToken cancellationToken = default,
         int maximumPages = 64)
+        => CreateIndexOnline(new TableObjectName(tableName), definition, cancellationToken, maximumPages);
+
+    /// <summary>按完整关系表身份分页构建普通非唯一索引。</summary>
+    public TableOnlineIndexBuildResult CreateIndexOnline(
+        TableObjectName tableName,
+        TableIndexDefinition definition,
+        CancellationToken cancellationToken = default,
+        int maximumPages = 64)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumPages, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumPages, 64);
@@ -63,17 +70,17 @@ public sealed partial class TableManager
                     ThrowIfDisposed();
                     var schema = Catalog.TryGet(tableName)
                         ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                    if (!_stores.TryGetValue(tableName, out var store))
+                    if (!_stores.TryGetValue(schema.ObjectName, out var store))
                     {
                         // 已发布索引的目录足以判断完成；冷表不能因尚未开库而永久返回 pending。
                         // 残留构建元数据由正常开表恢复路径清理，不为幂等查询触发昂贵冷恢复。
                         if (schema.TryGetIndex(definition.Name) is { } published)
                         {
                             EnsureOnlineIndexDefinition(published, definition);
-                            return new(tableName, definition.Name, true, pages, rows, "complete");
+                            return new(DisplayName(tableName), definition.Name, true, pages, rows, "complete");
                         }
                         // 未完成索引仍须先由正常业务开表，避免在线入口意外执行无界冷恢复。
-                        return new(tableName, definition.Name, false, pages, rows, "yielded");
+                        return new(DisplayName(tableName), definition.Name, false, pages, rows, "yielded");
                     }
                     using (EnterOnlineIndexLock(store.SynchronizationRoot, pageBudget.Token))
                     {
@@ -81,14 +88,14 @@ public sealed partial class TableManager
                         {
                             EnsureOnlineIndexDefinition(existing, definition);
                             store.CleanupPublishedOnlineIndexBuild(pageBudget.Token);
-                            return new(tableName, definition.Name, true, pages, rows, "complete");
+                            return new(DisplayName(tableName), definition.Name, true, pages, rows, "complete");
                         }
                         if ((definition.Descending.Any(static value => value) || definition.IncludedColumns.Count != 0)
                             && TableSchemaCodec.ReadFormatVersion(SchemaPath) < 16)
                             TableSchemaCodec.SaveWithMaintenanceBarrier(SchemaPath, Catalog.Snapshot());
                         var progress = store.AdvanceOnlineIndexBuild(definition, pageBudget.Token);
                         if (progress.WaitingForCheckpoint)
-                            return new(tableName, definition.Name, false, pages, rows, "waiting_checkpoint");
+                            return new(DisplayName(tableName), definition.Name, false, pages, rows, "waiting_checkpoint");
                         pages++;
                         rows += progress.Rows;
                         if (progress.Completed)
@@ -97,27 +104,27 @@ public sealed partial class TableManager
                             {
                                 // 索引 WAL 先同步，候选目录完整落盘后才发布内存目录，失败时保留可恢复进度。
                                 var candidateSchemas = Catalog.Snapshot()
-                                    .Select(item => item.Name == tableName ? updated : item).ToArray();
+                                    .Select(item => item.ObjectName == tableName ? updated : item).ToArray();
                                 TableSchemaCodec.Save(SchemaPath, candidateSchemas);
                                 AfterCatalogPersistedBeforePublishTestHook?.Invoke();
                             }, updated => Catalog.LoadOrReplace(updated), pageBudget.Token);
-                            return new(tableName, definition.Name, true, pages, rows, "complete");
+                            return new(DisplayName(tableName), definition.Name, true, pages, rows, "complete");
                         }
                     }
                 }
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return new(tableName, definition.Name, false, pages, rows, "yielded");
+                return new(DisplayName(tableName), definition.Name, false, pages, rows, "yielded");
             }
             OnlineIndexPageCompletedTestHook?.Invoke(pages);
             if (budget.IsCancellationRequested)
-                return new(tableName, definition.Name, false, pages, rows, "yielded");
+                return new(DisplayName(tableName), definition.Name, false, pages, rows, "yielded");
             // 不持锁等待，前台写入和多表事务可在页间推进。
             if (cancellationToken.WaitHandle.WaitOne(10))
                 cancellationToken.ThrowIfCancellationRequested();
         }
-        return new(tableName, definition.Name, false, pages, rows, "pending");
+        return new(DisplayName(tableName), definition.Name, false, pages, rows, "pending");
     }
 
     /// <summary>同名续建只允许完全相同的列顺序与索引种类，避免误把别的索引当成完成。</summary>

@@ -1751,7 +1751,9 @@ public static partial class SqlExecutor
 
         bool hasRoleHints = statement.ColumnRoleHints.Any(static role => role is not null);
 
-        if (statement.IsReplace && tsdb.Tables.Catalog.TryGet(statement.Measurement) is null)
+        TableObjectName targetObjectName = statement.TargetQualifiedName?.ObjectName
+            ?? new TableObjectName(statement.Measurement);
+        if (statement.IsReplace && tsdb.Tables.Catalog.TryGet(targetObjectName) is null)
             throw new NotSupportedException("REPLACE 仅支持已有关系表。");
 
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
@@ -1768,7 +1770,7 @@ public static partial class SqlExecutor
             return DocumentSqlExecutor.ExecuteInsert(tsdb, statement, documentSchema);
         }
 
-        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        var tableSchema = tsdb.Tables.Catalog.TryGet(targetObjectName);
         if (tableSchema is not null)
         {
             if (hasRoleHints)
@@ -2006,7 +2008,7 @@ public static partial class SqlExecutor
             && statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
             && !RelationalSelectExecutor.NeedsRelationalPath(statement)
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } distinctSchema
+            && ResolveBoundTable(tsdb, statement) is { } distinctSchema
             && TableSqlExecutor.CanStreamDistinct(statement, distinctSchema))
         {
             return ApplyCteOutputColumnNames(
@@ -2374,7 +2376,7 @@ public static partial class SqlExecutor
             return informationSchemaResult;
 
         var tableSchema = statement.FromSubquery is null
-            ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
+            ? ResolveBoundTable(tsdb, statement)
             : null;
         if (SqlRowRetentionBudget.HasExecutionBudget && tableSchema is not null)
             return RelationalSelectExecutor.Execute(tsdb, statement);
@@ -2447,6 +2449,11 @@ public static partial class SqlExecutor
                 EnsureMaterializationTableSupported(tsdb, join.TableName);
         }
     }
+
+    private static TableSchema? ResolveBoundTable(Tsdb tsdb, SelectStatement statement)
+        => statement.SourceQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(statement.Measurement);
 
     private static void EnsureMaterializationTableSupported(Tsdb tsdb, string name)
     {

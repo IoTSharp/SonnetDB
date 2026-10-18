@@ -82,6 +82,69 @@ public sealed class TableSchemaCodecTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_WithQualifiedTableAndForeignKey_UsesVersion18AndRoundTripsPairs()
+    {
+        var parent = TableSchema.Create(
+            "Accounts",
+            [("Id", TableColumnType.Int64, false)],
+            ["Id"])
+            .WithSchemaName("Tenant.One");
+        var child = TableSchema.Create(
+            "Orders",
+            [("Id", TableColumnType.Int64, false), ("AccountId", TableColumnType.Int64, false)],
+            ["Id"],
+            foreignKeys:
+            [
+                new TableForeignKeyDefinition("FK_Orders_Accounts", ["AccountId"], "Accounts", ["Id"])
+                { PrincipalSchemaName = "Tenant.One" },
+            ])
+            .WithSchemaName("Tenant.Two");
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+
+        TableSchemaCodec.Save(path, [parent, child]);
+
+        Assert.Equal(18, TableSchemaCodec.ReadFormatVersion(path));
+        IReadOnlyList<TableSchema> loaded = TableSchemaCodec.Load(path);
+        TableSchema loadedParent = Assert.Single(loaded, schema => schema.ObjectName == parent.ObjectName);
+        TableSchema loadedChild = Assert.Single(loaded, schema => schema.ObjectName == child.ObjectName);
+        Assert.Equal(parent.ObjectName, loadedParent.ObjectName);
+        Assert.Equal(new TableObjectName("Tenant.One", "Accounts"), Assert.Single(loadedChild.ForeignKeys).PrincipalObjectName);
+    }
+
+    [Fact]
+    public void Save_AfterVersion18Directory_DoesNotDowngradeFormatFloor()
+    {
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchema qualified = TableSchema.Create("Items", [("Id", TableColumnType.Int64, false)], ["Id"])
+            .WithSchemaName("sales");
+        TableSchema main = TableSchema.Create("Items", [("Id", TableColumnType.Int64, false)], ["Id"]);
+        TableSchemaCodec.Save(path, [qualified]);
+
+        TableSchemaCodec.Save(path, [main]);
+
+        Assert.Equal(18, TableSchemaCodec.ReadFormatVersion(path));
+        Assert.Equal(new TableObjectName("main", "Items"), Assert.Single(TableSchemaCodec.Load(path)).ObjectName);
+    }
+
+    [Fact]
+    public void Load_WithVersion17NameContainingDot_MapsWholeLegacyNameToMain()
+    {
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchema legacy = TableSchema.Create(
+            "legacy.with.dot",
+            [("Id", TableColumnType.Int64, false), ("Stamp", TableColumnType.DateTime2, false)],
+            ["Id"]);
+        TableSchemaCodec.Save(path, [legacy]);
+        Assert.Equal(17, TableSchemaCodec.ReadFormatVersion(path));
+
+        TableSchema loaded = Assert.Single(TableSchemaCodec.Load(path));
+
+        Assert.Equal("main", loaded.SchemaName);
+        Assert.Equal("legacy.with.dot", loaded.Name);
+        Assert.Equal(TableColumnType.DateTime2, loaded.Columns[1].DataType);
+    }
+
+    [Fact]
     public void Resolve_WithQuotedAndUnquotedNames_UsesDifferentComparisons()
     {
         var schema = TableSchema.Create(

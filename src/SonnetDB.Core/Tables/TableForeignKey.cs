@@ -15,7 +15,14 @@ public sealed record TableForeignKey(
     IReadOnlyList<string> Columns,
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
-    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction);
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
+{
+    /// <summary>被引用表 schema 的原始保存拼写。</summary>
+    public string PrincipalSchemaName { get; init; } = TableObjectName.DefaultSchemaName;
+
+    /// <summary>被引用表的成对身份。</summary>
+    public TableObjectName PrincipalObjectName => new(PrincipalSchemaName, PrincipalTable);
+}
 
 /// <summary>
 /// 创建或加载外键时使用的轻量声明。
@@ -30,4 +37,11 @@ public sealed record TableForeignKeyDefinition(
     IReadOnlyList<string> Columns,
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
-    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction);
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
+{
+    /// <summary>被引用表 schema 的原始保存拼写。</summary>
+    public string PrincipalSchemaName { get; init; } = TableObjectName.DefaultSchemaName;
+
+    /// <summary>被引用表的成对身份。</summary>
+    public TableObjectName PrincipalObjectName => new(PrincipalSchemaName, PrincipalTable);
+}
