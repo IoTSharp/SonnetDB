@@ -9,6 +9,8 @@
 
 ### Changed
 
+- 保存 #247 SqlSugar、#242 XCode、#233 Chloe 的固定上游消费者探针、最小 provider 补丁和真实三协议审计；原版失败、正式 4.0 包缺口及 HTTP/2 REST 事务边界分别保留，不把候选验证写成上游或稳定包已发布。
+
 - 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
 
 - GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。

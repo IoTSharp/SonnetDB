@@ -3460,3 +3460,9 @@ main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和Rel
 根额外在同一已编译候选运行原INSERT/关系表回归：196/199，真实3FAIL揭示旧DATETIME时钟/动态默认值不对齐被新拒绝合同阻断。原失败保留，未改断言；修复仅声明为旧DATETIME的current_datetime/current_utc_datetime返回毫秒对齐，保留Local/UTC Kind，SQL参考和CHANGELOG明确这两个函数精度收窄。显式CAST/DATE_ADD保完整ticks；current_utc_datetime_offset()+CAST DATETIME2保留原生时钟路径。继续重跑原199和组合142后gate。
 
 旧时钟修复后在整合树重新构建：原199项与组合142项并集341/341，0fail/0skip；原3FAIL未改断言且已保留。接着在此最终源上重新完整restore/规定Format后才提交Core切片。
+
+## 2026-10-19 真实 ORM 消费者证据入库（尚未统一推送）
+
+Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提交只保存 #247/#242/#233 的真实消费者探针、固定上游最小补丁及审计。SqlSugar 原版三协议各 9 PASS/14 FAIL，候选各 23/23；实际 HTTP/2 Procedure=3 共24次来自23场景中的两次复用。XCode 原版三协议各2项负控制、候选各7/7；Chloe embedded8/8、边界5/5，REST和HTTP/2各6/6。原版失败和正式4.0包失败保留，不代表上游补丁、稳定NuGet/Server或最终SHA的CI已交付。
+
+233/242外置manifest与247 acceptance/patch应用回执已移出可删工作树；247曾随父树误删的旧worker artifacts不再计作可回读证据，使用根289/289、远程60/60及新消费者回执。入库的247 csproj额外按真实已验证运行依赖显式引用Microsoft.AspNetCore.App，独立重编0警告/0错误。接续仍为245连接会话→236 Data/Protocol/Server→232结构化schema→227关系DDL事务→230正式交付依赖；没有push/Issue关闭/部署，canonical原脏文件继续保护。

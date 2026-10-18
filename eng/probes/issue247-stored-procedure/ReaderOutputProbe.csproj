@@ -12,5 +12,6 @@
   <ItemGroup>
     <Compile Include="ReaderOutputProbe.cs.txt" />
     <Reference Include="$(RuntimeDirectory)/*.dll" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

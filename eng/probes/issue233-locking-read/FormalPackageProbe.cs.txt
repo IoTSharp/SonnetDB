@@ -1,0 +1,62 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+if (args.Length != 1)
+{
+    return 2;
+}
+
+foreach (string name in new[] { "Chloe", "Chloe.SonnetDB", "SonnetDB.Data", "SonnetDB.Core" })
+{
+    Assembly assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+
+string connectionString = "Data Source=" + args[0];
+using (var connection = new SndbConnection(connectionString))
+{
+    connection.Open();
+    using var command = connection.CreateCommand();
+    command.CommandText = "CREATE TABLE ChloeFormalLock(Id INT,Value INT,PRIMARY KEY(Id))";
+    command.ExecuteNonQuery();
+    command.CommandText = "INSERT INTO ChloeFormalLock(Id,Value) VALUES(1,10)";
+    command.ExecuteNonQuery();
+}
+
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+context.Session.BeginTransaction();
+try
+{
+    _ = context.Query<FormalRow>(LockType.UpdLock).Where(row => row.Id == 1).First();
+    Console.WriteLine("UNEXPECTED_PASS|formal-package-4.0.0");
+    return 1;
+}
+catch (Exception error)
+{
+    Console.WriteLine($"EXPECTED_FAIL|formal-package-4.0.0|{error.GetType().FullName}|{error.Message}");
+    return 0;
+}
+finally
+{
+    if (context.Session.IsInTransaction)
+    {
+        context.Session.RollbackTransaction();
+    }
+}
+
+/// <summary>正式包锁探针实体。</summary>
+[Table("ChloeFormalLock")]
+public sealed class FormalRow
+{
+    /// <summary>主键。</summary>
+    [Column(IsPrimaryKey = true)]
+    public long Id { get; set; }
+
+    /// <summary>值。</summary>
+    public long Value { get; set; }
+}

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="RemoteChloeProbe.cs.txt" Link="Program.cs" />
+    <ProjectReference Include="../../../src/SonnetDB/SonnetDB.csproj" />
+    <Reference Include="Chloe"><HintPath>$(ChloeCoreBin)/Chloe.dll</HintPath></Reference>
+    <Reference Include="Chloe.SonnetDB"><HintPath>$(ChloeProviderBin)/Chloe.SonnetDB.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Data"><HintPath>../../../src/SonnetDB.Data/bin/Release/net10.0/SonnetDB.Data.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Protocol"><HintPath>../../../src/SonnetDB.Protocol/bin/Release/net10.0/SonnetDB.Protocol.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

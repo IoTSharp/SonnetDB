@@ -1,0 +1,403 @@
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
+using NewLife.Data;
+using SonnetDB.Configuration;
+using SonnetDB.Hosting;
+using XCode;
+using XCode.Configuration;
+using XCode.DataAccessLayer;
+using XCode.Model;
+
+if (args.Length != 3 || args[0] is not ("embedded" or "rest" or "frame-http2") || args[1] is not ("original" or "candidate"))
+{
+    return 2;
+}
+
+string protocol = args[0];
+string mode = args[1];
+string ownerRoot = Path.GetFullPath(args[2]);
+if (Directory.Exists(ownerRoot))
+{
+    throw new InvalidOperationException("Owner directory already exists: " + ownerRoot);
+}
+
+Directory.CreateDirectory(ownerRoot);
+string marker = Path.Combine(ownerRoot, "issue242-owner");
+File.WriteAllText(marker, "issue242-consumer-20261019");
+PrintAssemblies();
+
+WebApplication? app = null;
+var requests = new ConcurrentQueue<(string Path, string Protocol, string ContentType)>();
+string connectionString;
+using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+try
+{
+    if (protocol == "embedded")
+    {
+        connectionString = "Data Source=" + Path.Combine(ownerRoot, "embedded") + ";Timeout=20";
+    }
+    else
+    {
+        string contentRoot = Path.Combine(ownerRoot, "host");
+        Directory.CreateDirectory(contentRoot);
+        string httpVersion = protocol == "frame-http2" ? "Http2" : "Http1";
+        app = SonnetDB.Program.BuildApp(
+        [
+            "--contentRoot", contentRoot,
+            "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
+            "--Kestrel:Endpoints:Http:Protocols=" + httpVersion,
+            "--SonnetDBServer:DataRoot=" + Path.Combine(ownerRoot, "server-data"),
+            "--SonnetDBServer:AutoLoadExistingDatabases=true",
+            "--SonnetDBServer:AllowAnonymousProbes=true",
+            "--SonnetDBServer:Tokens:issue242-admin=admin",
+        ]);
+        app.Use(async (context, next) =>
+        {
+            if (requests.Count >= 512)
+            {
+                throw new InvalidOperationException("Request budget exceeded.");
+            }
+
+            requests.Enqueue((context.Request.Path.Value ?? string.Empty, context.Request.Protocol, context.Request.ContentType ?? string.Empty));
+            await next(context);
+        });
+        await app.StartAsync(deadline.Token);
+        if (!app.Services.GetRequiredService<TsdbRegistry>().TryCreate("xcode242", out _))
+        {
+            throw new InvalidOperationException("Unable to create remote probe database.");
+        }
+
+        string address = Single(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+        connectionString = $"Data Source=sonnetdb+http://{new Uri(address).Authority}/xcode242;Token=issue242-admin;Timeout=20;Protocol={protocol}";
+    }
+
+    int failed = Exercise(connectionString, protocol, mode);
+    if (protocol != "embedded")
+    {
+        var sqlRequests = requests.Where(request => request.Path.Contains("/sql", StringComparison.Ordinal)
+            || request.Path == "/v1/frame").ToArray();
+        Require(sqlRequests.Length > 0, "No SQL transport requests captured.");
+        string expected = protocol == "frame-http2" ? "HTTP/2" : "HTTP/1.1";
+        Require(sqlRequests.All(request => request.Protocol == expected), "Unexpected HTTP protocol or fallback.");
+        if (protocol == "frame-http2")
+        {
+            Require(sqlRequests.Any(request => request.Path == "/v1/frame"
+                && request.ContentType.StartsWith("application/x-sonnetdb-frame", StringComparison.OrdinalIgnoreCase)),
+                "No native Frame request captured.");
+        }
+
+        Console.WriteLine($"TRANSPORT|{protocol}|{expected}|sql={sqlRequests.Length}|frame={sqlRequests.Count(request => request.Path == "/v1/frame")}");
+    }
+
+    return failed == 0 ? 0 : 1;
+}
+finally
+{
+    if (app is not null)
+    {
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await app.StopAsync(stop.Token);
+        await app.DisposeAsync();
+    }
+
+    if (File.Exists(marker)
+        && string.Equals(File.ReadAllText(marker), "issue242-consumer-20261019", StringComparison.Ordinal)
+        && Directory.Exists(ownerRoot))
+    {
+        Directory.Delete(ownerRoot, recursive: true);
+    }
+}
+
+static int Exercise(string connectionString, string protocol, string mode)
+{
+    int passed = 0;
+    int failed = 0;
+    string connectionName = "Issue242_" + protocol.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
+    DAL.AddConnStr(connectionName, connectionString + ";Migration=Off", null, "SonnetDB");
+    DAL dal = DAL.Create(connectionName);
+    try
+    {
+        if (mode == "original")
+        {
+            Run("original-capability-retains-replace-disabled", () =>
+                Require((dal.Db.BatchCapability & BatchCapability.Replace) == 0, "Original provider advertised Replace."));
+            Run("original-guard-preserves-row", () =>
+            {
+                string table = Name("guard");
+                CreateReplaceTable(dal, table);
+                dal.Execute($"INSERT INTO {Q(table)}(email,phone,value,marker) VALUES('same','p1',11,'old')");
+                using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+                Exception error = Capture(() => new[] { new ReplaceEntity { Email = "same", Phone = "p2" } }
+                    .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone)), BatchSize = 100 }));
+                Require(error is NotSupportedException && error.Message.Contains("#242", StringComparison.Ordinal), "Original guard differs: " + error);
+                Require(Scalar<long>(dal, $"SELECT value FROM {Q(table)} WHERE email='same'") == 11, "Original guard changed the row.");
+            });
+            Console.WriteLine($"RESULT|{protocol}|{mode}|{passed}|{failed}");
+            return failed;
+        }
+
+        Run("candidate-capability-advertises-replace", () =>
+            Require((dal.Db.BatchCapability & BatchCapability.Replace) != 0, "Candidate did not advertise Replace."));
+
+        Run("batchreplace-multiowner-default-identity-and-affected", () =>
+        {
+            string table = Name("owners");
+            CreateReplaceTable(dal, table);
+            dal.Execute($"INSERT INTO {Q(table)}(email,phone,value,marker) VALUES('a','p1',11,'old1'),('b','p2',22,'old2'),('c','p3',33,'old3')");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            int affected = new[] { new ReplaceEntity { Email = "b", Phone = "p3" } }
+                .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone)), BatchSize = 100 });
+            Require(affected == 1, "Affected count included internal deletes: " + affected);
+            DataRow row = SingleRow(dal, $"SELECT id,email,phone,value,marker FROM {Q(table)} WHERE email='b'");
+            Require(Convert.ToInt64(row[0]) == 4 && Convert.ToInt64(row[3]) == 7 && row.IsNull(4), "Default/identity replacement differs.");
+            Require(Scalar<long>(dal, $"SELECT COUNT(*) FROM {Q(table)}") == 2, "Multiple unique owners were not both removed.");
+        });
+
+        Run("delete-insert-triggers-not-update", () =>
+        {
+            string table = Name("triggers");
+            string audit = Name("audit");
+            CreateReplaceTable(dal, table);
+            dal.Execute($"CREATE TABLE {Q(audit)}(id INT,kind STRING,seen INT,PRIMARY KEY(id))");
+            dal.Execute($"INSERT INTO {Q(table)}(id,email,phone,value,marker) VALUES(1,'old','p1',11,'old')");
+            dal.Execute($"CREATE TRIGGER {Q(Name("delete_trigger"))} AFTER DELETE ON {Q(table)} FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO {Q(audit)}(id,kind,seen) SELECT 1,'delete',c.n FROM (SELECT COUNT(*) AS n FROM {Q(table)}) AS c; END");
+            dal.Execute($"CREATE TRIGGER {Q(Name("insert_trigger"))} AFTER INSERT ON {Q(table)} FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO {Q(audit)}(id,kind,seen) SELECT 2,'insert',c.n FROM (SELECT COUNT(*) AS n FROM {Q(table)}) AS c; END");
+            dal.Execute($"CREATE TRIGGER {Q(Name("update_trigger"))} AFTER UPDATE ON {Q(table)} FOR EACH ROW LANGUAGE SQL AS BEGIN INSERT INTO {Q(audit)}(id,kind,seen) VALUES(3,'update',-1); END");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            int affected = new[] { new ReplaceEntity { Id = 1, Email = "new", Phone = "p2" } }
+                .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Id), nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone)), BatchSize = 100 });
+            Require(affected == 1, "Trigger replace affected count differs.");
+            DataTable rows = Query(dal, $"SELECT kind,seen FROM {Q(audit)} ORDER BY id");
+            Require(rows.Rows.Count == 2 && (string)rows.Rows[0][0] == "delete" && Convert.ToInt64(rows.Rows[0][1]) == 0
+                && (string)rows.Rows[1][0] == "insert" && Convert.ToInt64(rows.Rows[1][1]) == 1, "Trigger phase differs.");
+        });
+
+        Run("later-constraint-failure-rolls-back-whole-batch", () =>
+        {
+            string table = Name("rollback");
+            CreateReplaceTable(dal, table, checkValue: true);
+            dal.Execute($"INSERT INTO {Q(table)}(id,email,phone,value) VALUES(1,'a','p1',10),(2,'b','p2',20)");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            _ = Capture(() => new[]
+            {
+                new ReplaceEntity { Id = 1, Email = "a1", Phone = "p1x", Value = 100 },
+                new ReplaceEntity { Id = 2, Email = "b1", Phone = "p2x", Value = -1 },
+            }.BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Id), nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone), nameof(ReplaceEntity.Value)), BatchSize = 100 }));
+            Require(Scalar<long>(dal, $"SELECT value FROM {Q(table)} WHERE id=1") == 10
+                && Scalar<long>(dal, $"SELECT value FROM {Q(table)} WHERE id=2") == 20, "Failed batch leaked a partial replacement.");
+        });
+
+        Run("foreign-key-restrict-preserves-parent-child", () =>
+        {
+            string table = Name("restrict_parent");
+            string child = Name("restrict_child");
+            CreateReplaceTable(dal, table);
+            dal.Execute($"CREATE TABLE {Q(child)}(id INT,parent_id INT,PRIMARY KEY(id),FOREIGN KEY(parent_id) REFERENCES {Q(table)}(id))");
+            dal.Execute($"INSERT INTO {Q(table)}(id,email,phone,value) VALUES(1,'old','p1',11)");
+            dal.Execute($"INSERT INTO {Q(child)}(id,parent_id) VALUES(10,1)");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            _ = Capture(() => new[] { new ReplaceEntity { Id = 1, Email = "new", Phone = "p2" } }
+                .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Id), nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone)), BatchSize = 100 }));
+            Require(Scalar<string>(dal, $"SELECT email FROM {Q(table)} WHERE id=1") == "old"
+                && Scalar<long>(dal, $"SELECT parent_id FROM {Q(child)} WHERE id=10") == 1, "RESTRICT failure changed parent or child.");
+        });
+
+        Run("foreign-key-cascade-and-set-null-run-before-reinsert", () =>
+        {
+            string table = Name("actions_parent");
+            string cascaded = Name("actions_cascade");
+            string nulled = Name("actions_null");
+            CreateReplaceTable(dal, table);
+            dal.Execute($"CREATE TABLE {Q(cascaded)}(id INT,parent_id INT,PRIMARY KEY(id),FOREIGN KEY(parent_id) REFERENCES {Q(table)}(id) ON DELETE CASCADE)");
+            dal.Execute($"CREATE TABLE {Q(nulled)}(id INT,parent_id INT,PRIMARY KEY(id),FOREIGN KEY(parent_id) REFERENCES {Q(table)}(id) ON DELETE SET NULL)");
+            dal.Execute($"INSERT INTO {Q(table)}(id,email,phone,value) VALUES(1,'old','p1',11)");
+            dal.Execute($"INSERT INTO {Q(cascaded)}(id,parent_id) VALUES(10,1)");
+            dal.Execute($"INSERT INTO {Q(nulled)}(id,parent_id) VALUES(20,1)");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            int affected = new[] { new ReplaceEntity { Id = 1, Email = "new", Phone = "p2" } }
+                .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Id), nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone)), BatchSize = 100 });
+            Require(affected == 1 && Scalar<long>(dal, $"SELECT COUNT(*) FROM {Q(cascaded)}") == 0
+                && SingleRow(dal, $"SELECT parent_id FROM {Q(nulled)} WHERE id=20").IsNull(0), "FK delete actions differ.");
+        });
+
+        Run("outer-transaction-rollback-restores-old-row", () =>
+        {
+            string table = Name("outer_rollback");
+            CreateReplaceTable(dal, table);
+            dal.Execute($"INSERT INTO {Q(table)}(id,email,phone,value) VALUES(1,'old','p1',11)");
+            using var split = ReplaceEntity.Meta.CreateSplit(connectionName, table);
+            dal.BeginTransaction(IsolationLevel.ReadCommitted);
+            try
+            {
+                int affected = new[] { new ReplaceEntity { Id = 1, Email = "new", Phone = "p2", Value = 99 } }
+                    .BatchReplace(new BatchOption { Columns = Columns(nameof(ReplaceEntity.Id), nameof(ReplaceEntity.Email), nameof(ReplaceEntity.Phone), nameof(ReplaceEntity.Value)), BatchSize = 100 });
+                Require(affected == 1 && Scalar<string>(dal, $"SELECT email FROM {Q(table)} WHERE id=1") == "new", "Replacement was not visible in its transaction.");
+                dal.Rollback();
+            }
+            finally
+            {
+                if (dal.Session.Transaction is not null) dal.Rollback();
+            }
+            Require(Scalar<string>(dal, $"SELECT email FROM {Q(table)} WHERE id=1") == "old", "Outer rollback did not restore old row.");
+        });
+
+        Console.WriteLine($"RESULT|{protocol}|{mode}|{passed}|{failed}");
+        return failed;
+    }
+    finally
+    {
+        dal.Session.Dispose();
+        dal.Db.Dispose();
+    }
+
+    void Run(string name, Action action)
+    {
+        try
+        {
+            action();
+            passed++;
+            Console.WriteLine($"PASS|{protocol}|{mode}|{name}");
+        }
+        catch (Exception error)
+        {
+            failed++;
+            Console.WriteLine($"FAIL|{protocol}|{mode}|{name}|{error.GetType().Name}|{error.Message}");
+        }
+    }
+}
+
+static void PrintAssemblies()
+{
+    foreach (string name in new[] { "XCode", "NewLife.Core", "SonnetDB", "SonnetDB.Data", "SonnetDB.Core", "SonnetDB.Protocol" })
+    {
+        Assembly assembly = Assembly.Load(name);
+        string path = Path.Combine(AppContext.BaseDirectory, name + ".dll");
+        using var file = File.OpenRead(path);
+        Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{path}");
+    }
+}
+
+static void CreateReplaceTable(DAL dal, string table, bool checkValue = false)
+{
+    string check = checkValue ? ",CHECK(value>0)" : string.Empty;
+    dal.Execute($"CREATE TABLE {Q(table)}(Id INT AUTO_INCREMENT,Email STRING,Phone STRING,Value INT DEFAULT 7,Marker STRING,PRIMARY KEY(Id){check})");
+    dal.Execute($"CREATE UNIQUE INDEX {Q(Name("email_index"))} ON {Q(table)}(Email)");
+    dal.Execute($"CREATE UNIQUE INDEX {Q(Name("phone_index"))} ON {Q(table)}(Phone)");
+}
+
+static IDataColumn[] Columns(params string[] names)
+    => names.Select(name => ReplaceEntity.Meta.Table.FindByName(name)?.Field
+        ?? throw new InvalidOperationException("Missing XCode field: " + name)).ToArray();
+
+static DataTable Query(DAL dal, string sql) => dal.Session.Query(sql).Tables[0];
+
+static DataRow SingleRow(DAL dal, string sql)
+{
+    DataTable table = Query(dal, sql);
+    Require(table.Rows.Count == 1, "Expected one row for: " + sql);
+    return table.Rows[0];
+}
+
+static T Scalar<T>(DAL dal, string sql) => dal.Session.ExecuteScalar<T>(sql)!;
+
+static Exception Capture(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (Exception error)
+    {
+        return error;
+    }
+
+    throw new InvalidOperationException("Expected operation to fail.");
+}
+
+static string Name(string prefix) => prefix + "_" + Guid.NewGuid().ToString("N");
+static string Q(string value) => "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
+static string Single(IEnumerable<string> values)
+{
+    string[] array = values.ToArray();
+    Require(array.Length == 1, "Expected one server address.");
+    return array[0];
+}
+
+static void Require(bool condition, string message)
+{
+    if (!condition)
+    {
+        throw new InvalidOperationException(message);
+    }
+}
+
+/// <summary>XCode BatchReplace 实际实体映射。</summary>
+[BindTable("Issue242ReplaceRows", ConnName = "Issue242_Default", DbType = DatabaseType.None)]
+[BindIndex("IU_Issue242_Email", true, "Email")]
+[BindIndex("IU_Issue242_Phone", true, "Phone")]
+public sealed class ReplaceEntity : Entity<ReplaceEntity>
+{
+    private long _id;
+    private string _email = string.Empty;
+    private string _phone = string.Empty;
+    private long _value;
+    private string? _marker;
+
+    /// <summary>自增主键。</summary>
+    [DataObjectField(true, true, false, 0)]
+    [BindColumn("Id", "", "")]
+    public long Id { get => _id; set { if (OnPropertyChanging(nameof(Id), value)) { _id = value; OnPropertyChanged(nameof(Id)); } } }
+
+    /// <summary>第一唯一键。</summary>
+    [DataObjectField(false, false, false, 100)]
+    [BindColumn("Email", "", "")]
+    public string Email { get => _email; set { if (OnPropertyChanging(nameof(Email), value)) { _email = value; OnPropertyChanged(nameof(Email)); } } }
+
+    /// <summary>第二唯一键。</summary>
+    [DataObjectField(false, false, false, 100)]
+    [BindColumn("Phone", "", "")]
+    public string Phone { get => _phone; set { if (OnPropertyChanging(nameof(Phone), value)) { _phone = value; OnPropertyChanged(nameof(Phone)); } } }
+
+    /// <summary>默认值列。</summary>
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("Value", "", "")]
+    public long Value { get => _value; set { if (OnPropertyChanging(nameof(Value), value)) { _value = value; OnPropertyChanged(nameof(Value)); } } }
+
+    /// <summary>可空标记。</summary>
+    [DataObjectField(false, false, true, 200)]
+    [BindColumn("Marker", "", "")]
+    public string? Marker { get => _marker; set { if (OnPropertyChanging(nameof(Marker), value)) { _marker = value; OnPropertyChanged(nameof(Marker)); } } }
+
+    /// <inheritdoc />
+    public override object? this[string name]
+    {
+        get => name switch
+        {
+            nameof(Id) => _id,
+            nameof(Email) => _email,
+            nameof(Phone) => _phone,
+            nameof(Value) => _value,
+            nameof(Marker) => _marker,
+            _ => base[name],
+        };
+        set
+        {
+            switch (name)
+            {
+                case nameof(Id): _id = Convert.ToInt64(value); break;
+                case nameof(Email): _email = Convert.ToString(value) ?? string.Empty; break;
+                case nameof(Phone): _phone = Convert.ToString(value) ?? string.Empty; break;
+                case nameof(Value): _value = Convert.ToInt64(value); break;
+                case nameof(Marker): _marker = value == DBNull.Value ? null : Convert.ToString(value); break;
+                default: base[name] = value; break;
+            }
+        }
+    }
+}

@@ -1,0 +1,35 @@
+diff --git a/src/Chloe.SonnetDB/SqlGenerator.cs b/src/Chloe.SonnetDB/SqlGenerator.cs
+index d65f5b88..85581aa3 100644
+--- a/src/Chloe.SonnetDB/SqlGenerator.cs
++++ b/src/Chloe.SonnetDB/SqlGenerator.cs
+@@ -12,0 +13 @@ namespace Chloe.SonnetDB
++        DbTableSegment _lockingTable;
+@@ -85,2 +86,5 @@ namespace Chloe.SonnetDB
+-            if (seg.Lock != LockType.Unspecified)
+-                throw new NotSupportedException("SonnetDB does not support query lock hints. See https://github.com/IoTSharp/SonnetDB/issues/233.");
++            if (seg.Lock == LockType.NoLock)
++                throw new NotSupportedException("SonnetDB does not support dirty reads or LockType.NoLock; use an ordinary query explicitly. See https://github.com/IoTSharp/SonnetDB/issues/233.");
++            if (seg.Lock != LockType.Unspecified
++                && (seg.Lock != LockType.UpdLock || !ReferenceEquals(seg, this._lockingTable)))
++                throw new NotSupportedException("SonnetDB supports UpdLock only on the direct source of a single-table query. See https://github.com/IoTSharp/SonnetDB/issues/233.");
+@@ -198,2 +202,18 @@ namespace Chloe.SonnetDB
+-            this.BuildGeneralSql(exp);
+-            return exp;
++            DbTableSegment previous = this._lockingTable;
++            DbTableSegment source = exp.Table.Table;
++            bool locked = source.Lock == LockType.UpdLock;
++            if (locked && (source.Body.NodeType != DbExpressionType.Table
++                || exp.Table.JoinTables.Count != 0 || exp.IsDistinct || exp.GroupSegments.Count != 0))
++                throw new NotSupportedException("SonnetDB UpdLock requires a direct single-table query without DISTINCT or grouping.");
++            this._lockingTable = locked ? source : null;
++            try
++            {
++                this.BuildGeneralSql(exp);
++                if (locked)
++                    this.SqlBuilder.Append(" FOR UPDATE");
++                return exp;
++            }
++            finally
++            {
++                this._lockingTable = previous;
++            }

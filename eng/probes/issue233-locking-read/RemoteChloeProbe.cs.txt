@@ -1,0 +1,305 @@
+using System.Collections.Concurrent;
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
+using SonnetDB.Configuration;
+using SonnetDB.Data;
+using SonnetDB.Hosting;
+
+if (args.Length != 2 || args[0] is not ("rest" or "frame-http2"))
+{
+    return 2;
+}
+
+string protocol = args[0];
+string ownerRoot = Path.GetFullPath(args[1]);
+foreach (string name in new[] { "Chloe", "Chloe.SonnetDB", "SonnetDB", "SonnetDB.Data", "SonnetDB.Core", "SonnetDB.Protocol" })
+{
+    Assembly assembly = Assembly.Load(name);
+    string path = Path.Combine(AppContext.BaseDirectory, name + ".dll");
+    using var file = File.OpenRead(path);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{path}");
+}
+
+string marker = Path.Combine(ownerRoot, "issue233-owner");
+if (Directory.Exists(ownerRoot))
+{
+    throw new InvalidOperationException("Owner directory already exists: " + ownerRoot);
+}
+
+Directory.CreateDirectory(ownerRoot);
+File.WriteAllText(marker, "issue233-consumer-20261019");
+string contentRoot = Path.Combine(ownerRoot, "host");
+string dataRoot = Path.Combine(ownerRoot, "data");
+Directory.CreateDirectory(contentRoot);
+string httpVersion = protocol == "frame-http2" ? "Http2" : "Http1";
+var app = SonnetDB.Program.BuildApp(
+[
+    "--contentRoot", contentRoot,
+    "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
+    "--Kestrel:Endpoints:Http:Protocols=" + httpVersion,
+    "--SonnetDBServer:DataRoot=" + dataRoot,
+    "--SonnetDBServer:AutoLoadExistingDatabases=true",
+    "--SonnetDBServer:AllowAnonymousProbes=true",
+    "--SonnetDBServer:Tokens:issue233-admin=admin",
+]);
+var requests = new ConcurrentQueue<(string Path, string Protocol, string ContentType)>();
+app.Use(async (context, next) =>
+{
+    if (requests.Count >= 256)
+    {
+        throw new InvalidOperationException("Request budget exceeded.");
+    }
+
+    requests.Enqueue((context.Request.Path.Value ?? string.Empty, context.Request.Protocol, context.Request.ContentType ?? string.Empty));
+    await next(context);
+});
+
+using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+try
+{
+    await app.StartAsync(deadline.Token);
+    if (!app.Services.GetRequiredService<TsdbRegistry>().TryCreate("chloe233", out _))
+    {
+        throw new InvalidOperationException("Unable to create probe database.");
+    }
+
+    string address = AssertSingle(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+    string connectionString = $"Data Source=sonnetdb+http://{new Uri(address).Authority}/chloe233;Token=issue233-admin;Timeout=20;Protocol={protocol}";
+    int failed = await ExerciseAsync(connectionString, protocol, deadline.Token);
+
+    var sqlRequests = requests.Where(request => request.Path.Contains("/sql", StringComparison.Ordinal)
+        || request.Path == "/v1/frame").ToArray();
+    Require(sqlRequests.Length > 0, "No SQL transport requests captured.");
+    string expectedHttp = protocol == "frame-http2" ? "HTTP/2" : "HTTP/1.1";
+    Require(sqlRequests.All(request => request.Protocol == expectedHttp), "Unexpected HTTP version.");
+    if (protocol == "frame-http2")
+    {
+        Require(sqlRequests.Any(request => request.Path == "/v1/frame"
+            && request.ContentType.StartsWith("application/x-sonnetdb-frame", StringComparison.OrdinalIgnoreCase)),
+            "No native frame request captured.");
+    }
+
+    Console.WriteLine($"TRANSPORT|{protocol}|{expectedHttp}|sql={sqlRequests.Length}|frame={sqlRequests.Count(request => request.Path == "/v1/frame")}");
+    return failed == 0 ? 0 : 1;
+}
+finally
+{
+    using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    await app.StopAsync(stop.Token);
+    await app.DisposeAsync();
+    if (File.Exists(marker)
+        && string.Equals(File.ReadAllText(marker), "issue233-consumer-20261019", StringComparison.Ordinal)
+        && Directory.Exists(ownerRoot))
+    {
+        Directory.Delete(ownerRoot, recursive: true);
+    }
+}
+
+static async Task<int> ExerciseAsync(string connectionString, string protocol, CancellationToken cancellationToken)
+{
+    int passed = 0;
+    int failed = 0;
+    await using var raw = new SndbConnection(connectionString);
+    await raw.OpenAsync(cancellationToken);
+    await ExecuteAsync(raw, "CREATE TABLE ChloeLockedRows(Id INT,GroupId INT,Value INT,PRIMARY KEY(Id))", cancellationToken);
+    await ExecuteAsync(raw, "INSERT INTO ChloeLockedRows(Id,GroupId,Value) VALUES(1,1,10),(2,1,20)", cancellationToken);
+    using var first = new SonnetDBContext(() => new SndbConnection(connectionString));
+    using var second = new SonnetDBContext(() => new SndbConnection(connectionString));
+    var trace = new CommandTrace();
+    first.Session.AddInterceptor(trace);
+
+    Run("nolock-explicit-rejection", () =>
+    {
+        int before = trace.Count;
+        ExpectRejected(() => first.Query<LockedRow>(LockType.NoLock).Where(row => row.Id == 1).ToList(), "NoLock");
+        Require(trace.Count == before, "NoLock sent SQL.");
+    });
+    Run("updlock-without-transaction-engine-rejection", () =>
+    {
+        int before = trace.Count;
+        Exception error = Capture(() => first.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).ToList());
+        Require(trace.Count == before + 1 && trace.LastSql.EndsWith("FOR UPDATE", StringComparison.Ordinal), "Provider did not send FOR UPDATE.");
+        Require(error.ToString().Contains("transaction", StringComparison.OrdinalIgnoreCase)
+            || error.ToString().Contains("事务", StringComparison.Ordinal), "Engine did not enforce transaction.");
+    });
+    Run("updlock-real-row-lock-lifecycle", () =>
+    {
+        first.Session.BeginTransaction();
+        using var other = new SndbConnection(connectionString);
+        other.Open();
+        using var otherTransaction = other.BeginTransaction();
+        try
+        {
+            LockedRow row = first.Query<LockedRow>(LockType.UpdLock).Where(item => item.Id == 1).First();
+            Require(row.Value == 10, "Locked row differs.");
+            using var command = other.CreateCommand();
+            command.Transaction = otherTransaction;
+            command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE NOWAIT";
+            ExpectCode(() => { using var reader = command.ExecuteReader(); }, SonnetDB.Exceptions.SqlRowLockException.NotAvailable);
+            command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=2 FOR UPDATE NOWAIT";
+            using (var reader = command.ExecuteReader()) Require(reader.Read(), "Different row was blocked.");
+            Require(second.Query<LockedRow>().Where(item => item.Id == 1).First().Value == 10, "Ordinary committed read differs.");
+            first.Session.RollbackTransaction();
+            command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE NOWAIT";
+            using var released = command.ExecuteReader();
+            Require(released.Read(), "Rollback did not release row lock.");
+        }
+        finally
+        {
+            if (first.Session.IsInTransaction) first.Session.RollbackTransaction();
+            otherTransaction.Rollback();
+        }
+    });
+    Run("updlock-join-rejected", () =>
+    {
+        int before = trace.Count;
+        var locked = first.Query<LockedRow>(LockType.UpdLock);
+        var ordinary = first.Query<LockedRow>();
+        ExpectRejected(() => locked.Join(ordinary, JoinType.InnerJoin, (left, right) => left.Id == right.Id)
+            .Select((left, right) => left).ToList(), "direct single-table");
+        Require(trace.Count == before, "Join UpdLock sent SQL.");
+    });
+    Run("updlock-distinct-rejected", () =>
+    {
+        int before = trace.Count;
+        ExpectRejected(() => first.Query<LockedRow>(LockType.UpdLock).Distinct().ToList(), "DISTINCT");
+        Require(trace.Count == before, "Distinct UpdLock sent SQL.");
+    });
+    Run("updlock-grouping-rejected", () =>
+    {
+        int before = trace.Count;
+        ExpectRejected(() => first.Query<LockedRow>(LockType.UpdLock).GroupBy(row => row.GroupId)
+            .Select(row => new { row.GroupId, Count = Sql.Count() }).ToList(), "grouping");
+        Require(trace.Count == before, "Grouping UpdLock sent SQL.");
+    });
+
+    Console.WriteLine($"RESULT|{protocol}|{passed}|{failed}");
+    return failed;
+
+    void Run(string name, Action action)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            action();
+            passed++;
+            Console.WriteLine($"PASS|{protocol}|{name}");
+        }
+        catch (Exception error)
+        {
+            failed++;
+            Console.WriteLine($"FAIL|{protocol}|{name}|{error.GetType().Name}|{error.Message}");
+        }
+    }
+}
+
+static async Task ExecuteAsync(SndbConnection connection, string sql, CancellationToken cancellationToken)
+{
+    await using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    await command.ExecuteNonQueryAsync(cancellationToken);
+}
+
+static string AssertSingle(IEnumerable<string> values)
+{
+    string[] array = values.ToArray();
+    Require(array.Length == 1, "Expected one server address.");
+    return array[0];
+}
+
+static Exception Capture(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (Exception error)
+    {
+        return error;
+    }
+
+    throw new InvalidOperationException("Expected rejection.");
+}
+
+static void ExpectRejected(Action action, string fragment)
+{
+    Exception error = Capture(action);
+    Require(error.ToString().Contains(fragment, StringComparison.OrdinalIgnoreCase), "Unexpected rejection: " + error);
+}
+
+static void ExpectCode(Action action, string code)
+{
+    Exception error = Capture(action);
+    bool matched = error is SonnetDB.Exceptions.SqlRowLockException rowLock && rowLock.Code == code
+        || error is SndbServerException server && server.Error == code;
+    if (!matched)
+    {
+        throw new InvalidOperationException("Unexpected error code: " + error);
+    }
+}
+
+static void Require(bool condition, string message)
+{
+    if (!condition)
+    {
+        throw new InvalidOperationException(message);
+    }
+}
+
+/// <summary>用于远程锁定读验证的关系表映射。</summary>
+[Table("ChloeLockedRows")]
+public sealed class LockedRow
+{
+    /// <summary>主键。</summary>
+    [Column(IsPrimaryKey = true)]
+    public long Id { get; set; }
+
+    /// <summary>分组键。</summary>
+    public long GroupId { get; set; }
+
+    /// <summary>值。</summary>
+    public long Value { get; set; }
+}
+
+/// <summary>记录 ORM 实际发送的命令。</summary>
+public sealed class CommandTrace : IDbCommandInterceptor
+{
+    /// <summary>已发送的命令数。</summary>
+    public int Count { get; private set; }
+
+    /// <summary>最后发送的 SQL。</summary>
+    public string LastSql { get; private set; } = string.Empty;
+
+    private void Record(IDbCommand command)
+    {
+        Count++;
+        LastSql = command.CommandText;
+        Console.WriteLine("SQL|" + LastSql);
+    }
+
+    /// <summary>记录读取。</summary>
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Record(command);
+
+    /// <summary>保留读取结果。</summary>
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+
+    /// <summary>记录写入。</summary>
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Record(command);
+
+    /// <summary>保留写入结果。</summary>
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+
+    /// <summary>记录标量命令。</summary>
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Record(command);
+
+    /// <summary>保留标量结果。</summary>
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}

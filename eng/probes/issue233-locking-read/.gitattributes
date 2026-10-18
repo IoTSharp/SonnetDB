@@ -1,0 +1,4 @@
+*.patch text eol=lf
+*.cs.txt text eol=lf
+*.csproj text eol=lf
+*.md text eol=lf

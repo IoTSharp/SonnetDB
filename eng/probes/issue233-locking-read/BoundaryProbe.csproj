@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <SonnetBin Condition="'$(SonnetBin)' == ''">$(MSBuildThisFileDirectory)..\..\..\src\SonnetDB.Data\bin\Release\net10.0</SonnetBin>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="BoundaryProbe.cs.txt" Link="Program.cs" />
+    <Reference Include="Chloe"><HintPath>$(ChloeCoreBin)/Chloe.dll</HintPath></Reference>
+    <Reference Include="Chloe.SonnetDB"><HintPath>$(ChloeProviderBin)/Chloe.SonnetDB.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Data"><HintPath>$(SonnetBin)/SonnetDB.Data.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Core"><HintPath>$(SonnetBin)/SonnetDB.Core.dll</HintPath></Reference>
+    <Reference Include="SonnetDB.Protocol"><HintPath>$(SonnetBin)/SonnetDB.Protocol.dll</HintPath></Reference>
+    <PackageReference Include="System.IO.Hashing" />
+    <PackageReference Include="System.Numerics.Tensors" />
+  </ItemGroup>
+</Project>
