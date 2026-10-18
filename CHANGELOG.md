@@ -2545,3 +2545,5 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 
 - 2026-10-12 批次04 #282及remoteNULL补测：新增一个REST/HTTP2双模式回归，区分捕获NULL可合法折叠FALSE与typed NULL raw wire实际捕获；实际空列表/计数0/空分页和协议断言通过，命名外键原范围保持。完整EF160/160，焦点5不重复累计；Core78未重跑，正式270/272验收仍开放。
+
+- 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。

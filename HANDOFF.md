@@ -3394,3 +3394,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #321 本地整合门禁前
 
 已普通 merge --no-commit 纳入 Microsoft.Data.Sqlite 10.0.13；Dependabot 旧共享文档删除已排除。该 PR 原始 checks 当时为 clean/pass 候选，当前仍需以最终整合 SHA 的全套 CI 为准。
+## 2026-10-19 PR #320 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.AspNetCore.SpaProxy 10.0.13。原 PR Windows rest CI 的 CAP CommitAsync 提前启动测试超时已在固定子模块初始化后本机 CapJourneyTests 10/10（remote false/true）通过，但历史单次 timeout 的生产根因仍 UNKNOWN；本次不修改等待、超时或断言，不以本机单项目通过代替最终候选 CI。
