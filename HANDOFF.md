@@ -3380,3 +3380,8 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 本受控工作树分支 codex/pr-issue-integration-20261019，已普通merge --no-commit纳入PR327原head 9b51dcd0，同时修复TableManager并行预热线程共享Dictionary的真实竞态。原Barrier并行测试保留，修复树Windows定向92/92、0skip；不是新依赖组合/Linux/完整CI的完成证据。审计见 docs/audits/pr327-cache-warmup-20261019.md。当前等待最终完整restore、规定Format后提交；原失败保留，不推送、不关闭Issue。
 
 后续顺序327→326→325/324依赖协调→321→320→319→318→317→316→315；247核心实现与既有Issue独立核查在隔离树进行，245等待共享SQL核心。最终同SHA CI未取得前不写全绿，不将部分实现或包存在冒称正式发行。
+## 2026-10-19 PR #326 本地整合门禁前
+
+在 PR #327 本地合并提交后，已普通 merge --no-commit 纳入 PR #326 的 Microsoft.Extensions.AI 10.11.0 依赖更新；Dependabot 头携带的旧 HANDOFF/ROADMAP 删除已恢复为当前整合树字节。原 PR Windows Core 50分钟超时保留为 FAIL/UNKNOWN，当前 main 后续 Core 成功与 Windows rest 的 CAP失败分别记录，不能互相替代。
+
+本项仍等待依赖变更后的完整 restore/Format 后提交；不推送、不关闭 PR。下一项 #325 依赖 #324 的 Relational 10.0.13，需按真实 NU1605 依赖关系协调顺序，不以倒序形式制造可预见的降级失败。
