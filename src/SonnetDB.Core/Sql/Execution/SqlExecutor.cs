@@ -1751,6 +1751,9 @@ public static partial class SqlExecutor
 
         bool hasRoleHints = statement.ColumnRoleHints.Any(static role => role is not null);
 
+        if (statement.IsReplace && tsdb.Tables.Catalog.TryGet(statement.Measurement) is null)
+            throw new NotSupportedException("REPLACE 仅支持已有关系表。");
+
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
@@ -1770,6 +1773,8 @@ public static partial class SqlExecutor
         {
             if (hasRoleHints)
                 throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
+            if (statement.IsReplace)
+                return SqlReplaceExecutor.Execute(tsdb, databaseName, statement, tableSchema, controlPlane, transaction);
             return ExecuteTableInsertWithTriggers(
                 tsdb,
                 databaseName,

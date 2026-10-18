@@ -2100,30 +2100,37 @@ public sealed partial class TableStore : IDisposable
         ThrowIfDisposedLocked();
         RequireRowWrites(operations);
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
-        for (int i = 0; i < operations.Count; i++)
+        if (SqlTransactionContext.Current?.UsesReplacementSemantics(RowLockIdentity) == true)
         {
-            TableMutationOperation operation = operations[i];
-            if (operation.OldRow is null && operation.NewRow is null)
-                continue;
+            desiredValues = BuildFinalMutationValues(schema, operations);
+        }
+        else
+        {
+            for (int i = 0; i < operations.Count; i++)
+            {
+                TableMutationOperation operation = operations[i];
+                if (operation.OldRow is null && operation.NewRow is null)
+                    continue;
 
-            if (operation.OldRow is not null)
-            {
-                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
-                    desiredValues[indexEntry.Key] = null;
-                // 旧主行、旧索引和新主行/索引统一进入同一个 WAL mutation batch，读者不会看到中间态。
-                desiredValues[operation.RowKey] = null;
-            }
+                if (operation.OldRow is not null)
+                {
+                    foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
+                        desiredValues[indexEntry.Key] = null;
+                    // 旧主行、旧索引和新主行/索引统一进入同一个 WAL mutation batch，读者不会看到中间态。
+                    desiredValues[operation.RowKey] = null;
+                }
 
-            if (operation.NewRow is null)
-            {
-                desiredValues[operation.RowKey] = null;
-            }
-            else
-            {
-                byte[] newRowKey = TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span);
-                desiredValues[newRowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
-                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
-                    desiredValues[indexEntry.Key] = indexEntry.Value;
+                if (operation.NewRow is null)
+                {
+                    desiredValues[operation.RowKey] = null;
+                }
+                else
+                {
+                    byte[] newRowKey = TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span);
+                    desiredValues[newRowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
+                    foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
+                        desiredValues[indexEntry.Key] = indexEntry.Value;
+                }
             }
         }
 
@@ -2517,6 +2524,7 @@ public sealed partial class TableStore : IDisposable
     private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
     {
         ThrowIfDisposedLocked();
+        bool replacement = SqlTransactionContext.Current?.UsesReplacementSemantics(RowLockIdentity) == true;
         var schema = _schema;
         mutations = PrepareLockingMutations(mutations);
         var normalizedMutations = new List<TableRowMutation>(mutations.Count);
@@ -2589,13 +2597,16 @@ public sealed partial class TableStore : IDisposable
                 newRow = new TableRow(mutation.NewValues.ToArray(), newPrimaryKey);
             }
             var operation = new TableMutationOperation(rowKey, oldRow, newRow);
-            if (operation.NewRow is not null)
+            if (operation.NewRow is not null && !replacement)
             {
                 ValidateUniqueIndexesLocked(schema, operation);
                 ValidatePendingUniqueIndexes(schema, operation.NewRow, pendingUniqueKeys);
             }
             operations.Add(operation);
         }
+
+        if (replacement)
+            ValidateFinalUniqueIndexesLocked(schema, operations);
 
         var affected = operations.Count(static operation => operation.OldRow is not null || operation.NewRow is not null);
         int rowCountDelta = 0;

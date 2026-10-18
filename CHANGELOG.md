@@ -9,6 +9,8 @@
 
 ### Changed
 
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - GH-Issue #247：标准 StoredProcedure 命令与 IN/OUT/INOUT/ReturnValue、完整多结果及 Reader 成功关闭回写接入 ADO/REST/实际 HTTP2 Procedure=3；在调用保存点内校验输出声明与响应预算，发送后未知结果不重试。原生存储过程兼容断言保留，旧拒绝 setter 测试更新为真实过程执行及未知类型拒绝。固定 SqlSugar 候选验收与稳定包/上游发行单独记录。
@@ -1002,6 +1004,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **D 节后置证据口径修正**：将总里程碑最终完成判定中关于 M19/M25/M29/M41 与 M42 的固定硬件、跨架构、长稳和安装验收表述改为“仍待归档”，与各项 `NOT_READY`/`DEFERRED` 门禁及 ROADMAP 待验证状态一致。
@@ -1125,6 +1129,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 ## [3.1.0] - 2026-08-24
 
 ### Changed
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
@@ -1318,6 +1324,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **Couplet 独立仓库与跨仓门禁**：正式记录代码智能产品仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet)，冻结 `Couplet -> SonnetDB.Core` 单向依赖、同级独立仓库而非 Git submodule 的协作方式、双方责任边界，以及仓库/路线基线和 C0-C4 对 #341/#342~#346/#352/#359/#367 的阶段映射；区分前序 public API 的并行联调与双方共同关闭的阶段发布 gate，仅确认仓库与路线基线已经建立，不将 Couplet 功能、原生图或发布门禁误标为完成。
@@ -1351,6 +1359,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - 新增 `SndbResourceInitializer`，支持由组件显式初始化其所需的嵌入式或远程数据库（`0375b1c5`）。
 
 ### Changed
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
@@ -1451,6 +1461,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - **M28 P4 #228 删除遗留 `HnswVectorBlockIndex`（索引 I13）**：删除 `src/SonnetDB.Core/Storage/Segments/HnswVectorBlockIndex.cs`（含文件内 `HnswAnnSearchResult` record）——它是段内 HNSW 图的早期实现，图质量更差、建图为 `O(n·ef²)`、仅支持 cosine，且在 `src/` 内**零生产引用**（生产向量索引路径早已统一走 `VectorIndexAdapter` → `LocalVectorIndexBuilder` → `HnswIndex<int>`，仅一个基准与一个召回测试仍在维护这段死代码，构成误用风险）。仅剩的两个消费者迁移到 canonical `HnswIndex<int>`（`src/SonnetDB.Core/Vector/Index/Hnsw/HnswIndex.cs`）：召回测试重写并重命名为 `HnswIndexRecallTests`（`new HnswIndex<int>(384, Metric.Cosine, {M=16, EfConstruction=200, EfSearch=200})` 建图 + `Search`-into-span，Recall@10 ≥ 0.90 断言不变），`VectorRecallBenchmark` 的 `Hnsw_Top10`/`Hnsw_RecallAt10` 改走同一 API。catalog 生产类型 `HnswVectorIndexOptions`（不在被删文件内）保留不动。
 
 ### Changed
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 

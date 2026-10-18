@@ -3448,3 +3448,7 @@ main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和Rel
 ## 2026-10-19 验证分支重放 #245 Core
 
 247已在最终树restore/Format通过后提交594b003d；当前重放245 Core最新12a7c044（45源原始范围），将已实测的bareCAST Decimal元数据修复提前并入本片，避免把已知回归再次提交。Core28/28、CTAS amendment11/11及真实强杀7/7收据为既有结果；扩大289/289保留原270项4FAIL。此片为显式SqlSessionContext与CTAS，自动ADO/远程连接会话仍由独立代理实施，不能写Issue全部完成。当前先做完整restore/规定Format，再提交；没有push，所有原分支和失败证据保留。
+
+## 2026-10-19 验证分支重放 #242
+
+247和245已分别先restore/Format后提交594b003d、9f4b289e；当前重放242原始64b782cd，按真实DELETE/INSERT、全部冲突、触发器/FK、默认值/生成值及回滚合同整合。原Core134/134、早期编译和133/134失败收据外置保留，不替代远程/XCode。完整restore/规定Format通过后才提交，没有push；源代码最终须与审计分支b55的src/tests一致，233 probe包后续单独入库。

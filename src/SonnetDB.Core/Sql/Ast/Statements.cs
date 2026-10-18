@@ -861,6 +861,9 @@ public sealed record InsertStatement(
     /// </summary>
     public bool IsDefaultValues { get; init; }
 
+    /// <summary>关系表原子替换；删除全部冲突旧行后按完整 INSERT 新行写入。</summary>
+    public bool IsReplace { get; init; }
+
     /// <summary>
     /// <c>RETURNING</c> 请求返回的列名；单个 <c>*</c> 表示返回关系表全部列。
     /// 空集合表示未声明 <c>RETURNING</c>。

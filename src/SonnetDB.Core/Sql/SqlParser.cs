@@ -215,6 +215,8 @@ public sealed class SqlParser
         }
         if (IsIdentifier("refresh"))
             return ParseRefreshMaterializedView();
+        if (IsIdentifier("replace"))
+            return ParseInsert(isReplace: true);
         if (IsIdentifier("call"))
             return ParseCallProcedure();
         if (IsIdentifier("return"))
@@ -2647,12 +2649,27 @@ public sealed class SqlParser
 
     // ── INSERT INTO ────────────────────────────────────────────────────────
 
-    private SqlStatement ParseInsert()
+    private SqlStatement ParseInsert(bool isReplace = false)
     {
-        Expect(TokenKind.KeywordInsert);
+        if (isReplace)
+            ExpectIdentifier("replace", "期望 REPLACE");
+        else
+        {
+            Expect(TokenKind.KeywordInsert);
+            if (Current.Kind == TokenKind.KeywordOr)
+            {
+                Advance();
+                ExpectIdentifier("replace", "INSERT OR 仅支持 REPLACE");
+                isReplace = true;
+            }
+        }
         Expect(TokenKind.KeywordInto);
         if (IsGraphInsertStart())
+        {
+            if (isReplace)
+                throw Error("REPLACE 仅支持关系表，不支持 GRAPH");
             return ParseGraphInsert();
+        }
         var measurement = ExpectIdentifierName(out bool measurementIsQuoted);
 
         if (Current.Kind == TokenKind.KeywordDefault)
@@ -2665,6 +2682,7 @@ public sealed class SqlParser
                 new[] { (IReadOnlyList<SqlExpression>)Array.Empty<SqlExpression>() })
             {
                 IsDefaultValues = true,
+                IsReplace = isReplace,
                 MeasurementIsQuoted = measurementIsQuoted,
             });
         }
@@ -2688,6 +2706,7 @@ public sealed class SqlParser
                 ColumnIsQuoted = columnIsQuoted,
                 ColumnRoleHints = roleHints,
                 Query = ParseSelect(),
+                IsReplace = isReplace,
             });
 
         Expect(TokenKind.KeywordValues);
@@ -2705,6 +2724,7 @@ public sealed class SqlParser
             MeasurementIsQuoted = measurementIsQuoted,
             ColumnIsQuoted = columnIsQuoted,
             ColumnRoleHints = roleHints,
+            IsReplace = isReplace,
         });
     }
 
