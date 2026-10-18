@@ -17,6 +17,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
 {
     private readonly SndbConnectionStringBuilder _builder;
     private Tsdb? _tsdb;
+    private SqlSessionContext? _session;
     private ConnectionState _state = ConnectionState.Closed;
 
     public EmbeddedConnectionImpl(SndbConnectionStringBuilder builder)
@@ -33,6 +34,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     public ConnectionState State => _state;
 
     internal Tsdb? Tsdb => _tsdb;
+    internal Guid? SessionId => _session?.Id;
 
     public void Open()
     {
@@ -41,8 +43,18 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         if (string.IsNullOrWhiteSpace(path))
             throw new InvalidOperationException("ConnectionString 缺少 'Data Source'。");
 
-        _tsdb = SharedSndbRegistry.Acquire(_builder.CreateEmbeddedOptions(path));
-        _state = ConnectionState.Open;
+        Tsdb database = SharedSndbRegistry.Acquire(_builder.CreateEmbeddedOptions(path));
+        try
+        {
+            _session = new SqlSessionContext(database);
+            _tsdb = database;
+            _state = ConnectionState.Open;
+        }
+        catch
+        {
+            SharedSndbRegistry.Release(database);
+            throw;
+        }
     }
 
     public ValueTask OpenAsync(CancellationToken cancellationToken)
@@ -56,7 +68,10 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     {
         if (_state == ConnectionState.Closed) return;
         var t = _tsdb;
+        var session = _session;
+        session?.Dispose();
         _tsdb = null;
+        _session = null;
         _state = ConnectionState.Closed;
         if (t != null)
             SharedSndbRegistry.Release(t);
@@ -109,7 +124,12 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             statement,
             controlPlane: null,
             transaction,
-            new SqlExecutionOptions { CancellationToken = cancellationToken, CaptureProcedureResults = true });
+            new SqlExecutionOptions
+            {
+                CancellationToken = cancellationToken,
+                SessionContext = _session,
+                CaptureProcedureResults = true,
+            });
         return result switch
         {
             ProcedureExecutionResult procedure => new ProcedureExecutionResultAdapter(procedure.Results,
@@ -148,7 +168,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             .Select(static parameter => new SonnetDB.Routines.ProcedureCallArgument(
             parameter.Value.Name, parameter.Value.Value, (SqlProcedureParameterDirection)parameter.Direction)).ToArray();
         var result = SqlExecutor.ExecuteProcedure(_tsdb, call.Name, arguments,
-            GetTransactionContext(transactionState), new SqlExecutionOptions { CancellationToken = cancellationToken },
+            GetTransactionContext(transactionState), new SqlExecutionOptions
+            {
+                CancellationToken = cancellationToken,
+                SessionContext = _session,
+            },
             validateCompletion: completion => call.ValidateCompletion(completion.OutputParameters, completion.ReturnValue));
         IExecutionResult adapted = new ProcedureExecutionResultAdapter(result.Results, result.OutputParameters,
             result.ReturnValue, result.RecordsAffected, call);
@@ -270,7 +294,8 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             databaseName: null,
             new CommitTransactionStatement(),
             controlPlane: null,
-            transaction);
+            transaction,
+            new SqlExecutionOptions { SessionContext = _session });
     }
 
     public Task CommitTransactionAsync(object transactionState, CancellationToken cancellationToken)
@@ -285,6 +310,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
 
+        using IDisposable? scope = _session?.EnterScope();
         return _tsdb.Tables.Catalog.Snapshot();
     }
 
@@ -293,6 +319,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
 
+        using IDisposable? scope = _session?.EnterScope();
         var views = _tsdb.Views.Catalog.Snapshot()
             .Select(static definition => new ConnectionViewSchema(
                 definition.Name,
@@ -331,7 +358,8 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             databaseName: null,
             new RollbackTransactionStatement(),
             controlPlane: null,
-            transaction);
+            transaction,
+            new SqlExecutionOptions { SessionContext = _session });
     }
 
     public Task RollbackTransactionAsync(object transactionState, CancellationToken cancellationToken)

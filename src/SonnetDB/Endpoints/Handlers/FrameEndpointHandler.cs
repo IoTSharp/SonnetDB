@@ -463,6 +463,13 @@ internal static partial class FrameEndpointHandler
                 return;
             }
 
+            var connectionSession = await AcquireConnectionSessionAsync(
+                ctx, tsdb, request.Db, writer, header).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
+            using var connectionScope = connectionLease?.Context.EnterScope(ctx.RequestAborted);
+
             long queueStartedTimestamp = Stopwatch.GetTimestamp();
             using var admissionLease = await ctx.RequestServices
                 .GetRequiredService<SqlHttpRequestAdmission>()
@@ -539,6 +546,7 @@ internal static partial class FrameEndpointHandler
                 new SqlExecutionOptions
                 {
                     CancellationToken = ctx.RequestAborted,
+                    SessionContext = connectionLease?.Context,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     AllowDurationResults = nativeDuration,
                     AllowDateTimeOffsetResults = nativeDateTimeOffset,
@@ -712,6 +720,13 @@ internal static partial class FrameEndpointHandler
                 return;
             }
 
+            var connectionSession = await AcquireConnectionSessionAsync(
+                ctx, tsdb, request.Db, writer, header).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
+            using var connectionScope = connectionLease?.Context.EnterScope(ctx.RequestAborted);
+
             using var admissionLease = await ctx.RequestServices
                 .GetRequiredService<SqlHttpRequestAdmission>()
                 .AcquireAsync(request.Db, ctx.RequestAborted)
@@ -765,6 +780,15 @@ internal static partial class FrameEndpointHandler
             }
             parsed = SqlParameterBinder.Bind(parsed, parameters);
 
+            if (parsed is CreateTableStatement { IsTemporary: true } && connectionLease is null)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "connection_session_required",
+                    "临时关系表需要远程逻辑连接会话；请升级客户端和服务端后重试。");
+                return;
+            }
+
             bool supported = parsed switch
             {
                 CreateTableStatement { ModbusBinding: null } or DropTableStatement => true,
@@ -795,6 +819,7 @@ internal static partial class FrameEndpointHandler
                 new SqlExecutionOptions
                 {
                     CancellationToken = ctx.RequestAborted,
+                    SessionContext = connectionLease?.Context,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     CanWrite = true,
                     CanAdminister = false,
@@ -858,6 +883,45 @@ internal static partial class FrameEndpointHandler
             null => 0,
             _ => throw new InvalidOperationException("SQL Execute 返回了未支持的结果类型；不能确认响应终态。"),
         };
+
+    private static async Task<ConnectionSessionAcquisition> AcquireConnectionSessionAsync(
+        HttpContext context,
+        Tsdb database,
+        string databaseName,
+        PipeWriter writer,
+        FrameHeader requestHeader)
+    {
+        string id = context.Request.Headers[SqlConnectionSessions.HeaderName].ToString();
+        if (id.Length == 0)
+            return new ConnectionSessionAcquisition(true, null);
+        if (!Guid.TryParseExact(id, "N", out _))
+        {
+            FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+                "connection_session_invalid", "远程 SQL 连接会话 ID 格式无效。");
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        SqlConnectionSessions.LeaseHandle? lease;
+        try
+        {
+            lease = await context.RequestServices.GetRequiredService<SqlConnectionSessions>()
+                .AcquireAsync(id, database, databaseName, context.Request.Headers.Authorization.ToString(),
+                    context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+                "connection_session_busy", "等待远程 SQL 连接会话准入超时。");
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        if (lease is not null)
+            return new ConnectionSessionAcquisition(true, lease);
+        FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+            "connection_session_missing", "远程 SQL 连接会话不存在或租约已过期。");
+        return new ConnectionSessionAcquisition(false, null);
+    }
+
+    private readonly record struct ConnectionSessionAcquisition(
+        bool Success, SqlConnectionSessions.LeaseHandle? Lease);
 
     /// <summary>
     /// 执行 vector search 帧（#239）：解码（查询向量 f32 二进制）→ 鉴权（Read）→

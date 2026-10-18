@@ -28,8 +28,9 @@ internal sealed partial class RemoteConnectionImpl
                 string json = JsonSerializer.Serialize(new ProcedureJsonEnvelope { Version = 1, Payload = request }, RemoteJsonContext.Default.ProcedureJsonEnvelope);
                 if (Encoding.UTF8.GetByteCount(json) > SqlProcedureFrameCodec.MaxJsonRequestBytes)
                     throw new ArgumentException("REST 过程请求超过 JSON 编码预算。");
-                using var message = new HttpRequestMessage(HttpMethod.Post, $"v1/db/{Uri.EscapeDataString(_database)}/sql/procedure")
-                { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                using var message = CreateRequest(HttpMethod.Post,
+                    $"v1/db/{Uri.EscapeDataString(_database)}/sql/procedure",
+                    new StringContent(json, Encoding.UTF8, "application/json"));
                 dispatched = true;
                 using var response = await _http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)

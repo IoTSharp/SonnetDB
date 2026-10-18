@@ -58,6 +58,27 @@ internal static class ProcedureEndpointHandler
             throw new ProcedureRequestException(access.Status == SonnetDbEndpoints.MqAccessStatus.DbNotFound ? 404 : 403,
                 access.Status == SonnetDbEndpoints.MqAccessStatus.DbNotFound ? "db_not_found" : "forbidden", access.Message);
         var permission = DatabaseAccessEvaluator.GetEffectivePermission(context, grants, request.Db);
+        SqlConnectionSessions.LeaseHandle? connectionLease = null;
+        string connectionSessionId = context.Request.Headers[SqlConnectionSessions.HeaderName].ToString();
+        if (connectionSessionId.Length != 0)
+        {
+            if (!Guid.TryParseExact(connectionSessionId, "N", out _))
+                throw new ProcedureRequestException(400, "connection_session_invalid", "远程 SQL 连接会话 ID 格式无效。");
+            try
+            {
+                connectionLease = await context.RequestServices.GetRequiredService<SqlConnectionSessions>()
+                    .AcquireAsync(connectionSessionId, database, request.Db,
+                        context.Request.Headers.Authorization.ToString(), context.RequestAborted).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                throw new ProcedureRequestException(503, "connection_session_busy",
+                    "等待远程 SQL 连接会话准入超时。");
+            }
+            if (connectionLease is null)
+                throw new ProcedureRequestException(404, "connection_session_missing", "远程 SQL 连接会话不存在或租约已过期。");
+        }
+        using var connectionSessionLease = connectionLease;
         using var admission = await context.RequestServices.GetRequiredService<SqlHttpRequestAdmission>()
             .AcquireAsync(request.Db, context.RequestAborted).ConfigureAwait(false);
         if (!admission.IsAcquired)
@@ -66,6 +87,7 @@ internal static class ProcedureEndpointHandler
         var options = new SqlExecutionOptions
         {
             CancellationToken = context.RequestAborted,
+            SessionContext = connectionLease?.Context,
             Caller = context.User.Identity?.Name ?? "remote",
             CanWrite = DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Write),
             CanAdminister = DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Admin),
@@ -92,8 +114,17 @@ internal static class ProcedureEndpointHandler
             if (owned) transaction = new SqlTransactionContext();
             else
             {
-                session = await sessions.AcquireAsync(request.SessionId, database, request.Db,
-                    context.Request.Headers.Authorization.ToString(), context.RequestAborted).ConfigureAwait(false);
+                try
+                {
+                    session = await sessions.AcquireAsync(request.SessionId, database, request.Db,
+                        context.Request.Headers.Authorization.ToString(), context.RequestAborted,
+                        connectionLease?.Id).ConfigureAwait(false);
+                }
+                catch (SqlTransactionSessionBusyException)
+                {
+                    throw new ProcedureRequestException(503, "transaction_busy",
+                        "等待远程轻事务会话准入超时。");
+                }
                 if (session is null || session.Terminal is not null)
                     throw new ProcedureRequestException(404, "transaction_missing", "调用方事务不存在、已结束或已过期。");
                 transaction = session.Transaction;

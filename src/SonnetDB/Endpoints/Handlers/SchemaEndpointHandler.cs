@@ -3,6 +3,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Json;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Endpoints;
@@ -15,11 +16,12 @@ internal static class SchemaEndpointHandler
     /// <summary>
     /// 生成指定数据库的 schema 快照响应。
     /// </summary>
-    public static IResult Handle(string db, Tsdb tsdb)
+    public static IResult Handle(string db, Tsdb tsdb, SqlSessionContext? sessionContext = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(db);
         ArgumentNullException.ThrowIfNull(tsdb);
 
+        using IDisposable? sessionScope = sessionContext?.EnterScope();
         var measurementSnapshot = tsdb.GetMeasurementSchemaSnapshot();
         var measurements = BuildMeasurements(measurementSnapshot.Measurements);
         var tables = BuildTables(tsdb);

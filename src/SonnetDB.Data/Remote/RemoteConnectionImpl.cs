@@ -65,7 +65,10 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             _http.DefaultRequestVersion = HttpVersion.Version20;
             _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
         }
-        _frames = new FrameChannel(_http, protocol);
+        _frames = new FrameChannel(_http, protocol)
+        {
+            ConnectionSessionIdProvider = () => _connectionSessionId,
+        };
 
         _state = ConnectionState.Open;
     }
@@ -80,6 +83,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
     public void Close()
     {
         if (_state == ConnectionState.Closed) return;
+        CloseConnectionSessionBestEffort();
         _state = ConnectionState.Closed;
         _http?.Dispose();
         _http = null;
@@ -111,9 +115,12 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             // 不做服务端校验：若库不存在或当前用户无权限，下一条业务 SQL 会自然返回 404 / 403。
             if (transaction is not null)
                 throw new InvalidOperationException("远程轻事务中不支持 USE 切换数据库。");
+            ResetConnectionSessionForDatabaseSwitch();
             _database = requestedDb;
             return MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildUseDatabaseResult(requestedDb));
         }
+
+        EnsureConnectionSessionForSqlAsync(sql, CancellationToken.None).GetAwaiter().GetResult();
 
         if (transaction is not null)
         {
@@ -162,7 +169,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         return ExecuteSqlRequest(sql, CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public Task<IExecutionResult> ExecuteAsync(
+    public async Task<IExecutionResult> ExecuteAsync(
         string sql,
         SndbParameterCollection parameters,
         CommandBehavior behavior,
@@ -180,40 +187,41 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
         if (meta == MetaKind.CurrentDatabase)
         {
-            return Task.FromResult<IExecutionResult>(
-                MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildCurrentDatabaseResult(_database)));
+            return MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildCurrentDatabaseResult(_database));
         }
         if (meta == MetaKind.UseDatabase)
         {
             if (transaction is not null)
                 throw new InvalidOperationException("远程轻事务中不支持 USE 切换数据库。");
+            ResetConnectionSessionForDatabaseSwitch();
             _database = requestedDb;
-            return Task.FromResult<IExecutionResult>(
-                MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildUseDatabaseResult(requestedDb)));
+            return MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildUseDatabaseResult(requestedDb));
         }
+
+        await EnsureConnectionSessionForSqlAsync(sql, cancellationToken).ConfigureAwait(false);
 
         if (transaction is not null)
         {
             if (transaction.SessionId is { } sessionId)
-                return ExecuteSqlRequest(sql, cancellationToken, SessionUrl(sessionId) + "/sql");
+                return await ExecuteSqlRequest(sql, cancellationToken, SessionUrl(sessionId) + "/sql").ConfigureAwait(false);
 
             if (IsFrameEligibleReadOnly(sql))
-                return ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken);
+                return await ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken).ConfigureAwait(false);
 
             if (TryParseReturningInsert(sql, out var insert))
-                return ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken);
+                return await ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken).ConfigureAwait(false);
 
             if (IsReturningDml(sql))
-                return ExecuteTransactionalReturningDmlRequestAsync(transaction, sql, cancellationToken);
+                return await ExecuteTransactionalReturningDmlRequestAsync(transaction, sql, cancellationToken).ConfigureAwait(false);
 
             if (IsTransactionalRowCountDml(sql))
-                return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, cancellationToken);
+                return await ExecuteTransactionalNonQueryRequestAsync(transaction, sql, cancellationToken).ConfigureAwait(false);
 
             transaction.Add(sql);
-            return Task.FromResult<IExecutionResult>(MaterializedExecutionResult.NonQuery(0));
+            return MaterializedExecutionResult.NonQuery(0);
         }
 
-        return ExecuteSqlRequest(sql, cancellationToken);
+        return await ExecuteSqlRequest(sql, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IExecutionResult> ExecuteSqlRequest(
@@ -759,7 +767,8 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
 
         var url = $"v1/db/{Uri.EscapeDataString(_database)}/schema";
-        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, cancellationToken)
+        using var request = CreateRequest(HttpMethod.Get, url);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
@@ -1586,6 +1595,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         };
         if (url.EndsWith("/sql", StringComparison.Ordinal) || url.EndsWith("/sql/batch", StringComparison.Ordinal))
             request.Headers.Add(SqlFrameCodec.ResultVersionHeader, SqlFrameCodec.NativeDateTimeResultVersion);
+        ApplyConnectionSession(request);
         return request;
     }
 

@@ -3466,3 +3466,9 @@ main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和Rel
 Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提交只保存 #247/#242/#233 的真实消费者探针、固定上游最小补丁及审计。SqlSugar 原版三协议各 9 PASS/14 FAIL，候选各 23/23；实际 HTTP/2 Procedure=3 共24次来自23场景中的两次复用。XCode 原版三协议各2项负控制、候选各7/7；Chloe embedded8/8、边界5/5，REST和HTTP/2各6/6。原版失败和正式4.0包失败保留，不代表上游补丁、稳定NuGet/Server或最终SHA的CI已交付。
 
 233/242外置manifest与247 acceptance/patch应用回执已移出可删工作树；247曾随父树误删的旧worker artifacts不再计作可回读证据，使用根289/289、远程60/60及新消费者回执。入库的247 csproj额外按真实已验证运行依赖显式引用Microsoft.AspNetCore.App，独立重编0警告/0错误。接续仍为245连接会话→236 Data/Protocol/Server→232结构化schema→227关系DDL事务→230正式交付依赖；没有push/Issue关闭/部署，canonical原脏文件继续保护。
+
+## 2026-10-19 #245 连接会话整合候选（尚未统一推送）
+
+真实消费者证据已提交e3dc67d7。当前以no-commit叠加245子分支5509adcc（父9faced95），产品源码自动三方合并，CHANGELOG/HANDOFF按验证分支当前事实重写冲突，保留236 Core和消费者证据。嵌入式连接SQL、元数据、过程与事务共享同一SqlSessionContext，Close失败保留可重试对象；远程X-SonnetDB-Connection-Session与原transaction SessionId独立，绑定Tsdb/库名/认证摘要。TEMP/临时CTAS前惰性握手，之后REST/HTTP2/schema/过程/事务共用header，过期不重建或重发SQL。
+
+远程会话最多保留128个active+cleanup，真正清理成功才归还配额；server/client准入30秒，创建响应headers-first且16KiB上限；空闲5分钟、每15秒防重入sweep最多1项/2秒目标，shutdown总预算30秒。子树最终完整restore/规定Format通过，Server/Data AOT+trim分析0warning/error；真实HTTP2 198/198、REST+procedure99/99、registry7/7、Core session/CTAS29/29。外置product-manifest/validation及TRX位于sync-20261019/issue245-session-evidence，未把完整solution测试、NativeAOT publish/runtime或SqlSugar Fastest写成已通过。根需在含236的本候选重验定向并重新完整restore/规定Format后提交；尚未push。

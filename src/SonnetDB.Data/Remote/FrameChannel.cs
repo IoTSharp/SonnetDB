@@ -33,6 +33,8 @@ internal sealed class FrameChannel
     private readonly SndbTransportProtocol _protocol;
     private volatile CapabilityState _state;
 
+    internal Func<string?>? ConnectionSessionIdProvider { get; init; }
+
     public FrameChannel(HttpClient http, SndbTransportProtocol protocol)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
@@ -82,6 +84,9 @@ internal sealed class FrameChannel
             };
             if (sqlResultVersion is not null || sqlResultV2)
                 request.Headers.Add(SqlFrameCodec.ResultVersionHeader, sqlResultVersion ?? SqlFrameCodec.TypedResultVersion);
+            string? connectionSessionId = ConnectionSessionIdProvider?.Invoke();
+            if (connectionSessionId is not null)
+                request.Headers.TryAddWithoutValidation("X-SonnetDB-Connection-Session", connectionSessionId);
             using var response = await _http.SendAsync(request, maximumResponseBytes is null
                 ? HttpCompletionOption.ResponseContentRead : HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if (requireHttp2 && response.Version != HttpVersion.Version20)

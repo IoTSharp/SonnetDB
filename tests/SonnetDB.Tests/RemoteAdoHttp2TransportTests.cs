@@ -43,6 +43,8 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
     private bool _rejectSqlV5;
     private bool _rejectSqlV6;
     private bool _disableTransactionSessions;
+    private bool _disableConnectionSessions;
+    private bool _oversizeConnectionSessionResponse;
     private bool _rejectAllSqlVersions;
     private bool _corruptSqlResponse;
     private const string AdminToken = "ado-h2-admin";
@@ -456,7 +458,11 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
             DataRoot = _dataRoot!,
             AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
-            Tokens = new Dictionary<string, string> { [AdminToken] = ServerRoles.Admin },
+            Tokens = new Dictionary<string, string>
+            {
+                [AdminToken] = ServerRoles.Admin,
+                ["ado-h2-other"] = ServerRoles.Admin,
+            },
         }, extraArgs:
         ["--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0", "--Kestrel:Endpoints:FrameH2:Protocols=Http2"]);
         _app.Use(async (context, next) =>
@@ -543,7 +549,11 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
             DataRoot = _dataRoot,
             AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
-            Tokens = new Dictionary<string, string> { [AdminToken] = ServerRoles.Admin },
+            Tokens = new Dictionary<string, string>
+            {
+                [AdminToken] = ServerRoles.Admin,
+                ["ado-h2-other"] = ServerRoles.Admin,
+            },
         };
         _app = TestServerHost.Build(options, extraArgs:
         [
@@ -560,6 +570,20 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
             if (_disableTransactionSessions && context.Request.Path == $"/v1/db/{DatabaseName}/sql/transactions")
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            if (_disableConnectionSessions && context.Request.Path == $"/v1/db/{DatabaseName}/sql/sessions")
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+            if (_oversizeConnectionSessionResponse
+                && context.Request.Path == $"/v1/db/{DatabaseName}/sql/sessions")
+            {
+                context.Response.StatusCode = StatusCodes.Status200OK;
+                context.Response.ContentType = "application/json";
+                context.Response.ContentLength = 20_000;
+                await context.Response.WriteAsync(new string('x', 20_000));
                 return;
             }
             if ((_rejectSqlV5 || _rejectSqlV6) && context.Request.Path.StartsWithSegments($"/v1/db/{DatabaseName}/sql")

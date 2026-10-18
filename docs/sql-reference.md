@@ -255,6 +255,18 @@ CREATE TABLE devices (
 - 完整的 `INSERT ... RETURNING` 类型、列属性和跨嵌入式/REST/Frame HTTP/2 ADO 回落合同属于下一未发布版本，首次交付版本号待发布标签确定；已发布的 3.1.0 不应据此视为具备该完整合同。Frame SQL 查询端点仍只读，`Protocol=frame-http2` 的 ADO 写入经同一 HTTP/2 连接回落 REST SQL 端点。
 - EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
 
+#### 连接级 TEMP 表与 CTAS
+
+`CREATE TEMP TABLE` / `CREATE TEMPORARY TABLE` 创建当前逻辑连接独占的关系表；`CREATE TEMP TABLE name AS SELECT ...` 使用查询的声明列和完整结果原子发布临时 CTAS。临时表不写入持久表目录，同一数据库的不同连接可以拥有同名 TEMP 表，普通持久表和当前连接临时表同名时明确报歧义。事务内对 TEMP 表采用连接会话的 COW 视图：提交发布当前连接的新代际，回滚恢复事务前状态，不会删除或改写其它连接的临时对象。
+
+ADO.NET 嵌入式连接在 `Open` 后拥有一个 `SqlSessionContext`，SQL、`GetSchema`、类型化存储过程和轻事务均使用该上下文；`Close` / `Dispose` 回滚活动事务并回收该连接的临时目录。远程连接在首次显式 TEMP/临时 CTAS 前惰性建立独立 connection session；建立后，REST SQL、schema metadata、真实 HTTP/2 Frame、类型化过程和事务请求均携带同一连接身份。过程或普通持久 SQL 本身不会为了兼容性提前创建会话。
+
+远程 connection session 绑定数据库实例和认证身份，不能换 token、跨数据库或跨连接复用。空闲租期为 **5 分钟**，每次成功取得该连接会话的请求会续租；Server 每 15 秒执行防重入、限项和总墙钟受限的回收。显式 `Close` 先按 `connection gate → transaction gate → SqlSessionContext gate` 顺序回滚绑定事务，再删除临时目录。租期过期或连接失联后的下一请求返回 `connection_session_missing`，客户端不会自动创建新会话、把 TEMP 改成持久表或重发原 SQL；调用方必须把原临时状态视为已经丢失并重新开始完整工作流。
+
+旧 Server 没有 connection-session 端点时，客户端会在发送第一条 TEMP 业务 SQL 前返回 `connection_session_not_supported`。普通持久 SQL 和未建立 TEMP 状态的既有连接继续使用旧入口。connection session 使用独立 HTTP header；类型化过程 payload 和远程事务 payload 中既有 `SessionId` 仍只表示事务会话，没有改变协议含义。
+
+SQL 过程在调用连接已经建立 TEMP 后，可以通过 `SELECT` / `INSERT` / `UPDATE` / `DELETE` 读取或修改这些临时表；同名 TEMP 的不同连接仍各读自身数据。过程调用的完成编码或 OUT/INOUT 类型校验失败只回滚当前 CALL 的保存点，包括本次临时写，不撤销调用方外层事务中更早的持久写。过程 body 的既有白名单仍只允许 `SELECT` / `INSERT` / `UPDATE` / `DELETE` / `CALL` 和参数赋值/返回；本切片**不允许在过程体内执行 `CREATE TEMP TABLE`、CTAS 或 DROP DDL**。调用方必须在过程调用前由连接显式创建临时表。
+
 关系表的 `INSERT ... VALUES` 在下一未发布版本支持已有无行标量表达式，包括常量、参数、`CAST`、标量函数、`CASE` 和算术。多行 `VALUES` 可与 `RETURNING`、`ON CONFLICT`、默认值和已有事务/触发器组合：
 
 ```sql

@@ -47,7 +47,8 @@ internal static class SqlEndpointHandler
         bool canAdministerDatabase,
         bool isServerAdmin,
         IControlPlane? controlPlane,
-        double queueWaitMs)
+        double queueWaitMs,
+        SqlSessionContext? sessionContext = null)
     {
         await ExecuteAsync(
             context,
@@ -59,7 +60,8 @@ internal static class SqlEndpointHandler
             canAdministerDatabase,
             isServerAdmin,
             controlPlane,
-            queueWaitMs).ConfigureAwait(false);
+            queueWaitMs,
+            sessionContext: sessionContext).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -75,7 +77,8 @@ internal static class SqlEndpointHandler
         bool canAdministerDatabase,
         bool isServerAdmin,
         IControlPlane? controlPlane,
-        double queueWaitMs)
+        double queueWaitMs,
+        SqlSessionContext? sessionContext = null)
     {
         await ExecuteAsync(
             context,
@@ -87,17 +90,18 @@ internal static class SqlEndpointHandler
             canAdministerDatabase,
             isServerAdmin,
             controlPlane,
-            queueWaitMs).ConfigureAwait(false);
+            queueWaitMs,
+            sessionContext: sessionContext).ConfigureAwait(false);
     }
 
     internal static Task HandleSessionStatementAsync(
         HttpContext context, Tsdb tsdb, string databaseName, SqlRequest request,
         ServerMetrics metrics, bool canWrite, bool canAdministerDatabase,
         bool isServerAdmin, IControlPlane? controlPlane, double queueWaitMs,
-        SqlTransactionContext transaction)
+        SqlTransactionContext transaction, SqlSessionContext? sessionContext = null)
         => ExecuteAsync(context, tsdb, databaseName, [request], metrics, canWrite,
             canAdministerDatabase, isServerAdmin, controlPlane, queueWaitMs,
-            transaction, retainTransaction: true);
+            transaction, retainTransaction: true, sessionContext: sessionContext);
 
     /// <summary>
     /// 处理 <c>POST /v1/sql</c> 单条控制面 SQL 请求（无 db 路径）。
@@ -231,7 +235,8 @@ internal static class SqlEndpointHandler
         IControlPlane? controlPlane,
         double queueWaitMs,
         SqlTransactionContext? existingTransaction = null,
-        bool retainTransaction = false)
+        bool retainTransaction = false,
+        SqlSessionContext? sessionContext = null)
     {
         if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
             return;
@@ -275,6 +280,16 @@ internal static class SqlEndpointHandler
                 {
                     await WriteErrorAsync(context, "preview_action_denied",
                         "本预览仅允许单条只读 SQL 或一次批准的关系表单行参数化插入。").ConfigureAwait(false);
+                    return;
+                }
+
+                if ((parsed is CreateTableStatement { IsTemporary: true }
+                    or CreateTableAsStatement { IsTemporary: true })
+                    && sessionContext is null)
+                {
+                    metrics.RecordSqlError();
+                    await WriteErrorAsync(context, "connection_session_required",
+                        "临时关系表需要远程逻辑连接会话；请升级客户端和服务端后重试。").ConfigureAwait(false);
                     return;
                 }
 
@@ -352,6 +367,7 @@ internal static class SqlEndpointHandler
                             new SqlExecutionOptions
                             {
                                 CancellationToken = executionCancellation,
+                                SessionContext = sessionContext,
                                 CaptureProcedureResults = true,
                                 DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,

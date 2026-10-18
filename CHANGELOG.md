@@ -17,7 +17,7 @@
 
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
-- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。ADO 嵌入式连接拥有并回收会话，远程独立 connection-session header 贯穿 SQL、Frame、过程、metadata 和事务，按数据库及认证身份绑定；空闲 5 分钟租约、有限准入、失败清理保留 owner/配额并有界重试。关闭先回滚事务，过期不自动重建或重发业务 SQL；过程只访问连接预建 TEMP，过程体 TEMP DDL 及正式包消费者另验。
 
 - GH-Issue #247：标准 StoredProcedure 命令与 IN/OUT/INOUT/ReturnValue、完整多结果及 Reader 成功关闭回写接入 ADO/REST/实际 HTTP2 Procedure=3；在调用保存点内校验输出声明与响应预算，发送后未知结果不重试。原生存储过程兼容断言保留，旧拒绝 setter 测试更新为真实过程执行及未知类型拒绝。固定 SqlSugar 候选验收与稳定包/上游发行单独记录。
 

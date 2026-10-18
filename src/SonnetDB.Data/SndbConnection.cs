@@ -86,6 +86,9 @@ public sealed class SndbConnection : DbConnection
     public SonnetDB.Engine.Tsdb? UnderlyingTsdb
         => _impl is EmbeddedConnectionImpl emb ? emb.Tsdb : null;
 
+    internal Guid? EmbeddedSessionId
+        => _impl is EmbeddedConnectionImpl emb ? emb.SessionId : null;
+
     /// <inheritdoc />
     /// <remarks>
     /// 远程模式下相当于执行 <c>USE &lt;databaseName&gt;</c>：仅修改当前连接的目标库路由，
@@ -164,10 +167,12 @@ public sealed class SndbConnection : DbConnection
         }
 
         var impl = _impl;
-        _impl = null;
         _currentTransaction = null;
-        impl?.Close();
-        impl?.Dispose();
+        if (impl is null)
+            return;
+        impl.Close();
+        _impl = null;
+        impl.Dispose();
     }
 
     /// <inheritdoc />
