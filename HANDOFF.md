@@ -3430,3 +3430,13 @@ RAG已本地提交af391283，集成新依赖重编11/11通过。#247原生切片
 
 
 当前main 0986f92e的CI39147045021已完成/failure，Core成功而Windows rest失败于StudioManagedServerHostTests.StartAsync_WhenSwitchingToNewUnhealthyTarget_ReplacesExistingManagedProcess及RelationalTableWarmupTests.Service_WithExistingDatabase_WarmsEveryRelationalTable；此前把该run关联为CAP失败不准确，本段与PR326审计予以纠正。PR320原CAP timeout仍是独立历史事实，不覆盖或删除。
+
+## 2026-10-19 主智能体接续检查点（尚未统一推送）
+
+先拉取最新代码与 canonical 文件三方合并已完成：main 为 0986f92e，1,609 个保护文件与原有发布/VS Code 增量按清单保留，parity-results 保持。受控集成树 codex/pr-issue-integration-20261019 当前 5d6c3587，含 11 个 PR 的普通合并、RAG 取消修复及 #247 Core，共 13 个本任务提交；逐次完整 restore 与规定 Format 回执已核，推送次数 0，远端 PR 尚开放。
+
+#247 Core 213/213、原生 ADO 35/35 仅是切片证据。首轮真实远程 42 项为 21 PASS/21 FAIL，其中20为HTTP2握手失败、1为独立断言；代理正在分别修复，不降级HTTP1、不删除失败。固定SqlSugar Reader输出、真实远程失败与AOT/正式包仍待。#245已接连接会话/COW临时对象，持久CTAS版本化stage/journal/recovery仍实施；#242已接全冲突DELETE→INSERT及FK/唯一索引终态，首轮缺using编译失败保留后继续定向验证，均未提交。
+
+main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和RelationalTableWarmup；本地原样重验分别8/8、5/5，不据此推定历史根因。PR326历史Core50分钟超时及PR320历史CAP超时仍独立UNKNOWN。RAG af391283在新依赖组合11/11通过。当前完整任务、最终SHA CI、正式发行均未完成；已有源码实现的十项Issue不重复实施或提前关闭。
+
+下一顺序：验收并整合247远程链→245 TEMP/CTAS→242 Replace，再按倒序处理236精度、233真实ORM锁定读、232 schema、227事务DDL及230正式交付依赖。根统一协调共享文件，每次代码提交前重新执行完整restore/原Format。临时目录main-studio-temp-01删除被自动命令策略阻止，仍保留且无成功回执。原始失败、恢复材料及非本任务文件继续保留。
