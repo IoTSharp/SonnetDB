@@ -3391,3 +3391,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #325 本地整合门禁前
 
 #325 与 #324 存在真实依赖版本冲突：PR 原始 Format/restore 的 NU1605 由 Design 10.0.13 间接要求 Relational >=10.0.13，而 #324 头仍是10.0.12。当前整合树已先提交#324，再解析#325冲突为 EFCore、Relational、Design、Tools 全部10.0.13；Dependabot旧交接删除未采用。仍未提交#325，等待本次完整restore/Format，未推送或关闭PR。
+## 2026-10-19 PR #321 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.Data.Sqlite 10.0.13；Dependabot 旧共享文档删除已排除。该 PR 原始 checks 当时为 clean/pass 候选，当前仍需以最终整合 SHA 的全套 CI 为准。
