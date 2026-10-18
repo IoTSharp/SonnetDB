@@ -3492,3 +3492,11 @@ Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提�
 Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规定Format通过后提交a7861a0b。Fastest后续两次6/10失败来自探针未重新启用Fastest在Begin关闭的逐SQL日志，实际SQL观测/失败注入未触发；旧日志保留，启用观测后再运行正式10000行，候选embedded/REST/实际HTTP2各10/10，原版三协议各2项普通批量通过、2项原生TEMP/隔离负控制失败。候选实际107次H2请求/14 Query Frame，其他H2 REST事务/写入/metadata没有伪装为全Frame。
 
 当前准备保存eng/probes/issue245-fastest的探针、宿主、最小provider补丁及审计。外置46文件manifest为81CA1623363D82D0FEAFCF3F9E297EB0657AC09BD4EC05C49D3AE201D743630C，补丁严格check/apply并逐字对照候选。未发布稳定包/上游补丁、未做最终SHA CI。245旧managed树已核source/evidence/clean/两子模块pins后通过app归档，源提交5509adcc可恢复，外置证据完好；当前active集成a7861a0b，主继续验236 Data/232 Core/227事务DDL及230，push次数0。
+
+## 2026-10-19 #236/#232 集成检查点（未推送）
+
+#236 Data/Protocol/Server 已以 `70d11dc9` 整合，保留 #245 connection-session header 与 typedParameters/v7 转发；最终整合树 restore 通过，DATETIME2/Procedure/connection-session 定向组 55/55 通过。子树最终证据仍为 Core/协议535/535、Remote/Procedure250/250、AOT/Trim零警告、restore/Format通过和96个自有bin/obj清理。
+
+#232 已以 `098db1fb` 接入结构化 schema/table pair、默认 `main`、v18 catalog、v1-v17旧目录映射、限定名绑定与双schema重开；整合树 schema 定向51/51，restore通过。Data/Server/远程metadata仍待后续切片。
+
+#227底座 `c0f28ae6` 已rebase到#232冻结提交，但仍只包含workspace/journal/recovery，未改SqlExecutor/TableManager live入口，真实ADO DDL和远程均NOT_RUN；不能写成Issue完成。没有push、Issue关闭、正式包发布或部署。下一步完成#227真实live DDL入口及嵌入ADO提交/回滚/失败/重开回归，再在最终树重跑完整restore、规定Format和最终SHA CI。
