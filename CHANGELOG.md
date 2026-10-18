@@ -9,6 +9,8 @@
 
 ### Changed
 
+- GH-Issue #245：补真实固定SqlSugar Fastest原版/最小原生TEMP CTAS候选，三协议候选各10/10，覆盖一万行集合写、已有事务提交/回滚、BulkMerge、隔离及失败清理；保存原版普通工作表控制、Windows长路径失败和观测工具修正回执。正式包及上游发布另验。
+
 - 修复 Windows 原生目录刷盘的长路径：在 CreateFileW 前规范化绝对/相对路径并使用扩展本地或 UNC 前缀，保留真实 I/O 失败与原持久化要求；覆盖超过260字符的实际 WAL 目录，恢复长 TEMP 根下 SqlSugar Fastest 原生 CTAS。
 
 - 保存 #247 SqlSugar、#242 XCode、#233 Chloe 的固定上游消费者探针、最小 provider 补丁和真实三协议审计；原版失败、正式 4.0 包缺口及 HTTP/2 REST 事务边界分别保留，不把候选验证写成上游或稳定包已发布。

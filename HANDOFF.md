@@ -3478,3 +3478,9 @@ Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提�
 245连接生命周期在根含236的树重新构建，Server session22/22、Core session/CTAS29/29，随后完整restore/规定Format通过并提交19b59165。独立真实SqlSugar Fastest候选只把CreateTempAsync换成原生空集TEMP CTAS，不改SqlSugar核心；首次编译因外部项目误继承仓库中央包管理NU1008失败，隔离外部项目后成功（保留4项原上游nullable告警），探针0warning/error。
 
 有界两行试运行1 PASS/9 FAIL，首个真实失败是私有长TEMP根下CreateFileW无法打开超过260字符的rowstore/WAL目录，Directory.Exists已经成功；原始日志issue245-fastest-native-trial2-01保持。当前只修DirectoryFsync的Windows原生路径规范化与扩展前缀，不缩短TMP、不改错误过滤或fsync；新增真实绝对/相对/已有扩展长目录、写入flush/rename及不存在目录仍失败的回归。需重编回归并在同等长TMP重跑消费者、完整restore/Format后另提交；一万行/真实远程Fastest仍待，没有push。
+
+## 2026-10-19 Windows fsync与Fastest真实消费者完成检查点（未推送）
+
+Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规定Format通过后提交a7861a0b。Fastest后续两次6/10失败来自探针未重新启用Fastest在Begin关闭的逐SQL日志，实际SQL观测/失败注入未触发；旧日志保留，启用观测后再运行正式10000行，候选embedded/REST/实际HTTP2各10/10，原版三协议各2项普通批量通过、2项原生TEMP/隔离负控制失败。候选实际107次H2请求/14 Query Frame，其他H2 REST事务/写入/metadata没有伪装为全Frame。
+
+当前准备保存eng/probes/issue245-fastest的探针、宿主、最小provider补丁及审计。外置46文件manifest为81CA1623363D82D0FEAFCF3F9E297EB0657AC09BD4EC05C49D3AE201D743630C，补丁严格check/apply并逐字对照候选。未发布稳定包/上游补丁、未做最终SHA CI。245旧managed树已核source/evidence/clean/两子模块pins后通过app归档，源提交5509adcc可恢复，外置证据完好；当前active集成a7861a0b，主继续验236 Data/232 Core/227事务DDL及230，push次数0。
