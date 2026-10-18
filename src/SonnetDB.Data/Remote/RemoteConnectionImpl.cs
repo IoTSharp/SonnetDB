@@ -20,7 +20,7 @@ namespace SonnetDB.Data.Remote;
 /// <summary>
 /// 远程连接实现：通过 HTTP 调用 <c>SonnetDB</c>。
 /// </summary>
-internal sealed class RemoteConnectionImpl : IConnectionImpl
+internal sealed partial class RemoteConnectionImpl : IConnectionImpl
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;

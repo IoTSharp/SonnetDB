@@ -3440,3 +3440,7 @@ RAG已本地提交af391283，集成新依赖重编11/11通过。#247原生切片
 main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和RelationalTableWarmup；本地原样重验分别8/8、5/5，不据此推定历史根因。PR326历史Core50分钟超时及PR320历史CAP超时仍独立UNKNOWN。RAG af391283在新依赖组合11/11通过。当前完整任务、最终SHA CI、正式发行均未完成；已有源码实现的十项Issue不重复实施或提前关闭。
 
 下一顺序：验收并整合247远程链→245 TEMP/CTAS→242 Replace，再按倒序处理236精度、233真实ORM锁定读、232 schema、227事务DDL及230正式交付依赖。根统一协调共享文件，每次代码提交前重新执行完整restore/原Format。临时目录main-studio-temp-01删除被自动命令策略阻止，仍保留且无成功回执。原始失败、恢复材料及非本任务文件继续保留。
+
+## 2026-10-19 验证分支重放 #247
+
+原本地整合分支 b55e4dce 与所有原父提交保留作审计；本工作树切换到 codex/pr-issue-verified-20261019，基线670beab4。本项仅重放247 ADO/Protocol/Server及两个已失效setter负例的真实执行更新；root原SqlProcedureOutputTests完整兼容/保存点回归保留，未采用worker的旧add/add副本。先取得本最终树完整restore/规定Format后才创建提交，后续按245→242→metadata修正及消费者证据顺序继续。原始失败、Root289/remote60以及固定Sugar三协议23/23外置收据保留，稳定发行/最终CI未完成，没有push。

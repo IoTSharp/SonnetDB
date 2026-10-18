@@ -109,9 +109,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             statement,
             controlPlane: null,
             transaction,
-            new SqlExecutionOptions { CancellationToken = cancellationToken });
+            new SqlExecutionOptions { CancellationToken = cancellationToken, CaptureProcedureResults = true });
         return result switch
         {
+            ProcedureExecutionResult procedure => new ProcedureExecutionResultAdapter(procedure.Results,
+                procedure.OutputParameters, procedure.ReturnValue, procedure.RecordsAffected, ProcedureCallSnapshot.ForLegacyCall()),
             SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
             InsertExecutionResult { Returning: { } returning } insert =>
                 MaterializedExecutionResult.FromSelect(returning, insert.RowsInserted),
@@ -135,6 +137,22 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         CancellationToken cancellationToken)
     {
         return Task.FromResult(ExecuteCore(sql, parameters, behavior, transactionState, cancellationToken));
+    }
+
+    public Task<IExecutionResult> ExecuteProcedureAsync(ProcedureCallSnapshot call, object? transactionState,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_tsdb is null || _state != ConnectionState.Open) throw new InvalidOperationException("连接未打开。");
+        var arguments = call.Arguments.Where(static parameter => parameter.Direction != SonnetDB.Protocol.SqlProcedureFrameDirection.ReturnValue)
+            .Select(static parameter => new SonnetDB.Routines.ProcedureCallArgument(
+            parameter.Value.Name, parameter.Value.Value, (SqlProcedureParameterDirection)parameter.Direction)).ToArray();
+        var result = SqlExecutor.ExecuteProcedure(_tsdb, call.Name, arguments,
+            GetTransactionContext(transactionState), new SqlExecutionOptions { CancellationToken = cancellationToken },
+            validateCompletion: completion => call.ValidateCompletion(completion.OutputParameters, completion.ReturnValue));
+        IExecutionResult adapted = new ProcedureExecutionResultAdapter(result.Results, result.OutputParameters,
+            result.ReturnValue, result.RecordsAffected, call);
+        return Task.FromResult(adapted);
     }
 
     /// <summary>

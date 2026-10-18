@@ -16,6 +16,7 @@ namespace SonnetDB.Data.Remote;
     WriteIndented = false)]
 [JsonSerializable(typeof(DatabaseCreateRequest))]
 [JsonSerializable(typeof(SqlRequestBody))]
+[JsonSerializable(typeof(ProcedureJsonEnvelope))]
 [JsonSerializable(typeof(SqlBatchRequestBody))]
 [JsonSerializable(typeof(ResultMetaLine))]
 [JsonSerializable(typeof(ResultEndLine))]

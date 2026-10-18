@@ -31,6 +31,11 @@ internal interface IConnectionImpl : IDisposable
         object? transactionState,
         CancellationToken cancellationToken);
 
+    /// <summary>执行已冻结的类型化过程调用，不把输入值拼成 CALL SQL。</summary>
+    Task<IExecutionResult> ExecuteProcedureAsync(ProcedureCallSnapshot call, object? transactionState,
+        CancellationToken cancellationToken)
+        => throw new NotSupportedException("当前连接实现不支持类型化存储过程。");
+
     /// <summary>
     /// 批量入库快路径（绕开 SQL Lexer→Parser→Planner）。
     /// 由 <see cref="SndbCommand"/> 在 <see cref="System.Data.CommandType.TableDirect"/> 下分发。

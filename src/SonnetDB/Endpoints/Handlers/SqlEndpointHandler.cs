@@ -352,6 +352,7 @@ internal static class SqlEndpointHandler
                             new SqlExecutionOptions
                             {
                                 CancellationToken = executionCancellation,
+                                CaptureProcedureResults = true,
                                 DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
@@ -385,6 +386,23 @@ internal static class SqlEndpointHandler
 
                     switch (result)
                     {
+                        case ProcedureExecutionResult procedure:
+                            {
+                                int count = Math.Max(1, procedure.Results.Count);
+                                if (!context.Response.HasStarted)
+                                    context.Response.Headers["X-SonnetDB-Sql-Result-Count"] = count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                for (int index = 0; index < count; index++)
+                                {
+                                    executionCancellation.ThrowIfCancellationRequested();
+                                    var selected = procedure.Results.Count == 0
+                                        ? new SelectExecutionResult([], []) : procedure.Results[index];
+                                    long returned = await WriteSelectAsync(context, selected, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(returned);
+                                    await WriteEndAsync(context, writerOptions, returned, procedure.RecordsAffected,
+                                        sw.Elapsed.TotalMilliseconds, selected.Truncated).ConfigureAwait(false);
+                                }
+                                break;
+                            }
                         case SelectExecutionResult sel:
                             {
                                 long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);

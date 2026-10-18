@@ -38,7 +38,7 @@ namespace SonnetDB.Endpoints;
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
-internal static class FrameEndpointHandler
+internal static partial class FrameEndpointHandler
 {
     internal const string ContentType = "application/x-sonnetdb-frame";
 
@@ -59,6 +59,7 @@ internal static class FrameEndpointHandler
         PipeReader reader = ctx.Request.BodyReader;
         PipeWriter writer = ctx.Response.BodyWriter;
         int frameCount = 0;
+        byte[] earlyHeaderBytes = new byte[FrameHeader.Size];
 
         try
         {
@@ -74,6 +75,14 @@ internal static class FrameEndpointHandler
                         ReadOnlySequence<byte> payload;
                         try
                         {
+                            if (buffer.Length >= FrameHeader.Size)
+                            {
+                                buffer.Slice(0, FrameHeader.Size).CopyTo(earlyHeaderBytes);
+                                if (FrameHeader.TryRead(earlyHeaderBytes, out var declared)
+                                    && declared.Service == (byte)FrameService.Sql && declared.Op == (byte)SqlFrameOp.Procedure
+                                    && declared.PayloadLength > SqlProcedureFrameCodec.MaxRequestBytes)
+                                    throw new FrameFormatException("过程声明的 payload 超过字节预算。");
+                            }
                             if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
                                 break;
                         }
@@ -105,7 +114,9 @@ internal static class FrameEndpointHandler
                         EnsureFrameResponseStarted(ctx);
                         if (header.Service == (byte)FrameService.Sql)
                         {
-                            if (header.Op == (byte)SqlFrameOp.Execute)
+                            if (header.Op == (byte)SqlFrameOp.Procedure)
+                                await ExecuteProcedureAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                            else if (header.Op == (byte)SqlFrameOp.Execute)
                                 await ExecuteSqlWriteAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                             else
                                 await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
@@ -232,7 +243,7 @@ internal static class FrameEndpointHandler
         }
         else if (header.Service == (byte)FrameService.Sql)
         {
-            if (header.Op is not ((byte)SqlFrameOp.Query) and not ((byte)SqlFrameOp.Execute))
+            if (header.Op is not ((byte)SqlFrameOp.Query) and not ((byte)SqlFrameOp.Execute) and not ((byte)SqlFrameOp.Procedure))
             {
                 errorCode = "unsupported_op";
                 return $"sql service 不支持 op {header.Op}。";

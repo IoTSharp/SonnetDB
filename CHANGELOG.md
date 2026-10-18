@@ -9,6 +9,8 @@
 
 ### Changed
 
+- GH-Issue #247：标准 StoredProcedure 命令与 IN/OUT/INOUT/ReturnValue、完整多结果及 Reader 成功关闭回写接入 ADO/REST/实际 HTTP2 Procedure=3；在调用保存点内校验输出声明与响应预算，发送后未知结果不重试。原生存储过程兼容断言保留，旧拒绝 setter 测试更新为真实过程执行及未知类型拒绝。固定 SqlSugar 候选验收与稳定包/上游发行单独记录。
+
 - RAG CLI 支持由调用方传入取消令牌并保留原总期限；真实请求收到后触发取消的回归验证一次请求、审计终态、未发布与持久续跑，另验输入前取消无数据库/审计/HTTP副作用。
 - 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。
 - 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。

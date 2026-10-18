@@ -34,6 +34,8 @@ internal static partial class SonnetDbEndpoints
 
         // ---- SQL ----
         var controlPlane = app.Services.GetRequiredService<SonnetDB.Sql.Execution.IControlPlane>();
+        app.MapPost("/v1/db/{db}/sql/procedure", (HttpContext ctx, string db) =>
+            ProcedureEndpointHandler.HandleRestAsync(ctx, db, registry, grants, metrics));
         app.MapPost("/v1/db/{db}/sql", async (HttpContext ctx, string db) =>
         {
             if (!TryResolveDatabase(ctx, registry, db, out var tsdb))

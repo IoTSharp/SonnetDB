@@ -18,6 +18,15 @@ internal static class ParameterBinder
         if (sql.IndexOf('@') < 0 && sql.IndexOf(':') < 0)
             return sql;
 
+        var definitionTokens = SqlLexer.Tokenize(sql);
+        if (definitionTokens.Count > 2 && definitionTokens[0].Kind == TokenKind.KeywordCreate
+            && definitionTokens[1].Text.Equals("procedure", StringComparison.OrdinalIgnoreCase))
+        {
+            if (parameters.Count != 0)
+                throw new NotSupportedException("CREATE PROCEDURE 的过程作用域变量不能作为 ADO 值参数绑定。");
+            return sql;
+        }
+
         var byName = new Dictionary<string, SndbParameter>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in parameters.Items)
         {

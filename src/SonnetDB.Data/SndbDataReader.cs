@@ -22,6 +22,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     private readonly int _commandTimeout;
     private readonly CancellationToken _commandCancellationToken;
     private readonly Action? _releaseExecutionLease;
+    private readonly Action<Action?>? _completeExecutionLease;
     private CancellationTokenSource? _readTimeoutCancellation;
     private bool _hasRow;
     private bool? _hasRows;
@@ -34,7 +35,8 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         SndbConnection? connection,
         int commandTimeout = 0,
         CancellationToken commandCancellationToken = default,
-        Action? releaseExecutionLease = null)
+        Action? releaseExecutionLease = null,
+        Action<Action?>? completeExecutionLease = null)
     {
         _result = result;
         _behavior = behavior;
@@ -42,6 +44,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         _commandTimeout = commandTimeout;
         _commandCancellationToken = commandCancellationToken;
         _releaseExecutionLease = releaseExecutionLease;
+        _completeExecutionLease = completeExecutionLease;
     }
 
     /// <inheritdoc />
@@ -457,6 +460,16 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     /// </summary>
     private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken, bool nextResult = false)
     {
+        try { return await ReadWithTimeoutCoreAsync(callerCancellationToken, nextResult).ConfigureAwait(false); }
+        catch
+        {
+            if (_result is ProcedureExecutionResultAdapter procedure) procedure.Abort();
+            throw;
+        }
+    }
+
+    private async Task<bool> ReadWithTimeoutCoreAsync(CancellationToken callerCancellationToken, bool nextResult)
+    {
         callerCancellationToken.ThrowIfCancellationRequested();
         if (_closed) return false;
         _commandCancellationToken.ThrowIfCancellationRequested();
@@ -637,7 +650,8 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         // 三项清理全部执行，并保留最先发生的异常，避免 CloseConnection 覆盖 Reader 根因。
         try
         {
-            _releaseExecutionLease?.Invoke();
+            if (_result is not ProcedureExecutionResultAdapter)
+                _releaseExecutionLease?.Invoke();
         }
         catch (Exception exception)
         {
@@ -656,6 +670,26 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             }
         }
 
+        if (_result is ProcedureExecutionResultAdapter procedure)
+        {
+            if (firstFailure is not null) procedure.Abort();
+            try
+            {
+                Action? completion = firstFailure is null ? () => procedure.Complete(_commandCancellationToken) : null;
+                if (_completeExecutionLease is not null)
+                    _completeExecutionLease(completion);
+                else
+                {
+                    _releaseExecutionLease?.Invoke();
+                    completion?.Invoke();
+                }
+            }
+            catch (Exception exception)
+            {
+                procedure.Abort();
+                firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+            }
+        }
         firstFailure?.Throw();
     }
 
