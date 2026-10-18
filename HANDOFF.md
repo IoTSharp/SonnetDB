@@ -3385,3 +3385,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 在 PR #327 本地合并提交后，已普通 merge --no-commit 纳入 PR #326 的 Microsoft.Extensions.AI 10.11.0 依赖更新；Dependabot 头携带的旧 HANDOFF/ROADMAP 删除已恢复为当前整合树字节。原 PR Windows Core 50分钟超时保留为 FAIL/UNKNOWN，当前 main 后续 Core 成功与 Windows rest 的 CAP失败分别记录，不能互相替代。
 
 本项仍等待依赖变更后的完整 restore/Format 后提交；不推送、不关闭 PR。下一项 #325 依赖 #324 的 Relational 10.0.13，需按真实 NU1605 依赖关系协调顺序，不以倒序形式制造可预见的降级失败。
+## 2026-10-19 PR #324 本地整合门禁前
+
+按实际依赖先合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Relational 10.0.13；这是为消除后续 #325 Design/Tools 10.0.13 在旧 Relational 10.0.12 上触发的 NU1605。Dependabot 旧文档删除已排除。当前仍在最终整合树中，待本项 restore/Format 后提交；不推送，不把依赖层合入当作 EF/ORM 全部验收。
