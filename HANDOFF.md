@@ -3409,3 +3409,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #316 本地整合门禁前
 
 #316 冲突已解析为 Diagnostics.EntityFrameworkCore 10.0.13，保留前序 EF/Identity 全部10.0.13。旧共享文档删除未采用；待本次restore/Format提交后继续#315。
+## 2026-10-19 PR #315 本地整合门禁前
+
+已普通merge --no-commit纳入CodeQL action 4.38.3；前序十个依赖PR均已逐个本地提交，尚未统一推送。此项仅工作流Action版本更新，不改变CodeQL扫描范围、权限、failure策略或发布门禁。后续整合RAG真实取消修复及#247未完成原生/ADO/远程链。
