@@ -3397,3 +3397,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #320 本地整合门禁前
 
 已普通 merge --no-commit 纳入 Microsoft.AspNetCore.SpaProxy 10.0.13。原 PR Windows rest CI 的 CAP CommitAsync 提前启动测试超时已在固定子模块初始化后本机 CapJourneyTests 10/10（remote false/true）通过，但历史单次 timeout 的生产根因仍 UNKNOWN；本次不修改等待、超时或断言，不以本机单项目通过代替最终候选 CI。
+## 2026-10-19 PR #319 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.AspNetCore.Mvc.Testing 10.0.13；旧共享文档删除排除。原 PR checks 为 clean 候选，最终仍按整合 SHA 核验。
