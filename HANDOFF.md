@@ -3400,3 +3400,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #319 本地整合门禁前
 
 已普通 merge --no-commit 纳入 Microsoft.AspNetCore.Mvc.Testing 10.0.13；旧共享文档删除排除。原 PR checks 为 clean 候选，最终仍按整合 SHA 核验。
+## 2026-10-19 PR #318 本地整合门禁前
+
+#318 与 #324/#325 共享 Directory.Packages.props，冲突已解析为 Identity.UI 10.0.13 并保留前序 EF 四包 10.0.13；Dependabot 旧文档删除未采用。RAG取消测试的11/11证据属于后续独立缺陷修复，不由本依赖更新冒称整体CI通过。

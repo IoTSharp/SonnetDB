@@ -2548,3 +2548,4 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 - 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。
 - 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。
+- 合入 PR #318 的 Microsoft.AspNetCore.Identity.UI 10.0.13。
