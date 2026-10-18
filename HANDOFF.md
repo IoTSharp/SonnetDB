@@ -3372,3 +3372,11 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 - 新真实测试覆盖 Client 直连产品 Server、Int64/Decimal/Blob/DateTime/Offset/Time/Duration/NULL 落盘和完整宿主重开、位置参数/SQL 注入文本、权限、约束整句回滚、能力/版本/畸形输入拒绝，以及提交后断响应时仍有一条数据且没有重试。最终计数、原 TRX/GZip、源码和运行身份见 `docs/audits/m49/f01-20261017/acceptance.json`；早期失败保留，完整 Core/Server、TLS/ALPN、AOT 发布运行、其它平台与正式消费者未验证。
 - 继承 dirty 仍为 CHANGELOG/ROADMAP 的 M42/M47/D01 旧规划及 `docs/design/m42-relational-hot-write-concurrency.md`；仅暂存本片自有路径/hunk。不 reset/clean/stash-all，不改/合并/删除 parity-results。临时资源和有界 Job 回执存 `artifacts/m49-f01-20261017`；清理只针对本任务有 owner 标记的 TEMP。
 - 下一会话先读 `docs/handoffs/m49-next-computer.md`：先补 SQL Frame 多结果/RETURNING 与适用事务，再迁移旧 ADO；随后衔接 R01/R02/R03 Core pull，不能把完整 Rows 外切批当有界。D01 Native 混合依赖、各语言绑定与九模型其它操作继续按矩阵推进。`embedded` 在本分支仓库根，旧共享 main 的目录视图不同。
+
+## 2026-10-19 PR #327 本地整合门禁前
+
+用户已授权主智能体监督三个子智能体，先同步 canonical 现有文件，再按倒序逐项整合，最后统一推送并核验真实 CI。canonical main 已同步0986f92e，本地文件完成三方合并并保留发布/Workbench原有增量；不改 parity-results 或自动化配置。
+
+本受控工作树分支 codex/pr-issue-integration-20261019，已普通merge --no-commit纳入PR327原head 9b51dcd0，同时修复TableManager并行预热线程共享Dictionary的真实竞态。原Barrier并行测试保留，修复树Windows定向92/92、0skip；不是新依赖组合/Linux/完整CI的完成证据。审计见 docs/audits/pr327-cache-warmup-20261019.md。当前等待最终完整restore、规定Format后提交；原失败保留，不推送、不关闭Issue。
+
+后续顺序327→326→325/324依赖协调→321→320→319→318→317→316→315；247核心实现与既有Issue独立核查在隔离树进行，245等待共享SQL核心。最终同SHA CI未取得前不写全绿，不将部分实现或包存在冒称正式发行。

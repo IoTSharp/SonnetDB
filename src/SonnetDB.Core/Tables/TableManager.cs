@@ -1608,8 +1608,14 @@ public sealed partial class TableManager : IDisposable
         var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions, _diskReadBudget);
         try
         {
-            if (!_tableLockTokens.TryGetValue(schema.Name, out object? token))
-                _tableLockTokens.Add(schema.Name, token = new object());
+            object token;
+            // 并行预热线程共享身份目录；不能重取由等待这些线程的调用方持有的 _sync。
+            lock (_tableLockTokens)
+            {
+                if (!_tableLockTokens.TryGetValue(schema.Name, out object? existingToken))
+                    _tableLockTokens.Add(schema.Name, existingToken = new object());
+                token = existingToken;
+            }
             return new TableStore(schema, kv, _statisticsRefreshBudget)
             {
                 RowLocks = RowLocks,
