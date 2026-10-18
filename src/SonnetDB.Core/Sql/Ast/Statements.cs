@@ -41,6 +41,9 @@ public sealed partial record CreateTableStatement(
     IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
     IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
+    /// <summary>是否创建当前逻辑连接拥有的临时关系表。</summary>
+    public bool IsTemporary { get; init; }
+
     /// <summary>表名是否使用双引号声明。</summary>
     public bool NameIsQuoted { get; init; }
 

@@ -16,6 +16,10 @@ internal static class SqlSerializableSourceValidator
         SelectStatement? query = statement switch
         {
             SelectStatement select => select,
+            CreateTableAsStatement { IsTemporary: true } createAs => createAs.Query,
+            CreateTableStatement { IsTemporary: true } => null,
+            DropTableStatement drop when SqlSessionContext.Current?.VisibleTables?.Catalog.TryGet(drop.Name) is not null => null,
+            TruncateTableStatement truncate when SqlSessionContext.Current?.VisibleTables?.Catalog.TryGet(truncate.TableName) is not null => null,
             InsertStatement insert => new SelectStatement(
                 insert.Rows.SelectMany(static row => row).Select(static value => new SelectItem(value, null)).ToArray(),
                 insert.Measurement, null, [], FromSubquery: insert.Query),

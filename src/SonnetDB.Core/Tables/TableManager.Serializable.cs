@@ -19,9 +19,9 @@ public sealed partial class TableManager
     private IReadOnlyList<TableSchema> ValidateSerializableMetadataBudget(SqlTransactionContext transaction)
     {
         transaction.CheckCommitDeadline();
-        if (Catalog.Count > MaximumSerializableMetadataItems)
+        if (_catalog.Count > MaximumSerializableMetadataItems)
             throw new NotSupportedException("Serializable 提交最多检查 16384 张表的外键元数据。");
-        var schemas = Catalog.Snapshot();
+        var schemas = _catalog.Snapshot();
         int foreignKeys = 0;
         foreach (var schema in schemas)
         {
@@ -82,7 +82,7 @@ public sealed partial class TableManager
             foreach (string name in orderedNames)
             {
                 transaction.CheckCommitDeadline();
-                var schema = Catalog.TryGet(name);
+                var schema = _catalog.TryGet(name);
                 if (schema is null) throw SerializationConflict(name);
                 TableStore store = OpenStoreLocked(schema);
                 transaction.CheckCommitDeadline();
@@ -117,7 +117,7 @@ public sealed partial class TableManager
         foreach (var read in transaction.SerializableReads)
         {
             transaction.CheckCommitDeadline();
-            if (Catalog.TryGet(read.Schema.Name) is not { } schema
+            if (_catalog.TryGet(read.Schema.Name) is not { } schema
                 || !ReferenceEquals(schema, read.Schema)
                 || !_stores.TryGetValue(read.Schema.Name, out var store)
                 || !store.MatchesSerializableRead(read, transaction.SerializableExpectedSequence(read)))

@@ -369,6 +369,13 @@ public sealed class SqlParser
     private SqlStatement ParseCreate()
     {
         Expect(TokenKind.KeywordCreate);
+        if (IsIdentifier("temp") || IsIdentifier("temporary"))
+        {
+            Advance();
+            if (Current.Kind != TokenKind.KeywordTable)
+                throw Error("CREATE TEMP / TEMPORARY 后面必须是 TABLE");
+            return ParseCreateTableBody(temporary: true);
+        }
         var unique = false;
         if (Current.Kind == TokenKind.KeywordUnique || IsIdentifier("unique"))
         {
@@ -1422,7 +1429,7 @@ public sealed class SqlParser
 
     // ── CREATE TABLE ───────────────────────────────────────────────────────
 
-    private CreateTableStatement ParseCreateTableBody()
+    private SqlStatement ParseCreateTableBody(bool temporary = false)
     {
         Expect(TokenKind.KeywordTable);
 
@@ -1436,6 +1443,15 @@ public sealed class SqlParser
         }
 
         var name = ExpectIdentifierName(out bool nameIsQuoted);
+        if (Current.Kind == TokenKind.KeywordAs)
+        {
+            Advance();
+            if (Current.Kind != TokenKind.KeywordSelect && Current.Kind != TokenKind.KeywordWith)
+                throw Error("CTAS 的 AS 后面必须是只读 SELECT 查询");
+            SelectStatement query = Current.Kind == TokenKind.KeywordWith
+                ? ParseWithSelect() : ParseSelect();
+            return new CreateTableAsStatement(name, query, temporary, ifNotExists) { NameIsQuoted = nameIsQuoted };
+        }
         Expect(TokenKind.LeftParen);
 
         var columns = new List<TableColumnDefinition>();
@@ -1505,6 +1521,7 @@ public sealed class SqlParser
 
         return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys, checkConstraints)
         {
+            IsTemporary = temporary,
             NameIsQuoted = nameIsQuoted,
             PrimaryKeyColumnIsQuoted = primaryKeyColumnIsQuoted,
             PrimaryKeyConstraintName = primaryKeyConstraintName,

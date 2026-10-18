@@ -15,6 +15,7 @@ internal static class SqlNameBinder
         SqlStatement bound = statement switch
         {
             CreateTableStatement create => BindCreateTable(tsdb, create),
+            CreateTableAsStatement createAs => BindCreateAs(tsdb, createAs),
             DropTableStatement drop => drop with
             {
                 Name = ResolveTableName(tsdb, drop.Name, drop.NameIsQuoted),
@@ -64,6 +65,13 @@ internal static class SqlNameBinder
 
     internal static SelectStatement BindSelect(Tsdb tsdb, SelectStatement statement)
         => BindSelect(tsdb, statement, parent: null, new HashSet<string>(StringComparer.Ordinal));
+
+    private static CreateTableAsStatement BindCreateAs(Tsdb database, CreateTableAsStatement statement)
+    {
+        if (statement.IfNotExists && database.Tables.Catalog.Resolve(statement.Name, statement.NameIsQuoted) is { } existing)
+            return statement with { Name = existing.Name };
+        return statement with { Name = Key(statement.Name, statement.NameIsQuoted), Query = BindSelect(database, statement.Query) };
+    }
 
     private static CreateTableStatement BindCreateTable(Tsdb tsdb, CreateTableStatement statement)
     {

@@ -41,6 +41,8 @@ internal static class SqlRoutineRuntime
 
         TableSchema schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw DependencyError($"trigger '{statement.Name}' 的目标关系表 '{statement.TableName}' 不存在。");
+        if (SqlTemporaryTableIdentity.TryGet(schema, out _))
+            throw new NotSupportedException("连接临时表不支持持久触发器。");
         TriggerDefinition definition = TriggerDefinition.Create(statement);
         ValidateTriggerDependencies(tsdb, definition, schema);
         tsdb.Routines.Create(definition, statement.RelativeTo, statement.Precedes);

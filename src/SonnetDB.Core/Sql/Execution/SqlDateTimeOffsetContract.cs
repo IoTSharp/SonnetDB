@@ -20,6 +20,9 @@ internal static class SqlDateTimeOffsetContract
     {
         switch (statement)
         {
+            case CreateTableAsStatement createAs:
+                _ = Select(database, createAs.Query, null, 0);
+                break;
             case SelectStatement select:
                 _ = Select(database, select, null, 0);
                 break;

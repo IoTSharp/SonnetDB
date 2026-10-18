@@ -39,6 +39,7 @@ public static class SqlParameterBinder
         return statement switch
         {
             SelectStatement select => BindSelect(select, parameters),
+            CreateTableAsStatement createAs => createAs with { Query = BindSelect(createAs.Query, parameters) },
             InsertStatement insert => BindInsert(insert, parameters),
             InsertGraphStatement graphInsert => graphInsert with
             {

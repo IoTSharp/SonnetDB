@@ -83,6 +83,9 @@ internal sealed class SqlRowRetentionBudget : IDisposable
         return new(options.MaxTriggerTransitionRows, options.MaxTriggerTransitionBytes, insertSource: true);
     }
 
+    internal static SqlRowRetentionBudget EnterCreateAsSource()
+        => new(100_000, 64L * 1024 * 1024, insertSource: false);
+
     internal void Retain(IReadOnlyList<object?> row)
     {
         SqlExecutor.ThrowIfCancellationRequested();

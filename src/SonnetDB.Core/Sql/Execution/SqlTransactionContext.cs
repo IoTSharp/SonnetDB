@@ -381,6 +381,7 @@ public sealed partial class SqlTransactionContext
     {
         ThrowIfCompleted();
         _completed = true;
+        CompleteSession();
         ReleaseRowLocks();
         _undo.Clear();
         _tableMutations.Clear();

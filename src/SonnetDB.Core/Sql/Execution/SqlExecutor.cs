@@ -17,7 +17,7 @@ namespace SonnetDB.Sql.Execution;
 /// 当前 Milestone 支持 <see cref="CreateMeasurementStatement"/>、<see cref="InsertStatement"/>、
 /// <see cref="SelectStatement"/> 与 <see cref="DeleteStatement"/>。
 /// </summary>
-public static class SqlExecutor
+public static partial class SqlExecutor
 {
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
@@ -418,6 +418,14 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
+        SqlSessionContext? session = options.SessionContext ?? SqlSessionContext.Current ?? transaction?.SessionContext;
+        using IDisposable? sessionScope = session?.EnterScope(options.CancellationToken);
+        session?.ValidateDatabase(tsdb);
+        if (session is not null)
+        {
+            options = options with { SessionContext = session };
+            transaction?.AttachSession(session);
+        }
         statement = BindNames(tsdb, statement);
         SqlLockingReadContract.Validate(statement);
         using var deadlineSource = options.CreateDeadlineSource();
@@ -458,6 +466,9 @@ public static class SqlExecutor
         if (statement is SelectStatement sequenceQuery)
             SqlDurationResultContract.ValidateBeforeSequence(tsdb, sequenceQuery);
 
+        if (IsTemporaryMutation(tsdb, statement))
+            return ExecuteTemporaryMutation(tsdb, statement, transaction, options);
+
         object? executionResult = statement switch
         {
             CreateSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
@@ -484,6 +495,7 @@ public static class SqlExecutor
             CreatePropertyGraphStatement createPropertyGraph =>
                 GraphSqlExecutor.CreatePropertyGraph(tsdb, createPropertyGraph),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
+            CreateTableAsStatement createAs => ExecuteCreateTableAs(tsdb, createAs, transaction, options),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateViewStatement createView => tsdb.ExecuteSchemaMutation(
                 () => ExecuteCreateView(tsdb, createView)),
@@ -616,6 +628,8 @@ public static class SqlExecutor
         };
         // 过程内 SELECT 必须在其拥有的事务提交前验证，动态表达式也不能逃过旧协议拒绝。
         SqlDurationResultContract.Validate(executionResult);
+        if (executionResult is SqlTransactionContext started && session is not null)
+            started.AttachSession(session);
         return executionResult;
     }
 
@@ -703,6 +717,11 @@ public static class SqlExecutor
         if (transaction is null || transaction.IsCompleted)
             return;
 
+        if (statement is CreateTableStatement { IsTemporary: true }
+            or CreateTableAsStatement { IsTemporary: true }
+            || IsTemporaryDropOrTruncate(statement))
+            return;
+
         if (statement is ImportJsonStatement)
         {
             throw new NotSupportedException(
@@ -738,6 +757,7 @@ public static class SqlExecutor
             or CreateModbusSourceStatement
             or CreateModbusEndpointStatement
             or CreateTableStatement
+            or CreateTableAsStatement
             or CreateDocumentCollectionStatement
             or CreateViewStatement
             or CreateMaterializedViewStatement
@@ -1032,6 +1052,8 @@ public static class SqlExecutor
         var graphNames = new HashSet<string>(graphDependencies, StringComparer.Ordinal);
         foreach (string dependency in dependencies)
         {
+            if (tsdb.Tables.Catalog.TryGet(dependency) is { } table && SqlTemporaryTableIdentity.TryGet(table, out _))
+                throw new NotSupportedException("持久视图与物化视图不能依赖连接临时表。");
             if (string.Equals(dependency, name, StringComparison.Ordinal))
                 throw new InvalidOperationException($"{objectType} '{name}' 不能直接或间接引用自身。");
             bool exists = graphNames.Contains(dependency)

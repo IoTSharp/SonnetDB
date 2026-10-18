@@ -9,6 +9,10 @@ public sealed record SqlExecutionOptions
     /// <summary>取消令牌。</summary>
     public CancellationToken CancellationToken { get; init; }
 
+    /// <summary>当前逻辑连接拥有的临时关系对象会话；内部过程调用沿用同一个实例。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public SqlSessionContext? SessionContext { get; init; }
+
     /// <summary>
     /// 可选的绝对执行截止时间（UTC）。到达截止时间后，SQL 执行按取消处理；调用方仍可通过
     /// <see cref="CancellationToken"/> 提前取消。该属性只约束当前调用，不改变事务持久化后的恢复语义。

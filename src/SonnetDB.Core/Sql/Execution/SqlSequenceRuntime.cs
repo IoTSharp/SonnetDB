@@ -67,6 +67,7 @@ internal static class SqlSequenceRuntime
         ExplainStatement explain => Contains(explain.Statement),
         CreateViewStatement view => Contains(view.Query),
         CreateMaterializedViewStatement view => Contains(view.Query),
+        CreateTableAsStatement table => Contains(table.Query),
         CreateTableStatement table => table.Columns.Any(column => Contains(column.DefaultExpression))
             || table.CheckConstraintClauses.Any(check => Contains(check.Expression)),
         AlterTableAddColumnStatement column => Contains(column.DefaultExpression),

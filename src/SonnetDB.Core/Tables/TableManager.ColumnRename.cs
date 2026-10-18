@@ -15,7 +15,7 @@ public sealed partial class TableManager
     private void ApplyColumnRenameLocked(TableSchema current, string oldName, string newName)
     {
         TableSchema renamed = current.WithRenamedColumn(oldName, newName);
-        IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
+        IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
         TableSchema[] candidateSchemas = previousSchemas.Select(schema =>
             string.Equals(schema.Name, current.Name, StringComparison.Ordinal)
                 ? renamed
@@ -26,7 +26,7 @@ public sealed partial class TableManager
             .ToArray();
 
         // 分配候选快照必须早于任何修改；发布时整套 FK 与主键在同一次 Volatile.Write 中切换。
-        Action publish = Catalog.PrepareReplacement(candidateSchemas);
+        Action publish = _catalog.PrepareReplacement(candidateSchemas);
         var lockedStores = new List<TableStore>(changed.Length);
         bool persisted = false;
         int metadataApplied = 0;

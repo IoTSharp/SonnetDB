@@ -5,7 +5,7 @@ namespace SonnetDB.Tables;
 /// <summary>
 /// 关系表 schema catalog。
 /// </summary>
-public sealed class TableCatalog
+public sealed partial class TableCatalog
 {
     private readonly object _sync = new();
     private Dictionary<string, TableSchema> _mutable = new(StringComparer.Ordinal);
@@ -22,6 +22,8 @@ public sealed class TableCatalog
     {
         get
         {
+            if (_session is not null)
+                return Snapshot().Count;
             lock (_sync)
                 return _mutable.Count;
         }
@@ -33,6 +35,7 @@ public sealed class TableCatalog
     /// <param name="schema">schema。</param>
     public void Add(TableSchema schema)
     {
+        RejectSessionMutation();
         ArgumentNullException.ThrowIfNull(schema);
         MutationGuard?.Invoke(schema.Name, "ADD");
         lock (_sync)
@@ -50,6 +53,7 @@ public sealed class TableCatalog
     /// <param name="schema">schema。</param>
     public void LoadOrReplace(TableSchema schema)
     {
+        RejectSessionMutation();
         ArgumentNullException.ThrowIfNull(schema);
         MutationGuard?.Invoke(schema.Name, "LOAD OR REPLACE");
         lock (_sync)
@@ -80,6 +84,7 @@ public sealed class TableCatalog
     /// <returns>存在并删除时返回 true。</returns>
     public bool Remove(string name)
     {
+        RejectSessionMutation();
         ArgumentNullException.ThrowIfNull(name);
         MutationGuard?.Invoke(name, "REMOVE");
         lock (_sync)
@@ -99,6 +104,8 @@ public sealed class TableCatalog
     public TableSchema? TryGet(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (_session is not null)
+            return ResolveSession(name, quoted: true);
         return Volatile.Read(ref _snapshot).Exact.TryGetValue(name, out var schema) ? schema : null;
     }
 
@@ -109,6 +116,8 @@ public sealed class TableCatalog
     public TableSchema? Resolve(string name, bool quoted)
     {
         ArgumentNullException.ThrowIfNull(name);
+        if (_session is not null)
+            return ResolveSession(name, quoted);
         var snapshot = Volatile.Read(ref _snapshot);
         if (quoted)
             return snapshot.Exact.TryGetValue(name, out var exact) ? exact : null;
@@ -122,7 +131,9 @@ public sealed class TableCatalog
     /// 返回当前 schema 快照，按表名升序排列。
     /// </summary>
     public IReadOnlyList<TableSchema> Snapshot()
-        => Volatile.Read(ref _snapshot).Exact.Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
+        => _session is null
+            ? Volatile.Read(ref _snapshot).Exact.Values.OrderBy(s => s.Name, StringComparer.Ordinal).ToArray()
+            : SnapshotSession();
 
     /// <summary>预先分配整套目录快照，返回落盘成功后无需再分配的原子发布操作。</summary>
     internal Action PrepareReplacement(IReadOnlyList<TableSchema> schemas)

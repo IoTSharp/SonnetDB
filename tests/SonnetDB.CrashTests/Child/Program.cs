@@ -28,6 +28,15 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "crash_ctas_stage-created":
+    case "crash_ctas_stage-durable":
+    case "crash_ctas_rowstore-moved":
+    case "crash_ctas_catalog-durable":
+    case "crash_ctas_temporary-created":
+    case "crash_ctas_temporary-durable":
+    case "crash_ctas_recovery-after-owner-removed":
+        CreateTableAsCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "crash_kill9_maintenance_drop_before-barrier":
     case "crash_kill9_maintenance_drop_after-barrier":
     case "crash_kill9_maintenance_drop_after-journal":

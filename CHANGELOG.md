@@ -9,6 +9,8 @@
 
 ### Changed
 
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+
 - GH-Issue #247：标准 StoredProcedure 命令与 IN/OUT/INOUT/ReturnValue、完整多结果及 Reader 成功关闭回写接入 ADO/REST/实际 HTTP2 Procedure=3；在调用保存点内校验输出声明与响应预算，发送后未知结果不重试。原生存储过程兼容断言保留，旧拒绝 setter 测试更新为真实过程执行及未知类型拒绝。固定 SqlSugar 候选验收与稳定包/上游发行单独记录。
 
 - RAG CLI 支持由调用方传入取消令牌并保留原总期限；真实请求收到后触发取消的回归验证一次请求、审计终态、未发布与持久续跑，另验输入前取消无数据库/审计/HTTP副作用。
@@ -1000,6 +1002,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+
 - **D 节后置证据口径修正**：将总里程碑最终完成判定中关于 M19/M25/M29/M41 与 M42 的固定硬件、跨架构、长稳和安装验收表述改为“仍待归档”，与各项 `NOT_READY`/`DEFERRED` 门禁及 ROADMAP 待验证状态一致。
 
 - **M35 #301 图片库与无密钥构建迁移**：移除 SixLabors.ImageSharp，Server/测试/图片样例改用 SkiaSharp 4.152.1 与托管 TiffLibrary 0.6.65；明确支持 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，停止声明其他格式。图片输入统一像素上限、EXIF 方向和永久失败分类，缩略图改用单帧 WebP/Mitchell cubic；本地 SigLIP2 有效 profile 自动加 `:skia-rgba-v1`，已有图片需重新摄取，旧向量和原图保留。移除 CI/Docker/Parity 的构建许可注入，增加实际依赖禁入与三 RID NativeAOT 图片运行门禁，固定上游声明随发布物分发。数据库文件格式不变；格式与索引迁移见[说明](docs/image-codecs.md)，真实模型质量与 Parity/nightly 证据仍独立验收。
@@ -1121,6 +1125,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 ## [3.1.0] - 2026-08-24
 
 ### Changed
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **M41 #378 JOIN build side 成本选择首个切片**：关系 INNER Hash Join 不再固定物化右侧，而是复用输入谓词/投影下推后的估算行数，并按统计平均行宽或稳定类型权重估算投影行宽，选择预计字节更小的一侧 build、另一侧保持流式 probe；等成本继续右建以保持稳定。LEFT JOIN 为保留未匹配左行强制右建，NULL 键和残余谓词语义不变。运行时内部指标记录计划/实际 build、probe 行数，`EXPLAIN` 使用同一绑定与成本选择报告 `hash_join`、build side、估算行数/字节和阻塞边界。新增 5 项专项测试并通过 175 项既有关系 JOIN/下推/EXPLAIN 回归；#378 的 index nested-loop、merge join 与有限 join-order 枚举仍未完成，固定硬件和生产证据保持 `NOT_RUN`。
 
@@ -1312,6 +1318,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+
 - **Couplet 独立仓库与跨仓门禁**：正式记录代码智能产品仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet)，冻结 `Couplet -> SonnetDB.Core` 单向依赖、同级独立仓库而非 Git submodule 的协作方式、双方责任边界，以及仓库/路线基线和 C0-C4 对 #341/#342~#346/#352/#359/#367 的阶段映射；区分前序 public API 的并行联调与双方共同关闭的阶段发布 gate，仅确认仓库与路线基线已经建立，不将 Couplet 功能、原生图或发布门禁误标为完成。
 - **M40 上层工作负载性能缺口门禁**：把代码知识、依赖分析和 Agent 上下文检索纳入原生图 golden journey 与固定硬件证据；任何由执行计划、分配/锁/I/O 计数或容量报告复现的通用 Graph/KV/Document/FullText/Vector/混合检索缺口，必须回收到对应 Core 里程碑并阻塞依赖阶段，按正确性/恢复、有界执行与消除非预期全扫、容量/延迟、API/产品面的顺序优先修复。正确性/恢复与性能/容量作为两个独立 gate，任一未达到预先冻结的 SLO 都不得发布；明确禁止上层使用关系边表、应用层遍历、第二套图存储、隐藏全量扫描或单纯提高资源上限作为兜底。
 - SonnetDB Dockerfile 支持通过构建参数替换 Node、.NET SDK 和 ASP.NET Runtime 基础镜像；构建阶段使用 `BUILDPLATFORM`，运行阶段继承 Compose 的 `TARGETPLATFORM`，同一构建定义可输出 AMD64 与 ARM64 镜像。
@@ -1343,6 +1351,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - 新增 `SndbResourceInitializer`，支持由组件显式初始化其所需的嵌入式或远程数据库（`0375b1c5`）。
 
 ### Changed
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - 将缓存扩展拆分为 `SonnetDB.Caching.EasyCaching` 与 `SonnetDB.Caching.Distributed` 独立 provider 包，并同步连接、测试与文档（`0f86e7ea`）。
 - MQTT 路由从 NuGet 引用切换为仓库子模块源码引用，CI checkout 同步补齐子模块（`98daf162`、`d87edd83`）。该标签中的旧日志曾记录 IL2104/IL3053 仍作为 warning 显示，此历史记录不能作为当前 Native AOT 零警告验收证据。
@@ -1441,6 +1451,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - **M28 P4 #228 删除遗留 `HnswVectorBlockIndex`（索引 I13）**：删除 `src/SonnetDB.Core/Storage/Segments/HnswVectorBlockIndex.cs`（含文件内 `HnswAnnSearchResult` record）——它是段内 HNSW 图的早期实现，图质量更差、建图为 `O(n·ef²)`、仅支持 cosine，且在 `src/` 内**零生产引用**（生产向量索引路径早已统一走 `VectorIndexAdapter` → `LocalVectorIndexBuilder` → `HnswIndex<int>`，仅一个基准与一个召回测试仍在维护这段死代码，构成误用风险）。仅剩的两个消费者迁移到 canonical `HnswIndex<int>`（`src/SonnetDB.Core/Vector/Index/Hnsw/HnswIndex.cs`）：召回测试重写并重命名为 `HnswIndexRecallTests`（`new HnswIndex<int>(384, Metric.Cosine, {M=16, EfConstruction=200, EfSearch=200})` 建图 + `Search`-into-span，Recall@10 ≥ 0.90 断言不变），`VectorRecallBenchmark` 的 `Hnsw_Top10`/`Hnsw_RecallAt10` 改走同一 API。catalog 生产类型 `HnswVectorIndexOptions`（不在被删文件内）保留不动。
 
 ### Changed
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **M28 P4 #226 HNSW 搜索 ef 补偿 tombstone + 重建回收（索引 I6 / I14）**：`HnswIndex<TKey>` 的删除此前仅打 tombstone（节点留在图中保连通、搜索时跳过），带来两个缺陷：(I6) 搜索固定用 `ef = max(EfSearch, topK)` 的候选窗口，过滤掉命中窗口内的 tombstone 后**可能欠返回 topK**——删除越多、候选窗口被死节点挤占越严重，实际返回可能远少于请求的 K；(I14) tombstone-only 删除**从不物理回收内存**，`_entryPoint` 从不重指，churn（反复删增）下 `_vectors`/`_keys`/`_neighbors` 随累计删除无界增长。现两处收口：**搜索侧 ef 补偿**——按 tombstone 占比放大 ef（`ef ≈ baseEf × 总行数 / 存活行数`，上界为物理行数），若一轮搜索后仍未集满 `min(topK, 存活数)` 个存活结果则**倍增 ef 继续搜索**，直到集满或候选窗口覆盖全部物理行（此时等价于精确扫描该连通分量），保证有删除时不欠返回；存活数不足 topK 时返回全部存活且不空转。**删除侧重建回收**——新增 `HnswOptions.AutoCompactTombstoneRatio`（默认 0.2，`[0,1]`，0 表示禁用），`Remove` 后当 `tombstone 数 / 物理行数 ≥` 阈值时**就地重建图**：快照存活行的 (key, vector)、清空全部结构、按启发式邻居选择重新逐条建图并重指 `_entryPoint`，物理丢弃已删除节点、回收内存、重排紧凑 row id（存活行相对顺序不变）；亦提供公开 `Compact()` 显式触发（返回回收的 tombstone 行数）。插入核心逻辑抽为 `AddCore`（要求持写锁）供 `Add` 与重建复用，锁语义（`ReaderWriterLockSlim` 多读单写）不变；持久化快照 / blob 格式（`HnswIndexSnapshot` / SDBVIDX）不变，`AutoCompactTombstoneRatio` 是纯运行时行为不入盘。测试新增：大量删除后搜索仍集满 topK 且只命中存活行、存活数 < topK 时返回全部存活不空转、tombstone 越阈值自动重建（快照观察无 tombstone、行数==存活数）、显式 `Compact()` 回收并保持搜索正确、空索引/无 tombstone 时 `Compact()` 空操作、重建后重插曾删键无冲突、`AutoCompactTombstoneRatio` 越界校验抛错；既有 #193 快照往返测试改为显式关闭自动重建以保留 tombstone 复现重复 key 路径。Core 2658（新增 9）全绿，slnx 0 warnings。
 
