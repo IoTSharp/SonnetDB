@@ -3388,3 +3388,6 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 ## 2026-10-19 PR #324 本地整合门禁前
 
 按实际依赖先合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Relational 10.0.13；这是为消除后续 #325 Design/Tools 10.0.13 在旧 Relational 10.0.12 上触发的 NU1605。Dependabot 旧文档删除已排除。当前仍在最终整合树中，待本项 restore/Format 后提交；不推送，不把依赖层合入当作 EF/ORM 全部验收。
+## 2026-10-19 PR #325 本地整合门禁前
+
+#325 与 #324 存在真实依赖版本冲突：PR 原始 Format/restore 的 NU1605 由 Design 10.0.13 间接要求 Relational >=10.0.13，而 #324 头仍是10.0.12。当前整合树已先提交#324，再解析#325冲突为 EFCore、Relational、Design、Tools 全部10.0.13；Dependabot旧交接删除未采用。仍未提交#325，等待本次完整restore/Format，未推送或关闭PR。

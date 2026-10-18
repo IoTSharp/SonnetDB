@@ -12,6 +12,7 @@
 - 合入 PR #327 的 Microsoft.Extensions.Caching.Abstractions 10.0.13；修复其真实 CI 暴露的关系表并行预热竞态，短锁保护共享行锁身份目录，保持不同表并行打开、行锁身份隔离及重命名后的稳定性。
 - 合入 PR #326 的 Microsoft.Extensions.AI 10.11.0；历史 PR CI 的 Windows Core 超时保留为待最终候选复核的独立失败证据。
 - 合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Microsoft.EntityFrameworkCore.Relational 10.0.13，为后续 Design/Tools 10.0.13 更新消除已观测的 NU1605 降级。
+- 合入 PR #325 的 Microsoft.EntityFrameworkCore.Design 与 Microsoft.EntityFrameworkCore.Tools 10.0.13；与 #324 的 Relational 10.0.13 配套，保留完整依赖版本一致性。
 
 - 人工统一整合现有 M49、演示/Studio 配置与 #248 交付；保存 #247/#245 未实施的准备探针、监督暂停/关闭回执和旧树差异审计。草稿不计作功能完成，定时监督继续暂停。
 - Online Studio：设置入口改为独立连接/观测偏好页；观测展示按授权数据库读取的九模型目录、存储/WAL 元信息、只读 SQL 自检及慢查询形状，明确未采集/失败状态，普通用户不请求实例级 Prometheus 数据。
