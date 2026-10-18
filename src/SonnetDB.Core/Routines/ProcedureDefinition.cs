@@ -30,7 +30,7 @@ public sealed class ProcedureDefinition
     /// <summary>语言标识；首版固定为 <c>SQL</c>。</summary>
     public string Language => "SQL";
 
-    /// <summary>按声明顺序排列的 IN 参数。</summary>
+    /// <summary>按声明顺序排列、包含方向的参数。</summary>
     public IReadOnlyList<SqlProcedureParameter> Parameters { get; }
 
     /// <summary>不含外围 BEGIN/END 的 SQL body。</summary>

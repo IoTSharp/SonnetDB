@@ -79,6 +79,8 @@
 
 ### Added
 
+- GH-Issue #247 原生切片：过程支持 IN/OUT/INOUT、SET/RETURN、类型化命名调用与完整结果快照；完成校验回调在提交前执行，输出/响应校验失败回滚本次保存点。例程目录升级 v5，兼容读 v1–v4 的 IN 定义，旧引擎拒绝新格式；FileHeader 未改，降级须恢复升级前例程目录。旧 Text/CALL 的 IN 转换及默认最后结果形态保留，ADO/远程/SqlSugar 与正式包仍待后续验证。
+
 - GH-Issue #248：显式事务的单关系基表支持真实 `FOR UPDATE [NOWAIT]` 行锁；写入与 COMMIT、表维护共享锁资源，支持等待/取消/超时、死锁与预算拒绝、锁后版本及排序谓词复验、保存点和连接/会话结束释放。普通 SELECT 保持不加锁；轻事务写入仍在 COMMIT 复验，不承诺 gap/phantom 保护，也不宣称 #233 的全部 ORM 条件完成。
 - GH-Issue #252：新增原生 DURATION/TimeSpan，保留完整有符号 Int64 ticks、100ns、NULL、批量/事务/重开与真实 Chloe 候选；TIME/显式 DbType.Time 保持一天内合同。关系目录启用永久 v14 屏障及可恢复迁移，含时长物化快照写 v3（其他仍 v2），SQL Frame/REST 协商 v5；旧引擎拒绝升级目录，回退须使用升级前副本，未修改 FileHeader。正式包与 Chloe 上游交付仍待完成。
 

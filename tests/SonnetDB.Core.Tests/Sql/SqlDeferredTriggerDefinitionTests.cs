@@ -83,7 +83,7 @@ public sealed class SqlDeferredTriggerDefinitionTests : IDisposable
     }
 
     [Fact]
-    public void Catalog_DeferredDefinitionAndLifecycle_RoundTripsVersionFour()
+    public void Catalog_DeferredDefinitionAndLifecycle_RoundTripsVersionFive()
     {
         var manager = new RoutineManager(_root);
         manager.Create(Deferred("check_first"));
@@ -91,7 +91,7 @@ public sealed class SqlDeferredTriggerDefinitionTests : IDisposable
         manager.Alter(new AlterTriggerStatement("check_second", SqlAlterTriggerAction.Disable));
         manager.Alter(new AlterTriggerStatement("check_second", SqlAlterTriggerAction.Rename, "check_renamed"));
 
-        Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(manager.CatalogPath).AsSpan(8)));
+        Assert.Equal(5, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(manager.CatalogPath).AsSpan(8)));
         var reopened = new RoutineManager(_root);
         TriggerDefinition renamed = Assert.IsType<TriggerDefinition>(reopened.TryGetTrigger("check_renamed"));
         Assert.True(renamed.IsConstraint);
@@ -154,7 +154,7 @@ public sealed class SqlDeferredTriggerDefinitionTests : IDisposable
         Assert.Equal(version >= 3 ? "incoming" : null, definition.NewTableName);
 
         RoutineCatalogCodec.Save(path, legacy.Procedures, legacy.Triggers);
-        Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
+        Assert.Equal(5, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
         TriggerDefinition restored = Assert.Single(RoutineCatalogCodec.Load(path).Triggers);
         Assert.Equal(definition.BodySql, restored.BodySql);
         Assert.Equal(definition.WhenSql, restored.WhenSql);

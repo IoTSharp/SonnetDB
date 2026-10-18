@@ -78,6 +78,8 @@ public static class SqlParameterBinder
                 RowLimit = delete.RowLimit is null ? null : BindDeleteRowLimit(delete.RowLimit, parameters),
             },
             CallProcedureStatement call => call with { Arguments = BindExprList(call.Arguments, parameters) },
+            SetProcedureParameterStatement assignment => assignment with { Value = BindExpr(assignment.Value, parameters) },
+            ReturnProcedureStatement exit => exit with { Value = BindExpr(exit.Value, parameters) },
             _ => statement, // DDL / 控制面语句不含参数占位符
         };
     }

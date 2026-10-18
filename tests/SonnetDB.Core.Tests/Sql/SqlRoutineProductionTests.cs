@@ -261,6 +261,12 @@ public sealed class SqlRoutineProductionTests : IDisposable
         using (var db = Open()) { Setup(db); }
         string path = Path.Combine(_root, "routines", "routines.sdbrtn");
         byte[] current = File.ReadAllBytes(path);
+        // v5 在每个过程参数的类型之后新增方向。Setup 固定只有 add_order(order_id) 一个 IN 参数；
+        // 先恢复其 v4 布局，再应用下方独立的旧触发器布局变换。
+        int directionOffset = 32 + 4 + Encoding.UTF8.GetByteCount("add_order") + 8 + 4
+            + 4 + Encoding.UTF8.GetByteCount("order_id") + 1;
+        Assert.Equal(0, current[directionOffset]);
+        current = [.. current.AsSpan(0, directionOffset), .. current.AsSpan(directionOffset + 1)];
         // 单个 AFTER ROW 触发器：v4 新增 flags；v3 新增十字节时机、粒度和空别名；v1 另缺九字节生命周期。
         byte[] legacy = new byte[current.Length - removedBytes];
         current.AsSpan(0, current.Length - 16 - removedBytes).CopyTo(legacy);
@@ -272,7 +278,7 @@ public sealed class SqlRoutineProductionTests : IDisposable
         using var reopened = Open();
         Assert.True(reopened.Routines.TryGetTrigger("order_audit")!.Enabled);
         SqlExecutor.Execute(reopened, "ALTER TRIGGER order_audit DISABLE");
-        Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
+        Assert.Equal(5, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8)));
     }
 
     [Fact]

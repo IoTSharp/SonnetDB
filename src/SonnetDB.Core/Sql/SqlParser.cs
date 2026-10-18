@@ -197,6 +197,13 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordSet)
         {
             Advance();
+            if (Current.Kind == TokenKind.Parameter && !string.IsNullOrEmpty(Current.Text))
+            {
+                string parameterName = Current.Text;
+                Advance();
+                Expect(TokenKind.Equal);
+                return new SetProcedureParameterStatement(parameterName, ParseExpression());
+            }
             ExpectIdentifier("new", "SET 仅支持 BEFORE 触发器中的 NEW.column 赋值");
             Expect(TokenKind.Dot);
             string column = ExpectColumnName(out bool columnIsQuoted);
@@ -210,6 +217,11 @@ public sealed class SqlParser
             return ParseRefreshMaterializedView();
         if (IsIdentifier("call"))
             return ParseCallProcedure();
+        if (IsIdentifier("return"))
+        {
+            Advance();
+            return new ReturnProcedureStatement(ParseExpression());
+        }
         if (IsIdentifier("comment"))
             return ParseComment();
         if (IsIdentifier("analyze"))
@@ -800,18 +812,31 @@ public sealed class SqlParser
         string name = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
         var parameters = new List<SqlProcedureParameter>();
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (Current.Kind != TokenKind.RightParen)
         {
             while (true)
             {
-                if (IsIdentifier("out") || IsIdentifier("inout"))
-                    throw Error("SQL 过程首版只支持 IN 参数，不支持 OUT / INOUT");
-                Expect(TokenKind.KeywordIn);
+                SqlProcedureParameterDirection direction;
+                if (IsIdentifier("out"))
+                {
+                    direction = SqlProcedureParameterDirection.Output;
+                    Advance();
+                }
+                else if (IsIdentifier("inout"))
+                {
+                    direction = SqlProcedureParameterDirection.InputOutput;
+                    Advance();
+                }
+                else
+                {
+                    direction = SqlProcedureParameterDirection.Input;
+                    Expect(TokenKind.KeywordIn);
+                }
                 string parameterName = ExpectIdentifierName();
                 if (!names.Add(parameterName))
                     throw Error($"过程参数 '{parameterName}' 重复声明");
-                parameters.Add(new SqlProcedureParameter(parameterName, ParseProcedureParameterType()));
+                parameters.Add(new SqlProcedureParameter(parameterName, ParseProcedureParameterType(), direction));
                 if (Current.Kind != TokenKind.Comma)
                     break;
                 Advance();

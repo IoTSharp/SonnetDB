@@ -149,7 +149,7 @@ public sealed record CreateMaterializedViewStatement(
     public bool NameIsQuoted { get; init; }
 }
 
-/// <summary>SQL 过程 IN 参数支持的首版标量类型。</summary>
+/// <summary>SQL 过程参数支持的标量类型。</summary>
 public enum SqlProcedureParameterType
 {
     /// <summary>64 位有符号整数。</summary>
@@ -162,18 +162,52 @@ public enum SqlProcedureParameterType
     String,
 }
 
-/// <summary>SQL 过程的有序 IN 参数声明。</summary>
+/// <summary>SQL 过程参数的数据流方向。</summary>
+public enum SqlProcedureParameterDirection
+{
+    /// <summary>只读输入参数。</summary>
+    Input,
+    /// <summary>从 NULL 开始的输出参数。</summary>
+    Output,
+    /// <summary>可读写的输入输出参数。</summary>
+    InputOutput,
+}
+
+/// <summary>SQL 过程的有序参数声明。</summary>
 /// <param name="Name">参数名，不含 <c>@</c> 前缀。</param>
 /// <param name="DataType">参数标量类型。</param>
+/// <param name="Direction">参数方向；旧定义默认为 IN。</param>
 public sealed record SqlProcedureParameter(
     string Name,
-    SqlProcedureParameterType DataType);
+    SqlProcedureParameterType DataType,
+    SqlProcedureParameterDirection Direction = SqlProcedureParameterDirection.Input)
+{
+    /// <summary>保留 v4 的两参数构造函数签名，并默认使用 IN。</summary>
+    public SqlProcedureParameter(string name, SqlProcedureParameterType dataType)
+        : this(name, dataType, SqlProcedureParameterDirection.Input) { }
+
+    /// <summary>保留 v4 的两字段 Deconstruct 签名。</summary>
+    public void Deconstruct(out string name, out SqlProcedureParameterType dataType)
+    {
+        name = Name;
+        dataType = DataType;
+    }
+}
+
+/// <summary>为当前过程的 OUT 或 INOUT 参数赋值。</summary>
+/// <param name="Name">目标参数名。</param>
+/// <param name="Value">赋值表达式。</param>
+public sealed record SetProcedureParameterStatement(string Name, SqlExpression Value) : SqlStatement;
+
+/// <summary>结束当前过程并返回 Int64 状态；没有 RETURN 时状态为 0。</summary>
+/// <param name="Value">非 NULL 的 Int64 状态表达式。</param>
+public sealed record ReturnProcedureStatement(SqlExpression Value) : SqlStatement;
 
 /// <summary>
 /// <c>CREATE PROCEDURE name (IN p TYPE, ...) LANGUAGE SQL AS BEGIN ... END</c>。
 /// </summary>
 /// <param name="Name">过程名称；同一数据库内不允许重载。</param>
-/// <param name="Parameters">按声明顺序排列的 IN 参数。</param>
+/// <param name="Parameters">按声明顺序排列的参数。</param>
 /// <param name="Body">已经解析的 SQL body。</param>
 /// <param name="BodySql">不含外围 <c>BEGIN</c>/<c>END</c> 的 SQL 文本。</param>
 /// <param name="Language">语言标识；首版只接受 <c>SQL</c>。</param>
@@ -189,7 +223,13 @@ public sealed record CreateProcedureStatement(
 /// <param name="Arguments">按位置排列的实参表达式。</param>
 public sealed record CallProcedureStatement(
     string Name,
-    IReadOnlyList<SqlExpression> Arguments) : SqlStatement;
+    IReadOnlyList<SqlExpression> Arguments) : SqlStatement
+{
+    /// <summary>类型化入口的命名实参；SQL 文本 CALL 保持位置参数合同。</summary>
+    public IReadOnlyList<SonnetDB.Routines.ProcedureCallArgument>? NamedArguments { get; init; }
+
+    internal Action<SonnetDB.Sql.Execution.ProcedureExecutionResult>? CompletionValidator { get; init; }
+}
 
 /// <summary>关系表触发器事件。</summary>
 public enum SqlTriggerEvent

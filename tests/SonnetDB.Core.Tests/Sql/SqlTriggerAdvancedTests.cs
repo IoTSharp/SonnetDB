@@ -277,7 +277,7 @@ public sealed class SqlTriggerAdvancedTests : IDisposable
             Execute(db, "ALTER TRIGGER multiply_value PRECEDES add_value");
             Execute(db, "ALTER TRIGGER add_value DISABLE");
         }
-        Assert.Equal(4, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(Path.Combine(_root, "db", "routines", "routines.sdbrtn")).AsSpan(8, 4)));
+        Assert.Equal(5, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(Path.Combine(_root, "db", "routines", "routines.sdbrtn")).AsSpan(8, 4)));
         using var reopened = Open();
         Execute(reopened, "INSERT INTO source_rows (id, value) VALUES (2, 1)");
         Assert.Equal(30L, Select(reopened, "SELECT amount FROM totals").Rows[0][0]);

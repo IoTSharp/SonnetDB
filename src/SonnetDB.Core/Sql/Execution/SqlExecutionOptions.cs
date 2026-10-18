@@ -36,6 +36,9 @@ public sealed record SqlExecutionOptions
     /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
     public int MaxRoutineResultRows { get; init; } = 10_000;
 
+    /// <summary>供数据客户端保留文本 CALL 的全部结果；默认保持直接 SQL 执行的最后结果返回形态。</summary>
+    public bool CaptureProcedureResults { get; init; }
+
     /// <summary>调用链中同时存活的 transition set 最大行数；UPDATE 的 OLD/NEW 算一对。</summary>
     public int MaxTriggerTransitionRows { get; init; } = 100_000;
 

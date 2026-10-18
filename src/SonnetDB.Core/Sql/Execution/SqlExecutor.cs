@@ -328,6 +328,38 @@ public static class SqlExecutor
     public static object? ExecuteStatement(Tsdb tsdb, SqlStatement statement)
         => ExecuteStatement(tsdb, databaseName: null, statement: statement, controlPlane: null);
 
+    /// <summary>按名称和方向执行已有 SQL 过程，并返回完整成功后的结果及输出快照。</summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="name">过程名称，直接查找目录，不作为 SQL 文本执行。</param>
+    /// <param name="arguments">命名参数；集合顺序不影响绑定。</param>
+    /// <param name="transaction">调用方已有事务。</param>
+    /// <param name="options">取消、权限及预算；省略时采用嵌入式默认值。</param>
+    /// <param name="databaseName">可选数据库名称。</param>
+    /// <param name="controlPlane">可选控制面。</param>
+    /// <param name="validateCompletion">提交前的结果检查或编码回调；抛出异常会撤销本次调用，不得发布输出或执行外部副作用。</param>
+    /// <returns>成功完成的多结果与输出快照；失败时抛出原有例程诊断。</returns>
+    public static ProcedureExecutionResult ExecuteProcedure(
+        Tsdb tsdb,
+        string name,
+        IReadOnlyList<ProcedureCallArgument> arguments,
+        SqlTransactionContext? transaction = null,
+        SqlExecutionOptions? options = null,
+        string? databaseName = null,
+        IControlPlane? controlPlane = null,
+        Action<ProcedureExecutionResult>? validateCompletion = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(arguments.Count, 1024);
+        var statement = new CallProcedureStatement(name, [])
+        {
+            NamedArguments = Array.AsReadOnly(arguments.ToArray()),
+            CompletionValidator = validateCompletion,
+        };
+        return (ProcedureExecutionResult)ExecuteStatement(
+            tsdb, databaseName, statement, controlPlane, transaction, options ?? SqlExecutionOptions.Default)!;
+    }
+
     /// <summary>
     /// 执行一条已解析的 SQL 语句，可选传入控制面以支持控制面 DDL。
     /// </summary>
@@ -1334,7 +1366,13 @@ public static class SqlExecutor
 
     private static string FormatProcedureParameters(IReadOnlyList<SqlProcedureParameter> parameters)
         => string.Join(", ", parameters.Select(static parameter =>
-            $"IN {parameter.Name} {parameter.DataType switch
+            $"{parameter.Direction switch
+            {
+                SqlProcedureParameterDirection.Input => "IN",
+                SqlProcedureParameterDirection.Output => "OUT",
+                SqlProcedureParameterDirection.InputOutput => "INOUT",
+                _ => throw new ArgumentOutOfRangeException(nameof(parameter.Direction)),
+            }} {parameter.Name} {parameter.DataType switch
             {
                 SqlProcedureParameterType.Int64 => "INT",
                 SqlProcedureParameterType.Float64 => "FLOAT",

@@ -3418,3 +3418,15 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 11个依赖PR已本地普通逐个合并，最新724c3d89，未推送。RAG内部入口新增可选调用方取消令牌，保留原timeout/Ctrl+C；真实HTTP请求后取消、审计、未发布、持久续跑与提前取消共11项在独立树通过，整合新依赖后重新验证。原main空audit失败与PR326历史50分钟超时分列，后者仍UNKNOWN。此次同时修正六条本批依赖CHANGELOG记录的Unreleased位置，保留执行历史。
 
 #247 Core 16文件205定向通过，但最后ABI修订未重编；根复核发现旧Text/CALL IN转换兼容变化，将独立修正并加回归后再纳入。ADO/Protocol/Server代理接专用类型化过程入口、完整输出终态和Reader关闭回写；#245独立会话准备，等待根Core基线。源版本升级为routine目录v5仍须单独CHANGELOG与拒旧/恢复门禁，不能据核心局部测试关闭Issue。
+
+
+## 2026-10-19 #247 原生核心整合检查点（整项未完成）
+
+RAG已本地提交af391283，集成新依赖重编11/11通过。#247原生切片经根独立复核补旧Text IN转换/嵌套兼容、两参构造/解构、提交前validateCompletion、只读缓冲主键预验及原有保存点回滚；213/213定向零失败/跳过，初次测试构造编译失败保留。runtime目录升v5（读v1-4为IN、旧引擎拒绝新目录、回退用升级前备份），FileHeader未改。
+
+本项待最终完整restore/原Format形成源码提交后，作为#245/#242共享Core新基线；ADO/Server/Protocol代理继续原24合同、真实REST/Frame及固定SqlSugar，Core213不能替代完整交付。Core默认文本CALL最后结果保持，新CaptureProcedureResults供客户端显式捕获全链；已有caller事务的非PK唯一/延迟约束仍可在COMMIT失败。自有/外层事务完成编码失败应回滚当前调用，不公开通用savepoint或用反射绕过。
+
+源码和验证细节见 docs/audits/issue247-core-20261019.md；无统一push、正式发布、部署或Issue关闭。canonical当前文件与发布dirty继续保留，接续按受控文件清单，不全量暂存。
+
+
+当前main 0986f92e的CI39147045021已完成/failure，Core成功而Windows rest失败于StudioManagedServerHostTests.StartAsync_WhenSwitchingToNewUnhealthyTarget_ReplacesExistingManagedProcess及RelationalTableWarmupTests.Service_WithExistingDatabase_WarmsEveryRelationalTable；此前把该run关联为CAP失败不准确，本段与PR326审计予以纠正。PR320原CAP timeout仍是独立历史事实，不覆盖或删除。
