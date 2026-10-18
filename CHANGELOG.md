@@ -9,6 +9,8 @@
 
 ### Changed
 
+- 修复 Windows 原生目录刷盘的长路径：在 CreateFileW 前规范化绝对/相对路径并使用扩展本地或 UNC 前缀，保留真实 I/O 失败与原持久化要求；覆盖超过260字符的实际 WAL 目录，恢复长 TEMP 根下 SqlSugar Fastest 原生 CTAS。
+
 - 保存 #247 SqlSugar、#242 XCode、#233 Chloe 的固定上游消费者探针、最小 provider 补丁和真实三协议审计；原版失败、正式 4.0 包缺口及 HTTP/2 REST 事务边界分别保留，不把候选验证写成上游或稳定包已发布。
 
 - 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。

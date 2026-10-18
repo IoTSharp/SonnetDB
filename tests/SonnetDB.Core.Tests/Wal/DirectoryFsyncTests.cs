@@ -85,4 +85,32 @@ public sealed class DirectoryFsyncTests : IDisposable
         Assert.Throws<DirectoryNotFoundException>(() => DirectoryFsync.FlushRequired(
             Path.Combine(_tempDir, "does-not-exist")));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FlushRequired_LongDirectoryPath_CompletesDurablePublication(bool relative)
+    {
+        string directory = Path.Combine(_tempDir, new string('a', 90), new string('b', 90),
+            new string('c', 90), "目录-wal");
+        Assert.True(directory.Length > 260);
+        Directory.CreateDirectory(directory);
+        string temporary = Path.Combine(directory, "long.tmp");
+        string published = Path.Combine(directory, "long.dat");
+        using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            stream.Write(new byte[] { 1, 2, 3, 4 });
+            stream.Flush(flushToDisk: true);
+        }
+        File.Move(temporary, published);
+
+        string target = relative ? Path.GetRelativePath(Environment.CurrentDirectory, directory) : directory;
+        DirectoryFsync.FlushRequired(target);
+        if (OperatingSystem.IsWindows())
+            DirectoryFsync.FlushRequired(@"\\?\" + Path.GetFullPath(directory));
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, File.ReadAllBytes(published));
+        Assert.Throws<DirectoryNotFoundException>(() =>
+            DirectoryFsync.FlushRequired(Path.Combine(directory, "missing")));
+    }
 }

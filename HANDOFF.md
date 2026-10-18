@@ -3472,3 +3472,9 @@ Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提�
 真实消费者证据已提交e3dc67d7。当前以no-commit叠加245子分支5509adcc（父9faced95），产品源码自动三方合并，CHANGELOG/HANDOFF按验证分支当前事实重写冲突，保留236 Core和消费者证据。嵌入式连接SQL、元数据、过程与事务共享同一SqlSessionContext，Close失败保留可重试对象；远程X-SonnetDB-Connection-Session与原transaction SessionId独立，绑定Tsdb/库名/认证摘要。TEMP/临时CTAS前惰性握手，之后REST/HTTP2/schema/过程/事务共用header，过期不重建或重发SQL。
 
 远程会话最多保留128个active+cleanup，真正清理成功才归还配额；server/client准入30秒，创建响应headers-first且16KiB上限；空闲5分钟、每15秒防重入sweep最多1项/2秒目标，shutdown总预算30秒。子树最终完整restore/规定Format通过，Server/Data AOT+trim分析0warning/error；真实HTTP2 198/198、REST+procedure99/99、registry7/7、Core session/CTAS29/29。外置product-manifest/validation及TRX位于sync-20261019/issue245-session-evidence，未把完整solution测试、NativeAOT publish/runtime或SqlSugar Fastest写成已通过。根需在含236的本候选重验定向并重新完整restore/规定Format后提交；尚未push。
+
+## 2026-10-19 #245 整合提交与真实 Fastest 长路径修复候选
+
+245连接生命周期在根含236的树重新构建，Server session22/22、Core session/CTAS29/29，随后完整restore/规定Format通过并提交19b59165。独立真实SqlSugar Fastest候选只把CreateTempAsync换成原生空集TEMP CTAS，不改SqlSugar核心；首次编译因外部项目误继承仓库中央包管理NU1008失败，隔离外部项目后成功（保留4项原上游nullable告警），探针0warning/error。
+
+有界两行试运行1 PASS/9 FAIL，首个真实失败是私有长TEMP根下CreateFileW无法打开超过260字符的rowstore/WAL目录，Directory.Exists已经成功；原始日志issue245-fastest-native-trial2-01保持。当前只修DirectoryFsync的Windows原生路径规范化与扩展前缀，不缩短TMP、不改错误过滤或fsync；新增真实绝对/相对/已有扩展长目录、写入flush/rename及不存在目录仍失败的回归。需重编回归并在同等长TMP重跑消费者、完整restore/Format后另提交；一万行/真实远程Fastest仍待，没有push。
