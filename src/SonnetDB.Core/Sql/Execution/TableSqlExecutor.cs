@@ -3090,6 +3090,7 @@ internal static partial class TableSqlExecutor
             TableColumnType.Boolean => value is bool,
             TableColumnType.String or TableColumnType.Json => value is string,
             TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
+            TableColumnType.DateTime2 => value is DateTime or DateTimeOffset or long,
             TableColumnType.DateTimeOffset => value is DateTimeOffset,
             TableColumnType.Time => value is TimeOnly or TimeSpan or string,
             TableColumnType.Duration => value is TimeSpan or string or long or int or short or sbyte or byte or ushort or uint or ulong,
@@ -4518,7 +4519,7 @@ internal static partial class TableSqlExecutor
             ?? throw new InvalidOperationException(
                 $"索引 '{prefixPlan.Index.Name}' 引用了未知列。");
         if (column.IsNullable
-            || column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
             return false;
         }
@@ -5055,7 +5056,7 @@ internal static partial class TableSqlExecutor
                     TableColumn rangeColumn = schema.TryGetColumn(candidate.Columns[values.Count])
                         ?? throw new InvalidOperationException(
                             $"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[values.Count]}'。");
-                    if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime)
+                    if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2)
                         _ = TryExtractIndexRange(where, rangeColumn, out candidateRange);
                 }
 
@@ -5296,7 +5297,8 @@ internal static partial class TableSqlExecutor
             {
                 TableColumnType.Int64 => (long)converted!,
                 TableColumnType.DateTime => new DateTimeOffset((DateTime)converted!).ToUnixTimeMilliseconds(),
-                _ => throw new InvalidOperationException("范围索引只支持 Int64 或 DATETIME。"),
+                TableColumnType.DateTime2 => ((DateTime)converted!).Ticks,
+                _ => throw new InvalidOperationException("范围索引只支持 Int64、DATETIME 或 DATETIME2。"),
             };
             return true;
         }
@@ -5320,7 +5322,12 @@ internal static partial class TableSqlExecutor
             Operator: SqlUnaryOperator.Negate,
             Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
         }
-            or DurationLiteralExpression;
+            or DurationLiteralExpression
+            or CastExpression
+        {
+            TargetType: SqlDataType.DateTime or SqlDataType.DateTime2,
+            Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
+        };
 
     /// <summary>
     /// 合并下界，值更大或同值排他的边界更强。
@@ -5890,6 +5897,7 @@ internal static partial class TableSqlExecutor
             UnaryExpression { Operator: SqlUnaryOperator.Negate, Operand: LiteralExpression literal } => NegateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
             MaterializedSubqueryValueExpression materialized => materialized.Value,
+            CastExpression => EvaluateDefaultExpression(expression),
             _ => throw new InvalidOperationException(
                 $"列 '{column.Name}' 的值必须是字面量，不支持表达式 ({expression.GetType().Name})。"),
         };
@@ -5992,6 +6000,7 @@ internal static partial class TableSqlExecutor
                 ? json
                 : throw TypeMismatch(column, value),
             TableColumnType.DateTime => ConvertDateTimeValue(value, column),
+            TableColumnType.DateTime2 => ConvertDateTime2Value(value, column),
             TableColumnType.Blob => ConvertBlobValue(value, column),
             _ => throw new NotSupportedException($"不支持的关系表类型 {column.DataType}。"),
         };
@@ -6145,7 +6154,7 @@ internal static partial class TableSqlExecutor
 
     private static object ConvertDateTimeValue(object value, TableColumn column)
     {
-        return value switch
+        DateTime result = value switch
         {
             DateTime dt => dt.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
@@ -6160,6 +6169,21 @@ internal static partial class TableSqlExecutor
                 out var dto) => dto.UtcDateTime,
             _ => throw TypeMismatch(column, value),
         };
+        if (result.Ticks % TimeSpan.TicksPerMillisecond != 0)
+            throw new InvalidOperationException($"列 '{column.Name}' 的 DATETIME 仅支持毫秒精度；请迁移到 DATETIME2，或提供毫秒对齐值。");
+        return result;
+    }
+
+    private static DateTime ConvertDateTime2Value(object value, TableColumn column)
+    {
+        DateTime result = value switch
+        {
+            DateTime dt => dt.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                : dt.ToUniversalTime(),
+            _ => throw TypeMismatch(column, value),
+        };
+        return DateTime.SpecifyKind(result, DateTimeKind.Utc);
     }
 
     private static TimeOnly ConvertTimeValue(object value, TableColumn column)
@@ -6685,6 +6709,7 @@ internal static partial class TableSqlExecutor
         SqlDataType.Boolean => TableColumnType.Boolean,
         SqlDataType.String => TableColumnType.String,
         SqlDataType.DateTime => TableColumnType.DateTime,
+        SqlDataType.DateTime2 => TableColumnType.DateTime2,
         SqlDataType.Time => TableColumnType.Time,
         SqlDataType.Duration => TableColumnType.Duration,
         SqlDataType.DateTimeOffset => TableColumnType.DateTimeOffset,
@@ -6701,6 +6726,7 @@ internal static partial class TableSqlExecutor
         TableColumnType.Boolean => "boolean",
         TableColumnType.String => "string",
         TableColumnType.DateTime => "datetime",
+        TableColumnType.DateTime2 => "datetime2",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
         TableColumnType.DateTimeOffset => "datetimeoffset",

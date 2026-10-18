@@ -37,4 +37,7 @@ public enum TableColumnType : byte
 
     /// <summary>原生 UTC 时刻，按完整 100 纳秒 ticks 保存并返回 DateTimeOffset。</summary>
     DateTimeOffset = 11,
+
+    /// <summary>关系 DATETIME2；按 UTC 100 纳秒 ticks 完整保存并返回 DateTime。</summary>
+    DateTime2 = 12,
 }

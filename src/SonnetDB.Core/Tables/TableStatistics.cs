@@ -417,6 +417,9 @@ internal static class TableStatisticsCalculator
                 case TableColumnType.DateTime:
                     AddInt64HistogramSample(ToUnixMilliseconds(value));
                     break;
+                case TableColumnType.DateTime2:
+                    AddInt64HistogramSample(ToUtcTicks(value));
+                    break;
             }
         }
 
@@ -510,7 +513,7 @@ internal static class TableStatisticsCalculator
             if (bucketCount == 0)
                 return Array.Empty<TableHistogramBucket>();
 
-            if (_column.DataType is TableColumnType.Int64 or TableColumnType.DateTime)
+            if (_column.DataType is TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2)
                 return BuildInt64Histogram(sampleRate, bucketCount);
             if (_column.DataType == TableColumnType.Float64)
                 return BuildFloat64Histogram(sampleRate, bucketCount);
@@ -592,6 +595,15 @@ internal static class TableStatisticsCalculator
                 _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
             };
         }
+
+        private static long ToUtcTicks(object value)
+            => value switch
+            {
+                DateTimeOffset offset => offset.UtcDateTime.Ticks,
+                DateTime dateTime => (dateTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime()).Ticks,
+                long ticks => ticks,
+                _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME2。"),
+            };
     }
 }
 
@@ -651,6 +663,17 @@ internal static class TableValueFingerprint
                 break;
             case TableColumnType.DateTimeOffset:
                 System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(scalar, ((DateTimeOffset)value).UtcTicks);
+                hash.Append(scalar);
+                break;
+            case TableColumnType.DateTime2:
+                long ticks = value switch
+                {
+                    DateTimeOffset offset => offset.UtcDateTime.Ticks,
+                    DateTime dateTime => (dateTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime()).Ticks,
+                    long raw => raw,
+                    _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME2。"),
+                };
+                System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(scalar, ticks);
                 hash.Append(scalar);
                 break;
             case TableColumnType.Duration:

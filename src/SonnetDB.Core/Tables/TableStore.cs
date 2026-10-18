@@ -1139,9 +1139,9 @@ public sealed partial class TableStore : IDisposable
         if (range is not null
             && (indexColumnValues.Count >= index.Columns.Count
                 || !string.Equals(index.Columns[indexColumnValues.Count], range.Column.Name, StringComparison.Ordinal)
-                || range.Column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime)))
+                || range.Column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2)))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(
             index,
@@ -1336,9 +1336,9 @@ public sealed partial class TableStore : IDisposable
         var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列。");
         if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
-            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
 
         int take = limit ?? int.MaxValue;
@@ -1452,9 +1452,9 @@ public sealed partial class TableStore : IDisposable
         var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[equalityPrefixValues.Count]}'。");
         if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
-            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
 
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)

@@ -67,6 +67,9 @@ internal static class MeasurementSqlNameBinder
         {
             Measurement = schema?.Name ?? statement.Measurement,
             Columns = columns,
+            Rows = statement.Rows.Select(row => (IReadOnlyList<SqlExpression>)row.Select((value, index) =>
+                columns[index] == "time" && !(index < statement.ColumnIsQuoted.Count && statement.ColumnIsQuoted[index])
+                    ? MeasurementDateTimeParameterBinder.BindInput(value) : value).ToArray()).ToArray(),
         };
     }
 
@@ -206,10 +209,10 @@ internal static class MeasurementSqlNameBinder
         MeasurementSchema schema,
         string? tableAlias,
         IReadOnlyList<string>? ctes = null)
-        => SqlIdentifierExpressionBinder.Rewrite(
+        => MeasurementDateTimeParameterBinder.BindPredicate(SqlIdentifierExpressionBinder.Rewrite(
             expression,
             identifier => BindIdentifier(identifier, schema, tableAlias),
-            select => BindSelect(tsdb, select, ctes ?? Array.Empty<string>()));
+            select => BindSelect(tsdb, select, ctes ?? Array.Empty<string>())));
 
     private static IdentifierExpression BindIdentifier(
         IdentifierExpression identifier,

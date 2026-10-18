@@ -143,6 +143,20 @@ internal static partial class TableIndexCodec
             throw new ArgumentException("范围界值必须位于普通联合索引等值前缀的下一列。", nameof(equalityPrefixValues));
         }
 
+        if (schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])?.DataType == TableColumnType.DateTime2)
+        {
+            // 范围规划器的 long.MinValue/MaxValue 是内部哨兵，不能当 DateTime 输入构造。
+            // 这里直接编码声明已确定的 ticks 边界，不开放普通行/查找值的裸整数转换。
+            byte[] prefix = EncodeLookupPrefix(index, equalityPrefixValues, schema)!;
+            byte[] result = new byte[checked(prefix.Length + 9)];
+            prefix.CopyTo(result, 0);
+            result[prefix.Length] = 1;
+            SortableScalarCodec.WriteTableLegacyInt64(result.AsSpan(prefix.Length + 1), value);
+            if (index.IsDescending(equalityPrefixValues.Count))
+                Invert(result.AsSpan(prefix.Length));
+            return result;
+        }
+
         var values = new object?[equalityPrefixValues.Count + 1];
         for (int i = 0; i < equalityPrefixValues.Count; i++)
             values[i] = equalityPrefixValues[i];
@@ -355,7 +369,7 @@ internal static partial class TableIndexCodec
 
     private static object ReadCoveredValue(ReadOnlySpan<byte> source, ref int offset, TableColumnType type)
     {
-        if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset)
+        if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2)
         {
             EnsureCoveredBytes(source, offset, sizeof(long));
             long bits = BinaryPrimitives.ReadInt64BigEndian(source[offset..]);
@@ -369,6 +383,7 @@ internal static partial class TableIndexCodec
                     TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(bits).UtcDateTime,
                     TableColumnType.Duration => TimeSpan.FromTicks(bits),
                     TableColumnType.DateTimeOffset => new DateTimeOffset(bits, TimeSpan.Zero),
+                    TableColumnType.DateTime2 => new DateTime(bits, DateTimeKind.Utc),
                     _ => new TimeOnly(bits),
                 };
             }
@@ -427,7 +442,7 @@ internal static partial class TableIndexCodec
             ? 1
             : column.DataType switch
             {
-                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset => 1 + 8,
+                TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2 => 1 + 8,
                 TableColumnType.Float64 => 1 + 8,
                 TableColumnType.Boolean => 1 + 1,
                 TableColumnType.String or TableColumnType.Json => 1 + 4 + _utf8.GetByteCount((string)value),
@@ -478,6 +493,9 @@ internal static partial class TableIndexCodec
             case TableColumnType.DateTimeOffset:
                 SortableScalarCodec.WriteTableLegacyInt64(payload, ((DateTimeOffset)value).UtcTicks);
                 return 9;
+            case TableColumnType.DateTime2:
+                SortableScalarCodec.WriteTableLegacyInt64(payload, ToUtcTicks(value));
+                return 9;
             case TableColumnType.Duration:
                 SortableScalarCodec.WriteTableLegacyInt64(payload, ((TimeSpan)value).Ticks);
                 return 9;
@@ -519,15 +537,10 @@ internal static partial class TableIndexCodec
             .ToString("G29", System.Globalization.CultureInfo.InvariantCulture);
 
     private static long ToUnixMilliseconds(object value)
-        => value switch
-        {
-            DateTimeOffset dto => dto.ToUnixTimeMilliseconds(),
-            DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
-                : dt).ToUnixTimeMilliseconds(),
-            long ms => ms,
-            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
-        };
+        => TableDateTimeValues.ToLegacyMilliseconds(value);
+
+    private static long ToUtcTicks(object value)
+        => TableDateTimeValues.ToPreciseTicks(value);
 
     private static TimeOnly ConvertTimeValue(object value)
         => value switch

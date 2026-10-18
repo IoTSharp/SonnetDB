@@ -115,7 +115,12 @@ public sealed class SqlDurationTests : IDisposable
         Assert.Null(result.Rows[0][2]);
         Assert.All(result.ColumnInfo!, info => Assert.Equal(TableColumnType.Duration, info.DataType));
         Execute(database, "CREATE TABLE dates(id INT, start_at DATETIME, end_at DATETIME, PRIMARY KEY(id))");
-        Execute(database, $"INSERT INTO dates(id,start_at,end_at) VALUES(1,{right},{left})");
+        // #236：运行时显式 CAST 仍保留 ticks；旧 DATETIME 落盘不能再静默截断。
+        var error = Assert.Throws<InvalidOperationException>(() => Execute(database,
+            $"INSERT INTO dates(id,start_at,end_at) VALUES(1,{right},{left})"));
+        Assert.Contains("毫秒", error.Message, StringComparison.Ordinal);
+        Assert.Empty(Query(database, "SELECT id FROM dates").Rows);
+        Execute(database, $"INSERT INTO dates(id,start_at,end_at) VALUES(1,{right},CAST('2026-10-16T00:00:00Z' AS DATETIME))");
         Assert.Equal(TimeSpan.FromDays(1), Query(database, "SELECT end_at-start_at FROM dates").Rows[0][0]);
     }
 

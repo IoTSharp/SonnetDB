@@ -2148,8 +2148,8 @@ public sealed partial class TableManager : IDisposable
         Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
         Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
-        if (current.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset)
-            || updated.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset))
+        if (current.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2)
+            || updated.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2))
         {
             ApplyPrimaryKeySchemaMigrationLocked(current, updated, transform, validate);
             return;

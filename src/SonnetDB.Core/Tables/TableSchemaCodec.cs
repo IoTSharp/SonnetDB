@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 16;
+    private const int _formatVersion = 17;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -105,7 +105,9 @@ public static class TableSchemaCodec
     }
 
     internal static int RequiredNativeVersion(IReadOnlyList<TableSchema> schemas)
-        => schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null
+        => schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTime2))
+            ? 17
+            : schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null
             || schema.Indexes.Any(static index => index.Descending.Any(static direction => direction) || index.IncludedColumns.Count != 0))
             ? 16 : schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTimeOffset))
             ? 15 : ContainsDuration(schemas) ? 14 : 0;
@@ -233,6 +235,8 @@ public static class TableSchemaCodec
                 throw new InvalidDataException($"TableSchema: invalid column type {flags[0]} for '{columnName}'.");
             if (type == TableColumnType.DateTimeOffset && version < 15)
                 throw new InvalidDataException("TableSchema: DATETIMEOFFSET requires format version 15.");
+            if (type == TableColumnType.DateTime2 && version < 17)
+                throw new InvalidDataException("TableSchema: DATETIME2 requires format version 17.");
             if (type == TableColumnType.Duration && version < 14)
                 throw new InvalidDataException("TableSchema: DURATION requires format version 14.");
 
@@ -363,6 +367,7 @@ public static class TableSchemaCodec
                 ? 12 : 11;
         version = Math.Max(version, minimumVersion);
         if (schemas.Any(static schema => schema.PrimaryKeyConstraintName is not null || schema.Indexes.Any(static index => index.Descending.Any(static value => value) || index.IncludedColumns.Count != 0))) version = Math.Max(version, 16);
+        if (schemas.Any(static schema => schema.Columns.Any(static column => column.DataType == TableColumnType.DateTime2))) version = Math.Max(version, 17);
         byte[] headerBuffer = ArrayPool<byte>.Shared.Rent(_headerSize);
         try
         {

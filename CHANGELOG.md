@@ -9,6 +9,10 @@
 
 ### Changed
 
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
@@ -1004,6 +1008,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
@@ -1129,6 +1137,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 ## [3.1.0] - 2026-08-24
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
 
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
@@ -1324,6 +1336,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
 - GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
@@ -1359,6 +1375,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - 新增 `SndbResourceInitializer`，支持由组件显式初始化其所需的嵌入式或远程数据库（`0375b1c5`）。
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
 
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 
@@ -1461,6 +1481,10 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - **M28 P4 #228 删除遗留 `HnswVectorBlockIndex`（索引 I13）**：删除 `src/SonnetDB.Core/Storage/Segments/HnswVectorBlockIndex.cs`（含文件内 `HnswAnnSearchResult` record）——它是段内 HNSW 图的早期实现，图质量更差、建图为 `O(n·ef²)`、仅支持 cosine，且在 `src/` 内**零生产引用**（生产向量索引路径早已统一走 `VectorIndexAdapter` → `LocalVectorIndexBuilder` → `HnswIndex<int>`，仅一个基准与一个召回测试仍在维护这段死代码，构成误用风险）。仅剩的两个消费者迁移到 canonical `HnswIndex<int>`（`src/SonnetDB.Core/Vector/Index/Hnsw/HnswIndex.cs`）：召回测试重写并重命名为 `HnswIndexRecallTests`（`new HnswIndex<int>(384, Metric.Cosine, {M=16, EfConstruction=200, EfSearch=200})` 建图 + `Search`-into-span，Recall@10 ≥ 0.90 断言不变），`VectorRecallBenchmark` 的 `Hnsw_Top10`/`Hnsw_RecallAt10` 改走同一 API。catalog 生产类型 `HnswVectorIndexOptions`（不在被删文件内）保留不动。
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
 
 - GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
 

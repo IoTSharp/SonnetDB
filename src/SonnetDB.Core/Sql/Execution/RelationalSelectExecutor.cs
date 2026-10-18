@@ -2721,7 +2721,8 @@ internal static partial class RelationalSelectExecutor
     private static bool AreMergeTypesCompatible(TableColumnType? left, TableColumnType? right)
         => left == right && left is TableColumnType.Boolean
             or TableColumnType.Int64
-            or TableColumnType.DateTime;
+            or TableColumnType.DateTime
+            or TableColumnType.DateTime2;
 
     private static Relation IndexNestedLoopJoin(
         Tsdb tsdb,
@@ -3167,6 +3168,9 @@ internal static partial class RelationalSelectExecutor
             TableColumnType.DateTime => CompareLegacySignedIndexOrder(
                 ToUnixMilliseconds(left),
                 ToUnixMilliseconds(right)),
+            TableColumnType.DateTime2 => CompareLegacySignedIndexOrder(
+                ToUtcTicks(left),
+                ToUtcTicks(right)),
             _ => throw new InvalidOperationException($"Merge Join 不支持 {type} 索引顺序。"),
         };
     }
@@ -3184,6 +3188,15 @@ internal static partial class RelationalSelectExecutor
                     : dateTime).ToUnixTimeMilliseconds(),
             long milliseconds => milliseconds,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
+        };
+
+    private static long ToUtcTicks(object value)
+        => value switch
+        {
+            DateTimeOffset dateTimeOffset => dateTimeOffset.UtcDateTime.Ticks,
+            DateTime dateTime => (dateTime.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime()).Ticks,
+            long ticks => ticks,
+            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME2。"),
         };
 
     private static Relation HashJoin(
@@ -3489,6 +3502,8 @@ internal static partial class RelationalSelectExecutor
             object normalized = value switch
             {
                 null => 0d,
+                // 旧 DATETIME 可与 Unix 毫秒 INT 相等，必须保持同一哈希。
+                // DATETIME2 相邻 ticks 可以同桶，完整 ticks 比较仍负责区分。
                 DateTime => (double)ToUnixMilliseconds(value),
                 DateTimeOffset offset => offset.UtcTicks,
                 byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal
@@ -4310,6 +4325,7 @@ internal static partial class RelationalSelectExecutor
                 SqlDataType.Boolean => TableColumnType.Boolean,
                 SqlDataType.String => TableColumnType.String,
                 SqlDataType.DateTime => TableColumnType.DateTime,
+                SqlDataType.DateTime2 => TableColumnType.DateTime2,
                 SqlDataType.Time => TableColumnType.Time,
                 SqlDataType.Duration => TableColumnType.Duration,
                 SqlDataType.DateTimeOffset => TableColumnType.DateTimeOffset,
@@ -4340,7 +4356,7 @@ internal static partial class RelationalSelectExecutor
             if (!IsArithmeticOperator(binary.Operator))
                 type = TableColumnType.Boolean;
             else if (binary.Operator == SqlBinaryOperator.Subtract
-                && left.DataType == right.DataType && left.DataType is TableColumnType.DateTime or TableColumnType.DateTimeOffset
+                && left.DataType == right.DataType && left.DataType is TableColumnType.DateTime or TableColumnType.DateTime2 or TableColumnType.DateTimeOffset
                 || binary.Operator is SqlBinaryOperator.Add or SqlBinaryOperator.Subtract
                 && left.DataType == TableColumnType.Duration && right.DataType == TableColumnType.Duration)
                 type = TableColumnType.Duration;
@@ -4392,18 +4408,22 @@ internal static partial class RelationalSelectExecutor
                 && name is "date_only" or "to_datetime" or "to_utc_datetime" or "to_local_datetime")
             {
                 var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
-                return new SelectColumnInfo(TableColumnType.DateTime, input.IsNullable)
+                return new SelectColumnInfo(input.DataType == TableColumnType.DateTime2 ? TableColumnType.DateTime2 : TableColumnType.DateTime, input.IsNullable)
                 { RequiresRefresh = input.RequiresRefresh };
             }
             if (temporal.Arguments.Count == 3 && name is "date_add_datetime" or "date_add_datetime_offset" or "date_add")
             {
                 var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
                 if (name is "date_add_datetime" or "date_add_datetime_offset"
-                    || input.DataType is TableColumnType.DateTime or TableColumnType.Int64 or TableColumnType.DateTimeOffset)
+                    || input.DataType is TableColumnType.DateTime or TableColumnType.DateTime2 or TableColumnType.Int64 or TableColumnType.DateTimeOffset)
                 {
                     var amount = InferSelectColumnInfo(temporal.Arguments[1], columns);
-                    return new SelectColumnInfo(name == "date_add_datetime_offset" || name == "date_add" && input.DataType == TableColumnType.DateTimeOffset
-                        ? TableColumnType.DateTimeOffset : TableColumnType.DateTime,
+                    var outputType = name == "date_add_datetime_offset"
+                        ? TableColumnType.DateTimeOffset
+                        : input.DataType == TableColumnType.DateTime2 ? TableColumnType.DateTime2
+                            : name == "date_add" && input.DataType == TableColumnType.DateTimeOffset
+                                ? TableColumnType.DateTimeOffset : TableColumnType.DateTime;
+                    return new SelectColumnInfo(outputType,
                         input.IsNullable == true || amount.IsNullable == true ? true
                             : input.IsNullable == false && amount.IsNullable == false ? false : null)
                     { RequiresRefresh = input.RequiresRefresh || amount.RequiresRefresh };
@@ -4602,6 +4622,18 @@ internal static partial class RelationalSelectExecutor
             foreach (DateTimeOffset instant in rawValues.Cast<DateTimeOffset>())
                 ticks = name == "min" ? Math.Min(ticks, instant.UtcTicks) : Math.Max(ticks, instant.UtcTicks);
             return new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+
+        if (name is "min" or "max" && rawValues.All(static value => value is DateTime))
+        {
+            DateTime selected = (DateTime)rawValues[0]!;
+            foreach (DateTime candidate in rawValues.Cast<DateTime>())
+            {
+                int comparison = SqlScalarComparer.Compare(candidate, selected)!.Value;
+                if (name == "min" ? comparison < 0 : comparison > 0)
+                    selected = candidate;
+            }
+            return selected;
         }
 
         // 保留整数类型：当调用方已确认所有非空输入跨整个结果集都是 byte/short/int/long 时，

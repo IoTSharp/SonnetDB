@@ -3452,3 +3452,11 @@ main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和Rel
 ## 2026-10-19 验证分支重放 #242
 
 247和245已分别先restore/Format后提交594b003d、9f4b289e；当前重放242原始64b782cd，按真实DELETE/INSERT、全部冲突、触发器/FK、默认值/生成值及回滚合同整合。原Core134/134、早期编译和133/134失败收据外置保留，不替代远程/XCode。完整restore/规定Format通过后才提交，没有push；源代码最终须与审计分支b55的src/tests一致，233 probe包后续单独入库。
+
+## 2026-10-19 验证分支接入 #236 Core（整项未完成）
+
+已完成247/245/242先gate后commit的重放，当前ee5bbd93的src/tests与原已验证b55逐字一致，旧原分支完整保留。Core236的352d10现以no-commit接入，28文件自动三方合并无冲突；保留TEMP/CTAS/Replace及bareCAST未知精度修复。Core独立255/257（54新增通过、0skip）仅原2项Data旧亚毫秒行为FAIL，原失败未删；measurement小probe修前0/5、修后6/6，关系完整ticks不回退。当前需整合定向重编、完整restore及规定Format后再commit，Data/Protocol/Server接续必须验真实REST/H2与时序参数，因为内联SQL不能携带内部IsParameterValue标记。表目录floor17/MV5已独立，旧engine实际exe验收NOT_RUN，不能据ReadFormatVersion冒称通过。没有push。
+
+根额外在同一已编译候选运行原INSERT/关系表回归：196/199，真实3FAIL揭示旧DATETIME时钟/动态默认值不对齐被新拒绝合同阻断。原失败保留，未改断言；修复仅声明为旧DATETIME的current_datetime/current_utc_datetime返回毫秒对齐，保留Local/UTC Kind，SQL参考和CHANGELOG明确这两个函数精度收窄。显式CAST/DATE_ADD保完整ticks；current_utc_datetime_offset()+CAST DATETIME2保留原生时钟路径。继续重跑原199和组合142后gate。
+
+旧时钟修复后在整合树重新构建：原199项与组合142项并集341/341，0fail/0skip；原3FAIL未改断言且已保留。接着在此最终源上重新完整restore/规定Format后才提交Core切片。

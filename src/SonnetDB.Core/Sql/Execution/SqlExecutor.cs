@@ -1683,7 +1683,7 @@ public static partial class SqlExecutor
         SqlDataType.String => FieldType.String,
         SqlDataType.Vector => FieldType.Vector,
         SqlDataType.GeoPoint => FieldType.GeoPoint,
-        SqlDataType.DateTime or SqlDataType.Blob or SqlDataType.Json => throw new NotSupportedException(
+        SqlDataType.DateTime or SqlDataType.DateTime2 or SqlDataType.Blob or SqlDataType.Json => throw new NotSupportedException(
             $"CREATE MEASUREMENT 不支持数据类型 {type}；该类型仅用于关系表 CREATE TABLE。"),
         _ => throw new NotSupportedException($"未知数据类型 {type}。"),
     };
@@ -2841,6 +2841,7 @@ public static partial class SqlExecutor
             TableColumnType.Boolean => "boolean",
             TableColumnType.String => "string",
             TableColumnType.DateTime => "datetime",
+            TableColumnType.DateTime2 => "datetime2",
             TableColumnType.Time => "time",
             TableColumnType.Duration => "duration",
             TableColumnType.Blob => "blob",

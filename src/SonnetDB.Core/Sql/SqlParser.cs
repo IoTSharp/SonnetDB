@@ -2173,6 +2173,11 @@ public sealed class SqlParser
             Advance();
             return SqlDataType.DateTimeOffset;
         }
+        if (IsIdentifier("DATETIME2"))
+        {
+            Advance();
+            return SqlDataType.DateTime2;
+        }
         if (Current.Kind == TokenKind.KeywordGeoPoint)
             throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
 
@@ -4474,6 +4479,11 @@ public sealed class SqlParser
         {
             Advance();
             return SqlDataType.DateTimeOffset;
+        }
+        if (IsIdentifier("DATETIME2"))
+        {
+            Advance();
+            return SqlDataType.DateTime2;
         }
         var token = Current;
         switch (token.Kind)

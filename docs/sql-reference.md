@@ -9,6 +9,14 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### 关系日期精度（GH-Issue #236 Core 切片）
+
+`DATETIME2` 按 UTC 100ns ticks 保存并返回 `DateTime`。Core 的 CLR `DateTime` 参数默认保留完整 ticks；`Unspecified` 视为 UTC，`Local` 转为 UTC。已有 `DATETIME` 继续使用 Unix 毫秒布局，写入亚毫秒值会明确失败，不能通过先截断参数来绕过检查。measurement 的 `time` 保持既有 Unix 毫秒语义。
+
+`CURRENT_DATETIME()` 和 `CURRENT_UTC_DATETIME()` 的声明仍是旧 `DATETIME`，现在明确返回毫秒对齐值，分别保留 Local 与 UTC Kind，以供已有动态默认值使用。这是两个时钟函数的精度合同收窄；其他内存中的 `DateTime` 表达式、显式 CAST 与日期运算继续保留其实际 ticks。需要原生精度时钟时使用 `CAST(CURRENT_UTC_DATETIME_OFFSET() AS DATETIME2)`。
+
+新类型需要表目录永久兼容级别 v17；删除最后一个新类型对象后也不能直接降级引擎。物化视图中的新类型声明使用 v5。主 FileHeader 布局不变，降级应恢复升级前备份。当前说明对应 Core 实现，匹配的 ADO/远程能力协商和正式包验收仍由后续切片完成。
+
 ### 视图的声明元数据（GH-Issue #261）
 
 读取普通视图或物化视图的原生声明使用 `SELECT * FROM ViewName LIMIT 0`，并在 ADO reader 上调用 `GetFieldType`、`GetDataTypeName`、`GetSchemaTable` 或 `GetColumnSchema`。无需先 `Read()`；空表、零行和全 NULL 结果保留列名、顺序、SQL/CLR 类型与可空性。直接列投影保留已声明的 `DECIMAL(p,s)`；无界 STRING/BLOB 的长度、未知表达式及无法确定的派生精度保持未知，不按样本或 CLR 默认值制造声明。外连接的 NULL 扩展会扩大对应侧的可空性。`LIMIT 0` 只绑定声明，不执行视图的投影、过滤或排序 UDF。

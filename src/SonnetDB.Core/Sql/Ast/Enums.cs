@@ -64,6 +64,9 @@ public enum SqlDataType
 
     /// <summary>原生 UTC 时刻；使用完整 DateTimeOffset UTC ticks。</summary>
     DateTimeOffset,
+
+    /// <summary>关系 DATETIME2；按 UTC 100 纳秒 ticks 保存并返回 DateTime。</summary>
+    DateTime2,
 }
 
 /// <summary>SQL 层支持的二元运算符。</summary>
