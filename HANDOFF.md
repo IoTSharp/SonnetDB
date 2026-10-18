@@ -1,5 +1,9 @@
 # SonnetDB 交接记录
 
+## 2026-10-19 pg_vectorsearch / PRISM 路线图登记
+
+用户要求将 Tiger Data 于 2026-10-13 发布的 `pg_vectorsearch` alpha、PRISM 分区式 ANN 记录进路线图。产品文档仅修改 `ROADMAP.md` 的性能观察项，新增 PF4 外部评测候选，挂接现有 M46/V45-X05 评审；明确对比 HNSW、IVF-Flat、IVF-PQ 与精确扫描，覆盖长尾/分区倾斜/高频更新、Recall@K、尾延迟、建索引、磁盘/内存和重建成本。厂商自测与 alpha 结果不计入门禁，未新增实现、未修改存储格式、未运行基准、未提交或推送；当前工作树其它脏改动保持不动。
+
 ## 当前人工统一整合（2026-10-17，Asia/Shanghai）
 
 - 最后一次push前fetch发现M49远端新增 `aa617b1bebaeb84b2594a7cc60703918c299f72c`，已普通merge纳入关系SQL Execute=2/payload v1切片；两份文档冲突保留双方全部条目，生产代码无冲突。新组合Client **211/211**、完整Server **1451/1451**、零失败/跳过；此前Core/Data/EF/Identity未被该分支修改。`d65e7884` 精确主CI38940523358最终7/7 success已保存，不能冒称覆盖后来的aa617合并。接线修复已独立 `dd47abd7`，最终merge仍须在本树完整restore/Format通过后commit，普通push并回读；详见 `docs/audits/integration-20261017/late-f01-merge.md`。
