@@ -1,5 +1,12 @@
 # SonnetDB 交接记录
 
+## 2026-10-19 CodeQL insecure-randomness 告警修复
+
+- GitHub Code Scanning 告警 #3 与 #2 均为 `cs/insecure-randomness`，主干实例分别落在 `src/SonnetDB.Core/Sql/SqlParser.cs` 的 `CREATE USER`/`ALTER USER` 密码字面量解析行；数据流来源是 `tests/SonnetDB.Core.Tests/Sql/M41P0DifferentialTests.cs` 中仅用于对拍数据的固定种子 `System.Random.Next(...)`。这是 CodeQL 将测试数值沿 SQL 解析调用图关联到密码解析上下文造成的误报，不是生产代码生成密码或 token。
+- 已修改 M41 测试：移除 `System.Random`，使用固定算术分布生成 branch、排序键和目标键，保留重复键、NULL、范围和索引/全扫描等值对拍覆盖；未修改生产解析器或数据格式。
+- 验证：`dotnet build src/SonnetDB.Core/SonnetDB.Core.csproj --configuration Release --no-restore` 通过（0 警告/0 错误）；针对文件的 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --include tests/SonnetDB.Core.Tests/Sql/M41P0DifferentialTests.cs` 退出 0；M41 源文件的 `git diff --check` 通过。全局差异检查仍报告 HANDOFF 既有章节的尾随空白，未改写外来段落。M41 定向测试因工作树既有的无关测试编译缺口阻断（`SonnetDB.IO`、`FrameHeader`、`KvFrameOp` 等类型缺失），不归因于本补丁。
+- 本次变更按用户要求创建本地提交，尚未推送；提交进入 `main` 后仍需由 CodeQL workflow 重新分析，才能取得 GitHub 端告警自动关闭回执。现有其它脏改动、`parity-results` 和历史证据均未清理。
+
 ## 2026-10-19 pg_vectorsearch / PRISM 路线图登记
 
 用户要求将 Tiger Data 于 2026-10-13 发布的 `pg_vectorsearch` alpha、PRISM 分区式 ANN 记录进路线图。产品文档仅修改 `ROADMAP.md` 的性能观察项，新增 PF4 外部评测候选，挂接现有 M46/V45-X05 评审；明确对比 HNSW、IVF-Flat、IVF-PQ 与精确扫描，覆盖长尾/分区倾斜/高频更新、Recall@K、尾延迟、建索引、磁盘/内存和重建成本。厂商自测与 alpha 结果不计入门禁，未新增实现、未修改存储格式、未运行基准、未提交或推送；当前工作树其它脏改动保持不动。

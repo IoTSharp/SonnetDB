@@ -592,6 +592,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Fixed
 
+- 修复 GitHub CodeQL `cs/insecure-randomness` 在 M41 差异测试上的误报：测试数据改为固定算术分布，保留索引/全扫描对拍覆盖，不再把 `System.Random` 数据流带入 SQL 密码解析上下文。
+
 - 修复 M49 Protocol/Native 目录迁移后的构建接线：Docker restore 与源码层纳入 Protocol 和 MQTT 源生成项目，Protocol 改动触发镜像工作流；连接器发布工具和 Rust 默认目录改用 embedded/native，Windows 重新取得配套导入库，CMake 跟踪 Protocol 源码和项目依赖。
 
 - 修复 Docker 构建上下文的忽略顺序：保留源码 `.gitignore` 的例外先于产物目录排除，避免旧验证产物中的嵌套 `.gitignore` 被重新打包；使用真实 Testcontainers 归档器和独占嵌套哨兵覆盖该边界，不清理历史证据。

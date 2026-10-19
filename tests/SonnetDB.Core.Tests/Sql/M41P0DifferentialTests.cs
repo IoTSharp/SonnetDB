@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
 
-/// <summary>以固定随机数据对拍 M41 #369～#371 快速路径和全扫描参考路径。</summary>
+/// <summary>以固定分布数据对拍 M41 #369～#371 快速路径和全扫描参考路径。</summary>
 public sealed class M41P0DifferentialTests : IDisposable
 {
     private const int RowCount = 512;
@@ -81,7 +81,7 @@ public sealed class M41P0DifferentialTests : IDisposable
         }
     }
 
-    /// <summary>创建固定种子数据、索引列及其未索引镜像列。</summary>
+    /// <summary>创建固定分布数据、索引列及其未索引镜像列。</summary>
     private Tsdb CreateDatabase()
     {
         var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
@@ -104,15 +104,14 @@ public sealed class M41P0DifferentialTests : IDisposable
         SqlExecutor.Execute(db, "CREATE INDEX ix_m41_diff_sort ON m41_diff_rows (sort_key)");
         SqlExecutor.Execute(db, "CREATE TABLE m41_diff_keys (seq INT, target_id INT NULL, PRIMARY KEY (seq))");
 
-        var random = new Random(369_370_371);
         var rows = new StringBuilder("INSERT INTO m41_diff_rows (id, id_ref, branch_a, branch_a_ref, branch_b, branch_b_ref, sort_key, sort_key_ref, status) VALUES ");
         for (int id = 1; id <= RowCount; id++)
         {
             if (id != 1)
                 rows.Append(',');
-            int branchA = random.Next(0, 32);
-            int branchB = random.Next(0, 1024);
-            long sortKey = (random.NextInt64(-1_000_000, 1_000_001) * 1024) + id;
+            int branchA = (id * 17 + 11) % 32;
+            int branchB = (id * 257 + 43) % 1024;
+            long sortKey = ((((long)id * 104_729 + 15_485_863) % 2_000_001) - 1_000_000) * 1024 + id;
             rows.Append('(')
                 .Append(id).Append(',')
                 .Append(id).Append(',')
@@ -135,7 +134,7 @@ public sealed class M41P0DifferentialTests : IDisposable
             keys.Append('(')
                 .Append(seq)
                 .Append(',')
-                .Append(seq % 17 == 0 ? "NULL" : random.Next(1, RowCount + 65))
+                .Append(seq % 17 == 0 ? "NULL" : ((seq * 97 + 31) % (RowCount + 64)) + 1)
                 .Append(')');
         }
         SqlExecutor.Execute(db, keys.ToString());
