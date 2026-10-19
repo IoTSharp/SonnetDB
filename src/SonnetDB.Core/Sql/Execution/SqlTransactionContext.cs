@@ -50,6 +50,14 @@ public sealed partial class SqlTransactionContext
     /// <summary>当前语句执行作用域内的活动轻事务（基于 <see cref="AsyncLocal{T}"/>）；无事务时为 <c>null</c>。</summary>
     public static SqlTransactionContext? Current => _current.Value;
 
+    /// <summary>在独立 DDL workspace 执行副本语句时暂时隐藏源事务 ambient 值。</summary>
+    internal static IDisposable SuppressCurrent()
+    {
+        SqlTransactionContext? previous = _current.Value;
+        _current.Value = null;
+        return new AmbientSuppression(previous);
+    }
+
     /// <summary>把 <paramref name="transaction"/> 设为当前执行作用域的 ambient 轻事务，返回作用域释放器。</summary>
     public static AmbientScope EnterScope(SqlTransactionContext? transaction)
         => new(transaction);
@@ -446,5 +454,18 @@ public sealed partial class SqlTransactionContext
         /// <summary>恢复进入前的 ambient 轻事务上下文。</summary>
         public void Dispose()
             => _current.Value = _previous;
+    }
+
+    private sealed class AmbientSuppression(SqlTransactionContext? previous) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _current.Value = previous;
+        }
     }
 }

@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 18;
+    private const int _formatVersion = 19;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -60,6 +60,13 @@ public static class TableSchemaCodec
     internal static void SaveWithMaintenanceBarrier(string path, IReadOnlyList<TableSchema> schemas)
     {
         SaveCore(path, schemas, ".tmp", minimumVersion: 16);
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
+    }
+
+    /// <summary>持久 DDL 事务提交后建立永久 v19 目录下限。</summary>
+    internal static void SaveWithDdlTransactionBarrier(string path, IReadOnlyList<TableSchema> schemas)
+    {
+        SaveCore(path, schemas, ".tmp", minimumVersion: 19);
         SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
     }
 

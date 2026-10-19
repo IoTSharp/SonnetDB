@@ -2050,6 +2050,42 @@ internal static partial class TableSqlExecutor
             if (transaction.DeferredTriggerCount != 0 && RoutineExecutionContext.Current?.Options.CanWrite == false)
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
                     SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
+
+            if (transaction.HasDdlWorkspace)
+            {
+                SqlDdlTransactionWorkspace workspace = transaction.DetachDdlWorkspaceForCommit();
+                try
+                {
+                    transaction.ValidateMutationSchemas(workspace.Tables.Catalog);
+                    IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutations =
+                        transaction.SnapshotTableMutations();
+                    transaction.CheckCommitDeadline();
+                    int workspaceAffected = mutations.Count == 0
+                        ? 0
+                        : workspace.Tables.ApplyTransaction(mutations);
+                    transaction.EndDeferredExecution();
+                    workspace.SourceDatabase.Tables.CommitDdlWorkspace(
+                        workspace,
+                        transaction.CommitContext?.Options.CancellationToken ?? CancellationToken.None);
+                    transaction.WasCommitted = true;
+                    workspace.Dispose();
+                    transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: true);
+                    transaction.MarkCompleted();
+                    return new RowsAffectedExecutionResult("*", workspaceAffected, "commit");
+                }
+                catch
+                {
+                    string journalPath = Path.GetFullPath(Path.Combine(
+                        Path.GetDirectoryName(workspace.SourceDatabase.Tables.SchemaPath)!,
+                        TableDdlTransactionJournal.FileName));
+                    if (File.Exists(journalPath))
+                        workspace.PreserveForRecovery();
+                    else
+                        workspace.DiscardAfterDetachedFailure();
+                    throw;
+                }
+            }
+
             int CommitLocked()
             {
                 transaction.ValidateMutationSchemas(tsdb.Tables.Catalog);

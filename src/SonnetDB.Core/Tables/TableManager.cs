@@ -95,6 +95,7 @@ public sealed partial class TableManager : IDisposable
 
         RecoverSchemaMigrationBeforeOpeningStores();
         _catalog = new TableCatalog();
+        RecoverDdlTransactionBeforeOpeningCatalog();
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             _catalog.LoadExisting(schema);
         _catalog.MutationGuard = EnsureManagedCatalogMutation;

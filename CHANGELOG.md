@@ -9,6 +9,8 @@
 
 ### Changed
 
+- GH-Issue #227：将受限关系表 `CREATE/ALTER/DROP TABLE` 与 `CREATE/DROP INDEX` 接入嵌入式 ADO.NET 事务私有 workspace；提交使用 journal v2、目录永久 floor v19 与成对 schema/table 身份，回滚和第二步 DDL 失败不改动持久表，已有数据、索引、重开恢复均有真实 ADO 回归。远程 DDL 仍为 NOT_RUN，正式包与上游 ORM 交付另验。
+
 - GH-Issue #232 Core：关系表使用独立的 schema/table 成对身份，默认 schema 为 `main`；支持两段限定名、逐段大小写与引号合同、非 `main` 无歧义存储路径、目录格式 v18（v1-v17 旧表归入 `main`），并让 SQL CRUD、索引、外键、事务与重开恢复保留该身份。Data/Server/远程元数据接线仍待后续切片。
 
 - GH-Issue #245：补真实固定SqlSugar Fastest原版/最小原生TEMP CTAS候选，三协议候选各10/10，覆盖一万行集合写、已有事务提交/回滚、BulkMerge、隔离及失败清理；保存原版普通工作表控制、Windows长路径失败和观测工具修正回执。正式包及上游发布另验。

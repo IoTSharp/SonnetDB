@@ -53,6 +53,14 @@ public sealed class SqlSessionContext : IDisposable
     /// <summary>当前执行或元数据作用域内的连接会话。</summary>
     public static SqlSessionContext? Current => Ambient.Value;
 
+    /// <summary>在私有持久 DDL workspace 执行期间暂时隐藏当前连接会话。</summary>
+    internal static IDisposable SuppressCurrent()
+    {
+        SqlSessionContext? previous = Ambient.Value;
+        Ambient.Value = null;
+        return new AmbientSuppression(previous);
+    }
+
     internal Tsdb Database { get; }
     internal SqlSessionOptions Options { get; }
     internal string ScratchDirectory => _scratchDirectory;
@@ -405,6 +413,19 @@ public sealed class SqlSessionContext : IDisposable
             Ambient.Value = previous;
             if (ownsGate)
                 session._gate.Release();
+        }
+    }
+
+    private sealed class AmbientSuppression(SqlSessionContext? previous) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            Ambient.Value = previous;
         }
     }
 
