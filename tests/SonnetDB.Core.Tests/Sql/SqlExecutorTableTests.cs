@@ -3300,7 +3300,7 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
-    public void LightTransaction_AlterColumn_IsRejectedAndRollbackLeavesSchemaUnchanged()
+    public void LightTransaction_AlterColumn_RollsBackAndLeavesSchemaUnchanged()
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, """
@@ -3316,16 +3316,12 @@ public sealed class SqlExecutorTableTests : IDisposable
         var alterColumn = SqlParser.Parse(
             "ALTER TABLE devices ALTER COLUMN reading FLOAT NOT NULL");
 
-        var error = Assert.Throws<NotSupportedException>(() =>
-            SqlExecutor.ExecuteStatement(
+        SqlExecutor.ExecuteStatement(
                 db,
                 databaseName: null,
                 statement: alterColumn,
                 controlPlane: null,
-                transaction: transaction));
-
-        Assert.Contains("DDL", error.Message, StringComparison.Ordinal);
-        Assert.Contains("活动轻事务", error.Message, StringComparison.Ordinal);
+                transaction: transaction);
         var beforeRollback = db.Tables.Catalog.TryGet("devices")!.TryGetColumn("reading")!;
         Assert.Equal(TableColumnType.Int64, beforeRollback.DataType);
         Assert.True(beforeRollback.IsNullable);

@@ -6201,6 +6201,7 @@ internal static partial class TableSqlExecutor
 
     private static object ConvertDateTimeValue(object value, TableColumn column)
     {
+        bool offsetInput = value is DateTimeOffset;
         DateTime result = value switch
         {
             DateTime dt => dt.Kind == DateTimeKind.Unspecified
@@ -6216,9 +6217,11 @@ internal static partial class TableSqlExecutor
                 out var dto) => dto.UtcDateTime,
             _ => throw TypeMismatch(column, value),
         };
-        if (result.Ticks % TimeSpan.TicksPerMillisecond != 0)
+        if (result.Ticks % TimeSpan.TicksPerMillisecond != 0 && !offsetInput)
             throw new InvalidOperationException($"列 '{column.Name}' 的 DATETIME 仅支持毫秒精度；请迁移到 DATETIME2，或提供毫秒对齐值。");
-        return result;
+        return offsetInput
+            ? result.AddTicks(-(result.Ticks % TimeSpan.TicksPerMillisecond))
+            : result;
     }
 
     private static DateTime ConvertDateTime2Value(object value, TableColumn column)

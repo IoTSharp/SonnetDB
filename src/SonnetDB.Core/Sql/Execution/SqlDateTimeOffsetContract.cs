@@ -391,6 +391,18 @@ internal static class SqlDateTimeOffsetContract
 
     private static void RequireCompatible(TypeInfo left, TypeInfo right, bool allowLegacyParameter = false)
     {
+        // EF/Identity legacy DATETIME mappings commonly bind DateTimeOffset values.
+        // Keep that explicit legacy column contract compatible; the storage writer
+        // applies the legacy millisecond representation, while DbType.DateTime2
+        // remains the opt-in path for full ticks.
+        if (allowLegacyParameter
+            && left.Type == TableColumnType.DateTime
+            && right.Type == TableColumnType.DateTimeOffset)
+            return;
+        if (allowLegacyParameter
+            && right.Type == TableColumnType.DateTime
+            && left.Type == TableColumnType.DateTimeOffset)
+            return;
         if (allowLegacyParameter && (left.Type == TableColumnType.DateTime && right.ParameterUtcTicks is { } rightTicks
                 && rightTicks % TimeSpan.TicksPerMillisecond == 0
             || right.Type == TableColumnType.DateTime && left.ParameterUtcTicks is { } leftTicks

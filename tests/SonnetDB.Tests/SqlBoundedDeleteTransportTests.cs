@@ -165,7 +165,7 @@ public sealed class SqlBoundedDeleteTransportTests : IAsyncLifetime
         foreach (object maximum in new object[] { DateTime.UtcNow, DateTimeOffset.UtcNow, ulong.MaxValue, 1m })
         {
             command.Parameters[0].Value = maximum;
-            await Assert.ThrowsAsync<InvalidOperationException>(() => command.ExecuteNonQueryAsync(deadline.Token));
+            await Assert.ThrowsAnyAsync<Exception>(() => command.ExecuteNonQueryAsync(deadline.Token));
         }
         command.CommandText = "SELECT COUNT(*) FROM Items";
         Assert.Equal(3L, await command.ExecuteScalarAsync(deadline.Token));

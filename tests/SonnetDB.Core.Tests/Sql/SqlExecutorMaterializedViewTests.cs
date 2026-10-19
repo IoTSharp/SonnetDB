@@ -121,7 +121,7 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
         const int metadata = 32 + 4 + 6;
         foreach ((int offset, byte invalid) in new[]
         {
-            (metadata, (byte)10), (metadata + 1, (byte)0x40),
+            (metadata, (byte)11), (metadata + 1, (byte)0x40),
             (metadata + 2, (byte)39), (metadata + 3, (byte)21),
             (metadata, (byte)TableColumnType.String),
         })
@@ -137,7 +137,7 @@ public sealed class SqlExecutorMaterializedViewTests : IDisposable
         File.WriteAllBytes(path, damagedDeclaration);
         Assert.Contains("CRC", Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path)).Message);
         byte[] unknownVersion = (byte[])baseline.Clone();
-        BinaryPrimitives.WriteInt32LittleEndian(unknownVersion.AsSpan(8, 4), 5);
+        BinaryPrimitives.WriteInt32LittleEndian(unknownVersion.AsSpan(8, 4), 6);
         File.WriteAllBytes(path, unknownVersion);
         Assert.Throws<InvalidDataException>(() => MaterializedViewSnapshotCodec.Load(path));
         File.WriteAllBytes(path, baseline[..(metadata + 2)]);

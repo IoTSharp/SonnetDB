@@ -114,7 +114,7 @@ public sealed class SqlDerivedUpdateTests : IDisposable
     public void Update_DerivedParameters_PreservesDecimalTimeUtcNullAndQuotedNames()
     {
         using var db = Open();
-        SqlExecutor.Execute(db, "CREATE TABLE target(id INT,amount DECIMAL,clock TIME,stamp DATETIME,note STRING,PRIMARY KEY(id))");
+        SqlExecutor.Execute(db, "CREATE TABLE target(id INT,amount DECIMAL,clock TIME,stamp DATETIME2,note STRING,PRIMARY KEY(id))");
         SqlExecutor.Execute(db, "INSERT INTO target(id) VALUES(1),(2)");
         decimal exact = 12345678901234567890.12345678m;
         var clock = TimeSpan.FromTicks(123456789);
