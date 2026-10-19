@@ -287,7 +287,7 @@ internal sealed class CopilotStateStore
                 Math.Max(0, usage.ToolCalls),
                 Math.Max(0, usage.DurationMilliseconds),
                 usage.Succeeded,
-                usage.CreatedAtUtc.UtcDateTime,
+                NormalizeStorageTimestamp(usage.CreatedAtUtc),
             ]);
         }
     }

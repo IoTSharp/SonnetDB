@@ -21,8 +21,11 @@ internal static class TableDateTimeValues
             DateTimeOffset offset => offset.UtcDateTime,
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
         };
-        if (normalized.Ticks % TimeSpan.TicksPerMillisecond != 0)
+        bool offsetInput = value is DateTimeOffset;
+        if (normalized.Ticks % TimeSpan.TicksPerMillisecond != 0 && !offsetInput)
             throw new InvalidOperationException("DATETIME 仅支持毫秒精度；请使用 DATETIME2。");
+        if (offsetInput)
+            normalized = normalized.AddTicks(-(normalized.Ticks % TimeSpan.TicksPerMillisecond));
         return new DateTimeOffset(normalized).ToUnixTimeMilliseconds();
     }
 }
