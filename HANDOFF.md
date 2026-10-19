@@ -3500,3 +3500,8 @@ Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规�
 #232 已以 `098db1fb` 接入结构化 schema/table pair、默认 `main`、v18 catalog、v1-v17旧目录映射、限定名绑定与双schema重开；整合树 schema 定向51/51，restore通过。Data/Server/远程metadata仍待后续切片。
 
 #227底座 `c0f28ae6` 已rebase到#232冻结提交，但仍只包含workspace/journal/recovery，未改SqlExecutor/TableManager live入口，真实ADO DDL和远程均NOT_RUN；不能写成Issue完成。没有push、Issue关闭、正式包发布或部署。下一步完成#227真实live DDL入口及嵌入ADO提交/回滚/失败/重开回归，再在最终树重跑完整restore、规定Format和最终SHA CI。
+
+## 2026-10-19 CI 39199301693 修复提交前检查
+
+- 基于远端 `615f3cdfd6561bff81c74e43c5c9b182568da9dd` 的隔离 worktree 完成旧 `DATETIME`/`DateTimeOffset` 参数边界和 Reader close 测试修复；未声明 DTO 亚毫秒值在旧 DATETIME 写入前拒绝，显式 EF/Identity `DbType.DateTimeOffset` 继续兼容。
+- 最终验证：Core 7890/7890、EF Core 295/295、Identity lockout 1/1、规定 Format Check exit 0；未提交前没有新的远端 CI 回执。当前将提交并推送到 `main`，随后以新 SHA 回读 CI。

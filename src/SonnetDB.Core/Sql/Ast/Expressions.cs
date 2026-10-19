@@ -88,6 +88,9 @@ public sealed record CastExpression(
 {
     /// <summary>该常量 CAST 来自参数绑定，可在旧 DATETIME 上执行毫秒对齐兼容检查。</summary>
     internal bool IsParameterValue { get; init; }
+
+    /// <summary>该参数是否带有调用方声明的 DbType/SQL 类型。</summary>
+    internal bool IsExplicitParameterType { get; init; }
 }
 
 /// <summary>时间间隔字面量（单位毫秒），仅在 <c>time(...)</c> 与可能的时间运算上下文中出现。</summary>

@@ -97,6 +97,10 @@
 - 表目录 `tables.tblschema` 读取兼容 v1～v13；无主键关系表启用内部持久行身份或执行可恢复主键迁移前保存 v13 兼容屏障，v13 沿用 v12 payload，保存、回滚和移除无主键表后均不降级。主键迁移另有带版本和 CRC 的独立恢复日志。尚未升阶的目录按长度/注释属性写 v12，否则写 v11。旧引擎拒绝不支持的目录版本，回退须使用升级前副本；未修改 `FileHeader`、既有显式主键编码或行载荷。
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
+### Fixed
+
+- 修复旧 `DATETIME` 写入 `DateTimeOffset` 的参数类型边界：未声明参数在亚毫秒值下 fail-closed，EF/Identity 显式 `DbType.DateTimeOffset` 兼容路径保留；修复 Reader 关闭异常测试的重复注入异常。Core 7890/7890、EF Core 295/295 及 Identity 定向回归通过。
+
 ### Added
 
 - GH-Issue #247 原生切片：过程支持 IN/OUT/INOUT、SET/RETURN、类型化命名调用与完整结果快照；完成校验回调在提交前执行，输出/响应校验失败回滚本次保存点。例程目录升级 v5，兼容读 v1–v4 的 IN 定义，旧引擎拒绝新格式；FileHeader 未改，降级须恢复升级前例程目录。旧 Text/CALL 的 IN 转换及默认最后结果形态保留，ADO/远程/SqlSugar 与正式包仍待后续验证。

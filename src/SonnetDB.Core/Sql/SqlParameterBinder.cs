@@ -451,17 +451,21 @@ public static class SqlParameterBinder
                     if (legacy.Ticks % TimeSpan.TicksPerMillisecond != 0)
                         throw new InvalidOperationException("DATETIME 参数仅支持毫秒精度；请使用 DATETIME2。");
                     return new CastExpression(LiteralExpression.Integer(new DateTimeOffset(legacy).ToUnixTimeMilliseconds()), typed.DataType)
-                    { IsParameterValue = true };
+                    { IsParameterValue = true, IsExplicitParameterType = true };
                 }
                 if (typed.DataType == SqlDataType.DateTime2 && input is DateTimeOffset preciseOffset)
                     return new CastExpression(LiteralExpression.Integer(preciseOffset.UtcTicks), typed.DataType)
-                    { IsParameterValue = true };
+                    { IsParameterValue = true, IsExplicitParameterType = true };
                 if (typed.DataType == SqlDataType.DateTime2 && input is DateTime preciseDateTime)
                     return ToLiteral(preciseDateTime);
                 if (typed.DataType == SqlDataType.DateTimeOffset && input is DateTime dateTime)
                     input = new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
                         ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime());
-                return new CastExpression(ToLiteral(input), typed.DataType);
+                if (typed.DataType == SqlDataType.DateTimeOffset && input is DateTimeOffset typedOffset)
+                    return new CastExpression(LiteralExpression.Integer(typedOffset.UtcTicks), typed.DataType)
+                    { IsParameterValue = true, IsExplicitParameterType = true };
+                return new CastExpression(ToLiteral(input), typed.DataType)
+                { IsParameterValue = true, IsExplicitParameterType = true };
             case null:
             case DBNull:
                 return LiteralExpression.Null();
@@ -501,7 +505,8 @@ public static class SqlParameterBinder
                 return new CastExpression(LiteralExpression.Integer(utc.Ticks), SqlDataType.DateTime2)
                 { IsParameterValue = true };
             case DateTimeOffset dto:
-                return new CastExpression(LiteralExpression.Integer(dto.UtcTicks), SqlDataType.DateTimeOffset);
+                return new CastExpression(LiteralExpression.Integer(dto.UtcTicks), SqlDataType.DateTimeOffset)
+                { IsParameterValue = true };
             case TimeOnly time:
                 return LiteralExpression.String(time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
             case TimeSpan span:

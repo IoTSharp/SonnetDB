@@ -647,6 +647,7 @@ public sealed class SndbCommandTimeoutTests
     {
         private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _executionCount;
+        private int _closeFailureIssued;
         private bool _disposed;
 
         public string DataSource => "timeout-test";
@@ -761,7 +762,7 @@ public sealed class SndbCommandTimeoutTests
             CloseAttempted = true;
             _disposed = true;
             Release();
-            if (closeException is not null)
+            if (closeException is not null && Interlocked.Exchange(ref _closeFailureIssued, 1) == 0)
                 throw closeException;
         }
 

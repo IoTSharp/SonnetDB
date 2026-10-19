@@ -8,7 +8,12 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>在扫描、索引查找和连接之前绑定原生时刻的类型合同，不执行表达式或用户函数。</summary>
 internal static class SqlDateTimeOffsetContract
 {
-    private readonly record struct TypeInfo(TableColumnType? Type, bool NullOnly = false, long? ParameterUtcTicks = null)
+    private readonly record struct TypeInfo(
+        TableColumnType? Type,
+        bool NullOnly = false,
+        long? ParameterUtcTicks = null,
+        bool IsExplicitParameterType = false,
+        bool IsParameterValue = false)
     {
         internal bool IsNative => Type is TableColumnType.DateTimeOffset or TableColumnType.DateTime2;
     }
@@ -245,11 +250,25 @@ internal static class SqlDateTimeOffsetContract
             case LiteralExpression { Kind: SqlLiteralKind.Null }:
                 return new TypeInfo(null, true);
             case CastExpression cast:
-                _ = Expression(database, cast.Operand, scope, depth + 1);
+                TypeInfo operandType = Expression(database, cast.Operand, scope, depth + 1);
+                if (cast.IsParameterValue && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Null })
+                    return new TypeInfo(null, NullOnly: true);
                 if (cast.IsParameterValue && cast.TargetType == SqlDataType.DateTime2
                     && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Integer } ticks)
-                    return new TypeInfo(TableColumnType.DateTime2, ParameterUtcTicks: ticks.IntegerValue);
-                return CastType(cast.TargetType);
+                    return new TypeInfo(TableColumnType.DateTime2, ParameterUtcTicks: ticks.IntegerValue,
+                        IsExplicitParameterType: cast.IsExplicitParameterType,
+                        IsParameterValue: true);
+                if (cast.IsParameterValue && cast.TargetType == SqlDataType.DateTimeOffset
+                    && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Integer } offsetTicks)
+                    return new TypeInfo(TableColumnType.DateTimeOffset, ParameterUtcTicks: offsetTicks.IntegerValue,
+                        IsExplicitParameterType: cast.IsExplicitParameterType,
+                        IsParameterValue: true);
+                TypeInfo castType = CastType(cast.TargetType);
+                if (cast.IsParameterValue && castType.Type == operandType.Type)
+                    return operandType with { IsParameterValue = true };
+                if (operandType.IsExplicitParameterType && castType.Type == operandType.Type)
+                    return operandType;
+                return castType;
             case BinaryExpression binary:
                 {
                     var left = Expression(database, binary.Left, scope, depth + 1);
@@ -387,6 +406,11 @@ internal static class SqlDateTimeOffsetContract
             throw new InvalidOperationException("DATETIME2 写入需要原生 DateTime 参数或显式 CAST(... AS DATETIME2)，不能隐式解释 Unix 毫秒、字符串或其它类型。");
         if (target.Type == TableColumnType.DateTime && source.Type == TableColumnType.DateTime2)
             RequireCompatible(target, source, allowLegacyParameter: true);
+        if (target.Type == TableColumnType.DateTime && source.Type == TableColumnType.DateTimeOffset)
+        {
+            if (source.IsParameterValue && !source.IsExplicitParameterType)
+                RequireCompatible(target, source, allowLegacyParameter: true);
+        }
     }
 
     private static void RequireCompatible(TypeInfo left, TypeInfo right, bool allowLegacyParameter = false)
