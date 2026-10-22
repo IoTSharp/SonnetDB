@@ -81,10 +81,10 @@ public sealed partial class SqlMaintenanceContractTests
         Execute(db, "ALTER TABLE Device AUTO_INCREMENT = 50");
         Execute(db, "ALTER TABLE Device AUTO_INCREMENT = 50");
         Assert.Throws<InvalidOperationException>(() => Execute(db, "ALTER TABLE Plain AUTO_INCREMENT = 100"));
-        Assert.ThrowsAny<Exception>(() => SonnetDB.Sql.Execution.SqlExecutor.ExecuteScript(db,
-            "BEGIN; ALTER TABLE Device AUTO_INCREMENT = 100; COMMIT;"));
+        SonnetDB.Sql.Execution.SqlExecutor.ExecuteScript(db,
+            "BEGIN; ALTER TABLE Device AUTO_INCREMENT = 100; COMMIT;");
         Execute(db, "INSERT INTO Device(Id) VALUES(NULL)");
-        Assert.Equal(50L, Query(db, "SELECT Id FROM Device").Rows.Single()[0]);
+        Assert.Equal(100L, Query(db, "SELECT Id FROM Device").Rows.Single()[0]);
         Assert.Empty(Query(db, "SELECT Id FROM Plain").Rows);
     }
 }

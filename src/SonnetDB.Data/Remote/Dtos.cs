@@ -2,6 +2,12 @@ using System.Text.Json.Serialization;
 
 namespace SonnetDB.Data.Remote;
 
+internal sealed class ProcedureJsonEnvelope
+{
+    public int Version { get; init; }
+    public byte[] Payload { get; init; } = [];
+}
+
 /// <summary>
 /// 提交给 <c>POST /v1/db</c> 的建库请求体。
 /// </summary>
@@ -19,6 +25,10 @@ internal sealed class SqlRequestBody
 {
     [JsonPropertyName("sql")]
     public string Sql { get; set; } = string.Empty;
+
+    [JsonPropertyName("typedParameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? TypedParameters { get; set; }
 }
 
 /// <summary>

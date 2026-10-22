@@ -1,0 +1,102 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using SonnetDB.Protocol;
+
+if (args.Length != 1) return 2;
+string taskDirectory = Path.GetFullPath(args[0]);
+string runDirectory = Path.Combine(taskDirectory, "remote-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(runDirectory);
+using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+const string token = "owned-fastest-consumer-token";
+await using var app = global::SonnetDB.Program.BuildApp([
+    "--contentRoot", runDirectory,
+    "--SonnetDBServer:DataRoot=" + Path.Combine(runDirectory, "data"),
+    "--SonnetDBServer:Tokens:" + token + "=admin",
+    "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
+    "--Kestrel:Endpoints:FastestH2:Url=http://127.0.0.1:0",
+    "--Kestrel:Endpoints:FastestH2:Protocols=Http2",
+    "--Logging:LogLevel:Default=Warning",
+]);
+var requests = new ConcurrentQueue<(string Path, string Protocol, byte Op)>();
+app.Use(async (context, next) =>
+{
+    byte op = 0;
+    if (context.Request.Path == "/v1/frame")
+    {
+        context.Request.EnableBuffering();
+        byte[] header = new byte[FrameHeader.Size];
+        await context.Request.Body.ReadExactlyAsync(header, deadline.Token);
+        context.Request.Body.Position = 0;
+        if (FrameHeader.TryRead(header, out var frame)) op = frame.Op;
+    }
+    if (requests.Count >= 10_000) throw new InvalidOperationException("Request observation bound exceeded.");
+    requests.Enqueue((context.Request.Path.Value ?? "", context.Request.Protocol, op));
+    await next(context);
+});
+await app.StartAsync(deadline.Token);
+try
+{
+    string rest = "", h2 = "";
+    foreach (string address in app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Take(2))
+    {
+        using var http = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(3) };
+        using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+        { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
+        try { using var response = await http.SendAsync(request, deadline.Token); if (response.IsSuccessStatusCode) rest = address; else h2 = address; }
+        catch (HttpRequestException) { h2 = address; }
+    }
+    if (rest.Length == 0 || h2.Length == 0) throw new InvalidOperationException("Actual HTTP/1 and HTTP/2 listeners are required.");
+    using var setup = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { BaseAddress = new Uri(rest) };
+    setup.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    foreach (string variant in new[] { "original", "candidate" })
+    {
+        foreach (string protocol in new[] { "rest", "frame-http2" })
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            string database = variant + (protocol == "rest" ? "_rest" : "_h2");
+            using var created = await setup.PostAsync("/v1/db", new StringContent("{\"name\":\"" + database + "\"}", Encoding.UTF8, "application/json"), deadline.Token);
+            created.EnsureSuccessStatusCode();
+            requests.Clear();
+            var start = new ProcessStartInfo("C:\\Program Files\\dotnet\\dotnet.exe")
+            {
+                WorkingDirectory = taskDirectory, UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            start.ArgumentList.Add(Path.Combine(taskDirectory, "run-" + variant, "FastestProbe.dll"));
+            start.ArgumentList.Add(variant + "-" + protocol);
+            start.ArgumentList.Add(variant);
+            start.Environment["ISSUE245_CONNECTION"] = $"Data Source={(protocol == "rest" ? rest : h2)};Database={database};Token={token};Protocol={protocol}";
+            start.Environment["ISSUE245_ROWS"] = "10000";
+            start.Environment["NO_PROXY"] = "127.0.0.1,localhost,::1";
+            using var child = Process.Start(start) ?? throw new InvalidOperationException("Consumer did not start.");
+            var output = child.StandardOutput.ReadToEndAsync(deadline.Token);
+            var errors = child.StandardError.ReadToEndAsync(deadline.Token);
+            Console.WriteLine($"CHILD|{variant}|{protocol}|PID={child.Id}|start={child.StartTime.ToUniversalTime():O}");
+            try { await child.WaitForExitAsync(deadline.Token).WaitAsync(TimeSpan.FromSeconds(260), deadline.Token); }
+            finally { if (!child.HasExited) { child.Kill(entireProcessTree: true); await child.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)); } }
+            string stdout = await output, stderr = await errors;
+            string label = variant + "-" + protocol;
+            File.WriteAllText(Path.Combine(runDirectory, label + ".stdout.log"), stdout);
+            File.WriteAllText(Path.Combine(runDirectory, label + ".stderr.log"), stderr);
+            var observed = requests.ToArray();
+            File.WriteAllLines(Path.Combine(runDirectory, label + ".network.tsv"), observed.Select(item => $"{item.Protocol}\t{item.Path}\t{item.Op}"));
+            string summary = stdout.Split('\n').Single(line => line.StartsWith("COMPLETE|", StringComparison.Ordinal)).Trim();
+            if (variant == "candidate" && (child.ExitCode != 0 || !summary.Contains("passed=10|failed=0|stages=6", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Candidate Fastest failed: " + summary);
+            if (variant == "original" && (child.ExitCode != 1 || !summary.Contains("passed=2|failed=2|stages=1", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Original native-stage negative control differs: " + summary);
+            int frameQueries = observed.Count(item => item.Path == "/v1/frame" && item.Op == (byte)SqlFrameOp.Query);
+            if (protocol == "frame-http2" && (frameQueries == 0 || observed.Any(item => item.Protocol != "HTTP/2")))
+                throw new InvalidOperationException("Fastest transport did not stay on actual HTTP/2.");
+            Console.WriteLine($"NETWORK|{label}|requests={observed.Length}|frames={frameQueries}|{summary}");
+        }
+    }
+    Console.WriteLine("COMPLETE|real-fastest-network|PASS|" + runDirectory);
+    return 0;
+}
+finally { await app.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(20)); }

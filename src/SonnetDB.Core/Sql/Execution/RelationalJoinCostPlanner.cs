@@ -136,7 +136,7 @@ internal static class RelationalJoinCostPlanner
         => type switch
         {
             TableColumnType.Boolean => 1,
-            TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime => 8,
+            TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime or TableColumnType.DateTime2 => 8,
             TableColumnType.String or TableColumnType.Blob or TableColumnType.Json => 32,
             _ => UnknownColumnWidth,
         };

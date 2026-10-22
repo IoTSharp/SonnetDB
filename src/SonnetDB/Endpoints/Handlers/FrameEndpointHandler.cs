@@ -38,7 +38,7 @@ namespace SonnetDB.Endpoints;
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
-internal static class FrameEndpointHandler
+internal static partial class FrameEndpointHandler
 {
     internal const string ContentType = "application/x-sonnetdb-frame";
 
@@ -59,6 +59,7 @@ internal static class FrameEndpointHandler
         PipeReader reader = ctx.Request.BodyReader;
         PipeWriter writer = ctx.Response.BodyWriter;
         int frameCount = 0;
+        byte[] earlyHeaderBytes = new byte[FrameHeader.Size];
 
         try
         {
@@ -74,6 +75,14 @@ internal static class FrameEndpointHandler
                         ReadOnlySequence<byte> payload;
                         try
                         {
+                            if (buffer.Length >= FrameHeader.Size)
+                            {
+                                buffer.Slice(0, FrameHeader.Size).CopyTo(earlyHeaderBytes);
+                                if (FrameHeader.TryRead(earlyHeaderBytes, out var declared)
+                                    && declared.Service == (byte)FrameService.Sql && declared.Op == (byte)SqlFrameOp.Procedure
+                                    && declared.PayloadLength > SqlProcedureFrameCodec.MaxRequestBytes)
+                                    throw new FrameFormatException("过程声明的 payload 超过字节预算。");
+                            }
                             if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
                                 break;
                         }
@@ -105,7 +114,9 @@ internal static class FrameEndpointHandler
                         EnsureFrameResponseStarted(ctx);
                         if (header.Service == (byte)FrameService.Sql)
                         {
-                            if (header.Op == (byte)SqlFrameOp.Execute)
+                            if (header.Op == (byte)SqlFrameOp.Procedure)
+                                await ExecuteProcedureAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                            else if (header.Op == (byte)SqlFrameOp.Execute)
                                 await ExecuteSqlWriteAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                             else
                                 await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
@@ -232,7 +243,7 @@ internal static class FrameEndpointHandler
         }
         else if (header.Service == (byte)FrameService.Sql)
         {
-            if (header.Op is not ((byte)SqlFrameOp.Query) and not ((byte)SqlFrameOp.Execute))
+            if (header.Op is not ((byte)SqlFrameOp.Query) and not ((byte)SqlFrameOp.Execute) and not ((byte)SqlFrameOp.Procedure))
             {
                 errorCode = "unsupported_op";
                 return $"sql service 不支持 op {header.Op}。";
@@ -406,7 +417,8 @@ internal static class FrameEndpointHandler
                     payloadMemory = rented.AsMemory(0, (int)payload.Length);
                 }
 
-                request = SqlFrameCodec.DecodeQueryRequest(payloadMemory.Span);
+                request = SqlFrameCodec.DecodeQueryRequest(payloadMemory.Span,
+                    ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTime2ResultVersion);
             }
             finally
             {
@@ -424,7 +436,8 @@ internal static class FrameEndpointHandler
         try
         {
             string resultVersion = ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
-            bool nativeDateTimeOffset = resultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion;
+            bool nativeDateTime2 = resultVersion == SqlFrameCodec.NativeDateTime2ResultVersion;
+            bool nativeDateTimeOffset = nativeDateTime2 || resultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion;
             bool nativeDuration = nativeDateTimeOffset || resultVersion == SqlFrameCodec.NativeDurationResultVersion;
             bool nativeDateTime = nativeDuration || resultVersion == SqlFrameCodec.NativeDateTimeResultVersion;
             bool fullDeclarations = nativeDateTime || resultVersion == SqlFrameCodec.DeclaredResultVersion;
@@ -451,6 +464,13 @@ internal static class FrameEndpointHandler
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
                 return;
             }
+
+            var connectionSession = await AcquireConnectionSessionAsync(
+                ctx, tsdb, request.Db, writer, header).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
+            using var connectionScope = connectionLease?.Context.EnterScope(ctx.RequestAborted);
 
             long queueStartedTimestamp = Stopwatch.GetTimestamp();
             using var admissionLease = await ctx.RequestServices
@@ -528,9 +548,11 @@ internal static class FrameEndpointHandler
                 new SqlExecutionOptions
                 {
                     CancellationToken = ctx.RequestAborted,
+                    SessionContext = connectionLease?.Context,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     AllowDurationResults = nativeDuration,
                     AllowDateTimeOffsetResults = nativeDateTimeOffset,
+                    AllowDateTime2Results = nativeDateTime2,
                     CanWrite = sequenceWrite,
                     CanAdminister = false,
                     MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -558,7 +580,7 @@ internal static class FrameEndpointHandler
                 typedResults
                     ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
                     { IsDeclared = false }, select.Columns.Count).ToArray()
-                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset);
+                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset, nativeDateTime2);
 
             int position = 0;
             while (position < select.Rows.Count)
@@ -701,6 +723,13 @@ internal static class FrameEndpointHandler
                 return;
             }
 
+            var connectionSession = await AcquireConnectionSessionAsync(
+                ctx, tsdb, request.Db, writer, header).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
+            using var connectionScope = connectionLease?.Context.EnterScope(ctx.RequestAborted);
+
             using var admissionLease = await ctx.RequestServices
                 .GetRequiredService<SqlHttpRequestAdmission>()
                 .AcquireAsync(request.Db, ctx.RequestAborted)
@@ -718,6 +747,7 @@ internal static class FrameEndpointHandler
             foreach (SqlExecuteFrameParameter parameter in request.Parameters)
             {
                 if (parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime inputDateTime
+                    && ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion
                     && inputDateTime.Ticks % TimeSpan.TicksPerMillisecond != 0)
                 {
                     FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
@@ -725,6 +755,7 @@ internal static class FrameEndpointHandler
                     return;
                 }
                 object? value = parameter.Kind == SqlFrameParameterKind.DateTime && parameter.Value is DateTime dateTime
+                    && ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion
                     ? dateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
                     : parameter.Value;
                 SqlDataType? dataType = parameter.Kind switch
@@ -734,7 +765,8 @@ internal static class FrameEndpointHandler
                     SqlFrameParameterKind.Boolean => SqlDataType.Boolean,
                     SqlFrameParameterKind.String => SqlDataType.String,
                     SqlFrameParameterKind.Blob => SqlDataType.Blob,
-                    SqlFrameParameterKind.DateTime => SqlDataType.DateTime,
+                    SqlFrameParameterKind.DateTime => ctx.Request.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTime2ResultVersion
+                        ? SqlDataType.DateTime2 : SqlDataType.DateTime,
                     SqlFrameParameterKind.DateTimeOffset => SqlDataType.DateTimeOffset,
                     SqlFrameParameterKind.Duration => SqlDataType.Duration,
                     SqlFrameParameterKind.Decimal => SqlDataType.Decimal,
@@ -753,6 +785,15 @@ internal static class FrameEndpointHandler
                 }
             }
             parsed = SqlParameterBinder.Bind(parsed, parameters);
+
+            if (parsed is CreateTableStatement { IsTemporary: true } && connectionLease is null)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
+                    "connection_session_required",
+                    "临时关系表需要远程逻辑连接会话；请升级客户端和服务端后重试。");
+                return;
+            }
 
             bool supported = parsed switch
             {
@@ -784,6 +825,7 @@ internal static class FrameEndpointHandler
                 new SqlExecutionOptions
                 {
                     CancellationToken = ctx.RequestAborted,
+                    SessionContext = connectionLease?.Context,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     CanWrite = true,
                     CanAdminister = false,
@@ -847,6 +889,45 @@ internal static class FrameEndpointHandler
             null => 0,
             _ => throw new InvalidOperationException("SQL Execute 返回了未支持的结果类型；不能确认响应终态。"),
         };
+
+    private static async Task<ConnectionSessionAcquisition> AcquireConnectionSessionAsync(
+        HttpContext context,
+        Tsdb database,
+        string databaseName,
+        PipeWriter writer,
+        FrameHeader requestHeader)
+    {
+        string id = context.Request.Headers[SqlConnectionSessions.HeaderName].ToString();
+        if (id.Length == 0)
+            return new ConnectionSessionAcquisition(true, null);
+        if (!Guid.TryParseExact(id, "N", out _))
+        {
+            FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+                "connection_session_invalid", "远程 SQL 连接会话 ID 格式无效。");
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        SqlConnectionSessions.LeaseHandle? lease;
+        try
+        {
+            lease = await context.RequestServices.GetRequiredService<SqlConnectionSessions>()
+                .AcquireAsync(id, database, databaseName, context.Request.Headers.Authorization.ToString(),
+                    context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+                "connection_session_busy", "等待远程 SQL 连接会话准入超时。");
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        if (lease is not null)
+            return new ConnectionSessionAcquisition(true, lease);
+        FrameCodec.WriteErrorFrame(writer, requestHeader.Service, requestHeader.Op, requestHeader.StreamId,
+            "connection_session_missing", "远程 SQL 连接会话不存在或租约已过期。");
+        return new ConnectionSessionAcquisition(false, null);
+    }
+
+    private readonly record struct ConnectionSessionAcquisition(
+        bool Success, SqlConnectionSessions.LeaseHandle? Lease);
 
     /// <summary>
     /// 执行 vector search 帧（#239）：解码（查询向量 f32 二进制）→ 鉴权（Read）→

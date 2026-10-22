@@ -8,12 +8,14 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>在旧传输合同下拒绝不支持的原生时间类型，防止持久写入后才发现结果不可表达。</summary>
 internal static class SqlDurationResultContract
 {
-    internal static bool IsLegacy => !AllowsDuration || !AllowsDateTimeOffset;
+    internal static bool IsLegacy => !AllowsDuration || !AllowsDateTimeOffset || !AllowsDateTime2;
     private static bool AllowsDuration => RoutineExecutionContext.Current?.Options.AllowDurationResults != false;
     private static bool AllowsDateTimeOffset => RoutineExecutionContext.Current?.Options.AllowDateTimeOffsetResults != false;
+    private static bool AllowsDateTime2 => RoutineExecutionContext.Current?.Options.AllowDateTime2Results != false;
     private static bool UnsupportedType(TableColumnType? type)
         => type == TableColumnType.Duration && !AllowsDuration
-            || type == TableColumnType.DateTimeOffset && !AllowsDateTimeOffset;
+            || type == TableColumnType.DateTimeOffset && !AllowsDateTimeOffset
+            || type == TableColumnType.DateTime2 && !AllowsDateTime2;
 
     internal static void ValidateBeforeSequence(Tsdb database, SelectStatement statement)
     {
@@ -139,5 +141,5 @@ internal static class SqlDurationResultContract
     }
 
     private static InvalidOperationException Unsupported()
-        => new("DURATION 需要 SQL 结果格式 v5；DATETIMEOFFSET 需要 v6；不能在副作用前确认类型的结果必须升级协议。");
+        => new("DURATION 需要 SQL 结果格式 v5；DATETIMEOFFSET 需要 v6；DATETIME2 需要 v7；不能在副作用前确认类型的结果必须升级协议。");
 }

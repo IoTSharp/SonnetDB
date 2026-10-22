@@ -423,6 +423,11 @@ internal static class JsonFileSqlExecutor
                 : element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var ms)
                     ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime
                     : throw new InvalidOperationException($"列 '{column.Name}' 需要 DATETIME 字符串或 Unix 毫秒。"),
+            TableColumnType.DateTime2 => element.ValueKind == JsonValueKind.String
+                ? ParseDateTime(element.GetString(), column.Name)
+                : element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var ticks)
+                    ? new DateTime(ticks, DateTimeKind.Utc)
+                    : throw new InvalidOperationException($"列 '{column.Name}' 需要 DATETIME2 字符串或 UTC ticks。"),
             TableColumnType.Blob => element.ValueKind == JsonValueKind.String
                 ? Convert.FromBase64String(element.GetString()!)
                 : throw new InvalidOperationException($"列 '{column.Name}' 需要 base64 字符串。"),

@@ -21,6 +21,10 @@ public sealed record SelectColumnInfo(
     /// <summary>声明的十进制小数位数；未声明或无法静态确定时为 null。</summary>
     public byte? NumericScale { get; init; }
 
+    /// <summary>Decimal 的 p/s 是否是必须执行的显式值域声明；用于服务器内部 CTAS 保真。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasExplicitDecimalDeclaration { get; init; }
+
     /// <summary>声明的最大列长度；无界或未知时为 null。</summary>
     public int? ColumnSize { get; init; }
 
@@ -37,5 +41,6 @@ public sealed record SelectColumnInfo(
             ColumnSize = column.StringLength,
             NumericPrecision = column.DataType == TableColumnType.Decimal ? column.DecimalPrecision : null,
             NumericScale = column.DataType == TableColumnType.Decimal ? column.DecimalScale : null,
+            HasExplicitDecimalDeclaration = column.HasExplicitDecimalDeclaration,
         };
 }

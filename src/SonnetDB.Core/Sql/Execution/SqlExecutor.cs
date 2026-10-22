@@ -17,7 +17,7 @@ namespace SonnetDB.Sql.Execution;
 /// 当前 Milestone 支持 <see cref="CreateMeasurementStatement"/>、<see cref="InsertStatement"/>、
 /// <see cref="SelectStatement"/> 与 <see cref="DeleteStatement"/>。
 /// </summary>
-public static class SqlExecutor
+public static partial class SqlExecutor
 {
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
@@ -328,6 +328,38 @@ public static class SqlExecutor
     public static object? ExecuteStatement(Tsdb tsdb, SqlStatement statement)
         => ExecuteStatement(tsdb, databaseName: null, statement: statement, controlPlane: null);
 
+    /// <summary>按名称和方向执行已有 SQL 过程，并返回完整成功后的结果及输出快照。</summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="name">过程名称，直接查找目录，不作为 SQL 文本执行。</param>
+    /// <param name="arguments">命名参数；集合顺序不影响绑定。</param>
+    /// <param name="transaction">调用方已有事务。</param>
+    /// <param name="options">取消、权限及预算；省略时采用嵌入式默认值。</param>
+    /// <param name="databaseName">可选数据库名称。</param>
+    /// <param name="controlPlane">可选控制面。</param>
+    /// <param name="validateCompletion">提交前的结果检查或编码回调；抛出异常会撤销本次调用，不得发布输出或执行外部副作用。</param>
+    /// <returns>成功完成的多结果与输出快照；失败时抛出原有例程诊断。</returns>
+    public static ProcedureExecutionResult ExecuteProcedure(
+        Tsdb tsdb,
+        string name,
+        IReadOnlyList<ProcedureCallArgument> arguments,
+        SqlTransactionContext? transaction = null,
+        SqlExecutionOptions? options = null,
+        string? databaseName = null,
+        IControlPlane? controlPlane = null,
+        Action<ProcedureExecutionResult>? validateCompletion = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(arguments.Count, 1024);
+        var statement = new CallProcedureStatement(name, [])
+        {
+            NamedArguments = Array.AsReadOnly(arguments.ToArray()),
+            CompletionValidator = validateCompletion,
+        };
+        return (ProcedureExecutionResult)ExecuteStatement(
+            tsdb, databaseName, statement, controlPlane, transaction, options ?? SqlExecutionOptions.Default)!;
+    }
+
     /// <summary>
     /// 执行一条已解析的 SQL 语句，可选传入控制面以支持控制面 DDL。
     /// </summary>
@@ -386,7 +418,17 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
-        statement = BindNames(tsdb, statement);
+        SqlDdlTransactionWorkspace? ddlWorkspace = transaction?.DdlWorkspace;
+        Tsdb executionDatabase = ddlWorkspace?.Database ?? tsdb;
+        SqlSessionContext? session = options.SessionContext ?? SqlSessionContext.Current ?? transaction?.SessionContext;
+        using IDisposable? sessionScope = session?.EnterScope(options.CancellationToken);
+        session?.ValidateDatabase(tsdb);
+        if (session is not null)
+        {
+            options = options with { SessionContext = session };
+            transaction?.AttachSession(session);
+        }
+        statement = BindNames(executionDatabase, statement);
         SqlLockingReadContract.Validate(statement);
         using var deadlineSource = options.CreateDeadlineSource();
         if (deadlineSource is not null)
@@ -405,7 +447,7 @@ public static class SqlExecutor
         if (options.QueryFingerprint is null)
             options = options with { QueryFingerprint = SqlStatementFingerprint.Create(statement) };
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
-        SqlSerializableSourceValidator.Validate(tsdb, statement, transaction, options.CancellationToken);
+        SqlSerializableSourceValidator.Validate(executionDatabase, statement, transaction, options.CancellationToken);
         EnsureModbusAdministrationAllowed(statement, options);
 
         bool isRootStatement = RoutineExecutionContext.Current is null;
@@ -421,143 +463,156 @@ public static class SqlExecutor
         transaction?.ExpandDeferredCascades(tsdb.Tables);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
-        SqlDateTimeOffsetContract.Validate(tsdb, statement);
-        RejectDirectModbusSourceWrites(tsdb, statement);
+        SqlDateTimeOffsetContract.Validate(executionDatabase, statement);
+        RejectDirectModbusSourceWrites(executionDatabase, statement);
         if (statement is SelectStatement sequenceQuery)
             SqlDurationResultContract.ValidateBeforeSequence(tsdb, sequenceQuery);
 
+        if (IsTemporaryMutation(tsdb, statement))
+            return ExecuteTemporaryMutation(tsdb, statement, transaction, options);
+
+        if (transaction is { IsCompleted: false }
+            && SqlDdlTransactionStatement.IsSupported(statement))
+        {
+            ddlWorkspace ??= transaction.GetOrCreateDdlWorkspace(
+                tsdb,
+                cancellationToken: options.CancellationToken);
+            return ddlWorkspace.ExecuteDdl(statement, options);
+        }
+
         object? executionResult = statement switch
         {
-            CreateSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
+            CreateSequenceStatement sequence => executionDatabase.ExecuteSchemaMutation(() =>
             {
-                tsdb.Sequences.Create(sequence.Name, sequence.NameIsQuoted, sequence.Start, sequence.Increment, sequence.IfNotExists);
+                executionDatabase.Sequences.Create(sequence.Name, sequence.NameIsQuoted, sequence.Start, sequence.Increment, sequence.IfNotExists);
                 return new RowsAffectedExecutionResult(sequence.Name, 0, "create_sequence");
             }),
-            DropSequenceStatement sequence => tsdb.ExecuteSchemaMutation(() =>
+            DropSequenceStatement sequence => executionDatabase.ExecuteSchemaMutation(() =>
                 new RowsAffectedExecutionResult(sequence.Name,
-                    tsdb.Sequences.Drop(sequence.Name, sequence.NameIsQuoted, sequence.IfExists) ? 1 : 0, "drop_sequence")),
+                    executionDatabase.Sequences.Drop(sequence.Name, sequence.NameIsQuoted, sequence.IfExists) ? 1 : 0, "drop_sequence")),
             BeginTransactionStatement => new SqlTransactionContext(),
             CommitTransactionStatement => transaction is null
                 ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
                 : TableSqlExecutor.CommitTransaction(tsdb, transaction),
             RollbackTransactionStatement => RollbackTransaction(tsdb, transaction),
             CreateModbusSourceStatement createModbusSource =>
-                ModbusSqlExecutor.ExecuteCreateSource(tsdb, createModbusSource),
+                ModbusSqlExecutor.ExecuteCreateSource(executionDatabase, createModbusSource),
             CreateModbusEndpointStatement createModbusEndpoint =>
-                ModbusSqlExecutor.ExecuteCreateEndpoint(tsdb, createModbusEndpoint),
+                ModbusSqlExecutor.ExecuteCreateEndpoint(executionDatabase, createModbusEndpoint),
             WriteModbusStatement => throw new NotSupportedException(
                 "WRITE MODBUS 只能通过具备确认令牌、持久审计和网络运行时的 Server REST SQL 端点执行。"),
-            CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
-            CreateGraphStatement createGraph => GraphSqlExecutor.CreateGraph(tsdb, createGraph),
+            CreateMeasurementStatement create => ExecuteCreateMeasurement(executionDatabase, create),
+            CreateGraphStatement createGraph => GraphSqlExecutor.CreateGraph(executionDatabase, createGraph),
             CreatePropertyGraphStatement createPropertyGraph =>
-                GraphSqlExecutor.CreatePropertyGraph(tsdb, createPropertyGraph),
-            CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
-            CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
-            CreateViewStatement createView => tsdb.ExecuteSchemaMutation(
-                () => ExecuteCreateView(tsdb, createView)),
-            CreateMaterializedViewStatement createMaterializedView => tsdb.ExecuteSchemaMutation(
-                () => ExecuteCreateMaterializedView(tsdb, createMaterializedView)),
-            CreateProcedureStatement createProcedure => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateProcedure(tsdb, createProcedure)),
-            CreateTriggerStatement createTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateTrigger(tsdb, createTrigger)),
-            AlterTriggerStatement alterTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.AlterTrigger(tsdb, alterTrigger)),
-            CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
-            CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
+                GraphSqlExecutor.CreatePropertyGraph(executionDatabase, createPropertyGraph),
+            CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(executionDatabase, createTable),
+            CreateTableAsStatement createAs => ExecuteCreateTableAs(executionDatabase, createAs, transaction, options),
+            CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(executionDatabase, createDocumentCollection),
+            CreateViewStatement createView => executionDatabase.ExecuteSchemaMutation(
+                () => ExecuteCreateView(executionDatabase, createView)),
+            CreateMaterializedViewStatement createMaterializedView => executionDatabase.ExecuteSchemaMutation(
+                () => ExecuteCreateMaterializedView(executionDatabase, createMaterializedView)),
+            CreateProcedureStatement createProcedure => executionDatabase.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateProcedure(executionDatabase, createProcedure)),
+            CreateTriggerStatement createTrigger => executionDatabase.ExecuteSchemaMutation(() => SqlRoutineRuntime.CreateTrigger(executionDatabase, createTrigger)),
+            AlterTriggerStatement alterTrigger => executionDatabase.ExecuteSchemaMutation(() => SqlRoutineRuntime.AlterTrigger(executionDatabase, alterTrigger)),
+            CreateTableIndexStatement createIndex => ExecuteCreateIndex(executionDatabase, createIndex),
+            CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(executionDatabase, createDocumentIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
-                tsdb,
+                executionDatabase,
                 new CreateDocumentIndexStatement(
                     createDocumentIndex.IndexName,
                     createDocumentIndex.CollectionName,
                     [createDocumentIndex.Path],
                     IfNotExists: createDocumentIndex.IfNotExists)),
-            CreateTableJsonPathIndexStatement createTableJsonIndex => TableSqlExecutor.ExecuteCreateJsonPathIndex(tsdb, createTableJsonIndex),
-            CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(tsdb, createFullTextIndex),
-            CreateDocumentVectorIndexStatement createVectorIndex => DocumentSqlExecutor.ExecuteCreateVectorIndex(tsdb, createVectorIndex),
+            CreateTableJsonPathIndexStatement createTableJsonIndex => TableSqlExecutor.ExecuteCreateJsonPathIndex(executionDatabase, createTableJsonIndex),
+            CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(executionDatabase, createFullTextIndex),
+            CreateDocumentVectorIndexStatement createVectorIndex => DocumentSqlExecutor.ExecuteCreateVectorIndex(executionDatabase, createVectorIndex),
             ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(
-                tsdb,
+                executionDatabase,
                 databaseName,
                 importJson,
                 controlPlane),
-            InsertStatement insert => ExecuteInsert(tsdb, databaseName, insert, controlPlane, transaction),
-            InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(tsdb, insertGraph),
-            UpdateGraphStatement updateGraph => GraphSqlExecutor.UpdateGraph(tsdb, updateGraph),
-            DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(tsdb, deleteGraph),
-            SelectStatement select => ExecuteSelect(tsdb, select,
+            InsertStatement insert => ExecuteInsert(executionDatabase, databaseName, insert, controlPlane, transaction),
+            InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(executionDatabase, insertGraph),
+            UpdateGraphStatement updateGraph => GraphSqlExecutor.UpdateGraph(executionDatabase, updateGraph),
+            DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(executionDatabase, deleteGraph),
+            SelectStatement select => ExecuteSelect(executionDatabase, select,
                 isRootStatement ? options.PreviewMaxRows : null,
                 isRootStatement ? options.PreviewMaxBytes : null),
-            CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
-            ExplainRoutineStatement explainRoutine => SqlRoutineRuntime.ExplainRoutine(tsdb, explainRoutine),
-            ShowRoutineDiagnosticsStatement showRoutine => ShowRoutineDiagnostics(tsdb, showRoutine),
-            RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
-            DeleteStatement delete => ExecuteDelete(tsdb, databaseName, delete, controlPlane, transaction),
-            TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate),
-            UpdateStatement update => ExecuteUpdate(tsdb, databaseName, update, controlPlane, transaction),
-            DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
-            DropGraphStatement dropGraph => GraphSqlExecutor.DropGraph(tsdb, dropGraph),
+            CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(executionDatabase, databaseName, call, controlPlane, transaction),
+            ExplainRoutineStatement explainRoutine => SqlRoutineRuntime.ExplainRoutine(executionDatabase, explainRoutine),
+            ShowRoutineDiagnosticsStatement showRoutine => ShowRoutineDiagnostics(executionDatabase, showRoutine),
+            RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(executionDatabase, refreshMaterializedView),
+            DeleteStatement delete => ExecuteDelete(executionDatabase, databaseName, delete, controlPlane, transaction),
+            TruncateTableStatement truncate => ExecuteTruncate(executionDatabase, truncate),
+            UpdateStatement update => ExecuteUpdate(executionDatabase, databaseName, update, controlPlane, transaction),
+            DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(executionDatabase, dropMeasurement),
+            DropGraphStatement dropGraph => GraphSqlExecutor.DropGraph(executionDatabase, dropGraph),
             DropPropertyGraphStatement dropPropertyGraph =>
-                GraphSqlExecutor.DropPropertyGraph(tsdb, dropPropertyGraph),
-            DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
-            DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
-            DropViewStatement dropView => tsdb.ExecuteSchemaMutation(
-                () => ExecuteDropView(tsdb, dropView)),
-            DropMaterializedViewStatement dropMaterializedView => tsdb.ExecuteSchemaMutation(
-                () => ExecuteDropMaterializedView(tsdb, dropMaterializedView)),
-            DropProcedureStatement dropProcedure => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropProcedure(tsdb, dropProcedure)),
-            DropTriggerStatement dropTrigger => tsdb.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropTrigger(tsdb, dropTrigger)),
-            DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
-            DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
-            DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
-            DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(tsdb, dropVectorIndex),
-            CommentOnTableStatement comment => TableSqlExecutor.ExecuteComment(tsdb, comment),
-            AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
-            AlterTableAlterPrimaryKeyStatement alterPrimaryKey => TableSqlExecutor.ExecuteAlterTablePrimaryKey(tsdb, alterPrimaryKey),
-            AlterTableAutoIncrementStatement identity => ExecuteIdentityMaintenance(tsdb, identity),
-            AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(tsdb, alterColumn),
-            AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(tsdb, alterAddForeignKey),
-            AlterTableAddCheckConstraintStatement alterAddCheckConstraint => TableSqlExecutor.ExecuteAlterTableAddCheckConstraint(tsdb, alterAddCheckConstraint),
-            AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
-            AlterTableDropConstraintStatement alterDropConstraint => TableSqlExecutor.ExecuteAlterTableDropConstraint(tsdb, alterDropConstraint),
-            AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(tsdb, alterRenameColumn),
-            AlterTableRenameTableStatement alterRenameTable => TableSqlExecutor.ExecuteAlterTableRenameTable(tsdb, alterRenameTable),
-            AlterDocumentCollectionSetValidatorStatement setValidator => DocumentSqlExecutor.ExecuteSetValidator(tsdb, setValidator),
-            AlterDocumentCollectionDropValidatorStatement dropValidator => DocumentSqlExecutor.ExecuteDropValidator(tsdb, dropValidator),
-            ShowMeasurementsStatement => ShowMeasurements(tsdb),
-            ShowGraphsStatement => GraphSqlExecutor.ShowGraphs(tsdb),
-            ShowPropertyGraphsStatement => GraphSqlExecutor.ShowPropertyGraphs(tsdb),
-            ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
-            ShowViewsStatement => ShowViews(tsdb),
-            ShowMaterializedViewsStatement => ShowMaterializedViews(tsdb),
-            ShowProceduresStatement => ShowProcedures(tsdb),
-            ShowTriggersStatement showTriggers => ShowTriggers(tsdb, showTriggers.TableName),
-            ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
-            ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
-            ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
-            ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
-            ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus),
-            ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus),
+                GraphSqlExecutor.DropPropertyGraph(executionDatabase, dropPropertyGraph),
+            DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(executionDatabase, dropTable),
+            DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(executionDatabase, dropDocumentCollection),
+            DropViewStatement dropView => executionDatabase.ExecuteSchemaMutation(
+                () => ExecuteDropView(executionDatabase, dropView)),
+            DropMaterializedViewStatement dropMaterializedView => executionDatabase.ExecuteSchemaMutation(
+                () => ExecuteDropMaterializedView(executionDatabase, dropMaterializedView)),
+            DropProcedureStatement dropProcedure => executionDatabase.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropProcedure(executionDatabase, dropProcedure)),
+            DropTriggerStatement dropTrigger => executionDatabase.ExecuteSchemaMutation(() => SqlRoutineRuntime.DropTrigger(executionDatabase, dropTrigger)),
+            DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(executionDatabase, dropIndex),
+            DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(executionDatabase, dropDocumentIndex),
+            DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(executionDatabase, dropFullTextIndex),
+            DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(executionDatabase, dropVectorIndex),
+            CommentOnTableStatement comment => TableSqlExecutor.ExecuteComment(executionDatabase, comment),
+            AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(executionDatabase, alterAddColumn),
+            AlterTableAlterPrimaryKeyStatement alterPrimaryKey => TableSqlExecutor.ExecuteAlterTablePrimaryKey(executionDatabase, alterPrimaryKey),
+            AlterTableAutoIncrementStatement identity => ExecuteIdentityMaintenance(executionDatabase, identity),
+            AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(executionDatabase, alterColumn),
+            AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(executionDatabase, alterAddForeignKey),
+            AlterTableAddCheckConstraintStatement alterAddCheckConstraint => TableSqlExecutor.ExecuteAlterTableAddCheckConstraint(executionDatabase, alterAddCheckConstraint),
+            AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(executionDatabase, alterDropColumn),
+            AlterTableDropConstraintStatement alterDropConstraint => TableSqlExecutor.ExecuteAlterTableDropConstraint(executionDatabase, alterDropConstraint),
+            AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(executionDatabase, alterRenameColumn),
+            AlterTableRenameTableStatement alterRenameTable => TableSqlExecutor.ExecuteAlterTableRenameTable(executionDatabase, alterRenameTable),
+            AlterDocumentCollectionSetValidatorStatement setValidator => DocumentSqlExecutor.ExecuteSetValidator(executionDatabase, setValidator),
+            AlterDocumentCollectionDropValidatorStatement dropValidator => DocumentSqlExecutor.ExecuteDropValidator(executionDatabase, dropValidator),
+            ShowMeasurementsStatement => ShowMeasurements(executionDatabase),
+            ShowGraphsStatement => GraphSqlExecutor.ShowGraphs(executionDatabase),
+            ShowPropertyGraphsStatement => GraphSqlExecutor.ShowPropertyGraphs(executionDatabase),
+            ShowTablesStatement => TableSqlExecutor.ShowTables(executionDatabase),
+            ShowViewsStatement => ShowViews(executionDatabase),
+            ShowMaterializedViewsStatement => ShowMaterializedViews(executionDatabase),
+            ShowProceduresStatement => ShowProcedures(executionDatabase),
+            ShowTriggersStatement showTriggers => ShowTriggers(executionDatabase, showTriggers.TableName),
+            ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(executionDatabase),
+            ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(executionDatabase, showIndexes.TableName),
+            ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(executionDatabase, showDocumentIndexes.CollectionName),
+            ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(executionDatabase, showFullTextIndexes.CollectionName),
+            ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(executionDatabase.Modbus),
+            ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(executionDatabase.Modbus),
             ShowModbusWriteAuditStatement => throw new NotSupportedException(
                 "SHOW MODBUS WRITE AUDIT 只能通过持有服务端审计存储的 Server REST SQL 端点执行。"),
-            DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
-            DescribeGraphStatement describeGraph => GraphSqlExecutor.DescribeGraph(tsdb, describeGraph.Name),
+            DescribeMeasurementStatement describe => DescribeMeasurement(executionDatabase, describe.Name),
+            DescribeGraphStatement describeGraph => GraphSqlExecutor.DescribeGraph(executionDatabase, describeGraph.Name),
             DescribePropertyGraphStatement describePropertyGraph =>
-                GraphSqlExecutor.DescribePropertyGraph(tsdb, describePropertyGraph.Name),
-            AnalyzeGraphStatement analyzeGraph => GraphSqlExecutor.AnalyzeGraph(tsdb, analyzeGraph),
-            DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
-            AnalyzeTableStatement analyzeTable => TableSqlExecutor.ExecuteAnalyze(tsdb, analyzeTable),
-            DescribeViewStatement describeView => DescribeView(tsdb,
-                tsdb.Views.Catalog.Resolve(describeView.Name, describeView.NameIsQuoted)?.Name ?? describeView.Name),
-            DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb,
-                tsdb.MaterializedViews.Catalog.Resolve(describeMaterializedView.Name, describeMaterializedView.NameIsQuoted)?.Name
+                GraphSqlExecutor.DescribePropertyGraph(executionDatabase, describePropertyGraph.Name),
+            AnalyzeGraphStatement analyzeGraph => GraphSqlExecutor.AnalyzeGraph(executionDatabase, analyzeGraph),
+            DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(executionDatabase, describeTable.Name),
+            AnalyzeTableStatement analyzeTable => TableSqlExecutor.ExecuteAnalyze(executionDatabase, analyzeTable),
+            DescribeViewStatement describeView => DescribeView(executionDatabase,
+                executionDatabase.Views.Catalog.Resolve(describeView.Name, describeView.NameIsQuoted)?.Name ?? describeView.Name),
+            DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(executionDatabase,
+                executionDatabase.MaterializedViews.Catalog.Resolve(describeMaterializedView.Name, describeMaterializedView.NameIsQuoted)?.Name
                     ?? describeMaterializedView.Name),
-            DescribeProcedureStatement describeProcedure => DescribeProcedure(tsdb, describeProcedure.Name),
-            DescribeTriggerStatement describeTrigger => DescribeTrigger(tsdb, describeTrigger.Name),
-            DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
+            DescribeProcedureStatement describeProcedure => DescribeProcedure(executionDatabase, describeProcedure.Name),
+            DescribeTriggerStatement describeTrigger => DescribeTrigger(executionDatabase, describeTrigger.Name),
+            DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(executionDatabase, describeDocumentCollection.Name),
             DescribeModbusSourceStatement describeModbusSource =>
-                ModbusSqlExecutor.DescribeSource(tsdb.Modbus, describeModbusSource.Name),
+                ModbusSqlExecutor.DescribeSource(executionDatabase.Modbus, describeModbusSource.Name),
             DescribeModbusEndpointStatement describeModbusEndpoint =>
-                ModbusSqlExecutor.DescribeEndpoint(tsdb.Modbus, describeModbusEndpoint.Name),
+                ModbusSqlExecutor.DescribeEndpoint(executionDatabase.Modbus, describeModbusEndpoint.Name),
             DescribeModbusTableStatement describeModbusTable =>
-                ModbusSqlExecutor.DescribeTable(tsdb.Modbus.Catalog, describeModbusTable.Name),
-            ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
+                ModbusSqlExecutor.DescribeTable(executionDatabase.Modbus.Catalog, describeModbusTable.Name),
+            ExplainStatement explain => ExecuteExplain(executionDatabase, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
                 cp => { cp.CreateUser(createUser.UserName, createUser.Password, createUser.IsSuperuser); return (object)1; }),
             AlterUserPasswordStatement alterUser => ExecuteControlPlane(controlPlane,
@@ -584,6 +639,8 @@ public static class SqlExecutor
         };
         // 过程内 SELECT 必须在其拥有的事务提交前验证，动态表达式也不能逃过旧协议拒绝。
         SqlDurationResultContract.Validate(executionResult);
+        if (executionResult is SqlTransactionContext started && session is not null)
+            started.AttachSession(session);
         return executionResult;
     }
 
@@ -663,12 +720,18 @@ public static class SqlExecutor
         throw new InvalidOperationException("Modbus 基础设施定义、远端控制写和写审计需要当前数据库的 Admin 权限。");
     }
 
-    // 轻事务只缓冲关系表 DML；schema、控制面和文件导入必须在进入执行分支前拒绝。
+    // 轻事务缓冲关系表 DML，并把受限关系 DDL 转入私有 workspace；其它 schema、控制面
+    // 和文件导入仍必须在进入执行分支前拒绝。
     private static void RejectUnsupportedStatementInActiveTransaction(
         SqlStatement statement,
         SqlTransactionContext? transaction)
     {
         if (transaction is null || transaction.IsCompleted)
+            return;
+
+        if (statement is CreateTableStatement { IsTemporary: true }
+            or CreateTableAsStatement { IsTemporary: true }
+            || IsTemporaryDropOrTruncate(statement))
             return;
 
         if (statement is ImportJsonStatement)
@@ -692,8 +755,11 @@ public static class SqlExecutor
         if (!IsDdlStatement(statement))
             return;
 
+        if (SqlDdlTransactionStatement.IsSupported(statement))
+            return;
+
         throw new NotSupportedException(
-            "DDL 语句不能在活动轻事务内执行；请在 BEGIN 前或 COMMIT/ROLLBACK 后执行。");
+            "当前 DDL 不属于关系表 DDL 事务范围；请在 BEGIN 前或 COMMIT/ROLLBACK 后执行。");
     }
 
     private static bool IsDdlStatement(SqlStatement statement)
@@ -706,6 +772,7 @@ public static class SqlExecutor
             or CreateModbusSourceStatement
             or CreateModbusEndpointStatement
             or CreateTableStatement
+            or CreateTableAsStatement
             or CreateDocumentCollectionStatement
             or CreateViewStatement
             or CreateMaterializedViewStatement
@@ -760,6 +827,7 @@ public static class SqlExecutor
         if (transaction is null)
             throw new InvalidOperationException("ROLLBACK 前没有活动轻事务。");
         transaction.ThrowIfCompleted();
+        transaction.RollbackDdlWorkspace();
         transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
             SonnetDB.Exceptions.RoutineErrorCodes.RolledBack);
         transaction.MarkCompleted();
@@ -1000,6 +1068,8 @@ public static class SqlExecutor
         var graphNames = new HashSet<string>(graphDependencies, StringComparer.Ordinal);
         foreach (string dependency in dependencies)
         {
+            if (tsdb.Tables.Catalog.TryGet(dependency) is { } table && SqlTemporaryTableIdentity.TryGet(table, out _))
+                throw new NotSupportedException("持久视图与物化视图不能依赖连接临时表。");
             if (string.Equals(dependency, name, StringComparison.Ordinal))
                 throw new InvalidOperationException($"{objectType} '{name}' 不能直接或间接引用自身。");
             bool exists = graphNames.Contains(dependency)
@@ -1334,7 +1404,13 @@ public static class SqlExecutor
 
     private static string FormatProcedureParameters(IReadOnlyList<SqlProcedureParameter> parameters)
         => string.Join(", ", parameters.Select(static parameter =>
-            $"IN {parameter.Name} {parameter.DataType switch
+            $"{parameter.Direction switch
+            {
+                SqlProcedureParameterDirection.Input => "IN",
+                SqlProcedureParameterDirection.Output => "OUT",
+                SqlProcedureParameterDirection.InputOutput => "INOUT",
+                _ => throw new ArgumentOutOfRangeException(nameof(parameter.Direction)),
+            }} {parameter.Name} {parameter.DataType switch
             {
                 SqlProcedureParameterType.Int64 => "INT",
                 SqlProcedureParameterType.Float64 => "FLOAT",
@@ -1623,7 +1699,7 @@ public static class SqlExecutor
         SqlDataType.String => FieldType.String,
         SqlDataType.Vector => FieldType.Vector,
         SqlDataType.GeoPoint => FieldType.GeoPoint,
-        SqlDataType.DateTime or SqlDataType.Blob or SqlDataType.Json => throw new NotSupportedException(
+        SqlDataType.DateTime or SqlDataType.DateTime2 or SqlDataType.Blob or SqlDataType.Json => throw new NotSupportedException(
             $"CREATE MEASUREMENT 不支持数据类型 {type}；该类型仅用于关系表 CREATE TABLE。"),
         _ => throw new NotSupportedException($"未知数据类型 {type}。"),
     };
@@ -1691,6 +1767,11 @@ public static class SqlExecutor
 
         bool hasRoleHints = statement.ColumnRoleHints.Any(static role => role is not null);
 
+        TableObjectName targetObjectName = statement.TargetQualifiedName?.ObjectName
+            ?? new TableObjectName(statement.Measurement);
+        if (statement.IsReplace && tsdb.Tables.Catalog.TryGet(targetObjectName) is null)
+            throw new NotSupportedException("REPLACE 仅支持已有关系表。");
+
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
@@ -1705,11 +1786,13 @@ public static class SqlExecutor
             return DocumentSqlExecutor.ExecuteInsert(tsdb, statement, documentSchema);
         }
 
-        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        var tableSchema = tsdb.Tables.Catalog.TryGet(targetObjectName);
         if (tableSchema is not null)
         {
             if (hasRoleHints)
                 throw new InvalidOperationException("INSERT 的 TAG / FIELD 列角色提示仅适用于 measurement。");
+            if (statement.IsReplace)
+                return SqlReplaceExecutor.Execute(tsdb, databaseName, statement, tableSchema, controlPlane, transaction);
             return ExecuteTableInsertWithTriggers(
                 tsdb,
                 databaseName,
@@ -1941,7 +2024,7 @@ public static class SqlExecutor
             && statement.FromSubquery is null
             && statement.JoinClauses.Count == 0
             && !RelationalSelectExecutor.NeedsRelationalPath(statement)
-            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } distinctSchema
+            && ResolveBoundTable(tsdb, statement) is { } distinctSchema
             && TableSqlExecutor.CanStreamDistinct(statement, distinctSchema))
         {
             return ApplyCteOutputColumnNames(
@@ -2309,7 +2392,7 @@ public static class SqlExecutor
             return informationSchemaResult;
 
         var tableSchema = statement.FromSubquery is null
-            ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
+            ? ResolveBoundTable(tsdb, statement)
             : null;
         if (SqlRowRetentionBudget.HasExecutionBudget && tableSchema is not null)
             return RelationalSelectExecutor.Execute(tsdb, statement);
@@ -2382,6 +2465,11 @@ public static class SqlExecutor
                 EnsureMaterializationTableSupported(tsdb, join.TableName);
         }
     }
+
+    private static TableSchema? ResolveBoundTable(Tsdb tsdb, SelectStatement statement)
+        => statement.SourceQualifiedName is { } qualified
+            ? tsdb.Tables.Catalog.Resolve(qualified.SchemaName, qualified.SchemaIsQuoted, qualified.Name, qualified.NameIsQuoted)
+            : tsdb.Tables.Catalog.TryGet(statement.Measurement);
 
     private static void EnsureMaterializationTableSupported(Tsdb tsdb, string name)
     {
@@ -2776,6 +2864,7 @@ public static class SqlExecutor
             TableColumnType.Boolean => "boolean",
             TableColumnType.String => "string",
             TableColumnType.DateTime => "datetime",
+            TableColumnType.DateTime2 => "datetime2",
             TableColumnType.Time => "time",
             TableColumnType.Duration => "duration",
             TableColumnType.Blob => "blob",

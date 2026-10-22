@@ -1,0 +1,188 @@
+using System.Data;
+using System.Data.Common;
+using System.Reflection;
+using System.Security.Cryptography;
+using SonnetDB.Data;
+using SqlSugar;
+
+if (args.Length != 2) return 2;
+string connectionString = args[0] == "--connection-env"
+    ? Environment.GetEnvironmentVariable("ISSUE247_CONNECTION") ?? throw new InvalidOperationException("Connection environment missing.")
+    : args[0];
+string label = args[1];
+using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+int passed = 0, failed = 0, id = 0;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SonnetDB.Protocol", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}");
+}
+using (var setup = new SndbConnection(connectionString))
+{
+    await setup.OpenAsync(deadline.Token);
+    await Execute(setup, "CREATE TABLE probe_items(id INT,value INT,PRIMARY KEY(id))");
+    await Execute(setup, """
+        CREATE PROCEDURE probe_exchange(IN row_id INT,INOUT state INT,OUT output STRING) LANGUAGE SQL AS BEGIN
+          INSERT INTO probe_items(id,value) VALUES(@row_id,@state);
+          SET @state=@state+2;
+          SELECT @state AS first;
+          SELECT 'second' AS second;
+          SET @output='done'; RETURN 7;
+        END
+        """);
+}
+
+foreach (bool asynchronous in new[] { false, true })
+{
+    foreach (string entry in new[] { "scalar", "nonquery" })
+        await Run($"outputs-{entry}-{asynchronous}", async () =>
+        {
+            using var db = NewSugar();
+            var parameters = Parameters();
+            var ado = db.Ado.UseStoredProcedure();
+            if (entry == "scalar") Require(Convert.ToInt64(asynchronous ? await ado.GetScalarAsync("probe_exchange", parameters) : ado.GetScalar("probe_exchange", parameters)) == 12, "Scalar value differs.");
+            else Require((asynchronous ? await ado.ExecuteCommandAsync("probe_exchange", parameters) : ado.ExecuteCommand("probe_exchange", parameters)) == 1, "Affected rows differ.");
+            AssertCompleted(parameters);
+        });
+    foreach (bool early in new[] { false, true })
+        foreach (string close in new[] { "close", "dispose", "dispose-async" })
+            await Run($"outputs-reader-{asynchronous}-early={early}-{close}", async () =>
+            {
+                using var db = NewSugar();
+                db.Ado.IsClearParameters = true;
+                var parameters = Parameters();
+                var ado = db.Ado.UseStoredProcedure();
+                var reader = (DbDataReader)(asynchronous ? await ado.GetDataReaderAsync("probe_exchange", parameters) : ado.GetDataReader("probe_exchange", parameters));
+                try
+                {
+                    AssertOriginal(parameters);
+                    if (!early)
+                    {
+                        Require(asynchronous ? await reader.ReadAsync(deadline.Token) : reader.Read(), "Missing first row.");
+                        Require(reader.GetName(0) == "first" && reader.GetInt64(0) == 12, "First result differs.");
+                        Require(asynchronous ? await reader.NextResultAsync(deadline.Token) : reader.NextResult(), "Missing second result.");
+                        Require(asynchronous ? await reader.ReadAsync(deadline.Token) : reader.Read(), "Missing second row.");
+                        Require(reader.GetName(0) == "second" && reader.GetString(0) == "second", "Second result differs.");
+                        Require(!(asynchronous ? await reader.NextResultAsync(deadline.Token) : reader.NextResult()), "Unexpected third result.");
+                        AssertOriginal(parameters);
+                    }
+                    if (close == "close") reader.Close();
+                    else if (close == "dispose") reader.Dispose();
+                    else await reader.DisposeAsync();
+                    AssertCompleted(parameters);
+                    parameters[0].Value = "after close";
+                    reader.Close();
+                    Require(Equals(parameters[0].Value, "after close"), "Repeated close republished outputs.");
+                }
+                finally { await reader.DisposeAsync(); }
+            });
+}
+
+foreach (string operation in new[] { "read", "next-result" })
+    await Run($"reader-cancel-{operation}", async () =>
+    {
+        using var db = NewSugar();
+        var parameters = Parameters();
+        await using var reader = (DbDataReader)await db.Ado.UseStoredProcedure().GetDataReaderAsync("probe_exchange", parameters);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        bool rejected = false;
+        try
+        {
+            if (operation == "read") await reader.ReadAsync(cancelled.Token);
+            else await reader.NextResultAsync(cancelled.Token);
+        }
+        catch (OperationCanceledException) { rejected = true; }
+        Require(rejected, "Cancelled reader operation succeeded.");
+        reader.Close();
+        AssertOriginal(parameters);
+    });
+
+foreach (string entry in new[] { "scalar", "nonquery", "reader" })
+    await Run($"output-size-failure-{entry}", async () =>
+    {
+        using var db = NewSugar();
+        var parameters = Parameters();
+        parameters[0].Size = 2;
+        long rowId = Convert.ToInt64(parameters[3].Value);
+        var ado = db.Ado.UseStoredProcedure();
+        bool rejected = false;
+        try
+        {
+            if (entry == "scalar") await ado.GetScalarAsync("probe_exchange", parameters);
+            else if (entry == "nonquery") await ado.ExecuteCommandAsync("probe_exchange", parameters);
+            else using (await ado.GetDataReaderAsync("probe_exchange", parameters)) { }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) { rejected = true; }
+        Require(rejected, "Invalid output Size unexpectedly succeeded.");
+        AssertOriginal(parameters);
+        using var check = new SndbConnection(connectionString);
+        await check.OpenAsync(deadline.Token);
+        using var count = new SndbCommand($"SELECT COUNT(*) FROM probe_items WHERE id={rowId}", check);
+        Require(Equals(0L, await count.ExecuteScalarAsync(deadline.Token)), "Failed call committed a row.");
+    });
+
+await Run("reader-frozen-targets-and-command-disposed-by-real-sqlsugar", async () =>
+{
+    using var db = NewSugar();
+    var parameters = Parameters();
+    var original = parameters[0];
+    await using var reader = (DbDataReader)await db.Ado.UseStoredProcedure().GetDataReaderAsync("probe_exchange", parameters);
+    Require(reader.Read(), "Reader stopped after SqlSugar disposed its command.");
+    parameters[0] = new SugarParameter("@output", "replacement") { Direction = ParameterDirection.Output, DbType = System.Data.DbType.String };
+    original.DbType = System.Data.DbType.Int64;
+    original.Size = 1;
+    reader.Close();
+    Require(Equals(original.Value, "done"), "Original SugarParameter target not published.");
+    Require(Equals(parameters[0].Value, "replacement"), "Replacement SugarParameter was overwritten.");
+});
+
+await Run("reader-close-then-provider-reuse", async () =>
+{
+    using var db = NewSugar();
+    var first = Parameters();
+    using var reader = db.Ado.UseStoredProcedure().GetDataReader("probe_exchange", first);
+    reader.Close();
+    AssertCompleted(first);
+    var second = Parameters();
+    await db.Ado.UseStoredProcedure().GetScalarAsync("probe_exchange", second);
+    AssertCompleted(second);
+    first[0].Value = "after reuse";
+    reader.Close();
+    Require(Equals(first[0].Value, "after reuse"), "Old Reader republished after provider reuse.");
+});
+
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|failed={failed}");
+return failed == 0 ? 0 : 1;
+
+SqlSugarClient NewSugar() => new(new ConnectionConfig { ConnectionString = connectionString, DbType = SqlSugar.DbType.SonnetDB, InitKeyType = InitKeyType.Attribute, IsAutoCloseConnection = true });
+SugarParameter[] Parameters() => [
+    new("@output", "old") { Direction = ParameterDirection.Output, DbType = System.Data.DbType.String },
+    new("@state", 10L) { Direction = ParameterDirection.InputOutput, DbType = System.Data.DbType.Int64 },
+    new("@status", -1L) { Direction = ParameterDirection.ReturnValue, DbType = System.Data.DbType.Int64 },
+    new("@row_id", (long)++id) { DbType = System.Data.DbType.Int64 }];
+static void AssertOriginal(SugarParameter[] parameters)
+{
+    Require(Equals(parameters[0].Value, "old"), "Output changed before successful close or after failure.");
+    Require(Convert.ToInt64(parameters[1].Value) == 10, "InputOutput changed before completion.");
+    Require(Convert.ToInt64(parameters[2].Value) == -1, "ReturnValue changed before completion.");
+}
+static void AssertCompleted(SugarParameter[] parameters)
+{
+    Require(Equals(parameters[0].Value, "done"), "SugarParameter Output was not written back on close.");
+    Require(Convert.ToInt64(parameters[1].Value) == 12, "SugarParameter InputOutput differs.");
+    Require(Convert.ToInt64(parameters[2].Value) == 7, "SugarParameter ReturnValue differs.");
+}
+async Task Run(string name, Func<Task> action)
+{
+    deadline.Token.ThrowIfCancellationRequested();
+    try { await action(); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{exception.GetType().Name}|{exception.Message.Replace('\r', ' ').Replace('\n', ' ')}"); }
+}
+async Task Execute(SndbConnection connection, string sql)
+{
+    using var command = new SndbCommand(sql, connection);
+    await command.ExecuteNonQueryAsync(deadline.Token);
+}
+static void Require(bool success, string message) { if (!success) throw new InvalidOperationException(message); }

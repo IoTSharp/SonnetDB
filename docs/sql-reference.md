@@ -9,6 +9,14 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### 关系日期精度（GH-Issue #236 Core 切片）
+
+`DATETIME2` 按 UTC 100ns ticks 保存并返回 `DateTime`。Core 的 CLR `DateTime` 参数默认保留完整 ticks；`Unspecified` 视为 UTC，`Local` 转为 UTC。已有 `DATETIME` 继续使用 Unix 毫秒布局，写入亚毫秒值会明确失败，不能通过先截断参数来绕过检查。measurement 的 `time` 保持既有 Unix 毫秒语义。
+
+`CURRENT_DATETIME()` 和 `CURRENT_UTC_DATETIME()` 的声明仍是旧 `DATETIME`，现在明确返回毫秒对齐值，分别保留 Local 与 UTC Kind，以供已有动态默认值使用。这是两个时钟函数的精度合同收窄；其他内存中的 `DateTime` 表达式、显式 CAST 与日期运算继续保留其实际 ticks。需要原生精度时钟时使用 `CAST(CURRENT_UTC_DATETIME_OFFSET() AS DATETIME2)`。
+
+新类型需要表目录永久兼容级别 v17；删除最后一个新类型对象后也不能直接降级引擎。物化视图中的新类型声明使用 v5。主 FileHeader 布局不变，降级应恢复升级前备份。当前说明对应 Core 实现，匹配的 ADO/远程能力协商和正式包验收仍由后续切片完成。
+
 ### 视图的声明元数据（GH-Issue #261）
 
 读取普通视图或物化视图的原生声明使用 `SELECT * FROM ViewName LIMIT 0`，并在 ADO reader 上调用 `GetFieldType`、`GetDataTypeName`、`GetSchemaTable` 或 `GetColumnSchema`。无需先 `Read()`；空表、零行和全 NULL 结果保留列名、顺序、SQL/CLR 类型与可空性。直接列投影保留已声明的 `DECIMAL(p,s)`；无界 STRING/BLOB 的长度、未知表达式及无法确定的派生精度保持未知，不按样本或 CLR 默认值制造声明。外连接的 NULL 扩展会扩大对应侧的可空性。`LIMIT 0` 只绑定声明，不执行视图的投影、过滤或排序 UDF。
@@ -247,6 +255,18 @@ CREATE TABLE devices (
 - 完整的 `INSERT ... RETURNING` 类型、列属性和跨嵌入式/REST/Frame HTTP/2 ADO 回落合同属于下一未发布版本，首次交付版本号待发布标签确定；已发布的 3.1.0 不应据此视为具备该完整合同。Frame SQL 查询端点仍只读，`Protocol=frame-http2` 的 ADO 写入经同一 HTTP/2 连接回落 REST SQL 端点。
 - EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
 
+#### 连接级 TEMP 表与 CTAS
+
+`CREATE TEMP TABLE` / `CREATE TEMPORARY TABLE` 创建当前逻辑连接独占的关系表；`CREATE TEMP TABLE name AS SELECT ...` 使用查询的声明列和完整结果原子发布临时 CTAS。临时表不写入持久表目录，同一数据库的不同连接可以拥有同名 TEMP 表，普通持久表和当前连接临时表同名时明确报歧义。事务内对 TEMP 表采用连接会话的 COW 视图：提交发布当前连接的新代际，回滚恢复事务前状态，不会删除或改写其它连接的临时对象。
+
+ADO.NET 嵌入式连接在 `Open` 后拥有一个 `SqlSessionContext`，SQL、`GetSchema`、类型化存储过程和轻事务均使用该上下文；`Close` / `Dispose` 回滚活动事务并回收该连接的临时目录。远程连接在首次显式 TEMP/临时 CTAS 前惰性建立独立 connection session；建立后，REST SQL、schema metadata、真实 HTTP/2 Frame、类型化过程和事务请求均携带同一连接身份。过程或普通持久 SQL 本身不会为了兼容性提前创建会话。
+
+远程 connection session 绑定数据库实例和认证身份，不能换 token、跨数据库或跨连接复用。空闲租期为 **5 分钟**，每次成功取得该连接会话的请求会续租；Server 每 15 秒执行防重入、限项和总墙钟受限的回收。显式 `Close` 先按 `connection gate → transaction gate → SqlSessionContext gate` 顺序回滚绑定事务，再删除临时目录。租期过期或连接失联后的下一请求返回 `connection_session_missing`，客户端不会自动创建新会话、把 TEMP 改成持久表或重发原 SQL；调用方必须把原临时状态视为已经丢失并重新开始完整工作流。
+
+旧 Server 没有 connection-session 端点时，客户端会在发送第一条 TEMP 业务 SQL 前返回 `connection_session_not_supported`。普通持久 SQL 和未建立 TEMP 状态的既有连接继续使用旧入口。connection session 使用独立 HTTP header；类型化过程 payload 和远程事务 payload 中既有 `SessionId` 仍只表示事务会话，没有改变协议含义。
+
+SQL 过程在调用连接已经建立 TEMP 后，可以通过 `SELECT` / `INSERT` / `UPDATE` / `DELETE` 读取或修改这些临时表；同名 TEMP 的不同连接仍各读自身数据。过程调用的完成编码或 OUT/INOUT 类型校验失败只回滚当前 CALL 的保存点，包括本次临时写，不撤销调用方外层事务中更早的持久写。过程 body 的既有白名单仍只允许 `SELECT` / `INSERT` / `UPDATE` / `DELETE` / `CALL` 和参数赋值/返回；本切片**不允许在过程体内执行 `CREATE TEMP TABLE`、CTAS 或 DROP DDL**。调用方必须在过程调用前由连接显式创建临时表。
+
 关系表的 `INSERT ... VALUES` 在下一未发布版本支持已有无行标量表达式，包括常量、参数、`CAST`、标量函数、`CASE` 和算术。多行 `VALUES` 可与 `RETURNING`、`ON CONFLICT`、默认值和已有事务/触发器组合：
 
 ```sql
@@ -433,7 +453,7 @@ DROP MATERIALIZED VIEW IF EXISTS active_device_cache;
 
 ### SQL 存储过程
 
-存储过程首版只支持 `LANGUAGE SQL`、有序 IN 参数和静态 SQL body。参数类型为 `INT`、`FLOAT`、`BOOL`、`STRING`，body 通过 `@参数名` 引用参数；绑定发生在 AST 上，不执行文本替换。
+原生存储过程支持 `LANGUAGE SQL`、IN/OUT/INOUT 参数和静态 SQL body。参数类型仍限 `INT`、`FLOAT`、`BOOL`、`STRING`，body 通过 `@参数名` 引用参数；绑定发生在 AST 上，不执行文本替换。OUT 从 NULL 开始，INOUT 从输入开始；通过 `SET @参数名 = 表达式` 赋值，`RETURN 整数表达式` 结束当前过程并提供 Int64 状态（默认 0）。IN 赋值、NULL/溢出/非整数 RETURN 被拒绝。
 
 ```sql
 CREATE PROCEDURE add_device (
@@ -466,15 +486,25 @@ DROP PROCEDURE IF EXISTS add_device;
 
 执行合同：
 
-- body 允许 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 和 `CALL`；写目标必须是关系表，首版不允许过程写 measurement 或 document collection。SELECT 继续复用当前支持的数据源与查询执行器。
-- 定义时解析全部语句并校验命名参数、数据对象和已存在的被调用过程。过程不能重载，不支持默认参数、OUT/INOUT、动态 SQL、DDL 或外部语言运行时。
-- 多语句过程只向调用方返回 body 最后一条语句的结果；中间 SELECT 参与结果行数治理，但不形成多个远程结果集。
+- body 允许 `SELECT`、`INSERT`、`UPDATE`、`DELETE`、`CALL`，以及过程作用域的 `SET @参数` 和 `RETURN`；写目标必须是关系表，首版不允许过程写 measurement 或 document collection。SELECT 继续复用当前支持的数据源与查询执行器。
+- 定义时解析全部语句并校验命名参数、数据对象和已存在的被调用过程。过程不能重载，不支持默认参数、动态 SQL、DDL 或外部语言运行时。
+- 直接 Core 文本 CALL 默认返回 body 最后一条语句的结果；类型化调用保留完整结果，显式客户端捕获选项见下文。中间结果继续参与累计行预算；完整远程过程接口尚待后续验收。
 - 直接或传递包含写入的过程自动使用轻事务；失败时整次调用回滚。位于调用方已有事务中时使用保存点，只撤销该次失败调用新增的 mutation。
 - 默认单次调用链最多执行 64 条 body 语句、嵌套 8 层、累计产生 10,000 行结果（包含 INSERT RETURNING）；嵌套 CALL 的最终结果只计一次。SELECT 按剩余行预算加一行探测下推分页，超限失败，不静默截断；阻塞算子的中间数据仍受独立 SQL 内存预算约束。拒绝直接或间接递归，在语句边界、关系行扫描和提交前检查取消。
 - 写权限按完整调用图传递计算。只读凭据可调用只读过程，不能通过外层只读过程调用内层写过程提升权限；Frame SQL query 通道固定为只读，因此也只能调用只读过程。
 - `CREATE/DROP PROCEDURE` 不能在活动轻事务中执行。基础对象 `DROP/ALTER` 和被调用过程 `DROP` 会在仍有依赖时返回 `routine_dependency`。
 
-过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。当前 v4 在启用状态、执行顺序、时机、粒度和 transition table 别名之外持久化约束/延迟标志，兼容读取 v1/v2/v3（旧定义默认为立即触发器）。修改目录后写入 v4，旧引擎会拒绝打开，不可直接降级；未知标志或不一致组合也会被拒绝。主数据文件、KV/WAL 及关系事务 journal 格式不变。
+过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。当前 v5 在启用状态、执行顺序、时机、粒度和 transition table 别名之外持久化约束/延迟标志与过程参数方向，兼容读取 v1/v2/v3/v4（旧过程参数默认为 IN；旧触发器保留对应版本的默认值）。修改目录后写入 v5，旧引擎会拒绝打开，不可直接降级；未知标志或不一致组合也会被拒绝。主数据文件、KV/WAL 及关系事务 journal 格式不变。
+
+### 过程方向与 Core 命名调用
+
+包含 OUT/INOUT 的过程使用 `SqlExecutor.ExecuteProcedure` 的类型化命名参数入口；当前 SQL 文本 CALL 仍按位置执行全 IN 参数。命名参数顺序可交换，允许单个 `@`/`:` 前缀，拒绝重复、缺失、额外参数与方向不符。嵌套 OUT/INOUT 必须绑定同类型的父过程可写参数。
+
+`ProcedureExecutionResult` 保留 SELECT/RETURNING 顺序、OUT/INOUT、RETURN 状态和累计 DML 影响数。没有 DML 且有结果为 -1，没有结果也没有 DML 为 0。直接 Core 文本 CALL 默认保留最后结果形态；数据客户端可显式设置 `SqlExecutionOptions.CaptureProcedureResults` 捕获完整结果。
+
+可选 `validateCompletion` 回调在隐式提交前检查/编码完整结果，抛出异常时撤销本次调用；已有调用方事务保留调用前写入，由调用方最终 COMMIT。类型化写调用会预验缓冲区内已知主键冲突，但不会提前验证所有延迟约束、触发器或并发结果；成功完成快照不能证明外层事务已持久提交。回调不得发布输出或产生外部副作用。
+
+例程目录使用 v5 记录参数方向；v1–v4 按 IN 读入，后续保存使用 v5，未知版本/方向拒绝。未修改数据库 FileHeader；旧引擎无法读取新目录，降级须恢复升级前副本。本切片的 ADO 标准命令、Reader 输出回写、远程协议与真实 SqlSugar 验收仍在推进，不能由 Core 支持外推为完整客户端已交付。
 
 ### SQL 触发器
 

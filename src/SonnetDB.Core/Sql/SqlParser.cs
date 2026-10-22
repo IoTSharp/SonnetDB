@@ -197,6 +197,13 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordSet)
         {
             Advance();
+            if (Current.Kind == TokenKind.Parameter && !string.IsNullOrEmpty(Current.Text))
+            {
+                string parameterName = Current.Text;
+                Advance();
+                Expect(TokenKind.Equal);
+                return new SetProcedureParameterStatement(parameterName, ParseExpression());
+            }
             ExpectIdentifier("new", "SET 仅支持 BEFORE 触发器中的 NEW.column 赋值");
             Expect(TokenKind.Dot);
             string column = ExpectColumnName(out bool columnIsQuoted);
@@ -208,8 +215,15 @@ public sealed class SqlParser
         }
         if (IsIdentifier("refresh"))
             return ParseRefreshMaterializedView();
+        if (IsIdentifier("replace"))
+            return ParseInsert(isReplace: true);
         if (IsIdentifier("call"))
             return ParseCallProcedure();
+        if (IsIdentifier("return"))
+        {
+            Advance();
+            return new ReturnProcedureStatement(ParseExpression());
+        }
         if (IsIdentifier("comment"))
             return ParseComment();
         if (IsIdentifier("analyze"))
@@ -357,6 +371,13 @@ public sealed class SqlParser
     private SqlStatement ParseCreate()
     {
         Expect(TokenKind.KeywordCreate);
+        if (IsIdentifier("temp") || IsIdentifier("temporary"))
+        {
+            Advance();
+            if (Current.Kind != TokenKind.KeywordTable)
+                throw Error("CREATE TEMP / TEMPORARY 后面必须是 TABLE");
+            return ParseCreateTableBody(temporary: true);
+        }
         var unique = false;
         if (Current.Kind == TokenKind.KeywordUnique || IsIdentifier("unique"))
         {
@@ -800,18 +821,31 @@ public sealed class SqlParser
         string name = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
         var parameters = new List<SqlProcedureParameter>();
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (Current.Kind != TokenKind.RightParen)
         {
             while (true)
             {
-                if (IsIdentifier("out") || IsIdentifier("inout"))
-                    throw Error("SQL 过程首版只支持 IN 参数，不支持 OUT / INOUT");
-                Expect(TokenKind.KeywordIn);
+                SqlProcedureParameterDirection direction;
+                if (IsIdentifier("out"))
+                {
+                    direction = SqlProcedureParameterDirection.Output;
+                    Advance();
+                }
+                else if (IsIdentifier("inout"))
+                {
+                    direction = SqlProcedureParameterDirection.InputOutput;
+                    Advance();
+                }
+                else
+                {
+                    direction = SqlProcedureParameterDirection.Input;
+                    Expect(TokenKind.KeywordIn);
+                }
                 string parameterName = ExpectIdentifierName();
                 if (!names.Add(parameterName))
                     throw Error($"过程参数 '{parameterName}' 重复声明");
-                parameters.Add(new SqlProcedureParameter(parameterName, ParseProcedureParameterType()));
+                parameters.Add(new SqlProcedureParameter(parameterName, ParseProcedureParameterType(), direction));
                 if (Current.Kind != TokenKind.Comma)
                     break;
                 Advance();
@@ -840,7 +874,9 @@ public sealed class SqlParser
         };
         Advance();
         Expect(TokenKind.KeywordOn);
-        string tableName = ExpectIdentifierName(out bool tableNameIsQuoted);
+        SqlQualifiedObjectName tableObjectName = ExpectRelationalObjectName();
+        string tableName = tableObjectName.Name;
+        bool tableNameIsQuoted = tableObjectName.NameIsQuoted;
         if (isConstraint)
         {
             ExpectIdentifier("deferrable", "CONSTRAINT TRIGGER 必须声明 DEFERRABLE INITIALLY DEFERRED");
@@ -910,6 +946,7 @@ public sealed class SqlParser
             body,
             bodySql)
         {
+            TableQualifiedName = tableObjectName,
             TableNameIsQuoted = tableNameIsQuoted,
             RelativeTo = relativeTo,
             Precedes = precedes,
@@ -1100,7 +1137,9 @@ public sealed class SqlParser
 
         var indexName = ExpectIdentifierName(out bool indexNameIsQuoted);
         Expect(TokenKind.KeywordOn);
-        var tableName = ExpectIdentifierName(out bool tableNameIsQuoted);
+        SqlQualifiedObjectName tableObjectName = ExpectRelationalObjectName();
+        string tableName = tableObjectName.Name;
+        bool tableNameIsQuoted = tableObjectName.NameIsQuoted;
         Expect(TokenKind.LeftParen);
         var columns = new List<string>();
         var columnIsQuoted = new List<bool>();
@@ -1156,6 +1195,7 @@ public sealed class SqlParser
 
         return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions, online)
         {
+            TableQualifiedName = tableObjectName,
             IndexNameIsQuoted = indexNameIsQuoted,
             TableNameIsQuoted = tableNameIsQuoted,
             ColumnIsQuoted = columnIsQuoted,
@@ -1397,7 +1437,7 @@ public sealed class SqlParser
 
     // ── CREATE TABLE ───────────────────────────────────────────────────────
 
-    private CreateTableStatement ParseCreateTableBody()
+    private SqlStatement ParseCreateTableBody(bool temporary = false)
     {
         Expect(TokenKind.KeywordTable);
 
@@ -1410,7 +1450,19 @@ public sealed class SqlParser
             ifNotExists = true;
         }
 
-        var name = ExpectIdentifierName(out bool nameIsQuoted);
+        SqlQualifiedObjectName objectName = ExpectRelationalObjectName();
+        string name = objectName.Name;
+        bool nameIsQuoted = objectName.NameIsQuoted;
+        if (Current.Kind == TokenKind.KeywordAs)
+        {
+            Advance();
+            if (Current.Kind != TokenKind.KeywordSelect && Current.Kind != TokenKind.KeywordWith)
+                throw Error("CTAS 的 AS 后面必须是只读 SELECT 查询");
+            SelectStatement query = Current.Kind == TokenKind.KeywordWith
+                ? ParseWithSelect() : ParseSelect();
+            return new CreateTableAsStatement(name, query, temporary, ifNotExists)
+            { NameIsQuoted = nameIsQuoted, QualifiedName = objectName };
+        }
         Expect(TokenKind.LeftParen);
 
         var columns = new List<TableColumnDefinition>();
@@ -1480,6 +1532,8 @@ public sealed class SqlParser
 
         return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys, checkConstraints)
         {
+            QualifiedName = objectName,
+            IsTemporary = temporary,
             NameIsQuoted = nameIsQuoted,
             PrimaryKeyColumnIsQuoted = primaryKeyColumnIsQuoted,
             PrimaryKeyConstraintName = primaryKeyConstraintName,
@@ -2035,7 +2089,9 @@ public sealed class SqlParser
         }
         Expect(TokenKind.RightParen);
         Expect(TokenKind.KeywordReferences);
-        var principalTable = ExpectIdentifierName(out bool principalTableIsQuoted);
+        SqlQualifiedObjectName principalObjectName = ExpectRelationalObjectName();
+        string principalTable = principalObjectName.Name;
+        bool principalTableIsQuoted = principalObjectName.NameIsQuoted;
         Expect(TokenKind.LeftParen);
         var principalColumns = new List<string>();
         var principalColumnIsQuoted = new List<bool>();
@@ -2059,6 +2115,7 @@ public sealed class SqlParser
 
         return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete)
         {
+            PrincipalQualifiedName = principalObjectName,
             Name = constraintName,
             PrincipalTableIsQuoted = principalTableIsQuoted,
             ColumnIsQuoted = columnIsQuoted,
@@ -2128,6 +2185,11 @@ public sealed class SqlParser
         {
             Advance();
             return SqlDataType.DateTimeOffset;
+        }
+        if (IsIdentifier("DATETIME2"))
+        {
+            Advance();
+            return SqlDataType.DateTime2;
         }
         if (Current.Kind == TokenKind.KeywordGeoPoint)
             throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
@@ -2605,13 +2667,30 @@ public sealed class SqlParser
 
     // ── INSERT INTO ────────────────────────────────────────────────────────
 
-    private SqlStatement ParseInsert()
+    private SqlStatement ParseInsert(bool isReplace = false)
     {
-        Expect(TokenKind.KeywordInsert);
+        if (isReplace)
+            ExpectIdentifier("replace", "期望 REPLACE");
+        else
+        {
+            Expect(TokenKind.KeywordInsert);
+            if (Current.Kind == TokenKind.KeywordOr)
+            {
+                Advance();
+                ExpectIdentifier("replace", "INSERT OR 仅支持 REPLACE");
+                isReplace = true;
+            }
+        }
         Expect(TokenKind.KeywordInto);
         if (IsGraphInsertStart())
+        {
+            if (isReplace)
+                throw Error("REPLACE 仅支持关系表，不支持 GRAPH");
             return ParseGraphInsert();
-        var measurement = ExpectIdentifierName(out bool measurementIsQuoted);
+        }
+        SqlQualifiedObjectName targetObjectName = ExpectRelationalObjectName();
+        string measurement = targetObjectName.Name;
+        bool measurementIsQuoted = targetObjectName.NameIsQuoted;
 
         if (Current.Kind == TokenKind.KeywordDefault)
         {
@@ -2622,7 +2701,9 @@ public sealed class SqlParser
                 Array.Empty<string>(),
                 new[] { (IReadOnlyList<SqlExpression>)Array.Empty<SqlExpression>() })
             {
+                TargetQualifiedName = targetObjectName,
                 IsDefaultValues = true,
+                IsReplace = isReplace,
                 MeasurementIsQuoted = measurementIsQuoted,
             });
         }
@@ -2642,10 +2723,12 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordSelect)
             return ParseInsertReturning(new InsertStatement(measurement, columns, [])
             {
+                TargetQualifiedName = targetObjectName,
                 MeasurementIsQuoted = measurementIsQuoted,
                 ColumnIsQuoted = columnIsQuoted,
                 ColumnRoleHints = roleHints,
                 Query = ParseSelect(),
+                IsReplace = isReplace,
             });
 
         Expect(TokenKind.KeywordValues);
@@ -2660,9 +2743,11 @@ public sealed class SqlParser
 
         return ParseInsertReturning(new InsertStatement(measurement, columns, rows)
         {
+            TargetQualifiedName = targetObjectName,
             MeasurementIsQuoted = measurementIsQuoted,
             ColumnIsQuoted = columnIsQuoted,
             ColumnRoleHints = roleHints,
+            IsReplace = isReplace,
         });
     }
 
@@ -2995,6 +3080,7 @@ public sealed class SqlParser
         FunctionCallExpression? tvf = null;
         GraphTableSource? graphTable = null;
         SelectStatement? fromSubquery = null;
+        SqlQualifiedObjectName? sourceQualifiedName = null;
         if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.KeywordSelect)
         {
             Advance();
@@ -3040,13 +3126,20 @@ public sealed class SqlParser
         }
         else
         {
-            measurement = ExpectIdentifierName(out measurementIsQuoted);
-            measurementNamePartIsQuoted.Add(measurementIsQuoted);
-            while (Current.Kind == TokenKind.Dot)
+            SqlQualifiedObjectName objectName = ExpectRelationalObjectName();
+            sourceQualifiedName = objectName;
+            measurement = objectName.HasExplicitSchema
+                ? objectName.SchemaName + "." + objectName.Name
+                : objectName.Name;
+            measurementIsQuoted = objectName.HasExplicitSchema ? objectName.SchemaIsQuoted : objectName.NameIsQuoted;
+            if (objectName.HasExplicitSchema)
             {
-                Advance();
-                measurement += "." + ExpectSchemaObjectPart(out bool partIsQuoted);
-                measurementNamePartIsQuoted.Add(partIsQuoted);
+                measurementNamePartIsQuoted.Add(objectName.SchemaIsQuoted);
+                measurementNamePartIsQuoted.Add(objectName.NameIsQuoted);
+            }
+            else
+            {
+                measurementNamePartIsQuoted.Add(objectName.NameIsQuoted);
             }
             tableAlias = ParseOptionalTableAlias(out tableAliasIsQuoted);
         }
@@ -3089,6 +3182,7 @@ public sealed class SqlParser
             Having: having,
             Distinct: distinct)
         {
+            SourceQualifiedName = sourceQualifiedName,
             GraphTable = graphTable,
             MeasurementIsQuoted = measurementIsQuoted,
             MeasurementNamePartIsQuoted = measurementNamePartIsQuoted,
@@ -3426,6 +3520,7 @@ public sealed class SqlParser
         bool tableNameIsQuoted;
         SelectStatement? subquery = null;
         IReadOnlyList<IReadOnlyList<SqlExpression>>? valueRows = null;
+        SqlQualifiedObjectName? tableQualifiedName = null;
         var derivedDeadline = System.Diagnostics.Stopwatch.StartNew();
         if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count
             && _tokens[_index + 1].Kind is TokenKind.KeywordSelect or TokenKind.KeywordValues)
@@ -3474,7 +3569,9 @@ public sealed class SqlParser
         }
         else
         {
-            tableName = ExpectIdentifierName(out tableNameIsQuoted);
+            tableQualifiedName = ExpectRelationalObjectName();
+            tableName = tableQualifiedName.Value.Name;
+            tableNameIsQuoted = tableQualifiedName.Value.NameIsQuoted;
         }
 
         bool aliasIsQuoted = tableNameIsQuoted;
@@ -3521,6 +3618,7 @@ public sealed class SqlParser
         }
         return new JoinClause(tableName, alias, on, subquery, kind)
         {
+            TableQualifiedName = tableQualifiedName,
             TableNameIsQuoted = tableNameIsQuoted,
             AliasIsQuoted = aliasIsQuoted,
             ValuesRows = valueRows,
@@ -3707,11 +3805,14 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordFrom);
         if (IsGraphElementMutationStart())
             return ParseGraphDelete();
-        var measurement = ExpectIdentifierName(out bool measurementIsQuoted);
+        SqlQualifiedObjectName targetObjectName = ExpectRelationalObjectName();
+        string measurement = targetObjectName.Name;
+        bool measurementIsQuoted = targetObjectName.NameIsQuoted;
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
         var statement = new DeleteStatement(measurement, where)
         {
+            TargetQualifiedName = targetObjectName,
             MeasurementIsQuoted = measurementIsQuoted,
         };
         if (Current.Kind == TokenKind.KeywordLimit)
@@ -3758,8 +3859,9 @@ public sealed class SqlParser
     {
         Expect(TokenKind.KeywordTruncate);
         Expect(TokenKind.KeywordTable);
-        var tableName = ExpectIdentifierName(out bool tableNameIsQuoted);
-        return new TruncateTableStatement(tableName) { TableNameIsQuoted = tableNameIsQuoted };
+        SqlQualifiedObjectName objectName = ExpectRelationalObjectName();
+        return new TruncateTableStatement(objectName.Name)
+        { TableNameIsQuoted = objectName.NameIsQuoted, QualifiedName = objectName };
     }
 
     // ── UPDATE ─────────────────────────────────────────────────────────────
@@ -3769,7 +3871,9 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordUpdate);
         if (IsGraphElementMutationStart())
             return ParseGraphUpdate();
-        var table = ExpectIdentifierName(out bool tableNameIsQuoted);
+        SqlQualifiedObjectName objectName = ExpectRelationalObjectName();
+        string table = objectName.Name;
+        bool tableNameIsQuoted = objectName.NameIsQuoted;
         var tableAlias = ParseOptionalTableAlias(out bool tableAliasIsQuoted);
         var fromClauses = new List<JoinClause>();
         while (ParseOptionalJoinClause() is { } updateJoin)
@@ -3807,6 +3911,7 @@ public sealed class SqlParser
         }
         var statement = new UpdateStatement(table, assignments, where, tableAlias)
         {
+            QualifiedName = objectName,
             TableNameIsQuoted = tableNameIsQuoted,
             TableAliasIsQuoted = tableAliasIsQuoted,
             FromClauses = fromClauses,
@@ -4413,6 +4518,11 @@ public sealed class SqlParser
             Advance();
             return SqlDataType.DateTimeOffset;
         }
+        if (IsIdentifier("DATETIME2"))
+        {
+            Advance();
+            return SqlDataType.DateTime2;
+        }
         var token = Current;
         switch (token.Kind)
         {
@@ -4696,6 +4806,18 @@ public sealed class SqlParser
         return Current.Kind == TokenKind.IdentifierLiteral
             ? ExpectIdentifierLiteral(out isQuoted)
             : throw Error("期望标识符");
+    }
+
+    private SqlQualifiedObjectName ExpectRelationalObjectName()
+    {
+        string first = ExpectIdentifierName(out bool firstIsQuoted);
+        if (Current.Kind != TokenKind.Dot)
+            return new SqlQualifiedObjectName(first, firstIsQuoted);
+        Advance();
+        string second = ExpectSchemaObjectPart(out bool secondIsQuoted);
+        if (Current.Kind == TokenKind.Dot)
+            throw Error("关系对象名称最多只支持 schema.table 两段，不支持跨数据库或三段名称");
+        return new SqlQualifiedObjectName(first, firstIsQuoted, second, secondIsQuoted);
     }
 
     private string ExpectSchemaObjectPart(out bool isQuoted)
@@ -5501,9 +5623,12 @@ public sealed class SqlParser
                 Advance();
                 var indexName = ExpectIdentifierName(out bool indexNameIsQuoted);
                 Expect(TokenKind.KeywordOn);
-                var indexTableName = ExpectIdentifierName(out bool indexTableNameIsQuoted);
+                SqlQualifiedObjectName indexTableObjectName = ExpectRelationalObjectName();
+                string indexTableName = indexTableObjectName.Name;
+                bool indexTableNameIsQuoted = indexTableObjectName.NameIsQuoted;
                 return new DropTableIndexStatement(indexName, indexTableName)
                 {
+                    TableQualifiedName = indexTableObjectName,
                     IndexNameIsQuoted = indexNameIsQuoted,
                     TableNameIsQuoted = indexTableNameIsQuoted,
                 };
@@ -5528,10 +5653,11 @@ public sealed class SqlParser
             case TokenKind.KeywordTable:
                 Advance();
                 var dropTableIfExists = ParseOptionalIfExists();
-                var tableName = ExpectIdentifierName(out bool tableNameIsQuoted);
-                return new DropTableStatement(tableName, dropTableIfExists)
+                SqlQualifiedObjectName tableObjectName = ExpectRelationalObjectName();
+                return new DropTableStatement(tableObjectName.Name, dropTableIfExists)
                 {
-                    NameIsQuoted = tableNameIsQuoted,
+                    QualifiedName = tableObjectName,
+                    NameIsQuoted = tableObjectName.NameIsQuoted,
                 };
             case TokenKind.KeywordMeasurement:
                 Advance();
@@ -5606,9 +5732,12 @@ public sealed class SqlParser
                     Advance();
                     var fallbackIndexName = ExpectIdentifierName(out bool fallbackIndexNameIsQuoted);
                     Expect(TokenKind.KeywordOn);
-                    var fallbackTableName = ExpectIdentifierName(out bool fallbackTableNameIsQuoted);
+                    SqlQualifiedObjectName fallbackTableObjectName = ExpectRelationalObjectName();
+                    string fallbackTableName = fallbackTableObjectName.Name;
+                    bool fallbackTableNameIsQuoted = fallbackTableObjectName.NameIsQuoted;
                     return new DropTableIndexStatement(fallbackIndexName, fallbackTableName)
                     {
+                        TableQualifiedName = fallbackTableObjectName,
                         IndexNameIsQuoted = fallbackIndexNameIsQuoted,
                         TableNameIsQuoted = fallbackTableNameIsQuoted,
                     };

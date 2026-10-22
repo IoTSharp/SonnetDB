@@ -10,7 +10,7 @@ namespace SonnetDB.Views;
 
 internal static class MaterializedViewSnapshotCodec
 {
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxColumnCount = 65_535;
@@ -101,7 +101,9 @@ internal static class MaterializedViewSnapshotCodec
             || result.Rows.Any(static row => row.Any(static value => value is TimeSpan));
         bool hasOffsetDeclaration = result.ColumnInfo?.Any(static info => info.DataType == TableColumnType.DateTimeOffset) == true
             || result.ColumnSchema?.Any(static column => column.DataType == TableColumnType.DateTimeOffset) == true;
-        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), hasOffsetDeclaration ? FormatVersion : hasDuration ? 3 : 2);
+        bool hasDateTime2Declaration = result.ColumnInfo?.Any(static info => info.DataType == TableColumnType.DateTime2) == true
+            || result.ColumnSchema?.Any(static column => column.DataType == TableColumnType.DateTime2) == true;
+        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), hasDateTime2Declaration ? FormatVersion : hasOffsetDeclaration ? 4 : hasDuration ? 3 : 2);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(12, 4), HeaderSize);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(16, 4), result.Columns.Count);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(20, 4), result.Rows.Count);
@@ -184,7 +186,7 @@ internal static class MaterializedViewSnapshotCodec
             byte precision = ReadByte(source, crc, "declaration precision");
             byte scale = ReadByte(source, crc, "declaration scale");
             int size = ReadInt32(source, crc, "declaration size");
-            if (type > (version >= 4 ? 11 : version >= 3 ? 10 : 9) || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
+            if (type > (version >= 5 ? 12 : version >= 4 ? 11 : version >= 3 ? 10 : 9) || (flags & ~0x1F) != 0 || (flags & 0x11) == 1 || size < -1)
                 throw new InvalidDataException("MaterializedViewSnapshot: invalid declaration metadata.");
             var info = new SelectColumnInfo(type == 0 ? null : (TableColumnType)type,
                 (flags & 0x10) == 0 ? null : (flags & 1) != 0,
@@ -226,7 +228,7 @@ internal static class MaterializedViewSnapshotCodec
 
     private static void ValidateDeclaration(SelectColumnInfo info)
     {
-        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 11
+        if (!info.IsDeclared || info.DataType is { } type && (byte)type is < 1 or > 12
             || info.NumericPrecision.HasValue != info.NumericScale.HasValue
             || info.NumericPrecision is 0 or > 38 || info.NumericScale is > 38
             || info.NumericScale > info.NumericPrecision

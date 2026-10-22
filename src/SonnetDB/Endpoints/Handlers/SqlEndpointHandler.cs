@@ -47,7 +47,8 @@ internal static class SqlEndpointHandler
         bool canAdministerDatabase,
         bool isServerAdmin,
         IControlPlane? controlPlane,
-        double queueWaitMs)
+        double queueWaitMs,
+        SqlSessionContext? sessionContext = null)
     {
         await ExecuteAsync(
             context,
@@ -59,7 +60,8 @@ internal static class SqlEndpointHandler
             canAdministerDatabase,
             isServerAdmin,
             controlPlane,
-            queueWaitMs).ConfigureAwait(false);
+            queueWaitMs,
+            sessionContext: sessionContext).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -75,7 +77,8 @@ internal static class SqlEndpointHandler
         bool canAdministerDatabase,
         bool isServerAdmin,
         IControlPlane? controlPlane,
-        double queueWaitMs)
+        double queueWaitMs,
+        SqlSessionContext? sessionContext = null)
     {
         await ExecuteAsync(
             context,
@@ -87,17 +90,18 @@ internal static class SqlEndpointHandler
             canAdministerDatabase,
             isServerAdmin,
             controlPlane,
-            queueWaitMs).ConfigureAwait(false);
+            queueWaitMs,
+            sessionContext: sessionContext).ConfigureAwait(false);
     }
 
     internal static Task HandleSessionStatementAsync(
         HttpContext context, Tsdb tsdb, string databaseName, SqlRequest request,
         ServerMetrics metrics, bool canWrite, bool canAdministerDatabase,
         bool isServerAdmin, IControlPlane? controlPlane, double queueWaitMs,
-        SqlTransactionContext transaction)
+        SqlTransactionContext transaction, SqlSessionContext? sessionContext = null)
         => ExecuteAsync(context, tsdb, databaseName, [request], metrics, canWrite,
             canAdministerDatabase, isServerAdmin, controlPlane, queueWaitMs,
-            transaction, retainTransaction: true);
+            transaction, retainTransaction: true, sessionContext: sessionContext);
 
     /// <summary>
     /// 处理 <c>POST /v1/sql</c> 单条控制面 SQL 请求（无 db 路径）。
@@ -231,10 +235,27 @@ internal static class SqlEndpointHandler
         IControlPlane? controlPlane,
         double queueWaitMs,
         SqlTransactionContext? existingTransaction = null,
-        bool retainTransaction = false)
+        bool retainTransaction = false,
+        SqlSessionContext? sessionContext = null)
     {
         if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
             return;
+        try
+        {
+            // 整批预检精确载荷；不允许较早语句先消耗序列或执行写入。
+            foreach (var statement in statements)
+                if (statement.TypedParameters is not null)
+                {
+                    if (context.Response.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion)
+                        throw new InvalidOperationException("精确 SQL 参数需要 v7 能力。");
+                    _ = BindParameters(SqlParser.Parse(statement.Sql), statement);
+                }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FrameFormatException)
+        {
+            await WriteErrorAsync(context, "unsupported_parameter_contract", exception.Message).ConfigureAwait(false);
+            return;
+        }
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
         context.Response.StatusCode = StatusCodes.Status200OK;
@@ -275,6 +296,16 @@ internal static class SqlEndpointHandler
                 {
                     await WriteErrorAsync(context, "preview_action_denied",
                         "本预览仅允许单条只读 SQL 或一次批准的关系表单行参数化插入。").ConfigureAwait(false);
+                    return;
+                }
+
+                if ((parsed is CreateTableStatement { IsTemporary: true }
+                    or CreateTableAsStatement { IsTemporary: true })
+                    && sessionContext is null)
+                {
+                    metrics.RecordSqlError();
+                    await WriteErrorAsync(context, "connection_session_required",
+                        "临时关系表需要远程逻辑连接会话；请升级客户端和服务端后重试。").ConfigureAwait(false);
                     return;
                 }
 
@@ -352,14 +383,18 @@ internal static class SqlEndpointHandler
                             new SqlExecutionOptions
                             {
                                 CancellationToken = executionCancellation,
+                                SessionContext = sessionContext,
+                                CaptureProcedureResults = true,
                                 DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
                                 AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
-                                    is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                                    is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
                                 AllowDateTimeOffsetResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
-                                    == SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                                    .ToString() is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
+                                AllowDateTime2Results = context.Response.Headers[SqlFrameCodec.ResultVersionHeader]
+                                    == SqlFrameCodec.NativeDateTime2ResultVersion,
                                 CanWrite = canWrite,
                                 CanAdminister = canAdministerDatabase,
                                 MaxRoutineStatements = routineOptions.MaxRoutineStatements,
@@ -385,6 +420,23 @@ internal static class SqlEndpointHandler
 
                     switch (result)
                     {
+                        case ProcedureExecutionResult procedure:
+                            {
+                                int count = Math.Max(1, procedure.Results.Count);
+                                if (!context.Response.HasStarted)
+                                    context.Response.Headers["X-SonnetDB-Sql-Result-Count"] = count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                for (int index = 0; index < count; index++)
+                                {
+                                    executionCancellation.ThrowIfCancellationRequested();
+                                    var selected = procedure.Results.Count == 0
+                                        ? new SelectExecutionResult([], []) : procedure.Results[index];
+                                    long returned = await WriteSelectAsync(context, selected, writerOptions).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(returned);
+                                    await WriteEndAsync(context, writerOptions, returned, procedure.RecordsAffected,
+                                        sw.Elapsed.TotalMilliseconds, selected.Truncated).ConfigureAwait(false);
+                                }
+                                break;
+                            }
                         case SelectExecutionResult sel:
                             {
                                 long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
@@ -550,6 +602,15 @@ internal static class SqlEndpointHandler
 
     private static SqlStatement BindParameters(SqlStatement statement, SqlRequest request)
     {
+        if (request.TypedParameters is { } payload)
+        {
+            if (request.Parameters is { Count: > 0 })
+                throw new InvalidOperationException("基础参数与精确参数不能混用。");
+            var typed = SqlExecuteFrameCodec.DecodeRequest(payload);
+            if (typed.Db.Length != 0 || typed.Sql != request.Sql)
+                throw new FrameFormatException("精确参数载荷与 SQL 请求身份不一致。");
+            return SqlParameterBinder.Bind(statement, SqlTypedParameterCodec.ToSqlParameters(typed.Parameters));
+        }
         if (request.Parameters is null || request.Parameters.Count == 0)
             return statement;
 
@@ -666,10 +727,10 @@ internal static class SqlEndpointHandler
             {
                 NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
                     context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeResultVersion
-                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
                     context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
-                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion,
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader] == SqlFrameCodec.NativeDateTimeOffsetResultVersion);
+                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
+                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion);
             }
             await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
             count++;
@@ -685,6 +746,7 @@ internal static class SqlEndpointHandler
         TableColumnType.Decimal => "decimal",
         TableColumnType.Boolean => "boolean",
         TableColumnType.DateTime => "datetime",
+        TableColumnType.DateTime2 => "datetime2",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
         TableColumnType.DateTimeOffset => "datetimeoffset",
@@ -712,7 +774,7 @@ internal static class SqlEndpointHandler
         string version = context.Request.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
         if (version.Length == 0 || version is "1" or "2" or "3")
             return true;
-        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion)
+        if (version is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion)
         {
             context.Response.Headers[SqlFrameCodec.ResultVersionHeader] = version;
             return true;

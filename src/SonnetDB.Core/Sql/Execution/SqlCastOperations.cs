@@ -23,6 +23,7 @@ internal static class SqlCastOperations
                 SqlDataType.Boolean => ToBoolean(value),
                 SqlDataType.String => ToStringValue(value),
                 SqlDataType.DateTime => ToDateTime(value),
+                SqlDataType.DateTime2 => ToDateTime2(value),
                 SqlDataType.Time => ToTime(value),
                 SqlDataType.Duration => ToDuration(value),
                 SqlDataType.DateTimeOffset => ToDateTimeOffset(value),
@@ -201,6 +202,21 @@ internal static class SqlCastOperations
         if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
             return DateTimeOffset.FromUnixTimeMilliseconds(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)).UtcDateTime;
         throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIME。");
+    }
+
+    private static DateTime ToDateTime2(object value)
+    {
+        if (value is DateTime dateTime)
+            return NormalizeUtc(dateTime);
+        if (value is DateTimeOffset dateTimeOffset)
+            return dateTimeOffset.UtcDateTime;
+        if (value is string text
+            && DateTimeOffset.TryParse(text.Trim(), CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+            return parsed.UtcDateTime;
+        if (value is byte or sbyte or short or ushort or int or uint or long or ulong)
+            return new DateTime(checked(System.Convert.ToInt64(value, CultureInfo.InvariantCulture)), DateTimeKind.Utc);
+        throw new InvalidOperationException($"值 '{FormatValue(value)}' 不是有效的 DATETIME2；需要 DateTime、DateTimeOffset、ISO 文本或 UTC ticks。");
     }
 
     /// <summary>将原生时长、整数 ticks 或 invariant c 文本转换为完整时长。</summary>

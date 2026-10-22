@@ -14,7 +14,7 @@ internal static class RoutineCatalogCodec
 {
     public const string FileName = "routines.sdbrtn";
 
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
     private const int MaxDefinitions = 100_000;
@@ -99,9 +99,15 @@ internal static class RoutineCatalogCodec
                 byte type = ReadByte(source, crc, $"procedure {index} parameter {parameterIndex} type");
                 if (!Enum.IsDefined((SqlProcedureParameterType)type))
                     throw new InvalidDataException($"RoutineCatalog: invalid parameter type {type}.");
+                byte direction = version >= 5
+                    ? ReadByte(source, crc, $"procedure {index} parameter {parameterIndex} direction")
+                    : (byte)SqlProcedureParameterDirection.Input;
+                if (!Enum.IsDefined((SqlProcedureParameterDirection)direction))
+                    throw new InvalidDataException($"RoutineCatalog: invalid parameter direction {direction}.");
                 parameters[parameterIndex] = new SqlProcedureParameter(
                     parameterName,
-                    (SqlProcedureParameterType)type);
+                    (SqlProcedureParameterType)type,
+                    (SqlProcedureParameterDirection)direction);
             }
             string bodySql = ReadString(source, crc, MaxSqlBytes, $"procedure {index} SQL body")!;
             if (!procedureNames.Add(name))
@@ -202,6 +208,7 @@ internal static class RoutineCatalogCodec
             {
                 WriteString(destination, crc, parameter.Name, MaxNameBytes, nullable: false);
                 WriteByte(destination, crc, (byte)parameter.DataType);
+                WriteByte(destination, crc, (byte)parameter.Direction);
             }
             WriteString(destination, crc, procedure.BodySql, MaxSqlBytes, nullable: false);
         }

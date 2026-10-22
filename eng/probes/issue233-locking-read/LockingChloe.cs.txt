@@ -1,0 +1,233 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+if (args.Length != 2) return 2;
+string connectionString = args[0];
+string protocol = args[1];
+int passed = 0;
+int failed = 0;
+foreach (string name in new[] { "Chloe", "Chloe.SonnetDB", "SonnetDB.Data", "SonnetDB.Core", "SonnetDB.Protocol" })
+{
+    Assembly assembly = Assembly.Load(name);
+    using var file = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{assembly.Location}");
+}
+
+using var raw = Open();
+Raw("CREATE TABLE ChloeLockedRows(Id INT,Value INT,PRIMARY KEY(Id))");
+Raw("INSERT INTO ChloeLockedRows(Id,Value) VALUES(1,10),(2,20)");
+using var first = CreateContext();
+using var second = CreateContext();
+var firstTrace = new CommandTrace();
+var secondTrace = new CommandTrace();
+first.Session.AddInterceptor(firstTrace);
+second.Session.AddInterceptor(secondTrace);
+
+Run("ordinary-query-retains-existing-semantics", () =>
+    Require(first.Query<LockedRow>().Where(row => row.Id == 1).First().Value == 10, "Ordinary ORM read differs."));
+
+Run("nolock-explicitly-rejected-without-sending-query", () =>
+{
+    int before = firstTrace.Count;
+    Expect(() => first.Query<LockedRow>(LockType.NoLock).Where(row => row.Id == 1).ToList(), "NoLock");
+    Require(firstTrace.Count == before, "NoLock was silently sent as an ordinary query.");
+});
+
+Run("updlock-without-transaction-rejected-by-engine", () =>
+{
+    int before = firstTrace.Count;
+    Exception error = Capture(() => first.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).ToList());
+    Require(firstTrace.Count == before + 1 && firstTrace.LastSql.Contains("FOR UPDATE", StringComparison.Ordinal),
+        "Provider rejected UpdLock before sending its engine contract.");
+    Require(error.ToString().Contains("transaction", StringComparison.OrdinalIgnoreCase)
+        || error.ToString().Contains("事务", StringComparison.Ordinal), "Engine did not report the transaction requirement.");
+});
+
+Run("real-orm-locks-same-row-preserves-other-row-and-rollback-release", () =>
+{
+    first.Session.BeginTransaction();
+    using var other = Open();
+    using var otherTransaction = other.BeginTransaction();
+    try
+    {
+        LockedRow row = first.Query<LockedRow>(LockType.UpdLock).Where(item => item.Id == 1).First();
+        Require(row.Value == 10 && firstTrace.LastSql.EndsWith("FOR UPDATE", StringComparison.Ordinal), "ORM query did not lock its selected row.");
+        using var command = other.CreateCommand();
+        command.Transaction = otherTransaction;
+        command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE NOWAIT";
+        ExpectCode(() => { using var reader = command.ExecuteReader(); }, SonnetDB.Exceptions.SqlRowLockException.NotAvailable);
+        command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=2 FOR UPDATE NOWAIT";
+        using (var reader = command.ExecuteReader()) Require(reader.Read() && reader.GetInt64(0) == 2, "Different row was blocked.");
+        Require(second.Query<LockedRow>().Where(item => item.Id == 1).First().Value == 10, "Ordinary read did not retain committed data.");
+        first.Session.RollbackTransaction();
+        command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE NOWAIT";
+        using (var reader = command.ExecuteReader()) Require(reader.Read(), "Rollback did not release the ORM lock.");
+    }
+    finally
+    {
+        if (first.Session.IsInTransaction) first.Session.RollbackTransaction();
+        otherTransaction.Rollback();
+    }
+});
+
+Run("orm-update-commit-releases-lock-and-persists-value", () =>
+{
+    first.Session.BeginTransaction();
+    try
+    {
+        _ = first.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).First();
+        Require(first.Update<LockedRow>(row => row.Id == 1, row => new LockedRow { Value = 11 }) == 1, "ORM update count differs.");
+        Require(second.Query<LockedRow>().Where(row => row.Id == 1).First().Value == 10, "Uncommitted ORM update leaked.");
+        first.Session.CommitTransaction();
+    }
+    finally { if (first.Session.IsInTransaction) first.Session.RollbackTransaction(); }
+    second.Session.BeginTransaction();
+    try
+    {
+        Require(second.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).First().Value == 11,
+            "Committed value or lock release differs.");
+    }
+    finally { second.Session.RollbackTransaction(); }
+});
+
+await RunAsync("actual-wait-cancellation-keeps-lock-lifecycle-valid", async () =>
+{
+    first.Session.BeginTransaction();
+    try
+    {
+        _ = first.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).First();
+        using var other = Open();
+        using var transaction = other.BeginTransaction();
+        using var command = other.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE";
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+        try
+        {
+            using var reader = await command.ExecuteReaderAsync(cancellation.Token);
+            throw new InvalidOperationException("Contending query returned before its owner released the lock.");
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        first.Session.RollbackTransaction();
+        command.CommandText = "SELECT Id FROM ChloeLockedRows WHERE Id=1 FOR UPDATE NOWAIT";
+        using var unlocked = await command.ExecuteReaderAsync();
+        Require(await unlocked.ReadAsync(), "Cancelled waiter leaked a lock or poisoned its transaction.");
+        unlocked.Close();
+        transaction.Rollback();
+    }
+    finally { if (first.Session.IsInTransaction) first.Session.RollbackTransaction(); }
+});
+
+Run("disposing-orm-context-releases-owned-transaction-locks", () =>
+{
+    using (var disposed = CreateContext())
+    {
+        disposed.Session.BeginTransaction();
+        _ = disposed.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).First();
+    }
+    second.Session.BeginTransaction();
+    try
+    {
+        Require(second.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 1).First().Value == 11, "Disposed ORM context retained its lock.");
+    }
+    finally { second.Session.RollbackTransaction(); }
+});
+
+Run("empty-orm-locking-read-preserves-empty-result", () =>
+{
+    first.Session.BeginTransaction();
+    try { Require(first.Query<LockedRow>(LockType.UpdLock).Where(row => row.Id == 404).ToList().Count == 0, "Empty target changed."); }
+    finally { first.Session.RollbackTransaction(); }
+});
+
+Console.WriteLine($"RESULT|{protocol}|{passed}|{failed}");
+return failed == 0 ? 0 : 1;
+
+SndbConnection Open()
+{
+    var connection = new SndbConnection(connectionString);
+    connection.Open();
+    return connection;
+}
+SonnetDBContext CreateContext() => new(() => new SndbConnection(connectionString));
+void Raw(string sql)
+{
+    using var command = raw.CreateCommand();
+    command.CommandText = sql;
+    command.ExecuteNonQuery();
+}
+static Exception Capture(Action action)
+{
+    try { action(); }
+    catch (Exception error) { return error; }
+    throw new InvalidOperationException("Expected an explicit rejection.");
+}
+static void Expect(Action action, string message)
+{
+    Exception error = Capture(action);
+    Require(error.ToString().Contains(message, StringComparison.OrdinalIgnoreCase), "Unexpected rejection: " + error);
+}
+static void ExpectCode(Action action, string code)
+{
+    Exception error = Capture(action);
+    if (error is not SonnetDB.Exceptions.SqlRowLockException rowLock || rowLock.Code != code)
+        throw new InvalidOperationException("Unexpected error code: " + error);
+}
+static void Require(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException(message);
+}
+void Run(string name, Action action)
+{
+    try { action(); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception error) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{error.GetType().Name}|{error.Message}"); }
+}
+async Task RunAsync(string name, Func<Task> action)
+{
+    try { await action().WaitAsync(TimeSpan.FromSeconds(15)); passed++; Console.WriteLine($"PASS|{protocol}|{name}"); }
+    catch (Exception error) { failed++; Console.WriteLine($"FAIL|{protocol}|{name}|{error.GetType().Name}|{error.Message}"); }
+}
+
+/// <summary>用于真实 Chloe 锁定读的关系表映射。</summary>
+[Table("ChloeLockedRows")]
+public sealed class LockedRow
+{
+    /// <summary>关系表主键。</summary>
+    [Column(IsPrimaryKey = true)]
+    public long Id { get; set; }
+    /// <summary>用于核对提交与回滚的业务值。</summary>
+    public long Value { get; set; }
+}
+
+/// <summary>记录 ORM 实际发送的命令，不改写 SQL 或返回结果。</summary>
+public sealed class CommandTrace : IDbCommandInterceptor
+{
+    /// <summary>已发出的命令数量。</summary>
+    public int Count { get; private set; }
+    /// <summary>最后一条真正发送的 SQL。</summary>
+    public string LastSql { get; private set; } = string.Empty;
+    private void Record(IDbCommand command)
+    {
+        Count++;
+        LastSql = command.CommandText;
+        Console.WriteLine("SQL|" + LastSql);
+    }
+    /// <summary>记录实际读取。</summary>
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Record(command);
+    /// <summary>保留实际读取结果。</summary>
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+    /// <summary>记录实际写入。</summary>
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Record(command);
+    /// <summary>保留实际写入结果。</summary>
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+    /// <summary>记录实际标量查询。</summary>
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Record(command);
+    /// <summary>保留实际标量结果。</summary>
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}

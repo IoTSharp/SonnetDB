@@ -35,7 +35,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         {
             Assert.Equal("/v1/frame", request.Path);
             Assert.Equal("HTTP/2", request.Protocol);
-            Assert.Equal("6", request.ResultVersion);
+            Assert.Equal("7", request.ResultVersion);
         });
     }
 
@@ -108,7 +108,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         }
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
         if (protocol != "embedded")
-            Assert.Contains(_requests, request => request.ResultVersion == SqlFrameCodec.NativeDateTimeOffsetResultVersion
+            Assert.Contains(_requests, request => request.ResultVersion == SqlFrameCodec.NativeDateTime2ResultVersion
                 && request.Protocol == (protocol == "rest" ? "HTTP/1.1" : "HTTP/2"));
     }
 
@@ -152,12 +152,12 @@ public sealed partial class RemoteAdoHttp2TransportTests
         }
     }
 
-    /// <summary>既有参数和持久 DATETIME 保持 Unix 毫秒时刻合同，单独于表达式传输验证。</summary>
+    /// <summary>默认日期参数保留 ticks；旧 DATETIME 仅接受显式毫秒对齐输入，单独于表达式传输验证。</summary>
     [Theory]
     [InlineData("embedded")]
     [InlineData("rest")]
     [InlineData("frame-http2")]
-    public async Task DateTimeParameters_ExistingInstantBindingAndStorage_AreExplicit(string protocol)
+    public async Task DateTimeParameters_DefaultPrecisionAndLegacyStorage_AreExplicit(string protocol)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         string connectionString = IntegralConnectionString(protocol, Path.Combine(_dataRoot!, "date-storage-embedded"));
@@ -181,9 +181,13 @@ public sealed partial class RemoteAdoHttp2TransportTests
                 command.Parameters.Clear();
                 command.Parameters.Add(new SndbParameter("@stamp", inputs[index]));
                 command.CommandText = "SELECT @stamp";
-                Assert.Equal(new DateTimeOffset(expected[index]).ToUnixTimeMilliseconds(),
-                    Assert.IsType<long>(await command.ExecuteScalarAsync(deadline.Token)));
+                DateTime normalized = inputs[index].Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(inputs[index], DateTimeKind.Utc) : inputs[index].ToUniversalTime();
+                Assert.Equal(normalized, Assert.IsType<DateTime>(await command.ExecuteScalarAsync(deadline.Token)));
                 command.CommandText = $"INSERT INTO date_storage(id,created) VALUES({index + 1},@stamp)";
+                command.Parameters[0].DbType = DbType.DateTime;
+                await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteNonQueryAsync(deadline.Token));
+                command.Parameters[0].Value = expected[index];
                 Assert.Equal(1, await command.ExecuteNonQueryAsync(deadline.Token));
             }
         }
@@ -238,7 +242,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
         var actual = Assert.IsType<DateTime>(await command.ExecuteScalarAsync());
         Assert.Equal(DateTimeKind.Utc, actual.Kind);
         Assert.Equal(new DateTime(2024, 2, 29, 0, 30, 0).Ticks, actual.Ticks);
-        Assert.Equal(new[] { "6", "5", "4", "3" }, _requests.Select(request => request.ResultVersion).ToArray());
+        Assert.Equal(new[] { "7", "6", "5", "4", "3" }, _requests.Select(request => request.ResultVersion).ToArray());
     }
 
     /// <summary>REST 旧客户端继续接收 ISO 字符串；显式 v4 接收 ticks/Kind；未知版本在写入前拒绝。</summary>
@@ -373,7 +377,7 @@ public sealed partial class RemoteAdoHttp2TransportTests
             Assert.Equal(DateTimeKind.Unspecified, actual.Kind);
         }
         Assert.Contains(_requests, request => request.Path.EndsWith("/sql/batch", StringComparison.Ordinal)
-            && request.ResultVersion == "6");
+            && request.ResultVersion == "7");
         transaction.Rollback();
     }
 }

@@ -14,8 +14,8 @@ namespace SonnetDB.Sql;
 /// 其余节点原样透传（引用不变则不复制）。值绑定而非字符串拼接，从根上杜绝 SQL 注入。
 /// </para>
 /// <para>
-/// CLR 值 → 字面量的类型映射与旧 ADO <c>ParameterBinder.FormatLiteral</c> 语义一致：
-/// <c>DateTime</c> → Unix 毫秒整数；<c>DateTimeOffset</c> → 原生 UTC ticks CAST；<c>byte[]</c> → 保留类型的二进制内容快照；
+/// CLR 值 → 字面量的类型映射保留原生日期精度：
+/// <c>DateTime</c> → 原生 DATETIME2 UTC ticks CAST；<c>DateTimeOffset</c> → 原生 UTC ticks CAST；<c>byte[]</c> → 保留类型的二进制内容快照；
 /// <c>GeoPoint</c> → <see cref="GeoPointLiteralExpression"/>；<c>float[]</c> / <c>Memory&lt;float&gt;</c> /
 /// <c>ReadOnlyMemory&lt;float&gt;</c> → <see cref="VectorLiteralExpression"/>；数值/布尔/字符串/null 各归对应字面量。
 /// </para>
@@ -39,6 +39,7 @@ public static class SqlParameterBinder
         return statement switch
         {
             SelectStatement select => BindSelect(select, parameters),
+            CreateTableAsStatement createAs => createAs with { Query = BindSelect(createAs.Query, parameters) },
             InsertStatement insert => BindInsert(insert, parameters),
             InsertGraphStatement graphInsert => graphInsert with
             {
@@ -78,6 +79,8 @@ public static class SqlParameterBinder
                 RowLimit = delete.RowLimit is null ? null : BindDeleteRowLimit(delete.RowLimit, parameters),
             },
             CallProcedureStatement call => call with { Arguments = BindExprList(call.Arguments, parameters) },
+            SetProcedureParameterStatement assignment => assignment with { Value = BindExpr(assignment.Value, parameters) },
+            ReturnProcedureStatement exit => exit with { Value = BindExpr(exit.Value, parameters) },
             _ => statement, // DDL / 控制面语句不含参数占位符
         };
     }
@@ -428,7 +431,7 @@ public static class SqlParameterBinder
     }
 
     /// <summary>
-    /// 把 CLR 参数值映射为对应的字面量表达式节点；类型决策与旧 <c>ParameterBinder.FormatLiteral</c> 一致。
+    /// 把 CLR 参数值映射为字面量或保留完整精度的原生 CAST 节点。
     /// </summary>
     internal static SqlExpression ToLiteral(object? value)
     {
@@ -440,10 +443,29 @@ public static class SqlParameterBinder
         {
             case SqlParameters.TypedValue typed:
                 object? input = typed.Value;
+                if (typed.DataType == SqlDataType.DateTime && input is DateTime or DateTimeOffset)
+                {
+                    DateTime legacy = input is DateTimeOffset offset ? offset.UtcDateTime
+                        : ((DateTime)input).Kind == DateTimeKind.Unspecified
+                            ? DateTime.SpecifyKind((DateTime)input, DateTimeKind.Utc) : ((DateTime)input).ToUniversalTime();
+                    if (legacy.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                        throw new InvalidOperationException("DATETIME 参数仅支持毫秒精度；请使用 DATETIME2。");
+                    return new CastExpression(LiteralExpression.Integer(new DateTimeOffset(legacy).ToUnixTimeMilliseconds()), typed.DataType)
+                    { IsParameterValue = true, IsExplicitParameterType = true };
+                }
+                if (typed.DataType == SqlDataType.DateTime2 && input is DateTimeOffset preciseOffset)
+                    return new CastExpression(LiteralExpression.Integer(preciseOffset.UtcTicks), typed.DataType)
+                    { IsParameterValue = true, IsExplicitParameterType = true };
+                if (typed.DataType == SqlDataType.DateTime2 && input is DateTime preciseDateTime)
+                    return ToLiteral(preciseDateTime);
                 if (typed.DataType == SqlDataType.DateTimeOffset && input is DateTime dateTime)
                     input = new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
                         ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime());
-                return new CastExpression(ToLiteral(input), typed.DataType);
+                if (typed.DataType == SqlDataType.DateTimeOffset && input is DateTimeOffset typedOffset)
+                    return new CastExpression(LiteralExpression.Integer(typedOffset.UtcTicks), typed.DataType)
+                    { IsParameterValue = true, IsExplicitParameterType = true };
+                return new CastExpression(ToLiteral(input), typed.DataType)
+                { IsParameterValue = true, IsExplicitParameterType = true };
             case null:
             case DBNull:
                 return LiteralExpression.Null();
@@ -478,11 +500,13 @@ public static class SqlParameterBinder
             case decimal m:
                 return LiteralExpression.Decimal(m);
             case DateTime dt:
-                // Unspecified 视为 UTC，与关系表 DateTime 列绑定语义一致。
+                // Unspecified 视为 UTC；默认 CLR DateTime 参数进入精确 DATETIME2。
                 var utc = dt.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) : dt.ToUniversalTime();
-                return LiteralExpression.Integer(new DateTimeOffset(utc).ToUnixTimeMilliseconds());
+                return new CastExpression(LiteralExpression.Integer(utc.Ticks), SqlDataType.DateTime2)
+                { IsParameterValue = true };
             case DateTimeOffset dto:
-                return new CastExpression(LiteralExpression.Integer(dto.UtcTicks), SqlDataType.DateTimeOffset);
+                return new CastExpression(LiteralExpression.Integer(dto.UtcTicks), SqlDataType.DateTimeOffset)
+                { IsParameterValue = true };
             case TimeOnly time:
                 return LiteralExpression.String(time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture));
             case TimeSpan span:

@@ -16,4 +16,7 @@ public enum SqlFrameOp : byte
     /// 响应为单个 committed 结果帧；RETURNING、事务控制和多结果语句显式拒绝。
     /// </summary>
     Execute = 2,
+
+    /// <summary>类型化存储过程调用；命名参数、多个结果与完整输出终态，不回落文本 CALL。</summary>
+    Procedure = 3,
 }

@@ -15,14 +15,9 @@ internal static class SqlNameBinder
         SqlStatement bound = statement switch
         {
             CreateTableStatement create => BindCreateTable(tsdb, create),
-            DropTableStatement drop => drop with
-            {
-                Name = ResolveTableName(tsdb, drop.Name, drop.NameIsQuoted),
-            },
-            TruncateTableStatement truncate => truncate with
-            {
-                TableName = ResolveTableName(tsdb, truncate.TableName, truncate.TableNameIsQuoted),
-            },
+            CreateTableAsStatement createAs => BindCreateAs(tsdb, createAs),
+            DropTableStatement drop => BindDropTable(tsdb, drop),
+            TruncateTableStatement truncate => BindTruncate(tsdb, truncate),
             DescribeTableStatement describe => describe with
             {
                 Name = ResolveTableName(tsdb, describe.Name, describe.NameIsQuoted),
@@ -65,12 +60,27 @@ internal static class SqlNameBinder
     internal static SelectStatement BindSelect(Tsdb tsdb, SelectStatement statement)
         => BindSelect(tsdb, statement, parent: null, new HashSet<string>(StringComparer.Ordinal));
 
+    private static CreateTableAsStatement BindCreateAs(Tsdb database, CreateTableAsStatement statement)
+    {
+        SqlQualifiedObjectName requested = RelationName(statement.QualifiedName, statement.Name, statement.NameIsQuoted);
+        TableSchema? existing = ResolveTable(database, requested);
+        if (statement.IfNotExists && existing is not null)
+            return statement with { Name = existing.Name, QualifiedName = BoundName(existing) };
+        return statement with
+        {
+            Name = Key(statement.Name, statement.NameIsQuoted),
+            QualifiedName = requested,
+            Query = BindSelect(database, statement.Query),
+        };
+    }
+
     private static CreateTableStatement BindCreateTable(Tsdb tsdb, CreateTableStatement statement)
     {
+        SqlQualifiedObjectName requestedName = RelationName(statement.QualifiedName, statement.Name, statement.NameIsQuoted);
         string name = Key(statement.Name, statement.NameIsQuoted);
         if (statement.IfNotExists
-            && ResolveTable(tsdb, statement.Name, statement.NameIsQuoted) is { } existing)
-            return statement with { Name = existing.Name };
+            && ResolveTable(tsdb, requestedName) is { } existing)
+            return statement with { Name = existing.Name, QualifiedName = BoundName(existing) };
 
         var columns = statement.Columns
             .Select(column => column with { Name = Key(column.Name, column.NameIsQuoted) })
@@ -88,10 +98,15 @@ internal static class SqlNameBinder
 
         var foreignKeys = statement.ForeignKeyClauses.Select(foreignKey =>
         {
+            SqlQualifiedObjectName principalRequested = RelationName(
+                foreignKey.PrincipalQualifiedName,
+                foreignKey.PrincipalTable,
+                foreignKey.PrincipalTableIsQuoted);
             string principalName = Key(foreignKey.PrincipalTable, foreignKey.PrincipalTableIsQuoted);
-            var principal = ResolveTable(tsdb,
-                foreignKey.PrincipalTable, foreignKey.PrincipalTableIsQuoted);
-            bool selfReference = Matches(name, principalName, foreignKey.PrincipalTableIsQuoted);
+            var principal = ResolveTable(tsdb, principalRequested);
+            bool selfReference = requestedName.Matches(new TableObjectName(
+                principalRequested.SchemaName,
+                principalName));
             return foreignKey with
             {
                 Columns = foreignKey.Columns
@@ -99,6 +114,7 @@ internal static class SqlNameBinder
                         column, IsQuoted(foreignKey.ColumnIsQuoted, index)))
                     .ToArray(),
                 PrincipalTable = principal?.Name ?? principalName,
+                PrincipalQualifiedName = principal is null ? principalRequested : BoundName(principal),
                 PrincipalColumns = foreignKey.PrincipalColumns
                     .Select((column, index) => principal is not null
                         ? RequireColumn(principal, column,
@@ -124,6 +140,7 @@ internal static class SqlNameBinder
         return statement with
         {
             Name = name,
+            QualifiedName = requestedName,
             Columns = columns,
             PrimaryKey = statement.PrimaryKey
                 .Select((column, index) => ResolveDeclared(
@@ -245,14 +262,21 @@ internal static class SqlNameBinder
     private static CreateTableIndexStatement BindCreateIndex(
         Tsdb tsdb, CreateTableIndexStatement statement)
     {
-        var schema = ResolveTable(tsdb, statement.TableName, statement.TableNameIsQuoted);
+        SqlQualifiedObjectName requested = RelationName(
+            statement.TableQualifiedName,
+            statement.TableName,
+            statement.TableNameIsQuoted);
+        var schema = ResolveTable(tsdb, requested);
         if (statement.Columns.Any(static column => column.StartsWith('$'))
             || statement.DocumentOptions is not null
             || statement.Online && statement.IsUnique)
-            return schema is null ? statement : statement with { TableName = schema.Name };
+            return schema is null
+                ? statement with { TableQualifiedName = requested }
+                : statement with { TableName = schema.Name, TableQualifiedName = BoundName(schema) };
         return schema is null ? statement : statement with
         {
             TableName = schema.Name,
+            TableQualifiedName = BoundName(schema),
             IndexName = Key(statement.IndexName, statement.IndexNameIsQuoted),
             IncludedColumns = statement.IncludedColumns.Select((name, index) =>
                 RequireColumn(schema, name, IsQuoted(statement.IncludedColumnIsQuoted, index)).Name).ToArray(),
@@ -263,9 +287,13 @@ internal static class SqlNameBinder
 
     private static DropTableIndexStatement BindDropIndex(Tsdb tsdb, DropTableIndexStatement statement)
     {
-        var schema = ResolveTable(tsdb, statement.TableName, statement.TableNameIsQuoted);
+        SqlQualifiedObjectName requested = RelationName(
+            statement.TableQualifiedName,
+            statement.TableName,
+            statement.TableNameIsQuoted);
+        var schema = ResolveTable(tsdb, requested);
         if (schema is null)
-            return statement;
+            return statement with { TableQualifiedName = requested };
         var indexes = schema.Indexes.Where(index =>
             Matches(index.Name, statement.IndexName, statement.IndexNameIsQuoted)).ToArray();
         if (indexes.Length > 1)
@@ -273,6 +301,7 @@ internal static class SqlNameBinder
         return statement with
         {
             TableName = schema.Name,
+            TableQualifiedName = BoundName(schema),
             IndexName = indexes.Length == 1 ? indexes[0].Name : statement.IndexName,
         };
     }
@@ -314,11 +343,55 @@ internal static class SqlNameBinder
     private static TableSchema? ResolveTable(Tsdb tsdb, string name, bool quoted)
         => tsdb.Tables.Catalog.Resolve(name, quoted);
 
+    private static TableSchema? ResolveTable(Tsdb tsdb, SqlQualifiedObjectName name)
+        => tsdb.Tables.Catalog.Resolve(name.SchemaName, name.SchemaIsQuoted, name.Name, name.NameIsQuoted);
+
+    private static SqlQualifiedObjectName RelationName(
+        SqlQualifiedObjectName? qualified,
+        string name,
+        bool quoted)
+        => qualified ?? new SqlQualifiedObjectName(name, quoted);
+
+    private static SqlQualifiedObjectName BoundName(TableSchema schema)
+        => new(schema.SchemaName, true, schema.Name, true);
+
+    private static DropTableStatement BindDropTable(Tsdb tsdb, DropTableStatement statement)
+    {
+        SqlQualifiedObjectName requested = RelationName(statement.QualifiedName, statement.Name, statement.NameIsQuoted);
+        TableSchema? schema = ResolveTable(tsdb, requested);
+        return schema is null
+            ? statement with { QualifiedName = requested }
+            : statement with { Name = schema.Name, QualifiedName = BoundName(schema) };
+    }
+
+    private static TruncateTableStatement BindTruncate(Tsdb tsdb, TruncateTableStatement statement)
+    {
+        SqlQualifiedObjectName requested = RelationName(statement.QualifiedName, statement.TableName, statement.TableNameIsQuoted);
+        TableSchema? schema = ResolveTable(tsdb, requested);
+        return schema is null
+            ? statement with { QualifiedName = requested }
+            : statement with { TableName = schema.Name, QualifiedName = BoundName(schema) };
+    }
+
     private static TableSchema? ResolveSourceTable(Tsdb tsdb, string name, bool quoted)
     {
         SqlSourceName? source = SqlSourceNameResolver.Resolve(tsdb, name, quoted);
-        return source is { Kind: SqlSourceKind.Table }
-            ? tsdb.Tables.Catalog.TryGet(source.Value.Name) : null;
+        return source is { Kind: SqlSourceKind.Table, TableObjectName: { } tableObjectName }
+            ? tsdb.Tables.Catalog.TryGet(tableObjectName) : null;
+    }
+
+    private static TableSchema? ResolveSourceTable(
+        Tsdb tsdb,
+        SqlQualifiedObjectName? qualified,
+        string name,
+        bool quoted)
+    {
+        SqlSourceName? source = qualified is { } objectName
+            ? SqlSourceNameResolver.Resolve(tsdb, objectName)
+            : SqlSourceNameResolver.Resolve(tsdb, name, quoted);
+        return source is { Kind: SqlSourceKind.Table, TableObjectName: { } tableObjectName }
+            ? tsdb.Tables.Catalog.TryGet(tableObjectName)
+            : null;
     }
 
     private static SelectStatement BindSelect(
@@ -360,11 +433,13 @@ internal static class SqlNameBinder
                 || statement.Measurement is not ("__json_file__" or "__graph__"))
             && statement.GraphTable is null
             && fromCteName is null
-            ? SqlSourceNameResolver.Resolve(tsdb, statement.Measurement,
-                statement.IdentifierNamesBound || statement.MeasurementIsQuoted)
+            ? statement.SourceQualifiedName is { } qualifiedSource
+                ? SqlSourceNameResolver.Resolve(tsdb, qualifiedSource)
+                : SqlSourceNameResolver.Resolve(tsdb, statement.Measurement,
+                    statement.IdentifierNamesBound || statement.MeasurementIsQuoted)
             : null;
-        TableSchema? fromSchema = fromSource is { Kind: SqlSourceKind.Table }
-            ? tsdb.Tables.Catalog.TryGet(fromSource.Value.Name) : null;
+        TableSchema? fromSchema = fromSource is { Kind: SqlSourceKind.Table, TableObjectName: { } fromObjectName }
+            ? tsdb.Tables.Catalog.TryGet(fromObjectName) : null;
         string fromName = fromSource?.Name ?? fromCteName ?? statement.Measurement;
         string? tableAlias = statement.TableAlias is null
             ? null
@@ -391,16 +466,24 @@ internal static class SqlNameBinder
             SqlSourceName? source = subquery is null
                 && join.ValuesRows is null
                 && cteName is null
-                ? SqlSourceNameResolver.Resolve(tsdb, join.TableName,
-                    statement.IdentifierNamesBound || join.TableNameIsQuoted)
+                ? join.TableQualifiedName is { } qualifiedJoin
+                    ? SqlSourceNameResolver.Resolve(tsdb, qualifiedJoin)
+                    : SqlSourceNameResolver.Resolve(tsdb, join.TableName,
+                        statement.IdentifierNamesBound || join.TableNameIsQuoted)
                 : null;
-            TableSchema? schema = source is { Kind: SqlSourceKind.Table }
-                ? tsdb.Tables.Catalog.TryGet(source.Value.Name) : null;
+            TableSchema? schema = source is { Kind: SqlSourceKind.Table, TableObjectName: { } joinObjectName }
+                ? tsdb.Tables.Catalog.TryGet(joinObjectName) : null;
             string tableName = source?.Name ?? cteName ?? join.TableName;
             bool implicitAlias = string.Equals(join.Alias, join.TableName, StringComparison.Ordinal)
                 && join.AliasIsQuoted == join.TableNameIsQuoted;
             string alias = implicitAlias ? tableName : Key(join.Alias, join.AliasIsQuoted);
-            joins[i] = join with { TableName = tableName, Alias = alias, Subquery = subquery };
+            joins[i] = join with
+            {
+                TableName = tableName,
+                TableQualifiedName = schema is null ? join.TableQualifiedName : BoundName(schema),
+                Alias = alias,
+                Subquery = subquery,
+            };
             var joinedCte = ctes.FirstOrDefault(cte => string.Equals(cte.Name, cteName, StringComparison.Ordinal));
             sources.Add(new Source(alias, schema,
                 join.ColumnNames.Count > 0 ? join.ColumnNames
@@ -443,6 +526,7 @@ internal static class SqlNameBinder
         return statement with
         {
             Measurement = fromName,
+            SourceQualifiedName = fromSchema is null ? statement.SourceQualifiedName : BoundName(fromSchema),
             TableAlias = tableAlias,
             FromSubquery = fromSubquery,
             Join = null,
@@ -469,7 +553,7 @@ internal static class SqlNameBinder
     private static InsertStatement BindInsert(Tsdb tsdb, InsertStatement statement)
     {
         TableSchema? schema = ResolveSourceTable(tsdb,
-            statement.Measurement, statement.MeasurementIsQuoted);
+            statement.TargetQualifiedName, statement.Measurement, statement.MeasurementIsQuoted);
         if (schema is null)
             return statement;
 
@@ -502,6 +586,7 @@ internal static class SqlNameBinder
         return statement with
         {
             Measurement = schema.Name,
+            TargetQualifiedName = BoundName(schema),
             Columns = columns,
             ReturningColumns = BindReturningColumns(
                 schema, statement.ReturningColumns, statement.ReturningColumnIsQuoted),
@@ -517,7 +602,7 @@ internal static class SqlNameBinder
     private static UpdateStatement BindUpdate(Tsdb tsdb, UpdateStatement statement)
     {
         TableSchema? schema = ResolveSourceTable(tsdb,
-            statement.TableName, statement.TableNameIsQuoted);
+            statement.QualifiedName, statement.TableName, statement.TableNameIsQuoted);
         if (schema is null)
             return statement;
 
@@ -531,12 +616,18 @@ internal static class SqlNameBinder
             var join = statement.FromClauses[i];
             var subquery = join.Subquery is null ? null : BindSelect(tsdb, join.Subquery);
             var sourceSchema = subquery is null && join.ValuesRows is null
-                ? ResolveSourceTable(tsdb, join.TableName, join.TableNameIsQuoted) : null;
+                ? ResolveSourceTable(tsdb, join.TableQualifiedName, join.TableName, join.TableNameIsQuoted) : null;
             string tableName = sourceSchema?.Name ?? join.TableName;
             bool implicitAlias = string.Equals(join.Alias, join.TableName, StringComparison.Ordinal)
                 && join.AliasIsQuoted == join.TableNameIsQuoted;
             string alias = implicitAlias ? tableName : Key(join.Alias, join.AliasIsQuoted);
-            joins[i] = join with { TableName = tableName, Alias = alias, Subquery = subquery };
+            joins[i] = join with
+            {
+                TableName = tableName,
+                TableQualifiedName = sourceSchema is null ? join.TableQualifiedName : BoundName(sourceSchema),
+                Alias = alias,
+                Subquery = subquery,
+            };
             sources.Add(new Source(alias, sourceSchema,
                 join.ColumnNames.Count > 0 ? join.ColumnNames
                     : subquery is not null ? OutputColumns(subquery) : null));
@@ -548,6 +639,7 @@ internal static class SqlNameBinder
         return statement with
         {
             TableName = schema.Name,
+            QualifiedName = BoundName(schema),
             TableAlias = tableAlias,
             FromClauses = joins,
             Assignments = statement.Assignments
@@ -562,12 +654,13 @@ internal static class SqlNameBinder
     private static DeleteStatement BindDelete(Tsdb tsdb, DeleteStatement statement)
     {
         TableSchema? schema = ResolveSourceTable(tsdb,
-            statement.Measurement, statement.MeasurementIsQuoted);
+            statement.TargetQualifiedName, statement.Measurement, statement.MeasurementIsQuoted);
         if (schema is null)
             return statement;
         return statement with
         {
             Measurement = schema.Name,
+            TargetQualifiedName = BoundName(schema),
             ReturningColumns = BindReturningColumns(
                 schema, statement.ReturningColumns, statement.ReturningColumnIsQuoted),
             Where = BindExpression(

@@ -41,6 +41,8 @@ internal static class SqlRoutineRuntime
 
         TableSchema schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw DependencyError($"trigger '{statement.Name}' 的目标关系表 '{statement.TableName}' 不存在。");
+        if (SqlTemporaryTableIdentity.TryGet(schema, out _))
+            throw new NotSupportedException("连接临时表不支持持久触发器。");
         TriggerDefinition definition = TriggerDefinition.Create(statement);
         ValidateTriggerDependencies(tsdb, definition, schema);
         tsdb.Routines.Create(definition, statement.RelativeTo, statement.Precedes);
@@ -95,6 +97,20 @@ internal static class SqlRoutineRuntime
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
     {
+        var completion = ExecuteProcedureCore(tsdb, databaseName, statement, controlPlane, transaction);
+        // 既有文本 CALL 的单结果合同不变；类型化入口保留完整结果链与输出。
+        return statement.NamedArguments is null
+            && RoutineExecutionContext.Current?.Options.CaptureProcedureResults != true
+            ? completion.LastResult : completion;
+    }
+
+    private static ProcedureExecutionResult ExecuteProcedureCore(
+        Tsdb tsdb,
+        string? databaseName,
+        CallProcedureStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
+    {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ProcedureDefinition definition = tsdb.Routines.TryGetProcedure(statement.Name)
@@ -112,7 +128,10 @@ internal static class SqlRoutineRuntime
         }
 
         SqlDurationResultContract.ValidateProcedure(tsdb, definition);
-        SqlParameters parameters = BindArguments(definition, statement.Arguments);
+        ValidateOutputBindings(tsdb, definition);
+        SqlParameters parameters = statement.NamedArguments is { } namedArguments
+            ? BindNamedArguments(definition, namedArguments)
+            : BindArguments(definition, statement.Arguments);
         SqlTransactionContext? effectiveTransaction = transaction;
         bool ownsTransaction = false;
         if (requiresWrite && effectiveTransaction is null)
@@ -134,10 +153,42 @@ internal static class SqlRoutineRuntime
             using var callScope = context.EnterProcedure(definition.Name);
             callChain = context.CallChain;
             object? lastResult = null;
+            var results = new List<SelectExecutionResult>();
+            int recordsAffected = 0;
+            bool hasDml = false;
+            long returnValue = 0;
             foreach (var bodyStatement in definition.Statements)
             {
                 context.ConsumeStatement();
+                if (bodyStatement is CallProcedureStatement nestedCall)
+                {
+                    var (nestedStatement, targets) = BindNestedCall(tsdb, definition, nestedCall, parameters);
+                    var nested = ExecuteProcedureCore(tsdb, databaseName, nestedStatement, controlPlane, effectiveTransaction);
+                    foreach (var target in targets)
+                        parameters.AddNamed(target.Value.Name, ConvertArgument(nested.OutputParameters[target.Key], target.Value.DataType));
+                    results.AddRange(nested.Results);
+                    if (nested.HasDml)
+                    {
+                        recordsAffected = checked(recordsAffected + nested.RecordsAffected);
+                        hasDml = true;
+                    }
+                    lastResult = nested.LastResult;
+                    continue;
+                }
                 SqlStatement bound = SqlParameterBinder.Bind(bodyStatement, parameters);
+                if (bound is SetProcedureParameterStatement assignment)
+                {
+                    var parameter = definition.Parameters.Single(value =>
+                        string.Equals(value.Name, assignment.Name, StringComparison.OrdinalIgnoreCase));
+                    parameters.AddNamed(parameter.Name,
+                        ConvertArgument(RoutineExpressionEvaluator.Evaluate(assignment.Value), parameter.DataType));
+                    continue;
+                }
+                if (bound is ReturnProcedureStatement exit)
+                {
+                    returnValue = ConvertInt64Argument(RoutineExpressionEvaluator.Evaluate(exit.Value));
+                    break;
+                }
                 if (bound is SelectStatement query)
                 {
                     int probeLimit = (int)Math.Min(int.MaxValue,
@@ -151,17 +202,51 @@ internal static class SqlRoutineRuntime
                     bound,
                     controlPlane,
                     effectiveTransaction);
-                if (bodyStatement is not CallProcedureStatement && lastResult is SelectExecutionResult select)
-                    context.AddResultRows(select.Rows.Count);
-                if (bodyStatement is not CallProcedureStatement && lastResult is InsertExecutionResult { Returning: { } returning })
-                    context.AddResultRows(returning.Rows.Count);
+                SelectExecutionResult? selected = lastResult switch
+                {
+                    SelectExecutionResult select => select,
+                    InsertExecutionResult insert => insert.Returning,
+                    DeleteExecutionResult delete => delete.Returning,
+                    RowsAffectedExecutionResult affected => affected.Returning,
+                    _ => null,
+                };
+                if (selected is not null)
+                {
+                    context.AddResultRows(selected.Rows.Count);
+                    results.Add(selected);
+                }
+                int? affectedRows = lastResult switch
+                {
+                    InsertExecutionResult insert => insert.RowsInserted,
+                    DeleteExecutionResult delete => delete.TombstonesAdded,
+                    RowsAffectedExecutionResult affected => affected.RowsAffected,
+                    _ => null,
+                };
+                if (affectedRows is { } count)
+                {
+                    recordsAffected = checked(recordsAffected + count);
+                    hasDml = true;
+                }
             }
 
+            context.CheckCancellation();
+            if (statement.NamedArguments is not null && hasDml && effectiveTransaction is not null)
+                ValidateBufferedProcedureKeys(tsdb, effectiveTransaction, context);
+            var outputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var parameter in definition.Parameters)
+                if (parameter.Direction != SqlProcedureParameterDirection.Input)
+                {
+                    _ = parameters.TryResolve(-1, parameter.Name, out var value);
+                    outputs.Add(parameter.Name, value);
+                }
+            var completion = new ProcedureExecutionResult(results, outputs, returnValue,
+                hasDml ? recordsAffected : results.Count > 0 ? -1 : 0, hasDml, lastResult);
+            statement.CompletionValidator?.Invoke(completion);
             context.CheckCancellation();
             if (ownsTransaction)
                 TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction!);
             succeeded = true;
-            return lastResult;
+            return completion;
         }
         catch (Exception exception)
         {
@@ -652,6 +737,9 @@ internal static class SqlRoutineRuntime
         ProcedureDefinition definition,
         IReadOnlyList<SqlExpression> arguments)
     {
+        if (definition.Parameters.Any(static parameter => parameter.Direction != SqlProcedureParameterDirection.Input))
+            throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments,
+                "包含 OUT 或 INOUT 的过程必须使用类型化命名调用，或在过程内绑定可写参数变量。");
         if (arguments.Count != definition.Parameters.Count)
         {
             throw new RoutineExecutionException(
@@ -665,7 +753,7 @@ internal static class SqlRoutineRuntime
             object? value;
             try
             {
-                value = ConvertArgument(
+                value = ConvertLegacyInputArgument(
                     RoutineExpressionEvaluator.Evaluate(arguments[index]),
                     definition.Parameters[index].DataType);
             }
@@ -681,7 +769,138 @@ internal static class SqlRoutineRuntime
         return result;
     }
 
-    private static object? ConvertArgument(object? value, SqlProcedureParameterType dataType)
+    private static SqlParameters BindNamedArguments(
+        ProcedureDefinition definition,
+        IReadOnlyList<ProcedureCallArgument> arguments)
+    {
+        if (arguments.Count != definition.Parameters.Count)
+            throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, "过程命名参数数量与声明不符。");
+        var named = new Dictionary<string, ProcedureCallArgument>(StringComparer.OrdinalIgnoreCase);
+        foreach (var argument in arguments)
+        {
+            if (argument is null || string.IsNullOrWhiteSpace(argument.Name))
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, "过程参数名称不能为空。");
+            string name = argument.Name[0] is '@' or ':' ? argument.Name[1..] : argument.Name;
+            if (!named.TryAdd(name, argument))
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, $"过程参数 '{name}' 重复。");
+        }
+        var values = new SqlParameters();
+        foreach (var parameter in definition.Parameters)
+        {
+            if (!named.TryGetValue(parameter.Name, out var argument) || argument.Direction != parameter.Direction)
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments,
+                    $"过程参数 '{parameter.Name}' 缺失或方向不匹配。");
+            try
+            {
+                values.AddNamed(parameter.Name, parameter.Direction == SqlProcedureParameterDirection.Output
+                    ? null : ConvertArgument(argument.Value is DBNull ? null : argument.Value, parameter.DataType));
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or FormatException or OverflowException)
+            {
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments,
+                    $"过程参数 '{parameter.Name}' 类型不匹配。", exception);
+            }
+        }
+        return values;
+    }
+
+    private static (CallProcedureStatement Statement, Dictionary<string, SqlProcedureParameter> Targets) BindNestedCall(
+        Tsdb tsdb, ProcedureDefinition parent, CallProcedureStatement call, SqlParameters parameters)
+    {
+        var callee = tsdb.Routines.TryGetProcedure(call.Name)
+            ?? throw DependencyError($"procedure '{call.Name}' 不存在。");
+        if (call.Arguments.Count != callee.Parameters.Count)
+            throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, "嵌套过程实参数量与声明不符。");
+        var arguments = new List<ProcedureCallArgument>(callee.Parameters.Count);
+        var targets = ValidateNestedTargets(parent, callee, call);
+        if (callee.Parameters.All(static parameter => parameter.Direction == SqlProcedureParameterDirection.Input))
+        {
+            // 既有全 IN 文本调用保持原来的按位置转换；新输出方向不会改变旧参数语义。
+            var legacy = (CallProcedureStatement)SqlParameterBinder.Bind(call, parameters);
+            return (legacy, targets);
+        }
+        for (int index = 0; index < callee.Parameters.Count; index++)
+        {
+            var parameter = callee.Parameters[index];
+            var expression = call.Arguments[index];
+            object? value = parameter.Direction == SqlProcedureParameterDirection.Output ? null
+                : RoutineExpressionEvaluator.Evaluate(((ReturnProcedureStatement)SqlParameterBinder.Bind(
+                    new ReturnProcedureStatement(expression), parameters)).Value);
+            arguments.Add(new ProcedureCallArgument(parameter.Name, value, parameter.Direction));
+        }
+        return (new CallProcedureStatement(call.Name, []) { NamedArguments = arguments.AsReadOnly() }, targets);
+    }
+
+    private static void ValidateOutputBindings(Tsdb tsdb, ProcedureDefinition definition)
+    {
+        var pending = new Stack<ProcedureDefinition>();
+        var inspected = new HashSet<string>(StringComparer.Ordinal);
+        pending.Push(definition);
+        for (int count = 0; pending.Count > 0 && count < 1024; count++)
+        {
+            RoutineExecutionContext.Current?.CheckCancellation();
+            var parent = pending.Pop();
+            if (!inspected.Add(parent.Name)) continue;
+            foreach (var call in parent.Statements.OfType<CallProcedureStatement>())
+            {
+                var callee = tsdb.Routines.TryGetProcedure(call.Name)
+                    ?? throw DependencyError($"procedure '{call.Name}' 不存在。");
+                _ = ValidateNestedTargets(parent, callee, call);
+                if (!inspected.Contains(callee.Name)) pending.Push(callee);
+            }
+        }
+        if (pending.Count > 0) throw DependencyError("过程输出绑定预检超过 1024 个调用节点。");
+    }
+
+    private static Dictionary<string, SqlProcedureParameter> ValidateNestedTargets(
+        ProcedureDefinition parent, ProcedureDefinition callee, CallProcedureStatement call)
+    {
+        var targets = new Dictionary<string, SqlProcedureParameter>(StringComparer.OrdinalIgnoreCase);
+        if (!callee.Parameters.Any(static parameter => parameter.Direction != SqlProcedureParameterDirection.Input))
+            return targets;
+        if (call.Arguments.Count != callee.Parameters.Count)
+            throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, "嵌套过程实参数量与声明不符。");
+        for (int index = 0; index < callee.Parameters.Count; index++)
+        {
+            var parameter = callee.Parameters[index];
+            if (parameter.Direction == SqlProcedureParameterDirection.Input) continue;
+            var target = call.Arguments[index] is ParameterExpression { Name: { } name }
+                ? parent.Parameters.FirstOrDefault(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase))
+                : null;
+            if (target is null || target.Direction == SqlProcedureParameterDirection.Input || target.DataType != parameter.DataType)
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments,
+                    "嵌套 OUT/INOUT 必须绑定同类型的父过程可写参数。");
+            if (targets.Values.Any(value => string.Equals(value.Name, target.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new RoutineExecutionException(RoutineErrorCodes.InvalidArguments, "同一个父过程参数不能绑定多个输出。");
+            targets.Add(parameter.Name, target);
+        }
+        return targets;
+    }
+
+    private static void ValidateBufferedProcedureKeys(
+        Tsdb tsdb, SqlTransactionContext transaction, RoutineExecutionContext context)
+    {
+        // 只预验已冻结 mutation 的按键冲突，不调用会预留自增值的 PrepareBatch，也不执行 COMMIT。
+        // 非主键唯一约束、延迟触发器及并发冲突仍由调用方最终 COMMIT 验证。
+        transaction.ValidateMutationSchemas(tsdb.Tables.Catalog);
+        foreach (var (name, mutations) in transaction.SnapshotTableMutations())
+        {
+            var schema = tsdb.Tables.Catalog.TryGet(name)
+                ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+            var sources = new HashSet<byte[]>(SonnetDB.Kv.KvKeyComparer.Instance);
+            var targets = new HashSet<byte[]>(SonnetDB.Kv.KvKeyComparer.Instance);
+            foreach (var mutation in mutations)
+            {
+                context.CheckCancellation();
+                if (!sources.Add(TableRowIdentity.TargetKey(schema, mutation))
+                    || mutation.NewValues is not null && !targets.Add(TableRowIdentity.CurrentKey(schema, mutation)))
+                    throw new TableConstraintException(TableConstraintException.UniqueViolation,
+                        schema.Name, "PRIMARY KEY", $"table '{schema.Name}' 的过程缓冲写入包含重复主键。");
+            }
+        }
+    }
+
+    private static object? ConvertLegacyInputArgument(object? value, SqlProcedureParameterType dataType)
     {
         if (value is null)
             return null;
@@ -694,6 +913,30 @@ internal static class SqlRoutineRuntime
             _ => throw new InvalidOperationException($"值类型 {value.GetType().Name} 与参数类型 {dataType} 不兼容。"),
         };
     }
+
+    private static object? ConvertArgument(object? value, SqlProcedureParameterType dataType)
+    {
+        if (value is null)
+            return null;
+        return dataType switch
+        {
+            SqlProcedureParameterType.Int64 when IsNumeric(value) => ConvertInt64Argument(value),
+            SqlProcedureParameterType.Float64 when IsNumeric(value)
+                && double.IsFinite(Convert.ToDouble(value, CultureInfo.InvariantCulture)) => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            SqlProcedureParameterType.Boolean when value is bool boolean => boolean,
+            SqlProcedureParameterType.String when value is string text => text,
+            _ => throw new InvalidOperationException($"值类型 {value.GetType().Name} 与参数类型 {dataType} 不兼容。"),
+        };
+    }
+
+    private static long ConvertInt64Argument(object? value) => value switch
+    {
+        byte or sbyte or short or ushort or int or uint or long or ulong => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+        decimal number when decimal.Truncate(number) == number => checked((long)number),
+        double number when double.IsFinite(number) && Math.Truncate(number) == number => checked((long)number),
+        float number when float.IsFinite(number) && MathF.Truncate(number) == number => checked((long)number),
+        _ => throw new InvalidOperationException("过程 INT 与 RETURN 状态必须为非 NULL、无小数且处于 Int64 范围的整数。"),
+    };
 
     private static bool IsNumeric(object value)
         => value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;

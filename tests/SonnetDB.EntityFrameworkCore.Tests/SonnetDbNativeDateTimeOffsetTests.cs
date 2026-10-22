@@ -29,7 +29,8 @@ public sealed class SonnetDbNativeDateTimeOffsetTests : IDisposable
             Assert.Contains("AS DATETIMEOFFSET)", property.GetRelationalTypeMapping().GenerateSqlLiteral(original), StringComparison.Ordinal);
             Assert.Contains(declaration, context.Database.GenerateCreateScript(), StringComparison.Ordinal);
             await context.Database.EnsureCreatedAsync();
-            context.AddRange(new OffsetRow { Id = 1, Stamp = original }, new OffsetRow { Id = 2, Stamp = original.AddDays(1), OptionalStamp = original });
+            var insertStamp = legacy ? stored : original;
+            context.AddRange(new OffsetRow { Id = 1, Stamp = insertStamp }, new OffsetRow { Id = 2, Stamp = insertStamp.AddDays(1), OptionalStamp = insertStamp });
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
 

@@ -170,7 +170,7 @@ public sealed class RemoteRelationTypeBoundaryTests : IAsyncLifetime
         Assert.Empty(_requests);
         using var localMetadata = new SndbConnection();
         var expected = localMetadata.GetSchema("DataTypes");
-        Assert.Equal(13, expected.Rows.Count);
+        Assert.Equal(14, expected.Rows.Count);
         Assert.Equal(expected.Columns.Cast<DataColumn>().Select(column => column.ColumnName),
             types.Columns.Cast<DataColumn>().Select(column => column.ColumnName));
         Assert.Equal(expected.Rows.Count, types.Rows.Count);
@@ -179,7 +179,7 @@ public sealed class RemoteRelationTypeBoundaryTests : IAsyncLifetime
             _deadline.Token.ThrowIfCancellationRequested();
             Assert.Equal(expected.Rows[i].ItemArray, types.Rows[i].ItemArray);
         }
-        Assert.Equal(["INT", "FLOAT", "DECIMAL", "BOOL", "STRING", "DATETIME", "DATETIMEOFFSET", "TIME", "DURATION", "BLOB", "JSON"],
+        Assert.Equal(["INT", "FLOAT", "DECIMAL", "BOOL", "STRING", "DATETIME", "DATETIME2", "DATETIMEOFFSET", "TIME", "DURATION", "BLOB", "JSON"],
             types.Rows.Cast<DataRow>().Where(row => (bool)row["SupportsRelationalColumn"]).Select(row => (string)row["TypeName"]).ToArray());
         Assert.Equal(["INT", "FLOAT", "BOOL", "STRING", "VECTOR", "GEOPOINT"],
             types.Rows.Cast<DataRow>().Where(row => (bool)row["SupportsMeasurementField"]).Select(row => (string)row["TypeName"]).ToArray());

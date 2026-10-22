@@ -67,6 +67,7 @@ internal static class SqlSequenceRuntime
         ExplainStatement explain => Contains(explain.Statement),
         CreateViewStatement view => Contains(view.Query),
         CreateMaterializedViewStatement view => Contains(view.Query),
+        CreateTableAsStatement table => Contains(table.Query),
         CreateTableStatement table => table.Columns.Any(column => Contains(column.DefaultExpression))
             || table.CheckConstraintClauses.Any(check => Contains(check.Expression)),
         AlterTableAddColumnStatement column => Contains(column.DefaultExpression),
@@ -76,6 +77,8 @@ internal static class SqlSequenceRuntime
         CallProcedureStatement call => call.Arguments.Any(Contains),
         CreateTriggerStatement trigger => Contains(trigger.When) || trigger.Body.Any(Contains),
         SetTriggerNewStatement assignment => Contains(assignment.Value),
+        SetProcedureParameterStatement assignment => Contains(assignment.Value),
+        ReturnProcedureStatement exit => Contains(exit.Value),
         CreateTableIndexStatement index => Contains(index.DocumentOptions?.PartialFilter),
         CreateDocumentIndexStatement index => Contains(index.PartialFilter),
         InsertGraphStatement insert => insert.Rows.Any(row => row.Any(Contains)),
@@ -121,6 +124,7 @@ internal static class SqlSequenceRuntime
                 throw Invalid("CHECK 约束不支持有副作用的 nextval。");
             case DeleteStatement or InsertGraphStatement or UpdateGraphStatement or DeleteGraphStatement
                 or CallProcedureStatement or CreateTriggerStatement or SetTriggerNewStatement
+                or SetProcedureParameterStatement or ReturnProcedureStatement
                 or CreateTableIndexStatement or CreateDocumentIndexStatement or WriteModbusStatement when Contains(statement):
                 throw Invalid("此语句位置尚不支持有副作用的 nextval；请使用受支持的 SELECT、INSERT 或关系表 DEFAULT。");
             case CreateProcedureStatement procedure:

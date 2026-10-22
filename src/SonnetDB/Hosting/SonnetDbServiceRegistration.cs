@@ -48,6 +48,7 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<ServerMetrics>();
         builder.Services.AddSingleton<EventBroadcaster>();
         builder.Services.AddSingleton<SqlHttpRequestAdmission>();
+        builder.Services.AddSingleton<SqlConnectionSessions>();
         builder.Services.AddSingleton<SqlTransactionSessions>();
         builder.Services.AddSingleton(sp =>
         {

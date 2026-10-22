@@ -409,7 +409,8 @@ public sealed class IdentityIntegrationTests
             using var lockedLogin = await sample.LoginAsync(Email, Password);
             Assert.Equal(HttpStatusCode.Redirect, lockedLogin.StatusCode);
             Assert.Contains("Lockout", lockedLogin.Headers.Location!.OriginalString, StringComparison.Ordinal);
-            AssertSucceeded(await users.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddMinutes(-1)));
+            DateTimeOffset expired = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds());
+            AssertSucceeded(await users.SetLockoutEndDateAsync(user, expired));
             Assert.False(await users.IsLockedOutAsync(user));
         }
 

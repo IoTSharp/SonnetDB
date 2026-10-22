@@ -58,9 +58,9 @@ public sealed class SndbCommand : DbCommand
         get => _commandType;
         set
         {
-            if (value != CommandType.Text && value != CommandType.TableDirect)
+            if (value != CommandType.Text && value != CommandType.TableDirect && value != CommandType.StoredProcedure)
                 throw new NotSupportedException(
-                    "SonnetDB 仅支持 CommandType.Text（普通 SQL）与 CommandType.TableDirect（批量入库快路径）。");
+                    "SonnetDB 仅支持 Text、TableDirect 与 StoredProcedure。");
             _commandType = value;
         }
     }
@@ -132,14 +132,14 @@ public sealed class SndbCommand : DbCommand
 
     /// <inheritdoc />
     public override int ExecuteNonQuery()
-        => ExecuteWithTimeoutAsync(CancellationToken.None, (cancellationToken, _) => ExecuteNonQueryCoreAsync(cancellationToken))
+        => ExecuteWithTimeoutAsync(CancellationToken.None, (cancellationToken, lease) => ExecuteNonQueryCoreAsync(cancellationToken, lease))
             .ConfigureAwait(false)
             .GetAwaiter()
             .GetResult();
 
     /// <inheritdoc />
     public override object? ExecuteScalar()
-        => ExecuteWithTimeoutAsync(CancellationToken.None, (cancellationToken, _) => ExecuteScalarCoreAsync(cancellationToken))
+        => ExecuteWithTimeoutAsync(CancellationToken.None, (cancellationToken, lease) => ExecuteScalarCoreAsync(cancellationToken, lease))
             .ConfigureAwait(false)
             .GetAwaiter()
             .GetResult();
@@ -155,11 +155,11 @@ public sealed class SndbCommand : DbCommand
 
     /// <inheritdoc />
     public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
-        => ExecuteWithTimeoutAsync(cancellationToken, (executionToken, _) => ExecuteNonQueryCoreAsync(executionToken));
+        => ExecuteWithTimeoutAsync(cancellationToken, (executionToken, lease) => ExecuteNonQueryCoreAsync(executionToken, lease));
 
     /// <inheritdoc />
     public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
-        => ExecuteWithTimeoutAsync(cancellationToken, (executionToken, _) => ExecuteScalarCoreAsync(executionToken));
+        => ExecuteWithTimeoutAsync(cancellationToken, (executionToken, lease) => ExecuteScalarCoreAsync(executionToken, lease));
 
     /// <inheritdoc />
     protected override Task<DbDataReader> ExecuteDbDataReaderAsync(
@@ -172,34 +172,47 @@ public sealed class SndbCommand : DbCommand
     /// <summary>
     /// 在同一个超时范围内执行命令并消费非查询结果，确保远程流式响应不会绕过 CommandTimeout。
     /// </summary>
-    private async Task<int> ExecuteNonQueryCoreAsync(CancellationToken cancellationToken)
+    private async Task<int> ExecuteNonQueryCoreAsync(CancellationToken cancellationToken, ExecutionLease lease)
     {
-        using var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
-        if (result.RecordsAffected == -1)
+        var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+        int affected;
+        try
         {
-            // SELECT 被误用作 NonQuery 时仍按旧约定消费完整结果，但读取过程也必须响应超时。
-            do
+            if (result.RecordsAffected == -1 || result is ProcedureExecutionResultAdapter)
             {
-                while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
-            } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
+                do
+                {
+                    while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+                } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
+            }
+            affected = result.RecordsAffected;
         }
-
-        return result.RecordsAffected;
+        finally { result.Dispose(); }
+        if (result is ProcedureExecutionResultAdapter procedure)
+            lease.Completion = () => procedure.Complete(cancellationToken);
+        return affected;
     }
 
     /// <summary>
     /// 在同一个超时范围内执行命令并读取标量，远程后续数据行也使用本次执行令牌。
     /// </summary>
-    private async Task<object?> ExecuteScalarCoreAsync(CancellationToken cancellationToken)
+    private async Task<object?> ExecuteScalarCoreAsync(CancellationToken cancellationToken, ExecutionLease lease)
     {
-        using var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
-        object? value = result.Columns.Count != 0
-            && await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)
-                ? result.GetValue(0) : null;
-        do
+        var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+        object? value;
+        try
         {
-            while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
-        } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
+            value = result.Columns.Count != 0
+                && await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)
+                    ? result.GetValue(0) : null;
+            do
+            {
+                while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+            } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
+        }
+        finally { result.Dispose(); }
+        if (result is ProcedureExecutionResultAdapter procedure)
+            lease.Completion = () => procedure.Complete(cancellationToken);
         return value;
     }
 
@@ -212,14 +225,17 @@ public sealed class SndbCommand : DbCommand
         CancellationToken cancellationToken,
         ExecutionLease lease)
     {
+        var connection = _connection;
+        int commandTimeout = CommandTimeout;
         var result = await ExecuteCoreAsync(behavior, cancellationToken).ConfigureAwait(false);
         return new SndbDataReader(
             result,
             behavior,
-            _connection,
-            CommandTimeout,
+            connection,
+            commandTimeout,
             lease.CancellationToken,
-            lease.Release);
+            lease.Release,
+            lease.ReleaseWithCompletion);
     }
 
     /// <summary>
@@ -307,13 +323,21 @@ public sealed class SndbCommand : DbCommand
     }
 
     /// <summary>仅当租约仍是当前活动实例时移除，避免旧 Reader 干扰后续执行。</summary>
-    private void ReleaseExecutionLease(ExecutionLease lease)
+    private void ReleaseExecutionLease(ExecutionLease lease, Action? completion)
     {
         lock (_executionSync)
         {
-            if (ReferenceEquals(_activeExecution, lease))
-                _activeExecution = null;
-            lease.DisposeCancellation();
+            try
+            {
+                // 先完成可能失败的资源清理，再发布输出；发布结束前仍持有活动租约。
+                lease.DisposeCancellation();
+                completion?.Invoke();
+            }
+            finally
+            {
+                if (ReferenceEquals(_activeExecution, lease))
+                    _activeExecution = null;
+            }
         }
     }
 
@@ -328,6 +352,8 @@ public sealed class SndbCommand : DbCommand
         public bool IsCancellationRequested => _cancellation.IsCancellationRequested;
 
         public bool IsOwnedByReader { get; private set; }
+
+        public Action? Completion { get; set; }
 
         /// <summary>取消当前执行；执行刚完成并已释放租约时静默处理竞争。</summary>
         public void Cancel()
@@ -345,9 +371,12 @@ public sealed class SndbCommand : DbCommand
         public void TransferToReader() => IsOwnedByReader = true;
 
         public void Release()
+            => ReleaseWithCompletion(Completion);
+
+        public void ReleaseWithCompletion(Action? completion)
         {
             if (Interlocked.Exchange(ref _released, 1) == 0)
-                owner.ReleaseExecutionLease(this);
+                owner.ReleaseExecutionLease(this, completion);
         }
 
         public void DisposeCancellation() => _cancellation.Dispose();
@@ -364,6 +393,13 @@ public sealed class SndbCommand : DbCommand
 
         var impl = _connection.GetOpenImpl();
         var transactionState = _connection.GetTransactionStateForCommand(_transaction);
+        if (_commandType == CommandType.StoredProcedure)
+        {
+            var call = ProcedureCallSnapshot.Create(_commandText, _parameters);
+            return await impl.ExecuteProcedureAsync(call, transactionState, cancellationToken).ConfigureAwait(false);
+        }
+        if (_parameters.Items.Any(static parameter => parameter.Direction != ParameterDirection.Input))
+            throw new NotSupportedException("输出与返回值参数必须使用 CommandType.StoredProcedure。");
         if (_commandType == CommandType.TableDirect)
         {
             // 批量入库快路径：CommandText 即 payload（含可选首行 measurement 前缀），

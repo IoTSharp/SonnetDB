@@ -34,6 +34,8 @@ internal static partial class SonnetDbEndpoints
 
         // ---- SQL ----
         var controlPlane = app.Services.GetRequiredService<SonnetDB.Sql.Execution.IControlPlane>();
+        app.MapPost("/v1/db/{db}/sql/procedure", (HttpContext ctx, string db) =>
+            ProcedureEndpointHandler.HandleRestAsync(ctx, db, registry, grants, metrics));
         app.MapPost("/v1/db/{db}/sql", async (HttpContext ctx, string db) =>
         {
             if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
@@ -45,6 +47,10 @@ internal static partial class SonnetDbEndpoints
             using var admissionLease = admissionResult.Lease;
             if (admissionLease is null)
                 return;
+            var connectionSession = await TryAcquireConnectionSessionAsync(ctx, tsdb, db).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlRequest).ConfigureAwait(false);
             if (req is null)
             {
@@ -60,7 +66,8 @@ internal static partial class SonnetDbEndpoints
                 canAdministerDatabase,
                 isServerAdmin,
                 scopedControlPlane,
-                admissionResult.QueueWaitMs).ConfigureAwait(false);
+                admissionResult.QueueWaitMs,
+                connectionLease?.Context).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/sql/batch", async (HttpContext ctx, string db) =>
@@ -74,6 +81,10 @@ internal static partial class SonnetDbEndpoints
             using var admissionLease = admissionResult.Lease;
             if (admissionLease is null)
                 return;
+            var connectionSession = await TryAcquireConnectionSessionAsync(ctx, tsdb, db).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlBatchRequest).ConfigureAwait(false);
             if (req is null || req.Statements.Count == 0)
             {
@@ -89,7 +100,77 @@ internal static partial class SonnetDbEndpoints
                 canAdministerDatabase,
                 isServerAdmin,
                 scopedControlPlane,
-                admissionResult.QueueWaitMs).ConfigureAwait(false);
+                admissionResult.QueueWaitMs,
+                connectionLease?.Context).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/sql/sessions", async (HttpContext ctx, string db) =>
+        {
+            if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
+                return;
+            var permission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+            if (!await TryRequireDatabasePermissionAsync(ctx, db, permission, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var sessions = ctx.RequestServices.GetRequiredService<SqlConnectionSessions>();
+            if (!sessions.TryCreate(tsdb, db, ctx.Request.Headers.Authorization.ToString(), out var session))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                    "connection_session_limit", "活动远程 SQL 连接会话数已达上限。").ConfigureAwait(false);
+                return;
+            }
+            ctx.Response.ContentType = "application/json; charset=utf-8";
+            await using var writer = new Utf8JsonWriter(ctx.Response.BodyWriter);
+            writer.WriteStartObject();
+            writer.WriteString("id", session!.Id);
+            writer.WriteNumber("leaseSeconds", 300);
+            writer.WriteEndObject();
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+        });
+
+        app.MapDelete("/v1/db/{db}/sql/sessions/{id}", async (HttpContext ctx, string db, string id) =>
+        {
+            if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
+                return;
+            var permission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+            if (!await TryRequireDatabasePermissionAsync(ctx, db, permission, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            var sessions = ctx.RequestServices.GetRequiredService<SqlConnectionSessions>();
+            SqlConnectionSessions.LeaseHandle? lease;
+            try
+            {
+                lease = await sessions.AcquireAsync(
+                    id, tsdb, db, ctx.Request.Headers.Authorization.ToString(), ctx.RequestAborted).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                    "connection_session_busy", "等待远程 SQL 连接会话准入超时。").ConfigureAwait(false);
+                return;
+            }
+            using var ownedLease = lease;
+            if (lease is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound,
+                    "connection_session_missing", "远程 SQL 连接会话不存在或租约已过期。").ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                sessions.Close(lease);
+            }
+            catch (TimeoutException)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                    "connection_session_busy", "等待连接会话的活动事务结束超时。").ConfigureAwait(false);
+                return;
+            }
+            catch (SqlConnectionSessionCleanupException)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                    "connection_session_cleanup_pending", "连接会话已关闭，但临时目录清理正在有界重试。").ConfigureAwait(false);
+                return;
+            }
+            ctx.Response.StatusCode = StatusCodes.Status204NoContent;
         });
 
         app.MapPost("/v1/db/{db}/sql/transactions", async (HttpContext ctx, string db) =>
@@ -100,6 +181,10 @@ internal static partial class SonnetDbEndpoints
             if (!await TryRequireDatabasePermissionAsync(ctx, db, permission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
             var sessions = ctx.RequestServices.GetRequiredService<SqlTransactionSessions>();
+            var connectionSession = await TryAcquireConnectionSessionAsync(ctx, tsdb, db).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
             string requestedIsolation = ctx.Request.Headers["X-SonnetDB-Isolation-Level"].ToString();
             if (requestedIsolation is not "" and not "read_committed" and not "serializable")
             {
@@ -110,7 +195,8 @@ internal static partial class SonnetDbEndpoints
             }
             var isolationLevel = requestedIsolation == "serializable"
                 ? SqlTransactionIsolationLevel.Serializable : SqlTransactionIsolationLevel.ReadCommitted;
-            if (!sessions.TryCreate(tsdb, db, ctx.Request.Headers.Authorization.ToString(), out var session, isolationLevel))
+            if (!sessions.TryCreate(tsdb, db, ctx.Request.Headers.Authorization.ToString(), out var session,
+                isolationLevel, connectionLease?.Id))
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
                     "transaction_limit", "活动远程轻事务数已达上限。").ConfigureAwait(false);
@@ -154,9 +240,25 @@ internal static partial class SonnetDbEndpoints
         if (admissionLease is null)
             return;
 
+        var connectionSession = await TryAcquireConnectionSessionAsync(ctx, tsdb, db).ConfigureAwait(false);
+        if (!connectionSession.Success)
+            return;
+        using var connectionLease = connectionSession.Lease;
+
         var sessions = services.GetRequiredService<SqlTransactionSessions>();
-        var session = await sessions.AcquireAsync(
-            id, tsdb, db, ctx.Request.Headers.Authorization.ToString(), ctx.RequestAborted).ConfigureAwait(false);
+        SqlTransactionSessions.Session? session;
+        try
+        {
+            session = await sessions.AcquireAsync(
+                id, tsdb, db, ctx.Request.Headers.Authorization.ToString(), ctx.RequestAborted,
+                connectionLease?.Id).ConfigureAwait(false);
+        }
+        catch (SqlTransactionSessionBusyException)
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                "transaction_busy", "等待远程轻事务会话准入超时。").ConfigureAwait(false);
+            return;
+        }
         if (session is null)
         {
             await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound,
@@ -229,7 +331,7 @@ internal static partial class SonnetDbEndpoints
                 DatabaseAccessEvaluator.IsServerAdmin(ctx),
                 CreateScopedControlPlane(ctx, controlPlane,
                     services.GetRequiredService<UserStore>(), grants, registry),
-                admission.QueueWaitMs, session.Transaction).ConfigureAwait(false);
+                admission.QueueWaitMs, session.Transaction, connectionLease?.Context).ConfigureAwait(false);
             if (action != "sql" && session.Transaction.IsCompleted)
                 sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
         }
@@ -239,6 +341,39 @@ internal static partial class SonnetDbEndpoints
                 sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
             session.Gate.Release();
         }
+    }
+
+    private static async Task<ConnectionSessionAcquisition> TryAcquireConnectionSessionAsync(
+        HttpContext context, Tsdb database, string databaseName)
+    {
+        string id = context.Request.Headers[SqlConnectionSessions.HeaderName].ToString();
+        if (id.Length == 0)
+            return new ConnectionSessionAcquisition(true, null);
+        if (!Guid.TryParseExact(id, "N", out _))
+        {
+            await WriteSimpleErrorAsync(context, StatusCodes.Status400BadRequest,
+                "connection_session_invalid", "远程 SQL 连接会话 ID 格式无效。").ConfigureAwait(false);
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        var sessions = context.RequestServices.GetRequiredService<SqlConnectionSessions>();
+        SqlConnectionSessions.LeaseHandle? lease;
+        try
+        {
+            lease = await sessions.AcquireAsync(
+                id, database, databaseName, context.Request.Headers.Authorization.ToString(), context.RequestAborted)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            await WriteSimpleErrorAsync(context, StatusCodes.Status503ServiceUnavailable,
+                "connection_session_busy", "等待远程 SQL 连接会话准入超时。").ConfigureAwait(false);
+            return new ConnectionSessionAcquisition(false, null);
+        }
+        if (lease is not null)
+            return new ConnectionSessionAcquisition(true, lease);
+        await WriteSimpleErrorAsync(context, StatusCodes.Status404NotFound,
+            "connection_session_missing", "远程 SQL 连接会话不存在或租约已过期。").ConfigureAwait(false);
+        return new ConnectionSessionAcquisition(false, null);
     }
 
     private static async Task<SqlAdmissionResult> TryAcquireSqlHttpAdmissionAsync(
@@ -276,4 +411,6 @@ internal static partial class SonnetDbEndpoints
     }
 
     private readonly record struct SqlAdmissionResult(RateLimitLease? Lease, double QueueWaitMs);
+    private readonly record struct ConnectionSessionAcquisition(
+        bool Success, SqlConnectionSessions.LeaseHandle? Lease);
 }

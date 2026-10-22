@@ -2,6 +2,7 @@
 using System.Text;
 
 using SonnetDB.Model;
+using SonnetDB.Protocol;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 
@@ -13,10 +14,59 @@ namespace SonnetDB.Data.Internal;
 /// </summary>
 internal static class ParameterBinder
 {
+    internal static byte[]? PrepareRemoteRequest(ref string sql, SndbParameterCollection parameters)
+    {
+        if (!parameters.Items.Any(static parameter => parameter.Value is DateTime
+            || parameter.DbType == System.Data.DbType.DateTime2))
+        {
+            sql = Bind(sql, parameters);
+            return null;
+        }
+        string originalSql = sql;
+        var tokens = SqlLexer.Tokenize(originalSql);
+        if (tokens.Count > 2 && tokens[0].Kind == TokenKind.KeywordCreate
+            && tokens[1].Text.Equals("procedure", StringComparison.OrdinalIgnoreCase))
+            throw new NotSupportedException("CREATE PROCEDURE 的过程作用域变量不能作为 ADO 值参数绑定。");
+        bool positional = tokens.Any(token => token.Kind == TokenKind.Parameter
+            && token.Position < originalSql.Length && originalSql[token.Position] == '?');
+        bool named = tokens.Any(token => token.Kind == TokenKind.Parameter
+            && token.Position < originalSql.Length && originalSql[token.Position] is '@' or ':');
+        if (positional && named)
+            throw new NotSupportedException("精确远程参数不能混用命名和位置占位符；请求尚未发送。");
+        var values = new List<SqlExecuteFrameParameter>(parameters.Count);
+        foreach (var parameter in parameters.Items)
+        {
+            string name = positional ? string.Empty : SndbParameterCollection.NormalizeName(parameter.ParameterName);
+            object? value = GetBindingValue(parameter);
+            var converted = SqlExecuteFrameCodec.FromClr(name, value);
+            var kind = parameter.DbType switch
+            {
+                System.Data.DbType.DateTime => SqlFrameParameterKind.Timestamp,
+                System.Data.DbType.DateTime2 => SqlFrameParameterKind.DateTime,
+                System.Data.DbType.DateTimeOffset => SqlFrameParameterKind.DateTimeOffset,
+                _ => converted.Kind,
+            };
+            values.Add(converted with { Kind = kind });
+        }
+        // 编码发生在首次 await 之前；调用方后续改变参数、数组或缓冲都不能改变已冻结请求。
+        var writer = new System.Buffers.ArrayBufferWriter<byte>();
+        SqlExecuteFrameCodec.EncodeRequest(writer, 1, string.Empty, sql, values);
+        return writer.WrittenSpan[FrameHeader.Size..].ToArray();
+    }
+
     public static string Bind(string sql, SndbParameterCollection parameters)
     {
         if (sql.IndexOf('@') < 0 && sql.IndexOf(':') < 0)
             return sql;
+
+        var definitionTokens = SqlLexer.Tokenize(sql);
+        if (definitionTokens.Count > 2 && definitionTokens[0].Kind == TokenKind.KeywordCreate
+            && definitionTokens[1].Text.Equals("procedure", StringComparison.OrdinalIgnoreCase))
+        {
+            if (parameters.Count != 0)
+                throw new NotSupportedException("CREATE PROCEDURE 的过程作用域变量不能作为 ADO 值参数绑定。");
+            return sql;
+        }
 
         var byName = new Dictionary<string, SndbParameter>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in parameters.Items)
@@ -89,8 +139,12 @@ internal static class ParameterBinder
                 string name = sql.Substring(start, end - start);
                 if (!byName.TryGetValue(name, out var p))
                     throw new InvalidOperationException($"未提供参数 '{ch}{name}' 的值。");
-                sb.Append(p.DbType == System.Data.DbType.DateTimeOffset && p.Value is null or DBNull
-                    ? "CAST(NULL AS DATETIMEOFFSET)" : FormatLiteral(GetBindingValue(p)));
+                object? value = GetBindingValue(p);
+                sb.Append(GetDeclaredType(p) is { } type
+                    ? value is null or DBNull ? $"CAST(NULL AS {type.ToString().ToUpperInvariant()})"
+                        : type == SqlDataType.DateTime ? "CAST(" + FormatLiteral(value) + " AS DATETIME)"
+                        : FormatLiteral(value)
+                    : FormatLiteral(value));
                 i = end;
                 continue;
             }
@@ -109,14 +163,37 @@ internal static class ParameterBinder
     {
         if (parameter.DbType == System.Data.DbType.Time && parameter.Value is TimeSpan span)
             return TimeOnly.FromTimeSpan(span);
-        if (parameter.DbType is System.Data.DbType.DateTime or System.Data.DbType.DateTime2
-            && parameter.Value is DateTimeOffset offset)
-            return offset.UtcDateTime;
+        if (parameter.DbType == System.Data.DbType.DateTime)
+        {
+            DateTime? legacy = parameter.Value switch
+            {
+                DateTimeOffset offset => offset.UtcDateTime,
+                DateTime inputDate => inputDate.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(inputDate, DateTimeKind.Utc) : inputDate.ToUniversalTime(),
+                _ => null,
+            };
+            if (legacy is { } date)
+            {
+                if (date.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                    throw new ArgumentException("DbType.DateTime 仅支持完整毫秒；请使用 DbType.DateTime2 保留 ticks。", nameof(parameter));
+                return new DateTimeOffset(date).ToUnixTimeMilliseconds();
+            }
+        }
+        if (parameter.DbType == System.Data.DbType.DateTime2 && parameter.Value is DateTimeOffset preciseOffset)
+            return preciseOffset.UtcDateTime;
         if (parameter.DbType == System.Data.DbType.DateTimeOffset && parameter.Value is DateTime dateTime)
             return new DateTimeOffset(dateTime.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) : dateTime.ToUniversalTime());
         return parameter.Value;
     }
+
+    internal static SqlDataType? GetDeclaredType(SndbParameter parameter) => parameter.DbType switch
+    {
+        System.Data.DbType.DateTime => SqlDataType.DateTime,
+        System.Data.DbType.DateTime2 => SqlDataType.DateTime2,
+        System.Data.DbType.DateTimeOffset => SqlDataType.DateTimeOffset,
+        _ => null,
+    };
 
     internal static string FormatLiteral(object? value)
     {
@@ -144,9 +221,9 @@ internal static class ParameterBinder
             decimal m => "DECIMAL '" + m.ToString(CultureInfo.InvariantCulture) + "'",
             byte[] bytes => "X'" + Convert.ToHexString(bytes) + "'",
             Guid guid => "'" + guid.ToString("D", CultureInfo.InvariantCulture) + "'",
-            DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified
+            DateTime dt => "CAST(" + (dt.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
-                : dt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                : dt.ToUniversalTime()).Ticks.ToString(CultureInfo.InvariantCulture) + " AS DATETIME2)",
             DateTimeOffset dto => "CAST(" + dto.UtcTicks.ToString(CultureInfo.InvariantCulture) + " AS DATETIMEOFFSET)",
             TimeOnly time => "'" + time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture) + "'",
             TimeSpan span => "CAST(" + span.Ticks.ToString(CultureInfo.InvariantCulture) + " AS DURATION)",

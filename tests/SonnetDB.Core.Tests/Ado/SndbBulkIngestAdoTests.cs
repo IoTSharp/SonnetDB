@@ -173,11 +173,17 @@ public sealed class TsdbBulkIngestAdoTests : IDisposable
     }
 
     [Fact]
-    public void CommandType_StoredFlows_NotSupported()
+    public void CommandType_StoredProcedureAndTableDirect_CanShareCommand()
     {
         using var c = OpenConn();
         using var cmd = c.CreateCommand();
-        Assert.Throws<NotSupportedException>(() => cmd.CommandType = CommandType.StoredProcedure);
+        cmd.CommandText = "CREATE PROCEDURE scalar_probe() LANGUAGE SQL AS BEGIN SELECT 42 AS value; END";
+        cmd.ExecuteNonQuery();
+        cmd.CommandType = CommandType.TableDirect;
+        Assert.Equal(CommandType.TableDirect, cmd.CommandType);
+        cmd.CommandType = CommandType.StoredProcedure;
+        cmd.CommandText = "scalar_probe";
+        Assert.Equal(42L, cmd.ExecuteScalar());
     }
 
     [Fact]

@@ -751,7 +751,7 @@ public sealed partial class TableStore : IDisposable
                     foreach (var entry in BuildMutationIndexEntries(batch.Schema, operation.NewRow)) keys.Add(entry.Key);
                 }
             }
-            return new TableTransactionUndo(batch.Schema.Name, Generation,
+            return new TableTransactionUndo(batch.Schema.ObjectName, Generation,
                 TableStoreMaintenanceFile.ComputeSchemaFingerprint(batch.Schema),
                 keys.Select(key => new RollbackAction(key, _keyspace.Get(key))).ToArray());
         }
@@ -1139,9 +1139,9 @@ public sealed partial class TableStore : IDisposable
         if (range is not null
             && (indexColumnValues.Count >= index.Columns.Count
                 || !string.Equals(index.Columns[indexColumnValues.Count], range.Column.Name, StringComparison.Ordinal)
-                || range.Column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime)))
+                || range.Column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2)))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(
             index,
@@ -1336,9 +1336,9 @@ public sealed partial class TableStore : IDisposable
         var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列。");
         if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
-            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
 
         int take = limit ?? int.MaxValue;
@@ -1452,9 +1452,9 @@ public sealed partial class TableStore : IDisposable
         var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
             ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[equalityPrefixValues.Count]}'。");
         if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
-            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
-            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64、DATETIME 或 DATETIME2 列。", nameof(range));
         }
 
         byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
@@ -2100,30 +2100,37 @@ public sealed partial class TableStore : IDisposable
         ThrowIfDisposedLocked();
         RequireRowWrites(operations);
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
-        for (int i = 0; i < operations.Count; i++)
+        if (SqlTransactionContext.Current?.UsesReplacementSemantics(RowLockIdentity) == true)
         {
-            TableMutationOperation operation = operations[i];
-            if (operation.OldRow is null && operation.NewRow is null)
-                continue;
+            desiredValues = BuildFinalMutationValues(schema, operations);
+        }
+        else
+        {
+            for (int i = 0; i < operations.Count; i++)
+            {
+                TableMutationOperation operation = operations[i];
+                if (operation.OldRow is null && operation.NewRow is null)
+                    continue;
 
-            if (operation.OldRow is not null)
-            {
-                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
-                    desiredValues[indexEntry.Key] = null;
-                // 旧主行、旧索引和新主行/索引统一进入同一个 WAL mutation batch，读者不会看到中间态。
-                desiredValues[operation.RowKey] = null;
-            }
+                if (operation.OldRow is not null)
+                {
+                    foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.OldRow))
+                        desiredValues[indexEntry.Key] = null;
+                    // 旧主行、旧索引和新主行/索引统一进入同一个 WAL mutation batch，读者不会看到中间态。
+                    desiredValues[operation.RowKey] = null;
+                }
 
-            if (operation.NewRow is null)
-            {
-                desiredValues[operation.RowKey] = null;
-            }
-            else
-            {
-                byte[] newRowKey = TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span);
-                desiredValues[newRowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
-                foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
-                    desiredValues[indexEntry.Key] = indexEntry.Value;
+                if (operation.NewRow is null)
+                {
+                    desiredValues[operation.RowKey] = null;
+                }
+                else
+                {
+                    byte[] newRowKey = TableIndexCodec.EncodePrimaryRowKey(operation.NewRow.PrimaryKey.Span);
+                    desiredValues[newRowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
+                    foreach (IndexEntry indexEntry in BuildMutationIndexEntries(schema, operation.NewRow))
+                        desiredValues[indexEntry.Key] = indexEntry.Value;
+                }
             }
         }
 
@@ -2517,6 +2524,7 @@ public sealed partial class TableStore : IDisposable
     private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
     {
         ThrowIfDisposedLocked();
+        bool replacement = SqlTransactionContext.Current?.UsesReplacementSemantics(RowLockIdentity) == true;
         var schema = _schema;
         mutations = PrepareLockingMutations(mutations);
         var normalizedMutations = new List<TableRowMutation>(mutations.Count);
@@ -2589,13 +2597,16 @@ public sealed partial class TableStore : IDisposable
                 newRow = new TableRow(mutation.NewValues.ToArray(), newPrimaryKey);
             }
             var operation = new TableMutationOperation(rowKey, oldRow, newRow);
-            if (operation.NewRow is not null)
+            if (operation.NewRow is not null && !replacement)
             {
                 ValidateUniqueIndexesLocked(schema, operation);
                 ValidatePendingUniqueIndexes(schema, operation.NewRow, pendingUniqueKeys);
             }
             operations.Add(operation);
         }
+
+        if (replacement)
+            ValidateFinalUniqueIndexesLocked(schema, operations);
 
         var affected = operations.Count(static operation => operation.OldRow is not null || operation.NewRow is not null);
         int rowCountDelta = 0;

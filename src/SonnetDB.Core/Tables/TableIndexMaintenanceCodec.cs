@@ -79,7 +79,7 @@ internal static partial class TableIndexCodec
         if (bytes[offset++] == 0) return;
         int length;
         if (type is TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.DateTime
-            or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset)
+            or TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2)
             length = 8;
         else if (type == TableColumnType.Boolean) length = 1;
         else

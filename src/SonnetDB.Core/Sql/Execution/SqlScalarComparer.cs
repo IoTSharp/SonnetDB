@@ -69,6 +69,11 @@ internal static class SqlScalarComparer
         }
         if (left is DateTimeOffset || right is DateTimeOffset)
             throw new InvalidOperationException("DATETIMEOFFSET 比较要求两个操作数均为 DATETIMEOFFSET；请显式 CAST。");
+        if (left is DateTime leftDateTime && right is DateTime rightDateTime)
+        {
+            comparison = NormalizeUtc(leftDateTime).Ticks.CompareTo(NormalizeUtc(rightDateTime).Ticks);
+            return true;
+        }
         if (left is TimeSpan leftDuration && right is TimeSpan rightDuration)
         {
             comparison = leftDuration.CompareTo(rightDuration);
@@ -149,6 +154,9 @@ internal static class SqlScalarComparer
                 return false;
         }
     }
+
+    private static DateTime NormalizeUtc(DateTime value)
+        => value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value.ToUniversalTime();
 
     private static bool IsNumeric(object value) => value is
         byte or sbyte or

@@ -1,0 +1,122 @@
+using System.ComponentModel;
+using System.Reflection;
+using System.Security.Cryptography;
+using XCode;
+using XCode.Configuration;
+using XCode.DataAccessLayer;
+using XCode.Model;
+
+if (args.Length != 3 || args[0] is not ("original" or "candidate"))
+{
+    return 2;
+}
+
+string mode = args[0];
+string root = Path.GetFullPath(args[1]);
+string expected = args[2];
+foreach (string name in new[] { "XCode", "NewLife.Core", "SonnetDB.Data", "SonnetDB.Core" })
+{
+    Assembly assembly = Assembly.Load(name);
+    string path = Path.Combine(AppContext.BaseDirectory, name + ".dll");
+    using var file = File.OpenRead(path);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(file))}|{path}");
+}
+
+string connectionName = "Issue242Formal_" + Guid.NewGuid().ToString("N");
+DAL.AddConnStr(connectionName, "Data Source=" + root + ";Migration=Off", null, "SonnetDB");
+DAL dal = DAL.Create(connectionName);
+try
+{
+    dal.Execute("CREATE TABLE FormalReplace(Id INT AUTO_INCREMENT,Email STRING,Value INT DEFAULT 7,PRIMARY KEY(Id))");
+    dal.Execute("CREATE UNIQUE INDEX FormalReplaceEmail ON FormalReplace(Email)");
+    dal.Execute("INSERT INTO FormalReplace(Email,Value) VALUES('same',11)");
+    using var split = FormalEntity.Meta.CreateSplit(connectionName, "FormalReplace");
+    Exception error = Capture(() => new[] { new FormalEntity { Email = "same" } }
+        .BatchReplace(new BatchOption
+        {
+            Columns = [FormalEntity.Meta.Table.FindByName(nameof(FormalEntity.Email))!.Field],
+            BatchSize = 100,
+        }));
+    if (!error.ToString().Contains(expected, StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException("Unexpected formal-package failure: " + error);
+    }
+
+    if (dal.Session.ExecuteScalar<long>("SELECT Value FROM FormalReplace WHERE Email='same'") != 11)
+    {
+        throw new InvalidOperationException("Formal-package failure changed the retained row.");
+    }
+
+    Console.WriteLine($"EXPECTED_FAIL|formal-package-4.0.0|{mode}|{error.GetType().FullName}|{error.Message}");
+    return 0;
+}
+finally
+{
+    dal.Session.Dispose();
+    dal.Db.Dispose();
+    if (Directory.Exists(root))
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+static Exception Capture(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (Exception error)
+    {
+        return error;
+    }
+
+    throw new InvalidOperationException("Expected formal-package failure.");
+}
+
+/// <summary>正式包替换探针实体。</summary>
+[BindTable("FormalReplace", ConnName = "Issue242Formal_Default", DbType = DatabaseType.None)]
+[BindIndex("IU_FormalReplace_Email", true, "Email")]
+public sealed class FormalEntity : Entity<FormalEntity>
+{
+    private long _id;
+    private string _email = string.Empty;
+    private long _value;
+
+    /// <summary>主键。</summary>
+    [DataObjectField(true, true, false, 0)]
+    [BindColumn("Id", "", "")]
+    public long Id { get => _id; set { if (OnPropertyChanging(nameof(Id), value)) { _id = value; OnPropertyChanged(nameof(Id)); } } }
+
+    /// <summary>唯一键。</summary>
+    [DataObjectField(false, false, false, 100)]
+    [BindColumn("Email", "", "")]
+    public string Email { get => _email; set { if (OnPropertyChanging(nameof(Email), value)) { _email = value; OnPropertyChanged(nameof(Email)); } } }
+
+    /// <summary>默认值。</summary>
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("Value", "", "")]
+    public long Value { get => _value; set { if (OnPropertyChanging(nameof(Value), value)) { _value = value; OnPropertyChanged(nameof(Value)); } } }
+
+    /// <inheritdoc />
+    public override object? this[string name]
+    {
+        get => name switch
+        {
+            nameof(Id) => _id,
+            nameof(Email) => _email,
+            nameof(Value) => _value,
+            _ => base[name],
+        };
+        set
+        {
+            switch (name)
+            {
+                case nameof(Id): _id = Convert.ToInt64(value); break;
+                case nameof(Email): _email = Convert.ToString(value) ?? string.Empty; break;
+                case nameof(Value): _value = Convert.ToInt64(value); break;
+                default: base[name] = value; break;
+            }
+        }
+    }
+}

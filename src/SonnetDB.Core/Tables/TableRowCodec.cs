@@ -122,7 +122,7 @@ internal static class TableRowCodec
             TableColumnType.Int64 => 8,
             TableColumnType.Float64 => 8,
             TableColumnType.Decimal => 16,
-            TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset => 8,
+            TableColumnType.Time or TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2 => 8,
             TableColumnType.Boolean => 1,
             TableColumnType.DateTime => 8,
             TableColumnType.String or TableColumnType.Json => 4 + _utf8.GetByteCount((string)value),
@@ -159,6 +159,9 @@ internal static class TableRowCodec
             case TableColumnType.DateTime:
                 writer.WriteInt64(ToUnixMilliseconds(value));
                 return;
+            case TableColumnType.DateTime2:
+                writer.WriteInt64(ToUtcTicks(value));
+                return;
             case TableColumnType.String:
             case TableColumnType.Json:
                 WriteString(ref writer, (string)value);
@@ -183,6 +186,7 @@ internal static class TableRowCodec
             TableColumnType.DateTimeOffset => new DateTimeOffset(reader.ReadInt64(), TimeSpan.Zero),
             TableColumnType.Boolean => reader.ReadByte() != 0,
             TableColumnType.DateTime => DateTimeOffset.FromUnixTimeMilliseconds(reader.ReadInt64()).UtcDateTime,
+            TableColumnType.DateTime2 => new DateTime(reader.ReadInt64(), DateTimeKind.Utc),
             TableColumnType.String => ReadString(ref reader),
             TableColumnType.Json => ReadString(ref reader),
             TableColumnType.Blob => ReadBytes(ref reader),
@@ -238,17 +242,10 @@ internal static class TableRowCodec
     }
 
     private static long ToUnixMilliseconds(object value)
-    {
-        return value switch
-        {
-            DateTimeOffset dto => dto.ToUnixTimeMilliseconds(),
-            DateTime dt => new DateTimeOffset(dt.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
-                : dt).ToUnixTimeMilliseconds(),
-            long ms => ms,
-            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
-        };
-    }
+        => TableDateTimeValues.ToLegacyMilliseconds(value);
+
+    private static long ToUtcTicks(object value)
+        => TableDateTimeValues.ToPreciseTicks(value);
 
     private static TimeOnly ConvertTimeValue(object value)
     {

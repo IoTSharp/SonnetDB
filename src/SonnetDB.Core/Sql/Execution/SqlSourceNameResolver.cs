@@ -1,4 +1,6 @@
 using SonnetDB.Engine;
+using SonnetDB.Sql.Ast;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -10,7 +12,10 @@ internal enum SqlSourceKind
     MaterializedView,
 }
 
-internal readonly record struct SqlSourceName(string Name, SqlSourceKind Kind);
+internal readonly record struct SqlSourceName(
+    string Name,
+    SqlSourceKind Kind,
+    TableObjectName? TableObjectName = null);
 
 internal static class SqlSourceNameResolver
 {
@@ -27,11 +32,27 @@ internal static class SqlSourceNameResolver
             result = new SqlSourceName(candidate, kind);
         }
 
-        Add(tsdb.Tables.Catalog.Resolve(name, quoted)?.Name, SqlSourceKind.Table);
+        TableSchema? table = tsdb.Tables.Catalog.Resolve(name, quoted);
+        if (table is not null)
+            result = new SqlSourceName(table.Name, SqlSourceKind.Table, table.ObjectName);
         Add(tsdb.Measurements.Resolve(name, quoted)?.Name, SqlSourceKind.Measurement);
         Add(tsdb.Views.Catalog.Resolve(name, quoted)?.Name, SqlSourceKind.View);
         Add(tsdb.MaterializedViews.Catalog.Resolve(name, quoted)?.Name, SqlSourceKind.MaterializedView);
         return result;
+    }
+
+    internal static SqlSourceName? Resolve(Tsdb tsdb, SqlQualifiedObjectName name)
+    {
+        if (!name.HasExplicitSchema)
+            return Resolve(tsdb, name.Name, name.NameIsQuoted);
+        TableSchema? table = tsdb.Tables.Catalog.Resolve(
+            name.SchemaName,
+            name.SchemaIsQuoted,
+            name.Name,
+            name.NameIsQuoted);
+        return table is null
+            ? null
+            : new SqlSourceName(table.Name, SqlSourceKind.Table, table.ObjectName);
     }
 
     internal static void EnsureAvailable(Tsdb tsdb, string name, SqlSourceKind? excludedKind = null)

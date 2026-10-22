@@ -25,9 +25,9 @@ public sealed partial class SqlTransactionContext
 {
     private static readonly AsyncLocal<SqlTransactionContext?> _current = new();
 
-    private readonly Dictionary<string, MutationBuffer> _tableMutations = new(StringComparer.Ordinal);
+    private readonly Dictionary<TableObjectName, MutationBuffer> _tableMutations = new(TableObjectName.ExactComparer);
     private readonly List<Action> _undo = [];
-    private readonly Dictionary<string, long> _autoIncrementReservationGenerations = new(StringComparer.Ordinal);
+    private readonly Dictionary<TableObjectName, long> _autoIncrementReservationGenerations = new(TableObjectName.ExactComparer);
     private readonly List<(long Sequence, string Kind)> _routineInvocations = [];
     private readonly List<DeferredTriggerInvocation> _deferredTriggers = [];
     private long _deferredBytes;
@@ -50,6 +50,14 @@ public sealed partial class SqlTransactionContext
     /// <summary>当前语句执行作用域内的活动轻事务（基于 <see cref="AsyncLocal{T}"/>）；无事务时为 <c>null</c>。</summary>
     public static SqlTransactionContext? Current => _current.Value;
 
+    /// <summary>在独立 DDL workspace 执行副本语句时暂时隐藏源事务 ambient 值。</summary>
+    internal static IDisposable SuppressCurrent()
+    {
+        SqlTransactionContext? previous = _current.Value;
+        _current.Value = null;
+        return new AmbientSuppression(previous);
+    }
+
     /// <summary>把 <paramref name="transaction"/> 设为当前执行作用域的 ambient 轻事务，返回作用域释放器。</summary>
     public static AmbientScope EnterScope(SqlTransactionContext? transaction)
         => new(transaction);
@@ -71,10 +79,10 @@ public sealed partial class SqlTransactionContext
         if (mutation.PrimaryKeyValues is not null && mutation.NewValues is null)
             _cascadeRevision++;
 
-        if (!_tableMutations.TryGetValue(schema.Name, out var buffer))
+        if (!_tableMutations.TryGetValue(schema.ObjectName, out var buffer))
         {
             buffer = new MutationBuffer();
-            _tableMutations.Add(schema.Name, buffer);
+            _tableMutations.Add(schema.ObjectName, buffer);
         }
 
         byte[] mutationKey = GetMutationPrimaryKey(schema, mutation);
@@ -196,7 +204,7 @@ public sealed partial class SqlTransactionContext
     /// </summary>
     internal bool TryGetBufferedMutations(TableSchema schema, out IReadOnlyList<TableRowMutation> mutations)
     {
-        if (!_completed && _tableMutations.TryGetValue(schema.Name, out var buffer) && buffer.Rows.Count > 0)
+        if (!_completed && _tableMutations.TryGetValue(schema.ObjectName, out var buffer) && buffer.Rows.Count > 0)
         {
             ValidateMutationSchema(schema);
             mutations = buffer.Snapshot();
@@ -207,15 +215,17 @@ public sealed partial class SqlTransactionContext
         return false;
     }
 
-    internal IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> SnapshotTableMutations()
+    internal IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> SnapshotTableMutations()
         => _tableMutations.ToDictionary(
             static p => p.Key,
             static p => p.Value.Snapshot(),
-            StringComparer.Ordinal);
+            TableObjectName.ExactComparer);
 
     internal void RecordAutoIncrementReservation(string tableName, long generation)
+        => RecordAutoIncrementReservation(new TableObjectName(tableName), generation);
+
+    internal void RecordAutoIncrementReservation(TableObjectName tableName, long generation)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentOutOfRangeException.ThrowIfNegative(generation);
         ThrowIfCompleted();
 
@@ -229,8 +239,8 @@ public sealed partial class SqlTransactionContext
         _autoIncrementReservationGenerations[tableName] = generation;
     }
 
-    internal IReadOnlyDictionary<string, long> SnapshotAutoIncrementReservationGenerations()
-        => _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal);
+    internal IReadOnlyDictionary<TableObjectName, long> SnapshotAutoIncrementReservationGenerations()
+        => _autoIncrementReservationGenerations.ToDictionary(TableObjectName.ExactComparer);
 
     internal void AddRoutineInvocation(long sequence, string kind)
     {
@@ -350,7 +360,7 @@ public sealed partial class SqlTransactionContext
 
     internal Savepoint CreateSavepoint()
         => new(_undo.Count,
-            _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal),
+            _autoIncrementReservationGenerations.ToDictionary(TableObjectName.ExactComparer),
             _routineInvocations.Count,
             _deferredTriggers.Count);
 
@@ -373,7 +383,7 @@ public sealed partial class SqlTransactionContext
 
     internal sealed record Savepoint(
         int UndoCount,
-        IReadOnlyDictionary<string, long> AutoIncrementReservationGenerations,
+        IReadOnlyDictionary<TableObjectName, long> AutoIncrementReservationGenerations,
         int RoutineInvocationCount,
         int DeferredTriggerCount);
 
@@ -381,6 +391,7 @@ public sealed partial class SqlTransactionContext
     {
         ThrowIfCompleted();
         _completed = true;
+        CompleteSession();
         ReleaseRowLocks();
         _undo.Clear();
         _tableMutations.Clear();
@@ -443,5 +454,18 @@ public sealed partial class SqlTransactionContext
         /// <summary>恢复进入前的 ambient 轻事务上下文。</summary>
         public void Dispose()
             => _current.Value = _previous;
+    }
+
+    private sealed class AmbientSuppression(SqlTransactionContext? previous) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _current.Value = previous;
+        }
     }
 }

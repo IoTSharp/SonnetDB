@@ -11,6 +11,9 @@ public sealed record SqlRequest(string Sql, IReadOnlyDictionary<string, JsonElem
 {
     /// <summary>显式请求有界预览的最大行数；为空时返回完整结果。</summary>
     public int? PreviewMaxRows { get; init; }
+
+    /// <summary>v7 精确参数的既有 Execute payload；数据库名为空，SQL 必须与本请求一致。</summary>
+    public byte[]? TypedParameters { get; init; }
 }
 
 /// <summary>

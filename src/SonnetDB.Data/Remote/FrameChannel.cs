@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using SonnetDB.Data.Internal;
 using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.Remote;
@@ -32,6 +33,8 @@ internal sealed class FrameChannel
     private readonly SndbTransportProtocol _protocol;
     private volatile CapabilityState _state;
 
+    internal Func<string?>? ConnectionSessionIdProvider { get; init; }
+
     public FrameChannel(HttpClient http, SndbTransportProtocol protocol)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
@@ -61,7 +64,9 @@ internal sealed class FrameChannel
         CancellationToken cancellationToken,
         bool allowFallback = true,
         bool sqlResultV2 = false,
-        string? sqlResultVersion = null)
+        string? sqlResultVersion = null,
+        int? maximumResponseBytes = null,
+        bool requireHttp2 = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_state == CapabilityState.Rest)
@@ -74,16 +79,29 @@ internal sealed class FrameChannel
             using var request = new HttpRequestMessage(HttpMethod.Post, FrameUrl)
             {
                 Content = content,
-                Version = _http.DefaultRequestVersion,
-                VersionPolicy = _http.DefaultVersionPolicy,
+                Version = requireHttp2 ? HttpVersion.Version20 : _http.DefaultRequestVersion,
+                VersionPolicy = requireHttp2 ? HttpVersionPolicy.RequestVersionExact : _http.DefaultVersionPolicy,
             };
             if (sqlResultVersion is not null || sqlResultV2)
                 request.Headers.Add(SqlFrameCodec.ResultVersionHeader, sqlResultVersion ?? SqlFrameCodec.TypedResultVersion);
-            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            string? connectionSessionId = ConnectionSessionIdProvider?.Invoke();
+            if (connectionSessionId is not null)
+                request.Headers.TryAddWithoutValidation("X-SonnetDB-Connection-Session", connectionSessionId);
+            using var response = await _http.SendAsync(request, maximumResponseBytes is null
+                ? HttpCompletionOption.ResponseContentRead : HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            if (requireHttp2 && response.Version != HttpVersion.Version20)
+                return HandleTransportFailure("过程 Frame 响应没有确认 HTTP/2。", allowFallback);
 
             if (!response.IsSuccessStatusCode)
             {
-                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                string responseBody;
+                if (maximumResponseBytes is not null)
+                {
+                    await using var errorStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                    responseBody = System.Text.Encoding.UTF8.GetString(await BoundedContentReader.ReadAsync(
+                        errorStream, 64 * 1024, cancellationToken).ConfigureAwait(false));
+                }
+                else responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 if (!allowFallback)
                 {
                     ServerErrorBody? error = null;
@@ -97,7 +115,15 @@ internal sealed class FrameChannel
                     $"帧端点返回 HTTP {(int)response.StatusCode}，服务端可能不支持帧协议。{detail}", allowFallback);
             }
 
-            byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            byte[] body;
+            if (maximumResponseBytes is { } maximum)
+            {
+                if (response.Content.Headers.ContentLength > maximum)
+                    return HandleTransportFailure("过程响应超过字节预算。", allowFallback);
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                body = await BoundedContentReader.ReadAsync(stream, maximum, cancellationToken).ConfigureAwait(false);
+            }
+            else body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
             List<FrameMessage>? frames = TryParseFrames(body);
             if (frames is null || frames.Count == 0)
                 return HandleTransportFailure("帧端点响应无法解析为帧，服务端可能不支持帧协议。", allowFallback);

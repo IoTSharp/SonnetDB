@@ -101,13 +101,17 @@ internal static partial class SonnetDbEndpoints
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
+            var connectionSession = await TryAcquireConnectionSessionAsync(ctx, tsdb, db).ConfigureAwait(false);
+            if (!connectionSession.Success)
+                return;
+            using var connectionLease = connectionSession.Lease;
             if (WorkbenchPreviewSql.IsRequested(ctx))
             {
                 ctx.Response.ContentType = "application/json; charset=utf-8";
                 await WorkbenchPreviewMetadata.WriteAsync(ctx, tsdb).ConfigureAwait(false);
             }
             else
-                await SchemaEndpointHandler.Handle(db, tsdb).ExecuteAsync(ctx).ConfigureAwait(false);
+                await SchemaEndpointHandler.Handle(db, tsdb, connectionLease?.Context).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
         app.MapGet("/v1/db/{db}/schema/measurements/revision", async (HttpContext ctx, string db) =>

@@ -11,6 +11,11 @@ internal static class SqlMaterializationContract
     {
         switch (statement)
         {
+            case CreateTableAsStatement createAs:
+                ValidateQuery(createAs.Query, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                return;
+            case CreateTableStatement { IsTemporary: true }:
+                return;
             case SelectStatement select:
                 ValidateQuery(select, new HashSet<string>(StringComparer.OrdinalIgnoreCase), allowMeasurement: true, allowDocument: true, allowGraph: true, allowTableFunction: true);
                 return;

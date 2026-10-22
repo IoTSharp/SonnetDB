@@ -1085,10 +1085,12 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
-    public void CommandType_NonText_Throws()
+    public void CommandType_StoredProcedureIsSupportedAndUnknownTypeThrows()
     {
         using var cmd = new SndbCommand();
-        Assert.Throws<NotSupportedException>(() => cmd.CommandType = CommandType.StoredProcedure);
+        cmd.CommandType = CommandType.StoredProcedure;
+        Assert.Equal(CommandType.StoredProcedure, cmd.CommandType);
+        Assert.Throws<NotSupportedException>(() => cmd.CommandType = (CommandType)(-1));
     }
 
     [Fact]

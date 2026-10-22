@@ -70,6 +70,23 @@ public sealed class TableManagerWarmupTests : IDisposable
 
         Assert.Equal(2, warmed.Count);
         Assert.Equal(2, restarted.OpenedStoreCountForEvidence);
+
+        TableStore weights = restarted.Open("weights");
+        TableStore captures = restarted.Open("captures");
+        Assert.Same(restarted.RowLocks, weights.RowLocks);
+        Assert.Same(restarted.RowLocks, captures.RowLocks);
+        Assert.NotSame(weights.RowLockIdentity, captures.RowLockIdentity);
+
+        IReadOnlyList<string> repeated = restarted.WarmUpAll(
+            CancellationToken.None,
+            maxDegreeOfParallelism: 2);
+        Assert.Equal(2, repeated.Count);
+        Assert.Same(weights, restarted.Open("weights"));
+        Assert.Same(captures, restarted.Open("captures"));
+
+        restarted.RenameTable("weights", "renamed_weights");
+        Assert.Same(weights.RowLockIdentity, restarted.Open("renamed_weights").RowLockIdentity);
+        Assert.Same(captures.RowLockIdentity, restarted.Open("captures").RowLockIdentity);
     }
 
     /// <summary>创建带主键的最小关系表 schema。</summary>

@@ -9,6 +9,40 @@
 
 ### Changed
 
+- GH-Issue #227：将受限关系表 `CREATE/ALTER/DROP TABLE` 与 `CREATE/DROP INDEX` 接入嵌入式 ADO.NET 事务私有 workspace；提交使用 journal v2、目录永久 floor v19 与成对 schema/table 身份，回滚和第二步 DDL 失败不改动持久表，已有数据、索引、重开恢复均有真实 ADO 回归。远程 DDL 仍为 NOT_RUN，正式包与上游 ORM 交付另验。
+
+- GH-Issue #232 Core：关系表使用独立的 schema/table 成对身份，默认 schema 为 `main`；支持两段限定名、逐段大小写与引号合同、非 `main` 无歧义存储路径、目录格式 v18（v1-v17 旧表归入 `main`），并让 SQL CRUD、索引、外键、事务与重开恢复保留该身份。Data/Server/远程元数据接线仍待后续切片。
+
+- GH-Issue #245：补真实固定SqlSugar Fastest原版/最小原生TEMP CTAS候选，三协议候选各10/10，覆盖一万行集合写、已有事务提交/回滚、BulkMerge、隔离及失败清理；保存原版普通工作表控制、Windows长路径失败和观测工具修正回执。正式包及上游发布另验。
+
+- 修复 Windows 原生目录刷盘的长路径：在 CreateFileW 前规范化绝对/相对路径并使用扩展本地或 UNC 前缀，保留真实 I/O 失败与原持久化要求；覆盖超过260字符的实际 WAL 目录，恢复长 TEMP 根下 SqlSugar Fastest 原生 CTAS。
+
+- 保存 #247 SqlSugar、#242 XCode、#233 Chloe 的固定上游消费者探针、最小 provider 补丁和真实三协议审计；原版失败、正式 4.0 包缺口及 HTTP/2 REST 事务边界分别保留，不把候选验证写成上游或稳定包已发布。
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。ADO 嵌入式连接拥有并回收会话，远程独立 connection-session header 贯穿 SQL、Frame、过程、metadata 和事务，按数据库及认证身份绑定；空闲 5 分钟租约、有限准入、失败清理保留 owner/配额并有界重试。关闭先回滚事务，过期不自动重建或重发业务 SQL；过程只访问连接预建 TEMP，过程体 TEMP DDL 及正式包消费者另验。
+
+- GH-Issue #247：标准 StoredProcedure 命令与 IN/OUT/INOUT/ReturnValue、完整多结果及 Reader 成功关闭回写接入 ADO/REST/实际 HTTP2 Procedure=3；在调用保存点内校验输出声明与响应预算，发送后未知结果不重试。原生存储过程兼容断言保留，旧拒绝 setter 测试更新为真实过程执行及未知类型拒绝。固定 SqlSugar 候选验收与稳定包/上游发行单独记录。
+
+- RAG CLI 支持由调用方传入取消令牌并保留原总期限；真实请求收到后触发取消的回归验证一次请求、审计终态、未发布与持久续跑，另验输入前取消无数据库/审计/HTTP副作用。
+- 合入 PR #320 的 Microsoft.AspNetCore.SpaProxy 10.0.13；CAP 历史 timeout 保留 UNKNOWN，固定子模块后本机 CapJourneyTests 10/10 仅作定向证据。
+- 合入 PR #319 的 Microsoft.AspNetCore.Mvc.Testing 10.0.13。
+- 合入 PR #318 的 Microsoft.AspNetCore.Identity.UI 10.0.13。
+- 合入 PR #317 的 Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.13；并保留 #327 的并行预热修复。
+- 合入 PR #316 的 Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore 10.0.13。
+- 合入 PR #315 的 github/codeql-action 4.38.3，保留原扫描范围和真实门禁。
+
+- 合入 PR #327 的 Microsoft.Extensions.Caching.Abstractions 10.0.13；修复其真实 CI 暴露的关系表并行预热竞态，短锁保护共享行锁身份目录，保持不同表并行打开、行锁身份隔离及重命名后的稳定性。
+- 合入 PR #326 的 Microsoft.Extensions.AI 10.11.0；历史 PR CI 的 Windows Core 超时保留为待最终候选复核的独立失败证据。
+- 合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Microsoft.EntityFrameworkCore.Relational 10.0.13，为后续 Design/Tools 10.0.13 更新消除已观测的 NU1605 降级。
+- 合入 PR #325 的 Microsoft.EntityFrameworkCore.Design 与 Microsoft.EntityFrameworkCore.Tools 10.0.13；与 #324 的 Relational 10.0.13 配套，保留完整依赖版本一致性。
+- 合入 PR #321 的 Microsoft.Data.Sqlite 10.0.13。
+
 - 人工统一整合现有 M49、演示/Studio 配置与 #248 交付；保存 #247/#245 未实施的准备探针、监督暂停/关闭回执和旧树差异审计。草稿不计作功能完成，定时监督继续暂停。
 - Online Studio：设置入口改为独立连接/观测偏好页；观测展示按授权数据库读取的九模型目录、存储/WAL 元信息、只读 SQL 自检及慢查询形状，明确未采集/失败状态，普通用户不请求实例级 Prometheus 数据。
 - 在项目门面与中英文 README 公布用户授权的受限演示入口和凭据，说明正常注册测试账号及数据长期保留、不参与共享演示账号的周期恢复。
@@ -63,7 +97,13 @@
 - 表目录 `tables.tblschema` 读取兼容 v1～v13；无主键关系表启用内部持久行身份或执行可恢复主键迁移前保存 v13 兼容屏障，v13 沿用 v12 payload，保存、回滚和移除无主键表后均不降级。主键迁移另有带版本和 CRC 的独立恢复日志。尚未升阶的目录按长度/注释属性写 v12，否则写 v11。旧引擎拒绝不支持的目录版本，回退须使用升级前副本；未修改 `FileHeader`、既有显式主键编码或行载荷。
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
+### Fixed
+
+- 修复旧 `DATETIME` 写入 `DateTimeOffset` 的参数类型边界：未声明参数在亚毫秒值下 fail-closed，EF/Identity 显式 `DbType.DateTimeOffset` 兼容路径保留；修复 Reader 关闭异常测试的重复注入异常。Core 7890/7890、EF Core 295/295 及 Identity 定向回归通过。
+
 ### Added
+
+- GH-Issue #247 原生切片：过程支持 IN/OUT/INOUT、SET/RETURN、类型化命名调用与完整结果快照；完成校验回调在提交前执行，输出/响应校验失败回滚本次保存点。例程目录升级 v5，兼容读 v1–v4 的 IN 定义，旧引擎拒绝新格式；FileHeader 未改，降级须恢复升级前例程目录。旧 Text/CALL 的 IN 转换及默认最后结果形态保留，ADO/远程/SqlSugar 与正式包仍待后续验证。
 
 - GH-Issue #248：显式事务的单关系基表支持真实 `FOR UPDATE [NOWAIT]` 行锁；写入与 COMMIT、表维护共享锁资源，支持等待/取消/超时、死锁与预算拒绝、锁后版本及排序谓词复验、保存点和连接/会话结束释放。普通 SELECT 保持不加锁；轻事务写入仍在 COMMIT 复验，不承诺 gap/phantom 保护，也不宣称 #233 的全部 ORM 条件完成。
 - GH-Issue #252：新增原生 DURATION/TimeSpan，保留完整有符号 Int64 ticks、100ns、NULL、批量/事务/重开与真实 Chloe 候选；TIME/显式 DbType.Time 保持一天内合同。关系目录启用永久 v14 屏障及可恢复迁移，含时长物化快照写 v3（其他仍 v2），SQL Frame/REST 协商 v5；旧引擎拒绝升级目录，回退须使用升级前副本，未修改 FileHeader。正式包与 Chloe 上游交付仍待完成。
@@ -984,6 +1024,14 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+
 - **D 节后置证据口径修正**：将总里程碑最终完成判定中关于 M19/M25/M29/M41 与 M42 的固定硬件、跨架构、长稳和安装验收表述改为“仍待归档”，与各项 `NOT_READY`/`DEFERRED` 门禁及 ROADMAP 待验证状态一致。
 
 - **M35 #301 图片库与无密钥构建迁移**：移除 SixLabors.ImageSharp，Server/测试/图片样例改用 SkiaSharp 4.152.1 与托管 TiffLibrary 0.6.65；明确支持 PNG/JPEG/WebP/GIF/BMP/ICO/TIFF，停止声明其他格式。图片输入统一像素上限、EXIF 方向和永久失败分类，缩略图改用单帧 WebP/Mitchell cubic；本地 SigLIP2 有效 profile 自动加 `:skia-rgba-v1`，已有图片需重新摄取，旧向量和原图保留。移除 CI/Docker/Parity 的构建许可注入，增加实际依赖禁入与三 RID NativeAOT 图片运行门禁，固定上游声明随发布物分发。数据库文件格式不变；格式与索引迁移见[说明](docs/image-codecs.md)，真实模型质量与 Parity/nightly 证据仍独立验收。
@@ -1105,6 +1153,14 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 ## [3.1.0] - 2026-08-24
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **M41 #378 JOIN build side 成本选择首个切片**：关系 INNER Hash Join 不再固定物化右侧，而是复用输入谓词/投影下推后的估算行数，并按统计平均行宽或稳定类型权重估算投影行宽，选择预计字节更小的一侧 build、另一侧保持流式 probe；等成本继续右建以保持稳定。LEFT JOIN 为保留未匹配左行强制右建，NULL 键和残余谓词语义不变。运行时内部指标记录计划/实际 build、probe 行数，`EXPLAIN` 使用同一绑定与成本选择报告 `hash_join`、build side、估算行数/字节和阻塞边界。新增 5 项专项测试并通过 175 项既有关系 JOIN/下推/EXPLAIN 回归；#378 的 index nested-loop、merge join 与有限 join-order 枚举仍未完成，固定硬件和生产证据保持 `NOT_RUN`。
 
@@ -1296,6 +1352,14 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Changed
 
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
+
 - **Couplet 独立仓库与跨仓门禁**：正式记录代码智能产品仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet)，冻结 `Couplet -> SonnetDB.Core` 单向依赖、同级独立仓库而非 Git submodule 的协作方式、双方责任边界，以及仓库/路线基线和 C0-C4 对 #341/#342~#346/#352/#359/#367 的阶段映射；区分前序 public API 的并行联调与双方共同关闭的阶段发布 gate，仅确认仓库与路线基线已经建立，不将 Couplet 功能、原生图或发布门禁误标为完成。
 - **M40 上层工作负载性能缺口门禁**：把代码知识、依赖分析和 Agent 上下文检索纳入原生图 golden journey 与固定硬件证据；任何由执行计划、分配/锁/I/O 计数或容量报告复现的通用 Graph/KV/Document/FullText/Vector/混合检索缺口，必须回收到对应 Core 里程碑并阻塞依赖阶段，按正确性/恢复、有界执行与消除非预期全扫、容量/延迟、API/产品面的顺序优先修复。正确性/恢复与性能/容量作为两个独立 gate，任一未达到预先冻结的 SLO 都不得发布；明确禁止上层使用关系边表、应用层遍历、第二套图存储、隐藏全量扫描或单纯提高资源上限作为兜底。
 - SonnetDB Dockerfile 支持通过构建参数替换 Node、.NET SDK 和 ASP.NET Runtime 基础镜像；构建阶段使用 `BUILDPLATFORM`，运行阶段继承 Compose 的 `TARGETPLATFORM`，同一构建定义可输出 AMD64 与 ARM64 镜像。
@@ -1327,6 +1391,14 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - 新增 `SndbResourceInitializer`，支持由组件显式初始化其所需的嵌入式或远程数据库（`0375b1c5`）。
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - 将缓存扩展拆分为 `SonnetDB.Caching.EasyCaching` 与 `SonnetDB.Caching.Distributed` 独立 provider 包，并同步连接、测试与文档（`0f86e7ea`）。
 - MQTT 路由从 NuGet 引用切换为仓库子模块源码引用，CI checkout 同步补齐子模块（`98daf162`、`d87edd83`）。该标签中的旧日志曾记录 IL2104/IL3053 仍作为 warning 显示，此历史记录不能作为当前 Native AOT 零警告验收证据。
@@ -1425,6 +1497,14 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - **M28 P4 #228 删除遗留 `HnswVectorBlockIndex`（索引 I13）**：删除 `src/SonnetDB.Core/Storage/Segments/HnswVectorBlockIndex.cs`（含文件内 `HnswAnnSearchResult` record）——它是段内 HNSW 图的早期实现，图质量更差、建图为 `O(n·ef²)`、仅支持 cosine，且在 `src/` 内**零生产引用**（生产向量索引路径早已统一走 `VectorIndexAdapter` → `LocalVectorIndexBuilder` → `HnswIndex<int>`，仅一个基准与一个召回测试仍在维护这段死代码，构成误用风险）。仅剩的两个消费者迁移到 canonical `HnswIndex<int>`（`src/SonnetDB.Core/Vector/Index/Hnsw/HnswIndex.cs`）：召回测试重写并重命名为 `HnswIndexRecallTests`（`new HnswIndex<int>(384, Metric.Cosine, {M=16, EfConstruction=200, EfSearch=200})` 建图 + `Search`-into-span，Recall@10 ≥ 0.90 断言不变），`VectorRecallBenchmark` 的 `Hnsw_Top10`/`Hnsw_RecallAt10` 改走同一 API。catalog 生产类型 `HnswVectorIndexOptions`（不在被删文件内）保留不动。
 
 ### Changed
+
+- 精度兼容：声明为旧 DATETIME 的 CURRENT_DATETIME()/CURRENT_UTC_DATETIME() 明确返回毫秒对齐值并保留 Local/UTC Kind，恢复已有 VALUES/动态 DEFAULT/ALTER DEFAULT；这是两个时钟函数的精度合同收窄。完整时钟使用 CURRENT_UTC_DATETIME_OFFSET() 后显式 CAST DATETIME2；其他日期 CAST/运算不截断。
+
+- GH-Issue #236 Core 切片：新增 UTC 100ns DATETIME2、原生 DateTime 参数、完整 ticks 的行/主键/索引/覆盖载荷与比较/分组/溢写、关系声明预检及无损迁移。旧 DATETIME 布局保留且亚毫秒写入明确拒绝；measurement time 的既有 Unix 毫秒参数合同在已绑定上下文保留。表目录永久 floor v17、物化视图声明 v5，旧格式仍读，旧引擎不支持新目录且降级须恢复升级前备份；FileHeader 未改。Data/Protocol/Server 与正式消费者仍在后续片处理。
+
+- GH-Issue #242：原生关系 REPLACE 收集主键及全部非 NULL 唯一冲突，以同一事务完成真实 DELETE→INSERT、默认值/identity/ROWVERSION、触发器及外键删除动作、最终唯一索引发布；影响数为新插入行数，显式事务保留有限等待的库级写门禁。Core134/134为定向证据，真实远程/XCode与正式发行另验。
+
+- GH-Issue #245：提供显式 SqlSessionContext 的会话 TEMP/COW/CTAS Core、临时对象备份排除，以及独立 v1 创建日志的持久 CTAS 原子发布和恢复；表目录仍 v16，FileHeader 未改。根提前修复裸 CAST Decimal 的未知 precision/scale 回归，CTAS 默认值域不影响公开元数据。Data/Server 连接生命周期另由后续片接入。
 
 - **M28 P4 #226 HNSW 搜索 ef 补偿 tombstone + 重建回收（索引 I6 / I14）**：`HnswIndex<TKey>` 的删除此前仅打 tombstone（节点留在图中保连通、搜索时跳过），带来两个缺陷：(I6) 搜索固定用 `ef = max(EfSearch, topK)` 的候选窗口，过滤掉命中窗口内的 tombstone 后**可能欠返回 topK**——删除越多、候选窗口被死节点挤占越严重，实际返回可能远少于请求的 K；(I14) tombstone-only 删除**从不物理回收内存**，`_entryPoint` 从不重指，churn（反复删增）下 `_vectors`/`_keys`/`_neighbors` 随累计删除无界增长。现两处收口：**搜索侧 ef 补偿**——按 tombstone 占比放大 ef（`ef ≈ baseEf × 总行数 / 存活行数`，上界为物理行数），若一轮搜索后仍未集满 `min(topK, 存活数)` 个存活结果则**倍增 ef 继续搜索**，直到集满或候选窗口覆盖全部物理行（此时等价于精确扫描该连通分量），保证有删除时不欠返回；存活数不足 topK 时返回全部存活且不空转。**删除侧重建回收**——新增 `HnswOptions.AutoCompactTombstoneRatio`（默认 0.2，`[0,1]`，0 表示禁用），`Remove` 后当 `tombstone 数 / 物理行数 ≥` 阈值时**就地重建图**：快照存活行的 (key, vector)、清空全部结构、按启发式邻居选择重新逐条建图并重指 `_entryPoint`，物理丢弃已删除节点、回收内存、重排紧凑 row id（存活行相对顺序不变）；亦提供公开 `Compact()` 显式触发（返回回收的 tombstone 行数）。插入核心逻辑抽为 `AddCore`（要求持写锁）供 `Add` 与重建复用，锁语义（`ReaderWriterLockSlim` 多读单写）不变；持久化快照 / blob 格式（`HnswIndexSnapshot` / SDBVIDX）不变，`AutoCompactTombstoneRatio` 是纯运行时行为不入盘。测试新增：大量删除后搜索仍集满 topK 且只命中存活行、存活数 < topK 时返回全部存活不空转、tombstone 越阈值自动重建（快照观察无 tombstone、行数==存活数）、显式 `Compact()` 回收并保持搜索正确、空索引/无 tombstone 时 `Compact()` 空操作、重建后重插曾删键无冲突、`AutoCompactTombstoneRatio` 越界校验抛错；既有 #193 快照往返测试改为显式关闭自动重建以保留 tombstone 复现重复 key 路径。Core 2658（新增 9）全绿，slnx 0 warnings。
 

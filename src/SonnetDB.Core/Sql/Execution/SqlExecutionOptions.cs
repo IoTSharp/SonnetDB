@@ -9,6 +9,10 @@ public sealed record SqlExecutionOptions
     /// <summary>取消令牌。</summary>
     public CancellationToken CancellationToken { get; init; }
 
+    /// <summary>当前逻辑连接拥有的临时关系对象会话；内部过程调用沿用同一个实例。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public SqlSessionContext? SessionContext { get; init; }
+
     /// <summary>
     /// 可选的绝对执行截止时间（UTC）。到达截止时间后，SQL 执行按取消处理；调用方仍可通过
     /// <see cref="CancellationToken"/> 提前取消。该属性只约束当前调用，不改变事务持久化后的恢复语义。
@@ -35,6 +39,9 @@ public sealed record SqlExecutionOptions
 
     /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
     public int MaxRoutineResultRows { get; init; } = 10_000;
+
+    /// <summary>供数据客户端保留文本 CALL 的全部结果；默认保持直接 SQL 执行的最后结果返回形态。</summary>
+    public bool CaptureProcedureResults { get; init; }
 
     /// <summary>调用链中同时存活的 transition set 最大行数；UPDATE 的 OLD/NEW 算一对。</summary>
     public int MaxTriggerTransitionRows { get; init; } = 100_000;
@@ -108,6 +115,9 @@ public sealed record SqlExecutionOptions
 
     /// <summary>远程 v6 以下的协议不能接收原生 DateTimeOffset。</summary>
     internal bool AllowDateTimeOffsetResults { get; init; } = true;
+
+    /// <summary>远程 v7 以下的协议不能接收精确 DATETIME2 声明。</summary>
+    internal bool AllowDateTime2Results { get; init; } = true;
 
     internal void Validate()
     {

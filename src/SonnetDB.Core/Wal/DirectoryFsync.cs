@@ -126,9 +126,19 @@ internal static class DirectoryFsync
     [SupportedOSPlatform("windows")]
     private static void FlushWindowsRequired(string directory)
     {
+        // BCL 的 Directory/File API 会处理长路径，直接调用 CreateFileW 则需要
+        // 显式扩展路径；先规范化相对路径和 ..，再保留已有设备前缀或添加本地/UNC 前缀。
+        string nativePath = Path.GetFullPath(directory);
+        if (!nativePath.StartsWith(@"\\?\", StringComparison.Ordinal)
+            && !nativePath.StartsWith(@"\\.\", StringComparison.Ordinal))
+        {
+            nativePath = nativePath.StartsWith(@"\\", StringComparison.Ordinal)
+                ? @"\\?\UNC\" + nativePath[2..]
+                : @"\\?\" + nativePath;
+        }
         // FILE_FLAG_BACKUP_SEMANTICS 是拿到"目录"句柄的必要条件；只需元数据权限即可 FlushFileBuffers。
         using SafeFileHandle handle = CreateFileW(
-            directory,
+            nativePath,
             dwDesiredAccess: GENERIC_WRITE,
             dwShareMode: FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             lpSecurityAttributes: IntPtr.Zero,

@@ -1,0 +1,16 @@
+diff --git a/XCode/DataAccessLayer/Database/SonnetDB.cs b/XCode/DataAccessLayer/Database/SonnetDB.cs
+index da3b325b..8db364a3 100644
+--- a/XCode/DataAccessLayer/Database/SonnetDB.cs
++++ b/XCode/DataAccessLayer/Database/SonnetDB.cs
+@@ -17 +17 @@ internal class SonnetDB : RemoteDb
+-    public override BatchCapability BatchCapability => BatchCapability.Insert | BatchCapability.InsertIgnore | BatchCapability.Upsert;
++    public override BatchCapability BatchCapability => BatchCapability.Insert | BatchCapability.InsertIgnore | BatchCapability.Upsert | BatchCapability.Replace;
+@@ -296 +296 @@ internal class SonnetDBSession : RemoteDbSession
+-    public override Int32 Replace(IDataTable table, IDataColumn[] columns, IEnumerable<IModel> list) => throw new NotSupportedException("SonnetDB尚未支持删除冲突行后插入新行的Replace语义。参见SonnetDB issue #242。");
++    public override Int32 Replace(IDataTable table, IDataColumn[] columns, IEnumerable<IModel> list) => ExecuteBatch(table, columns, list, null, null, false, true);
+@@ -301 +301 @@ internal class SonnetDBSession : RemoteDbSession
+-    private Int32 ExecuteBatch(IDataTable table, IDataColumn[] columns, IEnumerable<IModel> list, ICollection<String>? updateColumns, ICollection<String>? addColumns, Boolean ignore)
++    private Int32 ExecuteBatch(IDataTable table, IDataColumn[] columns, IEnumerable<IModel> list, ICollection<String>? updateColumns, ICollection<String>? addColumns, Boolean ignore, Boolean replace = false)
+@@ -310 +310 @@ internal class SonnetDBSession : RemoteDbSession
+-        sql.Append("INSERT INTO ").Append(db.FormatName(table)).Append('(').Append(String.Join(",", columns.Select(db.FormatName))).Append(") VALUES ");
++        sql.Append(replace ? "REPLACE INTO " : "INSERT INTO ").Append(db.FormatName(table)).Append('(').Append(String.Join(",", columns.Select(db.FormatName))).Append(") VALUES ");

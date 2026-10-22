@@ -9,10 +9,15 @@ namespace SonnetDB.Query.Functions;
 internal static class SqlDateTimeFunctions
 {
     internal static object CurrentDateTime(IReadOnlyList<object?> arguments)
-        => DateTime.Now;
+        => AlignLegacyDateTime(DateTime.Now);
 
     internal static object CurrentUtcDateTime(IReadOnlyList<object?> arguments)
-        => DateTime.UtcNow;
+        => AlignLegacyDateTime(DateTime.UtcNow);
+
+    // 两个函数的 SQL 声明是旧 DATETIME，返回值须符合其毫秒值域，亦可用于已有列的 DEFAULT。
+    // 原生精度时钟仍可使用 current_utc_datetime_offset()，再显式 CAST 为 DATETIME2。
+    private static DateTime AlignLegacyDateTime(DateTime value)
+        => new(value.Ticks - value.Ticks % TimeSpan.TicksPerMillisecond, value.Kind);
 
     internal static object CurrentDateTimeOffset(IReadOnlyList<object?> arguments)
         => DateTimeOffset.UtcNow;

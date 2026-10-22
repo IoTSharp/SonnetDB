@@ -86,6 +86,9 @@ public sealed class SndbConnection : DbConnection
     public SonnetDB.Engine.Tsdb? UnderlyingTsdb
         => _impl is EmbeddedConnectionImpl emb ? emb.Tsdb : null;
 
+    internal Guid? EmbeddedSessionId
+        => _impl is EmbeddedConnectionImpl emb ? emb.SessionId : null;
+
     /// <inheritdoc />
     /// <remarks>
     /// 远程模式下相当于执行 <c>USE &lt;databaseName&gt;</c>：仅修改当前连接的目标库路由，
@@ -164,10 +167,12 @@ public sealed class SndbConnection : DbConnection
         }
 
         var impl = _impl;
-        _impl = null;
         _currentTransaction = null;
-        impl?.Close();
-        impl?.Dispose();
+        if (impl is null)
+            return;
+        impl.Close();
+        _impl = null;
+        impl.Dispose();
     }
 
     /// <inheritdoc />
@@ -745,6 +750,7 @@ public sealed class SndbConnection : DbConnection
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
         AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true, supportsMeasurementField: false);
+        AddDataType(table, "DATETIME2", DbType.DateTime2, typeof(DateTime), 8, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "DATETIMEOFFSET", DbType.DateTimeOffset, typeof(DateTimeOffset), 8, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "TIME", DbType.Time, typeof(TimeOnly), 7, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
         AddDataType(table, "DURATION", DbType.Object, typeof(TimeSpan), 19, searchable: true, fixedLength: true, maximumScale: 7, supportsMeasurementField: false);
@@ -816,7 +822,7 @@ public sealed class SndbConnection : DbConnection
             searchableWithLike,
             false,
             maximumScale,
-            (short)0,
+            typeName == "DATETIME2" ? (short)7 : (short)0,
             literalPrefix,
             literalSuffix,
             supportsRelationalColumn,
@@ -866,6 +872,7 @@ public sealed class SndbConnection : DbConnection
         TableColumnType.Boolean => "BOOL",
         TableColumnType.String => "STRING",
         TableColumnType.DateTime => "DATETIME",
+        TableColumnType.DateTime2 => "DATETIME2",
         TableColumnType.Time => "TIME",
         TableColumnType.Duration => "DURATION",
         TableColumnType.DateTimeOffset => "DATETIMEOFFSET",
@@ -896,6 +903,7 @@ public sealed class SndbConnection : DbConnection
             TableColumnType.Decimal => column.DecimalScale,
             TableColumnType.Time => 7,
             TableColumnType.Duration => 7,
+            TableColumnType.DateTime2 => 7,
             _ => 0,
         };
 }

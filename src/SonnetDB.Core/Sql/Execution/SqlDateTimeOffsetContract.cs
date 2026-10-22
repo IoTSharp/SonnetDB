@@ -8,9 +8,14 @@ namespace SonnetDB.Sql.Execution;
 /// <summary>在扫描、索引查找和连接之前绑定原生时刻的类型合同，不执行表达式或用户函数。</summary>
 internal static class SqlDateTimeOffsetContract
 {
-    private readonly record struct TypeInfo(TableColumnType? Type, bool NullOnly = false)
+    private readonly record struct TypeInfo(
+        TableColumnType? Type,
+        bool NullOnly = false,
+        long? ParameterUtcTicks = null,
+        bool IsExplicitParameterType = false,
+        bool IsParameterValue = false)
     {
-        internal bool IsNative => Type == TableColumnType.DateTimeOffset;
+        internal bool IsNative => Type is TableColumnType.DateTimeOffset or TableColumnType.DateTime2;
     }
 
     private sealed record Column(string Name, string Qualifier, TypeInfo Type, bool QualifiedOnly = false);
@@ -20,6 +25,9 @@ internal static class SqlDateTimeOffsetContract
     {
         switch (statement)
         {
+            case CreateTableAsStatement createAs:
+                _ = Select(database, createAs.Query, null, 0);
+                break;
             case SelectStatement select:
                 _ = Select(database, select, null, 0);
                 break;
@@ -33,7 +41,8 @@ internal static class SqlDateTimeOffsetContract
                         _ = Expression(database, join.On, scope, 0);
                     _ = Expression(database, update.Where, scope, 0);
                     foreach (var assignment in update.Assignments)
-                        _ = Expression(database, assignment.Value, scope, 0);
+                        ValidateAssignment(columns.FirstOrDefault(column => column.Name == assignment.ColumnName)?.Type ?? default,
+                            Expression(database, assignment.Value, scope, 0), assignment.Value);
                     break;
                 }
             case DeleteStatement delete:
@@ -42,20 +51,28 @@ internal static class SqlDateTimeOffsetContract
                 break;
             case InsertStatement insert:
                 {
-                    if (insert.Query is not null)
-                        _ = Select(database, insert.Query, null, 0);
                     var columns = Source(database, insert.Measurement, insert.Measurement, null, 0);
                     var scope = new Scope(columns.Concat(columns.Select(column => column with
                     { Qualifier = "excluded", QualifiedOnly = true })).ToArray());
+                    if (insert.Query is not null)
+                    {
+                        var output = Select(database, insert.Query, null, 0);
+                        for (int index = 0; index < insert.Columns.Count && index < output.Count; index++)
+                            ValidateAssignment(columns.FirstOrDefault(column => column.Name == insert.Columns[index])?.Type ?? default,
+                                output[index].Type, null);
+                    }
                     foreach (var row in insert.Rows)
-                        foreach (var value in row)
-                            _ = Expression(database, value, scope, 0);
+                        for (int index = 0; index < row.Count; index++)
+                            ValidateAssignment(index < insert.Columns.Count
+                                    ? columns.FirstOrDefault(column => column.Name == insert.Columns[index])?.Type ?? default : default,
+                                Expression(database, row[index], scope, 0), row[index]);
                     if (insert.OnConflict is { } conflict)
                     {
                         if (conflict.UpdateWhere is not null)
                             _ = Expression(database, conflict.UpdateWhere, scope, 0);
                         foreach (var assignment in conflict.UpdateAssignments)
-                            _ = Expression(database, assignment.Value, scope, 0);
+                            ValidateAssignment(columns.FirstOrDefault(column => column.Name == assignment.ColumnName)?.Type ?? default,
+                                Expression(database, assignment.Value, scope, 0), assignment.Value);
                     }
                     break;
                 }
@@ -67,7 +84,8 @@ internal static class SqlDateTimeOffsetContract
                         _ = Expression(database, check.Expression, scope, 0);
                     foreach (var column in create.Columns)
                         if (column.DefaultExpression is not null)
-                            _ = Expression(database, column.DefaultExpression, scope, 0);
+                            ValidateAssignment(CastType(column.DataType),
+                                Expression(database, column.DefaultExpression, scope, 0), column.DefaultExpression);
                     break;
                 }
             case AlterTableAddCheckConstraintStatement check:
@@ -232,8 +250,25 @@ internal static class SqlDateTimeOffsetContract
             case LiteralExpression { Kind: SqlLiteralKind.Null }:
                 return new TypeInfo(null, true);
             case CastExpression cast:
-                _ = Expression(database, cast.Operand, scope, depth + 1);
-                return CastType(cast.TargetType);
+                TypeInfo operandType = Expression(database, cast.Operand, scope, depth + 1);
+                if (cast.IsParameterValue && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Null })
+                    return new TypeInfo(null, NullOnly: true);
+                if (cast.IsParameterValue && cast.TargetType == SqlDataType.DateTime2
+                    && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Integer } ticks)
+                    return new TypeInfo(TableColumnType.DateTime2, ParameterUtcTicks: ticks.IntegerValue,
+                        IsExplicitParameterType: cast.IsExplicitParameterType,
+                        IsParameterValue: true);
+                if (cast.IsParameterValue && cast.TargetType == SqlDataType.DateTimeOffset
+                    && cast.Operand is LiteralExpression { Kind: SqlLiteralKind.Integer } offsetTicks)
+                    return new TypeInfo(TableColumnType.DateTimeOffset, ParameterUtcTicks: offsetTicks.IntegerValue,
+                        IsExplicitParameterType: cast.IsExplicitParameterType,
+                        IsParameterValue: true);
+                TypeInfo castType = CastType(cast.TargetType);
+                if (cast.IsParameterValue && castType.Type == operandType.Type)
+                    return operandType with { IsParameterValue = true };
+                if (operandType.IsExplicitParameterType && castType.Type == operandType.Type)
+                    return operandType;
+                return castType;
             case BinaryExpression binary:
                 {
                     var left = Expression(database, binary.Left, scope, depth + 1);
@@ -241,10 +276,10 @@ internal static class SqlDateTimeOffsetContract
                     if (binary.Operator is SqlBinaryOperator.Equal or SqlBinaryOperator.NotEqual
                         or SqlBinaryOperator.LessThan or SqlBinaryOperator.LessThanOrEqual
                         or SqlBinaryOperator.GreaterThan or SqlBinaryOperator.GreaterThanOrEqual)
-                        RequireCompatible(left, right);
+                        RequireCompatible(left, right, allowLegacyParameter: true);
                     else if (left.IsNative || right.IsNative)
                     {
-                        if (binary.Operator == SqlBinaryOperator.Subtract && left.IsNative && right.IsNative)
+                        if (binary.Operator == SqlBinaryOperator.Subtract && left.IsNative && right.IsNative && left.Type == right.Type)
                             return new TypeInfo(TableColumnType.Duration);
                         throw Unsupported();
                     }
@@ -254,7 +289,7 @@ internal static class SqlDateTimeOffsetContract
                 {
                     var value = Expression(database, membership.Value, scope, depth + 1);
                     foreach (var item in membership.Values)
-                        RequireCompatible(value, Expression(database, item, scope, depth + 1));
+                        RequireCompatible(value, Expression(database, item, scope, depth + 1), allowLegacyParameter: true);
                     if (membership.Subquery is { } subquery && database is not null)
                     {
                         var output = Select(database, subquery, scope, depth + 1);
@@ -287,7 +322,18 @@ internal static class SqlDateTimeOffsetContract
                     if (function.Name.Equals("coalesce", StringComparison.OrdinalIgnoreCase))
                         return arguments.Aggregate(new TypeInfo(null, true), Merge);
                     if (function.Name.Equals("nullif", StringComparison.OrdinalIgnoreCase) && arguments.Length == 2)
-                        RequireCompatible(arguments[0], arguments[1]);
+                        RequireCompatible(arguments[0], arguments[1], allowLegacyParameter: true);
+                    if (function.Name.Equals("date_diff", StringComparison.OrdinalIgnoreCase)
+                        || function.Name.Equals("datediff", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (arguments.Length == 3)
+                        {
+                            if (arguments[0].Type == TableColumnType.String)
+                                RequireCompatible(arguments[1], arguments[2], allowLegacyParameter: true);
+                            else if (arguments[2].Type == TableColumnType.String)
+                                RequireCompatible(arguments[0], arguments[1], allowLegacyParameter: true);
+                        }
+                    }
                     return Infer(expression, scope);
                 }
             case SubqueryExpression subquery when database is not null:
@@ -348,18 +394,41 @@ internal static class SqlDateTimeOffsetContract
     private static TypeInfo Merge(TypeInfo left, TypeInfo right)
     {
         RequireCompatible(left, right);
-        return left.NullOnly ? right : right.NullOnly ? left : left.Type == right.Type ? left : default;
+        // CASE/COALESCE 的多分支结果不能冒用其中一个参数的毫秒对齐证明。
+        return left.NullOnly ? right : right.NullOnly ? left : left.Type == right.Type ? new TypeInfo(left.Type) : default;
     }
 
-    private static void RequireCompatible(TypeInfo left, TypeInfo right)
+    private static void ValidateAssignment(TypeInfo target, TypeInfo source, SqlExpression? expression)
     {
+        if (expression is DefaultValueExpression || source.NullOnly)
+            return;
+        if (target.Type == TableColumnType.DateTime2 && source.Type != TableColumnType.DateTime2)
+            throw new InvalidOperationException("DATETIME2 写入需要原生 DateTime 参数或显式 CAST(... AS DATETIME2)，不能隐式解释 Unix 毫秒、字符串或其它类型。");
+        if (target.Type == TableColumnType.DateTime && source.Type == TableColumnType.DateTime2)
+            RequireCompatible(target, source, allowLegacyParameter: true);
+        if (target.Type == TableColumnType.DateTime && source.Type == TableColumnType.DateTimeOffset)
+        {
+            if (source.IsParameterValue && !source.IsExplicitParameterType)
+                RequireCompatible(target, source, allowLegacyParameter: true);
+        }
+    }
+
+    private static void RequireCompatible(TypeInfo left, TypeInfo right, bool allowLegacyParameter = false)
+    {
+        if (allowLegacyParameter && (left.Type == TableColumnType.DateTime && right.ParameterUtcTicks is { } rightTicks
+                && rightTicks % TimeSpan.TicksPerMillisecond == 0
+            || right.Type == TableColumnType.DateTime && left.ParameterUtcTicks is { } leftTicks
+                && leftTicks % TimeSpan.TicksPerMillisecond == 0))
+            return;
+        if (left.IsNative && right.IsNative && left.Type != right.Type)
+            throw Unsupported();
         if (left.IsNative && !right.IsNative && !right.NullOnly
             || right.IsNative && !left.IsNative && !left.NullOnly)
             throw Unsupported();
     }
 
     private static InvalidOperationException Unsupported()
-        => new("DATETIMEOFFSET 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。");
+        => new("DATETIMEOFFSET/DATETIME2 比较或合并要求相同的原生类型；DATETIME、Unix 整数或未知类型必须显式 CAST。");
 
     private static void CheckDepth(int depth)
     {

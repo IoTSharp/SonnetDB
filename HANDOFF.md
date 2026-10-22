@@ -6,6 +6,13 @@
 - 已修改 M41 测试：移除 `System.Random`，使用固定算术分布生成 branch、排序键和目标键，保留重复键、NULL、范围和索引/全扫描等值对拍覆盖；未修改生产解析器或数据格式。
 - 验证：`dotnet build src/SonnetDB.Core/SonnetDB.Core.csproj --configuration Release --no-restore` 通过（0 警告/0 错误）；针对文件的 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --include tests/SonnetDB.Core.Tests/Sql/M41P0DifferentialTests.cs` 退出 0；M41 源文件的 `git diff --check` 通过。全局差异检查仍报告 HANDOFF 既有章节的尾随空白，未改写外来段落。M41 定向测试因工作树既有的无关测试编译缺口阻断（`SonnetDB.IO`、`FrameHeader`、`KvFrameOp` 等类型缺失），不归因于本补丁。
 - 本次变更按用户要求创建本地提交，尚未推送；提交进入 `main` 后仍需由 CodeQL workflow 重新分析，才能取得 GitHub 端告警自动关闭回执。现有其它脏改动、`parity-results` 和历史证据均未清理。
+## 2026-10-19 Issue #232 Core schema namespace slice
+
+- 工作树 `D:\source\SonnetDB\.codex-temp\issue232-schemas-20261019`，分支 `codex/issue232-schemas-20261019`，基线 `9eb4028745f6f20b92b8e314faf84ff8303dbe71`。本轮只改 Core 与 Core tests，未提交、未推送；根的 #245 Data/Server 生命周期和 Windows 长路径修复未覆盖。
+- 已实现 `TableObjectName`/SQL qualified-name、`main` 默认 schema、逐段 quoted/unquoted 解析、三段名拒绝、schema 拼写 canonicalization、v1-v17 旧目录归入 `main`、catalog format v18、非 main 长度编码 rowstore/KV identity，以及 catalog/session/store/事务/锁/CTAS journal 的 pair identity 接线。事务 journal 现支持 v1 读取并写 v2 成对身份；#227 后续需保留 DDL journal floor v19。
+- SQL parser/binder/executor 已覆盖 CREATE/CTAS/SELECT/JOIN/INSERT/REPLACE/UPDATE/DELETE/TRUNCATE/DROP/index/FK/trigger 目标；真实测试证明 `main.items` 与 `sales.items` 可独立 CRUD、关闭重开后仍路由正确。Data/Server/ADO/remote schema metadata 尚未实施，不能宣称 Issue #232 全部验收。
+- 验证：Core Release build 0 warning/0 error；schema/codec/parser/identity/manager 与真实双 schema SQL 定向测试最终 `51/51`，新增真实 SQL 重开测试 `1/1`。此前一次 no-build 测试使用旧 DLL 导致空名称误报，已在重建测试项目后复核通过。
+- 下一步：在此工作树执行完整 `dotnet restore SonnetDB.slnx` 与规定 `dotnet format ... --verify-no-changes --no-restore --severity warn --exclude extensions/`，保存 manifest/门禁收据后创建本地 commit；root 先整合 #236，再 cherry-pick 本提交并继续 Data/Server/remote。
 
 ## 2026-10-19 pg_vectorsearch / PRISM 路线图登记
 
@@ -3379,3 +3386,128 @@ M49仍IN_PROGRESS，15包均未整体完成：Native仍依赖混合Data；其余
 - 新真实测试覆盖 Client 直连产品 Server、Int64/Decimal/Blob/DateTime/Offset/Time/Duration/NULL 落盘和完整宿主重开、位置参数/SQL 注入文本、权限、约束整句回滚、能力/版本/畸形输入拒绝，以及提交后断响应时仍有一条数据且没有重试。最终计数、原 TRX/GZip、源码和运行身份见 `docs/audits/m49/f01-20261017/acceptance.json`；早期失败保留，完整 Core/Server、TLS/ALPN、AOT 发布运行、其它平台与正式消费者未验证。
 - 继承 dirty 仍为 CHANGELOG/ROADMAP 的 M42/M47/D01 旧规划及 `docs/design/m42-relational-hot-write-concurrency.md`；仅暂存本片自有路径/hunk。不 reset/clean/stash-all，不改/合并/删除 parity-results。临时资源和有界 Job 回执存 `artifacts/m49-f01-20261017`；清理只针对本任务有 owner 标记的 TEMP。
 - 下一会话先读 `docs/handoffs/m49-next-computer.md`：先补 SQL Frame 多结果/RETURNING 与适用事务，再迁移旧 ADO；随后衔接 R01/R02/R03 Core pull，不能把完整 Rows 外切批当有界。D01 Native 混合依赖、各语言绑定与九模型其它操作继续按矩阵推进。`embedded` 在本分支仓库根，旧共享 main 的目录视图不同。
+
+## 2026-10-19 PR #327 本地整合门禁前
+
+用户已授权主智能体监督三个子智能体，先同步 canonical 现有文件，再按倒序逐项整合，最后统一推送并核验真实 CI。canonical main 已同步0986f92e，本地文件完成三方合并并保留发布/Workbench原有增量；不改 parity-results 或自动化配置。
+
+本受控工作树分支 codex/pr-issue-integration-20261019，已普通merge --no-commit纳入PR327原head 9b51dcd0，同时修复TableManager并行预热线程共享Dictionary的真实竞态。原Barrier并行测试保留，修复树Windows定向92/92、0skip；不是新依赖组合/Linux/完整CI的完成证据。审计见 docs/audits/pr327-cache-warmup-20261019.md。当前等待最终完整restore、规定Format后提交；原失败保留，不推送、不关闭Issue。
+
+后续顺序327→326→325/324依赖协调→321→320→319→318→317→316→315；247核心实现与既有Issue独立核查在隔离树进行，245等待共享SQL核心。最终同SHA CI未取得前不写全绿，不将部分实现或包存在冒称正式发行。
+## 2026-10-19 PR #326 本地整合门禁前
+
+在 PR #327 本地合并提交后，已普通 merge --no-commit 纳入 PR #326 的 Microsoft.Extensions.AI 10.11.0 依赖更新；Dependabot 头携带的旧 HANDOFF/ROADMAP 删除已恢复为当前整合树字节。原 PR Windows Core 50分钟超时保留为 FAIL/UNKNOWN，当前 main 后续 Core 成功与 Windows rest 的 CAP失败分别记录，不能互相替代。
+
+本项仍等待依赖变更后的完整 restore/Format 后提交；不推送、不关闭 PR。下一项 #325 依赖 #324 的 Relational 10.0.13，需按真实 NU1605 依赖关系协调顺序，不以倒序形式制造可预见的降级失败。
+## 2026-10-19 PR #324 本地整合门禁前
+
+按实际依赖先合入 PR #324 的 Microsoft.EntityFrameworkCore 与 Relational 10.0.13；这是为消除后续 #325 Design/Tools 10.0.13 在旧 Relational 10.0.12 上触发的 NU1605。Dependabot 旧文档删除已排除。当前仍在最终整合树中，待本项 restore/Format 后提交；不推送，不把依赖层合入当作 EF/ORM 全部验收。
+## 2026-10-19 PR #325 本地整合门禁前
+
+#325 与 #324 存在真实依赖版本冲突：PR 原始 Format/restore 的 NU1605 由 Design 10.0.13 间接要求 Relational >=10.0.13，而 #324 头仍是10.0.12。当前整合树已先提交#324，再解析#325冲突为 EFCore、Relational、Design、Tools 全部10.0.13；Dependabot旧交接删除未采用。仍未提交#325，等待本次完整restore/Format，未推送或关闭PR。
+## 2026-10-19 PR #321 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.Data.Sqlite 10.0.13；Dependabot 旧共享文档删除已排除。该 PR 原始 checks 当时为 clean/pass 候选，当前仍需以最终整合 SHA 的全套 CI 为准。
+## 2026-10-19 PR #320 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.AspNetCore.SpaProxy 10.0.13。原 PR Windows rest CI 的 CAP CommitAsync 提前启动测试超时已在固定子模块初始化后本机 CapJourneyTests 10/10（remote false/true）通过，但历史单次 timeout 的生产根因仍 UNKNOWN；本次不修改等待、超时或断言，不以本机单项目通过代替最终候选 CI。
+## 2026-10-19 PR #319 本地整合门禁前
+
+已普通 merge --no-commit 纳入 Microsoft.AspNetCore.Mvc.Testing 10.0.13；旧共享文档删除排除。原 PR checks 为 clean 候选，最终仍按整合 SHA 核验。
+## 2026-10-19 PR #318 本地整合门禁前
+
+#318 与 #324/#325 共享 Directory.Packages.props，冲突已解析为 Identity.UI 10.0.13 并保留前序 EF 四包 10.0.13；Dependabot 旧文档删除未采用。RAG取消测试的11/11证据属于后续独立缺陷修复，不由本依赖更新冒称整体CI通过。
+## 2026-10-19 PR #317 本地整合门禁前
+
+#317 与前序依赖发生同文件冲突，已解析为 Identity.EntityFrameworkCore 10.0.13、Identity.UI 10.0.13 与 EF Core 四包10.0.13的统一版本；Dependabot旧文档删除未采用。原 PR Ubuntu warmup失败由#327的共享字典短锁修复覆盖，仍待最终整合SHA CI。
+## 2026-10-19 PR #316 本地整合门禁前
+
+#316 冲突已解析为 Diagnostics.EntityFrameworkCore 10.0.13，保留前序 EF/Identity 全部10.0.13。旧共享文档删除未采用；待本次restore/Format提交后继续#315。
+## 2026-10-19 PR #315 本地整合门禁前
+
+已普通merge --no-commit纳入CodeQL action 4.38.3；前序十个依赖PR均已逐个本地提交，尚未统一推送。此项仅工作流Action版本更新，不改变CodeQL扫描范围、权限、failure策略或发布门禁。后续整合RAG真实取消修复及#247未完成原生/ADO/远程链。
+
+## 2026-10-19 RAG 取消点修复整合检查点
+
+11个依赖PR已本地普通逐个合并，最新724c3d89，未推送。RAG内部入口新增可选调用方取消令牌，保留原timeout/Ctrl+C；真实HTTP请求后取消、审计、未发布、持久续跑与提前取消共11项在独立树通过，整合新依赖后重新验证。原main空audit失败与PR326历史50分钟超时分列，后者仍UNKNOWN。此次同时修正六条本批依赖CHANGELOG记录的Unreleased位置，保留执行历史。
+
+#247 Core 16文件205定向通过，但最后ABI修订未重编；根复核发现旧Text/CALL IN转换兼容变化，将独立修正并加回归后再纳入。ADO/Protocol/Server代理接专用类型化过程入口、完整输出终态和Reader关闭回写；#245独立会话准备，等待根Core基线。源版本升级为routine目录v5仍须单独CHANGELOG与拒旧/恢复门禁，不能据核心局部测试关闭Issue。
+
+
+## 2026-10-19 #247 原生核心整合检查点（整项未完成）
+
+RAG已本地提交af391283，集成新依赖重编11/11通过。#247原生切片经根独立复核补旧Text IN转换/嵌套兼容、两参构造/解构、提交前validateCompletion、只读缓冲主键预验及原有保存点回滚；213/213定向零失败/跳过，初次测试构造编译失败保留。runtime目录升v5（读v1-4为IN、旧引擎拒绝新目录、回退用升级前备份），FileHeader未改。
+
+本项待最终完整restore/原Format形成源码提交后，作为#245/#242共享Core新基线；ADO/Server/Protocol代理继续原24合同、真实REST/Frame及固定SqlSugar，Core213不能替代完整交付。Core默认文本CALL最后结果保持，新CaptureProcedureResults供客户端显式捕获全链；已有caller事务的非PK唯一/延迟约束仍可在COMMIT失败。自有/外层事务完成编码失败应回滚当前调用，不公开通用savepoint或用反射绕过。
+
+源码和验证细节见 docs/audits/issue247-core-20261019.md；无统一push、正式发布、部署或Issue关闭。canonical当前文件与发布dirty继续保留，接续按受控文件清单，不全量暂存。
+
+
+当前main 0986f92e的CI39147045021已完成/failure，Core成功而Windows rest失败于StudioManagedServerHostTests.StartAsync_WhenSwitchingToNewUnhealthyTarget_ReplacesExistingManagedProcess及RelationalTableWarmupTests.Service_WithExistingDatabase_WarmsEveryRelationalTable；此前把该run关联为CAP失败不准确，本段与PR326审计予以纠正。PR320原CAP timeout仍是独立历史事实，不覆盖或删除。
+
+## 2026-10-19 主智能体接续检查点（尚未统一推送）
+
+先拉取最新代码与 canonical 文件三方合并已完成：main 为 0986f92e，1,609 个保护文件与原有发布/VS Code 增量按清单保留，parity-results 保持。受控集成树 codex/pr-issue-integration-20261019 当前 5d6c3587，含 11 个 PR 的普通合并、RAG 取消修复及 #247 Core，共 13 个本任务提交；逐次完整 restore 与规定 Format 回执已核，推送次数 0，远端 PR 尚开放。
+
+#247 Core 213/213、原生 ADO 35/35 仅是切片证据。首轮真实远程 42 项为 21 PASS/21 FAIL，其中20为HTTP2握手失败、1为独立断言；代理正在分别修复，不降级HTTP1、不删除失败。固定SqlSugar Reader输出、真实远程失败与AOT/正式包仍待。#245已接连接会话/COW临时对象，持久CTAS版本化stage/journal/recovery仍实施；#242已接全冲突DELETE→INSERT及FK/唯一索引终态，首轮缺using编译失败保留后继续定向验证，均未提交。
+
+main CI39147045021真正失败的是Windows rest的StudioManagedServerHost和RelationalTableWarmup；本地原样重验分别8/8、5/5，不据此推定历史根因。PR326历史Core50分钟超时及PR320历史CAP超时仍独立UNKNOWN。RAG af391283在新依赖组合11/11通过。当前完整任务、最终SHA CI、正式发行均未完成；已有源码实现的十项Issue不重复实施或提前关闭。
+
+下一顺序：验收并整合247远程链→245 TEMP/CTAS→242 Replace，再按倒序处理236精度、233真实ORM锁定读、232 schema、227事务DDL及230正式交付依赖。根统一协调共享文件，每次代码提交前重新执行完整restore/原Format。临时目录main-studio-temp-01删除被自动命令策略阻止，仍保留且无成功回执。原始失败、恢复材料及非本任务文件继续保留。
+
+## 2026-10-19 验证分支重放 #247
+
+原本地整合分支 b55e4dce 与所有原父提交保留作审计；本工作树切换到 codex/pr-issue-verified-20261019，基线670beab4。本项仅重放247 ADO/Protocol/Server及两个已失效setter负例的真实执行更新；root原SqlProcedureOutputTests完整兼容/保存点回归保留，未采用worker的旧add/add副本。先取得本最终树完整restore/规定Format后才创建提交，后续按245→242→metadata修正及消费者证据顺序继续。原始失败、Root289/remote60以及固定Sugar三协议23/23外置收据保留，稳定发行/最终CI未完成，没有push。
+
+## 2026-10-19 验证分支重放 #245 Core
+
+247已在最终树restore/Format通过后提交594b003d；当前重放245 Core最新12a7c044（45源原始范围），将已实测的bareCAST Decimal元数据修复提前并入本片，避免把已知回归再次提交。Core28/28、CTAS amendment11/11及真实强杀7/7收据为既有结果；扩大289/289保留原270项4FAIL。此片为显式SqlSessionContext与CTAS，自动ADO/远程连接会话仍由独立代理实施，不能写Issue全部完成。当前先做完整restore/规定Format，再提交；没有push，所有原分支和失败证据保留。
+
+## 2026-10-19 验证分支重放 #242
+
+247和245已分别先restore/Format后提交594b003d、9f4b289e；当前重放242原始64b782cd，按真实DELETE/INSERT、全部冲突、触发器/FK、默认值/生成值及回滚合同整合。原Core134/134、早期编译和133/134失败收据外置保留，不替代远程/XCode。完整restore/规定Format通过后才提交，没有push；源代码最终须与审计分支b55的src/tests一致，233 probe包后续单独入库。
+
+## 2026-10-19 验证分支接入 #236 Core（整项未完成）
+
+已完成247/245/242先gate后commit的重放，当前ee5bbd93的src/tests与原已验证b55逐字一致，旧原分支完整保留。Core236的352d10现以no-commit接入，28文件自动三方合并无冲突；保留TEMP/CTAS/Replace及bareCAST未知精度修复。Core独立255/257（54新增通过、0skip）仅原2项Data旧亚毫秒行为FAIL，原失败未删；measurement小probe修前0/5、修后6/6，关系完整ticks不回退。当前需整合定向重编、完整restore及规定Format后再commit，Data/Protocol/Server接续必须验真实REST/H2与时序参数，因为内联SQL不能携带内部IsParameterValue标记。表目录floor17/MV5已独立，旧engine实际exe验收NOT_RUN，不能据ReadFormatVersion冒称通过。没有push。
+
+根额外在同一已编译候选运行原INSERT/关系表回归：196/199，真实3FAIL揭示旧DATETIME时钟/动态默认值不对齐被新拒绝合同阻断。原失败保留，未改断言；修复仅声明为旧DATETIME的current_datetime/current_utc_datetime返回毫秒对齐，保留Local/UTC Kind，SQL参考和CHANGELOG明确这两个函数精度收窄。显式CAST/DATE_ADD保完整ticks；current_utc_datetime_offset()+CAST DATETIME2保留原生时钟路径。继续重跑原199和组合142后gate。
+
+旧时钟修复后在整合树重新构建：原199项与组合142项并集341/341，0fail/0skip；原3FAIL未改断言且已保留。接着在此最终源上重新完整restore/规定Format后才提交Core切片。
+
+## 2026-10-19 真实 ORM 消费者证据入库（尚未统一推送）
+
+Core236 已在最终完整 restore/Format 通过后提交 9eb40287；当前提交只保存 #247/#242/#233 的真实消费者探针、固定上游最小补丁及审计。SqlSugar 原版三协议各 9 PASS/14 FAIL，候选各 23/23；实际 HTTP/2 Procedure=3 共24次来自23场景中的两次复用。XCode 原版三协议各2项负控制、候选各7/7；Chloe embedded8/8、边界5/5，REST和HTTP/2各6/6。原版失败和正式4.0包失败保留，不代表上游补丁、稳定NuGet/Server或最终SHA的CI已交付。
+
+233/242外置manifest与247 acceptance/patch应用回执已移出可删工作树；247曾随父树误删的旧worker artifacts不再计作可回读证据，使用根289/289、远程60/60及新消费者回执。入库的247 csproj额外按真实已验证运行依赖显式引用Microsoft.AspNetCore.App，独立重编0警告/0错误。接续仍为245连接会话→236 Data/Protocol/Server→232结构化schema→227关系DDL事务→230正式交付依赖；没有push/Issue关闭/部署，canonical原脏文件继续保护。
+
+## 2026-10-19 #245 连接会话整合候选（尚未统一推送）
+
+真实消费者证据已提交e3dc67d7。当前以no-commit叠加245子分支5509adcc（父9faced95），产品源码自动三方合并，CHANGELOG/HANDOFF按验证分支当前事实重写冲突，保留236 Core和消费者证据。嵌入式连接SQL、元数据、过程与事务共享同一SqlSessionContext，Close失败保留可重试对象；远程X-SonnetDB-Connection-Session与原transaction SessionId独立，绑定Tsdb/库名/认证摘要。TEMP/临时CTAS前惰性握手，之后REST/HTTP2/schema/过程/事务共用header，过期不重建或重发SQL。
+
+远程会话最多保留128个active+cleanup，真正清理成功才归还配额；server/client准入30秒，创建响应headers-first且16KiB上限；空闲5分钟、每15秒防重入sweep最多1项/2秒目标，shutdown总预算30秒。子树最终完整restore/规定Format通过，Server/Data AOT+trim分析0warning/error；真实HTTP2 198/198、REST+procedure99/99、registry7/7、Core session/CTAS29/29。外置product-manifest/validation及TRX位于sync-20261019/issue245-session-evidence，未把完整solution测试、NativeAOT publish/runtime或SqlSugar Fastest写成已通过。根需在含236的本候选重验定向并重新完整restore/规定Format后提交；尚未push。
+
+## 2026-10-19 #245 整合提交与真实 Fastest 长路径修复候选
+
+245连接生命周期在根含236的树重新构建，Server session22/22、Core session/CTAS29/29，随后完整restore/规定Format通过并提交19b59165。独立真实SqlSugar Fastest候选只把CreateTempAsync换成原生空集TEMP CTAS，不改SqlSugar核心；首次编译因外部项目误继承仓库中央包管理NU1008失败，隔离外部项目后成功（保留4项原上游nullable告警），探针0warning/error。
+
+有界两行试运行1 PASS/9 FAIL，首个真实失败是私有长TEMP根下CreateFileW无法打开超过260字符的rowstore/WAL目录，Directory.Exists已经成功；原始日志issue245-fastest-native-trial2-01保持。当前只修DirectoryFsync的Windows原生路径规范化与扩展前缀，不缩短TMP、不改错误过滤或fsync；新增真实绝对/相对/已有扩展长目录、写入flush/rename及不存在目录仍失败的回归。需重编回归并在同等长TMP重跑消费者、完整restore/Format后另提交；一万行/真实远程Fastest仍待，没有push。
+
+## 2026-10-19 Windows fsync与Fastest真实消费者完成检查点（未推送）
+
+Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规定Format通过后提交a7861a0b。Fastest后续两次6/10失败来自探针未重新启用Fastest在Begin关闭的逐SQL日志，实际SQL观测/失败注入未触发；旧日志保留，启用观测后再运行正式10000行，候选embedded/REST/实际HTTP2各10/10，原版三协议各2项普通批量通过、2项原生TEMP/隔离负控制失败。候选实际107次H2请求/14 Query Frame，其他H2 REST事务/写入/metadata没有伪装为全Frame。
+
+当前准备保存eng/probes/issue245-fastest的探针、宿主、最小provider补丁及审计。外置46文件manifest为81CA1623363D82D0FEAFCF3F9E297EB0657AC09BD4EC05C49D3AE201D743630C，补丁严格check/apply并逐字对照候选。未发布稳定包/上游补丁、未做最终SHA CI。245旧managed树已核source/evidence/clean/两子模块pins后通过app归档，源提交5509adcc可恢复，外置证据完好；当前active集成a7861a0b，主继续验236 Data/232 Core/227事务DDL及230，push次数0。
+
+## 2026-10-19 #236/#232 集成检查点（未推送）
+
+#236 Data/Protocol/Server 已以 `70d11dc9` 整合，保留 #245 connection-session header 与 typedParameters/v7 转发；最终整合树 restore 通过，DATETIME2/Procedure/connection-session 定向组 55/55 通过。子树最终证据仍为 Core/协议535/535、Remote/Procedure250/250、AOT/Trim零警告、restore/Format通过和96个自有bin/obj清理。
+
+#232 已以 `098db1fb` 接入结构化 schema/table pair、默认 `main`、v18 catalog、v1-v17旧目录映射、限定名绑定与双schema重开；整合树 schema 定向51/51，restore通过。Data/Server/远程metadata仍待后续切片。
+
+#227底座 `c0f28ae6` 已rebase到#232冻结提交，但仍只包含workspace/journal/recovery，未改SqlExecutor/TableManager live入口，真实ADO DDL和远程均NOT_RUN；不能写成Issue完成。没有push、Issue关闭、正式包发布或部署。下一步完成#227真实live DDL入口及嵌入ADO提交/回滚/失败/重开回归，再在最终树重跑完整restore、规定Format和最终SHA CI。
+
+## 2026-10-19 CI 39199301693 修复提交前检查
+
+- 基于远端 `615f3cdfd6561bff81c74e43c5c9b182568da9dd` 的隔离 worktree 完成旧 `DATETIME`/`DateTimeOffset` 参数边界和 Reader close 测试修复；未声明 DTO 亚毫秒值在旧 DATETIME 写入前拒绝，显式 EF/Identity `DbType.DateTimeOffset` 继续兼容。
+- 最终验证：Core 7890/7890、EF Core 295/295、Identity lockout 1/1、规定 Format Check exit 0；未提交前没有新的远端 CI 回执。当前将提交并推送到 `main`，随后以新 SHA 回读 CI。

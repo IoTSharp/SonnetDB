@@ -1,0 +1,196 @@
+using System.Data;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using SonnetDB.Data;
+using SqlSugar;
+
+if (args.Length != 2) return 2;
+string connectionString = Environment.GetEnvironmentVariable("ISSUE245_CONNECTION")
+    ?? throw new InvalidOperationException("Missing connection string.");
+string label = args[0];
+bool original = args[1] == "original";
+int rowCount = int.Parse(Environment.GetEnvironmentVariable("ISSUE245_ROWS") ?? "10000", System.Globalization.CultureInfo.InvariantCulture);
+if (rowCount is < 2 or > 10_000) throw new ArgumentOutOfRangeException(nameof(rowCount));
+Console.WriteLine($"ROWS|{rowCount}");
+using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(240));
+int passed = 0, failed = 0;
+var stages = new List<(string Name, bool Native, bool OwnerVisible, bool ObserverVisible)>();
+var sqlLog = new List<string>();
+bool failNextCopy = false;
+foreach (string name in new[] { "SonnetDB.Core", "SonnetDB.Data", "SonnetDB.Protocol", "SqlSugar", "SqlSugar.SonnetDBCore" })
+{
+    var assembly = Assembly.Load(name);
+    using var stream = File.OpenRead(assembly.Location);
+    Console.WriteLine($"ASSEMBLY|{name}|{assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}|{Convert.ToHexString(SHA256.HashData(stream))}");
+}
+using var observer = new SndbConnection(connectionString);
+await observer.OpenAsync(deadline.Token);
+using var db = new SqlSugarClient(new ConnectionConfig
+{
+    ConnectionString = connectionString,
+    DbType = SqlSugar.DbType.SonnetDB,
+    InitKeyType = InitKeyType.Attribute,
+    IsAutoCloseConnection = false,
+});
+db.Ado.Open();
+db.Ado.IsEnableLogEvent = true;
+db.Aop.OnLogExecuting = (sql, _) =>
+{
+    deadline.Token.ThrowIfCancellationRequested();
+    // Fastest 在 Begin 中关闭逐 SQL 日志，随后直接触发这个已有通知；
+    // 探针仅重新启用观测，不修改 ORM 核心、业务 SQL 或返回值。
+    if (sql.StartsWith("Begin Bulk", StringComparison.Ordinal)) db.Ado.IsEnableLogEvent = true;
+    if (sqlLog.Count >= 2_000) throw new InvalidOperationException("SQL observation bound exceeded.");
+    sqlLog.Add(sql);
+    if (failNextCopy && sql.StartsWith("INSERT INTO", StringComparison.OrdinalIgnoreCase)
+        && sql.Contains("sonnet_bulk_", StringComparison.Ordinal))
+    {
+        failNextCopy = false;
+        throw new InvalidOperationException("owned-fastest-copy-failure");
+    }
+};
+db.Aop.OnLogExecuted = (sql, _) =>
+{
+    if (!sql.StartsWith("CREATE", StringComparison.OrdinalIgnoreCase)) return;
+    var match = Regex.Match(sql, @"\bsonnet_bulk_[a-f0-9]{32}\b", RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
+    if (!match.Success) return;
+    string name = match.Value;
+    bool native = sql.StartsWith("CREATE TEMP TABLE", StringComparison.OrdinalIgnoreCase);
+    stages.Add((name, native, Visible((SndbConnection)db.Ado.Connection, name), Visible(observer, name)));
+};
+await db.Ado.ExecuteCommandAsync("CREATE TABLE fastest_items(Id INT,Value INT,Label STRING,PRIMARY KEY(Id))");
+var rows = Enumerable.Range(0, rowCount).Select(id => new FastestRow { Id = id, Value = 1, Label = "initial" }).ToList();
+await Run("bulk-copy-10000", async () =>
+{
+    Require(await db.Fastest<FastestRow>().BulkCopyAsync(rows) == rowCount, "Bulk copy affected count.");
+    Require(await Scalar(observer, "SELECT COUNT(*) FROM fastest_items") == rowCount, "Bulk copy count.");
+});
+foreach (FastestRow row in rows) { row.Value = 2; row.Label = "async"; }
+await Run("bulk-update-10000", async () =>
+{
+    Require(await db.Fastest<FastestRow>().BulkUpdateAsync(rows) == rowCount, "Bulk update affected count.");
+    Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == rowCount * 2L, "Bulk update result.");
+    NoStages();
+});
+await Run("native-empty-ctas", () =>
+{
+    Require(stages.Count == 1 && stages.All(stage => stage.Native), "Fastest did not create native TEMP CTAS.");
+    return Task.CompletedTask;
+});
+await Run("session-staging-isolation", () =>
+{
+    Require(stages.Count == 1 && stages.All(stage => stage.OwnerVisible && !stage.ObserverVisible),
+        "Staging table is missing for its owner or visible to another connection.");
+    return Task.CompletedTask;
+});
+if (!original)
+{
+    await Run("sync-bulk-update", async () =>
+    {
+        Require(db.Fastest<FastestRow>().BulkUpdate(new List<FastestRow>
+        {
+            new() { Id = 0, Value = 3, Label = "sync" },
+            new() { Id = 1, Value = 3, Label = "sync" },
+        }) == 2, "Sync affected count.");
+        Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == rowCount * 2L + 2, "Sync result.");
+        NoStages();
+    });
+    await Run("caller-transaction-rollback-10000", async () =>
+    {
+        long before = await Scalar(observer, "SELECT SUM(Value) FROM fastest_items");
+        db.Ado.BeginTran();
+        try
+        {
+            foreach (FastestRow row in rows) { row.Value = 7; row.Label = "rollback"; }
+            Require(await db.Fastest<FastestRow>().BulkUpdateAsync(rows) == rowCount, "Rollback affected count.");
+            Require(await db.Ado.GetIntAsync("SELECT SUM(Value) FROM fastest_items") == rowCount * 7L, "Transaction did not read its writes.");
+            Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == before, "Fastest implicitly committed the caller transaction.");
+        }
+        finally { db.Ado.RollbackTran(); }
+        Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == before, "Rollback lost original data.");
+        NoStages();
+    });
+    await Run("caller-transaction-commit-10000", async () =>
+    {
+        long before = await Scalar(observer, "SELECT SUM(Value) FROM fastest_items");
+        db.Ado.BeginTran();
+        try
+        {
+            foreach (FastestRow row in rows) { row.Value = 9; row.Label = "commit"; }
+            Require(await db.Fastest<FastestRow>().BulkUpdateAsync(rows) == rowCount, "Commit affected count.");
+            Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == before, "Uncommitted data escaped.");
+            db.Ado.CommitTran();
+        }
+        catch { db.Ado.RollbackTran(); throw; }
+        Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == rowCount * 9L, "Commit lost data.");
+        NoStages();
+    });
+    await Run("bulk-merge-update-and-insert", async () =>
+    {
+        var merge = new List<FastestRow>
+        {
+            new() { Id = 0, Value = 12, Label = "updated" },
+            new() { Id = rowCount, Value = 15, Label = "inserted" },
+        };
+        Require(await db.Fastest<FastestRow>().BulkMergeAsync(merge) == 2, "Merge affected count.");
+        Require(await Scalar(observer, "SELECT COUNT(*) FROM fastest_items") == rowCount + 1, "Merge row count.");
+        Require(await Scalar(observer, "SELECT Value FROM fastest_items WHERE Id=0") == 12, "Merge update result.");
+        NoStages();
+    });
+    await Run("copy-failure-cleans-staging", async () =>
+    {
+        long before = await Scalar(observer, "SELECT SUM(Value) FROM fastest_items");
+        failNextCopy = true;
+        bool rejected = false;
+        try { await db.Fastest<FastestRow>().BulkUpdateAsync(rows.Take(2).ToList()); }
+        catch (Exception exception) when (exception.ToString().Contains("owned-fastest-copy-failure", StringComparison.Ordinal)) { rejected = true; }
+        Require(rejected && !failNextCopy, "Failure injection did not run at actual staging copy.");
+        db.Ado.Open();
+        Require(await Scalar(observer, "SELECT SUM(Value) FROM fastest_items") == before, "Failed copy changed target.");
+        NoStages();
+    });
+    await Run("all-stages-native-and-private", () =>
+    {
+        Require(stages.Count == 6 && stages.All(stage => stage.Native && stage.OwnerVisible && !stage.ObserverVisible),
+            "One or more Fastest stages escaped the native connection session.");
+        db.Close();
+        NoStages();
+        return Task.CompletedTask;
+    });
+}
+Console.WriteLine($"COMPLETE|{label}|passed={passed}|failed={failed}|stages={stages.Count}");
+return failed == 0 ? 0 : 1;
+
+async Task Run(string name, Func<Task> action)
+{
+    try { deadline.Token.ThrowIfCancellationRequested(); await action().WaitAsync(deadline.Token); passed++; Console.WriteLine($"PASS|{label}|{name}"); }
+    catch (Exception exception) { failed++; Console.WriteLine($"FAIL|{label}|{name}|{exception}"); }
+}
+void NoStages()
+{
+    Require(!observer.GetSchema("Tables").Rows.Cast<DataRow>().Any(row => ((string)row["TABLE_NAME"]).StartsWith("sonnet_bulk_", StringComparison.Ordinal)),
+        "A staging table remains in persistent metadata.");
+    if (db.Ado.Connection.State == ConnectionState.Open)
+        Require(!((SndbConnection)db.Ado.Connection).GetSchema("Tables").Rows.Cast<DataRow>().Any(row => ((string)row["TABLE_NAME"]).StartsWith("sonnet_bulk_", StringComparison.Ordinal)),
+            "A staging table remains in the owning session.");
+}
+static bool Visible(SndbConnection connection, string name) => connection.GetSchema("Tables").Rows.Cast<DataRow>()
+    .Any(row => string.Equals((string)row["TABLE_NAME"], name, StringComparison.Ordinal));
+async Task<long> Scalar(SndbConnection connection, string sql)
+{
+    using var command = connection.CreateCommand();
+    command.CommandText = sql;
+    return Convert.ToInt64(await command.ExecuteScalarAsync(deadline.Token));
+}
+static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+
+[SugarTable("fastest_items")]
+public sealed class FastestRow
+{
+    [SugarColumn(IsPrimaryKey = true)]
+    public int Id { get; set; }
+    public int Value { get; set; }
+    public string Label { get; set; } = "";
+}

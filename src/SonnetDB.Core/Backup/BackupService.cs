@@ -249,7 +249,7 @@ public sealed class BackupService
         ArgumentNullException.ThrowIfNull(tsdb);
 
         var entries = new List<BackupIndexRebuildEntry>();
-        foreach (var schema in tsdb.Tables.Catalog.Snapshot())
+        foreach (var schema in tsdb.Tables.PersistentCatalog.Snapshot())
         {
             foreach (var index in schema.Indexes)
             {
@@ -510,7 +510,7 @@ public sealed class BackupService
             })
             .ToArray();
 
-        var tables = tsdb.Tables.Catalog.Snapshot()
+        var tables = tsdb.Tables.PersistentCatalog.Snapshot()
             .Select(static schema => new BackupTableEntry(
                 schema.Name,
                 schema.PrimaryKey.ToArray(),
@@ -589,7 +589,7 @@ public sealed class BackupService
     {
         var indexes = new List<BackupIndexEntry>();
 
-        foreach (var schema in tsdb.Tables.Catalog.Snapshot())
+        foreach (var schema in tsdb.Tables.PersistentCatalog.Snapshot())
         {
             foreach (var index in schema.Indexes)
             {

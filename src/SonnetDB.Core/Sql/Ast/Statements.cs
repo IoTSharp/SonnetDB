@@ -41,6 +41,12 @@ public sealed partial record CreateTableStatement(
     IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
     IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份；旧构造方为空时按 main 处理。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
+    /// <summary>是否创建当前逻辑连接拥有的临时关系表。</summary>
+    public bool IsTemporary { get; init; }
+
     /// <summary>表名是否使用双引号声明。</summary>
     public bool NameIsQuoted { get; init; }
 
@@ -83,6 +89,9 @@ public sealed record TableForeignKeyClause(
     IReadOnlyList<string> PrincipalColumns,
     ForeignKeyAction OnDelete = ForeignKeyAction.NoAction)
 {
+    /// <summary>保留逐段引号状态的被引用表身份。</summary>
+    public SqlQualifiedObjectName? PrincipalQualifiedName { get; init; }
+
     /// <summary>被引用表名是否使用双引号。</summary>
     public bool PrincipalTableIsQuoted { get; init; }
 
@@ -149,7 +158,7 @@ public sealed record CreateMaterializedViewStatement(
     public bool NameIsQuoted { get; init; }
 }
 
-/// <summary>SQL 过程 IN 参数支持的首版标量类型。</summary>
+/// <summary>SQL 过程参数支持的标量类型。</summary>
 public enum SqlProcedureParameterType
 {
     /// <summary>64 位有符号整数。</summary>
@@ -162,18 +171,52 @@ public enum SqlProcedureParameterType
     String,
 }
 
-/// <summary>SQL 过程的有序 IN 参数声明。</summary>
+/// <summary>SQL 过程参数的数据流方向。</summary>
+public enum SqlProcedureParameterDirection
+{
+    /// <summary>只读输入参数。</summary>
+    Input,
+    /// <summary>从 NULL 开始的输出参数。</summary>
+    Output,
+    /// <summary>可读写的输入输出参数。</summary>
+    InputOutput,
+}
+
+/// <summary>SQL 过程的有序参数声明。</summary>
 /// <param name="Name">参数名，不含 <c>@</c> 前缀。</param>
 /// <param name="DataType">参数标量类型。</param>
+/// <param name="Direction">参数方向；旧定义默认为 IN。</param>
 public sealed record SqlProcedureParameter(
     string Name,
-    SqlProcedureParameterType DataType);
+    SqlProcedureParameterType DataType,
+    SqlProcedureParameterDirection Direction = SqlProcedureParameterDirection.Input)
+{
+    /// <summary>保留 v4 的两参数构造函数签名，并默认使用 IN。</summary>
+    public SqlProcedureParameter(string name, SqlProcedureParameterType dataType)
+        : this(name, dataType, SqlProcedureParameterDirection.Input) { }
+
+    /// <summary>保留 v4 的两字段 Deconstruct 签名。</summary>
+    public void Deconstruct(out string name, out SqlProcedureParameterType dataType)
+    {
+        name = Name;
+        dataType = DataType;
+    }
+}
+
+/// <summary>为当前过程的 OUT 或 INOUT 参数赋值。</summary>
+/// <param name="Name">目标参数名。</param>
+/// <param name="Value">赋值表达式。</param>
+public sealed record SetProcedureParameterStatement(string Name, SqlExpression Value) : SqlStatement;
+
+/// <summary>结束当前过程并返回 Int64 状态；没有 RETURN 时状态为 0。</summary>
+/// <param name="Value">非 NULL 的 Int64 状态表达式。</param>
+public sealed record ReturnProcedureStatement(SqlExpression Value) : SqlStatement;
 
 /// <summary>
 /// <c>CREATE PROCEDURE name (IN p TYPE, ...) LANGUAGE SQL AS BEGIN ... END</c>。
 /// </summary>
 /// <param name="Name">过程名称；同一数据库内不允许重载。</param>
-/// <param name="Parameters">按声明顺序排列的 IN 参数。</param>
+/// <param name="Parameters">按声明顺序排列的参数。</param>
 /// <param name="Body">已经解析的 SQL body。</param>
 /// <param name="BodySql">不含外围 <c>BEGIN</c>/<c>END</c> 的 SQL 文本。</param>
 /// <param name="Language">语言标识；首版只接受 <c>SQL</c>。</param>
@@ -189,7 +232,13 @@ public sealed record CreateProcedureStatement(
 /// <param name="Arguments">按位置排列的实参表达式。</param>
 public sealed record CallProcedureStatement(
     string Name,
-    IReadOnlyList<SqlExpression> Arguments) : SqlStatement;
+    IReadOnlyList<SqlExpression> Arguments) : SqlStatement
+{
+    /// <summary>类型化入口的命名实参；SQL 文本 CALL 保持位置参数合同。</summary>
+    public IReadOnlyList<SonnetDB.Routines.ProcedureCallArgument>? NamedArguments { get; init; }
+
+    internal Action<SonnetDB.Sql.Execution.ProcedureExecutionResult>? CompletionValidator { get; init; }
+}
 
 /// <summary>关系表触发器事件。</summary>
 public enum SqlTriggerEvent
@@ -250,6 +299,9 @@ public sealed record CreateTriggerStatement(
     string BodySql,
     string Language = "SQL") : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>触发器目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 
@@ -332,6 +384,9 @@ public sealed record CreateTableIndexStatement(
     DocumentIndexOptions? DocumentOptions = null,
     bool Online = false) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>各键列是否降序。</summary>
     public IReadOnlyList<bool> Descending { get; init; } = [];
     /// <summary>独立的包含列名。</summary>
@@ -797,6 +852,9 @@ public sealed record InsertStatement(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
 {
+    /// <summary>关系表目标的结构化身份；measurement 写入保持为空。</summary>
+    public SqlQualifiedObjectName? TargetQualifiedName { get; init; }
+
     /// <summary>目标表或 measurement 名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 
@@ -817,6 +875,9 @@ public sealed record InsertStatement(
     /// 为保持既有构造器与解构 API 兼容，该语法通过 init 属性标记。
     /// </summary>
     public bool IsDefaultValues { get; init; }
+
+    /// <summary>关系表原子替换；删除全部冲突旧行后按完整 INSERT 新行写入。</summary>
+    public bool IsReplace { get; init; }
 
     /// <summary>
     /// <c>RETURNING</c> 请求返回的列名；单个 <c>*</c> 表示返回关系表全部列。
@@ -934,6 +995,9 @@ public sealed partial record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>关系 FROM 源的结构化身份；measurement、CTE、TVF 与虚拟源可为空。</summary>
+    public SqlQualifiedObjectName? SourceQualifiedName { get; init; }
+
     /// <summary>在显式事务中锁定实际选中的关系基表行。</summary>
     public bool ForUpdate { get; init; }
 
@@ -1051,6 +1115,9 @@ public sealed record JoinClause(
     SelectStatement? Subquery = null,
     JoinKind Kind = JoinKind.Inner)
 {
+    /// <summary>关系 JOIN 源的结构化身份；派生表和值来源为空。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>派生 VALUES 来源；为空表示关系表或 SELECT 来源。</summary>
     public IReadOnlyList<IReadOnlyList<SqlExpression>>? ValuesRows { get; init; }
 
@@ -1191,6 +1258,9 @@ public sealed record DeleteStatement(
     string Measurement,
     SqlExpression Where) : SqlStatement
 {
+    /// <summary>关系表删除目标的结构化身份；measurement 删除保持为空。</summary>
+    public SqlQualifiedObjectName? TargetQualifiedName { get; init; }
+
     /// <summary>删除目标名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 
@@ -1208,6 +1278,9 @@ public sealed record DeleteStatement(
 /// <param name="TableName">目标关系表名称。</param>
 public sealed record TruncateTableStatement(string TableName) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool TableNameIsQuoted { get; init; }
 }
@@ -1226,6 +1299,9 @@ public sealed record UpdateStatement(
     SqlExpression Where,
     string? TableAlias = null) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>原 SQL 是否省略 WHERE 子句；仅关系表允许按常量 TRUE 更新全部行。</summary>
     public bool WhereClauseIsOmitted { get; init; }
 
@@ -1267,6 +1343,9 @@ public sealed record UpdateAssignment(string ColumnName, SqlExpression Value)
 /// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时表不存在视为成功（0 行受影响），否则报错。</param>
 public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? QualifiedName { get; init; }
+
     /// <summary>目标表名是否使用双引号。</summary>
     public bool NameIsQuoted { get; init; }
 }
@@ -1327,6 +1406,9 @@ public sealed record DropTriggerStatement(string Name, bool IfExists = false) : 
 /// <param name="TableName">表名。</param>
 public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement
 {
+    /// <summary>保留逐段引号状态的目标关系表身份。</summary>
+    public SqlQualifiedObjectName? TableQualifiedName { get; init; }
+
     /// <summary>索引名是否使用双引号。</summary>
     public bool IndexNameIsQuoted { get; init; }
 

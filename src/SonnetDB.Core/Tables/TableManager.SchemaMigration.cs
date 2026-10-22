@@ -20,7 +20,7 @@ public sealed partial class TableManager
         Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
         SqlExecutor.ThrowIfCancellationRequested();
-        IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
+        IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
         var children = PrepareSchemaMigrationChildren(current, updated, previousSchemas);
         var updatedByName = children.ToDictionary(static child => child.Updated.Name,
             static child => child.Updated, StringComparer.Ordinal);
@@ -29,7 +29,7 @@ public sealed partial class TableManager
             throw SchemaMigrationUnsupported(current.Name, "迁移涉及的关系表超过 32 张上限。");
         TableSchema[] candidateSchemas = previousSchemas.Select(schema =>
             updatedByName.GetValueOrDefault(schema.Name, schema)).ToArray();
-        Action publishCatalog = Catalog.PrepareReplacement(candidateSchemas);
+        Action publishCatalog = _catalog.PrepareReplacement(candidateSchemas);
         var lockNames = new HashSet<string>(updatedByName.Keys, StringComparer.Ordinal);
         foreach (TableSchema schema in updatedByName.Values)
         {
@@ -46,7 +46,7 @@ public sealed partial class TableManager
         {
             foreach (string name in lockNames.Order(StringComparer.Ordinal))
             {
-                TableSchema schema = Catalog.TryGet(name)
+                TableSchema schema = _catalog.TryGet(name)
                     ?? throw new InvalidDataException($"主键迁移引用了不存在的 table '{name}'。");
                 TableStore store = OpenStoreLocked(schema);
                 Monitor.Enter(store.SynchronizationRoot);
@@ -55,7 +55,7 @@ public sealed partial class TableManager
             }
             var budget = new TableSchemaMigrationBudget();
             var plans = new Dictionary<string, (TableStore Store, TableStore.SchemaMigrationPlan Plan)>(StringComparer.Ordinal);
-            TableStore principalStore = _stores[current.Name];
+            TableStore principalStore = _stores[current.ObjectName];
             TableStore.SchemaMigrationPlan principalPlan = principalStore.PrepareSchemaMigration(updated, transform,
                 (schema, values) =>
                 {
@@ -68,7 +68,7 @@ public sealed partial class TableManager
                 static row => row.UpdatedRow, KvKeyComparer.Instance);
             foreach (var child in children)
             {
-                TableStore store = _stores[child.Original.Name];
+                TableStore store = _stores[child.Original.ObjectName];
                 var plan = store.PrepareSchemaMigration(child.Updated,
                     (_, row) => TransformSchemaMigrationChildRow(current, updated, child, row, principalByOriginalKey),
                     ValidateSchemaMigrationRow, TableRowIdentity.Create, budget);
@@ -201,14 +201,14 @@ public sealed partial class TableManager
                 foreach (var foreignKey in schema.ForeignKeys)
                 {
                     TableSchema principal = updatedByName.TryGetValue(foreignKey.PrincipalTable, out var changed)
-                        ? changed : Catalog.TryGet(foreignKey.PrincipalTable)!;
+                        ? changed : _catalog.TryGet(foreignKey.PrincipalTable)!;
                     if (!foreignKey.PrincipalColumns.SequenceEqual(principal.PrimaryKey, StringComparer.Ordinal))
                         throw SchemaMigrationUnsupported(schema.Name, "迁移后的外键必须引用完整的目标主键。");
                     IReadOnlyList<object?>? values = ExtractForeignKeyValues(schema, migrationRow.UpdatedRow, foreignKey);
                     if (values is null) continue;
                     bool exists = primaryKeys.TryGetValue(principal.Name, out var preparedKeys)
                         ? preparedKeys.Contains(TableKeyCodec.EncodePrimaryKeyValues(principal, values))
-                        : _stores[principal.Name].GetByPrimaryKey(values) is not null;
+                        : _stores[principal.ObjectName].GetByPrimaryKey(values) is not null;
                     if (!exists)
                         throw new TableConstraintException(TableConstraintException.ForeignKeyViolation,
                             schema.Name, foreignKey.Name, "主键迁移后的行不满足外键约束。");

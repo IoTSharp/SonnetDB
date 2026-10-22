@@ -14,6 +14,7 @@ namespace SonnetDB.Data;
 public sealed class SndbParameter : DbParameter
 {
     private object? _value;
+    private ParameterDirection _direction = ParameterDirection.Input;
     /// <summary>构造一个空参数。</summary>
     public SndbParameter() { }
 
@@ -28,7 +29,23 @@ public sealed class SndbParameter : DbParameter
     public override DbType DbType { get; set; } = DbType.Object;
 
     /// <inheritdoc />
-    public override ParameterDirection Direction { get; set; } = ParameterDirection.Input;
+    public override ParameterDirection Direction
+    {
+        get => _direction;
+        set
+        {
+            if (value is not (ParameterDirection.Input or ParameterDirection.Output
+                or ParameterDirection.InputOutput or ParameterDirection.ReturnValue))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            _direction = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public override byte Precision { get; set; }
+
+    /// <inheritdoc />
+    public override byte Scale { get; set; }
 
     /// <inheritdoc />
     public override bool IsNullable { get; set; } = true;

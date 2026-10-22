@@ -18,6 +18,9 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static partial class TableSqlExecutor
 {
+    private static TableObjectName RelationName(SqlQualifiedObjectName? qualifiedName, string name)
+        => qualifiedName?.ObjectName ?? new TableObjectName(name);
+
     private const int MaxIndexUnionBranches = 32;
     private const int MaxIndexUnionCandidates = 65_536;
     // 范围等值组只需要保存列值；主键已经包含在 Values 中，无需在 spill 文件中重复一份编码键。
@@ -60,12 +63,13 @@ internal static partial class TableSqlExecutor
     /// <summary>在数据库级 schema 锁内执行关系表创建和可选 Modbus 绑定提交。</summary>
     private static TableSchema ExecuteCreateTableLocked(Tsdb tsdb, CreateTableStatement statement)
     {
-
-        SqlExecutor.EnsureNameDoesNotBelongToView(tsdb, statement.Name, "table");
+        TableObjectName objectName = RelationName(statement.QualifiedName, statement.Name);
+        if (objectName.IsDefaultSchema)
+            SqlExecutor.EnsureNameDoesNotBelongToView(tsdb, statement.Name, "table");
 
         if (statement.IfNotExists)
         {
-            var existing = tsdb.Tables.Catalog.TryGet(statement.Name);
+            var existing = tsdb.Tables.Catalog.TryGet(objectName);
             if (existing is not null)
             {
                 if (statement.ModbusBinding is not null
@@ -131,7 +135,11 @@ internal static partial class TableSqlExecutor
                 fk.Columns,
                 fk.PrincipalTable,
                 fk.PrincipalColumns,
-                fk.OnDelete))
+                fk.OnDelete)
+            {
+                PrincipalSchemaName = fk.PrincipalQualifiedName?.SchemaName
+                    ?? TableObjectName.DefaultSchemaName,
+            })
             .ToArray();
         var rowVersionColumns = statement.Columns
             .Where(static c => c.IsRowVersion)
@@ -154,7 +162,8 @@ internal static partial class TableSqlExecutor
             columnDefaults: columnDefaults,
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions,
-            explicitDecimalDeclarations: explicitDecimalDeclarations);
+            explicitDecimalDeclarations: explicitDecimalDeclarations)
+            .WithObjectName(objectName);
         if (statement.PrimaryKeyConstraintName is not null)
             schema = schema.WithPrimaryKeyConstraintName(statement.PrimaryKeyConstraintName);
         foreach (var column in statement.Columns)
@@ -174,7 +183,7 @@ internal static partial class TableSqlExecutor
         {
             try
             {
-                _ = tsdb.Tables.Drop(schema.Name);
+                _ = tsdb.Tables.Drop(schema.ObjectName);
             }
             catch (Exception rollbackException)
             {
@@ -194,13 +203,14 @@ internal static partial class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+        TableObjectName objectName = RelationName(statement.TableQualifiedName, statement.TableName);
+        var schema = tsdb.Tables.Catalog.TryGet(objectName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         if (statement.IfNotExists && schema.TryGetIndex(statement.IndexName) is { } existing)
             return existing;
 
         return tsdb.Tables.CreateIndex(
-            statement.TableName,
+            objectName,
             new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique) { Descending = statement.Descending, IncludedColumns = statement.IncludedColumns });
     }
 
@@ -223,7 +233,7 @@ internal static partial class TableSqlExecutor
 
         var definition = new TableIndexDefinition(statement.IndexName, statement.Columns, IsUnique: false) { Descending = statement.Descending, IncludedColumns = statement.IncludedColumns };
         var progress = tsdb.Tables.CreateIndexOnline(
-            statement.TableName,
+            RelationName(statement.TableQualifiedName, statement.TableName),
             definition,
             SqlQueryResources.Current?.CancellationToken ?? default);
         return new RowsAffectedExecutionResult(
@@ -260,7 +270,7 @@ internal static partial class TableSqlExecutor
 
         SqlExecutor.EnsureNoViewDependents(tsdb, statement.Name, "DROP TABLE");
 
-        bool removed = tsdb.Tables.Drop(statement.Name);
+        bool removed = tsdb.Tables.Drop(RelationName(statement.QualifiedName, statement.Name));
         if (!removed && !statement.IfExists)
             throw new InvalidOperationException($"table '{statement.Name}' 不存在。");
 
@@ -272,7 +282,8 @@ internal static partial class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        bool removed = tsdb.Tables.DropIndex(statement.TableName, statement.IndexName);
+        bool removed = tsdb.Tables.DropIndex(
+            RelationName(statement.TableQualifiedName, statement.TableName), statement.IndexName);
         return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "drop_index");
     }
 
@@ -575,7 +586,7 @@ internal static partial class TableSqlExecutor
 
             // 冲突检测前先分配数据库生成键；即使跳过冲突行，序列也保持单调递增。
             if (schema.AutoIncrementColumn is not null)
-                tsdb.Tables.Open(schema.Name).ApplyAutoIncrement(valuesRows);
+                tsdb.Tables.Open(schema.ObjectName).ApplyAutoIncrement(valuesRows);
 
             return tsdb.Tables.ExecuteLocked(() =>
                 ExecuteInsertOnConflict(tsdb, schema, statement.OnConflict, valuesRows, returningColumns));
@@ -587,9 +598,9 @@ internal static partial class TableSqlExecutor
             .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
             .ToList();
 
-        var mutationsByTable = new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+        var mutationsByTable = new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer)
         {
-            [schema.Name] = mutations,
+            [schema.ObjectName] = mutations,
         };
         if (returningColumns.Length == 0)
         {
@@ -598,7 +609,7 @@ internal static partial class TableSqlExecutor
         }
 
         int insertedWithRows = tsdb.Tables.ApplyTransaction(mutationsByTable, out var finalRowsByTable);
-        if (!finalRowsByTable.TryGetValue(schema.Name, out var finalRows))
+        if (!finalRowsByTable.TryGetValue(schema.ObjectName, out var finalRows))
             throw new InvalidOperationException($"table '{schema.Name}' 的 INSERT 提交结果缺少最终行。");
 
         var insertedRows = finalRows
@@ -615,7 +626,7 @@ internal static partial class TableSqlExecutor
         IReadOnlyList<TableColumn> returningColumns)
     {
         ValidateConflictTarget(schema, clause.TargetColumns);
-        var store = tsdb.Tables.Open(schema.Name);
+        var store = tsdb.Tables.Open(schema.ObjectName);
         var visibleRows = store.Scan().ToList();
         var assignments = clause.Action == SqlOnConflictAction.DoUpdate
             ? BindConflictAssignments(clause, schema)
@@ -681,9 +692,9 @@ internal static partial class TableSqlExecutor
             return CreateInsertResult(schema.Name, 0, returningColumns, Array.Empty<object?[]>());
 
         int inserted = tsdb.Tables.ApplyTransaction(
-            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer)
             {
-                [schema.Name] = mutations,
+                [schema.ObjectName] = mutations,
             });
         return CreateInsertResult(
             schema.Name,
@@ -1146,12 +1157,12 @@ internal static partial class TableSqlExecutor
         {
             bool reservedGeneratedValue = valuesRows.Any(
                 values => values[autoIncrementColumn.Ordinal] is null);
-            long generation = tsdb.Tables.Open(schema.Name).ApplyAutoIncrement(valuesRows);
+            long generation = tsdb.Tables.Open(schema.ObjectName).ApplyAutoIncrement(valuesRows);
             if (reservedGeneratedValue)
                 transaction.RecordAutoIncrementReservation(schema.Name, generation);
         }
 
-        var store = tsdb is null ? null : tsdb.Tables.Open(schema.Name);
+        var store = tsdb is null ? null : tsdb.Tables.Open(schema.ObjectName);
         if (schema.PrimaryKey.Count == 0 && store is not null)
             transaction.RecordAutoIncrementReservation(schema.Name, store.ReserveRowIdentityGeneration());
         List<TableRow> visibleRows = statement.OnConflict is null
@@ -1375,7 +1386,7 @@ internal static partial class TableSqlExecutor
             };
         var hiddenOrderColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
         var (rows, rangeOrderSatisfied) = LoadSelectCandidateRowsForStatement(
-            tsdb.Tables.Open(schema.Name),
+            tsdb.Tables.Open(schema.ObjectName),
             schema,
             statement,
             projections);
@@ -1489,7 +1500,7 @@ internal static partial class TableSqlExecutor
         RowsAffectedExecutionResult ExecuteBoundDelete()
         {
             var returningRows = new List<object?[]>();
-            var store = tsdb.Tables.Open(schema.Name);
+            var store = tsdb.Tables.Open(schema.ObjectName);
             if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
             {
                 var row = store.GetByPrimaryKey(keyValues);
@@ -1551,7 +1562,7 @@ internal static partial class TableSqlExecutor
         statement = (UpdateStatement)SqlNameBinder.Bind(tsdb, statement);
         SqlDateTimeOffsetContract.Validate(tsdb, statement);
 
-        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+        var schema = tsdb.Tables.Catalog.TryGet(RelationName(statement.QualifiedName, statement.TableName))
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         MutationAliasValidator.Validate(statement);
         if (statement.FromClauses.Count != 0)
@@ -1566,7 +1577,7 @@ internal static partial class TableSqlExecutor
                 transaction: null,
                 out _));
         }
-        var store = tsdb.Tables.Open(schema.Name);
+        var store = tsdb.Tables.Open(schema.ObjectName);
         var assignments = BindAssignments(statement, schema);
         ValidatePrimaryKeyAssignments(tsdb, schema, assignments);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1630,9 +1641,9 @@ internal static partial class TableSqlExecutor
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
 
         int updated = tsdb.Tables.ApplyTransaction(
-            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer)
             {
-                [schema.Name] = mutations,
+                [schema.ObjectName] = mutations,
             });
         return CreateRowsAffectedResult(schema.Name, updated, "update", returningColumns, returningRows);
     }
@@ -1687,7 +1698,7 @@ internal static partial class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+        var schema = tsdb.Tables.Catalog.TryGet(RelationName(statement.QualifiedName, statement.TableName))
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         MutationAliasValidator.Validate(statement);
         if (statement.FromClauses.Count != 0)
@@ -1702,7 +1713,7 @@ internal static partial class TableSqlExecutor
                 out changes);
         }
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
-        var store = tsdb.Tables.Open(schema.Name);
+        var store = tsdb.Tables.Open(schema.ObjectName);
         var assignments = BindAssignments(statement, schema);
         ValidatePrimaryKeyAssignments(tsdb, schema, assignments);
         var returningColumns = BindReturningColumns(statement.ReturningColumns, schema);
@@ -1816,7 +1827,7 @@ internal static partial class TableSqlExecutor
             TableAlias: targetAlias,
             Joins: statement.FromClauses);
         var selected = RelationalSelectExecutor.ExecutePreservingJoinOrder(tsdb, select);
-        var store = tsdb.Tables.Open(schema.Name);
+        var store = tsdb.Tables.Open(schema.ObjectName);
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
         var returningRows = new List<object?[]>();
@@ -1880,9 +1891,9 @@ internal static partial class TableSqlExecutor
         if (transaction is null)
         {
             _ = tsdb.Tables.ApplyTransaction(
-                new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+                new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer)
                 {
-                    [schema.Name] = mutations,
+                    [schema.ObjectName] = mutations,
                 });
         }
         else
@@ -1960,7 +1971,7 @@ internal static partial class TableSqlExecutor
         }
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
-        var store = tsdb.Tables.Open(schema.Name);
+        var store = tsdb.Tables.Open(schema.ObjectName);
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
         var returningRows = new List<object?[]>();
@@ -2039,6 +2050,42 @@ internal static partial class TableSqlExecutor
             if (transaction.DeferredTriggerCount != 0 && RoutineExecutionContext.Current?.Options.CanWrite == false)
                 throw new SonnetDB.Exceptions.RoutineExecutionException(
                     SonnetDB.Exceptions.RoutineErrorCodes.Forbidden, "提交延迟触发器需要数据库写权限。");
+
+            if (transaction.HasDdlWorkspace)
+            {
+                SqlDdlTransactionWorkspace workspace = transaction.DetachDdlWorkspaceForCommit();
+                try
+                {
+                    transaction.ValidateMutationSchemas(workspace.Tables.Catalog);
+                    IReadOnlyDictionary<TableObjectName, IReadOnlyList<TableRowMutation>> mutations =
+                        transaction.SnapshotTableMutations();
+                    transaction.CheckCommitDeadline();
+                    int workspaceAffected = mutations.Count == 0
+                        ? 0
+                        : workspace.Tables.ApplyTransaction(mutations);
+                    transaction.EndDeferredExecution();
+                    workspace.SourceDatabase.Tables.CommitDdlWorkspace(
+                        workspace,
+                        transaction.CommitContext?.Options.CancellationToken ?? CancellationToken.None);
+                    transaction.WasCommitted = true;
+                    workspace.Dispose();
+                    transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: true);
+                    transaction.MarkCompleted();
+                    return new RowsAffectedExecutionResult("*", workspaceAffected, "commit");
+                }
+                catch
+                {
+                    string journalPath = Path.GetFullPath(Path.Combine(
+                        Path.GetDirectoryName(workspace.SourceDatabase.Tables.SchemaPath)!,
+                        TableDdlTransactionJournal.FileName));
+                    if (File.Exists(journalPath))
+                        workspace.PreserveForRecovery();
+                    else
+                        workspace.DiscardAfterDetachedFailure();
+                    throw;
+                }
+            }
+
             int CommitLocked()
             {
                 transaction.ValidateMutationSchemas(tsdb.Tables.Catalog);
@@ -3090,6 +3137,7 @@ internal static partial class TableSqlExecutor
             TableColumnType.Boolean => value is bool,
             TableColumnType.String or TableColumnType.Json => value is string,
             TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
+            TableColumnType.DateTime2 => value is DateTime or DateTimeOffset or long,
             TableColumnType.DateTimeOffset => value is DateTimeOffset,
             TableColumnType.Time => value is TimeOnly or TimeSpan or string,
             TableColumnType.Duration => value is TimeSpan or string or long or int or short or sbyte or byte or ushort or uint or ulong,
@@ -4518,7 +4566,7 @@ internal static partial class TableSqlExecutor
             ?? throw new InvalidOperationException(
                 $"索引 '{prefixPlan.Index.Name}' 引用了未知列。");
         if (column.IsNullable
-            || column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            || column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2))
         {
             return false;
         }
@@ -5055,7 +5103,7 @@ internal static partial class TableSqlExecutor
                     TableColumn rangeColumn = schema.TryGetColumn(candidate.Columns[values.Count])
                         ?? throw new InvalidOperationException(
                             $"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[values.Count]}'。");
-                    if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime)
+                    if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime or TableColumnType.DateTime2)
                         _ = TryExtractIndexRange(where, rangeColumn, out candidateRange);
                 }
 
@@ -5296,7 +5344,8 @@ internal static partial class TableSqlExecutor
             {
                 TableColumnType.Int64 => (long)converted!,
                 TableColumnType.DateTime => new DateTimeOffset((DateTime)converted!).ToUnixTimeMilliseconds(),
-                _ => throw new InvalidOperationException("范围索引只支持 Int64 或 DATETIME。"),
+                TableColumnType.DateTime2 => ((DateTime)converted!).Ticks,
+                _ => throw new InvalidOperationException("范围索引只支持 Int64、DATETIME 或 DATETIME2。"),
             };
             return true;
         }
@@ -5320,7 +5369,12 @@ internal static partial class TableSqlExecutor
             Operator: SqlUnaryOperator.Negate,
             Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
         }
-            or DurationLiteralExpression;
+            or DurationLiteralExpression
+            or CastExpression
+        {
+            TargetType: SqlDataType.DateTime or SqlDataType.DateTime2,
+            Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
+        };
 
     /// <summary>
     /// 合并下界，值更大或同值排他的边界更强。
@@ -5890,6 +5944,7 @@ internal static partial class TableSqlExecutor
             UnaryExpression { Operator: SqlUnaryOperator.Negate, Operand: LiteralExpression literal } => NegateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
             MaterializedSubqueryValueExpression materialized => materialized.Value,
+            CastExpression => EvaluateDefaultExpression(expression),
             _ => throw new InvalidOperationException(
                 $"列 '{column.Name}' 的值必须是字面量，不支持表达式 ({expression.GetType().Name})。"),
         };
@@ -5992,6 +6047,7 @@ internal static partial class TableSqlExecutor
                 ? json
                 : throw TypeMismatch(column, value),
             TableColumnType.DateTime => ConvertDateTimeValue(value, column),
+            TableColumnType.DateTime2 => ConvertDateTime2Value(value, column),
             TableColumnType.Blob => ConvertBlobValue(value, column),
             _ => throw new NotSupportedException($"不支持的关系表类型 {column.DataType}。"),
         };
@@ -6145,7 +6201,8 @@ internal static partial class TableSqlExecutor
 
     private static object ConvertDateTimeValue(object value, TableColumn column)
     {
-        return value switch
+        bool offsetInput = value is DateTimeOffset;
+        DateTime result = value switch
         {
             DateTime dt => dt.Kind == DateTimeKind.Unspecified
                 ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
@@ -6160,6 +6217,23 @@ internal static partial class TableSqlExecutor
                 out var dto) => dto.UtcDateTime,
             _ => throw TypeMismatch(column, value),
         };
+        if (result.Ticks % TimeSpan.TicksPerMillisecond != 0 && !offsetInput)
+            throw new InvalidOperationException($"列 '{column.Name}' 的 DATETIME 仅支持毫秒精度；请迁移到 DATETIME2，或提供毫秒对齐值。");
+        return offsetInput
+            ? result.AddTicks(-(result.Ticks % TimeSpan.TicksPerMillisecond))
+            : result;
+    }
+
+    private static DateTime ConvertDateTime2Value(object value, TableColumn column)
+    {
+        DateTime result = value switch
+        {
+            DateTime dt => dt.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                : dt.ToUniversalTime(),
+            _ => throw TypeMismatch(column, value),
+        };
+        return DateTime.SpecifyKind(result, DateTimeKind.Utc);
     }
 
     private static TimeOnly ConvertTimeValue(object value, TableColumn column)
@@ -6685,6 +6759,7 @@ internal static partial class TableSqlExecutor
         SqlDataType.Boolean => TableColumnType.Boolean,
         SqlDataType.String => TableColumnType.String,
         SqlDataType.DateTime => TableColumnType.DateTime,
+        SqlDataType.DateTime2 => TableColumnType.DateTime2,
         SqlDataType.Time => TableColumnType.Time,
         SqlDataType.Duration => TableColumnType.Duration,
         SqlDataType.DateTimeOffset => TableColumnType.DateTimeOffset,
@@ -6701,6 +6776,7 @@ internal static partial class TableSqlExecutor
         TableColumnType.Boolean => "boolean",
         TableColumnType.String => "string",
         TableColumnType.DateTime => "datetime",
+        TableColumnType.DateTime2 => "datetime2",
         TableColumnType.Time => "time",
         TableColumnType.Duration => "duration",
         TableColumnType.DateTimeOffset => "datetimeoffset",

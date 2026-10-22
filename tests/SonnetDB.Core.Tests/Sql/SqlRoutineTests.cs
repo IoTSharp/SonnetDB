@@ -56,9 +56,10 @@ public sealed class SqlRoutineTests : IDisposable
         Assert.IsType<ShowTriggersStatement>(SqlParser.Parse("SHOW TRIGGERS ON devices"));
         Assert.IsType<DescribeTriggerStatement>(SqlParser.Parse("DESCRIBE TRIGGER audit_insert"));
 
-        Assert.Throws<SqlParseException>(() => SqlParser.Parse("""
+        var outputProcedure = Assert.IsType<CreateProcedureStatement>(SqlParser.Parse("""
             CREATE PROCEDURE bad (OUT value INT) LANGUAGE SQL AS BEGIN SELECT 1; END
             """));
+        Assert.Equal(SqlProcedureParameterDirection.Output, outputProcedure.Parameters.Single().Direction);
         Assert.Throws<SqlParseException>(() => SqlParser.Parse("""
             CREATE PROCEDURE bad (IN value INT DEFAULT 1) LANGUAGE SQL AS BEGIN SELECT 1; END
             """));

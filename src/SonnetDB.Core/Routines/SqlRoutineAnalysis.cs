@@ -19,14 +19,26 @@ internal static class SqlRoutineAnalyzer
     {
         ArgumentNullException.ThrowIfNull(statements);
         ArgumentNullException.ThrowIfNull(parameters);
+        if (parameters.Count > 1024)
+            throw new ArgumentException("过程参数数量超过上限 1024。", nameof(parameters));
         ValidateStatementCount(statements);
 
-        var parameterNames = new HashSet<string>(StringComparer.Ordinal);
+        var parameterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var parameter in parameters)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(parameter.Name);
+            if (!Enum.IsDefined(parameter.Direction) || !Enum.IsDefined(parameter.DataType))
+                throw new ArgumentException("过程参数类型或方向无效。", nameof(parameters));
             if (!parameterNames.Add(parameter.Name))
                 throw new ArgumentException($"过程参数 '{parameter.Name}' 重复声明。", nameof(parameters));
+        }
+
+        foreach (var assignment in statements.OfType<SetProcedureParameterStatement>())
+        {
+            var target = parameters.FirstOrDefault(parameter =>
+                string.Equals(parameter.Name, assignment.Name, StringComparison.OrdinalIgnoreCase));
+            if (target is null || target.Direction == SqlProcedureParameterDirection.Input)
+                throw new ArgumentException($"SET 目标 '{assignment.Name}' 必须是已声明的 OUT 或 INOUT 参数。", nameof(statements));
         }
 
         return Analyze(statements, parameterNames, triggerEvent: null);
@@ -80,6 +92,12 @@ internal static class SqlRoutineAnalyzer
 
             switch (statement)
             {
+                case SetProcedureParameterStatement assignment when triggerEvent is null:
+                    VisitExpression(assignment.Value, parameterNames, triggerEvent, objects, procedures, rowColumns);
+                    break;
+                case ReturnProcedureStatement exit when triggerEvent is null:
+                    VisitExpression(exit.Value, parameterNames, triggerEvent, objects, procedures, rowColumns);
+                    break;
                 case SetTriggerNewStatement assignment when triggerEvent is not null && timing == SqlTriggerTiming.Before:
                     rowColumns.Add(assignment.ColumnName);
                     VisitExpression(assignment.Value, parameterNames, triggerEvent, objects, procedures, rowColumns);

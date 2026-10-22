@@ -1,0 +1,176 @@
+using System.Data;
+using Chloe;
+using Chloe.Annotations;
+using Chloe.Infrastructure.Interception;
+using Chloe.SonnetDB;
+using SonnetDB.Data;
+
+if (args.Length != 2)
+{
+    return 2;
+}
+
+string connectionString = args[0];
+string protocol = args[1];
+int passed = 0;
+int failed = 0;
+
+using var raw = new SndbConnection(connectionString);
+raw.Open();
+Execute("CREATE TABLE ChloeLockBoundary(Id INT,GroupId INT,Value INT,PRIMARY KEY(Id))");
+Execute("INSERT INTO ChloeLockBoundary(Id,GroupId,Value) VALUES(1,1,10),(2,1,20)");
+
+using var context = new SonnetDBContext(() => new SndbConnection(connectionString));
+var trace = new CommandTrace();
+context.Session.AddInterceptor(trace);
+
+Run("nolock-explicit-rejection", () =>
+{
+    int before = trace.Count;
+    ExpectRejected(() => context.Query<BoundaryRow>(LockType.NoLock).Where(row => row.Id == 1).ToList(), "NoLock");
+    Require(trace.Count == before, "NoLock sent SQL.");
+});
+
+Run("updlock-direct-single-table-only", () =>
+{
+    context.Session.BeginTransaction();
+    try
+    {
+        BoundaryRow row = context.Query<BoundaryRow>(LockType.UpdLock).Where(item => item.Id == 1).First();
+        Require(row.Value == 10, "Direct UpdLock row differs.");
+        Require(trace.LastSql.EndsWith("FOR UPDATE", StringComparison.Ordinal), "Direct UpdLock omitted FOR UPDATE.");
+    }
+    finally
+    {
+        context.Session.RollbackTransaction();
+    }
+});
+
+Run("updlock-join-explicit-rejection", () =>
+{
+    int before = trace.Count;
+    var locked = context.Query<BoundaryRow>(LockType.UpdLock);
+    var ordinary = context.Query<BoundaryRow>();
+    ExpectRejected(
+        () => locked.Join(ordinary, JoinType.InnerJoin, (left, right) => left.Id == right.Id)
+            .Select((left, right) => left)
+            .ToList(),
+        "direct single-table");
+    Require(trace.Count == before, "Join UpdLock sent SQL.");
+});
+
+Run("updlock-distinct-explicit-rejection", () =>
+{
+    int before = trace.Count;
+    ExpectRejected(() => context.Query<BoundaryRow>(LockType.UpdLock).Distinct().ToList(), "DISTINCT");
+    Require(trace.Count == before, "Distinct UpdLock sent SQL.");
+});
+
+Run("updlock-grouping-explicit-rejection", () =>
+{
+    int before = trace.Count;
+    ExpectRejected(
+        () => context.Query<BoundaryRow>(LockType.UpdLock)
+            .GroupBy(row => row.GroupId)
+            .Select(row => new { row.GroupId, Count = Sql.Count() })
+            .ToList(),
+        "grouping");
+    Require(trace.Count == before, "Grouping UpdLock sent SQL.");
+});
+
+Console.WriteLine($"RESULT|{protocol}|{passed}|{failed}");
+return failed == 0 ? 0 : 1;
+
+void Execute(string sql)
+{
+    using var command = raw.CreateCommand();
+    command.CommandText = sql;
+    command.ExecuteNonQuery();
+}
+
+static void ExpectRejected(Action action, string fragment)
+{
+    try
+    {
+        action();
+    }
+    catch (Exception error) when (error.ToString().Contains(fragment, StringComparison.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("Expected explicit rejection containing: " + fragment);
+}
+
+static void Require(bool condition, string message)
+{
+    if (!condition)
+    {
+        throw new InvalidOperationException(message);
+    }
+}
+
+void Run(string name, Action action)
+{
+    try
+    {
+        action();
+        passed++;
+        Console.WriteLine($"PASS|{protocol}|{name}");
+    }
+    catch (Exception error)
+    {
+        failed++;
+        Console.WriteLine($"FAIL|{protocol}|{name}|{error.GetType().Name}|{error.Message}");
+    }
+}
+
+/// <summary>用于锁定边界验证的关系表映射。</summary>
+[Table("ChloeLockBoundary")]
+public sealed class BoundaryRow
+{
+    /// <summary>主键。</summary>
+    [Column(IsPrimaryKey = true)]
+    public long Id { get; set; }
+
+    /// <summary>分组键。</summary>
+    public long GroupId { get; set; }
+
+    /// <summary>值。</summary>
+    public long Value { get; set; }
+}
+
+/// <summary>记录 ORM 实际发送的命令。</summary>
+public sealed class CommandTrace : IDbCommandInterceptor
+{
+    /// <summary>已发送的命令数。</summary>
+    public int Count { get; private set; }
+
+    /// <summary>最后发送的 SQL。</summary>
+    public string LastSql { get; private set; } = string.Empty;
+
+    private void Record(IDbCommand command)
+    {
+        Count++;
+        LastSql = command.CommandText;
+        Console.WriteLine("SQL|" + LastSql);
+    }
+
+    /// <summary>记录读取命令。</summary>
+    public void ReaderExecuting(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) => Record(command);
+
+    /// <summary>保留读取结果。</summary>
+    public void ReaderExecuted(IDbCommand command, DbCommandInterceptionContext<IDataReader> context) { }
+
+    /// <summary>记录写命令。</summary>
+    public void NonQueryExecuting(IDbCommand command, DbCommandInterceptionContext<int> context) => Record(command);
+
+    /// <summary>保留写结果。</summary>
+    public void NonQueryExecuted(IDbCommand command, DbCommandInterceptionContext<int> context) { }
+
+    /// <summary>记录标量命令。</summary>
+    public void ScalarExecuting(IDbCommand command, DbCommandInterceptionContext<object> context) => Record(command);
+
+    /// <summary>保留标量结果。</summary>
+    public void ScalarExecuted(IDbCommand command, DbCommandInterceptionContext<object> context) { }
+}

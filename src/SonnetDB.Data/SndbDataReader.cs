@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Runtime.ExceptionServices;
 using SonnetDB.Data.Internal;
 using SonnetDB.Exceptions;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data;
 
@@ -22,6 +23,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     private readonly int _commandTimeout;
     private readonly CancellationToken _commandCancellationToken;
     private readonly Action? _releaseExecutionLease;
+    private readonly Action<Action?>? _completeExecutionLease;
     private CancellationTokenSource? _readTimeoutCancellation;
     private bool _hasRow;
     private bool? _hasRows;
@@ -34,7 +36,8 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         SndbConnection? connection,
         int commandTimeout = 0,
         CancellationToken commandCancellationToken = default,
-        Action? releaseExecutionLease = null)
+        Action? releaseExecutionLease = null,
+        Action<Action?>? completeExecutionLease = null)
     {
         _result = result;
         _behavior = behavior;
@@ -42,6 +45,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         _commandTimeout = commandTimeout;
         _commandCancellationToken = commandCancellationToken;
         _releaseExecutionLease = releaseExecutionLease;
+        _completeExecutionLease = completeExecutionLease;
     }
 
     /// <inheritdoc />
@@ -307,10 +311,12 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             row[SchemaTableColumn.NumericPrecision] = columnMetadata?.NumericPrecision is { } precision ? (short)precision
                 : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericPrecision(fieldType);
             row[SchemaTableColumn.NumericScale] = columnMetadata?.NumericScale is { } scale ? (short)scale
+                : columnMetadata?.DataType == TableColumnType.DateTime2 ? (short)7
                 : columnMetadata.HasValue && fieldType != typeof(long) ? DBNull.Value : GetNumericScale(fieldType);
             row[SchemaTableColumn.DataType] = fieldType;
             row["DataTypeName"] = GetDataTypeName(ordinal);
-            row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
+            row[SchemaTableColumn.ProviderType] = (int)(columnMetadata?.DataType == TableColumnType.DateTime2
+                ? DbType.DateTime2 : GetProviderType(fieldType));
             row[SchemaTableColumn.IsLong] = fieldType == typeof(byte[]) || fieldType == typeof(string);
             row[SchemaTableColumn.AllowDBNull] = columnMetadata?.DeclaredNullable is { } nullable ? nullable
                 : columnMetadata.HasValue ? DBNull.Value : true;
@@ -353,6 +359,7 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             NumericPrecision = metadata?.NumericPrecision is { } precision ? precision
                 : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericPrecision(fieldType);
             NumericScale = metadata?.NumericScale is { } scale ? scale
+                : metadata?.DataType == TableColumnType.DateTime2 ? 7
                 : metadata.HasValue && fieldType != typeof(long) ? null : GetNumericScale(fieldType);
             AllowDBNull = metadata.HasValue ? metadata.Value.DeclaredNullable : true;
             IsKey = metadata?.IsKey ?? false;
@@ -456,6 +463,16 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     /// 为单次行读取建立独立超时窗口，并与本次 ReadAsync 的调用方令牌组合。
     /// </summary>
     private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken, bool nextResult = false)
+    {
+        try { return await ReadWithTimeoutCoreAsync(callerCancellationToken, nextResult).ConfigureAwait(false); }
+        catch
+        {
+            if (_result is ProcedureExecutionResultAdapter procedure) procedure.Abort();
+            throw;
+        }
+    }
+
+    private async Task<bool> ReadWithTimeoutCoreAsync(CancellationToken callerCancellationToken, bool nextResult)
     {
         callerCancellationToken.ThrowIfCancellationRequested();
         if (_closed) return false;
@@ -637,7 +654,8 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         // 三项清理全部执行，并保留最先发生的异常，避免 CloseConnection 覆盖 Reader 根因。
         try
         {
-            _releaseExecutionLease?.Invoke();
+            if (_result is not ProcedureExecutionResultAdapter)
+                _releaseExecutionLease?.Invoke();
         }
         catch (Exception exception)
         {
@@ -656,6 +674,26 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
             }
         }
 
+        if (_result is ProcedureExecutionResultAdapter procedure)
+        {
+            if (firstFailure is not null) procedure.Abort();
+            try
+            {
+                Action? completion = firstFailure is null ? () => procedure.Complete(_commandCancellationToken) : null;
+                if (_completeExecutionLease is not null)
+                    _completeExecutionLease(completion);
+                else
+                {
+                    _releaseExecutionLease?.Invoke();
+                    completion?.Invoke();
+                }
+            }
+            catch (Exception exception)
+            {
+                procedure.Abort();
+                firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+            }
+        }
         firstFailure?.Throw();
     }
 

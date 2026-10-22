@@ -28,6 +28,8 @@ public sealed partial class SqlTransactionContext
 
     internal void RecordSerializableRead(TableStore store, TableSchema schema, long generation, long sequence)
     {
+        if (SqlTemporaryTableIdentity.TryGet(schema, out _))
+            return;
         if (IsolationLevel != SqlTransactionIsolationLevel.Serializable || _completed)
             return;
         if (_serializableReads.Count >= MaximumSerializableTables && !_serializableReads.ContainsKey(schema.Name))
@@ -43,6 +45,8 @@ public sealed partial class SqlTransactionContext
     internal void RecordSerializableReservation(TableStore store, TableSchema schema, long generation,
         long beforeSequence, long afterSequence)
     {
+        if (SqlTemporaryTableIdentity.TryGet(schema, out _))
+            return;
         if (IsolationLevel != SqlTransactionIsolationLevel.Serializable || _completed || beforeSequence == afterSequence)
             return;
         RecordSerializableRead(store, schema, generation, beforeSequence);

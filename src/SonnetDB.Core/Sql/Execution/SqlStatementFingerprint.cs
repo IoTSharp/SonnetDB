@@ -36,6 +36,10 @@ internal static class SqlStatementFingerprint
         builder.Append(statement.GetType().Name).Append('|');
         switch (statement)
         {
+            case CreateTableAsStatement table:
+                builder.Append(table.Name).Append('|').Append(table.IsTemporary).Append('|').Append(table.IfNotExists).Append('|');
+                AppendStatement(builder, table.Query);
+                break;
             case SelectStatement select:
                 builder.Append(select.Measurement).Append('|')
                     .Append(select.TableAlias).Append('|')

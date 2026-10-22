@@ -9,7 +9,11 @@ public sealed class SndbServerException : Exception
 {
     /// <summary>构造一条服务端错误。</summary>
     public SndbServerException(string error, string message, HttpStatusCode statusCode)
-        : base($"[{(int)statusCode} {statusCode}] {error}: {message}")
+        : this(error, message, statusCode, null) { }
+
+    /// <summary>保留传输或解码根因，构造明确的服务端或未知过程结果异常。</summary>
+    public SndbServerException(string error, string message, HttpStatusCode statusCode, Exception? innerException)
+        : base($"[{(int)statusCode} {statusCode}] {error}: {message}", innerException)
     {
         Error = error;
         ServerMessage = message;
