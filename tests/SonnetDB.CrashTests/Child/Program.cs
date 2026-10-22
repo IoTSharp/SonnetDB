@@ -135,6 +135,12 @@ switch (scenario)
     case "crash_kill9_graph_batch_during_fsync":
         RunKillGraphBatchDuringFsync(root, readyFile);
         return 0;
+    case "crash_ddl_journal_prepared":
+    case "crash_ddl_journal_committed":
+    case "crash_ddl_recovery_after-backend":
+    case "crash_ddl_recovery_complete":
+        DdlTransactionJournalCrashScenario.Run(root, readyFile, scenario);
+        return 0;
     case "hold_graph_manager_lifecycle_lease":
         RunHoldGraphManagerLifecycleLease(root, readyFile);
         return 0;

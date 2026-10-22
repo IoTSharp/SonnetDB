@@ -98,6 +98,7 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Fixed
+- 修复 Parity crash reliability 回归：keyless DML 断言当前 v16 目录下限，并将 DDL journal prepared/committed 与 recovery 子进程场景接入 CrashTests Child 分发；完整 CrashTests 82/82 通过。
 
 - 修复旧 `DATETIME` 写入 `DateTimeOffset` 的参数类型边界：未声明参数在亚毫秒值下 fail-closed，EF/Identity 显式 `DbType.DateTimeOffset` 兼容路径保留；修复 Reader 关闭异常测试的重复注入异常。Core 7890/7890、EF Core 295/295 及 Identity 定向回归通过。
 

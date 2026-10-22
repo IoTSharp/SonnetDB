@@ -26,7 +26,9 @@ public sealed partial class CrashReliabilityTests
             Assert.Equal(committed ? 1 : 0, Rows(db, "SELECT value FROM logs WHERE value=2").Count);
             Assert.Equal(committed ? 2 : 0, Rows(db, "SELECT value FROM logs WHERE value=3").Count);
             Assert.Equal(committed ? 2L : 1L, Assert.Single(Rows(db, "SELECT value FROM keyed WHERE id=1"))[0]);
-            Assert.Equal(13, TableSchemaCodec.ReadFormatVersion(db.Tables.SchemaPath));
+            // The same catalog also contains the keyed table. Its persisted primary-key
+            // constraint name requires the v16 directory floor; DML recovery must retain it.
+            Assert.Equal(16, TableSchemaCodec.ReadFormatVersion(db.Tables.SchemaPath));
             Assert.Equal(1, Assert.IsType<DeleteExecutionResult>(SqlExecutor.Execute(db, "DELETE FROM logs WHERE TRUE LIMIT 1")).SeriesAffected);
             SqlExecutor.Execute(db, "INSERT INTO logs(value) VALUES(4),(4)");
         }
