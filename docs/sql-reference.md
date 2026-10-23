@@ -299,7 +299,7 @@ FROM devices
 WHERE installed_at <= CURRENT_UTC_DATETIME();
 ```
 
-- `CURRENT_DATETIME()` / `CURRENT_UTC_DATETIME()` 返回服务器本地时间 / UTC 时间；`CURRENT_DATETIME_OFFSET()` / `CURRENT_UTC_DATETIME_OFFSET()` 返回对应的 `DateTimeOffset`。
+- `CURRENT_DATETIME()` / `CURRENT_UTC_DATETIME()` 返回服务器本地时间 / UTC 时间；`CURRENT_DATETIME_OFFSET()` / `CURRENT_UTC_DATETIME_OFFSET()` 都返回 UTC `DateTimeOffset`（`Offset == TimeSpan.Zero`）。
 - `DATE_ONLY(value)` 返回日期零点。
 - `DATE_PART(part, value)` 支持 `year`、`quarter`、`month`、`day`、`day_of_year`、`day_of_week`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`nanosecond`；`day_of_week` 与 .NET 一致，星期日为 `0`。
 - `DATE_ADD(value, amount, part)` 支持 `year`、`month`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`；`year`、`month`、`tick` 要求整数增量。
