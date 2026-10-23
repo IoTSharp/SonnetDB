@@ -297,6 +297,11 @@ C# / .NET 是 SonnetDB 的核心实现与主要集成生态；嵌入式、服务
 - 管理能力内置到 Server、Web Admin、CLI 和 Copilot 中。
 - AI 能力通过 Copilot、MCP 和 provider 抽象服务于数据查询、诊断和运维，不把 SonnetDB 绑定到单一模型供应商。
 
+## 💬谁在用?
+
+- VelaShell   一款为运维与开发者打造的现代化跨平台 SSH 终端客户端   https://github.com/joesdu/VelaShell
+
+  
 ## 💬 交流与社区
 
 欢迎扫码加入 SonnetDB 企业微信交流群，获取版本动态、提问和反馈：
