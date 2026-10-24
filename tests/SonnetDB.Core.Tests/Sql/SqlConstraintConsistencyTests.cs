@@ -120,8 +120,7 @@ public sealed class SqlConstraintConsistencyTests : IDisposable
     private static void AssertInventoryConsistency(Tsdb database)
     {
         var rows = Rows(database, "SELECT id, sku, quantity FROM inventory ORDER BY id");
-        Assert.Equal(1, rows.Count);
-        Assert.Equal(new object?[] { 2L, "compressor", 9L }, rows[0]);
+        Assert.Equal(new object?[] { 2L, "compressor", 9L }, Assert.Single(rows));
 
         // Every indexed lookup must resolve to the same primary row as the base scan.
         Assert.Equal(2L, Assert.Single(Rows(database,
