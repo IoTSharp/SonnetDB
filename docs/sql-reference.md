@@ -11,7 +11,7 @@ permalink: /sql-reference/
 
 ### 关系日期精度（GH-Issue #236 Core 切片）
 
-`DATETIME2` 按 UTC 100ns ticks 保存并返回 `DateTime`。Core 的 CLR `DateTime` 参数默认保留完整 ticks；`Unspecified` 视为 UTC，`Local` 转为 UTC。已有 `DATETIME` 继续使用 Unix 毫秒布局，写入亚毫秒值会明确失败，不能通过先截断参数来绕过检查。measurement 的 `time` 保持既有 Unix 毫秒语义。
+`DATETIME2` 按 UTC 100ns ticks 保存并返回 `DateTime`；`DATETIMEOFFSET` 按 UTC 100ns ticks 保存并返回零偏移的 `DateTimeOffset`；`DURATION` 按 ticks 保存并返回 `TimeSpan`。Core 的 CLR `DateTime` 参数默认保留完整 ticks；`Unspecified` 视为 UTC，`Local` 转为 UTC。已有 `DATETIME` 继续使用 Unix 毫秒布局：未显式类型的参数以及声明为 `DATETIME`/`DATETIME2` 的参数若包含亚毫秒 ticks 会明确失败；只有显式 `DbType.DateTimeOffset` 的兼容路径可在目标语义允许时按 UTC 毫秒对齐，不能通过应用层先截断参数来绕过检查。measurement 的 `time` 保持既有 Unix 毫秒语义。
 
 `CURRENT_DATETIME()` 和 `CURRENT_UTC_DATETIME()` 的声明仍是旧 `DATETIME`，现在明确返回毫秒对齐值，分别保留 Local 与 UTC Kind，以供已有动态默认值使用。这是两个时钟函数的精度合同收窄；其他内存中的 `DateTime` 表达式、显式 CAST 与日期运算继续保留其实际 ticks。需要原生精度时钟时使用 `CAST(CURRENT_UTC_DATETIME_OFFSET() AS DATETIME2)`。
 
@@ -73,7 +73,7 @@ UPDATE counters SET value = value + 1 WHERE id = 1;
 
 ### 显式类型转换 `CAST`
 
-使用 `CAST(expr AS type)` 进行显式转换。当前支持 `INT`、`FLOAT`、`DECIMAL`/`NUMERIC`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB` 和 `JSON`：
+使用 `CAST(expr AS type)` 进行显式转换。当前支持 `INT`、`FLOAT`、`DECIMAL`/`NUMERIC`、`BOOL`、`STRING`、`DATETIME`、`DATETIME2`、`DATETIMEOFFSET`、`TIME`、`DURATION`、`BLOB` 和 `JSON`：
 
 ```sql
 SELECT CAST('42' AS INT), CAST(1 AS STRING), CAST(1704067200000 AS DATETIME);
@@ -88,7 +88,9 @@ SELECT tenant, CAST(SUM(amount) AS DECIMAL) FROM ledger GROUP BY tenant HAVING C
 
 REST 结果按已声明的 Float64 元数据读取为 `double`，即使 JSON 数值没有小数部分，`GetValue`、`GetFieldValue<double>` 与 `GetDouble` 也保持该类型；NULL 不变，缺少类型声明时继续使用原有推断。
 
-`NULL` 转换到任一已支持目标类型仍为 `NULL`。`DECIMAL` / `NUMERIC` 转换保持十进制值，不经过 `Float64`；括号中的 precision/scale 仅用于校验目标声明，未声明时使用 `(38,28)`。`TIME` 只接受不带日期/时区的 `HH:mm[:ss[.fffffff]]` 文本、`TimeOnly` 或小于 24 小时的 `TimeSpan`，以 ticks 精度保存；`24:00:00`、负值、跨日值以及 `DATETIME`/`DateTimeOffset` 到 `TIME` 的隐式取时钟转换均拒绝。整数转换使用不变量格式并截断有限浮点的小数部分；布尔转换接受 `TRUE`/`FALSE` 或数值 `0`/`1`；`DATETIME` 输入可以是 UTC/ISO-8601 文本或 Unix 毫秒，结果统一为 UTC；`BLOB` 的字符串输入按 UTF-8 编码，`JSON` 当前保留字符串文本。格式错误、溢出、非有限浮点和非法布尔值会返回执行错误。`VECTOR` 与 `GEOPOINT` 作为 CAST 目标暂不支持，不会隐式构造对应模型值。
+`NULL` 转换到任一已支持目标类型仍为 `NULL`。`DECIMAL` / `NUMERIC` 转换保持十进制值，不经过 `Float64`；括号中的 precision/scale 仅用于校验目标声明，未声明时使用 `(38,28)`。`DATETIME2` 输入使用 UTC `DateTime` 和 ISO-8601 文本，按 100ns ticks 保存；`DATETIMEOFFSET` 输入使用 `DateTimeOffset` 或 ISO-8601 文本，按 UTC ticks 保存并返回零偏移；`DURATION` 输入使用 ticks 整数、`TimeSpan` 或 `[-]d.hh:mm:ss.fffffff` 文本。`TIME` 只接受不带日期/时区的 `HH:mm[:ss[.fffffff]]` 文本、`TimeOnly` 或小于 24 小时的 `TimeSpan`，以 ticks 精度保存；`24:00:00`、负值、跨日值以及 `DATETIME`/`DateTimeOffset` 到 `TIME` 的隐式取时钟转换均拒绝。整数转换使用不变量格式并截断有限浮点的小数部分；布尔转换接受 `TRUE`/`FALSE` 或数值 `0`/`1`；`DATETIME` 输入可以是 UTC/ISO-8601 文本或 Unix 毫秒，结果统一为 UTC；`BLOB` 的字符串输入按 UTF-8 编码，`JSON` 当前保留字符串文本。格式错误、溢出、非有限浮点和非法布尔值会返回执行错误。`VECTOR` 与 `GEOPOINT` 作为 CAST 目标暂不支持，不会隐式构造对应模型值。
+
+日期时间 CAST 的整数输入按 Unix 毫秒（`DATETIME`）、UTC ticks（`DATETIME2`/`DATETIMEOFFSET`）或 `TimeSpan` ticks（`DURATION`）解释；无法无损表达或超出 CLR 范围时返回执行错误。
 
 ### 关系表 `TIME`
 
@@ -231,7 +233,7 @@ CREATE TABLE devices (
 规则：
 
 - 可声明 `PRIMARY KEY (...)` 或 `CONSTRAINT name PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。无主键关系表使用稳定内部行身份，允许重复行。
-- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`TIME`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`TIME` 以 `TimeOnly` ticks 保存，不含日期/时区。
+- 支持类型：`INT`、`FLOAT`、`DECIMAL(p,s)` / `NUMERIC(p,s)`、`BOOL`、`STRING`、`DATETIME`、`DATETIME2`、`DATETIMEOFFSET`、`TIME`、`DURATION`、`BLOB`、`JSON`。`DECIMAL`/`NUMERIC` 的 precision 范围为 `1..38`，scale 范围为 `0..precision`；裸类型的元数据默认 `(38,28)`，但不将这组默认数值当作写入约束，仍保留完整 CLR Decimal 值域及既有浮点转换兼容。显式 `(38,28)` 则执行声明的整数位数与小数位数限制。`DATETIME2` 按 UTC ticks 保存，`DATETIMEOFFSET` 按 UTC ticks 保存并以零偏移返回，`TIME` 以 `TimeOnly` ticks 保存，`DURATION` 以 `TimeSpan` ticks 保存；这些类型分别不携带本地时区、日期或日历单位。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
@@ -299,7 +301,7 @@ FROM devices
 WHERE installed_at <= CURRENT_UTC_DATETIME();
 ```
 
-- `CURRENT_DATETIME()` / `CURRENT_UTC_DATETIME()` 返回服务器本地时间 / UTC 时间；`CURRENT_DATETIME_OFFSET()` / `CURRENT_UTC_DATETIME_OFFSET()` 返回对应的 `DateTimeOffset`。
+- `CURRENT_DATETIME()` / `CURRENT_UTC_DATETIME()` 返回服务器本地时间 / UTC 时间；`CURRENT_DATETIME_OFFSET()` / `CURRENT_UTC_DATETIME_OFFSET()` 都返回 UTC `DateTimeOffset`（`Offset == TimeSpan.Zero`）。
 - `DATE_ONLY(value)` 返回日期零点。
 - `DATE_PART(part, value)` 支持 `year`、`quarter`、`month`、`day`、`day_of_year`、`day_of_week`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`nanosecond`；`day_of_week` 与 .NET 一致，星期日为 `0`。
 - `DATE_ADD(value, amount, part)` 支持 `year`、`month`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`；`year`、`month`、`tick` 要求整数增量。
