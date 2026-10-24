@@ -83,6 +83,14 @@ public static class SqlErrorCodes
 
     /// <summary>该 SELECT 组合或锁修饰词尚未提供行锁语义。</summary>
     public const string LockingReadUnsupported = "sql_locking_read_unsupported";
+
+    /// <summary>
+    /// 关系表列声明使用了 measurement/document 专用类型（VECTOR 或 GEOPOINT）。
+    ///
+    /// 这是一个产品边界错误而不是一般 SQL 语法错误，供 ORM/provider 在不解析
+    /// 人类可读消息的情况下选择显式标量/JSON 映射或 measurement 路径。
+    /// </summary>
+    public const string RelationalTypeUnsupported = "sql_relational_type_unsupported";
 }
 
 /// <summary>

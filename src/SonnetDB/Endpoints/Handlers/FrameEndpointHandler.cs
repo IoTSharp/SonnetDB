@@ -630,6 +630,7 @@ internal static partial class FrameEndpointHandler
                 KvReadOverloadedException => KvReadOverloadedException.Code,
                 SequenceException sequence => sequence.Code,
                 RoutineExecutionException routine => routine.Code,
+                SqlParseException parse when parse.Code == SqlErrorCodes.RelationalTypeUnsupported => parse.Code,
                 ArgumentException => "bad_request",
                 _ => "sql_error",
             };
@@ -860,6 +861,12 @@ internal static partial class FrameEndpointHandler
         {
             metrics.RecordSqlError();
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.Code, ex.Message);
+        }
+        catch (SqlParseException ex)
+        {
+            metrics.RecordSqlError();
+            string code = ex.Code == SqlErrorCodes.RelationalTypeUnsupported ? ex.Code : "sql_error";
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
         catch (NotSupportedException ex)
         {

@@ -7,7 +7,9 @@ permalink: /relation-type-boundary/
 
 # 关系表与 measurement 类型边界
 
-GH-Issue #193 采用明确产品边界的选项：`VECTOR(N)` 与 `GEOPOINT` 是 measurement 的 `FIELD` 类型，当前不是关系表列类型。`CREATE TABLE`、`ALTER TABLE ADD COLUMN` 和 `ALTER COLUMN ... TYPE` 对二者确定性拒绝；失败不得生成半成品表或改变已有列和行。ORM/CodeFirst 必须明确拒绝这些关系属性，只有用户显式选择下述替代映射时才能转换。
+GH-Issue #193/#349 采用明确产品边界的选项：`VECTOR(N)` 与 `GEOPOINT` 是 measurement 的 `FIELD` 类型，当前不是关系表列类型。`CREATE TABLE`、`ALTER TABLE ADD COLUMN` 和 `ALTER COLUMN ... TYPE` 对二者确定性拒绝；失败不得生成半成品表或改变已有列和行。ORM/CodeFirst 必须明确拒绝这些关系属性，只有用户显式选择下述替代映射时才能转换。
+
+拒绝使用稳定错误码 `sql_relational_type_unsupported`（`SqlErrorCodes.RelationalTypeUnsupported`），而不是依赖本地化错误文本。嵌入式 ADO 抛出的 `SqlParseException.Code`、REST SQL 的 JSON `error`/`code` 和 Frame SQL 的错误帧均保留该码；提示建议使用 measurement `FIELD` 或显式标量/JSON 关系映射。其它 SQL 解析错误仍使用 `sql_parse_error`/`sql_error`，不把所有解析失败混同为模型边界。
 
 ## SQL 声明类型矩阵
 

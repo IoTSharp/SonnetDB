@@ -93,6 +93,9 @@ public sealed class SqlCastTests : IDisposable
             $"CREATE TABLE relation_types (id INT, {columnDefinition}, PRIMARY KEY (id))"));
 
         Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
+        Assert.Equal(SqlErrorCodes.RelationalTypeUnsupported, exception.Code);
+        Assert.Equal("parse", exception.Operation);
+        Assert.Contains("measurement", exception.Hint, StringComparison.Ordinal);
     }
 
     [Fact]

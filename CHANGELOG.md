@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #349：固定关系表 `VECTOR(N)`/`GEOPOINT` 继续为 measurement `FIELD` 专用类型；`DataTypes.SupportsRelationalColumn=false` 与显式标量/JSON 替代模型保持不变。新增跨 Core、REST、Frame 和 ADO 的稳定错误码 `sql_relational_type_unsupported` 及可行动提示，避免 FreeSql/其它 ORM 解析本地化文本；边界与证据见 `docs/audits/issue-349-relational-specialized-types-20261024.md`。
 - GH-Issue #348：补充 ADO `GetSchema` 的 schema/table 结构化身份回归，覆盖同名表、大小写限制、索引、跨 schema 外键和重开后的嵌入式/REST 路径；文档明确默认 `main` 及 Views/DocumentCollections 的当前单 schema 边界。HTTP/2 frame 与正式 FreeSql 包仍按环境和发布边界单独验收。
 - GH-Issue #347：补齐 `FOR UPDATE SKIP LOCKED` 的分页语义：先按稳定顺序逐行尝试锁定、跳过竞争行，再对可锁定行应用 `OFFSET`/`LIMIT`，只把返回页的临时锁保留到事务结束；新增复合主键、空/竞争页、嵌入式与远程 ADO 回归。同步修正 SQL/ADO 锁定读文档，明确 `FOR SHARE` 仍以 `sql_locking_read_unsupported` 拒绝。
 - GH-Issue #345：补充关系事务 ACID/D 持久性审计与默认/显式强持久化配置下的 COMMIT 返回后真进程强杀回归；确认多表提交无条件同步关系 WAL、完成标记后才返回成功，并明确进程崩溃与物理掉电/介质损坏边界。详见 `docs/audits/issue-345-acid-durability-20261024.md`。

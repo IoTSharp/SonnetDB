@@ -813,7 +813,13 @@ internal static class SqlEndpointHandler
         string operation)
     {
         SqlErrorInfo detail = SqlErrorMapper.Map(exception, operation);
-        if (detail.Code == KvReadOverloadedException.Code || exception is SequenceException or SqlRowLockException)
+        // Keep the historical sql_error transport envelope for ordinary parser/execution
+        // failures, but expose product-boundary errors directly so ORM providers can make
+        // a deterministic mapping decision without parsing localized text.  The same code
+        // is still emitted in ErrorResponse.Code for clients that consume the envelope.
+        if (detail.Code == SqlErrorCodes.RelationalTypeUnsupported
+            || detail.Code == KvReadOverloadedException.Code
+            || exception is SequenceException or SqlRowLockException)
             transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
     }
