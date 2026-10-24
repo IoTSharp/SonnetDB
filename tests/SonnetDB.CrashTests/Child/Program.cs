@@ -123,6 +123,13 @@ switch (scenario)
     case "crash_kill9_deferred_trigger_before_commit":
         RunKillDeferredTriggerBeforeCommit(root, readyFile);
         return 0;
+    case "crash_kill9_after_commit_ack_default":
+    case "crash_kill9_after_commit_ack_strong":
+        RunKillAfterCommitAcknowledgement(
+            root,
+            readyFile,
+            strongPersistence: scenario.EndsWith("_strong", StringComparison.Ordinal));
+        return 0;
     case "crash_kill9_outbox_delivery_before_ack":
         await RunKillOutboxDeliveryBeforeAcknowledgement(root, readyFile);
         return 0;
@@ -609,6 +616,47 @@ static void RunKillDeferredTriggerBeforeCommit(string root, string readyFile)
     if (transaction.DeferredTriggerCount != 1)
         throw new InvalidOperationException("Deferred source change was not queued before the crash marker.");
     PauseForTriggerCrash(readyFile, "deferred-event-queued-before-commit");
+}
+
+// #345：COMMIT 返回成功后由子进程写入业务确认标识，再由父进程立即强杀。
+// 该边界与完成标记之前/之后的故障不同：只有 COMMIT 已返回，才能把这次操作
+// 记入成功确认集合。default 与显式强持久化配置都复用关系事务自己的 WAL 同步。
+static void RunKillAfterCommitAcknowledgement(string root, string readyFile, bool strongPersistence)
+{
+    TsdbOptions options = new()
+    {
+        RootDirectory = root,
+        SyncWalOnEveryWrite = strongPersistence,
+        FlushWalToOsOnWrite = true,
+        Kv = KvOptions.Default with
+        {
+            ExpirerEnabled = false,
+            CleanupEnabled = false,
+        },
+        BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+        Compaction = new CompactionPolicy { Enabled = false },
+    };
+
+    using var db = Tsdb.Open(options);
+    SqlExecutor.Execute(db, "CREATE TABLE accounts (id INT, balance INT, PRIMARY KEY (id))");
+    SqlExecutor.Execute(db,
+        "CREATE TABLE ledger (id INT, account_id INT, amount INT, PRIMARY KEY (id), "
+        + "FOREIGN KEY (account_id) REFERENCES accounts (id))");
+    SqlExecutor.Execute(db, "INSERT INTO accounts (id, balance) VALUES (1, 100)");
+
+    var transaction = new SqlTransactionContext();
+    SqlExecutor.ExecuteStatement(
+        db, null, SqlParser.Parse("UPDATE accounts SET balance = balance - 35 WHERE id = 1"),
+        null, transaction);
+    SqlExecutor.ExecuteStatement(
+        db, null, SqlParser.Parse("INSERT INTO ledger (id, account_id, amount) VALUES (1, 1, 35)"),
+        null, transaction);
+    _ = SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse("COMMIT"), null, transaction);
+
+    // This marker is written only after the COMMIT API has returned successfully. The
+    // independent parent records the operation and then terminates us without Dispose.
+    WriteCrashReady(readyFile, "commit-ack-after-response");
+    Thread.Sleep(Timeout.Infinite);
 }
 
 static async Task RunKillOutboxDeliveryBeforeAcknowledgement(string root, string readyFile)
