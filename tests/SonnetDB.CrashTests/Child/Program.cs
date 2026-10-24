@@ -651,7 +651,7 @@ static void RunKillAfterCommitAcknowledgement(string root, string readyFile, boo
     SqlExecutor.ExecuteStatement(
         db, null, SqlParser.Parse("INSERT INTO ledger (id, account_id, amount) VALUES (1, 1, 35)"),
         null, transaction);
-    _ = SqlExecutor.Execute(db, "COMMIT", transaction);
+    _ = SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse("COMMIT"), null, transaction);
 
     // This file is written only after the COMMIT API has returned successfully. The parent
     // process records the marker and then terminates us without allowing Dispose to run.
