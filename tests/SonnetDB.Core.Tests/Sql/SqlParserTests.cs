@@ -1050,7 +1050,7 @@ public class SqlParserTests
     {
         var statement = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
             "CREATE TABLE events (legacy DATETIME, precise DATETIME2, "
-            + "offset DATETIMEOFFSET, clock TIME, elapsed DURATION)"));
+            + "offset_value DATETIMEOFFSET, clock TIME, elapsed DURATION)"));
 
         Assert.Equal(
             [SqlDataType.DateTime, SqlDataType.DateTime2, SqlDataType.DateTimeOffset,
