@@ -16,4 +16,8 @@ public sealed record TableRowMutation(
 
     // 无显式主键时使用物理行身份；NULL 主键值仍表示 INSERT，空主键值列表表示既有行变更。
     internal byte[]? EncodedRowIdentity { get; init; }
+
+    // ON DELETE SET NULL 可能需要合并同一子行上的多个外键动作。
+    // 该标记仅用于 TableManager 的级联展开，不属于持久化或公共 SQL 合同。
+    internal bool IsGeneratedCascadeSetNull { get; init; }
 }
