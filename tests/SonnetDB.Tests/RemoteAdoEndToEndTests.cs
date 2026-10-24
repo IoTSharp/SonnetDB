@@ -313,10 +313,10 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using (var connection = OpenRemote())
         {
             using var command = connection.CreateCommand();
-            command.CommandText = $"CREATE TABLE main.{sitesName} (id INT, PRIMARY KEY (id))";
+            command.CommandText = $"CREATE TABLE sales.{sitesName} (id INT, PRIMARY KEY (id))";
             command.ExecuteNonQuery();
             command.CommandText = $"CREATE TABLE \"Archive\".\"{tableName}\" (id INT, name STRING, site_id INT, PRIMARY KEY (id), "
-                + $"CONSTRAINT {foreignKeyName} FOREIGN KEY (site_id) REFERENCES main.{sitesName} (id))";
+                + $"CONSTRAINT {foreignKeyName} FOREIGN KEY (site_id) REFERENCES sales.{sitesName} (id))";
             command.ExecuteNonQuery();
             command.CommandText = $"CREATE TABLE sales.{tableName} (id INT, PRIMARY KEY (id))";
             command.ExecuteNonQuery();
@@ -347,7 +347,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             var foreignKey = Assert.Single(connection.GetSchema(
                 "ForeignKeys", [null, "Archive", tableName, foreignKeyName]).Rows.Cast<DataRow>());
             Assert.Equal("Archive", foreignKey["TABLE_SCHEMA"]);
-            Assert.Equal("main", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
+            Assert.Equal("sales", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
         }
 
         using var reopened = OpenRemote();
@@ -355,8 +355,9 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             "Tables", [null, "Archive", tableName, null]).Rows.Cast<DataRow>());
         Assert.Equal("Archive", reopenedTable["TABLE_SCHEMA"]);
         Assert.Single(reopened.GetSchema("Indexes", [null, "Archive", tableName, indexName]).Rows.Cast<DataRow>());
-        Assert.Single(reopened.GetSchema(
+        var reopenedForeignKey = Assert.Single(reopened.GetSchema(
             "ForeignKeys", [null, "Archive", tableName, foreignKeyName]).Rows.Cast<DataRow>());
+        Assert.Equal("sales", reopenedForeignKey["PRINCIPAL_TABLE_SCHEMA"]);
     }
 
     [Fact]
