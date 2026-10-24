@@ -1,3 +1,10 @@
+## 2026-10-24 Issue #343 constraint/index consistency validation (in progress)
+
+- Baseline is origin/main `3266459acfd51dc2266c5124e57cec5a2c87ced6` (the #342 atomicity validation merge); working branch `codex/issue343-acid-consistency`.
+- Added `SqlConstraintConsistencyTests` for duplicate `ON DELETE SET NULL` actions (autocommit, explicit transaction, reopen) and a constraint/index failure rollback plus base-row/index alignment journey. Existing constraint, trigger, primary-key/index, serializable and #342 recovery tests remain the evidence map; Server/REST/Frame and true crash boundaries are not inferred from Core.
+- Fixed `TableManager` cascade expansion to merge multiple generated SET NULL mutations for one child row, replay merged deferred-overlay mutations, and prefer CASCADE when a generated SET NULL collides with a CASCADE action. The marker is in-memory only; no schema/WAL format change.
+- Added `docs/audits/issue-343-constraint-consistency-20261024.md` and an Unreleased CHANGELOG entry. `git diff --check` passed. Environment has no .NET SDK (`dotnet: command not found`), so restore, Format Check, Core tests and CrashTests are NOT_RUN; before merge run the required commands and record exact results here. Do not close #343 until checks are green and parent confirms.
+
 ## 2026-10-24 Issue #342 transaction atomicity validation (in progress)
 
 - Baseline is origin/main dacd8501 (includes #340 docs merge); branch codex/issue342-acid-atomicity. Added SqlTransactionAtomicityTests for deterministic two-table accounts/ledger commit + reopen, rollback + reopen, statement-level failure continuation, and pre-decision commit fault recovery with two repeated reopens. No production transaction or storage-format change.

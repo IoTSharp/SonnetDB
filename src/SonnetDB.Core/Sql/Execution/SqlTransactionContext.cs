@@ -125,7 +125,12 @@ public sealed partial class SqlTransactionContext
                     previous.PrimaryKeyValues,
                     mutation.NewValues,
                     previous.ExpectedRowVersion)
-                { ExpectedRowState = previous.ExpectedRowState, EncodedRowIdentity = previous.EncodedRowIdentity });
+                {
+                    ExpectedRowState = previous.ExpectedRowState,
+                    EncodedRowIdentity = previous.EncodedRowIdentity,
+                    IsGeneratedCascadeSetNull = previous.IsGeneratedCascadeSetNull
+                        && mutation.IsGeneratedCascadeSetNull,
+                });
                 return;
             }
 
@@ -141,7 +146,12 @@ public sealed partial class SqlTransactionContext
                 previous.PrimaryKeyValues,
                 mutation.NewValues,
                 previous.ExpectedRowVersion)
-            { ExpectedRowState = previous.ExpectedRowState, EncodedRowIdentity = previous.EncodedRowIdentity });
+            {
+                ExpectedRowState = previous.ExpectedRowState,
+                EncodedRowIdentity = previous.EncodedRowIdentity,
+                IsGeneratedCascadeSetNull = previous.IsGeneratedCascadeSetNull
+                    && mutation.IsGeneratedCascadeSetNull,
+            });
             return;
 
             void Replace(TableRowMutation replacement)

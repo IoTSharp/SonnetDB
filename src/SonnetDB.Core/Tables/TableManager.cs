@@ -1049,14 +1049,38 @@ public sealed partial class TableManager : IDisposable
             {
                 CheckCascadeExecution(transaction);
                 int originalCount = original.TryGetValue(tableName, out var previous) ? previous.Count : 0;
-                if (mutations.Count == originalCount)
+                bool hasRewrittenMutation = false;
+                if (previous is not null)
+                {
+                    int compareCount = Math.Min(previous.Count, mutations.Count);
+                    for (int index = 0; index < compareCount; index++)
+                    {
+                        if (!ReferenceEquals(previous[index], mutations[index]))
+                        {
+                            hasRewrittenMutation = true;
+                            break;
+                        }
+                    }
+                }
+                if (mutations.Count == originalCount
+                    && !mutations.Any(static mutation => mutation.IsGeneratedCascadeSetNull)
+                    && !hasRewrittenMutation)
                     continue;
                 var schema = _catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-                for (int index = originalCount; index < mutations.Count; index++)
+                for (int index = 0; index < mutations.Count; index++)
                 {
                     CheckCascadeExecution(transaction);
-                    transaction.AddOrMergeTableMutation(schema, mutations[index]);
+                    // A child row can have more than one SET NULL foreign key pointing at
+                    // the same deleted parent. Cascade expansion merges those actions into
+                    // the existing generated mutation, so replay the merged mutation too;
+                    // appending only rows beyond the old count would leave the first action
+                    // in the transaction overlay and fail the final FK check on COMMIT.
+                    bool wasRewritten = previous is not null
+                        && index < previous.Count
+                        && !ReferenceEquals(previous[index], mutations[index]);
+                    if (index >= originalCount || mutations[index].IsGeneratedCascadeSetNull || wasRewritten)
+                        transaction.AddOrMergeTableMutation(schema, mutations[index]);
                 }
             }
         }
@@ -1810,6 +1834,7 @@ public sealed partial class TableManager : IDisposable
         var working = new Dictionary<TableObjectName, List<TableRowMutation>>(TableObjectName.ExactComparer);
         var pendingDeletePks = new Dictionary<TableObjectName, HashSet<string>>(TableObjectName.ExactComparer);
         var touchedPks = new Dictionary<TableObjectName, HashSet<string>>(TableObjectName.ExactComparer);
+        var generatedSetNullMutationIndices = new Dictionary<(TableObjectName Table, string Key), int>();
         var queue = new Queue<(TableObjectName Table, IReadOnlyList<object?> Pk)>();
 
         foreach (var (tableName, mutations) in mutationsByTable)
@@ -1823,14 +1848,17 @@ public sealed partial class TableManager : IDisposable
             pendingDeletePks[tableName] = deletedSet;
             var touchedSet = new HashSet<string>(StringComparer.Ordinal);
             touchedPks[tableName] = touchedSet;
-            foreach (var mutation in mutations)
+            for (int mutationIndex = 0; mutationIndex < mutations.Count; mutationIndex++)
             {
                 CheckCascadeExecution(transaction);
+                var mutation = mutations[mutationIndex];
                 if (mutation.PrimaryKeyValues is not null)
                 {
                     byte[] pkBytes = TableRowIdentity.TargetKey(schema, mutation);
                     string pkText = Convert.ToHexString(pkBytes);
                     touchedSet.Add(pkText);
+                    if (mutation.IsGeneratedCascadeSetNull && mutation.NewValues is not null)
+                        generatedSetNullMutationIndices[(tableName, pkText)] = mutationIndex;
                     if (mutation.NewValues is null && deletedSet.Add(pkText) && schema.PrimaryKey.Count != 0)
                         queue.Enqueue((tableName, mutation.PrimaryKeyValues));
                 }
@@ -1872,7 +1900,30 @@ public sealed partial class TableManager : IDisposable
                         // 用户显式修改或删除的行由原 mutation 负责；若修改后仍引用父行，
                         // 后续 FK 校验会拒绝整批，不在展开阶段制造同一行的重复 mutation。
                         if (childTouchedSet.Contains(childPkText))
+                        {
+                            // 如果同一子行先因另一条 FK 生成了 SET NULL，而本条 FK
+                            // 要求 CASCADE，则删除动作优先，不能留下部分置空的孤儿行。
+                            if (generatedSetNullMutationIndices.TryGetValue(
+                                (childSchema.ObjectName, childPkText), out int setNullIndex))
+                            {
+                                childList[setNullIndex] = new TableRowMutation(
+                                    PrimaryKeyValues: childPk,
+                                    NewValues: null)
+                                {
+                                    EncodedRowIdentity = childSchema.PrimaryKey.Count == 0
+                                        ? childPkBytes : null,
+                                };
+                                generatedSetNullMutationIndices.Remove(
+                                    (childSchema.ObjectName, childPkText));
+                                if (childDeleteSet.Add(childPkText))
+                                {
+                                    CountGeneratedCascadeRow();
+                                    if (childSchema.PrimaryKey.Count != 0)
+                                        queue.Enqueue((childSchema.ObjectName, childPk));
+                                }
+                            }
                             continue;
+                        }
                         if (!childDeleteSet.Add(childPkText))
                             continue;
                         CountGeneratedCascadeRow();
@@ -1884,12 +1935,14 @@ public sealed partial class TableManager : IDisposable
                     }
                     else
                     {
-                        // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
+                        // SET NULL：删除优先；同一子行上的多个 SET NULL 外键动作要
+                        // 合并到同一个 mutation，而不能因 touched 集合去重而漏掉后续列。
                         if (childDeleteSet.Contains(childPkText)) continue;
-                        if (!childTouchedSet.Add(childPkText)) continue;
-                        CountGeneratedCascadeRow();
-
-                        var nulledValues = childRow.Values.ToArray();
+                        bool hasGeneratedMutation = generatedSetNullMutationIndices.TryGetValue(
+                            (childSchema.ObjectName, childPkText), out int existingIndex);
+                        var nulledValues = hasGeneratedMutation
+                            ? childList[existingIndex].NewValues!.ToArray()
+                            : childRow.Values.ToArray();
                         foreach (var fkColumn in fk.Columns)
                         {
                             var column = childSchema.TryGetColumn(fkColumn)
@@ -1897,8 +1950,25 @@ public sealed partial class TableManager : IDisposable
                             nulledValues[column.Ordinal] = null;
                         }
 
-                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues)
-                        { EncodedRowIdentity = childSchema.PrimaryKey.Count == 0 ? childPkBytes : null });
+                        if (hasGeneratedMutation)
+                        {
+                            childList[existingIndex] = childList[existingIndex] with
+                            {
+                                NewValues = nulledValues,
+                                IsGeneratedCascadeSetNull = true,
+                            };
+                        }
+                        else
+                        {
+                            if (!childTouchedSet.Add(childPkText)) continue;
+                            CountGeneratedCascadeRow();
+                            generatedSetNullMutationIndices[(childSchema.ObjectName, childPkText)] = childList.Count;
+                            childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues)
+                            {
+                                EncodedRowIdentity = childSchema.PrimaryKey.Count == 0 ? childPkBytes : null,
+                                IsGeneratedCascadeSetNull = true,
+                            });
+                        }
                     }
                 }
             }
