@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #344：补齐 ACID/I 的确定性隔离验收：Core 跨表读写与只读依赖、保存点回滚后的首次读保留，嵌入式 ADO 默认/显式 `ReadCommitted` 双连接可见性及同步/异步 `Serializable` 冲突整笔重试，远程 REST/Frame HTTP/2 同步 ADO 合同与隔离级别协商；不重复实现既有 Serializable 引擎，详见 `docs/audits/issue-344-acid-isolation-20261024.md`。
 - GH-Issue #343：修复同一子行上多个 `ON DELETE SET NULL` 外键级联动作被去重而只置空一列的问题；级联展开现在合并所有受影响列，并在显式事务 overlay 中重放合并后的 mutation。新增嵌入式关系约束/索引失败回滚、级联重开与事务提交回归；未扩展未支持的 Server/强杀证据边界。
 - GH-Issue #342：新增关系表多语句、多表业务事务原子性回归，覆盖完整提交、显式回滚、语句失败后的继续执行，以及提交前故障注入后的双表恢复与重复重开；未修改事务或存储格式。
 - GH-Issue #340：统一关系表事务隔离级别文档；明确默认/`Unspecified` 为 `ReadCommitted`、ADO.NET 显式 `Serializable` 仅适用于关系基表并采用表级乐观提交校验，补充嵌入式/远程会话协商、SQL 文本 `BEGIN`/`/sql/batch` 仅支持默认隔离级别及冲突后整笔重试要求。同步修正文档中的版本证据边界；不据此推断已发布 NuGet/Server 的最低版本。
