@@ -1,3 +1,10 @@
+## 2026-10-24 Issue #345 ACID/D durability validation (in progress)
+
+- Baseline is origin/main `4a230bdac7e56c0fee118fcbdec0f60ceabbbcbe` (the #344 isolation validation merge, including #350 transaction journal parent-directory fsync fix); working branch `codex/issue345-acid-durability`.
+- Added deterministic CrashTests `crash_kill9_after_commit_ack_default` and `_strong`: the child writes the business confirmation marker only after `COMMIT` returns, the parent then hard-kills it without `Dispose`, and two independent reopens verify the complete accounts/ledger transfer. Added audit `docs/audits/issue-345-acid-durability-20261024.md` and CHANGELOG Unreleased entry.
+- Static path review confirms multi-table relation commits explicitly sync every participating KV WAL before the completion marker; `KvOptions.SyncWalOnEveryWrite` does not weaken this transaction barrier. Existing #342/#350/KV/WAL/journal tests remain the evidence map. No production or storage-format change in this slice.
+- `git diff --check` and required `dotnet restore`, `dotnet format`, Core/Crash/Server suites are **NOT_RUN** until a .NET 10 SDK environment is available (`dotnet: command not found` here). Physical power-loss, VM/block-device, and arbitrary media-corruption experiments remain explicitly unverified. Before merge, run exact restore/Format and targeted CrashTests, record precise results here, then create/update the non-draft PR linked to #345. Do not merge or close #345 until all checks are green and parent confirms.
+
 ## 2026-10-24 Issue #344 ACID/I isolation validation (in progress)
 
 - Baseline is origin/main `91ffc6733a1feb3396660f0a07d4c68958fd2732` (the #343 constraint/index consistency merge); working branch `codex/issue344-acid-isolation`.

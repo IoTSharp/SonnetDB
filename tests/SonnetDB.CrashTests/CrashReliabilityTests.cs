@@ -113,6 +113,33 @@ public sealed partial class CrashReliabilityTests : IDisposable
     }
 
     [Theory]
+    [InlineData("crash_kill9_after_commit_ack_default")]
+    [InlineData("crash_kill9_after_commit_ack_strong")]
+    public void crash_kill9_afterCommitAcknowledgement_ReopenRetainsConfirmedTransfer(string scenario)
+    {
+        string root = RunKillScenario(scenario, TimeSpan.Zero);
+
+        // The child writes this marker only after the COMMIT API returned. It is the
+        // externally observed confirmation set for this operation, not a completion hook.
+        Assert.Equal(
+            "transfer-001|accounts.balance=65|ledger.rows=1|ledger.amount=35",
+            File.ReadAllText(Path.Combine(root, "commit-ack.txt")));
+        Assert.Equal("commit-ack-after-response", File.ReadAllText(
+            Path.Combine(root, scenario + ".ready")));
+
+        for (int reopen = 0; reopen < 2; reopen++)
+        {
+            using var database = Tsdb.Open(MakeOptions(root));
+            var account = Assert.Single(Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT id, balance FROM accounts")).Rows);
+            Assert.Equal(new object?[] { 1L, 65L }, account);
+            var ledger = Assert.Single(Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SELECT id, account_id, amount FROM ledger")).Rows);
+            Assert.Equal(new object?[] { 1L, 1L, 35L }, ledger);
+        }
+    }
+
+    [Theory]
     [InlineData("crash_kill9_before_trigger_transaction_complete", 0)]
     [InlineData("crash_kill9_after_trigger_transaction_complete", 1)]
     [InlineData("crash_kill9_advanced_trigger_between_tables", 0)]
