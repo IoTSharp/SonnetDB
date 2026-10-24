@@ -34,5 +34,6 @@
 
 - `git diff --check`：提交前执行并记录结果。
 - `dotnet restore SonnetDB.slnx`：**NOT_RUN**（当前执行环境没有 `dotnet` 命令）。
-- `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`：**NOT_RUN**（同上；提交前必须在具备 .NET 10 SDK 的环境执行）。
-- 新增 CrashTests、Core/Server 回归及真实系统/硬件故障实验：**NOT_RUN**（同上或当前环境不具备隔离故障设备）。
+- `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`：**NOT_RUN locally**（当前环境无 SDK）；GitHub CI run `40127989195` Format Check **PASS**。
+- GitHub CI run `40127989195` Build/Test Ubuntu、Windows core、Windows REST 及三项 AOT **PASS**；CodeQL run `40127989164`、Connectors Release run `40127989167` **PASS**。
+- 真实 VM/块设备/断电及任意介质损坏实验：**NOT_RUN**（当前环境不具备隔离故障设备）。
