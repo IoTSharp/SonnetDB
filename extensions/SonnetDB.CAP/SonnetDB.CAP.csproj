@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="DotNetCore.CAP" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <ProjectReference Include="../../src/SonnetDB.Data/SonnetDB.Data.csproj" />
     <InternalsVisibleTo Include="SonnetDB.CAP.Tests" />
     <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
