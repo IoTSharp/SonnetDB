@@ -557,6 +557,59 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void Connection_GetSchema_PreservesQualifiedIdentityAcrossCollectionsAndReopen()
+    {
+        const string archiveSchema = "Archive";
+        const string tableName = "orders";
+        const string indexName = "ux_orders_name";
+
+        using (var connection = OpenConn())
+        {
+            ExecNonQuery(connection, "CREATE TABLE main.sites (id INT, PRIMARY KEY (id))");
+            ExecNonQuery(connection,
+                $"CREATE TABLE \"{archiveSchema}\".\"{tableName}\" (id INT, name STRING, site_id INT, PRIMARY KEY (id), "
+                + $"CONSTRAINT fk_{tableName}_sites FOREIGN KEY (site_id) REFERENCES main.sites (id))");
+            ExecNonQuery(connection, $"CREATE TABLE sales.{tableName} (id INT, PRIMARY KEY (id))");
+            ExecNonQuery(connection, $"CREATE UNIQUE INDEX {indexName} ON \"{archiveSchema}\".\"{tableName}\" (name)");
+
+            var tables = connection.GetSchema("Tables").Rows.Cast<DataRow>()
+                .Where(row => string.Equals((string)row["TABLE_NAME"], tableName, StringComparison.Ordinal))
+                .ToArray();
+            Assert.Equal(2, tables.Length);
+            Assert.Contains(tables, row => string.Equals((string)row["TABLE_SCHEMA"], archiveSchema, StringComparison.Ordinal));
+            Assert.Contains(tables, row => string.Equals((string)row["TABLE_SCHEMA"], "sales", StringComparison.Ordinal));
+
+            var archiveTable = Assert.Single(connection.GetSchema(
+                "Tables", [null, archiveSchema, tableName, null]).Rows.Cast<DataRow>());
+            Assert.Equal(archiveSchema, archiveTable["TABLE_SCHEMA"]);
+            Assert.Empty(connection.GetSchema("Tables", [null, "archive", tableName, null]).Rows.Cast<DataRow>());
+
+            var columns = connection.GetSchema("Columns", [null, archiveSchema, tableName, null]).Rows.Cast<DataRow>().ToArray();
+            Assert.Equal(["id", "name", "site_id"], columns.Select(row => (string)row["COLUMN_NAME"]).ToArray());
+            Assert.All(columns, row => Assert.Equal(archiveSchema, row["TABLE_SCHEMA"]));
+
+            var index = Assert.Single(connection.GetSchema(
+                "Indexes", [null, archiveSchema, tableName, indexName]).Rows.Cast<DataRow>());
+            Assert.Equal(archiveSchema, index["TABLE_SCHEMA"]);
+            Assert.Equal(tableName, index["TABLE_NAME"]);
+            Assert.Equal("name", index["COLUMN_NAME"]);
+
+            var foreignKey = Assert.Single(connection.GetSchema(
+                "ForeignKeys", [null, archiveSchema, tableName, $"fk_{tableName}_sites"]).Rows.Cast<DataRow>());
+            Assert.Equal(archiveSchema, foreignKey["TABLE_SCHEMA"]);
+            Assert.Equal("main", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
+        }
+
+        using var reopened = OpenConn();
+        var reopenedTable = Assert.Single(reopened.GetSchema(
+            "Tables", [null, archiveSchema, tableName, null]).Rows.Cast<DataRow>());
+        Assert.Equal(archiveSchema, reopenedTable["TABLE_SCHEMA"]);
+        Assert.Single(reopened.GetSchema("Indexes", [null, archiveSchema, tableName, indexName]).Rows.Cast<DataRow>());
+        Assert.Single(reopened.GetSchema(
+            "ForeignKeys", [null, archiveSchema, tableName, $"fk_{tableName}_sites"]).Rows.Cast<DataRow>());
+    }
+
+    [Fact]
     public void Connection_GetSchema_ReportsDecimalPrecisionAndScale()
     {
         using var c = OpenConn();
@@ -608,6 +661,7 @@ public sealed class TsdbAdoApiTests : IDisposable
 
         var views = c.GetSchema("Views", [null, null, "active_devices", null]);
         var view = Assert.Single(views.Rows.Cast<DataRow>());
+        Assert.Equal("main", view["TABLE_SCHEMA"]);
         Assert.Equal("SELECT id, site_id FROM devices", view["VIEW_DEFINITION"]);
         Assert.Equal("VIEW", view["TABLE_TYPE"]);
 

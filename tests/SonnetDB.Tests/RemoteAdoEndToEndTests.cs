@@ -248,6 +248,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         var tables = connection.GetSchema("Tables", [null, null, "schema_devices", null]);
         var table = Assert.Single(tables.Rows.Cast<DataRow>());
         Assert.Equal(connection.Database, table["TABLE_CATALOG"]);
+        Assert.Equal("main", table["TABLE_SCHEMA"]);
         Assert.Equal("schema_devices", table["TABLE_NAME"]);
         Assert.Equal("BASE TABLE", table["TABLE_TYPE"]);
 
@@ -283,11 +284,14 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
 
         var views = connection.GetSchema("Views", [null, null, "schema_devices_view", null]);
         var view = Assert.Single(views.Rows.Cast<DataRow>());
+        Assert.Equal("main", view["TABLE_SCHEMA"]);
         Assert.Equal("schema_devices_view", view["TABLE_NAME"]);
         Assert.Equal("VIEW", view["TABLE_TYPE"]);
 
         var foreignKeys = connection.GetSchema("ForeignKeys", [null, null, "schema_devices", "fk_schema_devices_sites"]);
         var foreignKey = Assert.Single(foreignKeys.Rows.Cast<DataRow>());
+        Assert.Equal("main", foreignKey["TABLE_SCHEMA"]);
+        Assert.Equal("main", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
         Assert.Equal("site_id", foreignKey["COLUMN_NAME"]);
         Assert.Equal("schema_sites", foreignKey["PRINCIPAL_TABLE_NAME"]);
 
@@ -295,6 +299,64 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         var document = Assert.Single(documents.Rows.Cast<DataRow>());
         Assert.Equal("schema_docs", document["TABLE_NAME"]);
         Assert.Equal("DOCUMENT COLLECTION", document["TABLE_TYPE"]);
+    }
+
+    [Fact]
+    public void Remote_GetSchema_PreservesQualifiedIdentityAcrossReopen()
+    {
+        string suffix = Guid.NewGuid().ToString("N")[..10];
+        string tableName = "schema_orders_" + suffix;
+        string sitesName = "schema_sites_" + suffix;
+        string indexName = "ux_orders_name_" + suffix;
+        string foreignKeyName = "fk_orders_sites_" + suffix;
+
+        using (var connection = OpenRemote())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"CREATE TABLE main.{sitesName} (id INT, PRIMARY KEY (id))";
+            command.ExecuteNonQuery();
+            command.CommandText = $"CREATE TABLE \"Archive\".\"{tableName}\" (id INT, name STRING, site_id INT, PRIMARY KEY (id), "
+                + $"CONSTRAINT {foreignKeyName} FOREIGN KEY (site_id) REFERENCES main.{sitesName} (id))";
+            command.ExecuteNonQuery();
+            command.CommandText = $"CREATE TABLE sales.{tableName} (id INT, PRIMARY KEY (id))";
+            command.ExecuteNonQuery();
+            command.CommandText = $"CREATE UNIQUE INDEX {indexName} ON \"Archive\".\"{tableName}\" (name)";
+            command.ExecuteNonQuery();
+
+            var tables = connection.GetSchema("Tables").Rows.Cast<DataRow>()
+                .Where(row => string.Equals((string)row["TABLE_NAME"], tableName, StringComparison.Ordinal))
+                .ToArray();
+            Assert.Equal(2, tables.Length);
+            Assert.Contains(tables, row => string.Equals((string)row["TABLE_SCHEMA"], "Archive", StringComparison.Ordinal));
+            Assert.Contains(tables, row => string.Equals((string)row["TABLE_SCHEMA"], "sales", StringComparison.Ordinal));
+
+            var archiveTable = Assert.Single(connection.GetSchema(
+                "Tables", [null, "Archive", tableName, null]).Rows.Cast<DataRow>());
+            Assert.Equal("Archive", archiveTable["TABLE_SCHEMA"]);
+            Assert.Empty(connection.GetSchema("Tables", [null, "archive", tableName, null]).Rows.Cast<DataRow>());
+
+            var columns = connection.GetSchema("Columns", [null, "Archive", tableName, null]).Rows.Cast<DataRow>().ToArray();
+            Assert.Equal(["id", "name", "site_id"], columns.Select(row => (string)row["COLUMN_NAME"]).ToArray());
+            Assert.All(columns, row => Assert.Equal("Archive", row["TABLE_SCHEMA"]));
+
+            var index = Assert.Single(connection.GetSchema(
+                "Indexes", [null, "Archive", tableName, indexName]).Rows.Cast<DataRow>());
+            Assert.Equal("Archive", index["TABLE_SCHEMA"]);
+            Assert.Equal("name", index["COLUMN_NAME"]);
+
+            var foreignKey = Assert.Single(connection.GetSchema(
+                "ForeignKeys", [null, "Archive", tableName, foreignKeyName]).Rows.Cast<DataRow>());
+            Assert.Equal("Archive", foreignKey["TABLE_SCHEMA"]);
+            Assert.Equal("main", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
+        }
+
+        using var reopened = OpenRemote();
+        var reopenedTable = Assert.Single(reopened.GetSchema(
+            "Tables", [null, "Archive", tableName, null]).Rows.Cast<DataRow>());
+        Assert.Equal("Archive", reopenedTable["TABLE_SCHEMA"]);
+        Assert.Single(reopened.GetSchema("Indexes", [null, "Archive", tableName, indexName]).Rows.Cast<DataRow>());
+        Assert.Single(reopened.GetSchema(
+            "ForeignKeys", [null, "Archive", tableName, foreignKeyName]).Rows.Cast<DataRow>());
     }
 
     [Fact]
