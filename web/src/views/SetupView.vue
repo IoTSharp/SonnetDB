@@ -123,6 +123,39 @@ function goHome(): void {
   router.push({ name: 'home' });
 }
 
+function validateSetupInput(
+  normalizedServerId: string,
+  normalizedOrganization: string,
+  normalizedUsername: string,
+  normalizedBearerToken: string,
+): string | null {
+  if (normalizedServerId.length < 3 || normalizedServerId.length > 64) {
+    return '服务器 ID 长度必须在 3 到 64 个字符之间。';
+  }
+  if (!/^[A-Za-z0-9_-]+$/u.test(normalizedServerId)) {
+    return '服务器 ID 仅允许 [A-Za-z0-9_-]。';
+  }
+  if (normalizedOrganization.length < 2 || normalizedOrganization.length > 80) {
+    return '组织名称长度必须在 2 到 80 个字符之间。';
+  }
+  if (normalizedUsername.length === 0) {
+    return '请输入管理员用户名。';
+  }
+  if (normalizedUsername.length > 64) {
+    return '用户名最长 64 字符。';
+  }
+  if (!/^[A-Za-z0-9_.@+-]+$/u.test(normalizedUsername)) {
+    return '用户名只允许 ASCII 字母、数字及 _-.@+。';
+  }
+  if (normalizedBearerToken.length < 12 || /\s/u.test(normalizedBearerToken)) {
+    return 'Bearer Token 至少 12 个字符，且不能包含空白字符。';
+  }
+  if (!password.value.trim()) {
+    return '请输入管理员密码。';
+  }
+  return null;
+}
+
 async function onSubmit(): Promise<void> {
   if (!setupReady.value) {
     error.value = '无法连接 SonnetDB Server，请确认服务端已启动后重试。';
@@ -134,13 +167,14 @@ async function onSubmit(): Promise<void> {
   const normalizedUsername = username.value.trim();
   const normalizedBearerToken = bearerToken.value.trim();
 
-  if (!password.value) {
-    error.value = '请输入管理员密码。';
-    return;
-  }
-
-  if (!normalizedServerId || !normalizedOrganization || !normalizedUsername || !normalizedBearerToken) {
-    error.value = '请完整填写所有初始化字段。';
+  const validationError = validateSetupInput(
+    normalizedServerId,
+    normalizedOrganization,
+    normalizedUsername,
+    normalizedBearerToken,
+  );
+  if (validationError) {
+    error.value = validationError;
     return;
   }
 

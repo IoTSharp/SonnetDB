@@ -116,6 +116,57 @@ public sealed class UserStore
     }
 
     /// <summary>
+    /// 原子创建用户并导入指定 token。用于首次安装，避免用户已写入但 token 导入失败时留下半初始化状态。
+    /// </summary>
+    /// <param name="name">用户名。</param>
+    /// <param name="password">用户密码。</param>
+    /// <param name="isSuperuser">是否为超级用户。</param>
+    /// <param name="token">明文 token。</param>
+    /// <returns>新写入 token 的 token id。</returns>
+    /// <exception cref="InvalidOperationException">用户名或 token 已存在。</exception>
+    public string CreateUserWithToken(string name, string password, bool isSuperuser, string token)
+    {
+        ValidateUserName(name);
+        ArgumentException.ThrowIfNullOrEmpty(password);
+
+        var key = name.ToLowerInvariant();
+        var normalizedToken = NormalizeToken(token);
+        var hash = ApiToken.HashHex(normalizedToken);
+        var id = NewTokenId();
+        var (salt, passwordHash, iterations) = PasswordHasher.Hash(password);
+
+        lock (_lock)
+        {
+            if (_state.Users.Any(u => u.Name == key))
+                throw new InvalidOperationException($"用户 '{key}' 已存在。");
+            if (_tokenIndex.ContainsKey(hash))
+                throw new InvalidOperationException("指定的 Bearer Token 已存在。");
+
+            var user = new UserRecord
+            {
+                Name = key,
+                Salt = Convert.ToBase64String(salt),
+                PasswordHash = Convert.ToBase64String(passwordHash),
+                Iterations = iterations,
+                IsSuperuser = isSuperuser,
+                CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            };
+            user.Tokens.Add(new TokenRecord
+            {
+                Id = id,
+                SecretHash = hash,
+                CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            });
+
+            _state.Users.Add(user);
+            _tokenIndex[hash] = (key, id);
+            Persist();
+        }
+
+        return id;
+    }
+
+    /// <summary>
     /// 修改密码。同时吊销该用户已颁发的所有 token。
     /// </summary>
     /// <exception cref="InvalidOperationException">用户不存在。</exception>
@@ -229,14 +280,9 @@ public sealed class UserStore
     public string ImportToken(string name, string token)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        ArgumentException.ThrowIfNullOrEmpty(token);
 
         var key = name.ToLowerInvariant();
-        var normalizedToken = token.Trim();
-        if (normalizedToken.Length < 12 || normalizedToken.Any(char.IsWhiteSpace))
-        {
-            throw new ArgumentException("Bearer Token 至少 12 个字符，且不能包含空白字符。", nameof(token));
-        }
+        var normalizedToken = NormalizeToken(token);
 
         var hash = ApiToken.HashHex(normalizedToken);
         var id = NewTokenId();
@@ -384,7 +430,19 @@ public sealed class UserStore
         return "tok_" + Convert.ToHexStringLower(buf);
     }
 
-    private static void ValidateUserName(string name)
+    internal static string NormalizeToken(string token)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(token);
+        var normalized = token.Trim();
+        if (normalized.Length < 12 || normalized.Any(char.IsWhiteSpace))
+        {
+            throw new ArgumentException("Bearer Token 至少 12 个字符，且不能包含空白字符。", nameof(token));
+        }
+
+        return normalized;
+    }
+
+    internal static void ValidateUserName(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         if (name.Length > 64)

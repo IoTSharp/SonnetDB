@@ -78,6 +78,35 @@ test('setup keeps local defaults and reports an unavailable server', async ({ pa
   await expect(page.getByRole('button', { name: '完成初始化' })).toBeDisabled();
 });
 
+test('setup rejects invalid fields before sending an initialize request', async ({ page }) => {
+  let initializeCalled = false;
+  await page.route('**/v1/setup/status', (route) => json(route, {
+    needsSetup: true,
+    suggestedServerId,
+    serverId: null,
+    organization: null,
+    userCount: 0,
+    databaseCount: 0,
+  }));
+  await page.route('**/v1/setup/initialize', async (route) => {
+    initializeCalled = true;
+    return json(route, { message: 'unexpected initialize request' }, 500);
+  });
+
+  await page.goto('/admin/setup');
+  await page.getByPlaceholder('至少一组可记忆的强密码').fill('SetupSecret123!');
+  await page.getByPlaceholder('sonnetdb-dev-01').fill('invalid id');
+  await page.getByRole('button', { name: '完成初始化' }).click();
+  await expect(page.getByText('服务器 ID 仅允许 [A-Za-z0-9_-]。')).toBeVisible();
+  expect(initializeCalled).toBe(false);
+
+  await page.getByPlaceholder('sonnetdb-dev-01').fill(suggestedServerId);
+  await page.getByPlaceholder('Acme Observability').fill('A');
+  await page.getByRole('button', { name: '完成初始化' }).click();
+  await expect(page.getByText('组织名称长度必须在 2 到 80 个字符之间。')).toBeVisible();
+  expect(initializeCalled).toBe(false);
+});
+
 async function json(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }

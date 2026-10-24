@@ -10,6 +10,8 @@
 ### Changed
 - FreeSql/SonnetDB 关系 provider 收口：关系表 `FOR UPDATE SKIP LOCKED` 已接入 parser、逐行锁竞争跳过、序列复验和锁清理；ADO `Tables`、`Columns`、`Indexes`、`ForeignKeys`、`Views` 与 `INFORMATION_SCHEMA` 保留真实 schema 身份，Server/Remote schema DTO 同步接线。Core/ADO 定向 92/92、远程 REST 65/65 通过；HTTP/2 frame 宿主未建立精确 HTTP/2，相关 32 项保留 FAIL/NOT_RUN 边界。FreeSql provider 230/230 通过，正式包与正式发布另验。
 
+- 首次安装向导增加前后端输入校验，并将管理员与首枚 Token 合并写入，避免非法字段或重复 Token 导致用户残留；Compose 增加 `/healthz/live` 存活检查并补充启动、状态查看和日志排查文档。
+
 - GH-Issue #227：将受限关系表 `CREATE/ALTER/DROP TABLE` 与 `CREATE/DROP INDEX` 接入嵌入式 ADO.NET 事务私有 workspace；提交使用 journal v2、目录永久 floor v19 与成对 schema/table 身份，回滚和第二步 DDL 失败不改动持久表，已有数据、索引、重开恢复均有真实 ADO 回归。远程 DDL 仍为 NOT_RUN，正式包与上游 ORM 交付另验。
 
 - GH-Issue #232 Core：关系表使用独立的 schema/table 成对身份，默认 schema 为 `main`；支持两段限定名、逐段大小写与引号合同、非 `main` 无歧义存储路径、目录格式 v18（v1-v17 旧表归入 `main`），并让 SQL CRUD、索引、外键、事务与重开恢复保留该身份。Data/Server/远程元数据接线仍待后续切片。

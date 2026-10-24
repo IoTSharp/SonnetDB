@@ -7,13 +7,23 @@ permalink: /getting-started/
 
 ## 1. 启动 `SonnetDB`
 
-从仓库根目录构建镜像：
+从仓库根目录使用 Compose 启动发布镜像：
+
+```bash
+docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml ps
+curl --fail http://127.0.0.1:5080/healthz/live
+```
+
+`sonnetdb` 服务启动后，健康状态会从 `starting` 变为 `healthy`；若尚未通过检查，可稍后重试，或运行 `docker compose -f docker-compose.yml logs --tail=100 sonnetdb` 查看日志。这个存活检查只确认进程与 HTTP 管线响应，不代表已完成初始化或完整依赖就绪。
+
+如果需要从仓库根目录构建镜像：
 
 ```bash
 docker build -f src/SonnetDB/Dockerfile -t sonnetdb .
 ```
 
-运行容器：
+也可以直接运行构建后的容器：
 
 ```bash
 docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb

@@ -1,5 +1,19 @@
 # SonnetDB 交接记录
 
+## 2026-10-24 首次安装与 Compose 运维改进
+
+- 按用户确认实施两项改进：`docker-compose.yml` 为 `sonnetdb` 增加基于 `/healthz/live` 的 curl 存活检查（10 秒间隔、5 秒超时、12 次重试、20 秒启动宽限）；`docs/getting-started.md` 与 `docs/releases/docker-image.md` 补充显式 `docker compose -f docker-compose.yml up -d`、`ps`、`curl --fail` 和日志排查命令，并说明健康状态不等于初始化完成。
+- 首次安装入口现在在创建用户和 Token 前统一校验服务器 ID、组织名、用户名、密码和 Bearer Token，避免非法请求留下半初始化数据；用户和首枚 Token 通过 `UserStore.CreateUserWithToken` 一次持久化，重复 Token 失败不会留下管理员用户。前端 `SetupView.vue` 同步校验长度、字符集、空白和密码规则。新增服务端非法输入/重复 Token 无副作用与可重试测试，以及安装向导前端校验用例。
+- 已验证：`npm ci` 成功；`npm run build -- --mode e2e` 通过（TypeScript 检查和 Vite 构建均通过）；使用显式 Chrome 路径运行安装向导 Playwright 用例 3/3 通过；`git diff --check` 和 Compose YAML 解析通过。`npm run test:contracts` 的 469 项中 462 通过、7 项既有 macOS `/private/var` 路径断言失败，与本次改动无关。
+- 尚未验证：本机没有 `dotnet`、`docker`，因此服务端定向测试、完整 restore/format 和 `docker compose config` 无法运行。用户获知这些限制后明确要求本地提交，按该指示提交本批改动，未推送；此次未取得 AGENTS.md 第 7 条规定的提交前检查通过结果。
+- 下一步：由用户自行发起 PR；合并前在具备 .NET 10 SDK 和 Docker 的环境补跑服务端定向测试、`docker compose config`、完整 restore/format。用户与 Token 合并写入不代表整个安装流程跨文件事务或故障恢复已验证。
+
+## 2026-10-24 工程用途与行业定位审阅
+
+- 本次按用户要求解释工程用途，审阅 README、能力成熟度索引、核心 Tsdb、服务端入口及工业诊断/图片语义检索样例；定位为通用多模型数据引擎，工业物联网与边缘数据为明显应用方向。
+- 未修改产品代码，未构建、启动服务、运行测试、提交或推送；本段为本地审阅记录，暂不提交。功能描述依据源码与仓库文档，不构成运行、性能或生产就绪验证。
+- 当前 main 为 4617b2a4；原有未完成研发与发布门禁仍按各专题记录处理，本次不接续实施。
+
 ## 2026-10-19 CodeQL insecure-randomness 告警修复
 
 - GitHub Code Scanning 告警 #3 与 #2 均为 `cs/insecure-randomness`，主干实例分别落在 `src/SonnetDB.Core/Sql/SqlParser.cs` 的 `CREATE USER`/`ALTER USER` 密码字面量解析行；数据流来源是 `tests/SonnetDB.Core.Tests/Sql/M41P0DifferentialTests.cs` 中仅用于对拍数据的固定种子 `System.Random.Next(...)`。这是 CodeQL 将测试数值沿 SQL 解析调用图关联到密码解析上下文造成的误报，不是生产代码生成密码或 token。

@@ -65,12 +65,26 @@ internal static partial class SonnetDbEndpoints
 
             try
             {
-                users.CreateUser(req.Username, req.Password, isSuperuser: true);
-                var tokenId = users.ImportToken(req.Username, req.BearerToken);
+                var serverId = InstallationStore.NormalizeServerId(req.ServerId ?? string.Empty);
+                var organization = InstallationStore.NormalizeOrganization(req.Organization ?? string.Empty);
+                var username = req.Username?.Trim() ?? string.Empty;
+                if (username.Length == 0)
+                {
+                    throw new ArgumentException("请输入管理员用户名。");
+                }
+                UserStore.ValidateUserName(username);
+                if (string.IsNullOrWhiteSpace(req.Password))
+                {
+                    throw new ArgumentException("请输入管理员密码。");
+                }
+
+                var bearerToken = UserStore.NormalizeToken(req.BearerToken ?? string.Empty);
+
+                var tokenId = users.CreateUserWithToken(username, req.Password, isSuperuser: true, token: bearerToken);
                 var bootstrap = installation.CompleteInitialization(
-                    req.ServerId,
-                    req.Organization,
-                    req.Username,
+                    serverId,
+                    organization,
+                    username,
                     tokenId,
                     users.Count,
                     registry.Count);
@@ -79,7 +93,7 @@ internal static partial class SonnetDbEndpoints
                     bootstrap.ServerId,
                     bootstrap.Organization,
                     bootstrap.AdminUserName,
-                    req.BearerToken.Trim(),
+                    bearerToken,
                     bootstrap.InitialTokenId,
                     IsSuperuser: true);
 
