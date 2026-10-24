@@ -1049,8 +1049,22 @@ public sealed partial class TableManager : IDisposable
             {
                 CheckCascadeExecution(transaction);
                 int originalCount = original.TryGetValue(tableName, out var previous) ? previous.Count : 0;
+                bool hasRewrittenMutation = false;
+                if (previous is not null)
+                {
+                    int compareCount = Math.Min(previous.Count, mutations.Count);
+                    for (int index = 0; index < compareCount; index++)
+                    {
+                        if (!ReferenceEquals(previous[index], mutations[index]))
+                        {
+                            hasRewrittenMutation = true;
+                            break;
+                        }
+                    }
+                }
                 if (mutations.Count == originalCount
-                    && !mutations.Any(static mutation => mutation.IsGeneratedCascadeSetNull))
+                    && !mutations.Any(static mutation => mutation.IsGeneratedCascadeSetNull)
+                    && !hasRewrittenMutation)
                     continue;
                 var schema = _catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -1062,7 +1076,10 @@ public sealed partial class TableManager : IDisposable
                     // the existing generated mutation, so replay the merged mutation too;
                     // appending only rows beyond the old count would leave the first action
                     // in the transaction overlay and fail the final FK check on COMMIT.
-                    if (index >= originalCount || mutations[index].IsGeneratedCascadeSetNull)
+                    bool wasRewritten = previous is not null
+                        && index < previous.Count
+                        && !ReferenceEquals(previous[index], mutations[index]);
+                    if (index >= originalCount || mutations[index].IsGeneratedCascadeSetNull || wasRewritten)
                         transaction.AddOrMergeTableMutation(schema, mutations[index]);
                 }
             }
