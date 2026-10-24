@@ -9,8 +9,8 @@ internal static class SqlLockingReadContract
     {
         if (statement is SelectStatement { NoWait: true, ForUpdate: false }
             or SelectStatement { SkipLocked: true, ForUpdate: false })
-            throw new SqlParseException("NOWAIT 必须跟随 FOR UPDATE。", 0,
-                SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "使用 FOR UPDATE NOWAIT。");
+            throw new SqlParseException("NOWAIT 或 SKIP LOCKED 必须跟随 FOR UPDATE。", 0,
+                SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "使用 FOR UPDATE NOWAIT 或 FOR UPDATE SKIP LOCKED。");
         if (statement is SelectStatement { NoWait: true, SkipLocked: true })
             throw new SqlParseException("NOWAIT 与 SKIP LOCKED 不能同时使用。", 0,
                 SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "使用 FOR UPDATE NOWAIT 或 FOR UPDATE SKIP LOCKED。");
@@ -18,7 +18,7 @@ internal static class SqlLockingReadContract
             ? select with { ForUpdate = false, NoWait = false, SkipLocked = false } : statement;
         if (Contains(nested))
             throw new SqlParseException("锁定读只支持独立的关系基表 SELECT，不能嵌入其它语句或子查询。",
-                0, SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "在显式事务中单独执行 FOR UPDATE [NOWAIT]。");
+                0, SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "在显式事务中单独执行 FOR UPDATE [NOWAIT] 或 FOR UPDATE SKIP LOCKED。");
     }
     internal static bool Contains(SqlExpression? expression) => expression switch
     {

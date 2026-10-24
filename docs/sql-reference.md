@@ -142,7 +142,9 @@ measurement 路径仍拒绝 `PARTITION BY`、非 `time` 或降序排序，以及
 
 #### 关系表锁定读边界与乐观并发
 
-关系表不提供用户可见的悲观行锁：`SELECT ... FOR UPDATE`、`FOR UPDATE NOWAIT`、`FOR UPDATE SKIP LOCKED` 和 `FOR SHARE` 均在解析阶段返回 `sql_locking_read_unsupported`，不会退化为普通 SELECT。单独尾随的 `NOWAIT`、`SKIP LOCKED` 也拒绝。不存在可供业务依赖的行锁粒度、持有生命周期、锁等待/超时、死锁检测或提交/回滚释放行为；不存在的目标行同样不能锁定。取消已请求的命令仍遵循普通 ADO.NET 取消合同，锁定读本身不会进入等待状态。
+关系表在显式事务内支持单个关系基表的 `SELECT ... FOR UPDATE`、`FOR UPDATE NOWAIT` 和 `FOR UPDATE SKIP LOCKED`。锁定读只保留实际返回行的行身份；支持现有的 `WHERE`、投影、`ORDER BY`、`OFFSET`/`LIMIT` 以及复合主键。普通 `FOR UPDATE` 在竞争时等待，并受命令取消和事务提交超时约束；`NOWAIT` 遇到已持有行立即返回 `sql_lock_not_available`；`SKIP LOCKED` 不等待并跳过竞争行，然后在剩余可锁定行上应用排序和分页，因此不会返回已锁定行。成功返回的行锁保留到事务提交、回滚、连接关闭或远程会话过期。
+
+`FOR SHARE`、间隙锁、幻读保护以及带 JOIN、聚合、DISTINCT、CTE、派生表或子查询的锁定读仍不支持；这些形状在解析或执行阶段返回 `sql_locking_read_unsupported`，不会静默退化为普通 SELECT。单独尾随的 `NOWAIT`、`SKIP LOCKED` 以及 `NOWAIT` 与 `SKIP LOCKED` 的组合也拒绝。空候选集或全部候选行均被锁定时，`SKIP LOCKED` 返回空结果；不存在的目标行不能锁定。ADO.NET 同步和异步命令、直接 REST SQL 与远程事务会话使用相同的结果和错误码。
 
 需要“读取后更新”时，使用 `INT ROWVERSION` 列和条件写入：
 
@@ -152,7 +154,7 @@ SELECT status, version FROM jobs WHERE id = @id;
 UPDATE jobs SET status = 'running' WHERE id = @id AND version = @version;
 ```
 
-调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`ReadCommitted`/`Serializable` 轻事务均不提供悲观锁；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。ADO.NET 同步和异步锁定读在嵌入式及远程模式均抛 `SqlParseException`，其 `Code` 为 `sql_locking_read_unsupported`；直接 REST SQL 返回同一错误码。锁定读被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
+调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`ReadCommitted`/`Serializable` 轻事务仍不提供间隙或幻读保护；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。`FOR SHARE` 被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
 
 #### 关系基表可串行化事务
 

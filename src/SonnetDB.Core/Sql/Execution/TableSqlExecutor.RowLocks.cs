@@ -44,7 +44,13 @@ internal static partial class TableSqlExecutor
                     || !ReferenceEquals(schema, tsdb.Tables.Catalog.TryGet(schema.Name)))
                     throw new InvalidOperationException("锁定读期间关系表定义发生变化，请重试事务。");
                 sequence = store.RowLockSequence;
-                selected = SelectRowsForLock(store, schema, statement);
+                // SKIP LOCKED must apply OFFSET/LIMIT after unavailable rows have
+                // been removed.  Select the complete ordered candidate set first;
+                // the returned page and retained leases are chosen below.
+                var selectionStatement = statement.SkipLocked && statement.Pagination?.Fetch != 0
+                    ? statement with { Pagination = null }
+                    : statement;
+                selected = SelectRowsForLock(store, schema, selectionStatement);
             }
             tsdb.Tables.LockCandidatesSelectedTestHook?.Invoke();
             TimeSpan remaining = timeout - Stopwatch.GetElapsedTime(started);
@@ -84,10 +90,29 @@ internal static partial class TableSqlExecutor
                             throw new InvalidOperationException("锁定读期间关系表定义发生变化，请重试事务。");
                         if (sequence != store.RowLockSequence) continue;
                         SqlExecutor.ThrowIfCancellationRequested();
-                        foreach (var item in acquired)
-                            item.Lease.Retain();
-                        var rows = acquired
+                        var available = acquired
                             .Where(item => item.RowIndex < visibleRows)
+                            .ToArray();
+                        long offset = statement.Pagination?.Offset ?? 0;
+                        long fetch = statement.Pagination?.Fetch ?? long.MaxValue;
+                        var returned = new List<(TableRowLockManager.Lease Lease, int RowIndex)>();
+                        if (fetch > 0)
+                        {
+                            int start = offset >= available.Length ? available.Length : (int)offset;
+                            long remainingRows = Math.Min(fetch, available.Length - (long)start);
+                            for (int i = 0; i < remainingRows; i++)
+                                returned.Add(available[start + i]);
+                        }
+
+                        // Buffered mutations can add identities that are not visible
+                        // result rows; retain those locks for the transaction.  For
+                        // SKIP LOCKED, only the page returned to the caller retains
+                        // row leases; all other temporary probes are released below.
+                        var retained = returned.Select(item => item.RowIndex).ToHashSet();
+                        foreach (var item in acquired)
+                            if (item.RowIndex >= visibleRows || retained.Contains(item.RowIndex))
+                                item.Lease.Retain();
+                        var rows = returned
                             .Select(item => selected.Result.Rows[item.RowIndex])
                             .ToArray();
                         return selected.Result with { Rows = rows };
