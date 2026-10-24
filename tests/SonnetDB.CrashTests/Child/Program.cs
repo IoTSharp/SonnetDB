@@ -653,11 +653,8 @@ static void RunKillAfterCommitAcknowledgement(string root, string readyFile, boo
         null, transaction);
     _ = SqlExecutor.ExecuteStatement(db, null, SqlParser.Parse("COMMIT"), null, transaction);
 
-    // This file is written only after the COMMIT API has returned successfully. The parent
-    // process records the marker and then terminates us without allowing Dispose to run.
-    File.WriteAllText(
-        Path.Combine(root, "commit-ack.txt"),
-        "transfer-001|accounts.balance=65|ledger.rows=1|ledger.amount=35");
+    // This marker is written only after the COMMIT API has returned successfully. The
+    // independent parent records the operation and then terminates us without Dispose.
     WriteCrashReady(readyFile, "commit-ack-after-response");
     Thread.Sleep(Timeout.Infinite);
 }

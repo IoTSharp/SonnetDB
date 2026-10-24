@@ -117,25 +117,32 @@ public sealed partial class CrashReliabilityTests : IDisposable
     [InlineData("crash_kill9_after_commit_ack_strong")]
     public void crash_kill9_afterCommitAcknowledgement_ReopenRetainsConfirmedTransfer(string scenario)
     {
-        string root = RunKillScenario(scenario, TimeSpan.Zero);
+        (string root, string confirmationPath) = RunKillAfterCommitAcknowledgementScenario(scenario);
 
-        // The child writes this marker only after the COMMIT API returned. It is the
-        // externally observed confirmation set for this operation, not a completion hook.
-        Assert.Equal(
-            "transfer-001|accounts.balance=65|ledger.rows=1|ledger.amount=35",
-            File.ReadAllText(Path.Combine(root, "commit-ack.txt")));
-        Assert.Equal("commit-ack-after-response", File.ReadAllText(
-            Path.Combine(root, scenario + ".ready")));
-
-        for (int reopen = 0; reopen < 2; reopen++)
+        try
         {
-            using var database = Tsdb.Open(MakeOptions(root));
-            var account = Assert.Single(Assert.IsType<SelectExecutionResult>(
-                SqlExecutor.Execute(database, "SELECT id, balance FROM accounts")).Rows);
-            Assert.Equal(new object?[] { 1L, 65L }, account);
-            var ledger = Assert.Single(Assert.IsType<SelectExecutionResult>(
-                SqlExecutor.Execute(database, "SELECT id, account_id, amount FROM ledger")).Rows);
-            Assert.Equal(new object?[] { 1L, 1L, 35L }, ledger);
+            // The parent writes this confirmation only after observing the child's
+            // post-COMMIT marker, keeping the confirmation log outside the killed root.
+            Assert.Equal(
+                "transfer-001|accounts.balance=65|ledger.rows=1|ledger.amount=35",
+                File.ReadAllText(confirmationPath));
+            Assert.Equal("commit-ack-after-response", File.ReadAllText(
+                Path.Combine(root, scenario + ".ready")));
+
+            for (int reopen = 0; reopen < 2; reopen++)
+            {
+                using var database = Tsdb.Open(MakeOptions(root));
+                var account = Assert.Single(Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT id, balance FROM accounts")).Rows);
+                Assert.Equal(new object?[] { 1L, 65L }, account);
+                var ledger = Assert.Single(Assert.IsType<SelectExecutionResult>(
+                    SqlExecutor.Execute(database, "SELECT id, account_id, amount FROM ledger")).Rows);
+                Assert.Equal(new object?[] { 1L, 1L, 35L }, ledger);
+            }
+        }
+        finally
+        {
+            try { File.Delete(confirmationPath); } catch { }
         }
     }
 
@@ -600,6 +607,30 @@ public sealed partial class CrashReliabilityTests : IDisposable
         }
 
         return root;
+    }
+
+    private (string Root, string ConfirmationPath) RunKillAfterCommitAcknowledgementScenario(string scenario)
+    {
+        string root = NewScenarioRoot();
+        string readyFile = Path.Combine(root, $"{scenario}.ready");
+        string confirmationPath = Path.Combine(_tempDir, $"{scenario}-{Path.GetRandomFileName()}.confirmation");
+        using Process process = StartChild(scenario, root, readyFile);
+
+        try
+        {
+            WaitForReady(process, readyFile, TimeSpan.FromSeconds(10));
+            Assert.Equal("commit-ack-after-response", File.ReadAllText(readyFile));
+            // The controlling test process owns this confirmation log; the child never writes it.
+            File.WriteAllText(
+                confirmationPath,
+                "transfer-001|accounts.balance=65|ledger.rows=1|ledger.amount=35");
+        }
+        finally
+        {
+            TerminateAndWait(process, TimeSpan.FromSeconds(10));
+        }
+
+        return (root, confirmationPath);
     }
 
     private static Process StartChild(string scenario, string root, string readyFile)

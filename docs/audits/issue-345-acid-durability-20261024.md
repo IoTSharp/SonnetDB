@@ -19,7 +19,7 @@
 
 ## 本切片新增证据
 
-- `tests/SonnetDB.CrashTests/CrashReliabilityTests.cs` 新增 `crash_kill9_afterCommitAcknowledgement_ReopenRetainsConfirmedTransfer`，覆盖默认与显式强持久化配置。子进程只有在 `COMMIT` API 返回后才写 `commit-ack.txt` 与 ready 标记；父进程随后立即 `Kill(entireProcessTree: true)`，不运行 `Dispose`，再独立重开两次核验 accounts/ledger 的完整转账状态。
+- `tests/SonnetDB.CrashTests/CrashReliabilityTests.cs` 新增 `crash_kill9_afterCommitAcknowledgement_ReopenRetainsConfirmedTransfer`，覆盖默认与显式强持久化配置。子进程只有在 `COMMIT` API 返回后才写 ready 标记；独立父进程看到该标记后把业务操作标识和期望值写入父进程拥有的确认文件，随后立即 `Kill(entireProcessTree: true)`，不运行 `Dispose`，再独立重开两次核验 accounts/ledger 的完整转账状态。
 - 既有 `crash_kill9_*trigger*` 剧本覆盖完成标记前、完成标记前暂停和完成标记后强杀；#342 Core 回归覆盖提交前故障恢复及重复重开；#350 的 `TableTransactionJournalTests` 覆盖 durable rename 发布后关闭/读取；`KvAtomicBatchTests` 覆盖 WAL 原子批次的同步错误、撕裂尾部丢弃和恢复链。
 - 既有 `SqlConstraintTriggerTests` 的完成确认失败/完成前失败测试区分结果未知与可回滚错误；既有 KV WAL sync-failure 测试确认 I/O 异常不会被吞掉或报告为成功。
 
