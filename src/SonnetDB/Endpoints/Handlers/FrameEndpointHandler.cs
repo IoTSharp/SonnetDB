@@ -630,6 +630,7 @@ internal static partial class FrameEndpointHandler
                 KvReadOverloadedException => KvReadOverloadedException.Code,
                 SequenceException sequence => sequence.Code,
                 RoutineExecutionException routine => routine.Code,
+                SqlParseException parse => parse.Code,
                 ArgumentException => "bad_request",
                 _ => "sql_error",
             };
@@ -857,6 +858,11 @@ internal static partial class FrameEndpointHandler
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.ErrorCode, ex.Message);
         }
         catch (RoutineExecutionException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.Code, ex.Message);
+        }
+        catch (SqlParseException ex)
         {
             metrics.RecordSqlError();
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.Code, ex.Message);
