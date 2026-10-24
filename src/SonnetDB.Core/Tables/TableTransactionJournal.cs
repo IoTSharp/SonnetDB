@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Text;
+using SonnetDB.Wal;
 
 namespace SonnetDB.Tables;
 
@@ -74,6 +75,7 @@ internal static class TableTransactionJournal
                 file.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
+            DirectoryFsync.FlushRequired(Path.GetDirectoryName(Path.GetFullPath(path))!);
         }
         finally
         {
