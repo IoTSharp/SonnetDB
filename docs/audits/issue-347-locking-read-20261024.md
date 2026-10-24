@@ -21,6 +21,6 @@
 
 ## 验证状态
 
-- `git diff --check`：待提交前执行。
-- `dotnet restore SonnetDB.slnx`、`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、Core/Server 测试：当前执行环境没有 .NET SDK（`dotnet: command not found`），**NOT_RUN**。
-- 提交后应在 .NET 10 CI 环境运行锁定读 Core/ADO/Server 定向测试及完整格式检查，并在 PR 中记录实际结果；在检查变绿且父代理确认前不合并或关闭 #347。
+- `git diff --check`：PASS。
+- 本地 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、Core/Server 测试：当前执行环境没有 .NET SDK（`dotnet: command not found`），**NOT_RUN locally**。
+- PR #363 CI run `40132710533` 的 Ubuntu、Windows core、Windows REST、三项 Native AOT 与 Format Check：**PASS**；CodeQL `40132710542`：**PASS**；Connectors Release `40132710532`：**PASS**。在父代理确认前仍不合并或关闭 #347。
