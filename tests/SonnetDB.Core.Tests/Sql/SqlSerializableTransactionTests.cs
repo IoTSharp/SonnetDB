@@ -72,6 +72,63 @@ public sealed class SqlSerializableTransactionTests : IDisposable
         Assert.Equal(10L, Scalar(db, "SELECT SUM(value) FROM items"));
     }
 
+    [Fact]
+    public void Commit_CrossTableReadWriteDependency_RejectsStaleTransaction()
+    {
+        using var db = Open();
+        Prepare(db);
+        Execute(db, "CREATE TABLE limits(id INT,value INT,PRIMARY KEY(id))");
+        Execute(db, "INSERT INTO limits(id,value) VALUES(1,100)");
+
+        var transaction = Serializable();
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id = 1", transaction));
+        Assert.Equal(100L, Scalar(db, "SELECT value FROM limits WHERE id = 1", transaction));
+
+        // The transaction writes items but also depends on the independently changed limits row.
+        Execute(db, "UPDATE limits SET value = 80 WHERE id = 1");
+        Execute(db, "UPDATE items SET value = 20 WHERE id = 1", transaction);
+
+        AssertConflict(db, transaction);
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id = 1"));
+        Assert.Equal(80L, Scalar(db, "SELECT value FROM limits WHERE id = 1"));
+    }
+
+    [Fact]
+    public void Commit_ReadOnlyCrossTableDependency_RejectsExternalChange()
+    {
+        using var db = Open();
+        Prepare(db);
+        Execute(db, "CREATE TABLE limits(id INT,value INT,PRIMARY KEY(id))");
+        Execute(db, "INSERT INTO limits(id,value) VALUES(1,100)");
+
+        var transaction = Serializable();
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id = 1", transaction));
+        Assert.Equal(100L, Scalar(db, "SELECT value FROM limits WHERE id = 1", transaction));
+        Execute(db, "UPDATE limits SET value = 80 WHERE id = 1");
+
+        // A read-only transaction still participates in the serializable history.
+        AssertConflict(db, transaction);
+        Assert.Equal(80L, Scalar(db, "SELECT value FROM limits WHERE id = 1"));
+    }
+
+    [Fact]
+    public void Commit_SavepointRollback_RetainsFirstReadDependency()
+    {
+        using var db = Open();
+        Prepare(db);
+        var transaction = Serializable();
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id = 1", transaction));
+
+        var savepoint = transaction.CreateSavepoint();
+        Assert.Equal(10L, Scalar(db, "SELECT value FROM items WHERE id = 1", transaction));
+        transaction.RollbackTo(savepoint);
+
+        Execute(db, "UPDATE items SET value = 20 WHERE id = 1");
+        // Rolling back statement work must not erase the first-read token.
+        AssertConflict(db, transaction);
+        Assert.Equal(20L, Scalar(db, "SELECT value FROM items WHERE id = 1"));
+    }
+
     [Theory]
     [InlineData("TRUNCATE TABLE items")]
     [InlineData("ALTER TABLE items ADD extra INT")]

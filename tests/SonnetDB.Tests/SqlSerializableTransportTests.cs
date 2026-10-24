@@ -179,6 +179,63 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void ReadCommitted_SyncTwoConnections_HidesUncommittedWritesAndReadsOwnWrites(string protocol)
+    {
+        using var writer = Open(protocol);
+        using var observer = Open(protocol);
+        ExecuteSync(writer, "CREATE TABLE sync_items(id INT,value INT,PRIMARY KEY(id))");
+        ExecuteSync(writer, "INSERT INTO sync_items(id,value) VALUES(1,10)");
+
+        using var transaction = writer.BeginTransaction(IsolationLevel.ReadCommitted);
+        Assert.Equal(IsolationLevel.ReadCommitted, transaction.IsolationLevel);
+        ExecuteSync(writer, "INSERT INTO sync_items(id,value) VALUES(2,20)", transaction);
+        ExecuteSync(writer, "UPDATE sync_items SET value = 11 WHERE id = 1", transaction);
+        Assert.Equal(1L, ScalarSync(observer, "SELECT COUNT(*) FROM sync_items"));
+        Assert.Equal(10L, ScalarSync(observer, "SELECT value FROM sync_items WHERE id = 1"));
+        Assert.Equal(2L, ScalarSync(writer, "SELECT COUNT(*) FROM sync_items", transaction));
+        Assert.Equal(11L, ScalarSync(writer, "SELECT value FROM sync_items WHERE id = 1", transaction));
+
+        transaction.Commit();
+        Assert.Equal(2L, ScalarSync(observer, "SELECT COUNT(*) FROM sync_items"));
+        Assert.Equal(11L, ScalarSync(observer, "SELECT value FROM sync_items WHERE id = 1"));
+        Assert.Contains(_requests, request => request.Isolation == "read_committed");
+        Assert.All(_requests.Where(request => request.Path.Contains("/sql/transactions", StringComparison.Ordinal)),
+            request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+    }
+
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public void Serializable_SyncConflictEndsTransactionAndAllowsWholeRetry(string protocol)
+    {
+        using var first = Open(protocol);
+        using var second = Open(protocol);
+        ExecuteSync(first, "CREATE TABLE sync_serial(id INT,value INT,PRIMARY KEY(id))");
+        ExecuteSync(first, "INSERT INTO sync_serial(id,value) VALUES(1,10)");
+
+        using var stale = first.BeginTransaction(IsolationLevel.Serializable);
+        Assert.Equal(10L, ScalarSync(first, "SELECT value FROM sync_serial WHERE id = 1", stale));
+        ExecuteSync(second, "UPDATE sync_serial SET value = 20 WHERE id = 1");
+        Assert.Equal(20L, ScalarSync(first, "SELECT value FROM sync_serial WHERE id = 1", stale));
+
+        var error = Assert.Throws<SndbServerException>(() => stale.Commit());
+        Assert.Equal(TableConstraintException.SerializationConflict, error.Error);
+        Assert.Throws<InvalidOperationException>(() => stale.Commit());
+
+        // A failed serializable transaction is terminal; retry from BEGIN, including the reads.
+        using var retry = first.BeginTransaction(IsolationLevel.Serializable);
+        Assert.Equal(20L, ScalarSync(first, "SELECT value FROM sync_serial WHERE id = 1", retry));
+        ExecuteSync(first, "UPDATE sync_serial SET value = 21 WHERE id = 1", retry);
+        retry.Commit();
+        Assert.Equal(21L, ScalarSync(first, "SELECT value FROM sync_serial WHERE id = 1"));
+        Assert.Contains(_requests, request => request.Isolation == "serializable");
+        Assert.All(_requests.Where(request => request.Path.Contains("/sql/transactions", StringComparison.Ordinal)),
+            request => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", request.Protocol));
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
@@ -230,5 +287,21 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
         command.CommandText = sql;
         command.Transaction = transaction;
         return Assert.IsType<long>(await command.ExecuteScalarAsync(cancellation));
+    }
+
+    private static int ExecuteSync(SndbConnection connection, string sql, SndbTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Transaction = transaction;
+        return command.ExecuteNonQuery();
+    }
+
+    private static long ScalarSync(SndbConnection connection, string sql, SndbTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Transaction = transaction;
+        return Assert.IsType<long>(command.ExecuteScalar());
     }
 }

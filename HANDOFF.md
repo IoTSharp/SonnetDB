@@ -1,3 +1,10 @@
+## 2026-10-24 Issue #344 ACID/I isolation validation (in progress)
+
+- Baseline is origin/main `91ffc6733a1feb3396660f0a07d4c68958fd2732` (the #343 constraint/index consistency merge); working branch `codex/issue344-acid-isolation`.
+- Added deterministic Core Serializable coverage for cross-table read/write and read-only dependencies plus savepoint rollback retaining the first-read dependency. Added embedded ADO default/explicit ReadCommitted two-connection visibility/read-your-writes checks and synchronous/asynchronous Serializable conflict → terminal transaction → whole-transaction retry checks. Added remote REST and Frame HTTP/2 synchronous ReadCommitted visibility and Serializable conflict/retry checks; existing async transport coverage remains.
+- No production or storage-format changes. Existing #225 Serializable implementation/tests are reused and not reimplemented. Audit: `docs/audits/issue-344-acid-isolation-20261024.md`; CHANGELOG Unreleased updated.
+- `git diff --check` passed. This environment has no .NET SDK (`dotnet: command not found`), so `dotnet restore SonnetDB.slnx`, the required Format Check, Core/Server/Crash tests and real transport tests are **NOT_RUN**. Before merge, run the exact restore/format commands and targeted suites in a .NET 10 environment, record precise results here, then create/update the non-draft PR linked to #344. Do not merge or close #344 until all checks are green and parent confirms.
+
 ## 2026-10-24 Issue #343 constraint/index consistency validation (in progress)
 
 - Baseline is origin/main `3266459acfd51dc2266c5124e57cec5a2c87ced6` (the #342 atomicity validation merge); working branch `codex/issue343-acid-consistency`.
