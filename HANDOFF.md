@@ -6267,3 +6267,8 @@ C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-202
 - origin/main 的 dacd8501 在本地 9b33f4a1 之上新增 #340 事务隔离边界文档；CHANGELOG、docs/ado-net.md 和 docs/sql-reference.md 的远端改动保留。
 - HANDOFF 采用本地 HEAD 的可读历史，去除历史 NUL 污染并追加本次合并摘要；本地已有 142364b8、74e9e3df、6f0222f8、9b33f4a1 提交保持不变。
 - 发布归档和 WB97/WB98 未完成证据仍保留在仓库外归档目录，合并过程没有删除恢复材料。
+
+## 2026-10-25 推送完成回读
+
+- 合并提交 e4223683 已推送到 origin/main；git ls-remote 与本地 HEAD 均为 e4223683b3e6925ae19a8b6470639ca4e1d02d2f。工作树 clean、MERGE_HEAD 已清除、ahead/behind 为 0/0。
+- 本次合并没有推送 parity-results，也没有执行发布、部署或其它远端写操作。
