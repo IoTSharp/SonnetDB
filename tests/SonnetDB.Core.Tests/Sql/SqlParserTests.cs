@@ -1024,6 +1024,41 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_UnknownTableType_DiagnosticListsAllRelationalTemporalTypes()
+    {
+        var exception = Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            "CREATE TABLE events (occurred DATETIME3)"));
+
+        Assert.Contains("DATETIME2", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("DATETIMEOFFSET", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("DURATION", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_UnknownCastType_DiagnosticListsAllTemporalTargets()
+    {
+        var exception = Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            "SELECT CAST(value AS DATETIME3) FROM events"));
+
+        Assert.Contains("DATETIME2", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("DATETIMEOFFSET", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("DURATION", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_CreateTable_RecognizesAllDocumentedTemporalTypes()
+    {
+        var statement = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE events (legacy DATETIME, precise DATETIME2, "
+            + "offset_value DATETIMEOFFSET, clock TIME, elapsed DURATION)"));
+
+        Assert.Equal(
+            [SqlDataType.DateTime, SqlDataType.DateTime2, SqlDataType.DateTimeOffset,
+                SqlDataType.Time, SqlDataType.Duration],
+            statement.Columns.Select(static column => column.DataType));
+    }
+
+    [Fact]
     public void ParseScript_MultipleStatements_AreReturnedInOrder()
     {
         var stmts = SqlParser.ParseScript(

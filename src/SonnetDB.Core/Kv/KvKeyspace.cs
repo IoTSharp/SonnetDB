@@ -2633,7 +2633,10 @@ public sealed partial class KvKeyspace : IDisposable
         {
             ThrowIfDisposed();
             WaitForWriteBudgetLocked();
-            var keys = _values
+            var keys = EnumerateVisibleEntriesLocked(
+                    prefix: [],
+                    afterKey: null,
+                    readDiskValues: false)
                 .Where(pair => pair.Value.IsExpired(now))
                 .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
                 .Take(take)

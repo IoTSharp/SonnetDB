@@ -135,6 +135,23 @@ public sealed class RelationalSubqueryMemoTests : IDisposable
     }
 
     [Fact]
+    public void CoalesceArgument_NullSubquery_UsesMemoAndPreservesFallback()
+    {
+        using var db = CreateDatabase();
+
+        var (result, metrics) = Execute(db, """
+            SELECT o.id, coalesce((SELECT value FROM memo_singleton WHERE id = 99), 'fallback') AS value
+            FROM memo_outer o
+            ORDER BY o.id
+            """);
+
+        Assert.Equal(["fallback", "fallback", "fallback"],
+            result.Rows.Select(static row => (string)row[1]!));
+        Assert.Equal(1, metrics.SubqueryExecutionCount);
+        Assert.Equal(2, metrics.SubqueryCacheHitCount);
+    }
+
+    [Fact]
     public void FunctionArgument_CorrelatedSubquery_ExecutesPerOuterRow()
     {
         using var db = CreateDatabase();

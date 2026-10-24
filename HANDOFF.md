@@ -3516,3 +3516,10 @@ Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规�
 - 已修复两个已确认的 Parity reliability 缺口：`KeylessDmlCrashTests` 依据当前目录合同断言 v16；`tests/SonnetDB.CrashTests/Child/Program.cs` 接入 `crash_ddl_journal_prepared`、`crash_ddl_journal_committed`、`crash_ddl_recovery_after-backend` 和 `crash_ddl_recovery_complete` 四个已有场景。
 - 验证：定向 crash 测试 **5/5** 通过；完整 `SonnetDB.CrashTests` **82/82** 通过，0 skipped，0 failed；两个文件 `git diff --check` 通过。修复已提交为 `e4f80198` 并推送到 `origin/main`；该 SHA 的 CI、CodeQL、Connectors Release 正在运行。
 - 后续仍需在同一冻结候选 SHA 上取得 GitHub Parity light/full 原始 artifacts，并确认其它发布门禁；本地测试通过不等同于远端 Parity 或正式发布就绪。
+
+
+## 2026-10-24 ACID transaction journal durability review
+
+- `TableTransactionJournal.Prepare` 在同步临时文件后 rename 发布时补充父目录 `DirectoryFsync.FlushRequired`；否则掉电可能丢失恢复日志目录项，而部分表 WAL 已落盘，跨表事务无法撤销。
+- 新增 `TableTransactionJournalTests.Prepare_DurableRename_CanBeReadAfterClose` smoke 回归，覆盖 prepare/read 的完整发布路径；真正硬件掉电仍需专用崩溃测试。
+- 本隔离 clone 的 `dotnet` SDK 不可用，未能运行 restore/test/format；已执行 `git diff --check`。PR #350 已创建，待 CI 给出结论。
