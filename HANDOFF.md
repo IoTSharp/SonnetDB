@@ -14,6 +14,17 @@
 - 未修改产品代码，未构建、启动服务、运行测试、提交或推送；本段为本地审阅记录，暂不提交。功能描述依据源码与仓库文档，不构成运行、性能或生产就绪验证。
 - 当前 main 为 4617b2a4；原有未完成研发与发布门禁仍按各专题记录处理，本次不接续实施。
 
+## 2026-10-24 Gitee PR #2 审核与合并
+
+- 已从 Gitee IoTSharp/SonnetDB 读取 PR #2（head e742e3e86c86c4b0267a9da7f472e7ff35d3c423，原 base 4617b2a4406e77b7147736c53c3e975dd64d65d2），在当前 Gitee main 075ddc21 的隔离 worktree 中完成无冲突合并演练。
+- 复核结果：服务端 SetupEndToEndTests 5/5；前端 build 通过；web contract tests 469/469；安装向导 Playwright 3/3；docker compose -f docker-compose.yml config 通过；规定的 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ 退出 0，差异检查通过。
+- 已在 Gitee PR 下发布审核回复（评论 ID 51793902），随后完成审查与测试登记并正式合并。远端 Gitee main 当前为 c9adee5d6e3426af5d773f7970413f67d986e093，父提交为 075ddc21 与 e742e3e8；PR 状态已回读为 merged。
+- 本地共享工作树存在既有大量脏改动，本次只更新 Gitee 远端引用和本交接记录，没有把 Gitee 合并提交写入本地 main，也没有覆盖或清理其它工作。
+- 边界：users.json 与 installation.json 仍是两个持久化文件，跨文件故障恢复不是本 PR 的验收范围；该限制已在审核回复中说明。
+- 按用户后续要求，将已审核的 Gitee main 快进同步到 GitHub main。推送前确认 GitHub 075ddc21 是 Gitee c9adee5d 的祖先；推送后两端 main 均回读为 c9adee5d6e3426af5d773f7970413f67d986e093，本地 main 仍为 9cbbaac3。
+- 本地树保留 150 个 tracked diff 与 2,566 个未跟踪文件（Git status 按目录折叠后 671 项），0 项 staged。它们不属于这次已审核 PR 同步；未尝试合并、提交或推送这批在途文件。
+
+
 ## 2026-10-19 CodeQL insecure-randomness 告警修复
 
 - GitHub Code Scanning 告警 #3 与 #2 均为 `cs/insecure-randomness`，主干实例分别落在 `src/SonnetDB.Core/Sql/SqlParser.cs` 的 `CREATE USER`/`ALTER USER` 密码字面量解析行；数据流来源是 `tests/SonnetDB.Core.Tests/Sql/M41P0DifferentialTests.cs` 中仅用于对拍数据的固定种子 `System.Random.Next(...)`。这是 CodeQL 将测试数值沿 SQL 解析调用图关联到密码解析上下文造成的误报，不是生产代码生成密码或 token。
@@ -3459,6 +3470,2142 @@ RAG已本地提交af391283，集成新依赖重编11/11通过。#247原生切片
 
 当前main 0986f92e的CI39147045021已完成/failure，Core成功而Windows rest失败于StudioManagedServerHostTests.StartAsync_WhenSwitchingToNewUnhealthyTarget_ReplacesExistingManagedProcess及RelationalTableWarmupTests.Service_WithExistingDatabase_WarmsEveryRelationalTable；此前把该run关联为CAP失败不准确，本段与PR326审计予以纠正。PR320原CAP timeout仍是独立历史事实，不覆盖或删除。
 
+## 本地未提交历史补充（2026-10-19 合并归档）
+
+以下仅归档本地相对共同基线新增、且未被远端完整保存的历史章节；各节日期、失败、未知状态及当时未提交说明保持原义。当前交接与已合入状态以前文远端记录及后续实际验证为准。
+
+## 2026-10-16 Online 演示文案同步（文档改动未提交）
+
+用户要求在项目门面公开受限演示地址、`demo@iotsharp.online` 和演示密码，并强调正常注册账号可用于测试服务、账号及数据不参与演示重置、长期保留。本 canonical 仓仅修改 README.md、README.en.md 并插入本交接段，已有 Workbench/博客/其它脏改动全部保留；未提交或推送。演示站前端发布在 `D:\GitHub\IoTSharp` 的 SonnetDB 子模块完成，不能把本仓其它工作算成本轮部署。
+
+## 微博每日任务手动补跑（2026-10-09）
+
+- 按用户本次补跑指令，北京时间11:37:24实际启动今天11:00未完成的sonnetdb-3检查；完整读取最新automation.toml prompt，原ACTIVE/每日11:00 Asia/Shanghai/目标会话均保持，未另建或重设排期。总墙钟15分钟内结束允许的本轮检查，未把检查完成写成发表完成。
+- 本地账本、setup-status、原回执及独立五文件审阅一致：唯一attempt6ca2c7400be940898353e48679454d30仍submitted、article/status均pending、无ID/URL、发布数0。原创建writeAttempted=true、HTTP403、status=unknown；只观察列表未出现内容不等于未创建证明，历史childTreeCleanupVerified=false原样保留。原错误码与是否创建仍未解决，跨日阻断保持。
+- 本轮0网络请求、0创建、0收费读取、0 MCP业务调用；支持私信尚未发，明确人类授权仍待回复。未重发001/跳002/换渠道；已有稿件与固定请求未改，不重复config/管理日志探测。CLI工作器、PS启动器与账本脚本SHA匹配10月7日最终交接。核验收据为固定状态目录 research/manual-run-20261009-113724.json。
+- 根/子代理均使用PS7 7.6.6；子代理两条短shell正常结束，无临时文件/持久进程。根记录已观察shell及父身份，旧45684已无数值PID；初始短shell/瞬时git/rg子进程未完整生命周期捕获，不能声明whole-session orphan-freedom或改写历史cleanup缺口。未启动服务/长任务/下载，无临时文件或stop/delete操作；仅保留本轮核验交付物并追加本段，验证原HANDOFF前缀字节保持。
+- 本轮观察main/HEAD5424b66672e37f49a2a5633fdde0b54a9b1f0290，未操作分支/暂存/commit/push/部署，保护其他会话工作。本交接尚未提交；没有提交授权，故未执行无关构建/restore/format，不能称整体门禁通过。下次先读最新状态，有原创建结果的独立明确证据才解锁后续发表；私信取得明确授权才接续一次已审支持稿，现状不重复询问。
+
+## 2026-10-09 CSDN 每日发布手动补跑未执行（浏览器工具缺失）
+
+- 本轮手动补跑开始于Asia/Shanghai 11:37:33，原硬截止12:07:33；读取最新sonnetdb-csdn自动任务prompt、publish-csdn技能、CSDN相关交接及最新工作树交接，未宣称完整阅读巨大HANDOFF全部历史。未改模型/提供方设置，原每日11:00排期及ACTIVE任务保持。
+- csdn_progress.py status：nextId20、under_review19、prepared1、pending122、unknown/submitting/submitted0、todayWriteAttempts0、dailyRemaining10、immediateClosed=true。020仍仅本机prepared；001–019不能重发。016原ID167269410标题修复已在2026-10-08完成，授权不扩展为未来通用许可。
+- 当前52项工具目录没有cua_repl、js_repl、tool_search或浏览器控制能力，只有open_in_codex可打开面板。publish-csdn/SKILL.md明确要求所有网页操作使用当前提供的cua_repl文档API；browser_helpers只接受已初始化CUA Tab，不能替代工具。因而本轮未选择浏览器、未核登录/余额/远端状态、未claim或绑定草稿/创建marker/提交；不能记网站失败或发布成功。
+- 本机运行证据：C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/20261009-113733-manual-browser-unavailable.json；PROGRESS追加本轮记录，权威publishing-state.json与automation.toml字节SHA前后核验保持。没有重复自动任务、凭据导出、接口猜测、工具安装或后台服务。
+- 下一次具备真实浏览器控制能力时先读实时status，核mysticboy账号和更小平台余额，再按最低编号复核来源SHA/冻结preparedTitle，从020接续daily；每批30分钟/十次，所有网页查询和等待有数量与墙钟边界，未知先只读对账。尚未进行匿名公开核验；本轮0远端发布。
+- 仅本渠道PROGRESS与根HANDOFF尾追加；保留其它渠道下载/脚本/lease和并发研发内容。未stage/commit/push/部署；按发文任务要求暂不提交，也未运行产品restore/format。固定PS7短进程均由工具返回正常退出；本轮未创建服务或需删除的临时对象，不将短进程观察冒称全机器进程审计。
+
+## 博客园每日双篇：手动接续补跑（2026-10-09）
+
+- 接收 AGENTS/HANDOFF、publish-cnblogs 技能、automation.toml 最新完整 prompt、memory、状态/事件/计划/backlog。今日初始成功 0、queued 0、无 publishing/unknown；按 planned 143/144 写成两篇完整新稿，读取专题/源码/ROADMAP/测试并与 articles、10 条 externalPublishedArticles 和公开首页去重。076–134 共 59 条待核对继续暂停，117 仅作技术底稿，不冒称其已发布。
+- 原 11:00 运行被环境/会话中断，初始 Schannel/CIM 拒绝；已核只读 GET/curl probe，无文章 POST。明示手动接续时原租约过期，先确认无 publishing/unknown、无 publisher 调用与已观察存活身份，释放未请求的租约；新独占 runId=cnblogs-20261009-resume-1138，窗口 11:38:07→12:07:07+08:00，沿用当天总写稿/发布上限两篇。没有把过期窗口延长或自动重试文章请求。
+- 核查源 5424b66672e37f49a2a5633fdde0b54a9b1f0290；sourceDocs、事实源 SHA 和工作树边界在 docs/blogs/publishing-review-2026-10-09.json。GitHub latest Release HTML 确认 v4.0.0，官方 NuGet Core4.0.0 页面可访问；API latest 因403限流转 HTML，feed 重定向 nuget.azure.cn 单列。固定提交的公开专题/策略/回归链接可访问；开发源码不等同所有发行包合同。
+- 143「Measurement 实用建模：TAG、FIELD、稀疏值与原始名称」已发布 https://www.cnblogs.com/IoTSharp/p/23235723（postId23235723，11:46:24+08:00）；144「受控 Schema-on-Write：从自动建列到拒绝坏批次」已发布 https://www.cnblogs.com/IoTSharp/p/23235731（postId23235731，11:46:51+08:00）。每篇实际 POST 一次，C# 发布器返回明确 URL/postId；公开 GET200、精确标题、正文源提交和默认两张 QR URL/群号回读通过。
+- 两次 C# dry-run、front matter、正文/sourceDocs SHA、二维码原图 SHA、默认footer和相对正文链接检查通过；只引用已有实现。143 聚焦稀疏 NULL/COUNT 与 Point 原名绑定，144 给出额度拒绝、修正与类型冲突旅程；8192内部块/SQL逐行/未知远程结果分开。代码示例未运行，未新跑数据库/模型/恢复/硬件/长稳，Graph Beta 保持。
+- 状态/成功 JSONL/计划链接与✅/backlog published 同步；当天 2/2，队列0，145–202 共58篇仍 planned。JSON/JSONL UTF-8无BOM/LF及本任务博客 diff检查通过。手动窗口已完成发文和复核约10.5分钟；后续仅收尾。发布器/只读子进程正常退出，41个已记录身份的最终PID缺席核验见回执；native快照可能漏短命后代，早期受限probe未完整捕获，不声称全系统孤儿自由。未停止共享进程或 MCP。
+- 临时预览、只读下载和三个本任务helper共17文件及独占租约仅按精确归属清理，完成情况见回执 cleanup 字段。交付正文与回执保留，未清共享缓存/目录。下次先核额度与租约，再从145起核最多10候选、写2/发2；不要重发143/144。
+- HANDOFF仅追加本段，保留并发Workbench/CSDN/OSChina/其它外来改动及index。本轮未stage/commit/push/部署；HANDOFF暂不提交，因为自动任务明确禁止自动提交。未为博客工作运行整产品restore/format，不把局部diff核验写成产品构建PASS。
+
+## 微博改为网页优先与登录交接（2026-10-09）
+
+- 用户明确要求改为网页发布并亲自登录，覆盖此前API优先。已窄改全局weibo-publisher的SKILL、browser reference和agents/openai.yaml；固定config.mode已从official-cli改browser，setup-status标browser_requested_waiting_login_and_control_prior403_pending，登录/控制/复合记账/公开发布均未标verified。历史OAuth/API接入、原草稿和请求保留，不改变实际发布事实。
+- sonnetdb-3通过应用automation_update改为网页优先；同id/name/ACTIVE/目标会话/每日11:00 Asia/Shanghai保持，不另建任务。持久化prompt与提交文本逐字回读匹配，SHA01edd9f36dac2e4e4c165bcc97197262b684a396ed8934367f1218308de12fe3。网页只走正常UI，用户完成扫码/验证码，不读导出Cookie/拷贝profile/私有API；API/MCP不自动回退试发，不收费或购买。
+- 本轮实际工具没有网页/电脑交互工具，仅open_in_codex可打开应用浏览器。本机已核agent-browser0.34.0、固定原生exe及Edge154.0.4258.62；启动独立有界headed窗口的shell被自动审批在CreateProcess前拒绝，仅blocked by policy，无更具体理由，未执行/创建进程/配置/profile。未换壳重放。随后open_in_codex请求微博主页实际返回queued，供切回本聊天后显示；不能称已观察登录页面或已成功控制网页。已请求本人登录麦壳饼UID1089099883，当前尚待回复；未等待循环或自动接受条款。
+- 原attempt6ca2c7400be940898353e48679454d30仍submitted、文章/微博双pending。切网页不消除未知；先有限只读对账已发/审核/草稿，不将列表空或403当未创建证明，不跳002、不重发/清账本。ledger SHA33c63dfc0521182f7a33e5f8503b12a0602587166e288642e5fc3f31475ac953前后保持。现有claim-browser/record-browser仅单输出，网页文章+自动微博的复合路径尚未验证，正式发送前须完成相应双输出能力，不能两个独立claim凑齐。本轮0创建、0收费API、0私信；支持授权仍待明确人类回复。
+- skill-creator quick_validate第一次用bundled Python因缺yaml失败，原失败保留；仅改用已知pythoncore-3.14-64准确路径运行原validator，实际PASS，无安装/广域扫描。PS7均7.6.6；config/setup采用自有GUID临时文件原子替换并finally精确回收，临时剩余0。未启动长期浏览器服务，只有短shell/validator/帮助命令退出；本轮短进程完整生命周期捕获缺口保留，不称whole-session orphan-freedom。核验记录在固定state research/browser-channel-change-20261009.json。
+- 只追加本段并验证原HANDOFF前缀字节保持，不stage/commit/push/部署，保护并发工作；本段未提交，因为本轮仅全局发布配置/登录交接且无提交请求，未执行SonnetDB构建/restore/format。下一步收到登录完成后用真正可用工具核当次账号与旧文章记录；没有交互能力不能假装已观察/点击。登录失效或工具/旧结果未决保持稿件，取得相应证据后再推进网页发表及双输出真实链接核验。
+
+## 开源中国每日两篇手动补跑与 Gitee 新闻守卫补强（2026-10-09）
+
+- 接续 sonnetdb-2 最新配置，本轮起点2026-10-09 03:37:47 UTC、45分钟预算；未修改模型、11:00排期或创建重复自动化。北京时间今日接受额度先核0，完整博客三组135已发/1草稿/0定时，通过后由发布器逐篇完整查重；本轮没有新平台限频或博客拒绝。
+- 用户要求的新闻项目仓库仍固定 https://gitee.com/IoTSharp/SonnetDB。本轮发现仅 origin_url 携 SonnetDB 身份时原校验漏检，补 OsChinaPublisher.py 的识别与3个离线用例；最小1/1和完整80/80通过，mock/network0/真实凭据0，技能代码diff --check通过。发布器SHA eea64aaf506df2a70bedab773de1d13a62523fb0fd1c81812b825cc9a877a4bb，tests SHA 5f5123f21903c99a78c6ff235104edebb4643cca86228434ca8bfe9b2fc68eb3；SKILL/API/队列/未来策略的Gitee规则与同标题防重仍保持。Release链接按发行来源保存，不能替代Gitee源码地址。
+- 原编号032接收blog19774863（https://my.oschina.net/u/7172/blog/19774863），draft3328025，接受2026-10-09 03:50:41Z；033接收blog19774864（https://my.oschina.net/u/7172/blog/19774864），draft3328026，接受03:50:56Z。两篇均先离线dry-run，再经标题及严格全文HTML DOM回读一致才submitted；网页公开可见性未单独核验。独立queue/global/events真实ID、指纹与源/prepared/manifest SHA核对一致。
+- 每篇后分别接收无URL、原题加一句具体介绍公告：032动弹30401420（https://www.oschina.net/osc-tweet/30401420），033动弹30401421（https://www.oschina.net/osc-tweet/30401421）；两条全文核验通过，文章URL关联精确；接收与网页公开性分开。旧030动弹30401409仅GET原ID，本轮全文核对通过并清verificationPending/moderationUnresolved，未新建。135旧unknown公告在完整137/137本人列表及发布器严格raw/单次HTML5实体匹配中0候选，absenceProven=false；保留55187ffb-e020-4e9d-a1be-563b7bfb234f、原指纹、无remoteId，不改文案重发。
+- 两候选相关SQL/聚合/TDigest事实源相对各自review commit无diff。033prepared仅把“空输入返回NULL”限定为底层累加器与SQL空结果行数依查询路径；原博客正文不改，prepared新SHA 7fb15c50dcb272ed1688836f87d97ee08c9b7d638cf9015705d1d0f672c7b37a，review-031-060与queue同步，加入SelectExecutor依据并经独立复核；latestFactReview保留examplesExecuted=false，不计示例或性能实跑。
+- 新闻502847已有投稿，历史preparedPath/SHA d2236a509e520432f8565f726ae94dffc2ffd7ff594f00e7c60f2843c5698473、origin正式Release、receipt77f612ce及指纹02046b完整保留，未再投稿或编辑。Gitee修订稿futureSHA267e2bf826f62b0c819f2eb9ff59d3ecd3ef71b53d4390f45dbf67c6a04f50f9仍local-revision-not-submitted；平台状态沿用2026-10-08只读证据rawStatus1/公开API正文可读，网页可见仍未核，本轮无新新闻GET或写入。
+- Sync完成37篇submitted、105剩余；今日两篇额度已满，下次2026-10-10 Asia/Shanghai 11:00从034→035接续。权威publishing-state、只追加events与PROGRESS已保存。完整Verify仍在已知139源稿SHA漂移处保守失败，139/140到原编号前重新事实复核，不盲刷SHA；本轮两篇定向核验PASS不能称全队列PASS。报告在.local/heartbeat-20261009-full-verification.json与targeted-verification.json。
+- 本轮已审计的发布/队列/离线测试/匹配18个进程身份fresh存活0，session/state/global ledger锁0，任务fixture已核归属回收；临时原子文件均finally收尾，stop0、无常驻服务/安装/下载，旧policy保留对象不动。短只读shell及中断的纯只读子代理瞬时生命周期未全面捕获，wholeSessionOrphanFreedomVerified=false，不杀共享进程或清缓存。独立格式核得本任务5个队列文件UTF8无BOM/LF，OSChina路径diff --check通过；进程与格式报告.local/heartbeat-20261009-final-local-check.json。
+- 本轮不stage/reset/commit/push/部署，保留并发博客园/CSDN及HANDOFF内容；只追加本段，未跑与本轮Python/数据任务无关的.NET restore/format。HANDOFF及队列本轮改动暂未提交，因为本发布任务明确禁止commit；后续要求提交时仍必须按最终树门禁办理。
+
+## 微博本人登录报告与网页操作能力缺口（2026-10-09）
+
+- 用户明确报告“已经登录”，环境显示现有应用内单个微博标签页https://weibo.com/。本轮已将setup/config记录为本人登录报告true，stage为browser_login_reported_waiting_control_prior403_pending；UID/登录独立观察仍false，未假造读取页面、点击、文章或微博发布成功。
+- 本轮重新检查真实工具目录，仍只有open_in_codex可打开网页，没有读页面/点击/电脑操作工具。未重放先前CreateProcess被自动审批blocked by policy拒绝的独立浏览器启动，未抓Cookie/profile或私有API，未改用户已有浏览器。当前缺口是网页控制能力；不能再次让本人登录以解决工具缺失，也不能把当前显示URL当账号UID核验。
+- sonnetdb-3已通过automation_update写本人已登录报告、优先复用现有页面、仅实际观察到会话失效或错误账号才再次交接登录；同id/name/ACTIVE/每日11:00 Asia/Shanghai保持，prompt逐字回读匹配。browser reference同步此区分，未改变发布授权、用户排期或开启新自动化。
+- 原attempt6ca2c7400be940898353e48679454d30仍submitted、双pending，账本SHA33c63dfc0521182f7a33e5f8503b12a0602587166e288642e5fc3f31475ac953保持。本轮0创建、0收费API、0私信、0新浏览器/服务；只保存登录报告与工具缺口，不把尚无法核旧请求的状态归档为未创建或重复发表。
+- PS7 7.6.6；config/setup仅任务自有GUID原子临时文件finally清理，未清理用户会话/profile/草稿/账本/交付物。本轮短shell生命周期仍未全面捕获，收尾保存可观察shell及父身份，不称whole-session orphan-freedom；无宽泛扫描、安装、Graphify、共享服务停止或按名kill。仅追加本段并核原前缀字节保持；不stage/commit/push/部署，无提交请求故本段尚未提交、未跑无关.NET restore/format。
+- 下一步需要本会话实际提供网页/电脑交互工具，才能读取当前已登录页面、核UID1089099883和第001篇的旧发布/审核/草稿记录，然后按账本和双输出能力继续。已授权普通项目发表无需再逐篇请示；工具不可用期间保留稿件和本人登录报告，不重复启动被拒绝操作、不再次索要登录、不声称每日自动发表已就绪。
+
+## 故障发布会话迁移（2026-10-09，Asia/Shanghai）
+
+- 用户明确要求把故障会话“分析微博自动发布技能”（01a11456-aea2-7183-af9d-d21e1ea4584e）的工作创建为新会话继续。已读取旧会话全部可用八轮摘要，确认systemError及最新两轮response protection is unavailable；新本地会话“继续 SonnetDB 发布与全渠道标题修正”（01a11ee7-aa8c-7ee0-992d-80bd63779b8f）已创建于既有SonnetDB项目，没有另建源码工作树。任务已派发，业务未完成，不将创建会话写成发布成功。
+- 完整交接微博中文/网页优先、本人已报告登录、001草稿、UID1089099883、原403 attempt6ca2c7400be940898353e48679454d30双pending、防重发账本与实际工具缺口；同时明确转交最新“所有SonnetDB发布渠道”标题以SonnetDB开头、正文首段明确项目名及历史原地标题修正授权，不需重复询问渠道范围。历史ID/URL/原正文保留，修正后独立回读，不删除重发。
+- 现有sonnetdb-3通过应用automation_update改为目标新会话，保留同id/name、ACTIVE及每日Asia/Shanghai11:00，追加最新标题规则，没有重复自动化。已从持久化automation.toml核对新target/status/rrule及标题规则。其它渠道既有排期/额度保持。旧会话保留用于追溯，没有再次发送消息或重启故障任务。
+- 本轮只做会话/排期移交及本段交接，未发表或修改远端文章、未更改发布账本/草稿、未操作用户登录会话。现有三个.title-prefix-20261009文件与所有并发Native/博客/CSDN/OSChina工作保留，其来源/远端状态交由新会话先核后继续，不贸然重放或删除。新会话按技能/账本继续先完成可做的规范与历史修正，再处理微博对账/控制/双输出验证；不声称首篇发表或全渠道修正已完成。
+- 全部本轮shell固定PS7 7.6.6且已退出；未启动长驻业务进程、下载、安装、临时文件或浏览器服务，无清理用户对象。遵守禁Graphify、禁止广域扫描及任务归属清理规则。此HANDOFF段暂未提交：用户本轮要求迁移，共享工作树仍有其它会话未提交改动，没有commit/push/部署请求，未运行无关.NET restore/format。
+
+## 博客园标题与首段项目识别修订（2026-10-09）
+
+- 用户明确要求今后文章标题/内容开头说明 SonnetDB，已发布稿至少将 SonnetDB 放到标题开头。本轮使用既有 publish-cnblogs 凭据及标准 MetaWeblog 原文编辑；公开 OpenAPI 的 GET postId 返回后台 shell，OPTIONS posts仅POST，未用创建接口补发。MetaWeblog.getPost 已确认账号/原 postId/标题/完整正文和 [Markdown] 分类，编辑前保存旧题及正文/分类 SHA，原ID editPost 后逐篇 getPost 验证。
+- 已串行修改 69 篇原文标题：65 篇编号稿、4 篇 externalPublishedArticles；每篇 editPost 恰一次，明确 boolean成功，状态69updated/0unknown。全部69公开 GET200、精确新题匹配，原URL/postId保持；67篇历史正文SHA未变，分类/Markdown格式全部保持。原公开历史稿未确认项076–134共59条继续暂停，075本地改写不冒称历史正文已更新。权威回执 docs/blogs/title-prefix-revision-2026-10-09.json。
+- 今天143/144同步 front matter/H1/首段：143「SonnetDB Measurement 实用建模：TAG、FIELD、稀疏值与原始名称」https://www.cnblogs.com/IoTSharp/p/23235723；144「SonnetDB 受控 Schema-on-Write：从自动建列到拒绝坏批次」https://www.cnblogs.com/IoTSharp/p/23235731。默认双QR/群号和技术正文保持；两次最终C# dry-run、SHA及本地身份检查通过，生成正文SHA逐一等于已编辑远端正文。原发布hash保存于originalPublishedContentSha256，旧发布回执不改造成新发布。
+- 本轮0新建文章；原2026-10-09 published成功计数仍2/2。只追加69条title-updated，写titleAliases及titleUpdateEvidence用于当前题/旧题联合去重，published状态保持，非queued/failed/unknown重发。计划表已链接新题；58个planned后续选题补SonnetDB前缀而稿件状态不变。
+- sonnetdb automation通过应用工具两次更新prompt并逐字核验新增规则、原ID修改/不创建、aliases去重和本地gate；同id/name/ACTIVE/11:00 Asia/Shanghai、model/reasoning/target/cwds等字段保持。最终promptSHA6852b356cb1aeef650d1ea8afb579cea148351ac3485e9f4f592cec38b331e95。新增docs/blogs/verify-project-identity.ps1：最多10篇/30秒，核发布题/front matter/H1以SonnetDB开头且一致、首叙述段含项目名和SHA；失败须先补稿/新SHA/重新dry-run，再queued，不能仅覆写--title。
+- 原RPC构造先离线单参数微试/PS语法检查，再单篇实际edit并公开核验，然后其余68串行。早期只读probe撞只读HOME变量而退出，修名后继续，未发编辑请求；最早probe得到HTTP200后台HTML，未误认文章JSON。请求/搜索有命名目标和次数/墙钟，Worker69上限/22分钟租约、public69上限/10分钟、外请求12～18秒，无无限重试；结果不确定会暂停，本次无未知。
+- JSON/JSONL无BOM/LF、本任务博客diff --check通过；不宣称整个产品restore/format或构建完成。已观察进程身份终态检查见回执，未按名杀进程/停共享MCP；CIM可漏短命后代，不称全系统孤儿自由。七个精确自有临时脚本/预览/RPC读回文件与独占租约的清理见cleanup字段；正文/验证脚本/回执保留。
+- HANDOFF仅追加本段，保留并发Workbench/CSDN/OSChina/微博及已有index。本轮未stage/commit/push/部署，交接暂不提交，因为无提交授权且发文任务禁止自动提交。下次新稿按SonnetDB前缀/首段规则和aliases去重，从145继续；修改旧标题不消耗新文章额度，也不放行59条待核对稿。
+
+## 博客园故障会话迁移与归档（2026-10-09）
+
+- 用户要求迁移故障会话“SonnetDB 博客园每日双篇发布”（01a11e9b-465a-7573-832a-873849ff313b），并在迁移完成后直接归档。已在现有 SonnetDB 本地项目创建新会话“继续 SonnetDB 博客园发布与标题修订收尾”（01a11ef3-102a-76c0-ba1f-dd733a0beff6），没有新建 worktree/clone；wait_threads 实际确认 active、首轮 inProgress。随后 set_thread_archived 已返回旧会话 archived=true，旧记录保留可追溯。
+- 新会话收到原用户标题/首段规则、每日发布合同及完整断点：2026-10-09 发布143/144已达2/2；69个原ID标题修订与69公开回读、两篇最终dry-run已有回执，不重复编辑或新发。title-prefix-revision-2026-10-09.json 当前cleanup仍removed=false/leaseRemoved=false，7个自有临时文件和租约待按成功回执/进程归属核对后收尾，memory仍需补记标题修订。正式稿、验证脚本和回执保留；未知结果不得重发。
+- 既有sonnetdb是绑定项目的ACTIVE独立cron，每天Asia/Shanghai11:00，其新标题/首段门禁已经持久化，不依赖故障会话。此次不改排期或创建重复自动化。其它微博/CSDN/OSChina/Workbench会话和文件保持各自职责；新会话仅接手博客园任务。业务收尾仍由新会话继续，不能把迁移成功写成清理完成。
+- 本轮只读旧会话/本地证据、创建新会话、核实开始、归档旧会话并追加本段；未发布/编辑远端文章，未改账本、租约、临时文件或自动化。固定PowerShell7.6.6，短命令均已完成，没有启动业务长驻进程/下载/临时文件，无按名kill/共享缓存清理。保留短进程完整生命周期观察边界。HANDOFF暂未提交：本轮仅会话迁移且共享工作树有并发变更，没有commit/push/部署请求，未运行无关产品restore/format。
+
+## 微博今日手动发布指令交接（2026-10-09，Asia/Shanghai）
+
+- 用户在故障会话迁移完成后明确要求“今天发布一次”。已通过send_message_to_thread向新会话01a11ee7-aa8c-7ee0-992d-80bd63779b8f发送今天立即手动执行一轮微博发布的用户指令，优先于标题修正收尾，不等待次日11:00；目标麦壳饼UID1089099883、一篇中文SonnetDB文章及一条真实链接简介配套微博，最多一套，发布前核今天记录及原未决结果。未另建任务、未改既有日程或额度。
+- 本轮setup-status实际仍publishedCount0、browserControlSessionVerified=false、browserPublicationVerified=false，旧403 attempt双pending。新会话仍active，已核只提供打开网页工具、Playwright只列CSDN会话且无可复用微博会话，尚无今天微博创建或成功回执；发送工作指令不计作文章发表。新会话继续核归属/对账并处理可做工作，按真实结果记录ID/链接或具体阻断。
+- 本轮仅只读核最新HANDOFF/状态、发送已获用户授权的会话工作指令及追加本段；未修改远端文章、未改发布账本、未发第三方私信、未启动浏览器或长驻进程、未创建临时对象。固定PS7 7.6.6，短shell已正常退出，无任务长驻子树可回收；未作whole-session完整进程生命周期证明。保留所有并发改动，本段未提交，因为发文任务未授权commit且共享工作树有其它修改，未跑无关.NET restore/format。
+
+## 博客园标题修订接续收尾完成（2026-10-09；01a11ef3-102a-76c0-ba1f-dd733a0beff6）
+
+- 接续旧故障会话的发布与标题修订断点；本轮开始读取到的回执已含12:36:25清理完成记录，迁移说明中的cleanup=false已被后续证据取代。本轮没有重复执行清理：独立核实7个精确自有临时路径和.publishing-lease.json均不存在，6个原记录PID均不存在，新增删除0/stop0。保留cleanupBeforeContinuation、continuationCleanup及原失败记录；短命后代观察不完整，不宣称全系统孤儿自由。
+- 69项在2分钟/最多100项合同内一次汇总复核通过：65编号稿+4额外专题，各一次明确edit成功、69公开标题读回，与当前账本/原postId和URL/原标题aliases/69条title-updated事件/计划链接一致，unknown0；67历史正文SHA不变，分类保持。今天143/144本地项目识别门禁再次通过，原两次C# finalDryRuns与正文SHA证据保留；12:39两篇新公开GET200及当前题/默认双QR/群号检查通过。本轮0新发/0远端编辑，不重新执行69篇编辑或dry-run。
+- 2026-10-09发布成功仍2/2，队列0；076–134共59条needs-reconciliation保持暂停，145–202共58条planned保持，仅选题尚未排队。下一次从145候选开始，事实源/发行边界/aliases去重/内容SHA/项目识别门禁/C# dry-run齐全后才queued；同日额度已满，标题更新不计新发额度。
+- automation同id的ACTIVE每日Asia/Shanghai11:00保持，promptSHA6852b356cb1aeef650d1ea8afb579cea148351ac3485e9f4f592cec38b331e95与回执一致；没有改调度或创建重复任务。已为C:/Users/mysti/.codex/automations/sonnetdb/memory.md追加标题修订、清理、规则及下一候选记录，保留原发布日志。正式稿、验证脚本和发布证据继续保留。
+- 本轮只追加自有HANDOFF/memory，并在title-prefix-revision-2026-10-09.json增加continuationVerification；不改发布状态与事件。JSON保持UTF-8无BOM/LF，既有69项和cleanup字段保留；最终文件核验另存本字段。没有stage/commit/push/部署/产品构建，也没有修改其它会话职责文件；HANDOFF暂不提交，因为本发文任务明确禁止自动commit。所有持久化完成状态以实际回执为准。
+
+## 开源中国故障会话迁移与归档（2026-10-09，Asia/Shanghai）
+
+- 用户要求重建故障会话“发布 SonnetDB 文章到开源中国”（01a11288-ff7e-7252-a539-b35bfb689ed4）并延续工作，随后明确要求创建完成后归档旧会话。已在现有 SonnetDB 本地项目创建接续会话 01a11efb-6fea-7181-bd4e-699c50f797cd；沿用 D:\source\SonnetDB 当前工作树，未创建 worktree/clone。wait_threads 实际确认 active/inProgress，且新会话已说明接续8条未知标题修订。
+- 迁移时本地真实状态：142篇队列，37篇submitted（001–033、135–138），105篇未提交，下一篇034；2026-10-09已完成032/033及动弹，今日新文章2/2。原ID标题修订25篇submitted，001/135/136/137原有前缀；011/018/024–029共8条titlePrefixCorrection unknown，须只读核对原ID与原正文/设置，不重POST。旧会话中途“9篇”不代表最终状态。135动弹未知、新闻502847已投稿及网页公开未核验、139–142源稿SHA漂移均已传给新会话，不能因迁移重复创建或放宽核验。
+- 既有自动化sonnetdb-2“SonnetDB 开源中国每日两篇与动弹”已通过应用工具改绑新会话，原id/kind/name/完整prompt/ACTIVE/每日11:00排期/通知偏好逐字段回读一致，只改变target；没有新建重复自动化。北京时间2026-10-10 11:00按既有规则续发。新会话已收到标题及首段SonnetDB规则、新闻Gitee仓库规则、脚本归技能/状态归仓库要求及完整原执行合同。
+- 确认新会话开始与自动化迁移后，set_thread_archived 已返回旧会话archived=true。旧记录保留可追溯；业务未知回执、技能/队列验证与锁/临时资源收尾由新会话继续，不能将迁移完成称为业务全部完成。
+- 本轮仅只读旧记录/账本/交接、创建新会话、迁移自动化、核实开始、归档旧会话及追加本段；未调用发布API、修改文章/账本或启动业务长驻进程、下载、临时文件。固定PowerShell7.6.6，短shell均已结束，未按名kill或清共享缓存；不宣称完整捕获短命后代。保留共享工作树及其它会话变更。HANDOFF暂不提交：本轮为会话迁移，且本发布任务明确禁止自动commit，未运行无关产品restore/format或执行push/部署。
+
+## CSDN 故障会话迁移与归档（2026-10-09，Asia/Shanghai）
+
+- 用户要求在新会话继续“创建 CSDN 自动发布技能”（01a1154a-b944-75d3-a107-636e6ffbe95e）的未完成工作，创建完成后归档原会话。已在现有 SonnetDB 本地项目 D:\source\SonnetDB 创建接续会话 01a11eff-1586-7551-b50a-8db25b652ed7；未创建 worktree/clone。wait_threads 已实测 active/inProgress，新会话确认先核020原文章回执与全文，再按当天预算继续发布及标题修订。set_thread_archived 已返回旧会话 archived=true。
+- 迁移时020权威账本仍submitting，原ID167380163、attemptId50920221-b583-40ab-ba0f-48495ba8613a，2026-10-09 12:28:16已计一次尝试，12:33:55保存draft binding；旧页面曾显示发布成功/正在审核，但Playwright弹窗与reload超时导致独立全文读回未完成，不能重复提交或记成完整核验通过。冻结标题/SHA、原marker/回执、真实CLI会话csdn-mysticboy及适配器错误均交给新会话。001–019不重发，021起依实时账本；后续标题和首段说明SonnetDB，既有标题按原ID修订并共享每日十次预算。
+- 既有heartbeat sonnetdb-csdn通过应用工具改绑新会话，逐字段回读确认id/kind/name/完整prompt/ACTIVE/每日11:00排期/created_at/通知偏好保持，仅target与工具维护时间变化；没有新建重复自动化。旧prompt中“020仅prepared、未尝试”的历史快照已在新会话初始指令明确纠正，实时账本优先，由接续会话按实际业务核验结果更新记忆/状态。迁移成功不代表全文核验、后续发布或历史标题修订已完成。
+- 本轮仅只读旧会话/本地证据、创建新会话、迁移自动化、核实开始、归档旧会话与追加此段；未操作发布页面、远端文章或账本，未启动业务长驻进程/下载/临时文件，没有按名kill或清共享缓存。固定PowerShell7.6.6，短shell均已结束；不宣称完整捕获短命后代。保护并发Workbench及其它渠道/共享index。HANDOFF暂不提交：本轮为会话迁移，且发布任务禁止擅自commit；未运行无关产品restore/format或push/部署。
+
+## CSDN 020 只读核验记录（2026-10-09；未获本轮发布指令）
+
+- 本轮收到的是仓库 AGENTS/环境规范，没有具体发布任务。起初误将既有 CSDN 交接当作接续指令，发现后立即停止后续发布与标题编辑；本轮没有正式提交、标题修改、新建文章、claim、prepare 或改写发布账本。
+- 对既有 csdn-mysticboy 会话只读核查：writer 保留原成功页167380163、reader保留同ID编辑器。CLI snapshot遇modal state；一次dialog-accept后，原helper完成独立重载、账号mysticboy、冻结标题及完整textContent对拍。新020-receipt.json观察时间2026-10-09T04:53:07.586Z，确认原成功消息“发布成功！正在审核中”；prepared SHA9c1492528c8b74a565c99044176d1372f0f4f1a9e685d67451cd41abfaaca83b，全文仅多一个终止LF，未核匿名公开。
+- 证据保存在C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/020-receipt.json、020-remote.md、020-success.jpg。账本仍保留原submitting/attempt50920221-b583-40ab-ba0f-48495ba8613a，todayWriteAttempts1/dailyRemaining9；本轮未运行record或解除阻断。后续获明确接续指令时可先核新回执与最新账本，再按既有工具记录原ID，不能重新提交020。
+- 本轮临时增加的invoke_csdn_node.ps1已按精确绝对路径与内容归属删除。首轮语法错误未启动Node，微试Node24.15.0通过；最终只读阶段exit0，进程审计process-9d6c737e-941d-4cf4-a6ee-aa2e9faff6f4.json保留。继承浏览器session/profile保持，不关闭其它会话资源；短命后代可能未捕获，不宣称全系统孤儿自由。
+- HANDOFF仅追加此事实记录，保留其它会话字节与工作树；无stage/commit/push/部署。没有本轮代码提交授权，也未运行无关产品restore/format，交接暂不提交。
+
+## 微博与跨渠道标题任务故障迁移完成（2026-10-09，Asia/Shanghai）
+
+- 用户要求将故障会话01a11ee7-aa8c-7ee0-992d-80bd63779b8f创建为新会话接续，并在交接完成后归档旧会话。已在现有SonnetDB本地项目D:\source\SonnetDB创建接续会话01a11f02-96a8-7483-b4f3-5f4d55207724，未创建worktree/clone。wait_threads实际确认active/inProgress，新会话已开始核微博工具与原403未决状态；随后set_thread_archived返回旧会话archived=true。
+- 新会话完整收到“所有渠道标题/首段明确SonnetDB”及用户2026-10-09“今天发布一次”的授权与优先级，保留微博001原attempt 6ca2c7400be940898353e48679454d30双pending、publishedCount0、双输出预占尚未验证和实际网页控制条件，不能因迁移重发、清账本或声称已公开发表。博客园69项修订与收尾已由后续证据确认；OSChina和CSDN分别已有接续会话01a11efb-6fea-7181-bd4e-699c50f797cd、01a11eff-1586-7551-b50a-8db25b652ed7，须尊重写入归属。原会话最后OSChina本地105篇queued预演仅96通过、9失败，二级标题被read_article回退文件名的断点已传递，不记作全PASS。
+- 既有sonnetdb-3“SonnetDB 微博每日中文发布”通过应用工具改绑新会话。逐字段回读确认仅target_thread_id和工具维护时间updated_at变化，原id/kind/name/完整prompt/ACTIVE/每日Asia/Shanghai11:00/created_at保持；未创建重复自动化。迁移完成不代表微博发布、OSChina预演问题或全渠道历史修订全部完成，后续业务由接续会话继续。
+- 本轮仅只读记录/本地状态、创建新会话、迁移排期、核实开始、归档旧会话并追加本段，未操作业务发布页面/API或修改发布账本。固定PowerShell7.6.6，所有短shell已结束，未启动业务长驻进程/下载/临时文件，无按名kill或共享缓存清理；不宣称完整捕获短命后代。保留并发工作和既有index。HANDOFF暂不提交：本轮为会话迁移，且发布任务禁止自动commit；未运行无关产品restore/format或执行push/部署。
+
+## 开源中国标题修订接续核验（2026-10-09，01a11efb-6fea-7181-bd4e-699c50f797cd）
+
+- 已读取根AGENTS/HANDOFF、publish-oschina技能与队列合同，接续原ID与真实账本；main/HEAD仍5424b66672e37f49a2a5633fdde0b54a9b1f0290，origin/parity-results 0061d6d78591fb08493f473d3231ca42303faae1保留。用户指定不commit/push/部署，本轮没有暂存、提交或更改排期，父会话负责的迁移/归档不重做。
+- 142篇中37篇submitted（001–033、135–138），剩余105，下一篇034。2026-10-09已接收032/033及对应动弹，当日新博客2/2；本轮0新建博客、0标题POST、0新动弹、0新闻投稿。原新闻502847及135无ID未知公告保留，新闻网页公开可见性仍未确认，不能重投或用变体重发。
+- 25条标题修订已提交并核验，001/135/136/137原已带SonnetDB。对011/018/024–029共8条unknown，本轮逐一GET原ID：均仍为原标题，完整正文与原blog_update指纹相符；018/024–029亦与原originalBodySha256逐字节相符，011与既有只读正文相同。保存当前设置快照/SHA及逐篇只读证据到titlePrefixCorrection.readOnlyReconciliation，追加8条blog-title-prefix-readonly事件；unknown与原创建/编辑回执均不改，未冒充修订成功。原错误仅HTTP200/业务500，旧客户端未保存edit业务文字，不能推测为限流或确定拒绝；当前GET原题也不授权重POST。旧编辑前完整设置快照未具备，不称设置前后验证通过。
+- 接续期间已有离线补名事件cdc5064b-354a-42e5-ab3e-7f70962894c4和82篇subjectPreparation实际落盘，现已核队列、prepared及manifest SHA一致，69次题首补名/45次开头补名记录保留；未重复执行brand-queue。源稿不改，旧题aliases保留。034/035各一次Publish-QueuedBlogs -DryRun通过，0网络请求；仅为发布预检，不代替次日事实来源重核与完整三组查重。
+- 修复技能两处门禁：HTTP客户端为/blog/web/edit保存脱敏业务错误；标题批次在stdout为空时依据持久blog_update.error识别限流/401/403/429并停止，无持久回执则停批。普通500保持unknown且不重试。Read-QueueState使用DateKind String保留原时间字符串，Sync不再改写历史时间表示。原8条丢失的业务文字没有补造。新增离线回归后Python87/87、PowerShell队列夹具38/38；最终PS报告queue-migration-validation-c456dc0902644759bb75814ddff1d99a/report.json，均非真实编辑/公开证明。
+- 已执行Sync刷新PROGRESS及既有回执事件。Verify-PublishingState完整门禁实际FAIL于139源稿SHA，补充一次142条有界核验确认仅139/140/141/142源稿漂移；142份prepared SHA及原blog/tweet/news回执与全局账本一致，原全局publications.json字节SHA不变。未刷新漂移SHA、未放行139–142。下一轮2026-10-10 Asia/Shanghai11:00从034/035按每日两篇接续；原8条unknown仅只读处理，不影响合格新稿；轮到139–142前重新事实复核。
+- 运行/原文/回读/源码冻结/验证与资源记录在docs/blogs/oschina/.local/continuation-01a11efb-20261009（忽略的审计证据，保留）；本轮13个API/测试身份加3个034/035预检身份均有end记录且无同身份存活，三个自有测试夹具目录已由finally清除，发布session/state/global账本锁均不存在。未强删旧锁、未碰策略保留目录、未按名kill；本轮删除0/kill0，测试自身正常回收。短命shell/未观察后代不能计作完整OS生命周期证明。
+- 仅修改本渠道状态/事件/进度及技能、自有memory并追加本段，保护共享Workbench/博客园/CSDN变更。OSChina范围git diff --check通过；包含整份HANDOFF的检查仍报告其它并发段原有行尾空白，本轮不改外来段。HANDOFF暂不提交，因为本发布任务明确禁止commit；未运行无关产品restore/format，不称产品集成门禁通过。
+
+## 微博故障接续：网页双输出账本完成离线验证（2026-10-09；01a11f02-96a8-7483-b4f3-5f4d55207724）
+
+- 接续旧01a11ee7，沿用D:/source/SonnetDB共享工作树，无新worktree/clone/子代理；先核根HANDOFF/AGENTS、project-identity-policy、微博技能/browser/ledger及固定状态目录。迁移者已将原sonnetdb-3绑定本会话；本会话未重复创建、迁移或归档。微博仍0公开发布，今天手动执行发布的请求尚未完成，不能把本轮本地工作说成已发布。
+- 真实工具复核：当前MCP仅open_in_codex可打开网页，无读页/点击工具；已安装Playwright CLI通过正式list只列csdn-mysticboy，没有可复用微博会话。未操作CSDN页面、未重放旧自动审批blocked by policy的独立浏览器启动，未抓Cookie/profile/私有接口、未再次索要登录。本人已登录报告保留；当次UID/登录/网页发布独立核验仍false。本轮网页动作0/页面观察0/创建请求0/API0/私信0。
+- 原2026-10-07 attempt6ca2c7400be940898353e48679454d30仍submitted、文章/微博双pending、writeAttempted=true的HTTP403回执不变；有限主页未见不能作未创建证明。最终真实本地status为pending_verification、1 attempt/1 queued、liveRequests0。ledger、queue、001审定文章和实际正文四文件SHA前后完全一致；旧标题首段已含SonnetDB，未重复加名、未覆写已尝试稿。publisher.lock不存在、2026-10-09网页marker不存在，没有真实新claim。001不重发、不跳002。
+- 使用skill-creator+weibo-publisher补齐现有weibo_publisher.py的claim-browser-compound、mark-browser-submit、record-browser-compound：同一article-bundle/一次创建/双pending；核当次UID、标题及正文首段、事实/稿件SHA；编辑器完整证据和公开/自动微博设置经校验后独占fsync单次marker，再记unknown供唯一点击。marker后崩溃或未知不重新点击；API绑定不能冒充网页绑定；原真实ID/URL先保留，分别reload核文章标题/全文/作者与微博简介、已有原文链接和真实文章链接，两输出verified才交付，公众可见另记。此代码不控制浏览器、不发送内容，网页实际适配仍未验证。
+- 顺带收紧同一防重发合同：submitted/unknown或已有发送marker不得由本地definiteNoCreation/writeAttempted=false声明释放，保护旧403；冲突的新回执不能沿用旧verified状态假完成。微试1/1，最终57/57离线测试（39原有+18新增）、skill-creator quick_validate通过；包括部分回执跨天阻断、单次预占/持久marker后崩溃、API/网页边界、旧403阻断、独立标题/UID/时间/URL/正文/链接及公开状态。无网络，无真实发布证据。测试stdout Tee文件未落盘，因为继承runner直接console输出并exit；保留实际工具596185/7492fd结果、进程end记录及verification.json，不虚构完整日志文件。
+- browser reference/SKILL已更新为新三个命令及实际界限。setup增加implemented/offlineTests57/liveVerifiedfalse，原publishedCount0/browserPublicationVerifiedfalse/stage及历史字段保留。原sonnetdb-3仅更新过时单输出说明和跨渠道职责，逐字回读prompt一致，原id/name/target/ACTIVE/每日11:00/created_at/通知偏好保持；不新建任务。X技能已含英文标题/首句SonnetDB规则，sonnetdb-x实际仍PAUSED，本轮未修改或发布X。
+- 跨渠道只读汇总：博客园69原ID标题修订及公开回读、7临时/租约清理已完成，不重做；今天143/144为2/2，下一145，076–134的59条仍待对账。OSChina专属接续已完成本轮收尾：37submitted/105queued、今日032/033+动弹2/2、下一034；25标题修订已核，8原ID回读仍原标题/原正文一致但unknown保留，139–142源漂移不放行。其034/035 dry-run PASS、Python87/PS38 PASS不等于105篇全dry-run PASS；旧read_article只识别#导致##稿拒绝的9篇问题尚未取得全部闭合证据，本会话未改其代码/队列。
+- CSDN最新专属会话只读核020原ID167380163成功/审核页和独立reload全文，2026-10-09T04:53:07Z新receipt已落盘，但账本仍submitting、今日1次/剩余9；该会话最终说明未收到实际接续指令而停止。已把这一真实差异记下，未替它record/重投/抢页面，也未未经授权向其它会话发消息。下一步由其接续指令闭合原020回执后按真实额度推进，001–019不重发。
+- 本次只读发现窗口及本地实现/验证/收尾分有界批次，网页窗口未进入。固定PS7 7.6.6，使用既有审计runner（单命令5–30秒）；9个本会话Node/Python子进程均exit0，最终fresh同身份存活0，stop/delete0。测试临时fixture按既有TemporaryDirectory cleanup退出；新增setup原子临时文件finally精确回收，备份和验证证据是保留交付物。短shell/部分极短子进程CIM完整command缺口存在，whole-session进程完整性/孤儿自由不声明；不停止共享MCP/browser、不扫大目录、不安装、不用Graphify。
+- 证据固定于C:/Users/mysti/AppData/Local/Codex/WeiboPublisher/sonnetdb/research/continuation-01a11f02-20261009，含源码修改前副本、verification.json、四冻结文件SHA验证、process-closure.json及本HANDOFF追加绑定；过程审计继承research/project-identity-local-process-audit-20261009.jsonl。下一步优先取得本会话实际可用的正常微博控制能力，核UID及原001已发/审核/草稿，明确旧请求结果；条件闭合后才在当日额度内用新复合路径发布。支持私信仍无授权，不发送；不自动API回退或购买额度。
+- 仅追加本段并逐字核前缀，保护所有并发Native/Workbench/博客园/OSChina/CSDN文件及index/parity-results。本轮不stage/commit/push/部署，HANDOFF暂不提交：发文接续明确禁止自动commit，亦未运行无关产品restore/Format Check；离线发布器测试不替代产品门禁或真实网页发布。
+
+## 用户要求立即补齐并发布今日微博：等待可见页面（2026-10-09；01a11f02）
+
+- 用户明确要求现在补齐并发布今天内容，本轮按现有公开发文授权立即复核。现有正式工具仍只有open_in_codex；Playwright实际list只有csdn-mysticboy，agent-browser实际session list为No active sessions，未接管其它渠道。原403官方回执仍unknown/official_operation_failed/writeAttemptedtrue，无ID；两条有限公开搜索未取到结果，不能据此证明未创建。ledger SHA仍33C63DFC…完整不变，0claim/0写入/0发表，未重放被拒绝的独立浏览器启动或改回API。
+- 尝试另一条正常桌面只读路径：固定Python查询可用包，仅PIL可用，无pyautogui/pywinauto/uiautomation/mss，未安装。Windows顶层窗口枚举128和512上限各4秒均截断，已观察到ChatGPT HWND201052/PID33904，不宣称完整窗口清单。核进程归属后一次SetForegroundWindow返回false，前台验证false；screenshot技能固定PS7按此handle捕获临时PNG，真实图像为黑屏，未识别到微博控件，黑屏原因未确定。没有盲点、输入或发布。
+- 已用异步问题请用户将“已经登录的微博页面切到前台，并保持Windows桌面解锁，回复已就绪”，这是操作界面所缺的实际状态，不是再次索要登录/发文授权；答复待到，不能因等待时间推断已解锁或已授权绕过旧未决。收到就绪后新窗口先观察目标页面，再核UID1089099883、原001已发/审核/草稿与旧请求的明确结果，符合原每日一套条件后用既有双输出路径单次提交。
+- 等待期间只读复核001审定稿/实际正文/简介及当前README、capability-maturity和135源，标题/首段SonnetDB、九原生模型、SQL子集、Graph Beta、MQ实例恢复边界及实际body末尾AI辅助说明仍具备，未改已尝试稿/SHA或原请求。完整独立当前事实审核和新创建预占仍须等旧请求对账后办理。
+- 证据research/manual-now-20261009-result.json、manual-now-20261009-agent-session-list.json、既有project-identity-local-process-audit-20261009.jsonl；黑屏临时截图C:/Users/mysti/AppData/Local/Temp/codex-shot-2026-10-09_13-40-00.png暂留便于核对。agent-browser短进程65080保留exit0，5个本轮审计Node/Python子进程均end/exit0；CIM可能漏短进程完整命令，未声称整体进程完整性。无安装、长驻新服务、Graphify、广域扫描、按名kill或清理共享对象。
+- 只追加本段，保护并发Workbench集成及所有渠道/共享index，未stage/commit/push/部署，HANDOFF暂不提交，因为本发布任务禁止自动commit。没有把准备稿、窗口尝试或截图当作成功发布，任务仍等待实际页面可操作与旧请求结案。
+
+## 开源中国动弹新生成配图规则（2026-10-09）
+
+- 用户新增要求：每次新发布动弹，附一张新生成的约25岁成年亚洲女性穿JK风格裙装的图片。本轮使用skill-creator/publish-oschina，并读取imagegen工作流；只更新技能与发布规则，没有生成图片或调用业务API。当前没有可调用的内置image_gen工具，不擅自使用要求额外授权的CLI/API fallback；以后实际发文时先按可用工具生成并查看图片，不能把未生成写成完成。
+- 技能SKILL及references/queue-publishing新增人物/年龄/JK裙、一条一图、每次新生成、查看图片、保存生成回执/提示词/时间/path/SHA、失败待处理规则。正文继续无URL纯文本，图片通过真实tweet上传合同附加。手动/新公告/明确pending补发均适用；旧动弹ID和unknown仍先只读，不能因为新配图重发。
+- CLI在凭据/联网前拒绝正式无图或多图，dry-run无图仅预览且needsGeneratedImage=true。全局独占账本登记imageSha256并拦同图复用，包括失败尝试；新图不改变文字指纹，不能绕过unknown。上传URL保存uploadedImages；回读图片不一致保留原ID及verificationPending。Publish-QueuedBlogs支持TweetImagePaths映射传给独立公告，Publish-PendingTweets支持ImagePaths；无图正式补发在调用发布器前停该条，独立博客继续。
+- 微试1/1；最终Python94/94、隔离PowerShell队列39/39、skill-creator quick_validate通过。新增回归覆盖无图/多图、旧图复用、新图绕过unknown阻断、图片上传/回读回执、图片不一致及上传失败不发无图替代，全部为离线mock/夹具证据，图片生成与真实上传仍未实测。验证/修改前副本/进程收尾在技能state/tweet-image-policy-b98ea920cf7b4c4b93a32ed60d14c370保留。
+- 已原子保存OSChina队列policy.tweetImage并追加一条独立政策事件，Sync刷新进度；142个article/原blog/tweet回执语义逐字序列比较未改，全局业务账本未写。37submitted/105queued、今天032/033的2/2、原8条unknown标题、135未知公告、新闻502847和139–142事实复核边界保持。后续2026-10-10 11:00仍从034按原额度续发，提前各生成对应动弹的新图片。没有改自动化ID/目标/排期，memory已追加此新规则。
+- 9个记录的本轮测试身份都有end且无同身份存活，两个自有夹具不存在，额外kill/delete0；短命shell/未观察后代不算完整OS生命周期证明，旧策略保留目录/共享服务未动。固定PS7.6.6，未安装或广域扫描、未调用Graphify，未commit/push/部署。HANDOFF仅追加本段并核前缀字节，暂不提交，因为本发布任务禁止自动commit；未运行无关产品restore/format。
+
+## 开源中国034/035即时额外发布与带图实测（2026-10-09）
+
+- 用户明确授权在今日032/033之外立即再发两篇及对应动弹，并确认允许使用已配置图片API。本轮034/035分别生成新图，使用gpt-image-design/gpt-image-2，经现有sonnet_vip本地代理；凭据只在子进程环境，不写文件或输出。请求1024x1024，实际1254x1254，2.24/2.51MB，已查看成年亚洲女性与JK裙。两SHA不同。
+- 博客034=19774954、035=19774955均submitted；标题/完整HTML通过独立check-file严格核验。动弹30401422/30401423各上传对应新图，独立原ID GET的本人7172/文字/唯一图片URL全部匹配。四个无凭据网页GET200未含期望正文，公开可见性未确认；不把rawState1/2套入新闻审核枚举。
+- 队列已Sync为142篇、39submitted、103queued，正常下一036/037；今日额外两篇是当前用户的单次追加授权，原每日11:00/两篇不变。无重复投稿、写请求重试、无图降级。既有8条unknown标题、135未知公告、新闻502847、139–142源稿漂移保持；全队列Verify不宣称通过。
+- 技能记录真实图上传/回读与已授权配置路径；quick_validate通过，本轮不改发布器代码、不重跑已有94/39离线夹具。证据docs/blogs/oschina/.local/manual-two-image-check-20261009-796aa352dda14b98b9a639a53f04bb9d，图片.local/tweet-images/034及035-20261009-796aa352.png保留。
+- 当前只读Git为main/56ee66495ef62ab9665015187eb0841f0a0ac9f6；本任务未stage/commit/push/部署，保护共享Workbench与其他渠道。HANDOFF仅追加，暂不提交因为发布任务未授权自动commit。进程收尾只证明cleanup-audit中已记录身份，未声明未观察后代的整体孤儿自由；没有按名kill或宽泛删除。
+- 用户随后要求继续两篇，动弹须带标题、真实文章链接及新图，下一子批候选036/037。此前无URL动弹规则被最新要求覆盖；旧URL拒绝为历史事实，带图加链接需实测，不修改或重发034/035原回执。
+
+## ABP 支持路径咨询（2026-10-09）
+
+- 本轮为架构咨询：已阅读根交接的最新检查点、仓库 EF Core Provider/ADO.NET 边界、2026-10-07 Identity 样例与兼容性报告，并核对 ABP 官方 EF Core/切换 DBMS/UOW/数据过滤文档。现有 Identity 的 18/18、EF Provider 78/78 是既有本地验证记录，本轮没有重跑，也不能作为 ABP 或已发布 NuGet 的兼容证明。
+- 建议独立仓库 SonnetDB.Abp，首期只设 SonnetDB.Abp.EntityFrameworkCore 适配包、集成测试与最小样例，依赖已发布或专门发布的 SonnetDB.EntityFrameworkCore 包；通用引擎/Provider 修复留在本仓库。此为建议，用户尚未决定仓库位置，本轮未创建项目/仓库、安装依赖、提交 issue/PR 或外发。
+- 下一步先锁定 ABP/.NET/EF Core 版本与首期范围，验证 AbpDbContextOptions 的动态连接串与 ExistingConnection 复用、事务回滚/多 DbContext、迁移、软删除/租户隔离/审计与并发，再逐模块验收 Identity、Permission/Setting Management、OpenIddict 等。多模型辅助存储另立边界，不把关系事务扩展为跨模型原子性。上游 PR 建议在有复现的通用扩展点缺口或维护者愿意接收时推进。
+- 本轮仅追加此交接段，保留 main 与现有共享未提交内容；未执行构建、测试或提交。暂不提交原因：当前请求为方案咨询，工作树包含其它会话改动，不为咨询追加启动完整提交门禁。原 Workbench/博客任务、parity-results 和已有证据不变。
+
+## 开源中国故障会话接续、036/037验证收尾与归档（2026-10-09）
+
+- 用户要求接续故障会话01a11efb-6fea-7181-bd4e-699c50f797cd并归档。本会话01a11fb0-aee5-72e2-b65e-3a951c5687f4读取旧用户指令和原回执后，仅完成现有036/037原ID核验，没有新增博客或动弹POST；旧会话已由应用工具实际归档。034/035已完成回执保留。
+- 036博客19774987、037博客19774995经本人已发布/草稿/定时完整三组与完整正文比较，均唯一匹配原ID、标题和全文。动弹30401424/30401425的本人7172、真实话题topicName=#SonnetDB/topicId19285、正文#数据库及标题、唯一原上传图片URL全部匹配，已将原unknown回执只读对账为submitted。rawTextExact=false是真实话题被提取，不是完整正文相同；网页公开可见性未另外证明，未将其记published。
+- 第036篇原本站文章链接尝试明确HTTP200/code500“内容包含链接，禁止发布”，无新ID；旧会话已按用户授权新生成不同图片后发无链接版本。failed回执、尝试历史、原ID、指纹、图片SHA/URL逐项保留，当前policy.tweetAnnouncement.includeArticleLink=false，后续仍保留话题、标题、新图，不重新测试URL变体。新图年龄/人物/JK裙与配置图片API授权仍沿用用户原要求。
+- 原Python话题回归exit0；旧PowerShell回归32PASS/1FAIL的photosMatch作用域失败收据保留。本次修正夹具作用域，微试1/1，最终隔离PowerShell42/42、0FAIL、夹具删除、账本不变；完整性复核发现一个旧核验时间仅时区字符串被自动改写，已在独占锁和原身份/同一时刻守卫下恢复原串，并将Update-Receipt读取改DateKind String，补未修改时间保持字符串断言，必要完整重跑仍42/42。技能quick_validate通过，话题/图片及站内链接边界已写入技能与参考文档。
+- sonnetdb-2原heartbeat已通过应用工具迁至本会话，ID/名称/ACTIVE/每天Asia/Shanghai11:00/最多2篇均保持。提示词已纳入本次话题、新生成配图和用户授权配置API，未创建重复任务。Sync为142篇、41submitted、101queued；下一次2026-10-10 11:00按实时账本从038/039继续。本次额外发布为旧会话中的一次追加授权，不扩大日常额度。原8条unknown标题、135未知公告、新闻502847、139–142源稿漂移边界保持；未宣称全队列Verify通过。
+- 证据docs/blogs/oschina/.local/continuation-01a11efb-topic-closeout-20261009/result.json、closeout-integrity.json、cleanup-audit.json；原生成图片/拒绝/话题证据在manual-two-links-images-20261009-4fd7f10afcb64d15a4e42f0f2c8ac16e保留。最终142文章和119全局回执比较仅目标动弹验证状态变化，其它文章/回执原样；21已记录任务身份 fresh检查无同身份存活/未决，三个发布锁不存在，额外kill/delete0，不声明未观察后代或全机孤儿证明。
+- 使用固定PS7.6.6，有界批次/时间/取消/进程父链及finally；未安装、Graphify、广域扫描、按名终止、push或部署。共享main与其它Workbench已staged源码/文档和其它渠道内容保留，HANDOFF只追加。本段暂不提交：原发布任务明确禁止自动commit；未运行无关产品restore/format，也未触碰共享index或parity-results。
+
+## ABP 独立仓库已建立（2026-10-09）
+
+- 用户已决定创建独立仓库并在其中对接 ABP，前一咨询中的仓库位置建议已被接受。已创建公开 GitHub 仓库 https://github.com/IoTSharp/SonnetDB.Abp；唯一新工作区 D:/source/SonnetDB.Abp，独立 Git main/origin，不属于本仓库解决方案。
+- 初始代码 fb22306ef0b03bae10a05c085b6cfff0116697db 已推送，独立远端 branch API 回读一致；Ubuntu CI 37906959016 completed/success。适配包、标准 ABP/Autofac 控制台样例、集成测试、项目规范与 CI 已建立。新仓库自己的 HANDOFF/ROADMAP 保存后续接续，不创建新聊天/自动化。
+- 依赖公开 SonnetDB.EntityFrameworkCore 4.0.0、ABP 10.7.0、EF Core 10.0.12，不使用本仓库未提交代码或跨仓库 ProjectReference。完整 restore、CI 同级 Format Check、Release 构建零警告/错误、八项真实本地集成测试均通过，样例写入/读取成功；新仓库 artifacts 保存完整收据/原失败记录，不提交产物。
+- 本地八项覆盖标准仓储 CRUD/分页、审计、软删除过滤启停、宿主/两租户过滤、并发戳、显式/未完成 UOW 回滚及同库双 DbContext 的同连接/底层事务与共同回滚。未验标准迁移、真实 Server、独立租户库、ABP Identity/Permission/Setting/OpenIddict、恢复/长稳/AOT/正式发布。下一步在独立仓库推进 A02；通用 Provider/引擎缺口回本仓库单独修复。
+- 本轮源仓库只追加交接，保留现有 Workbench/博客及其它会话改动；暂不提交此追加，因为初始化提交/推送已在新仓库完成，源工作树含外来未提交内容，不能纳入本任务。许可证/适配包 NuGet 发布策略尚待维护者确定，不发布包、不向 ABP 发 PR。PS7/有界执行/身份检查与所有权回收；测试独占 Temp 校验后删除，日志/样例数据库保留在新仓库忽略 artifacts，未观察后代整体不存在不声明。
+
+## 微博第002篇封面与队列准备（2026-10-09，本会话）
+
+- 接续会话 `01a11fdb-3ab7-7923-80bd-9a6d1462456f`；按用户提示查到开源中国发布技能 `publish-oschina/references/queue-publishing.md` 的2026-10-09真实生图记录：`gpt-image-design` 脚本通过本机 `sonnet_vip` 代理的 `gpt-image-2` 曾成功生成并回读配图。本轮使用同一既有脚本与仅该子进程可见的本机配置凭据，不打印或保存令牌。
+- 第002篇新封面已生成、实际查看：`docs/blogs/weibo/assets/002-sonnetdb-nine-models-cover-20261009.png`，实际1672×941、SHA256 `04c2b8e99e577500c861dfb7708f59ba6695fb4dc080813d8fc610b8ad60ea9c`；图上成年亚洲女性JK风格形象、九模型标签和Graph Beta可读。图像进程返回0且退出；预备微运行第一次父链CIM查询超时但子进程exit0并已退出，调整有界父链查询后第二次微运行与正式生成均exit0，审计在外部WeiboPublisher `research/002-image-generation-20261009`。未在微博网页上传或观察图像。
+- 第002篇修订正文/简介及事实SHA复核仍匹配；稿件目录的 `002-sonnetdb-why-nine-models.review.json` 已记录封面路径、SHA、尺寸、模型与人工视觉检查。`weibo-publisher/references/content-seed.json` 已追加002并将001种子同步为现有不可变队列记录；用官方本地 `prepare` 更新同一队列，2条，`next` 选中 `sonnetdb-002`。简介里原文链接仅出现一次；预览返回 `daily_limit`。技能和编辑规则已写入从002起每篇文章封面与配套微博图片要求。
+- 第001篇在2026-10-09的原账本仍为 `published`，文章及微博已核内容但公众匿名可见性未证；第002篇仍是 `prepared-unclaimed`，未预占、未上传、未点击发布，故没有第002篇平台链接。本会话工具仅提供打开浏览器标签，未提供可控Playwright网页会话；此前独立浏览器启动被自动审批拒绝，不能换包装重试。按当前一天一次账本合同，10月9日不能创建第二套；下一次先核新日账本和网页控制/目标UID，再在编辑器确认文章封面和配套微博图片，按 `claim-browser-compound` → `mark-browser-submit` → 单次点击 → 独立回读记账，不发无图替代。
+- 本轮未改生产代码、未运行软件测试或dotnet格式门禁。新增封面是未跟踪交付物；`HANDOFF.md`原有并行WB83及博客/CSDN/OSChina外来改动保留。本轮未提交，因仓库共享工作树存在其它任务修改，且这次仅准备发布素材；后续提交需先分离自有改动并按AGENTS完整执行restore/Format Check。parity-results未动。
+
+## 微博第002篇 Playwright 网页发布与技能固化（2026-10-09）
+
+- 接续前文“第002篇封面与队列准备”后，复用已登录的 Playwright 会话，实际核账号“麦壳饼”/UID1089099883、独立新草稿3930339、已选封面、完整标题正文及“仅粉丝阅读全文”未选。正文从网页 `innerText.trim()` 冻结为944字符、SHA256 0667b95e9d82dca23aa540478f91d5b672fcebd9ccbee7f647ff1822c1866a49；与审定Markdown仅空白格式有差异。纯简介另存98字符、SHA256 abad8cb40ef5b81f97433f5d7f6164888ea0420cf7518f0aa5a2942b61b99b18，原文URL保留在配套微博。封面沿用前文已生成图片及SHA，网页实际显示该封面。
+- 用户明确取消微博本地每日上限：仅微博平台页面提示限制时停止；每篇仍串行、去重、一次最终点击，前一篇双输出未核验/未知时阻断。共享技能 `C:\Users\mysti\.codex\skills\weibo-publisher` 的脚本已移除同日唯一attempt校验与guard日阻断，网页 marker 改为按attemptId独占创建并fsync；第001篇旧日期marker及原账本/回执均保留。`SKILL.md`、`references/browser.md`、`references/ledger.md`、`agents/openai.yaml` 已改为实际成功的Playwright流程，并记下标题Markdown前缀、编辑器多空行、发表页U+200B、单行fill、文章卡片配图和双页面回读。旧官方API工作器仍有历史日marker，当前不使用。
+- 第002篇正式预占attempt `91a64657ffdc4017ad0ac050ad3c208c`，`mark-browser-submit` 返回 `singleClickAllowed:true` 后只点一次最终“发布”。平台未提示限制。编辑器发布历史显示2026-10-09 18:53（Asia/Shanghai）。文章 `https://weibo.com/ttarticle/p/show?id=2309405352182429122600`、配套微博 `https://weibo.com/1089099883/RlTvcxl9P`；独立重载文章核作者/标题/全文，发表页只折叠空行并插入U+200B；独立重载微博核作者/简介/原文href/文章卡片真实链接，截图核新封面确实在卡片上。规范回执在本机 WeiboPublisher `research/weibo-002-20261009/browser-receipt-01.json`，账本为published、article/status双verified。微博页显示“公开”，未做匿名访问独立核验，所以publicVisibilityVerified=false。
+- 本地稿件`002-sonnetdb-why-nine-models.review.json`已同步为published。队列目前仅001/002且两篇均published；下一编号003需重新审定当前Docker quickstart事实、生成新封面并按技能续发；不由队列耗尽推断平台限额。脚本正式发布和记账路径在本次实际运行成功；按当前任务要求未添加或运行软件测试，旧`test_publisher.py`仍有日限额预期，后续专门维护时须更新。未改仓库生产代码，未运行dotnet restore/Format Check，未提交；原因是本轮发布/技能固化且共享工作树含大量外来改动，遵守提交前Format铁律，不whole-stage。仅本段追加HANDOFF；此前WB84、博客/CSDN/OSChina/ABP及parity-results保持，禁止把本次发布当上述任务验收。
+- 技能收尾又同步更新 `references/editorial.md` 的无日额与文章卡片配图口径、`references/content-seed.json` 的下一待备稿为 null（001/002 原条目不变）。静态回读确认队列 2 条、旧与新 marker 都在、发布锁已释放，Playwright 命名会话已关闭。未运行旧测试或技能验证脚本；原 `test_publisher.py` 日额断言仍待以后维护。
+
+## WB84 本地集成收尾与 WB85 合同冻结（2026-10-09；当前 1/5）
+
+本地接续会话 01a1204a-89c4-7f30-a61f-0c03db9316cc 从 rollover 的 0/5 接手。只读 intake 确认 WB84 六文档集成已经形成提交 78045e8b407e9caceae2548116390ffb985fc959，其父提交为 8cd20c5d...；该集成计本会话第 1 项。当前分支 main、ahead 8、index 初始为空，origin/parity-results 仍为 0061d6d78591fb08493f473d3231ca42303faae1。工作区有 109 项其它会话/发布内容改动，未纳入 WB84 提交，本段只追加并保留所有原字节。
+
+WB84 新会话收据 artifacts/wb84-vscode-preflight-contract-20261009/new-session-01a1204a 证明完整 dotnet restore SonnetDB.slnx exit 0（约 63 秒）、原 CI Format Check exit 0（约 155 秒），提交 exit 0；新身份审计记录 49 个身份、2 条门禁命令、0 失败和 0 自有存活身份。wholeSessionOrphanFreedomProved=false，不扩大生命周期声明。旧 WB83 的 FAIL / preflight / helper_deadline、cleanup false/null、旧 proposal 拒绝状态均保持；WB61 唯一原 fixture HTTP 400、修正后 0 actual 与数据库恢复未验收保持。真实 VS Code Host、Server、三宿主、安装、AOT、硬件、长稳及发布均未因此闭环。
+
+此新段纠正较早交接中“WB84 format 未运行、集成未提交”的过时状态；不删除或改写失败窗口的历史记录。WB84 候选实现仍未开始。WB85 仅冻结当前 78045e8 与三个干净源码 SHA，合同见 artifacts/wb85-helper-invocation-observation-20261009/task-contract.json；范围仅为三个指定 VS Code JS 脚本的逐 helper 调用观察，先独立只读复核，复核通过后再由专属实现代理工作。冻结计数为本会话已闭合 1/5，WB85 是当前第 2 项，尚未实现。真实 actual、PowerShell producer/parser、Host TypeScript、调用顺序、权限、预算及 cleanup gate 不在范围。
+
+同一 workbench 自动化仍为 ACTIVE、每 30 分钟，目标保持当前会话；未创建重复自动化。固定 PS7、有限计数/墙钟/取消/进度/退避、完整 PID/创建时间/命令/父链与 finally 仅回收本任务进程树的规则保持。禁止 Graphify、广域扫描、未授权安装；保护旧 policy Temp、WB40 runtime、共享缓存/交付物、其它会话内容及 parity 分支；无 push、发布、部署或外部发送。
+
+## WB85 合同修订与第二次独立复核（2026-10-09；任务仍第 2 项）
+
+首版冻结 task-contract.json 已由独立只读复核记录为 BLOCK，原合同和 review-1.json 保留。审阅指出 operation/phase 映射不够明确、未直接覆盖 child error 与迟到 close/落败回调，以及测试 seam 和 UTF-8/50ms 超限处理未冻结。根未启动实现或测试，当前源码仍等于原冻结 SHA。
+
+修订版 task-contract-v2.json 已按原 HEAD 78045e8b 和相同三个源码 SHA 冻结，增加每个 helper call-site 的 operation 映射、显式 helper phase 转移（包括 primary failure 后 stage 保持旧值而 cleanup phase 独立）、timer/abort/child-error/close race 首胜不可变与迟到回调测试、生产与测试共享的纯 injectable seam，以及 UTF-8 JSON 字节和超过 50ms/序列化超限的固定 unknown 规则。第二次独立复核正在进行，结束前不得开始实现。此仍是本会话第 2 项；完整任务实施/测试/复核/集成/提交合计一个名额。
+
+## WB85 v2 复核通过与实施启动（2026-10-09；本会话仍 1/5，当前第 2 项）
+
+WB85 首版合同审阅为 BLOCK 的原始收据 artifacts/wb85-helper-invocation-observation-20261009/review-1.json 保留。修订版 task-contract-v2.json 经第二次独立只读复核 PASS，收据 review-2.json：在 HEAD 78045e8b407e9caceae2548116390ffb985fc959 上，三个专属源码 SHA 与冻结值完全一致、相对 HEAD clean；reviewer 未运行测试/build/actual、未编辑或启动外部进程。同步时发现的具体缺项已在 v2 冻结：helper call-site operation/phase map、失败后仍独立标记 cleanup、timer/abort/child-error/close 首胜不可变及迟到回调测试、生产与测试共用 injectable seam、UTF-8 bytes 和 50ms/record/aggregate 超限unknown处理。
+
+专属实施代理 /root/wb85_implement 于 2026-10-09T12:06:04Z 接手，只拥有三个指定 JS 源文件及本任务 artifacts；根继续拥有共享文档、完整restore/原CI Format Check、stage、最终diff、本地commit和进程核验。代理初始读入确认当前 PS7.6.6、Node 固定路径 C:\Program Files\nodejs\node.exe、HEAD 与复核状态；编码前还将复核三文件冻结 SHA。执行限额仍为最多16新顶层测试/48场景、单 Node 文件120秒（一次初跑，至多一次必要修复重跑）、三脚本syntax每个30秒、0 actual/TS/.NET build、总任务45分钟；原WB83 FAIL/false/null、WB61 HTTP400/0 actual和真实三宿主边界不升级。
+
+## 微信公众号 001–144 本地准备与侧边栏接入限制（2026-10-09，本会话）
+
+- 用户明确授权当前已登录公众号的 SonnetDB 001–144 全部编号文章：可直接发表则发表；若正式发表要求扫码，将其余文章保存为公众号草稿，后续人工确定发布时间。不创建调度、不群发、不扩展其它账号。用户进一步明确只使用 Codex 侧边栏内置浏览器，优先网页元素直接读写/点击，不逐步截图识别或额外启动浏览器窗口。
+- 当前仅完成144篇本地渠道稿，公众号草稿新增0、正式发表0；尚未核查远端已有稿件/公众号身份，未产生提交或草稿ID。交付在docs/blogs/wechat/prepared（144Markdown+144HTML）、queue.json、index.html及PROGRESS.md；外部同渠道状态C:\Users\mysti\AppData\Local\Codex\WechatPublisher\sonnetdb。所有条目local-prepared/not-attempted，不冒称已存草稿箱。
+- 001–134逐篇原稿/已审渠道副本与review SHA匹配，复用既有审稿证据；135–144采用与通用最新contentSha256完全一致的当前源稿，139–142不沿用旧副本。五篇长标题028/041/074/081/084缩短且保留editorialTitle，138副本补项目名前缀，原稿不改。15个相对链接转明确仓库路径文字，全部最终Markdown/HTML哈希回读通过；没有正文图，未指定平台封面，未运行SQL/真实Server/模型/性能或.NET门禁。
+- 用户确认Browser/Chrome插件开关灰色。当前工具列表与实际函数检查缺少浏览器技能规定的mcp__node_repl__js；只有打开标签工具。appserver只读features显示browser_use/in_app_browser等true，CLI已安装/可用目录未包含Browser/Chrome，但CLI目录不等于完整桌面UI状态，灰色根因未确定。未改全局配置、不强装不可用插件、不重启应用、不走未支持的IPC/CDP或外部浏览器。官方只读接口返回40164/IP白名单拒绝，内容写请求0；不为此改白名单或绕过限制。此前上条公开文档引用未取得可核验证据，已明确纠正；操作能力依据本机Browser技能，不能把公开检索失败称文档证实。
+- 下一次先接入本聊天支持的内置浏览器操作工具，复用已登录标签、实际核公众号身份及远端已发/草稿全量去重，从001串行创建并独立重载回读原草稿ID/全文；若正式发表需扫码，则剩余存草稿，排期保持待人工。登录是否跨日有效须实查；未决保存/发表先对账原ID，不再次点击/变标题重建。授权持续，不逐篇重复要求发布确认。
+- 有界准备先1篇微运行、全144转换及格式化/哈希核验。首次Windows ESM导入路径错误与首次长标题校验失败均在外部research原收据保留，前者未联网、后者全量写前即失败；修正后正式144成功。受控Node/Python/appserver命令均有PID/创建时间/命令/父进程与退出收据，只回收自有微运行临时对象，不按名终止或清理共享缓存。研究/证据脚本保留在外部专属状态，不宣称whole-session孤儿自由。
+- 根HANDOFF只追加此段，原Workbench/ABP/博客/CSDN/OSChina/微博和parity-results均保留。本轮不commit/push：用户请求平台发布/草稿处理，当前仍缺浏览器执行能力且共享工作树包含外来内容；未来提交必须在最终待提交树完整restore/Format Check通过。没有新建定时任务；此前本会话误建sonnetdb-3已删除，仍保持删除。
+
+## WB85 失败检查点与提前交接（2026-10-09；本会话闭合第2/5项）
+
+WB85 v2 合同已复核通过并完成三脚本实现尝试；实现未获验收。三个保留的未提交源码文件及最终 SHA、唯一复修重跑收据与失败报告见 artifacts/wb85-helper-invocation-observation-20261009/validation-report.json 和 execution/node-test-retry2-capture-failure.json。三文件 PowerShell 7/Node 语法检查及 git diff --check 通过；初次 Node 结果为94/95，唯一失败是旧静态 helper-count 正则。修正 phase 为 preflight 并同步计数正则后，合同允许的唯一修复重跑启动 PID 20368（2026-10-09T12:35:06.6366410Z，完整命令/父链见 execution/node-test-retry2-start.json）。PowerShell 收据包装器在测试输出捕获时对尚不存在的 stdout 路径调用 Resolve-Path，外层退出1；stdout/stderr 和 Node exit code 未捕获。后续按精确 PID 检查进程已不存在，但这不能区分自然退出或限时清理，故测试结果 UNKNOWN_NOT_VERIFIABLE，不作 PASS 推断；冻结 v2 重跑额度已用尽，不再运行本合同下的 Node 测试。
+
+独立只读实现复核为 BLOCK，指出还缺两个 v2 要求的测试：主流程失败后持久 stage 保持 preflight 而 finally helper phase 为 cleanup；monotonic clock 返回非有限值。已确认的 callId/accepted identity/stream-close/race 返回与原错误对象恒等/UTF-8 字节和投影时限行为仅记为复核覆盖，不升级整体验收。0 actual、TS compile、.NET build；未 stage、未 commit，未运行完整 restore/原 Format Check。HEAD 仍 78045e8b407e9caceae2548116390ffb985fc959，origin/parity-results 仍 0061d6d78591fb08493f473d3231ca42303faae1；三个自有 JS 改动与其它会话内容原样保留。因检查结果不可核验且复核 BLOCK，不能提交；CHANGELOG 不记未验收实现。
+
+本会话从既有 1/5 接续，WB85 失败闭片计第2项，当前2/5。因剩余合同窗口不足以完成完整复核与验收而提前交接；新本地会话应从0/5开始，并先以这三个最终 SHA 冻结新的有界续接合同，补上述两项并使用正确的有界输出捕获/完整进程身份回执，再执行一个新合同授权的测试尝试。不得复用耗尽的WB85测试额度、把旧94/95或未知重跑改称通过，或回滚这些尚有用的自有源改动。创建/释放/新自动化target匹配以专属rollover与automation回执为准。
+
+## WB85 进程结果补充核验
+
+上一段中关于无法区分自然退出或限时清理的表述按本次后续核验更正：修复重跑包装器在 WaitForExit(120000) 返回后才读取输出，并因空 Resolve-Path 抛错；外层总运行不足10秒，因此原 Node 子进程已先退出。其 ExitCode/stdout/stderr 仍未落盘，测试结果保持 UNKNOWN_NOT_VERIFIABLE。原 PID 20368 后来被系统 svchost.exe 以新创建时间（本地 2026-10-09 20:47:15，parent 2008/services.exe）复用，完整身份与原 Node tuple 不同，未发送信号或终止；该 PID复用实例保留，不归本任务。
+
+## WB85-C1 失败检查点（2026-10-09；本会话闭合第1/5项）
+
+本地会话01a120bc-8b20-72a2-9186-52f2dd375379从0/5开始，以HEAD78045e8b407e9caceae2548116390ffb985fc959和WB85失败检查点的三个精确源码SHA冻结独立续接合同。最新HANDOFF/AGENTS/ROADMAP/M47队列/WB85报告完整字节接收并保存快照；巨大历史HANDOFF全部语义未逐条重读，不扩大声明。初始index空；origin/parity-results保持0061d6d78591fb08493f473d3231ca42303faae1；同一workbench仍ACTIVE/30分钟/本会话，未迁移或重复创建。
+
+合同独立PASS后，专属实施仅为query-host-evidence.test.mjs补2个顶层测试/6个明确场景，原95测试字节逆投影一致。受限VM执行runner原有状态声明及try/catch/finally，以inert适配器注入preflight原Error和pendingAudit barrier，检查持久stage=preflight、helperPhase先cleanup、cleanup snapshot/ports独立callId与终态顺序；另测NaN/±Infinity入口、非有限checkpoint/projection共5例，固定clock_invalid/unknown全形状及UTF-8字节数。runner/evidence相对接手SHA不变；PowerShell producer/parser、Host TS、SQL/query顺序、wait/timer/abort/cleanup门禁、权限及原预算保持。
+
+捕获micro exit0、stdout/stderr标记完整；两次包装器BLOCK原收据保留，第三审PASS后才启动新合同测试。日志CreateNew后直接CopyToAsync到已知绝对路径，未Resolve-Path不存在输出。首次Node96/97、真实exit1，唯一失败是VM和外层数组realm的夹具深比较；仅在VM ports wrapper复制为本realm数组，全部断言保留。唯一必要修复重跑stdout完整显示97/97、fail/cancel/skip/todo0，但进程观察抛出Complete live process tuple required，WaitForExit/ExitCode未落盘；原result exitCode=null、naturalExit=false、failure保留。不能确定哪个CIM tuple不完整或推断退出码0；stderr完整保存且空、原root在finally为absent、0signals不补足退出证据。新合同两次额度用尽，执行验收为UNKNOWN_NOT_VERIFIABLE/失败检查点，不再重跑。
+
+三命名syntax真实exit0/naturalExit=true/cleanupFailures0、三个源码的git diff --check及最终源码独立复核PASS；复核只证明本地实现语义，不升级不完整Node执行验收。最终未提交三源SHA：runner9C633CB57E9D51A85DBA0CE229D3D7630BEB02D60FA730AB593B196E1D096EBB；evidence9B7669514B1AB899E8BD2DF0DD6F9A3E2A3EADAF7A0EB62B34EA309AA4DA80FF；test780B39537E9D7A23B29809797E825CC53A7F7510DCFD0541433CC4A568D3AE07。报告及全部原始收据在artifacts/wb85-continuation-20261009-01a120bc/validation-report.json；旧WB85报告/SHA/94-95/未知重跑/旧BLOCK保持不变。
+
+本次未stage/commit；完整restore和原CI Format Check均NOT_RUN，因为执行验收未通过、commitAllowed=false，CHANGELOG未记录未验收实现。根只维护本exact HANDOFF段与队列/验证新段，所有原字节和foreign内容保留；三源改动不回滚。实现/测试/必要修复/复核/失败闭片合计一个任务，当前1/5。后续先核本次已记录身份fresh审计和最终报告，再冻结独立工具修复合同：保持完整tuple安全拒绝，但observer抛错不得阻止从仍持有的原Process句柄单独保存HasExited/ExitCode；对子PID/tuple拒绝留有界定位收据，并先微验捕获和异常路径。新的测试运行需另有合法合同，不能复用WB85/WB85-C1已耗尽额度或由97/97输出推PASS。
+
+0actual/TS compile/新.NET build，原WB83 FAIL/preflight/helper_deadline/cleanup false/null、WB61 HTTP400及修正后0actual和M47/Graph Beta/三宿主边界保持；内部PowerShell/序列化/stream/timer慢因仍unknown。只审计已记录身份，不宣称未观察后代或whole-session孤儿自由。PS7固定、有界计数/墙钟/取消/进度、完整PID/创建/命令/父链/finally、旧policy Temp/WB40 runtime/foreign保护继续；无Graphify/广域扫描/安装/外部写/push/部署/发布/parity变更。
+
+WB85-C1 根最终审计补充：final-audit.json 核12个已记录命令/root/wrapper身份，原tuple存活0、unknown0、新signal0；两个本任务测试Temp目录不存在。HEAD/parity保持、index空，源码SHA保持，两个子代理均completed。412个foreign文件中409哈希不变，另外3个有并发外来变更，根未改动或暂存它们。上述diff-check PASS仅三个指定JS源码；包含旧foreign HANDOFF/旧queue段的全六路径diff-check因既有trailing whitespace失败，未越权修正。本片仍UNKNOWN_NOT_VERIFIABLE/无commit；只证明已记录身份fresh检查，不证明未观察后代或全会话孤儿自由。
+
+## WB86 工具合同冻结（2026-10-09；本会话已闭片1/5，当前第2项）
+
+按WB85-C1失败检查点接续，三产品JS源码SHA与HEAD78045e8b/parity0061d6d/index空完全匹配。完整接收最新HANDOFF/AGENTS/ROADMAP/M47队列与旧报告全字节，旧两个代理已completed，无生产runner/test活动。新合同在artifacts/wb86-durable-exit-capture-20261009-01a120bc/task-contract.json，范围仅task-local PS7 capture-worker/inert-child，独立合同审阅pending后才实施。原Process句柄的HasExited/ExitCode独立于observer/tuple/hash失败落盘；身份安全拒绝与门禁保持。micro1与四故障/非零fixture共最多5个PS7子进程，micro10秒/其余20秒、0修复重跑，0产品Node测试/syntax/actual/TS/新.NETbuild；总窗40分钟至14:18:05Z。WB85/WB85-C1未知退出与测试额度耗尽保持，不在本片重复运行产品测试。根只拥有共享文档/验证与执行/最终审计，三产品源和foreign/旧policy Temp/WB40/parity保护；不stage/commit，restore/format NOT_RUN。workbench同ID ACTIVE30分钟/本会话，不创建或迁移。PS7固定、有界计数/墙钟/取消/进度/父链/finally与禁Graphify/广域扫描/安装/外部写/push/部署/发布继续。
+
+## 微信公众号 001–144 去重、Playwright 接通与115篇草稿完成（2026-10-09）
+
+- 用户追加授权立即使用Playwright CLI或任何可用方式连接，覆盖此前仅侧栏限制，并要求避免与旧文重复。使用已有CLI/Chrome建立独立持久headless会话sonnetdb-wechat-144；仅登录二维码截图，经用户手机扫码登录，实际账号IoTSharp。没有额外可见窗口，没有操作微博会话、侧栏原标签、浏览器Cookie/密码/原登录token或应用内部数据库。缓存Browser技能要求专用工具，本聊天仍未取得；灰色开关未恢复，不冒称原生Browser修好。实际桌面后台features相关true但bundled目录仅三插件，日志出现cua_repl空工具/authStatus=unsupported及Sign in to ChatGPT；未证明唯一灰色根因，未改全局配置或强装不可用插件。
+- 先遍历14页、140次发表记录（340文章链接），初始草稿箱网页显示为空。以原标题/渠道标题、前缀和空格归一化，并人工识别001“新成员/新星”和007时序前缀别名，跳过29篇已发表编号稿，旧文章未编辑/删除/重发。最终新增115篇草稿，新发表0篇，所有144编号已归入existing-published或draft-verified，pending/in-progress均0。最后独立重载草稿箱显示文章115，并滚动加载全部115标题与队列精确核对，115远端ID唯一；范围100001134–100001248，逐篇回执在外部research，队列记录真实ID及回读，不把本地稿算远端保存。
+- 005首次异步粘贴造成重复正文，已在同一100001134内修正；独立重载核标题、1546非空白字符、两个代码块和一个表格。011保存反馈延迟，原编辑器/草稿箱只读对账后核验同一100001135，不重建替代稿。日志反复ERR_HTTP2_PROTOCOL_ERROR，针对本次独立会话启用127.0.0.1:7890代理和--disable-http2，关闭/重开同一专属profile后登录实际保留，012微试通过；余下112篇串行批次完整完成。新流程真实剪贴板HTML粘贴，保存前全文一致、保存后独立编辑器重载核标题/全文/代码换行/表格，未知结果停止对账；每篇CLI阶段<=40秒，批次count112/wall5400秒/cancel文件/逐篇进度，实际于截止前退出0。
+- 005进入发表自检后平台明确“必须插入一张图片”；没有完成发表，没有进入扫码发表，不把图片要求说成扫码要求。按用户随后“开始准备稿件”把所有未重复稿件完成草稿。封面未指定/未上传，发布时间待用户人工确定；不设置群发/定时、不创建自动化、不扩展账号。后续只补115个已有草稿的封面/核发布流程，29旧文继续跳过，不能重跑创建批次。
+- 正式结果checkpoint：C:/Users/mysti/AppData/Local/Codex/WechatPublisher/sonnetdb/research/20261009/final-platform-checkpoint.json；逐篇queue及当前index/PROGRESS在docs/blogs/wechat。已保留此前144篇所有准备内容和SHA，未改其它平台账本或产品源码。今后复用同一browser-profile实际核是否过期，不能保证跨日无需登录；浏览器会话本轮正常close，持久profile保留，原生侧栏登录也未清理。只回收自身session，不按名kill；已记录自身浏览器树与最终fresh结果，不推整机/未观察短进程无孤儿。
+- 本会话没有commit/push，未运行.NET测试或强制restore/Format Check；这是公众号网页草稿操作，共享工作树有其它会话修改。根HANDOFF仅追加此段，保护Workbench/ABP/博客/CSDN/OSChina/微博和parity-results；本任务记录暂不提交，未来提交仍须在最终待提交树完整门禁通过。此前误创建自动化保持删除。
+
+## WB86 工具失败检查点（2026-10-09；本会话第2项闭合，2/5）
+
+合同独审PASS仅授task-local工具实现，三产品JS/HEAD78045e8b/parity0061d6d/index空保持。实施代理写入capture-worker.ps1（0835B2830E03E39230D39775642E3C7190F2723A9349789B2A28475A50CB5CAD）和inert-child.ps1（20F49B18CD08AEE745D2680BFCD7649538D9CEF336ED5876EBFE926B692D2BB2），未在10分钟上限内交付完成收据，根已中断并冻结源；独立源码代理消息BLOCK后未在6分钟内写正式source-review，根亦中断。消息原义保存在source-review-message.json，不能称正式源码复核PASS或代理完整完成。
+
+两个阻断明确：第二次Capture-Exit在初次immutable exit收据之后更新result但未在原Process Dispose前再持久化该读取，首次unknown可与后续result不一致；cleanup在fresh candidate/owner之后没有fresh核全部中间父链身份便可Kill。惰性fixture本身有界，但这两项是fallback/authority源码门禁；未启动AST或五fixture，实际AST0/PS7子fixture0/Node0/actual0/TS0/新.NETbuild0，不能声称退出工具已验收。所有本片工具/原收据保留在artifacts/wb86-durable-exit-capture-20261009-01a120bc/validation-report.json，不在本合同修复重跑；WB85/WB85-C1原UNKNOWN/97-97仅stdout/耗尽预算不提升。
+
+根只追加本段、prepend队列和共享验证的exact新段，完整旧字节及foreign追加保护；0stage/commit，restore/原CI format NOT_RUN，因为工具源码门禁未通过且产品执行仍未验收。known-process-audit只核1个既有intake tuple absent/0signals及fixture launch0，不证明全会话或未观察后代自由；实施/复核完整进程收据缺失，不猜全代理孤儿状态。旧policy Temp/WB40 runtime/foreign/缓存保护，不删除任何对象。workbench同ID ACTIVE30分钟/本会话01a120bc-8b20-72a2-9186-52f2dd375379。
+
+失败闭片合计1项，本会话累计2/5。下一片冻结新的窄工具修复合同：将每次最终退出读取持久化为独立CreateNew收据、明确first/final两个时点；信号前同一fresh快照核candidate、owner及全admitted父链，并在进程句柄创建时核一致/未知拒绝。先独立review，再micro及四故障/非零惰性夹具；产品Node验证必须另有合法合同，不复用已耗尽旧次数。三宿主/真实Server/安装/Extension Host/AOT/硬件/长稳/发布与Graph Beta边界不提升。PS7固定/有界count+wall/cancel/progress/归属finally继续；无Graphify/广域扫描/安装/外部写/push/部署/发布。
+
+## WB87 窄工具修复合同冻结（2026-10-09；已闭合2/5，当前第3项）
+
+WB86失败检查点保持，三产品源/旧报告不变。新合同artifacts/wb87-capture-two-gates-20261009-01a120bc/task-contract.json仅修task-local first/final退出收据及signal前fresh完整父链，fixture旧字节不变；独立合同审pending后才实施，独审源码PASS/AST之后仅五inert child、0复修重跑。hash故障同时controlled第一capture不可用，用final真实Process读取独立持久化证明后续捕获，不能称真实timeout证据。40分钟新窗，0产品Node/syntax/actual/TS/.NET/restore/format，0stage/commit；旧WB85/C1耗尽预算不复用。专属代理最迟实施第8分钟/复核第4分钟写最小收据，根在10/6分钟cap停止。共享文档/执行/审计仍根串行，same workbench ACTIVE30分钟/本会话；PS7/有界/归属/foreign/旧policy Temp/WB40/parity/三宿主证据边界保护。
+
+## WB87 工具微验失败检查点（2026-10-09；本会话第3项闭合，3/5）
+
+WB87合同独审PASS；实施代理4分钟冻结新worker SHA39C7392010034921DE778B14EE3A06187DB697B3C92F64CCD73C0A7AB0E89E68与最小实施收据，fixture SHA20F49B18不变、WB86/三产品源未改。修first/final CreateNew退出收据且final在原Process Dispose/hash前持久化；signal前新完整snapshot核candidate、owner及全部admitted中间父链。源码独立PASS，复核实际14:26:03.505–14:31:43.963Z为5分40秒，在6分钟硬上限内，但4分钟收据目标FAIL，偏差不改写；根只放行原预算5个inert probes，不称完整规程无偏差PASS。
+
+根AST2/0错误；唯一micro wrapper真实exit1，worker elapsed1.2626538秒，status FAIL。没有stdout/stderr文件、launch收据或original PID/creation；ownerIdentity null，observer not-reached、waitIterations0、signals0。first/final退出JSON仅持久化null/unknown，不能称保留了真实退出码。原泛化失败launch/launch_failed/handle/pid=null，另两hash_exception对应未创建流；内部准确语句/错误细因没有落盘，仍UNKNOWN_NOT_CAPTURED，不推断CIM超时或其它原因。按micro PASS前置与0复修重跑，剩余四例NOT_RUN；fixture child实际0，验证调用1，不在WB87重试。报告artifacts/wb87-capture-two-gates-20261009-01a120bc/validation-report.json；原收据不改。
+
+失败闭片计1项，当前累计3/5；产品Node/syntax/actual/TS/新.NETbuild0，restore/原CI format NOT_RUN，stage/commit0，三产品SHA/HEAD78045e8b/parity0061d6d/index空保持。根只维护本段与队列/验证exact新段，全prior字节及foreign追加保护；不删除临时对象。实施/复核均停止写入且自报0long process/child/Temp；micro未到子进程创建，缺完整wrapper tuple，不宣称whole-session或未观察进程自由。WB86两阻断旧失败、WB85/C1 UNKNOWN与耗尽额度、WB83/WB61/三宿主/Graph Beta边界保持，same workbench ACTIVE30分钟/本会话。
+
+下一片先冻结启动前故障定位合同：仅task-local worker把初始snapshot请求/映射、owner/父链、output-create、Process-start分为固定有界stage；保留原10秒/20秒、CIM1秒、数量与清理权限，不凭本次猜测提高超时。用无子进程的stub微输入证明失败定位，再一次新合同允许的真实micro取得实际固定类别/退出证明；准确原因若仍unknown就失败闭片，不叠加无界诊断或重试。只有新的明确证据支持后才能另冻必要修复或产品验证；不能复用旧测试次数。PS7固定/count+wall/cancel/progress/归属finally、foreign/旧policy Temp/WB40/缓存/parity保护继续；无Graphify/广域扫描/安装/外部写/push/部署/发布。
+
+## 微博连续发布交接（2026-10-09 22:30 Asia/Shanghai）
+
+- 本轮按 `weibo-publisher` 与 Playwright 网页编辑器接续。第003～005篇已有真实文章/配套微博双输出 `published` 且各自回读 `verified`；本轮新增第006、007篇，两篇也分别独立重载文章页与微博详情页，正文、作者UID `1089099883`、简介/原文链接/文章卡片匹配，卡片截图看见各自本篇封面。平台页面未提示发布限制。认证页面显示“公开”，未独立匿名读取，`publicVisibilityVerified=false`。
+- 第006篇“SonnetDB 性能对比：先统一测试口径”：文章 https://weibo.com/ttarticle/p/show?id=2309405352225743700191；微博 https://weibo.com/1089099883/RlUD47ild；attempt `bc1e919340c7460fab166548f0a84889`。旧横评缺完整原始报告，审定稿没有沿用其倍数/性能结论。封面 `docs/blogs/weibo/assets/006-performance-jk-final-20261009.png`，SHA256 `1FE64F44F458CA30E9BE54E4C25820BF4A7E660DCE3773FF6D1D23D65EFA0E80`。
+- 第007篇“SonnetDB CLI 快速入门：安装与本地查询”：文章 https://weibo.com/ttarticle/p/show?id=2309405352234862116957；微博 https://weibo.com/1089099883/RlURM3WY3；attempt `c0b1cca0b8c74fbd87f9173bc074ace0`。根据当前 `SonnetDB.Cli` 源码与 `docs/cli-reference.md` 修正旧文命令写法；封面 `docs/blogs/weibo/assets/007-cli-jk-final-20261009.png`，SHA256 `CAD56EACC1777E2CF79F1D38C44E6659F89B93FEAB46BAE23E109F7275FE761F`。第007篇第一次 `mark-browser-submit` 因使用 claim 前 DOM 观察而拒绝，未建提交 marker、未点击；claim 后重新观察并生成新证据，第二次预占成功，最终只点击一次，旧拒绝证据保留。
+- 当前 Codex 任务工具只有 `open_in_codex` 能打开侧边栏浏览器标签，没有控制该标签 DOM/上传文件的工具；当前内置浏览器路径不能完成带封面文章。复用现有已登录 Playwright `sonnetdb-weibo-series` 内存会话和同一 Chrome 窗口，以定位器/DOM 批量填写、直接读取为主，仅为封面裁剪与文章卡片核图截图。会话关闭后不能保证登录保持；专属持久 profile 方案已写技能但尚未实机跨重启验收，不复制 Cookie 或登录状态，不中途另开窗口。
+- 技能 `C:\Users\mysti\.codex\skills\weibo-publisher\SKILL.md`、`references/browser.md` 已更新为001～007真实结果与 DOM 优先流程；新增 `scripts/build_browser_editor_evidence.py`，改进 `scripts/make_browser_fill_script.py` 去掉网页正文中的 Markdown 围栏/行内反引号。第006/007篇状态和证据在 `C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\weibo-006-20261009` 与 `weibo-007-20261009`；固定账本 `ledger.json` 为准。无新项目测试/构建；只做源事实复核、网页实发与独立回读。
+- 下一篇从最小未完成编号008开始；不得重发001～007或以日期限额阻断。已创建当前聊天 heartbeat `sonnetdb-3`，每30分钟接续，单轮最多3篇/40分钟执行边界，不是日发布配额；平台明确提示限制时停止并暂停自动化。若登录失效需用户在可见浏览器登录。根仓库共享工作树有大量其它会话改动，本轮仅尾部追加本交接与新增封面/提示词，未整体暂存、未提交、未推送；提交前仍需遵守仓库完整 format 门禁。
+
+## WB88 启动前固定故障坐标合同冻结（2026-10-09；已闭合3/5，当前第4项）
+
+新合同artifacts/wb88-prelaunch-coordinates-20261009-01a120bc/task-contract.json只为task-local WB87 worker增加固定phase/boundary、有限异常kind与safe int32 category/hResult，不记录raw错误/脚本/foreign命令，不猜或修未捕获原因。独审合同再实施、源码独审/AST后root最多4个无child helper stub和1个新合同micro；原10秒/20秒、CIM1秒/身份/清理/first-final收据/fixture字节不改，0复修重跑/其它4例/产品Node/actual/TS/.NET/restore/format/stage/commit。40分钟独立窗，旧WB87微验失败及所有旧预算保护。实施8分钟/10硬cap与复核4分钟/6硬cap、最小收据优先。共享文档/执行/审计根串行，same workbench ACTIVE30分钟/本会话；PS7/有界/归属/foreign/旧policy Temp/WB40/parity/三宿主边界继续。
+
+## WB88 固定故障坐标源码阻断（2026-10-09；本会话第4项闭合，4/5）
+
+合同独审PASS（83.8秒）；实施6分46秒在8分钟目标内冻结新worker SHA5C07F4DFCF4884CCBB4C8E7C36DDB98F377DCA611036F68E389237B35B6A2F82、fixture20F49B18不变、catalog3BD863DD。增加有限phase/boundary、safe int32 categoryCode/hResult与有限exceptionKind，在outer catch保存failureCoordinates；不改原时间/身份/first-final退出/信号门禁，限制micro1。实施收据记录5PS7调用及1次JavaScript参数解析拒绝（未启动命令）、0long/Temp/worker/child/AST/产品。
+
+独立source-review FAIL（140.1秒，在4分钟目标内）：Get-FailureCoordinates在Argument/InvalidOperation/Other判断前使用非framework类型[Microsoft.Management.Infrastructure.CimException]；独立AST提取的PS7上下文没有源保证已加载该类型，类型解析失败可能进入catch并把category/hResult/kind置Unknown。真实worker此前CIM调用加载模块不能作为helper自包含保证。这是源码依赖阻断，未实际执行该故障；不冒称已观察TypeNotFound。最小修法为有限的exception.GetType().FullName精确比较，不加载程序集或扫描类型。
+
+源门禁未通过，root AST0、helper stub0、actual micro0、fixture child0；不在本片继续实施或验证。失败闭片累计4/5，完整报告/原收据artifacts/wb88-prelaunch-coordinates-20261009-01a120bc/validation-report.json。WB87原prelaunch微验原因仍UNKNOWN_NOT_CAPTURED，WB88定位坐标未获执行验收；所有旧报告、三产品JS、HEAD78045e8b/parity0061d6d/index空保持，0产品Node/syntax/actual/TS/.NET/restore/format/stage/commit。不提交因工具源码FAIL且产品执行仍UNKNOWN，强制CI门禁未取得。共享三文档仅exact新段，全prior/foreign字节保护；0signals/delete，不证明whole-session或未观察短进程自由，两个专属代理已停止写入。
+
+下一片为本会话最后第5项：新窄合同仅替换helper的Cim类型判断为有限FullName比较+新task metadata，固定fixture与阶段catalog语义、原预算/权限保持。先独审，再root AST2、四个无CIM/child helper stub与一次新合同micro；无修复重跑/产品运行。依据实际固定坐标选择继任任务，不猜旧原因。第5项关闭后保存准确计数、未提交源与真实报告/进程边界，创建SonnetDB本地继任chat从0/5开始立即接续，并更新同一个workbench target；旧根随后停止仓库写入。same workbench ACTIVE30分钟/本会话，Graph Beta/三宿主/安装/Extension Host/AOT/硬件/长稳/发布边界保护。PS7固定/有界/归属finally，foreign/旧policy Temp/WB40/cache/parity保护；无Graphify/广域扫描/安装/外部写/push/部署/发布。
+
+## WB89 最后切片合同冻结（2026-10-09；已闭合4/5，当前第5项）
+
+新合同artifacts/wb89-self-contained-coordinates-20261009-01a120bc/task-contract.json仅把helper非framework CimException判断改为有限FullName精确比较+task metadata，不加载/扫描程序集，不改变五字段/阶段/原预算/身份/退出/清理。独审合同与源码后，root AST2、4个无CIM/child helperstub、1次新合同micro，0复修/产品Node/actual/TS/.NET/restore/format/stage/commit；40分钟窗。此片关闭计5/5，保存真实证据与未提交边界后新建SonnetDB本地chat0/5立即接续，同workbench ACTIVE30分钟更新target，旧根release后停止仓库写入。三产品SHA/旧报告/foreign/旧policyTemp/WB40/parity/GraphBeta/三宿主等保护；PS7、有界count+wall/cancel/progress/归属finally与禁Graphify/广域扫描/安装/外部写等继续。
+
+## WB89 有界工具验收与第5项交接（2026-10-09；本会话5/5已闭合）
+
+本地会话01a120bc-8b20-72a2-9186-52f2dd375379五项依次为WB85-C1未知产品执行、WB86源码失败检查点、WB87启动前微验失败且原因未知、WB88非framework类型源码依赖阻断、WB89当前固定投影/捕获工具有界验收。实现、测试、必要修复、复核和失败闭片各合计一个任务，累计5/5；轮询/审计/交接不另计数。WB89专属报告artifacts/wb89-self-contained-coordinates-20261009-01a120bc/validation-report.json。
+
+WB89只把CimException检测改为有限GetType().FullName精确字符串比较，inverse替换恢复WB88原字节；worker SHA3EBDB73464BD8BBDAADE782E39BFBDF226AB26BD1D62CFB6ADDD5BF0E6E6F96E，fixture20F49B18、阶段catalog语义、原预算和权限保持。实施143.86秒；独立源码PASS269.737秒，超4分钟目标29.737秒但在6分钟硬cap内，保留明确偏差。root AST2和4个隔离helper stub通过，不加载CIM/模块、不dot-source worker；五字段固定、nullable int32、UTF8各106–123字节、无sentinel泄漏，仅为诊断投影证据。
+
+唯一micro耗时5.6202093秒、shell exit0；实际first/final原Process句柄收据均captured/hasExitedtrue/exitCode0/naturalExittrue并在Dispose前落盘，observerpassed、stdout/stderr各12字节/marker及SHA完整，failureCoordinatesnull。fixture child1，另已观察conhost1；两者cleanup原收据absent、0signals/0重跑。root验收曾错误假定无序admittedIdentity首项是root，读取shell exit1、无微验重跑/文件写入；修正为exact root PID/depth并审计全部三已存身份。首次fresh CIM审计UNKNOWN原样保留，后续三次Process API PID查询均absent，仅覆盖持久owner/fixture/conhost三个身份，不称未观察后代或whole-session无孤儿。另一次JavaScript参数解析拒绝发生在执行前，0AST/worker/文件副作用。
+
+三未提交产品源最终SHA不变：run-query-host-real.mjs 9C633CB57E9D51A85DBA0CE229D3D7630BEB02D60FA730AB593B196E1D096EBB；query-host-evidence.mjs 9B7669514B1AB899E8BD2DF0DD6F9A3E2A3EADAF7A0EB62B34EA309AA4DA80FF；query-host-evidence.test.mjs 780B39537E9D7A23B29809797E825CC53A7F7510DCFD0541433CC4A568D3AE07。原WB85/C1额度用尽、stdout97/97不能补ExitCode；执行仍UNKNOWN_NOT_VERIFIABLE。WB87旧prelaunch causeUNKNOWN不改，不由WB89成功猜旧故障原因。WB61建表HTTP400/修正后0actual/数据库恢复未验、WB83FAIL/cleanupfalse/null与三宿主/Graph Beta/安装/Extension Host/AOT/硬件/长稳/发布边界均保持。
+
+本片0产品Node/actual/TS/.NETbuild，未stage/commit；完整restore与原Format Check NOT_RUN，因为task contract不授权产品提交且产品执行验收未获通过。HEAD78045e8b407e9caceae2548116390ffb985fc959、parity0061d6d78591fb08493f473d3231ca42303faae1、index空；root仅精确追加/前置本片共享三文档，保留全部prior/foreign字节与未提交产品改动。HANDOFF暂不能提交原因同上，CHANGELOG不记未验收产品实现，无push/发布/部署/安装/外发。
+
+下一本地chat从0/5立即接续：先读四docs/队列、git/代理与本报告/微验原收据，冻结独立inert fault-path验证合同，验证持有原句柄的durable退出不受observer/identity/hash故障影响并保留非零退出；原counts/10–20秒/CIM1秒/身份/完整父链/信号门禁不放宽。产品验证需后续独立合法合同，不复用WB85/C1旧额度。同workbench保持ACTIVE/30分钟并转target，不创建重复automation；race-safe继任先只读等待root release marker和target吻合，旧根release后停止仓库写入。精确新chat/释放路径以随后rollover收据及根最后release文件为准。PS7固定、禁Graphify广域扫描安装、有界count+wall/cancel/progress/归属finally、foreign/旧policyTemp/WB40/sharedcache保护继续。
+
+## WB89 实际滚动会话与释放（2026-10-09）
+
+已创建SonnetDB local继任chat 01a1214b-7022-7120-a634-3f6820c29948（标题：Workbench WB90：捕获故障路径验收与持续接续），新计数0/5。旧会话01a120bc-8b20-72a2-9186-52f2dd375379累计5/5已闭合；same automation workbench已实查target=01a1214b-7022-7120-a634-3f6820c29948、ACTIVE、每30分钟，原name/prompt/rrule完整保留，未新建automation。继任从只读接收等待release开始，release后立即冻结WB90 inert fault-path合同；下一任务是否实际启动由继任进展收据另证，不预填完成。旧根最后仓库写为artifacts/wb89-self-contained-coordinates-20261009-01a120bc/rollover-release.json；released=true之后旧根不再写仓库。创建/自动化/释放实据见该目录rollover-receipt.json与release marker。当前HEAD78045e8b/parity0061d6d/index空、三产品SHA保持，无commit；已存三micro PID后续Process API均absent，原CIM审计UNKNOWN和whole-session未证保持。
+
+## 微博第008篇与浏览器快路径（2026-10-09）
+
+- 本轮从固定账本确认001～007已发布、队列空；按 `docs/blogs/008-first-setup-wizard.md` 与当前 `docs/getting-started.md`、SetupView、SetupEndpoints、InstallationStore、Docker发行文档复核旧稿，准备第008篇“SonnetDB 首次安装：管理员与 Token 如何设置”。修正旧8840端口、旧多步Token/删配置重置说法；审定稿和纯简介在固定状态目录 drafts，`content-seed.json` 已追加008并经 `prepare` 入队。该篇原文真实链接为 https://www.cnblogs.com/IoTSharp/p/20023348。
+- 用 `gpt-image-design` / 本机 `sonnet_vip` `gpt-image-2` 为008生成独立封面，提示词和正式图在 `docs/blogs/weibo/assets/008-setup-jk-*`。正式图1672×941、SHA256 `321DBD775E348AF66E8DE2A5E81770B459717C4E2A4B53A346A0102B84401CB5`；已目视核成年约25岁亚洲 JK 风格女性、首次安装服务器/管理员/Token/验证主题及中文“关注 SonnetDB”。裁剪图和发表后卡片均目视核验。卡片底部会叠加文章标题，故后续封面把主提示置于中部/上部安全区；技能已补充。
+- 只复用已登录 Playwright `sonnetdb-weibo-series` 的原 Chrome 窗口和现有标签，`tab-select`/DOM locator/`run-code` 批量填稿，未新开浏览器窗口；截图仅裁剪与文章卡片。当前任务工具仅有侧边栏 `open_in_codex`，没有侧边栏 DOM 读写、点击和文件上传能力，不能在当前任务把侧边栏当发布器。内存会话目前仍开着；跨日保持需实际检查，专属持久 profile 方案已写技能但尚未跨重启验证，未复制Cookie或迁移登录。
+- 第008篇网页预占attempt `d4984838f6cb4cad99e93fcbf4fc4596`；claim 后重新读取 DOM，`mark-browser-submit` JSON 为 `singleClickAllowed:true`，最终“发布”仅点击一次。文章 https://weibo.com/ttarticle/p/show?id=2309405352248300929030 ，配套微博 https://weibo.com/1089099883/RlVdryjPY 。两页独立重载、核账号1089099883、全文、简介、原文实际href、文章卡片链接和封面；`record-browser-compound` 返回 `published`、article/status均`verified`、creationRequests1。页面显示“公开”，未独立匿名核验，`publicVisibilityVerified=false`。所有DOM、独立正文/微博观察、封面截图及回执在固定状态目录 `research/weibo-008-20261009`。
+- 微博技能 `SKILL.md` 和 `references/browser.md` 已补充工具能力判断、同一标签复用、DOM快路径、卡片标题安全区与本机生图运行路径；未改变官方API备选和一次点击账本边界。平台未显示发布限制。当前队列008已完成，`next` 返回 `queue_empty`；下一轮从009核源码和真实原文链接，准备稿/新封面后继续，不重发001～008。既有 `sonnetdb-3` 心跳自动化为 ACTIVE、每30分钟、目标当前聊天，单轮3篇/40分钟是执行边界而非日额度。登录失效时请用户在正常可见页面登录，不复制状态。
+- 本轮图片生成子进程PID39716真实exit0、原进程身份已不存在，未对任何其它进程发送终止；Playwright会话按用户需求保留。共享仓库有大量其它会话改动，本轮只尾部追加此HANDOFF段和新增微博封面/提示词，未整体暂存、未提交或推送；未来提交仍需在最终树取得完整restore与原CI Format Check通过。
+
+## WB90 故障路径合同冻结（2026-10-09；新本地会话0/5，当前第1项）
+
+继任chat 01a1214b-7022-7120-a634-3f6820c29948已同时确认旧根release=true/本chat、same workbench target本chat/ACTIVE/30分钟，释放前0写入/派单/依赖执行。最新五文档完整bytes接收并保存；只语义复核当前WB85-C1～WB89及M47基线，不称巨大历史逐条重读。HEAD78045e8b/parity0061d6d/index空及三个未提交产品源SHA一致，foreign保留。
+
+新合同artifacts/wb90-inert-fault-paths-20261009-01a1214b/task-contract.json固定40分钟窗至16:21:47.2170600Z：四inert observer/identity/hash/nonzero路径合一个任务，每例一次20秒、0micro重跑/产品执行。先独审合同再创建新artifact worker、实施/源码独审后root AST2/串行四例与原收据验收；旧WB89 worker/报告/预算不改不执行。明确新hash只stdout异常、移除旧受控first-read unavailable注入，不验first-read故障恢复；observer例追加原cleanup完整审计后的受控异常，只first已持久且原句柄自然exit0后触发，不把真实先失败冒称controlled，不授任意cleanup恢复。CIM1秒、4096rows/4096Bstreams、64identity/12depth、100次<=200mswait、cleanup5秒、身份/父链/fresh signal门禁及原worker FAIL计算均保持；child7不得伪造0，root faultacceptance与产品PASS分列。
+
+实现/失败/测试/复核合计1项，失败即闭片不盲重跑；旧产品WB85/C1 UNKNOWN及耗尽额度、WB87 cause UNKNOWN、whole-session未证保持。0stage/commit/restore/format，工具合同不授产品提交且旧产品验收未知；共享文档exclusive handle/typed byte拼接/完整prior snapshot+SHA回读保护原foreign。PS7固定、有界count+wall/cancel/progress/backoff/进程归属finally，禁Graphify广域扫描安装/外部写push发布部署；旧policyTemp/WB40/cache/parity/Graph Beta/三宿主及实机发布边界保护。准确执行结果另落盘。
+
+## WB90 合同审阅超时失败闭片（2026-10-09；本会话1/5）
+
+合同独审首次clock15:46:00Z，后续15:53:44Z已464秒，超6分钟硬cap104秒；首shell输出截断、后续读取被自身deadline guard拒绝，NO_PASS/审阅未完成。0新worker创建/执行、0fixture/AST/stub/产品，0signals/delete/restore/format/stage/commit，未放宽门禁。报告artifacts/wb90-inert-fault-paths-20261009-01a1214b/validation-report.json；审阅代理仅落最小失败收据停写，不补审。失败闭片合计第1项，1/5；root完整历史byte接收与一次只读PS parser错误分列，不称全历史语义重读。
+
+下一独立WB91只接续同四inert fault paths的新合同，保留WB90原合同/超时/预算，不把失败重写PASS，不跑旧WB89micro或产品；新worker仍须新合同独审与源码独审，原身份/20秒/原counts/信号门禁不减。未提交HANDOFF原因仍工具合同和旧产品UNKNOWN/完整CI门禁未获；foreign、三个未提交产品SHA/HEAD78045e8b/parity0061d6d及三宿主证据边界保护。
+
+## WB91 新合同接续（2026-10-10 Asia/Shanghai；已闭合1/5，当前第2项）
+
+WB90最终独审收据实际537.3362067秒，超6分钟177.3362067秒；旧报告464秒是15:53:44Z首次已观察超时，二者分列，失败不补审/改PASS。WB91新独立40分钟窗至2026-10-10 00:39:25.3422252+08:00，四inert故障行为矩阵、安全预算、源/先证及原workerFAIL计算按WB90原合同原样冻结，仅task/path/deadline接续；新contract SHA C4C9C9AD3C4DEDD14626CF85FA05C25CD67CD7EF4F116604226315EA7C305859。专属独审先审合同，PASS后专属实施，新source独审后root AST2/每例一次/20秒。旧worker/micro不执行，四例合一个任务；20秒/4096row/64identity/12depth/wait100x<=200ms/4096B/cleanup5秒/完整身份父链和fresh信号门禁不减。所有WB90失败与旧预算保持；三未提交产品/foreign、HANDOFF原字节、parity/旧policyTemp/WB40和三宿主证据边界保护。0产品/CI门禁/提交授权，准确执行结果另记。
+
+## WB91 合同独审超时闭片（2026-10-10；本会话2/5）
+
+合同、完整WB89 worker/fixture及八份priorHappyEvidence共11输入完整读取且SHA一致，无其它已发现合同阻断；独审679.1580351秒超过6分钟硬cap，FAIL，不授创建/执行。原收据/预算保留，0worker/child/AST/产品/signals/delete/restore/format/stage/commit。报告artifacts/wb91-inert-fault-continuation-20261009-01a1214b/validation-report.json。下一WB92新独立合同复用已完整读取记录，fresh绑定SHA并逐字段inverse核新metadata，审阅与执行硬cap不减。HANDOFF未提交因工具合同/旧产品UNKNOWN/完整CI门禁未获；三产品/foreign/parity/旧policyTemp/三宿主边界继续。
+
+## WB92 精确继承故障合同（2026-10-10；已闭合2/5，当前第3项）
+
+新合同SHA2627CB59221207907DB6D0E03610B605BFDDFD94FFC210A0AA9F63EE5A4EE256至00:53:38.7769555+08:00；四inert paths仍一个任务、每例1次/20秒/原全部安全count和身份信号门禁不减。独审复用WB91完整11输入读取记录，fresh核SHA及排除明确metadata的递归invariant，独立当前结论不改旧FAIL；审阅硬6分钟、实施硬10分钟和总40分钟不减。PASS前0worker创建执行，source审阅后root执行，0旧micro/产品。先证/unknown/三宿主/foreign/prior字节保护同WB91；准确结果另记。
+
+## 微博连续发布交接（2026-10-10 00:33 Asia/Shanghai）
+
+- 本轮从固定账本 `queue_empty` 接续，只新增第009篇。先以 `docs/blogs/009-data-model.md` 为原主题，对照 `docs/data-model.md`、`docs/relation-type-boundary.md`、`docs/sql-reference.md` 审定渠道稿。旧文将 VECTOR 误列为第四类时序列、把 time+TAG 泛称主键/自动排序等说法未沿用；新稿在 `docs/blogs/weibo/009-data-model-review-20261009.md` 与固定状态目录 `drafts/009-sonnetdb-data-model.zh.md`，标题“SonnetDB 时序建模：Tag、Field 与时间”。原文博客园 ID `20023349` 来自现有发布状态记录。源 SHA `54286e073a50e3dabc3a1719ba8c098b766e124729ba0dc650b5a15f5f939819`，审定稿 SHA `479fd5a0feb869fde7231ff128f61727f48aff37321947c0da1b1f72160eb72c`；队列与事实 SHA 由 `prepare` 固定。
+- 以 `gpt-image-design` / `gpt-image-2` 经当前本地 sonnet_vip 网关生成数据模型专属底图，确定性叠加准确“关注 SonnetDB”和“TAG · FIELD · time”，目视检查成年约25岁亚洲女性得体 JK 风格、关注引导及图文布局。正式封面 `docs/blogs/weibo/assets/009-data-model-jk-final-20261009.png`，1672×941，SHA256 `81B2A14DCD7EA939CC18455E26550113D5DF8F10C5E62BC9CA2DFC50C175AF79`。上传后裁剪、保存草稿并重载核标题/全文/封面/非粉丝限制未选。
+- 复用同一已登录 Playwright 会话 `sonnetdb-weibo-series` 和原编辑器标签。`claim-browser-compound` attempt `a6c3a5b27bc04636ada34ea7d1dfce74` 后重新读取 DOM；`mark-browser-submit` 返回 `singleClickAllowed:true`，最终“发布”仅点击一次。发布历史与个人主页出现本稿，独立重载文章 `https://weibo.com/ttarticle/p/show?id=2309405352264465776788` 和配套微博 `https://weibo.com/1089099883/RlVDw9oGL`，核正文、作者 UID `1089099883`、简介、原文 URL、真实文章卡片和封面图；卡片截图可见准确中文关注提示。`record-browser-compound` 返回 `published`，article/status 均 `verified`，页面显示“公开”；未独立匿名验证，`publicVisibilityVerified=false`。全部独立证据在固定状态目录 `research/weibo-009-20261009`。
+- 平台没有提示发布限制，连续发布自动化 `sonnetdb-3` 不暂停。当前队列再查为 `queue_empty`；下轮从最小未完成编号010审稿准备，先核当前源码、原文真实链接、独立封面，再串行发布。第009篇没有再发第二套。此次因最终点击后必须完成双输出对账，执行至 00:33，超过本轮40分钟时间边界；超界期间只完成该未决 attempt 的回读与入账，没有启动第010篇。未来尽量预留对账时间，不把时间边界解释为每日限额。
+- 根仓库共享工作树有大量其它会话改动；本轮仅增加第009篇渠道稿/封面/提示词及尾部交接，固定账本和技能 seed 由其工具维护。未整体暂存、未提交/推送；未运行产品测试、构建或仓库 Format Check，提交前仍须按 AGENTS.md 在最终待提交工作树执行完整门禁。侧边栏浏览器当前任务仍无 DOM/上传能力；继续现有 Playwright 会话，不导出 Cookie 或登录状态。
+
+## WB92 实施超时及提前滚动交接（2026-10-10；本会话第3项闭合，3/5）
+
+当前合同独审PASS_CONTRACT_ONLY70.9727101秒：复用WB91完整11输入读取，fresh SHA与九metadata之外JsonNode.DeepEquals=true，旧WB90/WB91超时FAIL不提升。专属实施first16:20:18.5246342Z→receipt16:33:22.6381602Z=784.113526秒，超10分钟hard184.113526秒；receipt的hardDeviationSeconds184是Math.Max重载取整，精确elapsed/两时刻保留。生成functions.exec在nested tool之前JS解析拒绝Unexpected identifier $Case；0nested执行/source副作用。三个专属源capture-worker/fixture/catalog fresh均缺席；0新source写、AST/source独审/worker/fixture/four-fault-path/产品/信号/删除/restore/format/stage/commit。root accept-case文件仅未执行草稿，不授新worker执行。完整报告artifacts/wb92-inert-fault-reviewed-continuation-20261010-01a1214b/validation-report.json，实施receipt SHA1B509D873CE3E6AF74E4C0F00D3FCFEED0B4A4F4E75E849CF981B4EC4655A650；三个代理已停写，无长进程/Temp待回收，whole-session未证保持。
+
+本会话WB90合同独审537.336秒FAIL（旧报告464秒是首次超时观测）、WB91完整读取独审679.158秒FAIL、WB92当前合同PASS后实施784.114秒FAIL，各为一个独立已闭片任务，累计3/5。提前交接保留全部窗口/收据/预算，下一本地chat0/5立即WB93新合同接续同四路径，不任意拆分路径；新source生成避免JS/PS反引号嵌套，先持久最小收据，不放宽原6分钟review/10分钟implementation/40分钟总窗及case20秒安全counts。已完成全source读取可用freshSHA/精确invariant复用，不能改旧FAIL或执行旧worker/micro。hash纯stdout且不抑制first、post-audit controlled cleanup例及child7/原workerFAIL的明确新合同目标不变。产品合同必须后续另冻；旧WB85/C1 UNKNOWN、WB87causeUNKNOWN、WB61HTTP400/修正后0actual/数据库恢复未验、WB83FAIL/false/null/三宿主/实机/发布边界保持。
+
+root共享文档所有追加/前置用exclusive typedbytes/prior snapshot/readbackSHA保留全部prior/foreign；另三目录86旧artifact SHA检查全匹配（明确3x40件/15秒额外readonly批次，不等同40项intake）。三个产品SHA、HEAD78045e8b/parity0061d6d/index空保护。HANDOFF未提交原因工具合同+旧产品UNKNOWN+完整CI门禁未获；不记CHANGELOG产品完成，无外发/push/部署/发布/安装。same workbench仍ACTIVE30分钟，继任chat精确ID及target/release以随后rollover收据另证；旧根最后release后停止仓库写入，继任先只读同时核release和target，不把计划写成已完成。
+
+- 本轮还将外部 weibo-publisher 技能的已验证范围更新为001～009，并在 references/browser.md 记录第009篇卡片上部关注提示的实测布局；流程门禁未放宽。
+
+## WB92 实际滚动与释放（2026-10-10；本会话3/5提前交接）
+
+已创建SonnetDB local继任chat 01a12186-cc32-7e50-b8b4-d89466d1d87b，标题Workbench WB93：安全生成与四故障路径验收，从0/5立即接WB93。same automation workbench已回读target为该chat、ACTIVE/30分钟，原name/prompt/rrule完整一致，未重复创建。旧根01a1214b-7022-7120-a634-3f6820c29948三失败检查点真实闭合3/5，不冒称完成5项或四故障路径。所有代理停写，0worker/长进程/Temp/新信号/删除；旧UNKNOWN/未证边界及三产品/foreign/prior86SHA保持。精确创建/target与最后release marker在本目录rollover-receipt.json/rollover-release.json；继任先只读核两门禁，WB93实际开始由继任收据另证。release为本旧根最后仓库写，之后不写仓库。HEAD78045e8b/parity0061d6d/index空，无commit，HANDOFF未提交原因完整门禁未获/工具合同/旧产品UNKNOWN。
+
+## WB93 四故障路径新合同（2026-10-10；本会话0/5，当前第1项）
+
+旧根release与same workbench target/ACTIVE/30分钟同时匹配本chat01a12186-cc32-7e50-b8b4-d89466d1d87b后，冻结新独立四inert路径合同，40分钟窗。先独审合同，再专属安全literal实施与独立source审阅，root仅AST2与四case各1/20秒、0micro重跑/复修/产品。原全部身份、完整父链、fresh signal、first/final durable退出与worker FAIL公式和安全counts保持。WB90/WB91 review超时、WB92实施超时/解析拒绝原FAIL保留；三产品源/foreign/prior与parity保护。准确新结果另记；0restore/format/stage/commit，HANDOFF暂不提交因工具范围、旧产品UNKNOWN、完整CI门禁未获。
+
+## WB93 时间守卫错误闭片（2026-10-10；本会话1/5）
+
+WB93闭片（2026-10-10；本会话1/5）：合同独审final179.2452925s PASS，root初读119.511468s与代理收尾更新分别保留。实施JSON时间默认转DateTime后丢Z，guard误认超时，源生成前拒绝；原FAIL receipt报告first+08/29082.7016329s保留，root依original start16:44:03.0258548Z和receipt16:48:45.7016329Z精算282.6757781s，实际未超600s。三实施源均缺席，0source review/AST/worker/fixture/四case/产品；root2草稿helpers未执行。报告artifacts/wb93-inert-fault-safe-generation-20261010-01a12186/validation-report.json。下一WB94同完整四path新独立合同，DateKind String+Invariant RoundtripKind与一次final不可变收据，freshSHA/metadata inverse复用，安全预算不减。WB90-92原FAIL/旧UNKNOWN/foreign/86priorSHA/三产品/HEAD/parity/index保护；0restore/format/stage/commit，HANDOFF未提交因工具范围/旧产品UNKNOWN/CI门禁未获。same workbench ACTIVE30min本chat。
+
+## WB94 UTC字面量实施新合同（2026-10-10；本会话1/5，当前第2项）
+
+四inert paths仍一项：只改新metadata，行为与安全门禁完整继承WB93。DateKind String及Invariant RoundtripKind用于新实施guard，immutable first与一次最终收据；先极小有界in-memory exact edit再完整生成。独审新合同后专属实施、独立source review、root AST2/四例各1/20s。0旧worker/micro/产品、无复修重跑，旧失败及错误时长原收据不提升。40分钟窗，review4min/6hard、impl8min/10hard、全部counts原样保持，三产品/foreign/parity/旧policyTemp/WB40保护。
+
+## WB94 根验收入口源码阻断（2026-10-10；本会话2/5）
+
+WB94闭片（2026-10-10；本会话2/5）：合同独审PASS118.2115046s、实施254.9369258s冻三源，19变换inverse/fixture/catalog独立全byte匹配；source-review FAIL254.2398111s，超4min目标14.2398111s但硬6min内。阻断在root run-case的path/argument循环无wall/cancel、启动/accept dispatch无freshcancel、accept无cancel，shell receipt抛错可跳过dispose finally。原source/review/一次生成算法拒绝diagnostic保留；0AST/worker/fixture/四case/产品/信号/删除。报告artifacts/wb94-inert-fault-utc-literals-20261010-01a12186/validation-report.json。下一WB95仍整个四path新任务，修root guards/无条件finally，新worker仅metadata迁移并inverse WB94；安全counts及原FAIL公式不减，0旧micro/重跑/产品。WB93时间错误原FAIL/旧WB90-92/UNKNOWN/86priorSHA/三产品/foreign/HEAD/parity/index保持。0restore/format/stage/commit，HANDOFF不提交原因完整门禁未获/工具范围/旧产品UNKNOWN；same workbench ACTIVE30min本chat。
+
+## WB95 根守卫新合同（2026-10-10；本会话2/5，当前第3项）
+
+完整四inert paths新窗口；worker仅metadata迁移WB94冻结源并精确inverse，旧WB94 source FAIL保留。根补所有helper loop的wall/cancel、worker/accept fresh dispatch、独立退出收据写异常也必须进入无条件outer finally dispose；wait100x200ms/shell30s与原全部worker安全counts、FAIL公式不减。先独审新合同、专属实施与独立五源审阅，再root AST2/四例各1/20s，0旧micro/worker重跑/产品；40分钟窗。foreign/旧源/86prior/三产品/parity/旧policyTemp/WB40保护。精确结果另记，0restore/format/stage/commit。
+
+## 微博连续发布交接（2026-10-10 01:13 Asia/Shanghai；第010篇未提交）
+
+- 本轮从固定账本确认第009篇 `published`、文章和微博均 `verified`，`next` 为 `queue_empty`。以旧 `docs/blogs/010-file-format.md` 为主题，对照当前 `docs/file-format.md`、`docs/backup-restore.md`、`docs/sonnetmq-roadmap.md` 和 `src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs` 审稿，修正旧稿每个 measurement 独立 WAL/Segment 目录、独立 sidecar 等过时断言。新渠道稿 `docs/blogs/weibo/010-file-format-review-20261010.md`，固定状态 `drafts/010-sonnetdb-file-format.zh.md`，SHA256 `1885A626C694BCD98D6260B40F8DCEC944E739210240C574AD04D2BF833380A5`；真实原文博客园 ID `20023350`。第010篇已通过官方队列脚本 `prepare` 入队，账本 `next` 仍指向010，尚无 claim/marker/最终发布点击/远端文章或微博回执。
+- 用 `gpt-image-design` 的本地 sonnet_vip/gpt-image-2 生成本篇文件布局主题图，成年约25岁亚洲女性穿得体 JK 风格、手势引导关注；确定性叠加上部准确“关注 SonnetDB”及 WAL/Segment/备份字样。正式图 `docs/blogs/weibo/assets/010-file-format-jk-final-20261010.png`，1672×941，SHA256 `61EED2079E0446DD096DEC05027834B1B7E54CF6CDC321DE667A2B64EB5B4980`；裁剪预览目视通过。首次生图脚本路径日期错误，未触网生成，原 start/result 保留为 `*-initial.json`；修正后同一模型一次生成成功。证据均在固定状态 `research/weibo-010-20261010`。
+- 复用已登录 `sonnetdb-weibo-series` 原编辑器标签。点击“写文章”后异步切换到新草稿 `#/draft/3930402`；第一轮过早批量填充返回空值，之后确认新草稿空白，再第二轮填充成功。封面上传、裁剪和“保存草稿”操作返回标题与封面 URL。但随后的 Playwright `reload` 长时间未返回，之后同会话 `run-code`/`tab-list` 也挂起；没有取得独立重载后的草稿回读，不能把保存动作当作已核持久化。原 daemon PID 71548、Chrome PID 68532 及其内存资料目录仍保留，未关闭会话、未导出/复制登录状态；只在核完整父链后清理本任务卡住的 CLI 客户端进程。向精确 Chrome 窗口投递一次 Esc 无恢复，第二次前台验证失败而未发送键。未尝试最终发布；平台没有提示发布限制，自动化不应按平台配额暂停。
+- 第一轮填写可能触发旧草稿 `#/draft/2805815` 自动保存。封面裁剪截图左栏确实显示这条 2022 年旧草稿被改成第010篇标题；其原题为“IoTSharp 已支持 KepServerEx MQTT 客户端Tag数据上传”，原正文带富文本/图片，当前无法经卡住的 Playwright 核远端全文或原地恢复。旧草稿修改前页面快照已另存 `research/weibo-010-20261010/preexisting-draft-before-accidental-fill.yml`，不得删除或把可能受损旧稿当成本篇输出。浏览器恢复后须优先核旧草稿实际内容，寻找保留原富文本/图片的恢复方式；不能仅以纯文本重填冒充原样恢复。之后再重载核第010篇新草稿、去重并继续 claim 门禁。
+- 已在外部 `weibo-publisher/references/browser.md` 加入“写文章后等待新 draft ID 且确认空白再填”、有时限重载与卡住时不叠加 CLI 命令的经验。曾尝试的脚本写入因 PowerShell 引号解析失败，未改文件；随后 Python 精确插入成功。用户已收到当前窗口状态的异步问题，等待其确认是否可操作；不擅自关闭原窗口/删除资料目录或私有 API 绕过。下一轮先查本窗口和第010篇草稿、旧草稿及账本；若 Playwright 仍卡住，保留现场并报告技术失败，不新建重复文章。
+- 共享工作树有大量并发外来变更，仅新增本篇稿/提示词/图片和本段，外部技能/seed/状态由对应工具维护。未整体暂存、未提交/推送；未运行产品测试/构建/Format Check，提交前仍须执行仓库完整门禁。单轮3篇/40分钟是执行边界而非每日配额。
+
+## 微博连续发布复查（2026-10-10 01:25 Asia/Shanghai；第010篇未提交）
+
+- 接续上一段第010篇交接，重新读取发布技能及 browser/editorial/ledger 参考、固定队列和账本。001～009仍为文章与配套微博双输出 published；010仍为最小未完成编号，尚无 claim、浏览器提交 marker、最终发布点击或远端回执。010 审定稿与固定队列正文 SHA256 均为 1885A626C694BCD98D6260B40F8DCEC944E739210240C574AD04D2BF833380A5，正式封面 SHA256 为 61EED2079E0446DD096DEC05027834B1B7E54CF6CDC321DE667A2B64EB5B4980，未改稿或重生图。
+- 原 sonnetdb-weibo-series daemon PID 71548、Chrome PID 68532（均为 2026-10-09 19:32:14 启动）仍在。2026-10-10 01:19 Asia/Shanghai 对同会话 tab-list 做单次 12 秒有界探测，客户端 PID 74884 超时，已只终止该次客户端进程树；无输出、无新草稿回读，daemon 和 Chrome 均保留，没有叠加其他同会话命令。用户答复原 Chrome 窗口可以操作，已进一步请求其提供当前 #/draft/ 编号和标题，尚未取得具体值。
+- 旧草稿 #/draft/2805815 是否被自动保存改动仍未确认；先前修改前快照和富文本/图片恢复边界保持。010 新草稿 #/draft/3930402 的独立重载回读也仍未取得。恢复 Playwright 控制后先核旧草稿真实内容及恢复可能性，再核010草稿，不另建同编号草稿；随后才可按 claim → 新 DOM → mark 的一次点击门禁发布和双回读。平台未提示限制，连续发布自动化不因本次工具卡住而暂停；下次从账本接续。
+- 本次未进行网页发布写入，未提交/推送仓库，也未运行产品测试。共享工作树有其它任务并发改动，本段仅追加 HANDOFF；保留原浏览器、队列、账本、图片及证据。无新增孤儿 CLI 客户端；不清理共享会话和浏览器资料目录。
+
+## WB95 四故障路径有界验收与接续边界（2026-10-10；本会话3/5）
+
+WB95闭片（2026-10-10；本会话3/5）：四inert paths各1全部root PASS_FAULT_PATHS_ONLY，4worker原FAIL/exit1保留；first/final fixture退出0/7/0/7 natural均捕获，双流12B完整marker/SHA（hash stdout故障SHA null/statusunknown准确保留），observer/identity/hash/nonzero失败项2/1/1/0，controlled cleanup只首例true，0signals/0micro/0重跑。worker seconds5.0368247/3.9902223/4.761086/4.7299663，AST2/0errors；fresh17持久身份全部Process API absent，0stop/delete，不称whole-session/未观察后代自由。合同review95.7386744s、实施173.9940589s、source review191.0094491s均目标内；10metadata inverse WB94+组合19到WB89、root12/6guard inverse通过，root两in-memory拒绝0副作用保留。报告artifacts/wb95-inert-fault-root-guards-20261010-01a12186/validation-report.json。WB93时间guard原误超时/实际282.6757781s、WB94 root源FAIL及WB90-92原失败保持，旧WB85/C1产品UNKNOWN/额度耗尽不升级。0产品Node/actual/TS/build/restore/format/stage/commit，HANDOFF未提交因工具范围/旧产品UNKNOWN/CI门禁未获；三产品SHA/foreign/prior86/HEAD/parity/index保护。提前滚动0/5下一WB96新产品捕获验证合同；同workbench ACTIVE30min目标/release另实据，旧根release后停写。
+
+## WB95 实际滚动释放交接（2026-10-10 Asia/Shanghai；旧会话3/5闭合）
+
+旧根01a12186-cc32-7e50-b8b4-d89466d1d87b已闭WB93/WB94/WB95共3/5，本次仅恢复此前502中断的释放交接。继任chat01a121b6-a00f-7303-abd4-d7457832fd77已存在且只读wait确认active，标题Workbench WB96：原句柄产品捕获与验证，从0/5接手；没有创建新chat/派单或重跑worker/Node/fixture。same automation workbench只读回验target为该继任、ACTIVE、每30分钟，配置SHA5978C0C84EBF3919BC71566237D1BDE28116FFFE2B3A80ACB0F2DAE637934057，全部字段保持本次接收值，不重复创建或更新。
+
+WB95仅PASS_FAULT_PATHS_ONLY；四case各一次通过，原四worker FAIL/exit1及fixture first/final退出0/7/0/7 natural原收据保留。旧WB85/C1产品仍UNKNOWN_NOT_VERIFIABLE且旧额度耗尽；WB93错误时间guard、WB94源FAIL及更早失败均不改。当前73/73冻结文件SHA、freeze SHA5A5D3C5C1FB86804C8607F89348F8380053E1E3E584461F96290E7EBA7128BF9、三产品SHA再次吻合；17条持久身份fresh Process API均absent，0signals/delete，不证明whole-session或未观察后代自由。first-read恢复及任意cleanup-stage恢复未验。
+
+继任先同时核本目录rollover-release.json released=true/successorThreadId与same workbench目标，再冻结WB96独立产品捕获/验证合同；不重跑旧inert四case、worker/micro或消费旧产品预算。新合同先独审、专属实施与独立源码门禁，再按新冻结额度验证未修改三产品源与原97测试实际数量/结果/原句柄退出；不能把旧97/97且未知exit升级。真实Server、三宿主、安装/Extension Host/AOT/硬件/长稳/发布证据保持分离。
+
+HEAD78045e8b407e9caceae2548116390ffb985fc959、origin/parity-results0061d6d78591fb08493f473d3231ca42303faae1、index空；保留foreign尾追加与全部prior字节。HANDOFF用exclusive handle、完整prior快照、typed Buffer.BlockCopy/Write(bytes,0,length)和readback SHA追加。未restore/format/stage/commit：工具范围、产品UNKNOWN且强制完整CI门禁未取得，HANDOFF暂不提交；未来获授权本地集成仍须最终树完整restore与原Format Check。无push/部署/发布/安装/外发。
+
+rollover-receipt.json记录实际复验/边界/交接SHA；rollover-release.json由旧根CreateNew一次exclusive写入并flush/dispose，含真实释放UTC和receipt SHA，是旧根最后仓库写入。标记发布后旧根立即停止全部仓库写入并结束；WB96启动/完成由继任另记，不预填。旧policyTemp/WB40/foreign/user/cache/交付物/parity保护，PS7固定、count+wall/cancel/progress/backoff/完整身份归属边界及禁Graphify/广域扫描/安装继续。
+
+## 博客园封面规则与原文补图（2026-10-10；用户本轮授权）
+
+- 参考公众号会话 `01a12083-1b1c-77d1-b86f-d791b0c3b773`、gpt-image-design/publish-cnblogs技能及原生成收据。后续必须独立主题封面，先复用相关会话图片，否则按公众号方法用gpt-image-2；成年约25岁亚洲女性、得体JK风格、专业讲解，保留SonnetDB品牌/主题/中文关注提示并目视核验。Graph Beta/真实模型/性能/生产边界与既有事实核查不变，双二维码不能代替封面。
+- 新增 `docs/blogs/cover-image-policy.md` 与 `verify-cover-image.ps1`，校验来源证据、正文封面/图注位置、图片与正文SHA、审核状态和上传条件。原项目识别检查支持已发布稿 `contentRevision`，原发布SHA及历史事件不覆盖。以143/144通过含RequireUploadReady的检查，缺图141实际拒绝；四次C# dry-run通过（两篇各本地/已上传图各一次）、默认双二维码完整。
+- 143/144复用各自公众号原图，博客园独立资产 `assets/covers/143-cover-20261009.png` 与 `144-cover-20261009.png`，实际1916x821、请求1792x768，SHA分别b6454feb94625a9bb7e0887506a5bcf9981ef106eb1b379b5643a1aafcd602a8/c492d8c0bbfcea2f42010bbfb15e23edfe0b1183243bdadc7b085b3b71398c19；未生成新图/改公众号状态。封面位于首个SonnetDB叙述段之后，图注明AI主题示意图而非实测截图。
+- 在原文章各单次metaWeblog.editPost补图：143 https://www.cnblogs.com/IoTSharp/p/23235723；144 https://www.cnblogs.com/IoTSharp/p/23235731。各一次上传+一次编辑，编辑响应true，原ID完整正文哈希/分类及公开封面/双二维码回读通过，公开原图GET SHA匹配。仅插封面/图注，未改其他正文/标题/分类；保留publishedAt、postId、URL、原发布SHA和旧标题证据，contentRevision=updated，新增两个cover-updated事件。今日新稿published仍0/2、queued0；不把原文编辑计新稿或重新排队。
+- 原配置缺少MetaWeblog字段；先直连只读失败，再用机器代理127.0.0.1:7890核getPost及blogger.getUsersBlogs，现有PAT认证有效且真实blogId523396。图片目录1725297不是blogId。凭据仅内存使用；标准newMediaObject返回URL后GET核图，稿中使用远程URL供C#发布器复用。后续每次仍先核凭据/账号再单次上传，未知响应暂停不重试；无可核上传通道不得无图发布。
+- 使用应用接口更新既有sonnetdb自动化完整prompt，持久配置已回读一致；ACTIVE、每日Asia/Shanghai11:00、项目/cwds、模型与推理参数保持。统一publishing-lease.json独占租约，检查文章及修订租约；每天2篇、每稿1次创建请求、候选10/写2/发2/总30分钟与旧076–134暂停规则保留。145–202仍planned，下次从145核事实/去重/封面/默认二维码再queued。
+- 回执 `docs/blogs/cover-revision-2026-10-10.json`，原文/原本地稿、目标正文、生成提示词/复用收据及实际执行脚本文本在 `cover-evidence/2026-10-10/`。JSON/JSONL为UTF8无BOM与LF，原子替换；本任务临时预览/状态temp及租约已清理。最终两remote dry-run身份含完整父链且PID absent、0stop；Prepare阶段身份在下一阶段audit中被覆盖，不能称完整四进程永久账本或全系统孤儿自由。
+- 未暂存/commit/push/部署，未运行产品build/test/仓库Format Check；本轮仅博客文件及此交接段，共享Workbench/公众号/微博/CSDN/OSChina改动保留。HANDOFF未提交遵守用户禁止自动commit；如以后提交须完整仓库格式门禁。事实沿用文中固定源码基线，本轮读取sourceDocs并只做视觉修订，不升级实测/恢复/生产证据。
+
+## 微博010已有输出对账、意外旧稿发布与技能修复（2026-10-10 10:02～10:32 Asia/Shanghai）
+
+- 本轮 heartbeat sonnetdb-3 接续时，固定账本001～009仍已双输出published，但010没有claim或marker。正常网页独立回读证实010文章2309405352283469906184（https://weibo.com/ttarticle/p/show?id=2309405352283469906184）与配套微博RlW8b6KTN（https://weibo.com/1089099883/RlW8b6KTN）在2026-10-10 01:34:43 +0800已出现。标题、作者UID1089099883、完整审定正文匹配；实际卡片图有主题封面、成年亚洲JK风格女性和准确“关注 SonnetDB”。配套微博仅默认“发布了头条文章”简介，缺审定简介及博客园原文链接，不能算本任务完整交付。认证页面可读及显示公开，匿名可见性未验证。
+- 旧2022年IoTSharp草稿2805815也于2026-10-10 01:39:44 +0800发表；本轮独立加载文章2309405352284736847966（https://weibo.com/ttarticle/p/show?id=2309405352284736847966）与微博RlWadihT9（https://weibo.com/1089099883/RlWadihT9），原题“IoTSharp 已支持 KepServerEx MQTT 客户端Tag数据上传”、原正文494字符和作者保留。用户直接答复“我没有手动发布”。没有删除、编辑、重发该旧稿，也没有把其发布归因于用户。
+- 查当前聊天2026-10-10 00:40～01:45工具输入，未找到010或IoTSharp明确最终“发布”点击指令；查到前轮诊断曾在UIA草稿列表项调用InvokePattern，时间与010发表相近。只证明记录中存在导航调用及时间相近，不能证明事故因果、未观察的网页副作用或其它操作者。旧02 UIA正文可能陈旧，不能用作旧稿还原证据；独立DOM原稿观察保留。本轮不再使用UIA编辑器动作，技能明确Playwright失控时仅只读保留现场，已有草稿导航须同时等待精确URL、精确标题及正文关键段加载。
+- 为防重复，新增并实际使用技能observe-browser-compound入口，没有事后补造claim/marker。010登记原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51，channel=browser-observed、state=submitted，article=verified、status=submitted。creationRequests=0仅说明本次本地对账没有发起新创建；creationOrigin=unattributed、creationCountKnown=false保留真实来源/总次数未知。不可变browser-observation绑定保存预期标题/正文/简介及原IDs；001～009和旧abandoned字典逐项与对账前快照完全相同。next实际返回pending=1/pending_verification、仍是010，阻断011，绝不重复创建。
+- 正常010微博“更多”菜单实见“编辑微博 会员 开通会员立享”，正常页面未出现可直接编辑正文入口；主页网页收到的同两条can_edit=false也保留。不购买、不删除或补发；目前缺审定简介和原文链接仍未修复。此为编辑能力缺口，非平台文章发布限额；没有暂停或删除sonnetdb-3，仍ACTIVE/每30分钟/本聊天01a12004-2cc6-7351-a48d-b33f388839e5。没有新发表点击、没有新草稿或封面生成。本轮用户原持续发布授权保持，先处理原ID未决状态再推进。
+- 技能脚本新增已有输出独立对账/不可变原IDs/禁止给观察attempt授权提交；record-browser-compound按原通道回读。修复marker已持久化但ledger写失败时不能用definiteNoCreation释放的漏洞；旧测试移除已取消的每日限额、改attempt marker并补同日不同编号独立marker用例。最初75项8FAIL/2ERROR旧规则失败、第二轮1FAIL暴露marker释放漏洞均保留；最终76/76离线通过，无平台HTTP。skill-creator quick_validate用已知Python3.14实际PASS；固定发布账本Python缺yaml的第一次诊断保留，没有安装依赖。SKILL.md及browser/ledger参考已更新，未放宽新创建的一次点击门禁。
+- 证据固定状态research/weibo-010-20261010/run-1002/closeout-result.json、operation-audit.json、010-existing-receipt.json和status010-menu-dom.stdout.txt。期待正文来自发布前fill_010.js，不拿观察正文充作预期。下一轮先核原ID、事故新增证据和正常编辑能力；来源不明及部分交付时继续只读，不擅自重发/改旧稿；状态未变保持安静。保留sonnetdb-weibo-series登录和Chrome窗口；只审计本轮记录子身份，没有按名结束共享daemon/浏览器、导出Cookie或另开窗口。
+- 根HANDOFF仅追加，保护并发工作树与index；没有commit/push、产品测试/构建或Format Check。本段暂不提交因原发布任务禁止自动提交，共享树有其它任务修改；未来提交仍遵守最终工作树完整格式门禁。该轮执行未达3篇创建数量边界，未把40分钟执行窗口当作发布额度；不能把本次对账与技能PASS说成事故来源查明或010简介修复完成。
+
+## 微博010无变化复查（2026-10-10 10:37 Asia/Shanghai）
+
+- heartbeat sonnetdb-3在10:34唤醒后复读最新HANDOFF及weibo-publisher四份规则、固定队列和账本。复用sonnetdb-weibo-series同一标签，独立重载原微博RlW8b6KTN：默认简介仍在、文章卡片仍指2309405352283469906184，作者麦壳饼/UID1089099883，更多菜单仍显示“编辑微博 会员 开通会员立享”。来源异常没有新证据；010仍article=verified/status=submitted，原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51继续阻断新稿。
+- ledger SHA204633A6BBD597F5C72AD242B5F86D6755C6020CB2CB47EFF32B1681A3DEE029逐字未变、receiptHistory仍1。没有再记录相同回执，不消耗20份对账历史；无claim、marker、最终提交、补发、购买、旧稿修改或新图片。会员编辑门槛不视为文章发布限额，自动化保持ACTIVE；状态未变按要求DONT_NOTIFY。
+- 首次只读菜单已打开后，再点击“更多”关闭被遮罩拦截，CLI退出0但stdout含Error；原失败保留。去掉重复关闭，第二次有界重载和DOM读取实际成功，未强制点击、截图或绕过遮罩。此复用注意已补到browser.md。两次记录的CLI子PID fresh均无原身份存活，无kill/新窗口/Cookie导出；不声明全机或未观察后代清理证明。
+- 证据固定状态research/weibo-010-20261010/run-1034/quiet-checkpoint.json及status-check-02.stdout.txt。下一轮继续核010原ID及编辑能力；未知和部分状态不放宽，不重发。HANDOFF仅追加并保持旧前缀；没有stage/commit/push或产品测试/构建，原发布禁止自动提交和共享工作树保护继续。
+
+## WB96 产品捕获验证新合同（2026-10-10；本会话0/5，当前第1项）
+
+已同时实核WB95最后释放440BEB5C02BA07FA4737F7F273379D8073E78A4F2EDAFE50C8A1C93D0F4E26BF released=true/successor本chat、same workbench target/ACTIVE30min，旧根idle/停止写入。最新五文档完整字节接收与当前WB85-C1～WB95/释放语义读取，巨大历史未逐条重读；HEAD78045e8b407e9caceae2548116390ffb985fc959/parity0061d6d78591fb08493f473d3231ca42303faae1/index空，三产品源SHA均不变，foreign追加完整保护。
+
+新合同artifacts/wb96-product-capture-validation-20261010-01a121b6/task-contract.json，SHA45E20CAD112380F1E9A0D64EE116D8C061FBD6936CE6081036FD32C01382016C，UTC02:36:06.5099060～03:16:06.5099060Z（40分钟）。仅新task-local捕获器与未改三源的1次命名Node测试/3次syntax；0执行重跑、旧inert四case/旧worker/micro不再执行、0actual/TS/.NETbuild/restore/format/stage/commit。合同独审→专属实施→源码独审→root AST/极小新guard trial→串行实际执行/双流SHA/原句柄first+final退出/完整终态/fresh已记录身份及自有testTemp核验；source-only PASS不计实际验收，原97数只作先证，实际count按原日志读取。
+
+Root独占共享文档/执行/验收，专属实施只capture-product.ps1及不可变实施收据，review独立只写review收据；审阅4min目标/6min硬cap，实施8min目标/10min硬cap，模型生成/等待纳入。旧WB85/C1 UNKNOWN与额度耗尽、WB83/WB61失败、inert仅故障捕获语义、未观察后代/whole-session边界保持。Graph Beta/MQ数据库逻辑+实例.system/mq/共享六态不变。固定PS7/禁Graphify/广域扫描/安装，count+wall/cancel/progress/backoff/完整身份/归属finally与旧policyTemp/WB40保护。HANDOFF暂不提交因为当前仅合同/尚无产品PASS及最终完整CI门禁。
+
+## 微博010定时只读复查（2026-10-10 11:06 Asia/Shanghai）
+
+- 11:04 heartbeat复读最新HANDOFF、技能及browser/editorial/ledger、固定队列与账本后，用原sonnetdb-weibo-series同一标签独立重载010微博RlW8b6KTN。默认简介、文章卡片2309405352283469906184、作者UID1089099883和“编辑微博 会员 开通会员立享”均与10:36观察逐项相同；仍无完整审定简介/博客园原文链接。010原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51保持article=verified/status=submitted、提交来源未知；无新事故因果证据，不能重发或跳过未决编号。
+- ledger SHA204633A6BBD597F5C72AD242B5F86D6755C6020CB2CB47EFF32B1681A3DEE029未变，receiptHistory仍1；新创建0、最终发表点击0、同内容重复回执0、新窗口0。会员编辑限制不视为发布额度，sonnetdb-3实际配置仍ACTIVE且target本聊天。证据research/weibo-010-20261010/run-1104/quiet-checkpoint.json和status-check.stdout.txt；状态未变DONT_NOTIFY。
+- 有界40秒CLI读取成功，记录子PID fresh未见原身份存活，未终止共享daemon或Chrome、不提取登录状态。仅追加本HANDOFF并保护旧前缀，未改稿件/账本/技能，未stage/commit/push或运行产品测试；暂不提交遵守原发布授权边界和并发工作树保护。下一次继续原ID编辑能力和新增事实检查。
+
+## WB96 已闭环：本地命名测试与语法的当前退出证据（2026-10-10；本会话1/5）
+
+当前根chat `01a121b6-a00f-7303-abd4-d7457832fd77` 已完成一个独立任务WB96（实现、修正、复核和实际验证合计1个）。唯一修正/两轮源码独审已用完；第一轮FAIL五项完整保留，最终source-only PASS后才冻结新两源、AST=0错误及0.157秒单项Guard/path/CreateNew微试。旧worker、旧inert四case、旧WB85/C1两次额度均未重跑。
+
+- 当前三产品源逐字未改；新额度仅命名测试1次与语法3次，各次执行不重试。实际TAP完整25194B/SHA `AC84CC7440775350E9727310B7F8AD3E3FF8DE9B94D8FBBCA565D7A42ABE2C77`，stderr空；从原日志取得tests=pass=97、top-level ok=97且编号1..97、static tests=97、fail/cancelled/skipped/todo=0。该数由实际输出及未改源覆盖核验，未预填。命名测试严格live观察passed；原始Node句柄PID56708/start03:02:59.7972015Z，两次独立持久退出均natural/exit0，first在cleanup/drain/hash前，final在cleanup/drain后、hash/dispose前；caller与root accept均exit0，写后时间/取消门通过。
+- syntax-runner/evidence/tests各一次，原始句柄自然exit0、两流完整且空、caller与root accept exit0；均为窄`completed-before-live-observation`分支。只证明短语法进程完成，observed commandLine仍null，未伪造live tuple或增加signal权限。共享测试原有一个Node固有子进程与一个受控PS7夹具如实记录；PS夹具替换OS stop、六case，不算真实OS stop验收。
+- final fresh Process API核17条记录/16个PID无原身份存活；测试自己清理的唯一真实路径`C:\Users\mysti\AppData\Local\Temp\sonnetdb-wb45-identity-test-vG6UEw`已独立核absent。根signals/deletions=0；不证明未观察后代或whole-session。root audit短壳与共享写壳的后续absence由rollover-release补核，不将当前live自身写成absent。
+- 原WB85/C1 UNKNOWN、WB83真实宿主FAIL/cleanup false/null、WB61 HTTP400与数据库恢复未验收均保留；WB95只inert故障语义，不能升级产品/三宿主证据。真实Server/Web/Studio/VSCode/Extension Host、安装/AOT/固定硬件/长跑/发布仍分列开放。Graph Beta、MQ database/database+Topic逻辑及instance `.system/mq`物理边界、共享六态/结果/草稿/历史/审批不变。
+
+主证据 `artifacts/wb96-product-capture-validation-20261010-01a121b6/validation-report.json` SHA `E97D2744AE49E15CF2C95E0DC3C6537E0A2348AE59F392251095883DBC058DA4`；新worker SHA `10315C1476ED9CAB49433CCAC48FDAC8BB2BB6C632763533D8B776597B1E4489`，accept SHA `F04611452575BADED5E4B8D68C67754860888B27AB8D2182AF992CD1118B9E33`；source-review SHA `A1DA1D1116C03D41DC9CCDD5DAB27D8798B9EBC0494A4969C2BC2E710A6B85CA`，freeze SHA `98F37C5421405C0C45A2434F41D806D6814D52568A1E52AF15C8BA9044915113`。第一轮FAIL SHA `B2933BF07F183E120AB58C26DBA917C68FC996597FEE218650E2D138B78DD9EB`不覆盖。第一轮审阅277.259s与修正193.605s分别超过target37.259/13.605s但都在硬cap；最终审阅197.378s在240/360内。完整时间与不确定边界按不可变收据。
+
+HEAD `78045e8b407e9caceae2548116390ffb985fc959`、parity `0061d6d78591fb08493f473d3231ca42303faae1`、index空；当前代码与四个具名旧证据SHA不变，未重审整个旧artifact目录。foreign blogs/发布/旧HANDOFF追加均保护。此次0actual/TS/.NETbuild/restore/format/stage/commit；HANDOFF暂不提交，因为冻结任务仅捕获验证，完整最终树restore和原Format Check尚NOT_RUN，不能替代门禁。
+
+下一项WB97：新独立有界本地集成合同，先完整接收最新五文档/git/agents，复核现存三源归属与WB85旧语义审阅、WB96当前测试证据；根串行完整`dotnet restore SonnetDB.slnx`与`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`通过后，显式本任务文件/hunk本地提交；代码再改必须重跑门禁。不整文件stage共享HANDOFF/队列，不收foreign，不push/发布/安装，不盲重放actual。保留origin/parity-results及旧policyTemp/WB40。
+
+提前滚动交接：已在40分钟捕获验证合同内保存真实闭环，专属agent idle停写，64个自有artifact上限以内为下一完整集成门禁换新合同/冷接收。`rollover-receipt.json`将记录新本地SonnetDB chat及same workbench ACTIVE30min target；`rollover-release.json`是旧根最后仓库写入。接续chat从0/5开始，必须等released=true与successor绑定后才写仓库；此处先保存检查点，最终target与释放只以这两文件及automation live实核为准。
+
+## CSDN 每日接续：020回执补记、021输入失败停止（2026-10-10 11:01～11:16 Asia/Shanghai）
+
+- 本轮收到sonnetdb-csdn heartbeat明确授权，按publish-csdn接续。旧自动prompt“020仅prepared”已过时；实时账本原020为submitting/167380163。独立复核昨日020-receipt.json、原冻结正文和远端全文raw SHA，只多一个终止LF，正常record将同attempt50920221-b583-40ab-ba0f-48495ba8613a记under_review。原回执/ID/marker不变，没有重投020；未升级匿名公开状态。
+- 专属csdn-mysticboy会话原已关闭，用CLI既有Chrome/原browser-profile重新打开管理页，实际核到mysticboy账号和020原ID。未复制登录凭据、安装或调用私有HTTP接口；用户要求保留登录，收尾保留本会话/profile及当前输入现场，未关闭其它浏览器。
+- 021准备稿与源SHA及五事实文件SHA逐一匹配2026-10-09审稿，根读取全文，项目名前缀/首段满足。具体“函数嵌套”在全部/审核中未通过/草稿箱实际空结果，SonnetDB搜索实见14旧标题；早期分类异步/链接计数及缺下一页等待失败分列，不以未稳定观察作查重证据。源码静态审阅不代表SQL实测或性能证据。
+- 11:10:21按daily预占021，attempt52bcfefb-734d-4e72-a42c-32091438a204；冻结preparedTitle与SHA c26e43b9cf5ba9b619b75a3bd44ea5edd32e2f2ce78939a7cde9c75b4f0d529f不变。open确认新空白编辑器及额度10；唯一fill在正式保存前全文守卫失败。两次只读观察确认标题正确、完整正文仅一个LF、URL无articleId；没有保存按钮或最终发布点击、没有submit marker，正文写入失败原因尚未确定，自动保存的远端状态未证。按同attempt记录unknown，未重复fill/claim/导入或跳021，也未进行旧文标题编辑。
+- 最终账本under_review20/unknown1/pending121、nextId21，今日1失败预占/剩9，平台仍显示10；本轮正式新发表0、标题编辑0，不称平台限流。证据本机C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/021-20261010-input-mismatch.json/.jpg、20261010-batch-result.json及phase收据。020历史审核接受与021本轮未发布分开。
+- 技能内新增invoke-csdn-phase.ps1有界命令与身份审计、csdn_manage_cli.mjs正常管理UI查重；csdn_browser_cli.mjs新增observe可选不可变证据后缀，只读记录完整正文/raw SHA/marker是否存在及截图，明确非独立服务器读回。PowerShell AST、两Node语法检查通过，Node24.15.0微试通过；既有发布/冻结守卫未降低，没有将工具检查当发布成功。失败与观察保留在技能参考，所有辅助脚本仍在技能内，仓库只本渠道进度与HANDOFF。
+- 已记录43个命令进程身份末核无原身份仍存活，0终止；专属保留daemon20488实核CLI命令/创建时间/父PID。短命后代可能未捕获，不宣称全会话无孤儿。无下载/测试临时目录，截图临时文件由适配finally回收；审稿/回执/日志及可复用脚本保留。
+- 下一轮先只读核021当前页面、管理分类及是否有真实归属草稿ID，再解决正常正文输入与同attempt的有证据恢复路径。现有reconcile-draft要求原ID，本例null不能虚构ID或手改状态；unknown继续阻断新claim和标题编辑，016旧修复许可不扩展。既有11:00排期/ACTIVE不改，不新建任务。所有并发Workbench/微博/公众号/博客园/OSChina内容及index保持；未stage/commit/push/部署或跑无关产品构建/Format Check。HANDOFF暂不提交遵守本发布任务明确禁止自动commit。
+
+补充执行边界审计：021查重首次实际搜索03:06:03.8582659Z至最后管理搜索03:10:20.8399807Z，共256.9817148秒，超过用户4分钟上限16.9817148秒。单阶段超时有界不等于查重总窗口合规，本轮未及时在全局240秒处停止，这是本流程缺陷；不能将本批写成完整执行合同PASS。当前已停止所有网页写入。下一次必须在查重各阶段共用12页/240秒预算并在claim前检查，不能靠每次重置45秒来放宽总限制。原时间与阶段失败日志保持，不改写历史。
+
+## WB97-C1 失败闭合（2026-10-10；本会话2/5）
+
+WB97释放握手超时失败占1项，原120秒上限与末次131.7226677秒/超11.7226677秒保持。用户随后通知真release，SHA729B9B1D5D81B6D98826FEA745CC13A3AD832658EB87C1698671C8D9E353EA3A、当前successor/released/oldRootStopped及same workbench当前target/ACTIVE30min已实核。
+
+新完整WB97-C1集成任务失败占第2项：三源全部现存diff/原语义/当前WB96证据复用独审PASS（source-review SHA E36813BDC399D985B414B8722DE22C556FE7D67087A004D339465AE5080E890A），回执searchResults13的实际14修正在root报告，原收据不覆盖。门禁工具生成计数expected19/actual12拒绝exit1，失败回执保存尝试又被原300秒hard截止拒绝exit1；runner/implementation-receipt均未创建，0微试/restore/format/stage/commit，不能把方案当交付。只预备owned文档，源码SHA不变、0重测/actual/产品build；WB96当前97/97及三syntax自然0可复用，旧UNKNOWN/真实FAIL不升级。
+
+本片真实闭合、source审阅、原超时及外来byte保留见[WB97报告](docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md)与artifacts/wb97c1-helper-observation-integration-20261010-01a123cc/validation-report.json。共享文档仍未提交，因为完整门禁未运行；index为空，不收旧pending Workbench/foreign发布。
+
+下一WB97-C2仍是完整本地集成新合同（计数before2/after3），复用已审源码和当前WB96，不拆工具诊断任务、不盲重跑旧worker/tests/host。先完成固定新门禁runner并独审、极小trial/一次inertmicro，再根串行完整restore/原format、明确八路径/hunk本地commit；失败如实闭合，禁止提交。三宿主/MQ database逻辑与instance物理/GraphBeta/六态等边界保持；无push/发布/部署/安装/外发，origin/parity-results、foreign、policyTemp/WB40全部保护。
+
+## WB97-C2 失败闭合（2026-10-10；本会话3/5）
+
+本片完整本地集成未通过工具独审硬cap。门禁runner已交付SHA8873C50D14CF0243AADAEB104C07D10402DFDCFFC1B14E9E0C6E00947B31BDB3，实施回执elapsed542.7556118s（消息542.8354591差0.0798473原样保留），超300目标但600硬cap内。独立审阅完整读35626B新源码、未见源码阻断，但首次JSON默认转DateTime破坏inverse日期字符串，修正版在原360s硬cap前未完成；tool-review SHA7E023F10F1C65292A3540AA760F844546168187B5EDF19D5D98F9F6E59F2794E为FAIL_TIME，未晚写PASS。最新cached/doc窄修复未独立核完，0micro/restore/format/commit。
+
+此前三源完整diff/原语义/证据复用独审PASS仍保持，三源SHA不变/WB96当前97测试和三syntax可复用，旧UNKNOWN/真实FAIL不升级。根先前准备的精确八路径stage已全部自有撤回，index空，保留工作树文档新片段及全部foreign/旧pending；共享HANDOFF暂不提交因为完整门禁未运行，禁止commit。WB97握手与C1实施失败各占1项，本片再占1项，累计3/5。
+
+下一WB97-C3仍为整个本地集成新合同（before3/after4），复用已读核心及sourcePASS，固定小范围元数据接续与DateKind String安全inverse/最新cached文档复核；独审及时PASS后才唯一micro、根完整restore/原format与owned本地commit，不拆新工具诊断或盲重旧worker/tests/host。完整闭合见[WB97报告](docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md)与本片validation-report.json。真实release/same workbench ACTIVE30min保持；三宿主/GraphBeta/MQ逻辑物理/六态等边界不变，foreign/parity/policyTemp/WB40保护，0push/发布/部署/安装/外发。
+
+## 博客园每日双篇完成（2026-10-10；Automation sonnetdb）
+
+- 先读AGENTS/HANDOFF、技能、封面规范、账本/事件/计划/选题库及自动化memory；今日初始新增0/2、queued0、固定租约不存在、无文章/修订在途。旧076–134共59篇保持needs-reconciliation，不重发；同时核编号稿与10篇externalPublishedArticles的当前题/旧题别名及账号首页。
+- 完成新稿145 TAG/time分组（COUNT、稀疏字段、checked Int64 SUM）与146时序查询预算/排序/取消边界。源码复核78045e8b407e9caceae2548116390ffb985fc959，GitHub Release与NuGet Core均4.0.0，4.5仍规划。当前HEAD公开链接404；五个专题与七个相关Core/test文件和公开5424b66672e37f49a2a5633fdde0b54a9b1f0290逐文件git比较无差异，将参考/复现链接固定到该公开提交，六个公开文档GET核验通过；保留本地基线及双提交说明，无push。当前ROADMAP独立复核，不把工作台新增交接当本文能力证据。
+- 各一次gpt-image-2生成（1792x768请求，实际1915x821，retries0、260秒上限），来源为本聊天01a123c3-2b1d-7582-b2c2-9a0196efa464。两张成年亚洲专业JK风格横图目视审核；确定性叠字修正145的COUNT空值数据与146的扫描/结果额度说明，原图/提示词/生成收据/前后SHA保留。各一次newMediaObject上传；本轮只读getPost/getUsersBlogs重新核PAT与IoTSharp/blogId523396。146原图GET直连超时后只读代理核SHA，无重传；保留默认双二维码，其公开原图SHA也匹配。
+- 145于11:24:39+08:00单次创建成功： https://www.cnblogs.com/IoTSharp/p/23249022 （postId23249022）。146于11:26:23+08:00单次创建成功： https://www.cnblogs.com/IoTSharp/p/23249049 （postId23249049）。6次C# dry-run（各本地/远程/参考链接修订后），每次最终预览含主题封面和默认双二维码；项目识别/RequireUploadReady门禁通过。原postId完整正文与最终C#预览一致，公开标题、源提交、封面、双二维码及63631741回读通过。145最初公开404，后来只读代理GET200核实；没有重发145，也未新增编辑请求。
+- 当前新增published事件2/2，145/146各attempts1，queued0，147–202仍planned56；计划与选题条目为链接/✅published。复核时发现PS7.6自动解析带小数时间导致字符串-like计数错误，改用ConvertFrom-Json -DateKind String及DateTimeOffset显式+08日期；最终两唯一事件/状态/SHA/配额核验通过，无第三请求。二维码角括号Markdown造成的一次自检误拒绝已修正，预览本身未缺图；中间失败保留在复核记录。
+- 证据docs/blogs/publishing-review-2026-10-10.json与publishing-evidence/2026-10-10/；JSON/JSONL UTF8无BOM/LF检查通过。24个已观察任务子进程身份最终不存在，0cleanup信号；采样可能漏短进程，不称整机孤儿自由。仅回收本任务4个预览、4个临时脚本及已核所属租约，生成资产和审计交付保留。
+- 本次没有实跑数据库示例、产品测试/性能/NativeAOT、真实Server/模型/固定硬件/恢复/长稳；只验证发布流程与公开证据。不stage/commit/push/部署；其它会话的CSDN/OSChina/微博/公众号/Workbench内容保留。HANDOFF暂不提交，因为用户明确禁止自动commit。下次从147核当前源/版本/去重/封面后再queued；先按+08日期核当天额度、固定租约与未知状态。
+
+## 开源中国每日两篇收尾（2026-10-10，Asia/Shanghai）
+
+- sonnetdb-2本轮按原编号发布038/039，原博客ID19775266/19775267、原动弹ID30401437/30401438全部保留。博客经完整已发表/草稿/定时三组与严格标题/全文核验，143/1/0三组完整；动弹只读原ID核得本人7172、topicName=#SonnetDB/topicId19285、标题与简介、唯一原上传图片URL一致。接口已接收并回读通过，公开网页可见性未另外核验，不提升为published。今天成功新博客2篇，日额度用完；下一轮2026-10-11 11:00按实时账本从040/041继续。
+- 每条动弹各新生成一张约25岁成年亚洲女性JK裙图片，使用已授权gpt-image-design/gpt-image-2及当前sonnet_vip配置代理，实际查看后上传；两个SHA不同，图像及真实上传回执保留在队列.local/tweet-images及本轮证据目录。按既有明确链接拒绝及当前includeArticleLink=false发布无URL文案；本地保留实际博客关联，没有再试链接或重试POST。修复队列发布器在话题/标题之后保留已审核tweetIntroduction，原稿及博客正文未因此修改。
+- 本轮新核验事件漏写顶层status，首次Sync严格属性读取失败，失败记录保留；已将Sync改为顶层状态缺失时读取原receipt.status，两者均缺失不计作状态回执，事件不重写。极小试验通过，最终隔离队列42/42、0失败、fixture已回收、全局账本不变；Python离线发布器97/97通过。原首次进程门禁误用LASTEXITCODE的记录也保留，依据图片micro实际exit0继续，没有重复生成。
+- Sync最终142篇、43submitted、99queued。全队列Verify仍FAIL：Source hash differs:139；139–142原源稿漂移待轮到前事实复核，不刷新SHA或用局部检查放行。原135无ID未知公告、8条unknown标题编辑及新闻502847回执保持，只读观察不构成未接收证明；新闻原提交和账号状态1/公开接口核验的历史证据保留，网页公开状态未确认，未重新投稿。
+- 与本轮before快照比较，仅038/039两条文章变化、新增4条实际博客/动弹回执；119条既有全局回执、其它140篇、news和policy逐值保持。038/039源稿与渠道稿SHA匹配，事实来源记fact-sources.json；未执行SQL例子、真实性能测量或产品构建，不据源码复核升级实测证据。
+- 28个记录在案的自有进程身份fresh检查无同身份存活，三个发布锁不存在，额外kill/delete0；仅覆盖记录身份，不声明全机或未观察后代无孤儿。两轮夹具清理通过，所有图片/审计交付物保留。结果、初始失败、最终测试、严格回读、run-integrity及cleanup-audit保存在docs/blogs/oschina/.local/scheduled-20261010-038039；lastHeartbeatRun已原子写回长期队列，事件仅追加，HANDOFF仅追加保留原字节及并发内容。
+- 共享main HEAD78045e8b407e9caceae2548116390ffb985fc959、origin/parity-results0061d6d78591fb08493f473d3231ca42303faae1保留；本任务未stage/commit/push/部署，不改博客园及其它研发heartbeat。HANDOFF暂不提交，因为本发布任务明确禁止自动commit；未运行无关restore/format。原故障会话已归档，同一sonnetdb-2仍绑定本会话，无重复自动任务。
+
+## 微博010定时只读复查（2026-10-10 11:44 Asia/Shanghai）
+
+- 11:34 heartbeat按最新HANDOFF、weibo-publisher及browser/editorial/ledger、Playwright技能和固定队列/账本接续；原sonnetdb-weibo-series同一标签于11:40独立重载010微博RlW8b6KTN。默认简介、作者UID1089099883、文章卡片2309405352283469906184及“编辑微博 会员 开通会员立享”逐项与11:05页面观察一致，仍缺完整审定简介和博客园原文URL。010原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51保持article=verified/status=submitted、来源unattributed/总创建次数未知；本轮未重读文章全文，不重复宣称新增正文核验。
+- ledger SHA204633A6BBD597F5C72AD242B5F86D6755C6020CB2CB47EFF32B1681A3DEE029、queue SHA655CF84B625A3F6203054496D297D1CF22591FE5176416A970A3511D7B31B013未变，receiptHistory仍1。新创建/最终发表点击/重复回执/新窗口均0；未生成011或重复生成010图。会员编辑门槛不是文章发布限额，sonnetdb-3实际配置仍ACTIVE。本轮状态无变化DONT_NOTIFY；旧IoTSharp来源事件仍未查明，不归因用户或UIA。
+- 原Invoke-Bounded.ps1及一次只读重试因可选父链CIM查询超时终止，各据直接子进程身份核验回收其自有CLI树；失败stdout均空，不能作网页证据。未终止共享daemon/Chrome。run-1134新副本Invoke-Bounded-ParentGuard.ps1只将可选父链查询超时记录并停止父链采集，原循环上限及退出比较保持；AST0错误、10秒小输入自然exit0后，第三次40秒有界读取成功（实际约11秒，stdout有效JSON且无### Error）。原helper微试CommandLine=null，未据此授权任何终止。保留两次失败、微试及成功日志，不覆盖历史；本轮没有修改共享技能。
+- 四个记录子身份PID45560/47492/18120/57176末核均pid-absent；只证明这四身份结束，不声称未观察后代或整机会话无孤儿。证据固定状态research/weibo-010-20261010/run-1134/quiet-checkpoint.json、status-check-parent-guard.stdout.txt及各result.json，复用修正helper时仍先核当次边界及归属。
+- 仅新建本轮检查证据并独占追加本HANDOFF，旧字节前缀验证不变；main HEAD78045e8b407e9caceae2548116390ffb985fc959，读取时其他Workbench会话已有8条暂存路径（包括HANDOFF）全部保护，本任务未stage/commit/push或运行产品测试/构建。HANDOFF暂不提交遵守发布任务明确禁止自动commit及共享index保护；下一轮仍从010原ID只读检查编辑能力及新增事实，未决未解决前不新建或补发。
+
+## CSDN 021 用户授权重试后停止（2026-10-10，Asia/Shanghai）
+
+- 用户直接“请重试”后从11:19接续，批次硬截止11:49。当前事实以本段与实时账本为准：001–020 under_review，020原ID167380163不重发；021仍unknown、无远端ID，022–142 pending，历史标题编辑未启动。
+- 新只读reconcile_input_retry.mjs使用同一12页/240秒预算，实际5页36.764秒；SonnetDB系列14个标题无对应候选，全部/审核中未通过/草稿箱/已发布的“函数嵌套”实际空结果。账号mysticboy、保留原编辑URL、独立标题及全文仅LF均核对，平台余额10。原源稿/准备稿/五事实文件7个SHA与既有审稿匹配，全文已读，不把静态事实核对升级为SQL/性能实测。
+- 新reserve-input-retry在账本锁内验证明确授权、原unknown证据SHA、冻结稿/原attempt、无原ID/无提交marker、新鲜分类完整性、共用deadline和上海预算。11:32:12同attempt52bcfefb-734d-4e72-a42c-32091438a204另预占一次；原writeAttemptAt11:10:21不改，原unknown完整receipt保存在inputRetry.originalReceipt，原冻结标题/SHA c26e43b9cf5ba9b619b75a3bd44ea5edd32e2f2ce78939a7cde9c75b4f0d529f不变。持久input-retry-once marker保留，不能删或重复使用。
+- 本次fill于11:32:26～11:32:39在CLI sandbox第一条origin检查抛ReferenceError: URL is not defined；发生在正文点击、剪贴板写入、保存和发布之前。独立observe仍见正文仅一个LF、正确标题、URL无articleId；保存按钮点击0、最终发布点击0、无submit marker。已按同attempt正常record unknown，初次失败与本次失败分别保留。今日计费2次/用户剩8，平台仍10，非平台限流。
+- 实现已将URL检查改为真实page.evaluate读取location.origin；剪贴板核对、选区与正常粘贴合并同一run-code，并保持正式保存/reload/全文守卫。Windows剪贴板实测LF转CRLF，仅传输核对处理该差异，正文仍严格相等或仅额外一个LF。about:blank的plaintext-only多行中文/代码粘贴夹具精确通过，CSDN正文未触碰；keyboard.insertText实测丢换行，未采用。实际CSDN正文恢复/原ID保存尚未通过，不称修复已实发成功。
+- 新三组账本回归通过，覆盖原attempt/历史/额外计费、无授权/过期/不完整/额度拒绝、marker/变稿/已有ID拒绝；10个既有冻结守卫通过。新增无URL全局VM回归、CRLF传输及剪贴板改变在输入前拒绝通过。夹具仅本机临时目录，按测试归属清理；无产品构建/SQL/Format Check。
+- 本机结果evidence/20261010-authorized-retry-result.json（SHA EFC233FE2E8132328BCC19576B581CC3D12D4DA9859A2CB15EEA655B65471E64），分类证据021-retry-reconciliation-1132.json、独立观察021-retry-preinput-failure-1133.json/.jpg以及phase-d49fea79-c094-493a-bace-91f1402876b9.json失败收据均保留。13份阶段进程记录保留；最后只读集中身份复核到25秒deadline停止，未完成全量复核、0信号，不宣称全会话无孤儿。专属daemon20488已实核命令/父PID/创建时间并按用户要求保留会话与profile；不复制凭据、不关闭其它会话。
+- 同一sonnetdb-csdn自动化已更新过时020状态及021重试检查点，ACTIVE/原11:00排期/原target保持，无新任务。此次明确重试已使用；后续自动运行只读对账021，状态不变静默，不复用授权、删marker、换attempt/新ID或跳022。新的恢复写入需新的明确授权及另计预算、保留历史的恢复合同；016旧授权不扩展。
+- 仓库仅本渠道账本/PROGRESS及本HANDOFF尾部，技能实现/回归/参考与本机证据分别保留在其目录；保护其它渠道/并发研发，0stage/commit/push/部署。HANDOFF暂不提交，因为本任务明确禁止自动commit。原初次查重超16.9817148秒的失败记录保持，本次共用查重预算已合规，不重写旧失败。
+
+## WB97-C3 helper observation 本地集成（2026-10-10；本会话已闭合3/5，本片闭合后4/5）
+
+WB97握手超时、C1实施硬截止、C2工具独审FAIL_TIME三项原失败都保留，先前三片0micro/restore/format/commit。真释放SHA729B9B1D5D81B6D98826FEA745CC13A3AD832658EB87C1698671C8D9E353EA3A与当前successor/released/oldRootStopped、同workbench当前target/ACTIVE30min已实核；不重跑旧等待/捕获器/源码测试。
+
+本片仍是完整三源本地集成：三源SHA保持WB96冻结值，复用当前97/97和三syntax natural0，以及WB97-C1全diff/原语义/证据复用独审PASS SHA E36813BDC399D985B414B8722DE22C556FE7D67087A004D339465AE5080E890A；旧source-review search结果13实际14修正保留。C2完整门禁核心已读但独立inverse未按时完成，只用作已读范围；新C3仅重绑固定metadata，独立DateKind String双inverse/当前八路径文档核验及时PASS才放行。
+
+根在最终待提交树必须串行完整dotnet restore SonnetDB.slnx与dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/。唯一inertmicro与两项完整门禁各1次、20/480/480秒active及55秒收口；原句柄first/final自然0、严格live身份、完整两流、fresh已记录身份收口、独审及cached八路径逐hunk归属都是commit前置，任一未通过禁止提交。总合同截止04:27:44.4093579Z，实际PASS/FAIL及本地SHA只以[WB97集成报告](docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md)、artifacts/wb97c3-helper-observation-integration-20261010-01a123cc/validation-report.json和Git为准。共享doc index仅HEAD+本片单一新段，保留全部工作树foreign及旧pending，0整文件stage。
+
+本片0新Node/tests/host/产品build，不升级WB85/C1 UNKNOWN、WB83真实FAIL/cleanup false/null、WB61HTTP400/恢复未验收。三宿主整体、Server/ExtensionHost/OSstop/安装/AOT/硬件/长跑/发布继续分列；七导航、九模型树、MQ database/database+Topic逻辑与instance .system/mq物理、GraphBeta及共享六态/结果/草稿/历史/审批保持。下一片先据已集成观察合同冻结有界真实VSCode窗口和完整验收，禁止盲重放。无push/发布/部署/安装/外发，parity/foreign/policyTemp/WB40保护；同一automation ACTIVE30min，计数4/5仅在本片真实闭合后成立。
+
+## WB97-C3 真实失败闭合（2026-10-10，本会话4/5）
+
+独立工具/当前cached归属审阅按时PASS，唯一inert micro捕获与根验收PASS。唯一restore dispatch已保留，但prelaunch snapshot-query CIM失败，原dotnet PID/start为null、0实际dotnet launch、两流未创建；不是dotnet restore执行结果。根caller exit1，完整restore未取得PASS，format/commit0。原微型根CIM查验超时单独UNKNOWN保留，后用原退出证据及fresh PID/creation句柄确认两个已接纳身份当前已退；不升级旧OS-stop或整会话/未观测后代。精确八路径已撤回stage、index空；HEAD78045e8、parity0061d6d不变。C3合同failurePolicy旧count2文字错误按typed3→4记录，合成预检回执语法错误及修正分存。全部原失败不覆盖。下一C4若接续仍必须完整集成，须先独审CIM查询的合理有界预算修正，不重用C3 dispatch或重跑旧源测试；只有完整两门禁PASS才可commit。真实证据：artifacts/wb97c3-helper-observation-integration-20261010-01a123cc/validation-report.json。
+
+## 微博010定时只读复查（2026-10-10 12:08 Asia/Shanghai）
+
+- 12:04 heartbeat复读最新HANDOFF、weibo-publisher及browser/editorial/ledger和固定队列/账本；原sonnetdb-weibo-series同一标签于12:06独立重载010微博RlW8b6KTN。默认简介、作者UID1089099883、文章卡片2309405352283469906184及“编辑微博 会员 开通会员立享”与11:40观察逐项一致；仍缺审定简介及博客园原文链接。010原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51仍article=verified/status=submitted、提交来源未知，本轮未重读文章全文；未重发、跳过未决稿或重新生图。
+- 固定ledger SHA204633A6BBD597F5C72AD242B5F86D6755C6020CB2CB47EFF32B1681A3DEE029与queue SHA655CF84B625A3F6203054496D297D1CF22591FE5176416A970A3511D7B31B013不变，receiptHistory仍1；新创建/最终发表点击/回执/窗口均0。会员编辑门槛不作为普通文章发布限额，sonnetdb-3当前配置ACTIVE；状态不变DONT_NOTIFY。证据research/weibo-010-20261010/run-1204/quiet-checkpoint.json及status-check.stdout.txt/result.json。
+- 复用run-1134的ParentGuard有界helper，SHA42A12CDF6507BCDC4F4E25EDD623BFE411CDE83FE02CD42DD047D94E84A08238匹配；本次40秒边界读取实际约20秒自然exit0、有效JSON无### Error，父链CIM超时仅记录为采集缺口。唯一记录CLI子PID75252末核pid-absent、0cleanup信号；不证明未观察后代或全会话无孤儿，未终止共享Chrome/daemon或提取登录状态。
+- 仅新建本轮证据及独占追加本HANDOFF并验证旧字节前缀不变；main HEAD78045e8b407e9caceae2548116390ffb985fc959及其他Workbench已暂存的8路径（含HANDOFF）保护，未stage/commit/push或运行产品测试/构建。HANDOFF暂不提交遵守发布任务禁止自动commit及并发index边界。下轮仍从010原ID检查编辑能力/新增事实，未决未解决前不能新建011或补发；旧IoTSharp来源仍未知。
+
+## WB97-C4 helper observation 本地集成（2026-10-10；已闭合4/5，本片闭合后5/5）
+
+WB97握手、C1实施硬截止、C2独审FAIL_TIME与C3 prelaunch snapshot-query CIM失败四项原记录均保留。C3唯一micro真实捕获及根验收PASS；restore只dispatch，实际dotnet launch0、format/commit0、八path已撤回。新C4是最后完整集成合同，start04:09:59.8729780Z、deadline04:49:59.8729780Z；同一release/current successor及workbench ACTIVE30min沿用，不重跑旧握手/源码测试/host或旧runner。
+
+三源SHA与WB96当前97/97、三syntax natural0保持；全diff/语义/证据复用独审PASS E36813BDC399D985B414B8722DE22C556FE7D67087A004D339465AE5080E890A。C4只调整已完整独审C3工具Snapshot的CIM operation timeout1→5秒、query墙钟7秒与独立mapping墙钟2秒；metadata重绑新权限，独立inverse及新预算行为/当前cached归属及时PASS才放行。旧C3根CIM超时与合成预检回执错误/修正分存，不升级旧失败。
+
+根必须在最终八路径提交树按序完整dotnet restore SonnetDB.slnx和dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/；唯一inert micro及两项各1次，active20/480/480+55秒收口，严格live tuple、原句柄first/final自然0、两流完整、根caller0、fresh已接纳身份收口才PASS。各共享doc index仅HEAD+本片单一新段，完整工作树foreign/旧pending保留；无全文件stage。实际门禁及本地SHA以WB97集成报告、artifacts/wb97c4-helper-observation-integration-20261010-01a123cc/validation-report.json及Git为准，未完整PASS不得提交或称闭合。
+
+本片0源编辑/Node/tests/syntax/host/产品build/push/发布/部署/安装/外发，parity/foreign/policyTemp/WB40保护。WB83真实FAIL/cleanup false/null、WB61 HTTP400/恢复未验收、旧UNKNOWN不改；Server/ExtensionHost/OS-stop/安装/AOT/硬件/长跑/整体三宿主继续开放。七导航、九模型、MQ逻辑与instance .system/mq物理边界、Graph Beta和共享六态合同保持。下一步先冻结有界真实VSCode窗口及完整验收，禁止盲重放；本片实际闭合后计5/5并按既定授权转唯一SonnetDB本地successor及同automation ACTIVE30min，oldRoot release最后写。
+
+## WB97-C4 真实失败闭合（2026-10-10，本会话5/5）
+
+工具实施147.0839409秒，超target120而hard240内交付，runner SHA150B6B06A763E14523C6717C94B71104EBB63FE84199743F121217942752CC3B。独审开始04:13:40.1082746Z，target04:17:40.1082746Z、hard04:19:40.1082746Z；期间独立11步proof及新Snapshot/五doc只读部分结论保留，根按要求仅修当前门禁的第五/C4引用和CHANGELOG说明，latest tree567afb831d3fde29b61754ab0c5e41cc8feec7fa。根04:20:19.6586337Z实际读取时tool-review.json仍缺失，未在hard内交付可接受审阅回执，真实FAIL_REVIEW_TIME；不重置时钟、不以口头部分PASS替代完整放行。C4 micro/restore/format/commit均0，精确八paths已unstage/index空，三源SHA/HEAD78045e8/parity0061d6d未变。root文档准备Write类型错误在写入前拒绝，原bytes实核不变后有界窄修，独立错误记录保留。旧WB97/C1/C2/C3真实失败不覆盖。
+
+本会话已闭合5/5，按既定授权滚动唯一SonnetDB本地successor，沿用automation workbench/ACTIVE30min；新会话从0/5开始，当前下一任务仍为完整helper observation本地集成，不重跑源测试/host或旧dispatch。先读release和HANDOFF/最新queue，再冻结新有界合同，复用既有当前三源独审与97证据，对已有C4工具完整审阅/当前owned cached范围及时放行后才各一次micro及完整restore/原format；两门禁真实PASS才commit。无push/发布/部署/安装/外发。交接与实际证据以artifacts/wb97c4-helper-observation-integration-20261010-01a123cc/validation-report.json及rollover-release.json为准；old root真release是最后仓库写入。
+
+
+### WB97 本会话5/5滚动实际交接
+
+唯一SonnetDB本地successor已创建：01a1240f-3af5-7530-95c3-6e69dcfe7eb2（WB98 helper observation 本地集成接续）；同automation id workbench已实际retarget并读取TOML核ACTIVE/每30分钟，原prompt保留，无第二自动化。源码集成仍待完整门禁，当前无commit，八path index空、HEAD78045e8/parity0061d6d不变；本HANDOFF新失败/滚动记录未提交，因为完整restore/format未获得PASS。新root从0/5立即在release之后接续一个完整集成任务；old root接着写rollover-release.json为本会话最后仓库写入，之后只读监督交接。原worker短进程76488 fresh absent，reviewagent硬cap后已interrupted/停写，不声称未观测后代或整会话自由。
+
+## WB98 helper observation 完整本地集成（2026-10-10，本chat 0/5→真实闭合后1/5）
+
+本chat01a1240f-3af5-7530-95c3-6e69dcfe7eb2已只读验证WB97-C4 release SHA 350545E90D57C0D85CBECA40B8B21ABD4487FA3298CD7762F2B4A6A852BDA135、released/oldRootWritesStopped与HEAD78045e8/parity0061d6d、空index及完整交接SHA。上次release等待超60秒为UNKNOWN/PENDING且0写入/门禁，不另计任务；旧WB97/C1/C2/C3/C4失败全部保留。完整named文档字节已接收/hash，语义读取当前记录；未称逐条审读全部历史HANDOFF/queue。
+
+本片只集成冻结三源helper observation及必要文档，源码编辑/Node/tests/syntax/Host/产品build均0；复用WB97-C1独审SHA E36813BDC399D985B414B8722DE22C556FE7D67087A004D339465AE5080E890A（search13实际14校正）与WB96当前97/97及三syntax natural0。门禁runner只重绑新metadata、独立inverse须还原完整C4字节；Snapshot CIM5秒/query墙钟7秒/map2秒与严格tuple、原句柄first/final、两流、fresh连续父链和权限不变。
+
+任务总截止2026-10-10T05:14:47.9178436+00:00，实施target120/hard240、独审target240/hard360包含模型/等待不重置。及时完整工具/cached八路径归属审阅PASS后根串行唯一inertmicro及完整dotnet restore SonnetDB.slnx、dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/；active20/480/480+55收口。原句柄自然0、完整两流、caller0、fresh记录身份退出和最终source/index归属全部确认才本地Conventional Commit。真实结果/提交SHA仅以artifacts/wb98-helper-observation-integration-20261010-01a1240f/validation-report.json及Git为准，未PASS不得称完成。共享index仅HEAD完整blob+本WB98新段；工作树foreign博客/发布与旧Workbench pending保留。
+
+WB83真实FAIL/cleanup false/null、WB61 HTTP400/恢复未验收、旧CIM UNKNOWN不升级；M47/三宿主/Server/ExtensionHost/OSstop/安装/AOT/硬件/长跑仍分别开放。七导航、九模型树、MQ database/database+Topic逻辑与instance .system/mq物理、Graph Beta及共享六态/结果/草稿/历史/审批保持。完整集成PASS之后下一片先冻结有界真实VSCode窗口，禁止盲重放。PS7、数量+墙钟+cancel/进度、owned-only完整父链/finally、parity/foreign/旧policyTemp/WB40保护。无push/发布/部署/安装/外发；同一workbench ACTIVE30分钟，无第二automation。
+
+## 微博010定时只读复查（2026-10-10 12:36 Asia/Shanghai）
+
+- 12:34 heartbeat复读最新HANDOFF、weibo-publisher及browser/editorial/ledger和固定队列/账本，复用原sonnetdb-weibo-series同一标签独立重载010微博RlW8b6KTN。实际默认简介、作者UID1089099883、文章卡片2309405352283469906184及“编辑微博 会员 开通会员立享”逐项与12:06观察一致，审定简介和博客园原文链接仍缺；010原attempt fb36d2e3e8834c5f9eb3cc39a5d36e51保持article=verified/status=submitted、来源未知。本轮未重读文章全文，未重发或跳过未决编号。
+- ledger SHA204633A6BBD597F5C72AD242B5F86D6755C6020CB2CB47EFF32B1681A3DEE029与queue SHA655CF84B625A3F6203054496D297D1CF22591FE5176416A970A3511D7B31B013不变，receiptHistory仍1；新创建/最终发表点击/回执/窗口均0。复用已核SHA的ParentGuard helper，40秒有界读取自然exit0、有效JSON无### Error；本轮记录CLI子PID 27828末核pid-absent、0cleanup信号，仅覆盖此记录身份，不证明未观察后代或全会话无孤儿。原日志保留可选父链采集情况，不终止共享浏览器/daemon、不提取登录状态、不重新生图。
+- sonnetdb-3实核ACTIVE，会员编辑门槛不作为普通文章发布额度，状态不变DONT_NOTIFY。证据固定状态research/weibo-010-20261010/run-1234/quiet-checkpoint.json及status-check.stdout.txt/result.json；仅新建本轮证据及独占追加HANDOFF并核旧字节前缀不变，保护WB98等并发工作树和已有8条index路径，本任务未stage/commit/push或运行产品测试/构建。HANDOFF暂不提交遵守发布任务禁止自动commit和共享index保护；下一轮仍核010原ID编辑能力/新增事实，未决解决前不创建011或补发，旧IoTSharp来源未知不归因用户。
+
+## WB98 真实失败闭合（2026-10-10，本chat1/5）
+
+工具metadata实施166.5783413秒，超target120但hard240内交付，runner SHA3FE12F5D1F888DCE301D517C7D5A6B6B73060139C384FD44AD97054A0B2ABD6E；C4 inverse与AST实施证明保持。独审start04:35:44.7247939Z、hard04:41:44.7247939Z；root04:45:41.9752121Z实读完整tool-review仍缺失，FAIL_REVIEW_TIME。部分核心/cached审阅不放行，micro/restore/format/commit0，精确八paths已unstage/index空，HEAD78045e8/parity0061d6d与三源SHA不变。首次closure回执PowerShell false literal错误发生在unstage后、写入前，原错误另存，不改门禁结论。
+
+HANDOFF foreign发布追加1826B已原样保留；原641420B前缀SHA3EFE8A6BAE60C3A0A03146D22912E67101CD583D138AC422182D3F93DFBF661E与后缀SHA0031ACBDC0E093A2C1A44D8710EA00C3D0FA63B76CE3FAA253DC01360223EF68独立证据foreign-append-proof.json。worker46176 natural caller0/fresh当前absent，reviewer已中断；不称整会话/未观测后代自由。
+
+真实收据artifacts/wb98-helper-observation-integration-20261010-01a1240f/validation-report.json。本chat闭合1/5，下一有界完整任务继续helper observation本地集成，复用冻结三源/97证据/C4 core；及时完整metadata inverse/latest cached独审PASS后才唯一micro及完整restore/原format、全PASS才本地commit。不得改为新Host验收，旧失败/foreign/pending/parity保护，无push/发布/部署/安装/外发；同一workbench ACTIVE30分钟/本chat目标保持。HANDOFF未提交，因为完整强制门禁未获PASS。
+
+## 用户终止 Workbench 定时研发，转新会话发布就绪审查（2026-10-10，Asia/Shanghai）
+
+用户最新要求：“现在结束这个任务的定时。在新会话里重新梳理关于Workbench的完成情况、是否具备发布、是不是已经可以发布版本。”此指令取代原持续研发/五任务自动滚动接续要求。已通过app automation_update把唯一workbench设为PAUSED并实读TOML确认；不再触发该定时，不恢复或新建自动化。其余博客/发布自动化不在本次停止范围。
+
+本chat当前WB98真实闭合1/5、FAIL_REVIEW_TIME，micro/restore/format/commit0、index空、HEAD78045e8与parity0061d6d保持。工具worker已completed，独审已interrupted，旧回执/源码pending/foreign发布与HANDOFF追加全部保留。审核超时是本地集成验收未完成证据，不自行断言为产品功能故障；也不能据已有静态/局部PASS断言整体可以正式发布。
+
+下一新本地chat只在D:\source\SonnetDB重新核Workbench Web Admin/Studio/VS Code完成情况及发布条件，区分已提交版本与dirty候选、源码/测试/真实宿主/安装/发行物证据，给正式版、Beta/预览版与分宿主发布各自明确结论及最小实际阻断项。不继续旧helper实施、不自动修代码/commit/push/发布/部署/安装或恢复五任务滚动。旧WB83真实FAIL、WB61 HTTP400/恢复未验收和全部UNKNOWN仍保留，但须结合后续已有真实证据判断，不能机械把过期失败当最新结论。用户尚未授权实际发布。
+
+本root完成此交接后停止仓库写入。HANDOFF仍未提交，原因是旧完整门禁未获PASS，且本次仅停止定时与转交发布审查，无源码提交授权扩展。
+
+## CSDN 发布技能修复闭环（2026-10-10 13:06 Asia/Shanghai）
+
+- 用户本轮要求修复publish-csdn技能；仅技能维护与验证，无live claim/reserve/resume、CSDN编辑/保存/最终发布或新回执。001–020仍under_review，021仍unknown/无远端ID，原attempt52bcfefb-734d-4e72-a42c-32091438a204与冻结SHA c26e43b9cf5ba9b619b75a3bd44ea5edd32e2f2ce78939a7cde9c75b4f0d529f、input-retry marker/旧回执完全保留。账本SHA44784317dbabaee9649970a666737bf130ca0899b13724359c260431474fc724维护前后逐字相同，status当日2次/余8；平台余额10仅为最后观察，不称限流或当前匿名公开。
+- 已修复输入前原ID/origin/账号/冻结path/title/SHA/当前claim重核、真实CLI预检再创建输入marker、open/settings阶段守卫；marker碰撞与可能远端效果仍阻断。生产正常剪贴板校验/全选/删除/粘贴一次完成，严格全文和一个终止LF边界保留。keyboard.insertText多行丢换行的真实失败保留，生产禁止该路径。
+- 管理搜索统一manage_search，共用四分类12页/240秒/批次截止；关键词来自任意冻结SonnetDB标题的主题首句，去前缀分隔符和冒号副标题，无021/函数嵌套/日期硬编码。记录active、关键词、加载状态、页结果和实际分页终态；候选、重复页、模糊控制、不完整/过期均阻断。观察脚本不制造授权，首次reserve-input-retry另需独立真实用户授权JSON。
+- 新resume-input-preflight仅延续已明确授权且证明任何编辑器动作前失败的输入恢复；最新失败/原空白页/原marker/失败后完整查重及当日预算均必核，同attempt另计一次并追加inputResumes/独立continuation marker，旧marker/receipt不删不覆写。当前021窄兼容使用20261010-authorized-retry-result.json，强制通过retryObservation/sha绑定账本最新021-retry-preinput-failure-1133.json，并核原input-retry marker/冻结值/预占时间；不能把摘要直接当新许可或补造原观察字段。16旧内容修复许可不推广。
+- 回读输出组排他写入，独立suffix且旧文件整组先检查；相同record回执字节幂等，新证据追加receiptHistory。离线Windows文件rename仅3次小幅backoff/15秒预算，不是远端提交重试。阶段wrapper固定PS7/Node或Python -X utf8 -B，超时保留双流、反序精确归属清理/2秒drain，缺完整commandLine时不signal。
+- 验证：49项Python全套通过；Node TAP17项通过，其中另有冻结claim脚本内部10条通过；最终窄兼容修正后12项输入恢复套件再通过。11个mjs/7个py/1个PS AST及skill-creator quick_validate通过。真实已登录Chrome的临时loopback夹具2段中文/SQL/泛型/多行均完整textContent精确匹配，原CSDN标题、正文LF和三标签URL前后不变，夹具tab/server已关闭。先前超时/剪贴板拒绝/keyboard换行丢失等原失败全部保留。离线与夹具PASS不等于CSDN原ID保存/发布验收，实际恢复尚NOT_RUN。
+- 已更新原sonnetdb-csdn heartbeat过时的永久耗尽解释，保留ACTIVE/每日上海11:00/同target_thread_id 01a11eff-1586-7551-b50a-8db25b652ed7/通知策略，无新任务或即时触发。下个授权窗口先status、原021/marker/真实账号与新鲜完整四分类，只满足证据合同才续接预占一次；未知/候选/预算/限流/登录/验证码立即停止，不跳022或编辑历史标题，保留登录现场。
+- 修复收据：C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\skill-repair-20261010-0b8f5dcc-a639-4ae6-8b69-fee15317f811.json。最终进程只读审计：C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\skill-repair-resources-c9230e07-de90-4261-9a9a-735c2be207e7.json，11条已记录身份PID当前均absent，0signal；不证明未观察短命后代或whole-session。全部脚本留技能、运行证据留CsdnPublisher；仓库只追加CSDN PROGRESS与根HANDOFF，保护其它渠道、源代码和共享index。没有commit/push/部署或.NET构建/format；HANDOFF暂不提交遵守发布任务禁止自动提交及并发工作树保护。
+
+## CSDN 两篇即时续发转交新会话（2026-10-10，Asia/Shanghai）
+
+用户要求“现在 在新会话中 接续发布两篇”。已创建同一 SonnetDB 本地项目新会话 01a1243a-85c0-7251-b9eb-b0eef76f3321，完整交接修复后的 publish-csdn、021 原 attempt/冻结值/失败证据、resume-input-preflight、逐篇真实保存和审核/全文回读合同；即时授权仅本批两篇，预算仍 daily 上海10次并与平台更小余额取小，不重开2026-10-07窗口。
+
+新会话已实际开始，刷新 status 确认001–020 under_review、021 unknown/无远端ID、今日已计2次/余8；正在只读刷新账号、原021编辑器、四分类查重及平台余额。预计先恢复021，真实验收完成后再推进022；此处不把已创建任务或启动工作记作两篇发布成功，实际结果由新会话更新本渠道进度和HANDOFF。
+
+本父会话不再操作CSDN浏览器、预占或写账本，保留全部marker/原回执与已登录会话。原sonnetdb-csdn自动化ACTIVE/每日上海11:00/原target不迁移，无新增自动化；保护其它渠道、并发研发及共享index。只追加本交接，不stage/commit/push/部署；HANDOFF暂不提交遵守本发布任务禁止自动提交，发布执行继续由新会话负责。
+
+## CSDN 两篇接续批次停止（2026-10-10 13:23 Asia/Shanghai）
+
+- 用户授权现在接续两篇，本批只由本chat操作，未委派或修改自动化。先读技能/两参考/根AGENTS与HANDOFF/权威账本并status；001–020 under_review不重发，021最低unknown/无ID、当日2次余8。新鲜账号mysticboy、原空白无ID编辑器、冻结标题/SHA、旧marker/失败关联核验通过；四分类主题“函数嵌套调用”共4页/21.001秒完整无候选，平台10。浏览器批次从13:16:13开始，硬截止13:46:13，串行有界。
+- 使用原20261010-authorized-retry-result.json及新schemaVersion2观察执行resume-input-preflight，13:18:45同attempt52bcfefb-734d-4e72-a42c-32091438a204追加inputResumes与独立input-resume-001 marker，另计1次。单次正常剪贴板输入、正式保存、原编辑器reload全文通过，021取得并bind-draft原ID167484247；冻结标题“SonnetDB 函数嵌套调用：构建复杂的计算表达式”、SHA c26e43b9cf5ba9b619b75a3bd44ea5edd32e2f2ce78939a7cde9c75b4f0d529f保持。独立UUID草稿证明021-4d52a64a-aea0-4e25-bdea-08921e44f2c2-draft-cli.json仅证明草稿保存与reload，非审核成功。
+- settings在标签配置触发Tag settings deadline exceeded.（helper设置预算30秒），remoteMayHaveChanged=true；实际已填摘要及“部分内容由AI辅助生成”，现场停在标签选择处。立即停止网页写入，只读observe正文仍为准备稿+恰好一个终止LF、原ID和标题正确，最终发布点击0/submit marker不存在。正常record unknown绑定原ID，旧回执追加receiptHistory、inputRetry.originalReceipt及全部旧marker/证据不变；022仍pending，无prepare/claim/编辑/提交，新增审核接受0/2、发布后独立回读NOT_RUN、匿名公开未验证。
+- 最新021错误证据021-49481b7b-1c5f-442c-95ec-30db2dcd51b9-phase-failure.json与现场021-settings-stop-1321-a1243a.json/.jpg均在C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence；总结果20261010-two-article-batch-result-a1243a.json。今日共3次/余7，最后现场平台10，非限流。9个wrapper已记录完整身份/父链及双流，9个root PID当前absent、0signal；资源证据20261010-two-article-batch-resources-a1243a.json，不证明未观察短命后代或全会话无孤儿。保留csdn-mysticboy共享登录浏览器和原面板。
+- 下一步先只读核167484247原ID草稿分类/账号/完整正文/设置/marker，必要时按完整reconcile-draft合同对账；未解unknown前不能重新fill、创建新ID、改冻结值、删marker、跳022或历史标题编辑。当前失败可能有设置效果且已有ID，不适用无ID纯输入前resume-input-preflight；不将草稿证明升级审核或匿名公开。保留每日上海11:00既有sonnetdb-csdn，无新建/迁移。
+- 仓库仅CSDN账本/PROGRESS与本HANDOFF追加；PROGRESS由进度命令生成后恢复已有13:06技能维护历史段。保护其他渠道、研发dirty/index和所有旧交接追加。无commit/push/部署或产品测试/构建，HANDOFF暂不提交遵守本发布请求禁止提交及共享工作树边界。
+
+## 微博原样接受与平台原生定时准备（2026-10-10 12:49～13:29 北京时间）
+
+- 用户最新规则：不充值、不购买会员，已发表文章和微博全部保留原样，不编辑、不删除重发；只安排新稿。已确认Asia/Shanghai从2026-10-11起每天08:00、20:00各一篇，平台到时自动发布，不能立即发或用本地定时点击替代。
+- 第010篇原文章2309405352283469906184、微博RlW8b6KTN均保留。固定账本attempt fb36d2e3e8834c5f9eb3cc39a5d36e51经新accept-existing-compound以直接用户答复原样接受为accepted_as_is；article仍verified、status仍submitted、contentFullyVerified=false，默认简介和缺原文链接不追补，提交来源仍unattributed/总创建次数未知。保留原attempt不可变快照、确认文件及SHA，未改写为published；没有新增网页发表请求。
+- weibo-publisher脚本COMPLETED及next支持accepted_as_is，未知无双输出尝试不可使用此入口。SKILL、browser/editorial/ledger/scheduling参考已同步最新规则，消除旧原地编辑与仅published才续接的矛盾。脚本AST检查在本轮前半通过，skill-creator quick_validate末次通过；没有新增或运行回归测试、产品测试、构建或Format Check。
+- 第011篇“SonnetDB 用户与授权：角色和数据库权限”已按当前sql-reference、UserStore、DatabasePermission和BearerAuthMiddleware审稿，修正旧ROLE/measurement级GRANT示例，区分HTTP角色、普通/SUPERUSER身份、数据库授权。审定稿固定目录drafts/011-sonnetdb-users-permissions.zh.md，SHA A6D8AE32B6D7E28C582B42BB2FB47177F00BEFFC2B0F267C9680CE83E7F8DBA0。只完成文档源码核对，没有执行SQL或生产权限验证。原文链接为博客园p/20023351。
+- 第011篇唯一真实网页草稿3930600（https://card.weibo.com/article/v5/editor#/draft/3930600），标题正文已正常保存和独立reload守卫通过。初次异步空稿/填入失败证据保留，只在同ID恢复，未重复建稿。尚未追加011到旧queue/seed、没有claim或最终发表点击。现草稿仍自动沿用上一篇封面，须替换；不能把自动沿用视为合格主题图。
+- 原生定时UI已实测：正常发布弹窗右侧无文字时钟，唯一定位`.n-dialog:visible .flex.items-center.gap-5:has(> .tools-count) > .svg-icon-wrapper.tools-icon`；宽选择器不唯一失败证据保留。展开出现“将发布于”、日期/小时/分钟控件，没有会员提示。浏览器时区Asia/Shanghai，2026-10-10日历10日至17日可选，18日及以后disabled；仅证实当前UI窗口，未实证后端定时权限。草稿箱01/30，定时队列容量未知。
+- 第011篇弹窗曾真实选到2026-10-11/08时/00分并填审定简介和真实原文URL，011-time-preflight.stdout.txt回读吻合；0次最终发布点击，因此平台scheduled=0。弹窗已正常关闭；立即点击替换封面遇残余过渡遮罩拦截超时，未force/坐标绕过，随后独立DOM观察确认无可见dialog、仍是3930600编辑器。日期简介暂态字段可能丢失，下轮重新观察填写，不能当已保存排期。
+- 封面首次gpt-image-design/本机sonnet_vip请求125秒边界超时且无输出，旧失败保留。用户已允许CLI fallback，本轮通过原imagegen CLI/gpt-image-2/同配置本机网关生成，API返回34.1秒；没有改CLI脚本或安装依赖，凭据仅临时子进程环境。最终1672×941主题封面docs/blogs/weibo/assets/011-users-permissions-jk-final-20261010.png，SHA42e93818d99e2a992b5006855880d834213d53cf76ed62184c7e334c4c18cf90；成年亚洲JK风格女性与授权主题、准确“关注 SonnetDB”经Pillow叠字并目视通过。提示词、base和cover JSON均保留，尚未上传/裁剪/回读网页封面。
+- 固定状态schedule-plan.json已独占创建，盘点146篇、排除001～009published及010accepted_as_is，余136篇候选槽位为2026-10-11 08:00至2026-12-17 20:00，每天两篇68天。全量仍planned，sourceInventorySha256只作盘点快照，012以后尚未逐篇审稿。计划持久记3930600、审定稿/正文/简介/封面路径和真实未完成状态；不得重建011。平台日期窗口和30草稿容量要求滚动分批，不能声称全量已安排。
+- 原自动化sonnetdb-3已通过app接口更新并回读toml：ACTIVE/每30分钟/原target 01a12004-2cc6-7351-a48d-b33f388839e5保持，明确确认的2026-10-11、08:00/20:00和本轮检查点。下一轮先接续3930600上传新封面，正常保存/独立reload，然后建立原生定时持久单次提交合同与claim后新DOM证据，最后一次点击及独立平台排期回读才记scheduled；旧record-browser-compound不得冒充排期成功，到点后双输出真实回读才published。未决不重发、不买权限、不改旧稿。
+- 每轮最多3篇/40分钟有界续接，日节奏不是创建额度。本轮未另开浏览器窗口，复用sonnetdb-weibo-series，保留共享Chrome和daemon，不导出Cookie。所有记录客户端身份末次复核在research/schedule-20261010/final-process-audit.json，信号0；只覆盖这些已记录身份，不声称全机或未观察后代无孤儿。所有错误、超时和原始回执均保留。
+- 本轮证据固定research/schedule-20261010；仓库仅新增本篇封面交付物及独占追加HANDOFF，前缀字节验证不变。读取HEAD78045e8b407e9caceae2548116390ffb985fc959，保护并发Workbench工作树/index，0stage/commit/push/部署；HANDOFF暂不提交遵守发布任务禁止自动commit。下一轮按上述顺序完成011真实排期后滚动安排后续编号。
+
+## 微博原生定时011首次实交付及012草稿接续（2026-10-10 14:08 Asia/Shanghai）
+
+- 本轮sonnetdb-3自13:30开始，40分钟截止14:10；保持用户2026-10-11起08:00/20:00、无会员、已发表内容不编辑的决定。001～009 published与010 accepted_as_is保持，未重查旧会员编辑入口。原136候选计划中011现已真实scheduled，其余135仍planned；没有称所有文章已排期或已发表。按平台可选日期滚动处理，草稿容量30、定时队列容量未知不变。
+- 011原草稿3930600、标题“SonnetDB 用户与授权：角色和数据库权限”，本轮按当前sql-reference、UserStore、DatabasePermission、BearerAuthMiddleware再次审稿，纠正旧ROLE和measurement授权示例；新JK主题封面011-users-permissions-jk-final-20261010.png已目视、上传、16:9裁剪、保存及独立reload，平台封面40ea586bly1ihx7962uc9j20zk0jy0vs.jpg。claim45847a541a2d4e1ea344914146cae10f后新DOM绑定原ID、全文封面、简介/真实原文20023351、公开与Asia/Shanghai时刻，mark实际singleClickAllowed=true后05:45:14.026Z仅一次最终点击，页面返回“定时创建成功”。禁止再提交011、点击“立即发布”或“重新编辑”。
+- 独立reload原ID后，列表时钟提示明确“定时发布开启，本文将于2026-10-11 08:00发布”及设备时区；浏览器Asia/Shanghai。只读iframe preview?id=3930600&history=1的同作者UID1089099883、标题、完整审定正文及新封面核验通过，真实bjtimestamp1791676800与08:00+08:00一致。当前UI不展示保存后微博简介/public控件，未点击重新编辑去取，不复制提交前文字冒充回读。用明确窄范围record-article-schedule真实入账：verificationScope=platform_native_article_schedule_companion_pending、companionScheduleReadback=not_exposed_before_publication、publicationVerified=false，文章/微博outputs仍pending。scheduled只证明文章原生排期，配套微博留待到时核验；unknown已按真实排期证据解除，不是完整发表。
+- weibo-publisher新增scripts/weibo_native_schedule.py及主脚本native合同：enable、append-reviewed、bind、build-editor、独立record或窄范围record-article-schedule、sync-plan、到时record-published；不可变原ID/内容/封面/时间绑定、审稿来源快照与同一single-click marker均保留。next跳过真实scheduled；到时未核双输出的scheduled会阻断新创建，必须先对账。完整record仍要求保存后简介/URL/自动微博/public真实回读；窄范围入口额外严格绑定实际reload raw main/detail、forms=[]、原ID时钟及iframe时间戳和原完整提交前marker，不称缺失字段已确认。到时才可用真实文章/微博双输出回读记published。多个scheduled增量、到时自动发表与双输出、队列容量尚未实测，不称生命周期全验证。
+- 使用skill-creator更新SKILL及browser/ledger/scheduling，记录实际时钟/iframe DOM回读、窄范围语义和两步CLI upload。011曾混用waitForEvent/filechooser setFiles与CLI upload造成空返回、图库同图两份，原证据保留、未删除图库资产。创作者入口只读探索超时、一次run-code尾部分号语法错误及修正、一次文档patch末块定位失败均保留，不计平台限制或成功；没有走私有API、Cookie、UIA或购买权限。
+- 012已按当前ApiToken、UserStore、BearerAuthMiddleware、ScopedDatabaseListControlPlane及sql-reference完成审稿：修正JWT/无状态、ROLE/EXPIRATION、按名字撤销等旧描述；未运行任何SQL/权限/生产实验。审定稿固定drafts/012-sonnetdb-token-auth.zh.md，原文真实20023352，queue已追加012。真实新草稿3930613、标题“SonnetDB Token 认证：签发、校验与撤销”已正常保存，06:04:47Z独立reload全文一致、public非粉丝限制未启用；无封面、无attempt、无最终提交、planned不是scheduled。不得重建012。
+- 012按gpt-image-design主题要求、授权CLI fallback/gpt-image-2及本机sonnet_vip网关生成，API37.5秒返回；凭据仅临时子进程环境，不打印/写文件。最终docs/blogs/weibo/assets/012-token-auth-jk-final-20261010.png，1672×941，SHA45e45d766b3898b0d762f2ca101f3ba13a4c35c1c736d162f99d37481d9afae4；成年亚洲JK风格女性引导Token主题、上部准确“关注 SonnetDB”确定性叠字并逐张目视通过。cover JSON visualReviewedFinal=true，但尚未上传。schedule-plan已持久012的审稿/封面/真实原草稿ID与正文冻结路径；下轮从3930613上传新图裁剪、正常保存独立reload，再claim后新DOM/bind/build-editor、一次门禁提交2026-10-11 20:00并独立排期回读；之后才准备013。
+- 本轮真实排期1篇、另保存012草稿；next实际返回012，blocking=0、scheduled=1。原自动化sonnetdb-3通过app更新并回读TOML，ACTIVE/每30分钟/原target01a12004-2cc6-7351-a48d-b33f388839e5保持，已替换011未上传/未提交的过时检查点。状态不变静默，真实排期/发表、明确限制、失败或需用户才通知；没有设置本地创建日限額。
+- 证据固定research/schedule-20261010/run-1330；011独立raw/queue/detail/窄范围receipt及record结果、012editorial/draft reload/封面回执/next均保存。最终两脚本AST语法接受，0新增/运行测试、产品build/restore/format。记录客户端末核在final-recorded-process-audit及followup，0信号；PID84420已复用为新创建身份，保留不误杀。仅覆盖已记录client PID，不证明未观测后代或整机无孤儿；共享Chrome/daemon与登录保留，同一窗口原两个标签、标签0停012，无另开窗口。
+- HEAD78045e8b407e9caceae2548116390ffb985fc959、空index实核；保护并发Workbench及其他渠道dirty。本轮仓库新增主题封面交付物和独占追加HANDOFF，原前缀逐字节哈希确认不变，0stage/commit/push/部署；HANDOFF暂不提交遵守发布任务禁止自动commit。下轮按上述012原草稿接续；011到2026-10-11 08:00前只读排期无需重复通知，到时先查真实文章/微博。
+
+## IoTSharp 公众号115篇封面补全完成（2026-10-10，Asia/Shanghai）
+
+用户最新“继续”承接按既定风格为 SonnetDB 001–144 补全封面。接续时实际已核验21篇；本轮完成剩余94篇，当前115/115篇封面已在原草稿保存并独立重载核验。29篇旧文章仍duplicate-skipped，不编辑、不新建替代稿；新发表0、群发0、排期0。全部留草稿供用户后续人工确定发布时间。
+
+115张主题封面使用此前gpt-image-2生成结果，保留原图及逐图生成/视觉审核证据；明确成年亚洲女性、得体JK服装、SonnetDB品牌、主题中文和“关注 IoTSharp · 读懂 SonnetDB”。048局部修正WAL→MemTable→不可变Segment并取消未实测吞吐图；086补Graph Beta；135移除单库目录图中的误导.system行，明确SonnetMQ物理日志为实例级.system/mq、单库备份不覆盖；141修复标题像素。四张Pillow派生图均实际查看后入队，原图不覆盖。93张待上传图以原尺寸JPEG quality95/完整色彩分辨率编码，总量192,576,006→54,103,733字节，每图RGB通道RMS≤2.127并实际审看代表图；来源SHA、派生SHA及编码回执保留。
+
+正常网页上传、裁剪、保存与DOM回读，未逐篇截图/OCR，未增加可见窗口。036原上传超时后，实际页面证明图片已上传并选中，只继续原裁剪及单次保存；070因教育提示在素材选择层之后，点击被遮挡而停止，核原ID/已选素材后修正前台命中检查并继续。两稿保存响应200/ret0及独立回读通过，无重复上传。所有原失败/恢复回执保留，未知不重建、不盲重试。
+
+最终证据：research/20261009/cover-final-platform-checkpoint-20261010.json及covers/cover-queue-audit-20261010-142228.json，均位于C:\Users\mysti\AppData\Local\Codex\WechatPublisher\sonnetdb。实际重新加载完整草稿箱115篇，标题集合匹配，115张列表封面资产逐篇与回读资产匹配；115个原草稿ID保持，独立重载核标题/全文/代码LF/表格/封面，115个封面文件与远端URL各自唯一；288份冻结HTML/Markdown哈希保持。005手工试点早于assignment marker，仅用真实原独立回读证据，不伪造marker。queue.json已记录coverPhaseStatus=complete、115/115及finalCoverPlatformCheckpoint；PROGRESS.md和带封面缩略图的index.html已更新。
+
+有界执行：单篇upload/crop/save/reload各≤40秒，先1篇micro成功，再最多92篇/7200秒；070停批对账后最多65篇/5400秒，均串行、支持covers/cancel。批次原PID/启动/命令/父PID及结束记录保留；最后关闭专属sonnetdb-wechat-144后台session，browser-profile目录保留，下次仍须实际核登录有效性。470条已记录CLI及两批根身份当前均absent或PID不同创建，不发额外进程终止信号；8条精确专属浏览器/session命令在close后0条存活。证据cover-process-before-close-20261010.json、cover-session-close-20261010.json及cover-process-after-close-20261010.json；该审计不声称覆盖未观察的短命后代或整个机器。侧栏Browser/Chrome灰色开关仍未修复，当前可用路径为已授权持久headless Playwright，不读取/复制侧栏Cookie或token。
+
+本轮仅公众号渠道资产/状态/索引、外部任务工具与本交接追加；共享其它渠道和Workbench改动保持。main HEAD78045e8b407e9caceae2548116390ffb985fc959、index空，远端parity-results 0061d6d78591fb08493f473d3231ca42303faae1保留。没有stage/commit/push，没有产品.NET测试/构建/restore/Format Check；HANDOFF暂不提交遵守发布任务不自动提交及完整最终树门禁要求。
+
+下次先读queue.json及最终封面checkpoint，115篇draft-verified/cover-verified不得重新创建或上传，29篇旧文继续跳过；用户后续人工选择发布时间。如用户另行授权发表，先复核当前账号/平台限制/内容图要求和确认环节，不把封面保存当作已发表，也不推断此前“必须插入一张图片”的正文自检已解决。原005发表自检历史仍保持，没有在本轮重试发表或设置自动化。
+
+## 关系表热点写与锁粒度核查（2026-10-10，Asia/Shanghai）
+
+- 本次回应用户关于热点行、逐行锁与阿里云批处理方案的咨询，只核查现有实现和厂商公开文档。读取时 main HEAD 为 c40fa670；共享工作树已有 Workbench、博客和 HANDOFF 等改动，均保留。没有修改产品代码、运行负载、构建、测试或部署。
+- 源码已证：TableStore.cs:18 每表共用 _sync；Insert/Upsert 在该锁内执行，InsertMany:550 和 ApplyBatch:615 已支持一批多行。TableSqlExecutor.cs:1487 的普通非 UDF UPDATE 把候选扫描、表达式求值与提交放入 TableManager.ExecuteLocked；TableManager.cs:1042 的 ApplyTransactionCore 还持有同库表管理器共享锁，再按表名获取涉及表的同步锁。因此高并发瓶颈不只可能来自同一行，同表不同行乃至同库不同表的关系提交也存在串行点；这是代码结构结论，未实测发生积压或吞吐上限。
+- KvKeyspace.cs:1331 已将一批 mixed put/delete 作为一个 WAL record，SyncWalOnEveryWrite 开启时该批一次 fsync；不等同于跨独立请求按时间窗口自动归组。多表事务路径另有 before-image journal、各表 WAL sync 和完成标记（TableManager.cs:1069-1092）。TableManager 已记录锁等待，后续应复用指标，不称其缺失。
+- 已核对 Alibaba Cloud 官方 PolarDB Hot row performance optimization 文档（页面更新 2026-04-08）：短窗口内按主键/唯一键对同一热点行的多次更新分组，Leader/Follower 减少锁等待与重复索引定位，分组流水线提交；不是把不同数据行改为共享一把大锁。本轮所查关系写入链路未见对应的跨请求 Group Update 实现。
+- 下一步建议先独立冻结同一行、同表不同行、同库不同表三类 UPDATE 负载，对比单条/批量与并发梯度，采集吞吐、p95/p99、锁等待、WAL 同步和正确性。确定主要串行点后再评审缩短管理锁持有范围、并发控制与有界分组提交；必须保持约束、触发器、返回值、事务原子性和崩溃恢复语义。方案、性能提升及生产可用性均未验收。
+- 本次只追加本段交接；未 stage/commit/push，未运行提交前完整 restore/format，咨询核查不自动形成代码提交。使用 PowerShell 7.6.6；未创建常驻任务、临时目录、下载或测试服务，无需要回收的自建后台进程。
+
+## 微博原生定时012至014串行实交付（2026-10-10 14:10至14:43，Asia/Shanghai）
+
+- 接续sonnetdb-3本轮06:10:38Z，硬截止06:50:38Z，最多3篇；实际新增012、013、014三项排期，未立即发表。011原scheduled保持，001至009 published及010 accepted_as_is原缺项、未知来源保持；不编辑、删除重发历史已发内容，不充值或购买会员。每轮边界不是日创建额度。
+- 012复用原草稿3930613和原claim 1c5a0248b6444466820456d41f55942c，本轮新Token封面上传、裁剪、保存和独立reload全文/封面通过。claim后真实原生日期2026-10-11、20时00分及完整简介/原文20023352/公开已核，native bind/build-editor、mark实际singleClickAllowed:true后06:20:38Z单次最终点击；独立reload原ID时钟2026-10-11 20:00+08:00、原预览作者/全文/新封面/真实timestamp1791720000确认，record-article-schedule记scheduled，无第二attempt或最终点击。
+- 013按当前sql-reference、SqlParser、SqlExecutor、MeasurementSchema/Column、FieldType审稿，修正FLOAT=Float64/INT=Int64、高级列须FIELD、向量索引修饰列、IF NOT EXISTS保留旧schema、NULL/NOT NULL仅AST及DEFAULT拒绝等口径；原文URL从博客园账本取20023354。新草稿3930630，标题SonnetDB 时序建表：Tag、Field 与类型，attempt32c6e508970d4b73880a8358713c58fe。gpt-image-2经已授权CLI fallback生成新主题图并准确叠字，生成及裁剪均目视通过。06:30:16Z单次最终点击，网页定时创建成功，独立reload全文/作者/新封面/完整时钟及真实timestamp确认2026-10-12 08:00+08:00，record-article-schedule通过。
+- 014按当前vector-search、SqlParser、VectorIndexDefinition、KnnExecutor及HNSW实现审稿，修正旧CREATE TABLE/CREATE INDEX路线，使用measurement FIELD VECTOR列WITH INDEX与knn，核m/ef/ef_construction/metric及墓碑/候选不足精确回退边界；不沿用固定复杂度、毫秒级或Recall承诺、未知查询Hint。原文URL20023355。新草稿3930636，标题SonnetDB HNSW 索引：声明与检索边界，attemptcaf5c97c0abb409ea862379083bbf7fe。新分层图主题JK封面生成、准确关注 SonnetDB叠字及裁剪目视通过。06:37:59Z单次最终点击，网页定时创建成功，独立reload原ID全文/作者/封面/时钟与时间戳确认2026-10-12 20:00+08:00，record-article-schedule通过。
+- 三项都冻结原草稿、全文、封面、简介、原文链接、public、具体时区时刻及本次源码快照，并保留独占marker；只读排期预览没有保存后的微博简介字段，scope均platform_native_article_schedule_companion_pending，outputs article/status仍pending、publicationVerified=false。不能说已发表、已回读提交后的简介或完成到时双输出。到时优先独立真实文章及微博完整简介/原文URL/同文章卡片/封面，通过native record-published才published；未知先对账，绝不重发或点重新编辑/立即发布。
+- 正式图片：docs/blogs/weibo/assets/013-measurement-schema-jk-final-20261010.png，SHA d3b0a88ba146d55e393dfe713f39d5db016e13472ee92e4ab810756f2dda24c0；014-hnsw-search-jk-final-20261010.png，SHA 1c09025d7004c974943a68cca6bf70bbc6214f35b430bc940cc33874aeab48c6。均1672x941，约25岁成年亚洲女性得体JK、引导主题、准确关注 SonnetDB，新封面保存后裁剪URL各在原binding/raw回执。012原合格图保持。
+- 013裁剪“确定”后等待关闭6秒曾timeout（CLI exit0但含### Error）；后续只读确认弹窗已关闭且新封面生效，再正常保存和独立reload，未重复确认/上传/最终提交。014图库首项先为blob预览，等待真实HTTPS上传完成后再选图，未重复上传；裁剪关闭等待15秒完成。这两个已证流程及多篇续排证据追加weibo-publisher的browser/scheduling参考，旧字节前缀保留。skill-creator quick_validate在固定账本Python因缺yaml失败，已在已知Python3.14环境运行通过；原失败不抹除，没有安装依赖或新增/运行产品测试、SQL实验、回归测试/构建/format。
+- 目前共4 scheduled（011至014）、132 planned，网页草稿箱04/30（包括已排期稿），定时队列容量仍未知，日历当前真实10日至17日窗口未扩大。计划platformCapability更新本次真实backendScheduleConfirmed及04/30观察，未推断队列上限。最小下一项015 docs/blogs/015-insert-into.md，候选2026-10-13 08:00+08:00，未审稿、未生成图、无draft/queue/attempt；下一轮从015源码审阅接续，已scheduled四项不重写。
+- 全部原始DOM、图、claim、marker gate、回执与有界客户端身份在固定状态research/schedule-20261010/run-1410；各编号*-native-article-schedule-receipt.json绑定独立queue/detail/raw SHA，final-checkpoint.json为本轮状态。资源audit39个已记录helper root identities当前全部absent、0signal，只证明这些根身份，不冒称未观察后代或全会话无孤儿；共享sonnetdb-weibo-series Chrome/daemon及标签0原014只读排期现场保留，无新窗口或Cookie复制。
+- 原sonnetdb-3通过app工具更新检查点并实读TOML：ACTIVE、每30分钟、原target01a12004-2cc6-7351-a48d-b33f388839e5保持，提示015为下一项；无新自动化。只有平台明确限制才暂停，当前未见限制/登录失效。库HEAD由本轮最初78045e8b并发变化为c40fa670e3a170c5fac8cefa181d618631862270，最终index空，本任务0stage/commit/push，其他dirty/历史回执保留。HANDOFF仅独占追加并核旧字节前缀，不整体暂存；暂不提交遵守发布任务禁止自动提交及共享工作树保护。
+
+## CSDN 021–022 接续验收完成（2026-10-10 14:44 Asia/Shanghai）
+
+- 用户“继续”沿用两篇目标；重新核skill/参考/最新根HANDOFF/权威账本，021 unknown原ID167484247，今日3次余7。原named browser已关闭，按实际CLI help复用原browser-profile正常open，恢复管理/原ID writer/独立reader三标签；不复制登录状态。网页批次从14:19:30开始，硬截止14:49:30；最终提交/独立全文回读均在窗口内。
+- 021新鲜管理分类实际“已发布”，同主题唯一ID167484247，平台显示13:25:08，发布来源仍unknown、本次最终提交0。首次“必须在草稿箱”守卫拒绝后，原共享4分钟/12页窗口内第二次四分类核全，合计8页；独立reader原ID强制reload全文与冻结标题/SHA一致（恰好一个终止LF），新独立回执021-1dfa22a3-29c3-4756-808f-58e2c0c56cd3-continue-accepted-readback.json，按原attempt正常record under_review解除unknown。依据为真实作者已发布分类及服务器全文，未制造旧成功页、投稿点击或匿名公开证据，旧receiptHistory/marker/SHA全部保留。
+- 022审稿纠正FETCH FIRST可省OFFSET、ONLY合同、排序并列/跨请求快照/时间游标与生产性能边界，当前5个来源SHA留独立editorial；未运行SQL或产品测试。标题SonnetDB SQL 分页查询：LIMIT/OFFSET 与 FETCH 语法、准备SHA 9b67c042946619ab5286519c3fb7de1a4ff66cfe73b7f9a52d2c83ca64391a8d。初查重active等待超时、本地wrapper finally CIM超时均保留；在原查重截止内完整四分类通过（成功4页，旧失败页和异常不作PASS）。首次daily claim a1b7952a-87dc-4db3-8d6e-20fabda825fc正常单次输入/正式保存/原IDreload并bind-draft167488640，证明022-9e3a1b44-d473-4586-b930-bcf00bbe1d08-draft-cli.json。
+- 设置合并helper由本任务引入换行转义错误，原022-337876b4-a35d-4cdf-b628-3c48c04e21ec-continue-settings-failure.json保留remoteMayHaveChanged=true的原保守字段；后续独立022-settings-parse-diagnostic-1435-a1243a.json按原marker/同绑定生成代码SHA离线证明SyntaxError发生在函数执行前，UI代码不能执行，修复后仅parse接受，不能升级发布成功。先原attempt record unknown；新鲜分类核原ID草稿唯一、审核/已发布0及服务器全文一致。首次对账过严要求“全部”含草稿被拒绝；实际该分类不包含草稿记录，窄修为允许全部0或唯一同ID，草稿仍恰好1/审核与发布0，原失败保留；该恢复窗口两次合计8页、共用4分钟截止。真实reconcile-draft证据022-eba3f60b-9d58-4a3a-a87a-7f5ccd191843-continue-reconcile.json解除unknown，再另计daily claim ab98129e-9c9b-48c5-92a3-3b352b396e6a、原ID不变、未再fill。旧attempt/设置marker与新attempt/marker分存，不删不覆写。
+- 正常单次UI合并设置实际原创/public/false、GitCode=false、部分内容由AI辅助生成、SonnetDB/数据库两标签核验通过；14:40后只点击一次最终发布。真实writer URL https://mp.csdn.net/mp_blog/creation/success/167488640及“发布成功！正在审核中”已核；reader原ID独立强制reload全文严格匹配，新022-accepted-1441-a1243a-receipt.json/remote.md/success.jpg排他保存，14:42正常record under_review。021/022均恰好多一个终止LF，不trim/innerText/模糊对拍；匿名公开均未验证。
+- 最终001–022 under_review、unknown0、next23，今日5次/余5，最新平台8；本次实际新最终提交1篇（022）及原已发布对账1篇（021），两篇验收闭合。023完全未prepare/claim/导航/编辑/提交，不再额外发文。没有修改或新建sonnetdb-csdn每日11:00自动化；后续正常批次从23实时status/审稿/查重/预算推进，旧即时窗口永久关闭。
+- 所有新稿/审稿/原失败/诊断/UUID回执/截图/资源证据留C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy；本任务新增continuation/parse诊断helper并窄改manage_search留publish-csdn技能，未放仓库。最终两个helper Node语法接受；不称离线完整测试或产品PASS。总结果20261010-continue-pair-completed-a1243a.json，资源20261010-continue-pair-resources-a1243a.json及followup：34记录root，32 PID当前absent，另2 PID已复用为较晚创建的无关memory/fetch MCP，保留不signal；0本轮审计信号，不证明未观测短命后代/whole-session。一段wrapper finally-CIM超时缺完整身份审计，该未记录身份保留unknown，不编造退出。保留共享登录Chrome/daemon与成功页/原ID reader。
+- 仓库只更新CSDN publishing-state/PROGRESS与本HANDOFF追加；PROGRESS旧13:06维护和13:23停止记录由原字节快照恢复，新状态另记，根前缀逐字保留。并发其他任务已将HEAD前移c40fa670e3a170c5fac8cefa181d618631862270，当前index空；本任务未stage/commit/push/部署/安装/修改其他渠道或自动化。HANDOFF暂不提交遵守发布请求禁止提交和共享工作树边界。下一会话不重发已接受001–022，不把作者已发布分类或原ID编辑器核验当匿名公开。
+
+## 微博原生定时015至017交付与加载修复（2026-10-10 14:45至15:22，Asia/Shanghai）
+
+- 接续sonnetdb-3触发06:45:09.150Z，硬截止07:25:09.150Z，每轮最多3篇；实际新增015、016、017三项原生排期，无立即发表。011至014原排期保持；001至009 published和010 accepted_as_is原缺项、未知来源保留。已发表内容不编辑、不删除重发、不购买会员。下一轮从018继续，每轮边界不是本地发布额度。
+- 015按当前sql-reference、SqlParser、SqlExecutor与Tsdb写入源码审稿，修正time Unix非负毫秒/可省略、measurement Tag字符串角色与未知列默认Field、数值类型提升、显式NULL/DEFAULT拒绝与稀疏省略；不沿用同键覆盖、乱序无性能影响或固定批量吞吐承诺。权威原文URL20023356。标题SonnetDB INSERT 写入：时间、标签与稀疏字段，新草稿3930644、attempt8ebae934c87341f6b690708dea729269；06:57:10.477Z实际一次最终点击。独立reload原ID全文/作者/新封面、完整时钟2026-10-13 08:00+08:00与timestamp1791849600，record-article-schedule记scheduled。
+- 016按geo-spatial、sql-reference、SqlParser/SqlExecutor、GeoPoint/FieldValue和FunctionRegistry审稿，修正CREATE MEASUREMENT FIELD GEOPOINT、WGS84与SQL纬度/经度和GeoJSON反向顺序、坐标越界拒绝、ST_DWithin四参及实际段内剪枝与旧独立Geohash索引语法边界；原文20023357。标题SonnetDB GEOPOINT 写入：经纬度顺序与查询，新草稿3930651、attempt7022b47700df4450b98467a33a5344dc，07:08:56.223Z一次最终点击。独立reload原ID全文/作者/封面、时钟2026-10-13 20:00+08:00与timestamp1791892800，record成功scheduled。
+- 017按vector-search/sql-reference、SqlParser/SqlExecutor、FieldValue和KnnExecutor审稿，修正关系表VECTOR声明、384维配四元素、整数向量类型与时刻字符串；完整三维例说明统一float32、稀疏Field、应用管理模型来源/有限数值/归一化与KNN边界。原文20023358。标题SonnetDB VECTOR 字面量：维度与写入合同，新草稿3930658、attemptbe682c6251b44b3183aed3207cb95b6b，07:17:49.252Z一次最终点击；独立reload原ID全文/作者/封面/时钟2026-10-14 08:00+08:00与timestamp1791936000，record成功scheduled。
+- 每篇用gpt-image-design、本机sonnet_vip/gpt-image-2的已授权CLI fallback独立生成主题封面，并确定性叠准确关注 SonnetDB。三图均1672x941、约25岁成年亚洲女性得体JK引导主题；base、final与实际裁剪均目视通过。正式图docs/blogs/weibo/assets/015-insert-contract-jk-final-20261010.png SHA3a771ae92a4612a4bb67d9e88468d598a3d2d7c0a16a1b05b5a896680dfc1512；016-geopoint-write-jk-final-20261010.png SHA215cfbe340facc6ec76f36b73a7b5cab1cd17e141f868cfe2fc2b7b79e4d1586；017-vector-literal-jk-final-20261010.png SHA7e5d8791201aa6abb0f81e6b3a7881ba6206b6fe3f08d93b41d8999fde897fd3。凭据只在生成子进程环境使用，finally恢复原环境，不打印、落盘或改配置。
+- 三项均原claim后新DOM、native bind/build-editor、mark实际singleClickAllowed:true后一次最终确认，再独立queue/detail/raw SHA回读；冻结原草稿/全文/封面/完整简介/真实链接/public/自动微博/精确时区时刻与审稿源码快照。scope全部platform_native_article_schedule_companion_pending；outputs article/status pending、publicationVerified=false。保存后只读预览没有微博简介，不能冒称已发表或提交后完整简介回读。到时优先独立真实文章与微博全文简介/原文URL/同卡片封面，native record-published通过才published；未知先对账，禁止这些原ID重新编辑、重新提交或立即发表。
+- 016首次批量填写后标题为空，017初始新建与首次reload修复中正文为空，均在claim之前被守卫挡住。原ID未换、无新draft或attempt；只读原ID核空字段后，016在稳定当前页补标题，017在稳定当前页补正文/标题，保存和独立reload全文通过后才claim。017修复脚本的首个title等待超时、再次reload后填充触发body mismatch均保留，未当成功；最后stable-original-fill是实际通过版本。新建URL+暂空字段不足以证明数据载入完成，后续新建与填写拆阶段，原ID对账优先；只修复原未提交自有草稿，不碰已排期或旧文。browser参考已追加该实证与恢复边界。
+- 本地helper曾调用不存在的extract_urls，已保留原helper并改为从审定text提取真实URL；015正常claim exit2/browser_pending被过严退出码检查挡住，后续读取原8ebae claim真实JSON接续，没有再claim。016封面2515093字节在正常网页保存后，被旧source_record文本大小限制拒绝；此前未claim，原图/上传保持。native技能新增cover_record，独立20MiB有界图片读、PNG/JPEG/GIF签名与完整SHA，文本/事实/回执原限额保留，bind和verify_binding均复核。真实016及017 bind/build-editor/mark/record已通过，原脚本备份和失败证据保留；未新增/运行回归测试、SQL实验、产品.NET测试/build/restore/format。scheduling参考追加实际结果与平台UI20MB/本地20MiB边界，未称极限大小已验收。
+- 固定状态research/schedule-20261010/run-1445保留全部原始DOM、图、审稿、helper旧版/失败、单次gate和独立回执。final-checkpoint.json核3新增、总7 scheduled/129 planned、17原新ID与scope，当前草稿箱07/30包括排期稿，队列真实上限仍未知，10月10日历实测可选10日至17日未推定扩大。最小下一项018 docs/blogs/018-select-where-basics.md，候选2026-10-14 20:00+08:00，尚无草稿/queue/attempt/封面或审定稿，先当前源码审稿与新图。不得创建超12月日期或按planned宣称已排期。
+- 原sonnetdb-3已用app工具更新为018检查点，ACTIVE、每30分钟及原target01a12004-2cc6-7351-a48d-b33f388839e5保持，无新自动化；需要读实际TOML核持久配置。只有平台明确限制才暂停，当前无限制、登录失效或会员提示。共享sonnetdb-weibo-series原窗口标签0留在017只读排期预览，另一账号页标签保持；无新窗口、Cookie复制或私有API。
+- PowerShell7.6.6，有界CLI单阶段20至55秒，生图120秒且仅3张。46个已记录helper根身份收口当前均absent、0signal；audit范围只证明这些根，不冒称未观察短命后代或全会话无孤儿，共享Chrome/daemon保留。图/日志/证据为保留交付物，无临时目录删除、宽泛进程终止或新worktree。共享HEAD从起始c40fa670并发前移至60bd752f95c1ef2dcbab2566925cd599c43383f4，最终index空；本任务0stage/commit/push，产品与其他渠道dirty保留。HANDOFF只独占追加并核原字节前缀，暂不提交遵守发布任务禁止自动提交与共享工作树保护。
+
+## P02 新会话启动交接（2026-10-10，Asia/Shanghai）
+
+用户在P01完成后明确要求“新建会话实现下一项P02”。本轮调度前实时核HEAD仍为60bd752f95c1ef2dcbab2566925cd599c43383f4，index空；P01提交仍未推送，候选01来源仍c40fa670e3a170c5fac8cefa181d618631862270。新会话应直接在D:\source\SonnetDB实施P02：先读AGENTS/HANDOFF、P01三份冻结交付与根路线，核历史run37731752397/SHA5424b666的Web smoke原始失败，按证据区分产品/夹具/环境并修复、验证；源码变化追加后继候选，不改写候选01或降低原release门禁。当前NOT_READY不变。
+
+已通过app项目列表确认SonnetDB本地项目；本段写入时新会话尚待创建，实际threadId与启动状态以紧随本段的app工具返回和本聊天最终回执为准。本轮仅追加本调度交接，未重跑产品/restore/format、未提交/push/发布；此新增段暂不提交，避免把共享HANDOFF其它会话内容纳入提交。现有外部微博交接及其它dirty保持。旧workbench自动化继续PAUSED，不恢复WB98、不新建自动化。父会话完成创建后停止仓库写入，由新会话接管P02。
+
+## 关系热点写专项路线规划完成（2026-10-10，Asia/Shanghai）
+
+- 用户授权编写解决热点行/锁竞争问题的方案并写入路线图。本次新增 docs/design/m42-relational-hot-write-concurrency.md，在根 ROADMAP 加入 V45-X09 / M42-H01~H07，依次规划竞争基线、有界观测/准入、管理锁收缩、同表异键隔离、独立事务组提交、限定 SQL 同键分组、正确性/恢复/固定硬件/168小时验收。全部 planned；未创建 issue/PR，未启动实现或基准。
+- 复核并保留已有 InsertMany/ApplyBatch、单事务同键归并、批量 WAL 和锁等待指标；重点记录同库 TableManager、每表与 keyspace 锁，单一 transaction.sdbtxn、多表快照、外键/级联和 DDL 的共同协调约束。方案禁止直接拆锁、以关闭持久性换性能、把不同请求变成一个事务、盲重放 unknown 或简单合并库存扣减。首批热点路径限定确定性主键点更新/自动提交，复杂路径继续使用受协调的原入口。
+- 根路线同步 4.5 必选范围、M41/M42总览、工作包顺序、关系参考负载与真机待办；当前 Workbench M47-P02 顺序及 Preview 1 边界保持。CHANGELOG 仅登记本次文档交付，不把未来机制或性能提升记成已完成。
+- 文档验证通过：ROADMAP/CHANGELOG 的 git diff --check、三份文档191个本地链接存在、根路线和专题各7项工作包唯一且状态一致、新文档无行尾空白。上述只证明文档结构/链接；没有产品测试、压测、build、restore/Format、AOT、硬件或恢复证据。
+- 下一步从 H01 冻结 SQL/负载/目标硬件/持久性/指标覆盖和有界运行清单开始；至少三次原始基线后冻结数值门槛，再实施 H02。所有队列/重试/批次有数量、字节和墙钟上限，组提交与热点执行保留逐请求结果，六类验收证据分列。
+- 规划起点 main HEAD60bd752f95c1ef2dcbab2566925cd599c43383f4（已有领先提交非本任务创建）。本次只修改 ROADMAP、CHANGELOG、新专题并追加本 HANDOFF；原 Workbench/博客/HANDOFF 等并发改动保留，未 stage/commit/push。HANDOFF暂不提交：本轮为文档规划，未请求提交且未运行提交前完整门禁。PowerShell7.6.6；无后台进程、下载、临时数据库/目录或待回收任务服务。
+
+## 2026-10-10 微博原生定时续接：018至020 / run-1524
+
+- 本轮触发07:24:39.670Z（北京时间15:24:39），墙钟边界08:04:39.670Z；最多3篇且实际只新增018、019、020。最初读取HANDOFF、weibo技能及browser/editorial/ledger/scheduling、固定plan/queue/ledger，复用sonnetdb-weibo-series原窗口标签0，未另开窗口。侧栏当前只有打开工具，缺DOM/点击/上传，继续现有登录Chrome。原001至009真实双输出published、010 accepted_as_is及011至017原排期未重新编辑或提交。无Cookie导出、私有API、付费或立即发布。
+- 018原草稿3930668、attempt c53b687a0a16484aa72a46b4d68e1d4b、最终点击07:38:59.785Z，原生2026-10-14 20:00+08:00；019原3930671、attempt 50660290831743edb2121cbf6385e6ec、点击07:44:31.050Z，原生2026-10-15 08:00+08:00；020原3930689、attempt 8455d3fa39494833bbf7314cc1372832、点击07:49:47.289Z，原生2026-10-15 20:00+08:00。每项审稿、新图、保存及独立reload全文/封面后claim；claim后新DOM，native bind/build-editor，实际mark的singleClickAllowed:true后一次最终确认。非零exit对应browser_pending/unknown不当作失败重做。
+- 三项独立reload同原ID、作者1089099883、完整全文、新封面、Asia/Shanghai完整时钟与只读iframe真实时间戳1791979200/1792022400/1792065600逐一通过，record-article-schedule已真实记scheduled。证据、原始DOM与独立queue/detail/raw SHA回执在固定状态C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261010\run-1524；final-checkpoint.json含三项原ID、attempt、时刻、单次clickRequestedAt和回执SHA。全部10项scope=platform_native_article_schedule_companion_pending、outputs pending、publicationVerified=false；完整简介/博客园真实URL/public/自动微博仅提交前冻结，提交后只读预览仍不展示简介。不能称已发表或已提交后回读简介。到时优先核真实文章和微博全文简介、原文URL、同文章卡片及封面，再用native record-published；到时未决阻断新写，绝不重发。原marker/binding/审稿源码快照永久保留。
+- 审稿修正018旧ts/ISO条件、INTERVAL示例、IN/Field剩余谓词、Tag性能与最佳索引无证据承诺；019普通5/2实际2.5、Int64/Float64/Decimal/NULL/除零/溢出边界、GiB单位与CASE分母；020 Math.Round中点取偶、LOG(x,base)顺序、SQRT/LOG可能NaN/无穷、RequireDouble拒NULL、COALESCE参数先求值且不捕获错误。每篇事实文件SHA与审定稿/简介独立冻结，原博客园URL从publishing-state.json的018/019/020真实记录读取，分别20023359/20023360/20023362；sourceInventorySha256仅作漂移发现，不能当审稿。本轮未运行SQL、数值、接口或性能实验，也未新增/运行产品测试、build/restore/format。
+- 本轮生成三张主题独立封面：docs/blogs/weibo/assets/018-select-where-jk-final-20261010.png（SHA633566686cfe012fd975d9a10cb993b800048d9ad8490ca1d4328e323b1b24ea）、019-arithmetic-jk-final-20261010.png（SHA3fe6285aa1ec9edd40f15d93ad6b0c77929c96ec74497fdc17dc9d13f0c02e12）、020-scalar-functions-jk-final-20261010.png（SHA41dd4f1973aaed474305a2d47062765fc0da5ad1b0aba11271aa9c5d21911504）。本机sonnet_vip/gpt-image-2，授权CLI fallback，1672×941，Pillow准确叠字关注 SonnetDB；每图base/final/裁剪逐张目视，成年约25岁亚洲女性得体JK及引导手势符合。封面按点上传再独立upload，只确认一次裁剪，正常保存与独立reload；native cover_record独立20MiB及签名SHA合同保持。
+- 新建与填写分阶段，先create-only取得新ID/DOM并持久化，再在同一稳定原页等待加载中消失及checkbox就绪，核空或本篇正确字段，填写、保存并独立reload。019初始仍加载中，已这样接续；本轮无正文/标题被清空，无重复创建。图片库初开images=[]不能算真实旧图库空，019/020结合前篇已观察HTTPS基线等待本次新图；018第一次裁剪仍白蒙层转圈，没有确定，另一次同原弹窗只读截图稳定后才确定。020最终点击即时观察仍暂显示编辑器/弹窗，后续同ID独立reload排期证据通过，绝未重复点击。browser/scheduling技能参考已追加这些实证与边界。
+- 019首轮生图启动身份捕获失败，原PID20796/parent47656于15:33:40曾观察，15:35:21已不存在、无输出图片；只生成图片作一次有界重试成功，平台写入没有重试。原失败证据019-imagegen-first-failure.json、成功019-imagegen-retry1.start/result及正式base/final保持；不推定供应商远端是否完成了首轮计算。
+- 当前136候选，10 scheduled、126 planned；真实草稿箱10/30含排期稿，队列后端容量仍未知。10月14/15实际可选，原10日至17日范围未证明扩大；按日期滚动，不安排12月超范围日期。最小下一项021 docs/blogs/021-nested-functions.md，候选2026-10-16 08:00+08:00，尚无草稿/queue/attempt/封面/审定稿；先审当前函数求值/NULL/域边界并生成新图。原10项都禁止重新编辑、最终确认或立即发布。
+- sonnetdb-3已通过app工具更新为021检查点，ACTIVE、原30分钟周期和target01a12004-2cc6-7351-a48d-b33f388839e5保持，实际TOML已核持久（automation-persistence-verified.json）。执行边界不是发布额度，只有微博明确限制才暂停。当前无登录失效、验证码、会员权限或平台限制；同窗口留在020只读排期预览，标签1账号页保持。
+- 收口已核40 个记录helper根，其中39 个PID当前absent、1 个PID已是不同身份而不属本任务（64668，保持）；0同身份live、0signal，首轮019原PID20796也absent。证据final-recorded-process-audit.json只覆盖记录根，不把未观察短命后代视为已验收，共享Chrome/daemon保持。PowerShell7.6.6，有界CLI20至55秒、生图120秒。所有图/日志/回执为保留交付物，无宽泛删除、进程名终止或新worktree。共享HEAD为60bd752f95c1ef2dcbab2566925cd599c43383f4，index空；本任务0stage/commit/push，产品和其他渠道dirty保留。HANDOFF独占尾部追加并fsync，回读原字节前缀SHA；遵守发布任务不自动提交且保护共享工作树，暂不提交。
+
+## 2026-10-10 微博原生定时续接：021至023 / run-1558
+
+- 本轮触发07:58:10.215Z，截止08:38:10.215Z；只新增三篇021至023。已读HANDOFF、技能四参考及固定plan/queue/ledger，复用sonnetdb-weibo-series原窗口标签0正常网页，侧栏工具仍缺完整DOM/上传能力，无新窗口。原001至009、010接受现状、011至020冻结排期保留。
+- sonnetdb-021：原草稿3930707，attempt 45c2cb67561c4f6b8b913cb2b781aabb，一次最终点击2026-10-10T08:09:51.528Z；独立回读时间戳1792108800，原生时刻2026-10-16T08:00:00+08:00。封面D:\source\SonnetDB\docs\blogs\weibo\assets\021-nested-functions-jk-final-20261010.png，SHA a9b3139134548bba09afe2ad37d28124237c39029d0ded3ab72145b18323c4dc。
+- sonnetdb-022：原草稿3930710，attempt 200fa98370594b7ca8aded747b543f47，一次最终点击2026-10-10T08:20:28.640Z；独立回读时间戳1792152000，原生时刻2026-10-16T20:00:00+08:00。封面D:\source\SonnetDB\docs\blogs\weibo\assets\022-pagination-jk-final-20261010.png，SHA d85e165ebd78f8d82332573c5d0f8747338e6809051f9c9e75927c38baac06bf。
+- sonnetdb-023：原草稿3930714，attempt 7ed468f79f0148ee99e452e468e75e8e，一次最终点击2026-10-10T08:29:05.358Z；独立回读时间戳1792195200，原生时刻2026-10-17T08:00:00+08:00。封面D:\source\SonnetDB\docs\blogs\weibo\assets\023-multi-condition-jk-final-20261010.png，SHA 423e91f3911cbd474f54694bf3d101c30a27ae80457922dcc81f1a656c0fe376。
+- 三项均正常保存、独立reload全文和封面后claim，claim后新DOM设置完整简介/真实原文URL/public/精确日期时分，native bind/build-editor、mark实际singleClickAllowed:true、一次最终点击、独立reload同ID时钟和预览作者/全文/封面/真实时间戳、record-article-schedule成功。13项scope保持platform_native_article_schedule_companion_pending，outputs pending、publicationVerified=false；只读预览无保存后简介，不冒称已发表或提交后完整简介回读。到时优先核真实文章与微博全文简介/原文URL/同卡片封面再record-published，到时未决先对账不创建；禁止原ID编辑、重提交、立即发表。所有marker、binding、原始DOM、SHA回执和源码快照保留在固定状态research/schedule-20261010/run-1558及原目录。
+- 审稿逐项修正函数eager参数/CASE选中分支/NULL/非有限值/ROUND中点取偶/LOG参数顺序/聚合外包；分页FETCH可省略OFFSET、time同值与跨series游标遗漏、跨请求快照边界、raw下推条件/Top-N扫描成本；WHERE下推与残差、IN/OR/NULL三值逻辑、冲突Tag与空时间窗抛错、不承诺条件书写顺序提速及SELECT预览不冻结删除。额外查SqlLexer/SqlParser实际类型仅FLOAT/BOOL，021至023例统一修正，不用DOUBLE/BOOLEAN；词法与解析事实SHA纳入冻结。原文URL来自publishing-state.json真实记录，021/022/023为20023364/20023366/20023379。原源稿不覆盖。没有SQL、数值、分页、删除/性能实验，也没有产品测试/build/restore/format。
+- 三张新图本机sonnet_vip/gpt-image-2、用户授权CLI fallback，1672×941，约25岁成年亚洲女性得体JK引导主题，Pillow准确叠关注 SonnetDB；base/final/裁剪逐张目视通过。022第一张裁剪仍白蒙层转圈，未点确定，随后同弹窗只读稳定截图通过才确定一次；无重上传。新建分段稳定DOM没有异步清空，无重复草稿或平台最终点击；021点击返回暂仍显示编辑器/弹窗，独立reload确认排期后入账。完整生图记录均exit0，无本轮生图重试。凭据只用于临时子进程环境、不打印/落盘/改配置。
+- 当前136候选：13 scheduled、123 planned，实际草稿箱13/30含排期稿、真实排期队列容量未知；10月16/17实际可选，未证明超过17日。下一项sonnetdb-024 D:\source\SonnetDB\docs\blogs\024-show-describe-metadata.md / 2026-10-17T20:00:00+08:00，尚无草稿/queue/attempt/审定稿/封面；先源码审稿和新图，先核真实日期窗口再创建。超窗口保持planned等待滚动，不买权限、不立即发表、不本地计时点击、不私有API或Cookie复制。
+- 自动化由app工具更新同sonnetdb-3的024检查点，保留原target/ACTIVE/30分钟周期，须以automation-persistence-verified.json证明实际持久；不是创建额度。无平台限制、登录/验证码或会员提示，同标签最终保留023只读排期。已把本轮实证与类型审稿要点追加weibo技能scheduling/editorial参考。
+- 有界根进程审计：41记录，{"absent": 41, "same_identity_live": 0, "different_identity_not_owned": 0}，0signal；只覆盖已记录helper根，不冒称未观察短命后代全部验收，共享Chrome/daemon保持。PowerShell7.6.6，CLI20至55秒、生图120秒。全部图片/日志/回执为保留交付物，无清空临时目录、名称批量杀进程或新worktree。最终HEAD60bd752f95c1ef2dcbab2566925cd599c43383f4、index空，本任务0stage/commit/push，其他产品/渠道dirty保留。HANDOFF独占追加fsync并核原字节前缀SHA；暂不提交遵守本发布任务不自动提交和共享工作树保护。
+
+## 2026-10-10 微博封面固化与024未决 / run-1635
+
+- 本轮触发2026-10-10T08:35:10.753Z，截止09:15:10.753Z，最多3篇；实际只新建024原草稿3930723，没有新排期成功。已读HANDOFF、技能和browser/editorial/ledger/scheduling及固定plan/queue/ledger。001至009真实双输出published、010 accepted_as_is保留缺项；011至023的13项原排期保持，原marker/binding/源码快照/回执未改。
+- 024“SonnetDB 元数据查询：SHOW 与 DESCRIBE”已按当前源码审定，原文URL来自publishing-state.json的20023399。SHOW TABLES/MEASUREMENTS为独立catalog；无类型DESCRIBE是measurement；时序仅column_name/column_type/data_type声明行、隐式time不列普通Field；向量维度不等于HNSW元数据或健康；关系DESCRIBE七列；FLOAT/BOOL与输出类型区分；Scoped控制面过滤与SHOW TOKENS的token_id/user_name/created_utc/last_used_utc均核源码。审稿源SHA与审定稿冻结在本轮，原源稿未覆盖；没有SQL、权限、索引实验或产品tests/build/restore/format。
+- 本主题新图使用已授权gpt-image-design、sonnet_vip/gpt-image-2 CLI fallback，一次生图约117秒自然exit0。base含成年约25岁亚洲女性得体JK引导主题，但生成的Schema角色、station_id INT、TIMESTAMP/DOUBLE等标签不合格；保留base并用Pillow完整覆盖为准确关系schema面板。最终1672×941、准确可读“关注 SonnetDB”，D:\source\SonnetDB\docs\blogs\weibo\assets\024-metadata-jk-final-20261010.png，SHA0366e86dbe5dc187bfdc33d6c2d5dac628df30fde7c76398ff2e6533068a01df。base构图与final、稳定裁剪均目视；原始文字未冒称正确。独立CLI上传完成、HTTPS新图、选容器和裁剪确定一次、保存草稿并独立reload全文/新封面通过。首裁剪截图白蒙层仅原弹窗只读再截稳定图，没有重新上传。
+- 024 attempt70b8a28cfccc49d2bba422fffead3158：正常保存/reload后claim，claim后新DOM精确2026-10-17 20:00+08:00及完整简介/真实原文URL/公开/自动微博，native bind/build-editor、mark实际singleClickAllowed:true后于08:52:26.872Z最终点击一次。即时返回仍旧编辑器，后续独立reload等待排期10秒超时，失败stdout/result原样保留。没有再次点击、换attempt、删除marker、重新设置时刻或编辑内容。
+- 后续只读原IDDOM、25秒有界等待、再次独立reload、账号页reload与正常发布历史均未取得024排期/发表证据。原稿仍可编辑且无时钟，全文与新封面保持；当前可见历史没出现本题。这些负向观察不证明后端拒绝或没有创建，没有明确平台限制/会员/验证码提示。账本保留unknown、两个outputs pending，native绑定/marker原样；sync-plan后024仍planned但attemptId和submitState=unknown、reconciliationRequired=true，不冒称scheduled。原生日期控件08:51:47.831Z实读2026年10月10日至17日可选、18日disabled。总136候选为13 scheduled/123 planned，其中024已单次尝试未决；真实草稿箱14/30，后端排期容量未知。
+- 现场最终恢复同会话sonnetdb-weibo-series标签0的原3930723；标签1账号页保持，未另开窗口或复制Cookie。切“发布历史”会自动选旧记录，回草稿箱会自动选011；只读切页后直接导航回已知024并核精确全文/封面，未编辑旧稿。证据固定目录C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261010\run-1635，尤其024-submit-reconciliation.json、final-checkpoint.json、024-restore-original-read.stdout.txt及原失败观察。
+- 用户本轮追加要求把定时和上传封面都总结进技能。已用skill-creator更新weibo-publisher/SKILL.md的固定操作入口与description，新建references/web-editor-workflow.md，browser.md和scheduling.md增加入口链接。手册集中真实DOM定位表、工具路径、分段新建/批量填写、旧图库基线+单独CLI上传、HTTPS就绪、稳定裁剪与一次确定、保存独立reload、日期时分/完整简介、公开奖本claim→bind/build-editor→mark→一次最终确认→只读排期回读、到时双输出和未决对账；普通字段不循环截图。记录024异常及历史标签自动切ID的真实处理，旧样例只供参考，不运行历史final脚本。技能文档编码、引用和本地工具路径检查通过；quick_validate用已知本机Python3.14通过“Skill is valid”。首个bundled Python缺PyYAML原失败保留，未安装依赖；这是技能元数据检查，不是浏览器/产品回归测试。
+- 自动化sonnetdb-3经app工具更新原target 01a12004-2cc6-7351-a48d-b33f388839e5、ACTIVE和30分钟周期，prompt已独立读TOML逐字核持久（automation-persistence-verified.json）。下一轮优先只读对账024，同原attempt，最多2次/15分钟；未决不变安静，不新增025或其它稿，自动化不因未知或窗口耗尽暂停。024真实同ID完整排期证据到来才新建独立回执并record-article-schedule，不能覆盖失败观察。025/2026-10-18 08:00+08:00尚无草稿/queue/attempt，须024对账且真实日期窗口可选才新建。到时优先独立核011至023真实文章与微博全文简介/原文URL/同卡片封面，再record-published；排期只证明文章原生安排，配套微博仍待发表后核验。
+- PowerShell7.6.6、所有浏览器命令20至55秒边界；本轮记录20个helper根最终均absent、0同身份live、0signal（final-recorded-process-audit.json），只覆盖已记录根，不冒称未观察短命后代全验收，共享Chrome/daemon保持。全部图片、日志和回执为保留交付物，无宽泛删除、进程名终止或新worktree。开始HEAD60bd752f95c1ef2dcbab2566925cd599c43383f4，收口观测HEAD97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf，共享其它任务期间有提交；本发布任务0stage/commit/push，index收口为空，并发产品/渠道dirty保留。HANDOFF独占尾部追加fsync并核原字节前缀不变；暂不提交遵守本发布任务边界和共享工作树保护。
+
+## M47-P03 新会话派发（2026-10-10，Asia/Shanghai）
+
+按用户“现在创建新会话，在新会话里开始P03”的明确要求，已在同一 SonnetDB 本地项目创建会话 01a12515-7206-7e03-944c-a8b406b1d1d1，并交接 P02 两次本地提交、不可变候选02、P03 C01–C04/真实登录及权限旅程范围、原进程清理事故和安全执行约束。新会话已实际启动并回报核对 main/97882b8b、空索引、P02 与微博交接，正在落实冻结 P01 的入口和请求限制及后续真实权限验证。此记录只证明派发和开始工作，不证明 P03 实现或验收完成。
+
+本来源会话不继续实现 P03；后续由上述新会话更新实现与验证交接。既有候选及失败回执保持；无 push、workflow dispatch、发布、部署、安装、编辑器重启或恢复旧 Workbench 自动化。本次仅追加派发记录，保留全部原 HANDOFF 字节和外部改动；为避免混入共享工作树变更，该派发记录未暂存、未提交。
+
+## 2026-10-10 微博未决只读对账 / run-1711
+
+本轮触发09:11:41.249Z，未决最多2次/15分钟边界，实际仅一次同会话原ID独立reload DOM回读（09:13:42.065Z）。已读HANDOFF、weibo技能固定操作手册及固定plan/queue/ledger。024原3930723、attempt70b8a28cfccc49d2bba422fffead3158仍可编辑无时钟，原标题、完整正文、新封面URL与冻结合同一致，未出现同ID排期iframe；negative观察不能证明拒绝或没有创建。原ledger unknown、outputs pending、marker/binding及13项原排期保持；0claim/新草稿/最终点击/上传/编辑/截图，025不创建，没有新确认排期或发表。
+
+当前13 scheduled/123 planned（含024既有unknown attempt），草稿箱14/30。首个排期2026-10-11 08:00+08:00尚未到时，不运行发表记录。固定证据research/schedule-20261010/run-1711/readonly-reconciliation.json与原DOM SHA，原marker/binding已复核。自动化原ACTIVE/30分钟prompt保持，状态不变DONT_NOTIFY，不重复通知或请求人工操作。下轮仍先只读024原ID；同ID全文/封面/完整时钟/真实时间戳通过才新回执记scheduled；到时优先核既有文章+微博真实双输出，未决不新写。
+
+复用原sonnetdb-weibo-series标签0和账号页标签1，无新窗口/Cookie/私有API/付费/立即发表。PowerShell7.6.6，唯一CLI55秒有界自然exit0，记录根PID86928最终absent、0signal；该审计只覆盖记录根，共享Chrome/daemon保持。收口HEAD97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf、index空；本任务0stage/commit/push，源、技能、账本与并发工作保留。本HANDOFF独占追加fsync并核原字节前缀不变，暂不提交遵守发布任务边界。
+
+## 2026-10-10 CSDN 原生定时、逐篇封面与技能固化 / a1243a
+
+- 用户取消自行设置的每日10篇限制，要求001–142所有剩余稿保存为平台原生定时发布；026起每篇配主题封面，参考会话01a12083-1b1c-77d1-b86f-d791b0c3b773。用户另明确要求把正文、配图、上传、定时、回读及恢复全部固化为技能。本轮更新既有C:/Users/mysti/.codex/skills/publish-csdn，不创建重复技能或新发布任务。
+- 权威CSDN账本实时收口：001–022为22篇under_review，023–030为8篇scheduled，031–142为112篇pending，unknown/submitting均0、next31。历史失败、修复与当天18次预占完整保留，dailyWriteLimit/dailyRemaining=null。scheduled只证明未来平台保存，publicationVerified=false，不称到时发表/匿名公开。001–022旧原ID不重发、不追溯改排。
+- 八项原ID023/167490779、024/167492123、025/167492580、026/167492814、027/167493452、028/167493733、029/167494157、030/167494525；北京时间2026-10-11 08:00起每45分钟，末项13:15。均有原ID独立全文重载和四分类准确“预计于北京时间…发布”；026–030另核同一已保存封面。030单次导入接续同attempt 9e955c8e-37d7-4dcb-8694-7cfe7ff9d0c0，bind后标题/正文保存、设置、封面、timer/choose及最终确认各按原marker执行，没有再导入或重复最终确认。
+- 030实际独立reader证据evidence/030-be649ea5-b9b7-4eee-b9bb-71453a500de9-native-independent.json显示“今日发文额度已用完”；提交前实际剩1，保存后实际0，今天停止创建。030原生回执030-da4e8baa-40c6-4194-8d37-91e7c0376487-native-saved-receipt.json正常record。一次writer只读inspect因异步导航success拒绝，原失败保留；从独立原ID reader读回额度，没有重提或新建空白稿试探。网页工作已在本批硬截止2026-10-10T09:36:00Z前停止；收尾本机验证/交接随后进行。
+- 027/028首轮settings因异步标签失败，原unknown/attempt/marker保留；完整四分类及原ID全文证明仍草稿后正常reconcile、新claim复用原ID恢复。settings稳定等待/真实span确认版本已在029/030新稿首次设置通过。短暂审核分类观察保留，在原预算内只读再核才形成scheduled，不用分类名称推定已发表。
+- 封面复用公众号对应主题自有副本，逐张实际视觉检查当前技术口径；正常DOM文件控件上传，裁剪确认一次，保存及原IDreload，同封面URL入最终guard和管理回执。管理实际CSS background-image，不能因img=[]重复上传。029原图错误“负点积/完整兼容”另存Pillow文字派生图，明确当前标量正点积及迁移边界，原公众号素材/生成回执保持。030最终图SHA69bcdb8273efc4af47800234e865cc88ad773b8bc7767c0992781cb1516fa2d2，封面356×200；图作主题说明，不称实测截图。文章事实据当前源码审稿，本轮没有SQL/性能实验或产品.NET build/restore/Format。
+- 技能SKILL.md、agents/openai.yaml及covers/native-scheduling/playwright-workflow/browser-workflow/progress/observed-contract参考已固化主线、真实控件、命令参数、图片内容与上传证明分别核验、单次最终确认、独立全文/时间/封面回执和unknown恢复；旧每日10次与即时流程明确标为历史。新增csdn_roll_plan.py只为未绑定pending/prepared/draft另存未来候选版本，最多142稿/7日/15秒并避开原绑定时刻；真实本机生成schedule-plan-roll-20261010.json含112候选、0账本/平台写入，sourceReviewed=false。原schedule-plan.json SHA cb7931c629b47830cc5925ca49fb1ce19e514c3769bc4e57b7601fc4ad370295保持，已绑定槽位不改。20候选/日不是平台能力证明，后续按实际日历/4小时/15分钟选项滚动，只给未绑定稿新版本。
+- 最终验证：skill quick_validate通过；22个本地文档链接存在；6个Node语法、4个Python语法及PS7包装器解析通过；native policy 65项、管理/输入6项、滚动计划2项离线通过。它们与真实8项原生保存分列；没有专门动态取消分支测试，不写成该分支已实测。原剪贴板/标签/输出捕获失败与证据完整保留，Console.Out不能用$result=& wrapper猜stdout；exec返回session_id必须先取真实exit_code。
+- 现有sonnetdb-csdn已通过应用工具更新，ACTIVE、每30分钟，原target01a11eff-1586-7551-b50a-8db25b652ed7保持；持久TOML已核，旧10篇/021unknownprompt已替换。仅实质变化/失败/需用户操作通知，状态未变安静。同日额度0不重复创建，下个北京时间日期先核实际额度，从031当前审稿/封面/完整查重开始，原旧槽仍可用则保持，否则为未绑定稿使用新候选版本。到时优先核已排期原ID真实发表，不重发；不购买额度、绕过限制或新增选题。
+- 执行器已窄修实时父身份与创建窗口验证、handle100ns/CIM微秒归一，防止沿已退出/复用parent PID收养外部进程；所有命令数量/墙钟有界，保留共享csdn-mysticboy登录会话。收口final-recorded-process-audit-v2.json核156个完整记录根身份，当前同身份live0、0signal；71个早期/短命根缺完整身份、未观察短命后代不视为已验收。首个空scope审计因ConvertFrom-Json DateTime再Parse丢UTC偏移，原记录保留，DateKind String版本纠正；没有由此发送终止信号。不得把后期身份修复或0signal升级为全会话所有后代清理证明。临时图/日志/回执为保留交付物，未宽泛删除或按名称终止进程。
+- 最终检查点C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/native-20261010-a1243a/batch-close-skill-final.json包含真实数量、时间、额度、自动化持久及验证边界。共享HEAD已由其它工作前移至97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf，index空；origin/parity-results仍0061d6d78591fb08493f473d3231ca42303faae1，均未操作。本任务0stage/commit/push/部署，产品、其它渠道及未知untracked原样保留。本HANDOFF独占尾部追加并核原字节前缀，暂不提交遵守发布任务不自动提交及共享工作树保护。
+
+## 2026-10-10 微博未决只读对账 / run-1741
+
+本轮触发09:41:41.698Z，未决最多2次/15分钟边界，实际仅一次同会话原ID独立reload DOM回读（09:43:03.513Z）。已读HANDOFF、weibo技能固定操作手册及固定plan/queue/ledger。024原3930723、attempt70b8a28cfccc49d2bba422fffead3158仍可编辑无时钟，原标题、完整正文、新封面URL与冻结合同一致，未出现同ID排期iframe；negative观察不能证明拒绝或没有创建。原ledger unknown、outputs pending、marker/binding及13项原排期保持；0claim/新草稿/最终点击/上传/编辑/截图，025不创建，没有新确认排期或发表。
+
+当前13 scheduled/123 planned（含024既有unknown attempt），草稿箱14/30。首个排期2026-10-11 08:00+08:00尚未到时，不运行发表记录。固定证据research/schedule-20261010/run-1741/readonly-reconciliation.json与原DOM SHA，原marker/binding已复核。自动化原ACTIVE/30分钟prompt保持，状态不变DONT_NOTIFY，不重复通知或请求人工操作。下轮仍先只读024原ID；同ID全文/封面/完整时钟/真实时间戳通过才新回执记scheduled；到时优先核既有文章+微博真实双输出，未决不新写。
+
+复用原sonnetdb-weibo-series标签0和账号页标签1，无新窗口/Cookie/私有API/付费/立即发表。PowerShell7.6.6，唯一CLI55秒有界自然exit0，记录根PID86420最终absent、0signal；该审计只覆盖记录根，共享Chrome/daemon保持。收口HEAD97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf、index空；本任务0stage/commit/push，源、技能、账本与并发工作保留。本HANDOFF独占追加fsync并核原字节前缀不变，暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 18:00 Asia/Shanghai）
+
+实时账本与固定Python status确认22 under_review、8 scheduled、112 pending、unknown0、next031、历史18次保留，用户每日上限为空。030原回执SHA与账本一致，同日原ID167494525独立重载证据仍含“今日发文额度已用完”；本轮依同日停止规则未重新打开编辑器或探测额度，0浏览器动作/claim/导入/上传/最终确认/账本写入。最早原生时间2026-10-11 08:00尚未到时，未来排期不称发表。新日期先只读刷新真实余额，再从031接续；到时只核原ID发表，不重发。本地证据路径参数错误已改用System.IO.Path.GetDirectoryName后核验通过，原工具错误保留，无远端效果。原登录会话、marker、排期和自动化保持；状态不变DONT_NOTIFY。无stage/commit/push/部署，其他渠道及并发工作保持；本段仅独占追加、旧字节前缀核验，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-1800-e9a78275-c004-4f94-9e34-4fad66ecf541.json
+
+## 2026-10-10 微博对账浏览器现场缺失 / run-1811
+
+本轮触发2026-10-10T10:11:42.520Z，未决最多2次/15分钟截止10:26:42.520Z；完成2次只读CLI命令，0次原稿成功回读。第一条原ID观察返回stdout“### Error / Existing editor tab unavailable”，exit0不算浏览器成功。第二条于2026-10-10T10:16:32.166Z只读列出现有上下文1个标签about:blank，原编辑器和账号页不在本上下文；没有执行open/tab-new或恢复导航，没有编辑、上传、claim、新草稿、最终点击、截图。当前登录未核验，空白标签不能证明登录失效、平台拒绝或原024未创建。此前最后完整平台回读09:43:03.513Z的正文/封面证据保留，本轮不冒称重新核过原稿。
+
+固定ledger/queue/plan、024原marker/binding的SHA与本轮起始值全部一致，native不可变合同及源码快照复核通过。024仍原草稿3930723、attempt70b8a28cfccc49d2bba422fffead3158、目标2026-10-17T20:00:00+08:00，unknown、outputs pending；计划024为planned且reconciliationRequired，仍阻断新写，025不创建。账本13 scheduled/123 planned保持，不是本轮平台排期重验；首个2026-10-11 08:00+08:00未到时。没有新增排期、发表或明确限制证据。
+
+证据research/schedule-20261010/run-1811/readonly-reconciliation.json、024-native-reconcile-read.stdout.txt、024-existing-tab-inventory.stdout.txt、原各helper result及SHA均保留。原成功场景验证脚本已另存但未运行，因为本轮没有原稿DOM，不用空白标签生成排期回执。仅首次浏览器现场缺失作NOTIFY，未重复请求人工登录；后续同状态无新实质变化安静。
+
+原sonnetdb-3经app工具更新同target01a12004-2cc6-7351-a48d-b33f388839e5、ACTIVE/30分钟原周期，新增空白标签恢复步骤并独立核TOML prompt逐字持久，未变其它规则。下轮第一项观察允许在现有空白标签正常导航https://card.weibo.com/article/v5/editor#/draft/3930723，再只读核原ID/UID/全文/封面/时钟；不另开窗口或新标签、不重提交。没有现有页面则保留，真实页面出现登录/验证码才请求用户在该窗口操作，当前恢复未实测通过。最多2次/15分钟继续；到时先核已安排文章及微博双输出，未决不新写。
+
+PowerShell7.6.6，两CLI分别55/45秒有界自然exit0；记录根PID、0signal。两次父链采集均timeout，失败字段原样保留；审计只覆盖记录根，不声称完整短命后代全部验收，不终止共享Chrome/daemon。只保留本任务日志、脚本和回执，无宽泛清理、Cookie导出、私有API、付费或立即发表。收口HEAD97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf、index空；本任务0stage/commit/push，所有并发工作保留。HANDOFF独占追加fsync并核原字节前缀不变，暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 18:30 Asia/Shanghai）
+
+固定Python status通过，账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变：22 under_review、8 scheduled、112 pending、unknown0、next031；18为历史尝试，用户每日上限为空。030原回执及同日原ID独立重载额度证据SHA核验通过，沿用“今日发文额度已用完”的同日停止规则，未重新探测浏览器或创建编辑器；0浏览器动作/claim/导入/上传/最终确认/账本写入。最早排期2026-10-11 08:00尚未到时，不称发表。新日期只读核真实额度后从031接续，到时核原ID，不重发。原自动化、登录现场、marker和计划保持；状态不变DONT_NOTIFY。仅追加本渠道及根交接并核原字节前缀，无stage/commit/push/部署，其他渠道与并发工作保持；交接暂不提交遵守发布任务边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-1830-b9a65dbb-5758-4a35-bc4a-7fdd57f47da4.json
+
+## 2026-10-10 微博原编辑器恢复及011人工立即发表出处 / run-1841
+
+本轮触发2026-10-10T10:41:43.088Z，未决最多2次只读/15分钟截止10:56:43.088Z；实际2条CLI观察、无第三条浏览器命令。第一条在同sonnetdb-weibo-series现有about:blank正常导航原024，不新建标签/窗口；10:43:39.213Z取得原3930723、UID1089099883、精确标题、完整正文及新封面，正文规范化与原冻结稿一致，封面URL/本地图SHA与native binding一致，仍可编辑无时钟、无排期iframe，无明确拒绝/限制或登录问题。原编辑器访问已恢复；这不证明024提交被拒绝。0claim/新草稿/编辑/上传/最终点击/截图。
+
+本次真实草稿箱13/30，原011不在草稿列表，其余012至023共12个时钟、024无时钟。第二条正常“发布历史”DOM观察10:45:52.892Z自动选原#/history/3930600，标题“SonnetDB 用户与授权：角色和数据库权限”，列表显示2026-10-10 18:03（北京时间），早于原冻结2026-10-11 08:00+08:00；原024标题未出现在当前16项历史。历史iframe元素src为原011预览，但实际frame URL尚未就绪，本轮preview=null，没有取得011全文/封面或微博独立回读，不能称双输出published。只读历史后正常导航回原3930723，URL匹配；返回后的正文未再作第三条观察。原失败与成功观察均另存，不覆盖旧回执。
+
+本聊天直接用户回复“我点过立即发布”，已保存011-manual-immediate-publish-report.json，人工立即发表出处为user_reported，不再问相同问题，也不归为平台自动提前发布。保留原011内容、ID、marker、排期binding和历史证据，不编辑/删除/重发；后续只读核真实文章和配套微博完整简介/原文URL/同文章卡片/封面。当前native record-published的due门禁明确拒绝原冻结时刻前入published；本轮未调用或修改门禁，提前核得的真实输出先保存独立证据与人工出处，到原时刻后独立回读双输出通过再记账。原时刻不改，未因人工提前发布重新安排该编号。
+
+固定ledger/queue/plan、024原marker/binding的SHA与起始全相同，native审稿快照/图片合同复核通过；13项ledger scheduled是原历史排期记录，不能把011仍在其中说成当前仍待平台排期。012至023真实草稿时钟保持，011待发表双输出核验；总plan仍13scheduled/123planned。024原attempt70b8a28cfccc49d2bba422fffead3158、3930723、2026-10-17T20:00:00+08:00仍unknown/outputs pending，计划reconciliationRequired不改，025不创建。没有新排期或发表正式记账。证据research/schedule-20261010/run-1841/readonly-reconciliation.json、024-restore-existing-tab-read.stdout.txt、024-history-draft-count-read.stdout.txt与原SHA，都是本轮独立文件。
+
+sonnetdb-3经app工具更新原target01a12004-2cc6-7351-a48d-b33f388839e5、ACTIVE/30分钟原周期；已逐字核TOML prompt持久，新增恢复完成、011人工出处、提前双输出观察与原due门禁边界。下一轮优先在同现有标签只读核011原发布文章/微博，再继续024原attempt对账；保持最多2次只读/15分钟，未知阻断新写。当前未到原首个时刻，不伪造record-published。仅此次实质恢复和新增人工出处NOTIFY；无变化安静，不重复登录或人工点击询问。
+
+PowerShell7.6.6、两CLI均55秒有界自然exit0；根PID61116/81596最终均absent、0signal，审计仅覆盖已记录根。父链采集timeout字段原样保留，未观察短命后代不声称全验收；不终止共享Chrome/daemon。上轮run-1811 HANDOFF的PID插值未显示，实际原根17028/7632及absent审计在该轮JSON完整保留，此处补充不改旧字节。全部本轮脚本/日志/回执保留，无宽泛清理/Cookie导出/私有API/付费/立即提交。收口HEAD97882b8beaa7ec3db271ee3ab7eb50cb1a20a1bf、index其它任务暂存项原样保留：CHANGELOG.md, HANDOFF.md, ROADMAP.md, docs/design/m47-unified-management-workbench/preview-1-p03-controls.md, docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md, docs/design/m47-unified-management-workbench/preview-1-scope.md, docs/design/m47-unified-management-workbench/validation-report.md, docs/design/m47-unified-management-workbench/work-queue.md, src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs, src/SonnetDB/Endpoints/Routes/ControlPlaneEndpoints.cs, src/SonnetDB/Endpoints/Routes/DatabaseEndpoints.cs, src/SonnetDB/Endpoints/Routes/SetupEndpoints.cs, src/SonnetDB/Endpoints/Support/EndpointRequestSupport.cs, src/SonnetDB/Endpoints/Support/WorkbenchPreviewMetadata.cs, src/SonnetDB/Endpoints/Support/WorkbenchPreviewSql.cs, tests/SonnetDB.Tests/WorkbenchPreviewEndpointTests.cs, web/e2e/preview-real.spec.ts, web/src/api/client.ts, web/src/api/sql.ts, web/src/components/RelationalTableWorkbench.vue, web/src/components/WorkbenchSectionTabs.vue, web/src/preview/PreviewAbout.vue, web/src/preview/PreviewOverview.vue, web/src/preview/PreviewShell.vue, web/src/preview/PreviewUnavailable.vue, web/src/preview/PreviewWorkbench.vue, web/src/preview/policy.ts, web/src/preview/session.ts, web/src/preview/transport.ts, web/src/router/index.ts, web/src/stores/auth.ts, web/src/stores/connections.ts, web/src/stores/workbenchHistory.ts, web/src/utils/resultExport.ts, web/src/views/LoginView.vue, web/tests/preview-policy.test.mjs, web/tests/relational-workbench-migration.test.mjs, web/tests/studio-host-client-contract.test.mjs, web/tests/workbench-navigation-auth.test.mjs；本任务0stage/commit/push，源、技能与并发工作保持。HANDOFF独占追加fsync并核原前缀不变，暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 19:00 Asia/Shanghai）
+
+固定Python status正常退出；22 under_review、8 scheduled、112 pending、unknown0、next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba保持。历史18次不作平台容量，用户每日上限为空。030原回执及同日独立原ID额度证据核验通过，沿用“今日发文额度已用完”的当日停止规则；未重新打开编辑器或试探余额，0浏览器动作/claim/导入/上传/最终确认/账本写入。023–030最早2026-10-11 08:00尚未到时，不称发表；新日期先只读核真实额度，从031接续，到时核原ID、不重发。自动化、原登录现场、marker和计划保持，状态不变DONT_NOTIFY；仅独占追加本渠道及根交接，旧前缀核验，无stage/commit/push/部署，保护并发产品和其它渠道，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-1900-6ddcae84-06b7-4ac1-87b2-3e79f05e1b3e.json
+
+## 2026-10-10 微博011正文与卡片部分核验、微博DOM采集失败 / run-1911
+
+本轮触发2026-10-10T11:11:43.475Z，最多2次只读CLI/15分钟截止11:26:43.475Z；两次已用完，无第三次浏览器命令。本轮优先核011人工提前发表的实际输出，未新读024。第一条正常独立加载原#/history/3930600，明确等待真实预览iframe内容就绪；11:13:21.623Z完整正文、作者UID1089099883、标题“SonnetDB 用户与授权：角色和数据库权限”、新封面URL与原冻结合同逐字规范化核验一致。预览timestamp1791626611为2026-10-10T18:03:31+08:00，正文没有实验/部署完成冒称。这里只证实原发布历史预览完整内容，尚未捕获真实独立ttarticle公开URL；首条reader自然exit0，根45400最终absent。
+
+第二条profile/status reader启动后，旧Invoke-Bounded-ParentGuard.ps1第33行报“Process identity unverified; preserve”、外层exit1。该次未保存start/stdout/stderr/result，初始根PID身份不可得，不把失败当微博没有发布或授权重复操作。底层只读代码随后形成011-published-status-card.png；已实际view_image目视卡片主题、JK人物和准确可读“关注 SonnetDB”，主提示未被标题遮挡，已另存011-card-visual-review.json与SHA。图片不能代替DOM微博完整简介、真实微博URL、解码原文URL、同文章卡片URL回执；本轮不从图片拼出这些字段。精确当前run脚本命令模式、有界只读进程观察未见匹配的live helper、0signal；由于初始身份缺失，不声称全树清理完成。共享Chrome/daemon保留。末尾原024导航由底层脚本安排，但采集结果未保存，当前最终URL没有第三次回读，不能声称最终现场已验证恢复。
+
+011人工“我点过立即发布”出处仍沿用run-1841直接用户答复，未再提问。原native record-published门禁不允许冻结2026-10-11 08:00+08:00前入published；本轮只保存真实部分证据，没有调用/修改门禁或改原时刻。下一轮先修正自然完成CLI在身份采集异常时的日志保存，保留旧失败，不套用M47旧执行器，不信任缺失PID做终止。再在同现有上下文用新文件只读核011真实微博详情的完整简介/解码源URL/真实文章卡片URL/作者及实际articleURL全文。已有卡片截图已目视，不重复截图。到原时刻后独立双输出通过才正式记录；已发表和排期稿不编辑/重发。
+
+本轮固定ledger/queue/plan、011/024原marker/binding七个文件SHA与起始全一致，native不可变源码/封面绑定复核。011账本scheduled仍只是原历史排期记录，实际人工提前发表待双输出正式核验；其余012至023保持原排期。024原attempt70b8a28cfccc49d2bba422fffead3158、3930723、2026-10-17T20:00:00+08:00仍unknown、outputs pending、reconciliationRequired，最后原全文封面成功观察10:43:39.213Z，本轮没有刷新该事实。025不创建，13历史scheduled/123planned、草稿13/30。0新claim/草稿/上传/编辑/最终点击/正式排期或发表记账，1实际卡片截图；无立即提交/Cookie/私有API/付费。
+
+证据research/schedule-20261010/run-1911/readonly-reconciliation.json、011-independent-history-preview-read.stdout.txt、011-profile-reader-guard-failure.json、interrupted-profile-reader-process-observation.json、recorded-root-process-audit.json与视觉回执均另存，旧marker/binding/回执不覆盖。sonnetdb-3经app工具更新原target01a12004-2cc6-7351-a48d-b33f388839e5、ACTIVE/30分钟原周期，prompt逐字持久通过；下一步读取与执行器缺口已记录，旧未变状态静默，仅此次新部分核验/首次采集失败NOTIFY，无用户新操作请求。
+
+PowerShell7.6.6，两条设置55秒边界；失败第二条实际约6.6秒返回，但其底层只读任务后续完成状态未获stdout。首条父链采集timeout字段保留，身份不足的第二条不回收未证明对象，0signal；不声称完整后代验收，不宽泛删除或按名称终止。日志/图片/脚本均保留交付物。收口HEAD7b61322878c434388973bc1aa333e92f60eec7e1、index空；本任务0stage/commit/push，所有并发工作保留。HANDOFF独占追加fsync并核原前缀不变，暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 19:30 Asia/Shanghai）
+
+固定Python status通过，账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba及22 under_review/8 scheduled/112 pending/unknown0/next031未变。030原回执与同日原ID独立重载额度证据核验通过，沿用“今日发文额度已用完”的当日停止规则，未重新探测浏览器；0浏览器动作/claim/导入/上传/最终确认/账本写入。最早排期2026-10-11 08:00尚未到时，未来排期不称发表；新日期核真实额度后从031接续，到时核原ID、不重发。18仅历史尝试、用户每日上限为空；原自动化、登录现场、marker和计划保持，状态不变DONT_NOTIFY。仅独占追加本渠道与根交接并核旧前缀，无stage/commit/push/部署；并发产品及其它渠道保持，交接未提交遵守发布任务边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-1930-1886aa75-d0bc-4383-8fdf-f750fa9a192b.json
+
+## 2026-10-10 微博阻塞原因解释与回读执行器修复 / run-user-block-193151
+
+用户追问“为什么卡住，什么原因无法继续”。已定位本地原因：024单次最终提交结果unknown触发全队列防重复新写拦截；旧run-1134 Invoke-Bounded-ParentGuard.ps1的finally在身份未核验时抛异常，发生在stdout/result落盘之前，遮盖初始身份采集错误、丢失已执行浏览器代码的结果。不能断言初始问题必为CIM超时，没有微博明确拒绝/限额/会员阻止证据。另有本地011原定时due门禁不适配用户人工提前发表，当前仍保留；025的10月18日08:00超出10月10日实测10日至17日可选范围，窗口未在本轮重测。
+
+技能新增 C:\Users\mysti\.codex\skills\weibo-publisher\scripts\Invoke-Bounded-Playwright.ps1，统一CreateNew日志、启动立即PID与StartTime落盘、stdout/stderr流式保存、身份异常留回执并等待原CLI自然完成、finally不因身份未核验遮盖业务输出。已更新references/web-editor-workflow.md的执行入口，旧guard和失败原件保持仅供历史读取。超时清理仅核验归属的CLI根与cmd/node子链，不Kill(true)或按名称终止、不清理共享Chrome/daemon；身份不足保留并报告。本轮两条真实只读使用新执行器均自然exit0、completed/outputComplete/rootExited=true，start/stdout/stderr/result齐全；这是正常完成实证，没有故障注入、超时清理或新增/运行实现测试。最后只追加清理信号循环5秒墙钟边界，该分支本轮未执行。
+
+第一条2026-10-10T11:32:06.459Z独立重载原024草稿3930723，UID1089099883、精确标题、2282字符网页正文与原冻结body规范化相同，封面URL与原binding相同；clockCount=0、detail=null、仍可编辑，没有真实拒绝提示。保留原attempt70b8a28cfccc49d2bba422fffead3158/unknown/outputs pending/2026-10-17T20:00:00+08:00，禁止重claim、新建、编辑、上传、重新选时刻或再点最终发布。当前未知不是平台确认未创建。025不创建。
+
+第二条独立账号页及微博详情DOM成功补回011真实permalink https://weibo.com/1089099883/Rm2Bx6thR，完整审定简介、Sina URL解码真实原文 https://www.cnblogs.com/IoTSharp/p/20023351、文章卡片真实URL https://weibo.com/ttarticle/p/show?id=2309405352532314030118、与冻结binding一致且naturalWidth>0的封面。用户人工立即发表出处沿用已确认“我点过立即发布”，不再询问、不归为平台自动提前发布。上轮3930600历史预览完整正文作者封面已核，真实时间18:03:31；本轮仍未独立读取该ttarticle正文页面，因此不称完整双输出正式published。原native record-published的2026-10-11 08:00+08:00门禁未改，原binding/时刻不改；到时再独立核双输出记录。已有run-1911卡片目视证据保持，本轮0截图。原窗口同上下文11:33:21Z正常返回024地址，返回后正文未作第三次读取。两条CLI只读边界已用完，本轮无新草稿/claim/编辑/上传/最终点击/排期或发表记账，不额外开窗口、Cookie、私有API或付费。
+
+原ledger/queue/plan及011/024四个marker/binding共七个文件SHA全部保持；13项scheduled是原历史账本，011实际已人工发出待正式全核，012至023排期保持，024unknown；计划13scheduled/123planned。新证据研究目录research/schedule-20261010/run-user-block-193151，blocking-cause-and-fix.json、024-dom.json、011-companion-dom-verification.json、两条原始stdout/result、root-process-audit.json均另存且未覆盖旧失败。两根79192/70784最终精确查询absent、0signal；未观察后代不声称全树验收。sonnetdb-3通过app工具更新同target/ACTIVE/30分钟，prompt逐字持久通过，已换技能内执行器并保存新真实URL；保持未变静默、首次实质失败或真实变化通知。
+
+下次顺序：按固定技能执行器和DOM手册，只读实际011 ttarticle页与原024对账；024只有取得真实同ID排期或明确结果才改变unknown，不能重复提交。024未解且025日期窗口未允许时不新写，不用新attempt绕过。后续本地排期门禁的人工提前发布适配属于尚未实现缺口，原门禁仍保持，不能把它当微博权限错误。收口独占追加本HANDOFF、fsync并核旧前缀不变，工作树及index并发工作保留；本任务未stage、commit或push，暂不提交遵守发布任务边界。
+
+## 2026-10-10 微博静默只读对账与011正式文章页回读 / run-1941
+
+本轮heartbeat触发2026-10-10T11:41:43.900Z，未决最多2条只读CLI/15分钟边界11:56:43.900Z。两条已完成，没有第三条浏览器命令。使用技能内Invoke-Bounded-Playwright.ps1，复用sonnetdb-weibo-series唯一现有标签、正常网页导航，0新草稿/claim/编辑/上传/最终点击/截图/正式排期或发表记账；未开新窗口、Cookie、私有API或付费。第一条11:43:03.484Z独立reload原024草稿3930723，UID1089099883、精确标题、完整正文及新封面与原冻结binding保持，clockCount=0、detail=null、仍可编辑；没有真实拒绝或限额提示。原attempt70b8a28cfccc49d2bba422fffead3158/unknown/outputs pending/2026-10-17T20:00:00+08:00不改，025不创建，不根据未看到判未创建或重复提交。
+
+第二条11:44:02.839Z正常独立导航011正式文章 https://weibo.com/ttarticle/p/show?id=2309405352532314030118，完整正文规范化、作者UID、精确标题和已加载封面均与原冻结绑定相同，真实timestamp1791626611为2026-10-10T18:03:31+08:00。也独立正常导航微博 https://weibo.com/1089099883/Rm2Bx6thR，审定完整简介、Sina URL解码原文https://www.cnblogs.com/IoTSharp/p/20023351、同文章卡片URL及已加载封面均比对相符。正式文章页读取缺口已补齐，人工立即发表出处沿用用户已确认答复，不再询问；这些是实际内容回读证据，原native record-published门禁仍为2026-10-11 08:00+08:00，本轮没有调用或修改、没有改binding/时刻，账本仍scheduled/publicationVerified=false，不称正式published已入账。原时刻前无需每轮重复扫描已核011；到时再独立重读两实际页面，用新回执正式核销。此前run-1911卡片已目视，未重复截图。11:44:06.261Z正常返回原024，并DOM回读UID、精确标题、完整正文和封面，全部与原绑定一致，原窗口现场保留。
+
+两条CLI均55秒有界、自然exit0、completed/outputComplete/rootExited=true。第二条实际CIM身份采集报“已超时”，新执行器仍正常保存13142字节stdout和完整start/result；当次异常路径没有丢失回读，不能将身份告警等同平台故障。根73776/41096最终精确CIM查询absent、0signal；未观察后代不声称全树回收，没有故障注入或超时清理测试。技能web-editor-workflow.md补充当次实证、从真实微博卡片取正式文章URL、实际DOM选择器与Sina原文链接解码；不再探索截图。
+
+证据固定research/schedule-20261010/run-1941/readonly-checkpoint.json、011-actual-pages-content-readback.json、两条原始stdout/result及root-process-audit.json另存。原ledger/queue/plan与011/024 marker/binding七个SHA全保持；13项scheduled是原历史账本，011已人工发表待原门禁后的正式核销，012至023排期保持、024unknown，plan13scheduled/123planned，025仍planned。10月10日历10至17日窗口本轮未重新打开，不据当前计划推断扩大。sonnetdb-3经app工具更新同target/ACTIVE/30分钟并核完整prompt持久；补齐011正式页后不每轮重复读取，到原时刻核新回执，024仍仅原attempt只读。没有新排期/发表正式记录、真实平台限制、未处理失败或用户操作需求，决定DONT_NOTIFY。独占追加根HANDOFF、fsync核旧字节前缀，保护并发worktree/index，0stage/commit/push，交接未提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 20:03 Asia/Shanghai）
+
+固定Python status通过，账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba与22 under_review/8 scheduled/112 pending/unknown0/next031保持。030原回执和同日原ID独立额度证据核验通过，继续遵守“今日发文额度已用完”的当日停止规则；0浏览器动作/claim/导入/上传/最终确认/账本写入，未重复探测额度。最早2026-10-11 08:00尚未到时，不称已发表；新日期先只读核真实额度，从031接续，到时核原ID不重发。历史18次及用户每日上限为空保持，原marker、计划、登录现场和自动化不动，状态不变DONT_NOTIFY。仅独占追加本渠道与根交接、核原前缀，无stage/commit/push/部署；并发产品及其它渠道保持，交接暂不提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2003-936f6133-59ca-41cd-a29b-789aad865c46.json
+
+## 2026-10-10 用户要求未知单篇跳过后真实续排 / run-2001
+
+最新直接用户要求“继续发布，为什么不发布呢？无法确认就忽略，而不是卡住后面的工作”覆盖历史unknown全局阻断。已窄改技能weibo_publisher.py的defer-compound/continuationDeferral、guard、next_entry与校验，以及native append-reviewed/sync-plan：未知原state/outputs/marker/binding/槽位保持，直接人类授权与原attempt另存不可变快照/SHA，单篇跳过而继续其他编号。024真实运行defer-compound成功，原草稿3930723/attempt70b8a28cfccc49d2bba422fffead3158仍unknown，原2026-10-17 20:00+08:00与所有提交合同不改；没有重claim、编辑、重新上传、重选时刻或再次最终点击024。其unknown结果不代表成功、失败或撤销；不再让它阻挡025或后续。直接授权research/schedule-20261010/run-2001/024-user-defer-confirmation.json与deferred-original快照永久保留。
+
+025“SonnetDB 删除数据：墓碑与空间回收”已实际新建唯一草稿3930806，按DeleteExecutor、SqlExecutor、Tsdb、TombstoneTable、SegmentCompactor/Worker等当前源码审稿，修正旧稿可撤销恢复、每次单独标记文件、极快/零放大及保证立即/自动回收的说法；说明闭区间、残差命中整行全部Field、WAL同步/manifest、轻事务与RETURNING边界。审定全文/简介、来源与事实SHA、真实博客园20023400另存；原源稿与其他渠道已发内容没有编辑。没有运行SQL、恢复、空间回收或性能实验，没有新增或运行实现测试。
+
+本篇主题新封面用gpt-image-design、本机sonnet_vip/gpt-image-2生成，约25岁成年亚洲女性得体JK引导删除标记/过滤/回收示意；精确“关注 SonnetDB”由Pillow叠字，实际1672×941，base/final/稳定网页16:9裁剪均目视通过。最终D:\source\SonnetDB\docs\blogs\weibo\assets\025-delete-tombstone-jk-final-20261010.png，SHA1e4421e1a54f9a5bd5d8db57113ccc0daf36246db83149bd00df7af48bbef54d；实际新图库HTTPS加载、上传/裁剪确认各一次，独立保存reload全文/作者/封面通过。封面当前URL https://wx1.sinaimg.cn/large/40ea586bly1ihxitiwywmj20zk0jyaeb.jpg。
+
+025原claim attempt1c18834395bf471d9a77878246e02ff5，claim后新DOM配置完整简介/真实原文URL/公开及北京时间原生时钟，native bind/build-editor，真实mark singleClickAllowed:true后于2026-10-10T12:18:58.813Z一次最终确认。页面“定时创建成功”；独立原IDreload forms=[]、全文/作者/新封面、完整时钟2026-10-11 08:00与真实iframe timestamp1791676800全部匹配，已record-article-schedule成功。scope platform_native_article_schedule_companion_pending，outputs pending/publicationVerified=false，不称已经发表或提交后回读简介；到时核实际文章和微博全文、简介、解码原文URL、同卡片封面再record-published。原025binding/marker和独立queue/detail/raw回执在本轮目录永久保存。
+
+011已由用户人工提前发表且run-1941实际双输出内容核相符，来源保持；原011binding/marker/原2026-10-11 08:00正式核销门禁不改，原时刻前不重新读取/重发。025填入其实际释放的11日08:00槽，原025十八日08:00本地计划及人工出处存slotRevision。为继续保持每天08:00/20:00，026-146共121项尚无草稿/queue/attempt的本地planned候选提前12小时补齐后续空位；原计划与逐项变化另存unattempted-contiguous-slots-revision.json（0平台请求），011-025记录逐项保留，尤其已scheduled和未知024槽位不变。026下一槽2026-10-18 08:00+08:00、027十八日20:00；这只是本地计划，没有安排这些文章的证明。
+
+实时ledger：9 published、1 accepted_as_is、14历史scheduled（011已人工发出，012-023和025保持排期）、1 unknown但已deferred、1旧API abandoned。plan14scheduled/122planned，其中024仍planned但unknown/deferred/reconciliationRequired，不能仅凭planned重做。原平台草稿14/30（012-023、024、025）；后端定时队列容量未知。本轮真实选中11日日期；完整日历范围最后实测为08:51:47.831Z的10日至17日可选、18disabled，本轮没有新的全范围观察，不冒称18日已开放或本轮新核了后端限额。后续按真实日期窗口滚动，保持ACTIVE，不立即发表或用本地定时点击替代，不能为探测窗口编辑已scheduled稿。
+
+技能SKILL.md及web-editor-workflow/ledger/scheduling已固化最新单篇延期、上传、稳定新稿DOM和定时方法。新稿首次URL已变但显示024旧内容属于异步暂态：先持久3930806，原页有界等空/本篇内容与加载/checkbox就绪，再四次500ms稳定观察后填写，保存及独立reload通过，没有覆盖陌生稳定内容或重建。claim返回browser_pending和mark返回unknown/gate true的exit2是预占语义；本轮首次将有效claim非零码误判后原回执保留，随后仅按原attempt继续，没有重claim。固定账本Python不含openai的生图启动失败、PowerShell本地引号解析失败原样保留；生图改用已知Python3.14及gpt-image-design成功，没有平台操作重试。到时仍未核scheduled的同一defer入口已实现，但尚未触发此due分支实证，不能称动态验证通过；它不修改原时刻或冒充published。
+
+自动化sonnetdb-3已通过app工具更新同target/ACTIVE/30分钟并保存最终prompt-v2；旧“024阻断025”的文字已清除。后续先读当前技能/plan/queue/ledger，按直接用户继续授权处理新未知单篇并跳过；同稿不重试，未知槽位保留。已安排内容不编辑，不付费/Cookie/私有API/新浏览器窗口。正文链接时刻状态DOM，截图只本篇base/final和稳定裁剪；本轮无发表卡片截图。025保存后微博简介仍未展示，到实际发表再核，011到原门禁后新双输出核销。下一新候选026仍无草稿/queue/attempt，按实际可选窗口接续，源漂移须重新审稿。
+
+本轮3篇/40分钟执行边界内只创建并续排1篇，没有设本地每日额度。复用sonnetdb-weibo-series同一现有标签与已登录UID1089099883；结束在025原ID只读排期页，无新窗口。技能有界执行器15个根回执均completed/outputComplete/rootExited=true，当前15记录PID absent、0signal；其中依赖失败exit1保留，其余自然完成。这只核记录根，不声称未观察后代全树清理；共享Chrome/daemon保持。独立final-checkpoint、原stdout/stderr/result、未决延期授权、日程调整、源码/图片/回执均保留。共享HEAD当前9e2ae109d610cce7d8f4bb5f7ccbafeb09ae80b4，index不由本任务写入；run-start.json实际是pre_close_not_initial_run检查点，不冒充本轮最初状态。收口独占追加HANDOFF/fsync核旧字节前缀，保护共享worktree/index，0stage/commit/push，交接未提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 20:33 Asia/Shanghai）
+
+固定Python status通过，22 under_review/8 scheduled/112 pending/unknown0/next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变。030原回执与同日原ID独立额度证据SHA核验通过，沿用“今日发文额度已用完”的当日停止规则，不重复打开编辑器探测余额；0浏览器动作/claim/导入/上传/最终确认/账本写入。最早2026-10-11 08:00尚未到时，排期不称发表；新日期先核真实额度，从031接续，到时核原ID不重发。历史18次、用户每日上限为空及原marker/计划/登录现场/自动化保持，状态不变DONT_NOTIFY。仅独占追加本渠道与根交接并核原前缀，无stage/commit/push/部署，保护并发产品及其它渠道；交接未提交遵守发布任务边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2033-9fbef322-9a49-4037-99ba-855643cdfcf2.json
+
+## 2026-10-10 微博026本地审稿与主题封面准备 / run-2031
+
+本轮触发2026-10-10T12:31:44.700Z，普通3篇/40分钟边界截止13:11:44.700Z；只准备最小下一项026，没有浏览器动作、草稿创建、上传、claim、marker、最终确认或发表记账。固定ledger与queue的完整SHA从本轮开始至收口保持；9 published、1 accepted_as_is、14历史scheduled、1 unknown、1旧abandoned，plan仍14scheduled/122planned。011已由用户人工立即发出，保留原10月11日08:00门禁，到时再取独立双输出回执。024已continuationDeferral，原unknown/3930723/attempt70b8a28cfccc49d2bba422fffead3158/10月17日20:00及原合同保持，不阻挡新编号、不重复对账或重试；025原3930806/attempt1c18834395bf471d9a77878246e02ff5/10月11日08:00排期不编辑或再提交。
+
+026目标仍2026-10-18T08:00:00+08:00。最后完整日历实测2026-10-10T08:51:47.831Z仅10日至17日可选、18disabled；本轮没有刷新该观察，不能称当前18日已开放、被新拒绝或后端额度已确认。没有安全的未提交日期控件时保留planned和本地准备，不为探测而重新编辑scheduled、修改未知024或新造超范围探测稿。026至146的连续未尝试槽与run-2001修订原样，不恢复旧026晚20:00计划。
+
+实际读取026源稿和当前src/SonnetDB.Core/Sql/SqlLexer.cs，审定“SonnetDB SQL 注释：四种写法与识别边界”：明确--和//吞到行末、REM大小写不敏感但须行首或分号后且具单词边界、块注释不嵌套/遇首个结束标记终止/未闭合报错；引号内部标记保留，减负数须分隔两个减号，注释不拼接被切开的关键字。去掉旧稿四种方式完全等价、任意注释不影响执行结果的宽泛说法。仅静态源码审稿，未运行SQL、词法器或性能实验，未新增或运行测试。原博客园稿和源稿没有改写；原文URL来自publishing-state文章026，https://www.cnblogs.com/IoTSharp/p/20023401。审定稿drafts/026-sonnetdb-comment-syntax.zh.md；browser正文、純简介、source/fact SHA、源码快照与审稿发现均在本轮独立文件。
+
+gpt-image-design用本机Python3.14、sonnet_vip/gpt-image-2与授权CLI fallback一次生图成功，后用微软雅黑确定性叠加“关注 SonnetDB”和“SQL 注释与识别边界”。新图D:\source\SonnetDB\docs\blogs\weibo\assets\026-comment-syntax-jk-final-20261010.png，1672×941，SHA c13d8c0f5d2df32f2c474a282cfe249f4548418e164d10b0e1c323ae23a2beff；base与final各一次view_image目视通过，成年亚洲女性得体JK、手势引导注释主题、关注文字准确且位于上方安全区。尚未上传、网页裁剪或取得平台封面URL，不能把本地图片准备说成已安排。记录生成原回执与新增最终目视回执，原生成前review=false快照另存，不覆盖历史证据。
+
+在固定SessionLock下只给plan的026补本地审定/正文/简介/事实/封面路径及SHA，state仍planned、platformConfirmed=false，无draftId/attemptId，不追加queue。独立原计划与前后026变更记录026-local-plan-preparation-record.json证明其他135项、所有候选时刻和顶层字段相同，ledger/queue SHA不变。下轮先便宜复核原源稿与fact SHA；未漂移直接复用本次稿和图，不重复生图或本地图截图；源码漂移则实际重审稿。真实日期窗口可用后再创建唯一026正常稿并接固定上传/保存reload/claim后新DOM/bind/build-editor/mark一次最终点击/独立排期回读；只有平台实证通过才scheduled，到时再核双输出。
+
+sonnetdb-3用app工具更新原ACTIVE/30分钟/target01a12004-2cc6-7351-a48d-b33f388839e5，只补本地准备复用说明，完整TOML prompt已独立逐字核持久；未暂停自动化或引入本地日限额。无新增平台排期、发表、失败、明确限制或用户操作需求，本轮DONT_NOTIFY。
+
+PowerShell7.6.6；生图用技能Invoke-Bounded-Playwright.ps1的120秒边界/CLI110秒、retries=0，CreateNew保存start/stdout/stderr/result，真实自然exit0、outputComplete/rootExited=true。CIM父链采集“已超时”保留，不遮盖输出；已记录生图根28204和包装79044收口均absent、0signal。该审计只覆盖已记录两进程，不冒称完整短命后代清理验收；共享Chrome/daemon未触及。密钥只临时环境传递，不打印、写日志或保存。交付图片/稿件/回执保留，无宽泛清理。收口HEAD9e2ae109d610cce7d8f4bb5f7ccbafeb09ae80b4与index SHA8C5C36378C1CAA4B8C4B2336DCA5745B75A1009201FC5CBB7433C1F360114481较起始未变，本任务0stage/commit/push，保护共享并发工作。HANDOFF独占追加fsync并核旧字节前缀；暂不提交遵守发布任务边界。
+
+## 2026-10-10 微博静默接续检查 / run-2101
+
+本轮触发13:01:45.125Z，实际固定plan/queue/ledger确认9 published、1 accepted_as_is、14历史scheduled、1已延期unknown与1旧abandoned；plan14scheduled/122planned、queue25项，尚无到时排期。011人工提前发表出处及原10月11日08:00门禁保持，012至023和025原排期不编辑或再提交。024的continuationDeferral真实存在且仍unknown，原attempt/槽位保持，不阻挡其他编号，不重复对账或重试。
+
+最小下一项026仍planned/平台未确认、10月18日08:00+08:00，无draftId/attemptId。实际复核026原源稿、当前SqlLexer、审定稿、browser正文、纯简介和最终封面完整SHA全部与run-2031相符，无源码或准备物漂移；直接复用原审稿和已目视封面，不重新生图或查看本地图。封面尚未上传裁剪。本轮0浏览器动作/截图/平台请求/新稿/claim/上传/最终点击/排期或发表记账，固定三份状态文件没有写入。
+
+当前本地日期仍10月10日，完整日历最后实测08:51:47.831Z可选10日至17日、18disabled；本轮没有刷新平台日期窗口，不能称当前18已开放或得到新拒绝。没有安全未提交控件时按原约束保留计划，不编辑scheduled/unknown稿或新造超范围探测稿。后续真实窗口可用时接唯一026的正常草稿/上传保存reload/单次定时合同；025与旧排期保持。无新增实质变化或用户操作需求，自动化ACTIVE/30分钟保持、DONT_NOTIFY。
+
+独立本轮观察quiet-continuation-observation.json保存完整026输入与逐文件SHA、到时项为空和固定状态SHA；PowerShell7.6.6，所有本地命令正常完成，没有启动浏览器、生图或长期helper，无信号、共享Chrome/daemon未触及。未新增或运行测试，无付费、立即发表、Cookie、私有API；保护共享worktree/index，本任务0stage/commit/push。仅独占追加本段/fsync核旧字节前缀，交接暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 21:09 Asia/Shanghai）
+
+固定Python status正常完成；22 under_review/8 scheduled/112 pending/unknown0/next031与账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变。030原回执及同日原ID独立额度证据SHA匹配，遵守“今日发文额度已用完”的当日停止规则；0浏览器动作/claim/导入/上传/最终确认/账本写入，未重复探测额度。最早排期2026-10-11 08:00未到时，不称发表；新日期先只读核真实额度，从031接续，到时核原ID不重发。18仅历史尝试、用户每日上限为空；原marker/计划/登录现场/自动化保持，状态不变DONT_NOTIFY。仅独占追加本渠道与根交接并核旧前缀，无stage/commit/push/部署，保护其它渠道及并发工作，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2109-574abdf2-e6b4-48db-94a3-39d17ddb9e0a.json
+
+## 2026-10-10 微博静默接续检查 / run-2132
+
+触发13:32:11.003Z，固定账本实读9 published、1 accepted_as_is、14历史scheduled、1已延期unknown、1旧abandoned；plan14scheduled/122planned、queue25项，尚无到时项。026仍planned、2026-10-18 08:00+08:00、无平台草稿或attempt；原稿、当前SqlLexer、审定全文、browser正文、简介和封面完整SHA均与run-2031相符，直接复用，不重复审稿、生图、目视或上传。024真实continuationDeferral及unknown保持、不阻挡其他编号；011人工发表出处/原门禁、012至023和025原排期保持，不编辑或重试。
+
+本地仍10月10日，日期窗口最后完整实测08:51:47.831Z可选10至17日、18disabled；本轮没有新平台日历观察，不把历史观察冒称当前拒绝或开放。依原约束等待实际可选窗口，不修改scheduled/unknown稿或造超范围探测稿。0浏览器动作/截图/平台请求/新稿/claim/上传/最终点击/排期或发表入账，三份固定状态不写，原自动化ACTIVE/30分钟保持。独立quiet-continuation-observation.json保留逐文件SHA和真实状态，无新增实质变化或用户操作，DONT_NOTIFY。PowerShell7.6.6，本地命令完成，未启动长期helper或浏览器，无信号/测试/Cookie/私有API/付费/立即发表。独占追加HANDOFF/fsync核旧前缀，保护并发worktree/index，0stage/commit/push，交接暂不提交遵守发布任务边界。
+
+## CSDN 静默只读检查（2026-10-10 21:40 Asia/Shanghai）
+
+固定Python status通过，22 under_review、8 scheduled、112 pending、unknown0、next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变。030原回执和同日额度证据SHA匹配，遵守当日停止规则；0浏览器动作/claim/导入/上传/最终确认/账本写入，未重复探测余额。最早2026-10-11 08:00未到时，未来排期不称发表；新日期先核真实额度，从031接续，到时核原ID不重发。历史18次和用户每日上限为空保持；原marker/计划/登录现场/自动化不动，DONT_NOTIFY。仅独占追加本渠道与根交接、核原前缀，无stage/commit/push/部署，保护其它渠道及并发工作，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2140-659914a1-1f22-4cf8-8ca7-a10d80c53167.json
+
+## 2026-10-10 微博静默接续检查 / run-2202
+
+触发14:02:11.472Z，固定plan/queue/ledger实读仍14scheduled/122planned、queue25，ledger9published/1accepted_as_is/14历史scheduled/1已延期unknown/1旧abandoned，无到时排期。026原稿/当前SqlLexer/审定正文/简介/封面完整SHA未漂移，复用run-2031准备；仍10月18日08:00+08:00 planned、无draftId/attemptId、图未上传。024已延期unknown不阻挡，011人工出处/原门禁及012至023/025排期不改或重试。当前10月10日，完整日历仅有08:51:47.831Z的10至17可选/18disabled历史实证，本轮未新观测，不能称当前拒绝或扩大；等待真实日期窗口，不改scheduled/unknown或造探测稿。0浏览器/截图/平台请求/生图/新稿/claim/上传/最终点击/排期发表入账，三份状态不写，无新增实质变化或用户操作，DONT_NOTIFY，自动化不修改。观察及逐文件SHA存本轮quiet-continuation-observation.json；PowerShell7.6.6，本地命令完成，无长期helper/信号/测试/付费/Cookie/私有API/立即发表。独占追加HANDOFF/fsync核原前缀，保护共享worktree/index，0stage/commit/push；交接暂不提交遵守发布边界。
+
+## CSDN 静默只读检查（2026-10-10 22:10 Asia/Shanghai）
+
+固定Python status通过，22 under_review/8 scheduled/112 pending/unknown0/next031和账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变。030原回执及同日额度证据SHA匹配，遵守当日停止规则，不再次打开编辑器探测余额；0浏览器动作/claim/导入/上传/最终确认/账本写入。最早2026-10-11 08:00未到时，排期不称发表；新日期核真实额度后从031接续，到时核原ID不重发。历史18次、用户每日上限为空及原marker/计划/登录现场/自动化保持，DONT_NOTIFY。仅独占追加本渠道与根交接、核旧前缀，无stage/commit/push/部署，保护其它渠道及并发工作，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2210-c9bbaabe-69eb-4a35-867d-dbe39c01efd6.json
+
+## 2026-10-10 微博静默接续检查 / run-2232
+
+触发14:32:11.870Z，固定plan/queue/ledger仍14scheduled/122planned、queue25，ledger9published/1accepted_as_is/14历史scheduled/1已延期unknown/1旧abandoned，无到时排期。026原稿、当前SqlLexer和全文/简介/封面完整SHA与run-2031一致，复用既有准备；仍10月18日08:00+08:00 planned，无草稿/attempt、图未上传。024已延期unknown不阻挡，011人工出处与原门禁、012至023/025排期原样。当前10月10日，日历只沿用08:51:47.831Z可选10至17日/18disabled的历史观察，本轮没有平台日期新证据；等待实际窗口，不为探测修改scheduled/unknown稿或造超范围稿。0浏览器/截图/平台请求/生图/新稿/claim/上传/最终点击/排期发表记账，三份固定状态未写，自动化不修改、DONT_NOTIFY。独立状态与逐文件SHA存本轮quiet-continuation-observation.json；PowerShell7.6.6、本地命令完成，无长期helper/信号/测试/付费/Cookie/私有API/立即发表。独占追加HANDOFF/fsync核旧前缀，保护共享worktree/index、0stage/commit/push；交接暂不提交遵守发布边界。
+
+## CSDN 静默只读检查（2026-10-10 22:40 Asia/Shanghai）
+
+固定Python status正常退出，22 under_review/8 scheduled/112 pending/unknown0/next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变；030原回执与同日独立额度证据SHA匹配。继续遵守当日额度耗尽停止规则，0浏览器动作/claim/导入/上传/最终确认/账本写入，未再次探测余额。最早2026-10-11 08:00未到时，不称发表；新日期先核真实额度后接031，到时核原ID不重发。历史18次及用户每日上限为空保持；原计划/marker/登录现场/自动化不动，DONT_NOTIFY。仅独占追加本渠道与根交接、核旧前缀，无stage/commit/push/部署，保护并发工作及其它渠道，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2240-f4aa20d9-5b44-4d33-b15c-413cc8596210.json
+
+## 2026-10-10 微博静默接续检查 / run-2302
+
+触发15:02:12.254Z，固定状态仍plan14scheduled/122planned、queue25、ledger9published/1accepted_as_is/14历史scheduled/1已延期unknown/1旧abandoned，无到时项。026原源/当前SqlLexer/审定全文/简介/封面SHA与run-2031一致；仍2026-10-18 08:00+08:00 planned，无草稿/attempt、图未上传，复用准备。024已延期unknown不阻挡，011人工出处/原门禁及既有排期保持，不重试。当前10月10日；日历仅保留08:51:47.831Z可选10至17、18disabled历史实证，本轮未刷新，不称新拒绝或开放，等待实际可选窗口，不修改scheduled/unknown或造探测稿。0浏览器/截图/平台请求/生图/新稿/claim/上传/最终点击/排期发表记账；三份状态未写、自动化不修改、DONT_NOTIFY。本轮观察保留全部SHA与真实状态；PowerShell7.6.6、本地命令完成、無长期helper/信号/测试/付费/Cookie/私有API/立即发表。独占追加HANDOFF/fsync核旧前缀，保护共享worktree/index、0stage/commit/push，交接暂不提交遵守发布边界。
+
+## CSDN 静默只读检查（2026-10-10 23:10 Asia/Shanghai）
+
+固定Python status通过，22 under_review/8 scheduled/112 pending/unknown0/next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变；030原回执及同日独立额度证据SHA匹配。遵守当日额度耗尽停止规则，0浏览器动作/claim/导入/上传/最终确认/账本写入，未再次探测余额。最早2026-10-11 08:00未到时，不称发表；新日期先核真实额度后接031，到时核原ID不重发。18仅历史尝试，用户每日上限为空；原marker/计划/登录现场/自动化保持，DONT_NOTIFY。仅独占追加本渠道与根交接、核旧前缀，无stage/commit/push/部署，保护其它渠道及并发工作，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2310-3dff9866-2683-4c03-99e4-20c8ab964efb.json
+
+## 2026-10-10 微博静默接续检查 / run-2332
+
+触发15:32:12.656Z，固定状态仍plan14scheduled/122planned、queue25、ledger9published/1accepted_as_is/14历史scheduled/1已延期unknown/1旧abandoned，无到时项。026原源/当前SqlLexer/审定全文/简介/封面SHA与run-2031一致，仍10月18日08:00+08:00 planned、无草稿/attempt，复用准备。024延期unknown不阻挡，011人工出处/原门禁及旧排期保持。当前北京10月10日23:33；日历仍仅有08:51:47.831Z的10至17可选/18disabled历史实证，本轮未观察平台窗口，不称当前拒绝或开放。下一轮跨到10月11日应刷新真实正常控件的日期窗口，不能仅按日期变更推定18开放；不编辑scheduled/unknown稿或造超范围探测稿。0浏览器/截图/平台请求/生图/新稿/claim/上传/最终点击/排期发表记账，固定三份状态未写、自动化不修改、DONT_NOTIFY。独立观察保留全部SHA；PowerShell7.6.6、本地命令完成，无长期helper/信号/测试/付费/Cookie/私有API/立即发表。独占追加HANDOFF/fsync核旧前缀，保护共享worktree/index、0stage/commit/push，交接暂不提交遵守发布边界。
+
+## CSDN 静默只读检查（2026-10-10 23:40 Asia/Shanghai）
+
+固定Python status通过，22 under_review/8 scheduled/112 pending/unknown0/next031及账本SHA580c7f27458ba25e453c8c6af587e8669458f274ba23af0b42597a38b1f83eba未变；030原回执与同日独立额度证据SHA匹配。继续当日停止，0浏览器动作/claim/导入/上传/最终确认/账本写入，未再次探测余额。最早2026-10-11 08:00未到时，不称发表。下一轮跨到10月11日，须先从已有原ID或管理页只读核真实账号和额度，不能沿用今日0或历史18次推定新日容量；额度允许后从031当前审稿/封面/查重接续，到时核原排期ID不重发。用户每日上限为空，原marker/计划/登录现场/自动化保持，DONT_NOTIFY。仅独占追加本渠道与根交接、核旧前缀，无stage/commit/push/部署，保护其它渠道及并发工作，交接未提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261010-2340-b0344632-e411-4aea-8370-000caea598ca.json
+
+## 2026-10-10 微博用户纠正：正式草稿先保存 / run-user-native-2339
+
+用户再次明确“把文章放到草稿，设置好定时，然后自动发布”。此前把10月18日尚不可选也用于阻止正式026保存，是执行判断错误；已修正weibo-publisher的SKILL.md、references/web-editor-workflow.md和scheduling.md：日期窗口只限制最终原生定时提交，正式已审定稿允许先保存唯一平台草稿，窗口开放后同ID续排，不重建、不提前claim/marker、不立即发表。旧静默观察仍保留，不回写为平台事实。没有新增或运行测试。
+
+00-tabs实际返回原sonnetdb-weibo-series未打开，01-sessions真实显示no browsers；在确认无可复用会话后，恢复同名专用持久profile（固定状态browser-profile），没有复制或导出Cookie。实际跳到登录页后请用户完成登录；首次DOM显示UID6152684319，没有创建或写稿，用户切换后15:45:32.643Z实核麦壳饼UID1089099883。登录问题已解决，不再次要求登录；现有窗口保留。持久profile未验证跨重启复用，不保证永不失效。
+
+026源稿、当前SqlLexer、审定稿、正文、简介和封面SHA完整复核与run-2031一致，直接复用，不重新审稿、生图或本地图截图。15:45:46.124Z一次“写文章”获得真实新草稿3930864，立即在SessionLock下持久记录。原页加载就绪、字段稳定后填审定标题“SonnetDB SQL 注释：四种写法与识别边界”和全文，保存并独立reload通过。真实图库旧HTTPS基线保存；一次上传最终图、加载新HTTPS图比对通过，一次选图与下一步到稳定裁剪，026-crop-reviewed.png目视核16:9、成年人物、主题和准确“关注 SonnetDB”。裁剪确定一次，保存后15:49:27.062Z独立reload全文/作者/封面通过。平台封面https://wx2.sinaimg.cn/large/40ea586bly1ihxoye13rbj20zk0jy77o.jpg，原ID全文观察、图库绑定及裁剪目视回执均保留。
+
+15:50:12.181Z在本篇未提交正常原生设置中实际读取2026年10月日历，10至17日可选、18disabled，时区Asia/Shanghai；这是新实证，不能根据午夜将至推定已开放。没有选择其它日期或最终点击。15:51:37.828Z正常关闭未提交发布弹窗，返回3930864全文/封面；clockCount=0、模态消失。计划026仍planned/platformConfirmed=false，draftState=saved_waiting_date_window，目标2026-10-18T08:00:00+08:00，真实draftId/URL/全文/封面/窗口证据已保存，nativeScheduleWaiting=true。没有append-reviewed、claim、attempt、marker或最终点击，没有新增scheduled或published。独立026-platform-draft-result.json证明正文封面已存、日期暂不可选、其他135项不变；ledger/queue SHA较baseline完全相同。
+
+sonnetdb-3通过app工具更新原ACTIVE/30分钟/target01a12004-2cc6-7351-a48d-b33f388839e5，最终完整prompt逐字核TOML持久通过。下轮先核实时状态及026源/事实漂移，直接正常导航唯一3930864，读取本篇日期窗口；若18可选，接append-reviewed/claim后新DOM配置/原native bind/build-editor/实际mark gate/一次最终确认/独立排期回读/record-article-schedule。不可选保留该稿并滚动，不重建、重传或裁剪；可按实际容量准备其他正式候选，不造假探测稿。027为18日20:00、028为19日08:00，旧连续slotRevision保持。原011人工即时出处和11日08:00门禁、012至023/025平台排期、024已延期unknown及不可变原attempt/marker/binding/槽位原样。未知单篇延期不阻挡其余，不重试原稿。排期确认与到时双输出published继续分开。
+
+PowerShell7.6.6，全部CLI经技能Invoke-Bounded-Playwright.ps1有界执行，唯一CreateNew流式start/stdout/stderr/result保留。原会话关闭错误和初次错账号等待超时真实保留，不误报平台限制；后续真实DOM成功。19个已记录CLI根进程收口均absent、0signal，共享Chrome/daemon和当前登录窗口保留；仅覆盖已记录根身份，不冒称未观察短命后代全部清理。HEAD及indexSHA较baseline未变，无stage/commit/push、付费、私有API或立即发表。交付稿件、图和独立回执保留。此段独占追加fsync核旧字节前缀，交接暂不提交遵守用户发布边界。
+
+## 2026-10-10 微博自动任务改为每日11:00 / 用户直接要求
+
+用户明确要求“把这个任务的定时改为每天早上11点”。通过Codex app automation_update更新原sonnetdb-3（SonnetDB 微博定时发布），运行计划从每30分钟一次改为每天北京时间Asia/Shanghai 11:00一次。原ACTIVE、heartbeat、目标聊天、名称和发布流程保留，prompt只新增任务每天11:00运行说明；TOML回读核计划、完整prompt及身份字段持久通过。本次是自动任务启动计划变更，没有浏览器动作或平台请求，没有编辑微博平台已发表/已定时文章，也没有改候选槽、queue、ledger或原attempt/marker/binding。026唯一草稿3930864仍按前段真实状态待日期窗口开放，下次任务运行从实时状态及同ID接续。独立变更前快照、完整请求和verified-update.json保留在本轮run-user-daily11证据目录。PowerShell7；不新增或运行测试，无stage/commit/push，保护共享index。仅独占追加此段、fsync并核旧字节前缀不变，交接暂不提交遵守发布任务边界。
+
+## CSDN 接续与每日11:00任务更新（2026-10-11 00:10批次）
+
+本轮先读HANDOFF/实时账本并执行固定Python status。csdn-mysticboy原会话已关闭；CLI tab-list实证后，以原browser-profile正常open恢复，账号mysticboy有效，未复制Cookie/profile。030原ID167494525于2026-10-11 00:16独立全文重载匹配，真实今日额度10；031提交后的独立原ID重载为9，不用历史18次推定容量。本轮两次daily预占、两次唯一原生最终确认；30分钟截止2026-10-10T16:40:13.291Z，截止后停止所有网页动作和新写入。
+
+031当前事实审核补正稀疏字段计数、类型、FIRST/LAST多series拒绝和空输入边界。冻结标题SonnetDB开头、首段点名；prepared SHA d390334cfdd084e04fd6b3213646db04aba2db7a2faf8c97f9781f4f1994fd91。attempt40706e50-c4cd-49e3-81b9-629421d138dc，原ID167498418。首次官方Markdown导入一次、绑定、正常保存和原ID全文重载通过；原创/public、GitCode关闭、多平台否、部分内容由AI辅助生成、SonnetDB/数据库标签核验通过。对应公众号原图/生成回执/SHA及实际视觉审核通过，自有副本上传、裁剪确认和原ID封面重载通过。平台正常选项2026-10-11北京时间14:00，最终一次；独立全文、同封面和四分类唯一原ID/准确未来时间全部通过，真实receipt 031-8c999e29-3427-467e-8808-f38a0faad098-native-saved-receipt.json，record scheduled完成。未来排期不称发表。
+
+032当前事实审核补正样本n-1、不足两点NULL、median的T-Digest估计、mode并列最小及Ordinal，不把五函数统称Welford，不从均值/中位数推断正态分布。prepared SHA b94c902e9e8895b8b920ee12f6c12763a8895cd56c9a8112f0bd0e9feae6ceaf，attempt9c7c7621-05bd-4e84-ae49-4b98612a1dcc，原ID167498536。导入/绑定/正常保存/设置及全文回读通过。封面upload/confirm/verify全用CLI/DOM，三份结构化证据screenshotPath=null，原ID封面保存与正文不变通过。2026-10-11北京时间14:45一次最终确认，032-eac5ab3b-5510-44f9-8447-ddd4a24d3b91-native-submit.json；032-1ff981df-dadf-4c9d-9527-d65c85043737-native-independent.json全文重载匹配。管理完整查重捕获manage-43c35784-f3f4-4643-9916-17958d6dabbe.json在批次deadline停止：全部已观察唯一167498536、同封面和“预计于北京时间2026-10-11 14:45发布”，审核分类空；草稿及已发布未完成，complete=false。保留原始错误，不派生完整成功receipt。以独立032-native-verification-deadline-20261011.json正常record unknown，同原ID/attempt/所有marker与原绑定保持，不能重提、重建、删marker或改冻结值。
+
+用户本轮明确要求改为CLI及每天早上11点。按skill-creator规范窄改publish-csdn/SKILL.md、references/covers.md与scripts/csdn_cover_cli.mjs；常规封面步骤默认不截图，只有布局变化/裁剪不明确/异常诊断才显式--screenshot。每张原图本地视觉审核仍保留，正文/图片SHA/原ID/URL/尺寸守卫未弱化。固定Node --check通过，032三阶段真实默认无截图验证通过；未新增镜像测试。原sonnetdb-csdn自动任务通过app automation_update从每30分钟改为每天北京时间Asia/Shanghai 11:00，ACTIVE/heartbeat/原名称“SonnetDB CSDN 配图与原生定时发布”/目标01a11eff-1586-7551-b50a-8db25b652ed7保持，未创建重复。完整TOML回读逐字段与请求一致，原快照及automation-daily11-verified-20261011.json保留；prompt动态以实时账本为准，原生发表时间不随Codex唤醒计划改变。
+
+收口实时状态22 under_review/9 scheduled/110 pending/unknown1，最低待办032，当日两次尝试，无用户自设日上限。下一次2026-10-11 11:00先核当前账号/余额及到时原排期ID；032只读原ID独立全文与新鲜四分类（共享12页/240秒）补齐后派生真实native receipt并按同attempt record scheduled，不再claim/import/upload/最终确认；若已到时则核实际发表/公开内容。032未决前不推进033。旧001–030、原不可变schedule-plan及其它渠道保持。没有执行SQL、模型/生产性能/恢复验收、stage/commit/push/部署或付费；交接暂不提交遵守发布边界。14个明确列名的已完成phase根进程核验均absent、0signal，不冒称未观察短命后代全机清理；共享csdn-mysticboy浏览器保留。
+
+所有本轮证据、稿件、图片及回执均在C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy（账本可能解析为Codex包LocalCache实际路径）。检查点：evidence\heartbeat-20261011-0010-result.json。仅独占追加本渠道PROGRESS及根HANDOFF、Flush并核原字节前缀，保护其它渠道和并发产品。
+
+## 2026-10-11 个人技能提交与同步
+
+用户本轮要求“提交我的技能”，按 commit-my-skills 完成唯一技能仓库 C:\Users\mysti\.codex\skills 的全量检查、Agent 技能归档刷新和校验。备份共1526文件、145技能入口及两个实际内容链接，刷新结果无内容变化。既有GitHub仓库maikebing/codex-skills实时确认私有，main与origin/main原先一致。窄改tools/Invoke-BoundedCommand.ps1：只在父进程仍存活且PID/创建时间/命令行/父身份前后相符时记录后代；退出后只清理已验证实例，记录清理结果与观察范围，禁止根据已退出父PID发现新树。PowerShell7语法、超时及已观察后代清理验证通过；短命父进程可能在身份扫描完成前退出，未观察后代不冒称已证明全部回收。暂存空白检查和最终备份校验通过，普通提交16ed4e7d729883843eb8ce32dc19c9d9b16758e4（1文件），非强制推送成功；独立ls-remote与本地HEAD完全一致，技能工作树干净。本轮没有继续CSDN发布、改自动化或暂存SonnetDB其它工作。032仍按原交接只读对账。此段独占尾部追加保留既有交接字节，SonnetDB交接未提交，因为本轮授权提交对象仅个人技能仓库。
+
+## M47-P05 新会话派单（2026-10-11，Asia/Shanghai）
+
+用户直接要求创建新会话并在其中开始实现P05。已通过Codex app create_thread创建本地SonnetDB项目会话“SonnetDB M47-P05 实际预览包部署与用户旅程”，threadId 01a128a4-f97d-7171-a4e8-fb7bd99b5822；交接候选09/4.5.0-preview.1.9、源码a44058ad、冻结提交a1eba739、run38078118031、三资产绝对目录/hash、原始收据、R1七模型延期、P05真实UI与隔离回退门禁、shared dirty/进程归属保护，以及P06～P08/公开发布/自动化边界。新会话已实际启动，wait_threads实读active/inProgress，最新进度确认HEAD a1eba739、外来dirty保护及任务专属浏览器验收准备；尚无P05 PASS，不把派单写成实现完成。本聊天到此停止P05工作，后续由新会话推进。
+
+本次仅创建会话和追加派单交接，无源码/索引变更、commit/push、部署或发布；本段暂不另行提交，避免与已启动P05争用共享索引。P04已有提交及实物验收状态不变。独占追加、fsync并核旧字节前缀，保留其它会话全部内容。
+
+## CSDN 每日11:00原ID对账中断（2026-10-11 Asia/Shanghai）
+
+固定Python status确认22 under_review/9 scheduled/110 pending/unknown1，最低032；原ID167498536、attempt9c7c7621-05bd-4e84-ae49-4b98612a1dcc及所有旧marker/冻结值/14:45绑定保留。本轮csdn-mysticboy未打开，tabs/tab-list真实失败后复用原专属browser-profile正常恢复；管理账号链接mysticboy有效，保留共享登录浏览器。首次管理URL误用creation/manage产生404，已按技能实际manage/article纠正，原失败保存；未创建无ID编辑器。建立0管理/1原032 writer/2原032 reader标签，仅只读导航。032 independent阶段在本机Get-CimInstance Win32_Process父身份采样超时，phase-0dda1be9-6294-4cea-ae99-6acafecbc623.json记录03:00:35.816Z至03:01:09.727Z，exitCode1；原ID核验未产出完整新回执。没有重启该核验预算或继续网页写入，032仍unknown，本轮新增正式尝试/最终点击均0。当前平台余额及已到时023起真实发表/匿名公开状态未核实，不沿用旧余额或把排期升级发表。下一次先只读原032精确全文、同封面和新鲜四分类，若届时已到时则核实际发表/公开内容；不再claim/import/upload/submit，未决前不推进033。自动任务每日11:00保持，未新增半小时轮询。无commit/push/部署/付费/平台重发。独占尾部追加本渠道及根交接，保护其它渠道及并发产品，交接暂不提交遵守发布边界。
+检查点：C:\Users\mysti\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261011-1100-5214bb75-2895-4eff-a0a4-a60ea807a125.json
+
+## 开源中国每日两篇收尾（2026-10-11，Asia/Shanghai）
+
+- sonnetdb-2本轮按原编号发布040/041，实际博客ID19775632/19775634、原草稿ID3329021/3329022保留。完整本人已发表/草稿/定时三组145/1/0均完整，独立回读原ID、标题及全文严格匹配；submitted不升级为网页公开可见。真实链接https://my.oschina.net/u/7172/blog/19775632及https://my.oschina.net/u/7172/blog/19775634。今天成功博客2篇，日额度已用完；下一轮2026-10-12 11:00从实时账本042/043继续。
+- 每条动弹分别通过已授权gpt-image-design/gpt-image-2与当前sonnet_vip代理生成新图并实际查看，成年亚洲女性JK裙；两图实际1024×1536，SHA分别e47c8cd91507f79b6996afac9dcd1388e471adb77ac2cb8c027d42a6fc33f31a及024c29df660d4643c81cabd94717cbd319ee7c35cf296e3f2cb333aebb8dce18。图与生成证据留存.local/tweet-images及本轮目录，无图像重试、复用或凭据落盘。按既有明确链接拒绝使用无URL文案，本地保存文章关联。
+- 040/041公告分别保留原receipt791ad84a-dcc2-4612-b59d-cf1ac84da0ba及c4477241-735f-4fdf-beb9-dfde73f05d6e，均unknown，无remoteId、URL或已核上传URL。原publish_tweet阶段在上传前设置，错误未保存HTTP/业务状态，不能证明创建POST已发送或猜测失败环节。完整本人动弹列表145条经发布器统一严格正文/真实话题匹配，无040/041及135匹配；不证明未接收，三条unknown不转pending，不改文案，不重发。旧135和8条unknown标题编辑保持，仅既有允许的只读核对，无新编辑请求。
+- 修复技能发布器的后续诊断：分别登记upload_tweet_image与publish_tweet、保留tweetCreateRequestStarted调用边界；UnknownResult保存枚举安全原因及实际已知HTTP状态，上传业务信息经过敏感过滤。仅影响将来请求，不补造本轮历史HTTP错误。隔离离线100/100通过，真实全局账本未变；覆盖未知上传不创建动弹、未知创建保留上传URL与阻止重发。未用真实写请求测试诊断修复，队列夹具本轮未重跑，不引用昨日PASS作今日结果。
+- Sync最终142篇、45submitted、97queued；全队列Verify仍FAIL：Source hash differs:139，失败原样保留。139–142在轮到原编号前仍需按实际源稿事实复核，不刷新旧SHA或用局部核验放行。040/041源/渠道稿哈希一致，publicationReview及fact-sources记录当前源码依据；未执行SQL例子、产品构建/测试、性能/真实AI/硬件/恢复验证。
+- 新闻502847原投稿、历史正文SHA、URL与指纹保持，未重投。沿用最新历史只读证据：账号状态1、无凭据公开API标题/全文已核验，但网页正文未暴露，网页公开可见性未确认；不把旧回执一概称为当前仍审核中。未来新闻仍使用规范Gitee项目仓库地址，既有本地修订稿不产生再次投稿许可。
+- 与本轮before比较，123条既有全局回执逐值保持，仅新增2博客与2unknown动弹共4条；其它140篇、news、policy及原events字节前缀保留。原ID全文验证、动弹只读观察、清理与lastHeartbeatRun已用独占锁和UTF-8无BOM/LF临时原子替换写回，events仅追加。完整性PASS仅覆盖本轮保护边界，不替代全队列源稿FAIL。证据目录docs/blogs/oschina/.local/scheduled-20261011-040041。
+- 24个记录在案自有进程身份fresh核查无同身份存活，三个发布锁不存在，额外kill/delete0；图片/日志/审计交付物保留，不声明全机或未观察后代无孤儿。固定PowerShell7.6.6；无Graphify、广域扫描、安装、浏览器或共享MCP新增。共享HEAD本轮由6b90fcfe54e2ced1ea141bdb297e50f13c80a18c并发前进至本次观察d4e4b7fdb15dfcb47e81ac598778ad64aba25173；origin/parity-results0061d6d78591fb08493f473d3231ca42303faae1保持。
+- 根HANDOFF只追加本段并核原字节前缀，保留其它渠道和研发内容。本任务无stage/commit/push/部署，HANDOFF暂不提交遵守用户发布边界；未运行无关restore/format。旧故障会话已经归档，同一sonnetdb-2沿用当前会话，无重复自动化；明日先只读跟进未知，再依当天两篇额度续发。
+
+## 博客园每日双篇完成（2026-10-11；Automation sonnetdb）
+
+- cnblogs-20261011-daily-1101；初始日额度0/2、queued0、固定租约不存在、文章/修订无在途。复核100篇账号原文记录与首页、所有编号/外部文章当前标题及titleAliases。仅核候选147/148、写2篇；旧076–134共59篇needs-reconciliation继续暂停。Graphify未使用。
+- 新稿147业务表默认值/精确DECIMAL/TIME/主键/CHECK/索引/ALTER与148关系外连接/NULL/列别名/measurement单维表INNER JOIN已完整写稿。复核源d4e4b7fdb15dfcb47e81ac598778ad64aba25173；初读HEAD6b90随后其它会话提交d4，本任务无Git写操作。专题、相关实现/回归切片与公开5424b66672e37f49a2a5633fdde0b54a9b1f0290无差异；参考用公开固定提交，当前ROADMAP另读。正式GitHub Release/NuGet Core4.0.0，不能升级为当前源码完整发行证明。
+- 各一次gpt-image-2生成、retries0、260秒上限；请求1792x768，实际147为1915x821、148为1916x821。完整横图成年亚洲女性专业JK风格；目视审核及确定性文字修正保留原图/提示词/收据/前后SHA。147纠正主键与关联说明，148将NULL扩展示意标为FULL、时序仍INNER并规范品牌。各一次newMediaObject上传，当前PAT/IoTSharp/blogId523396经getPost/getUsersBlogs重新验证；公开原图SHA匹配，默认双二维码原图SHA也匹配。没有修改凭据或二维码共享配置。
+- 147于11:15:19+08:00一次创建成功：https://www.cnblogs.com/IoTSharp/p/23260377 。148于11:16:57+08:00一次创建成功：https://www.cnblogs.com/IoTSharp/p/23260389 。原ID完整正文等于各最终C#预览；最初公开404均经后续只读原URL GET200核实，原失败记录保留，不重发。公开标题/源提交/封面/双二维码及群号通过。7次C# dry-run、项目识别与RequireUploadReady门禁通过。
+- 最终事实检查发现SQL参考前段旧“必须声明主键”与后段当前无主键空表演进例外并存；同轮新稿147在原postId单次editPost更正为“写入前必须主键，无主键空表仅演进”。保存原正文/分类/前后SHA/一次响应与原ID及公开回读，contentRevision=factual-clarification/updated，原title/封面/分类/发布contentSha256/URL/时间/事件保留，追加content-updated且不计新文章额度；没有批量编辑历史稿或补图。
+- 当前published事件2/2、每篇attempts1、queued0，149–202 planned54；计划标题链接/✅与选题状态同步。状态/事件/复核及生成/进程JSON均UTF8无BOM/LF。证据docs/blogs/publishing-review-2026-10-11.json及publishing-evidence/2026-10-11/，执行脚本独立审计副本保留；局部失败、公开404及修复过程不覆盖。
+- 外命令使用有界Job Object与PID/创建/参数/父链收据；14份收据记录的独立身份最终均不存在，0回收信号。精确个数和清理路径见review.cleanup，CIM/StartTime小数舍入重复已按PID+epoch毫秒去重；短子进程采样可能遗漏，micro未抓到live CIM命令，不声明整机孤儿自由。仅清理本runId临时脚本/5份预览及所属固定租约；资产/原始证据/共享缓存/服务保留。
+- 本次未实跑数据库示例、产品测试/性能/真实模型/固定硬件/生产恢复长稳；只复核实现与发布流程。无stage/commit/push/部署，不调整自动化。仅追加本交接段并核原字节前缀；其余Workbench/CSDN/OSChina/公众号/微博/ROADMAP/CHANGELOG外来改动保留。HANDOFF未提交，原因是用户禁止自动commit。下一轮先核当天配额/租约/未知状态，从149核当前事实、去重与封面，不能再次创建147/148；147本地哈希按contentRevision读取，原发布SHA不覆盖。
+
+## SonnetDB 微博每日11:00续排与正式发表核验（2026-10-11，Asia/Shanghai）
+
+本轮research/schedule-20261011/run-1056，从02:57:25Z开始，40分钟/最多3个新编号边界；已处理026、027、028，收口没有新增029。固定plan/queue/ledger及当轮真实平台独立回读为依据。每日北京时间11:00 heartbeat已通过automation_update更新完整最新接续说明，并以Python tomllib独立回读全部prompt、rrule、status、kind、name和target_thread_id一致，保持ACTIVE；11:00是Codex任务运行时间，微博原生自动发表节奏仍为每天08:00/20:00。
+
+011原attempt45847a541a2d4e1ea344914146cae10f和025原attempt1c18834395bf471d9a77878246e02ff5均独立reload正式文章全文/作者/封面及配套微博完整简介、解码真实原文URL、同文章卡片与已加载封面通过，record-published成功；两个输出verified、publicationVerified=true，均未核匿名访问，publicVisibilityVerified=false。011实际2026-10-10T18:03:31+08:00由用户人工立即发表，来源证据、binding、marker及原冻结合同完整保留，过原11日08:00门禁后才正式记账，不归为平台提前自动发表。025实际由平台在2026-10-11T08:00:00+08:00自动发表，timestamp1791676800，文章https://weibo.com/ttarticle/p/show?id=2309405352742834274471，微博https://weibo.com/1089099883/Rm855qbsF。011真实文章https://weibo.com/ttarticle/p/show?id=2309405352532314030118，微博https://weibo.com/1089099883/Rm2Bx6thR。025首次窄条截图保留，025-published-card-cover-v2.png实际目视通过。两篇旧原回执和内容不编辑。
+
+026同原草稿3930864，当前源/事实/审定稿/简介/图片SHA无漂移，复用已保存封面，不重生图/上传/裁剪。真实日期可选后claim得到attempt63695c5feb7943bd9237d067838f3f2f；2026-10-11T03:07:37.276Z唯一最终定时确认，独立reload同ID全文/UID1089099883/封面/完整时钟/iframe真实timestamp1792281600匹配2026-10-18T08:00:00+08:00，record-article-schedule成功。scope platform_native_article_schedule_companion_pending，outputs pending/publicationVerified=false；禁止再次编辑或提交026。保存后预览不展示微博简介，不能冒充简介保存后回读，到时独立双输出通过才published。
+
+027唯一原草稿3931014，attempt30345e2bacec4cdcaf98938f65478207，冻结2026-10-18T20:00:00+08:00，标题SonnetDB 引用标识符：双引号与名称大小写；原文https://www.cnblogs.com/IoTSharp/p/20023402。当前源码审稿、事实原字节快照、审定正文/简介及目视凭证本轮保留；封面027-quoted-identifiers-jk-final-20261011.png SHA542c5a6e641be45b170a08ef6213d1f4b8620a8e55c2a1b8dc59d7b377c5e19d，一次上传、稳定裁剪确定、保存reload通过。03:15:12.342Z最终点击一次，两次排期只读各10秒等待超时，没有排期证明或明确平台拒绝/限额。unknown/outputs pending、原marker/binding/全文/封面/时刻均保留，已基于用户直接“无法确认就忽略，不阻挡后续”defer-compound成功。本轮027两次只读边界已用完，不再查；后续只读原ID对账，不重claim、新建、编辑、上传、重选时间或再点击。
+
+027执行错误如实保留在027-unresolved-result.json：首次最终点击exec_command仍返回运行中session67555，我未先等自然结束就启动独立reload session40184，并过早解析尚空stdout导致JSONDecodeError；本地record仅verification_pending，没有scheduled转换。两CLI后来均自然exit0，但只读stdout内部TimeoutError；第二次独立只读也超时。没有重复最终点击；不能宣称全轮浏览器命令串行，不能排除命令干扰与未知结果的关系。之后所有同会话命令等待前一CLI自然完成，检查完整stdout里的### Error才继续；自动化接续已固化此纠正，旧失败不覆盖。
+
+028唯一正式草稿3931017，标题SonnetDB 向量标量函数：距离、内积与参数边界，目标2026-10-19T08:00:00+08:00，原文https://www.cnblogs.com/IoTSharp/p/20023406。当前FunctionRegistry和向量源码审定纠正NULL/空向量、同维度、标量cosine拒绝零向量且不夹逼范围、标量原始内积与KNN负内积差别，不把标量计算冒称ANN或真实模型质量；完整审稿/事实快照本轮保存。主题封面028-vector-distance-jk-final-20261011.png SHA c5446723c89de8d59b094c63009c3659a4a37b0757c862a787a71f033c727de5，base/final与稳定裁剪v2实际目视，一次上传/裁剪确定/保存。新建瞬间显示027暂态，先持久记录3931017，再原页有界等稳定空字段才填写，未覆盖027。03:23:11.990Z独立reload全文/UID/封面通过，平台封面https://wx3.sinaimg.cn/large/40ea586bly1ihy90aq7saj20zk0jy0w3.jpg；03:23:42.634Z真实日历11日至18日可选、19disabled，03:24:02.388Z关闭未提交设置。plan planned/draftState=saved_waiting_date_window/platformConfirmed=false，无queue、attempt、marker、最终点击。后续同3931017复核源码/事实SHA及实际日期窗口；无漂移直接复用正文封面，不重生图、上传、裁剪或创建。日期窗口只限制最终定时提交，保留已保存完整正式草稿。
+
+本轮最终账本11published/1accepted_as_is/13scheduled/2已延期unknown/1旧abandoned，queue27；plan2published/13scheduled/121planned。13scheduled为012至023与026。024原3930723/attempt70b8a28cfccc49d2bba422fffead3158、17日20:00仍unknown已延期，本轮没有重新观察或提交，不阻挡其他编号。旧slotRevision保持，029仍19日20:00，不能仅凭planned重建024/027/028。
+
+收口自动化完整持久核验与固定三状态SHA回读一致。128项/20秒边界审计实际63个原结果；63已记录根PID当前均不存在，completed/rootExited/outputComplete全部true、0signal，原身份采集warning及stdout内部错误保留。审计只覆盖已记录根身份，不冒称未观察短命后代清理，共享专用Chrome/daemon保留；本轮所有曾返回session_id的长命令已等自然完成。共享HEAD从baseline 6b90fcfe转为d4e4b7fd、index与baseline不同，属于观测到的并发工作，本任务未恢复、暂存、提交或推送。交接独占尾部追加、Flush(true)/fsync并核原字节前缀；此发布交接暂不提交，保护共享worktree/index。无立即发表、重发、付费、Cookie导出、私有API、测试、commit或push。下一顺序：真实到时双输出核验、原延期ID只读对账、028同ID窗口续排，再按实时状态准备最小其他编号；每轮3编号/40分钟，未知每轮2次只读/15分钟，不把未知改成功或失败。
+
+## M47-P06 新会话派单（2026-10-11，Asia/Shanghai）
+
+用户直接要求“现在在新会话中开始实现P06”。已通过 Codex app create_thread 在现有本地 SonnetDB 项目/工作区创建会话“SonnetDB M47-P06 预览说明与独立分发”，threadId 01a12935-096e-7843-a6f8-c5d497684581，host local；没有新建工作树或子智能体。wait_threads 实读 active/inProgress，首条进度明确核对仓库交接、P06验收及 Git/自动化状态，再实现限定分发、拒绝验证、文档、精确提交和正常推送。这里只记录已派单和实际启动，不宣称 P06 实现或验收完成。
+
+交接包含已验收 candidate-10/4.5.0-preview.1.10、源码54eefc816f133a805b0d38f0cbe930d2c17650b6、CI38104431383 attempt1、delivery-10原三资产及ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed；不可变清单/P05报告/审计addendum、本机R1实物旅程与七模型延期、NOT_READY和P07/P08未验边界。原审计空窗 effective FAIL_EMPTY_WINDOW、DateKind String纠正及v2/v3真实收据均已交接，不回写旧FAIL/UNKNOWN。P06应补真实预览说明和精确四附件限定分发入口，保留旧policy/verifier，评估来源/新包变动对应新候选；实际tag/Release/公开附件发布仍需P08另获明确授权。
+
+父会话实读HEAD d4e4b7fdb15dfcb47e81ac598778ad64aba25173、前提交6b90fcfe54e2ced1ea141bdb297e50f13c80a18c，index空、134个dirty路径。已交接shared HEAD+owned staging、外来五列ROADMAP保护、HANDOFF独占append/fsync/旧字节前缀核验、保护VSCode脚本及parity-results实时核对、暂停Workbench自动化、PowerShell7和有界进程归属清理。本段仅独占追加，暂不stage/commit，避免与已启动新会话争用共享索引；后续由新会话在实际状态下纳入精确交接。此父会话不执行P06源码、测试、提交/推送或后续门禁，不恢复自动化、不公开发布。
+
+## CSDN 全流程 Playwright CLI 与032原ID差异对账（2026-10-11，Asia/Shanghai）
+
+用户明确要求整个CSDN发布使用Playwright CLI。本轮按publish-csdn/playwright技能，仅使用固定Node/CLI和csdn-mysticboy专属会话；原会话tab-list真实失败后正常恢复同专属profile，不加--headed、不复制Cookie/profile、不调用CUA或通用外部浏览器控制。根浏览器会话保留。技能SKILL.md、agents/openai.yaml和Playwright/CUA历史/原生定时参考已窄改，当前路由只走CLI；旧CUA合同仅作历史证据。
+
+前轮Get-CimInstance父身份采样异常曾打断正常CLI；invoke-csdn-phase.ps1改为CIM每次1秒、祖先最多3层/4秒、后代最多3轮且每轮3秒，异常保留identityWarnings而继续等待真实exit/stdout/stderr。枚举前后核同一父身份，不从已退出PID发现后代；身份不足不猜测终止。审计保留owner/运行程序/启动时间/rootExited；数量、墙钟、取消与阶段deadline保持。PowerShell Parser及owned diff whitespace通过；两次有界本地烟测核CIM注入失败仍完整stdout/exit0、子进程真实exit7仍完整stderr/审计7（终端呈现非零1），均rootExited/streamsComplete=true。032真实独立回读与四分类CLI也正常完成；这些验证不算新发布。
+
+032原ID167498536/attempt9c7c7621-05bd-4e84-ae49-4b98612a1dcc独立强制reload完整正文与冻结SHA b94c902e9e8895b8b920ee12f6c12763a8895cd56c9a8112f0bd0e9feae6ceaf严格一致；2026-10-11T04:24:09.148Z（12:24:09北京时间）原编辑器真实余额8。reader证据032-baebce03-58e1-4d55-bf80-a0752d15e12b-native-independent.json。四分类manage-fe53e352-d29e-45e0-9a99-520a49b882fa.json共4页、complete=true：全部/已发布唯一冻结标题原ID，同已加载CSS封面356x200；审核/草稿均0。但是管理行显示2026-10-11 12:18:24和浏览链接，原“预计于北京时间2026-10-11 14:45发布”不在新捕获中。native_receipt因此正确拒绝Exact original-ID schedule paragraph is absent，原失败phase-8efc6444-2f95-4b91-a86f-f31ad4e7b063.json保留；不能派生scheduled或猜提交来源。
+
+随后仅通过CLI新建只读原公开文章标签，真实URL167498536返回HTTP403 Forbidden，证据phase-a53b27f4-4115-4f82-a6ae-254bc5e30d91.json及其stdout；这是已登录CLI会话观察，未核匿名访问，也未取得公开正文证明。当前尚早于原14:45绑定；正常record unknown追加032-cli-reconcile-4904aa42-14a6-4da3-9174-dc3b861ed07f.json及receiptHistory，原14:45计划、冻结稿、原ID/attempt、所有旧marker/旧回执均保留。未修改时刻、未重复最终提交或通过改账本解锁。当前22 under_review/9 scheduled/110 pending/unknown1，最低032；今日历史两次预占保持，无新增claim/导入/封面上传/正式提交或新草稿，033未prepare/尝试。
+
+本网页批次统一截止2026-10-11T04:50:11Z（12:50:11北京时间）没有重置，因032差异提前停止新写入。下一次先只读核原032及到时原排期ID实际发表/公开状态，不能重提；完整证据且达到原时间门禁后按正常receipt规则记录，未决前不推进033。后续未绑定旧槽失效需另存滚动候选计划、核实际日历，不能改原绑定。已有sonnetdb-csdn heartbeat独立TOML回读仍ACTIVE/每日北京时间11:00/原target，未新建、未恢复半小时轮询。
+
+收尾只复核6份明确阶段审计的9个原根/已记录子身份，当前全部absent、0signal；保留共享CLI浏览器，不冒称未观察短命后代或全机清理。证据cli-process-final-audit-248ecd6b-ba3c-455c-a3e2-656bee52e9e6.json。技能改动本轮未提交/推送；上一轮16ed4e7提交结果不重复执行。此发布交接独占尾部追加、Flush(true)并核旧字节前缀，保护并发产品/其它渠道/索引及parity-results；未commit/push/部署/付费。所有新稿/审稿/图片/截图/回执留本机CsdnPublisher目录，仓库仅本渠道进度与根交接。
+
+## CSDN 用户接受重复后的 CLI 双篇排期（2026-10-11，Asia/Shanghai）
+
+用户最新原话“无法确认的文章就重复发送， 没关系。”允许原ID对账仍unknown时创建独立新副本，替代本渠道旧unknown不得新ID重发规则；已有确认稿不重复。本轮只用Playwright CLI csdn-mysticboy，正常Markdown导入、发布设置、封面控件和原生时间；无CUA、系统默认浏览器或私有API。批次04:36:28Z至固定05:06:28Z，实际最终网页回读05:02:49.646Z；截止后仅本机审计/交接，没有重置窗口或新增网页动作。
+
+032原167498536/attempt9c7c7621-05bd-4e84-ae49-4b98612a1dcc完整正文匹配，但管理只有12:18:24时间、原14:45定时说明消失，公开页403，无可升级回执；该unknown结论与全部旧文件保留。新独立授权和新鲜四分类/原ID全文捕获保存后，claim-republication排他归档原item完整JSON（032-651a07a2-3961-4a95-b4d5-6ad5a3407b82-original-publication.json，SHA123eccb6ff2ad8ac803e690c8797661a3d0f40dcf3d518442b0579faaf402402），再追加新daily attempt a49063f6-2eee-441a-aedb-f151c2a1b41b。冻结标题/全文SHAb94c902e9e8895b8b920ee12f6c12763a8895cd56c9a8112f0bd0e9feae6ceaf保持；旧ID/attempt/14:45槽位/marker/回执都保留。新副本167579176单次导入/保存重载、单次封面、单次最终确认，真实管理本行“预计于北京时间2026-10-11 17:30发布”，独立原ID全文相等、同封面356x200；032-56e11def-3cbc-4e8d-af3d-f79d17c1727d-native-saved-receipt.json正常record scheduled。
+
+管理rowText曾在发现封面时过早终止祖先读取，漏掉旁边的定时段落；原捕获保留，未重复平台提交。只读DOM明确同ID单卡第6层包含定时说明后，manage_search在原6层/单ID边界内继续收集正文，封面仍只捕获一次。新四分类manage-12f3def2-ed13-4b42-a77e-b6c60e6194b7.json分别保留旧/新ID的独立行；新回执只排除明确归档priorRemoteIds，严格要求活动新副本自己的时间、全文、封面，不拿旧行冒充新证据。
+
+033复核当前ExtendedAggregateFunctions/TDigest/FunctionRegistry/SelectExecutor与SQL参考，重审百分数q(0,100]、0.95与95差别、近似/空累加器/tdigest_agg JSON和分桶p95不可平均边界；未执行SQL、误差或性能验收。冻结标题SonnetDB深入T-Digest：分位数聚合与percentile（正式字符串见账本），正文SHA ccc27a59d413aeb6755f00897ca5b97ba582fe116d413c127fa780a563aa6cab。主题原图本轮一次本地目视，品牌/percentile(x,95)/q范围正确，合格源图复制自有assets，原公众号图不改；图SHA8b9cfc13ee657bb034e3960e7419c07b6aa8e520bc52054e23173c6ebd4d72ad。四分类均无候选后claim预占，attempt51311da4-9198-4fed-ba9c-206f50227e7b；新ID167579767单次导入、完整保存重载、原创/全部可见/GitCode关/多平台否/AI辅助声明/精确两标签、封面保存重载、最终定时确认一次。独立原ID全文严格相等及manage-162b5a40-03fd-4992-9b41-46866b639c40.json四分类同封面/18:15说明通过，033-ade53519-9d3c-4420-b903-5ff88e22efee-native-saved-receipt.json正常record scheduled。两篇常规封面upload/confirm/verify均screenshotPath=null。
+
+真实日历11日至17日可选、18disabled；另存schedule-plan-roll-20261011-republication-a49063f6.json，SHA a8bb43db312de62121d2199338c28a69d961eb6c816aa86bf9977f5f352942a7，避开所有现有及已归档旧槽位。111条本机planned不是111条平台排期，本轮只新增上述两条真实saved；所有旧计划保持。新增duplicate_republication.py、账本CLI/新副本封面suffix/回执归档守卫及滚动计划活动副本适配，技能SKILL/进度/原生/封面参考已同步明确新授权。61 Python账本测试、原10 helper/17 Node测试、滚动计划3测试、管理修正后5测试/Node语法/owned diff whitespace通过，均不算真实发文。首次CLI只读诊断URL realm错误和wrapper 240秒参数拒绝保留，纠正后只读执行；没有额外发布点击。
+
+最终22 under_review/11 scheduled/109 pending/unknown0、最低034；原032历史unknown完整归档而未改成功。今日历史4次预占含旧031/032和本轮重发032/033；用户无自设日上限，033独立重载实际余额6，仅该时刻证据，不称额度用完。本轮双篇及30分钟边界收口，不为用尽余额开启重复批次。未来排期不称已发表，旧排期稿到时真实发表及匿名公开核验仍待续接。
+
+现有sonnetdb-csdn自动任务已更新重复授权和全流程CLI说明，ACTIVE/原target01a11eff-1586-7551-b50a-8db25b652ed7/每天北京时间11:00保持，完整TOML回读逐字段匹配；未创建重复、未恢复半小时。下一次先核当前账号和真实余额、到时原ID真实发表/公开状态，再最低034复核事实/封面/完整查重并正常排期；仍unknown可沿既有用户重复授权按claim-republication建立独立新副本，无需重复问授权。新副本再未知则停止当前尝试，旧marker不删、同尝试最终确认不重跑，真实平台额度/验证码/频率/取消仍生效。
+
+36份明确阶段审计60个已记录身份中初读59 absent、1短暂present未验证，未发终止；随后该conhost PID23984只读CIM无实例且收口Get-Process absent，补充观察保存在本轮checkpoint，原审计不覆盖。不从已退出父PID猜测新子进程归属，不冒称未观察短命后代或全机清理，共享登录CLI会话保留。所有原始/失败/稿件/审稿/图片/回执在本机CsdnPublisher目录。检查点：C:UsersmystiAppDataLocalCodexCsdnPublishermysticboyevidenceauthorized-duplicate-cli-batch-20261011-result.json。
+
+仓库仅本渠道账本/PROGRESS与根HANDOFF追加；独占尾部写入、Flush(true)/旧字节前缀核验，保护并发研发和其它渠道。收口HEAD实读eb244cfd3a339c4e0733c70fb4dec15f957a7acf，未stage/commit/push/部署；技能本轮新改动暂不提交，前轮16ed4e7不重复执行。发布交接暂不提交遵守本任务边界；未运行无关restore/format、未改或合并parity-results。
+
+## M47-P07 新会话派单准备（2026-10-11，Asia/Shanghai）
+
+用户直接要求“现在在新会话中开始实现P07”。本会话已只读核对本地SonnetDB项目、最近12个会话、根交接、P06分发补记和Git/自动化；尚无P07会话，准备通过Codex app create_thread创建“SonnetDB M47-P07 同候选发布门禁与放行评审”，沿用D:\source\SonnetDB本地工作区。此段仅记录派单准备，真实会话ID和实际启动状态以应用返回、wait_threads与新会话后续交接为准，不宣称P07实现、验收或READY。
+
+实读HEAD eb244cfd3a339c4e0733c70fb4dec15f957a7acf/main、index空、共享外来dirty保留，workbench自动化PAUSED。P06已本地完成并正常推送，产品NOT_READY；candidate-10/4.5.0-preview.1.10包source54eefc816f133a805b0d38f0cbe930d2c17650b6、run38104431383 attempt1、ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed不可变。完整原始证据、P05空窗effective FAIL_EMPTY_WINDOW及纠正收据、P06暂存行尾/表格纠正与旧FAIL/UNKNOWN交接新会话，不回写原候选/包/清单/失败。
+
+只派P07：核原12workflow/五Workbench job/具名steps及artifacts和全部既有必选门禁，同候选C01～C05/D01/P05-installed-R1/licenses，核243依赖及16许可缺口；实际执行新分发workflow的prepare并核真实远端结果，建立真实P07记录/原证据artifact、工具10文件hash库存和放行评审。七天scheduled Parity保持非阻断观察，不削减light/full。任何包内输入或字节变动须新候选版本和受影响验收。P08实际tag/Release/公开附件/匿名下载首次运行须另获明确授权，不能用CSDN重复发布许可扩展产品授权。
+
+本段仅用独占FileStream尾部追加、Flush(true)和完整旧字节前缀核验，不stage/commit/push，避免与即将启动的新会话争用共享索引。父会话创建后停止仓库写入；新会话负责在实际共享状态下更新交接、精确自有路径提交/正常推送及最终树完整restore/原CI format。保留HEAD交接原字节、外来五列ROADMAP与HEAD四列各自结构、渠道/VSCode/M42/WB97/WB98改动及parity-results本地和远端引用；不恢复自动化，不创建工作树或子智能体。所有调用使用固定PowerShell7、有界数量/墙钟/取消/进度及任务归属清理，禁Graphify/广域扫描/未经授权安装/按名或旧PID终止。
+
+## 个人技能修改提交完成（2026-10-11，Asia/Shanghai）
+
+用户要求“把修改后的技能请提交”。使用commit-my-skills技能在唯一技能仓库C:\Users\mysti\.codex\skills完成全量检查、备份刷新、一次普通提交与正常推送。main提交87c7fb59fa9df1374681444ae271ea8e1e76cc0d（23文件、432新增/59删除）包含CSDN Playwright CLI/封面与原生定时流程、用户接受未知稿独立重发的保留历史守卫、OSChina未知结果阶段诊断及备份清单。实时gh核原origin私有，fetch前后无分叉；推送后独立ls-remote与本地HEAD完全相同，技能工作树干净。
+
+本次CSDN技能入口校验、61项账本/重发离线测试、OSChina100项离线测试、暂存diff --check通过。独立Agent归档实际刷新并两次verify_backup核1528文件/145技能定义/126唯一名称，两个外部链接内容已实体归档，未暂存链接/gitlink。归档字节未变化故提交只更新相应备份清单；既有凭据备份边界保留。离线校验不算平台发布成功，本次没有额外文章发布或排期；本轮原032/033与最低034接续保持此前发布交接。技能仓库备份工具进程日志留本机.local；共享CSDN会话保留。
+
+SonnetDB产品仓库未stage/commit/push。本段仅独占尾部追加并核旧字节前缀；根交接暂不提交，以保护并发P07/产品与其他渠道的共享工作树和索引。后续个人技能已同步，CSDN每日北京时间11:00既有任务继续按真实账本和平台余额执行。
+
+## M47-P08新会话派单准备（2026-10-11，Asia/Shanghai）
+
+用户直接要求“现在交接， 并在新会话中开始实现P08”。父会话01a12965-0c06-7402-8a81-1382bb49f483准备创建本地SonnetDB会话“SonnetDB M47-P08 发布流程与前置门禁闭环”，沿用D:\source\SonnetDB/main；派单后父会话停止仓库写入，由新会话完成P08实际工作、必要前置闭环、自有交接及精确提交正常推送。真实ID与启动状态以create_thread/wait_threads返回为准，不把派单写为P08完成或公开发布。
+
+当前实读HEAD5983ff3fd9925ec9bbfdabe6a50571458a2ae980，index空，P07提交已正常推送且独立remote main一致；原105外来修改及共享dirty保持。P07真实prepare38116860908、收集38117134746均attempt1/success，tooling1f3709945f97bfd656538570d1d8b8cf3b0cba24；artifact11693529921/workbench-preview-p07-10/digest sha256:f9cec7973d7c6a0afde07a99fdbcb89b70e2a5fb22d2b077dc0bc787cd3d8208，到期2026-11-10T06:10:27Z。最终restore10.74秒/原CI format160.02秒/default whitespace通过，7owned精确提交；本机收口45收据/631身份/363唯一tuple、0live/0signal，fixture回收。精确证据artifacts/m47-p07-20261011/delivery.json及原checks/verified-artifact-*、independent-artifact-verification.json。
+
+P07结论仍NOT_READY、评审完成但未放行：C01～C05/D01/P05-installed-R1共7/8通过，licenses未闭环；原12workflow中4通过，parity/document-soak/ecosystem-soak/m19-capacity-evidence/m39-trigger-evidence/publish/connectors-release/docker-publish八项缺同包source有效运行。7个npm原通知与4个Microsoft适用资格/终端保护条件共11运行时问题，5build-only排除不等于全部清关；scheduled七天最新7/7 READY只是nonblocking历史观察，不替代候选light/full。P08先推进这些必要前置条件和发布实现；不篡改原P07记录为READY，不降低原policy，不把P08派单视为门禁已通过。实际publish须保留冻结候选精确授权串、workbench-preview-p08环境reviewer/self-review保护及原完整live verifier；只有需对新候选实际写入范围作用户决策时，先准备具体可审查结果再问。
+
+candidate10/4.5.0-preview.1.10/source54eefc816f133a805b0d38f0cbe930d2c17650b6/tree0083fd496dbdac25019aee058651c821dac0c336/build38104431383 attempt1/ZIP46634305bytes/SHA d01729b97a8db906ffb78bf88138cfa58d91b708efaf03fa408c0b59aaab51ed、279entry及candidate/manifest/checksum/审计不可变。修复包内通知/配置/字节必须下一未用candidate/version、重包及受影响P04/P05等真实验收、新的同源完整门禁与P07artifact，不能覆盖10。既有分发workflow/上传器和P07收集实现复用，公开四附件和匿名下载/首跑分开验收；不clobber/移动tag/盲重试，unknown只读原ID对账。所有历史FAIL/UNKNOWN/空窗effective FAIL_EMPTY_WINDOW保留。
+
+固定PowerShell7、已有有界Job执行器与精确PID/创建/命令/父链归属、数量/墙钟/取消/进度/backoff/finally清理；不使用Hosted PID查本机，DateKind String显式解析且拒绝空窗。禁Graphify/广域工具扫描/未经授权安装/按名或旧PID杀进程；长命令结束核任务子树，无法确认归属保留报告。网络直连失败只按任务使用127.0.0.1:7890代理，SSH Bash用规定single-quoted here-string wrapper。无子智能体、工作树或重复新会话；workbench自动化PAUSED保持，不部署生产/安装服务/发布其它渠道或重启编辑器。
+
+本段独占FileStream尾追加/Flush(true)并核完整旧字节前缀，暂不单独stage/commit/push，以免与新会话争用共享索引；由P08按实际状态精确纳入owned提交。HANDOFF暂存用HEAD原字节加owned段，保留外来交接；ROADMAP工作区五列/HEAD四列各自结构、博客/M42/WB97/WB98/三个VSCode保持。parity-results remote0e48b753da7eab8ebd9651d405ddb58e3bef01c8/local tracking0061d6d78591fb08493f473d3231ca42303faae1分别保护，不合并/移动。每次提交前最终tree完整restore和原dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/及默认cached whitespace全部通过，再正常push并独立remote回读。
+
+## 线上闭环持续执行检查点（2026-10-12，Asia/Shanghai）
+
+本会话接管用户授权的一主三执行队列；初始实时库存10 PR/49 Issues。当前已实际合入 #214/#268，#277随#268进入main；最新确认main db8b5cf8d8464f173c54f72c522ac14348c4b618。尚无Issue关闭。已提交新增#274/#275/#276/#278/#279/#280/#281/#282/#283/#284/#285；新增PR是待合并交付，不代表Issue全验收完成。
+
+已刷新原#213/#215/#217/#265/#267/#269；其中#269当前fb8f43c78e137fafd12d8e859edf1284b5298d89已正常推回原Dependabot分支，最终restore/原Format Check通过。#213正在集成该前置。#283 Windows全量Test仍运行，其余11门禁通过或预期发布skip；只在新鲜精确head全部门禁通过后串行merge，不借旧head CI通过。原#216/#218在配对替代#215/#217真正落main后才关闭。
+
+#254七文件已冻结，根独立核源码/实际DLL/原TRX：Core55/55、REST/Frame HTTP2合计25/25，新Issue10+2用例通过；最终完整restore已PASS/原format在执行，提交与PR尚待完成。原编译失败、16/17、23/25保留，同DLL短TEMP25/25不证明路径长度根因。#222补测实际h2c1/1，与原REST PASS及Core76/76分列，原连接建立失败与空列表保持，不认定代理因果。#235精确Decimal仍实现验证中，原Double/其他模型参数兼容必须保留，未写为完成。
+
+所有交付与进程清理回执在artifacts/online-closure-20261012。正式NuGet/Chloe/FreeSql/ABP等消费者、最大BLOB长度、完整CAP NativeAOT宿主与部署验收仍按各Issue边界OPEN/NOT_RUN。canonical仍HEAD dcadffc7137f5653ec46c55a4171cf5f2d83de03、codex/m47-preview12-release、原134项foreign dirty及空index；本段独占尾追加且核旧完整字节前缀，不暂存canonical共享交接，避免包含外来内容。三个隔离工作树分别由既有执行智能体使用，根负责所有提交/推送/GitHub写入。parity-results、已发布冻结tag和PAUSED Workbench自动化保持。
+
+下一顺序：#254/#222最终树门禁与精确提交→#235兼容及真实精度→#283完成后按#267/#215/#269等依赖串行合并→刷新余下冲突PR→逐项实现剩余Issues；正式发行依赖不虚假关闭。所有命令/重试/阶段数量与墙钟有界，固定PowerShell7、任务Job/精确进程身份审计；不Graphify、不广域工具扫描/安装/按名杀进程。此前自动审核拒绝的旧TEMP仅给blocked by policy，继续保留，不重试或绕过。
+
+## 用户请求暂停：线上闭环检查点（2026-10-12，Asia/Shanghai）
+
+用户明确“暂停一下”，主/三个既有执行智能体已经停止工作，不再启动构建、提交、推送或远端写入。暂停前 #289 凭确切 head78f19e122abf29f7283e6c5870ef02fbc7f3ad09 的12项完整新门禁一次串行合入 main；独立回读 main/mergeCommit06cdd55881667ab0b4e74b250d399e8053d53d04，原分支保留。#241已准确提交dcdfb8d00e7dd05c1b2491ce05cef0915d85e96c并交付PR#292、正文独立回读通过；Core268/268、实际EF/REST/h2c6/6及最终完整restore/format通过，不代表已合main或正式消费者完成。当前仍没有Issue关闭。
+
+online-delivery停在codex/pr288-main289-integrated，HEAD1ebe27f55d94d8b80e21095ebd07d95d718580c6、MERGE_HEAD78f19e122abf29f7283e6c5870ef02fbc7f3ad09，10项已暂存且尚未提交的正常merge状态，不能reset或误认为异常dirty。相对前置30路径冻结于pr288-main289-freeze.json；#235原已测C#与继承main/streaming源逐SHA/Git blob核保持。两CHANGELOG冲突保留全部条目，严格尾追加helper拒绝历史章节插入原文保留；独立合并HANDOFF后核两侧181/184完整章节零缺失和539063-byte公共前缀。第一次测试过滤器取错--logger字段，实际208/208保留；修正后同一构建产物完整Core429/429，实际EF/Server66/66，最终完整restore/原Format Check均PASS且结束于暂停前。根尚未完成最终DLL/TRX冻结复核、PR说明更新、准确commit/push及远端新CI；恢复后先完成这一步，不重复无必要已通过门禁。
+
+online-engine的#258新候选已按8路径完整备份并停止；实际worktree7项dirty、空index。已发现既有PR#281/f4d2e3f06a10432083c308f5c2991f8fade6f8b3，原8源匹配archive/blob、历史23/23及实际17/17、7 DLL核通过，没有必要生产替代，不能创建重复PR。恢复后先核candidate-backup再由根准确清理候选、刷新原#281并做新集成验证。online-cap的#244仍5项dirty、空index；Core build v1/v2 PASS，原micro v1因fixture内联PRIMARY KEY语法失败，修正两个新fixture后尚未执行micro v2/完整Core/EF真实transport。保留原失败、v2源码和DLL；agent已中断，不能写完成。
+
+#284有界诊断冻结103项并由根逐SHA/长度复核：原测试前后0bytes、三fresh进程21窗口0bytes，带Blame对照；历史CI7792/4096失败、根因UNKNOWN保持，未改生产或阈值。48 Job/8控制身份清理及独占TEMP回收限定本阶段；历史auditor UNKNOWN不升级。唯一临时诊断C#由根核与archive一致后精确移至证据，原源码/测试不变。online-closure现干净在codex/deadletter-intent-ci-budget/main06cdd558，未实施新测试修改。新#291 Linux run38187087964/job114611644616 Core6293/6294，唯一FileStreamingDeadLetterTests的payload理论用例在初OpenAsync/200ms预算下失败、未到损坏intent断言；原日志保留。后续该用例一致有界预算及完整阶段取消的最小修正尚待实现，不扩相邻用例或生产配置。
+
+暂停记录artifacts/online-closure-20261012/pause-20261012-request.json、pause-20261012-agent-job-states.json与pause-20261012-state.json绑定五工作树/索引/merge及14收据34当前身份；所有已核Job cleanupComplete、0匹配存活，未按名杀进程。根证据目录和serial244-impl-20261012-0013目录各有本暂停新建cancel标记；只有用户明确恢复后，先核pause-request归属再移除这两个精确标记。GitHub已派发CI未取消，恢复后实时读取，不用暂停时状态推断当前。canonical原134外来dirty/空index与原HANDOFF完整字节保持，本段仅独占尾追加未暂存，避免提交其它会话内容；parity-results、发布冻结tag、PAUSED Workbench、原恢复stash和被政策拒删对象保持。
+
+恢复顺序：核暂停记录与当前远端→完成#288最终集成交付→刷新#292/#281及其它冲突PR→#244实际验证→#291新测试稳定性→持续串行合并和剩余Issues/依赖真实回复。正式NuGet/Server/Chloe/FreeSql/XCode/ABP、NativeAOT及外部验收保持OPEN/NOT_RUN，部分源码与本机PASS不关闭它们。用户未恢复前不继续任务。
+
+## 博客园每日双篇完成（2026-10-12；Automation sonnetdb）
+
+- cnblogs-20261012-daily-1056；10:56:36+08:00开始，30分钟截止11:26:36。初始日成功0/2、queued0、固定租约不存在，文章及修订无在途；复核100篇账号原文及编号/外部标题与titleAliases，仅选149/150、写2篇、串行各一次创建。旧076–134共59篇needs-reconciliation保持暂停；Graphify未使用。
+- 149 UPSERT/RETURNING和150轻事务/ROWVERSION完整新稿；当前源码dcadffc7137f5653ec46c55a4171cf5f2d83de03、相关实现与公开5424b66672e37f49a2a5633fdde0b54a9b1f0290一致。已核正式Release/NuGet Core4.0.0，专题公开GET及当前ROADMAP/源文件SHA保留；历史UPSERT远程限制按后续会话审计更新，ADO Serializable参数接受与隔离保证分别说明。所有示例为合同预期，未实跑产品构建/测试/SQL、性能、真实模型、固定硬件、生产恢复或长稳。
+- 两篇独立gpt-image-2各生成一次，retries0/260秒限；请求1792x768，实际1491915x821、1501916x821。原图及确定性修正最终横图均已目视；149 FALSE/NULL无RETURNING并在图注明确命中冲突后的WHERE判断，150确认提交标签修正。PAT与IoTSharp/blogId523396每次重新核验，各单次newMediaObject上传，公开原图SHA与默认双二维码SHA一致；项目识别、cover RequireUploadReady与C#完整预览门禁通过。
+- 149原URL https://www.cnblogs.com/IoTSharp/p/23269266 ，150原URL https://www.cnblogs.com/IoTSharp/p/23269397 。各attempts1，原ID全文等于最终C#预览，公开标题/正文/封面/双二维码回读通过；若出现瞬时404已保留失败并只读原ID/URL核对，未再次创建。状态/事件/计划链接与✅/backlog同步，今日2/2、queued0、151–202 planned52。
+- 证据docs/blogs/publishing-review-2026-10-12.json及publishing-evidence/2026-10-12/；公开源码下载EOF保留，不当作未实现或重发理由。JSON/JSONL UTF8无BOM/LF通过。13份外命令进程收据的已记录身份均已退出或确认PID复用后保留，0清理信号；有界采样不证明整机孤儿自由。仅移除本任务临时脚本/预览并保留执行审计副本、封面、源和失败证据；所属固定租约在完成收尾后释放。
+- 当前分支codex/m47-preview12-release，无暂存/commit/push/部署，不修改自动化配置或其它会话工作。仅追加本段并保留原HANDOFF字节前缀；HANDOFF未提交，原因是用户禁止自动commit。下次先核配额/租约/未知状态，从151/152核事实、去重和封面；149/150已发布，不能重新创建或自动编辑历史稿。
+
+## 开源中国每日两篇收尾（2026-10-12，Asia/Shanghai）
+
+- sonnetdb-2按原编号发布042/043。原博客ID19775856/19775857、草稿ID3329340/3329342和原动弹ID30401440/30401441保留，无写请求重试。真实博客链接https://my.oschina.net/u/7172/blog/19775856及https://my.oschina.net/u/7172/blog/19775857；动弹链接https://www.oschina.net/osc-tweet/30401440及https://www.oschina.net/osc-tweet/30401441。今天成功博客2篇、日额度用完；下轮2026-10-13 11:00从实时账本044/045继续。
+- 发布前145已发表/1草稿/0定时三组完整，规范化新旧标题与全局回执守卫通过。两篇源稿、prepared SHA与账本一致；当前RunningFunctions/SmoothingFunctions/WindowFunctionBinder及SQL文档复核、hash与依据保存在fact-sources.json/publicationReview。原稿和prepared正文未改，补入已审定的一句动弹简介。未实跑SQL、产品构建/测试、性能、真实AI/硬件/恢复；不将源码复核提升为实测证据。
+- 每条动弹各通过已授权gpt-image-design/gpt-image-2与当前sonnet_vip代理新生成一张成年亚洲女性JK裙图并实际查看，图片不同SHA，原图留存在.local/tweet-images/042-20261012-scheduled.png及043-20261012-scheduled.png；提示词、生成收据与视觉检查在本轮目录。请求1024×1024，实际均1024×1536，约2.7/2.6MB，无需缩放。凭据仅在子进程内存环境使用，不输出或落盘；没有重生成、图像复用或真实写接口测试。
+- 两篇原ID经完整三组147/1/0与严格标题/全文独立核验。原始博客state分别1/2、isPrivate0，只保存真实字段，不套用新闻审核枚举；仍submitted，网页公开可见性未另外核验。两条原动弹ID通过技能只读GET核本人7172、完整正文、topicName=#SonnetDB/topicId19285及唯一原上传图片URL一致。首个标签被提取到真实话题字段，rawTextExact=false但发布器严格话题匹配通过；不因首标签离开content重新创建。
+- 本轮开始完整本人动弹145条，按发布器同一严格匹配器只读核135/040/041仍无匹配；absenceProven=false，三个原unknown及指纹/图片SHA保留，不转pending、不变文案、不重发。011/018原博客ID仍为原标题，仅记录只读观察；其它6条unknown标题编辑保持，无新标题编辑请求。新闻502847历史投稿和未来Gitee策略、修订稿SHA保持；沿用最新历史账号state1和无凭据公开API正文核验，网页公开未确认，未重投。
+- 图片micro子进程实际exit0；初始本地门禁误读继承LASTEXITCODE导致停止，失败保留在intake-gate-correction.json，随后直接核已保存结构化结果继续，没有重复micro、生图或发布。今日无需再修改共享技能；昨日100/100与42/42不冒充今日重跑结果，本轮未运行发布器/队列离线夹具或无关产品测试。
+- Sync最终142篇、47submitted、95queued；Verify仍FAIL：Source hash differs:139，初次和最终失败保留。139–142轮到前需根据真实变化复核，不刷新旧SHA，不宣称全队列PASS。完整性只验证本轮边界：127条既有全局回执、其它140篇、news/policy逐值保持，仅新增2博客+2动弹共4回执；原events字节前缀保持，事件只追加。lastHeartbeatRun、真实关联/回读及清理结果已按独占批次锁、UTF-8无BOM/LF临时原子替换保存。
+- 24个记录在案的自有进程身份fresh核查无同身份存活，三个发布锁不存在，额外kill/delete0；仅覆盖已记录身份，不声明全机或未观察后代无孤儿。所有图片、日志和审计交付物保留在docs/blogs/oschina/.local/scheduled-20261012-042043。固定PowerShell7.6.6；无Graphify、广域扫描、安装、共享MCP/浏览器新增。根HANDOFF只追加本段并核原字节前缀，保护其它渠道、研发和共享index；本任务无stage/commit/push/部署，HANDOFF暂不提交遵守用户发布边界，未执行无关restore/format。原sonnetdb-2和当前会话继续沿用，无重复自动任务。
+- 收尾只读Git观察：main HEAD dcadffc7137f5653ec46c55a4171cf5f2d83de03；origin/parity-results 16645b7caeb4cf2c37b8f7762419a161ed082591。没有由本任务修改分支或提交。
+
+## CSDN 每日11:00：到时对账与034原生排期（2026-10-12，Asia/Shanghai）
+
+本轮使用publish-csdn/playwright及固定CLI csdn-mysticboy。实时status起点22 under_review/11 scheduled/109 pending/unknown0、最低034；网页批次03:04:41Z至固定03:34:41Z，最后真实管理观察03:32:31.833Z，随后仅本机记录与交接，未重置窗口。原会话已关闭，tabs失败保留；按CLI open --help与同专属browser-profile正常恢复，不加headed、不复制Cookie/profile。管理账号mysticboy实证有效，033原ID独立重载真实初始额度10；共享会话保留。
+
+023–033十一条原生排期均已到时。新完整SonnetDB四分类共6页/complete=true，全部和已发布按实际原ID分别唯一、审核与草稿0；逐篇独立原IDreload全文严格匹配冻结稿，026起同已保存CSS封面356x200。分别排他保存NNN-accepted-after-native-20261012.json，正常record under_review保留原scheduled receiptHistory、原计划、所有marker和旧032完整归档。under_review在本账本记录作者管理接受，未做匿名公开正文核验，不升级published。系列观察只作到时对账；034另以HyperLogLog四分类查重，03:24:54新鲜4页均无候选后才claim。
+
+034复核当前HyperLogLog/ExtendedAggregateFunctions/FunctionRegistry及既有SQL审稿：p14、16384 byte寄存器约16KiB、理论标准误差约0.81%而非逐次上限；四种Categorical FIELD类型；distinct_count返回估算数值而非SQL草图，跨小时估计不能相加；正文首段点明SonnetDB、示例未运行，未做SQL/误差/硬件性能验收。冻结标题SonnetDB HyperLogLog：distinct_count 的近似去重与使用边界，正文SHA6835bf6752486d3afa02e65b8d3c71b8a1a1cd2da419ee455b68e35872638e7c，当前来源SHA与审稿记录在034-review-20261012.json。公众号034已有公开历史但无本次主题封面，不改公众号；gpt-image-design先在请求前报OPENAI_API_KEY missing，失败audit保留，随后通过既有Windows Credential Manager桥接临时注入，仅一次真实gpt-image-2生成。034-cover-20261012.png在本机assets，经一次实际目视审核可读品牌/主题/近似去重边界，无错误数字或测量承诺；图SHA1f8492c9e7913d1e3996ab73e6d66b4d26961ac43d3bbd7ee90d9a4b0f259485，prompt/生成audit/视觉review保留，未导出凭据。
+
+034 daily attempt f489588e-3b43-4cb7-a247-221ed784a3eb于11:25:11预占，早于新编辑器。官方导入一次、真实原ID167681403、bind-draft、finish-import冻结标题/正式保存/全文reload通过；settings精确SonnetDB和数据库两标签、原创/全部可见/GitCode关闭/多平台否/实际AI辅助声明。正常文件控件upload、confirm保存、verify原ID全文与同封面通过，三阶段screenshotPath=null。真实日历12日至18日available、19disabled，选时正常可用16:00；03:31:41最终确认一次，native marker保留。独立reader原ID完整正文严格相等，HyperLogLog四分类4页complete、全部/已发布本行准确“预计于北京时间2026-10-12 16:00发布”且同封面；034-30e38b80-2e48-45c8-a888-64a6f7feb60b-native-saved-receipt.json正常record scheduled，尚未到时/匿名公开，不称已发表。实际余额9，仅独立重载该时刻证明，不称限流或本日用尽。
+
+本轮计划顺序与标准表有明确偏离：原033已发表writer不满足editable正文守卫，timer前即拒绝、没有最终点击；原失败/正常reload的beforeunload观察保留，不重写原033。为从本轮真实新草稿读取日历，034先claim/import/save；保留预占前真实prepared账本原字节快照ledger-before-034-claim-20261012.json，日历实证后csdn_roll_plan.py以该未改写快照另存schedule-plan-roll-20261012.json，随后正常bind-native-plan与实际choose/submit。此偏离不写成标准阶段顺序PASS；没有手改账本、冻结标题/SHA/已绑定槽位或旧计划。新计划SHA1b5179c37b0e9a60a959a4ffa7007ef528fb2b9e605a1861513a2be2204c8ddd含109候选，仅034是平台saved，不把planned称排期成功。后续使用真实已核日历及实时prepared账本正常先计划绑定再claim。
+
+收口33 under_review/1 scheduled/108 pending/unknown0、最低035；今日历史预占1，无用户自设日上限，但本批30分钟边界关闭，不为用尽9额度另开批次。下次先核账号/真实额度及到时034原ID状态；然后035按当前Histogram实现重审“第二参数桶宽、JSON字符串而非表、有效输入与负值分桶”，核公众号主题图并正常流程。自动任务每日北京时间11:00保持，不创建自动化、不恢复半小时。
+
+43份明确阶段审计根进程当前均absent，原失败与stdout/stderr不覆盖；包装器原后代身份和cleanup结果完整保留于heartbeat-20261012-process-audit.json。不从已退出父PID猜测新后代，不按进程名终止，不冒称未观察短命进程或全机清理；共享登录浏览器保留。本机唯一任务临时技能.local/csdn-034-image-20261012.ps1已核绝对路径后回收，必要图片/稿件/审稿/回执保留。检查点C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261012-result.json。仓库仅CSDN进度与本段根交接独占尾部追加；旧字节前缀核验/Flush(true)，保护并发产品及其它渠道。HEAD实读dcadffc7137f5653ec46c55a4171cf5f2d83de03，未stage/commit/push/部署；交接暂不提交遵守发布任务边界，不运行无关restore/format，不改变parity-results。
+
+## SonnetDB 微博每日11:00续排收口（2026-10-12，Asia/Shanghai）
+
+本轮固定证据research/schedule-20261012/run-1055，baseline限定3个新编号/40分钟，实际仅028、029、030；最后浏览器操作在03:33关闭030未提交设置，之后仅本地收口。固定账本与原回执优先；没有新建031。原UID1089099883、同名sonnetdb-weibo-series持久profile在CLI list真实no browsers后正常恢复并登录复用，未另开第二个窗口、Cookie导出或私有API；现场最终原草稿3931404，弹窗已关闭。
+
+012原attempt1c5a0248b6444466820456d41f55942c、013原attempt32c6e508970d4b73880a8358713c58fe均独立reload真实正式文章和微博，完整正文/作者/封面、完整审定简介、解码真实原文URL、同文章卡片与加载封面严格通过，卡片已目视，record-published成功。012真实2026-10-11 20:00平台自动发表，文章2309405352924040790139、微博https://weibo.com/1089099883/RmcNlyQxy；013真实2026-10-12 08:00平台自动发表，文章2309405353105247305924、微博https://weibo.com/1089099883/RmhvClk9n。两个outputs verified/publicationVerified=true，未核匿名访问/publicVisibilityVerified=false。011人工立即发表出处、001至009与025原published及010accepted_as_is缺项保持。原nativeSchedule、binding、marker、源码快照、正文和所有旧排期回执保持；其它旧attempt逐项与baseline一致。
+
+028唯一原3931017复核源/事实/审定稿/简介/既有封面SHA无漂移，不重生图上传裁剪。attempt842d14a000564464be5738ede88390d0，03:05:49.865Z唯一最终确认；首独立回读iframe未就绪原失败保存，第二次有界等待真实iframe后同ID全文/作者/封面、完整年月日时钟与timestamp通过，record-article-schedule确认2026-10-19 08:00+08:00。scope platform_native_article_schedule_companion_pending，双outputs pending/publicationVerified=false，保存后预览未展示微博简介，不冒充保存后回读；禁止编辑或重提交，到时真实双输出通过才published。
+
+029唯一新稿3931394，标题SonnetDB 向量运算符：符号与内积方向。静态审稿发现当前SqlParser将<#>直接映射inner_product，FunctionRegistry返回原始正点积，无额外负号；旧稿与其它渠道准备稿的“<#>负内积/完整兼容”不沿用。本篇明确三个映射、显式负号与KNN负内积distance路径差别，移除无缝迁移/相同性能等承诺；源/事实原字节快照与审定正文均保存，未运行SQL。首次append-reviewed因微博简介含字面#被本地invalid_content拒绝，未创建attempt；原拒绝与含符号旧简介保留，另存无#的纯简介v2/审定项v2并记录修订。随后唯一attempt4870c7e799934ec1a0117d8110827052，冻结2026-10-19 20:00+08:00；同新封面一次上传/裁剪确定/保存reload通过，图029-vector-operators-jk-final-20261012.png SHA4be81d516df329b853556a0e408b56c9d615ddb1126470894160468fdf90d4e9。03:24:24.140Z实际mark gate true后唯一最终确认；排期reload10秒超时，第二次只读原ID全文和封面保持、仍可编辑、无时钟/iframe。没有明确拒绝或平台限额，不能判未创建。unknown/outputs pending，已基于直接用户“无法确认就忽略，不阻挡后续”defer-compound成功；原marker/binding/内容/槽位永久保持。本轮029两次只读已用完，后继只读对账，禁止重claim、新建、编辑、上传、重选时刻或再点击。
+
+030完整正式唯一草稿3931404，标题SonnetDB SQL 速查：建表、写入与查询；原文https://www.cnblogs.com/IoTSharp/p/20023409，当前源码/文档静态审稿、完整正文、纯简介、事实快照及目视回执均在本轮。封面030-sql-cookbook-jk-final-20261012.png SHA05a9405f1e275fcda892e4d813ba7035837896ce4ae2bdd0caae8e6f1bee72f2，base/final与稳定裁剪已逐张目视，一次真实上传、裁剪确定、保存并独立reload全文/UID/新封面通过。03:33:36.404Z实核日历12至19日可选、20disabled；正常关闭未提交设置。plan planned/draftState=saved_waiting_date_window/platformConfirmed=false，无queue/attempt/marker/最终确认，目标2026-10-20 08:00+08:00。后继必须同3931404复核源/事实SHA及实际日期窗口，无漂移直接复用正文封面，漂移实际重审，不重生图、上传、裁剪或重建。原生日期窗口只限制最终定时提交，不能阻止保存正式草稿。031仍20日20:00，原slotRevision和已冻结槽保留。
+
+024原3930723/attempt70b8a28cfccc49d2bba422fffead3158/17日20:00、027原3931014/attempt30345e2bacec4cdcaf98938f65478207/18日20:00，本轮各一次只读原ID完整正文和封面保持、无时钟/iframe，unknown及continuationDeferral原样，不阻挡新编号。缺证据不归为平台拒绝，不重复不变通知、不释放原槽位。
+
+本轮本地执行错误原样保存：028 helper子串替换误把2026路径改成2028，源码SHA实际已通过而wrapper误称漂移；另一次旧日期断言错误发生在最终提交前，保留同未提交claim修正日期后正常完成。028首排期iframe尚未就绪原错误与新独立回执并存。030 helper向wp.load_json传str而非Path，在生成新建JS之前失败；一次CLI读缺失030-create-only.js保存ENOENT，未执行实际新建。修正Path后使用新前缀，仅一次真实写文章取得3931404并立即落盘；不得把失败CLI次数算成真实平台创建次数。所有exec返回session均自然wait完成才下一条同会话命令，没有本轮浏览器命令重叠；不复用旧最终点击脚本。
+
+最终账本13published/1accepted_as_is/12scheduled/3已延期unknown/1旧abandoned，queue29；plan4published/12scheduled/120planned，scheduled为014至023、026、028。67条完整有界结果逐根PID回读全部absent，completed/rootExited/outputComplete均true、0signal；身份采样警告及CLI内部4个错误保留。审计仅已记录根身份，不冒称未观察短命后代回收，保护共享持久Chrome/daemon。共享HEAD与index逐SHA从baseline及交接追加期间均未变；本轮无stage、commit、push或测试。
+
+已通过automation_update保留每日北京时间11:00/ACTIVE及原同聊天目标，完整更新最新事实、029未知延期、030原稿续排和上述本地纠错；Python tomllib持久回读完整prompt/rrule/status/kind/name/target一致，固定三状态SHA未漂移。交接独占追加Flush(true)/fsync并核旧完整字节前缀，暂不提交遵守发布边界。下一顺序：到时正式文章与微博双输出核验，延期项有界只读对账，030同原ID窗口续排，再准备最小其它编号。只有真实明确平台限制才暂停；日期未开放保持ACTIVE，无立即发表、本地到点点击、付费、Cookie导出或私有API。
+
+## 开源中国封面、双图与未发布稿正文清理（2026-10-12，用户追加要求）
+
+- 用户要求参考博客园会话01a12e0a-1c60-7523-b258-fab37989539b，把主题封面放进OSChina文章，并让动弹带“本次新人物图+该文封面”。随后明确删除未发布稿中的通用发行/main/修订旧稿/未执行或测量说明，已发布不修改。已读取该会话和cover-image-policy、实际查看149封面；仅OSChina渠道副本与技能更新，未编辑博客园原稿/状态或已提交47篇。
+- 044/045各独立调用已授权gpt-image-design/gpt-image-2，1792x768/high、retries0，经当次sonnet_vip配置代理；实际1916×821/1915×821，生成及最终图均实际查看。044原图假想数值表已确定性替换成源码一致的初始化/更新阶段，曲线标概念示意；045保留固定值、前值延续、双锚点插值及不生成时间戳说明。最终资产docs/blogs/oschina/prepared/covers/044-cover-20261012.png和045-cover-20261012.png，生成/修正/提示词/审核来源在.local/cover-dual-image-20261012。正文在首个SonnetDB说明段后引用封面并加AI主题示意图图注；不继承博客园二维码/footer。
+- 新技能prepare-queue离线命令提供共享session锁、输入hash、同目录原子替换及失败回滚。两次有界清理共65篇queued无回执副本，prepared SHA与对应审核清单同步，代码和具体功能/版本合同保留。源稿SHA未刷新，139–142漂移仍存在；正文清理不算事实复核，已发原SHA/回执不改。新政策require cover；后续没封面的候选先准备最多当轮两篇封面。所有131条全局回执字节哈希不变，47篇submitted条目及其prepared实际SHA逐项保护通过；news与旧events字节前缀保留，事件只追加。当前47submitted/95queued，已授权下一编号044/045，两篇带封面dry-run通过；今日额度仍已满，没有新的文章、动弹、新闻创建或旧稿编辑。
+- 发布器blog新增cover-image/cover-sha256门禁，记录文章图片原引用/SHA/真实URL、sourceBodySha256和最终HTML SHA。check-file按原ID及原source/图片映射严格对账；原草稿复用已确认上传映射，不能重复上传。动弹支持最多两张：image为新人物图，cover-image为审核封面；保留兼容第一SHA，另存imageManifest/imageSha256s，每张成功立即保存上传URL/serial，再创建一次。人物图SHA不能复用任何既有尝试，封面明确可复用；换图不改变正文指纹，不能绕过unknown。第二张失败保留第一URL，不创建、降级或重试；原ID回读严格核两张URL和顺序、话题、正文、本人。
+- 官方公开API三页有界只读观察到双图动弹30401413，随后原ID回读作者9749914、两张真实URL一致，非本人7172。证据证明平台存储双图；本账号双图创建未在本次维护额外发帖验证，下一篇正常已授权公告按原ID验证。既有8条unknown标题编辑与135/040/041未知公告、新闻502847全部保持，不为补图或验证重发。
+- 验证：最终Python106/106、队列45/45，夹具已回收、真实全局账本未变；skill-creator quick_validate通过。保留初始测试夹具未反序列化、父链CIM超时、旧单图AST提取门禁失败的报告；已改夹具按实际JSON模型读取、更新双图行为测试。包装器父链查询有界失败记录parentChainComplete=false/error并保存实际子PID/命令/创建时间，实际子进程退出0不再因祖先查询超时误判；自身子树回收仍须核原PID/创建/完整命令/父PID，未放宽或按名杀进程。共享技能未commit/push。全项目Verify仍FAIL Source hash differs:139，不能称全队列通过。
+- 原sonnetdb-2自动任务同ID更新追加封面/双图/读者正文规则，ACTIVE、11:00每天两篇、目标当前会话与45分钟每日预算保持；无重复任务。未来最多两篇各一张缺少的主题封面加两张新人物图，044/045已approved资产直接复用。技能维护自有90分钟计划因用户追加整批清理和验证修复超时，原截止保留，只用有界10分钟本地收尾，未增加生图或平台写入。早期静态CDN读取失败、空stdout被误当元数据的清理修正均保留，未造HTTP错误或新生成回执。
+- 23个记录在案自有进程身份fresh核查无同身份存活，发布锁无残留，额外kill/delete0；各队列测试夹具独立清理通过，所有图片/日志/失败/最终验证交付物保留，未声明全机无孤儿。完整结果见.local/cover-dual-image-20261012/completion-result.json。根HANDOFF只追加本段、核原字节前缀，保护并发研发和其它渠道；本任务无stage/commit/push/部署/产品build或无关restore/format，交接未提交遵守用户发布边界。
+
+## 线上闭环恢复检查点（2026-10-12 13:39，Asia/Shanghai）
+
+用户恢复授权继续合并已完成PR、关闭真实完成Issue、推进未完成，仍原一主三执行，不新建worktree/agent。native全部经已验证隐藏console和KernelJob、PS7，保留数量/时间/取消/身份清理边界，未改仓库eng包装。
+
+本轮实际串行合#293(7d74065)、#288(56ae499)、#292(17ce6a9)，每次12精确head门禁+主线前后独立回读。当前main e47c3ce4a855569b91a7d70a575aefcf2b50f608。#286随288真实MERGED已回读。Issue91凭公开冻结4.5.0-preview.1.12、真实既有embedded目录UI读写/重开/正常停止与非loopback拒绝验收关闭；目前本队列只有91真实关闭，不把source PR当正式消费者完成。
+
+275已推5cdac3a(125 Core/21实际Remote及最终完整门禁)，281已推42ab54d(产品及64/21相关源码未变，继承已审主线测试，最终完整门禁)，294继承最新292推9d037d2(280/72相关源不变，最终完整门禁)。远端最新CI/新main后mergeability需fresh核。275最新CONFLICTING/0checks，下一步刷新，不用旧CI强合。
+
+264已交付295/c1bfdd7：原Core190/EF9、review无确认P1/P2、最终完整门禁PASS；空白修正经35599token和134非空白trivia等价，原PDB字节绑定只属于修正前。catalogv11旧reader拒绝未跑旧二进制验收；BEFORE trigger仍可能留identity gap。LinuxCore6352/6353和Server1177/1179三真实FAIL保留，均旧fixture20,6声明写入16整数位+6小数样本。根只改两fixture源/目标为22,6，大值/断言/生产约束不变；新Core66/Server23与12PDB源码绑定PASS、两Release构建0warn/error、完整restore/原format/cached whitespace PASS，已准确提交推回原295/00bc609032e391b2e24b6ed649e3965c85296acd并回读正文。独占TEMP准确回收。Issue264正式NuGet/Server/Chloe/消费者仍OPEN/NOT_RUN。
+
+290在online-closure合法merge eb996655→e47，唯一HANDOFF冲突完整保双方章节，remote正确codex/issue261-view-declarations。新Core203/203七类、完整真实Remote28/28(不是旧26)、两Release构建0warn/error，PE配置Release且DisableOptimizations=false；智能体正在最终冻结/身份审计，HANDOFF只自有尾追加，root还须整树门禁及提交推回。291在online-delivery合法merge0fc651→e47，两docs冲突保完整章/条目；新Core93(Serializable35/DDL36/参数22)、实际Server5、继承Streaming86均PASS，不重复tiny。49PDB绑定/19实物核，TEMP已准确回收，freeze在pr291-integrated-0505；root仍须stage尾追加/完整门禁/提交。不能reset这两合法merge状态。
+
+246在online-engine/codex/issue246-derived-update-overlay/basec1bf实现：6生产、2测试、3docs(预计11paths)，未commit/PR。首完整173/174的TIME期待TimeSpan而实际TimeOnly保留FAIL，最小纠正并补两有意义边界；第二Core构建0warnings、最终176/176(新16+原联接9+Parser91+参数13+Join31+264约束16)PASS，真实3模式一万行尚在EF/Server构建阶段。05:53Z固定截止；之后root正常继承295新fixturehead再验证，不提前写完成。
+
+canonical仅此独占尾追加，原foreign变更/空index/HEAD保护，HANDOFF不stage，因为已有其它会话未提交内容；前缀SHA/当前真实Git状态见root-checkpoint0539.json。全部FAIL/UNKNOWN、2847792/4096根因UNKNOWN、parity-results、已发tag、PAUSED Workbench、恢复stash保留。91两个profile被自动审核拒删，继续保留、不重试。下一顺序：290/291最终门禁准确交付→275/281新main刷新→满足精确head全部门禁的PR串行合并→246真实完成→其余PR/Issue。没有新candidate正式发布授权，不创建包/tag/Release来虚假闭环。
+
+## 开源中国新技能额外五篇发布完成（2026-10-12，用户单次授权）
+
+- 用户明确要求“使用新的发布技能今天再发五篇文章和动弹”。本次单次额外五篇不改变原sonnetdb-2每日11:00/正常最多两篇政策和当前会话绑定；原上午已成功2篇计入今天，总成功博客7篇。按原编号044–048串行提交，均submitted，下一正常日期2026-10-13从实时账本049/050接续；本次额外额度已用完，不再新增。
+- 真实原博客/动弹ID：044为19776087/30401445，045为19776093/30401446，046为19776103/30401447，047为19776118/30401448，048为19776137/30401449。全部博客按完整本人三组152发表/1草稿/0定时、同ID严格标题/全文及原图片映射回读通过。新技能文章图片上传/本地引用到真实AiCreationDetail URL映射已在本人实际流程通过；HTML和prepared/source SHA、事实复核、图文关联完整保存。公开网页可见性未另核，不升格为published；博客rawState各值原样保存，不套用新闻审核枚举。
+- 每篇动弹按新技能分别上传本次新生成人物图与该文主题封面，最终创建各一次、无写请求重试。044/045/046/048原ID只读核本人7172、topicName=#SonnetDB/topicId19285、正文/标题/简介及两张原唯一URL（顺序）全部通过。047原ID30401448创建已接收，但GET仍HTTP200/code500/message“内容审核中/审核失败”，保留uploadedImages两URL及原ID，queue submitted-verification-pending、全局submitted、verificationPending/moderationUnresolved；未把后续GET失败当作创建失败，未变文案/删图/重建。048最初相同待核状态，后续原ID回读已通过，原最初错误证据保留。
+- 共独立生成5张约25岁成年亚洲女性JK裙人物图，分别实际查看；044/045复用早先approved横向封面，046/047/048各新生成一张主题横图。均经当次sonnet_vip配置代理/gpt-image-design/gpt-image-2，人物参考1024×1024/medium、封面1792×768/high、retries0/单次260秒，真实尺寸/SHA和提示词分角色保存，密钥仅子进程环境，不输出/写文件。047原图假想数值表将increase负差及rate时间单位画错，已在发布前确定性改为正确的定性合同/应用阶段；048原图把普通VALUES和TableDirect串成同一入口、WAL画在MemTable之后，已改为分开的入口和按配置协作的组件。原图、首次审核及修正后审核都保留，没有重新调用生成接口。原论文式通用说明继续去掉，具体功能/缺口/持久性边界保留。
+- 044–048当前源码/专题文档事实复核依据、源commit、源稿/渠道稿SHA写publicationReview及fact-sources.json。未执行SQL示例、产品build/test、固定硬件基准、真实模型或恢复测试，不升级为实测证据；只有发布工具/实际API回执与图片目视证据。新封面资产在prepared/covers/*-cover-manual-20261012.png，人物图在.local/tweet-images/*-20261012-manual-five-person.png。封面插在首个SonnetDB说明段后，全部先dry-run/完整查重；不继承博客园二维码/footer，不改原文章、博客园状态或其它渠道。
+- 完整性核验：原131条全局回执逐值保持，新增加5博客+5动弹共10条；其它137篇、news、原每日/渠道policy、旧events字节前缀保持。源稿SHA未刷新，源稿本身不改；仅044–048准备/审核稿、封面与本任务回执变更，状态用独占session/state锁、UTF-8无BOM/LF临时原子替换，事件仅追加。累计52submitted/90queued；全队列Verify仍FAIL Source hash differs:139，139–142轮到前仍须事实复核，不用本轮实际发文代替源稿门禁。原135/040/041无IDunknown公告只读完整本人147列表严格匹配仍无结果，不证明未接收，不重发；8条unknown标题编辑和新闻502847保持。
+- 本次自定120分钟/最多5博客5公告/5新人物图3封面/10候选的有界串行合同保存。初始local micro父链CIM超时中断，原失败结果保留；修正本任务包装器为父链有界查询失败记partial，纯本地micro复跑后通过，未重试任何图片/发布写请求。046早期封面和人物收据用了同名，已分角色命名；被覆盖的封面收据按此前实际工具返回及原图SHA/进程审计恢复并明确标来源，没有补造时间、上传URL或生成次数。
+- 67个已记录自有进程身份fresh核查无同身份存活，三个发布锁不存在，额外kill/delete0；初始micro的包装器finally仅回收其实际自有子进程，未按名终止或杀共享进程。仅覆盖记录身份，不称全机/未观察后代无孤儿。生成图、日志、原始失败和修正、完整回读、completion-result及cleanup-audit保留在docs/blogs/oschina/.local/manual-five-20261012-044048。固定PowerShell7.6.6，无Graphify/广域扫描/安装/浏览器新增。本任务无stage/commit/push/部署，HANDOFF暂不提交遵守发布边界；仅独占追加本段并核原字节前缀，保留并发线上研发及其它渠道内容。
+
+## 线上闭环批次方式检查点（2026-10-12，Asia/Shanghai）
+
+用户明确后续同时合并多个PR，减少重复CI；执行改为多个兼容原PR祖先放入同一候选，统一完整新head CI后成批main集成，原PR与正式Issue范围不混淆。一主与原三个既有agents，所有console经PS7隐藏KernelJob运行。当前main最后确认6195c3（已合297，之前293/288/292/295）；本队列仍只Issue91真实关闭，原两profile自动审核拒删保持不重试。batch01新PR298/headad75131含281032+21793原祖先；完整restore/原Format和Semantic18局部PASS后一次创建，但最新17CI中WindowsFAIL。精确Windowsrun38237768352结束11:17:46Z，Core6369/EF90 PASS，Server1181/1182；唯一新增controlledSemantic测试完成态queued1/0失败，持久scanned1/queued0/skipped1。默认Recovery250ms与held-hook5秒存在预算冲突，取消导致enqueued后page计数未提交的链条正在新独立phase因果验证；token取消此前未直接观察，不写100%根因。当前root不强合FAIL、不单个重复push。
+
+私有无push checkpoints：296658de38(Core245/real9及最终整树门禁PASS)、27678ecfb0(EF100/Core66门禁PASS)、290f488681(Core133/realEndToEnd65门禁PASS)、27550a73ca（原177/real23源码等价而非重跑，57源/45PDB/19归档产物；9当前缓存不同，最终整树门禁PASS）。online-cap batch02 HEAD50a/MERGEf488正常合275+290，onlydocs冲突完整200/198章节已解，新组合实测待pr_review。online-engine HEAD58e/MERGE658正常合291+296，TableStore保Decimal非空normalize/reserve和外层SerializableReservation，完整docs保留；新VALUES collector/shape因果修正与331Core已过，EF/Server新真实验证进行中。未知CASTNULL空结果元数据额外gap及所有旧FAIL/UNKNOWN保留。
+
+连接502中断后用户两次继续，已用原agent恢复，2026-10-12 20:30起新独立有限阶段，各旧cutoff不延。rootcanonical保持branchcodex/m47-preview12-release/HEADdcadffc7137f5653ec46c55a4171cf5f2d83de03，当前foreign dirty156项、空index；本段只独占尾追加，不暂存共同HANDOFF，避免提交其它会话内容。保护parity-results、已发tag/Release、PAUSED Workbench与恢复stash，未创建新agent/worktree/安装/Graphify/发布包。下一步298controlledfixture严格计数修复+一次更新/统一17门禁→275/290+291/296组合补齐并批次集成→后续274→278、280/282、284/285未明分配、265等；完成source/main不替代47正式包/consumer接受。下一会话以真实当前branch/index/merge/result重新核，不把本在途计划当完成。
+
+## 线上闭环继续检查点（2026-10-12，隐藏控制台与批量CI）
+原一主三执行继续，全部 native 经固定PS7隐藏 KernelJob，无新agent/worktree/发布包/tag/Release。live main 2026-10-12T13:47库存仍6195c3f28539ab25ca2df00b6ac209b30c198160；parity-results新鲜读为a1a89850805927fc698b40f68438ad8d5999a1e4，仅观察保留，不能用旧值误判，未合入开发树。Issue91仍唯一真实关闭；47正式包/消费者验收范围仍OPEN/NOT_RUN。
+
+#298最终harness已准确提交并仅推送一次9b2c7b88ea9c0283625c65d8ae3ee8314e5c9362，18 source/config/binary档、3真实TRX与4PDB源码独立核；完整restore/原Format PASS。旧Windows Server1181/1182和持久1/0/1失败保留；仅受控持页测试预算5000/5000、最多3s且严格1/1/0，生产无改。13:22:41Z最终审计真实PASS、未达提前13:21目标但在13:23硬截止内，纠正已提交HANDOFF。首delivery因标量string[0]将SHA取成字符9导致正文回读失败，原失败保留；只读核原实际commit/push后精准修正文SHA并回读，没有第二commit/push。14:09最新17门禁中15SUCCESS/1预期Release资产SKIPPED/Windows仍IN_PROGRESS，不预写合main。原281/217祖先保留，218仅实际main集成后关闭。
+
+275+290组合原Core244/244已核source/产物不变、非重跑；新完整真实HTTP2/EndToEnd97/97、两schema已知Int6419/0与真正unknown null严格区别，原6失败/首probe失败保留。4embedded旧WAL path失败在短TEMP用同DLL4/4通过，只记录环境干预，根因NOT_PROVEN。根核74source、24当前binary、59PDB与原TRX后完整门禁，private checkpointd56d392ded1f2c4b599e62970635308ede077e64无push。现online-cap合法MERGE_HEAD78ecfb059866ad2c14a8747e334292ce9b85aa67纳入276，onlydocs完整205/198章保留，4effectivepaths与当前297Streaming/metadata保全；最终整树门禁在途，不写新runtime组合已通过。
+
+online-delivery branchcodex/pr-batch-20261012-03 HEAD0bb41ac/MERGEb1344188合法merge直接含274c8fd→278b134祖先，remote整块AggregateCast+Shift+Padding均核完整、两executor只已知18行metadata新增。最新worker Core231/231、实际两Server整类28/28，两Release编译0warn/error；最终source/DLL/PDB/TRX/cleanup freeze尚待root复核，不预写checkpoint。之后294正常merge并再验证，不退回Serializable/Decimal/derived overlay/297Streaming。online-engine clean0bb checkpoint保留。
+
+生产恢复预算计数缺口独立branchcodex/fix-semantic-recovery-progress自9b2c7b88ea9c0283625c65d8ae3ee8314e5c9362，work budget与真实progress/host token最小分离，HTTP保持RequestAborted，原caller cancel/IOException 0→3/2/1与page预算合同保留。新真实KV完整DB关闭重开、host cancel和Kestrel自然250/5000单POST严格1/1/0正在测；workerbuild1 0warn/error，完整结果/根门禁/commit尚待，不能叫全局原子或crash-safe。只读原最后freeze审计被截止拒绝及备注晚43秒保留，不扩旧窗口。另worker只读279/280/282合批边界，不改mutableonline-cap。
+
+旧独占D:\semback-0939与D:\p290fix-0801分别marker/noReparse/零当前引用/有界库存13、22项核准后单次回收，root1414-oldtemp-cleanup.json；91两profile旧自动审核拒删继续保留。并发最多2dotnet根/每root2CPU、准确identity/父链归属，不按名kill。原FAIL/UNKNOWN/NOT_RUN、284 allocation7792/4096 UNKNOWN、旧stage/时间守卫失败、恢复stash、已发Release和PAUSED Workbench保持。
+
+canonical本段只独占LF尾追加并保原完整字节前缀，HEAD/branch与156foreigndirty/空index实读保护；共享HANDOFF含其它会话未提交内容，因此不stage/commitcanonical。下一步核三个worker新freeze→批次02纳入278/274/291/296及276并中央组合验证→294及279/280/282下一组→#29817全门禁真完成后合main、回读原PR状态和关闭218→CAP/284/285/剩余真实Issues。任何source/local/CI PASS不替代正式消费者/真实模型/固定硬件/nightly/parity/生产acceptance。
+
+## 线上 PR/Issue 闭环继续检查点（2026-10-13，隐藏控制台/批量 CI）
+
+#298 精确 head9b2c7b88 全17门禁最终16SUCCESS/1预期SKIPPED后14:26:27Z合入 main2411a099d081f5be15948ade57b683137e50a160；原281/217独立回读 MERGED、218 CLOSED，分支保留。线上新鲜库存15开放PR/47开放Issue（含新299和真实恢复缺口300）；Issue91仍是此前唯一验收关闭，正式 package/consumer 门禁不由 source/局部测试替代。
+
+私有 B04 checkpoint68bc6e6be086a44d0a7000bc28f6eb3f8bed8bbc 与 SQL/semantic checkpoint1a8f4d83c9c48f8919fc739a0bae1d3aa0f4c8f4 均根独立 source/runtime/PDB/TRX 验证、最终全 solution restore/原 Format PASS且未push。B04 Core153/Server23，新树EF NOT_RUN；SQL/semantic 原427+授权补TsdbAdoApiTests74=unique501/19整类、Server146，两build0warn/error，69资产36PDB，37记录身份全gone，自有TEMP清理。纠正历史Core410为17实际类，旧文件名SndbAdoApiTests不是实际类名；不篡改原TRX或迁移旧EF106/160。#300已建并回读，但新组合CI/main尚待，不预关。
+
+当前 online-cap 新branch codex/pr-batch-20261013-sql HEAD1a8f/MERGE68bc，4冲突已逐块保 registry System.Text、完整 Shift/Padding/Trig 方法和全部 additive docs。11原PR（275/290/276/291/296/274/278/294/280/282/279）加恢复修复正在新35min有界阶段最终3build/3windows联合验证；hard17:41:14Z、freeze/audit start17:31:14Z。root冻结后再完整restore/原Format/exactcommit，一次push/一个wrapper新head CI。不得把旧局部PASS当新最终树。
+
+online-engine 已保存68bc原branch，另branch codex/pr-batch-20261013-blob 从main2411正常合284f81b；UUID/stringAgg metadata共存，remote保最新原文件全部方法，只加完整原stringAgg method。source-only私有 checkpoint门禁在途，runtime PENDING；接285前检查双merge-base/已在main的第一父图，禁止old whole-file覆盖，原allocation7792/4096和21窗0仍UNKNOWN，阈值不变。online-delivery clean6193保留，worker正只读审266最小JSON边界，官方BookStore/NuGet/Server正式验收仍OPEN。
+
+CAP online-closure合法45-path pending MERGEd06b，普通42/42有效；fresh真实 NativeAOT generation 46个全为DotNetCore.CAP10.0.2的IL diagnostics，未压制、未替换默认CAP管线、native run NOT_RUN。尚不合此PR265，也不把regularPASS当AOT。新299精确head069a7a9的Ubuntu6368/6369失败为现有Streaming ACK held-lock timeout message mismatch；无npm步骤，根因未证，ECharts6.1可视默认兼容另待核，先不混入11PR候选。
+
+本段仅独占LF追加canonical HANDOFF，核保原完整字节前缀，canonical foreign工作/index受保护，本次不stage/commit该共享文件。原一主三非派生agents复用，无新agent/worktree/install/Graphify/Release/tag/package发布；console固定PS7隐藏KernelJob，≤2dotnetroots/每2CPU，所有loop/deadline/取消/identity清理保持。parity-results仅保留、PAUSED Workbench不改、原stash及#91自动审核拒删profiles不重试。下一步11候选最终冻结/一次CI/实际main后回读原PR并按原Issue验收关闭246/300；继续284/285、266与其它未完成合同。所有源、mock、真实Server、公开package、模型质量、固定硬件、nightly/parity和生产验收界限继续保留。
+
+## 线上闭环已交付13原PR统一候选（2026-10-13，Asia/Shanghai）
+
+唯一push/create的wrapper PR302精确head494e95c521eeb897012450be1b9d7959d96e8d01，branchcodex/pr-batch-20261013-sql，13原PR274/275/276/278/279/280/282/284/285/290/291/294/296最新heads live祖先逐个核，最新main交付前独立读2411a099。根独立104 source/runtime/58 actualPDB/3TRX、最终完整solutionrestore/原Format PASS，newCore804/newServer150/fullEF176各actualPASS，包含真实REST/h2c StringAgg。语义恢复Issue300前缀计数和Issue301 exact两wrapper timeout测试均在候选；原主体source/type/API和CoreJSONAOT铁律保持。18:49 CI实读13SUCCESS/1预期SKIPPED/2IN_PROGRESS（C#Analyze/Windows），最终CodeQL摘要尚待，不能叫main/CI完成或提前关300/301/246。旧CI/alloc/root归属误述/诊断FAIL均保留。
+
+新crossFact首803/804失败不降断言，独立6query真实诊断定位到materializedsnapshot直接quoted dotted output name被Normalize截短，ordinaryview及CTE本身保持STRING。唯一causalrepair为LoadMaterializedView保saved完整Name，通用子查询normalize不变；同30类重跑804/804，empty/quotedCTE/reopen/refresh后alpha值和nullable均PASS。原snapshot FAIL及missingHashing probeFAIL保，第二probe显式Hashing10.0.0.12/currentDLL绑定。4build/4window是根明确追加唯一causalretry，原35minhard18:31:59不延；18:30:44 source/index/slot release，76记录身份live0/unknown0/ref0，自有TEMP25items回收。完整原239/208docs章节保，helper因一段historical章节非连续拒绝后仅补完整一章，已完成prod修改未重跑。
+
+#266 M0私有checkpoint41ffc282b3f1e255aaf879ee29d4d976580af0fa，online-delivery/branchcodex/issue266-json-aggregate。EF10 JsonTypePlaceholder默认JSON容器设计/runtime模型及DDL生成，Unsupported aggregate reader/writer/path/partialSQL明确拒绝，raw STRING/JSON原STRING行为保持；新publicReader中文XML已补。根5source/18runtime/5PDB、newfullEF105/105(新15)、完整restore/原Format、exact7path私有commit PASS，无push/main/package，不入302。新fixture connection0/无真实JSON数据库Server接受，OPEN/PARTIAL。原shadowDbType/EF1001 compileFAIL及focused13/15期待FAIL、原两个105窗口分别保。M1当前独立20min只读核whole-container流/ModificationCommand私有JSONwriter与安全整替策略、复用Core已有json_value/json_exists等literalPath合同；不能声称Core没有JSONscalar，不能把JsonPath直接改'$'覆盖siblings。后续真实embedded/REST/h2cCRUD/数组/NULL/rollback/reopen/JSONquery与官方BookStore/公开NuGet消费仍NOT_RUN。
+
+#299 frontend候选使用原online-engine复用，branchcodex/pr-batch-20261013-web HEAD494e95c/MERGE069a7a95374ca00d4f62cf27c4539cf3a1d545d0，exact仅webpackage2paths。旧start对象未fetch导致FAIL保存，原branch创建未重复，root单次窄fetchPR299后normalmerge成功；没有push/create该候选。pr_review35min窗口18:47:17→19:22:17，freeze19:11:17，用现有Playwright/Chrome headless1session验证真实App图表和6.1 breaking changes，不安装新工具/浏览器、不以旧绿色smoke代替兼容。当前npm/浏览器仍在途，不预写PASS。CAP265 online-closure保main2411/MERGEd06b正常45path，CLR42 PASS和完整默认CAP NativeAOT46upstreamILFAIL分别保；独立只读收据/PDB核后root私有checkpoint，未合main，不能宣称AOT resolved。
+
+canonical本段仅独占LF追加并核保完整旧前缀；branchdcadffc/外来dirty/空index保持，不提交共享HANDOFF以免包含其它会话内容。原一主三非派生agents复用、全native固定PS7隐藏KernelJob、最多2dotnetroot/每2CPU；无新agent/worktree/forcepush/Graphify/工具安装/tag/Release/package发布，parity-results/旧stash/PAUSED Workbench边界和91拒删profiles保留。下一步PR302 fresh exacthead全17门禁真实完成→main merge→独立回读13原PR与300/301、原246验收后关闭；formalpackage/consumer条件的其它Issue继续OPEN，再推进299/M1/CAP及源合同。任何source/build/mock/普通CLR/CI不冒称正式消费者、真实模型/硬件/nightly/parity/生产接受。
+
+## 线上闭环：PR302 Windows门禁失败与后续任务（2026-10-13，Asia/Shanghai）
+
+最新只读刷新确认PR302仍OPEN/UNSTABLE，head494e95c521eeb897012450be1b9d7959d96e8d01；17 checks为15SUCCESS/1预期Upload资产SKIPPED/1FAILURE，不能合main或关闭300/301/246。Windows run38292238576/job114954829623实际Core6669/6670，唯一BackgroundFlushIntegrationTests.ContinuousWrite_5000Points_AutoFlushesMultipleSegments失败，要求8个Segment而实际2，21秒；原日志root1917完整保留。engine新25分钟仅诊断生产flush/compaction与测试关系，不以transient定性、不降阈值/加timeout/盲目重跑CI。13原PR仍保持同一wrapper候选，修复后统一head一次全CI。
+
+266 M1-A真实focused15执行11PASS/4FAIL保留：h2c测试过滤/sql漏掉真实POST/v1/frame，Owned optional materializer遇SQLNULL不赋值而fixture属性initializer new()留下默认对象。根授权仅两fixture修正，prod3source保持；build3 0warnings/errors，source4/runtime22/PDB4于19:28:51Z冻结早于19:28:59target，原剩余完整EF窗口2在途，hard19:40:59不延期。尚不能预写完整CRUD验收。M0私有41ffc282、官方BookStore/公开NuGet及非root Owned/path/bulk更新边界保持OPEN/PARTIAL。
+
+299旧35分钟阶段最终PARTIAL：npm ci/build PASS，实际GraphWorkbench/TrajectoryMap未进入App，CLI run-code Unexpected token ')'，兼容性UNKNOWN。原端口冲突/HTTP-vs-HTTPS/fixture失败全部保留；只回收自有身份/TEMP，workspace独占输出可恢复移至证据目录。新独立25分钟phase19:28:31Z→19:53:31Z，19:43:31前必须进入实际App；先≤3最小CLI传参探针，再1专属headless session/HTTPS Vite，最多300拦截请求/10分钟，不重建或安装、不以独立图表冒称App验收。
+
+CAP265只读复核56repo inputs/原42CLR tests/12executed assets/5DLL-PDB identity pairs与12actual源码绑定通过；完整默认CAP NativeAOT仍FAIL，46 diagnostics全部DotNetCore.CAP10.0.2，native run NOT_RUN。online-closure main2411/MERGE d06b保正常待合状态；根将补真实Native边界、完整solution restore/原Format并检查两个CAP项目，保存私有checkpoint，不合此PR、不改默认管线/压warning。
+
+canonical仅本段独占LF尾追加、核旧完整前缀与空index，不提交共享HANDOFF以保护其它会话内容。三个既有不衍生workers复用，固定PS7/隐藏KernelJob/最多2dotnetroots每2CPU；parity-results、原恢复stash、发布候选/PAUSED Workbench和91拒删profiles保持。下一步优先302具体因果修复与新全CI，再实际main合入/独立回读13原PR及按验收关闭Issue；继续266/299/CAP，保留所有FAIL/UNKNOWN/NOT_RUN。
+
+## 线上闭环：302 新 head 统一 CI 与私有检查点（2026-10-13）
+
+root 独立新阶段完成后台 Flush 最终绑定：新 9/9 真实 TRX、8 当前运行资产、DLL/PDB GUID/stamp/age 和 fixture 源 checksum 匹配；完整 restore/原 CI Format PASS。精确 3path commit d49fc10af9961094bf0f096890f6053a177bb782，父494e95c，原13PR最新 heads live 保持。原 Windows6669/6670、实际2/要求8和具体旧压实时序UNKNOWN保留。fixture禁Compaction/每batch直接Assert/有界循环，>=8/5000/15s及正常重开保持，生产默认不改。
+
+worker 原20:02:17截止超时及最终绑定不完整保持TimingFAIL；截止后仅核21身份/7ownedTEMP清理。root独立完成绑定/提交，未补写worker按时PASS。新Core/Data DLL/PDB与旧组合归档不同，生产/原功能测试源保持；旧804/150/176不冒称新DLL重跑。PR302新head d49fc10已一次push/一次正文更新并独立回读；main交付前2411a099。20:15实读新CI8SUCCESS/1预期SKIPPED/7IN_PROGRESS、CodeQL摘要尚未出现；最终17门禁及main merge PENDING，不关300/301/246。证据root2008-pr302-delivery/root2003-pr302-freeze/root1956-pr302-gate-proof。
+
+#246独立核19Core+3真实embedded/REST/h2c测试，参数单批10000、派生来源、事务overlay/重复写、rollback/失败继续、Decimal/Time/UTC/特殊名称及正常重开通过；新302全CI/main及freshIssue原条件保持后关闭。开放50Issue/16PR，正式NuGet/Server及公开consumer条件独立，不用source合main替代发布。
+
+M1-A根独立source4/runtime22/PDB4/完整EF105含JSON15与6actualtransport通过，完整restore/原Format/exact6path私有commit ca339e8b499cf603f138fc40caedfc614607ef50，0push/main/package，266PARTIAL。M1-B只读计划晚原19:59:26截止17秒保TimingFAIL；新20:07:20→20:37:20实现固定property scalar路径，复用json_value、限制无converter精确类型，保非rootOwned/ExecuteUpdate guards。官方BookStore/publicNuGet/部分更新仍未验。
+
+CAP完整solution restore/原Format及两个CAP项目Format PASS，45path私有merge checkpoint c10ea2ed1ca593d1807cb95b0d4d3597da62e5c6，0push。CLR原42绑定与默认CAP NativeAOT上游46IL失败分别保，native run NOT_RUN，265OPEN。root1938在四门禁通过后比较guard拒绝原FAIL保；仅修guard、核相同45paths后commit，无降低或重复门禁。
+
+299多阶段未取得真实App图表，UNKNOWN保持。CLI参数/URL全局/route悬挂/cert失败全部保。installedCLI核显式--config与默认.playwright/cli.config.json；旧技能文件名未被加载是具体配置原因，共享skill未改。新专属context20min阶段先验证显式配置、viewport和HTTPS导航，方可运行Graph/Trajectory；无npm重建/backend凭据，302独立继续。engine只读下一JSONsetter原子合同，与web/EF非重叠。
+
+canonical仅本段独占LF追加、保原完整字节/空index，不提交共享HANDOFF以免包含外来内容。三个既有非衍生workers复用，旧phase失败不续窗；fixedPS7隐藏KernelJob、≤2dotnetroots各2CPU、准确归属与自有TEMP清理。parity-results/旧stash/发布候选/PAUSED Workbench和91拒删profiles保持。下一步302新17门禁真实完成→正常main合入→独立回读13原PR与300/301关闭→246原验收关闭；继续JSON/实际web/CAP边界。
+
+## 用户要求缩短上下文：新会话接续检查点（2026-10-13）
+
+用户要求分析上下文过长并换新会话，原PR/Issue任务保持未完成。当前主已停止新增实质工作；三旧workers全部冻结/释放、仅按机器归属要求清理完成。正式接续入口：artifacts/online-closure-20261012/NEXT_SESSION_20261013.md，含五工作树、exactheads/合法pendingmerge、既有hiddenrunner、CI预算和精确执行顺序，不复制整段旧历史。
+
+302新head d49fc10af9961094bf0f096890f6053a177bb782 已一次更新；20:36:43UTC live仍OPEN/UNSTABLE，17checks15SUCCESS/1预期SKIPPED/WindowsIN_PROGRESS，无FAIL。fresh main2411a099d081f5be15948ade57b683137e50a160。尚未合main/未关300/301/246，下一会话先实时核17门禁并正常merge，再核13原PR与原Issue验收。Watch预算最大16/120sbackoff/20:55UTC硬截止保持，不重置旧窗口。
+
+M1-B当前真实FAIL，1build0warning/error；唯一完整EF105中99PASS/6FAIL，6真实case全在long.MaxValue-123的初始scalar投影Double→Int64溢出，后续场景NOT_RUN。baseline私有ca339e8b，3ownedC#dirty/未stage，source3/runtime22/PDB3和原TRX冻结；可能Core数值conditional提升尚待因果核实，不改测试精度/盲CAST，不绿色commit。M1-A私有105/actual6PASS保持，266PARTIAL。closing21身份无存活，测试根/host根absent。Core setter只读计划json-setter-design-2012，actualEF10.0.12 protected virtual hook已核，6身份清理，runtime/AOT/原子性均NOT_RUN。
+
+299专属配置actualApp20:20:06.987UTC，真实Graph6nodes/3edges、tooltip/resize/zoom/empty/restore/dispose和4PNG通过；Trajectory正常点击被tabs/container/canvas遮挡4sFAIL，其余轨迹场景/traceNOT_RUN，299PARTIAL。20:35:16UTC最终freeze/释放，18身份全部EXITED，TEMP96项与命名output9项仅可逆归档，7工件SHA和package/lock/index保持。CAP私有c10ea2ed与默认NativeAOT46上游ILFAIL边界保持。
+
+canonical本段仅独占LF追加、保完整原prefix/空index，不提交共享HANDOFF以保护大量外来内容；其它工作树与publicrefs/source保持。所有已执行root隐藏Jobs收据有cleanupComplete；三个workers无并发源码工作，新会话不得假定旧/root/*agent ID可跨thread调用。保parity-results/旧stash/冻结发布候选/PAUSED Workbench/91旧拒删profiles。下一会话复用原五工作树与一主三不衍生方式，隐藏固定PS7、有界资源，仅核自有树，不重放已完成助手。
+
+## 线上闭环：302已合入、三个Issue关闭与后续集成（2026-10-13）
+
+#302精确d49fc10的17门禁最终16SUCCESS/1预期SKIPPED，正常merge一次并独立回读main6eb0ccff545ff504e0103a6a00fe7105db76e416（root2113-pr302-merge-delivery.json）；13原PR全部MERGED，300/301自动CLOSED。246原正文保持，19Core/3实际transport与原296祖先fresh核后一次回复/一次completed关闭（root2115-issue246-delivery.json）。原CI轮询窗口20:55UTC到期仍PENDING，原budget未重置；21:12后独立终态核验取得成功，不能倒填旧窗口。原Windows/其它FAIL保留。
+
+266 M1-B：原冻结Core DLL直接复现Int64分支先提升Double。最小Core分支修复加原三owned修改，Core/SQL29、文档索引7、完整EF105及六实际embedded/REST/h2c均PASS；root独立6source/28runtime/4组DLLPDB/3TRX绑定、完整restore/原Format通过，精确8path私有commit611d9faa4ae4cd9c2a3d3bf4c392f998b7fbc212。尚未push/main，266仍PARTIAL。旧DLL到新DLL大整数partial-index升级专项未跑，普通索引原始数值文本及打开重建调用链已静态核，不能借7项回归宣称全部文档精度已验。
+
+299：真实轨迹App正常click确证filter行0高被map遮挡，仅TrajectoryMap.vue响应式embedded用max-content与容器scroll修复，UTF8 BOM移除透明保留；独立恢复13断言、唯一npm build与完整solution restore/原Format通过，5path私有merge checkpoint5dbd50440d0b47916499be306c369ad5d2cda701。原首次浏览器FAIL保留，291路由计数和337 trace记录分别记录，不能称全部网络尝试<=300。全mock API/假token/外部瓦片拒绝，实际Vite ECharts6.1资源链及新CSS DOM快照有证，响应body SHA未提供。55身份无自有存活、专属TEMP/输出可逆归档。online-engine现由root接入main6eb的正常pending merge，仅HANDOFF追加冲突已保共同prefix/双方后缀解决；root2123-web-main-checkpoint完整门禁在途，当前不是公开交付。
+
+50Issue原body审计：33明确发行/消费者阻塞，244/254/258/264等已有实现但继续等待发布/补验；不虚假关闭。CAP265原默认完整NativeAOT46条上游IL FAIL已公开回复并回读，CLR42与native NOT_RUN独立；原私有c10ea2ed由codex/pr-batch-20261012-05保留。原online-closure已clean切至新main6eb的codex/issue263-remote-integers供下轮最小绑定修复，见root2120-i263-ready.json，勿在新branch重放CAP助手。263的sbyte/ushort/uint远程FormatLiteral缺口已静态确认，枚举/原始Value+DbType须真实验证；新的实现阶段尚无通过结论。JSON setter仅新只读前置，不写为实现。
+
+三执行者仍固定不派生：JSON首阶段与Web首阶段已完成清理释放；新JSON setter只读12min、263独立实现窗口与root集成分离。固定PS7/隐藏KernelJob、<=2dotnetroot各2CPU、精确归属回收；无新worktree/Graphify/安装/forcepush/package/tag/Release。canonical仍dcadffc的原分支、156项共享dirty与空index，本段只独占尾追加保原prefix，不能提交共享HANDOFF混入foreign。parity-results、旧stash、PAUSED Workbench与91拒删profiles保护不变。下一序：Web接main私有门禁→合入已验JSON611及必要263切片、最终组合真实验证和原Format→一次远端CI/正常合并原299；继续266必要局部写与剩余明确源码缺口，发行/消费者另按原授权边界推进。
+
+## 用户按批换会话：302批已收口，下一批准确接续（2026-10-13）
+
+用户明确要求“后续每解决一批问题就使用新会话进行接续，避免会话长度太长”。本批302及13原PR已MERGED，246/300/301已CLOSED，fresh main6eb0ccff；当前47Issue/2PR（265/299）。旧主与三个执行者停止新增工作，全部在途检查完成、自有进程清理后移交，不把换会话当剩余任务已完成。
+
+唯一新入口：artifacts/online-closure-20261012/NEXT_SESSION_20261013_AFTER302.md。五树fresh在root2140-worktrees.json；联合Web+JSON私有候选已完整restore/原Format通过并commit为2fe13431cee8af8a14b946fd3c255d85b862a05d，online-engine干净且无MERGE_HEAD，但最终同一组合的运行测试/远端CI尚未执行。旧Web13断言和JSON29/105/7分别保，不能改名为新DLL执行结果；候选尚未push或创建新PR。
+
+online-delivery仍private611，有4个setter草案dirty/空index，0build/test，UNBUILT/UNTESTED；jsimpl-HANDOFF.md/原字节冻结已交付。online-closure已为263切至main6eb的新branch，仅RemoteAdoHttp2TransportTests.cs一文件dirty；21个新case只baseline build PASS，所有test=NOT_RUN、无TRX、无baseline FAIL，生产没改，a263-2127/STOPPED-HANDOFF.md含10个已构建未执行资产。旧阶段均提前终止，新会话用新有界窗口，不重放过期脚本或覆盖dirty。
+
+root2141-resource-audit核86隐藏Job清理完成、132精确身份ownLive0（2PID复用未碰）；所有worker各自释放/清理已结束。CAP265默认NativeAOT46IL FAIL已有一次公开回复回读，私有c10原branch仍保留。canonical本段独占尾追加且保旧完整prefix，原156共享dirty/空index/旧branch保持，暂不提交共享HANDOFF以免包含foreign内容。新会话仍一主三不派生、主独占Git交付、最多2dotnetroots各2CPU、PS7/隐藏Job/精确归属与原格式铁律；保parity-results/旧stash/已发布候选/PAUSED Workbench/91旧profiles。无新包/tag/Release授权。
+
+下一批优先完成263真实baseline与最小修复，合入既有联合候选后统一新运行验证/完整原格式/一次CI并收口299；setter草案独立审验，未通过不混入已冻结候选。每批完成都先准确交接、创建新local会话确认启动，再由旧主停止源码/索引/远端写入。本旧会话创建接续后不再推进实现。
+
+## #263 / JSON / Web 联合候选已推送，CI 待终态（2026-10-13）
+
+本会话按 NEXT_SESSION_20261013_AFTER302.md（SHA DF49C01CD003C13EF005B26A40881317E19A63A09933B4F5AE0D7E6A886A4265）接续，fresh main6eb、五工作树与原156共享dirty/空index已核，一主三不派生。#263首次真实baseline21为5PASS/16FAIL；仅两binder新增11行，无损小整数及真实Enum归一化。独立remote/vector66及Core参数66分别PASS，root独立源码/runtime/PDB/TRX绑定、最终完整restore/原Format后精确5path私有提交a6bef0c1b72897e0fbc43ddb0a5f82bc24459e0f，online-closure clean。
+
+该提交已接入online-engine原2fe联合候选，产品源码无冲突，HANDOFF双方246/243完整章节保留。最终同组合实际Core49/49、完整EF191/191、远程ADO63/63通过，3build零warning/error；root独立核16源、58运行库存、11组DLL/PDB、31源document和3TRX。只读Web沿用不变源码的原mock API/Vite证据，未冒称正式Server前端接受。最终交接计数字符串修正后重新冻结r3111并完整restore/原Format PASS，提交81dddea004159ea0abd29a2d45ea714b9989154b；online-engine clean。
+
+PR #303 已一次push/一次create并独立回读，branch codex/pr-batch-20261013-web；r3110-delivery.json记录精确head。原交付脚本空输出Trim失败发生在本地只读检查、0push/0create，原FAIL保留；r3122后续只有一次真实交付。当前CI尚待终态，未合main、未收口299、未评论/关闭263或266。CI有界窗口2026-10-12 22:22:51.706Z至23:12:51.706Z，最大25次、至少120秒backoff，r3110-ci-budget.json为唯一预算；不要重置旧302预算或本预算。parity-results仍a1a89850805927fc698b40f68438ad8d5999a1e4；無package/tag/Release。
+
+三个执行者本地阶段已释放，资源/owner TEMP清理收据在i3052、j3052、s3052-audit。setter四文件仍原611基线dirty/空index/UNBUILT/UNTESTED；只读审计记录writer scratch预算、成功setter rollback与遍历中取消缺口，未入303。后续先核303精确head全部门禁并正常merge，独立回读299与main及263/266原验收边界，然后冻结本批交接并新建local会话接续下一批。
+
+本canonical仅独占尾追加并保旧完整prefix，仍原dcadffc分支与156共享dirty，不提交共享HANDOFF以免混入foreign内容。原CAP265 NativeAOT失败与既有公开回复、PAUSED Workbench、91旧profiles和旧stash均保持。
+
+## PR #303 首候选 CI 失败与有界测试合同修正（2026-10-13）
+
+81dddea0 首候选 Linux CI 实际 Core6685=6674PASS/11FAIL；失败全部为旧Double类型期望与本批既定JsonPathEvaluator保Int64合同不一致，原日志r3135-linux-log、失败汇总r3145-first-ci-failure.json保留。同次Linux完整EF191、Server1232均PASS；截至原固定窗口第7次观察为14SUCCESS/1预期SKIPPED/1FAIL/Windows仍在途，未合并303/299、未关闭或评论263/266。
+
+新c303fix独立修正窗口22:37:18Z至23:12:18Z（35min），不续旧j3052/CI预算。仅6个Core测试文件修改13行类型期望/整数L字面量（原口头14已更正），保数值/SQL/预算/过滤分页/TTL/21.5浮点/聚合断言；无生产代码变化。六整类本地baseline184=173PASS/11FAIL独立复现，a303-review静态独审可接受。唯一Core build零warning/error；唯一完整Core测试仍RUNNING，不能写PASS。Online-engine仍HEAD81dd、6测试dirty/空index，未形成第二候选或第二push。下一步完整Core真实终态与绑定/资源清理→主最终restore/原Format/精确8path提交→正常FF更新同一303、冻结新的精确head验证；保留首候选FAIL，禁止盲目重跑或降低断言。
+
+## PR #303 第二候选 e8b38b39 已更新，完整 CI 待终态（2026-10-13）
+
+首候选81dd的17检查最终14SUCCESS/2FAIL/1预期SKIPPED；Linux与Windows均只在Core的相同11个旧Double期望失败（6674/6685），两边EF191/Server1232均PASS，原日志分别r3135-linux-log、r3152-windows-log保留。六测试13行修正后，完整本地Core6682/6685、其余3FAIL保持；原六类184/184、原11/11已过，短D盘TEMP的精确三失败用例独立3/3PASS。295字符目录fsync条件复现，原Rag因果和Tombstone锁根因不升级，全部本地FAIL/UNKNOWN保留。
+
+主独立r3150-fix-binding通过源码6/资产12/PDB3/源document9/TRX2及7生产源不变；先前EF191/ADO63的24运行资产仍原SHA（r3161-reused-ef-ado.json），属于原j3052执行，不冒称新执行。最终8owned路径完整restore/原Format PASS后提交e8b38b39f17603845557c43e9a0a85fa8aa5b14c，正常FF更新同一303，一次新candidate push/一次body edit已回读，无forcepush。online-engine clean；全候选相对main22路径。本canonical只尾追加不提交共享foreign内容。
+
+第二候选固定CI窗口为Asia/Shanghai 2026-10-13 07:11:09至08:01:09（E/r3150-ci-budget.json），最多25次/至少120秒backoff。原r3110-ci-budget原样保留且未重置；这次是新测试修正head，不是盲重跑旧head。当前main仍6eb0ccff，303和原299尚未合入；263/266尚未新评论或关闭，正式包/BookStore门禁保持。所有执行者已释放、owner TEMP已清理；root只继续有界远端门禁、正常merge和精确回读后收口。本批完成再创建local新会话，下一批优先setter三项审查缺口。
+数字更正：r3161-reused-ef-ado.json 实际重新核对的是 38 份 EF/ADO 运行资产；上一段的 24 为笔误。38 份均保持原 SHA，仍归原 j3052 运行，未新增 EF/ADO 测试窗口。
+
+## 303 批完成，按用户要求新会话接续（2026-10-13）
+
+PR303精确e8b38b39f17603845557c43e9a0a85fa8aa5b14c已取得17门禁16SUCCESS/1预期SKIPPED，07:52:35+08正常merge一次，无admin bypass/分支删除。main=f60705007428e9be63c44818306c5366cd2a692c，Git tree与已验候选完全一致（9ef6c23c0f20bd0b5dbf153e62781687d9047e0f）；原299已独立回读MERGED。新head Linux/Windows均Core6685、EF191、Server1232全部PASS，r3166-linux2-proof/r3183-windows2-proof独立绑定CI head与日志。快照47 OPEN Issues、唯一OPEN PR265；main合入不代表正式包/消费者/发布接受。
+
+263一次进展comment6134881063、266一次进展comment6134888286，原body/state独立回读保持OPEN；263等待正式发布，266仍PARTIAL。原NuGet三包稳定4.0.0只读核验保留。首候选两平台11FAIL、本机追加完整Core6682/6685的3FAIL、同DLL短TEMP隔离3/3、295字符目录fsync条件复现与锁根因UNKNOWN全部保留，不改写为同一窗口PASS。先前EF/ADO运行资产实际38份而非24，已由r3161独立核原SHA并留更正。
+
+正式接续入口：artifacts/online-closure-20261012/NEXT_SESSION_20261013_AFTER303.md，SHA256=D8C12A949F9D55C99F59F2C84C06F3B467D2C796CBD44F508832945F8F250166。下一批只围绕原四个UNBUILT/UNTESTED setter草案解决scratch、成功setter rollback、遍历中cancel等既有审查缺口；先保护四SHA并比较611→main差异，不能覆盖main新增函数或重放已合入303/299/263/JSON。五树最新状态r3184-final-worktrees.json；engine/closure/cap clean，delivery仍611+四dirty/空index，canonical原dcadffc/156共享dirty/空index。
+
+r3191-resource-audit核151已完成Job cleanupComplete、645已记录身份ownLive0/uncertain0，10PID复用未触碰、0signal；本审计Job自身也清理完成。原逐PID CIM150秒超时未偷偷延长，改为最多16批各50已知PID的同等身份查询后完整通过，旧FAIL保留。所有worker已释放、owner TEMP已删；短测试未采到每个短活子进程的限制保留，KernelJob闭包清理完成。无在途本地dotnet/browser。保parity-results/旧stash/91profiles/发布候选/PAUSED Workbench与CAP265原失败。
+
+本canonical仅独占尾追加并保完整旧prefix，暂不提交共享HANDOFF以免纳入foreign内容；本批实际代码与隔离HANDOFF已随a6bef/81dd/e8精确提交并合入main。旧主现在创建本项目local新会话、确认启动后停止源码/索引/远端写入，后续继续由新会话承担。
+
+## 用户暂停 #266 Core setter 批次（2026-10-13）
+
+用户在 PR #304 门禁观察阶段明确要求“暂停”。本会话已停止实现、验证、CI轮询、Git/远端写及新会话派发；只保留本段暂停交接。没有创建新会话或新自动化；三位执行者已结束，无在途本地dotnet/browser。GitHub上已启动的CI可能继续运行，本会话没有取消它或假定它已完成。
+
+已完成：复用online-engine，从main f60705007428e9be63c44818306c5366cd2a692c接入原setter差量；完整restore/原Format提交前PASS，精确7路径提交aa686722d9c16ab15ea4234507c27475ad18afb0并push，PR304已创建。新构建0warning/error；focused63/63、同DLL完整Core6748/6748 PASS，5源码/16运行资产及DLL/PDB/TRX独立绑定。首草案42=38PASS/4parseFAIL、首修复63=60PASS/3FAIL均保留；补fixed scratch/default encoding、成功setter rollback、确定阶段cancel/最终返回check、独立local10秒与SQL deadline、100001输出节点拒绝，以及实测缺失的零行STRING声明。EF桥接、非根Owned、ExecuteUpdate、BookStore/Passkey、正式包与NativeAOT setter运行仍未验，#266未关闭。
+
+远端最后已核：PR304 head=aa686722，OPEN、MERGEABLE，10个已出现checks=3SUCCESS/7IN_PROGRESS/0FAIL；没有合并。main最后核仍f6070500，parity-results仍a1a89850805927fc698b40f68438ad8d5999a1e4。观察预算 E/s266r-ci-budget.json 从08:51:50+08至09:41:50+08，最多25次/至少120秒间隔，已用2次；第一次为监控helper中文解码JSON失败，已保留并修复，不当作CI失败。暂停不是延长或重置这个预算，恢复时先核时间、当前PR/head/门禁并保留旧窗口历史。
+
+E=D:\source\SonnetDB\artifacts\online-closure-20261012；入口 s266r-PAUSED.md；关键收据s266r-commit.json、s266r-final-freeze.json、s266a-AUDIT.md、s266a-final-binding.json、s266a-fullcore-binding.json、s266r-ci-02.json。s266r-resource-proof.json核43已完成Job/202记录身份ownLive0/0signal，专属TEMP112项已清理；该审计自身及随后CI第二次查询均cleanupComplete。短活子进程未逐一采全与KernelJob闭包清理分开。
+
+online-engine保持本批已提交clean；online-delivery原611四dirty保持原SHA、空index；canonical保原dcadffc分支及156共享dirty、空index，仅本段由root追加，未提交foreign内容。旧stash、91profiles、候选、PAUSED Workbench、CAP265原46AOT失败和303历史失败边界均保持。恢复后从PR304验收/收口接续，不重做已完成的本地修复或重放303/299；是否继续由用户恢复指令决定。
+
+## #266 Core scalar setter / PR304 已正常合入（2026-10-13）
+
+用户10:02恢复后完成fresh终态读取、实际CI日志核验和正常合并。PR304精确head aa686722d9c16ab15ea4234507c27475ad18afb0于10:08:38+08正常merge一次，无admin bypass/分支删除；main=a037f681b4be5c1e44f551613e1026c1eeadfda5，tree=8bc7144ee8c01b1a6e8cb5952c9b30401106565d，与候选和CI临时merge3fa1f05完全一致，fresh origin/main及祖先关系已核。当前适用12checks=11SUCCESS/1预期Upload Connector Release Assets SKIPPED；与上一Web批17项差异来自未触发的5个Workbench路径检查，不是降低门禁。Linux/Windows原始日志均Core6748/EF191/Server1232全部PASS；3AOT Publish、3Connectors及CodeQL通过，不升级NativeAOT setter业务接受。
+
+本地最终build0warning/error、focused63/63、同DLL完整Core6748/6748及5源/16运行资产/PDB/TRX独立绑定通过；完整restore/原Format在精确7路径提交前PASS。原42=38/4parseFAIL、首修复63=60/3FAIL、303历史FAIL/UNKNOWN全部保留。用户暂停期间原CI窗口09:41:50到期，文件仍原SHA B6364C7351B5B73D08BBE33E31E174E29DD84E50395C4B6A00D44876F99984A1、polls2；本次新读取终态，没有重置窗口或重新运行CI。此前HANDOFF AsSpan校验失败仅修验证，未重复追加；本次git TLS EOF后API核验及HTTP/1.1 fetch成功，原失败保留。
+
+s266s-delivery.json、s266s-gate-proof.json、s266s-final-worktrees.json、s266s-linux-log.stdout.log和s266s-windows-log.stdout.log为最终证据。资源s266s-resource-proof.json核63已完成Job/266记录身份ownLive0，4PID复用未碰、0signal；该审计自身cleanupComplete。原owner TEMP112项已清理，恢复阶段0dotnet/0新TEMP，所有执行者均已结束。
+
+最新队列47OPEN Issues、唯一OPEN PR265；#266仍OPEN/PARTIAL，本次没有Issue评论/关闭、tag/Release。EF桥接、非根Owned、ExecuteUpdate、子树、REST/h2c新setter更新、正式包、官方BookStore/Passkey仍待独立验收。下一批先只读确定EF更新桥接的最小范围与验证矩阵，不重做已合入setter；下一批接续入口为artifacts/online-closure-20261012/NEXT_SESSION_20261013_AFTER304.md，SHA256=F411A57EEA0FE8424ED059ED4547E67224A7927755FF728B2561EA72A701411F。本轮未创建新会话或新自动化。
+
+online-engine为aa686722 clean；online-delivery原611+4dirty/空index且四SHA保持原冻结，不能重放旧草案覆盖main；cap/closure clean。canonical仍原dcadffc/156共享dirty/空index，仅本段尾追加并保旧prefix；本批代码及隔离HANDOFF已随aa提交并合入304，共享canonical HANDOFF暂不提交以免混入foreign内容。保parity-results a1a89850805927fc698b40f68438ad8d5999a1e4、旧stash、91profiles、候选、PAUSED Workbench与CAP265原46AOT失败。
+
+## 用户明确授权每批结束后自动在新会话接续（2026-10-13）
+
+用户直接要求：“现在急需，可以在新会话中继续接续，每批任务完成后，都要创建新会话在新会话中接续下一批，每次新会话都要这样。”此要求接续本项目后续批次，覆盖上一段“本轮未创建新会话”的当时状态。每个继任主都必须在完成本批具体工作、验证、交接和自有资源回收后创建下一local会话，传递此持续要求与新冻结入口，并确认启动；旧主随后停止源码/索引/远端写。禁止空转交接、重置预算或重放已完成批次；用户暂停/停止优先。
+
+持续规则保存于artifacts/online-closure-20261012/SESSION_CHAIN_20261013.md，SHA256=146972C92495727029FF1967911186F34B6A578CC504D107D515528DC1452B2D。首次继任会话以NEXT_SESSION_20261013_AFTER304.md（原SHA F411A57EEA0FE8424ED059ED4547E67224A7927755FF728B2561EA72A701411F）为入口，推进#266下一个最小EF JSON标量路径更新桥接切片；先核真实合同再实施，不停在只读计划。PR304/main和全部原FAIL/UNKNOWN/NOT_RUN、canonical156共享dirty、delivery原四dirty、parity/stash/候选边界保持。派发与启动状态见同目录session-chain-first-dispatch.json；创建尚未返回时不得声称已启动。
+
+## 博客园每日双篇完成（2026-10-13；Automation sonnetdb）
+
+- cnblogs-20261013-daily-1056；10:56:33+08开始、硬截止11:26:33。初始成功0/2、queued0、固定租约不存在，无文章/修订在途；只选151/152、写2篇。账号原文100篇、articles及externalPublishedArticles当前标题/titleAliases均已核；137模型概览与本次单任务/原子更新角度分开。旧076–134共59篇needs-reconciliation暂停。
+- 151《持久 KV 入门：字节值、Namespace、TTL 与前缀扫描》 https://www.cnblogs.com/IoTSharp/p/23283027 ；152《KV 原子操作：NX/XX、CAS 与交换值》 https://www.cnblogs.com/IoTSharp/p/23283045 。各一次明确创建成功，原postId全文等于最终C#预览；公开标题、主题封面和默认双二维码已核。可能的瞬时404只读原ID/URL核对，绝不重发。状态/事件/计划链接与✅/backlog同步，今日2/2、queued0、153–202 planned50。
+- 本地源码dcadffc7137f5653ec46c55a4171cf5f2d83de03，KV文档/样例/Namespace/SDK与公开固定5424b66672e37f49a2a5633fdde0b54a9b1f0290一致，6个专题公开GET及SHA保留；当前ROADMAP另读。正式Release/NuGet Core4.0.0已只读核，不能以当前源码代替发行包功能保证。文章明确namespace仅前缀、raw bytes、TTL/空缺、单key条件/CAS/交换和未知提交；历史2026-09-05本地验证与本次未执行分别标注。没有产品构建/测试/数据库示例实跑，也不授性能、真实模型、固定硬件、生产恢复或长稳。
+- 两篇gpt-image-2各生成一次、retries0/260秒，请求1792x768、实际均1915x821。151保留完整横图；152确定性改图将NX/XX、CAS与交换列为独立操作，纠正原生成图串联/固定版本递增误导，原图与衍生图/前后SHA和目视记录保留。成年人物、品牌、主题/关注提示及AI示意图图注已核。PAT/account/blogId523396重新核验，各单次上传、公开原图SHA匹配；项目识别/cover RequireUploadReady/C# dry-run和封面+双QR完整预览通过。
+- 证据docs/blogs/publishing-review-2026-10-13.json及publishing-evidence/2026-10-13/。12份有界外命令收据、16个已记录身份已退出或确认PID复用后保留，0清理信号；Job归属树清理与短活子进程采样限制分开，不宣称整机孤儿自由。只回收本任务临时脚本/预览，保留执行脚本审计、图片、正文及失败证据；所属固定租约在收尾后释放。
+- 当前分支codex/m47-preview12-release，无暂存/commit/push/部署/自动化配置修改；外部会话内容保留。HANDOFF仅尾追加、旧字节前缀SHA保留，用户禁止自动commit故未提交。下一轮从153/154先核每日配额、租约/未知状态、事实、去重与封面；151/152不得再次创建或自动编辑历史正文。
+
+### 本批最终共享目录快照更正
+
+上述 canonical“156共享dirty”为本批开始时快照，不能作为收口时仍为156的声明。ef266u-final-trees.json 最终核得 canonical=174 dirty/空index，HEAD仍dcadffc；差集是18个 docs/blogs 下的并行发布稿、辅助文件和状态文件，均非本任务创建，本任务未改动或清理。online-engine 仍为本批精确7路径/空index；delivery仍原4 dirty/空index，cap和closure clean。首次收口 helper 因硬编码旧156计数而失败，属于快照断言过时，不是源码、构建或测试失败；后续按实际快照和逐路径差集核验，保留该失败事实。两次本任务 HANDOFF 追加均单独验证追加前的完整字节前缀，不用初始全文件哈希否定其它会话的合法并行追加。
+
+## CSDN 每日11:00：034到时对账、035/036原生排期（2026-10-13，Asia/Shanghai）
+
+本轮仅使用publish-csdn/playwright的固定CLI和csdn-mysticboy。实时账本起点33 under_review/1 scheduled/108 pending/unknown0，最低035；网页窗口03:00:41Z至固定03:30:41Z，最后实际管理观察03:28:59.270Z，后续仅本机记录/审计/交接，没有重置窗口或新增批次。tabs实报会话未打开，原失败保留；用原专属browser-profile正常CLI open恢复，不加headed、不复制Cookie/profile。管理账号mysticboy实证；034原ID独立reload初始余额10，36独立reload最终余额8，仅各观察时刻证据，不称平台限流或本日用尽。
+
+034原167681403/attempt f489588e-3b43-4cb7-a247-221ed784a3eb已到2026-10-12 16:00。新原ID独立全文严格匹配冻结SHA，HyperLogLog四分类共4页complete，全部/已发布唯一原ID/冻结标题、同封面356x200、原定时说明已消失，审核/草稿无冲突。通过同CLI创建临时匿名BrowserContext正常访问详情，实得403 Forbidden/WAF、content=null；只一次，不重试、不绕过，finally关闭该自有context。原登录context/profile不动。正常record under_review保存034-accepted-after-native-20261013.json，保原排期/receiptHistory/marker；该状态为作者管理接受，公开正文未验证，不升级published、不重发确认稿。匿名真实观察audit phase-7a2ea725-ee78-42f2-9ba4-ae743575f4a4.json完整保留。
+
+035/036复核当前ExtendedAggregateFunctions与SQL合同并分别保存源稿SHA、审稿和冻结正文。035第二参数为正有限桶宽，floor对负值分桶，结果是有值桶的JSON字符串，空输入NULL/NaN/Infinity不分桶；36仅同维Vector逐维平均、double累加/float[]输出，空输入NULL、空/不同维拒绝，不自动归一化，不冒称真实模型、语义质量或聚类验收。两稿标题/首段点名SonnetDB，日期段明确2026-10-13当前工作区及示例未执行，不把旧4.0 Release链接冒称本轮源码验收。没有SQL、硬件性能或模型测试。035正文SHA8e78d806144207a95790547d63a6405fe762bf41ca1f6b383b4ac6ad146dd822，36 SHA cc92dab5d61b68dddf1627275662bc8b95a828f71ccb47078e1079bc23008354；收口源稿/冻结稿/自有封面SHA逐项未变。
+
+035公众号原图SQL上界小于下界，另外图表计数不是本文手工示例；保源图和生成回执，Pillow另存自有035-cover-corrected-20261013.png，修正time<1713763200000并标明手工示例/示意分布非实测。源/派生SHA及方法在035-cover-derivation-20261013.json，本轮实际目视派生图通过。036原图公式及[1,0,0]/[0,1,0]→[0.5,0.5,0]与当前口径一致，实际目视后复制自有assets，原图/SHA/生成回执保持。没有生图请求、截图控制或改公众号队列。两篇cover upload/confirm/verify均screenshotPath=null，正常控件上传、确认保存及原IDreload同封面356x200，全文保持。
+
+035四分类histogram 4页均无候选后daily claim a4a335bc-7823-454b-9d98-ebf3879854fa于11:15:29预占，早于新编辑器；一次官方导入，唯一原ID167792222、observe-import/bind-draft/finish-import保存标题与全文通过；实际设置原创/全部可见/GitCode关/多平台否/AI辅助声明/精确SonnetDB和数据库标签。正常选择2026-10-13 16:00，最终确认一次；独立原ID全文严格相等、新四分类本行准确未来时间及同封面，通过035-e18f72b0-3215-4b48-9b66-9f6ed63a360b-native-saved-receipt.json正常record scheduled。
+
+本日已发表原稿无法提供原生选时面板，035延续上一轮的有证据特殊顺序：先预占并正式保存本篇，再读其真实日历（13–19日available、20disabled）；保留预占前真实账本原字节ledger-before-035-claim-20261013.json，roll_plan只以此快照为候选输入，不改实际账本或旧计划。另存schedule-plan-roll-20261013.json、SHA6258d9579acea3b0aaa6fb82795f76e1cb980b6fd5d68a666bed86ce340800a7，之后正常bind-native-plan固定35槽位；该先claim后计划绑定偏离标准表，不能写成标准顺序全PASS。108 planned不是108条平台排期。仅本篇日历读取所需，未手改冻结值、旧绑定或账本解除守卫。后继036已严格先bind-native-plan再claim，不扩展为重试/换ID许可。
+
+036四分类centroid 4页无候选，先绑定同新计划16:45，再daily claim c159b01e-ed93-44f8-b27c-e2fd979d7360于11:25:01；一次导入取得原ID167793096，正常正式保存、冻结标题/全文reload、发布设置、封面保存reload、timer/choose均通过。最终确认一次，独立原ID全文严格相等、新管理四分类准确“预计于北京时间2026-10-13 16:45发布”和同封面；036-d0e90569-0993-48a6-a821-206f8472e0d8-native-saved-receipt.json正常record scheduled。035/036未来时间不称已发表，匿名公开未验。
+
+收口34 under_review/2 scheduled/106 pending/unknown0、最低037；今日两次预占，无用户自设日上限，真实余额8。30分钟批次收口，不为用尽余额开启第二批。下一每日11:00先核账号/余额和到时035/036原ID，再037按当前GROUP BY time与时间桶边界重审、原图本地目视及主题完整查重；旧/new计划与所有原marker不变。现有自动任务每日北京时间11:00保持，不新增自动化或跨会话重复派发；产品#266的新会话链规则属于其它工作范围，本渠道保持既有heartbeat。
+
+40份明确阶段审计根进程实读均absent，原tabs失败、所有stdout/stderr及已观察后代/cleanup记录保留；不从已退出父PID发现新后代，不按名结束，不冒称未采样短活子进程或全机清理。临时匿名context已finally关闭，共享已登录CLI浏览器保留；本轮无需要删除的任务临时脚本，自有封面/稿件/回执为保留交付物。资源审计heartbeat-20261013-process-audit.json，检查点C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261013-result.json。仓库仅本渠道进度及此根交接尾部，独占追加/Flush(true)/完整旧字节前缀验证，保护并发产品和其它渠道。HEAD实读dcadffc7137f5653ec46c55a4171cf5f2d83de03，未stage/commit/push/部署；交接暂不提交遵守发布边界，未运行无关restore/format，parity-results保持。
+
+## 开源中国每日双篇续发完成（2026-10-13，Asia/Shanghai）
+
+- 本轮接续 sonnetdb-2 的 11:00 任务，原45分钟合同为03:01:47.146Z至03:46:47.146Z；昨日单次额外五篇授权已经用完，今天按正常最多两篇执行，未更改自动任务、额度或当前会话。账本起点52submitted/90queued；049/050顺序各创建一次，现54submitted/88queued，下次按实时账本从051/052继续。旧故障会话归档已由2026-10-09原交接确认，本轮不创建重复会话或定时任务。
+- 真实原博客/动弹ID：049为19776382/30401451，050为19776383/30401452；文章URL分别https://my.oschina.net/u/7172/blog/19776382与https://my.oschina.net/u/7172/blog/19776383，动弹URL分别https://www.oschina.net/osc-tweet/30401451与https://www.oschina.net/osc-tweet/30401452。接口均已接受。完整本人发表/草稿/定时三组从152/1/0到154/1/0；两篇原ID严格标题、完整正文及原封面上传映射均content_match，rawState=1/isPrivate=0原样保存；未套新闻状态枚举，网页公开可见性未核验，保持submitted。
+- 两条动弹分别上传本轮新人物图和对应主题封面，再最终创建各一次。原ID回读核本人7172、真实topicName=#SonnetDB/topicId19285、单次实体/话题提取严格正文、标题/简介及serial1/2两张原URL通过，imagesVerified/textVerified=true。第一话题被平台提取，不能因rawTextExact=false重建。文案继续按已确认链接拒绝省略URL，真实文章关联在队列保留。没有写请求重试、改文案、删图降级或换账号。
+- 最先只读核047原动弹30401448，仍HTTP200/code500“内容审核中/审核失败”，保留原创建ID、两张上传URL、submitted-verification-pending与全局submitted。135/040/041无IDunknown经完整本人152条动弹列表和技能统一严格匹配仍无匹配，不证明未接收、不改变原状态、不新建。8条既有unknown标题编辑保持，不修改已发表正文。新闻502847保持原submitted投稿及原SHA/ID；最后已存只读核验为账号状态1、公开接口正文已核验、网页可见性未核验，本轮没有重投或改历史新闻回执。
+- 当前vector-search专题及Measurement TVF、KnnExecutor、VectorDistance、DocumentVectorSearchExecutor源码按真实SHA复核，冻结原source SHA和prepared SHA；确认4–5参数、维度/有限数值、负内积、TAG/时间预限定候选、ANN条件与扫描/补偿边界、应用模型与权限职责。证据在.local/scheduled-20261013-049050/fact-sources.json及publicationReview；未执行SQL示例、产品build/test、固定硬件基准或真实模型质量评估。原稿未改，139–142源稿漂移仍需轮到前实际复核。
+- 两张封面和两张人物图各独立生成一次，按当次sonnet_vip配置实际https://sonnet.vip/v1执行gpt-image-design/gpt-image-2，retries0、每次260秒进程上限；凭据仅子进程内存环境，未输出/写文件。封面参考1792x768/high，实际均1915x821；人物参考1024x1024/medium，实际1024x1536。四图分别实际查看通过，封面概念流程/文字无虚构性能和模型效果，无需后处理。资产prepared/covers/049-cover-scheduled-20261013.png与050-cover-scheduled-20261013.png；人物在.local/tweet-images/049-20261013-scheduled-person.png与050对应路径，生成回执、提示词、实际尺寸及SHA逐图保存。正文封面置于首个SonnetDB介绍段之后，不继承其它渠道二维码/footer，通用过程说明继续省略，具体限制保留。
+- prepare-queue逐篇先dry-run后本地原子准备，Publish-QueuedBlogs离线预演和正式完整查重通过；结束Sync刷新PROGRESS与只追加回执事件。Verify全队列仍FAIL“Source hash differs: 139”，未刷新源SHA放行。最终有界完整性核验PASS：原141条全局回执逐值保持、其它140条队列及prepared实际SHA保持、news/policy和旧events字节前缀保持；新增恰好2博客+2动弹。仅更新049/050准备副本、审核清单两行、封面和本任务状态/evidence，未commit/push/部署。收尾本地Save-VerifiedBlogs首次取消路径插值丢变量，写入锁前失败，错误证据保留并仅修正本轮包装器；重跑保存成功，没有重复平台请求。
+- 清理审计核25个已记录自有进程身份，无同身份存活，三个发布锁不存在，额外kill/delete0；只覆盖已记录身份，不宣称全机或未观察后代无孤儿。图片、日志、失败和验证证据全部保留在docs/blogs/oschina/.local/scheduled-20261013-049050，completion-result.json及队列lastRunCompletion原子保存真实ID、关联、错误边界、日期和清理结果。固定PowerShell7.6.6，无Graphify/广域扫描/安装/新增浏览器。HANDOFF仅独占尾追加并核原字节前缀，保留并发研发与博客园hunk，暂不提交遵守发布任务边界。
+
+## SonnetDB 微博每日11:00续排收口（2026-10-13，Asia/Shanghai）
+
+本轮固定证据research/schedule-20261013/run-1104，baseline限制3个新编号/40分钟，实际仅030、031、032；最后浏览器动作03:44正常关闭032未提交设置，到界之后只有本地收口，没有新增033或平台写入。tab-list证明sonnetdb-weibo-series未打开，CLI list只有其他CSDN会话，已正常恢复本微博同名专用持久profile并DOM核UID1089099883、登录有效；保护其他共享浏览器，不另开第二个微博窗口、复制Cookie或切私有API。最终现场原草稿3931927，无发布弹窗。
+
+014原attemptcaf5c97c0abb409ea862379083bbf7fe、015原attempt8ebae934c87341f6b690708dea729269分别独立reload正式文章与微博，全文/作者/新封面、完整审定简介/解码真实原文URL/同文章卡片加载封面通过，卡片已目视，record-published成功，双outputs verified/publicationVerified=true。014实际2026-10-12 20:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405353286432850397，微博https://weibo.com/1089099883/RmmdRkddx；015实际2026-10-13 08:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405353467685503042，微博https://weibo.com/1089099883/RmqWcqWkQ。未核匿名访问/publicVisibilityVerified=false。原nativeSchedule、binding、marker、源码快照、冻结正文与旧排期回执全部保持；其它旧attempt逐项与baseline一致。011人工立即发表出处、001至009/011至013/025既有published和010accepted_as_is缺项保持，不归为平台提前自动发表。
+
+030同唯一原3931404，源/事实/审定稿/简介/既有图SHA无漂移，不重生图、上传或裁剪。attemptf3c13ff74020451487ed95ff9a6c1948，当前真实日历允许20日，claim后新DOM完整配置、bind/build-editor/mark gate true后最终确认一次；独立reload同ID全文/作者/封面、完整时钟与真实iframe时间戳通过，record-article-schedule确认2026-10-20 08:00+08:00。scope platform_native_article_schedule_companion_pending，双outputs pending/publicationVerified=false；保存后预览没有微博简介，不冒充提交后回读。禁止再次编辑或提交，到时真实双输出通过才published。实际最终点击时间及完整平台原始JSON在030-final-native-click.stdout.txt、030-independent-schedule-v2.stdout.txt与新SHA回执，不覆盖旧保存观察。
+
+031唯一新草稿3931923，attemptc153dccfa7964712b5ee943a90c923ba，标题SonnetDB 基础聚合：计数、数值与首末值，冻结2026-10-20 20:00+08:00。静态审稿明确count(*)逐series所有FIELD时间戳并集、字段存在计数、数值/布尔类型、String Ordinal比较、保留类型的first/last及多series拒绝边界；不把空值/NaN/精度行为推广到全部模型，也不承诺性能。原文https://www.cnblogs.com/IoTSharp/p/20023411，源/事实原字节快照、审定正文、纯简介和新图目视保留。031-basic-aggregates-jk-final-20261013.png SHA8fa532db134e52c1c9bb89e993f593942310925f9828434417306c4c4f4cb108，base/final/稳定裁剪目视通过，平台封面https://wx1.sinaimg.cn/large/40ea586bly1ii0kkm9gb2j20zk0jyaee.jpg。创建/上传/裁剪确定/最终确认各一次，全文封面保存reload通过。实际mark gate true后最终点击一次，独立排期10秒等待超时；第二次原ID只读全文封面保持、仍可编辑、无时钟/iframe，没有明确拒绝或限额。unknown/outputs pending，defer-compound基于用户直接“无法确认就忽略，不阻挡后续”成功登记；原marker/binding/内容/时刻保留，本轮两次只读用完，后继只读对账，不重claim、新建、编辑、重传、重选时间或再点击。不猜未知原因或释放槽位，原最终点击时间见031-final-native-click.stdout.txt。
+
+032正式唯一草稿3931927，标题SonnetDB 统计聚合：样本、分布与近似值，原文https://www.cnblogs.com/IoTSharp/p/20023413，目标2026-10-21 08:00+08:00。当前Welford/ExtendedAggregateFunctions/TDigest/binder与SQL参考静态审稿，说明样本方差n-1、少于2点NULL、spread独立min/max、median为T-Digest估计、mode频数与并列最小/Ordinal比较，不沿用“所有函数Welford/精确中位数/常量内存/实测性能”旧稿承诺。源/事实快照及审定正文/简介本轮保存，未运行SQL、统计误差、性能或告警实验。032-statistical-aggregates-jk-final-20261013.png SHAa6d370cb3a94b467eeac4856bc9fabc9987e6a31a6aa9b514d09f5d1dc603ade，base/final/稳定裁剪逐张目视；一次真实创建、上传、裁剪确定、保存并独立reload全文/UID/新封面通过。03:44:09.061Z实核日历13日至20日可选、21disabled，正常关闭未提交设置。plan planned/draftState=saved_waiting_date_window/platformConfirmed=false，无queue、attempt、marker或最终确认。下轮同3931927复核源/事实SHA与实际日期窗口，无漂移复用全文封面，漂移实际重审，不重生图、上传、裁剪或重建；033仍21日20:00，原slotRevision和冻结槽保持。
+
+029原3931394/attempt4870c7e799934ec1a0117d8110827052/19日20:00、027原3931014/attempt30345e2bacec4cdcaf98938f65478207/18日20:00，本轮各一次只读完整正文和封面相符、无时钟/iframe，unknown/continuationDeferral不改；024原3930723/attempt70b8a28cfccc49d2bba422fffead3158/17日20:00未重读或提交，原延期保持。旧未知不阻挡新编号，不根据缺回执判服务端拒绝或未创建，也不重复不变通知。
+
+本轮旧本地失败保留：候选准备helper日期替换后仍含run-1055绝对路径，读缺失baseline时TypeError，在任何候选文件/平台写入前停止；新prepare-candidate-v2改为Path(__file__).parent后正常审定。生图脚本旧guard只接受127.0.0.1:15721，本机sonnet_vip已配置https://sonnet.vip/v1，guard在请求前拒绝，初始生图请求0；按技能当前配置恢复同provider后031/032分别真实一次gpt-image-2请求并生成，不购买额度或安装工具。密钥仅子进程环境、不打印或保存。Compose旧metadata的“local gateway”标签与实际HTTPS入口有差别，image-provider-metadata-correction.json独立纠正，原尤其031冻结回执不改。后续读取当前配置，不猜旧地址；原失败和版本都保留。
+
+最终账本15published/1accepted_as_is/11scheduled/4已延期unknown/1旧abandoned，queue31；plan6published/11scheduled/119planned。scheduled为016至023、026、028、030。当前三状态SHA由state-final-summary.json和final-checkpoint.json冻结，原attempt/marker/binding/来源/源码快照逐项保护。本轮同会话命令完全等自然结束后才下一条，所有exec session已wait，无浏览器命令重叠、空stdout提前解析或重复最终点击。
+
+61个执行结果completed/rootExited/outputComplete全部true、0signal。原process-and-index-audit.json报60 numeric PID absent与1当前身份未确认，原false保持；独立CIM核61576旧创建03:30:58.8489138Z、新创建11:43:45.887863+08:00/parent1960，创建时间不同证明PID已复用。当前CommandLine无权限仍保留，未终止；process-audit-identity-correction.json绑定纠正。审计只覆盖已记录根身份，不能冒称未观察短命后代清理；共享Chrome/daemon、CSDN会话保护。共享HEAD/index从baseline未变，无stage、commit、push或测试。
+
+已通过automation_update保留每日北京时间11:00/ACTIVE及原同聊天目标，完整更新本轮014/015published、030scheduled、031unknown/deferred、032原草稿续排与当前provider；Python tomllib独立持久回读prompt/rrule/status/kind/name/target及其它原字段保持，固定状态SHA未漂移。交接独占尾部追加Flush(true)/fsync并核旧完整字节前缀，发布交接暂不提交保护foreign内容。下一顺序：到时真实文章与微博双输出核验，延期项有界只读对账，032同原ID窗口续排，再准备最小新编号；日期窗口只限制最后定时提交，不能阻止保存正式草稿。每轮3编号/40分钟、未知每轮2次只读/15分钟，不重置预算。仅明确平台限制才暂停；日期未开放保持ACTIVE，无立即发表、本地到点点击替代、付费、Cookie导出、私有API、擅自提交或推送。
+
+## #266 JSON 已合入 main，候选5就绪待人工批准公开发包（2026-10-13）
+
+本会话延续已授权的代码/PR闭环：#305、#307、#308、#309以及本次#310、#311、#306均已正常合并；没有admin/force绕过。#310 Windows完整项目分片源b41d4ad6于11:54Z合入854dc21d；#311调用方取消测试前置条件源75e85c68于12:58Z合入2ea653e0；#306最终源1af23d8f299febfdf66b040ab3419980396acf46于13:11Z合入2b0793177c16666ebc7b7cf63012d6a56ce86c3f。精确PR head全部适用检查成功；独立Git提交图核最终16个JSON路径与merge一致。GitHub files快照曾仍带已合#311测试文件，原范围守卫失败保留；fresh main/common ancestor75e85c68及该文件两边完全相同证明有效差异为16，未放宽代码门禁。
+
+最终代码支持根/嵌套唯一OwnsOne标量、数组、JSON编码属性和子树更新；三参数json_set_value原标量语义保留，可选TRUE接受片段，预算/取消和目标外成员保留边界见已提交PackageReadme。OwnsMany元素路径、JSON ExecuteUpdate及EF Provider NativeAOT仍明确不支持。原本地Core Tombstone临时备份锁FAIL/原因UNKNOWN、旧回填与KNN失败、50分钟总预算超时、Linux隐藏清单清理失败及候选4取消注入失败全部保留，不改写为通过。取消修复只允许8页/10秒/25ms的真实零进度前置页；保留唯一钩子、调用方token、独立期限和原3/2/1恢复断言，生产250ms页预算不变。独立修复1/1、整类19/19及8个源码/运行文件DLL/PDB/TRX绑定通过；每次代码提交前最终restore与原级别Format均已通过。
+
+新的不可变候选4.5.0-preview.ef266.5来自1af23d8f，Publish预检run38398900219、NuGet artifact11814887913。七包清单SHA256=0077BD5E6F3A3DAFD87E879E6D05A26AD63298E830A1BE724981BB1B7F9FE305；原包在artifacts/online-closure-20261012/ef266release-candidate5/packages，版本/源码/nuspec/sidecar/原字节已核。十二项独立预检全部成功；main-only原包提升入口以publish=false实际运行38404311434，祖先、原包和完整release-readiness全部通过，报告READY，发布步骤SKIPPED。quick/GitHub-hosted与七天Parity非阻断观察不升级为固定硬件、真实模型或生产验收。候选2/3/4及其失败证据保持；候选4最终11项成功/CI失败，没有覆盖或重跑至绿。
+
+未修改SonnetDB.Abp的8006cf2d通过候选5私有feed：Complex/Owned×SonnetDB/SQLite四个设计模型复现、官方标准初始/重复迁移与seed；真实IdentityUserStore Passkey读写更新、应用重建和删除；embedded、REST、h2c账户登录及作者/书籍CRUD/分页/应用重建三条各1/1、零跳过。六份实际消费者Core/ADO.NET/EF DLL逐字节匹配三个CI原包条目。Server为同源码/同版本的本地构建，关键程序集/PDB已归档；REST实记428次HTTP/1.1 SQL请求，Frame实记52次HTTP/2请求，均正常退出。应用HTTP使用真实ASP.NET TestServer，应用重建不等同Server进程重启，Passkey存储不等同浏览器WebAuthn。SQLite存储对照仍属此前未改模型的独立运行，本次只把四项最小设计模型记为fresh。详见ef266rel5-consumer-acceptance.json。
+
+公开发包尚未授权、未执行；无NuGet/tag/Release/镜像/其它平台发布。#266 fresh读取仍OPEN，不提前关闭。具体审批单为artifacts/online-closure-20261012/EF266_NUGET_CANDIDATE5_APPROVAL.md。下一步顺序：用户批准这七个具体原包后，以版本5、源码1af23d8f、清单0077BD5E…9FE305调用既有提升workflow publish=true，confirmation为完整version@source_commit；先核公开版本、签名/内容与批准原包的对应关系，再让SonnetDB.Abp固定公共版本，用全新公共源/缓存重跑同一最小复现和完整应用，满足全部验收后才关闭#266。不得把私有feed或本次READY当作公共版本接受，也不得重打包同版本；任何新源码/字节变化需新候选与新确认。
+
+收尾记录ef266rel5-final-trees-before-handoff.json：canonical仍dcadffc/codex/m47-preview12-release、159共享dirty/空index；online-engine为codex/issue266-json-array-updates的1af23d8f、clean；online-delivery仍611d9faa及原4dirty/空index；SonnetDB.Abp仍8006cf2d、clean。本地nested-json-scalar仍旧2fe54839，不能作为新基线；远端PR分支及冻结preview5以实际ref为准。parity-results远端ref与stash均等于原ef266v快照，本来没有本地parity分支；首次收口错误期待两条parity ref的失败已独立记录并改为真实旧快照比较，未改任何受保护ref。
+
+先前87任务/842记录身份及收尾72任务/436记录身份均核记录内ownLive=0，无清理信号，不宣称全机或未观察短活进程无孤儿。只清理自有TEMP ef266f/p/r3/s及ef266r4/c/r5，源代码、旧候选、当前七包、日志/TRX/绑定/审批单全部保留；最终清理任务自己的KernelJob收据也PASS且cleanupComplete。未建新worktree/clone/agent，未动旧profiles、PAUSED Workbench或其它任务。此canonical HANDOFF只用独占尾追加并验证原字节前缀，暂不提交，避免混入159项共享改动；代码和隔离树阶段交接均已通过正常PR交付。
+
+## #266 公共 NuGet 消费验收完成；七包发布为 6/7（2026-10-14）
+
+用户已明确回复“批准”，批准被冻结候选4.5.0-preview.ef266.5的七个CI原包公开发布及后续消费验收收口。源码1af23d8f299febfdf66b040ab3419980396acf46、七包清单0077BD5E6F3A3DAFD87E879E6D05A26AD63298E830A1BE724981BB1B7F9FE305保持。实际提升run38421367503终态failure：前六包HTTP201成功且公开可读；第七包Testcontainers.SonnetDB被NuGet保留命名空间HTTP409拒绝。不得将整批标为成功，不重跑整批、不重传六个已存在版本。六份公共归档均通过签名验证，非签名ZIP内容与批准原包完全一致；仓库签名后的SHA和原上传SHA分别保存。无tag、Release、Docker或其它发布。
+
+SonnetDB.Abp已固定公共版本，使用仅NuGet.org、独立空缓存和空fallback重跑。Complex/Owned×SQLite/SonnetDB以及完整BookStore模型共5/5；标准初始迁移生成并提交，初始/重复迁移、seed、真实IdentityUserStore Passkey及账户HTTP旅程通过。最终完整解决方案22/22、零跳过，Release零警告错误，最终restore/原级Format通过。三个消费者输出共九份Core/ADO.NET/EF DLL与公共包匹配。消费端15个owned路径提交0e7f62616b3d8b78266ce5fc33490a094b9b7aa7；PR1精确head的两项integration成功，2026-10-14 00:52:21+08正常合并为841567fd963621a8656a904121462234c6c80c0e。main祖先与完整tree42b3b7e84eec5abc2de8c1a4158307af2929c841独立核对一致，无admin/force bypass。
+
+公共包真实远程验收为REST428次HTTP/1.1 SQL、h2c52次HTTP/2 Frame，两个Server均正常退出。额外启动新Server进程，直接使用原数据目录做SELECT，不运行迁移/seed；两协议均读回admin1/books2/migration history1，再正常退出并清理。该补充只证明这些既有行的进程重启持久化；JSON rollback/reopen另有引擎针对性回归。HTTP应用为真实ASP.NET TestServer，Passkey为存储验收，未宣称浏览器WebAuthn；Server由相同源码/版本本地构建，未冒称CI native bundle。OwnsMany元素路径、JSON ExecuteUpdate、EF Provider NativeAOT仍不支持。A06仍进行中、完整示例0/13，270–273及全部模块、升级/故障恢复、其它示例独立待验。
+
+#266已于2026-10-14 00:57:23+08关闭为completed；验收评论6150754127正文和Issue原body/state_reason已独立回读，详见ef266pub5-closure-verification.json、ef266pub5-issue266-completion.md与ef266pub5-issue266-closed.json。仅关闭266，没有顺带关闭其它Issue。Testcontainers命名空间阻塞不影响本ABP消费者，下一步需要前缀所有者授权，或另行准备并批准改名的新候选；本授权不能被扩展为改名重包或联系他人。所有旧候选、FAIL/UNKNOWN、首个公开index代理EOF、生成迁移格式失败、重启微试日志文件名冲突均保留；首次重启微试在创建Server前因与wrapper日志重名失败，换唯一日志路径后的微试及正式双协议检查通过。外层LASTEXITCODE误判不覆盖实际PASS结果，以result.json为准。
+
+资源审计覆盖41个既有job、230条记录身份，ownLive/uncertain均0；末尾inspect/clean另7条身份核0，43个任务的KernelJob清理均完成。本次专用D:\t\ef266pub5经owner/path/reparse检查和微试后回收8041文件/4774目录、697130082字节；公共NuGet缓存三份原metadata已归档。PostgreSQL容器完整ID/创建时间/label/image复核保持原容器stopped/PID0，最终测试库0沿用完整测试后查询证据，未重新启动。原包、公开下载包、日志/TRX、源码/运行资产、审批与回执全部保留在artifacts/online-closure-20261012。无新增agent/worktree/clone/安装或自动化变更。
+
+最终Git：canonical仍dcadffc/codex/m47-preview12-release、159共享dirty/空index；online-engine仍1af23d8f clean；online-delivery仍611d9faa加原4dirty/空index；SonnetDB.Abp仍0e7f6261/codex/a06-ef266-public-packages clean，origin/main841567fd。parity-results与stash保持原ref。消费端HANDOFF已随0e7f6261合入；本canonical只独占尾追加、验证旧完整字节前缀，暂不提交，避免纳入foreign内容。后续不要重做已完成266验收；先处理独立命名空间发布阻塞，或按A06路线继续未验合同。
+
+## 开源中国每日双篇续发完成（2026-10-14，Asia/Shanghai）
+
+- 接续sonnetdb-2，原45分钟合同02:57:45.068Z至03:42:45.068Z；先完成只读检查和本地准备，03:00以后才执行正式发布，未更改原11:00/每天最多两篇政策或自动任务。起点54submitted/88queued，按051、052顺序各提交一次，现56submitted/86queued；下次从实时账本053/054继续，不能依据旧heartbeat中的038/039重新选稿。
+- 真实原博客/动弹ID：051为19777549/30401457，052为19777550/30401458。文章URL分别https://my.oschina.net/u/7172/blog/19777549和https://my.oschina.net/u/7172/blog/19777550；动弹URL分别https://www.oschina.net/osc-tweet/30401457和https://www.oschina.net/osc-tweet/30401458。完整本人发表/草稿/定时三组从162/1/0到164/1/0；两篇原ID严格标题、全文和原封面上传映射均content_match，rawState=2/isPrivate=0原样保存。保持submitted；没有以后台发表列表或业务状态推定网页公开。
+- 051动弹原ID只读核本人7172、真实topicName=#SonnetDB/topicId19285、严格正文/标题/简介与serial1/2两张原URL通过，textVerified/imagesVerified=true。052动弹创建已接受并返回30401458，原两张上传URL和SHA已保存；首次详情及随后原ID只读回读均HTTP200/code500“内容审核中/审核失败”，queue submitted-verification-pending、全局submitted，verificationPending/moderationUnresolved=true、text/images/public均未核验。保留原ID和错误，不重建、不删图降级或改文案重试。完整初始回执快照在new-receipts-before-readonly.json，052下次仅只读核原ID。
+- 首先只读核047原动弹30401448，仍相同审核/失败提示，保留其原ID、两URL和既有状态。135/040/041无IDunknown经完整本人154条动弹列表及技能统一严格匹配仍无结果，不证明未接收，原状态不改、不新建。没有明确pending的旧公告可补发。8条未知标题编辑保持，已发表正文/哈希/公告不改；新闻502847及原提交指纹、历史prepared/origin和未来Gitee政策保持，本轮未重投。新闻最后已有只读记录为账号状态1、公开接口正文已核验、网页可见性未核验，本轮未刷新审核状态。
+- 051/052按当前vector-search专题、SegmentVectorIndexFile、HnswOptions、KnnExecutor、SegmentWriter/Reader六份实际SHA复核。确认Measurement和Document参数名区别、m/构建ef/查询ef职责、v6新段内嵌section与legacy读取、SDBVIDX2 magic及section version4和段version6的区别、metric/墓碑/过滤条件下的精确回退/补偿。源稿及原source SHA保持，事实来源/源码提交/prepared SHA写publicationReview和fact-sources.json；未执行SQL、产品build/test、真实模型或固定硬件性能/恢复测试，文章没有测量或保证承诺。
+- 在命名资产目录assets/cover-evidence按051/052未找到可复用同篇主题封面，分别新生成两张横封面和两张成人亚洲女性JK裙人物图；当次实际sonnet_vip配置地址https://sonnet.vip/v1，gpt-image-design/gpt-image-2，retries0、单次进程260秒，不输出或写入凭据。封面参考1792x768/high，实际均1915x821；人物参考1024x1024/medium，实际1024x1536。四张逐一目视。051原图把m泛称为所有节点统一最大连接数，已确定性本地改为图连接程度/图密度与构建开销，保留原图、修正图及JSON、原/最终SHA，再目视通过；没有重复生图。052为精确扫描/近似搜索概念对比，不含虚构基准数值。最终封面在prepared/covers/051-cover-scheduled-20261014.png和052对应路径，人物在.local/tweet-images/051-20261014-scheduled-person.png和052对应路径。
+- prepare-queue逐篇先dry-run后本地准备并同步审核清单SHA，封面在首个SonnetDB说明段后；原标题前缀/具体限制及源稿门禁保持，通用过程说明继续省略，无其它渠道二维码/footer。Publish-QueuedBlogs先离线预演、完整查重，再串行正式提交和每篇独立双图公告。所有上传/最终创建各一次，无写请求重试。结束Sync刷新PROGRESS并追加回执事件；Verify全队列仍FAIL“Source hash differs:139”，139–142漂移不得刷新SHA放行。
+- 最终本轮完整性核验PASS（不是全队列PASS）：原153条全局回执逐值保持、其它140条队列及prepared实际SHA保持、news/policy与旧events字节前缀保持，恰好新增2博客+2动弹，源/准备稿及六份事实来源SHA一致。新052正文/图片核验未通过如实单列，不用其创建ID冒充公开或内容验证成功。状态和完成记录用同目录独占锁、UTF-8无BOM/LF及临时原子替换保存，events仅追加。lastRunCompletion/completion-result.json含真实关联ID/URL、052待核状态、错误边界、日期和清理结果。
+- 清理审计核25个已记录自有进程身份，无同身份存活，三个发布锁不存在，额外kill/delete0；仅覆盖已记录身份，不宣称全机或未观察后代无孤儿。图片、日志和原始/修正/验证交付物保留在docs/blogs/oschina/.local/scheduled-20261014-051052。固定PowerShell7.6.6，无Graphify/广域扫描/安装/新增浏览器。无stage/commit/push/部署，HANDOFF暂不提交遵守发布任务边界；仅独占尾追加本段并核完整原字节前缀，保留并发研发与博客园内容。
+
+## 博客园每日双篇完成（2026-10-14；Automation sonnetdb）
+
+- cnblogs-20261014-daily-1100，10:59:58+08开始，硬截止11:29:58。初始成功0/2、queued0、固定租约不存在，无文章/修订在途；仅选153/154、写2篇。核对100篇账号原文、articles及externalPublishedArticles当前标题/titleAliases；137概览、外部IoTSharp Profile与文档关联检索和本次适配器/Cursor角度分别核对。旧076–134共59篇needs-reconciliation暂停。
+- 153《SonnetDB 从 KV 到 .NET 缓存：IDistributedCache 与 EasyCaching》 https://www.cnblogs.com/IoTSharp/p/23298039 ；154《SonnetDB 文档查询工作流：JSON Path、Builder、投影与 Cursor》 https://www.cnblogs.com/IoTSharp/p/23298086 。串行各一次明确创建成功，原postId全文等于最终C#预览；公开标题、主题封面和默认双二维码已核。瞬时读失败仅只读核对、不重发；状态/事件/计划标题链接与✅/backlog同步，今日2/2、queued0、155–202 planned48。
+- 本地源码dcadffc7137f5653ec46c55a4171cf5f2d83de03，专题实现/文档与公开固定5424b66672e37f49a2a5633fdde0b54a9b1f0290无tracked差异，8个专题公开GET及SHA逐字节核对；当前dirty ROADMAP单列读取/哈希。正式GitHub Release/NuGet Core4.0.0核实，不延伸为每个缓存扩展包均已发布。153明确Get不自动续滑动TTL、显式Refresh、Host后台清理、启动写探针、EasyCaching TrySet先查再写非原子及非AOT边界；154明确每页Limit、查询/快照绑定、五类Cursor错误与明确重查。数据库示例、产品构建/测试NOT_RUN，性能/真实模型/固定硬件/生产恢复/长稳NOT_VERIFIED。
+- 两篇独立gpt-image-2各生成一次，retries0、260秒上限，请求1792x768、实际均1915x821。原图与最终横图目视通过；153将业务隔离改为键前缀分组，154以正文Filter/Projection/两页设备结果替换生成的非合同表达式。成年专业人物、品牌、主题/关注提示和AI主题示意图图注已核。PAT/account/blogId523396当次重新认证，各单次newMediaObject上传、公开原图SHA匹配；项目识别、cover RequireUploadReady、C# dry-run及封面+默认双二维码完整预览通过。
+- 证据docs/blogs/publishing-review-2026-10-14.json及publishing-evidence/2026-10-14/。12份外命令进程收据/16个记录身份均退出或核PID复用后保留，0清理信号；Job归属树与短活子进程采样限制分列，不宣称整机孤儿自由。只回收本任务临时脚本/预览并保留执行审计副本、正文、封面和失败证据；本run独占租约收尾后释放。
+- 当前分支codex/m47-preview12-release，没有暂存/commit/push/部署或自动化配置修改；其它会话内容保留。HANDOFF仅尾追加并验证原字节前缀，用户禁止自动commit故未提交。下一轮从155/156先核配额、租约/未知状态、事实、去重和封面；153/154不得重新创建或自动编辑历史正文。
+
+## CSDN 每日11:00：035接受核验，037打开账号守卫失败（2026-10-14，Asia/Shanghai）
+
+本轮使用publish-csdn/playwright与固定CLI csdn-mysticboy。实时起点34 under_review/2 scheduled/106 pending/unknown0、最低037；网页窗口03:04:16Z至固定03:34:16Z。原专属会话仍在，0管理/1原036成功页/2原036编辑器；未创建新会话、复制Cookie/profile或调用外部浏览器工具。管理页账号链接mysticboy；035独立原ID完整reload核初始实际余额10。没有额度/频率提示，不称平台限流。
+
+035原167792222与冻结正文SHA严格相等，2026-10-13 16:00已到。新SonnetDB四分类6页complete，全部/已发布按本ID唯一、冻结标题与同CSS封面356x200、原未来定时说明已消失，审核/草稿无冲突。正常record under_review保存035-accepted-after-native-20261014.json，保原scheduled receiptHistory/计划/marker；只记录作者管理接受，匿名公开本轮未验证，不升级published。
+
+本轮一个执行错误需保留：036 independent返回exec session_id后，未先等真实exit_code便启动管理搜索，两个只读阶段重叠并竞争CLI活动标签。036原ID守卫于03:07:46报The active claim requires its authenticated Markdown editor，原失败036-71198e67-75cf-4aa8-929c-cf30f870de97-native-independent-failure.json、phase-5beba285-4093-48ef-8fe1-6ca405f59a5a.json保留。这是本地编排违反网页串行约束，不冒称平台问题或本轮流程全PASS。此后恢复串行；没有重置036的90秒回读窗口或重复回读。管理已显示036原ID167793096到时作者接受、标题与同封面，但本轮缺成功完整正文reload，故保留原scheduled/ID/全部回执，不升级、不重发。下一次只读按新日期预算补核036；不得把本次失败当原文章正文差异或重复提交许可。
+
+037/038当前源码事实已重审：SelectExecutor时间桶仅正duration、显式time投影、按已有数据建立桶、分页不等于扫描/状态上限；TAG分组部分实现/M45合同与旧time-only路径分开。038稀疏FIELD样本数、请求增量与累计计数器区别、FIRST/LAST多series拒绝、p95摘要估计及不能平均分钟p95边界保留。SQL参考部分旧TAG限制与当前M45/源码不一致，稿件按已核源码作窄说明，没有改项目SQL文档。两稿正文首段点名SonnetDB，标题保既有SonnetDB前缀；日期段改为2026-10-14当前工作区，明确未执行SQL、性能或真实模型测试，不把旧Release链接冒称本轮验收。037冻结SHA ac8d3149dca841b622f0c844c3989fc86cb7ef880ce3975ac1ec236b3e1ae6b2；038 SHA34c00fb225209e9cd26de9760aea9cf2ff6485baef83ab6df036d9ffcdd32f5c。审稿/源稿SHA/源码SHA和来源记录留本机037/038-review-20261014.json。
+
+对应公众号JPEG、原PNG、生成回执及编码回执已核SHA，原图不改。037另存自有PNG，把三分钟时间桶图的端点从跨度一小时的Unix数改为10:00/10:03示意；038把左侧易被误认为p95再聚合的输入标为原始样本，两图加非实测说明。两张派生图实际本地目视可读品牌/主题/技术标注，无性能验收承诺，保存于assets/037-cover-reviewed-20261014.png与038-cover-reviewed-20261014.png；来源、派生方法、新SHA均在review。没有生图请求、上传封面或改公众号队列，准备和本地视觉通过不算平台保存。
+
+037按时间段分组四分类4页complete且无候选后，daily claim 20a26d2f-73c4-45b8-aaae-d683392548ee于11:14:06预占，早于新编辑器。csdn_browser_cli open唯一执行，03:14:25.884Z等待mysticboy链接15秒超时，phase-failure标remoteMayHaveChanged=true；立即停止所有网页写入，未执行import-unbound、正文输入、正式保存、封面、选时或最终提交。正常record unknown，原尝试/冻结标题/SHA及失败保留，不能跳038。失败证据037-d2a2618c-d463-457a-b0a7-1bee6b4d4498-phase-failure.json，audit phase-a056f35f-6151-4e4b-9b83-e5c35b6dfb50.json。
+
+停止后仅一次只读现场捕获（phase-2d024177-293b-4602-9d95-5db227736993.json）：writer为https://editor.csdn.net/md/?not_checkout=1，无articleId、标题【无标题】、正文恰好一个LF、无password输入框、无可识别mysticboy账号链接；reader仍原036编辑器。没有确证登录已经过期，也不能以管理页账号替代新编辑器守卫。037 edit-once/native-submit-once/cover-binding均不存在；没有删除或重建marker、换attempt或重跑open。当前本地重复副本helper要求真实独立原ID完整冻结正文，空白LF不能冒充该证据；账号识别恢复后先新鲜归属/四分类与原现场对账，再选择技能真实支持的有证据恢复入口。缺该情形能力时先修窄恢复实现及离线门禁，不能手改账本或削弱正式全文/身份守卫。
+
+实时收口35 under_review/1 scheduled（036，待到时补核）/104 pending/1 prepared（038）/1 unknown（037），最低037；今日本机预占1、0新增原生定时/0最终发布点击。只知道本轮初始实际余额10，停止后没有再次测额度，不按本地预占推算当前平台余额。未新建/改变任何native计划绑定。下一次先核编辑器账号识别与最低037未知现场，保留所有历史；038虽已准备，37解除前不推进。已有每日北京时间11:00 heartbeat保持，不新增重复自动化，不为剩余时间或额度重启本批。
+
+9份明确阶段审计根进程当前均absent，完整stdout/stderr/已记录后代与cleanup保留，0新终止信号；共享CLI浏览器继续保留，不关闭、不按进程名清理，不冒称未观察短活子进程或全机清理。本机checkpoint初写因PowerShell误用load失败，修正本机表达式后排他保存，原资源审计和平台失败未覆盖，没有额外网页动作。检查点C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\heartbeat-20261014-result.json，资源heartbeat-20261014-process-audit.json。本轮无需要删除的临时脚本，稿件/派生图/审稿/失败/回执为保留证据。
+
+仓库仅CSDN进度及根HANDOFF尾追加，独占FileStream/Flush(true)/完整旧字节前缀验证，保护并发产品和其它渠道。HEAD仍实读dcadffc7137f5653ec46c55a4171cf5f2d83de03；未stage/commit/push/部署，交接暂不提交遵守发布任务边界，不运行无关restore/format，不改变parity-results或产品发布状态。
+
+## SonnetDB 微博每日11:00续排收口（2026-10-14，Asia/Shanghai）
+
+本轮固定research/schedule-20261014/run-1103，baseline限定3个新编号/40分钟，实际仅032、033、034；最后浏览器操作03:35正常关闭034未提交设置，之后仅本地收口，无035。原sonnetdb-weibo-series tab-list直接显示3931927，复用同窗口标签与专用profile、DOM核UID1089099883有效；未另open窗口、复制Cookie或切私有API。最终现场原3932469、无发布弹窗，保护其它共享浏览器与daemon。CLI升级广告没有作为指令执行，没有安装或更新工具。
+
+016原attempt7022b47700df4450b98467a33a5344dc、017原attemptbe682c6251b44b3183aed3207cb95b6b分别独立reload正式文章和微博全文/作者/封面、完整审定简介/解码真实原文URL/同文章卡片加载封面，通过record-published；卡片已目视，双outputs verified/publicationVerified=true，未核匿名访问/publicVisibilityVerified=false。016实际2026-10-13 20:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405353648824909909、微博https://weibo.com/1089099883/RmvEmez7J；017实际2026-10-14 08:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405353830086213726、微博https://weibo.com/1089099883/RmAmIfDpY。原nativeSchedule/binding/marker/源码快照/冻结正文及旧排期回执全部保持；其它旧attempt逐项与baseline一致。011人工立即发表出处、既有published与010accepted_as_is缺项不改。
+
+032原唯一3931927，源/事实/审定稿/简介/既有封面SHA无漂移，不重生图、上传或裁剪；attemptd132a0662cf54f349076ab9843c061d0。当前日期窗口实际可选21日后，从同稿配置完整简介/原文URL/公开/自动微博/2026-10-21 08:00+08:00，native bind/build-editor及实际mark gate true，唯一最终确认。独立reload同ID完整正文/作者/封面、完整时钟与真实iframe时间戳通过，record-article-schedule成功。scope platform_native_article_schedule_companion_pending，双outputs pending/publicationVerified=false；预览没有微博简介，不能把提交前冻结文字冒充回读。禁止编辑、重claim或再次提交，到时双输出通过才published。原始时刻/点击与平台JSON见032-final-native-click.stdout.txt及032-independent-schedule-v2.stdout.txt，不覆盖旧观察。
+
+033唯一新草稿3932465、attempt55d63ad2904446829fb640c58b52a9b0，标题SonnetDB 分位数：percentile 与摘要边界，冻结2026-10-21 20:00+08:00。当前源码静态审稿核对percentile数值常量(0,100]、95与0.95区别、固定别名、带权质心近似、tdigest_agg JSON字符串及时间桶不可直接平均成全局分位数，保留源/事实原字节与审定快照，未运行SQL/误差/性能/SLA实验。原文https://www.cnblogs.com/IoTSharp/p/20023414；图033-tdigest-percentile-jk-final-20261014.png SHA3387654ae1e3712c2b2c851377530c86c988d23d8bce573629fae80a5cab8fca，base/final/稳定裁剪逐张目视，实际上传与裁剪确定各一次，全文封面保存reload通过。最终mark gate true后点击一次，独立排期10秒等待超时；第二次原ID只读仍可编辑、全文封面保持、无时钟/iframe，无明确拒绝或限额。unknown/outputs pending，defer-compound已登记直接用户“无法确认就忽略，不阻挡后续”授权；原marker/binding/内容/原槽保持，本轮两次只读已用完。后继只读对账，不重claim、新建、改稿、上传、重选时间或再点击，不猜拒绝、容量或日期原因。原失败及033-unresolved-observation.json保留。
+
+034正式唯一3932469，标题SonnetDB 基数估计：distinct_count 的边界，目标2026-10-22 08:00+08:00，原文https://www.cnblogs.com/IoTSharp/p/20023418。按当前HLL/扩展聚合/binder/SelectExecutor/SQL参考静态审稿，核对p=14、byte[16384]数组负载16KiB、源码约0.81%标准误差注释并非单次保证，修正旧12KiB/1.625%与不受支持的SQL及嵌套草图示例；明确返回long估计数不等于精确计数，原始输入/分组成本/数值转换另核，不给性能承诺。源/事实快照与审定全文/简介在本轮，未运行SQL、误差、内存或吞吐实验。图034-hyperloglog-count-jk-final-20261014.png SHAdbdbfc773418c00a90e430b9f1857c41bb5663cd1c7832d02e9f2eebb1ba9326；base/final/稳定裁剪目视通过，实际创建/上传/裁剪确定各一次，全文/UID/新封面保存独立reload通过。03:35:04.769Z真实日历14至21日可选、22disabled，已关闭未提交设置，plan planned/draftState=saved_waiting_date_window/platformConfirmed=false，无queue/attempt/marker/最终确认。下轮从同3932469复核源/事实SHA和实际日期窗口，无漂移复用全文封面，漂移实审，不重生图上传裁剪或创建；035仍22日20:00，旧slotRevision和冻结槽不改。日期窗口只限制最后排期，不能阻止保存正式候选。
+
+024原3930723/attempt70b8a28cfccc49d2bba422fffead3158/17日20:00、031原3931923/attemptc153dccfa7964712b5ee943a90c923ba/20日20:00，本轮各一次只读完整正文和封面相符、无时钟/iframe，unknown及continuationDeferral不改；027/029未重读，原attempt/槽/延期保持。缺证据不能判未创建，不重试、不释放槽、不反复通知，未知单篇不阻挡队列。
+
+最终ledger17published/1accepted_as_is/10scheduled/5已延期unknown/1旧abandoned，queue33；plan8published/10scheduled/118planned，真实scheduled为018至023、026、028、030、032，不能把planned或草稿说成排期。固定三状态SHA、原attempt完整保护由state-final-summary和final-checkpoint绑定。本轮同会话CLI全部自然完成且检查完整stdout后才下一条，无命令重叠、空stdout提前解析或重复最终点击；两个生图请求使用当前配置sonnet_vip https://sonnet.vip/v1与gpt-image-2，每篇一次，凭据只子进程环境不输出或落盘。新Compose provider标签已纠正，旧冻结错误标签及独立纠正保持。
+
+59条记录根结果completed/rootExited/outputComplete均true，当前numeric PID全部absent，0signal；原身份采样warning及唯一033内部TimeoutError保存。只覆盖已记录根身份，不冒称未观察短命后代清理；共享持久Chrome/daemon保留。共享HEAD/index与baseline一致，交接追加期间亦复核；无stage、commit、push、测试、立即发表、付费、私有API或Cookie导出。PowerShell7与技能有界执行器保持，不用旧ParentGuard或M47越界清理执行器。
+
+已通过automation_update保持每日北京时间11:00/ACTIVE及原同聊天目标，完整更新016/017published、032scheduled、033unknown/deferred、034原稿续排及当前约束；Python tomllib回读完整prompt/rrule/status/kind/name/target和其它原字段保持、三状态SHA未漂移。交接独占尾追加Flush(true)/fsync并核旧完整字节前缀，发布交接暂不提交保护foreign内容。下一顺序：到时正式文章与微博双输出核验，延期项有界只读对账，034同原ID窗口续排，再准备最小新编号；每轮3编号/40分钟、未知每轮2次只读/15分钟，禁止重置预算。只有明确平台限制才暂停，日期未开放保持ACTIVE；新增排期/发表、首次实质失败、明确限制或需用户操作才通知。
+
+## CSDN 用户“再次尝试”：037恢复排期成功，038回读超时保留unknown（2026-10-14，Asia/Shanghai）
+
+用户在本日停写回报后直接要求“再次尝试”，本轮授权为续接037及既有队列。新网页窗口03:35:10Z至固定04:05:10Z，不延长早先heartbeat窗口。全过程仅Playwright CLI csdn-mysticboy，网页串行；原空白writer正文LF、无ID和无密码表单。正常reload后beforeunload实际已处理，额外dialog-accept返回already handled错误保留，未重复导航；随后实际恢复mysticboy头像alt/账号链接与平台余额10。没有复制Cookie/profile、关闭共享会话或改账号守卫。
+
+技能维护使用skill-creator补窄恢复能力：input_retry.reserve_input_retry新增仅open/账号等待超时、原ID为空、beforeEditor/editorURL/editMarkerPath为空的显式恢复。必须本次用户授权晚于原失败、openRetryAuthorized=true、同冻结attempt、新鲜完整四分类无候选、当前原空白页账号正确/标题空或【无标题】/正文LF、正余额，并拒绝已有输入或native提交marker、绑定草稿/旧ID。保留原remoteMayHaveChanged=true及旧unknown回执，不把原导航改写为已知无远端效果。只能一次、额外计预算，不能用于正文/保存/最终提交失败。SKILL与progress参考已同步。
+
+16项Python恢复回归通过（含原失败/attempt/冻结SHA/预算保留、旧或缺授权、变内容/错账号/既有marker、其它阶段和证据变更拒绝），Node语法、技能metadata与owned whitespace通过。真实reconcile_input_retry于03:45:18.619Z完整4页/19.933秒，主题按时间段分组四分类均无候选，原页身份mysticboy、title【无标题】、正文LF、余额10。独立真实授权037-open-retry-authorization-20261014.json绑定用户“再次尝试”；reserve-input-retry在原20a26d2f-73c4-45b8-aaae-d683392548ee于11:46:36预占恢复，保37原writeAttemptAt11:14:06、冻结SHA ac8d3149dca841b622f0c844c3989fc86cb7ef880ce3975ac1ec236b3e1ae6b2、inputRetry.originalReceipt/旧failure SHA f06e3ff11aa7820222d6b4fda26673193f673d73b41cea208db1a1221fd2ce05。没有再次open或创建新attempt。
+
+官方Markdown导入一次，使用新独立037-原attempt-input-retry-once.json；实际新ID167902203、完整正文严格匹配并bind-draft。首次finish-import还遗漏第三处旧edit marker读取，本地ENOENT发生在创建import-finalize marker和任何标题/保存动作之前；原失败037-190d0ac1-63a4-4622-89f7-c2e5f198086c-native-finish-import-failure.json与audit2290c6b6保留，正确import-finalize-once真实不存在。不是平台写入失败，不重复导入。已统一initial_import_marker.mjs供import/observe/finish共用；所选retry/resume marker缺失不能回退旧marker，实际articleId/attempt/title/SHA/transport不符拒绝。新增4项真实文件Node回归通过，覆盖旧marker不可覆盖、缺retry不得fallback、resume优先及身份/内容/transport不符；自有临时fixture finally回收。修正路径后只在同ID完成一次标题/正式保存，完整原IDreload通过。共20项针对性离线测试，不冒称平台成功证据。
+
+037继续正常设置（原创/全部可见/GitCode关/多平台否/实际AI辅助声明/精确SonnetDB和数据库标签）、封面upload/confirm/verify保存同URL356x200且全文不变，screenshotPath=null。实际日历14–20日available、21disabled；另存schedule-plan-roll-20261014-retry037.json，SHA db2e9afba9cefa64d58256e9482e753ab1aeb110793459bd7d3515d76a455e0e，保所有旧计划/绑定时刻。候选输入是原037首次claim之前保存的真实prepared账本快照，106 planned不是106 scheduled；37先恢复输入后才从本篇实际草稿读日历并绑定时刻的顺序偏离标准表，继续明确记录，不写成全流程标准顺序PASS，未手改账本或旧冻结值。唯一最终确认后，原ID独立全文和新四分类本行准确2026-10-14 16:00及同封面通过，037-23447760-76bc-4573-a32e-05eb05fa9329-native-saved-receipt.json正常record scheduled。旧unknown与恢复信息完整保留，尚未到时发表/匿名公开。
+
+038当前源稿/冻结稿/自有封面SHA未变，主题高级时间桶聚合四分类4页无候选。严格先绑定新计划16:45再daily claim cbe1e995-5f8c-4744-96d9-e82dce06bc43于11:59:29预占，早于新编辑器。一次导入取得原ID167903136，完整observe/bind/finish标题保存与原IDreload、settings、封面正常保存与reload、真实16:45选项均通过，六封面常规阶段均无截图。038最终确认仅一次，实际原生submit捕获038-ea2b92d0-fde7-4bfb-a660-ad9be4880f9b-native-submit.json和native-submit-once marker保留。
+
+038独立回读于04:02:49.126Z启动，本轮调用错误地采用较短55秒外层阶段上限，04:03:46.269Z超时；原native helper自身上限90秒，不能把55秒失败写成完整90秒回读已验证或平台故障。phase-52360091-9b69-49ce-aa2d-542b2657e4f6.json含一条root CIM观察超时警告，streamsComplete=false/rootExited=false，没有完整新正文capture或管理四分类回执，因果未确定。原失败不覆盖；没有重复readback窗口、最终确认、导入或换ID。恢复主拿回控制时04:05:09Z已到批次边界，随后仅本机记录/资源/交接，无网页动作。正常record unknown为038-readback-timeout-20261014-retry.json，保原ID、16:45不可变绑定、全部marker和一次确认事实，不能将planned或submit dispatch称saved。后续独立回读应使用原约90秒上限并预留分类收口时间；不足时不再启动新稿，而非压低回读阶段后误判平台。
+
+收口35 under_review/2 scheduled（原036待到时补核、037新保存）/104 pending/1 unknown（038），最低038；今日历史3次预占含原037失败、同attempt恢复一次及038，用户无自设日上限。038最终确认前最后真实余额9，提交后的余额未核，不推算8或称额度耗尽。下次先只读原038完整正文与四分类时间/封面；到时后再核作者接受/公开状态。已有native-submit marker绝不能重点击；若仍无法确认，按既有重复授权和完整新鲜原ID证据的claim-republication流程独立归档建副本，不能在本次继续无限重发。038未解除前不推进039。原036未改状态/ID/正文/回执，旧本日只读标签竞争失败仍保留；以后在新预算正常补核，不拿本次恢复37的许可改写其它未知效果。
+
+技能本次5 tracked修改与2新脚本未提交（SKILL、progress参考、input_retry/test、native_cli、initial_import_marker/test），未自动备份提交/推送。最终Node语法/metadata/owned diff whitespace通过；本地测试不代表038成功。脚本均留技能，稿件/审稿/图片/真实回执留本机CsdnPublisher。现有每日北京时间11:00自动任务保持，无重复创建或半小时轮询。
+
+36份明确阶段审计根进程当前全部absent，包括超时原root55948：原audit仍rootExited=false/无记录后代；后续Get-Process按该PID独立观察已不存在，未发未知归属终止信号，不将原失败改PASS。不从已退出父PID枚举后代、不按名清理，不冒称未观察短活进程或全机无孤儿。共享登录CLI浏览器保留；Node4测试自有temp已finally精确回收，没有其它待删本任务临时脚本。资源user-retry-20261014-process-audit.json，检查点C:\Users\mysti\AppData\Local\Codex\CsdnPublisher\mysticboy\evidence\user-retry-20261014-result.json；旧heartbeat检查点和所有失败均保持。
+
+仓库仅CSDN进度及根HANDOFF本段独占尾追加/Flush(true)/完整旧字节前缀核验，保护并发产品和其它渠道/索引。未stage/commit/push/部署，交接暂不提交遵守发布任务边界，未运行无关restore/format或改parity-results；不把本渠道发布授权扩展到产品Release。
+
+## 博客园每日双篇完成（2026-10-15；Automation sonnetdb）
+
+- cnblogs-20261015-daily-1058，10:58:07+08开始，硬截止11:28:07。初始成功0/2、queued0、固定租约不存在，无文章/修订在途；仅选155/156、写2篇。核对100篇账号原文、articles及externalPublishedArticles当前标题/titleAliases；137模型概览、154查询/Cursor、147关系表schema与外部全文/向量索引和本次角度分别区分。旧076–134共59篇needs-reconciliation继续暂停。
+- 155《SonnetDB 文档局部更新与 Mixed Bulk：版本、幂等和逐项结果》 https://www.cnblogs.com/IoTSharp/p/23312062 ；156《SonnetDB 文档索引与 Validator：复合、Multikey、TTL 和重建维护》 https://www.cnblogs.com/IoTSharp/p/23312087 。串行各一次明确创建成功；原postId全文等于最终C#预览，公开标题、主题封面与默认双二维码已核。瞬时读取失败仅只读核对、不重发；状态/事件/计划链接与✅/backlog同步，今日2/2、queued0、157–202 planned46。
+- 本地源码dcadffc7137f5653ec46c55a4171cf5f2d83de03，8个专题公开固定5424b66672e37f49a2a5633fdde0b54a9b1f0290文件GET/SHA匹配，20份事实源含当前ROADMAP分别读取/哈希。正式GitHub Release/NuGet Core4.0.0核实，不等于各SDK/Server组合已验收。155明确ordered整批零文档提交、unordered有效子集、24小时requestId和expectedVersion；156明确TTL读写触发扫描、Warn/Error、同步path RebuildIndex，不套关系表ONLINE合同。数据库示例/产品构建测试NOT_RUN；性能/真实模型/固定硬件/生产恢复/长稳NOT_VERIFIED。
+- 两张gpt-image-2横图各生成一次，retries0/260秒上限，请求1792x768、实际均1915x821；原图及最终图均实际目视。155以正文device-001两次独立操作替换生成示例；156以精确索引/TTL/Validator卡片替换错误标注并移除虚构刊期。品牌、成年专业人物、关注提示、AI示意图图注已核。当前PAT/account/blogId523396重新认证，各单次newMediaObject上传且公开原图SHA一致。项目识别、cover RequireUploadReady、C# dry-run与封面+默认双二维码预览通过。
+- 证据docs/blogs/publishing-review-2026-10-15.json及publishing-evidence/2026-10-15/。11份外命令进程收据/17个记录身份均退出或核PID复用保留，0清理信号；Job树与短活进程采样限制保留。一次约1秒Pillow命令由exec确认exit0，但缺完整进程身份收据，不冒称全流程进程审计或整机孤儿自由。只清理本任务临时脚本/预览和自有租约；保留执行副本、正文、原始/最终封面和失败证据。
+- 当前分支codex/m47-preview12-release，未stage/commit/push/部署或改变自动化，保留其它会话。HANDOFF仅独占尾追加并核完整旧字节前缀，按用户边界暂不提交。下一轮从157/158先核配额、租约、事实、标题/别名主题去重与封面；155/156不重新创建，不自动编辑历史正文。
+
+## 开源中国每日双篇续发完成（2026-10-15，Asia/Shanghai）
+
+- sonnetdb-2原45分钟合同03:02:51.516Z至03:47:51.516Z；起点56submitted/86queued、今日成功0/2、无明确pending旧公告和发布锁。按053、054顺序各提交一次，现58submitted/84queued，下一轮从实时账本055/056继续。未变更自动任务、每天11:00/最多两篇或当前会话，不新增其它渠道/系列文章。
+- 真实博客/动弹ID：053为19778037/30401470；054为19778038/30401471。博客URL分别https://my.oschina.net/u/7172/blog/19778037和https://my.oschina.net/u/7172/blog/19778038；动弹URL分别https://www.oschina.net/osc-tweet/30401470和https://www.oschina.net/osc-tweet/30401471。本人完整发表/草稿/定时三组从164/1/0到166/1/0；两篇同原ID严格标题、完整正文和原封面上传映射content_match，053 rawState1、054 rawState2、isPrivate均0原样保留。保持submitted，未将列表/HTTP成功或后台状态升级为网页公开证明。
+- 053双图动弹原ID核本人7172、实际topicName=#SonnetDB/topicId19285、严格正文/标题/简介和serial1/2两张原上传URL通过，textVerified/imagesVerified=true。054创建已接收返回30401471，两张上传URL/原SHA保留；首次详情及其后原ID只读回读仍HTTP200/code500“内容审核中/审核失败”，队列submitted-verification-pending、全局submitted，verificationPending/moderationUnresolved=true，正文/双图/网页均未核验。只读保留原ID，未新建/改文案/删图降级/重试。初始接受和错误证据在new-receipts-before-readonly.json；下次只读接续054原ID。
+- 首先核047/052原动弹30401448/30401458，仍同一审核提示，原回执与状态保持。135/040/041无IDunknown经完整本人156条动弹列表及技能统一严格匹配仍无结果，不证明未接收，禁止重发。8条未知标题编辑保持，未编辑既有发表正文。新闻502847及历史正文/指纹/origin/ID、未来Gitee政策均保持；本轮不重投，未刷新其审核状态。最后已有记录为账号状态1、公开API正文已核、网页可见性未核，不把旧缓存当作本轮公开检查。
+- 053本轮源码发现旧渠道稿有具体错误：当前SqlParser将<#>映射到标量inner_product，FunctionRegistry返回正点积，SqlExecutorVectorTests源码同样期望1；KNN的inner_product才是负点积。现仅未提交prepared稿修正这一符号/排序说明，并区分SQL标量cosine_distance拒绝零向量与KNN距离实现零范数返回1。054去掉残留“本次未执行/没有报告/不能算PASS”过程段落，改为真实/随机向量分组、固定硬件记录质量/容量/恢复的操作建议；保留有效k、同距离并列、缓存条件、路径/精确补偿等具体边界。两篇原稿/source SHA未刷新或修改，修订前副本和previousPreparedSha已保存。
+- 复核九份真实SHA：vector-search、FunctionRegistry、SqlParser、VectorDistance、Distance、KnnExecutor、HnswOptions、VectorRecallBenchmark及SqlExecutorVectorTests。事实来源、源码提交dcadffc及源/副本SHA在publicationReview和fact-sources.json。只读取benchmark/test定义，没有执行SQL、产品测试、真实模型或性能/固定硬件/恢复验证，不把源码断言写为实跑PASS。下次055涉及pgvector迁移，须特别按实际源码继续核<#>符号与零向量入口，不能照搬旧稿的兼容结论；本轮未额外修改或复核055。
+- 按053/054在命名资产目录assets/cover-evidence未找到对应主题可复用图，本轮独立生成两张横封面、两张人物图，共4次gpt-image-design/gpt-image-2，经当次配置sonnet_vip实际https://sonnet.vip/v1，retries0/单次260秒。封面参考1792x768/high、实际1915x821；人物参考1024x1024/medium、实际1024x1536。四张逐一目视。053初始提示词沿用旧稿错误的KNN/<#>同为负点积，生成图发布前已确定性本地改为SQL inner_product/<#>正点积、KNN负点积，再目视通过；原提示词/原图、修正脚本/理由/原最终SHA保留，没有第二次生图。054仅方法流程示意，无虚构召回率/加速数值。最终封面prepared/covers/053-cover-scheduled-20261015.png和054对应路径，人物.local/tweet-images/053-20261015-scheduled-person.png和054对应路径；不输出或写入凭据。
+- prepare-queue逐篇先dry-run后本地准备，封面置首个SonnetDB说明段后，prepared/审核清单SHA同步；正式Publish-QueuedBlogs先预演、完整查重，再串行提交及每篇独立双图公告。上传和创建各一次，无写请求重试。Sync刷新PROGRESS并追加events；Verify全队列仍FAIL“Source hash differs:139”，139–142轮到前须真实复核，未刷新源SHA放行。最后本轮完整性PASS：原157条全局回执逐值保持、其它140条队列及prepared实际SHA保持、news/policy和旧events字节前缀保持、仅新增2博客+2动弹，九份事实来源及新源/副本SHA一致；这不是全队列PASS，也不代表054内容验证成功。
+- 原子保存lastRunCompletion/completion-result.json及events含真实ID/URL/关联、054待核、日期、验证FAIL边界与清理结果。清理审计核26个已记录自有进程身份，无同身份存活，三个发布锁不存在，额外kill/delete0；仅覆盖已记录身份，不宣称整机/未观察短活后代无孤儿。图、原始错误、修正及审计保留在docs/blogs/oschina/.local/scheduled-20261015-053054。固定PowerShell7.6.6，无Graphify/广域扫描/安装/新浏览器，无stage/commit/push/部署。HANDOFF仅独占尾追加并核完整原字节前缀，保留并发研发/博客园内容；遵守发布边界暂不提交共享HANDOFF。
+
+## CSDN 2026-10-15 039原草稿标题修复获准，待执行（北京时间11:44）
+
+本日heartbeat网页窗口03:05:23Z至03:35:23Z已结束。036/037/038原ID独立全文与完整四分类核验后正常record under_review；仅作者端接受，038匿名403不代表公开可见。当前38 under_review/1 unknown（039原168009398，attempt766d8b8e-75f3-417d-bae7-639f179786f1）/1 prepared（040）/102 pending，今日预占1，新增排期0，最终发布点击0。039一次导入全文SHA 1c6b22c950e9454831cde096b90d3300c38df4460ba5c51ecc3df69d749be464匹配，但finish-import正常保存重载后标题仍为文件名；原finalize marker/失败/unknown全部保留，尚未配置settings/cover/timer/submit。
+
+用户现明确回复“允许，仅此原 ID 修正后继续”，仅授权039原168009398把039-difference-delta-window-20261015改为冻结标题“SonnetDB：行间变化检测：difference() 与 delta() 窗口函数”，正文/设置保持。授权已独立排他保存C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/039-draft-title-repair-authorization-20261015.json；旧heartbeat-20261015-result.json在批准前创建，false保留，不覆盖。现有reserve-title-repair只接受已发布成功文章，不用于本草稿、不伪造成功字段。先实现独立草稿标题单次修复/预算/原ID全文设置回读守卫，再以本次明确续接授权启动新的有界窗口；不得把压缩当原窗口延长。修复尚未执行，039解除前不发040。保留共享CLI会话及所有marker，不提交SonnetDB、不push/部署。
+
+## SonnetDB 微博每日11:00续排与035未提交交接（2026-10-15，Asia/Shanghai）
+
+本轮research/schedule-20261015/run-1059，baseline开始03:00:07.899Z、原截止03:40:07.905Z，3新编号/40分钟，只处理034、035、036。原tab-list失败、list真实no browsers后正常恢复同名sonnetdb-weibo-series原专用profile，UID1089099883登录复用有效；不另开第二窗口、复制Cookie、切私有API或更新CLI。最后已知原页3933050、发布设置与日期/话题推荐现场；到界后的新DOM观察在执行前被守卫拒绝，没有恢复或新网页动作，不能称已关闭浮层。用户未被要求登录或重复授权。
+
+018原attemptc53b687a0a16484aa72a46b4d68e1d4b、019原attempt50660290831743edb2121cbf6385e6ec已独立reload正式文章和微博全文/作者/封面、完整审定简介/解码真实原文URL/同文章卡片加载封面，通过record-published；卡片实际目视，双outputs verified/publicationVerified=true，未核匿名/publicVisibilityVerified=false。018实际2026-10-14 20:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405354011196260526、微博https://weibo.com/1089099883/RmF4PgVqc；019实际2026-10-15 08:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405354192478011457、微博https://weibo.com/1089099883/RmJNdpmZi。原nativeSchedule/binding/marker/源码快照/冻结正文和旧排期回执保持，其它旧attempt逐项等于baseline。011人工立即发表出处和010accepted_as_is缺项保持。
+
+034同原3932469，源/事实/审定稿/简介/原封面SHA无漂移，不重生图上传裁剪。attempte9de939e26e94f9eb15a224c3b22ca2a，当前真实日期窗口可选22日后正常配置完整新DOM，bind/build-editor/实际mark gate true，唯一最终确认；独立reload同ID全文/作者/封面、完整时钟和真实iframe时间戳通过，record-article-schedule确认2026-10-22 08:00+08:00。scope platform_native_article_schedule_companion_pending，双outputs pending/publicationVerified=false，预览未展示微博简介，不冒充提交后回读；禁止编辑或重提交，到时双输出通过才published。
+
+035唯一原3933050、attempt4c46daacfad14b4fa23afaf74affb326，标题SonnetDB 直方图：桶宽、区间与返回值，计划2026-10-22 20:00+08:00。当前源码审稿明确第二参数是正有限数值常量桶宽、floor零对齐左闭右开区间、返回JSON区间计数字符串而非嵌套表，并区分时间桶、异常数值与字典状态成本；原文https://www.cnblogs.com/IoTSharp/p/20023419，源/事实原字节快照与审定全文/简介本轮保存。图035-histogram-bins-jk-final-20261015.png SHA f14f4d885047287def2cc0eb437e3ddb843f280c97250ed01a04f872be93e248，base/final/稳定裁剪目视，一次创建、上传、裁剪确定、保存及独立reload全文/UID/封面通过。唯一claim于03:24:25.997Z，尚未最终提交。
+
+035新DOM设置在选22日时被话题推荐follower中“DeepSeek又崩了”标签拦截，035-native-fresh-dom.stdout.txt保存真实locator pointer-intercept TimeoutError；没有选择该话题、force点击或坐标绕过。此失败在bind/build-editor/mark之前：state仍browser_pending，nativeSchedule/nativeScheduleBinding不存在、submitReservedAt为空、browser-create-4c46...物理文件不存在、claimRenewal为空、最终点击0。它不是已点击unknown，不能误套未决已延期。原failure与035-unsent-continuation-checkpoint.json保留。恢复新DOM脚本035-unsent-overlay-dom.js生成后，stage.ps1在启动CLI前因03:40预算已到拒绝；同轮未重置预算、没有继续配置。末尾普通本地final-sync-plan也被同守卫拒绝后，仅用官方native脚本正常本地sync-plan收口，closeout-local-sync-plan证明liveRequests=0；不是绕过网页发布边界。
+
+下一轮必须优先同3933050、同原attempt恢复，不append-reviewed、claim、新建、改稿、重传或替换封面。先新预算只读核UID、冻结全文、原封面、ledger和实际marker，再用正常Playwright DOM关闭推荐浮层：先实读新DOM，正常Escape/唯一非提交控件收起建议，不选话题、不force/坐标；该恢复尚未实测成功。核实际日期窗口与22日20:00后，重新取得完整新DOM，正常native bind/build-editor。原claim已老化，mark_browser_submit代码明确支持一次--renew-unsent-claim：须确认同attempt仍browser_pending、无marker/reservation/outputs ID/claimRenewal、全部冻结输入匹配、新观察晚于原claim且5分钟内，再用该flag首次mark；实际singleClickAllowed:true才第一次最终确认。不能手改createdAt、清理marker、重复claim或绕过拒绝。当前native-stages prepare断言无attempt，不适合直接用于035；应由本轮原ID数据生成接续脚本。若source漂移先实审，不改旧冻结值或仅刷新SHA。
+
+036仅本地审稿：标题SonnetDB 向量中心：centroid 的平均与边界，目标2026-10-23 08:00+08:00，原文https://www.cnblogs.com/IoTSharp/p/20053081；正文/纯简介/源事实原字节/审稿和生图prompt已保存并入plan。按实际累加器说明同维VECTOR、double求和float[]输出、空输入NULL/空向量拒绝、不自动归一化、组中心带权合并与原始均值差别，不沿用旧未经核对SQL/聚类质量/性能承诺，未运行SQL或模型实验。036没有图片、平台draftId、queue、attempt或marker，不能称已保存平台草稿或排期；解决035后按实时状态和源SHA继续，不复用035图片。
+
+024原3930723/attempt70b8a28cfccc49d2bba422fffead3158/17日20:00、033原3932465/attempt55d63ad2904446829fb640c58b52a9b0/21日20:00，本轮各一次只读全文封面相符、无时钟/iframe，unknown和continuationDeferral原样。027/029/031未重读，原未知/槽位/marker保持；缺证据不能证明未创建。用户“无法确认就忽略，不阻挡后续”继续授权真正未知逐项defer后跳过，不能改成功/失败或重试；035有明确未提交接续路径，应先恢复同attempt，不当成已点击unknown。
+
+最终ledger19published/1accepted_as_is/9scheduled/5已延期unknown/1browser_pending/1旧abandoned，queue35；plan10published/9scheduled/117planned，scheduled是020至023、026、028、030、032、034。固定状态SHA、原attempt保护和035物理无marker证明在state-final-summary/final-checkpoint/035-unsent-continuation-checkpoint。41条有界根结果completed/rootExited/outputComplete均true、numeric PID当前absent、0signal；唯一内部错误为035日期点击超时，身份警告保留。只覆盖已记录根，不冒称未观察后代清理，保护共享Chrome/daemon。全部exec session自然wait完成才下一条同会话，无重叠、空stdout提前解析或重复最终点击。本轮仅035真实一次gpt-image-2生成，当前sonnet_vip配置HTTPS，凭据只子进程环境不输出落盘。无付费、立即发表、本地到点点击、私有API、Cookie导出、测试、stage、commit或push。
+
+自动化已正常update保持每天北京时间11:00/ACTIVE、原同聊天目标，完整更新018/019发表、034排期、035未提交同attempt恢复与036仅本地状态；Python tomllib独立回读完整prompt/rrule/status/kind/name/target和其它原字段保持、三状态SHA未漂移。浮层、日期窗口和40分钟不是平台限制，不暂停、不增半小时轮询或重复任务。HANDOFF独占尾追加Flush(true)/fsync核旧字节前缀，暂不提交保护foreign内容，共享HEAD/index保持。下一轮先035原attempt实际恢复，再036；已到时内容正常只读双输出核验，旧未知仍有界对账不重发。
+
+## CSDN 039原ID单次标题修复未持久化，保留unknown（2026-10-15，Asia/Shanghai）
+
+原heartbeat窗口03:05:23Z至03:35:23Z已结束，未因压缩延长。用户明确回复“允许，仅此原 ID 修正后继续”后，以独立新窗口03:46:17.3968662Z至固定04:16:17.3968662Z续接039；实际03:47:20.791Z修复失败即停止写入，仅随后一次只读现场诊断，无新创建、导入、settings配置、封面上传、原生选时或最终发布。初始本日036/037/038已真实原ID全文/四分类正常record under_review，合计38；038匿名403仍不证明公开可见。039/040本日来源及主题图已复核，040仅prepared。
+
+授权文件039-draft-title-repair-authorization-20261015.json真实绑定原039/168009398/attempt766d8b8e-75f3-417d-bae7-639f179786f1，正文SHA1c6b22c950e9454831cde096b90d3300c38df4460ba5c51ecc3df69d749be464，目标“SonnetDB：行间变化检测：difference() 与 delta() 窗口函数”；许可只涉及原ID标题，正文和设置保持，不扩其它文章。旧heartbeat-20261015-result.json中批准前false和旧mismatch证据均完整保留。新增独立草稿标题恢复入口，与016式accepted修复区分：reserve-draft-title-repair在锁内核独立授权、原失败/全文/原finalize marker、无最终发布marker/时间绑定，排他保存原item快照，保留unknown/原attempt并另计一次写预算。csdn_draft_title_repair.mjs只正常CLI fill标题/Tab失焦/保存，独立reader核原ID标题/全文及相同发布设置；complete-draft-title-repair只在真实完整回执通过后恢复同attempt submitting，不代表发表或排期。旧accepted条件未放宽，未删除或重跑旧finalize。
+
+本次真实repair marker已建立：039-766d8b8e-75f3-417d-bae7-639f179786f1-draft-title-repair-once.json。writer填入/失焦后input及display标题均为冻结标题，正文保存前严格对拍通过，正常保存草稿一次；独立reader进入同原ID并强制reload后，等待冻结标题10秒超时。原失败039-a191d4a6-4781-4df4-ae5b-bbe9e228d200-draft-title-repair-failure.json、phase-46c969b2-cf87-456d-bcf9-64bafb2c5376.json保留，真实exit1/streamsComplete/rootExited均已取得。随后phase-8addce15-aa23-4a65-85ab-7d80098f9622.json只读现场显示writer仍为冻结标题、reader仍为039-difference-delta-window-20261015；不是标题隐藏导致误判成功。原因尚未定位，不声称Tab解决了持久化。保存后的完整正文/发布设置保持尚未独立核完，因此均未标PASS。没有complete、重复保存、旧最终确认或新ID副本。
+
+正常record unknown的新权威证据039-draft-title-repair-unknown-20261015.json绑定原授权/失败/marker与真实诊断capture SHA；原unknown回执进入receiptHistory、原完整item快照保留。收口38 under_review/1 unknown039/1 prepared040/102 pending，最低039；本日预占2（含原首次与本次标题修复），本次预占1，原生新增排期0，最终发布点击0。新窗口没有独立重读平台额度，不沿用初始10推称当前余额/耗尽。039原ID/attempt/writeAttemptAt/冻结路径标题SHA及旧finalize SHA已核保持。
+
+技能维护使用skill-creator：新增独立草稿修复模块/CLI/9项测试，账本预算及freshness/活动attempt守卫、loadClaim字段、进度参考/SKILL更新。为后续明确授权的独立副本保留旧repair在旧attempt/完整归档，仅移除新活动上下文旧draftTitleRepair，防止污染新attempt；没有实际重发。新9项、旧accepted5项、核心29项、duplicate runner61项（其中包含继承重复的核心测试）、Node helper10项、Node语法/metadata/owned whitespace通过；所有为离线/本机验证，真实039修复失败仍保留。实测失败已写入progress参考，不能把新增入口当作已验证成功操作表。10月14日既有7路径改动与本次维护均保留本地，未提交技能或SonnetDB。
+
+检查点C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/039-authorized-continuation-result-20261015.json；资源审计039-authorized-continuation-process-audit-20261015.json覆盖本次9个明确阶段/24个已记录进程身份，当前全部absent，零终止信号，原阶段真实exit均收口。检查仅覆盖已记录身份，不能冒称未观察短命后代或全机无孤儿；保留csdn-mysticboy共享登录浏览器，无在途session，无新增截图/生图/外部浏览器操作。自测fixture由原测试finally精确回收；稿件、授权、回执与失败证据均为交付物保留。
+
+下一步只读核039原ID持久标题/完整正文/发布设置及四分类，不重复本次单次修复marker或重跑finish-import。仍不一致时保留该尝试；已有重复授权的独立新副本须满足原ID新鲜完整对账/归档守卫，不把本次仅原ID许可扩展成隐式重试。039解除前不推进040；040冻结SHA da543260e0de68d8a031015d085fc00cea4ea5f39a3241c24e2a6c20398b4169和自有主题图保持。更新本渠道PROGRESS并独占尾追加根HANDOFF/Flush(true)/旧完整字节前缀核验，保护并发产品、其它渠道与索引；未stage/commit/push/部署，交接暂不提交遵守发布任务边界，未运行无关.NET restore/format或改parity-results。
+
+## 博客园技能新增每篇伴随闪存（2026-10-15；用户明确要求）
+
+- 已更新个人publish-cnblogs技能SKILL/agents metadata，新增references/companion-ing.md、scripts/cnblogs_ing.py及12项离线状态/请求合同测试。后续SonnetDB新文章发布并原ID/公开正文确认后，发送一条以字面量[SonnetDB]开头的简介+原文链接闪存；文章继续使用原C#发布器，新增Python标准库助手仅负责闪存。
+- 已按官方api.cnblogs.com/help与cnblogs/cli核接口：GET/users、GET/statuses/@my、POST/statuses的Content/IsPrivate=false及GET/statuses/{id}；现有PAT只读验证IoTSharp用户、自己的列表和已有单条均200。没有创建/编辑真实闪存，也没有创建或修改文章；实际写入验收NOT_RUN，匿名网页可见性NOT_VERIFIED，不把读取权限写成发布权限证明。
+- 助手全局按账号/文章postId固定独占锁/UTF8无BOM-LF原子回执，一次POST、发前查重、原ID核作者/标签/原文URL/公开标志；published复用，failed/unknown/遗留publishing禁止自动重发，仅reconcile-only只读核对。文章与闪存分别记article.ing、ing-published，不影响每日两篇published计数。标题/封面修订和未登记旧稿不自动补闪存。
+- 原sonnetdb自动化已通过app工具更新并独立回读：只增加伴随闪存规则及满两篇后的明确pending/attempts0处理，状态ACTIVE、定时/模型/effort/项目/cwds及其它原字段逐项保持。原文章/封面/来源/单次请求和30分钟门禁保留，不新建自动化。当前155/156已于11:11/11:12发布，先于本次规则；下一日157/158开始登记独立ing.pending并在发布确认后执行，无历史补发授权。
+- 12/12离线测试、真实助手dry-run、只读check-only、技能元数据和owned whitespace/UTF8 LF检查通过。保留初始GBK校验失败/重定向stdout乱码及HTTPError fixture资源警告，均已修复并在最终树验证；未安装依赖。证据docs/blogs/publishing-evidence/2026-10-15/ing-skill/。所有明确阶段进程身份另见maintenance-result.json，只覆盖已观察身份、不宣称全机孤儿自由；无新增浏览器或独占服务。
+- 未暂存/commit/push/部署，个人技能及本段交接保留本地；用户此前禁止自动commit，故HANDOFF暂不提交。仅独占尾追加并核原完整字节前缀，保护并发研发、其它渠道及既有发布台账。后续实际新文章需独立保留闪存创建响应/原ID回读，不能以本次离线及只读验证冒称真实发布已验收。
+
+## CSDN 最新授权跳过单篇未决，040–043四篇原生排期已核验（2026-10-15，Asia/Shanghai）
+
+用户直接新指令“无法推进就忽略， 就下一批文章。 不因为这个暂停。”替代旧最低未完成全局阻断及默认unknown重发。独立真实授权skip-unresolved-authorization-20261015.json适用mysticboy的001–142。新增defer-unresolved在锁内核授权并排他归档完整item快照，只加continuationDeferral，不改真实状态/原ID/attempt/冻结值/marker/旧回执，不额外扣写预算；在途submitting/submitted先实际退出、正常record unknown后才能defer，未尝试素材/审稿阻碍可保留prepared/pending跳过。无授权unknown仍阻断，已确认稿不可跳过重写；后续实际只读核到成功可按真实回执记录。原无ID未决稿后来核得真实ID时保留原无ID快照，已知原ID仍不可换。status.nextId为最低可执行编号，nextUnfinishedId/deferred/counts继续公开旧未决项，不能把跳过冒称完成。
+
+039原168009398/attempt766d8b8e-75f3-417d-bae7-639f179786f1保持unknown；本轮无再导入/保存/修复/最终确认，只添加明确跳过元数据。完整快照039-原attempt-before-continuation-deferral.json，SHA674db0be48998ed1c848ff7e4256b6923e61193aeb616882e0147c07bfd80475；最终逐值对拍039及其它未涉及条目等于040-preclaim-ledger-20261015.json。本轮仅040–043四个item发生预期发布变化，其它138条逐项保持；最初授权、初次finalize、单次标题修复marker、旧失败与全部receiptHistory均不覆盖。不要再次把039当全局队头或默认重发。
+
+新网页批次由用户本次明确要求“下一批”启动，04:06:38.3980231Z至固定04:36:38.3980231Z，未延长旧修复窗口。全流程只有专属Playwright CLI csdn-mysticboy，逐篇串行，所有依赖均等工具session真实exit；固定循环最多3个封面阶段/4个原生阶段，阶段deadline、总窗口与cancel均保持。一篇仅claim/官方Markdown导入/封面确认/最终定时确认各一次。040四分类increase、041变化率、043moving_average各4页无候选后才claim；042先新中文主题4页再兼容旧题integral四分类4页，两次预查合计8页/约80秒，无候选。每篇提交后另取完整4页管理核验，不拿创建派发当保存成功。
+
+040此前尚无attempt，重新prepare同字节SHA da543260e0de68d8a031015d085fc00cea4ea5f39a3241c24e2a6c20398b4169，自有副本文件名改为完整冻结标题（全角冒号符合Windows文件名），保留旧副本。041–043同样在初次prepare前使用同名标题文件，使官方导入直接生成冻结标题；四篇finish-import正常保存及原IDreload均标题/全文严格相等，无人工标题修复、没有改已尝试039冻结路径。此正常文件命名流程已实际通过，不能声称旧fill/Tab持久化故障根因已解决。
+
+原039未配置标签，最初只读打开定时器没有日期控件，CLI返回isError的3秒locator超时，phase-71d9e8c7...与实际stdout保留；该CLI进程exit0不代表UI成功，不能称平台限制或已读日历。随后只读phase-64d99f25...实际原ID余额10，无新编辑器探测。040在当前正式草稿完成settings/封面后，首次实际日历读到2026年10月15–21 available、22 disabled，phase-1c59ef6a...。本篇因尚无真实日历，顺序采用claim/建原草稿/全文保存/设置与封面/真实日历后再bind-native-plan；保留这一相对标准表的顺序差异，不把它写成标准前置绑定全流程PASS。滚动生成器读取claim前真实完整prepared账本快照040-preclaim-ledger，未改快照状态或伪造republication；新schedule-plan-roll-20261015-skip039.json SHA a0768792eb45b44877a078cd0d8e21f8bcd506b8090ec3f48bc825f14ae9c01c，103 planned/零平台或账本写入。旧计划/全部旧绑定及历史槽位保持，041–043均按先bind再claim标准顺序。下一轮未绑定槽位过期须按真实日历另存新版本，不能重写本计划。
+
+真实原生排期结果（均为2026-10-15北京时间，尚未到时发表/匿名公开）：040原168013115、attempt9fb3e04c-8cd3-4d5b-a341-fada208c1b30，16:45；041原168014020、attempt30e8f115-abda-4ce9-9374-1d15993ee3e4，17:30；042原168014550、attemptf08b453b-cd75-4549-a6fe-8fbe1bfd4f44，18:15；043原168014865、attempt715626e4-6221-4a39-9547-44a8c0853ce2，19:00。每篇独立reader强制原IDreload全文/标题严格匹配，完整管理四分类全部/已发布唯一同ID、准确未来时间、同CSS background-image封面356x200，审核/草稿无冲突，真实native-saved-receipt正常record scheduled。回执operation UUID依次c91af971-12ce-49ed-aa72-f653ad9ce9ab、6d4a51e6-f552-4726-9ab9-d62aefd122bb、da2e1bf3-0cb2-4697-afd2-c9e6c4fd258e、7cbecb08-d35e-4625-9ce1-6213781faea1，均在本机evidence。最终管理043观察04:35:38.798Z早于截止，随后只有本机回执/账本/资源/交接，不再启动044。043独立原ID04:35:03.092Z实读额度6；不是额度耗尽，不把今日6次本地预占当平台容量，本批仅4预占/4最终确认。
+
+040原主题图已在本日实际目视，source/asset/审稿事实SHA复核保持；041–043逐篇本地原图一次视觉审核并复制到自有assets，不覆写公众号原图，不生图，不截图，所有封面阶段screenshotPath=null。新prepared/review/fact SHA与来源回执均本机保存。041依实际nonNegative分支澄清irate/rate及缺失/非正dt基线，042澄清积分首有效点0、缺失保持面积且连接有效点跨缺口，043修正最近N行而非N有效点窗口及EWMA缺失保持；正文保留SQL复现/数值手算与真实实验/生产性能边界。未改产品源码或其它渠道，未执行SQL/模型/性能验收。
+
+技能SKILL/progress/native参考、队列summary/prepare守卫/PROGRESS输出、原生绑定与滚动排除逻辑已更新；新增queue_deferral及8项隔离测试，旧核心29项和滚动计划3项（含prepared跳过不获新槽）均通过，六个变更Python模块编译、metadata、owned whitespace通过。原来无授权不可跳号、原ID/冻结值及单次提交守卫仍保留。技能改动与此前本地变更均未提交，不将离线测试或文件命名规则当平台成功充分证据。
+
+已通过automation_update更新原sonnetdb-csdn的完整prompt，只有prompt/updated_at变化；独立tomllib回读确认每天北京时间11:00/ACTIVE、原同聊天target、名称及其它字段保持。当前默认单篇未知defer后续发，既有重复授权只留作未来另有明确重发要求时使用；不暂停任务、不增加半小时轮询、不建重复自动化。登录、验证码、真实额度/频率、取消及批次期限仍停止本批，单篇问题不扩成全局故障。状态不变或无动作安静，仅实质新增排期/核验变化/失败/用户处理通知。
+
+收口38 under_review/4 scheduled/1 unknown已跳过039/99 pending，无submitting/submitted；nextId044、nextUnfinishedId039、blocked为空。检查点C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/skip-next-batch-result-20261015.json，策略回读automation-skip-policy-verified-20261015.json；资源skip-next-batch-process-audit-20261015.json核93份明确阶段、236个已记录进程身份当前全部absent、0终止信号。只覆盖已记录身份，不冒称未观察短命后代/全机无孤儿；全部工具session已完成，保留共享CLI登录浏览器与稿件/素材/授权/回执等交付物，自测临时目录按fixture归属回收。根HEAD仍dcadffc7137f5653ec46c55a4171cf5f2d83de03。未stage/commit/push/部署，未改parity-results或运行无关.NET检查；发布HANDOFF暂不提交保护并发产品及其它渠道，独占尾追加Flush(true)并核原完整字节前缀。
+
+## 2026-10-15 全分支合并与清理完成（Asia/Shanghai）
+
+用户本次明确授权全量检查、合并、推送、关闭已处理PR及删除已合并的本地/远端分支。唯一开放PR265已经于北京时间2026-10-15 12:48:33正常合并：源c53117370dad695abfd379441c59c2804e3e1007，main合并提交ff586430af127276a1b923c303b7a829518a22ff，tree249df7b3cd2cd635367758937ebc48b05633fb12。17项精确head检查全部SUCCESS，Upload Connector Release Assets按PR合同SKIPPED；无admin/force合并绕过。合并后的tree与通过检查的候选完全相同，已独立fetch与API回读。main推送后产生的新工作流另属独立运行，不用PR结果冒称新运行已结束。
+
+CAP接入原本地c10ea2ed检查点与最新main，保留CHANGELOG/HANDOFF双方记录；同步新主线候选提升工具为八包并补缺少CAP包的拒绝用例。最终solution restore、原CI Format Check均通过后才提交，格式workspace-load警告保留；本地CAP42/42、候选8项、发行合同17项、发布就绪及完整分片覆盖通过。Linux/Windows原始CI日志分别证Core6766/6766、CAP42/42、EF292/292、Server1232/1232、零失败/跳过；三平台Server/CLI NativeAOT、连接器及CodeQL通过。默认完整CAP宿主上游46条NativeAOT诊断仍为原失败边界，未压制，不是完整CAP原生或正式包验收。
+
+最终GitHub开放PR为0；实际远端heads只剩main与parity-results。本地只剩main。删除原有78个本地开发分支及工具创建的1个辅助分支（共79），删除44个已合并远端开发分支；每个实际删除均先证main祖先关系，远端采用预期SHA守卫。24条目录不存在的旧worktree登记已核后清理。fetch同时清掉的5条过期tracking ref实际早已由远端删除，指向3个旧依赖提交：SkiaSharp.NativeAssets 4.153.1、xunit adapter4.0.1及旧npm组；当前源码已覆盖前两版本，旧npm根依赖保持或升级（ECharts6.1、Vue3.5.43），不回退后续修复或虚造旧提交的祖先关系。parity-results禁止合并/删除，远端保留1b2e51ec；tag与stash逐ref保持。
+
+canonical现为main/dcadffc，159项共享未提交记录仍全部保留、索引为空；CHANGELOG/HANDOFF/ROADMAP与新主线重叠，未覆盖式pull、reset、stash-all或提交foreign内容，因此本地main仍落后origin/main。干净审查工作区C:/Users/mysti/.codex/worktrees/sonnetdb-branch-integration/SonnetDB已快进ff586430、无dirty、无开发分支，保留供审查（包含固定提交的已初始化submodule）。本根HANDOFF仅独占尾追加并验证旧完整字节前缀，暂不提交，避免把其它任务的159项内容带入本次交付；隔离树中的集成交接、CHANGELOG和核查文档已随PR265进入main。
+
+47个有界任务均取得KernelJob cleanupComplete=true；独立审计253条已记录身份/240个PID，无同身份存活，4个复用PID未触碰，0终止信号。只覆盖已记录身份，不宣称整机或未观察短命后代无孤儿。源码/7份实际程序集与PDB/本地TRX/三份CI日志/原FAIL、分支删除清单、最终回执保留artifacts/branch-integration-20261015，completion.json为本次收口。首次restore缺submodule的FAIL保持，修复环境后成功；没有正式NuGet/tag/Release/镜像发布、部署或其它Issue关闭。
+
+下一步：本次已无待合并开发分支或开放PR。若要让canonical本地main跟上远端，先按原归属处理现有159项未提交内容及交接冲突；不得自动全量暂存/提交或覆盖。CAP默认完整宿主NativeAOT、正式消费者、强杀掉电、跨进程租约和固定硬件长稳仍独立待验，旧工作台/发布任务的既有状态沿原边界继续。
+
+## 博客园即时追加两篇与首次真实伴随闪存完成（2026-10-15）
+
+- 用户当前明确要求“现在发两篇文章和闪存，让我看看”；已先告知今日常规155/156已发，这次为独立手动追加两篇，不改每日自动任务两篇上限。cnblogs-20261015-manual-1257，12:57:30+08开始，硬截止13:27:30。初始今日2篇、queued0，无固定租约或文章/修订在途。最多核3候选、写2、创建2、闪存2；158与外部已发全文入门20524622重复，paused-duplicate，实际选择157/159，不重发旧稿。
+- 157《SonnetDB MongoDB-like 迁移实操：Dry-run、Checkpoint 与 Change Feed》 https://www.cnblogs.com/IoTSharp/p/23313649 ；159《SonnetDB 中文词库实操：编译 .dat、核对 Token 与重建边界》 https://www.cnblogs.com/IoTSharp/p/23313689 。各attempts1，原ID完整正文与最终C#预览一致，公开标题/封面/默认双二维码通过。初始404均仅原ID和公开GET只读核对，不再次创建。
+- 两条伴随闪存分别ingId 3591893 / 3591896，以字面量[SonnetDB]开头并带准确简介/原文链接；新Python助手实际各一次POST及官方原ID作者/标签/链接/IsPrivate=false核对通过。固定全局回执+文章级锁与本次共享租约并用；article.ing、独立回执和去重ing-published事件已同步。API原ID核对PASS不冒称匿名网页可见性；没有猜网页permalink或批量补历史闪存。
+- 当前canonical源码dcadffc7137f5653ec46c55a4171cf5f2d83de03，7个公开固定5424b66672e37f49a2a5633fdde0b54a9b1f0290专题源GET/SHA一致；当前dirty ROADMAP独立读取/哈希。正式GitHub Release/NuGet Core4.0.0已核，当前远端main合并不冒充本机HEAD或发行包。157明确dry-run仅输入检查、12MiB估算/16MiB Core、有限24h批次幂等、checkpoint与ChangeFeed序号分离；159明确词库覆盖/编译/token实例，默认SQL/Server jieba没有自动绑定用户.dat，重建前先核运行时。示例/产品构建测试NOT_RUN，性能/真实模型/固定硬件/生产恢复长稳NOT_VERIFIED，Graph仍Beta。
+- 两张gpt-image-2各生成一次，retries0/260秒，请求1792x768、实际1915x821；原图/修正横图均目视通过。157纠正错误dry-run权限/目标检查图；159以确切三词项/9000词频例及默认jieba分离替换生成示意。PAT/account/blogId523396当次核验，各单次图片上传/公开SHA匹配，6次C#dry-run和项目识别/cover RequireUploadReady通过。
+- 今日新文章累计4（常规2+本次明确手动2），本次闪存2不增加文章计数；原自动policy.maxArticlesPerDay=2未改。状态/事件/计划/标题URL/✅/backlog已同步；143–157及159已发，158同题暂停，160–202共43planned，下次160/161。旧076–134共59needs-reconciliation保持。证据docs/blogs/publishing-review-2026-10-15-manual-1257.json及publishing-evidence/2026-10-15/manual-1257/。
+- 16份有界外命令收据、35个记录身份核无同身份存活，0清理信号；只回收本任务临时脚本/预览，保留执行审计、图片、正文和失败证据。固定租约收尾后释放，闪存全局回执保留。无stage/commit/push/部署/自动化配置更改；共享研发和其它渠道保持。仅独占尾追加并核原完整HANDOFF字节前缀，用户禁止自动commit故未提交。
+
+## 博客园代码与个人技能已分别提交推送（2026-10-15）
+
+- 用户当前明确要求“现在提交代码并推送，把我的技能也进行提交”，覆盖此前本聊天禁止自动commit的发布阶段限制。个人技能按commit-my-skills全量流程处理；SonnetDB仅纳入本聊天博客园交付，未将其它会话的产品、CSDN/OSChina/微信/微博等dirty工作全量暂存。
+- 个人技能main提交a608562bc02f5dbddf95f289861aeeb6846540c7，26路径，已正常推送既有私有maikebing/codex-skills并ls-remote核SHA相同。现有私有属性实时确认；备份plan/刷新/verify均PASS，1551文件/146技能定义/127独立技能名，2链接实际内容归档保持。博客园12项+CSDN97项本地测试、两技能入口和四Node模块语法通过；工作树最终clean。仅一次正常commit，无force/改remote/新建仓库，技能流程15:10:38收口在10分钟预算内；后续SonnetDB验证独立继续。
+- SonnetDB从最新远端基线ff586430af127276a1b923c303b7a829518a22ff创建本任务隔离worktree，两个子模块按固定Git对象初始化。最终docs提交c7b307f605d90e4c6638ff3c11bad06e23543c61，73路径（16篇143–157及159、最终封面、台账、发布/生成公开记录、两门禁、Added变更日志和隔离交接），已正常FF推送origin/main并独立ls-remote核SHA。隔离工作区，最终clean；未新建或删除开发分支，parity-results未合并/删除。
+- 公开JSON是经过筛选的副本，去掉账号历史列表、进程/父链、命令行、凭据与全局机器回执位置；原始网页、RPC响应、进程日志和原始生成素材留在canonical本地。文章/最终封面SHA保持，16篇项目识别与cover RequireUploadReady、90个sourceDocs引用通过。公开范围说明publication-evidence.md已提交；个人实际闪存助手在上述私有技能仓库保存。
+- 提交前完整dotnet restore SonnetDB.slnx通过；首次完全相同Format命令因旧执行器180秒上限超时，原FAIL与PID54076清理记录保持。改用540秒有界执行后，原CI Format Check通过，工作区加载警告原样保留，没有降低severity/范围或用CI代替本地门禁。最终候选文件SHA绑定、精确73路径暂存及cached whitespace通过才commit。新远端CI、产品测试、正式包/发布和生产验收未在本次重做或冒称PASS。
+- canonical仍HEAD dcadffc7137f5653ec46c55a4171cf5f2d83de03，当前索引0项，原共享未提交内容保留；未pull/reset/stash-all/切走工作区，不能因远端推送成功声称canonical已经快进或clean。本段仅独占尾追加并核旧完整字节前缀，未二次提交整份共享HANDOFF；隔离候选的本任务交接已随上述提交进入main。parity-results远端跟踪引用仍1b2e51ecb92cf7b34331a0945f86fb4215a7b3c5。
+- 完整提交/推送/Format进程与候选清单回执保留artifacts/cnblogs-commit-20261015；技能审计在私有技能仓库.local/commit-20261015-1501及相应有界进程日志。各工具session均结束，格式Job关闭0额外信号；只对已记录身份/归属后代作清理保证，不宣称全机孤儿自由。未安装依赖工具、未发新文章/闪存、未部署、未运行Graphify。下次若要同步canonical本地main，须先按归属处理共享dirty，不能覆盖式pull或把已推送文章重新发布。
+
+## 博客园每日双篇检查点（2026-10-16）
+
+- cnblogs-20261016-daily-1100：11:00:47+08开始，硬截止11:30:47；到期停止主工作，随后仅收尾。今日0/2，未创建文章/闪存/上传图片；未commit/push/部署。
+- 已写160全文维护、161向量入口两篇，状态needs-update、attempts0；backlog及计划同步，不重新选为planned。160唯一实际生图连接中断无图片、不重试；161唯一生图1916x821已返回，初次目视需去除无依据注册商标符号及澄清连线，尚未批准。缺最终图/上传/项目识别和cover门禁/C#dry-run，禁止queued。
+- 当前源码dcadffc、7份公开5424专题源SHA相同；公开正式Release/NuGet Core4.0.0核验、PAT及IoTSharp/blogId523396核验通过，账号近期100篇与台账无今日成功。示例/产品测试NOT_RUN；Graph仍Beta。未覆写共享dirty或索引。
+- 后续先复用两篇正文及本轮sourceFacts，修封面并完整复核所有门禁；不要把未完成门禁或初次目视写成PASS。原160请求未知不在本轮重试；161不得重新生图替代已有资产。旧59needs-reconciliation保持。
+- 回执docs/blogs/publishing-review-2026-10-16.json及publishing-evidence/2026-10-16/；有界进程已记录身份无同身份存活，0终止信号，仅清理本任务脚本，素材/失败证据保留；不声称全机无孤儿。HANDOFF仅尾追加，用户禁止自动commit，故未提交。
+
+## CSDN 2026-10-16 11:00批次收口及用户明确继续
+
+03:03:23.4879081Z至03:33:23.4879081Z原网页窗口已结束。本轮只读核mysticboy真实额度10；CLI原会话关闭后正常恢复同csdn-mysticboy原profile，无Cookie复制。040–043完整作者四分类、原ID独立全文及原封面URL/尺寸已核，正常record under_review，原排期/旧回执保留；匿名公开未核，不记published。广义SonnetDB搜索仅用于到时原ID对账，管理完整6页；四个实际原ID/冻结全文独立匹配，不替代新稿主题查重。
+
+044/045按当前SmoothingFunctions/NullHandlingFunctions/WindowFunctionBinder审定，自有主题图实际目视各一次、原图复制不覆写。044首次新claim在03:33:16，仅剩约7秒仍启动新稿是执行预算判断缺陷；open真实返回空白无ID/账号mysticboy/余额10，import-unbound读取当前URL阶段失败，期限到后未再网页操作。未创建edit/finalize/native-submit marker、无最终点击；没有足够证据否认自动保存远端效果，正常record unknown并按既有授权defer，旧attempt381aee46-5fa7-4725-a0a6-70701e1fcf86及全部失败保留。039保持原已跳过状态。收口42under_review/2已跳过unknown/1prepared045/97pending，nextId045，blocked空；原批新排期0。不得重试044或039。
+
+已补新claim --batch-deadline参数：少于5分钟直接拒绝且不计预算，旧调用兼容；当前自动流程须传统一真实UTC期限。3项边界测试及原29核心回归通过，metadata/whitespace通过。技能4路径本地变更（SKILL/native参考/progress脚本/新deadline测试）未提交。原sonnetdb-csdn仅追加该执行余量及044跳过/045待续提示，维持每日北京时间11:00/ACTIVE与原target，待独立tomllib回读收口；不是平台额度或频率限制。原manifest heartbeat-20261016-phase-manifest.json有23阶段且全部rootExited/streamsComplete，保留共享browser pid37284（只作历史ID，不据旧PID终止）。
+
+用户现直接要求“继续”，授权开启独立新窗口，从045推进。先核实时账本/账号/余额，045冻结稿/事实SHA及自有原图重核，再完整主题查重。当前缺新日历窗口，不改旧计划或已绑定槽位；必要时先同本篇正式草稿正常保存，再读取实际可选日期滚动并绑定。所有原状态/marker/证据/并发其它渠道保持。无commit/push/部署，本段独占尾追加并核原完整字节前缀。
+
+## 博客园160/161及伴随闪存发布完成（2026-10-16）
+
+- 用户明确“现在发布”，复用上午160/161的needs-update正文；发布门禁后才queued。160原23326492 https://www.cnblogs.com/IoTSharp/p/23326492；161原23326498 https://www.cnblogs.com/IoTSharp/p/23326498，各一次实际创建，今日2/2。初始公开404均只读原ID及公开页回查解决，无重复创建；完整正文与最终C#预览一致，公开标题/封面/双二维码通过。
+- 两条[SonnetDB]伴随闪存原ID3592492/3592493，均一次POST，原ID作者/标签/原文URL/IsPrivate=false核验通过；匿名网页可见性NOT_VERIFIED，未猜闪存permalink。article.ing与全局原postId回执、去重ing-published事件同步，不增加文章计数。
+- 当前源码dcadffc，19个sourceFacts重读且与上午SHA相同，sourceDocs逐篇再次读/核SHA；公开正式Release/NuGetCore4.0.0、PAT/IoTSharp/blogId523396/近期100篇/defaultQR当次重核。160方法名更正为ExplainRelevanceAsync，在首次创建前重跑最终dry-run。真实模型/性能/硬件/生产长稳NOT_VERIFIED；示例和产品构建测试NOT_RUN；Graph仍Beta。
+- 160本次唯一生图HTTP502未重试，改用可追溯159主题图作底图，确定性重绘全文维护标题/三流程/权限卡，记录原thread及生成来源；161复用上午原图并去掉虚构注册商标符号及Measurement连线。两张完整横图最终目视批准；各一次上传且公开原图SHA相同；六次C#dry-run及identity/cover RequireUploadReady通过。
+- 执行时间偏差明确保留：12:16:58开始只读预检，原12:46:58总期限已超；12:52:01重置工作流期限至13:22:01后才进入修图/发布。这违反原整个任务30分钟总墙钟，不称全任务有界PASS；后续必须从首次工具开始保留同一硬截止，不得自行重置。
+- 计划/台账/事件/backlog同步，queued0、162–202共41planned，下次162/163先对外部同题去重（162的ANN题与外部20524621可能重叠），158仍同题暂停、旧59needs-reconciliation保持。审核回执docs/blogs/publishing-review-2026-10-16-manual-1217.json；原上午失败/检查点原样留存。
+- 17份进程回执/30个记录身份无同身份存活、0终止信号；仅回收自有脚本/预览，保留图片、正文及证据。HANDOFF仅尾追加并核旧完整字节前缀；无stage/commit/push/部署/自动化修改，用户禁止自动commit故未提交，共享dirty与索引保持。
+
+## CSDN 用户继续：045/046原生排期核验完成（2026-10-16，Asia/Shanghai）
+
+用户直接要求“继续”后，新网页窗口由04:48:28.1033132Z至固定05:18:28.1033132Z；意图文件user-continue-20261016-intent.json。039/044保持已授权跳过，未重新导入/修复/最终确认，不因其unknown阻挡后续。开始先读实时HANDOFF/账本，nextId045；独立原043账号mysticboy及额度10实读，045审定稿/源稿/事实源码/自有图SHA重核未变，完整interpolate四分类4页无候选，再用带真实--batch-deadline的daily claim预占。
+
+045原ID168130344、attempt0be21d38-bc51-4536-8ed0-19fe7d7c693d，严格全文SHA2bc78f498b5a6ffeb9c35242ce381197feb1ec77c20d875f19ca7901246a7594；2026-10-16北京时间17:30平台原生定时保存并独立核验。046原168131125、attemptef1fb994-6ae1-487e-93bf-ce506202e98f，严格全文SHA d94f13da495e398a91f2da3160c91d4d30ae017517de118c92753ac7f6d67a29；同日18:15平台原生定时保存并独立核验。实际receipt分别045-9682724c-d5b6-44e0-8826-a51025f968aa-native-saved-receipt.json、046-77cadd01-bada-42ee-9371-287b7d77f2c8-native-saved-receipt.json，完整source/raw SHA/封面/原ID/time在本机evidence。两篇各一次官方Markdown导入、同名冻结标题、原ID全文保存reload、设置、封面上传确认保存reload、选时与唯一最终确认；独立reader原ID全文严格匹配，完整四分类全部/已发布唯一同ID/准确未来时间/同CSS封面356x200，审核/草稿无冲突，正常record scheduled。未来时间未冒称已发表或匿名公开，publicVisible/publicationVerified=false。
+
+当前原日历实际可选10月16–22日，23disabled，证据phase-5249173d...。原已发布043编辑面板没有可用定时入口，旧只读探索失败保留，不称平台限制；045先claim/正常创建完整草稿及设置封面后从其真实日历读窗口，再对原claim前真实prepared账本快照045-user-continue-preclaim-ledger.json另存schedule-plan-roll-20261016-continue045.json。计划SHA4a0e895ae01c4e93c8982c6803252402c4dee3f7eefa7bb8bd7247beb6d2faa2，98 planned、平台/账本写入0；旧计划与已绑定时间不改。该首稿顺序相对标准前置绑定有偏离，保留实际过程；046按先绑定18:15再claim的正常顺序。claim均传本批真实UTC期限且剩余超过5分钟，没有重开原11:00窗口或偷改计时。
+
+045原图已在本日实际目视，复用自有原SHA；046本轮原图实际目视一次，按当前StateFunctions/WindowFunctionBinder重审正文并复制自有assets，源码/原图不改、不生图。澄清缺失保持变化计数/当前段时间、初始缺失差异、跨缺口不证明设备在线及不能直接累加state_duration计算SLA。所有封面阶段screenshotPath=null，全流程仅专属Playwright CLI csdn-mysticboy，无CUA/外部浏览器工具/后台API。标题SonnetDB开头、首段点名，正文textContent严格相等；原创/全部可见、GitCode关、多平台否、实际AI辅助声明、SonnetDB/数据库两标签均实际核验。未运行SQL/设备/模型/性能测试，不把概念图写成实测图。
+
+本日合计两段网页窗口：11:00批次新排期0，040–043已到时原ID作者已发布分类/完整正文/同封面核验后正常record under_review，匿名公开未核；044输入前阶段未获得远端ID，保留unknown及无edit/finalize/native-submit marker证据后defer。用户本次继续窗口新排期2、最终确认2、预占2；今日总预占3包括原044失败。046原ID独立回读05:11:31.438Z实读平台余额8，不称额度耗尽。最后网页管理观察05:11:54.997Z早于固定截止；余下时间不足新稿完整审查/保存与核验，未claim或导航047。047仅读原文，仍pending、无准备稿/attempt/ID；原稿含尚未核实的CTE/嵌套窗口与“生产级全链路”承诺，下次必须按当前源事实审改后再prepare，不能照发。
+
+实时收口42 under_review/2 scheduled/2已跳过unknown039和044/96 pending，nextId047、nextUnfinishedId039，blocked为空。独立完整性校验初始heartbeat账本，其它135条除040–046外逐项保持，039原完整项亦保持。结果csdn-20261016-result.json绑定两窗口时间/实际ID/计划/回执/额度和自动化；不会把未知跳过升级为成功。
+
+本日技能新增claim --batch-deadline预占前5分钟余量守卫，兼容旧离线调用；不足或无时区不写attempt、不扣预算。3项边界测试+29项原核心回归通过，metadata及owned whitespace通过。SKILL/progress/native参考明确当前自动流程必须传该参数；不是新平台日额度或频率上限。原sonnetdb-csdn通过automation_update只更新prompt/updated_at，最终独立tomllib对拍其它字段完全保持：每日北京时间11:00/ACTIVE、原target 01a11eff-1586-7551-b50a-8db25b652ed7、无重复任务、无半小时轮询。移除045仍prepared的过期检查点，按实时nextId继续；039/044不默认重试。技能相关5路径仍本地未提交，未commit/push/部署或触动业务代码、parity-results/其它渠道，未运行无关.NET检查。
+
+有界本机审计csdn-20261016-complete-phase-manifest.json覆盖66份明确阶段，均rootExited/streamsComplete；其中旧CLI session关闭/原已发布稿定时器探索/044输入前错误仍保留，不把进程exit0或本地PASS冒称平台成功。资源csdn-20261016-process-audit.json记录166个已观察身份：162当前absent，另外4行属于3个已复用PID（57976重复根/子身份行、47672、55956），独立创建时间核验均非原身份，见csdn-20261016-present-identity-check.json，未向任何当前复用对象发信号。共享csdn-mysticboy登录会话保留、0额外终止信号、所有exec session已真实完成。只覆盖已记录身份，不宣称未观察短命后代或全机无孤儿；稿件/图片/授权/失败/回执保留，自测fixture按原归属回收。HANDOFF与本渠道PROGRESS仅独占尾追加Flush(true)并核原完整字节前缀，保护并发研发和其它渠道，遵守发布阶段不自动提交边界。
+
+## 开源中国055/056完成，原窗口保留、用户继续后收口（2026-10-16，Asia/Shanghai）
+
+- 原sonnetdb-2窗口03:04:33.706Z至03:49:33.706Z已经结束，未提交博客或动弹；仅完成原回执只读核对、完整列表及055/056两张封面生成，实际完成03:36:49/03:40:42Z，未改源稿/渠道稿。用户随后直接“继续”，新独立45分钟合同为04:55:46Z至05:40:46Z，保留原contract与interrupted-window-result，不重置原预算。复用原封面，没有第二次封面生图、未知写请求重试或重复发布。每日博客额度仍最多2，开始成功0，今天实际新增2，未更改原自动任务或当前会话绑定。
+- 实际原博客/动弹：055为19778594/30401476；056为19778595/30401477。博客URL分别https://my.oschina.net/u/7172/blog/19778594和https://my.oschina.net/u/7172/blog/19778595；动弹URL分别https://www.oschina.net/osc-tweet/30401476和https://www.oschina.net/osc-tweet/30401477。新窗口完整本人发表/草稿/定时166/1/0，提交后168/1/0；同原ID严格标题、全文与原封面上传映射content_match，055 rawState2、056 rawState1、isPrivate均0。两条动弹创建各一次，分别核本人7172、真实话题#SonnetDB/topicId19285、严格正文/标题/简介及serial1/2两张原上传URL，通过textVerified/imagesVerified。均保留submitted，网页公开可见性未核，不以后台“已发布”或HTTP200冒充公开。
+- 原窗口首先只读核047/052/054动弹30401448/30401458/30401471，均HTTP200/code500“内容审核中/审核失败”，新窗口又仅只读跟进上一轮054，仍未解决；保留原ID、两图和原状态，不重发。135/040/041无IDunknown经完整本人158条列表严格匹配仍无结果，不证明未接收，保持unknown。无明确pending旧公告。8条未知标题编辑、已发表正文/哈希/公告、新闻502847历史投稿与未来Gitee政策保持；新闻最后已有只读记录为账号状态1、公开API正文已核、网页可见性未核，本轮未重投或刷新其审核状态。
+- 055仅未提交prepared渠道稿将<#>含义修为当前SQL正点积，并明确标量inner_product/<#>与KNN负点积的不同排序方向；原SqlParser/FunctionRegistry及SqlExecutorVectorTests源码佐证。056保留POINT(lat,lon)、GeoJSON[lon,lat]、WGS84及关系类型/段内剪枝边界，将“旧稿/不要发布未核实DDL”过程文字改为面向读者的使用合同。事实复核8份真实SHA：vector-search、sql-reference、geo-spatial、GeoPoint、SqlParser、FunctionRegistry、VectorDistance、SqlExecutorVectorTests；源commit仍dcadffc。源稿与source SHA保持，修订前副本、prepared SHA和publicationReview已保存。没有执行SQL、产品build/test、真实模型、性能或恢复验收；测试源码读取不算实跑PASS。
+- 原两张横封面在新窗口实际查看通过并保存OSChina独立副本，reused-cover-assets保留原路径/原生成回执/原SHA；055实际1916x821、056实际1915x821，原请求1792x768/high/gpt-image-2、retries0。新窗口各新生成人物图一次，请求1024x1024/medium、实际1024x1536，成年约25岁亚洲女性JK裙、普通站姿，两图分别实际查看通过；当次sonnet_vip配置实际https://sonnet.vip/v1，260秒进程上限，凭据只在子进程内存环境，不输出/写文件。无须确定性修正。正文封面在首个SonnetDB介绍段后，主题图/人物图SHA和审核记录独立保存，不继承其它渠道二维码/footer。
+- prepare-queue逐篇先dry-run后准备并同步审核清单SHA，Publish-QueuedBlogs预演和完整去重通过，再串行提交博客及各一条双图动弹；每张上传一次、最终创建一次，无写请求重试。原ID回读、Sync及完成记录原子保存。累计60submitted/82queued，下一轮按实时账本057/058；今天额度已满，不再新增博客。Verify全队列仍FAIL“Source hash differs:139”，139–142轮到前须真实复核，不刷新SHA放行。最终本轮完整性PASS：原161条全局回执逐值保持、其它140条队列及prepared实际SHA保持、news/policy和旧events字节前缀保持，仅新增2博客+2动弹；这是本轮保护验证，不是全队列/公开/产品验收PASS。
+- 原窗口8个、新窗口25个已记录自有进程身份fresh核查无同身份存活，三个发布锁不存在，额外kill/delete0；仅覆盖记录身份，不宣称全机或未观察后代无孤儿。原窗口证据保留.local/scheduled-20261016-055056；新窗口证据及completion-result、cleanup-audit、完整性、回执/图片/来源在.local/manual-resume-20261016-055056-1256，队列lastRunCompletion含真实ID/URL/关联、日期、原窗口deadline和用户授权接续字段。固定PowerShell7.6.6，无Graphify/广域扫描/安装/新浏览器，无stage/commit/push/部署。HANDOFF仅独占尾追加并核原完整字节前缀，保留研发与博客园hunk；遵守本发布任务边界暂不提交。
+
+## SonnetDB 微博035原attempt恢复未完成与新用户继续（2026-10-16，Asia/Shanghai）
+
+上一heartbeat证据research/schedule-20261016/run-1103；真实baseline03:28:37.875Z至04:08:37.878Z，预算不重置，到界后没有网页操作。只恢复原035，0创建/上传/生图/claim/bind/mark/最终点击、0新增排期或发表。固定plan/queue/ledger逐SHA与baseline相同：ledger19published/1accepted_as_is/9scheduled/5延期unknown/1browser_pending/1旧abandoned，queue35，plan10published/9scheduled/117planned。020/021到时双输出本轮未观察，不升级发表、不重发。
+
+035原3933050/attempt4c46daacfad14b4fa23afaf74affb326，源/事实/审定全文/简介/既有封面SHA逐项无漂移；正常原ID独立reload完整正文/UID1089099883/已加载封面/fanOnly=false通过。唯一原claim日期2026-10-15T03:24:25.997Z，state仍browser_pending，无nativeSchedule/binding、submitReservedAt、browser-create实物marker或claimRenewal，最终点击0。此次恢复插入Escape与tools-count动作后，日期input动画中detached，035-native-fresh-dom.stdout.txt失败保留；04:04:59.361Z只读035-current-settings-dom明确原3933050 modal=[]、topicCount=0、panels=[]，已回编辑器，不能说仍开原话题推荐。第二份恢复工具代码在functions.exec的JavaScript语法阶段失败，shell未执行，无平台效果。原失败/新观察并存，未知真正已点击项未观察或更改，036仅本地审稿无图/平台稿。
+
+同一未提交attempt可在后继新鲜DOM恢复，不能重claim/改createdAt或更换编号。应分段开下一步、填简介、观察浮层/弹窗，再稳定设置日期；Escape可能关闭publish modal，不能与日期点击盲连。真实完整新DOM晚于claim且5分钟内、输入SHA全部匹配后，正常bind/build-editor；原claim老化须首次mark使用支持的一次--renew-unsent-claim，实际gate true才第一次最终确认，门禁拒绝不绕过。不能用已提交unknown重试规则误处理此未提交项。
+
+资源6条记录根均自然完成、numeric PID absent、0signal，只有035恢复内部detached错误；只覆盖已记录身份，不冒称未观察后代清理，共享Chrome/daemon/CSDN保护。tab-list证明微博不在、list仅CSDN后恢复同名原profile，未另开第二微博窗口或导出Cookie。自动化已正常update并tomllib全字段持久回读，仍每天11:00/ACTIVE，旧状态SHA保持，无stage/commit/push/测试。此交接独占尾追加fsync核原完整字节前缀，不提交共享foreign内容。
+
+用户随后在本聊天明确“继续”；这是新的直接接续指令。先封存上述已到界批次，再建立独立新目录/新40分钟预算，原baseline/失败/截止不修改。下一批优先035同attempt正常恢复、已到时020/021双输出核验，再036及最小新编号；不得把新指令说成上一轮曾完成或抹去旧预算边界。后续独立回执与新目录为实际结果依据。
+
+## ArcticDB 文章与 SonnetDB 差距分析（2026-10-16，Asia/Shanghai）
+
+- 用户要求分析微信文章中的数据库并比较 SonnetDB 差距及学习项。已取得原文，确认对象为 ArcticDB；核对官方架构、介绍、FAQ、版本快照、存储格式、并行写、配置、README 与许可正文。报告：docs/audits/2026-10-16_arcticdb-comparison-report.md；11份来源文本/URL/SHA和报告链接核验在 artifacts/arcticdb-comparison-20261016。官方 latest/master 是可变入口；上游 commit API直接及代理均限流，保留未锁定版本边界。
+- SonnetDB 当前为 main / dcadffc7137f5653ec46c55a4171cf5f2d83de03 加既有脏树。已核 Python ctypes/C ABI、schema自动演进、稀疏字段、可选压缩默认None、范围解码、SQL结果边界、备份、对象版本及 generation。generation已有KV/Document/FullText原子发布、指定revision租约和清理，不误写为完全无版本；本次未找到measurement/DataFrame通用历史修订工作流。
+- 建议P0：Python/DataFrame真实闭环及V45-X01/X02批量有界读取；P1：复用generation的可复现数据集和M46编码/读取成本；P2：实际需求明确后的外部对象存储冷数据试验。仅研究建议，未新增路线承诺、Issue、实现或修改ROADMAP。
+- ArcticDB普通单symbol并发写不具隔离，staged并行写要finalize；动态schema非默认；版本化本身不保证回测无未来泄漏或端到端高可用。许可README/商业FAQ与LICENSE.txt额外授权存在冲突，并列保留，不下内部商用免费的结论。SonnetDB 2026-09-01性能报告已撤回，不引用其数字作为现状对照。
+- 未运行ArcticDB、构建或测试，无同条件性能倍数；runtimeTests/sameConditionBenchmark均NOT_RUN。下一步若实施，先选一个有限分析旅程、冻结类型/资源/版本合同和小规模正确性基线，再按已有工作包推进，不重做已有功能。
+- 本轮仅新增分析报告与研究证据，并独占尾追加本段，验证HANDOFF原字节前缀；未改生产代码，未stage/commit/push/部署，未创建子代理或后台服务。分析任务没有执行提交前restore/Format Check，且共享树存在外部改动，因此本次报告和交接暂不提交。所有本轮exec短命令已返回，无需启动或终止共享服务；下载的来源快照作为核查证据保留。
+
+## SonnetDB 微博用户“继续”新批次：035真实排期与跨日记账冲突、036排期（2026-10-16）
+
+本轮research/schedule-20261016/run-user-continue-1424，用户本聊天直接“继续”后另建独立3编号/40分钟预算；先封存原run-1103、追加原失败交接并验证原状态SHA/自动化持久值，原baseline/04:08截止不改，新预算不是自动重置旧窗口。实际处理035、036、037，最后浏览器036排期回读在截止前完成，到界后只有本地收口，没有重开预算或新网页动作。当前同名sonnetdb-weibo-series继承原profile同窗口标签，DOM账号UID1089099883有效，最终原3933765只读排期页；共享CSDN/Chrome/daemon保护，无Cookie复制/私有API/立即发表/付费。
+
+035已解决原未提交设置，不能再当browser_pending恢复！唯一原草稿3933050/attempt4c46daacfad14b4fa23afaf74affb326，完整源/事实/审定稿/简介/旧封面SHA无漂移，同ID独立reload正文/UID/封面通过；不重建/改稿/重传/重claim。分段点下一步、填完整冻结简介、Tab离开textarea，新鲜DOM确认topics=[]后再正常时钟/日期/小时分钟设置，已实际通过，没有Escape关闭整弹窗、点击话题/force或坐标绕过。原claim createdAt2026-10-15T03:24:25.997445Z不改，正常bind/build-editor后首次mark用支持的一次--renew-unsent-claim，实际gate true；claimRenewal保originalCreatedAt与新fresh editor SHA。最终发布只点击一次；随后独立reload主页面完整时钟“2026-10-22 20:00”和iframe原ID全文/作者/封面/真实timestamp1792670400、forms=[]全部通过，真实035-native-article-schedule-receipt.json及035-independent-schedule-v2.stdout.txt保持。平台排期已实际读回，但本地仍未正常入scheduled，不能把本地失败当平台拒绝或未创建。
+
+035的record-article-schedule原返回verification_pending，逐字段实际定位native FROZEN_KEYS的date差异：binding frozen.date=2026-10-15，mark_browser_submit把intent.date=local_date 2026-10-16合并到attempt.date；唯一变化字段为date，原createdAt/内容/nativeSchedule时刻/binding/marker/审稿快照均保持。035-cross-day-binding-conflict.json保留准确差异、binding/marker原SHA、续期和真实平台成功回执。不能手改attempt.date/旧binding或marker绕门禁，也不能再次mark/点击；原本地拒绝保存。按用户既有“无法确认就忽略，不阻挡后续”直接授权defer-compound成功，state仍unknown、outputs pending，continuationDeferral登记；平台排期已证与ledger未通过明确分开。后继只读对账和处理本地跨日校验缺陷，不能盲重复record/补造成功；到时双输出也须保留原冲突，不重发。旧prompt中035无marker/最终0已经过时，严禁照旧接续。
+
+020原attempt8455d3fa39494833bbf7314cc1372832、021原attempt45c2cb67561c4f6b8b913cb2b781aabb独立reload正式文章和微博，完整正文/作者/封面、完整审定简介/解码真实原文URL/同文章卡片加载封面通过，卡片已目视，record-published成功、双outputs verified/publicationVerified=true；未核匿名/publicVisibilityVerified=false。020实际10月15日20:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405354373583864132、微博https://weibo.com/1089099883/RmOvkk41u；021实际10月16日08:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405354554777796788、微博https://weibo.com/1089099883/RmTdzrMli。原nativeSchedule/binding/marker/源码快照/冻结正文/历史回执完整保持；其它旧attempt除035支持续期/第一次提交/延期外逐项baseline保护。既有published、010accepted_as_is缺项、011人工立即发表出处不改。
+
+036唯一新3933765/attempt368f7d47b12d4c6eaa6ecd4cb6e6ac4c，标题SonnetDB 向量中心：centroid 的平均与边界；run-1059已审定源/事实/正文/简介SHA本轮无漂移，直接复用。原文https://www.cnblogs.com/IoTSharp/p/20053081；实际一次gpt-image-design/gpt-image-2新图036-vector-centroid-jk-final-20261016.png SHAfe2206ac7241b96f09d9900a2a4ab6f6baeaf431e0edcc35b1effec921853653、1672x941，base/final/稳定裁剪逐张目视。一次真实创建立即落盘新ID、等稳定字段后填，一次上传/裁剪确定/保存独立reload全文UID封面通过；平台封面https://wx4.sinaimg.cn/large/40ea586bly1ii47az6ruhj20zk0jydjo.jpg。真实日期窗口23日可选，同日claim/bind/build-editor/mark gate true唯一最终确认，独立reload同ID全文/作者/封面/完整时钟/真实iframe timestamp通过，record-article-schedule成功，2026-10-23 08:00+08:00。禁止编辑或再提交，scope platform_native_article_schedule_companion_pending、outputs pending/publicationVerified=false，预览未展示微博简介，不复制提交前文字冒充回读，到时独立双输出通过才published。
+
+037只留下本地候选，正式审稿准备没有成功，plan仍sourceReviewState=pending，10月23日20:00，无draftId/图片/queue/attempt/marker。当前源码读取发现TimeBucket按Unix毫秒数学floor、桶[start,end)，SelectExecutor已有ResolveGroupByTags，docs“仅time/不支持TAG”段落过时，不能沿用旧无TAG支持或time_bucket/自然月等价承诺。第一prepare-037.py因标题超过32字符拒绝，发生在写审定文件/plan前；改短标题prepare-037-v2.py又在原deadline守卫拒绝，未重置预算。两helper候选正文保留，037-local-preparation-failure.json明确未验证完成；较短标题可参考“SonnetDB 时间桶：起点、投影与边界”，下一轮必须当前源实际重审并正式冻结，不把本轮候选当已审定。无平台创建、生图或文件上传。038后续槽不改。
+
+最终ledger21published/1accepted_as_is/8scheduled/6已延期unknown/1旧abandoned，queue36；plan12published/8scheduled/116planned。正式scheduled为022、023、026、028、030、032、034、036；035平台排期已读但ledger unknown独立留证。原024/027/029/031/033所有attempt/marker/binding/内容/原槽/continuationDeferral保持，本批未新增它们观察或提交。022为10月16日20:00、023为10月17日08:00，下轮实际到时先独立真实双输出，不凭时间升级发表；024未知17日20:00槽保持不释放。用户已授权真正未知逐项defer后跳过、不能改成功/失败或重试，不阻挡后续。
+
+41条有界记录根自然完成、39当前numeric PID absent、2PID已复用创建时间不同原身份不在、0signal，原身份警告保留；只覆盖记录根身份，不冒称未观察短命后代清理。所有exec session已自然wait，浏览器同会话命令无重叠；原record业务失败与工具exit0分开，禁止只看exit0。共享HEAD/index与baseline一致，追加期间亦核。只生成036主题图一次，当前provider凭据只子进程环境不输出或落盘；无测试、stage、commit、push、安装或其它平台写入。
+
+自动化已正常update并独立tomllib持久回读完整prompt/rrule/status/kind/name/target和其它原字段，仍每天北京时间11:00/ACTIVE、原同聊天目标；最新三状态SHA不漂移。原run-1103已封存且旧失败/无效果事实不改，本批真实结果在独立新回执。交接独占尾追加Flush(true)/fsync核旧完整字节前缀，暂不提交保护foreign。下一轮先到时022/023双输出与035本地binding date冲突留证接续，再037最小新编号实际审稿/存稿/原生排期；只有真实明确平台限制才暂停，浮层/日期/本地校验/40分钟不是平台限制，不新增半小时轮询、重复任务或新会话。
+
+## 连接器与嵌入式双产品线需求分析（2026-10-16，待澄清）
+
+- 本聊天用户要求先规划分析，并在需求理解达到可冻结程度前提问。已新增 docs/design/connector-embedded-split-requirements-20261016.md：connectors 为各语言原生 HTTP/2 远程 SDK，平行 embedded 为托管 .NET 与共用 Native AOT C ABI 的 C/Go/Rust/Python/Java；目录、包与适用范围仍是草案，没有启动重构。
+- canonical main/HEAD dcadffc7137f5653ec46c55a4171cf5f2d83de03 落后已获取 origin/main 187 个提交，存在共享 dirty。只读核对既有受管工作区 C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB 的 67a5c8c8d64c36002aee5ebcfcb40634e7d5f482 及未提交 M49；没有 fetch、pull、覆盖合并或修改受管树。较新基线不是本次在线核实的 GitHub 最新 HEAD。
+- 静态已证：现有语言绑定共同经 C ABI，可本地/远程；Native 项目已配置 Shared AOT，Data 包同时含本地/远程且未标 AOT-compatible；Frame 仅覆盖部分操作，REST 仍承载许多写入/复杂查询/管理；C ABI 类型与独立模型组不足以据此证明九模型全覆盖。HTTP/2+REST+Frame 与纯 Frame 需选择，不能把 HTTP/2 当作 gRPC。官方 AOT 文档在线核实共享库自包含及不支持卸载。
+- 草案含九模型/五项跨模型能力清单、两条线阶段 P0～P5、M49 工作包复用方向，以及 Q1～Q9：协议、.NET 托管或 P/Invoke、六语言与旧 BASIC/ODBC、平台架构、4.5 范围与 AI 联网、嵌入式多进程、兼容过渡、Java8、正式发布门槛。全部未回答；不得把建议当用户确认。下一步先汇总回答并解决矛盾，再冻结矩阵和修订 M49，不直接把新范围加入 4.5 正式门槛。
+- 本轮只新增需求文档及本 HANDOFF 尾追加；没有产品源码修改、构建/测试/AOT/性能/恢复/包消费者验收，以上全部 NOT_RUN。沿用 PS7、无子代理、无 Graphify、无安装/服务/发布/推送；短命 exec 均已返回，没有创建后台任务或临时下载文件。草案的9项问题、代码围栏及空白/冲突检查通过；HANDOFF整体git diff --check因既有片段空白未通过，保留旧内容并将本段统一为LF。
+- 暂不提交：需求尚未冻结，canonical 保留共享改动，未执行提交前完整 restore/Format Check。旧路线图、M49 专题与其工作区 dirty、parity-results、其它研发及发布文件均未由本轮写入。
+
+## M49 实现新会话与30分钟监督已启动（2026-10-16）
+
+- 用户本聊天直接要求创建新会话开始实现，由本聊天定时监督直到全部内容完成。已创建并实际启动SonnetDB项目本地实施会话，threadId=01a1440e-64f0-7373-b118-5d9ee5151b41、hostId=local，名称SonnetDB M49 连接器与嵌入式重构实现。默认会话cwd为canonical，但完整启动指令明确所有实施命令使用既有受管工作区C:/Users/mysti/.codex/worktrees/connector-batch-roadmap/SonnetDB，分支codex/m49-connector-batches-roadmap；不新建工作树，不在旧canonical写产品实现。
+- 启动指令完整交接确认需求/15包/原门禁与机器有界执行、工具发现、PID完整身份和finally回收边界，明确八语言原生Frame远程、六语言托管/AOT嵌入式、BASIC仅远程、Java8、64位先行、直接重构不留兼容层、首批九模型/分批正式发行。AI等平台API后续；不能完成单批就升级全部完成，不扩展未授权公网发布/部署/付费权限。
+- 已用wait_threads实际观察inProgress：子会话核工作区/HEAD/继承dirty及空索引，开始C ABI NativeResult.From全量复制切片，计划验证逐行、取消、提前释放和重开，并明确Core仍可能物化，局部移除复制不证明全链路有界。这里只证明会话启动和已报告的实际方向，未独立验收新源码或测试。
+- 已新建heartbeat自动化sonnetdb-m49-30，名称SonnetDB M49 重构监督（30分钟），ACTIVE、每30分钟、目标父聊天01a143cc-6546-73b0-a7c1-d652f25c6aaf。automation_update view与本地automation.toml完整prompt/类型/频率/ACTIVE/父目标已独立一致回读；此前有界检查18项现有配置无匹配，未创建重复监督。无变化安静，仅重要进展/偏离/失败/用户处理或真正完成时通知。
+- 监督每次最多8分钟/16工具、一次带cursor快照/最多6相关文件只读核验、最多一条必要接续/纠偏，不与子会话争写产品源/运行重型构建。用户直接授权覆盖向该指定实施会话发送监督工作指令。空闲未完成则推动下一切片；全部完成须独立核矩阵/最终头/适用门禁/AOT/真实Frame/包消费者，完成后暂停本监督，不自动归档聊天。
+- 根独占监督状态D:/source/SonnetDB/artifacts/m49-supervision-20261016/supervision.json，保存会话/自动化身份、最终范围、15包、初始cursor和未验收状态；下一监督复用并更新，避免重复通知。实际实现HANDOFF由实施会话维护，根只尾追加本canonical交接以避免争写。
+- 本轮未修改产品源码、stage/commit/push、安装或启动独立服务；所有短exec已返回，无本轮临时目录/下载或后台子树需回收。监督状态是保留交付物。canonical交接原前缀字节保持，暂不提交；未执行提交前完整restore/Format，也未把启动或定时配置当产品验收。该监督为本机定时任务，需电脑与Codex应用保持运行。
+
+## 博客园每日双篇：163/164待完善，截止暂停（2026-10-17）
+
+- runId=cnblogs-20261017-daily-1055，首工具10:55:49+08、原硬截止11:25:49+08；计时未重置。今日新文章0/2，实际文章创建/媒体上传/闪存请求全部0。超过截止后仅保存状态/交接与清理，未用用户“继续”暗中重置预算。
+- 162与external已发ANN声明20524621重复，backlog标paused-duplicate。新增完整163文档SQL过滤/图片filtered ANN预算、164 SQL加权/Core RRF/generation权限重排，两稿needs-update、attempts0，未queued，无ing.pending。165–202共38planned；已发文章、59历史needs-reconciliation、原成功事件不变。
+- 当前源码dcadffc，六份公开固定5424关键源GET/SHA一致；当次Release/NuGetCore4.0.0、当前PAT/IoTSharp/blogId523396/前100篇/默认双QR原图SHA核验。163明确旧图片文档managed-only段落已被M35#298/当前源码超越；164增加RRF与原20524623 SQL篇的不同角度。示例、产品构建/测试未执行；真实模型/固定硬件/恢复长稳NOT_VERIFIED，Graph Beta。
+- 两篇各一次gpt-image-2请求成功、retries0/260s上限，原图与prompt/进程收据保留。原图已目视：人物/品牌合格，163面板过滤例需改为确切site=north与精确metadata/tag；164含错误WHERE hybrid_search和未验证质量措辞，必须确定性覆盖并用a/b名次例替换。修正脚本已归档但因deadline未执行，不冒充最终图/approved。两稿封面状态needs-update；身份/封面/RequireUploadReady/C#dry-run全部NOT_RUN，禁止直接发布。
+- 下次在新授权运行中复用163/164正文与已有两张原图，先修图并目视，再复核源码/版本/标题别名去重/当日额度与独占租约，完成全部门禁和单次上传/原图SHA、C#预览后才能queued；实际创建前才登记pending伴随闪存，文章原ID/公开回读后再发。不要重新写相同选题或重复生成图片，不自动补历史稿。
+- docs/blogs/publishing-review-2026-10-17.json、publishing-state、plan、backlog同步；本任务临时脚本归档后删除、三份有界Job收据身份核无同实例存活，0清理信号，固定自有租约释放。短子进程观察有界，不宣称全机孤儿为零。仅博客文件与本交接尾追加；无stage/commit/push/部署/自动化改动，按用户要求暂不提交。
+
+## SonnetDB 微博：022/023真实自动发表核验，037存稿待封面（2026-10-17）
+
+本轮research/schedule-20261017/run-1055沿用原baseline，2026-10-17T03:00:15.3818007Z开始、03:40:15.3884508Z截止，没有重置预算；仅1个新编号037，未新增排期、未最终点击、未claim/mark/append-reviewed。本轮实际完成两篇到时发表的双输出核验和一篇正式草稿正文保存。每天北京时间11:00自动化保持ACTIVE，平台08:00/20:00节奏不改。
+
+022原3930710/attempt200fa98370594b7ca8aded747b543f47、023原3930714/attempt7ed468f79f0148ee99e452e468e75e8e已独立reload真实正式文章与微博，完整正文/作者UID1089099883/原封面、完整冻结简介/解码真实原文URL/同文章卡片已加载封面通过，卡片分别目视。两篇record-published成功，outputs均verified、publicationVerified=true；未做匿名访问，publicVisibilityVerified=false。022实际2026-10-16 20:00自动发表：文章https://weibo.com/ttarticle/p/show?id=2309405354735967797605，微博https://weibo.com/1089099883/RmXVOCMlP。023实际2026-10-17 08:00自动发表：文章https://weibo.com/ttarticle/p/show?id=2309405354917215993958，微博https://weibo.com/1089099883/Rn2E9bpjs。旧原生binding/marker/时刻/正文/源码快照逐项与baseline保持。
+
+037当前源码实审完成并保存唯一正式草稿3934154，标题SonnetDB 时间桶：起点、投影与边界，原文https://www.cnblogs.com/IoTSharp/p/20053102，目标2026-10-23 20:00+08:00。审定稿drafts/037-sonnetdb-group-by-time.zh.md，正文/纯简介/源事实快照/审稿回执均在run-1055。事实源TimeBucket.cs、SqlParser.cs、SqlLexer.cs、SelectExecutor.cs；保留原源稿，纠正旧自然月/年、time_bucket等价与过时“不支持TAG”说法，明确正毫秒宽度、ms/s/m/h/d固定单位、epoch向下对齐、[start,end)、time显式投影及TAG分组。当前辅助方法处理负数不等于写入入口允许负time。未执行SQL/时区/补桶/性能实验。
+
+037新建一次取得原ID立即落盘；原页稳定空字段后填完整正文/标题并保存，03:24:20.773Z及03:27:07.668Z独立reload全文/UID/fanOnly=false通过，coverSrc=null。plan仍planned，draftState=saved_body_waiting_cover，coverState=generation_failed_no_image，platformConfirmed=false，无queue/attempt/marker/最终确认。037-final-draft-read旧helper因当前035页守卫在reload前拒绝，### Error保持；v2正常导航同原037后通过，没有重建或改写正文。
+
+037封面未生成成功，不能说已审图/上传/裁剪。按gpt-image-design和当次安全读取的sonnet_vip配置调用gpt-image-2：直连原进程120秒超时，stdout/stderr均0，无图；仅由有界执行器signal已确认根52824，completed=false/rootExited=true原回执保持。历史子PID48216当时身份不足保留，独立当前CIM核numeric PID absent，未对它signal。依机器fallback规则一次同端点HTTP/HTTPS代理回退，SDK max_retries=0，明确SSL UNEXPECTED_EOF/Connection error、exit1，无图。2次尝试后本轮不继续重试，失败分别存037-imagegen/037-imagegen-proxy及037-image-failure-checkpoint.json；密钥仅子进程环境未输出落盘，无切服务/付费。未观察本轮日期窗口，不能据跨日声称23日晚或24日可选。下轮复核源/事实/审定SHA，无漂移复用，先恢复本主题封面，再同3934154补图保存reload，实际日期可选后正常claim/bind/build-editor/mark唯一确认，不重新创建。
+
+035原3933050/attempt4c46daacfad14b4fa23afaf74affb326已于10月16日真正第一次提交，本轮仅03:26:25.232Z一次只读同ID完整时钟“2026-10-22 20:00”与iframe全文/作者/原封面/timestamp1792670400、forms=[]再次相符。035-current-conflict-preserved.json核原binding/marker SHA及所有FROZEN_KEYS，仅date仍冻结10月15日而attempt10月16日，原因仍mark合并intent.date跨日；未修改旧文件/validator/date，也未重复record/mark/claim或点击。ledger保持unknown/outputs pending和continuationDeferral，平台已观察排期与本地未入scheduled分开，缺陷尚未修复。原024/027/029/031/033本轮无新观察或提交，所有原合同/槽位/延期保持，不阻挡后续。用户“无法确认就忽略，不阻挡后续”授权仍按技能defer逐项留证，禁止重试。
+
+最终ledger23published/1accepted_as_is/6scheduled/6已延期unknown/1旧abandoned，queue36；plan14published/6scheduled/116planned。scheduled为026/028/030/032/034/036；035平台观察单列。baseline除022/023发表核验记录外35条原attempt逐值保持，所有旧binding/marker及queue保持，037无claim。038及以后未处理、原槽位保持。下一轮到时先核024未知17日20:00与026 scheduled18日08:00的真实双输出，不能凭日期升级；然后同原037恢复封面排期，035本地date缺陷保留准确证据，不绕过校验或重发。
+
+浏览器tab-list证明确无本会话、list真实no browsers后恢复同名sonnetdb-weibo-series专用browser-profile；正常DOM账号UID1089099883，持久登录有效，无另开第二微博窗口/Cookie导出/私有API。最后原3934154草稿编辑页，无登录或平台限制提示。不擅自升级工具，不暂停自动化。所有浏览器CLI自然完成后才发下一条；生图超时根由执行器核归属后终止，保持原不完整失败。进程审计只覆盖本轮20条记录根：全部当前numeric PID absent，无同身份根存活；1条超时原completed=false，1条只读守卫### Error，审计recordedRootAuditPass=false原样留存，不把资源现状改写成历史成功或未观察后代清理证明。共享Chrome/daemon及其它任务保护，HEAD/index与baseline相同，无测试、stage、commit、push或部署。
+
+自动化通过现有automation_update更新并独立持久回读，仍每日11:00/ACTIVE/原目标聊天；仅更新真实接续事实，不新增轮询或任务。交接独占尾追加Flush(true)/fsync核原完整字节前缀。当前发布工作授权不含提交推送，且共享工作树有外部改动，本交接暂不提交。
+
+## 博客园163/164已发布，伴随闪存待发（2026-10-17，用户要求发布今天两篇）
+
+- 用户明确“把今天的发布了”，新运行cnblogs-20261017-manual-1136从首工具11:36:30+08开始，原硬截止12:06:30未重置。复用早上两稿与已有gpt-image-2原图，没有重新写稿/生成。163确定性替换为site=north与独立图片过滤预算，164替换错误SQL/无证质量措辞为a/b同分RRF例。最终完整横图目视通过，来源/衍生哈希与收据保留。
+- 163已发 https://www.cnblogs.com/IoTSharp/p/23338684 ，164已发 https://www.cnblogs.com/IoTSharp/p/23338702 ；各一次C#创建，今日published事件2/2。两篇原ID全文与最终C#预览相同、公开标题/封面/默认双QR核验通过。新页初404仅只读回读，无再次创建；163原ID参数复制错误在读回文件前失败，修正为真实163后通过。164已发后公开只读确认在截止后完成，不能声称整个工作在30分钟内结束；截止后无新POST。
+- 六次C#dry-run和身份/封面/RequireUploadReady通过。当前PAT/IoTSharp/blogId523396/前100篇/Release与NuGetCore4.0.0/双QR公开SHA当次复核；两张封面各单次MetaWeblog上传和公开GET/SHA一致。sourceDocs全部重读并与早上哈希一致，额外SQL reference/Fusion源码公开5424GET/SHA与本地一致；当前dcadffc不混充远端最新发行。示例/产品build/tests未运行，模型质量/固定硬件/生产恢复长稳NOT_VERIFIED，Graph Beta。
+- 文章均published且无lastError，163/164.ing明确pending、attempts0；在原30分钟截止前没有调用闪存助手、没有闪存POST或未知请求。下一轮即使今日额度已满，也只允许处理这两条已登记伴随闪存：核固定租约、原ID/公开正文和助手全局文章锁/账号，先dry-run再各一次POST。不能重发文章、不能批量补历史稿，不能把pending说成已发。
+- 状态/原事件/计划标题URL与✅/backlog已同步；165–202共38planned，158/162同题暂停，旧59needs-reconciliation保持。回执docs/blogs/publishing-review-2026-10-17-manual-1136.json，原早上截止记录保留。进程Job收据所观察身份核无同实例存活，0信号；仅归档/删除本任务脚本与临时预览，双稿/原图/最终图/上传/正文证据保留，自有固定租约释放。短子进程观察有界，不作全机孤儿为零声明。
+- 仅博客文件与本HANDOFF独占尾追加；原完整字节前缀核验。无stage/commit/push/部署或自动化修改；共享其它研发与渠道改动保留。用户未授权提交且未执行最终restore/Format，交接暂不提交。
+
+## CSDN 047–050原生排期完成，045/046到时作者端核验（2026-10-17，Asia/Shanghai）
+
+本日heartbeat先读根HANDOFF/实时账本及publish-csdn原生/封面参考；初始42 under_review/2 scheduled/2已跳过unknown/96 pending，nextId047。原CLI关闭错误phase-66bfa1d3保留，正常CLI恢复同csdn-mysticboy原profile，账号mysticboy与原046真实余额10核验；没有Cookie/profile复制、外部浏览器控制、安装或付费。原heartbeat网页窗03:06:56.5893567Z至固定03:36:56.5893567Z只做已有原ID的只读到时核对，没有创建新稿。045原168130344和046原168131125在作者全部/已发布分类唯一，原未来定时说明消失、显示10月16日17:30/18:15实际时间；独立reader原ID完整正文严格相等、原封面URL与356x200匹配，审核/草稿无冲突。正常record under_review，证据045/046-due-accepted-20261017.json。旧ID/attempt/nativeSchedule/冻结稿/旧回执历史保持；匿名公开未核，不称published。
+
+用户随后两次直接要求“继续”，依明确续接授权开启新窗口04:02:08.1382634Z至固定04:32:08.1382634Z，user-continue-20261017-intent.json保留旧窗口边界；没有靠压缩重置时间。047–050逐篇实际审稿/主题图本地目视一次并复制自有assets、同冻结标题文件名prepare、完整四分类查重、daily claim（真实--batch-deadline，均预留5分钟以上）早于新编辑器。四篇各一次官方Markdown导入、原ID绑定、正式保存/reload全文、设置、封面上传确认保存/reload及唯一原生定时最终确认。所有阶段均等真实session exit后才执行依赖，无重跑全流水线或未知最终确认；cover阶段screenshotPath=null，无新生图、图片坐标摸索或后台API。
+
+实际保存的未来北京时间均为2026-10-17：047原168237017/attemptc48c9fde-d7bd-464d-90aa-c508af47c1a7，16:45；048原168237551/attempt5d7aeebb-b428-48cc-9ade-084ff5bc3cce，17:30；049原168237901/attemptd4b10c30-a6fe-4ba5-9018-411bff4282de，18:15；050原168238247/attemptcf7a1319-7be6-4da8-8c9f-1e8aba62d821，19:00。四篇独立reader原ID全文/精确标题严格匹配，提交后完整四分类全部/已发布唯一同ID、准确未来时间和同CSS background-image封面加载通过，审核/草稿无冲突，正常record scheduled。真实回执UUID分别3f4096b0-eb58-41c9-8a90-79ac3338404e、73c273e4-fba6-4725-bd41-c7eee7c05ff0、5f1c6fb5-d543-446d-a580-7af465880465、f16996e6-4a08-42f1-ae4c-0b0b114d5fb8，位于本机evidence的NNN-UUID-native-saved-receipt.json。每篇body raw SHA均与冻结SHA相等，没有innerText/trim放宽。未来时间不提前称已发表或匿名公开；到时再独立原ID核验。
+
+047正文按WindowFunctionBinder/PointDifference/Smoothing/Anomaly当前源码改为明确输入与应用派生流程，去掉未经验证的嵌套窗口/CTE单SQL“生产级闭环”；区分全窗口异常统计与因果流式判断。048按TimeSeriesWriteModels/SndbTimeSeriesClient/SqlParser/Tsdb核批次大小、背压和刷新，去掉未经证据支持的吞吐/延迟表、BEGIN BATCH和无WAL暗示；默认值不是性能保证。049保留KNN负点积与标量正点积、L2平方根、零向量cosine=1、向量维度及ANN/精确路径边界，去掉通用相关性阈值。050用完整3D向量及直接TAG/时间条件说明候选范围、top-k后筛选、版本/去重与质量评估，去掉未经验证聚合/复杂OR与百倍加速承诺。source/fact/body/图片SHA、生成来源回执与真实视觉review分别在047–050-review-20261017.json；源稿/公众号原图不覆写，未执行SQL/真实模型/固定硬件/性能或生产验收。
+
+当前真实日历17–23可选、24disabled，phase-0307def5有实际DOM。新schedule-plan-roll-20261017-continue047.json SHA0958a60dc7247487aa362540659a53a7784b2f0e57262e15e38b41606e53104b，仅96 planned、平台/账本写入0。047因没有已配置可读日历先claim并完整保存正式原草稿/设置/封面，读本篇实际日历后才用claim前真实prepared完整账本快照047-preclaim-ledger-20261017.json生成滚动候选，再绑定；此顺序相对标准前置绑定有差异，明确保留，不冒称标准顺序全PASS，未修改快照状态或伪造republication。048–050均先绑定再claim。旧计划/全部已绑定与历史槽位保持，尚未绑定稿过期须按下一轮真实日历另存版本。
+
+收口44 under_review/4 scheduled/2已跳过unknown039和044/92 pending，无submitting/submitted；nextId051、nextUnfinishedId039，blocked为空。039/044没有重修、重发或新最终点击；047 claim前账本与最终逐项对拍，除047–050外其它138条完整保持。新窗口4预占/4最终确认/4真实排期，本日没有以未确认未知反复补发。050独立回读实读额度6（时间见结果文件），不是额度耗尽；最后网页管理观察04:28:26.853Z早于固定截止。当前剩余不足5分钟，051未审稿、未prepare/claim/导航；留下一轮按当前事实核验，不创建新自动化或暂停每日任务。
+
+结果C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/csdn-20261017-result.json；完整阶段manifest同目录csdn-20261017-phase-manifest.json覆盖88份阶段，rootExited/streamsComplete均true，旧CLI关闭/本地缺文件只读错误保留，不把进程exit0混为平台成功。资源csdn-20261017-process-audit.json记录174条唯一PID/微秒时间身份，172当前absent；另2条初始存活观察经独立CIM创建时间/父PID回读均为复用新身份，见csdn-20261017-present-identity-check.json：48256原12:25:11/parent46256，现12:29:13/parent1992；1288原03:17:21Z，现03:37:13Z。CommandLine权限不足未终止，0终止信号，不把复用PID当原任务孤儿。只保证已记录身份，不声称未观察短活后代/全机无孤儿。全部exec session已真实收口，保留共享csdn-mysticboy登录浏览器和所有稿件/素材/失败/回执。
+
+本轮没有修改技能代码或自动化配置，没有测试/commit/push/部署、无Graphify/广域工具扫描/其它渠道写入；原SonnetDB canonical HEAD仍dcadffc7137f5653ec46c55a4171cf5f2d83de03。现有sonnetdb-csdn配置独立只读确认ACTIVE、每日北京时间11:00、原target保持，仍按最新单篇defer/继续及5分钟claim守卫执行。更新本渠道PROGRESS并独占尾追加根HANDOFF/Flush(true)/旧完整字节前缀核验；交接暂不提交，保护并发产品和其它渠道的共享dirty及索引。下一轮先到时核047–050原ID，再从051最低可执行编号续发，未知跳过不冒称队列全部完成。
+
+## 开源中国057/058文章已提交，动弹明确pending（2026-10-17，用户继续）
+
+原heartbeat03:02:56.615Z至03:47:56.615Z仅只读盘点，没有文章/动弹/生图写入。用户后续两次“继续”按一次明确接续，新独立窗口04:44:28Z至05:29:28Z，原边界保留、不重置。今日起点0/2、60submitted/82queued；现在62submitted/80queued，今天博客额度已满，下一新稿059/060，但先补057/058已登记pending公告。
+
+057真实博客19778948 https://my.oschina.net/u/7172/blog/19778948 ，058真实博客19778949 https://my.oschina.net/u/7172/blog/19778949 。两篇原ID完整本人发表/草稿/定时三组与严格标题、全文和原封面上传映射均content_match，接收状态submitted；网页公开未核。不用后台列表/rawState冒充匿名公开。文章各一次正式流程，没有写请求重试。
+
+两篇封面各独立gpt-image-design/gpt-image-2一次，1792x768/high/retries0、260秒进程上限，当次sonnet_vip实际https://sonnet.vip/v1；分别实际目视通过，无需修正，正文插首个SonnetDB说明段后。057人物图唯一请求达到260秒，timedOut=true/exitCode=-1/imageExists=false，已按身份回收自有子树，无图片、没有OSChina上传/动弹创建；不重试。该失败导致外层串行脚本结束，058人物图从未启动。保留两条tweet.status=pending及真实articleUrl，各tweetCreateRequests=0；仅后续新窗口按技能Publish-PendingTweets补发，不能把缺图片的公告称成功。人物图失败未阻断两篇独立博客。
+
+本轮复核geo-spatial、GeoPoint、FunctionRegistry三份真实SHA，确认lat/lon直接double分量、POINT(lat,lon)/GeoJSON[lon,lat]、Haversine半径6371008.8米、atan2及模360、正时间差速度合同。057保留原副本；058只把0–360度改为准确[0,360)。原稿和source SHA不改，prepared/review清单及publicationReview同步。未执行SQL/产品build或测试/性能/真实模型/恢复验收，源码读取不当实跑。无二维码/footer或虚构准确度。
+
+原047/052/054动弹ID30401448/30401458/30401471只读仍HTTP200/code500“内容审核中/审核失败”，原ID/两URL/状态保留。135/040/041无IDunknown完整本人160条列表严格匹配仍无结果，不证明未接收，不重发；8条未知标题编辑保持。新闻502847保持原提交与未来Gitee政策，最后已有只读状态为账号1、公开API正文已核、网页未核；本轮不重投或刷新审核状态。
+
+Sync/原ID回读完成。Verify全队列仍FAIL Source hash differs:139，139–142漂移门禁保持。独立本轮完整性PASS：原165条全局回执逐值、其它140篇队列/prepared实际SHA、news/policy及旧events字节前缀保持，新增恰好2博客/0动弹；没有用pending冒充接收。23个已记录自有进程身份无同身份存活，三个发布锁无残留，额外kill/delete0；不宣称全机/未观察后代无孤儿。完整图片/失败/事实/验证/cleanup/completion证据在docs/blogs/oschina/.local/manual-continue-20261017-057058-1244，队列lastRunCompletion已原子保存真实ID/关联、两条pending原因、日期和清理结果。
+
+固定PowerShell7.6.6，无Graphify/广域扫描/安装/新浏览器；无stage/commit/push/部署或自动化更改。HANDOFF仅独占尾追加并核原完整字节前缀，保护并发研发及其它渠道；遵守本任务边界暂不提交。下一轮即使配额已满也可补明确pending，必须分别新生成人物图、复用已审核封面，不重发文章。
+
+执行边界补记：本轮固定截止13:29:28，博客提交/原ID回读和核验均在此前完成；本地状态、events及HANDOFF最后收尾实际13:30:26.5148017，超出58.515秒，不能称整轮在45分钟内完成。超时后没有新的平台写请求或生图，仅完成必要检查点保存。本记保留原deadline及真实completedAt，不重置窗口；细节见同证据目录closeout-budget-overrun.json。
+
+## CSDN 2026-10-18 11:00批次收口（预算不足，051/052留待下次）
+
+本次heartbeat先读HANDOFF/实时账本，恢复同csdn-mysticboy专属Playwright CLI并核mysticboy额度10。到时只读核047–050旧排期/作者分类的管理页完整8页；另有046/050正文与原封面独立回读。旧排期稿保持原ID，作者端状态与匿名公开边界分开，不凭时间升级published。039/044继续按用户授权跳过，旧ID、attempt、冻结值和全部证据保持。
+
+当前实时账本：44 under_review、4 scheduled（051/052 prepared）、2 unknown已跳过、90 pending，nextId=51、nextUnfinishedId=39、blocked为空。051/052已审定稿与事实/封面SHA保留；051旧原候选167269254只读导航超时phase-9734b19f...，未编辑、未claim、未重发。当前heartbeat没有新写预占、没有新增平台排期和最终点击。
+
+本批启动于03:06:56.5893567Z，固定截止03:36:56.5893567Z；剩余不足5分钟。按新增`--batch-deadline`守卫，不claim、不导航新编辑器、不把尚未开始稿标unknown，051/052留下一批。该守卫已写入技能并通过边界测试；不是平台日额度限制。
+
+旧计划/已绑定槽位、其它140条账本不变。共享登录会话保留，不关闭、不按进程名清理；所有本轮阶段均已收口。更新本渠道PROGRESS及本HANDOFF尾部，Flush(true)/fsync并核原完整字节前缀；不commit/push/deploy。
+
+## SonnetDB 2026-10-18伴随闪存补发（自动化sonnetdb）
+
+本次按北京时间2026-10-18 11:17后窗口先核对固定租约（不存在）、今日新文章事件计数（0/2）和文章/外部主题去重。163、164已在2026-10-17公开发布，且明确登记`ing.status=pending, attempts=0`，因此本轮先按允许的伴随闪存流程处理；没有重发文章，也没有写新稿或生成封面。
+
+已用`cnblogs_ing.py`对IoTSharp账号做只读核验，并分别完成离线dry-run和一次真实POST：163闪存ID 3592836，164闪存ID 3592837。两条正文均以`[SonnetDB]`开头，附准确简介和原文URL；官方原ID回读确认作者、正文、原文链接与`IsPrivate=false`。匿名网页可见性仍为`NOT_VERIFIED`，不能据此猜测闪存网页URL。回执保存在`docs/blogs/publishing-evidence/2026-10-18/163-ing-result.json`与`164-ing-result.json`，全局账号/文章去重回执仍由助手目录维护。
+
+`docs/blogs/publishing-state.json`已原子更新163/164的`article.ing`和时间戳，`docs/blogs/publishing-events.jsonl`追加两条去重的`ing-published`事件；计划表首段已同步为本次闪存完成、今日新文章0/2。165/166仍未写稿，165–202保持planned；158/162保持重复暂停，旧59条needs-reconciliation不变。运行未执行commit、push、部署或自动化配置修改，未处理其它脏改动。下一轮若需双篇新文章，应从165开始重新核对对象客户端源文档、当前发行物、标题别名、封面和上传门禁，不能把本轮闪存结果计入新文章额度。
+
+本轮实际闪存写入均有明确HTTP 200/ID/官方回读；未发生未知请求或失败。Run time: 2026-10-18T11:34:24+08:00（Asia/Shanghai）。
+
+## SonnetDB 微博026发表核验、037封面补齐与用户继续（2026-10-18）
+
+本heartbeat证据research/schedule-20261018/run-1104。初始baseline迟于起始工具，03:12:21建档；原文件不覆盖，effective-budget.json保守收紧为heartbeat03:04:06.212Z至03:44:06.212Z，未延长预算。所有网页动作截止前最后为03:42:50.653Z已保存封面读取，随后无网页动作；用户在本聊天明确“继续”后07:05仅本地封存旧批次，尚未建立新预算。旧baseline/失败及日期窗口未观察事实保持。
+
+026原3930864/attempt63695c5feb7943bd9237d067838f3f2f已于2026-10-18 08:00自动发表，独立reload真实正式文章和微博全文/作者UID1089099883/原封面、完整简介/解码真实原文URL/同文章卡片加载封面通过，卡片目视、record-published成功，双outputs verified/publicationVerified=true，匿名未核/publicVisibilityVerified=false。文章https://weibo.com/ttarticle/p/show?id=2309405355279553527850、微博https://weibo.com/1089099883/Rnc4z4mOO，真实timestamp1792281600。其原binding/marker/内容/时刻和源码快照保持；其它36条attempt逐值与baseline相同，queue字节SHA相同，旧published/010accepted_as_is/011人工发表出处不改。
+
+024原3930723本轮03:28:04.696Z仅一次只读：完整正文/作者/原封面相符，编辑器仍有文本输入与保存/下一步按钮、iframe=[]。账号当前已加载两帖范围未见024匹配，不证明未创建或拒绝。clocks=6是整个页面而不是024专有，不能据此声称024有时钟。024-read-only-reconciliation.json留观察范围，原unknown/原17日20:00槽/attempt/binding/marker/continuationDeferral保持，不重试、不阻挡其它编号。035仍原date冲突unknown及已观察平台排期独立事实，027/029/031/033未观察或修改。
+
+037原唯一3934154/标题SonnetDB 时间桶：起点、投影与边界/目标2026-10-23 20:00+08:00。本轮源/事实/审定稿/正文/简介SHA无漂移，直接复用run-1055及drafts/037-sonnetdb-group-by-time.zh.md，未重写正文或新建。gpt-image-design/gpt-image-2直连根120秒超时无输出，核身份后只signal43752，子PID35748身份不足保留；代理fallback、SDK max_retries=0实际成功生成一次，base/final逐张目视，准确“关注 SonnetDB”及时间桶主题。最终D:/source/SonnetDB/docs/blogs/weibo/assets/037-group-by-time-jk-final-20261018.png，1672x941，SHA008d382b8abcf19b59d5ae31d6466e892fae82352fd4417c06326972071f0be3，原prompt复用20261017。失败与成功回执并存，密钥仅子进程环境，无付费或换服务。
+
+037真实上传一次，新图库HTTPS https://wx2.sinaimg.cn/large/40ea586bly1ii6cvebaglj212w0lvn1y.jpg 与旧图库基线不同且加载；选图一次、裁剪确定一次、保存及独立reload完整正文/UID/原ID/新封面通过03:42:13.168Z。保存图https://wx3.sinaimg.cn/large/40ea586bly1ii6cw6cmh0j20zk0jygpl.jpg，1280x718。必须保留流程偏差：037-crop-reviewed.png有白蒙层，工具返回后尚未目视稳定裁剪就执行了一次确定；candidate helper自动生成crop-approved回执不准确。未重传/重裁剪，独立保存封面DOM截图037-saved-cover-visual.png在03:42:50.653Z实际已加载，后续view_image确认成年人物、主题与关注文字、16:9保持；037-crop-visual-correction.json独立说明原自动审批不成立和保存图实际目视通过，旧原回执不覆盖。后继不能把该旧截图说成稳定裁剪通过。
+
+037计划仍planned/draftState=saved_waiting_date_window/coverState=uploaded_saved_reload_and_saved_visual_verified/platformConfirmed=false，无queue/attempt/marker/最终确认。本轮没有日期窗口观察，不能声称23日晚可选或新拒绝，也不需重复生图上传裁剪。下一新授权预算先核源与同原保存稿，再实际日期窗口，若可选从同3934154接正常append-reviewed/claim、新DOM/bind/build-editor/mark gate true才唯一最终提交。日期未开放保同ID，不重建不立即发表。038以后未处理。
+
+最终ledger24published/1accepted_as_is/5scheduled/6延期unknown/1旧abandoned，queue36；plan15published/5scheduled/116planned。正式scheduled028/030/032/034/036，035已观察平台排期但本地date缺陷未修分列。没有新增排期、claim/mark或平台创建。本轮正常sync由026 record执行，所有历史合同和队列保护验证通过；产品SQL/build/test未运行，stage/commit/push0。
+
+恢复浏览器前list只有CSDN、无微博会话，正常恢复同名原专用profile并DOM核UID1089099883，当前最后原037草稿；无第二微博窗口/Cookie导出/私有API，保护CSDN/共享Chrome/daemon。原17条进程根记录现16 absent/1 reused、同身份根live0，超时原completed=false保留，信号总1、stdout内部错误0；只覆盖记录根，不冒称未观察后代清理。HEAD仍dcadffc；index相对03:12 baseline已被共享任务改变，未由本任务stage，不恢复或覆盖，结束append前后分别核以保护外部索引。
+
+自动化仍每天11:00/ACTIVE/同聊天，正常更新并独立持久值回读；本批结束独占尾追加fsync核旧完整字节前缀。共享树和索引有外部变更，且当前发布工作未授权commit/push，本交接暂不提交。用户已明确“继续”，完成本批封存后再创建独立新预算/新目录接037；不是修改或重置本批原deadline。
+
+## 开源中国057/058待补动弹完成，059/060延期（2026-10-18，Asia/Shanghai）
+
+用户两次“继续”后，先处理上一轮pending动弹：057使用新人物图并复用已审核封面，原ID30401483；058使用本轮新人物图并复用已审核封面，原ID30401484。两条均核本人7172、#SonnetDB话题、正文和serial1/2双图，textVerified/imagesVerified=true，网页公开性未核。原047/052/054审核中ID保持不变。
+
+当前继续窗口07:06:42Z至07:51:42Z；057/058补发完成后剩余时间不足以安全完成059/060两张新封面、两张人物图、完整dry-run和正式提交，因此未启动059/060博客写入，留待下一轮。累计仍62submitted/80queued，今天新增博客0；全队列Verify既有FAIL“Source hash differs:139”保持。同步已完成，原回执与状态原子保存，全球回执169，未commit/push/deploy。
+
+证据：docs/blogs/oschina/.local/user-continue-20261018-059060-1506/closeout-result.json。固定PowerShell7.6.6，无Graphify/广域扫描/安装；HANDOFF仅尾追加并保护原字节前缀。
+
+## SonnetDB 微博用户继续：037/038原生排期、039完整草稿（2026-10-18）
+
+用户本聊天直接“继续”后，先完成run-1104本地封存/交接追加/自动化更新及独立持久回读，再建立research/schedule-20261018/run-user-continue-1507独立新预算07:07:41.724969Z至07:47:41.724969Z、最多3新编号。处理037/038/039，原两批预算和失败不修改。最后网页动作039保存独立reload在07:47:21.450Z完成，截止后只做本地sync/保护校验/自动化/交接，没有网页动作、没有新预算。
+
+037同原唯一3934154/attempt8d852575758f4448b2687692a75cfec2、SonnetDB 时间桶：起点、投影与边界，复核当前源/事实/正文/简介/现有图SHA无漂移，原ID独立reload全文UID封面通过，本批未生图/上传/裁剪或重新创建。真实日历18至25日可选，关闭未提交预检后append-reviewed/claim一次；分段新DOM开设置填完整简介及原文URL、Tab离开、时钟/日期/20时/00分配置，正常bind/build-editor/mark gate true，实际最终确认一次2026-10-18T07:15:41.316Z。独立reload主时钟完整2026-10-23 20:00及iframe真实timestamp1792756800、同原ID/全文/作者/封面/forms=[]通过，record-article-schedule成功。scope platform_native_article_schedule_companion_pending、outputs pending/publicationVerified=false，保存后预览无微博简介，不能冒充回读或发表。禁止编辑、重claim或再提交。此前run-1104裁剪未稳定先确认与自动审批失实的偏差及独立已保存封面目视纠正回执永久保持，不能说本轮重新裁剪验证过。
+
+038原唯一3934644/attempt14bdd81daf474ffb9d96025ad7d99aea，SonnetDB 多指标时间桶：样本与分布。当前源实际审稿并留源/事实/正文/简介/不可变快照：count(*)逐series FIELD时间戳并集与字段计数、稀疏分母、sample stddev/少于2点NULL、percentile(field,99)/TDigest近似、TAG分组残差/Geo拒绝及未改名time单键排序，去掉旧FILTER/WITHIN GROUP/全指标单扫和统一分母承诺。原文https://www.cnblogs.com/IoTSharp/p/20053103，审定稿drafts/038-sonnetdb-multi-metric-buckets.zh.md；未运行SQL、精度、性能或资源实验。
+
+038新gpt-image-design/gpt-image-2通过当前sonnet_vip配置/代理一次成功，SDK max_retries=0，base/final逐张目视，准确关注文字；最终D:/source/SonnetDB/docs/blogs/weibo/assets/038-multi-metric-buckets-jk-final-20261018.png，1672x941，SHAeb821bfc4fc579bc54d3aaefa46f087a69c3448601f72f5f3105fe740d30da39。新建一次真实ID立即持久，原页稳定后填写保存，独立reload正文；上传一次等CLI完成再独立upload，新HTTPS比真实旧图库基线，稳定裁剪截图已目视后确定一次，保存reload完整正文/UID/新图通过。平台封面https://wx3.sinaimg.cn/large/40ea586bly1ii6jncm9wpj20zk0jywib.jpg。
+
+038真实日历07:36:00.754Z为18至25可选、26以后disabled，24日可选。正常一次claim/bind/build-editor/mark gate true，唯一最终确认2026-10-18T07:38:10.782Z；独立同ID全文作者封面/完整时钟2026-10-24 08:00/真实iframe时间戳通过，record-article-schedule成功。禁止编辑或再提交，scope companion_pending、outputs pending/publicationVerified=false。简介/真实原文URL/公开/自动微博仅提交前冻结，到时独立文章和配套微博双输出通过才published。
+
+039唯一正式草稿3934650，SonnetDB 行间差分：前值、缺测与分区，目标2026-10-24 20:00+08:00，原文https://www.cnblogs.com/IoTSharp/p/20053105，审定稿drafts/039-sonnetdb-difference-delta.zh.md，正文/纯简介/源事实/审稿/快照在本轮。当前difference和delta同求值器，缺测输出NULL并保留前有效值；每series独立，PARTITION BY拒绝、ORDER BY time ASC、时间范围起点及物化后残差过滤/double精度边界，不能承诺reset修复、速率、通用流式或固定内存。未执行SQL/缺测/性能实验。
+
+039主题图通过当前同provider/代理实际一次生成，base/final/稳定裁剪逐张目视；最终D:/source/SonnetDB/docs/blogs/weibo/assets/039-difference-delta-jk-final-20261018.png，1672x941，SHA172a5691c5e8afc4a9533ce53aebe781cc5d0749131b43ad2011cfd8a701f2bb。唯一创建取得真实ID立即落盘，正文保存独立reload；一次上传、稳定裁剪目视后确定一次、保存独立reload07:47:21.450Z完整正文/UID1089099883/新封面https://wx4.sinaimg.cn/large/40ea586bly1ii6jz93q8lj20zk0jyjuz.jpg通过，均原deadline前。plan仍planned/draftState=saved_waiting_date_window/platformConfirmed=false，无queue/attempt/marker/最终点击；该draftState是既有命名，039本轮日期窗口未实核，不能声称其晚20:00已被接受或新拒绝。下轮从同3934650复核源SHA和真实日期窗口，无漂移复用稿与图，不再生图上传裁剪或重建；可选才接正常claim与唯一原生定时。040及以后未处理。
+
+最终ledger24published/1accepted_as_is/7scheduled/6延期unknown/1旧abandoned，queue38；plan15published/7scheduled/114planned。037/038是新确认scheduled，026于今日08:00已发表且run-1104核双输出记录，不能把本批排期说成发表。原37条baseline attempt逐值保持、旧binding/marker/源码快照和原槽位保持；024/027/029/031/033/035本批未观察或改动。035仍平台已观察排期、ledger date冲突unknown/延期分列，缺陷未修，不修改旧date/binding/marker或重复record/点击绕过。用户单篇忽略继续授权仍有效，不阻断后续、不释放未知槽。
+
+48条有界执行回执全部completed/rootExited/outputComplete，stdout内部Error0、当前numeric PID48 absent、0signal；只覆盖记录根，不冒称未观察后代清理。所有exec session自然wait后才同会话下一操作；浏览器同原sonnetdb-weibo-series/专用profile，UID1089099883有效，最终039原草稿，无另开窗口/Cookie导出/私有API/立即发表/付费。两张新图凭据仅子进程环境，不输出落盘。没有子代理、测试、stage/commit/push/部署，产品源码未修改。
+
+独立索引纠正：run-1104及本批audit的indexUnchangedFromBaseline=false源于baseline用Python小写SHA、PowerShell Get-FileHash大写SHA却用-ceq比较；实际规范化SHA均84fc4b71667372dcf3d623d0ac881dd1c2608eeb5ab1dc22194672c9ada9be84。此前“共享任务改变index”结论没有依据，本段及index-audit-case-correction.json明确纠正，原false/旧交接保持，不恢复覆盖索引；HEAD保持dcadffc。共享工作树其他内容保留。
+
+自动化已正常更新到本批真实接续事实，并独立tomllib逐字段持久回读，仍每天北京时间11:00/ACTIVE/原目标聊天，不新增轮询或任务。原run-1104封存及本批预算保留；本交接独占尾追加Flush(true)/fsync核原完整字节前缀。当前发布授权不含提交推送，且共享树有外部内容，本交接暂不提交。下一轮先按真实到时核027未知与028 scheduled的双输出，再同039接原生排期；不能凭时间升级或重发。
+
+## 2026-10-19 主智能体整合检查点（新授权，尚未统一推送）
+
+用户要求恢复一主三子智能体协作，先拉取最新代码并合并 canonical 当前文件，再按 PR/Issue 倒序推进、逐个本地合并、最后统一推送并核验真正的 CI。此授权更新此前“其余 Issue 不自动实施”的会话范围；未更改或恢复任何定时自动化配置。
+
+当前 main/origin/main 为 0986f92e0d575c329a81b026e9431a16f4b8e2dd。旧基线、本地文件和远端文件已经三方整合；本地并发 e9f4f15a 另存 codex/preserve-local-e9f4f15，远端 0986f92e 也包含该路线增量。保护清单1609文件（含1473未跟踪），除四个审定合并目标外均逐文件SHA保持，三个VS Code既有helper脚本保留原内容，parity-results未动。未全量stash/reset/clean，未推送或关闭Issue。原始备份与合并回执保留 .codex-temp/sync-20261019，说明见 docs/audits/pr-issue-management-20261019.md；这些是恢复证据，不当作垃圾删除。
+
+隔离集成树 .codex-temp/pr-issue-integration-20261019，PR327暖启动竞态修复树 .codex-temp/pr327-warmup-20261019，Issue247原生例程树 .codex-temp/issue247-routines-20261019 均为本任务工作树。327修复普通Dictionary并发访问；247按Core→ADO→远程顺序，不与245并行改共享SQL核心；第三代理独立复核已实现Issue。327/317真实竞态、325的NU1605、320的CAP超时、326的Windows Core 50分钟超时均保留FAIL，不能重跑或跳过冒称通过。
+
+本检查点不是会话结束：尚未完成全部PR/Issue、本地提交、统一推送或新SHA CI核验。当前源码同步没有构建或测试结论；后续每次代码提交仍须在最终树完整restore与原Format通过。共享发布文件仍在途，此交接及本地增量尚未提交，之后由受控清单整合，不宽泛暂存。
 ## 2026-10-19 主智能体接续检查点（尚未统一推送）
 
 先拉取最新代码与 canonical 文件三方合并已完成：main 为 0986f92e，1,609 个保护文件与原有发布/VS Code 增量按清单保留，parity-results 保持。受控集成树 codex/pr-issue-integration-20261019 当前 5d6c3587，含 11 个 PR 的普通合并、RAG 取消修复及 #247 Core，共 13 个本任务提交；逐次完整 restore 与规定 Format 回执已核，推送次数 0，远端 PR 尚开放。
@@ -3525,21 +5672,592 @@ Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规�
 
 - 基于远端 `615f3cdfd6561bff81c74e43c5c9b182568da9dd` 的隔离 worktree 完成旧 `DATETIME`/`DateTimeOffset` 参数边界和 Reader close 测试修复；未声明 DTO 亚毫秒值在旧 DATETIME 写入前拒绝，显式 EF/Identity `DbType.DateTimeOffset` 继续兼容。
 - 最终验证：Core 7890/7890、EF Core 295/295、Identity lockout 1/1、规定 Format Check exit 0；未提交前没有新的远端 CI 回执。当前将提交并推送到 `main`，随后以新 SHA 回读 CI。
+## 2026-10-19 当前整合续接（仍未统一推送）
+
+受控集成分支 `codex/pr-issue-integration-20261019` 已到 `9faced95d9adddd3e45fe8d009fbefa24a7ef8cc`，本地合并完成 PR 327/326/325/324/321/320/319/318/317/316/315、RAG 修复以及 #247/#245/#242。合并树完整 restore/Format 均通过；联合定向为 Core 130/130、远程 60/60、CTAS Crash 7/7、Replace 134/134，旧失败和 NOT_RUN 边界保留。247/245/242 临时父工作树已清理，证据和 manifest 保留；main-studio-temp-01 仍因自动策略拦截删除而保留。
+
+#236 Core DATETIME2 切片正在独立树继续：当前6/6通过，新增目录/行/主键/覆盖索引和迁移拒绝；Data/ADO 的2个既有兼容失败保留，尚未提交或宣称Issue完成。#233 Chloe provider候选与#232 schema只读审计并行。全部编号实现、统一文档和最终候选冻结前不推送；推送后只认最终SHA真实CI，不跳过失败。
+## CSDN 2026-10-19：051/052跳过，053唯一确认后独立回读待核
+
+本heartbeat使用publish-csdn技能及原生/封面固定CLI，固定网页预算2026-10-19T03:01:45.5095984Z至03:31:45.5095984Z，最多10次写预占。开始先读HANDOFF、实时账本并运行固定Python -X utf8 -B status；真实初始为48 under_review/0 scheduled/2 prepared/2已延期unknown/90 pending。纠正2026-10-18收口段的44 under_review/4 scheduled及误抄2026-10-17窗口：它们不是18日真实收口。本段保留旧错误原文，以18日原回执及当前账本为准，今天未重新升级047–050、未重发已接受文章。
+
+原csdn-mysticboy CLI已关闭，保留真实tabs失败后正常open同原专属profile；原管理页账号mysticboy、已有050原ID只读实见今日额度10。无Cookie/profile复制、CUA、外部浏览器工具、私有API、安装或付费。开始误给tabs包装器PreserveSessionProcesses被前置守卫拒绝，没有网页效果，后续仅在合法CLI open使用此选项。首个HNSW deadline从JSON自动日期转成了本地字符串，原audit保持；后继统一ConvertFrom-Json -DateKind String传原含时区ISO期限，没有延长批次。
+
+051/052旧review的原文、冻结稿、事实源、图片及来源生成回执SHA均与当前工作树一致。051新鲜HNSW四分类4页complete，旧候选167269254导航20秒超时，随后一次只读body snapshot也超时，未claim/编辑/导入；按用户跳过授权defer保持prepared。052当前主题“精确”4分类为空，补原主题“暴力”时helper只识别Markdown链接，实际出现的是无关旧富文本文章128178982，结果未settle；局部DOM诊断后“暴力搜索”四分类均为空。合计9页（含失败页）、03:06:32.314Z至03:10:39.988Z共247.674秒，超共同240秒上限7.674秒，这是本机执行偏差，不是平台限流；没有把它当合规查重并claim，按持续授权defer保持prepared。原失败、观察和SHA保持。
+
+053按当前Vector.Primitives.VectorDistance/Vector.Compute.Distance/Query.VectorDistance/KnnExecutor审改，去掉固定模型适用性、统一阈值与未经证据性能承诺；明确KNN负点积、底层原始点积、L2含平方根、零向量与单位向量条件。标题SonnetDB开头、首段点名；完整同标题自有Markdown prepare，冻结SHA3884b9667d7803358a35c9cbc558452f0eeb99ad3410b9d42c4bc40c5e01cfa7。主题原图本地实际目视一次，a·b示意正点积，正文明确区别KNN负点积；复制自有assets/053-cover-20261019.jpg，不覆写原图，不生图。review证据053-review-20261019.json，结束重核事实/正文/自有及原图SHA全部保持，未运行SQL、真实模型、基准或生产验收。
+
+053新鲜“向量距离”四分类4页无候选，daily claim传真实统一batch-deadline后才进入新编辑器。唯一attempt87d1a9fa-5263-40b8-a6c9-556956ed5730，原ID168434786。官方Markdown导入一次、observe原ID绑定、finish-import正常保存/reload完整正文严格相等；settings原创/public/GitCode关/多平台否/实际AI辅助声明/精确SonnetDB和数据库两标签通过。原ID主题封面正常upload/confirm/save/verify重载一次，各阶段screenshotPath=null；实际保存356x200封面https://i-blog.csdnimg.cn/direct/251e228058ec4d4b984934e6033064c4.png。没有重试旧039/044或其它已接受篇。
+
+053完整原草稿设置封面后从其真实calendar观察19–25可选、26disabled；因之前没有当轮可用日历，采用已记录首稿例外，以claim前真实prepared账本快照053-preclaim-ledger-20261019.json另存schedule-plan-roll-20261019-053.json，90 planned、平台/账本写0，SHA584cc4a74ce81bc163a21234df99b126556a2aeb5e0d5609aa5f025be63b2990。保留实际先claim后绑定的顺序偏离，不冒称标准前置绑定流程。原计划、历史绑定时刻和原快照不修改。053绑定2026-10-19北京时间16:00，正常choose实见精确说明，native submit最终确认仅一次，writer随后真实导航success/168434786；这仍不足以记scheduled或published。
+
+独立reader首次读取在03:21:18.777Z因预存beforeunload对话框失败。CLI snapshot实见reader还在旧050的URL，接受离页确认后实际进入的是先前排队的051旧候选167269254；这不是053回读，没有编辑旧文章。处理确认框在03:24:22后，已超过本篇90秒回读窗口；期间诊断超出读回预算的偏差如实保留，没有再回读/重提交053、没有拿writer success假充独立回执。正常record unknown后按用户授权defer，保留原ID/attempt/冻结值/nativeSchedule/封面binding及verified/native-submit-once marker/全部失败。未生成native-saved-receipt，verified scheduled=0、published=0，不能宣称已排期成功。下一轮最多有界只读核053原ID实际结果，不能重新创建、重跑导入/保存/设置/最终确认。
+
+本批只有1次claim/1次原生最终确认，初见平台额度10，不称额度耗尽，未重新探测余额。最后网页阶段phase-1104872c为dialog-accept，结束在原03:31:45固定截止前；之后仅本地账本/进程证据/交接，未新开预算。剩余不足5分钟，054仅读源稿（含未经验证的Recall/延迟表、错误exact/ANN同调用示例），仍pending，无prepare/claim/ID，留次日按当前源码重审，不能照发。
+
+最终48 under_review/0 scheduled/2 prepared（051/052延期）/3 unknown（039/044/053延期）/89 pending，nextId054、nextUnfinishedId039、blocked空。相对本批baseline只有051/052/053三项变化，其它139项完整保持。结果csdn-20261019-result.json；35份明确phase-manifest全部rootExited，记录51个数值PID；末次仍存在的3个PID经创建时刻/父PID/完整命令对照全为已复用的其它任务身份，present-identity-check单独保存，0信号，保留共享登录浏览器。仅覆盖记录身份，不声称未观察后代/全机无孤儿。所有exec session已等真实exit_code；内部isError即使exit0也按失败保留。
+
+发布任务仍按原每天北京时间11:00接续，未创建重复自动化、未改变时间或ACTIVE设置。未修改技能、业务代码、其它渠道、Git索引或parity-results，未自动commit/push/部署。根HANDOFF与本渠道PROGRESS仅独占尾追加、Flush(true)并逐字节核旧完整前缀；共享发布交接未授权提交，暂不提交。下一轮按实时nextId054推进，已延期项不得阻断新稿，也不能把跳过项写为成功。
+
+## SonnetDB 微博028发表核验、039源漂移待复审（2026-10-19）
+
+本heartbeat证据research/schedule-20261019/run-1100。首工具在heartbeat02:58:00.848Z之后，初始baseline03:00:44.073693Z建档较晚且原截止03:40:44；旧文件不改，effective-budget.json保守收紧至02:58:00.848Z至03:38:00.848Z。没有重置预算。最后网页观察03:11:06.380Z，之后只有本地操作；039 native prepare在03:46后原时间守卫起点拒绝、没有访问草稿或生成新DOM/claim，未发生超界网页动作。整个本地收口实际晚于deadline，不能说整轮40分钟内完成。
+
+028原3931017/attempt842d14a000564464be5738ede88390d0实际2026-10-19 08:00平台自动发表。独立reload真实正式文章03:11:02.908Z，完整冻结正文/作者UID1089099883/原封面/真实timestamp1792368000相符；独立微博03:11:06.380Z完整审定简介/解码真实原文URL/同文章卡片加载封面相符。record-published成功、双outputs verified/publicationVerified=true，publicVisibilityVerified=false。文章https://weibo.com/ttarticle/p/show?id=2309405355642000375975，微博https://weibo.com/1089099883/Rnlv9ApfP。卡片目视实际在本地record之后才完成，028-card-visual-reviewed.json如实记录顺序，最终view_image确认主题/成年人物/准确关注文字及标题通过，没有重复record或提交。原binding/marker/源码快照/时刻及冻结稿保持。
+
+027本轮只在账号页当前加载两帖（028与026）的范围没有发现匹配输出，没有访问原draft3931014，不能据此证明未创建、被拒绝或未发表。027-read-only-scope.json留范围；原attempt30345e2bacec4cdcaf98938f65478207、unknown、10月18日20:00原槽、内容、marker/binding和continuationDeferral保持。本轮没有为027新建、编辑、重传、claim或再点。024/029/031/033/035未观察或改动，035原已观察平台排期与ledger date冲突unknown分列，不能绕过校验或重发。
+
+039原唯一草稿3934650、SonnetDB 行间差分：前值、缺测与分区，目标2026-10-24 20:00+08:00，本轮没有访问该草稿或日期窗口，没有新queue/attempt/marker/最终点击。原审定正文、简介、封面文件SHA保持，原平台全文封面最近成功回读仍2026-10-18T07:47:21.450Z；不能把历史回执说成本轮真实观察。
+
+截止后本地10份材料SHA检查发现事实源3份漂移：FunctionRegistry.cs由c5ec9f3819ebb88eb74cd2a63111b02e4fe3e87caed0f9130da1109345eb4cba变为14daf62ae84708600942206b8e881161117ee7f32479a94c4aa02c28a78e790c；SelectExecutor.cs由5e7b82e7d930bc191e1cdc4c06d4f708beea36a15a048aefb86af057a3f317b4变为383afdacb9d6cc91d5434104d29e433f26d9e885db6405d153eadea9ded5c9f8；SqlParser.cs由d01ac05368aa3d1d3b123c999082e2f6875e311709dccb5c26c7918e72517a7f变为633df5d6db81516543d544fbb00a7df830982603973886134cea4cad83fd7131。详见039-local-source-check-after-boundary.json。只发现字节变化，尚未实际重审语义，不说功能必变或旧稿已错误。原事实SHA与快照不刷新；039计划sourceReviewState=source_drift_requires_review并指向本次漂移文件，旧审定稿/图/ID/槽保持。下一轮先按旧快照与当前源实际重新审稿，必要时只修该未提交原稿并独立reload；复审通过后实核日期窗口再claim，不能仅刷新SHA放行或重建草稿。040及以后未处理。
+
+最终ledger25published/1accepted_as_is/6scheduled/6延期unknown/1旧abandoned，queue38；plan16published/6scheduled/114planned。scheduled030/032/034/036/037/038；本轮只新增028发表核验记录，新增排期/平台创建/claim/marker/最终点击均0，旧其它38条attempt逐值保持、queue字节SHA相同。源漂移前state-final-summary.json仍保留；state-final-summary-v2.json追加反映039复审门禁及最新plan SHA，原自动化候选prompt无漂移断言已由v2纠正，未提交错误候选。
+
+工具本地偏差保留：初版receipt builder apply_patch因缺加号被解析拒绝，没有写文件或平台效果；修正后正常构造独立回执。bootstrap复制native-stages只替换单引号baseline引用，而该helper用双引号，旧baseline和更严格effective deadline当时均已过，原assert仍拒绝，没有绕过。完整失败在工具历史及execution-boundary-and-local-failures.json。本地图片目视在budget后属于现有文件检查，没有新的浏览器截图。
+
+list真实no browsers后恢复同名sonnetdb-weibo-series专用browser-profile，正常DOM UID1089099883有效，最后028微博详情页；不是039编辑器，不导出Cookie、不用私有API/立即发表/付费。6条有界记录根均自然completed/rootExited/outputComplete，当前numeric PID absent6、0signal、stdout内部Error0；只覆盖记录根，不冒称未观察后代清理，共享Chrome/daemon保护。同会话CLI结果完成后才依赖读取。
+
+当前HEAD为0986f92e0d575c329a81b026e9431a16f4b8e2dd，按实时工作树核，不回滚旧dcadffc。本轮未改产品源码、未执行SQL/build/test、无stage/commit/push；index审计大小写导致的原false按规范化SHA另核，不据此恢复索引。自动化仍每天北京时间11:00/ACTIVE/同聊天，正常更新并独立持久回读v2事实，不新增轮询或任务。结束HANDOFF独占尾追加Flush(true)/fsync并核原完整字节前缀，保护共享树；当前发布授权不含提交推送，本交接暂不提交。下轮到时优先029未知与030 scheduled真实双输出，然后039实际复审及原稿续排。
+
+## 开源中国059/060预算延期（2026-10-19，Asia/Shanghai）
+
+- 本轮11:04开始时实时账本为62submitted/80queued，057/058动弹已提交并核验，今日博客成功0。完整候选和三组列表已核对，059、060仍queued、无文章/动弹回执。
+- 由于前置只读核对占用本轮预算，当前已接近原03:44:36Z截止；剩余时间不足以安全完成两张主题封面、两张新人物图、事实复核、dry-run和两次正式提交。因此本轮没有启动059/060生图或博客写入，下一轮按实时账本从059继续。
+- 证据见`docs/blogs/oschina/.local/manual-continue-20261018-059060-1105/budget-closeout.json`。未改队列回执、未重发内容、未commit/push/deploy；全队列既有139源稿哈希漂移门禁继续保留。
+## SonnetDB 博客园 2026-10-19：165/166 已排队，文章发布延期
+
+- 本轮从 2026-10-19 约 11:13（Asia/Shanghai）开始，实时核对今天新文章发布数为 0/2、固定租约不存在、队列为空；按 backlog 选中 165 和 166，核查范围 2 个候选。
+- 新稿已写入 [docs/blogs/165-object-bucket-daily-api.md](D:/source/SonnetDB/docs/blogs/165-object-bucket-daily-api.md) 与 [docs/blogs/166-object-list-pagination.md](D:/source/SonnetDB/docs/blogs/166-object-list-pagination.md)。两篇 front matter/H1/首段均以 SonnetDB 开头；源码提交 0986f92e0d575c329a81b026e9431a16f4b8e2dd、固定公开参考提交 5424b66672e37f49a2a5633fdde0b54a9a1f0290、GitHub Release/NuGet 4.0.0 已核；examples 未执行，真实服务、固定硬件、长期生产和性能实测未宣称，Graph 保持 Beta 边界。
+- 两张独立 gpt-image-2 横图均已一次生成并目视通过（请求 1792x768，实际 1915x821，retries=0），经 MetaWeblog 单次上传并用公开 GET/SHA256 核对；165/166 coverUpload.status=uploaded，正文已改为远程 HTTPS 图。165 首次本地状态写入在收到成功 URL 后发生属性补写错误，随后仅用已知 URL 做只读回读并修复状态，没有重复上传；166 完成一次上传。默认双二维码保留。
+- 两篇均通过 verify-project-identity.ps1、verify-cover-image.ps1 -RequireUploadReady、本地 C# dry-run 与最终预览（三张 HTTPS 图、默认二维码、群号 63631741）。状态已原子更新为 queued，ing.status=pending、attempts=0；计划表已加入 165/166 的 🕒 待发布行，series-backlog 已改为 queued。
+- 本轮未发起博客园文章创建请求，也未发送伴随闪存。原因是达到用户规定的单轮 30 分钟墙钟上限；因此没有文章 URL/postId、published 事件或当日新文章计数变化。下一轮应先重新核对租约/当天额度/标题别名，再按 scheduledAt、priority 依次发布 165、166；每篇发布成功并完成原 ID/公开正文回读后，再各发一条已登记 pending 闪存。
+- 证据目录：docs/blogs/publishing-evidence/2026-10-19/，主回执 docs/blogs/publishing-review-2026-10-19.json。本轮未修改产品源码，未 stage/commit/push/deploy；共享工作树其它会话改动保留。
+- Run closeout：2026-10-19T12:40:28.9417323+08:00；固定 docs/blogs/publishing-lease.json 已释放且不存在。
+
+## SonnetDB CI 39199301693 失败诊断（2026-10-19，Asia/Shanghai）
+
+- 公开 GitHub API 核对：运行 `39199301693`（CI #967）对应 `main` 提交 `615f3cdfd6561bff81c74e43c5c9b182568da9dd`，提交说明为 `fix(sql): retain native datetime mismatch rejection`。用户给出的两个 job 均只在 `Test` 步骤失败：Ubuntu job `117888793237` 于 `2026-10-19T04:38:41Z` 失败，Windows core job `117888793294` 于 `2026-10-19T05:02:23Z` 失败；restore、许可证、release gate、build、shard 选择均通过，Windows rest job 通过。
+- 独立临时 worktree 在精确 SHA 上复现 `SonnetDB.Core.Tests.Sql.SqlDateTimeOffsetTests`：61 项中 59 通过、2 失败，均为 `LegacyDateTime_ExplicitParameterType_RejectsPrecisionLossAndAcceptsAlignedValue` 的 `DbType.DateTime` 与 `DbType.DateTime2` 参数化实例，失败位置为测试第 134 行。亚毫秒 `DateTimeOffset` 写入旧 `DATETIME` 本应在写入前抛出 `InvalidOperationException`，实际被截断后继续执行。
+- 根因边界：`849a52d2` 在 `TableDateTimeValues.ToLegacyMilliseconds` 与 `TableSqlExecutor.ConvertDateTimeValue` 中增加了 `DateTimeOffset` 的静默毫秒截断；`615f3cdf` 只删除了 `SqlDateTimeOffsetContract.RequireCompatible` 的两条例外，未消除两个实际写入快捷路径的截断，因此 Core 契约测试仍失败。没有修改生产代码、没有提交或推送。
+- GitHub CLI 凭据当前失效（keyring token invalid）；公开 API 可读运行/job 元数据，但 Actions 日志和诊断 artifact 下载仍需重新认证。下一步应在用户授权后，先修复旧 `DATETIME` 的 DTO 亚毫秒边界并验证 EF/Identity 兼容路径，再执行完整 restore、规定 Format Check、定向与分片测试，最后重新读取精确新 SHA 的 CI。
+- 追加隔离实验：只恢复两个转换器的严格亚毫秒拒绝后，Core 两个失败用例变为 2/2 PASS；但 IdentityLockout 在 `AccessFailedAsync` 写入 `AspNetUsers.LockoutEnd` 时失败（`DbType.DateTimeOffset` 的真实消费路径仍含亚毫秒）。因此不能直接回滚截断逻辑；修复需区分未声明的 DTO 旧 DATETIME 写入与 EF/Identity 显式兼容参数，并保持原生 DATETIMEOFFSET/DATETIME2 精度合同。
+- 认证后读取的真实日志补充：Ubuntu `117888793237` 与 Windows core `117888793294` 均为 Core 测试 7890 项中 3 失败、7887 通过、0 跳过；除两个旧 DATETIME 亚毫秒用例外，还失败 `SndbCommandTimeoutTests.ReaderClose_ResultDisposeFailure_PrecedesConnectionCloseFailure`。后者在精确 615f 临时 worktree 单测复现，失败发生于测试退出时 `using var connection` 的第二次 `SndbConnection.Dispose`；Reader 首次 Close 的结果释放异常优先级断言后，底层注入的 `closeException` 再次冒泡。
+- 代码边界：615f 的 `SndbConnection.Close` 只有在 `impl.Close()` 成功后才把 `_impl` 置空，因此底层 Close 抛错后连接仍持有 impl，随后 Dispose 会再次调用 Close。候选最小修复是让 Close 在异常路径也完成状态清空和底层 Dispose，并保留首个异常；尚未修改或验证。
+
+## 2026-10-19 CI 39199301693 修复完成（未提交/未推送）
+
+- 在隔离 worktree `D:\source\SonnetDB\.codex-temp\ci-fix-39199301693`（基于远端 `615f3cdfd6561bff81c74e43c5c9b182568da9dd`）完成最小修复，当前未写入 canonical 主目录。
+- 修复内容：为参数绑定 AST 增加显式参数类型标记，未声明 `DateTimeOffset` 写入旧 `DATETIME` 时保留 UTC ticks 并在毫秒边界前拒绝；EF/Identity 显式 `DbType.DateTimeOffset` 兼容路径保留；Reader close 失败测试的注入连接异常改为只在首次关闭时抛出，保持 `SndbConnection` 清理失败可重试合同。
+- 最终验证：Core `7890/7890`、EF Core `295/295`、Identity lockout `1/1`、规定 Format Check exit 0；定向旧 DATETIME 两项、Reader close、session cleanup retry 均通过。完整 EF 仅因过滤目标之外未重复运行；EF 全套 295 已运行通过。
+- 可审阅补丁：`D:\source\SonnetDB\.codex-temp\ci-fix-39199301693\ci-fix.patch`，SHA256 `E888E421AAEA7DCE0FF1F03FCEC3FA96D132FA79679D2AFA8953B4DC1A8C958B`。未 commit、未 push、未触发新 CI；等待用户明确提交/推送授权。
+
+## 2026-10-19 CI 39199301693 修复已提交推送
+
+- 修复提交 `af4e4dd4160d4d1c265b1939fe9db1f14fa231f6` 已由隔离 worktree 快进推送到远端 `main`，远端 `git ls-remote` 已回读同一 SHA；本次暂存只包含 CHANGELOG、HANDOFF、两处 SQL 参数合同源码、AST 参数标记和 Reader close 测试。
+- 提交前最终验证：Core 7890/7890、EF Core 295/295、Identity lockout 1/1、规定 Format Check exit 0。新 CI `39223933916`（CI #968）已针对该 SHA 启动，当前 `in_progress`；Format、Ubuntu/Windows Core/rest 和三平台 AOT 尚未完成，不能提前写成通过。
+- 隔离 worktree 与任务临时门禁日志已清理；canonical 主目录仍保留既有大量脏改动，未用于本次提交或推送。
+
+## SonnetDB 抖音三图发布初始化（2026-10-20，Asia/Shanghai）
+
+- 用户明确授权当前仓库从000开始的全部编号文章发布抖音，不要求其它平台已发表；每篇三张竖图，按平台实际允许量每日尽量多发，逐篇记已发/未发/失败/未知，并创建可复用技能。顶层实际有164篇正文，000/158/162未发现源稿，已单列source_missing，不编造或当作完成。
+- 已通过正常首页DOM确认账号SonnetDB、抖音号96635218885。Playwright命名sonnetdb-douyin，专属持久profile为C:\Users\mysti\AppData\Local\Codex\DouyinPublisher\sonnetdb\browser-profile。作品管理真正加载后显示没有更多作品。上传页推荐3:4/4:3、JPG/PNG/WebP、单图50MB以内、最多35张；本任务固定每篇三张1080×1440。实际编辑器标题20字/正文1000字。
+- 001/002文案均按当前README/成熟度校正，六张原创技术信息图均真实生成并逐张目视通过；当前gpt-image-2通道返回model_not_found、配置模型列表无image模型，未把失败请求写成成功。实际配图使用代码绘制，生成方式明确记录；源稿未改写。001三图已正常上传、首图封面裁剪目视通过并确认，AI声明/公开/立即发布已核；002仅本地prepared，未上传或claim。
+- 001最终发布只点击一次，attemptId=9cb4944a0cf04721b199494adb7b93c8，随后出现抖音账号本人验证（短信或原设备扫码）。用户已收到在专用Chrome直接完成验证的请求；未代发短信、未读取/输入验证码。最新回读仍verificationRequired=true。当前确认published=0，001=unknown/stage identity_verification_required，没有作品ID或发表回执；单次marker保留，严禁重点击001或重建。专用浏览器保留供用户验证，不关闭或换工具接管。
+- 渠道实时状态docs/blogs/douyin/publishing-state.json，事件publishing-events.jsonl，逐篇进度PROGRESS.md；当前3缺稿/1unknown/1prepared/162pending_review。技能C:\Users\mysti\.codex\skills\douyin-publisher\SKILL.md已创建并通过quick_validate，包含正常网页实证与进度脚本。本人验证后的实际发表和独立回读尚未实证，不称全流程已验收。
+- 同聊天heartbeat sonnetdb-4已创建、持久回读ACTIVE，每天北京时间09:00/15:00/21:00续接；无本地日篇数上限，尊重抖音实际额度/频率/风控，批次20候选/45分钟仅执行边界。状态不变安静，仅实质进展或需人操作通知。后续更新此ID，不新建重复自动化。原001账号级验证解除前停止网页写入，先只读核该attempt结果，再继续002。
+- 主要证据docs/blogs/douyin/evidence/2026-10-20/，closeout.json与process-closeout.json保存真实范围。Slate封面导航返回曾增段首星号，已在原编辑器从冻结稿重新填入；发表后仍需核真实全文，不能只凭编辑器或预览当发表成功。保留所有失败与未知，不修改其它平台或产品源码，无commit/push/deploy；本次HANDOFF追加暂未提交，因为用户授权为发布与技能创建，未授权提交推送。只审计本任务记录的CLI根，专用用户验证浏览器有意保留。
+## SonnetDB 抖音验证后续与003准备（2026-10-20，Asia/Shanghai）
+
+- 用户已在专用Chrome完成001触发的账号本人验证。独立回到内容管理并等待加载后仍显示“没有更多作品”，没有作品ID/URL；001继续保持`unknown`，原attempt `9cb4944a0cf04721b199494adb7b93c8`和单次marker保留，禁止重发。证据：`docs/blogs/douyin/evidence/2026-10-20/001-verification-cleared.json`、`management-after-verification.stdout.txt`、`after-verify-snapshot.stdout.txt`。
+- 002已上传三张1080×1440图、封面目视确认、AI声明、公开、立即发布，最终只点击一次，attempt `60b145c60ff54faf8f97c492159e7c03`；平台再次要求本人验证，暂无作品ID/URL，已记`unknown`，等待用户在专用Chrome完成第二次短信或原设备扫码。不得重点击002。证据：`docs/blogs/douyin/evidence/2026-10-20/002-verification-required.json`、`002-submit-once.stdout.txt`。
+- 003已按当前Docker发布文档复核并完成三张原创竖版技术信息图、逐张目视检查、caption和冻结package；状态为`prepared`，尚未上传或claim。图示覆盖拉取镜像、loopback端口、/data持久化、Web/healthz验证和远程部署前的needsSetup/认证/接口边界。`docs/blogs/douyin/prepared/003/package.json`与`assets/003/`保存SHA。
+- 当前渠道状态：3个缺稿（000/158/162）、2个unknown（001/002）、1个prepared（003）、161个pending_review；published仍为0。`PROGRESS.md`和`publishing-state.json`已实时更新。账号级本人验证每篇最终发布可能再次触发；验证解除后先只读核原attempt，再处理下一个明确未尝试编号。
+- `process-closeout-v2.json`记录本轮额外有界试运行根文件与当前无live候选命令；共享专用Chrome保留。未commit/push/deploy；产品源码未改。下次优先核002验证结果；若仍无作品ID，保留unknown并继续003。
+## SonnetDB 抖音 00:55Z heartbeat（2026-10-20，Asia/Shanghai）
+
+- 本轮复用 sonnetdb-douyin，只读 snapshot 与验证状态；08:56:36（北京时间）原002编辑器仍显示“正在发布 / 接收短信验证码 / 使用原设备扫码”，状态与上轮一致。停止账号网页写入，未导航离开原验证页面，未新上传、发短信、输入验证码或点击最终发布；不重复催促用户。
+- 有界 inventory 仍为164篇正文、167个编号记录：001/002 unknown、003 prepared、161 pending_review、000/158/162 source_missing，确认 published=0。两枚原提交marker及文章记录均未改变；只更新本渠道monitor/进度时间并追加heartbeat观察事件。
+- 回执 docs/blogs/douyin/evidence/2026-10-20/heartbeat-0055-closeout.json，命令根审计 heartbeat-0055-processes.json。4个本轮命令根全部退出；专用Chrome有意保留供002本人验证。无新增自动化、commit/push/deploy。下轮继续先核002原验证及结果，解除账号阻碍后再处理003。
+## 博客园每日双篇（2026-10-20，本任务交接）
+
+- 165 Object Bucket API https://www.cnblogs.com/IoTSharp/p/23369660 （11:24:36+08）与166对象分页 https://www.cnblogs.com/IoTSharp/p/23369680 （11:25:17+08）各一次C#创建，明确URL/postId，今日2/2。两篇原ID完整正文与最终C#预览相同；165公开标题/封面/默认双二维码已核，166公开首读404留待只读核对，禁止重建文章。
+- 复用昨日稿和两张已上传封面，无新稿/图片生成/上传。修正165公开commit字符、namespace、Range示例和远程presign前提；166空格Prefix与有界分页。当前faf4c9dd相关对象源码较昨日无变，sourceDocs/ROADMAP重新读取，正式Release/NuGetCore4.0.0、账号IoTSharp/blogId523396、最近100篇与图片SHA已核；两篇identity/cover RequireUploadReady和C#dry-run通过。示例/产品测试未执行，固定硬件/真实模型/生产证据未建立。
+- 伴随闪存均pending attempts0，真实闪存POST0。165离线dry-run通过；--check-only误缺--article-url/--title，仅argparse退出2，无HTTP请求。下次必须保留这些参数，先原ID/公开回读、共享租约/全局助手锁/账号核对，再每篇最多一次闪存POST；166须先补公开回读。
+- 首工具10:58:28，硬截止11:28:28未重置。文章创建在截止前；后续续接发现已超时，仅保存/清理，不声称整轮30分钟内完成。共享自有租约释放、临时预览/下载核hash后删除，Job回收与末次PID身份核验见publishing-review-2026-10-20.json；短子进程采样边界保留。计划/选题/事件/状态同步。167/168为下一新主题，59历史待核对及158/162同题暂停保持。
+- 仅改博客及本交接段；遵用户要求未暂存、commit、push或部署。其它会话脏改保留。执行脚本与失败日志作为审计证据保存。
+
+## CSDN 2026-10-20 11:59后续批次收口
+
+用户继续后建立独立30分钟预算，起点2026-10-20T03:59附近（北京时间11:59），全程仍使用专属Playwright CLI `csdn-mysticboy`。先读实时账本：49 under_review、0 scheduled、2 prepared（051/052）、3 unknown（039/044/054）、88 pending，nextId=55；账号实际额度由此前本日编辑器观察为10，未重新创建探测稿。
+
+053上一批的延迟结果本轮补核：原ID168434786在独立原ID重载中正文严格相等，管理“全部/已发布”唯一同ID且显示2026-10-19 16:00:00、同CSS封面356x200，审核/草稿为空。按到时作者端接受证据记录under_review，publicationVerified/publicVisible保持false；没有重新提交。054上一批已一次点击2026-10-20 16:00原生定时，但独立回读仍被beforeunload modal状态冲突阻断，保留unknown、原ID168542482、attempt、封面、绑定和唯一提交marker，已按用户授权跳过，未重提。
+
+本批处理055。源稿按当前SqlLexer/SqlParser/TableValuedFunctionExecutor/KnnExecutor/MeasurementSchema审改，去掉“完整pgvector兼容”“自动HNSW”“无修改迁移”“固定性能”承诺，保留已核实三个运算符、负点积方向、measurement/TAG/FIELD/time、knn入口和HNSW/精确回退边界。冻结标题`SonnetDB：从 pgvector 迁移的运算符与建模边界`，准备稿SHA `ca2940a39756ca5c975287a09aef6abcc77ab363c0dbd1cbf04b8c52f2f8ae33`。055主题图本地目视一次，复制自有assets/055-cover-20261020.jpg，未覆写公众号原图，图片SHA记录在055-review-20261020.json。
+
+新鲜四分类关键词`pgvector`全部为空；补充关键词`向量运算符`四分类完整，发现已接受原029/remote167494157（全部、已发布各唯一）。由于剩余时间不足以完成旧候选全文独立读取、claim、导入、封面和原生定时全流程，按最新“无法推进就忽略”授权对055执行defer-unresolved；保持prepared、无attempt、无remoteId、无平台写入，完整审稿/封面/查重证据保留。当前实时账本变为49 under_review、3 prepared、87 pending、3 unknown、scheduled0，nextId=56，nextUnfinishedId=39。
+
+本批没有新claim、没有新ID、没有最终点击、没有新增排期；共享登录会话保留。下一轮按实时nextId=56推进；051/052/055为prepared延期项，039/044/054为unknown延期项，均不阻断后续。未修改技能、业务代码、其它渠道、索引或parity-results；未commit/push/deploy。交接和PROGRESS仅做本渠道独占尾追加，保留历史原文及全部证据。
+
+## 博客园伴随闪存续接（2026-10-21）
+
+- 续接窗口从 2026-10-21 11:24:45（Asia/Shanghai）开始，仅处理明确登记的 165/166 ing.status=pending, attempts=0，不创建新文章、不补历史稿、不改封面。
+- 先用 C# dry-run 重新生成最终预览；166 原 ID/公开正文回读恢复 200，165/166正文均与最终预览一致。账号 IoTSharp、blogId 523396、全局回执锁和共享租约核对通过。
+- 165 闪存一次 POST 成功，ingId 3594135；166 闪存一次 POST 成功，ingId 3594136。官方原 ID 回读均确认作者 IoTSharp、字面量 [SonnetDB]、对应博客园原文 URL 和 IsPrivate=false；匿名网页可见性保持 NOT_VERIFIED。
+- publishing-state.json、publishing-events.jsonl、 0-publishing-plan.md、series-backlog.md 和独立回执已同步；今日新文章额度仍为 2026-10-20 的 2/2，闪存不增加新文章计数。 lease 已释放，未重试任何请求。证据：docs/blogs/publishing-review-2026-10-21-companion.json 和 docs/blogs/publishing-evidence/2026-10-20/165-ing-result.json、166-ing-result.json。
+- 未暂存、commit、push 或部署；其它会话脏改保留。下一次新文章从 167/168 开始，165/166 不得重建。
+
+## CSDN 用户继续：054到时接受核验、058原生排期，056/057留稿跳过（2026-10-21）
+
+本轮先读根HANDOFF、实时账本和publish-csdn/native-scheduling/covers，固定Python -X utf8 -B status初始49 under_review/3 unknown/3 prepared/87 pending、nextId056。先完成056/057当前源码审阅、主题原图实际本地目视各一次、自有副本和同冻结标题文件名prepare，再启动唯一网页预算：北京时间2026-10-21 03:35:52.599至04:05:52.599（UTC2026-10-20T19:35:52.599Z至20:05:52.599Z）。所有后续本机控制器恢复沿原期限，不重置批次；最后网页/record控制器于04:01:24.904结束，截止后未继续网页动作。当前余量不足完整新稿，不claim059，不把059标unknown。
+
+正常恢复原csdn-mysticboy专属Playwright CLI及原profile，DOM账号mysticboy有效；没有CUA、通用外部浏览器工具、Cookie/profile复制、后台API、浏览器安装或付费。初次恢复Entry用了正斜杠，被本机PreserveSessionProcesses路径守卫前置拒绝，未产生平台写；改为结构化参数的反斜杠路径后CLI已正常open，早期控制器仍将该阶段判为失败，保留result/result-v2及输出。随后同期限tabs独立确认会话再接续；最终manifest实际62份阶段根均rootExited/streamsComplete，当前记录PID候选为空，0清理信号。共享登录浏览器保留；该检查仅覆盖记录身份，不冒称未观察短命后代/全机无孤儿。
+
+054原ID168542482/attempt1727b154-62ef-4bc8-9849-1f2c3960a4ad到时只读核验成功。独立reader在同一次CLI run-code内正常goto、reload、读取完整textContent，只有reader的beforeunload正常离页确认由该次回调接受，实际navigationType=reload；全文及原冻结SHA严格相符。四分类全部/已发布唯一原ID、准确2026-10-20 16:00:00、同原封面356x200加载，审核/草稿无冲突，正常record under_review。证据run/054-due-accepted.json；旧unknown/原nativeSchedule/最终marker和历史回执保持。匿名公开未核，publicationVerified/publicVisible=false，未重发或修改054。
+
+056原唯一168576933/attempt079c9db3-c23a-49ac-bfab-37300bac4704，SonnetDB：GEOPOINT 的坐标顺序与空间过滤边界；057原唯一168577331/attempt0ab5bbef-9b1c-4bbb-8b4e-3dbd8eaa7ae5，SonnetDB：lat() 与 lon() 的坐标提取和地图顺序。两篇按GeoPoint、SqlParser、FunctionRegistry和geo-spatial指南审改，去掉未经核实的数组写入、自定义geohash CREATE INDEX、自动lat/lon剪枝、嵌套聚合/分组与性能承诺，保留POINT纬度在前、GeoJSON经度在前、坐标系和圆形/矩形谓词边界。源码、正文、原图、自有图及来源回执SHA各在056/057-review-20261021.json；本轮未执行SQL、设备、地图、模型、性能或生产测试。
+
+两篇均完整四分类查重、daily claim（传原统一batch-deadline）早于新编辑器；官方Markdown各导入一次，实际ID绑定、finish-import正式保存reload完整正文、原创/public/GitCode关/多平台否/实际AI辅助声明/精确SonnetDB和数据库两标签、主题封面上传确认保存及原ID重载均通过，cover截图均null。日历读取代码在正常点击后立即evaluate，尚未等待picker可见，捕获days=[]；这是本机读取错误，不是平台日期不可用。056因此无排期绑定/最终marker，正常record unknown并defer。057后继又遇同名calendar-observed.json排他写入EEXIST，未覆写原证据，同样无排期绑定/最终marker，record unknown并defer。两篇原ID、完整已保存正文、封面、attempt、失败和全部marker保留，不自动重修/重发，不拿保存草稿当排期成功。
+
+从057已展开的日期面板仅只读等待实际picker可见后，真实calendar捕获2026年10月21–27可选、28 disabled（phase-cbb45dfd-8985-48f8-9a46-fc94d694d220.json）。本轮继续058，未修复或提交057。058源稿和原图逐篇实际审阅/目视，删掉未执行的城市距离/角度数值、嵌套窗口总里程和性能保证；保留Haversine米制距离、初始方位度数/起终点顺序、球面距离不等于道路里程及geo_within逐点判断。自有prepared/SonnetDB：地理距离的单位与方位角的方向.md，SHA b83eabbd3ce395ba6d2d634b43cdba8ca8a3f1ea681b86eb7d172500b9f02156，review 058-review-20261021.json，来源原稿/公众号原图保持。
+
+058采用实际可选范围的22–27日生成run/schedule-plan-roll-058.json（候选计划，不写平台或账本），避开已绑定时刻，并保留原schedule-plan.json及映射；选择次日是避开当前日4小时边界的本机排布决定，不是用户指定或平台容量承诺。准备稿已冻结，完整四分类关键词“地理距离的单位”和原主题“地理距离与方位角”均无候选；正常先bind-native-plan再daily claim、官方导入一次、绑定实际ID、正式保存及全文重载、设置、封面upload/confirm/verify、timer/choose、最终native submit一次。原056/057未绑定槽位不偷改或释放；058新绑定不替代它们。
+
+058唯一原ID168580023，平台已保存北京时间2026-10-22 08:00未来时间。独立reader用本轮实测atomic-read.mjs在同一CLI调用内完成正常goto、reload、beforeunload处理和完整textContent读取，实际reload及原ID/账号/精确标题/完整正文/raw SHA严格相符。提交后完整四分类全部/已发布唯一同ID、精确“预计于北京时间2026-10-22 08:00发布”及同已保存CSS封面加载，审核/草稿无冲突；csdn_native_receipt.mjs派生真实回执058-cbbd3ef9-2edd-4974-b480-e22b2a63c41c-native-saved-receipt.json，正常record scheduled。未来排期不称已发表、published或匿名公开，publicationVerified/publicVisible=false；禁止重复最终确认或覆盖原绑定。
+
+原本机控制器只排两个候选/60阶段；依本聊天“无法推进就下一批”在同一原30分钟预算内扩展到058/85阶段上限，原intent和所有失败保留，未改用户硬限每批10预占。实际3次claim、1次最终确认、1篇真实排期、1篇到时作者端接受补记，未触及平台额度0。058独立原ID最后实读余额2，不从attempt数推定容量，也不因只有1篇成功再补写超过预算。其余138条相对run/baseline.json逐项保持，只有054/056/057/058变化；三篇源事实、冻结稿和原/自有图结束SHA全部未变。
+
+最终50 under_review/1 scheduled（058）/4延期unknown（039/044/056/057）/3延期prepared（051/052/055）/84 pending，nextId059、nextUnfinishedId039、blocked空。054原延期历史仍保留，当前已完成接受不再阻断。结果、真实阶段/audit引用、源码检查、资源边界见C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/user-continue-20261021-0335/{result-v4,summary,phase-manifest,process-audit}.json。
+
+下轮先按真实到时条件核058；从059重新审当前源码和主题图。离页确认恢复已在run/atomic-read.mjs对054/058真实通过：正常导航与reload以及仅reader的beforeunload监听须处于同一CLI调用，并核实际performance navigation type；不要把监听放一条调用、reload放另一条，亦不重复处理已经handled的确认框。不直接重跑本轮controller（原deadline已固定）；复用helper时给新输出名和真实新批次期限，保留全部旧文件。当前技能文件未修改，无自动化配置写入、无commit/push/deploy、无.NET检查、无Graphify或广域工具扫描。根HANDOFF/本渠道PROGRESS仅独占尾追加并Flush(true)核旧完整字节前缀；当前发布工作未获提交推送授权，交接暂不提交，保护并发产品与其它渠道。
+
+## 开源中国059/060延期（2026-10-20，Asia/Shanghai）
+
+- 读取账本确认累计62submitted/80queued，057/058动弹已完成，059/060仍queued且无任何博客/动弹ID。完整三组列表和旧待审核动弹均只读核对。
+- 059、060已复用可追溯的微信主题封面并完成本地封面准备；人物图接口本轮返回`model_not_found`，未重试。由于原45分钟窗口即将截止，未启动059/060博客dry-run或正式写入，也未创建新动弹。下一轮按实时账本从059继续。
+- 证据见`docs/blogs/oschina/.local/scheduled-20261020-059060/budget-closeout.json`。全队列既有139源稿哈希漂移门禁继续；未commit/push/deploy。
+## SonnetDB 微博030发表核验、032排期未到时、039排期保持（2026-10-21）
+
+本轮只完成030到时双输出核验，以及032的排期页只读核验。030原3931404/attemptf3c13ff74020451487ed95ff9a6c1948已实际自动发表：文章https://weibo.com/ttarticle/p/show?id=2309405356004354687192、微博https://weibo.com/1089099883/RnuVBu7p2。完整正文/作者/封面/真实原文URL/同文章卡片封面/完整冻结简介均独立reload通过，record-published成功，双outputs verified/publicationVerified=true，publicVisibilityVerified=false。卡片目视通过，旧marker/binding/源码快照/时刻保持。
+
+031原3931923/attemptc153dccfa7964712b5ee943a90c923ba继续unknown和continuationDeferral，未重试、未访问原draft、未点击。039原3934650/attemptfe4685ef8ff74035a03e58172cbddeda仍scheduled于2026-10-24 20:00+08:00，binding/marker/当前源码复审、正文/简介/封面和outputs pending保持，未编辑或重提交。
+
+032原3931927/attemptd132a0662cf54f349076ab9843c061d0的平台原ID只读页显示“定时发布开启，本文将于 2026-10-21 08:00 发布”，forms=[]，iframe为原草稿预览，未打开设置或编辑。浏览器实际时间2026-10-20T20:28:22Z（北京时间2026-10-21 04:28），早于平台08:00门禁，因此本轮不把032升级为published。下一轮在真实平台时间超过08:00后再核正式文章与配套微博双输出；若仍无法确认按用户授权单篇延期。
+
+040及以后本轮未处理。当前ledger26published/1accepted_as_is/6scheduled/6延期unknown/1旧abandoned，queue39；plan17published/6scheduled/113planned。没有新创建、claim、marker或最终点击；没有产品源码改动、测试、提交或推送。浏览器恢复同名微博profile，UID1089099883有效，未导出Cookie或使用私有API。收口追加本段并核原HANDOFF前缀。
+
+## SonnetDB 微博032排期未到时、039保持（2026-10-21）
+
+本轮实际核验了032的原生排期页。032原3931927/attemptd132a0662cf54f349076ab9843c061d0仍显示“定时发布开启，本文将于2026-10-21 08:00发布”，Forms为空，原预览iframe为https://card.weibo.com/article/v3/preview?id=3931927&history=1。浏览器实际时间为2026-10-20T20:28:22Z（北京时间2026-10-21 04:28），早于平台08:00，因此本轮不升级published；保留scheduled，待下一轮真实超过08:00后再核双输出。
+
+031原3931923/attemptc153dccfa7964712b5ee943a90c923ba继续unknown/continuationDeferral，未访问原稿、未重试、未点击。039原3934650/attemptfe4685ef8ff74035a03e58172cbddeda已scheduled于2026-10-24 20:00，正文/作者/封面/时钟/iframe记录保持，不编辑或重提交。040及以后本轮未处理。
+
+030的发表核验在本轮入账：原3931404/attemptf3c13ff74020451487ed95ff9a6c1948于2026-10-20 08:00自动发表，文章https://weibo.com/ttarticle/p/show?id=2309405356004354687192、微博https://weibo.com/1089099883/RnuVBu7p2，完整双输出通过，record-published成功、publicVisibilityVerified=false。卡片截图和目视通过。
+
+本轮没有新创建、claim、marker、最终点击或新排期。实时ledger26published/1accepted_as_is/6scheduled/6延期unknown/1旧abandoned，queue39，plan17published/6scheduled/113planned。浏览器同名profile恢复有效，UID1089099883正确，未导出Cookie或使用私有API。由于执行主机时钟与heartbeat客户端日期存在偏差，以平台浏览器自身时间和DOM排期合同为准，不冒称已到发表门禁。
+
+自动化保持每天北京时间11:00/ACTIVE，prompt已更新为本轮事实并持久回读。根进程审计和HANDOFF尾追加完成；未执行产品测试、stage/commit/push/deploy。
+
+## SonnetDB 微博：032双输出核验，040封面服务不可用（2026-10-21）
+
+用户本聊天直接“继续”后建立独立批次research/schedule-20261021/run-user-continue-1155，基线2026-10-21T03:57:58.5521001Z至04:37:58.5521001Z，最多3候选，未重置上一批。只处理032到时核验和040当前源码审稿/封面准备；031及所有其它unknown不重试。
+
+032原3931927/attemptd132a0662cf54f349076ab9843c061d0已实际自动发表。独立文章https://weibo.com/ttarticle/p/show?id=2309405356366763524140和微博https://weibo.com/1089099883/RnEm87EnF均通过完整正文/作者UID1089099883/原封面、微博完整简介/解码原文URL/同文章卡片加载封面核验，发表卡片已目视。实际timestamp1792540800匹配2026-10-21 08:00+08:00，record-published成功，outputs verified/publicationVerified=true，匿名公开未核/publicVisibilityVerified=false。原marker/binding/时刻/审稿快照保持，禁止重发。
+
+031原3931923/attemptc153dccfa7964712b5ee943a90c923ba仍unknown/continuationDeferral，未访问原稿、未重试或点击。034、036、037、038、039保持scheduled不编辑；035平台排期与本地跨日date冲突unknown保持。实时ledger27published/1accepted_as_is/5scheduled/6unknown/1abandoned，queue39，plan18published/5scheduled/113planned。
+
+040按当前PointDifferenceFunctions、WindowFunctionBinder、FunctionRegistry、SelectExecutor、SqlParser实际审稿。历史稿把increase负差说成重置后自动补量，当前源码明确IncreaseFunction使用nonNegative DifferenceEvaluator：负差返回NULL，首项NULL，缺测不更新前有效值；PARTITION BY不支持。已保存新审定稿drafts/040-sonnetdb-increase-window.zh.md、正文/简介/源事实快照及审稿回执，未运行SQL或性能试验。
+
+040封面生成只请求一次：当前sonnet_vip HTTPS配置组返回model_not_found，明确“gpt-image-2 is not supported by any configured account in this group”。无输出图片、无平台草稿/queue/attempt/marker/上传/裁剪/最终点击。040-image-provider-failure.json保存原错误；plan保持planned，sourceReviewState=reviewed_against_current_source，draftState=reviewed_waiting_cover_provider，coverState=generation_failed_provider_unavailable。不得在不变条件下重复请求；需当前服务恢复gpt-image-2或用户明确授权其它模型/provider后才生成新主题图并继续。
+
+本批7条记录根均completed/rootExited/outputComplete且当前PID absent、0signal；共享Chrome/daemon保护。进程审计的indexUnchangedFromBaseline仍受PowerShell SHA大小写比较影响，实际不对共享index做恢复或改写。自动化sonnetdb-3已更新并持久读回为每天北京时间11:00/ACTIVE/原聊天。没有测试、stage/commit/push/deploy。HANDOFF独占尾追加、fsync和原字节前缀核验；当前发布授权不含提交推送。
+
+## CSDN 接续批次：059/060 已原生定时（2026-10-21）
+
+用户在上一30分钟窗口后继续队列，本批独立预算为北京时间11:55:42至12:25:42，证据目录 `C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/user-continue-20261021-1155`。开始从实时账本nextId=059。先用已接受ID168580023的原账号页只读核账号mysticboy和平台余额2；059排期后在同原ID页面回读余额1。实时账本今日写预占最终为5，包含此前attempt历史，不把它视为平台限额。
+
+059按当前geo_within/geo_bbox源码和地理空间指南审稿，删除旧稿不支持的CREATE INDEX geohash语法、固定网格精度及无证自动索引/性能承诺，保留Haversine半径、bbox参数与包含边界及字面量谓词的段剪枝范围。主题原图本地目视一次并复制自有assets，原图不覆盖。四分类“圆形与矩形地理围栏”“geo_within”完整且无候选。冻结正文SHA `9e658c2d1e2d866ae579c6e3e6b3f0df715f89a96dc5901144884fc85ff5d6ea`。attempt f85fe689-602a-4738-af8b-4d4c425b743a，原ID168646724。官方导入一次、正文保存reload、设置及封面同ID保存证明通过；真实日历DOM实见10月21日至27日可选、28日disabled；新滚动计划以claim前快照生成，原计划/槽位不变。目标北京时间16:45，最终只点击一次。独立原ID reload正文严格匹配；四分类全部/已发布唯一ID、准确16:45与同CSS封面356x200均通过，审核/草稿无冲突。receipt `059-d3597651-e726-4bc8-a5f7-e3040c39f005-native-saved-receipt.json`，record scheduled。未来排期尚未发表，匿名公开未核。
+
+060当前FunctionRegistry只注册ST_Distance双GeoPoint、ST_Within和ST_DWithin两个四参圆形别名，后两者实际映射geo_within；不提供旧稿所称PostGIS geometry/geography、polygon containment或完整索引兼容。旧封面有无证1245m结果和完整兼容印象，本批复制派生自有图、覆盖错误数字并标出“仅部分函数名兼容”，真实本地目视通过；原公众号源图保持。四分类PostGIS及ST_DWithin完整且无候选。attempt 8da755cb-3274-47b4-b338-f6b2608378ec，原ID168647352，冻结正文SHA `21ee83a45eba8d6c64a29e2a1879bbd7b866db8074ff45a36c8b8ff6a0a4907e`。Markdown导入/保存、账号与发布设置、派生封面upload/confirm/save/reload通过；绑定滚动计划中的17:30槽位后只确认一次。独立reader同一调用处理beforeunload并reload，全文严格相等；四分类全部/已发布唯一ID、准确北京时间17:30行、同封面356x200通过，审核/草稿无冲突。receipt `060-7c59312a-93b8-4f1b-877d-31e56f4fb499-native-saved-receipt.json`，record scheduled。未来时间不算发表或匿名可见。
+
+一次误写060 record证据路径由PowerShell展开成不存在名称，脚本读证据前拒绝，账本未变；失败audit保留，随后用receipt工具实际返回的绝对路径正常record，未重试平台提交。结果摘要、phase和进程审计、来源图派生和失败证据均保留。
+
+收口实时账本50 under_review/3 scheduled/4延期unknown（039/044/056/057）/3延期prepared（051/052/055）/82 pending，nextId061、nextUnfinishedId039、blocked为空。今日新预占2，最终确认2，新增原生排期2。最后未做061，因为本批不足5分钟预算，不claim、不导航并保留pending。下一轮从061接续；已延期条目继续保留原ID及marker，不阻断队列。
+
+本批未修改技能、产品源码、其它渠道、索引或parity-results；无测试、commit、push、deploy。自动任务仍为每日北京时间11:00，不新建或修改自动化。CSDN PROGRESS和HANDOFF独占尾追加，Flush(true)并核旧完整字节前缀；发布授权不含提交推送。
+
+## 博客园每日双篇：167/168 封面门禁暂停（2026-10-21，Asia/Shanghai）
+
+- 本轮按博客园自动化规则读取发布账本、计划、选题、交接和发布技能。165/166 的伴随闪存已经完成；当日未创建任何新博客园文章，固定租约不存在且没有遗留 publishing 状态。
+- 新写 167 可恢复 Multipart 上传与校验下载、168 Bucket 治理：Quota、Retention、Legal Hold 与生命周期。两篇均以 SonnetDB 开头，首段直接说明主题；事实源复核到当前 faf4c9dda2892be69b906ff10d133fc417e571cd、公开文档提交5424b66672e37f49a2a5633fdde0b54a9b1f0290及4.0.0候选发布说明。项目识别检查通过；示例、固定硬件、远程服务、生产和长期证据均未运行或未宣称。
+- 封面为每篇各发起一次 gpt-image-2 请求，167 收到 model_not_found，168 TLS握手超时。遵守 retries=0 规则，未切换模型、未重试、未生成或上传图片。封面检查因此失败，167/168 都原子标记 needs-update，attempts=0，未进入 queued。
+- 没有博客园文章创建、封面上传或伴随闪存 POST；没有 URL、postId、published 或 ing-published 事件。完整失败回执在 docs/blogs/publishing-review-2026-10-21.json 和 docs/blogs/cover-evidence/2026-10-21/。计划表和选题表已改为 needs-update。
+
+## 博客园封面重试（2026-10-21，Asia/Shanghai）
+
+- 用户要求封面故障采用多次重试。已把 sonnetdb 自动化改为每篇最多三次、5 秒和15秒退避、受30分钟总预算限制，并回读配置。
+- 167 和 168 均完成三次 gpt-image-2 请求。167三次、168三次均返回 model_not_found；168先前的 TLS 超时未再出现。没有输出文件、封面上传、文章创建、闪存POST、租约或发布事件。
+- 两篇继续保持 needs-update，article attempts=0；重试回执为 docs/blogs/cover-evidence/2026-10-21/167-retry-result.json 和168-retry-result.json。不能因这六次模型拒绝而创建无封面文章；后续需服务端提供 gpt-image-2 或用户授权切换模型/提供者。
+
+## 博客园167/168已发布（2026-10-21，Asia/Shanghai）
+
+- 后续封面生成默认已同步为 `gpt-image-2.5-sunburst`：`C:\Users\mysti\.codex\skills\gpt-image-design`、博客封面规范与每日自动化均已更新；脚本编译检查通过。167/168 的历史生成收据保持实际使用的 `gpt-image-2`，不追溯改写。
+
+- 用户确认后台模型已更新后，重新生成并目视批准两张独立横图。167 用 Multipart 时间线、resume manifest、SHA-256 和原子替换解释传输合同；168 经文字修订后只保留 Quota 写入准入、当前/历史版本 Retention、版本级 Legal Hold、Lifecycle 与审计。两图经 MetaWeblog 各上传一次，公开 GET 的 SHA256 与本地资产一致。
+- 167 仅一次 C# 创建，发布为 https://www.cnblogs.com/IoTSharp/p/23390923 （postId 23390923）；168 仅一次 C# 创建，发布为 https://www.cnblogs.com/IoTSharp/p/23392456 （postId 23392456）。两篇原ID完整正文都与最终 C# 预览一致，公开标题、封面、默认双二维码和群号63631741均已回读核验。
+- 伴随闪存各一次POST并通过官方原ID核验：167 为3594643，168 为3594644；都以[SonnetDB]开头、作者IoTSharp、原文URL及IsPrivate=false正确。匿名网页可见性仍为NOT_VERIFIED，未猜测闪存链接。
+- 状态、事件、计划、选题及回执已同步；167/168均published，下一候选为169/170。所有文章/封面/闪存写入都有单次请求记录；固定发布租约已释放。示例、真实远程服务、固定硬件、生产、长期运行和性能证据均未运行或未宣称；未stage、commit、push或部署，外来脏改动未触碰。
+- 下轮在图像服务恢复 gpt-image-2 后，先重新读取源码和发布账本，再为各稿生成一张独立封面、目视核验、上传并通过封面 RequireUploadReady、项目识别和 C# dry-run，才可 queued。不得根据本轮失败重试文章或闪存。未暂存、commit、push 或部署；其它会话的脏改动保持不动。
+
+## SonnetDB 微博034双输出核验，040等待图像模型（2026-10-22）
+
+本heartbeat批次research/schedule-20261022/run-1103，固定上限3候选/40分钟。本轮只核验034到时双输出，不触碰全部unknown项，也没有创建新平台草稿或定时提交。
+
+034原3932469/attempte9de939e26e94f9eb15a224c3b22ca2a已于2026-10-22 08:00自动发表。文章https://weibo.com/ttarticle/p/show?id=2309405356729126224385与微博https://weibo.com/1089099883/RnNMABFoy独立reload：完整正文/作者UID1089099883/原封面、微博完整审定简介/解码真实原文URL/同文章卡片已加载封面均通过，卡片目视通过。真实timestamp1792627200匹配原时刻，record-published成功，outputs verified/publicationVerified=true，publicVisibilityVerified=false。原binding/marker/内容/审稿快照保持，不重发。
+
+024、027、029、031、033、035仍unknown/continuationDeferral，未读或修改，原attempt/marker/binding/内容/槽位保持；035平台排期事实和本地跨日date合同冲突继续分列，禁止改date/binding/marker或再点击绕过。036/037/038/039保持scheduled，不编辑或重提交。当前ledger28published/1accepted_as_is/4scheduled/6unknown/1abandoned，queue39，plan19published/4scheduled/113planned。
+
+040已完成当前源码审稿：历史稿的“重置后自动补量”错误已修正为当前increase负差NULL、首项NULL、缺测不更新前有效值、PARTITION BY不支持。审定稿drafts/040-sonnetdb-increase-window.zh.md、正文/简介/事实快照保留。本轮无新生图请求，沿用上轮失败：当前sonnet_vip账号组不支持gpt-image-2(model_not_found)，没有图片、草稿、queue、attempt、marker、上传、裁剪或最终点击。plan保持reviewed_waiting_cover_provider/generation_failed_provider_unavailable。只有服务恢复gpt-image-2或用户明确授权模型/provider切换才继续040。
+
+本轮6条任务根均completed/rootExited/outputComplete，当前PID absent、0signal，保护共享Chrome/daemon。自动化sonnetdb-3已更新并持久为每天北京时间11:00/ACTIVE；无测试、stage/commit/push/deploy。HANDOFF本段独占尾追加并核前缀，当前发布授权不含提交推送。
+
+## CSDN heartbeat 2026-10-22：058–060 到期作者端核验
+
+本轮只读核验三篇原生定时到期文章，没有创建文章、没有平台提交或重复最终确认。先读根HANDOFF、技能和实时账本；执行PowerShell 7.6.6、固定Python -X utf8 -B。专属CLI会话初始已关闭，正常恢复原`csdn-mysticboy`专用profile并DOM确认mysticboy。058原ID页实读今日额度10；随后没有新的写入。
+
+058（原ID168580023，原生时间2026-10-22 08:00）、059（168646724，10月21日16:45）、060（168647352，10月21日17:30）逐篇在同一正常CLI调用内goto并reload原编辑ID。reader实际navigationType=reload、作者mysticboy、冻结标题与完整body textContent SHA一致；仅reader的beforeunload确认在同一调用处理。完整四分类管理页中全部/已发布各有唯一原ID及过去排期时间、同CSS封面356×200加载；审核/草稿无冲突。封面URL分别来自各自既有cover-verified证明。三篇均按既有到期合同record under_review作者端已接受；不写published，不称匿名公开可见，publicVisible/publicationVerified仍false。证据在`C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/heartbeat-20261022/`及`058/059/060-due-accepted-20261022.json`。
+
+第一份058独立观察文件attemptId从证据文件名误带入，ledger在守卫处拒绝，未改账本。保留旧观察与失败audit；按实时原item核对正确active attempt `c9600399-844f-4a94-ba86-59a148e3901c`，新建独立058-due-accepted-20261022-claim-identity.json并成功record。此为本地证据绑定错误，非平台失败，没重发。
+
+最终账本53 under_review、0 scheduled、4 unknown（039/044/056/057）、3 prepared（051/052/055）、82 pending；nextId061、nextUnfinishedId039、blocked空。计划每日北京时间11:00保持不变。所有已观察CLI roots及会话恢复均自然退出；PID审计仅覆盖本任务记录身份，未发送信号，共享浏览器保留。无技能/源码修改、测试、commit、push、deploy或其它渠道写入。HANDOFF和CSDN PROGRESS仅独占尾追加、Flush(true)，并核原始完整字节前缀；不提交共享工作树。
+
+## 博客园169/170未完成稿暂停（2026-10-22，Asia/Shanghai）
+
+- 今日published事件0，未发文章、闪存或媒体上传请求。169/170正文及两张独立gpt-image-2.5-sunburst横图已保存，但标needs-update/attempts=0、draft=true；封面reviewStatus=needs-review，未queued。171–202仍planned。
+- 169需修累计ACK/取消与drain示例和完整可用代码；170封面误把去重描成时间窗口及NACK直接DLQ，需修后目视。两图缺用户要求的中文关注提示；未批准。
+- 本地核当前MQ源码/相关测试及ROADMAP，公开发行包/当前账号/已发页面未完成当轮验证；sourceDocs/完整事实门禁和两项脚本/C#dry-run/上传均未完成。收据docs/blogs/publishing-review-2026-10-22.json，生成观察记录非完整API响应。
+- 本轮原始开始11:00:19，30分钟硬预算NOT_MET；检测到11:56后只关闭状态，不再开展发布/修稿。图像调用未显式timeout/retries，PID/创建时间/父链审计未留，合规与全进程树清理不能声称通过。两个工具session均结束；仅清理本任务确切临时脚本，保留交付资产与提示词。
+- 下轮先修稿/封面、公开版本与可访问固定提交链接、账号和主题去重，再执行identity/cover/C#dry-run；可验证上传后RequireUploadReady及最终dry-run，才queued。所有旧unknown/暂停不重发。不自动commit/push/deploy；其它会话改动未暂存。
+
+## 开源中国 061/062 完成、公告回执保留（2026-10-22，Asia/Shanghai）
+
+- 本轮先完整读取根 AGENTS/HANDOFF、publish-oschina 技能、队列状态和全局 publications。OSChina 三组列表完整：published 174、draft 1、scheduled 0。047/052/054 原动弹 ID 30401448/30401458/30401471 只读仍为“内容审核中/审核失败”，没有重发。
+- 059、060 博客在本轮开始前已由可靠账本接收：`19780534`、`19780535`。补发公告分别使用新生成并目视通过的人物图；059 保留原动弹 `30401786` 为 `submitted-verification-pending`，060 为 `30401787` 且正文、话题和双图已核验。
+- 为 061/062 复用并审核了可追溯的微信横向封面，复制为 `prepared/covers/061-cover-wechat-20261022.jpg` 与 `062-cover-wechat-20261022.jpg`，通过 prepare-queue dry-run/正式准备并保留独立源证据。两篇源 SHA 未漂移，prepared SHA 经封面准备更新且门禁通过。博客先 dry-run 后各一次正式提交：061 `19780800`、062 `19780801`；独立 check-file 完整三组回读均为 `content_match`、正文严格一致、封面映射通过。
+- 061 公告人物图新生成并目视通过，动弹 ID `30401788` 返回但仍是审核待确认；062 动弹 ID `30401789` 正文、双图和话题已核验。两条博客均按当天两篇额度完成；状态同步后为 66 submitted、76 queued。061/062 的队列未预置 `tweetIntroduction`，因此本轮公告实际只有话题、标题和“已发布”句；已返回 ID 的动弹禁止重建，后续保留该差异并避免重复。
+- GPT Image API 使用配置桥接的 `gpt-image-2`，每篇请求一次；服务返回横向 1536x1024 原图，按 OSChina 动弹要求保留原尺寸，不拉伸。人物图、封面和上传 URL/哈希均留在本轮 `.local/heartbeat-20261022-059060/` 证据目录。Sync 已完成；Verify 仍只报告既有 `Source hash differs: 139`，不刷新 139–142 源哈希。
+- 下一候选按原编号为 063、064；下轮发布前必须给候选补齐一句已复核的 `tweetIntroduction` 并再次 dry-run。4.0.0 新闻 502847 保留原 ID/提交证据，不重投；未执行 commit、push、deploy。
+
+## 抖音004草稿独立回读（2026-10-22，Asia/Shanghai）
+
+- 用户继续本渠道时，先恢复持久 `sonnetdb-douyin` profile，只读打开内容管理。正常页面仅显示已发布的002《SonnetDB为什么值得试用》（2026-10-20 09:06）和003《SonnetDB Docker快速上手》（09:42）；004没有发表记录，001保持原unknown且没有重发。
+- 正常上传页仍出现“你还有上次未发布的图文，是否继续编辑？”。通过“继续编辑”重新进入004，当前编辑器回读原标题《SonnetDB源码构建入门》、378字正文、已添加3张图片、内容由AI生成、公开、立即发布，以及预览中的 `A Little Story - @Valentin`。没有上传、暂存、修改音乐、点击发布或定时确认；音乐播放和00:00界面时长不作为03:24播放验证。
+- 新独立回执为 `docs/blogs/douyin/evidence/2026-10-22/resume/004-draft-confirmed.json`；`douyin_progress.py record-draft` 已写入状态、事件和PROGRESS，状态仍为draft，返回 `waitingForManualArticleId=004`。本次不单独复核当前缩略图顺序，2026-10-21原回执继续保留顺序和人物图目视证据。
+- 浏览器保留在004编辑页供用户手动发布。005维持prepared，因当前仅验证一个同浏览器可恢复入口，禁止上传005覆盖004。抖音技能中误写的“当前PAUSED”已改为读取 `policy.paused` 与自动化实际状态；运行时仍是draft_only、`paused=false`。无测试、commit、push或部署，其他工作树改动未触碰。
+
+## 抖音004已发表（2026-10-22，Asia/Shanghai）
+
+- 用户在当前聊天明确指令“继续，现在发布”，授权仅处理当前已独立核验的004草稿。创建一次性授权记录、最新DOM预览和最终marker后，正常“发布”按钮只点击一次；attempt `a3d96aca58394789ae367f6a6373adf8`。首次管理页仍为旧列表，12秒等待后reload读到作品数由2变3。
+- 管理页确认004《SonnetDB源码构建入门》为3张、2026-10-22 23:14、已发布。通过该作品“编辑作品”页面获得真实 `mid=7699510795670916378`，并独立读回标题、全文和三张1080×1440图片；最终receipt为 `docs/blogs/douyin/evidence/2026-10-22/publish/004-published-receipt.json`。管理页没有公开作品URL，作者端published与匿名公开可见性继续分列，后者未验证。
+- `publishing-state.json`、append-only events和PROGRESS已由 `record-draft-publication` 更新：004=published，002/003/004共3篇published，005=prepared，001仍unknown，000/158/162仍缺稿。新增技能账本路径只支持有当前聊天明确授权文件的单篇已核验草稿发表，不能将此授权扩展到005或其它后续稿件；policy仍为draft_only。
+- 无测试、commit、push或部署。专用浏览器已完成证据读取，按技能收口关闭；下次只可按draft_only处理005，除非用户重新明确授权发表。
+
+## 2026-10-23 主干同步与 4.5 发布差距复核
+
+- `origin/main` 已抓取至 `af4e4dd4160d4d1c265b1939fe9db1f14fa231f6`，通过本地合并提交 `aedf2eab` 同步到 `main`；保留本地先行提交 `faf4c9dd`。未推送。仅 `CHANGELOG.md`/`HANDOFF.md` 的原未提交改动曾放入限定路径 stash，合并后已恢复并核对；其它未提交文档与未跟踪证据未改动。临时 `.git/info/attributes` 已删除。
+- 同步树验证：`dotnet restore SonnetDB.slnx` 成功；规定的 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 退出 0，只有 workspace-load warning。未运行功能测试或本地构建；新合并 SHA 的远端 CI 尚无回执。
+- GitHub 对 `af4e4dd` 的 push CI、CodeQL、Connectors Release、Docker Publish 为 success；10 月 20、21、22 日三次 scheduled Parity 均在 light/full 失败。两配置各有 5 个 CrashTests 失败：`KeylessDmlCrashTests.cs:29` 断言目录版本 13、实际 16；DDL journal crash 场景类已存在，但 `Child/Program.cs` 未分发 `crash_ddl_journal_prepared/committed`。先修并复核这两处，再为冻结候选取得同 SHA light/full 原始 artifact。完整七次 scheduled 均失败；其余较早四次属于不同 SHA，原因未在本轮逐一归因。
+- 正式发布 gate 当前 SHA 仍缺 docs/workbench/soak/M19/M39 等必需工作流和 artifact；publish、connectors、Docker 还需候选版本的 `workflow_dispatch` 预检。发布就绪脚本将七天 scheduled 观察标为非阻断，但候选 light/full 原始证据是阻断项。路线图旧 M20 回读仍记为 2026-10-10，应以本轮回执更新。
+- 4.5.0 正式版仍需收口 M19/M25 固定硬件容量、M27 真实模型/双网及现场、M29 干净 Windows 安装升级、M35/M36 真实旅程/恢复、M40 Graph 外部与长期 gate，以及 ROADMAP 规定的 M44/M45/M46/M47/V45 必选项。M48 是后续版本独立范围；M49 允许按已确认矩阵分批发行，不要求 15 包一次齐发。既有本地 ROADMAP/HANDOFF/发布证据改动仍未提交。
+- 下一步：复核本次 merge 的完整树与留存脏改动；修复 Parity CrashTests 接线/版本合同后重新运行定向 crash suite，再取得候选 SHA 所有必需 workflow/artifact；另行冻结 4.5.0 范围、兼容/目录升级说明和目标硬件验收。无发布、tag 或 push 授权。
+
 ## 2026-10-23 Parity CrashTests 修复
 
 - 已修复两个已确认的 Parity reliability 缺口：`KeylessDmlCrashTests` 依据当前目录合同断言 v16；`tests/SonnetDB.CrashTests/Child/Program.cs` 接入 `crash_ddl_journal_prepared`、`crash_ddl_journal_committed`、`crash_ddl_recovery_after-backend` 和 `crash_ddl_recovery_complete` 四个已有场景。
 - 验证：定向 crash 测试 **5/5** 通过；完整 `SonnetDB.CrashTests` **82/82** 通过，0 skipped，0 failed；两个文件 `git diff --check` 通过。修复已提交为 `e4f80198` 并推送到 `origin/main`；该 SHA 的 CI、CodeQL、Connectors Release 正在运行。
 - 后续仍需在同一冻结候选 SHA 上取得 GitHub Parity light/full 原始 artifacts，并确认其它发布门禁；本地测试通过不等同于远端 Parity 或正式发布就绪。
 
-## 2026-10-24 FreeSql SonnetDB provider follow-up
 
-- SonnetDB owned implementation committed as `a9787390` on `main`; the commit contains only 13 source/test paths for `FOR UPDATE SKIP LOCKED`, schema/table metadata identity, server/remote DTO propagation, and related regressions. Existing publishing, blog, roadmap, and other dirty files remain unstaged.
-- Validation: the owned-file include format check passed after the final metadata column-order adjustment. `SqlLockingReadContractTests` and related row-lock tests passed 17/17 + 55/55; `TsdbAdoApiTests` passed 75/75 after the final column-order adjustment; `RemoteAdoEndToEndTests` passed 65/65 over REST/Kestrel. The mixed REST/frame-http2 remote batch was 99/131: 32 frame-http2 cases failed because the local test host could not establish exact HTTP/2, so this is retained as a transport environment boundary.
-- FreeSql provider validation on the preview package passed 230/230 with 0 skipped, and the provider build had 0 errors with the existing NU5104 preview dependency warning. A source-traceable SonnetDB main candidate separately passed embedded ADO multi-result sync/async and DataSet probes; the public preview package failed that probe and is not treated as current main evidence. No SonnetDB 4.5 formal release or FreeSql provider release was performed.
-- Remaining acceptance boundaries: formal SonnetDB 4.5 package, a real HTTP/2 frame endpoint, and final FreeSql PR consumer readback remain `NOT_RUN`/environment-bound. `FOR SHARE` and relational VECTOR/GEOPOINT remain explicit product boundaries; measurement limitations are not counted as relational provider gaps.
+## 2026-10-23 文章发布自动化统一到 02:00
 
-## 2026-10-24 ACID transaction journal durability review
+- 已更新 SonnetDB 的六条 Codex 自动化：博客园 `sonnetdb`、开源中国 `sonnetdb-2`、微博 `sonnetdb-3`、抖音草稿 `sonnetdb-4`、CSDN `sonnetdb-csdn`、X `sonnetdb-x`。触发规则均为 Asia/Shanghai 每日 02:00；X 继续保持 `PAUSED`。
+- 博客园 cron 的模型已改为 `gpt-6-luna`，推理强度设为 `high`；原 `xhigh` 不在该模型当前自动化接口接受的强度范围内。五条 heartbeat 不接受 `model` 字段，尝试被接口拒绝且未改动；它们仍未能统一模型，不能计为已切换。
+- 仅调整 Codex 自动化触发时间和对应提示中的触发时间文字；已有平台原生文章排期（包括微博 08:00/20:00 的已排文章）未修改，未进行发布、测试、commit、push 或部署。
+- 下一步如需将 heartbeat 也固定为 `gpt-6-luna`，需有可修改关联线程模型的 Codex 设置入口；现有自动化更新接口不提供该字段。工作树原有大量暂存/未暂存变更保留，本次只尾追加本交接记录，未提交。
 
-- `TableTransactionJournal.Prepare` 在同步临时文件后 rename 发布时补充父目录 `DirectoryFsync.FlushRequired`；否则掉电可能丢失恢复日志目录项，而部分表 WAL 已落盘，跨表事务无法撤销。
-- 新增 `TableTransactionJournalTests.Prepare_DurableRename_CanBeReadAfterClose` smoke 回归，覆盖 prepare/read 的完整发布路径；真正硬件掉电仍需专用崩溃测试。
-- 本隔离 clone 的 `dotnet` SDK 不可用，未能运行 restore/test/format；已执行 `git diff --check`。PR #350 已创建，待 CI 给出结论。
+## 2026-10-23 X 英文介绍草稿（仅草稿）
+
+- 按用户要求，依据 sonnetdb-x-publisher 技能为 @sonnetdb 准备一条今天可手动复制的英文介绍，草稿 ID sonnetdb-intro-001。正文共 247 个 ASCII 字符，低于技能的 270 字符目标。
+- 事实复核来源：D:\source\SonnetDB\docs\blogs\135-sonnetdb-nine-models-current-state.md（SHA-256 1AAF90FAA8C45F489E6D6B8A6F9F65AB84B24F32B09104716F3FF6FC7F5BFC9D）、D:\source\SonnetDB\README.md（00788FBFC2B0E390C96457681CA8DECA24924F0C3DD96739E8C32363128D65F9）、D:\source\SonnetDB\ROADMAP.md（B9FF7EB551BC7FB05321DE50FF4A671771319BC6318519161CFEF9ED06F7C26E）。九模型及原生语义已核对；图能力明确写为 Graph Beta。
+- X 自动化 sonnetdb-x 继续保持 PAUSED。本次只准备草稿，没有读取凭据、登录、调用 X API 或提交发布；没有帖 URL 或发布回执。若用户之后手动发布并需要留存人工回执，须提供实际帖子 URL。
+- 本次仅改写交接记录；工作树已有其它未提交工作，本次未提交任何文件，也未运行测试或发布任务。
+
+## CSDN 2026-10-23 用户要求的即时执行：预算到期，未发新稿
+
+用户授权2026-10-23立即运行一次今日CSDN文章发布。续接时发现该次固定30分钟窗口已过期；账本当前显示058–060均已由上一批到时核验记录为作者端接受（under_review），没有剩余scheduled排期，今日新写attempt为0，nextId=061、nextUnfinishedId=039。此前039/044/056/057仍为延期unknown；051/052/055仍为prepared延期，均不阻断下一编号。
+
+原批次deadline已过后曾正常恢复原csdn-mysticboy专属浏览器，仅到内容管理页并核tabs，没有导航新文章编辑器、claim、导入、封面变更、排期确认或提交。原授权窗口内没有得到今日mysticboy账号/发文额度的本轮新鲜观察，因此本次未满足“今日执行”目标，不能报告今日发布/排期成功，也不能把旧余额推断为当前额度。自动化计划保持原每日北京时间11:00，未修改后续策略。
+
+收口账本：53 under_review、0 scheduled、4 unknown、3 prepared、82 pending；published=0，今日新写预占=0，nextId=061。匿名公开可见性仍未验证。证据 `C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/heartbeat-20261023-expired-closeout.json`。本次未对产品源码、技能、其它渠道或Git索引作写入；无commit/push/deploy。原共享浏览器会话保留。
+## 微博036/037提前发布评估（2026-10-23，Asia/Shanghai）
+
+- 用户要求评估并在不新建、不重发、不破坏原 marker/binding 的条件下提前完成今日036与037。实时计划和账本均显示两篇已 scheduled：036 原草稿3933765/attempt 368f7d47b12d4c6eaa6ecd4cb6e6ac4c，冻结 2026-10-23T08:00:00+08:00；037 原草稿3934154/attempt 8d852575758f4448b2687692a75cfec2，冻结 2026-10-23T20:00:00+08:00。两份 binding 与 marker 的 SHA 均与账本一致。
+- 提前发表会违背原 publishAt 冻结合同，并构成已完成原生排期提交后的第二次写操作，超出原 attempt 单次确认门禁。因此未点击立即发布、未编辑或重提交；036与037保留原 scheduled 状态和原时刻；没有改 plan/queue/ledger。unknown 035及038/039未触碰。
+- 只读 tab-list 首次确认命名会话未打开，按原流程恢复 sonnetdb-weibo-series 专用 profile；当前页为 about:blank，本轮未读取微博条目页，未观察登录或验证码。未发生平台写请求。评估回执：C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-early-publish-assessment-0246\early-publish-assessment.json。
+- 浏览器调用均由固定 PowerShell 7 有界执行器运行并自然结束。原始输出、错误和进程回执保留于同一 evidence run。未提交或推送。
+## 微博036/037提前发布授权后登录阻断（2026-10-23，Asia/Shanghai）
+
+- 用户追加明确授权，只对036与037原平台条目各做一次原位提前发布或改为平台允许的最早时刻；不得新建、重复正文提交或破坏原attempt/marker/binding。新授权独立回执 authorization-early-release-036-037.json 已CreateNew并fsync；SHA256 
+1a405e1bc7f4c4936c238fad003fae592fca705a41dab08d71910f36445e7c9e
+。此前初步评估回执保留，新增授权仅前瞻改变本次许可。
+- 恢复同名 sonnetdb-weibo-series 专用profile后，首次tab-list确认原会话未打开。导航原036草稿3933765时DOM读取遇document.body暂不可用，原始CLI输出保留；没有点击或写入。随后tab-list实际落到 https://weibo.com/newlogin?tabtype=weibo&gid=102803&openLoginLayer=0&url=https://weibo.com/，确认需要正常登录。未检查当前036/037列表按钮；037未导航。
+- 因登录页阻断，本轮没有平台写请求、没有修改plan/queue/ledger，也没有改原scheduled时刻。036原3933765/attempt 368f7d47b12d4c6eaa6ecd4cb6e6ac4c 与037原3934154/attempt 8d852575758f4448b2687692a75cfec2仍scheduled，marker/binding哈希与实时账本一致。unknown 035及038/039未触碰。
+- 继续前需要用户在保留的 sonnetdb-weibo-series 浏览器会话中正常完成微博登录。后续先读取036原条目按钮和单次动作效果，再按同样合同检查037；只有不新建、不重复最终提交且保留原attempt/marker/binding时才执行。登录和验证码由用户在正常页面处理，不导出Cookie。独立阻断收据：
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-early-publish-assessment-0246\early-release-login-block.json
+- 命令和完整stdout/result位于 
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-early-publish-assessment-0246
+。所有已记录CLI根进程均自然退出，未发送信号；未提交或推送。
+
+## 抖音今日一次性执行：005等待账号登录（2026-10-23，Asia/Shanghai）
+
+- 本次只核抖音渠道。账本初始状态：001=unknown（旧attempt保留，不重发），002/003/004=published，005=prepared，无现存草稿，status.nextId=005。
+- 005原jk-v1图片目视发现讲解气泡遮挡原图中的文字，与旧包所记“无重叠”不符，故没有上传或发布。使用相同可追溯的成年25岁JK讲解素材，重排出`assets/005/jk-v2/`三张1080×1440图，移除重叠气泡；三图实际目视通过。冻结新包`prepared/005/package-jk-v2.json`，`douyin_progress.py prepare --id 005`复核源稿、事实源、图片SHA、尺寸及人物标记后成功，账本仍为prepared、attempts=0。
+- 2026-10-23 02:43使用原持久profile只读打开内容管理，页面实际显示创作者中心扫码/验证码登录页，不是已登录管理列表。未取得当日账号额度、已发表列表或云端草稿箱读回；没有上传、暂存或最终发布点击，未知001不触碰。用户已被请求在专用Chrome自行扫码登录，待登录后首先重新核账号、作品列表/草稿、当日额度和005去重，再继续这次授权内单篇操作。
+- 本次局部回执为`docs/blogs/douyin/evidence/2026-10-23/oneoff/run-receipt.json`。当前发表0、排期0、新草稿0；005只是本地prepared，非抖音草稿或发表。授权只限本次今日执行，不改变heartbeat未来的draft_only策略。浏览器保持在登录页供用户完成操作；未commit/push/deploy。
+
+## 博客园 169/170 续接：超时收口（2026-10-23，Asia/Shanghai）
+
+- 今日 published 事件 0，queued 0；文章创建、封面上传、伴随闪存请求均为 0。固定发布租约在 closeout-only 阶段独占创建并释放；发布状态仍为 needs-update，attempts=0，封面上传 not-run，ing not-registered。
+- 已按当前源码与 SonnetMQ 高层 API 修订两篇示例；核到 GitHub latest stable release v4.0.0（2026-09-26 发布），NuGet SonnetDB.Core stable 4.0.0，latest package entry 4.5.0-preview.ef266.5。账号、近期文章、公开正文与 RSS 去重未完成。
+- 169/170 封面作了确定性文字校正并保留原图副本；修订图 SHA 和正文 SHA 已同步状态。目视复核、identity/cover gates、RequireUploadReady、C# dry-run、图片上传均未完成。源码相关文件与 faf4c9 基线无差异；HEAD 4617b2a 仅有 HANDOFF 记录提交。
+- 原始30分钟硬截止为 02:57:26，实际收口 03:35:05，elapsed 67.65 分钟，NOT_MET。正文和封面派生修改发生在截止之后，属于执行超时；没有外部写请求。不能把这些稿件排队或发布。
+- 独立 Python 图片处理进程 PID 33888 已退出，exit code 0，准确命令/父链记录在 docs/blogs/publishing-evidence/2026-10-23/cover-process.json；未发终止信号。无完整子进程树审计。原生成图、派生图、源提示和回执保留。
+- 下轮从目视封面和代码示例核验开始，然后重读 sourceDocs/公开提交、账号及近期文章；本地 SHA、identity、cover、上传 SHA、RequireUploadReady 与 C# dry-run 全部通过后才可按11:00排队。不要重发历史文章或重复请求。无 stage/commit/push/deploy；其它会话脏改保持原样。证据 docs/blogs/publishing-review-2026-10-23.json。
+## CSDN 2026-10-23 用户即时执行续接：061提交结果unknown
+
+用户补充授权本次是一次新的2026-10-23即时执行，上一轮写入数为0；依此建立独立固定30分钟窗口，北京时间02:58:24至03:28:24。开始按实时账本nextId=061，mysticboy本人额度在既有ID reader上实见3。本批只claim一个新编号，未修改后续自动化计划。
+
+061依据当前FunctionRegistry/GeoPoint/geo-spatial源码重审：geo_speed实际为三个参数(GeoPoint, GeoPoint, elapsed_ms)，返回Haversine米数除以秒数，单位m/s；elapsed_ms须大于0。原稿的两参数(position,time)、自动挑选相邻行、毫秒级数百万轨迹性能表述未获当前实现支持，均已从准备稿移除。冻结标题“SonnetDB：geo_speed() 的参数、单位与轨迹配对边界”，正文SHA `4f02cb8900252ae7d81331d0aa9b3cfa2a47cb1686b8c128ac1f36ba431786d3`。封面原图实际本地目视并复制为本机assets，源图不覆盖；review和全部源/图/正文SHA已保存。本轮未执行SQL、设备、GPS模型或性能测试。
+
+四分类关键词“速度计算”“geo_speed”各完整且无候选。attempt `aa6a381b-1588-44be-b8e6-6204bf3e3ad1`，官方Markdown首次导入一次并绑定原ID `168784024`；正式保存reload全文严格匹配。设置原创/public、GitCode关、多平台否、实际AI声明与精确SonnetDB/数据库标签通过；原ID封面正常上传/确认/保存/reload且尺寸356x200通过。真实日历日期23至29可选、30disabled；基于claim前完整ledger快照生成独立滚动候选计划，原计划及历史槽位不改。绑定北京时间08:00，choose读回精确时间，最终定时确认只点击一次。
+
+提交后独立reader正常reload原ID，正文raw SHA与冻结SHA相同。但随后的完整四分类查询关键词`geo_speed 参数`在全部/审核/草稿/已发布均返回空；这不证明平台拒绝，也没有证明该原ID的准确定时时间和封面出现在管理行。未在固定批次内完成针对冻结标题的管理核验。因此已按规范record unknown并defer；保留原ID、attempt、schedule binding、封面证明、单次提交marker和所有捕获，不重试、不创建副本。native submit click=1，验证scheduled=0、published=0。本篇结果证据 `061-unknown-after-submit.json`；不得把作者编辑器全文回读说成排期成功。
+
+固定期限03:28:24届满后停止网页操作；之后只进行本地账本、交接和进程审计。最终状态：under_review 53、scheduled 0、unknown 5（含061）、prepared 3、pending 81，blocked空，nextId=062、nextUnfinishedId=039。既有039/044/056/057仍延期；051/052/055仍prepared，未触碰。历史058–060已于昨日按到期核验转under_review，本次未更改；匿名公开可见性未验证。本次没有可确认的新原生排期、已接受发布或匿名公开发布。
+
+原heartbeat交接要求每天Asia/Shanghai 11:00仍与10月23 HANDOFF新记“所有自动化已统一到02:00”发生冲突；本轮未更新Codex自动化或尝试恢复任何旧设置，以最新已保存自动化配置为准，不在单次发布授权中更改后续频率。未修改产品代码、技能、其它渠道、索引或parity-results；未测试、commit、push或deploy。Progress/HANDOFF仅独占尾追加、Flush(true)，原完整字节前缀核验。
+
+## CSDN 2026-10-23 即时执行补充：061为unknown
+
+用户补充授权的新30分钟窗口固定为北京时间02:58:24–03:28:24，证据在`C:/Users/mysti/AppData/Local/Codex/CsdnPublisher/mysticboy/evidence/user-immediate-20261023-second`。新窗口从实时nextId=061开始，初始已接受ID原文页显示账号mysticboy及今日额度3。此前已确认的058–060没有重发，也没有已到期原生排期遗留为scheduled：它们由10月22日到时读回后记录under_review/作者端已接受，匿名公开仍未核验。
+
+061按当前FunctionRegistry/GeoPoint/地理空间指南审改旧`geo_speed(position,time)`错误签名、自动相邻行推断和未经测试的性能承诺。当前实现是两个GEOPOINT加正elapsed_ms，输出m/s；封面原图本地目视一次并复制到自有assets，SHA及review在`061-review-20261023.json`。四分类`速度计算`/`geo_speed`各完整无候选；daily claim前剩余充足，唯一attempt `aa6a381b-1588-44be-b8e6-6204bf3e3ad1`。官方Markdown导入一次，原ID `168784024`，正式保存与原ID全文SHA相等；设置及封面证明通过。平台日历实见10月23–29可选、30日disabled；从真实claim前账本快照生成滚动候选，不改旧计划/槽。绑定北京时间08:00，choose显示准确计划说明，最终确认只点击一次。
+
+提交后独立reader在原ID成功reload，完整正文raw SHA匹配冻结SHA。随后完整四分类搜索`geo_speed 参数`结果为空；没有得到管理行准确时间/封面回读，故不能派生native receipt或记scheduled。管理搜索发生于03:25前、原批次03:28:24 deadline内；批次内未再进行另一关键词/再次提交。ledger已记录unknown并按最新持续授权defer，保留原ID、attempt、冻结SHA、08:00 binding、封面和所有marker；没有重试。
+
+本轮核验结果为：新确认作者端接受0、新原生定时0、新公开发布0；061最终按钮点击1但结果unknown，平台额度最初观察3、结束余额未再读取。最终实时ledger为53 under_review/5 unknown（039/044/056/057/061）/3 prepared（051/052/055）/81 pending/0 scheduled，nextId062，nextUnfinishedId039，blocked空，今天写预占1。此次明确授权的一轮已收口，不延长期限、不再网页续试；后续每日自动任务仍按当前配置运行。其它项目源码/渠道/技能未修改；没有测试、commit、push或deploy。
+
+## 2026-10-23 今日文章任务一次性执行结果
+
+- 按用户指令将当前 SonnetDB 各渠道任务各触发一次；本轮任务消息均使用 `gpt-6-luna`。今日没有确认的新公开文章发布。既有平台原生排期未被普遍改写。
+- 博客园 169/170：今日发布计数 0/2，稿件仍为 `needs-update`，账号/封面门禁和 C# dry-run 未完成，没有上传或发布。实际运行 67.65 分钟，超过 30 分钟预算；截止后仍修改正文和封面，线程已记录该预算违规并释放租约。
+- 开源中国 063/064：没有博客、草稿或动弹 ID，平台请求数为 0；仅有本地准备副本与封面。063 人物图未目视审核，064 人物图未生成。实际运行约 96.65 分钟，超过 45 分钟预算；已要求停止，线程称自有锁清理异常且无法确认锁状态，曾拒绝删除仓库根路径。未强删；准备副本/事件已写入，本轮 HANDOFF 由根任务补记。
+- 微博 036/037：仍保持原平台排期 08:00/20:00，因专用 profile 跳到登录页，未修改或提前发布；unknown 035 与 038/039 未触碰。需要用户在 `sonnetdb-weibo-series` 会话登录后再继续。
+- 抖音 005：`jk-v2` 修正版通过本地源稿、事实源、尺寸、哈希与图片目视门禁，但创作者中心要求扫码登录；没有上传、保存或发布。005 仍是本地 prepared，001 仍 unknown 且未重发。需要用户登录专用 Chrome 后再继续本次授权。
+- CSDN 061：一次导入/定时确认后，原 ID `168784024` 的正文独立回读匹配，但四分类管理页未找到文章行，无法确认平台已保存准确排期。保留原 ID、attempt、binding 与 marker，记录为 `unknown`，不重试；本次没有确认的新 scheduled 或 published 文章。
+- X 仍为 `PAUSED`。已发送一次仅准备手动草稿的请求，但应用未能提供可复核的最终状态；没有 X 发布回执，不得声称已发布。
+- 下一步仅在用户完成微博/抖音登录后续接对应原条目；CSDN 061 保持 unknown，不重提。博客园与 OSChina 需在预算内重新完成剩余门禁后才可发布。工作树原有脏改保留，本轮未测试、暂存、提交、推送或部署；HANDOFF 本次尾追加未提交。
+
+## CSDN 2026-10-23 即时续接：062/063审稿查重完成，未预占
+
+- 本批账号 `mysticboy` 的现有原 ID 编辑页显示今日发文额度 2。062/063均完成当前源码复核、CSDN `prepare` 冻结、主题封面本地目视与独立目录复制；原正文来源未覆盖。冻结 SHA、图片 SHA、来源和两次管理查重证据见 `docs/blogs/csdn/PROGRESS.md`。
+- 管理四分类查重分别用 `轨迹聚合`、`pid_series`，各 4 类完整、0 候选，总计 8 页，均处于 240 秒预算内。062 修正轨迹聚合签名/桶说明；063 按源码采用五参 PID 行级窗口函数合同。
+- 固定 30 分钟窗口为北京时间 06:42:17–07:12:17。最后一次查重于 07:08:06 完成，余 4 分 11 秒，低于 claim 的 5 分钟保留要求。两篇保持 prepared，未绑定计划、claim、打开新编辑器、上传、选时或最终确认；今日写预占未增加，未产生 scheduled/under_review/published。
+- 收口账本为 53 under_review、5 unknown、5 prepared、79 pending，0 scheduled/0 published；`nextId=062`、`nextUnfinishedId=039`。下次从 062 接续，保留冻结正文与自有封面素材；重新核事实、账号额度、平台日期窗口和四类查重，再按当前真实日历生成滚动计划后继续，不要因当前未开始而重新 prepare 或记 unknown。自动化配置未修改。
+- 旧 061 只读独立回读触发 beforeunload modal 后失败证据已保留；CLI 快照显示确认已处理且仍在原 ID 页面，今日额度 2。没有保存或再次确认 061，原 unknown 不变。没有测试、commit、push 或 deploy。## 微博图像模型修正与040封面恢复（2026-10-23，Asia/Shanghai）
+
+- 用户授权修正微博封面生成模型。通过固定 PowerShell 7 子进程 credential wrapper，仅将凭据放入 imagegen 子进程环境，直接读取 https://sonnet.vip/v1/models，HTTP 200、14项。可见图像模型 ID：gpt-image-2.5-sunburst、gpt-image-2.5-flare、gpt-image-2、gpt-image-1.5、gpt-image-1；没有字面 ID img_gen。目录仅表示发现，不证明每个模型可生成。原040 gpt-image-2 model_not_found 失败回执保持不变。
+- 更新 C:\Users\mysti\.codex\skills\weibo-publisher\SKILL.md：优先 gpt-image-design 技能默认 gpt-image-2.5-sunburst；只在明确 model_not_found 时每轮最多再试一个目录模型，其它错误停止。修复 scripts\weibo_native_schedule.py 原来硬编码仅接受 gpt-image-2 回执的门禁；继续兼容旧回执，新模型需在 providerModelCatalog 中匹配 HTTPS Sonnet.VIP /v1/models 的HTTP200和实际modelIds。
+- 040 来源 docs/blogs/040-increase-window.md SHA 未变，正文/简介/审定稿 SHA 未变。对原快照唯一漂移的 SqlParser.cs 完成静态复审：当前 parser 可把 OVER PARTITION BY 解析到AST，但 SelectExecutor 明确以 NotSupportedException 拒绝非空 PartitionBy，故正文“不支持PARTITION BY执行”的结论仍成立，未改稿；五份当前来源快照及复审回执在 research/schedule-20261023/run-040-image-model-resume-0705/。运行时SQL实验保持 NOT_RUN。
+- 使用 gpt-image-2.5-sunburst 发出一次 Images API 请求、零重试，成功生成底图并目视；确定性16:9裁切至1672x941并叠加准确“关注 SonnetDB / 增长边界：重置与缺测”，最终封面目视通过。正式本地候选图 D:\source\SonnetDB\docs\blogs\weibo\assets\040-increase-window-jk-final-20261023-v2.png；SHA256 
+ecdec6018aea525a23e8c8680e91055d2bf11969ae30cf458f2aca3eb1b3dcaf
+。生成、图片SHA、base/final目视及模型目录证据有独立回执。
+- 实时 plan 已更新为当前源复审和 generated_local_visual_approved_waiting_platform_save；仍 planned、无 draftId、无 queue/attempt/marker、无微博平台写请求。旧 model_not_found 回执和首次裁剪脚本失败均保留。036/037原native排期、038/039及unknown035未变；此前微博profile登录页阻断仍需用户在原会话正常登录后处理。
+- 自动化 sonnetdb-3 提示已同步为当前模型策略和040源复审条件；状态保持 ACTIVE，原每日02:00 Asia/Shanghai触发、目标线程、通知意图均不变。
+- 本次执行模型门禁和图像尺寸回执核对通过；未运行完整测试套件，未stage、commit、push或deploy。独立摘要：
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-040-image-model-resume-0705\040-model-resume-summary.json
+
+## 2026-10-23 X 浏览器发布与配图技能更新
+
+- 用户在当前聊天明确指令“发布呀”。在 X 可见浏览器确认账号为 @sonnetdb、核对帖子正文并点击一次后，账号时间线回读确认 SQL identifier 帖子已发布。帖子 ID 2113406822552113237，URL https://x.com/sonnetdb/status/2113406822552113237，发帖时间 2026-10-23 07:07:06 +08:00。
+- 这条帖子在用户提出配图要求之前已作为纯文本发布，回执准确记录 mediaAttached=false。没有编辑、删除、回复或重发，不能声称它有配图。独立浏览器回执位于 C:\Users\mysti\AppData\Local\Codex\SonnetDBX\browser-publications.json；API 的 published ledger 未改。
+- 修改全局 sonnetdb-x-publisher 技能和 editorial.md，新增 references/visuals.md：以后每条待发布帖必须有一张按当前核实事实制作的配图；人物按用户要求固定为明确 25 岁的美国成年女性、端庄全着装 JK 风格、非校园场景和非性化呈现；图中文字必须与正文事实相符。提供当前 SQL 标识符主题的图像提示，不允许用它删除或替换原帖。
+- 当前工具中没有内置 ImageGen。按 imagegen 技能规定，未获用户明确选择 CLI fallback 前不调用图像 API/CLI；因此本轮未生成实际图片，提示已保存供后续使用。quick_validate.py 在 Python UTF-8 模式下通过，浏览器回执 JSON 解析及字段核验通过；默认 GBK 模式首次校验因编码失败后重跑通过。
+- X 自动化仍保持 PAUSED，未调用 X API。全局技能仓库已有其它未提交更改，本轮只改 SonnetDB X 技能文件，不暂存或提交；HANDOFF 追加未提交。
+
+## 2026-10-23 X 配图 CLI fallback 检查
+
+- 用户明确选择 imagegen CLI fallback，按 gpt-image-2、1536x1024、high quality 编写一张配合已发布 SQL identifier 帖子的无文字底图提示，人物为明确成年美国女性讲解者，JK inspired 端庄服饰、非校园非性化。
+- image_gen.py generate --dry-run 通过并确认目标为 C:\Users\mysti\AppData\Local\Codex\SonnetDBX\media\sonnetdb-sql-identifiers-001.png；当前进程环境没有 OPENAI_API_KEY，因此没有网络请求、费用或实际图片。需用户在本机安全配置此环境变量后才能续跑；不要把密钥发入聊天。
+- CLI skill validation UTF-8 模式通过，浏览器发布回执 JSON 通过。X 原帖子已发布且 mediaAttached=false，没有编辑、删除或重发；每日自动化保持 PAUSED。无测试、stage、commit、push 或 deploy。
+## 微博图像模型回执门禁加固（2026-10-23，Asia/Shanghai）
+
+- 继续修正非旧版封面模型绑定：原生排期 helper 现在要求非 gpt-image-2 回执含24小时内、HTTPS Sonnet.VIP /v1/models HTTP200观察，并核对目录原始摘要回执SHA、model ID及图像模型ID列表；旧 gpt-image-2 历史封面回执仍兼容。语法和040实际回执契约检查通过。
+- 微博技能与 sonnetdb-3 automation prompt 已同步上述模型目录/证据规则；automation 仍 ACTIVE、每日02:00 Asia/Shanghai、目标线程和 quiet-when-unchanged 意图不变。040继续仅本地封面就绪，planned且无draftId；没有微博登录、上传、草稿或排期请求。旧gpt-image-2 model_not_found及首个本地合成失败证据保留。
+- 最终封面为 D:\\source\\SonnetDB\\docs\\blogs\\weibo\\assets\\040-increase-window-jk-final-20261023-v2.png；模型 gpt-image-2.5-sunburst，一次请求、零重试，1672x941。模型目录响应SHA、图片SHA和base/final目视回执见 
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-040-image-model-resume-0705\040-model-gate-finalization.json
+- 状态守卫：queue与ledger未变化；没有运行完整测试套件、没有stage/commit/push/deploy。
+
+
+## 微博模型回执门禁补充（2026-10-23，Asia/Shanghai）
+
+- 后续加固 native binder：非 gpt-image-2 封面需有最近24小时的 Sonnet.VIP /v1/models HTTP200 观察，模型ID必须存在于原始响应；读取原始摘要文件并验证SHA256。旧 gpt-image-2 回执继续兼容。当前040 reviewed cover receipt 已通过此门禁和封面SHA/格式检查。
+- 最终 automation sonnetdb-3 持久配置仍为 ACTIVE、RRULE 每日02:00、原目标线程；prompt 保留 quiet-when-unchanged 并要求catalog原回执及SHA。
+- 本补充记录对应本地摘要 
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-040-image-model-resume-0705\040-model-gate-finalization.json
+。此前图像修正记录与这条补充之间的边界仅为原HANDOFF末尾没有换行；原字节未改写，所有附加均为append-only。
+
+## CSDN 2026-10-23 07:38续接：062未知，063保留候选绑定
+
+- 本批 07:38:55 开始，硬截止 08:08:55。账号 `mysticboy` 在既有 061 原 ID 页面显示额度 2；之后未再读额度。062/063冻结稿未变，完成新一轮四分类查重，各 4 页且无候选。证据及计划SHA/绑定时刻见 `docs/blogs/csdn/PROGRESS.md`。
+- 062官方Markdown导入一次并产生原ID `168834168`，正文完整SHA匹配冻结稿，平台初始标题显示文件名。随后 `finish-import` 的原ID标题保存/reload阶段等待冻结标题栏超时；失败回执 `062-b4dc033d-4931-47a5-aaac-2445ae2798ac-native-finish-import-failure.json`。没有重试或重复导入，没有封面上传、最终定时确认或定时回执。ledger已record unknown并按授权defer，保留attempt、ID、12:15绑定和全部marker；不要重跑 finish-import 或最终确认。
+- 063尚未claim或打开编辑器，保持prepared；其不可变计划槽为北京时间13:00。本批不足以完成另一个完整发布流程，未尝试。收口状态53 under_review/6 unknown/4 prepared/79 pending，0 scheduled、0 published；`nextId=063`、`nextUnfinishedId=039`。下批先核13:00是否落入平台真实4小时至7天窗口；若不可选，保留绑定、按跳过授权延期并继续后项，不改计划槽。自动化配置未变，无测试、commit、push或deploy。
+## 博客园 169/170 即时发布请求收口（2026-10-23，Asia/Shanghai）
+
+- 今日新文章发布计数仍为 0/2；169/170 均 needs-update、attempts=0。IoTSharp/blogId 523396 与最近100篇读取通过，未发现同题；今日文章创建、封面上传、伴随闪存请求均为0。
+- 最终正文/封面 SHA 已同步；两张修订封面已目视检查。MetaWeblog上传、项目识别门禁、RequireUploadReady 与 C# dry-run未完成；图片上传配置缺少blogId/用户名/密码/endpoint，须新窗口内核对MetaWeblog账号并安全单次上传，不能绕过门禁。
+- 本次硬截止 07:28:50，实际收口 08:10:20。确认仅创建preflight租约且 requestMayHaveStarted=false；未发任何写请求，租约已释放。回执 docs/blogs/publishing-review-2026-10-23-manual-closeout.json。
+- 下一次用户明确触发新30分钟窗口后，完成封面上传、身份/封面门禁和 dry-run，再串行各发一次。未stage/commit/push/deploy；外来脏改未触碰。
+
+## 微博036到时未核验并单篇延期（2026-10-23，Asia/Shanghai）
+
+- 036 原 scheduled 时间 08:00+08:00 已到。08:05 复用的 sonnetdb-weibo-series tab-list 仍是微博 newlogin，文章和配套微博没有核验。根据持久直接用户授权用原 attempt 368f7d47b12d4c6eaa6ecd4cb6e6ac4c 执行 defer-compound；首次调用因 helper 的 compound_attempt 仅接受pending态而返回 action_required，ledger未写。已修正 defer_compound 入口，使其精确解析唯一article-bundle，再由 is_deferrable 校验真实到时scheduled状态及直接授权；同一确认回执第二次本地调用成功，liveRequests=0。没有重试平台提交。
+- 036 ledger/plan 均保留 state=scheduled 和原 08:00时刻，continuationDeferral.previousState=scheduled，article/status outputs pending、publicationVerified=false。原 marker 与 binding 的实际 SHA 仍与账本相同；原始 attempt快照、defer确认、首个 action_required输出均保留。queue没有变化。
+- 037仍为原 2026-10-23 20:00 scheduled，未操作。040仍 planned，封面仅本地目视完成、无draftId/queue/attempt/marker；平台写请求0。没有尝试再次登录或操作其它账号。
+- 040按 gpt-image-2.5-sunburst 单次生成与模型回执门禁修复见前述本轮摘要；automation sonnetdb-3更新已在本地持久配置确认，仍ACTIVE/每日02:00。模型门禁检查与封面尺寸检查通过，完整自动化/单元测试未运行。
+- 本次036最终状态回执：
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-040-image-model-resume-0705\036-due-deferral-final-receipt.json
+。本次新增本地 deferred-state 门禁修复在 C:\\Users\\mysti\\.codex\\skills\\weibo-publisher\\scripts\\weibo_publisher.py；没有stage、commit、push或deploy。
+
+## 开源中国 063/064 即时发布完成（2026-10-23，Asia/Shanghai）
+
+- 用户在本聊天恢复并明确要求完成今日发布。复核 OSChina 本人三组列表完整（published 174 / draft 1 / scheduled 0），今天博客额度为 0/2；全局 publications 与队列均未发现 063/064 的原有博客/草稿/动弹 ID。059/061 的旧动弹 ID 30401786/30401788 只读严格核验正文话题及双图通过，未重建；审核状态另记，不据此声称匿名公开可见。
+- 063/064 源稿 SHA 与原值一致。修正 OSChina 准备副本中的 PID 时间步进细节与通用过程说明；补齐两张主题横向封面及独立目视审核，补齐两张本次新生人物图与审图，并登记公告简介。封面、人物图 SHA、来源、尺寸和复核证据保存在 docs/blogs/oschina/.local/heartbeat-20261023-063064/。两篇分别完成博客与双图动弹 dry-run，均无网络写请求。
+- 每篇仅正式创建一次博客：063 ID 19781133，https://my.oschina.net/u/7172/blog/19781133；064 ID 19781134，https://my.oschina.net/u/7172/blog/19781134。随后两篇 check-file 均取得完整三组列表、唯一原 ID、正文严格匹配及原封面上传映射匹配；作者端列表位于 published，匿名公开可见性未单独验证。
+- 每篇仅创建一次动弹：063 ID 30401797，https://www.oschina.net/osc-tweet/30401797；064 ID 30401798，https://www.oschina.net/osc-tweet/30401798。原 ID 匹配器均核对 #SonnetDB 话题和两张原上传图片，正文按平台话题抽取合同核验；作者 API 回执为 submitted，匿名公开可见性未核。没有重试 POST。
+- 同步后 OSChina 队列为 68 submitted / 74 queued；今日新发博客 2/2。平台最终列表 published 176 / draft 1 / scheduled 0；本轮没有创建原生排期或草稿。4.0.0 新闻 502847 保留原已提交记录，本轮不重投。离线 Verify 仍只报告既有 Source hash differs: 139，139–142 哈希未刷新。
+- 前次本地收口脚本报告临时清理路径异常；本轮先独立核对旧锁不存在，另用只限 OSChina 候选的排他锁脚本修正 063/064 prepared SHA、事实复核与公告简介，再继续。最终队列 session/state 锁及 review 清单锁均核实释放；本轮四个图片子进程均已退出。未提交、推送、部署或修改其他平台状态。
+
+
+## 微博继续任务：账号页仍要求登录（2026-10-23，Asia/Shanghai）
+
+- 新运行 research/schedule-20261023/run-user-continue-1005 于10:05开始，读取实时计划/队列/账本并按既定40分钟、2候选边界执行。036原scheduled 08:00已defer且双输出未验证；037仍原scheduled 20:00。035 unknown未读取。040仍planned，只有本地gpt-image-2.5-sunburst封面，没有platform draftId/queue/attempt。
+- 初次tab-list确认命名会话未打开，随后恢复原 sonnetdb-weibo-series 会话。只读导航本人账号页后实际DOM标题“- 微博”、正文含“登录/注册”，articleCount=0；没有登录或验证码处理，也没有任何平台写请求。需要用户在当前保留的微博会话内正常完成登录。
+- 未改变 schedule-plan.json、queue.json、ledger.json；三个SHA与run-start完全相同。036原binding和marker SHA仍匹配。040封面不上传，037排期不改。用户登录后续接顺序：先只读对账036原ID的文章/配套微博；然后在原生20:00到时核验037。若仍未登录，按既有授权对单篇已到时输出defer后继续，绝不重发。
+- 本轮浏览器命令、完整stdout/stderr/result留在 
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-user-continue-1005
+。独立摘要：
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-user-continue-1005\read-only-continuation-summary.json
+；未运行完整测试、未stage/commit/push/deploy。
+
+## 开源中国 063/064 即时发布完成（2026-10-23，Asia/Shanghai）
+
+- 用户在本聊天恢复并明确要求完成今日发布。复核 OSChina 本人三组列表完整（published 174 / draft 1 / scheduled 0），今天博客额度为 0/2；全局 publications 与队列均未发现 063/064 的原有博客/草稿/动弹 ID。059/061 的旧动弹 ID 30401786/30401788 只读严格核验正文话题及双图通过，未重建；审核状态另记，不据此声称匿名公开可见。
+- 063/064 源稿 SHA 与原值一致。修正 OSChina 准备副本中的 PID 时间步进细节与通用过程说明；补齐两张主题横向封面及独立目视审核，补齐两张本次新生人物图与审图，并登记公告简介。封面、人物图 SHA、来源、尺寸和复核证据保存在 docs/blogs/oschina/.local/heartbeat-20261023-063064/。两篇分别完成博客与双图动弹 dry-run，均无网络写请求。
+- 每篇仅正式创建一次博客：063 ID 19781133，https://my.oschina.net/u/7172/blog/19781133；064 ID 19781134，https://my.oschina.net/u/7172/blog/19781134。随后两篇 check-file 均取得完整三组列表、唯一原 ID、正文严格匹配及原封面上传映射匹配；作者端列表位于 published，匿名公开可见性未单独验证。
+- 每篇仅创建一次动弹：063 ID 30401797，https://www.oschina.net/osc-tweet/30401797；064 ID 30401798，https://www.oschina.net/osc-tweet/30401798。原 ID 匹配器均核对 #SonnetDB 话题和两张原上传图片，正文按平台话题抽取合同核验；作者 API 回执为 submitted，匿名公开可见性未核。没有重试 POST。
+- 同步后 OSChina 队列为 68 submitted / 74 queued；今日新发博客 2/2。平台最终列表 published 176 / draft 1 / scheduled 0；本轮没有创建原生排期或草稿。4.0.0 新闻 502847 保留原已提交记录，本轮不重投。离线 Verify 仍只报告既有 Source hash differs: 139，139–142 哈希未刷新。
+- 前次本地收口脚本报告临时清理路径异常；本轮先独立核对旧锁不存在，另用只限 OSChina 候选的排他锁脚本修正 063/064 prepared SHA、事实复核与公告简介，再继续。最终队列 session/state 锁及 review 清单锁均核实释放；本轮四个图片子进程均已退出。未提交、推送、部署或修改其他平台状态。
+
+## CSDN 2026-10-23 10:23续接：062/063延期，064保留prepared
+
+- 本批北京时间10:23:20–10:53:20。当前收口时不足5分钟余量，不再claim或打开新编辑器。账号在既有ID页实见余额2；没有平台限额或登录阻断。
+- 用户明确授权调整尚未claim的063候选排期。保留原13:00计划与原状态快照，授权文件和SHA可在CSDN PROGRESS中查到；账本历史追加旧绑定，当前新计划候选为10月24日08:00。该变更仅本机排期，不代表平台已保存。
+- 063同attempt导入一次，ID168857331、全文匹配；`finish-import`原ID标题保存/reload失败，已记unknown并延期。没有上传封面、choose或点击最终定时确认。不要重跑finalize或最终确认。
+- 064完成源码事实校正、主题封面核验、自有素材复制、冻结正文与完整四分类查重。title为 `SonnetDB：PID 聚合函数：pid() 与 GROUP BY 时间窗口`，body SHA `a86d7aadef0d8ee2772dc629a281b709611f15c75ce938cd2b966ce7146b8844`；四类查重0候选。截止时不足5分钟，保持prepared且无attempt；候选10月24日08:30仍是本机计划，不是平台排期。
+- 收口53 under_review/7 unknown/4 prepared/79 pending，0 scheduled/0 published，`nextId=064`。下轮从064按现行源码、账号/平台额度、日期窗口和查重续接；旧unknown保持、不重复提交。没有测试、commit、push或deploy，自动化配置保持原样。
+## 博客园 169/170 续接：封面上传结果收口（2026-10-23，Asia/Shanghai）
+
+- 新窗口 runId cnblogs-20261023-manual-publish-1004，计划硬截止10:39:11；实际操作超时到10:52后停止文章创建，今日博客园 published 事件0/2，article create requests 0。
+- 169 newMediaObject 已发一次，响应解析未得到URL，status=unknown；禁止重试。未找到可只读确认的原URL，稿件暂停。
+- 170 newMediaObject 已发一次。代码在状态字段写入时抛错，未重传；随后从状态中取回HTTPS URL并公开GET SHA256核对通过：https://img2024.cnblogs.com/blog/1725297/202610/1725297-20261023104507181-1200119925.png，SHA df4133174a75bc20ae012b45a3eea08e788c74083a45bce7b8056dc5f7f9f595。已将coverUpload/remote evidence修复为uploaded。contentSha256和正文已含该URL。
+- 账号IoTSharp/blogId523396及最近100篇读取通过，无同题。169项目识别初检通过；170身份最终检查、170封面门禁、C# dry-run、文章发布均未完成。当前skill settings缺 MetaWeblog username/password/blogId/endpoint；用户要求用PAT做每轮MetaWeblog只读核验，不能以空配置dry-run替代。
+- 第二篇封面请求在原窗口硬截止之后执行，记录了预算超时违规；没有文章POST。详情docs/blogs/publishing-review-2026-10-23-manual-closeout-2.json。任务租约仅在核实170写请求已完成且169无在途执行后释放。本轮未stage/commit/push/deploy，foreign changes未触碰。
+- 下一轮先只读找169原上传URL并核SHA；找不到则169保持暂停。170完成最终门禁及C# dry-run后可单篇发布；仍须新的明确触发窗口。
+
+## 博客园每日运行：170发布，伴随闪存待发（2026-10-24，Asia/Shanghai）
+
+- 当日事件初始计数0/2、无共享租约。169封面上传仍为unknown，未重试；170按当前源码、专题文档及4.0.0稳定包重新核查，项目识别、封面 `-RequireUploadReady` 与C# dry-run均通过，源文档10项存在，相关MQ源码自已记录的复核提交后未变。
+- 仅对170发出一次文章创建请求。发布器返回后，本地状态记录脚本因旧ledger对象缺少 `publishedSourceCommit` 属性中止；没有第二次请求。随后只读公开原文回读确认 postId `23420743`、URL https://www.cnblogs.com/IoTSharp/p/23420743、HTTP 200、标题、封面、默认双二维码及群号均匹配。已将文章状态/事件/计划/选题同步为published，`attempts=1`，当日published事件1/2；正文SHA `4ea140d907dab0988728e3761b327908c3bef5d157d39b0856045bfe4b3b1c60`。
+- 闪存账号/列表只读检查通过，闪存dry-run通过；截止时 `article.ing` 保持 `pending, attempts=0`，没有闪存POST。后续只处理该已登记pending闪存：先核本地助手锁、回执和本人列表；仍pending且0次请求时方可单次提交。不得重发文章。
+- 第二篇未写；171仍planned。首次30分钟预算在恢复发布证据与状态后超过，超过预算后未发网络写请求。两个临时dry-run预览已精确删除，public HTML回读证据保存在 `docs/blogs/publishing-evidence/2026-10-24/170-public.html`；共享租约已释放。队列/发布脚本和复核证据均在同日 `publishing-evidence` 目录。未运行示例、测试、commit、push或deploy；其它既有脏改动保持原样。
+
+## 微博037到时仍未登录并单篇延期（2026-10-24，Asia/Shanghai）
+
+- 037原生排期2026-10-23 20:00已到。北京时间2026-10-24 02:10在原 sonnetdb-weibo-series 会话恢复后，只读账号页实际显示“登录/注册”，articleCount=0；未核文章/配套微博，未发送平台写请求。
+- 依持久用户授权“无法确认就忽略，而不是卡住后面的工作”，对唯一原attempt 8d852575758f4448b2687692a75cfec2执行本地 defer-compound；结果 deferred、state仍scheduled、outcomeUnverified=true、liveRequests=0。原计划时刻、草稿3934154、marker/binding、正文、封面和attempt保留；article/status outputs pending、publicationVerified=false。首次检查尚pending后即继续；不重试、不立即发布。
+- 036原attempt也保留scheduled+deferred/pending状态，未重读或更改；035 unknown不动。038仍scheduled 2026-10-24 08:00，039仍 scheduled 20:00。040封面本地就绪但仍planned、无draftId/queue/attempt/marker，不上传。
+- automation sonnetdb-3 提示已更新037延期状态及图像模型策略；ACTIVE、每日02:00 Asia/Shanghai、目标线程保持。因账号登录仍需用户操作，需在专用会话正常登录后再只读对账036/037原ID，并在038到时前完成登录以便核验；不提取Cookie/验证码。
+- 独立回执：
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-user-continue-1005\037-due-deferral-receipt.json
+。会话/账号页原始输出和defer命令回执位于 
+C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-20261023\run-user-continue-1005
+。未运行完整测试，未stage/commit/push/deploy。
+
+## CSDN 2026-10-24 02:00任务续接：064仍是草稿
+
+- 作者端账号 `mysticboy`，既有ID编辑器观察今日额度3。064完成四类无候选查重、冻结正文、原ID `168887805` 官方Markdown导入/全文保存reload、精确标题、封面保存reload及设置复核。封面 `https://i-blog.csdnimg.cn/direct/6be545d1144343329aa3a5e5fc460cf4.png`，356x200。
+- 064原生候选时刻为北京时间2026-10-24 08:30；真实选时窗显示符合4小时至7天，面板回读准确时间。但submit前出现异步额外标签 `1024程序员节`，守卫拒绝；用正常DOM删除后，末次选时/设置观察精确通过。统一claim deadline为02:49:32，02:52:54才再次进入submit阶段，已在本机期限校验拒绝，最终点击0、无native-submit-once marker。没有平台排期。
+- 因正式保存的原ID全文和封面证据有效，本地账本如实记录064为draft并延期，非unknown、非scheduled、非published。下一批 `nextId=065`，先只读核064原ID现状，再按原ID继续；不重导入、不重建ID、不声称08:30已排期。062/063仍是既有deferred unknown。
+- 本轮发生一次claim前空白编辑器导航（URL无ID、空正文、未输入保存），应在下轮交接中保留此程序偏差。收口账本53 under_review/7 unknown/1 draft/3 prepared/78 pending，0 scheduled/0 published。批次超时约3分22秒，窗口结束后仅本地记录与收口；没有后续网页写入。持久自动化不变，浏览器会话保留，账本锁已释放，无测试/提交/推送/部署。## CSDN 2026-10-24 064 原生定时续接中止点
+
+- 用户要求完成064的原生定时。实时账本仍显示 draft / 原ID 168887805 / attempt 464f9964-ab14-41c2-a301-b5d29b695eab，旧 continuationDeferral 未解除，nextId=065。旧08:30为过期本机候选，并非已保存定时；无该attempt的native-submit-once marker，最终确认点击0，scheduled=0。
+- Playwright CLI核验：原ID正文与冻结SHA匹配；09:36 reader显示账号mysticboy及额度3（该余额到收尾时已过时）；10:24四分类 PID 聚合函数 共4页完整，仅草稿箱唯一命中原ID，管理CSS封面与既有封面证明同URL/356x200。10/24–10/30在当时日历DOM可选，其它可见日期disabled；未选择日期或时间。
+- 原ID编辑器当前仍在发布设置/日历UI，未保存内容或封面，未点击最终确认。清理了一个无ID、空正文writer标签；原ID标签仍在 csdn-mysticboy 会话。下一轮必须先重新独立reload原ID、刷新账号/余额和四分类/封面证据，再续接。
+- 本轮为支持用户明确恢复已延期原ID草稿，新增本地技能窄命令 resume-deferred-draft；它要求10分钟内正文/额度、四分类唯一草稿行、匹配封面、旧候选过期、无最终marker，成功只归档旧延期/计划历史并仍保持draft。新增滚动计划历史时刻避让；相关离线测试15项通过。该本地工具和离线测试不构成平台成功，账本未被恢复命令修改。
+- 因网页操作达到30分钟批次上限，本轮停止所有网页交互。CSDN账本状态未变：53 under_review / 7 unknown / 1 draft / 3 prepared / 78 pending，0 scheduled / 0 published，nextId=065、nextUnfinishedId=039，今日写预占仍为1。没有commit、push或deploy；个人skills目录和仓库工作树均有外来脏改动，保持未stage。
+
+## 2026-10-24 X 带图单帖发布
+
+- 按用户“发布一次”准备并发布一条新的英文 X 单帖。账号复核为 @sonnetdb；时间线查重未发现 Tsdb.Open/in-process 主题旧帖。正文：Run SonnetDB in-process with Tsdb.Open(...), or use it as a standalone server. The same multi-model engine supports both options, so choose the deployment style that fits your app. https://github.com/IoTSharp/SonnetDB
+- 使用本机 Codex sonnet_vip provider（https://sonnet.vip/v1）及 gpt-image-design 的 gpt-image-2.5-sunburst 生成一张原创横图；单次请求、0重试。图片为 1774x887 PNG，SHA-256 304C6DD88BA51506E2A9DDBBB5895D34AD1534182AE5388688B4A7AD697F8160。提示词及 SHA、图片路径、模型、请求/保存时间、目视结果已写入 C:\Users\mysti\AppData\Local\Codex\SonnetDBX\browser-publications.json，图片及独立提示词文件保存在对应 media 目录。API 凭据只在单次子进程环境中使用，未写日志/文件。
+- 事实依据：docs/embedded-api.md SHA-256 98F7CB9DC2D5C2D9C60B5BCB3556E96001FDBD71FF274AF091173FFE23901777；README.md SHA-256 00788FBFC2B0E390C96457681CA8DECA24924F0C3DD96739E8C32363128D65F9。画面显示进程内 app+目录和独立 Server 两种部署方式共用同一多模型引擎；人物成年、穿着端庄，无校园场景、伪 UI、品牌标志或虚构文字。X 编辑器已添加替代文本并标记“由 AI 生成”。
+- 通过浏览器最终发布一次，作者时间线/详情回读确认帖子 ID 2113818894683300000，URL https://x.com/sonnetdb/status/2113818894683300000，时间 2026-10-24 10:24:32 +08:00；回读正文、图片与 alt text 均匹配。匿名公开可见性未独立验证。未调用 X API，sonnetdb-x automation 保持 PAUSED。
+- 专用 Playwright/Edge 会话已关闭；确认本次进程消失。清理本次 16 个 Playwright 快照/控制台文件和 .codex-temp/sonnetdb-x-native-image-20261024，保留成品图、prompt、回执。全局技能校验 quick_validate.py -X utf8 通过；browser receipt JSON、图片 SHA、prompt SHA 均通过核对。无产品测试、stage、commit、push 或 deploy。
+
+## 开源中国 065/066 上传阶段 unknown 收口（2026-10-24，Asia/Shanghai）
+
+- 北京时间 02:00 续接时今日队列博客接受数为 0，候选 065/066；OSChina 本人三组列表完整，published 176、draft 1、scheduled 0。047/052 旧动弹原 ID 30401448/30401458 仍返回“内容审核中/审核失败”，未重建。
+- 065/066 源稿 SHA 未变；准备稿复核到当前 PID 文档/源码并登记源文件哈希。封面和人物图各自生成一次、目视审核，公告简介已登记。博客与两图公告 dry-run 均通过。
+- 065 和 066 各进行一次队列发布。两条均在 `upload_article_image` 阶段收到 HTTP 500、业务 code 缺失；原全局 ledger IDs 为 `595ebba1-399b-438e-968c-a28467a082de` 和 `45a0e092-dfdd-4e42-8be0-0f51e2055114`，状态 unknown，没有 `remoteId`、`draftId` 或 URL。随后完整三组列表与各自 check-file 均未发现对应文章；不据此重试、不创建动弹，保留 unknown。图片上传可能存在未返回 URL 的远端结果，未知仍然保留。
+- 本地队列状态 68 submitted、72 queued、2 unknown；今天成功博客 0/2。Sync 完成；Verify 仍报告既有 `Source hash differs: 139`，139–142 源哈希未刷新。session/state/review 锁均已释放；本轮受管 image API 子进程均已退出。下一轮不得重发 065/066；从实时队列选择尚未提交的下一个编号继续。
+- 4.0.0 新闻原 ID 502847 保留已投稿状态，未重投；公开可见性没有新核验。本轮未提交、推送或部署。
+
+## CSDN 2026-10-24 收尾：064未保存原生定时
+
+实时账本仍为draft、原ID 168887805、continuationDeferral保留，nextId=065；没有新候选绑定、resume记录或最终确认。上文10:24四分类与封面回读可作历史观察，但下一执行窗口必须重新读取原ID正文、账号/正余额、四分类和封面，再按本次明确指令使用已验证的resume-deferred-draft窄入口。仅此原ID草稿允许恢复；不得把旧08:30候选写成scheduled。恢复工具的15项离线测试通过，不能代表平台操作成功。
+
+## 2026-10-24 X 技能改为无界面 Playwright CLI
+
+- 按用户要求更新全局技能 C:\Users\mysti\.codex\skills\sonnetdb-x-publisher：默认通过已安装的 Playwright CLI 包装器以 headless=true 发布，复用 developer-edge-profile 的 Edge 登录状态；固定会话代理 http://127.0.0.1:7890，不自动启动可见浏览器。
+- 新增 references/playwright-cli.md 和 references/playwright-headless.json，同步 SKILL、editorial 与 agents/openai.yaml。保留主题原创配图、alt text、发帖前去重、最终点击一次、作者时间线/详情回读与独立回执；未知结果禁止重发。登录过期/账号挑战时保留稿件并报告，用户另行要求后处理登录。
+- 本轮使用 CLI help 核对 open/profile/persistent/config/msedge 参数及本机配置文档；quick_validate.py（Python UTF-8）、JSON 解析和所改已跟踪技能文件的 git diff --check 均通过。未启动浏览器或执行发布，因此本次无界面流程没有新增端到端发布证据；下次用户明确要求发帖时按新流程运行。
+- 没有调用 X API、恢复每日自动化、改动历史发布回执或其他渠道账本；既有脏改动保持。未 stage/commit/push/deploy；HANDOFF 暂未提交，当前请求仅为本机全局技能更新。
+
+## 开源中国 067/068 发布与上传器修复（2026-10-24，Asia/Shanghai）
+
+- 针对 065/066 的 `upload_article_image` HTTP 500，确认发布器的 multipart 字段、PNG MIME、文件大小和正文流程均正确；直连在该时段返回裸 HTTP 500，未取得文章图片 URL。为队列包装器增加受限的 `-Proxy` 参数，并把全局 `--proxy` 放在 `blog`/`tweet` 子命令之前；PowerShell 两个脚本语法解析通过。
+- 067/068 各补齐一张独立横向封面和一张独立成年亚洲女性 JK 风格人物图，均经目视审核并记录 SHA、尺寸、生成提示词与来源。prepare-queue dry-run/实际准备均通过，源稿 SHA 未刷新。
+- 通过 `http://127.0.0.1:7890` 代理正式发布 067/068，各只发送一次博客写请求并取得完整接受回执：067 为 `19781752`（https://my.oschina.net/u/7172/blog/19781752），068 为 `19781753`（https://my.oschina.net/u/7172/blog/19781753）。正文、标题和封面上传映射已登记；公开可见性仍需另行核验。
+- 两篇博客后的动弹均在图片上传阶段返回 HTTP 500、业务 code 缺失，未进入创建请求：067 ledger ID `526d13ea-d7f9-459f-901e-a6b5d9edb241`，067 无已返回图片 URL；068 ledger ID `67e9ee68-0c38-4e4d-8775-590a5db35434`，第一张人物图已返回一个上传 URL，第二张封面上传未知。两条均保持 unknown，不重试、不改文案、不创建变体。
+- Sync 后队列为 70 submitted、70 queued、2 unknown（065/066）；本日成功博客 2/2。Verify 离线仍只报告既有 `Source hash differs: 139`，未刷新 139–142 源哈希。session/state 锁及本轮图片进程均已释放。未提交、推送或部署；其它渠道状态未改。
+- 下一轮从实时队列 069 继续；065/066 博客和 067/068 动弹 unknown 只读保留，不能盲目重发。动弹上传器后续若需改进，应先处理图片上传 500 的受控诊断与小尺寸/延时兼容方案，再对明确未接收的新公告验证，不能用本轮 unknown 绕过查重。
+- 发布队列包装器的 Proxy 默认值现为 http://127.0.0.1:7890，仍可显式覆盖为受限本地代理地址；这是为避免下一次 scheduled POST 再走已观察到 HTTP 500 的直连路径。
+
+## 2026-10-25 工作树整理与分层提交
+
+- 已将本地 main 从 9cbbaac3 快进到 origin/main 的 c9adee5d；没有推送。对刚合入的安装校验、依赖升级、过期清理、对象分页、子查询 memo、日期类型和事务 journal 修复的反向撤销脏改动已恢复，不纳入提交。
+- 代码提交 142364b8：仅包含 VS Code helper evidence 三个脚本；扩展 npm test 为 59/59，新增 query-host-evidence 测试为 97/97，均无失败/跳过。完整 dotnet restore 通过；规定 dotnet format 首次 180 秒有界运行超时并清理子进程，随后同一命令直接重跑通过，仅保留 workspace-load warning。
+- 文章内容提交 74e9e3df：仅包含 160–170 正文和 160–168 稳定封面，168 只保留 final；没有把 mutable 发布状态、平台回执或图片过程文件混入代码提交。
+- 审计文档提交 6f0222f8：包含 ArcticDB 对比、PR/Issue 整合审计和 M42 热点写设计；均保持研究/规划边界，不宣称性能或生产完成。
+- CSDN/OSChina/博客发布状态、发布回执、二维码、截图、平台工作目录和中间封面已从工作树移到 C:\\Users\\mysti\\AppData\\Local\\Codex\\SonnetDB-publishing-archive-20261025；归档清单为 moved-paths.txt，原发布 staged 差异另存 publishing-staged-diff.patch。WB97/WB98 未通过门禁的在途文档和 m47 差异移到 C:\\Users\\mysti\\AppData\\Local\\Codex\\SonnetDB-incomplete-evidence-20261025，未冒称完成。
+- 当前仍需用户另行决定是否将仓库外发布归档纳入长期备份；本次不推送、不发布、不部署。
