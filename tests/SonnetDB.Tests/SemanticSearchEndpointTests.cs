@@ -746,24 +746,44 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
     [Fact]
     public async Task SemanticSearch_BackfillBudgetExpiresAfterEnqueue_ReturnsCommittedProgress()
     {
+        // The production backfill budget is intentionally short (250 ms).  A cold
+        // object-list index rebuild on Windows can consume that budget before the
+        // deterministic post-enqueue hook runs, making this test exercise the
+        // pre-enqueue timeout path instead of the contract named below.  Restart
+        // with a generous observation budget so the hook is the only cancellation
+        // source under test.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await RestartWithBackfillObservationBudgetAsync(deadline.Token);
         using var client = CreateClient();
         Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet("images", out var tsdb));
         var processing = _app.Services.GetRequiredService<ObjectSemanticProcessingService>();
-        await processing.StopAsync(CancellationToken.None);
+        // Do not call BackgroundService.StopAsync directly: outside host shutdown
+        // that cancellation faults the hosted service and triggers StopHost.  Hold
+        // the worker's CAS claim instead, so this request can observe a pending job
+        // without taking the whole test server down.
+        processing.BeforeJobCommitForTest = () => throw new IOException("hold worker claim for test");
         var objects = new SndbObjectStore(tsdb);
         const string bucket = "backfill-budget";
         objects.CreateBucket(bucket);
         objects.SetSemanticOptions(bucket, false, true, 32, 32, 80);
         using var image = new MemoryStream(CreatePng(8, 8, SKColors.Red));
-        await objects.PutObjectAsync(bucket, "image.png", image, "image/png");
-        processing.AfterBackfillObjectForTest = budget => budget.Cancel();
+        await objects.PutObjectAsync(bucket, "image.png", image, "image/png", cancellationToken: deadline.Token);
+        bool hookInvoked = false;
+        processing.AfterBackfillObjectForTest = budget =>
+        {
+            hookInvoked = true;
+            budget.Cancel();
+        };
         try
         {
-            var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", content: null);
+            var response = await client.PostAsync($"/v1/db/images/s3/{bucket}?semantic", content: null, deadline.Token);
             Assert.True(response.StatusCode == HttpStatusCode.OK,
-                $"HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
-            var result = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse);
+                $"HTTP {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync(deadline.Token)}");
+            var result = await response.Content.ReadFromJsonAsync(
+                ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse,
+                deadline.Token);
             Assert.NotNull(result);
+            Assert.True(hookInvoked);
             Assert.True(result.Completed);
             Assert.False(result.HasMore);
             Assert.Equal(1, result.ScannedObjects);
@@ -774,6 +794,7 @@ public sealed class SemanticSearchEndpointTests : IAsyncLifetime
         finally
         {
             processing.AfterBackfillObjectForTest = null;
+            processing.BeforeJobCommitForTest = null;
         }
     }
 
