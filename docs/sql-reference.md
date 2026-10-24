@@ -152,17 +152,19 @@ SELECT status, version FROM jobs WHERE id = @id;
 UPDATE jobs SET status = 'running' WHERE id = @id AND version = @version;
 ```
 
-调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`BeginTransaction` 的 ReadCommitted/Serializable 轻事务不提供悲观锁；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。ADO.NET 同步和异步锁定读在嵌入式及远程模式均抛 `SqlParseException`，其 `Code` 为 `sql_locking_read_unsupported`；直接 REST SQL 返回同一错误码。锁定读被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
+调用方先读版本，再把同一版本放入 UPDATE 或 DELETE 的谓词；版本过期时可能返回 `table_concurrency_conflict`，目标行消失时可返回 0 受影响行。此时应重读并重试整个业务事务，而不是把先前 SELECT 当作锁定快照。成功 UPDATE 自动递增版本，INSERT 初值为 `1`。`ReadCommitted`/`Serializable` 轻事务均不提供悲观锁；队列写入在提交时仍校验最初读取的行状态，冲突可能在写入或 COMMIT 暴露。ADO.NET 同步和异步锁定读在嵌入式及远程模式均抛 `SqlParseException`，其 `Code` 为 `sql_locking_read_unsupported`；直接 REST SQL 返回同一错误码。锁定读被拒绝后事务仍可由调用方正常 ROLLBACK 或 COMMIT。
 
 #### 关系基表可串行化事务
 
-`SndbConnection.BeginTransaction(IsolationLevel.Serializable)` 对关系基表启用保守的表级乐观可串行化校验。事务保存每张表首次读取时的 store/schema 身份、generation 和快照 sequence；后续读取和语句保存点回滚不会前移基线。因此，事务可能在后续查询中读到其它已提交写入，但只要首次读集发生变化，最终 COMMIT 就会以 `table_serialization_conflict` 拒绝，并将该事务置为回滚终态。应用必须重新开始整个事务，不能只重试 COMMIT。即使竞争写入落在查询谓词范围之外，也可能因表级校验而冲突。
+`SndbConnection.BeginTransaction(IsolationLevel.Serializable)` 对关系基表启用保守的表级乐观可串行化校验。嵌入式和远程 ADO.NET 入口都接受 `Unspecified`/默认值、`ReadCommitted` 和显式 `Serializable`；默认值（包括 `Unspecified`）实际采用 `ReadCommitted`。事务保存每张表首次读取时的 store/schema 身份、generation 和快照 sequence；后续读取和语句保存点回滚不会前移基线。因此，事务可能在后续查询中读到其它已提交写入，但只要首次读集发生变化，最终 COMMIT 就会以 `table_serialization_conflict` 拒绝，并将该事务置为回滚终态。应用必须重新开始整个事务，不能只重试 COMMIT。即使竞争写入落在查询谓词范围之外，也可能因表级校验而冲突。
 
 COUNT、空结果、索引/点读、JOIN、CTE、子查询、UPDATE/DELETE 候选集、延迟触发器和级联读写均参加读集校验。自身实际发生的 AUTO_INCREMENT 预留仅在其起始版本连续匹配首次基线时计入自身 sequence 增量；外部变化、TRUNCATE、schema 或 store 替换不能被后续预留吸收。只有实际读、写和外键校验依赖表才在最终阶段按 Ordinal 顺序取得 store 锁，并从校验保持到 apply 完成；不会先打开整个 catalog 的所有 store。
 
 实现限制为最多 4096 张读集/最终依赖表，最多检查 16384 张 catalog schema 与 16384 项外键定义，最多 100000 项最终行变更及有界生成级联行。提交准备在元数据遍历、打开实际依赖和锁等待期间检查取消及请求提交期限；锁等待采用每次至多 50ms、最多 2401 次、总计至多 120 秒的有界等待，并受更严格的请求提交期限约束。数据源校验最多 16384 节点、64 层和三秒。逻辑视图、物化视图、其它模型、外部源及没有对应保护的 catalog 语句显式拒绝。未指定隔离级别时继续使用 ReadCommitted。
 
-远程事务创建发送 `X-SonnetDB-Isolation-Level: serializable`，Server 响应必须包含一致的 `isolationLevel` 确认。旧 Server 的 404、错误或缺失确认均拒绝创建 Serializable 事务；已取得合法新 session ID 却未确认的会话只尝试一次、最长五秒的 rollback。真实验证覆盖 REST HTTP/1.1 与 h2c HTTP/2 的 NDJSON 事务会话路径；这不是 Native Frame 事务验收。
+远程 ADO.NET 的 Serializable 事务创建专用事务会话，发送 `X-SonnetDB-Isolation-Level: serializable`；Server 响应必须包含一致的 `isolationLevel` 确认，客户端不会静默降级。旧 Server 的 404、错误或缺失确认均拒绝创建 Serializable 事务；已取得合法新 session ID 却未确认的会话只尝试一次、最长五秒的 rollback。SQL 文本的 `BEGIN`（包括 `SqlExecutor.ExecuteScript(...)`）和 `/v1/db/{db}/sql/batch` 没有选择隔离级别的语法，始终按默认 `ReadCommitted` 运行；嵌入式 ADO 命令不接受 `BEGIN`/`COMMIT`/`ROLLBACK` 控制语句，应调用 `SndbConnection.BeginTransaction` API；不能从这些入口推断 ADO.NET 的 `Serializable` 能力。真实验证覆盖 REST HTTP/1.1 与 h2c HTTP/2 的 NDJSON 事务会话路径；这不是 Native Frame 事务验收。
+
+本节描述的是当前 `main` 源码及随附的 `SqlSerializableTransactionTests`、`SndbAdoApiTests`、`SqlSerializableTransportTests` 和 `RemoteAdoEndToEndTests` 所覆盖的行为；这不等同于本次文档变更重新运行了这些测试，也不为已发布的 NuGet 或 Server 包设定最低版本。发布版本是否包含该能力须按其自身版本和测试结果核对。
 
 ### Modbus 32 位寄存器解码
 
@@ -840,10 +842,10 @@ COMMIT;
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
 - 不支持嵌套事务、measurement / document 写入事务、DDL 事务、`IMPORT JSON` 或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE`、文档集合写入、DDL 或文件导入会抛 `NotSupportedException`（这些操作不进入关系表事务缓冲，`ROLLBACK` 无法撤销，故显式拒绝而非静默执行造成"假回滚"）。
 - `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键、CHECK 和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
-- 同一轻事务内的后续 `UPDATE` 会读取并合并已缓冲变更，连续两次 `SET value = value + 1` 会累计两次。跨事务仍是 ReadCommitted；事务队列的 UPDATE/DELETE 保留最初读取的行状态，即使没有 ROWVERSION，也会在提交前拒绝已变化或消失的行并返回 `table_concurrency_conflict`。调用方应重试整个业务事务；跨请求的编辑冲突仍建议用 ROWVERSION 和显式版本谓词检测。
+- 同一轻事务内的后续 `UPDATE` 会读取并合并已缓冲变更，连续两次 `SET value = value + 1` 会累计两次。在未指定或显式 `ReadCommitted` 下，跨事务读取看到已提交数据；事务队列的 UPDATE/DELETE 保留最初读取的行状态，即使没有 ROWVERSION，也会在提交前拒绝已变化或消失的行并返回 `table_concurrency_conflict`。调用方应重试整个业务事务；跨请求的编辑冲突仍建议用 ROWVERSION 和显式版本谓词检测。
 - 同一轻事务内的 `INSERT` / `UPDATE` / `DELETE` 会按主键归并最终净变化，例如 `INSERT→DELETE` 不产生提交写入，`UPDATE→DELETE` 只提交删除，`DELETE→INSERT` 提交替换；每条多行 INSERT/DELETE 只有在全部行求值和校验成功后才写入事务缓冲。
 - 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_check_violation`、`table_concurrency_conflict`。
-- 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。
+- 隔离级别边界：ADO.NET `BeginTransaction()`/`BeginTransactionAsync()` 的默认值或 `IsolationLevel.Unspecified` 映射为 `ReadCommitted`，也可显式请求 `ReadCommitted` 或关系基表专用的 `Serializable`。后者使用上文的表级首次读乐观校验，冲突以 `table_serialization_conflict` 终止整笔事务，调用方必须从 BEGIN 重新读取并重试；它不是 MVCC/可重复读快照，也不是悲观行锁。SQL 文本 `BEGIN`（`SqlExecutor.ExecuteScript` 或 `/v1/db/{db}/sql/batch`）仅启动默认 `ReadCommitted`，不能请求 `Serializable`；嵌入式 ADO 命令须使用 `SndbConnection.BeginTransaction` 而不是文本控制语句；远程 ADO.NET 的显式 `Serializable` 则通过事务会话和 `X-SonnetDB-Isolation-Level` 协商并要求 Server 回执确认。
 
 ### 时序 JOIN 关系维表
 
