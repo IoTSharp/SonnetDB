@@ -5069,7 +5069,7 @@ internal static partial class RelationalSelectExecutor
         {
             foreach (var argument in function.Arguments)
             {
-                var value = EvaluateScalar(tsdb, argument, columns, row, outerScope);
+                var value = EvaluateScalar(tsdb, argument, columns, row, outerScope, memo);
                 if (value is not null)
                     return value;
             }
