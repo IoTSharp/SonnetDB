@@ -458,15 +458,17 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("REMARKS", typeof(string));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         var snapshot = SnapshotSchema();
         foreach (var schema in snapshot.Tables)
         {
-            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+            if (!MatchesRestriction(schema.SchemaName, schemaRestriction)
+                || !MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
 
             table.Rows.Add(
                 Database,
-                string.Empty,
+                schema.SchemaName,
                 schema.Name,
                 "BASE TABLE",
                 new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc),
@@ -474,27 +476,31 @@ public sealed class SndbConnection : DbConnection
         }
         foreach (var view in snapshot.Views)
         {
-            if (!MatchesRestriction(view.Name, tableNameRestriction))
+            if (!MatchesRestriction(TableObjectName.DefaultSchemaName, schemaRestriction)
+                || !MatchesRestriction(view.Name, tableNameRestriction))
                 continue;
 
             table.Rows.Add(
                 Database,
-                string.Empty,
+                TableObjectName.DefaultSchemaName,
                 view.Name,
                 view.IsMaterialized ? "MATERIALIZED VIEW" : "VIEW",
-                view.CreatedUtc.UtcDateTime);
+                view.CreatedUtc.UtcDateTime,
+                DBNull.Value);
         }
         foreach (var collection in snapshot.DocumentCollections)
         {
-            if (!MatchesRestriction(collection.Name, tableNameRestriction))
+            if (!MatchesRestriction(TableObjectName.DefaultSchemaName, schemaRestriction)
+                || !MatchesRestriction(collection.Name, tableNameRestriction))
                 continue;
 
             table.Rows.Add(
                 Database,
-                string.Empty,
+                TableObjectName.DefaultSchemaName,
                 collection.Name,
                 "DOCUMENT COLLECTION",
-                collection.CreatedUtc.UtcDateTime);
+                collection.CreatedUtc.UtcDateTime,
+                DBNull.Value);
         }
 
         return table;
@@ -521,9 +527,11 @@ public sealed class SndbConnection : DbConnection
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var columnNameRestriction = Restriction(restrictionValues, 3);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         foreach (var schema in SnapshotSchema().Tables)
         {
-            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+            if (!MatchesRestriction(schema.SchemaName, schemaRestriction)
+                || !MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
 
             foreach (var column in schema.Columns)
@@ -533,7 +541,7 @@ public sealed class SndbConnection : DbConnection
 
                 table.Rows.Add(
                     Database,
-                    string.Empty,
+                    schema.SchemaName,
                     schema.Name,
                     column.Name,
                     column.Ordinal + 1,
@@ -570,9 +578,11 @@ public sealed class SndbConnection : DbConnection
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var indexNameRestriction = Restriction(restrictionValues, 3);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         foreach (var schema in SnapshotSchema().Tables)
         {
-            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+            if (!MatchesRestriction(schema.SchemaName, schemaRestriction)
+                || !MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
 
             foreach (var index in schema.Indexes)
@@ -585,7 +595,7 @@ public sealed class SndbConnection : DbConnection
                 {
                     table.Rows.Add(
                         Database,
-                        string.Empty,
+                        schema.SchemaName,
                         schema.Name,
                         index.Name,
                         index.IsUnique,
@@ -613,14 +623,16 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("CREATED_UTC", typeof(DateTime));
 
         var nameRestriction = Restriction(restrictionValues, 2);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         foreach (var view in SnapshotSchema().Views)
         {
-            if (!MatchesRestriction(view.Name, nameRestriction))
+            if (!MatchesRestriction(TableObjectName.DefaultSchemaName, schemaRestriction)
+                || !MatchesRestriction(view.Name, nameRestriction))
                 continue;
 
             table.Rows.Add(
                 Database,
-                string.Empty,
+                TableObjectName.DefaultSchemaName,
                 view.Name,
                 view.DefinitionSql,
                 view.IsMaterialized ? "MATERIALIZED VIEW" : "VIEW",
@@ -642,12 +654,15 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("PRINCIPAL_TABLE_NAME", typeof(string));
         table.Columns.Add("PRINCIPAL_COLUMN_NAME", typeof(string));
         table.Columns.Add("ON_DELETE", typeof(string));
+        table.Columns.Add("PRINCIPAL_TABLE_SCHEMA", typeof(string));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var constraintRestriction = Restriction(restrictionValues, 3);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         foreach (var schema in SnapshotSchema().Tables)
         {
-            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+            if (!MatchesRestriction(schema.SchemaName, schemaRestriction)
+                || !MatchesRestriction(schema.Name, tableNameRestriction))
                 continue;
 
             foreach (var foreignKey in schema.ForeignKeys)
@@ -662,14 +677,15 @@ public sealed class SndbConnection : DbConnection
                         : string.Empty;
                     table.Rows.Add(
                         Database,
-                        string.Empty,
+                        schema.SchemaName,
                         foreignKey.Name,
                         schema.Name,
                         foreignKey.Columns[i],
                         i + 1,
                         foreignKey.PrincipalTable,
                         principalColumn,
-                        foreignKey.OnDelete.ToString());
+                        foreignKey.OnDelete.ToString(),
+                        foreignKey.PrincipalSchemaName);
                 }
             }
         }
@@ -690,14 +706,16 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("CREATED_UTC", typeof(DateTime));
 
         var nameRestriction = Restriction(restrictionValues, 2);
+        var schemaRestriction = Restriction(restrictionValues, 1);
         foreach (var collection in SnapshotSchema().DocumentCollections)
         {
-            if (!MatchesRestriction(collection.Name, nameRestriction))
+            if (!MatchesRestriction(TableObjectName.DefaultSchemaName, schemaRestriction)
+                || !MatchesRestriction(collection.Name, nameRestriction))
                 continue;
 
             table.Rows.Add(
                 Database,
-                string.Empty,
+                TableObjectName.DefaultSchemaName,
                 collection.Name,
                 "DOCUMENT COLLECTION",
                 collection.JsonIndexCount,

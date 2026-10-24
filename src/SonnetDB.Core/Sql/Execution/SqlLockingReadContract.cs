@@ -7,11 +7,15 @@ internal static class SqlLockingReadContract
 {
     internal static void Validate(SqlStatement statement)
     {
-        if (statement is SelectStatement { NoWait: true, ForUpdate: false })
+        if (statement is SelectStatement { NoWait: true, ForUpdate: false }
+            or SelectStatement { SkipLocked: true, ForUpdate: false })
             throw new SqlParseException("NOWAIT 必须跟随 FOR UPDATE。", 0,
                 SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "使用 FOR UPDATE NOWAIT。");
+        if (statement is SelectStatement { NoWait: true, SkipLocked: true })
+            throw new SqlParseException("NOWAIT 与 SKIP LOCKED 不能同时使用。", 0,
+                SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "使用 FOR UPDATE NOWAIT 或 FOR UPDATE SKIP LOCKED。");
         var nested = statement is SelectStatement select
-            ? select with { ForUpdate = false, NoWait = false } : statement;
+            ? select with { ForUpdate = false, NoWait = false, SkipLocked = false } : statement;
         if (Contains(nested))
             throw new SqlParseException("锁定读只支持独立的关系基表 SELECT，不能嵌入其它语句或子查询。",
                 0, SqlErrorCodes.LockingReadUnsupported, "select_locking_read", "在显式事务中单独执行 FOR UPDATE [NOWAIT]。");
@@ -34,7 +38,7 @@ internal static class SqlLockingReadContract
 
     internal static bool Contains(SqlStatement statement) => statement switch
     {
-        SelectStatement select => select.ForUpdate || select.NoWait || select.Projections.Any(item => Contains(item.Expression)) || Contains(select.Where)
+        SelectStatement select => select.ForUpdate || select.NoWait || select.SkipLocked || select.Projections.Any(item => Contains(item.Expression)) || Contains(select.Where)
             || select.GroupBy.Any(Contains) || Contains(select.Having) || select.OrderByList.Any(item => Contains(item.Expression))
             || Contains(select.TableValuedFunction) || select.FromSubquery is { } source && Contains(source)
             || select.CommonTableExpressions.Any(cte => Contains(cte.Query)) || select.SetOperationList.Any(operation => Contains(operation.Query))

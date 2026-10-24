@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
 
-/// <summary>GH-Issue #248：受支持锁定读保留 AST 信息，未支持组合不得退化为普通 SELECT。</summary>
+/// <summary>关系表锁定读保留 AST 信息，未支持组合不得退化为普通 SELECT。</summary>
 public sealed class SqlLockingReadContractTests : IDisposable
 {
     private readonly string _root = Path.Combine(
@@ -20,9 +20,7 @@ public sealed class SqlLockingReadContractTests : IDisposable
     }
 
     [Theory]
-    [InlineData("SELECT id FROM jobs ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED")]
     [InlineData("SELECT id FROM jobs NOWAIT")]
-    [InlineData("SELECT id FROM jobs SKIP LOCKED")]
     [InlineData("SELECT id FROM jobs FOR SHARE")]
     public void Parse_LockingReadClause_ReturnsStableUnsupportedCode(string sql)
     {
@@ -43,6 +41,27 @@ public sealed class SqlLockingReadContractTests : IDisposable
         var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(sql));
         Assert.True(statement.ForUpdate);
         Assert.Equal(noWait, statement.NoWait);
+        Assert.False(statement.SkipLocked);
+    }
+
+    [Fact]
+    public void Parse_SkipLocked_PreservesModifier()
+    {
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT id FROM jobs ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"));
+
+        Assert.True(statement.ForUpdate);
+        Assert.False(statement.NoWait);
+        Assert.True(statement.SkipLocked);
+    }
+
+    [Fact]
+    public void Parse_NowaitAndSkipLocked_AreMutuallyExclusive()
+    {
+        var error = Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            "SELECT id FROM jobs FOR UPDATE NOWAIT SKIP LOCKED"));
+
+        Assert.Equal(SqlErrorCodes.LockingReadUnsupported, error.Code);
     }
 
     [Fact]
@@ -73,6 +92,33 @@ public sealed class SqlLockingReadContractTests : IDisposable
         var row = Assert.Single(Assert.IsType<SelectExecutionResult>(
             SqlExecutor.Execute(db, "SELECT status, version FROM jobs WHERE id = 1")).Rows);
         Assert.Equal(new object?[] { "ready", 1L }, row);
+    }
+
+    [Fact]
+    public void Execute_SkipLocked_ReturnsOnlyRowsWithoutConflicts()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE jobs(id INT, status STRING, PRIMARY KEY(id))");
+        SqlExecutor.Execute(db, "INSERT INTO jobs (id, status) VALUES (1, 'held'), (2, 'free'), (3, 'free')");
+
+        var holder = new SqlTransactionContext();
+        var contender = new SqlTransactionContext();
+        try
+        {
+            _ = SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs WHERE id=1 FOR UPDATE"), null, holder);
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs ORDER BY id FOR UPDATE SKIP LOCKED"), null, contender));
+
+            Assert.Equal(new object?[] { 2L }, result.Rows[0]);
+            Assert.Equal(new object?[] { 3L }, result.Rows[1]);
+            Assert.Equal(2, result.Rows.Count);
+        }
+        finally
+        {
+            holder.MarkCompleted();
+            contender.MarkCompleted();
+        }
     }
 
     [Theory]

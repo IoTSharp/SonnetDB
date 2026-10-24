@@ -2550,7 +2550,7 @@ public static partial class SqlExecutor
         var columns = new[] { "table_schema", "table_name", "table_type", "table_comment" };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
-            rows.Add(new object?[] { "main", table.Name, "BASE TABLE", table.Comment });
+            rows.Add(new object?[] { table.SchemaName, table.Name, "BASE TABLE", table.Comment });
         foreach (var measurement in tsdb.Measurements.Snapshot())
             rows.Add(new object?[] { "main", measurement.Name, "MEASUREMENT", null });
         foreach (var collection in tsdb.Documents.Catalog.Snapshot())
@@ -2619,7 +2619,7 @@ public static partial class SqlExecutor
             {
                 rows.Add(new object?[]
                 {
-                    "main",
+                    table.SchemaName,
                     table.Name,
                     column.Name,
                     (long)column.Ordinal + 1,
@@ -2671,9 +2671,9 @@ public static partial class SqlExecutor
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
         {
             if (table.PrimaryKeyConstraintName is { } primaryName)
-                rows.Add(new object?[] { "main", table.Name, primaryName, "PRIMARY KEY" });
-            foreach (var key in table.ForeignKeys) rows.Add(new object?[] { "main", table.Name, key.Name, "FOREIGN KEY" });
-            foreach (var check in table.CheckConstraints) rows.Add(new object?[] { "main", table.Name, check.Name, "CHECK" });
+                rows.Add(new object?[] { table.SchemaName, table.Name, primaryName, "PRIMARY KEY" });
+            foreach (var key in table.ForeignKeys) rows.Add(new object?[] { table.SchemaName, table.Name, key.Name, "FOREIGN KEY" });
+            foreach (var check in table.CheckConstraints) rows.Add(new object?[] { table.SchemaName, table.Name, check.Name, "CHECK" });
         }
         return (["table_schema", "table_name", "constraint_name", "constraint_type"], rows);
     }
@@ -2691,7 +2691,7 @@ public static partial class SqlExecutor
                 {
                     rows.Add(new object?[]
                     {
-                        "main",
+                        table.SchemaName,
                         table.Name,
                         index.Name,
                         allColumns[i],
@@ -2719,6 +2719,7 @@ public static partial class SqlExecutor
             "principal_table_name",
             "principal_column_name",
             "on_delete",
+            "principal_table_schema",
         };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
@@ -2729,7 +2730,7 @@ public static partial class SqlExecutor
                 {
                     rows.Add(new object?[]
                     {
-                        "main",
+                        table.SchemaName,
                         foreignKey.Name,
                         table.Name,
                         foreignKey.Columns[i],
@@ -2737,6 +2738,7 @@ public static partial class SqlExecutor
                         foreignKey.PrincipalTable,
                         foreignKey.PrincipalColumns[i],
                         FormatInformationSchemaForeignKeyAction(foreignKey.OnDelete),
+                        foreignKey.PrincipalSchemaName,
                     });
                 }
             }

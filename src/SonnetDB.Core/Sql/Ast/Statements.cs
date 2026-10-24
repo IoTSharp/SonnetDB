@@ -1004,6 +1004,9 @@ public sealed partial record SelectStatement(
     /// <summary>锁定读遇到竞争目标立即返回稳定冲突，不排队等待。</summary>
     public bool NoWait { get; init; }
 
+    /// <summary>锁定读遇到竞争目标时跳过该行并继续返回其它可锁定行。</summary>
+    public bool SkipLocked { get; init; }
+
     /// <summary>FROM 名称是否使用双引号。</summary>
     public bool MeasurementIsQuoted { get; init; }
 

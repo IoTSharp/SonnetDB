@@ -107,7 +107,10 @@ internal static class SchemaEndpointHandler
                     foreignKey.Columns.ToList(),
                     foreignKey.PrincipalTable,
                     foreignKey.PrincipalColumns.ToList(),
-                    foreignKey.OnDelete.ToString()));
+                    foreignKey.OnDelete.ToString())
+                {
+                    PrincipalSchemaName = foreignKey.PrincipalSchemaName,
+                });
             }
 
             result.Add(new TableInfo(
@@ -117,7 +120,11 @@ internal static class SchemaEndpointHandler
                 indexes,
                 ToDateTimeOffset(schema.CreatedAtUtcTicks),
                 foreignKeys)
-            { Comment = schema.Comment, PrimaryKeyConstraintName = schema.PrimaryKeyConstraintName });
+            {
+                SchemaName = schema.SchemaName,
+                Comment = schema.Comment,
+                PrimaryKeyConstraintName = schema.PrimaryKeyConstraintName,
+            });
         }
 
         return result;

@@ -54,7 +54,7 @@ internal static class SqlStatementFingerprint
                     .Append(select.TableValuedFunction is not null).Append('|')
                     .Append(select.GraphTable is not null).Append('|');
                 if (select.ForUpdate)
-                    builder.Append("FORUPDATE|").Append(select.NoWait).Append('|');
+                    builder.Append("FORUPDATE|").Append(select.NoWait).Append('|').Append(select.SkipLocked).Append('|');
                 if (select.FromSubquery is not null)
                     AppendStatement(builder, select.FromSubquery);
                 AppendExpression(builder, select.TableValuedFunction);

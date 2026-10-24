@@ -540,6 +540,23 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void Connection_GetSchema_PreservesRelationalSchemaIdentity()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE sales.devices (id INT, name STRING(12), PRIMARY KEY (id))");
+
+        var table = Assert.Single(c.GetSchema("Tables", [null, "sales", "devices", null]).Rows.Cast<DataRow>());
+        Assert.Equal("sales", table["TABLE_SCHEMA"]);
+        Assert.Equal("devices", table["TABLE_NAME"]);
+
+        var column = Assert.Single(c.GetSchema("Columns", [null, "sales", "devices", "name"]).Rows.Cast<DataRow>());
+        Assert.Equal("sales", column["TABLE_SCHEMA"]);
+        Assert.Equal(12, column["CHARACTER_MAXIMUM_LENGTH"]);
+
+        Assert.Empty(c.GetSchema("Tables", [null, "main", "devices", null]).Rows.Cast<DataRow>());
+    }
+
+    [Fact]
     public void Connection_GetSchema_ReportsDecimalPrecisionAndScale()
     {
         using var c = OpenConn();

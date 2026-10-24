@@ -40,6 +40,9 @@ public sealed record TableInfo(
     DateTimeOffset CreatedUtc,
     List<TableForeignKeyInfo>? ForeignKeys = null)
 {
+    /// <summary>关系表所属 schema；旧服务端响应缺失时客户端按 main 兼容。</summary>
+    public string? SchemaName { get; init; }
+
     /// <summary>真实持久化的主键约束名称。</summary>
     public string? PrimaryKeyConstraintName { get; init; }
 
@@ -96,7 +99,11 @@ public sealed record TableForeignKeyInfo(
     List<string> Columns,
     string PrincipalTable,
     List<string> PrincipalColumns,
-    string OnDelete);
+    string OnDelete)
+{
+    /// <summary>被引用表所属 schema；旧服务端响应缺失时按 main 兼容。</summary>
+    public string? PrincipalSchemaName { get; init; }
+}
 
 /// <summary>关系表二级索引信息。</summary>
 public sealed record TableIndexInfo(

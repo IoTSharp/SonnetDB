@@ -3010,6 +3010,7 @@ public sealed class SqlParser
         var pagination = ParseOptionalPagination();
         bool forUpdate = false;
         bool noWait = false;
+        bool skipLocked = false;
         if (Current.Kind == TokenKind.KeywordFor && _index + 1 < _tokens.Count
             && _tokens[_index + 1].Kind == TokenKind.KeywordUpdate)
         {
@@ -3020,6 +3021,14 @@ public sealed class SqlParser
             {
                 noWait = true;
                 Advance();
+            }
+            else if (IsIdentifier("skip"))
+            {
+                Advance();
+                if (!IsIdentifier("locked"))
+                    throw Error("FOR UPDATE SKIP 后面期望 LOCKED");
+                Advance();
+                skipLocked = true;
             }
         }
         if (Current.Kind == TokenKind.KeywordFor
@@ -3042,6 +3051,7 @@ public sealed class SqlParser
             Pagination = pagination,
             ForUpdate = forUpdate,
             NoWait = noWait,
+            SkipLocked = skipLocked,
         };
     }
 

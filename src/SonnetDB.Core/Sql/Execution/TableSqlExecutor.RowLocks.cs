@@ -50,6 +50,56 @@ internal static partial class TableSqlExecutor
             TimeSpan remaining = timeout - Stopwatch.GetElapsedTime(started);
             if (remaining <= TimeSpan.Zero)
                 throw new SqlRowLockException(SqlRowLockException.WaitTimeout, "锁定读取复验超过执行预算。");
+
+            if (statement.SkipLocked)
+            {
+                var acquired = new List<(TableRowLockManager.Lease Lease, int RowIndex)>(selected.Identities.Length);
+                var identities = selected.Identities;
+                int visibleRows = selected.Result.Rows.Count;
+                try
+                {
+                    for (int i = 0; i < identities.Length; i++)
+                    {
+                        SqlExecutor.ThrowIfCancellationRequested();
+                        TimeSpan rowRemaining = timeout - Stopwatch.GetElapsedTime(started);
+                        if (rowRemaining <= TimeSpan.Zero)
+                            throw new SqlRowLockException(SqlRowLockException.WaitTimeout, "锁定读取复验超过执行预算。");
+                        var resource = TableRowLockManager.Resource.Row(store.RowLockIdentity, identities[i]);
+                        try
+                        {
+                            var rowLease = tsdb.Tables.RowLocks.Acquire(owner, [resource], noWait: true,
+                                rowRemaining, options.CancellationToken);
+                            acquired.Add((rowLease, i));
+                        }
+                        catch (SqlRowLockException error) when (error.Code == SqlRowLockException.NotAvailable)
+                        {
+                            // SKIP LOCKED 只跳过竞争行；其它锁错误仍须向调用方报告。
+                        }
+                    }
+
+                    lock (store.SynchronizationRoot)
+                    {
+                        if (!ReferenceEquals(schema, store.Schema)
+                            || !ReferenceEquals(schema, tsdb.Tables.Catalog.TryGet(schema.Name)))
+                            throw new InvalidOperationException("锁定读期间关系表定义发生变化，请重试事务。");
+                        if (sequence != store.RowLockSequence) continue;
+                        SqlExecutor.ThrowIfCancellationRequested();
+                        foreach (var item in acquired)
+                            item.Lease.Retain();
+                        var rows = acquired
+                            .Where(item => item.RowIndex < visibleRows)
+                            .Select(item => selected.Result.Rows[item.RowIndex])
+                            .ToArray();
+                        return selected.Result with { Rows = rows };
+                    }
+                }
+                finally
+                {
+                    foreach (var item in acquired)
+                        item.Lease.Dispose();
+                }
+            }
+
             var resources = selected.Identities.Select(key =>
                 TableRowLockManager.Resource.Row(store.RowLockIdentity, key)).Distinct().ToArray();
             using var lease = tsdb.Tables.RowLocks.Acquire(owner, resources, statement.NoWait,

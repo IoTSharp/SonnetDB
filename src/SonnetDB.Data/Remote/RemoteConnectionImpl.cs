@@ -1717,7 +1717,10 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                 foreignKey.Columns,
                 foreignKey.PrincipalTable,
                 foreignKey.PrincipalColumns,
-                ParseForeignKeyAction(foreignKey.OnDelete)))
+                ParseForeignKeyAction(foreignKey.OnDelete))
+            {
+                PrincipalSchemaName = foreignKey.PrincipalSchemaName ?? TableObjectName.DefaultSchemaName,
+            })
             .ToArray();
 
         var schema = TableSchema.CreateWithDefaults(
@@ -1732,6 +1735,8 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             columnDefaults: defaults,
             autoIncrementColumns: autoIncrementColumns,
             decimalDefinitions: decimalDefinitions);
+        if (!string.IsNullOrWhiteSpace(table.SchemaName))
+            schema = schema.WithSchemaName(table.SchemaName);
         schema = schema.WithComment(table.Comment);
         if (table.PrimaryKeyConstraintName is not null) schema = schema.WithPrimaryKeyConstraintName(table.PrimaryKeyConstraintName);
         foreach (var column in table.Columns)
