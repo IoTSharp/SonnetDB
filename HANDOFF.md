@@ -5803,7 +5803,7 @@ list真实no browsers后恢复同名sonnetdb-weibo-series专用browser-profile�
 - 续接窗口从 2026-10-21 11:24:45（Asia/Shanghai）开始，仅处理明确登记的 165/166 ing.status=pending, attempts=0，不创建新文章、不补历史稿、不改封面。
 - 先用 C# dry-run 重新生成最终预览；166 原 ID/公开正文回读恢复 200，165/166正文均与最终预览一致。账号 IoTSharp、blogId 523396、全局回执锁和共享租约核对通过。
 - 165 闪存一次 POST 成功，ingId 3594135；166 闪存一次 POST 成功，ingId 3594136。官方原 ID 回读均确认作者 IoTSharp、字面量 [SonnetDB]、对应博客园原文 URL 和 IsPrivate=false；匿名网页可见性保持 NOT_VERIFIED。
-- publishing-state.json、publishing-events.jsonl、 0-publishing-plan.md、series-backlog.md 和独立回执已同步；今日新文章额度仍为 2026-10-20 的 2/2，闪存不增加新文章计数。 lease 已释放，未重试任何请求。证据：docs/blogs/publishing-review-2026-10-21-companion.json 和 docs/blogs/publishing-evidence/2026-10-20/165-ing-result.json、166-ing-result.json。
+- publishing-state.json、publishing-events.jsonl、0-publishing-plan.md、series-backlog.md 和独立回执已同步；今日新文章额度仍为 2026-10-20 的 2/2，闪存不增加新文章计数。 lease 已释放，未重试任何请求。证据：docs/blogs/publishing-review-2026-10-21-companion.json 和 docs/blogs/publishing-evidence/2026-10-20/165-ing-result.json、166-ing-result.json。
 - 未暂存、commit、push 或部署；其它会话脏改保留。下一次新文章从 167/168 开始，165/166 不得重建。
 
 ## CSDN 用户继续：054到时接受核验、058原生排期，056/057留稿跳过（2026-10-21）
@@ -6261,3 +6261,9 @@ C:\Users\mysti\AppData\Local\Codex\WeiboPublisher\sonnetdb\research\schedule-202
 - 审计文档提交 6f0222f8：包含 ArcticDB 对比、PR/Issue 整合审计和 M42 热点写设计；均保持研究/规划边界，不宣称性能或生产完成。
 - CSDN/OSChina/博客发布状态、发布回执、二维码、截图、平台工作目录和中间封面已从工作树移到 C:\\Users\\mysti\\AppData\\Local\\Codex\\SonnetDB-publishing-archive-20261025；归档清单为 moved-paths.txt，原发布 staged 差异另存 publishing-staged-diff.patch。WB97/WB98 未通过门禁的在途文档和 m47 差异移到 C:\\Users\\mysti\\AppData\\Local\\Codex\\SonnetDB-incomplete-evidence-20261025，未冒称完成。
 - 当前仍需用户另行决定是否将仓库外发布归档纳入长期备份；本次不推送、不发布、不部署。
+
+## 2026-10-25 推送冲突合并与远端同步
+
+- origin/main 的 dacd8501 在本地 9b33f4a1 之上新增 #340 事务隔离边界文档；CHANGELOG、docs/ado-net.md 和 docs/sql-reference.md 的远端改动保留。
+- HANDOFF 采用本地 HEAD 的可读历史，去除历史 NUL 污染并追加本次合并摘要；本地已有 142364b8、74e9e3df、6f0222f8、9b33f4a1 提交保持不变。
+- 发布归档和 WB97/WB98 未完成证据仍保留在仓库外归档目录，合并过程没有删除恢复材料。
