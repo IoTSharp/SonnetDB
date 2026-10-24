@@ -1,6 +1,198 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 
+const helperInvocationOperations = new Set(['process_snapshot', 'reserved_ports', 'owned_stop', 'unknown']);
+const helperInvocationPhases = new Set(['preflight', 'active', 'cleanup', 'unknown']);
+const helperInvocationCheckpoints = new Set(['helper_entry', 'spawn_return', 'identity_accepted', 'timer_armed',
+  'timer_callback', 'signal_callback', 'close_observed', 'terminal_verified', 'result_parsed', 'finally_entered']);
+const helperInvocationOutcomes = new Set(['timer_deadline', 'signal_abort', 'child_error', 'closed', 'unknown']);
+const helperInvocationCallbacks = new Set(['timer_deadline', 'signal_abort', 'child_error', 'closed']);
+const helperInvocationUnknownReasons = new Set(['association_unknown', 'clock_invalid', 'identity_unknown',
+  'observation_overflow', 'projection_unknown', 'projection_deadline', 'record_overflow', 'aggregate_overflow']);
+
+function helperInvocationUnknown(callId, reason) {
+  return { callId: typeof callId === 'string' ? callId : null, operation: 'unknown', phase: 'unknown',
+    outcome: 'unknown', reason: helperInvocationUnknownReasons.has(reason) ? reason : 'projection_unknown' };
+}
+
+/** Build bounded, injectable observations for already-authorized helper calls. */
+export function createHelperInvocationObservationBoundary(options = {}) {
+  let runId; let clock = () => performance.now(); let optionsInvalid = false;
+  try {
+    runId = options?.runId;
+    if (options?.clock !== undefined) clock = options.clock;
+    if (typeof clock !== 'function') optionsInvalid = true;
+  } catch { optionsInvalid = true; }
+  const safeRunId = typeof runId === 'string' && /^[A-Za-z0-9._-]{1,96}$/u.test(runId) ? runId : null;
+  const invocations = [];
+  const ordinals = new Set();
+  let aggregateOverflow = false;
+
+  function sampleClock() {
+    try {
+      const value = clock();
+      return Number.isFinite(value) ? value : null;
+    } catch { return null; }
+  }
+
+  function begin(input = {}) {
+    let ordinal; let operation; let phase; let inputInvalid = false;
+    try { ordinal = input?.ordinal; operation = input?.operation; phase = input?.phase; }
+    catch { inputInvalid = true; }
+    const validOrdinal = Number.isSafeInteger(ordinal) && ordinal >= 1 && ordinal <= 112;
+    const proposedCallId = safeRunId && validOrdinal ? `${safeRunId}:${ordinal}` : null;
+    const duplicate = validOrdinal && ordinals.has(ordinal);
+    if (validOrdinal) ordinals.add(ordinal);
+    const callId = proposedCallId && !duplicate ? proposedCallId : null;
+    const safeOperation = helperInvocationOperations.has(operation) ? operation : 'unknown';
+    let safePhase = helperInvocationPhases.has(phase) ? phase : 'unknown';
+    if (safeOperation === 'owned_stop' && safePhase !== 'cleanup') safePhase = 'unknown';
+    const entryAt = sampleClock();
+    const state = { callId, operation: safeOperation, phase: safePhase, entryAt, lastAt: entryAt,
+      checkpoints: [], identityLedgerRef: null, observedCallbacks: [], losingCallbacks: [],
+      raceOutcome: 'unknown', raceWinner: null, reason: !callId || optionsInvalid || inputInvalid ? 'association_unknown'
+        : entryAt === null ? 'clock_invalid' : null };
+    if (duplicate) state.reason = 'association_unknown';
+    const handle = {
+      get callId() { return callId ?? 'unknown'; },
+      checkpoint(name) {
+        try {
+          if (state.reason || !helperInvocationCheckpoints.has(name) || state.checkpoints.length >= 16) {
+            if (!state.reason) state.reason = 'observation_overflow';
+            return;
+          }
+          const current = sampleClock();
+          if (current === null || state.lastAt === null || current < state.lastAt || current < state.entryAt) {
+            state.reason = 'clock_invalid'; return;
+          }
+          state.lastAt = current;
+          state.checkpoints.push({ name, elapsedMs: Math.round((current - state.entryAt) * 1000) / 1000 });
+        } catch { state.reason = 'projection_unknown'; }
+      },
+      acceptIdentity(identity, identities) {
+        try {
+          if (state.reason || !(identities instanceof Map) || !identity || identities.get(identity.pid) !== identity) {
+            if (!state.reason) state.reason = 'identity_unknown';
+            return;
+          }
+          const pid = identity.pid;
+          const created = identity.created;
+          if (!Number.isSafeInteger(pid) || pid <= 0 || typeof created !== 'string'
+            || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?Z$/u.test(created)) {
+            state.reason = 'identity_unknown'; return;
+          }
+          state.identityLedgerRef = { pid, created };
+          handle.checkpoint('identity_accepted');
+        } catch { state.reason = 'identity_unknown'; }
+      },
+      callback(checkpoint, outcome) {
+        try {
+          if (!helperInvocationCallbacks.has(outcome) || state.observedCallbacks.length >= 8) {
+            if (!state.reason) state.reason = 'observation_overflow';
+            return;
+          }
+          state.observedCallbacks.push(outcome);
+          if (checkpoint !== null) handle.checkpoint(checkpoint);
+          if (state.raceWinner && state.raceWinner !== outcome && state.losingCallbacks.length < 8
+            && !state.losingCallbacks.includes(outcome)) state.losingCallbacks.push(outcome);
+        } catch { state.reason = 'projection_unknown'; }
+      },
+      settleRace(outcome) {
+        try {
+          const safeOutcome = helperInvocationOutcomes.has(outcome) ? outcome : 'unknown';
+          if (state.raceWinner !== null) {
+            if (safeOutcome !== state.raceWinner && safeOutcome !== 'unknown' && state.losingCallbacks.length < 8
+              && !state.losingCallbacks.includes(safeOutcome)) state.losingCallbacks.push(safeOutcome);
+            return;
+          }
+          state.raceWinner = safeOutcome;
+          state.raceOutcome = safeOutcome;
+          for (let index = 0; index < state.observedCallbacks.length && index < 8; index += 1) {
+            const callback = state.observedCallbacks[index];
+            if (callback !== safeOutcome && !state.losingCallbacks.includes(callback) && state.losingCallbacks.length < 8)
+              state.losingCallbacks.push(callback);
+          }
+        } catch { state.reason = 'projection_unknown'; }
+      },
+    };
+    if (entryAt !== null && callId) handle.checkpoint('helper_entry');
+    invocations.push(state);
+    if (invocations.length > 112) { invocations.length = 112; aggregateOverflow = true; }
+    return handle;
+  }
+
+  function records() {
+    const retained = [];
+    let retainedBytes = 0;
+    let stopped = false;
+    for (let index = 0; index < invocations.length && index < 112; index += 1) {
+      if (stopped) break;
+      const state = invocations[index];
+      const projectionStarted = sampleClock();
+      let record;
+      let serialized;
+      try {
+        if (state.reason || projectionStarted === null) throw new Error('unknown');
+        record = { callId: state.callId, operation: state.operation, phase: state.phase,
+          identityLedgerRef: state.identityLedgerRef ?? 'unknown', checkpoints: state.checkpoints,
+          raceOutcome: state.raceOutcome, raceWinner: state.raceWinner ?? 'unknown', losingCallbacks: state.losingCallbacks };
+        serialized = JSON.stringify(record);
+        if (typeof serialized !== 'string') throw new Error('unknown');
+      } catch {
+        record = helperInvocationUnknown(state.callId, state.reason ?? 'projection_unknown');
+        serialized = JSON.stringify(record);
+      }
+      let recordBytes = new TextEncoder().encode(serialized).length;
+      const projectionEnded = sampleClock();
+      if (projectionStarted === null || projectionEnded === null || projectionStarted < state.lastAt
+        || projectionEnded < projectionStarted || projectionEnded < state.lastAt) {
+        record = helperInvocationUnknown(state.callId, 'clock_invalid'); serialized = JSON.stringify(record);
+        recordBytes = new TextEncoder().encode(serialized).length;
+      } else if (projectionEnded - projectionStarted > 50) {
+        record = helperInvocationUnknown(state.callId, 'projection_deadline'); serialized = JSON.stringify(record);
+        recordBytes = new TextEncoder().encode(serialized).length;
+      }
+      if (recordBytes > 1024) {
+        record = helperInvocationUnknown(state.callId, 'record_overflow'); serialized = JSON.stringify(record);
+        recordBytes = new TextEncoder().encode(serialized).length;
+      }
+      if (retainedBytes + recordBytes > 65536) {
+        aggregateOverflow = true;
+        const marker = helperInvocationUnknown(state.callId, 'aggregate_overflow');
+        const markerText = JSON.stringify(marker);
+        const markerBytes = new TextEncoder().encode(markerText).length;
+        if (retainedBytes + markerBytes <= 65536) { retained.push(marker); retainedBytes += markerBytes; }
+        stopped = true;
+        continue;
+      }
+      retained.push(record);
+      retainedBytes += recordBytes;
+    }
+    return { records: retained, serializedBytes: retainedBytes, aggregateOverflow };
+  }
+
+  return { begin, records };
+}
+
+/** Observe the existing Promise.race without changing its winner, value, or rejection object. */
+export function raceHelperInvocationObservation(invocation, promises, { valueOutcome, errorOutcome } = {}) {
+  const raced = Promise.race(promises);
+  const observeSettlement = (outcome) => {
+    try { if (typeof invocation?.settleRace === 'function') invocation.settleRace(outcome); } catch { /* Observation only. */ }
+  };
+  return raced.then((value) => {
+    let outcome = 'unknown';
+    try { outcome = valueOutcome?.(value) ?? 'unknown'; } catch { /* Observation only. */ }
+    observeSettlement(outcome);
+    return value;
+  }, (error) => {
+    let outcome = 'unknown';
+    try { outcome = errorOutcome?.(error) ?? 'unknown'; } catch { /* Observation only. */ }
+    observeSettlement(outcome);
+    throw error;
+  });
+}
+
 const rejectionReasons = new Map([
   ['identity', new Set(['incomplete_or_unsafe_identity_preserved', 'identity_count_exceeded',
     'recorded_identity_changed_replacement_preserved', 'ownership_anchor_changed_preserved'])],
@@ -857,7 +1049,7 @@ export function createOwnedStopBoundary({ ownerPid, identities, helper, recordEv
       stopObserve(observation, 'checkpoint', 'helper_dispatch');
       const diagnosticInput = stopObserve(observation, 'input');
       const result = await helper(ownedStopPowerShellScript(), { ...identity, ownershipAnchorPid: ownerPid,
-        ownershipAnchorIdentity, stopDiagnostic: diagnosticInput }, undefined, observation);
+        ownershipAnchorIdentity, stopDiagnostic: diagnosticInput }, undefined, observation, 'owned_stop');
       stopObserve(observation, 'checkpoint', 'result_contract');
       assert.ok(result.exited || result.stopped);
       recordEvent({ event: 'owned-process-stop', ...identity, alreadyExited: Boolean(result.exited) });

@@ -5,8 +5,10 @@ import { mkdtemp, readFile, realpath, rmdir, unlink, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createContext, Script } from 'node:vm';
 import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, captureOwnedSnapshot,
-  createOwnedStopBoundary, createOwnedStopDiagnostics, observeOwnedStopDiagnostic, ownedIdentityFailure,
+  createHelperInvocationObservationBoundary, createOwnedStopBoundary, createOwnedStopDiagnostics,
+  observeOwnedStopDiagnostic, ownedIdentityFailure, raceHelperInvocationObservation,
   ownedStopPowerShellScript, readOwnedStopHelperResult, recordOwnedIdentityEvent,
   ownedProcessCleanupDiagnostic, validateOwnedIdentity, validateOwnedIdentityAnchor, validateOwnedIdentityLedger,
   verifyOwnedProcessCleanup } from './query-host-evidence.mjs';
@@ -16,6 +18,313 @@ const owner = { pid: 10, parentPid: 1, created, commandLine: 'node runner', pare
 const child = (pid, commandLine = 'owned child') => ({ pid, parentPid: 10, created, commandLine,
   parentChain: [{ pid: 10, parentPid: 1, created, commandLine: 'node runner' }, { pid: 1, unavailable: true }] });
 const options = { ownerPid: 10, validateText: () => {}, recordEvent: () => {}, clock: () => 1000 };
+
+test('helper observations freeze call-site phase and distinct call IDs around exact admitted identities', { timeout: 1000 }, () => {
+  let tick = 0;
+  const boundary = createHelperInvocationObservationBoundary({ runId: 'wb85-run', clock: () => tick++ });
+  const preflight = boundary.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'preflight' });
+  const initialIdentity = { pid: 42, created };
+  const identities = new Map([[42, initialIdentity]]);
+  preflight.acceptIdentity(initialIdentity, identities);
+  preflight.checkpoint('spawn_return');
+  const cleanup = boundary.begin({ ordinal: 2, operation: 'process_snapshot', phase: 'cleanup' });
+  const reusedPidIdentity = { pid: 42, created: '2026-10-08T00:00:00.000Z' };
+  identities.set(42, reusedPidIdentity);
+  cleanup.acceptIdentity(reusedPidIdentity, identities);
+  const ports = boundary.begin({ ordinal: 3, operation: 'reserved_ports', phase: 'preflight' });
+  const misplacedStop = boundary.begin({ ordinal: 4, operation: 'owned_stop', phase: 'active' });
+  const unmapped = boundary.begin({ ordinal: 5, operation: 'unmapped-operation', phase: 'preflight' });
+  assert.deepEqual([preflight.callId, cleanup.callId], ['wb85-run:1', 'wb85-run:2']);
+  assert.equal(ports.callId, 'wb85-run:3');
+  assert.deepEqual(boundary.records().records.map((record) => [record.operation, record.phase]), [
+    ['process_snapshot', 'preflight'], ['process_snapshot', 'cleanup'], ['reserved_ports', 'preflight'],
+    ['owned_stop', 'unknown'], ['unknown', 'preflight'],
+  ]);
+  const records = boundary.records().records;
+  assert.deepEqual(records[0].identityLedgerRef, { pid: 42, created });
+  assert.deepEqual(records[1].identityLedgerRef, { pid: 42, created: reusedPidIdentity.created });
+  assert.equal(records[0].callId === records[1].callId, false);
+});
+
+test('unaccepted incomplete accessor-backed and duplicate identity associations remain unknown', { timeout: 1000 }, () => {
+  const secret = 'WB85_SYNTHETIC_secret_command_error';
+  const boundary = createHelperInvocationObservationBoundary({ runId: 'wb85-identity', clock: () => 1 });
+  const unaccepted = boundary.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'preflight' });
+  unaccepted.acceptIdentity(child(51), new Map());
+  const accessorBacked = { get pid() { throw new Error(secret); }, get commandLine() { throw new Error(secret); } };
+  const throwing = boundary.begin({ ordinal: 2, operation: 'reserved_ports', phase: 'preflight' });
+  throwing.acceptIdentity(accessorBacked, new Map([[undefined, accessorBacked]]));
+  boundary.begin({ ordinal: 2, operation: 'process_snapshot', phase: 'cleanup' });
+  const projection = boundary.records();
+  assert.equal(projection.records.length, 3);
+  assert.ok(projection.records.every((record) => record.outcome === 'unknown'));
+  assert.equal(JSON.stringify(projection).includes(secret), false);
+  assert.equal(projection.records[2].callId, null);
+});
+
+test('the shared race boundary preserves all four first winners and original result identity', { timeout: 1500 }, async () => {
+  const scenarios = [
+    { winner: 'closed', outcome: 'closed', kind: 'value' },
+    { winner: 'timer_deadline', outcome: 'timer_deadline', kind: 'error' },
+    { winner: 'signal_abort', outcome: 'signal_abort', kind: 'error' },
+    { winner: 'child_error', outcome: 'child_error', kind: 'error' },
+  ];
+  for (let index = 0; index < scenarios.length && index < 4; index += 1) {
+    const scenario = scenarios[index]; let tick = 0;
+    const boundary = createHelperInvocationObservationBoundary({ runId: `wb85-race-${index}`, clock: () => tick++ });
+    const invocation = boundary.begin({ ordinal: 1, operation: 'owned_stop', phase: 'cleanup' });
+    let resolveClose; let rejectWait;
+    const close = new Promise((resolve) => { resolveClose = resolve; });
+    const wait = new Promise((_resolve, reject) => { rejectWait = reject; });
+    const closeResult = { exitCode: 0, signal: null };
+    const originalError = new Error(`synthetic ${scenario.winner}`);
+    const observed = raceHelperInvocationObservation(invocation, [close, wait], {
+      valueOutcome: (value) => value === closeResult ? 'closed' : 'unknown',
+      errorOutcome: (error) => error === originalError ? scenario.winner : 'unknown',
+    });
+    invocation.callback(scenario.winner === 'closed' ? 'close_observed' : null, scenario.winner);
+    if (scenario.kind === 'value') resolveClose(closeResult); else rejectWait(originalError);
+    if (scenario.kind === 'value') assert.equal(await observed, closeResult);
+    else await assert.rejects(observed, (error) => error === originalError);
+    const record = boundary.records().records[0];
+    assert.equal(record.raceOutcome, scenario.outcome);
+    assert.equal(record.raceWinner, scenario.outcome);
+    assert.equal(JSON.stringify(record).includes(originalError.message), false);
+  }
+});
+
+test('a losing timer and late close cannot replace the first abort settlement', { timeout: 1000 }, async () => {
+  let tick = 0;
+  const boundary = createHelperInvocationObservationBoundary({ runId: 'wb85-late', clock: () => tick++ });
+  const invocation = boundary.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'cleanup' });
+  let resolveClose; let rejectWait;
+  const close = new Promise((resolve) => { resolveClose = resolve; });
+  const wait = new Promise((_resolve, reject) => { rejectWait = reject; });
+  const abortError = new Error('abort identity'); const timerError = new Error('timer identity');
+  const observed = raceHelperInvocationObservation(invocation, [close, wait], {
+    valueOutcome: () => 'closed', errorOutcome: (error) => error === abortError ? 'signal_abort'
+      : error === timerError ? 'timer_deadline' : 'unknown',
+  });
+  invocation.callback('signal_callback', 'signal_abort'); rejectWait(abortError);
+  invocation.callback('timer_callback', 'timer_deadline'); rejectWait(timerError);
+  invocation.callback('close_observed', 'closed'); resolveClose({ exitCode: 0, signal: null });
+  await assert.rejects(observed, (error) => error === abortError);
+  invocation.settleRace('timer_deadline');
+  const record = boundary.records().records[0];
+  assert.equal(record.raceWinner, 'signal_abort');
+  assert.ok(record.losingCallbacks.includes('timer_deadline'));
+  assert.ok(record.losingCallbacks.includes('closed'));
+  assert.equal(record.raceOutcome, 'signal_abort');
+});
+
+test('clock projection and UTF-8 byte bounds replace unsafe records with fixed unknown markers', { timeout: 1000 }, () => {
+  const longRunId = 'r'.repeat(96);
+  let elapsed = 0;
+  const overRecord = createHelperInvocationObservationBoundary({ runId: longRunId, clock: () => elapsed });
+  const large = overRecord.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'preflight' });
+  for (let index = 0; index < 15 && index < 15; index += 1) { elapsed += 1_000_000_000; large.checkpoint('terminal_verified'); }
+  const oversized = overRecord.records();
+  assert.equal(oversized.records[0].reason, 'record_overflow');
+  assert.ok(oversized.serializedBytes <= 1024);
+
+  let read = 0;
+  const slowProjection = createHelperInvocationObservationBoundary({ runId: 'wb85-slow', clock: () => [1, 1, 10, 61][read++] ?? 61 });
+  slowProjection.begin({ ordinal: 1, operation: 'reserved_ports', phase: 'preflight' });
+  assert.equal(slowProjection.records().records[0].reason, 'projection_deadline');
+
+  let backwardRead = 0;
+  const backwardClock = createHelperInvocationObservationBoundary({ runId: 'wb85-clock', clock: () => [10, 9, 11, 11][backwardRead++] ?? 11 });
+  backwardClock.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'initial' });
+  assert.equal(backwardClock.records().records[0].reason, 'clock_invalid');
+});
+
+test('aggregate observation overflow stops at the fixed cap and accounts compact UTF-8 JSON bytes', { timeout: 1200 }, () => {
+  let tick = 0;
+  const boundary = createHelperInvocationObservationBoundary({ runId: 'a'.repeat(96), clock: () => tick++ });
+  for (let ordinal = 1; ordinal <= 112 && ordinal <= 112; ordinal += 1) {
+    const invocation = boundary.begin({ ordinal, operation: 'process_snapshot', phase: ordinal === 1 ? 'preflight' : 'cleanup' });
+    for (let checkpoint = 0; checkpoint < 11 && checkpoint < 11; checkpoint += 1) invocation.checkpoint('terminal_verified');
+  }
+  const projection = boundary.records();
+  assert.equal(projection.records.length <= 112, true);
+  assert.equal(projection.aggregateOverflow, true);
+  assert.ok(projection.serializedBytes <= 65536);
+  assert.equal(projection.serializedBytes, projection.records.reduce((sum, record) => sum + Buffer.byteLength(JSON.stringify(record), 'utf8'), 0));
+});
+
+test('runner wiring binds exact operation mappings phases race checkpoints and bounded process-events output', { timeout: 1000 }, async () => {
+  const runner = await readFile(new URL('./run-query-host-real.mjs', import.meta.url), 'utf8');
+  const evidence = await readFile(new URL('./query-host-evidence.mjs', import.meta.url), 'utf8');
+  assert.match(runner, /helper\(snapshotScript, undefined, signal, undefined, 'process_snapshot'\)/u);
+  assert.match(runner, /'reserved_ports'\)/u);
+  assert.match(evidence, /undefined, observation, 'owned_stop'\)/u);
+  assert.match(runner, /let helperPhase = 'preflight'/u);
+  assert.match(runner, /helperPhase = 'active'/u);
+  assert.match(runner, /finally \{\s*helperPhase = 'cleanup'/u);
+  assert.match(runner, /sha256OfBoundedOutput: digest\.digest\('hex'\)\.toUpperCase\(\), callId: invocation\.callId/u);
+  assert.match(runner, /helperInvocations: helperInvocationObservations\.records\(\)/u);
+  assert.match(runner, /raceHelperInvocationObservation\(invocation,/u);
+  assert.match(runner, /Owned helper deadline\./u);
+  assert.match(runner, /6_000/u);
+  assert.match(runner, /signal\?\.addEventListener\('abort', cancelHelper, \{ once: true \}\)/u);
+});
+
+test('primary failure preserves persisted preflight stage while exact runner finally helpers observe cleanup', { timeout: 2000 }, async (context) => {
+  const runner = await readFile(new URL('./run-query-host-real.mjs', import.meta.url), 'utf8');
+  assert.ok(Buffer.byteLength(runner, 'utf8') <= 128 * 1024);
+  const newline = runner.includes('\r\n') ? '\r\n' : '\n';
+  const extract = (startAnchor, endAnchor, maximumBytes) => {
+    const start = runner.indexOf(startAnchor); const end = runner.indexOf(endAnchor);
+    assert.ok(start >= 0 && end > start);
+    assert.equal(runner.lastIndexOf(startAnchor), start);
+    assert.equal(runner.lastIndexOf(endAnchor), end);
+    const source = runner.slice(start + newline.length, end);
+    assert.ok(Buffer.byteLength(source, 'utf8') <= maximumBytes);
+    return source;
+  };
+  const state = extract(`${newline}let portsReleased = false;`, `${newline}// Reserve ninety seconds`, 4096);
+  const lifecycle = extract(`${newline}try {${newline}  assert.equal(process.platform, 'win32');`,
+    `${newline}function hash(value)`, 20 * 1024);
+  const expires = Date.now() + 1500;
+  const check = () => { context.signal.throwIfAborted(); assert.ok(Date.now() < expires); };
+  const calls = []; const persisted = new Map(); const accesses = []; const failures = [];
+  const record = (value) => { check(); assert.ok(calls.length < 16); calls.push(value); };
+  const original = new Error('WB85_C1_SYNTHETIC_primary_secret_never_persist');
+  let tick = 0; let ordinal = 0; let inspect; let mkdirCalls = 0; let observedPrimary;
+  const observations = createHelperInvocationObservationBoundary({ runId: 'wb85-c1-lifecycle', clock: () => tick++ });
+  let enterCleanup; let releaseAudit;
+  const cleanupEntered = new Promise((resolve) => { enterCleanup = resolve; });
+  const pendingAudit = new Promise((resolve) => { releaseAudit = resolve; });
+  const observeHelper = (operation, phase) => {
+    check(); assert.ok(ordinal < 3); ordinal += 1;
+    return observations.begin({ ordinal, operation, phase });
+  };
+  const evidence = async (name, value) => {
+    check(); assert.ok(persisted.size < 8); assert.equal(persisted.has(name), false);
+    const text = JSON.stringify(value);
+    assert.ok(Buffer.byteLength(text, 'utf8') <= 32 * 1024);
+    persisted.set(name, JSON.parse(text)); return 'B'.repeat(64);
+  };
+  const root = 'D:\\source\\SonnetDB'; const runRoot = `${root}\\artifacts\\wb85-c1-inert`;
+  const serverDll = 'inert-server.dll'; const tools = ['inert-code', 'inert-dotnet', 'inert-pwsh', serverDll, 'inert-host'];
+  const adapters = {
+    pendingAudit,
+    bind: (value) => { inspect = value; },
+    snapshot: async (phase) => {
+      record(`snapshot:${phase}`); const invocation = observeHelper('process_snapshot', phase);
+      if (phase === 'preflight') {
+        invocation.settleRace('child_error'); observedPrimary = original; throw original;
+      }
+      assert.equal(phase, 'cleanup'); invocation.settleRace('closed'); return [];
+    },
+    listeningPorts: async (phase) => {
+      record(`ports:${phase}`); assert.equal(phase, 'cleanup');
+      observeHelper('reserved_ports', phase).settleRace('closed'); return [];
+    },
+    finishOutputs: () => record('cleanup:finish-outputs'),
+  };
+  const unexpected = () => { throw new Error('Unexpected inert lifecycle dependency.'); };
+  const inertProcess = { platform: 'win32', execPath: 'C:\\Program Files\\nodejs\\node.exe', pid: 10,
+    env: { SONNETDB_QUERY_REAL_SERVER_SHA256: 'A'.repeat(64) }, removeListener: () => check() };
+  const sandbox = createContext({ assert, Error, Map, path, adapters, process: inertProcess,
+    repositoryRoot: root, evidenceParent: runRoot, runRoot, runtimeRoot: `${runRoot}\\runtime`,
+    contentRoot: 'inert-content', dataRoot: 'inert-data', profileRoot: 'inert-profile', baseUrl: 'inert-url',
+    code: tools[0], dotnet: tools[1], powershell: tools[2], serverDll, hostEntry: tools[4],
+    runId: 'wb85-c1-lifecycle', startedAtUtc: created, deadline: Date.now() + 600_000,
+    identities: new Map(), roots: [], events: [], helperStarts: [], outputSummaries: [], helperOutputSummaries: [],
+    auditFailures: [], cleanupAttempts: [], terminalAttempts: [], helperInvocationObservations: observations,
+    stopDiagnostics: { summary: () => ({}) }, evidence, hash: () => 'A'.repeat(64),
+    realpath: async (value) => { check(); assert.equal(value, runRoot); return value; },
+    lstat: async (value) => { check(); assert.equal(value, runRoot); return { isSymbolicLink: () => false }; },
+    access: async (value) => { check(); assert.ok(accesses.length < 5); accesses.push(value); },
+    readFile: async (value) => { check(); assert.equal(value, serverDll); return Buffer.from('inert-server'); },
+    mkdir: async (value) => { check(); mkdirCalls += 1; assert.equal(mkdirCalls, 1); assert.equal(value, runRoot); },
+    clearInterval: () => { record('audit-barrier:cleanup'); enterCleanup(); }, clearTimeout: () => check(),
+    timeout: 'inert-timeout', cancel: unexpected, removeRuntime: unexpected,
+    audit: unexpected, safeLiveIdentities: unexpected, stopVerified: unexpected, noteAuditFailure: unexpected, delay: unexpected,
+    attemptIndependentSteps,
+    verifyOwnedProcessCleanup: async (request) => {
+      record('cleanup:owned-processes'); assert.equal(inspect().helperPhase, 'cleanup');
+      assert.deepEqual(await request.snapshot(), []); request.verifyRoots(); request.verifyAuditFailures();
+      return { proven: true, diagnostic: { synthetic: true } };
+    },
+    existingHash: async (name) => { check(); assert.ok(persisted.has(name)); return 'B'.repeat(64); },
+    manifest: async () => { record('manifest'); await evidence('manifest.json', { synthetic: true }); },
+    console: { error: (value) => { check(); assert.ok(failures.length < 2); failures.push(value); }, log: () => check() },
+  }, { codeGeneration: { strings: false, wasm: false } });
+  // Only the source initializes and mutates primaryFailure, stage, helperPhase and result.json.
+  const script = new Script(`(async () => {\n${state}\n
+    pendingAudit = adapters.pendingAudit;
+    adapters.bind(() => ({ stage, helperPhase, primaryFailure }));
+    const snapshot = () => adapters.snapshot(helperPhase);
+    const listeningPorts = async () => [...await adapters.listeningPorts(helperPhase)];
+    const finishOutputs = async () => { adapters.finishOutputs(); outputComplete = true; };
+    ${lifecycle}\n})()`, { filename: 'wb85-c1-exact-runner-lifecycle.vm' });
+  const execution = script.runInContext(sandbox, { timeout: 1000 });
+  try {
+    await cleanupEntered; check();
+    assert.equal(observedPrimary, original);
+    assert.equal(inspect().primaryFailure, true); assert.equal(inspect().stage, 'preflight');
+    assert.equal(inspect().helperPhase, 'cleanup');
+    assert.deepEqual(calls, ['snapshot:preflight', 'audit-barrier:cleanup']);
+    assert.equal(persisted.has('result.json'), false);
+  } finally { releaseAudit(); }
+  await execution; check();
+  assert.equal(inertProcess.exitCode, 1); assert.equal(mkdirCalls, 1); assert.deepEqual(accesses, tools);
+  const result = persisted.get('result.json');
+  assert.equal(result.stoppedAtStage, 'preflight'); assert.equal(result.primaryFailure, true); assert.equal(result.outcome, 'FAIL');
+  assert.equal(result.failureType, 'Error'); assert.equal(result.knownFailureReason, 'unclassified');
+  assert.equal(JSON.stringify([...persisted.values()]).includes(original.message), false);
+  assert.equal(failures.length, 1); assert.ok(failures[0].includes('failed during preflight'));
+  assert.deepEqual(calls, ['snapshot:preflight', 'audit-barrier:cleanup', 'cleanup:owned-processes',
+    'snapshot:cleanup', 'ports:cleanup', 'cleanup:finish-outputs', 'manifest']);
+  assert.deepEqual(persisted.get('cleanup.json').attempts.map((value) => value.name),
+    ['owned-processes', 'reserved-ports', 'helper-handles', 'owned-runtime', 'bounded-output-hashes']);
+  assert.ok(persisted.get('cleanup.json').attempts.every((value) => value.ok));
+  const records = persisted.get('process-events.json').helperInvocations.records;
+  assert.deepEqual(records.map(({ callId, operation, phase, raceOutcome }) => ({ callId, operation, phase, raceOutcome })), [
+    { callId: 'wb85-c1-lifecycle:1', operation: 'process_snapshot', phase: 'preflight', raceOutcome: 'child_error' },
+    { callId: 'wb85-c1-lifecycle:2', operation: 'process_snapshot', phase: 'cleanup', raceOutcome: 'closed' },
+    { callId: 'wb85-c1-lifecycle:3', operation: 'reserved_ports', phase: 'cleanup', raceOutcome: 'closed' },
+  ]);
+});
+
+test('non-finite monotonic samples yield complete clock_invalid markers with exact UTF-8 accounting', { timeout: 2000 }, (context) => {
+  const scenarios = [
+    { name: 'entry-nan', samples: [NaN, 10, 10] },
+    { name: 'entry-positive-infinity', samples: [Infinity, 10, 10] },
+    { name: 'entry-negative-infinity', samples: [-Infinity, 10, 10] },
+    { name: 'checkpoint-nonfinite', samples: [1, 1, 2, NaN, 3, 3] },
+    { name: 'projection-nonfinite', samples: [1, 1, 2, 3, Infinity, 4] },
+  ];
+  assert.equal(scenarios.length, 5); const expires = Date.now() + 1000;
+  const marker = 'WB85_C1_SYNTHETIC_raw_identity_error_secret';
+  for (let index = 0; index < scenarios.length && index < 5; index += 1) {
+    context.signal.throwIfAborted(); assert.ok(Date.now() < expires);
+    const scenario = scenarios[index]; let reads = 0;
+    assert.ok(scenario.samples.length <= 6);
+    const boundary = createHelperInvocationObservationBoundary({ runId: `wb85-c1-${scenario.name}`, clock: () => {
+      context.signal.throwIfAborted(); assert.ok(Date.now() < expires); assert.ok(reads < 8);
+      const value = scenario.samples[reads] ?? 100; reads += 1; return value;
+    } });
+    const invocation = boundary.begin({ ordinal: 1, operation: 'process_snapshot', phase: 'cleanup', raw: marker });
+    const identity = { pid: 42, created, commandLine: marker };
+    invocation.acceptIdentity(identity, new Map([[42, identity]]));
+    invocation.checkpoint('spawn_return'); invocation.callback(null, 'timer_deadline'); invocation.settleRace('timer_deadline');
+    const projection = boundary.records();
+    const expected = { callId: `wb85-c1-${scenario.name}:1`, operation: 'unknown', phase: 'unknown',
+      outcome: 'unknown', reason: 'clock_invalid' };
+    assert.equal(reads, scenario.samples.length); assert.equal(projection.records.length, 1);
+    assert.deepEqual(projection.records[0], expected);
+    assert.deepEqual(Object.keys(projection.records[0]), ['callId', 'operation', 'phase', 'outcome', 'reason']);
+    const serialized = JSON.stringify(projection.records[0]);
+    assert.equal(serialized.includes(marker), false);
+    assert.equal(projection.serializedBytes, Buffer.byteLength(JSON.stringify(expected), 'utf8'));
+    assert.equal(projection.serializedBytes, new TextEncoder().encode(serialized).length);
+    assert.ok(projection.serializedBytes <= 1024 && projection.serializedBytes <= 65536);
+    assert.equal(projection.aggregateOverflow, false);
+  }
+});
 
 const stopToken = '0123456789abcdef0123456789abcdef';
 const stopPrefix = 'SONNETDB_STOP_DIAGNOSTIC_V1 ';
@@ -287,7 +596,8 @@ test('runner consumes the injectable stop and helper result boundaries while ret
   assert.match(source, /return await observedStop\(identity\)/u); assert.match(source, /return await readOwnedStopHelperResult\(/u);
   assert.match(source, /assert\.equal\(terminal\.exitCode, 0\); assert\.equal\(terminal\.signal, null\); assert\.equal\(exceeded, false\); assert\.ok\(record\.identityRecorded\)/u);
   assert.match(source, /observeOwnedStopDiagnostic\(stopObservation, 'stderr', chunk\)/u);
-  assert.match(source, /stopDiagnostics: stopDiagnostics\.summary\(\)/u); assert.match(source, /assert\.ok\(\+\+helpers <= 112\)/u);
+  assert.match(source, /stopDiagnostics: stopDiagnostics\.summary\(\)/u);
+  assert.match(source, /const ordinal = \+\+helpers;\s*assert\.ok\(ordinal <= 112\)/u);
   assert.match(source, /const cap = 4 \* 1024 \* 1024/u);
 });
 

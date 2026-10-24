@@ -7,7 +7,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { discoverOwnedProcessIdentities } from '../../../web/e2e/run-workbench-real.mjs';
 import { acceptOwnedIdentity, attemptIndependentSteps, captureOwnedCandidateSnapshot, createOwnedStopBoundary, createOwnedStopDiagnostics,
-  observeOwnedStopDiagnostic, ownedIdentityFailure, readOwnedStopHelperResult, recordOwnedIdentityEvent,
+  createHelperInvocationObservationBoundary, observeOwnedStopDiagnostic, ownedIdentityFailure,
+  raceHelperInvocationObservation, readOwnedStopHelperResult, recordOwnedIdentityEvent,
   validateOwnedIdentityAnchor, validateOwnedIdentityLedger as validateLedger, verifyOwnedProcessCleanup } from './query-host-evidence.mjs';
 
 // Explicit local tools and a distinct test entry: no download, production hook or HTTP fixture.
@@ -20,6 +21,7 @@ const powershell = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
 const serverDll = path.join(repositoryRoot, 'src', 'SonnetDB', 'bin', 'Release', 'net10.0', 'SonnetDB.dll');
 const hostEntry = path.join(extensionRoot, 'out', 'test', 'host', 'query-real.js');
 const runId = `query-host-real-${randomUUID()}`;
+const helperInvocationObservations = createHelperInvocationObservationBoundary({ runId });
 const runRoot = path.join(evidenceParent, runId);
 const runtimeRoot = path.join(runRoot, 'runtime');
 const contentRoot = path.join(runtimeRoot, 'server-content');
@@ -65,6 +67,7 @@ let processCleanupDiagnostic = null;
 let runtimeRemoved = false;
 let outcome = 'FAIL';
 let stage = 'preflight';
+let helperPhase = 'preflight';
 let codeExit = null;
 let hostOutcome = null;
 let referenceHash;
@@ -128,6 +131,7 @@ try {
       Modbus: { Enabled: false }, SemanticSearch: { Enabled: false } },
   }), { flag: 'wx' });
   stage = 'server-start';
+  helperPhase = 'active';
   const environment = isolatedEnvironment();
   const server = await start(dotnet, [serverDll, '--contentRoot', contentRoot, '--environment', 'Production'],
     { ...environment, DOTNET_ENVIRONMENT: 'Production', ASPNETCORE_ENVIRONMENT: 'Production' }, 'server');
@@ -230,6 +234,7 @@ try {
   knownFailureReason = reasons.get(error instanceof Error ? error.message : '') ?? (failureType === 'AssertionError' ? 'assertion' : 'unclassified');
   console.error(`WB83 failed during ${stage}; raw error/child output omitted to protect runtime credentials.`);
 } finally {
+  helperPhase = 'cleanup';
   clearInterval(auditTimer);
   if (pendingAudit) { try { await pendingAudit; } catch { primaryFailure = true; } }
   stage = primaryFailure ? stage : 'cleanup';
@@ -266,7 +271,8 @@ try {
       acceptedIdentities: [...identities.values()], auditFailures, auditFailureCount, auditFailureOverflow, identityLedgerIsAuthoritative: true,
       ownershipAnchorPid: process.pid, externalAncestorsDiagnosticOnly: true,
       stopDiagnostics: stopDiagnostics.summary(),
-      trackedIdentities: identities.size, helperStarts: helperStarts.map(({ pid, startedAtUtc: time, closed, identityRecorded }) => ({ pid, startedAtUtc: time, closed, identityRecorded })),
+      trackedIdentities: identities.size, helperStarts: helperStarts.map(({ pid, startedAtUtc: time, closed, identityRecorded, callId }) => ({ pid, startedAtUtc: time, closed, identityRecorded, callId })),
+      helperInvocations: helperInvocationObservations.records(),
       snapshots, helpers, finishedAtUtc });
   } }, { name: 'child-output.json', run: async () => {
     await evidence('child-output.json', { schema: 'sonnetdb.wb42.child-output.v1', slice: 'WB83', runId, streams: outputSummaries,
@@ -506,7 +512,7 @@ for ($taskIndex = 0; $taskIndex -lt $taskProcesses.Count; $taskIndex++) {
    created=$taskProcess.CreationDate.ToUniversalTime().ToString('O'); commandLine=$taskProcess.CommandLine })
 }
 ConvertTo-Json -InputObject ($taskRecords.ToArray()) -Compress -Depth 4`;
-  const values = await helper(snapshotScript, undefined, signal);
+  const values = await helper(snapshotScript, undefined, signal, undefined, 'process_snapshot');
   assert.ok(Array.isArray(values) && values.length <= 4096);
   return values;
 }
@@ -514,11 +520,13 @@ async function listeningPorts() {
   return await helper(`$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $taskPorts = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in @(18483,18484) } | Select-Object -First 5 -ExpandProperty LocalPort)
-ConvertTo-Json -InputObject $taskPorts -Compress`);
+ConvertTo-Json -InputObject $taskPorts -Compress`, undefined, undefined, undefined, 'reserved_ports');
 }
-async function helper(script, input, signal, stopObservation) {
+async function helper(script, input, signal, stopObservation, operation = 'unknown') {
   signal?.throwIfAborted();
-  assert.ok(++helpers <= 112);
+  const ordinal = ++helpers;
+  assert.ok(ordinal <= 112);
+  const invocation = helperInvocationObservations.begin({ ordinal, operation, phase: helperPhase });
   const wrapped = `$ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $taskHelperSnapshot = @(Get-CimInstance Win32_Process -OperationTimeoutSec 3 | Select-Object -First 4097)
@@ -547,7 +555,9 @@ $taskIdentity.parentChain = $taskChain.ToArray()
 [Console]::Out.WriteLine((ConvertTo-Json -InputObject $taskIdentity -Compress -Depth 5))
 ${script}`;
   const child = spawn(powershell, ['-NoProfile', '-Command', wrapped], { cwd: extensionRoot, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  invocation.checkpoint('spawn_return');
   const record = { pid: child.pid, startedAtUtc: new Date().toISOString(), closed: false, identityRecorded: false };
+  record.callId = invocation.callId;
   helperStarts.push(record);
   if (input) child.stdin.end(`${JSON.stringify(input)}\n`); else child.stdin.end();
   let output = ''; let exceeded = false; let identity;
@@ -567,7 +577,7 @@ ${script}`;
       stream.removeListener('data', onData);
       helperOutputSummaries.push({ role: 'helper', pid: record.pid, stream: streamName, bytes, hashedBytes,
         complete: ended && !failed && bytes <= cap, hashScope: ended && !failed && bytes <= cap ? 'complete-output' : 'bounded-observed-prefix',
-        sha256OfBoundedOutput: digest.digest('hex').toUpperCase() });
+        sha256OfBoundedOutput: digest.digest('hex').toUpperCase(), callId: invocation.callId });
       stream.destroy();
     });
   }
@@ -580,7 +590,8 @@ ${script}`;
         assert.equal(identity.pid, record.pid); assert.equal(identity.parentPid, process.pid); assert.ok(identity.commandLine && identity.created);
         assert.ok(identity.parentChain?.length && identity.parentChain[0].pid === process.pid && identity.parentChain[0].commandLine);
         observeOwnedStopDiagnostic(stopObservation, 'checkpoint', 'helper_identity');
-        acceptIdentity(identity, 'owned-helper-start'); record.identityRecorded = true;
+        const acceptedIdentity = acceptIdentity(identity, 'owned-helper-start'); record.identityRecorded = true;
+        invocation.acceptIdentity(acceptedIdentity, identities);
         observeOwnedStopDiagnostic(stopObservation, 'bindHelper', identities.get(record.pid));
         observeOwnedStopDiagnostic(stopObservation, 'checkpoint', 'helper_wait');
       } catch {
@@ -593,24 +604,35 @@ ${script}`;
   });
   if (stopObservation) child.stderr.on('data', (chunk) => observeOwnedStopDiagnostic(stopObservation, 'stderr', chunk));
   child.stderr.resume();
-  let timer; let cancelHelper;
+  let timer; let cancelHelper; let closeResult;
+  const errorOrigins = [];
   const closed = new Promise((resolve, reject) => {
-    child.once('error', reject);
-    child.once('close', (exitCode, signal) => { record.closed = true; resolve({ exitCode, signal }); });
+    child.once('error', (error) => { errorOrigins.push([error, 'child_error']); invocation.callback(null, 'child_error'); reject(error); });
+    child.once('close', (exitCode, signal) => { record.closed = true; closeResult = { exitCode, signal };
+      invocation.callback('close_observed', 'closed'); resolve(closeResult); });
   });
   try {
-    return await readOwnedStopHelperResult({ waitTerminal: () => Promise.race([closed, new Promise((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('Owned helper deadline.')), 6_000);
-      cancelHelper = () => reject(new Error('Owned helper deadline.'));
+    return await readOwnedStopHelperResult({ waitTerminal: () => raceHelperInvocationObservation(invocation,
+      [closed, new Promise((_resolve, reject) => {
+      timer = setTimeout(() => { const error = new Error('Owned helper deadline.'); errorOrigins.push([error, 'timer_deadline']);
+        invocation.callback('timer_callback', 'timer_deadline'); reject(error); }, 6_000);
+      invocation.checkpoint('timer_armed');
+      cancelHelper = () => { const error = new Error('Owned helper deadline.'); errorOrigins.push([error, 'signal_abort']);
+        invocation.callback('signal_callback', 'signal_abort'); reject(error); };
       signal?.addEventListener('abort', cancelHelper, { once: true });
       if (signal?.aborted) cancelHelper();
-    })]), verifyTerminal: (terminal) => {
+    })], { valueOutcome: (value) => value === closeResult ? 'closed' : 'unknown',
+      errorOutcome: (error) => errorOrigins.find(([original]) => original === error)?.[1] ?? 'unknown' }), verifyTerminal: (terminal) => {
       assert.equal(terminal.exitCode, 0); assert.equal(terminal.signal, null); assert.equal(exceeded, false); assert.ok(record.identityRecorded);
+      invocation.checkpoint('terminal_verified');
     }, parseResult: () => {
       const end = output.indexOf('\n'); const body = output.slice(end + 1).trim();
-      return body ? JSON.parse(body) : null;
+      const result = body ? JSON.parse(body) : null;
+      invocation.checkpoint('result_parsed');
+      return result;
     } }, stopObservation);
   } finally {
+    invocation.checkpoint('finally_entered');
     clearTimeout(timer);
     if (cancelHelper) signal?.removeEventListener('abort', cancelHelper);
     for (let index = 0; index < helperStreams.length && index < 2; index += 1) helperStreams[index]();
