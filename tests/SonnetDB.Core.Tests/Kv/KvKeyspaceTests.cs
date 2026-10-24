@@ -599,6 +599,26 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    public void CleanExpired_AfterCompact_RemovesExpiredDiskEntries()
+    {
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = KvOptions.Default with { ExpirerEnabled = false, CleanupEnabled = false },
+        });
+        var kv = db.Keyspaces.Open("cache");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        kv.Put("expired", [1], now.AddMinutes(-1));
+        kv.Put("alive", [2], now.AddMinutes(1));
+        kv.Compact();
+
+        Assert.Equal(1, kv.CleanExpired(now));
+        Assert.Null(kv.Get("expired"));
+        Assert.Equal([2], kv.Get("alive"));
+    }
+
+    [Fact]
     public void CleanExpired_AndExpirationStats_ReportExpectedCounts()
     {
         using var db = Tsdb.Open(new TsdbOptions

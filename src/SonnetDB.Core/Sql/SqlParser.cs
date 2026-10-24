@@ -2216,7 +2216,7 @@ public sealed class SqlParser
             case TokenKind.KeywordTime: Advance(); return SqlDataType.Time;
             case TokenKind.KeywordBlob: Advance(); return SqlDataType.Blob;
             case TokenKind.KeywordJson: Advance(); return SqlDataType.Json;
-            default: throw Error("期望关系表数据类型 INT / FLOAT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / BLOB / JSON");
+            default: throw Error("期望关系表数据类型 INT / FLOAT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / DATETIME2 / DATETIMEOFFSET / TIME / DURATION / BLOB / JSON");
         }
     }
 
@@ -4552,7 +4552,7 @@ public sealed class SqlParser
             case TokenKind.KeywordVector: Advance(); return SqlDataType.Vector;
             case TokenKind.KeywordGeoPoint: Advance(); return SqlDataType.GeoPoint;
             default:
-                throw Error("CAST 的目标类型必须是 FLOAT / INT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / TIME / BLOB / JSON / VECTOR / GEOPOINT");
+                throw Error("CAST 的目标类型必须是 FLOAT / INT / DECIMAL / NUMERIC / BOOL / STRING / DATETIME / DATETIME2 / DATETIMEOFFSET / TIME / DURATION / BLOB / JSON / VECTOR / GEOPOINT");
         }
     }
 

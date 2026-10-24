@@ -971,6 +971,23 @@ public sealed partial class SndbObjectStore
             throw new ArgumentOutOfRangeException(nameof(maxUploads));
 
         string? afterUploadId = DecodeContinuationToken(continuationToken);
+        // The continuation marker may no longer be active when a caller resumes a
+        // page (for example, another worker can abort the upload in between
+        // requests). Keep its durable ordering fields before filtering active
+        // sessions so that a missing marker does not incorrectly truncate the
+        // result set.
+        SndbMultipartUploadRecord? afterUpload = null;
+        if (!string.IsNullOrEmpty(afterUploadId))
+        {
+            var marker = _metadata.GetEntry(UploadKey(afterUploadId));
+            if (marker is not null)
+            {
+                var record = Deserialize(marker.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord);
+                if (string.Equals(record.Bucket, bucket, StringComparison.Ordinal))
+                    afterUpload = record;
+            }
+        }
+
         var sessions = _metadata.ScanPrefix(UploadPrefix, limit: int.MaxValue)
             .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord))
             .Where(upload => string.Equals(upload.Bucket, bucket, StringComparison.Ordinal) && upload.Status == Active)
@@ -981,8 +998,23 @@ public sealed partial class SndbObjectStore
 
         if (!string.IsNullOrEmpty(afterUploadId))
         {
-            int markerIndex = sessions.FindIndex(session => string.Equals(session.Upload.UploadId, afterUploadId, StringComparison.Ordinal));
-            sessions = markerIndex < 0 ? [] : sessions.Skip(markerIndex + 1).ToList();
+            if (afterUpload is null)
+            {
+                // Preserve the existing behavior for malformed or foreign
+                // continuation tokens. A valid token for this bucket always
+                // has a durable upload record, even after it is completed or
+                // aborted.
+                sessions = [];
+            }
+            else
+            {
+                SndbMultipartUploadRecord cursor = afterUpload;
+                sessions = sessions
+                    .Where(session => session.Upload.InitiatedUtc < cursor.InitiatedUtc
+                        || (session.Upload.InitiatedUtc == cursor.InitiatedUtc
+                            && string.CompareOrdinal(session.Upload.UploadId, cursor.UploadId) > 0))
+                    .ToList();
+            }
         }
 
         bool isTruncated = sessions.Count > maxUploads;

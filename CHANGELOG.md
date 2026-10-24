@@ -634,6 +634,8 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 
 ### Fixed
 
+- 修复跨表事务恢复日志发布：`transaction.sdbtxn` 临时文件 rename 后同步父目录元数据，避免掉电后恢复日志目录项丢失导致部分提交无法撤销；新增 prepare/read 回归测试。
+
 - 修复 GitHub CodeQL `cs/insecure-randomness` 在 M41 差异测试上的误报：测试数据改为固定算术分布，保留索引/全扫描对拍覆盖，不再把 `System.Random` 数据流带入 SQL 密码解析上下文。
 
 - 修复 M49 Protocol/Native 目录迁移后的构建接线：Docker restore 与源码层纳入 Protocol 和 MQTT 源生成项目，Protocol 改动触发镜像工作流；连接器发布工具和 Rust 默认目录改用 embedded/native，Windows 重新取得配套导入库，CMake 跟踪 Protocol 源码和项目依赖。

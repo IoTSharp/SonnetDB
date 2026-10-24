@@ -205,6 +205,39 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ListObjectsAsync(Bucket, cancellationToken: cancel.Token));
     }
 
+    [Fact]
+    public void ListMultipartUploads_ContinuationSurvivesAbortedMarker()
+    {
+        using var db = Open();
+        var store = new SndbObjectStore(db);
+        store.CreateBucket(Bucket);
+        for (int index = 0; index < 3; index++)
+            store.InitiateMultipartUpload(Bucket, $"parts/{index}");
+
+        // Capture the server's ordering so the test remains deterministic even
+        // when multiple uploads share the same timestamp resolution.
+        string[] ordered = store.ListMultipartUploads(Bucket, maxUploads: 10)
+            .Uploads
+            .Select(static upload => upload.Upload.UploadId)
+            .ToArray();
+        Assert.Equal(3, ordered.Length);
+
+        var first = store.ListMultipartUploads(Bucket, maxUploads: 1);
+        Assert.Equal(ordered[0], Assert.Single(first.Uploads).Upload.UploadId);
+        Assert.NotNull(first.NextContinuationToken);
+        string token = first.NextContinuationToken!;
+
+        // The marker can disappear between pages when a worker aborts the
+        // upload. Resuming must continue after its sort position, not return an
+        // empty page simply because the marker is no longer active.
+        store.AbortMultipartUpload(ordered[0]);
+
+        var resumed = store.ListMultipartUploads(Bucket, maxUploads: 10, continuationToken: token);
+        Assert.Equal(ordered.Skip(1), resumed.Uploads.Select(static upload => upload.Upload.UploadId));
+        Assert.False(resumed.IsTruncated);
+        Assert.Null(resumed.NextContinuationToken);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

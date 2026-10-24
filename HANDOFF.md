@@ -3523,3 +3523,9 @@ Windows长路径修复在根34/34与相同长TMP两行10/10、完整restore/规�
 - Validation: the owned-file include format check passed after the final metadata column-order adjustment. `SqlLockingReadContractTests` and related row-lock tests passed 17/17 + 55/55; `TsdbAdoApiTests` passed 75/75 after the final column-order adjustment; `RemoteAdoEndToEndTests` passed 65/65 over REST/Kestrel. The mixed REST/frame-http2 remote batch was 99/131: 32 frame-http2 cases failed because the local test host could not establish exact HTTP/2, so this is retained as a transport environment boundary.
 - FreeSql provider validation on the preview package passed 230/230 with 0 skipped, and the provider build had 0 errors with the existing NU5104 preview dependency warning. A source-traceable SonnetDB main candidate separately passed embedded ADO multi-result sync/async and DataSet probes; the public preview package failed that probe and is not treated as current main evidence. No SonnetDB 4.5 formal release or FreeSql provider release was performed.
 - Remaining acceptance boundaries: formal SonnetDB 4.5 package, a real HTTP/2 frame endpoint, and final FreeSql PR consumer readback remain `NOT_RUN`/environment-bound. `FOR SHARE` and relational VECTOR/GEOPOINT remain explicit product boundaries; measurement limitations are not counted as relational provider gaps.
+
+## 2026-10-24 ACID transaction journal durability review
+
+- `TableTransactionJournal.Prepare` 在同步临时文件后 rename 发布时补充父目录 `DirectoryFsync.FlushRequired`；否则掉电可能丢失恢复日志目录项，而部分表 WAL 已落盘，跨表事务无法撤销。
+- 新增 `TableTransactionJournalTests.Prepare_DurableRename_CanBeReadAfterClose` smoke 回归，覆盖 prepare/read 的完整发布路径；真正硬件掉电仍需专用崩溃测试。
+- 本隔离 clone 的 `dotnet` SDK 不可用，未能运行 restore/test/format；已执行 `git diff --check`。PR #350 已创建，待 CI 给出结论。
