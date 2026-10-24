@@ -565,10 +565,10 @@ public sealed class TsdbAdoApiTests : IDisposable
 
         using (var connection = OpenConn())
         {
-            ExecNonQuery(connection, "CREATE TABLE main.sites (id INT, PRIMARY KEY (id))");
+            ExecNonQuery(connection, "CREATE TABLE sales.sites (id INT, PRIMARY KEY (id))");
             ExecNonQuery(connection,
                 $"CREATE TABLE \"{archiveSchema}\".\"{tableName}\" (id INT, name STRING, site_id INT, PRIMARY KEY (id), "
-                + $"CONSTRAINT fk_{tableName}_sites FOREIGN KEY (site_id) REFERENCES main.sites (id))");
+                + $"CONSTRAINT fk_{tableName}_sites FOREIGN KEY (site_id) REFERENCES sales.sites (id))");
             ExecNonQuery(connection, $"CREATE TABLE sales.{tableName} (id INT, PRIMARY KEY (id))");
             ExecNonQuery(connection, $"CREATE UNIQUE INDEX {indexName} ON \"{archiveSchema}\".\"{tableName}\" (name)");
 
@@ -597,7 +597,7 @@ public sealed class TsdbAdoApiTests : IDisposable
             var foreignKey = Assert.Single(connection.GetSchema(
                 "ForeignKeys", [null, archiveSchema, tableName, $"fk_{tableName}_sites"]).Rows.Cast<DataRow>());
             Assert.Equal(archiveSchema, foreignKey["TABLE_SCHEMA"]);
-            Assert.Equal("main", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
+            Assert.Equal("sales", foreignKey["PRINCIPAL_TABLE_SCHEMA"]);
         }
 
         using var reopened = OpenConn();
@@ -605,8 +605,9 @@ public sealed class TsdbAdoApiTests : IDisposable
             "Tables", [null, archiveSchema, tableName, null]).Rows.Cast<DataRow>());
         Assert.Equal(archiveSchema, reopenedTable["TABLE_SCHEMA"]);
         Assert.Single(reopened.GetSchema("Indexes", [null, archiveSchema, tableName, indexName]).Rows.Cast<DataRow>());
-        Assert.Single(reopened.GetSchema(
+        var reopenedForeignKey = Assert.Single(reopened.GetSchema(
             "ForeignKeys", [null, archiveSchema, tableName, $"fk_{tableName}_sites"]).Rows.Cast<DataRow>());
+        Assert.Equal("sales", reopenedForeignKey["PRINCIPAL_TABLE_SCHEMA"]);
     }
 
     [Fact]
