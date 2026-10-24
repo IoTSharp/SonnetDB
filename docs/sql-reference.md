@@ -241,7 +241,7 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
-- `VECTOR(dim)` 与 `GEOPOINT` 只作为 measurement 的 `FIELD` SQL 类型提供，不支持关系表 `CREATE TABLE`、`ALTER TABLE ADD COLUMN` 或 `ALTER COLUMN ... TYPE`；这些声明会确定性拒绝且不创建半成品表/列。文档集合 JSON 数组和专用向量 API 不构成关系类型支持。ADO.NET `GetSchema("DataTypes")` 通过 `SupportsRelationalColumn=false`、`SupportsMeasurementField=true` 明示这两个类型的边界；该表是 SDK 本地能力元数据，不是远端版本协商。完整[类型矩阵与官方关系实体替代模型]({{ site.docs_baseurl | default: '/help' }}/relation-type-boundary/)给出标量经纬度加显式 JSON 载荷，以及关系主数据加 companion measurement 两种建模方式；ORM 不得静默改为 JSON 或时序字段。
+- `VECTOR(dim)` 与 `GEOPOINT` 只作为 measurement 的 `FIELD` SQL 类型提供，不支持关系表 `CREATE TABLE`、`ALTER TABLE ADD COLUMN` 或 `ALTER COLUMN ... TYPE`；这些声明会确定性拒绝且不创建半成品表/列，并返回稳定错误码 `sql_relational_type_unsupported`（嵌入式 `SqlParseException.Code`、REST JSON `error`/`code` 与 Frame 错误帧一致）。文档集合 JSON 数组和专用向量 API 不构成关系类型支持。ADO.NET `GetSchema("DataTypes")` 通过 `SupportsRelationalColumn=false`、`SupportsMeasurementField=true` 明示这两个类型的边界；该表是 SDK 本地能力元数据，不是远端版本协商。完整[类型矩阵与官方关系实体替代模型]({{ site.docs_baseurl | default: '/help' }}/relation-type-boundary/)给出标量经纬度加显式 JSON 载荷，以及关系主数据加 companion measurement 两种建模方式；ORM 不得静默改为 JSON 或时序字段。
 - 普通列可声明 `DEFAULT <expr>`；默认表达式支持字面量、常量算术和内置标量函数，不能引用列、参数、聚合或子查询。`ROWVERSION` 列不能声明默认值。
 - `INSERT` 省略带默认值的列，或在 `VALUES` 对应位置写 `DEFAULT` 时，会在每一行写入时求值并应用目标列的默认表达式；显式写入 `NULL` 不会改用默认值。目标列没有声明显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`：可空列成功，非空列由现有约束拒绝。
 - `INSERT INTO table DEFAULT VALUES` 会为每个非 `ROWVERSION` 列使用其默认值；没有显式默认值的列产生隐式 `NULL`。`UPDATE table SET column = DEFAULT WHERE ...` 会按每个命中行重新求值默认表达式，轻事务路径保持相同语义。
