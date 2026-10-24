@@ -13,6 +13,12 @@ services:
       SONNETDB_DB: ${SONNETDB_DB:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${SONNETDB_OTEL_EXPORTER_OTLP_ENDPOINT:-}
       SONNETDB_SonnetDBServer__Observability__Prometheus__Enabled: ${SONNETDB_PROMETHEUS_ENABLED:-false}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5080/healthz/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     restart: unless-stopped
 
   otel-collector:

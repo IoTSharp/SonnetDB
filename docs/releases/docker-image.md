@@ -27,6 +27,16 @@ permalink: /releases/docker-image/
 
 ## 启动方式
 
+仓库根目录提供了带健康检查的 Compose 配置：
+
+```bash
+docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yml ps
+curl --fail http://127.0.0.1:5080/healthz/live
+```
+
+`docker compose -f docker-compose.yml ps` 中 `sonnetdb` 显示 `healthy` 后，再打开管理入口完成首次安装。若仍为 `starting`，稍后重试；若为 `unhealthy`，运行 `docker compose -f docker-compose.yml logs --tail=100 sonnetdb` 查看日志。这个存活检查只确认进程与 HTTP 管线响应，不代表已完成初始化或完整依赖就绪。显式指定配置文件可避免自动加载开发用的 `docker-compose.override.yml`。
+
 ```bash
 docker run --rm \
   -p 127.0.0.1:5080:5080 \

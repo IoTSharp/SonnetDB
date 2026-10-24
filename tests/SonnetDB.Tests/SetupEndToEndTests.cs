@@ -160,4 +160,84 @@ public sealed class SetupEndToEndTests : IAsyncLifetime
         var secondResp = await client.PostAsJsonAsync("/v1/setup/initialize", request, ServerJsonContext.Default.SetupInitializeRequest);
         Assert.Equal(HttpStatusCode.Conflict, secondResp.StatusCode);
     }
+
+    [Fact]
+    public async Task InitializeSetup_WithInvalidFields_ReturnsBadRequestWithoutCreatingUser()
+    {
+        using var client = CreateClient();
+        var invalidRequests = new[]
+        {
+            new SetupInitializeRequest("invalid id", "Acme Observability", "admin", "Admin123!", "sonnetdb-admin-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "A", "admin", "Admin123!", "sonnetdb-admin-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", new string('x', 81), "admin", "Admin123!", "sonnetdb-admin-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "Acme Observability", "", "Admin123!", "sonnetdb-admin-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "Acme Observability", "admin name", "Admin123!", "sonnetdb-admin-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "Acme Observability", "admin", "Admin123!", "short-token"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "Acme Observability", "admin", "Admin123!", "token with space"),
+            new SetupInitializeRequest("sonnetdb-dev-01", "Acme Observability", "admin", "   ", "sonnetdb-admin-token"),
+        };
+
+        foreach (var request in invalidRequests)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/v1/setup/initialize",
+                request,
+                ServerJsonContext.Default.SetupInitializeRequest);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        var status = await client.GetFromJsonAsync<SetupStatusResponse>(
+            "/v1/setup/status",
+            ServerJsonContext.Default.SetupStatusResponse);
+        Assert.NotNull(status);
+        Assert.True(status!.NeedsSetup);
+        Assert.Equal(0, status.UserCount);
+
+        var retry = await client.PostAsJsonAsync(
+            "/v1/setup/initialize",
+            new SetupInitializeRequest(
+                "sonnetdb-dev-01",
+                "Acme Observability",
+                "admin",
+                "Admin123!",
+                "sonnetdb-admin-bootstrap-token"),
+            ServerJsonContext.Default.SetupInitializeRequest);
+        Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
+    }
+
+    [Fact]
+    public async Task InitializeSetup_WithExistingToken_DoesNotLeavePartialUserAndCanRetry()
+    {
+        const string existingToken = "sonnetdb-existing-token";
+        var users = _app!.Services.GetRequiredService<SonnetDB.Auth.UserStore>();
+        users.CreateUser("existing", "existing-password", isSuperuser: false);
+        users.ImportToken("existing", existingToken);
+
+        using var client = CreateClient();
+        var duplicateTokenResponse = await client.PostAsJsonAsync(
+            "/v1/setup/initialize",
+            new SetupInitializeRequest(
+                "sonnetdb-dev-01",
+                "Acme Observability",
+                "admin",
+                "Admin123!",
+                existingToken),
+            ServerJsonContext.Default.SetupInitializeRequest);
+
+        Assert.Equal(HttpStatusCode.Conflict, duplicateTokenResponse.StatusCode);
+        Assert.False(users.Exists("admin"));
+
+        var retry = await client.PostAsJsonAsync(
+            "/v1/setup/initialize",
+            new SetupInitializeRequest(
+                "sonnetdb-dev-01",
+                "Acme Observability",
+                "admin",
+                "Admin123!",
+                "sonnetdb-admin-bootstrap-token"),
+            ServerJsonContext.Default.SetupInitializeRequest);
+
+        Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
+        Assert.True(users.Exists("admin"));
+    }
 }
