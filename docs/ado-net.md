@@ -115,6 +115,21 @@ while (reader.Read())
 - 结果以 ndjson 流式返回，再转成 `DbDataReader`
 - 服务端错误会映射成 `SndbServerException`
 
+## DbFirst 元数据
+
+`SndbConnection.GetSchema` 为关系表 DbFirst 提供结构化目录。`Tables`、`Columns`、`Indexes`、
+`Views` 和 `ForeignKeys` 均返回 `TABLE_CATALOG`、`TABLE_SCHEMA` 与 `TABLE_NAME`，其中
+`TABLE_SCHEMA` 是目录中保存的原始 schema 名称，不会因为 ADO、REST 或 frame/http2 传输而丢失。
+`ForeignKeys` 另外返回 `PRINCIPAL_TABLE_SCHEMA`。`GetSchema` 的限制参数按 ADO.NET 约定排列：
+`[catalog, schema, table, column-or-index-or-constraint]`；空值表示不限制，schema 和对象名按
+保存的大小写精确匹配。
+
+未限定的 `CREATE TABLE` 使用默认 schema `main`；两段限定名（例如 `sales.devices`）和双引号
+标识符会保留各自的 schema、表名和大小写，因此 `main.devices` 与 `sales.devices` 可以同时被
+FreeSql `DbFirst` 发现。关闭并重开连接或通过远程 `/v1/db/{db}/schema` 读取不会改变这些身份。
+视图和文档集合的当前目录仍是单 schema 目录，`Views`、`DocumentCollections` 及其在 `Tables`
+中的行固定报告 `main`；在目录支持视图 schema 前，provider 不应为它们猜测其它 schema。
+
 ## 远程异常处理
 
 ```csharp
