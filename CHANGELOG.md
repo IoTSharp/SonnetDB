@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- GH-Issue #340：统一关系表事务隔离级别文档；明确默认/`Unspecified` 为 `ReadCommitted`、ADO.NET 显式 `Serializable` 仅适用于关系基表并采用表级乐观提交校验，补充嵌入式/远程会话协商、SQL 文本 `BEGIN`/`/sql/batch` 仅支持默认隔离级别及冲突后整笔重试要求。同步修正文档中的版本证据边界；不据此推断已发布 NuGet/Server 的最低版本。
 - FreeSql/SonnetDB 关系 provider 收口：关系表 `FOR UPDATE SKIP LOCKED` 已接入 parser、逐行锁竞争跳过、序列复验和锁清理；ADO `Tables`、`Columns`、`Indexes`、`ForeignKeys`、`Views` 与 `INFORMATION_SCHEMA` 保留真实 schema 身份，Server/Remote schema DTO 同步接线。Core/ADO 定向 92/92、远程 REST 65/65 通过；HTTP/2 frame 宿主未建立精确 HTTP/2，相关 32 项保留 FAIL/NOT_RUN 边界。FreeSql provider 230/230 通过，正式包与正式发布另验。
 
 - GH-Issue #227：将受限关系表 `CREATE/ALTER/DROP TABLE` 与 `CREATE/DROP INDEX` 接入嵌入式 ADO.NET 事务私有 workspace；提交使用 journal v2、目录永久 floor v19 与成对 schema/table 身份，回滚和第二步 DDL 失败不改动持久表，已有数据、索引、重开恢复均有真实 ADO 回归。远程 DDL 仍为 NOT_RUN，正式包与上游 ORM 交付另验。

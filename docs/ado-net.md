@@ -85,7 +85,9 @@ using var r = q.ExecuteReader();
 - **嵌入式模式**：参数值直接绑定进已解析的 SQL AST（值绑定而非字符串拼接），从根上防注入，并可复用解析缓存（同一 query 形状不同参数值只解析一次）。
 - **远程模式**：因线协议仅接受 SQL 字符串，命名参数仍在客户端安全转义为字面量后再发送；字符串中的单引号会正确转义。
 - 参数类型映射：`byte[]` → BLOB（Base64）、`DateTime`/`DateTimeOffset` → Unix 毫秒、`GeoPoint` → `POINT(lat, lon)`、`null` → SQL `NULL`，数值/布尔/字符串各归对应字面量。
-- `BeginTransaction()` / `BeginTransactionAsync()` 支持关系表轻事务；隔离级别仅支持默认值或 `ReadCommitted`
+- `BeginTransaction()` / `BeginTransactionAsync()` 支持关系表轻事务；无参数或 `IsolationLevel.Unspecified` 默认映射为 `ReadCommitted`，也可显式请求 `ReadCommitted` 或关系基表专用的 `Serializable`。后者是表级首次读的乐观提交校验；冲突返回 `table_serialization_conflict` 并终止整笔事务，调用方必须从 BEGIN 重新读取并重试，不是 MVCC/可重复读快照或悲观行锁。
+- SQL 文本 `BEGIN`（`SqlExecutor.ExecuteScript(...)` 或服务端 `/v1/db/{db}/sql/batch`）没有隔离级别语法，始终使用默认 `ReadCommitted`，不能从该入口请求 `Serializable`；嵌入式 ADO 命令中的 `BEGIN`/`COMMIT`/`ROLLBACK` 也被拒绝，应使用 `SndbConnection.BeginTransaction` API。
+- 远程 ADO.NET 的显式 `Serializable` 会创建事务会话并发送 `X-SonnetDB-Isolation-Level: serializable`，只有 Server 回执 `isolationLevel: serializable` 时才继续，旧 Server 不会静默降级；嵌入式模式在本地创建相同隔离级别上下文。
 - 轻事务可在同一数据库内提交多个关系表的 `INSERT` / `UPDATE` / `DELETE`，不支持 DDL、measurement / document 写入、嵌套事务或跨数据库事务
 
 ## 远程模式示例
