@@ -182,4 +182,6 @@ ADO.NET 还支持 `CommandType.TableDirect` 快路径，适合：
 
 ## 锁定读与乐观并发
 
-`SndbCommand` 不支持 `SELECT ... FOR UPDATE`、`NOWAIT` 或 `SKIP LOCKED`。同步 `ExecuteReader()` 和异步 `ExecuteReaderAsync()` 在嵌入式及远程连接中均抛出 `SqlParseException`，`Code=sql_locking_read_unsupported`；即使附加了 `SndbTransaction`，也不会把查询排队到提交。FreeSql 等 Provider 应继续拒绝 `ForUpdate()`，不能把锁定读改写为普通 SELECT。业务更新使用 `ROWVERSION` 列读取版本、带版本谓词写入，并在 `table_concurrency_conflict` 或目标行消失时重试。
+`SndbCommand` 在显式 `SndbTransaction` 内支持单个关系基表的 `SELECT ... FOR UPDATE`、`FOR UPDATE NOWAIT` 和 `FOR UPDATE SKIP LOCKED`。同步 `ExecuteReader()`、异步 `ExecuteReaderAsync()`、嵌入式连接和远程 REST/HTTP2 连接使用相同的锁定结果和错误码：普通 `FOR UPDATE` 等待竞争行，`NOWAIT` 立即返回 `sql_lock_not_available`，`SKIP LOCKED` 不等待并跳过已被其它事务持有的行，再对剩余行应用 `ORDER BY`/`OFFSET`/`LIMIT`。成功返回的行锁持有到提交、回滚、连接关闭或远程会话过期；空结果和全部行被跳过时返回空 reader。`FOR SHARE` 以及 JOIN、聚合、CTE、派生表和子查询中的锁定读仍抛 `SqlParseException`，`Code=sql_locking_read_unsupported`，不会静默改写为普通 SELECT。
+
+FreeSql 等 Provider 可以保留 `ForUpdate()` 的 `NOWAIT` 与 `SKIP LOCKED` 后缀；`FOR SHARE` 仍应在 Provider 侧明确拒绝。业务更新若不需要悲观锁，可使用 `ROWVERSION` 列读取版本、带版本谓词写入，并在 `table_concurrency_conflict` 或目标行消失时重试。

@@ -3036,11 +3036,11 @@ public sealed class SqlParser
             || IsIdentifier("skip"))
         {
             throw new SqlParseException(
-                "仅支持 FOR UPDATE [NOWAIT]；此锁定读修饰词不受支持。",
+                "仅支持 FOR UPDATE [NOWAIT|SKIP LOCKED]；此锁定读修饰词不受支持。",
                 Current.Position,
                 SqlErrorCodes.LockingReadUnsupported,
                 "select_locking_read",
-                "改用 ROWVERSION 列读取旧版本，并在 UPDATE/DELETE 的 WHERE 中携带该版本；版本冲突或目标行消失时重读并重试整个事务。");
+                "使用 FOR UPDATE [NOWAIT] 或 FOR UPDATE SKIP LOCKED；FOR SHARE 当前不支持。其它并发写入请使用 ROWVERSION 列读取旧版本，并在 UPDATE/DELETE 的 WHERE 中携带该版本。");
         }
         return statement with
         {

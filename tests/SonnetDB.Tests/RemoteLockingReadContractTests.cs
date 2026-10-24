@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Data;
+using SonnetDB.Exceptions;
 using SonnetDB.Sql;
 using SonnetDB.Tables;
 using Xunit;
@@ -97,6 +98,54 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
         Assert.Equal(1, Execute(second,
             "UPDATE jobs SET status = 'running' WHERE id = 1 AND version = 1"));
         Assert.Equal(2L, ReadVersion(first));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public async Task LockingRead_SkipLocked_SkipsHeldRowsAndFillsPage(string mode)
+    {
+        using var first = Open(mode);
+        using var second = Open(mode);
+        using var observer = Open(mode);
+        Execute(first, "CREATE TABLE queue (id INT, status STRING, PRIMARY KEY (id))");
+        Execute(first, "INSERT INTO queue (id, status) VALUES (1, 'held'), (2, 'free'), (3, 'free')");
+
+        using var holder = first.BeginTransaction();
+        using var contender = second.BeginTransaction();
+        using (var hold = first.CreateCommand())
+        {
+            hold.Transaction = holder;
+            hold.CommandText = "SELECT id FROM queue WHERE id = 1 FOR UPDATE";
+            Assert.Equal(1L, await hold.ExecuteScalarAsync());
+        }
+
+        using (var take = second.CreateCommand())
+        {
+            take.Transaction = contender;
+            take.CommandText = "SELECT id FROM queue ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED";
+            using var reader = await take.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.False(await reader.ReadAsync());
+        }
+
+        using var observerTransaction = observer.BeginTransaction();
+        using var check = observer.CreateCommand();
+        check.Transaction = observerTransaction;
+        check.CommandText = "SELECT id FROM queue WHERE id = 2 FOR UPDATE NOWAIT";
+        var conflict = await Record.ExceptionAsync(() => check.ExecuteScalarAsync());
+        Assert.NotNull(conflict);
+        if (mode == "embedded")
+            Assert.Equal(SqlRowLockException.NotAvailable, Assert.IsType<SqlRowLockException>(conflict).Code);
+        else
+            Assert.Equal("sql_lock_not_available", Assert.IsType<SndbServerException>(conflict).Error);
+        check.CommandText = "SELECT id FROM queue WHERE id = 3 FOR UPDATE NOWAIT";
+        Assert.Equal(3L, await check.ExecuteScalarAsync());
+
+        observerTransaction.Rollback();
+        contender.Rollback();
+        holder.Rollback();
     }
 
     [Theory]

@@ -1,3 +1,10 @@
+## 2026-10-24 Issue #347 locking-read extension (in progress)
+
+- Baseline is origin/main `86a82480333d842baf754172fc89afdfa993bb15`, which already contains parser/AST/executor `FOR UPDATE SKIP LOCKED` support and #358 remote contract test correction; this slice avoids reimplementing that support.
+- Fixed SKIP LOCKED pagination: select the complete ordered candidate set, skip unavailable row leases, apply OFFSET/LIMIT to available rows, and retain only returned-page leases (buffered mutation identities remain protected). Added deterministic Core tests for held-page fill, page-outside lease release, composite-key order, and all-held empty results; added embedded/remote ADO positive coverage and stable NOWAIT conflict codes.
+- Updated parser hints, SQL/ADO docs, CHANGELOG, and audit `docs/audits/issue-347-locking-read-20261024.md`; `FOR SHARE` remains explicitly unsupported with `sql_locking_read_unsupported`.
+- `git diff --check` passed. This environment has no .NET SDK (`dotnet: command not found`), so restore, required Format Check, Core/Server/remote tests are NOT_RUN. Run exact .NET 10 checks before PR merge; do not merge or close #347 until checks are green and parent confirms.
+
 ## 2026-10-24 Issue #345 ACID/D durability validation (in progress)
 
 - Baseline is origin/main `4a230bdac7e56c0fee118fcbdec0f60ceabbbcbe` (the #344 isolation validation merge, including #350 transaction journal parent-directory fsync fix); working branch `codex/issue345-acid-durability`.

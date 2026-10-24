@@ -1,4 +1,5 @@
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -113,6 +114,92 @@ public sealed class SqlLockingReadContractTests : IDisposable
             Assert.Equal(new object?[] { 2L }, result.Rows[0]);
             Assert.Equal(new object?[] { 3L }, result.Rows[1]);
             Assert.Equal(2, result.Rows.Count);
+        }
+        finally
+        {
+            holder.MarkCompleted();
+            contender.MarkCompleted();
+        }
+    }
+
+    [Fact]
+    public void Execute_SkipLocked_AppliesPaginationAfterSkippingHeldRows()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE jobs(id INT, status STRING, PRIMARY KEY(id))");
+        SqlExecutor.Execute(db, "INSERT INTO jobs (id, status) VALUES (1, 'held'), (2, 'free'), (3, 'free')");
+
+        var holder = new SqlTransactionContext();
+        var contender = new SqlTransactionContext();
+        var observer = new SqlTransactionContext();
+        try
+        {
+            _ = SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs WHERE id=1 FOR UPDATE"), null, holder);
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED"), null, contender));
+
+            Assert.Equal(new object?[] { 2L }, Assert.Single(result.Rows));
+            Assert.Equal(SqlRowLockException.NotAvailable, Assert.Throws<SqlRowLockException>(() =>
+                SqlExecutor.ExecuteStatement(db, null,
+                    SqlParser.Parse("SELECT id FROM jobs WHERE id=2 FOR UPDATE NOWAIT"), null, observer)).Code);
+            // Rows beyond the returned page are probed only temporarily and remain available.
+            var free = Assert.IsType<SelectExecutionResult>(SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs WHERE id=3 FOR UPDATE NOWAIT"), null, observer));
+            Assert.Equal(new object?[] { 3L }, Assert.Single(free.Rows));
+        }
+        finally
+        {
+            holder.MarkCompleted();
+            contender.MarkCompleted();
+            observer.MarkCompleted();
+        }
+    }
+
+    [Fact]
+    public void Execute_SkipLocked_SortsAndPaginatesCompositePrimaryKeys()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE jobs(bucket INT, id INT, PRIMARY KEY(bucket,id))");
+        SqlExecutor.Execute(db, "INSERT INTO jobs(bucket,id) VALUES (1,1),(1,2),(2,1),(2,2)");
+
+        var holder = new SqlTransactionContext();
+        var contender = new SqlTransactionContext();
+        try
+        {
+            _ = SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT bucket,id FROM jobs WHERE bucket=1 AND id=1 FOR UPDATE"), null, holder);
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT bucket,id FROM jobs ORDER BY bucket,id LIMIT 2 OFFSET 0 FOR UPDATE SKIP LOCKED"), null, contender));
+
+            Assert.Equal(2, result.Rows.Count);
+            Assert.Equal(new object?[] { 1L, 2L }, result.Rows[0]);
+            Assert.Equal(new object?[] { 2L, 1L }, result.Rows[1]);
+        }
+        finally
+        {
+            holder.MarkCompleted();
+            contender.MarkCompleted();
+        }
+    }
+
+    [Fact]
+    public void Execute_SkipLocked_WhenEveryCandidateIsHeld_ReturnsEmptyResult()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, "CREATE TABLE jobs(id INT, PRIMARY KEY(id))");
+        SqlExecutor.Execute(db, "INSERT INTO jobs(id) VALUES (1),(2)");
+
+        var holder = new SqlTransactionContext();
+        var contender = new SqlTransactionContext();
+        try
+        {
+            _ = SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs FOR UPDATE"), null, holder);
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.ExecuteStatement(db, null,
+                SqlParser.Parse("SELECT id FROM jobs FOR UPDATE SKIP LOCKED"), null, contender));
+
+            Assert.Empty(result.Rows);
         }
         finally
         {
