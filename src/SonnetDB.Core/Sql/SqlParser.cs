@@ -2175,7 +2175,11 @@ public sealed class SqlParser
             return SqlDataType.String;
         }
         if (Current.Kind == TokenKind.KeywordVector)
-            throw Error("关系表 MVP 暂不支持 VECTOR 类型");
+            throw Error(
+                "关系表 MVP 暂不支持 VECTOR 类型",
+                SqlErrorCodes.RelationalTypeUnsupported,
+                "parse",
+                "改用 measurement FIELD VECTOR(N)，或在关系表中显式使用 FLOAT 坐标/JSON 载荷映射。");
         if (IsIdentifier("DURATION"))
         {
             Advance();
@@ -2192,7 +2196,11 @@ public sealed class SqlParser
             return SqlDataType.DateTime2;
         }
         if (Current.Kind == TokenKind.KeywordGeoPoint)
-            throw Error("关系表 MVP 暂不支持 GEOPOINT 类型");
+            throw Error(
+                "关系表 MVP 暂不支持 GEOPOINT 类型",
+                SqlErrorCodes.RelationalTypeUnsupported,
+                "parse",
+                "改用 measurement FIELD GEOPOINT，或在关系表中显式使用 FLOAT latitude/longitude 列。");
 
         var token = Current;
         switch (token.Kind)
@@ -6565,4 +6573,7 @@ public sealed class SqlParser
 
     private SqlParseException Error(string message)
         => new(message, Current.Position);
+
+    private SqlParseException Error(string message, string code, string operation, string? hint)
+        => new(message, Current.Position, code, operation, hint);
 }
