@@ -298,13 +298,15 @@ public sealed class RemoteRelationTypeBoundaryTests : IAsyncLifetime
         if (mode == "embedded")
         {
             var parse = await Assert.ThrowsAsync<SqlParseException>(() => command.ExecuteNonQueryAsync(_deadline.Token));
-            Assert.Equal(SqlParseException.DefaultErrorCode, parse.Code);
+            Assert.Equal(SqlErrorCodes.RelationalTypeUnsupported, parse.Code);
+            Assert.Equal("parse", parse.Operation);
+            Assert.Contains("measurement", parse.Hint, StringComparison.Ordinal);
             error = parse;
         }
         else
         {
             var remote = await Assert.ThrowsAsync<SndbServerException>(() => command.ExecuteNonQueryAsync(_deadline.Token));
-            Assert.Equal("sql_error", remote.Error);
+            Assert.Equal(SqlErrorCodes.RelationalTypeUnsupported, remote.Error);
             error = remote;
         }
         Assert.Contains($"关系表 MVP 暂不支持 {typeName} 类型", error.Message, StringComparison.Ordinal);
