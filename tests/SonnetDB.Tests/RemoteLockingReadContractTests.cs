@@ -63,7 +63,7 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
     [Theory]
     [InlineData("embedded")]
     [InlineData("remote")]
-    public async Task LockingRead_SupportedNowaitAndUnsupportedSkip_LeaveOrdinaryReadsUsable(string mode)
+    public async Task LockingRead_SupportedNowaitAndUnsupportedModifier_LeaveOrdinaryReadsUsable(string mode)
     {
         using var first = Open(mode);
         using var second = Open(mode);
@@ -87,7 +87,7 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
         {
             using var command = first.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = "SELECT id FROM jobs WHERE id = 404 FOR UPDATE SKIP LOCKED";
+            command.CommandText = "SELECT id FROM jobs WHERE id = 404 FOR SHARE";
             var error = await Assert.ThrowsAsync<SqlParseException>(
                 async () => await command.ExecuteReaderAsync());
             Assert.Equal(SqlErrorCodes.LockingReadUnsupported, error.Code);
@@ -141,7 +141,7 @@ public sealed class RemoteLockingReadContractTests : IAsyncLifetime
         using var response = await http.PostAsync(
             $"/v1/db/{DatabaseName}/sql",
             new StringContent(
-                "{\"sql\":\"SELECT id FROM jobs FOR UPDATE SKIP LOCKED\"}",
+                "{\"sql\":\"SELECT id FROM jobs FOR SHARE\"}",
                 Encoding.UTF8,
                 "application/json"));
 
