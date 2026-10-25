@@ -62,10 +62,37 @@ public static class FrameCodec
     /// <returns>(code, message) 二元组。</returns>
     public static (string Code, string Message) ReadErrorPayload(ReadOnlySpan<byte> payload)
     {
-        var reader = new SpanReader(payload);
-        string code = reader.ReadVarString();
-        string message = reader.ReadVarString();
-        return (code, message);
+        try
+        {
+            var reader = new SpanReader(payload);
+            string code = reader.ReadVarString();
+            string message = reader.ReadVarString();
+            if (!reader.IsEnd)
+                throw new FrameFormatException("错误帧体尾部有多余字节。");
+            return (code, message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new FrameFormatException($"错误帧体不完整：{exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 验证响应帧的协议身份、关联编号和响应标志。
+    /// </summary>
+    /// <param name="header">待验证的响应帧头。</param>
+    /// <param name="service">请求的 service 编号。</param>
+    /// <param name="operation">请求的 opcode。</param>
+    /// <param name="streamId">请求的 stream id。</param>
+    /// <exception cref="FrameFormatException">帧版本、service、opcode、stream id 或标志不匹配。</exception>
+    public static void ValidateResponse(in FrameHeader header, byte service, byte operation, uint streamId)
+    {
+        if (header.Version != FrameHeader.CurrentVersion)
+            throw new FrameFormatException($"响应帧版本 {header.Version} 与当前版本 {FrameHeader.CurrentVersion} 不匹配。");
+        if (header.Service != service || header.Op != operation || header.StreamId != streamId)
+            throw new FrameFormatException("响应帧 service、opcode 或 stream id 与请求不匹配。");
+        if (header.Flags is not ((byte)FrameFlags.Response) and not ((byte)(FrameFlags.Response | FrameFlags.Error)))
+            throw new FrameFormatException("响应帧必须只设置 Response 或 Response|Error 标志。");
     }
 
     /// <summary>

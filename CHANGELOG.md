@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Changed
+- M49-R02：`SonnetDB.Client` 新增仅面向 SQL Query、Vector Search、Graph Expand、Object Get 的有界 HTTP/2 多帧读取器；逐帧先校验身份再分配，按帧数/累计字节预算限制，终态确认 EOF 后才交付，缺终态、尾帧、取消、传输中止和早退均保留未知结果并释放响应资源。真实 Server/TLS 与九模型 typed 解码仍未运行。
+- M49-C02：统一 `FrameCodec.ValidateResponse` 并让 unary/streaming Client 共用版本、service、opcode、stream id 和响应标志校验，减少入口间的身份规则漂移；Client 全量 219/219 与 FrameHeader 11/11 通过。
+- M49-C02：错误 Frame payload 现在严格拒绝截断、VarUInt underflow/overflow 和尾部字节，并统一报告 `FrameFormatException`；新增负边界回归，未把 fake handler 或本地 h2c 单元测试扩展为远程门禁。
 - M49-C02/Python：新增 transport-neutral 的 SQL Execute v1 little-endian Frame 编解码，覆盖精确参数类型、4 MiB 预计算预算、ASCII 参数绑定、Decimal/finite vector 守卫和 committed 终态；Python 合同测试 7/7 通过，HTTP/2 远程接线另验。
 - M49-C02/Rust：新增无第三方依赖的 SQL Execute v1 Frame 编解码与损坏/预算/终态拒绝，Rust 单元 4/4、doctest 0 通过；`cargo fmt` 因本机组件缺失保留 NOT_RUN，远程 SDK 与跨平台发布另验。
 - M49-C02/Go：新增 SQL Execute v1 Frame 编解码和参数/预算/终态守卫，`golang:1.25` 容器中的无 cgo codec 测试通过；完整 cgo 包因测试容器缺少 `SonnetDB.Native.so` 保留 NOT_RUN，不据此宣称 Go 连接器完整可运行。
