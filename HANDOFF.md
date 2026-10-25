@@ -1446,5 +1446,5 @@ J��T�UUSQL�/�y�fyc���'����d��-��o�8� ������za�z-�yc��NNyd�9��9d"M�d#��]x
 - 每批代码提交前均在最终工作树执行完整 `dotnet restore SonnetDB.slnx` 与规定 Format Check，实际 exit 0，仅保留 workspace-load warning；各批只 stage 自有路径和对应 CHANGELOG 条目，未把其它智能体或博客资料带入。
 - 代码与测试证据：NativeResult 定向/完整测试 12/12；SonnetDB.Client 全量 219/219；新增多帧行为 8/8；Python codec 7/7；Rust codec 4/4 加 0 doctest；Go `golang:1.25` 无 cgo codec 测试通过；Java `javac --release 8 -Xlint:all -Xlint:-options -Werror` 合同测试 3/3。VS2026 CMake C connector 配置/构建、C result-lifetime 消费者和 Java JNI/FFM quickstart 均已在最终 Native 源码上通过。
 - 边界保持：Go 完整 cgo 包因容器缺少 `SonnetDB.Native.so` 保留 `NOT_RUN`；Rust `cargo fmt` 因组件缺失保留 `NOT_RUN`；真实 Server HTTP/2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布和 M49 更大范围仍未验收，不能把十个本地切片写成 M49 整体完成。M20、固定硬件、真实模型等外部门禁未被本轮冒充通过。
-- 远端回读：本地 `main` 与 `origin/main` 为 `349f73c2`；Gitee `main` 仍为 `09628bf`，本轮没有扩大推送到 Gitee；`parity-results` 保持独立。
+- 功能批次最后一个源代码提交为 `349f73c2`；随后 HANDOFF 收口提交已推送，下一会话应以 `git rev-parse HEAD` 与 `git ls-remote` 实时回读当前 SHA。Gitee `main` 仍为 `09628bf`，本轮没有扩大推送到 Gitee；`parity-results` 保持独立。
 - 收口时工作树仍保留博客发布状态、封面/证据目录和既有 HANDOFF 外来修改；这些路径按归属保护，不清理、不回滚、不覆盖。下一会话先读取本段，再继续真实远程/平台门禁，不重复已闭环的十个本地切片。
