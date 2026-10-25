@@ -37,6 +37,15 @@ typedef enum sonnetdb_value_type {
     SONNETDB_TYPE_TEXT = 4
 } sonnetdb_value_type;
 
+typedef enum sonnetdb_result_state {
+    SONNETDB_RESULT_READY = 0,
+    SONNETDB_RESULT_ROW = 1,
+    SONNETDB_RESULT_END = 2,
+    SONNETDB_RESULT_FAILED = 3
+} sonnetdb_result_state;
+
+#define SONNETDB_ABI_VERSION 1
+
 SONNETDB_API sonnetdb_connection* sonnetdb_open(const char* data_source);
 /* Closing a connection disposes its active SQL results; their handles must still be freed. */
 SONNETDB_API void sonnetdb_close(sonnetdb_connection* connection);
@@ -48,6 +57,10 @@ SONNETDB_API void sonnetdb_close(sonnetdb_connection* connection);
  * The Core execution path may still materialize its own complete result. */
 SONNETDB_API sonnetdb_result* sonnetdb_execute(sonnetdb_connection* connection, const char* sql);
 SONNETDB_API void sonnetdb_result_free(sonnetdb_result* result);
+/* Cancel the active provider command. Returns 0 when cancellation was accepted or no command is active, -1 on error. */
+SONNETDB_API int32_t sonnetdb_result_cancel(sonnetdb_result* result);
+/* Return the result lifecycle state. A negative value means the handle is invalid or disposed. */
+SONNETDB_API sonnetdb_result_state sonnetdb_result_get_state(sonnetdb_result* result);
 
 SONNETDB_API sonnetdb_bulk* sonnetdb_bulk_create(const char* payload);
 SONNETDB_API int32_t sonnetdb_bulk_set_measurement(sonnetdb_bulk* bulk, const char* measurement);
@@ -161,6 +174,7 @@ SONNETDB_API const char* sonnetdb_result_value_text(sonnetdb_result* result, int
 
 SONNETDB_API int32_t sonnetdb_flush(sonnetdb_connection* connection);
 SONNETDB_API int32_t sonnetdb_version(char* buffer, int32_t buffer_length);
+SONNETDB_API int32_t sonnetdb_abi_version(void);
 SONNETDB_API int32_t sonnetdb_last_error(char* buffer, int32_t buffer_length);
 
 #ifdef __cplusplus

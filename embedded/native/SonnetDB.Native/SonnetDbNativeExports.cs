@@ -28,6 +28,14 @@ internal enum NativeValueType
     Text = 4,
 }
 
+internal enum NativeResultState
+{
+    Ready = 0,
+    Row = 1,
+    End = 2,
+    Failed = 3,
+}
+
 internal sealed class NativeConnection : IDisposable
 {
     private readonly object _sync = new();
@@ -228,6 +236,21 @@ internal sealed class NativeResult : IDisposable
         }
     }
 
+    public NativeResultState State
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _failure is not null
+                ? NativeResultState.Failed
+                : _ended
+                    ? NativeResultState.End
+                    : _hasRow
+                        ? NativeResultState.Row
+                        : NativeResultState.Ready;
+        }
+    }
+
     public static NativeResult From(
         DbDataReader reader,
         DbCommand? command = null,
@@ -284,6 +307,25 @@ internal sealed class NativeResult : IDisposable
             _failure = ReleaseReader(ExceptionDispatchInfo.Capture(exception));
             _failure!.Throw();
             throw;
+        }
+    }
+
+    public void Cancel()
+    {
+        ThrowIfDisposed();
+        _failure?.Throw();
+
+        if (_ended || _command is null)
+            return;
+
+        try
+        {
+            _command.Cancel();
+        }
+        catch (Exception exception)
+        {
+            _failure = ReleaseReader(ExceptionDispatchInfo.Capture(exception));
+            _failure!.Throw();
         }
     }
 
@@ -2016,6 +2058,8 @@ internal sealed class NativeKvScan : IDisposable
 
 internal static class SonnetDbNativeExports
 {
+    private const int CurrentAbiVersion = 1;
+
     [ThreadStatic]
     private static string? s_lastError;
 
@@ -3428,6 +3472,26 @@ internal static class SonnetDbNativeExports
     public static int ResultNext(IntPtr result)
         => Invoke(result, static r => r.MoveNext(), -1);
 
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_result_cancel", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ResultCancel(IntPtr result)
+    {
+        try
+        {
+            ClearError();
+            GetTarget<NativeResult>(result, nameof(result)).Cancel();
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_result_get_state", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ResultState(IntPtr result)
+        => Invoke(result, static r => (int)r.State, -1);
+
     [UnmanagedCallersOnly(EntryPoint = "sonnetdb_result_value_type", CallConvs = new[] { typeof(CallConvCdecl) })]
     public static int ResultValueType(IntPtr result, int ordinal)
         => Invoke(result, r => (int)r.GetValueType(ordinal), -1);
@@ -3480,6 +3544,13 @@ internal static class SonnetDbNativeExports
             SetError(ex);
             return -1;
         }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_abi_version", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int AbiVersion()
+    {
+        ClearError();
+        return CurrentAbiVersion;
     }
 
     [UnmanagedCallersOnly(EntryPoint = "sonnetdb_last_error", CallConvs = new[] { typeof(CallConvCdecl) })]

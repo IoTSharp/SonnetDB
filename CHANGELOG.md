@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Changed
+- M49-C02：C/NativeAOT 连接器导出 `sonnetdb_abi_version` 与 `SONNETDB_ABI_VERSION`，让消费者在使用可选入口前能显式核对 ABI 版本；定向 NativeResult、CMake/C 消费者验证与 Java 原生 quickstart 的实际边界单列，未扩展为全平台或正式包验收。
+- M49-C03：C ABI 的 SQL result 增加 `sonnetdb_result_cancel`，将取消请求串行接入拥有的 provider command，失败终态保持可观察且不把未知结果转换为成功 EOF；NativeResult 定向测试通过，真实远程取消仍未运行。
+- M49-C03：C ABI 暴露 `READY`、`ROW`、`END`、`FAILED` 结果终态，EOF/失败后拒绝旧行读取并保留连接关闭与独立 result 释放边界；状态机回归与 C 生命周期示例通过，Core/Server 有界执行仍未由此关闭。
 - GH-Issue #349：固定关系表 `VECTOR(N)`/`GEOPOINT` 继续为 measurement `FIELD` 专用类型；`DataTypes.SupportsRelationalColumn=false` 与显式标量/JSON 替代模型保持不变。新增跨 Core、REST、Frame 和 ADO 的稳定错误码 `sql_relational_type_unsupported` 及可行动提示，避免 FreeSql/其它 ORM 解析本地化文本；边界与证据见 `docs/audits/issue-349-relational-specialized-types-20261024.md`。
 - GH-Issue #348：补充 ADO `GetSchema` 的 schema/table 结构化身份回归，覆盖同名表、大小写限制、索引、跨 schema 外键和重开后的嵌入式/REST 路径；文档明确默认 `main` 及 Views/DocumentCollections 的当前单 schema 边界。HTTP/2 frame 与正式 FreeSql 包仍按环境和发布边界单独验收。
 - GH-Issue #347：补齐 `FOR UPDATE SKIP LOCKED` 的分页语义：先按稳定顺序逐行尝试锁定、跳过竞争行，再对可锁定行应用 `OFFSET`/`LIMIT`，只把返回页的临时锁保留到事务结束；新增复合主键、空/竞争页、嵌入式与远程 ADO 回归。同步修正 SQL/ADO 锁定读文档，明确 `FOR SHARE` 仍以 `sql_locking_read_unsupported` 拒绝。

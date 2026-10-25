@@ -23,27 +23,42 @@ int main(int argc, char** argv)
     }
     connection = sonnetdb_open(argv[1]);
     CHECK(connection != NULL);
+    CHECK(sonnetdb_abi_version() == SONNETDB_ABI_VERSION);
     result = sonnetdb_execute(connection,
         "CREATE TABLE Devices (DeviceID INT, Name STRING, PRIMARY KEY (DeviceID))");
     CHECK(result != NULL);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_READY);
+    CHECK(sonnetdb_result_next(result) == 0);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_END);
     sonnetdb_result_free(result);
     result = sonnetdb_execute(connection,
         "INSERT INTO Devices (DeviceID, Name) VALUES (9223372036854775807, '\xe4\xbd\xa0\xe5\xa5\xbd'), (2, NULL)");
     CHECK(result != NULL);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_READY);
     CHECK(sonnetdb_result_records_affected(result) == 2);
+    CHECK(sonnetdb_result_next(result) == 0);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_END);
     sonnetdb_result_free(result);
     result = sonnetdb_execute(connection, "SELECT DeviceID, Name FROM Devices ORDER BY DeviceID DESC");
     CHECK(result != NULL);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_READY);
     CHECK(sonnetdb_result_column_count(result) == 2);
     CHECK(strcmp(sonnetdb_result_column_name(result, 0), "DeviceID") == 0);
     CHECK(sonnetdb_result_next(result) == 1);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_ROW);
     CHECK(sonnetdb_result_value_int64(result, 0) == INT64_MAX);
     CHECK(strcmp(sonnetdb_result_value_text(result, 1), utf8) == 0);
+    CHECK(sonnetdb_result_cancel(result) == 0);
+    CHECK(sonnetdb_result_next(result) == -1);
+    CHECK(sonnetdb_last_error(error, (int32_t)sizeof(error)) > 0);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_FAILED);
     second = sonnetdb_execute(connection, "SELECT DeviceID FROM Devices WHERE DeviceID = 2");
     CHECK(second != NULL);
+    CHECK(sonnetdb_result_get_state(second) == SONNETDB_RESULT_READY);
     sonnetdb_result_free(result);
     result = NULL;
     CHECK(sonnetdb_result_next(second) == 1);
+    CHECK(sonnetdb_result_get_state(second) == SONNETDB_RESULT_ROW);
     CHECK(sonnetdb_result_value_int64(second, 0) == 2);
     CHECK(sonnetdb_flush(connection) == 0);
     sonnetdb_close(connection);
@@ -65,6 +80,7 @@ int main(int argc, char** argv)
     CHECK(sonnetdb_result_value_type(result, 1) == SONNETDB_TYPE_NULL);
     CHECK(sonnetdb_result_value_text(result, 1) == NULL);
     CHECK(sonnetdb_result_next(result) == 0);
+    CHECK(sonnetdb_result_get_state(result) == SONNETDB_RESULT_END);
     CHECK(sonnetdb_result_next(result) == 0);
     CHECK(sonnetdb_result_value_type(result, 0) == -1);
     CHECK(sonnetdb_last_error(error, (int32_t)sizeof(error)) > 0);

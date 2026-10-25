@@ -20,11 +20,15 @@ The initial ABI intentionally keeps only opaque handles and primitive values:
 - open an MQ topic handle
 - publish messages, pull by consumer group, ack offsets, and read topic stats
 - read result metadata and rows
+- inspect the result lifecycle (`READY`, `ROW`, `END`, or `FAILED`) and request cancellation of an active SQL command
 - read typed values as `int64`, `double`, `bool`, or UTF-8 text
+- query the numeric ABI version before using optional entry points
 - fetch the last error for the current native thread
 - trigger a flush for embedded connections
 
 The ABI does not expose SonnetDB file format structs, C# objects, or internal engine pointers.
+
+`sonnetdb_abi_version()` returns the integer `SONNETDB_ABI_VERSION` exported by the header. Consumers should check this value before using entry points added after their baseline. SQL result handles start in `SONNETDB_RESULT_READY`, move to `SONNETDB_RESULT_ROW` after a successful `sonnetdb_result_next`, and reach `SONNETDB_RESULT_END` at EOF. A read or cancellation failure reports `SONNETDB_RESULT_FAILED` and remains failed on later calls. `sonnetdb_result_cancel` is serialized with the result's other operations and returns `0` when the provider accepted the request (or no command is active); the next read reports the provider's cancellation outcome.
 
 `sonnetdb_flush` remains an embedded durability helper. Remote bulk writes should use `sonnetdb_bulk_execute` with `sonnetdb_bulk_set_flush`.
 

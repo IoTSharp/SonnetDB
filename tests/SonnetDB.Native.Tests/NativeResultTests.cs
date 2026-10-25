@@ -12,6 +12,33 @@ namespace SonnetDB.Native.Tests;
 public sealed class NativeResultTests
 {
     [Fact]
+    public void State_TracksReadyRowEndAndFailure()
+    {
+        var reader = new ProbeReader(1);
+        using var result = NativeResult.From(reader);
+        Assert.Equal(NativeResultState.Ready, result.State);
+        Assert.Equal(1, result.MoveNext());
+        Assert.Equal(NativeResultState.Row, result.State);
+        Assert.Equal(0, result.MoveNext());
+        Assert.Equal(NativeResultState.End, result.State);
+
+        var failure = new IOException("injected state failure");
+        using var failed = NativeResult.From(new ProbeReader(1) { ReadFailure = failure });
+        Assert.Same(failure, Assert.Throws<IOException>(() => failed.MoveNext()));
+        Assert.Equal(NativeResultState.Failed, failed.State);
+    }
+
+    [Fact]
+    public void NonQuery_StartsReadyAndEndsAfterNext()
+    {
+        using var result = NativeResult.NonQuery(2);
+        Assert.Equal(NativeResultState.Ready, result.State);
+        Assert.Equal(2, result.RecordsAffected);
+        Assert.Equal(0, result.MoveNext());
+        Assert.Equal(NativeResultState.End, result.State);
+    }
+
+    [Fact]
     public void From_LargeLogicalResult_DoesNotReadAhead()
     {
         using var reader = new ProbeReader(1_000_000) { ReadLimit = 2 };
@@ -142,7 +169,7 @@ public sealed class NativeResultTests
             using var result = NativeResult.From(command.ExecuteReader(), command);
             Assert.Equal(1, result.MoveNext());
             Assert.Equal(long.MaxValue, result.GetInt64(0));
-            command.Cancel();
+            result.Cancel();
             Assert.Throws<OperationCanceledException>(() => result.MoveNext());
             Assert.Throws<OperationCanceledException>(() => result.MoveNext());
             Assert.Throws<InvalidOperationException>(() => result.GetInt64(0));
