@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Changed
+- M49-C02/Java：新增 Java 8 可编译的 `SonnetDbFrameCodec`，覆盖 SQL Execute v1 的完整 little-endian Frame、12 种显式参数、预算/绑定/Decimal/finite vector 守卫和 committed 响应；无 Maven/Gradle 的 `javac --release 8 -Xlint:all -Werror` 合同测试 3/3 通过，真实 HTTP/2/JNI/Java 8 运行矩阵另验。
 - M49-R02：`SonnetDB.Client` 新增仅面向 SQL Query、Vector Search、Graph Expand、Object Get 的有界 HTTP/2 多帧读取器；逐帧先校验身份再分配，按帧数/累计字节预算限制，终态确认 EOF 后才交付，缺终态、尾帧、取消、传输中止和早退均保留未知结果并释放响应资源。真实 Server/TLS 与九模型 typed 解码仍未运行。
 - M49-C02：统一 `FrameCodec.ValidateResponse` 并让 unary/streaming Client 共用版本、service、opcode、stream id 和响应标志校验，减少入口间的身份规则漂移；Client 全量 219/219 与 FrameHeader 11/11 通过。
 - M49-C02：错误 Frame payload 现在严格拒绝截断、VarUInt underflow/overflow 和尾部字节，并统一报告 `FrameFormatException`；新增负边界回归，未把 fake handler 或本地 h2c 单元测试扩展为远程门禁。

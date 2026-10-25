@@ -9,6 +9,12 @@ It supports two native backends:
 
 Both backends expose SQL, bulk ingest, KV, and Document collection APIs synchronously over the same C ABI groups.
 
+The dependency-free `com.sonnetdb.protocol.SonnetDbFrameCodec` also provides a
+Java 8 compatible SQL Execute v1 binary codec. It validates the 12-byte little-
+endian Frame envelope, exact parameter types, payload budgets, and the
+committed terminal response. The codec is transport-neutral and deliberately
+does not fall back to REST or HTTP/1.
+
 ## Runtime Selection
 
 Select the backend with:
@@ -95,6 +101,16 @@ cmake -S connectors/java --preset linux-x64
 cmake --build artifacts/connectors/java/linux-x64
 cmake --build artifacts/connectors/java/linux-x64 --target run_sonnetdb_java_quickstart
 cmake --build artifacts/connectors/java/linux-x64 --target run_sonnetdb_java_quickstart_ffm
+```
+
+Run the Java 8 codec contract test without Maven or Gradle:
+
+```powershell
+$out = Join-Path $env:TEMP 'sonnetdb-java-frame-test'
+javac --release 8 -Xlint:all -Xlint:-options -Werror -d $out `
+  connectors/java/src/main/java/com/sonnetdb/protocol/SonnetDbFrameCodec.java `
+  connectors/java/tests/SonnetDbFrameCodecTest.java
+java -ea -cp $out com.sonnetdb.protocol.SonnetDbFrameCodecTest
 ```
 
 ## Manual Run
