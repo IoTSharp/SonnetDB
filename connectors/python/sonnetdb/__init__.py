@@ -15,6 +15,21 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Iterable, Iterator, Sequence
 
+from .frame import (
+    DecimalBits,
+    FrameFormatError,
+    FrameParameter,
+    FrameParameterKind,
+    SqlExecuteRequest,
+    SqlExecuteResponse,
+    decode_sql_execute_frame,
+    decode_sql_execute_payload,
+    decode_sql_execute_response_frame,
+    decode_sql_execute_response_payload,
+    encode_sql_execute_frame,
+    encode_sql_execute_response_frame,
+)
+
 apilevel = "2.0"
 threadsafety = 1
 paramstyle = "qmark"
@@ -1316,8 +1331,12 @@ __all__ = [
     "Connection",
     "Cursor",
     "DatabaseError",
+    "DecimalBits",
     "DocumentCollection",
     "Error",
+    "FrameFormatError",
+    "FrameParameter",
+    "FrameParameterKind",
     "InterfaceError",
     "KeyValueStore",
     "KvCasResult",
@@ -1325,9 +1344,17 @@ __all__ = [
     "KvTtl",
     "NotSupportedError",
     "Result",
+    "SqlExecuteRequest",
+    "SqlExecuteResponse",
     "ValueType",
     "apilevel",
     "connect",
+    "decode_sql_execute_frame",
+    "decode_sql_execute_payload",
+    "decode_sql_execute_response_frame",
+    "decode_sql_execute_response_payload",
+    "encode_sql_execute_frame",
+    "encode_sql_execute_response_frame",
     "last_error",
     "open",
     "paramstyle",

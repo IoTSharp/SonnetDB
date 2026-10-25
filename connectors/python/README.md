@@ -16,6 +16,22 @@ It exposes:
 
 The first version intentionally does not implement SQL parameters because the native ABI currently accepts a single SQL string.
 
+## SQL Execute Frame codec
+
+`sonnetdb.frame` provides a dependency-free codec for the SQL Execute v1
+binary Frame contract used by the HTTP/2 client boundary. It preserves
+explicit Int64/Float64/Boolean/String/Blob/time/decimal/vector types, the
+4 MiB encoded request budget, and the committed response terminal state. It
+only encodes and validates bytes; it does not send REST or HTTP/1 requests.
+HTTP/2 transport and the wider nine-model remote SDK remain separate work.
+
+Pure codec tests run without a native SonnetDB library:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path .).Path
+python -m unittest discover -s tests -p 'test_frame.py'
+```
+
 ## Requirements
 
 - Python 3.10+

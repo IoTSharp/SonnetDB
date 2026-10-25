@@ -2,6 +2,9 @@
 
 mod ffi;
 
+/// SQL Execute v1 Frame codec shared by transport implementations.
+pub mod frame;
+
 use std::error;
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::fmt;

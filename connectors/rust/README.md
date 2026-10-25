@@ -14,6 +14,20 @@ It exposes:
 
 The first version intentionally does not implement SQL parameters because the native ABI currently accepts a single SQL string.
 
+## SQL Execute Frame codec
+
+`sonnetdb::frame` contains a transport-neutral SQL Execute v1 codec matching
+`SonnetDB.Protocol.SqlExecuteFrameCodec`. It validates explicit value types,
+ASCII parameter names, decimal flags, vector finiteness, encoded request
+budgets, and the committed response terminal state. It does not add REST or
+HTTP/1 fallback; an HTTP/2 transport remains a separate M49 slice.
+
+The codec tests do not load the native library and run with:
+
+```powershell
+cargo test --manifest-path Cargo.toml --offline
+```
+
 ## Requirements
 
 - Rust 1.75+ recommended

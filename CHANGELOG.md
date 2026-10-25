@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Changed
+- M49-C02/Python：新增 transport-neutral 的 SQL Execute v1 little-endian Frame 编解码，覆盖精确参数类型、4 MiB 预计算预算、ASCII 参数绑定、Decimal/finite vector 守卫和 committed 终态；Python 合同测试 7/7 通过，HTTP/2 远程接线另验。
+- M49-C02/Rust：新增无第三方依赖的 SQL Execute v1 Frame 编解码与损坏/预算/终态拒绝，Rust 单元 4/4、doctest 0 通过；`cargo fmt` 因本机组件缺失保留 NOT_RUN，远程 SDK 与跨平台发布另验。
+- M49-C02/Go：新增 SQL Execute v1 Frame 编解码和参数/预算/终态守卫，`golang:1.25` 容器中的无 cgo codec 测试通过；完整 cgo 包因测试容器缺少 `SonnetDB.Native.so` 保留 NOT_RUN，不据此宣称 Go 连接器完整可运行。
 - M49-C02：C/NativeAOT 连接器导出 `sonnetdb_abi_version` 与 `SONNETDB_ABI_VERSION`，让消费者在使用可选入口前能显式核对 ABI 版本；定向 NativeResult、CMake/C 消费者验证与 Java 原生 quickstart 的实际边界单列，未扩展为全平台或正式包验收。
 - M49-C03：C ABI 的 SQL result 增加 `sonnetdb_result_cancel`，将取消请求串行接入拥有的 provider command，失败终态保持可观察且不把未知结果转换为成功 EOF；NativeResult 定向测试通过，真实远程取消仍未运行。
 - M49-C03：C ABI 暴露 `READY`、`ROW`、`END`、`FAILED` 结果终态，EOF/失败后拒绝旧行读取并保留连接关闭与独立 result 释放边界；状态机回归与 C 生命周期示例通过，Core/Server 有界执行仍未由此关闭。

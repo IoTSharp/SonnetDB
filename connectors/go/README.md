@@ -14,6 +14,20 @@ It exposes:
 
 The first version intentionally does not implement SQL parameters because the native ABI currently accepts a single SQL string.
 
+## SQL Execute Frame codec
+
+`EncodeSQLExecuteFrame` and `DecodeSQLExecuteFrame` implement the SQL Execute
+v1 binary Frame contract as transport-neutral bytes. The codec keeps explicit
+value types, ASCII parameter-name binding, decimal flag validation, finite
+vectors/floats, the 4 MiB encoded request budget, and the committed response
+terminal state. It does not implement REST or HTTP/1 fallback. Pure codec
+tests can run without the native library:
+
+```powershell
+docker run --rm -v "${PWD}:/work" -w /work/connectors/go golang:1.25 `
+  go test frame.go frame_test.go
+```
+
 ## Requirements
 
 - Go 1.22+
