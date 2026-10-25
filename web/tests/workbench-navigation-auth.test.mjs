@@ -10,7 +10,7 @@ import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
 import test from 'node:test';
 import axios from 'axios';
 import * as vue from 'vue';
-import { createPinia, defineStore, disposePinia } from 'pinia';
+import { createPinia, defineStore, disposePinia, setActivePinia } from 'pinia';
 import { createRouter, createMemoryHistory } from 'vue-router';
 
 const webRoot = new URL('../', import.meta.url);
@@ -139,6 +139,75 @@ test('Initial setup/login API requests share the explicit deployment base', { ti
     assert.equal(api.getUri({ url: '/v1/auth/login' }), `${base}v1/auth/login`);
     assert.equal(api.getUri({ url: '/v1/setup/status' }), `${base}v1/setup/status`);
   }
+});
+
+test('API clients expire only the current token on fulfilled and rejected 401 responses', { timeout: 5000 }, async () => {
+  const context = createContext({ console });
+  const module = sourceModule(context, 'src/api/client.ts');
+  const dependency = synthetic(context, { default: axios });
+  await module.link(() => dependency); await module.evaluate({ timeout: 1000 });
+
+  const token = 'current';
+  let expired = 0;
+  const response = (config, status) => ({ data: { status }, status, statusText: '', headers: {}, config });
+  const api = module.namespace.createApiClient(() => token, () => { expired++; });
+  api.defaults.adapter = async (config) => {
+    if (config.url === '/stale') config.headers.Authorization = 'Bearer stale';
+    const result = response(config, config.url === '/forbidden' ? 403 : 401);
+    if (config.url === '/rejected') throw new axios.AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, result);
+    return result;
+  };
+
+  const fulfilled = await api.get('/fulfilled', { validateStatus: () => true });
+  assert.equal(fulfilled.status, 401);
+  assert.equal(expired, 1);
+  await assert.rejects(api.get('/rejected'), (error) => axios.isAxiosError(error) && error.response?.status === 401);
+  assert.equal(expired, 2);
+  assert.equal((await api.get('/forbidden', { validateStatus: () => true })).status, 403);
+  assert.equal((await api.get('/stale', { validateStatus: () => true })).status, 401);
+  assert.equal(expired, 2, 'a late response for the old token must not expire a newer session');
+});
+
+test('Auth store clears an expired session once and ignores repeated expiration signals', { timeout: 5000 }, async () => {
+  const events = [];
+  const context = createContext({
+    console,
+    Event,
+    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    window: { dispatchEvent: (event) => events.push(event.type) },
+  });
+  const client = {
+    AuthExpiredEvent: 'sonnetdb:auth-expired',
+    createApiClient: () => ({ defaults: {} }),
+    loadAuth: () => ({ username: 'admin', token: 'expired', tokenId: 'id', isSuperuser: true }),
+    persistAuth() {},
+  };
+  const imports = {
+    pinia: synthetic(context, { defineStore }),
+    vue: synthetic(context, { computed: vue.computed, markRaw: vue.markRaw, shallowRef: vue.shallowRef }),
+    '@/api/client': synthetic(context, client),
+    '@/copilot/browserDirectEntry': synthetic(context, { clearBrowserDirectAccessToken() {} }),
+    '@/preview/session': synthetic(context, { clearPreviewSession() {} }),
+  };
+  const module = sourceModule(context, 'src/stores/auth.ts');
+  await module.link((specifier) => imports[specifier]); await module.evaluate({ timeout: 1000 });
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  const auth = module.namespace.useAuthStore();
+  assert.equal(auth.isAuthenticated, true);
+  auth.expire();
+  auth.expire();
+  assert.equal(auth.isAuthenticated, false);
+  assert.deepEqual(events, ['sonnetdb:auth-expired']);
+  disposePinia(pinia);
+});
+
+test('SSE authorization failure and the root view share the expiration contract', () => {
+  const eventsSource = readFileSync(new URL('src/stores/events.ts', webRoot), 'utf8');
+  const appSource = readFileSync(new URL('src/App.vue', webRoot), 'utf8');
+  assert.match(eventsSource, /if \(kind === 'unauthorized'\)[\s\S]*?auth\.expire\(\)/);
+  assert.match(appSource, /window\.addEventListener\(AuthExpiredEvent, onAuthExpired\)/);
+  assert.match(appSource, /router\.replace\(\{ name: 'login', query: \{ redirect: route\.fullPath \} \}\)/);
 });
 
 test('Actual SSE subscriptions stay under deployment base, encode token/channels and remove handlers on close', { timeout: 5000 }, async () => {

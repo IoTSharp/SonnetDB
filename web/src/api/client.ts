@@ -1,6 +1,7 @@
-﻿import axios, { type AxiosInstance } from 'axios';
+﻿import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
 const STORAGE_KEY = 'sndb.auth';
+export const AuthExpiredEvent = 'sonnetdb:auth-expired';
 
 export interface AuthState {
   username: string;
@@ -32,7 +33,7 @@ export function loadAuth(): AuthState | null {
   return readStored();
 }
 
-export function createApiClient(getToken: () => string | null): AxiosInstance {
+export function createApiClient(getToken: () => string | null, onUnauthorized?: () => void): AxiosInstance {
   const profile = import.meta.env?.VITE_WORKBENCH_PROFILE;
   const client = axios.create({
     baseURL: import.meta.env.BASE_URL,
@@ -45,5 +46,21 @@ export function createApiClient(getToken: () => string | null): AxiosInstance {
     if (t) cfg.headers.Authorization = `Bearer ${t}`;
     return cfg;
   });
+  const handleUnauthorized = (response: AxiosResponse | undefined): void => {
+    if (response?.status !== 401) return;
+    const authorization = response.config.headers.Authorization;
+    if (typeof authorization === 'string' && authorization !== `Bearer ${getToken()}`) return;
+    onUnauthorized?.();
+  };
+  client.interceptors.response.use(
+    (response) => {
+      handleUnauthorized(response);
+      return response;
+    },
+    (error: unknown) => {
+      handleUnauthorized(axios.isAxiosError(error) ? error.response : undefined);
+      return Promise.reject(error);
+    },
+  );
   return client;
 }

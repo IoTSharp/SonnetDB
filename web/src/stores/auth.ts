@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, shallowRef } from 'vue';
 import type { AxiosInstance } from 'axios';
-import { createApiClient, loadAuth, persistAuth, type AuthState } from '@/api/client';
+import { AuthExpiredEvent, createApiClient, loadAuth, persistAuth, type AuthState } from '@/api/client';
 import { clearBrowserDirectAccessToken } from '@/copilot/browserDirectEntry';
 import { clearPreviewSession } from '@/preview/session';
 
@@ -12,7 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 导致 `auth.api.get/post/put` 等方法属性全部丢失（typeof === 'function' → action）。
   const state = shallowRef<AuthState | null>(loadAuth());
   const api = shallowRef<AxiosInstance>(
-    markRaw(createApiClient(() => state.value?.token ?? null)),
+    markRaw(createApiClient(() => state.value?.token ?? null, expire)),
   );
 
   const isAuthenticated = computed(() => state.value !== null);
@@ -35,9 +35,15 @@ export const useAuthStore = defineStore('auth', () => {
     apply(null);
   }
 
+  function expire(): void {
+    if (!state.value) return;
+    apply(null);
+    window.dispatchEvent(new Event(AuthExpiredEvent));
+  }
+
   function setApiBaseUrl(baseUrl: string): void {
     api.value.defaults.baseURL = baseUrl || '/';
   }
 
-  return { state, api, isAuthenticated, username, isSuperuser, apply, login, logout, setApiBaseUrl };
+  return { state, api, isAuthenticated, username, isSuperuser, apply, login, logout, expire, setApiBaseUrl };
 });
