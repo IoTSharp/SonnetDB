@@ -154,23 +154,27 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 冻结首批源、AST、聚合及变更种类；不支持的 JOIN/递归/UDF/事务在计划阶段拒绝。M45 负责计算语义与状态，M43 负责运输、位点、订阅及任务生命周期。详见 [M45 专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)。
 
-## Milestone 46 — 存储编码与执行成本优化
+## Milestone 46 — 存储编码与执行成本优化（压缩深化）
 
-编码器已有，但 `SegmentWriterOptions` 时间戳/值编码默认均为 `None`，V2 Int64 仍 raw 8B。v6 已内嵌 HNSW/sketch。mmap 仍有复制；解码缓存按 reader 设置，共享 HNSW 缓存及 KV I/O 预算另有实现。不能把可选编码、mmap 或局部额度写成默认压缩、zero-copy 或进程总内存上限。
+M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典，Int64 仍 raw 8B，Vector/GeoPoint 仍 raw，WAL 仍是逐条原始 payload + CRC。v6 已内嵌 HNSW/sketch；mmap 仍有复制，解码缓存按 reader 设置，共享 HNSW 缓存及 KV I/O 预算另有实现。不能把可选编码、局部压缩率、mmap 或局部额度写成默认压缩、zero-copy 或进程总内存上限。
 
 | ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
 |---|---|---|---|
-| M46-S01 | P0 必选 | 基线、版本、默认/显式编码策略及收益门槛 | raw/现有可选编码都测，默认是否切 auto 由语料与回归决定。 |
-| M46-S02 | P0 必选 | 整数 delta/RLE/bit packing 与 raw 回退 | 全值域/溢出、稀疏/乱序 round-trip；新语义不偷复用 v6 标志。 |
-| M46-S03 | P0 必选 | 无损浮点/Boolean 与高熵回退 | NaN 位模式、±0、Infinity；无默认量化/有损压缩。 |
-| M46-S04 | P1 必选 | 字典高基数与稀疏 presence 成本 | 字典扩张、Unicode、大值及缺失/NULL 分开，超预算不截断。 |
-| M46-S05 | P1 必选 | 分块自适应与范围解码 | 块/检查点结合窄读测 I/O/CPU/分配，防压缩导致读放大。 |
-| M46-S06 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收。 |
-| M46-S07 | P1 必选 | 解码分配、缓存与读成本接线 | 接 V45-X01/X02；租约/取消/淘汰/mmap 成本可观测，不新造资源管理器。 |
-| M46-S08 | P1 必选 | small-segment/WAL/compaction 成本 | 复用 manifest/调度；写放大/fsync、合并读尾延迟与恢复共同验收。 |
-| M46-S09 | P0 必选 | 统一语料、兼容/损坏及性能验收 | commit/硬件/配置/原始样本；旧格式可读、不兼容写拒绝，收益与代价分开。 |
+| M46-S01 | P0 必选 | 冻结真实语料、Block 大小、raw/legacy V2/候选 Auto、持久性与收益门槛 | 同一 commit、硬件、配置下记录 payload、header、字典、checkpoint、index、CRC、HNSW/sketch、WAL 和临时文件；默认是否切 Auto 由完整证据决定。 |
+| M46-S02 | P0 必选 | 完整 Int64 自适应编码：RLE、ZigZag/delta、delta-binary-packed/FOR、bit-pack 与 raw fallback | 覆盖完整 Int64 值域、差分溢出、counter reset、重复、乱序、随机高熵和 Block 边界；保留 v6 `DeltaValue` 的 raw Int64 含义，不偷改旧标志。 |
+| M46-S03 | P0 必选 | Float64 canonical Gorilla window reuse 与 Boolean RLE/bit-packing hybrid | 保留 NaN 位模式、±0、Infinity；高熵浮点和交替/随机 Boolean 必须可回退；CHIMP/ALP 只作为有同语料证据的候选，不默认量化或有损压缩。 |
+| M46-S04 | P1 必选 | 有界 String dictionary、bit-packed index、稀疏 presence 与大值回退 | 字典条目数、总字节和构建工作集有上限；Unicode、空串、NULL、缺失、false/零值分开；超预算回退或拒绝，不截断、不合并语义。 |
+| M46-S05 | P1 必选 | Timestamp 自适应编码、restart checkpoint、分块与范围解码 | 在 delta-i、delta-d、RLE、Simple8b/bit-pack、varint、raw 之间按完整成本选择；窄读、跨 checkpoint、全扫描分别测实际 I/O、CPU、分配和读放大。 |
+| M46-S06 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收，必要时关闭不安全快路径。 |
+| M46-S07 | P1 必选 | 解码分配、缓存、预算与读成本接线 | 接 V45-X01/X02；租约、取消、淘汰、mmap 复制、解码缓存和共享 HNSW 竞争可观测，不新造平行资源管理器。 |
+| M46-S08 | P1 必选 | 二级 LZ4/Zstd 边界、WAL 批压缩、small-segment 与 compaction 成本 | 热路径与冷 compaction 分开测；Core 零第三方运行时依赖、AOT、许可和平台边界单列；写放大、fsync、临时空间、合并读尾延迟、WAL replay 和故障恢复共同验收。 |
+| M46-S09 | P0 必选 | 统一语料、codec ID/版本、兼容/损坏/迁移及性能验收 | commit/硬件/配置/原始样本可复算；旧格式可读，新 codec 从持久 metadata 解码，不兼容旧 writer 明确拒绝；CRC、长度、截断、非法 run/varint、混合段、升级/回退、收益与代价分别留证。 |
 
 指标包含磁盘字节、读写放大、解码 CPU、P95/P99、分配/GC 和恢复，不预设倍数。落盘改动先设计版本/CRC，遵守格式升级、CHANGELOG、迁移或显式拒绝规则。详见 [M46 专题](docs/design/sonnetdb-45-storage-performance.md)。
+
+M46 的编码选型采用“一级类型编码 + 二级可选压缩 + raw fallback”。选择器必须把完整载荷、字典、checkpoint、索引、CRC、解码工作量和临时分配计入成本，不能只比较小样本 payload。热写/窄读优先低 CPU 和可定位解码，冷 compaction 才评估更高压缩等级；Zstd/LZ4 适配器在 Core 之外单独核对许可、NativeAOT 和平台支持，不能用未验证的第三方运行时依赖改变 Core 合同。
+
+首批顺序为 S01/S09 基线与格式合同、S02 Int64、S03 Float64/Boolean、S04 String、S05 Timestamp/范围解码，再接 S07/S08 的缓存、二级压缩、WAL 和 compaction。Auto 先作为显式策略；只有真实语料、CPU、尾延迟、恢复和兼容证据全部达到冻结门槛，才评估新数据库默认启用。Vector、GeoPoint、关系行存储、KV、文档、对象、MQ、图和向量索引继续按各自模型合同接入，不能用时序 Segment 压缩率代表九模型整体收益。
 
 ## Milestone 47 — 统一数据库管理工作台与三面发布（UI）
 

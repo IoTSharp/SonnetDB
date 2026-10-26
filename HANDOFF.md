@@ -1448,3 +1448,18 @@ J��T�UUSQL�/�y�fyc���'����d��-��o�8� ������za�z-�yc��NNyd�9��9d"M�d#��]x
 - 边界保持：Go 完整 cgo 包因容器缺少 `SonnetDB.Native.so` 保留 `NOT_RUN`；Rust `cargo fmt` 因组件缺失保留 `NOT_RUN`；真实 Server HTTP/2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布和 M49 更大范围仍未验收，不能把十个本地切片写成 M49 整体完成。M20、固定硬件、真实模型等外部门禁未被本轮冒充通过。
 - 功能批次最后一个源代码提交为 `349f73c2`；随后 HANDOFF 收口提交已推送，下一会话应以 `git rev-parse HEAD` 与 `git ls-remote` 实时回读当前 SHA。Gitee `main` 仍为 `09628bf`，本轮没有扩大推送到 Gitee；`parity-results` 保持独立。
 - 收口时工作树仍保留博客发布状态、封面/证据目录和既有 HANDOFF 外来修改；这些路径按归属保护，不清理、不回滚、不覆盖。下一会话先读取本段，再继续真实远程/平台门禁，不重复已闭环的十个本地切片。
+
+
+## 2026-10-26 M46 压缩路线图更新
+
+- 根据用户要求，将本轮数据压缩研究正式收敛到 M46：更新 `ROADMAP.md` 的 M46-S01～S09 退出条件，并同步 `docs/roadmap-total-milestone.md` 的 M46 摘要；没有新增重复里程碑。
+- 路线图现在明确一级类型无损编码 + 二级可选压缩 + raw fallback，Int64 自适应编码、canonical Gorilla、Boolean RLE/bit-packing、String 有界字典、Timestamp 自适应与 restart checkpoint、二级 LZ4/Zstd 边界、WAL/compaction、codec ID/版本、兼容/迁移/损坏和九模型边界。
+- 验证：M46 S01～S09 各出现一次；M46 专题链接存在；M46 专属段无新增尾随空白；`git -c core.whitespace=cr-at-eol diff --check -- ROADMAP.md docs/roadmap-total-milestone.md` 通过。没有运行构建、产品测试或性能基准；没有 stage、commit、push、发布或部署。
+- 共享工作树中其它路线、发布资料和 HANDOFF 历史脏改动按归属保留；本次只拥有上述两个路线文件及本交接追加。
+
+## 2026-10-26 M46 路线规划提交与推送范围
+
+- 用户已授权提交并推送 M46 规划。本提交仅包含根路线 M46 段、总里程碑 M46 摘要、一条 Unreleased 文档变更记录和本任务交接追加；共享工作树的其它路线状态、博客发布资料及历史交接修复不纳入。
+- 新压缩实现仍为 planned，既有 S06 局部证据不提升为整个工作包完成；本次不改变生产代码、持久格式、默认编码、依赖或发行状态。CHIMP/ALP 为评测候选，LZ4/Zstd 适配保留 Core 零第三方运行时依赖和 AOT/许可/平台边界。
+- 提交门禁使用当前最终工作树的 dotnet restore SonnetDB.slnx，以及 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/；只有实际退出 0 才创建提交，日志和收据保存在本机忽略目录 artifacts/m46-roadmap-commit-20261026/，最终提交和远端结果以 Git 与收据为准。
+- 下一实施顺序为 S01/S09 基线与格式合同、S02 Int64、S03 Float64/Boolean、S04 String、S05 Timestamp/范围解码，S06 精度守卫贯穿，然后接 S07/S08；功能、性能、真实服务、固定硬件、恢复及正式包门禁仍分别待验。

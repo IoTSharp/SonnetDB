@@ -16,7 +16,7 @@
 |---|---|---|---|
 | M44 AI 应用与可治理推理 | A01~A07：profile增量、治理、时序AI、证据RAG、任务、评测和三条应用 | A08流式provider/A09图证据条件；A10高级模型后续 | [AI 专题](design/sonnetdb-45-ai-applications.md) |
 | M45 聚合与持续计算 | C01~C09：类型/分组、state、修正、增量view、批流窗口、sketch、时间函数、预算及对拍 | C10扩展分组/窗口/ASOF按需求纳入 | [聚合专题](design/sonnetdb-45-aggregation-continuous-compute.md) |
-| M46 存储编码与执行成本 | S01~S09：基线/策略、整数/浮点/字典、范围读、统计、缓存/维护及兼容收益 | 默认auto/具体codec由冻结语料决定，不预填倍数 | [存储专题](design/sonnetdb-45-storage-performance.md) |
+| M46 存储编码与执行成本 | S01~S09：一级类型编码、二级可选压缩、Int64/Float/Boolean/String/Timestamp 自适应、范围读、统计精度、缓存/WAL/compaction、兼容与恢复 | 默认 Auto/具体 codec 由真实语料和完整成本证据决定；Core 不引入未经验证的第三方运行时压缩依赖，不预填倍数 | [存储专题](design/sonnetdb-45-storage-performance.md) |
 | M47 统一数据库管理工作台与三面发布 | U01~U09：共享合同、九模型 adapter、Web Admin/Studio/VS Code、AI/MCP 入驻、原型与发布矩阵 | U10 manifest/签名/插件目录按核心工作台和安全评审后纳入 | [M47 统一管理工作台专题](design/m47-unified-management-workbench.md) |
 | M49 连接器/嵌入式拆分与九模型有界访问 | D01/F01/C01～C08/R01～R05：目录/依赖、Frame补齐、语言双路径、精确类型/预算/取消与按批消费者；首片进行中，15包均未整体完成 | 首批九模型，先64位，Java8兼容，BASIC仅远程；分批正式发行；平台API/普通32位/FFM后续 | [M49 详细设计](design/m49-connector-analytics-bounded-batches.md) |
 
