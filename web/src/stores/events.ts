@@ -84,6 +84,7 @@ export const useEventsStore = defineStore('events', () => {
           // 让 EventSource 完全关闭
           unsubscribe?.();
           unsubscribe = null;
+          auth.expire();
         } else {
           lastError.value = 'SSE 暂时断开，浏览器将自动重连。';
         }
