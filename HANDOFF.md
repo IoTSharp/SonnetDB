@@ -1,3 +1,11 @@
+## 2026-10-28 SonnetMQ 非 Topic 子目录恢复修复
+
+- 修复目录模式 `SonnetMqStore.Open` 遇到 `wal/`、`documents/` 等无关子目录抛出 `FormatException`，以及非法解码名称被注册为空 Topic 的问题。恢复前采用有界 hex 解码并复用现有 Topic 命名校验，真实 Topic 的 I/O 和损坏段异常继续抛出；目录编码、消息格式和单文件模式保持原合同。
+- 新增 9 个目录名称边界与 1 个混合目录恢复用例；修复前 10/10 失败，修复后本机 Windows / .NET SDK 10.0.403 / Release 的 Core MQ 测试组 82/82 通过，0 失败、0 跳过，覆盖消息、ACK、继续发布、重复重开、无关文件保留及既有损坏段/快照回归。提交前再次核对源码和测试 SHA256，与该测试结果对应的文件完全一致。
+- 提交前重新执行完整 `dotnet restore SonnetDB.slnx` 与 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`，两项实际退出码均为 0。Format 输出一条 workspace 加载警告；上一轮 180 秒超时及本轮小输入命令参数形状失败的日志仍保留，不以局部格式检查替代完整门禁。本轮完整检查使用 15 分钟有界预算和 4 个逻辑处理器上限。
+- 用户已明确授权提交并推送，目标为 `origin/main`，基线 `dbc8178988a0293ed67d24e6f70b78b970465aa0`。本条交接、CHANGELOG 的单条修复说明以及源码/测试共同形成本次修复提交；其它路线图、发布记录及既有 HANDOFF 内容留在共享工作树。实际提交 SHA、远端回读与 `parity-results` 保留结果记录在 `artifacts/mq-directory-replay-push-20261028-01a18248/push-verification.json`。
+- 原始测试证据在 `artifacts/mq-directory-replay-20261028-01a18248/`，本轮提交前门禁、精确暂存差异与进程/清理证据在 `artifacts/mq-directory-replay-push-20261028-01a18248/`。NativeAOT 发布、完整 solution tests、Linux、远程 CI 与生产运行未由本次本地验证覆盖；后续按同一提交核对 CI，生产部署另行授权。
+
 ## 2026-10-24 Issue #347 locking-read extension (in progress)
 
 - Baseline is origin/main `86a82480333d842baf754172fc89afdfa993bb15`, which already contains parser/AST/executor `FOR UPDATE SKIP LOCKED` support and #358 remote contract test correction; this slice avoids reimplementing that support.

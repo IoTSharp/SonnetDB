@@ -754,7 +754,10 @@ public sealed partial class SonnetMqStore : IDisposable
 
         foreach (string topicDirectory in Directory.EnumerateDirectories(RootDirectory))
         {
-            string topic = DecodeTopicDirectory(Path.GetFileName(topicDirectory));
+            // 根目录可能包含其它模型或运维目录，仅恢复有效 Topic 名称对应的目录。
+            if (!TryDecodeTopicDirectory(Path.GetFileName(topicDirectory), out string topic))
+                continue;
+
             var state = GetOrCreateTopic(topic);
             string[] segmentPaths = EnumerateSegmentPaths(topicDirectory).ToArray();
             for (int index = 0; index < segmentPaths.Length; index++)
@@ -1559,8 +1562,28 @@ public sealed partial class SonnetMqStore : IDisposable
     private static string EncodeTopicDirectory(string topic)
         => Convert.ToHexString(Encoding.UTF8.GetBytes(topic));
 
-    private static string DecodeTopicDirectory(string directoryName)
-        => Encoding.UTF8.GetString(Convert.FromHexString(directoryName));
+    private static bool TryDecodeTopicDirectory(string directoryName, out string topic)
+    {
+        topic = string.Empty;
+        if (directoryName.Length == 0 || directoryName.Length > MaxNameBytes * 2)
+            return false;
+
+        Span<byte> bytes = stackalloc byte[MaxNameBytes];
+        if (Convert.FromHexString(directoryName, bytes, out _, out int bytesWritten) != OperationStatus.Done)
+            return false;
+
+        topic = Encoding.UTF8.GetString(bytes[..bytesWritten]);
+        try
+        {
+            ValidateTopic(topic);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            topic = string.Empty;
+            return false;
+        }
+    }
 
     private static byte[] EncodeName(string value, string parameterName)
     {

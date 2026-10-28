@@ -167,6 +167,66 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Equal(1, stats.ConsumerOffsets["device-agent"]);
     }
 
+    /// <summary>非 Topic 子目录不能阻止空队列打开，也不能被注册为 Topic 或写入文件。</summary>
+    [Theory]
+    [InlineData("wal")]
+    [InlineData("documents")]
+    [InlineData("data")]
+    [InlineData("ABC")]
+    [InlineData("GG")]
+    [InlineData("DEAD")]
+    [InlineData("20")]
+    [InlineData("2F")]
+    [InlineData("00")]
+    public void Open_WithNonTopicDirectory_IgnoresDirectory(string directoryName)
+    {
+        string directory = Path.Combine(_root, directoryName);
+        Directory.CreateDirectory(directory);
+
+        using var store = Open();
+
+        Assert.Empty(store.ListTopicStats());
+        Assert.True(Directory.Exists(directory));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(directory));
+    }
+
+    /// <summary>混合目录下仍恢复真实 Topic 的消息和消费进度，并保持其它目录中的文件不变。</summary>
+    [Fact]
+    public void Open_WithNonTopicDirectories_ReplaysMessagesAndAcks()
+    {
+        var options = new SonnetMqOptions { Path = _root, RetentionInterval = TimeSpan.Zero };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.Publish("iot.commands", "a"u8);
+            store.Publish("iot.commands", "b"u8);
+            store.Ack("iot.commands", "device-agent", 0);
+            store.Publish("iot.audit", "created"u8);
+        }
+
+        string walDirectory = Path.Combine(_root, "wal");
+        Directory.CreateDirectory(walDirectory);
+        Directory.CreateDirectory(Path.Combine(_root, "documents"));
+        string unrelatedFile = Path.Combine(walDirectory, "00000000000000000000.smqseg");
+        File.WriteAllText(unrelatedFile, "unrelated data");
+
+        using (var reopened = SonnetMqStore.Open(options))
+        {
+            Assert.Equal(["iot.audit", "iot.commands"], reopened.ListTopicStats().Select(stats => stats.Topic).ToArray());
+            var message = Assert.Single(reopened.Pull("iot.commands", "device-agent", 10));
+            Assert.Equal(1, message.Offset);
+            Assert.Equal("b", Encoding.UTF8.GetString(message.Payload));
+            Assert.Equal(1, reopened.GetStats("iot.commands").ConsumerOffsets["device-agent"]);
+            Assert.Equal(2, reopened.Publish("iot.commands", "c"u8));
+        }
+
+        using var verified = SonnetMqStore.Open(options);
+        Assert.Equal(["b", "c"], verified.Pull("iot.commands", "device-agent", 10)
+            .Select(message => Encoding.UTF8.GetString(message.Payload)).ToArray());
+        Assert.Equal("created", Encoding.UTF8.GetString(Assert.Single(verified.Pull("iot.audit", 0, 10)).Payload));
+        Assert.Equal("unrelated data", File.ReadAllText(unrelatedFile));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(_root, "documents")));
+    }
+
     [Fact]
     public void Open_WithSingleFileMode_PersistsInOneFile()
     {
