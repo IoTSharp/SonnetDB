@@ -32,7 +32,8 @@ public sealed class TableStorePrimaryKeyUpdateTests : IDisposable
             captured.Set();
             if (!release.Wait(TimeSpan.FromSeconds(20))) throw new TimeoutException("snapshot wait timed out");
         };
-        Task<IReadOnlyList<TableRow>> oldRead = Task.Run(() => store.GetByIndex(schema.Indexes[0], ["a"]));
+        // 普通非唯一索引保留稳定快照同步点；唯一点读的无快照路径由专门测试验证。
+        Task<IReadOnlyList<TableRow>> oldRead = Task.Run(() => store.GetByIndex(schema.Indexes[1], [9L]));
         try
         {
             Assert.True(captured.Wait(TimeSpan.FromSeconds(10)));

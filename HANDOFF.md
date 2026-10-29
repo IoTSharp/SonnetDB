@@ -1472,6 +1472,22 @@ J��T�UUSQL�/�y�fyc���'����d��-��o�8� ������za�z-�yc��NNyd�9��9d"M�d#��]x
 - 提交门禁使用当前最终工作树的 dotnet restore SonnetDB.slnx，以及 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/；只有实际退出 0 才创建提交，日志和收据保存在本机忽略目录 artifacts/m46-roadmap-commit-20261026/，最终提交和远端结果以 Git 与收据为准。
 - 下一实施顺序为 S01/S09 基线与格式合同、S02 Int64、S03 Float64/Boolean、S04 String、S05 Timestamp/范围解码，S06 精度守卫贯穿，然后接 S07/S08；功能、性能、真实服务、固定硬件、恢复及正式包门禁仍分别待验。
 
+## 2026-10-08 木垒积压诊断与 SonnetDB 最小性能修复（现场验收待完成）
+
+- 当前工作目录为 `D:\Uixe\TOLNSD\externals\SonnetDB`，分支 `main`，最新上游基线 `5424b66672e37f49a2a5633fdde0b54a9b1f0290`；此前现场运行基线为 `6a8d82d28561ff9be369603e2405f780cd9b0585` / `mulei-arm64-20261005-desc-ordered`。上游增量未包含本次事务、KV、MQ 或索引瓶颈修复。本次更改仍未提交、未推送；其它会话交接及内容完整保留。
+- 现场只读证据确认 COMMIT 约 11 秒中表锁等待约 10.8 秒；唯一 `GovernanceAudits.IdempotencyKey` 查询返回 0/1 行、物理读为零，仍耗时约 7.6–8.9 秒、分配约 11.7 MB。完整唯一键原路径获取全表 KV 覆盖层快照，缓存失效时复制排序；数据库全局提交锁等待该表锁时扩大阻塞。恢复回执查询曾检查 52,511 个候选、分配约 731 MB、耗时约 24.65 秒，因重试索引不满足 UpdatedAt 排序且残余 OR 未进入惰性有序路径。证据在父仓库 `.runs/lag-rootcause-20261008/db-diagnostics.stdout.log` 和 `db-configuration-ndjson.stdout.log`；不能把低 KV fsync 或零物理读取解释成数据库无阻塞，也未证实 MQ 内部为当前根因。
+- 修复 `TableStore` 完整非空普通唯一索引查询、覆盖查询、IN 批量查询及唯一性校验：用精确 KV 读取替代覆盖层扫描，在同一表锁内读取索引与主行，保持原子可见性。NULL、部分前缀、JSON、非唯一索引、范围及显式读快照保留原合同。`TableSqlExecutor` 为绑定顶层 AND 等值前缀的标量 OR 残余查询选取同分区有序索引，过滤后分页，候选不下推 LIMIT；nullable 无界排序、事务写集、IN、函数/子查询等不支持形状回退。`SqlExplainPlanner` 与实际选择共用路径，CHANGELOG 已记录；未改文件格式。
+- 局部回归实际 PASS：`db-targeted-tests` 58/58（唯一索引、有序 OR 回执及既有有序范围），`db-contract-tests` 72/72（快照、索引、事务、checkpoint/WAL 等相关合同），失败/跳过均 0。前三次单 Fact 尝试在编译阶段失败或中断，没有测试执行，不能计为 PASS。两项独立只读源码复核通过；130 项局部测试不等于全套测试、长期负载或现场验收。最终完整 `dotnet restore SonnetDB.slnx` exit0；原 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exit0，仅有工作区加载警告，日志 `sonnetdb-final-restore` / `sonnetdb-final-format` 在同一父仓库运行目录。
+- 冻结 ARM64 DB 镜像为 `sonnetdb:mulei-arm64-20261008-unique-recovery-r1@sha256:52fccfe10cec979149854150a9a953c648bcb98254e0a7992ba65bc43b098705`，配套现场应用为 `tolnsd:mulei-arm64-20261008-heartbeat-isolation-r1@sha256:7056c31362328cf60fe14cd30ace744597a106cc4873bfb17d22232074b46022`；源码快照标签 `a115987c045e38524c2638d9c80970f968301302ab6b99f1bcd018a25bb6495b`，镜像已完成构建与推送，生产源码冻结。主任务报告固定公网 SSH 超时且代理路径正在排查；本交接写入时尚未取得新镜像切换及现场验收确认，镜像推送不等于已部署或积压已恢复。
+- 下一步由主任务完成固定专线连接、镜像身份核对、切换/回滚及健康检查，复测唯一键耗时、恢复候选/分配、COMMIT 锁等待、心跳积压与设备最后心跳。范围/全表快照仍有覆盖层成本，数据库全局提交串行仍存在；应用心跳隔离与实际设备网络/上传问题需各自验收，不能由本次数据库补丁推断全站离线原因已消除。本次 restore/format 均使用固定 PS7、固定 dotnet 及有界包装器，PID/创建时间/命令/父链和清理收据保留；不清理共享 bin/obj、缓存或其它会话资源。
+
+## 2026-10-08 木垒积压修复第二阶段（主任务继续现场验收）
+
+- 第一轮现场最终19:00:40切换，SonnetDB unique-recovery-r1、应用heartbeat-isolation-r1，三个服务healthy、restart0、无OOM。15台心跳恢复，19:37:05心跳lag归零；实时原图仍12857、历史83652，因此未宣称全队列恢复。不存在唯一键点查0.3704ms/35040B，恢复查询100候选/100扫描/100返回，1.932秒/12829712B。
+- 继续定位到后台反复全扫/大分配：NOT Upload未提取已有布尔索引前缀，视频completed分区巡检约21万行，企业微信空左JOIN仍读取历史流水，最新流水页缺(OCCURTIME,ID)顺序。第二补丁只新增布尔/标量NOT、普通非唯一顶层IS NULL前缀及空JOIN优化；unique NULL明确拒绝，完整WHERE及overlay保持，不扩大零前缀OR规划。
+- 新增SqlMaintenanceAccessPathTests与RelationalEmptyJoinTests共30案例，最终109/109 PASS、0 fail/skip；前两轮新增fixture适配失败原日志保留。完整进程身份/父链及cleanup收据保留，最后root91960退出、观察12后代已回收。应用侧增加录像NULL/空分支TopN合并、空清理300秒退避及纯索引迁移，统一应用回归正在主任务进行。
+- 现场已在线发布IX_T_Weight_Wastes_OCCURTIME_ID，真实EXPLAIN ANALYZE最新流水只扫描1行、分配44168B；录像(Status,StorageId,StartedAt,Id)索引仍在线推进。第二阶段15个生产文件冻结SHA清单及源指纹见父仓库.runs/lag-rootcause-20261008/source-snapshot-r2.json（d35b8cf8d96d4a8212f423ead844935ea4a3f9a7ad11e77f375ec62ba24114ae），此时未完成第二轮镜像切换。最终部署、门禁、提交和验收结果由后续主任务追加，不把本段计划当完成。
+
 ## 2026-10-28 木垒现场故障修复与最新源码发布
 
 - 父项目 `D:\Uixe\TOLNSD` 已获用户明确授权：读取现场、修复业务与数据库、拉取 SonnetDB 最新代码并发布；未执行 Git commit/push。原子模块 `main` 的既有未提交修改保留。
@@ -1487,3 +1503,10 @@ J��T�UUSQL�/�y�fyc���'����d��-��o�8� ������za�z-�yc��NNyd�9��9d"M�d#��]x
 业务 R3 与数据库 R3 已运行并核对镜像摘要和 DLL SHA-256；三个容器 healthy、自动重启 0、无 OOM。15 台相机会话有新心跳，跨午夜新流水继续生成，中心成功回执继续更新。三个主 MQ lag 最终 3/0/0；事务活动 0～4、保留 486～667，清理持续执行且最终样本无 transaction_limit。数据库约 93.28/128 GiB。本次真机拆分子项 ML-SDB-06～09 已在父项目 ROADMAP 登记；父项目 docs/evidence/mulei-incident-20261028.json 绑定最终来源、镜像、样本和未完成项。
 
 R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递的 ACCEPTED 回执已读回，不等于用户阅读确认。历史缺图、media_missing、中心投递积压、扩大业务回归失败和 168 小时长稳均未关闭。保持过期通知不补发和未知提交不重放。现场导出临时文件已清理；原始制品、恢复依据和发布检出保留供审查。没有 Git 提交或推送。
+
+
+## 2026-10-29 木垒旧客户端源码交付
+
+- 用户已授权提交并推送全部现场代码。本检出保留 `5424b666` 客户端基线及其唯一索引、残余查询、布尔/NULL 索引和空 JOIN 补丁，供父项目继续使用；数据库服务使用独立的较新源码基线，不能以此旧客户端重建 R3 数据库。
+- 此次源码归入 `codex/mulei-client-20261029`，父项目以可从 GitHub 获取的子模块提交固定客户端；实际提交和远端位置以 Git 回读及父项目交接记录为准。数据库服务修复另在 `codex/mulei-server-20261029` 保存，避免把两个运行基线混成一个提交。
+- 先执行完整 `dotnet restore SonnetDB.slnx` 成功；`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 首次 180 秒超时并回收进程，随后在独立有界运行中退出 0，仅有工作区加载警告。10 月 8 日的定向测试及 10 月 29 日现场证据边界见原记录和父项目报告，不能将格式门禁扩展为全套测试。

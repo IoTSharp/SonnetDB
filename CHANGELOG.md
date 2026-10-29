@@ -720,6 +720,11 @@ Studio WB-40 已修默认/窄窗 native 工具区隐藏，本机真实窗口 CSS
 - **M47-P02 Web smoke 修复（2026-10-10）**：修复 logout 的 Vite/Node 环境错用和 Studio 夹具身份/生命周期前置；fixture smoke 与独立真实 Server suite 分开收集，Node 合同成为 CI 必经步骤。相同 236 个输入上 Web build、448 条 Node 合同、307 条 fixture 与 12 条 StudioHost 回归通过；默认 25 条宿主专用 skip、30 条独立 real suite 和远端门禁分列。保留两次历史 CI 失败、原执行器越界清理及本地中断记录，产品仍 NOT_READY；见 [P02 报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。
 
 - **M47 WB79 磁盘派生身份兼容（2026-10-09）**：通过真实C# SaveAsync与Node共用夹具验证实际JSON形态，磁盘校验接受完整且一致的已知派生身份对，保留旧双缺省形态、未知字段拒绝和精简投影；不让磁盘身份代替native ack。C#20/20、Node80/80通过，原包装器失败和首次Node中止分别保留，真实Native恢复另验。
+- 木垒后台查询的裸布尔列及 `NOT Boolean` 可提取已验证的索引等值前缀，普通非唯一索引支持顶层 `IS NULL` 复合前缀；含 NULL 的唯一索引候选明确拒绝，完整 WHERE 与事务 overlay 复检保持。空输入 JOIN 跳过不必要的另一侧读取，保留外连接、首行、重复键、NULL 和名称绑定错误语义；新增 30 案例及相关合同最终 109/109 通过。
+
+- 木垒回执恢复的等值分区查询支持 `IS NULL OR <=` 标量残余条件，复用非空时间/数值排序列的有序索引，完整过滤后再分页，避免扫描全部状态记录并阻塞排序；可空排序、无安全前缀、事务写集、IN、函数及子查询保留回退，EXPLAIN 与实际执行路径一致。
+
+- 完整非空普通唯一索引的查询、覆盖查询及批量点读在同一表锁窗口内精确读取索引与主行，避免每次写入后复制和排序整个 KV 覆盖层；唯一性校验改为读取完整索引键，保留重复值、空值、部分前缀、JSON path、事务及恢复语义。该修复针对木垒现场唯一索引点查与事务锁争用；生产性能改善须另行部署验收。
 
 - **M47 WB-59 VS Code SQL耗时字段兼容（2026-10-07）**：唯一parser边界把有效native elapsedMilliseconds或legacy elapsedMs映射为optional规范alias，缺失/非法/冲突省略耗时；保留原metadata，parsed Raw可能增加alias。唯一TS及新5项合成client/Panel/history/Webview测试PASS，仅本地兼容、0actual/新.NETbuild，旧真实FAIL保持；最终九文件完整门禁、本地提交及退出/独立收据分列。
 - **M47 WB-58 公开history/错误通知观察（2026-10-07）**：在现有完整await/串行Store合同上补三phase固定公开通知与history安全快照，20命令总budget及原最终3条断言不放宽；必要synthetic ack拒绝/deferred与保密边界仅本地验证，0actual/新.NETbuild，生产语义/runner保持。完整九文件门禁、本地提交与退出/独立收据另列；纠正WB57阶段55秒与完整outer73.6699466秒措辞，原失败不升级。
