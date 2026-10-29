@@ -1549,6 +1549,26 @@ public static class SqlExplainPlanner
                 orderedPlan);
         }
 
+        if (estimate.IndexPlan is not null
+            && statement is not null
+            && TableSqlExecutor.TryChooseOrderedResidualRangeAccessPlan(
+                store,
+                schema,
+                statement,
+                estimate.IndexPlan,
+                out var residualOrderedPlan,
+                out _))
+        {
+            // 残余过滤可能读完整个等值分区，不能把 LIMIT 误写成候选行数上限。
+            return estimate with
+            {
+                AccessPath = "secondary_index_range",
+                IndexName = residualOrderedPlan.Index.Name,
+                IndexPlan = residualOrderedPlan,
+                CandidatePlans = estimate.CandidatePlans + ";ordered_residual_filter;candidate_limit=none",
+            };
+        }
+
         if (estimate.IndexPlan is not null)
             return estimate;
 

@@ -2646,6 +2646,53 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
+    private byte[]? _expirationMaintenanceCursor;
+
+    /// <summary>后台过期清理每轮只检查一页可见元数据，避免无 TTL 的大对象库长期占用点读写锁。</summary>
+    internal int CleanExpiredMaintenance(DateTimeOffset utcNow, int maximumDeletes, CancellationToken cancellationToken)
+    {
+        if (maximumDeletes <= 0)
+            return 0;
+        ValidateUtc(utcNow, nameof(utcNow));
+        using (EnterAtomicWriteLock(cancellationToken))
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            // 后台维护不等待已有写入背压，下一轮继续；读取仍按原有 TTL 可见性规则执行。
+            if (_options.AutoCheckpointEnabled && IsWriteBudgetExhaustedLocked())
+            {
+                ScheduleAutoCheckpointLocked(force: true);
+                return 0;
+            }
+
+            var keys = new List<byte[]>(Math.Min(maximumDeletes, 1024));
+            byte[]? lastKey = null;
+            int visited = 0;
+            bool exhausted = true;
+            var elapsed = Stopwatch.StartNew();
+            foreach (var pair in EnumerateVisibleEntriesLocked(
+                prefix: [], afterKey: _expirationMaintenanceCursor, readDiskValues: false,
+                cancellationToken: cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                lastKey = pair.Key;
+                visited++;
+                if (pair.Value.IsExpired(utcNow))
+                    keys.Add(pair.Key.ToArray());
+                if (visited >= 4096 || keys.Count >= maximumDeletes || elapsed.Elapsed >= TimeSpan.FromMilliseconds(50))
+                {
+                    exhausted = false;
+                    break;
+                }
+            }
+
+            // 成功提交删除后才推进游标；抵达末尾后回绕，覆盖游标之前新出现的过期项。
+            int removed = DeleteManyExistingLocked(keys);
+            _expirationMaintenanceCursor = exhausted ? null : lastKey?.ToArray();
+            return removed;
+        }
+    }
+
     /// <summary>
     /// 统计当前 keyspace 的过期状态。
     /// </summary>

@@ -14,6 +14,7 @@ public sealed class KvKeyspaceManager : IDisposable
     private readonly KvDiskReadBudget _diskReadBudget;
     private KvKeyspace? _measurementVectorReplacements;
     private bool _disposed;
+    private int _expirationMaintenanceStart;
 
     /// <summary>
     /// 初始化 KV Keyspace 管理器。
@@ -171,6 +172,38 @@ public sealed class KvKeyspaceManager : IDisposable
 
             return removed;
         }
+    }
+
+    /// <summary>后台维护只在管理器锁内取得快照，逐库有界清理并轮换起点，点读其它库无需等待大库扫描。</summary>
+    internal int CleanExpiredOpenedMaintenance(DateTimeOffset utcNow, int limitPerKeyspace, CancellationToken cancellationToken)
+    {
+        KvKeyspace[] opened;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            opened = _opened.Values.ToArray();
+        }
+        if (opened.Length == 0)
+            return 0;
+        int start = (int)((uint)Volatile.Read(ref _expirationMaintenanceStart) % (uint)opened.Length);
+        int removed = 0;
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        for (int index = 0; index < opened.Length && elapsed.Elapsed < TimeSpan.FromSeconds(2); index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var keyspace = opened[(start + index) % opened.Length];
+            try
+            {
+                if (!keyspace.IsDisposed)
+                    removed += keyspace.CleanExpiredMaintenance(utcNow, limitPerKeyspace, cancellationToken);
+            }
+            catch (ObjectDisposedException) when (keyspace.IsDisposed)
+            {
+                // 删除或关闭可在管理器快照之后发生；仅忽略已经确认关闭的实例。
+            }
+            Volatile.Write(ref _expirationMaintenanceStart, (start + index + 1) % opened.Length);
+        }
+        return removed;
     }
 
     /// <summary>按每 keyspace 文件预算执行一轮 generation 旧文件回收。</summary>

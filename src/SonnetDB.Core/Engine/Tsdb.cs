@@ -2256,11 +2256,11 @@ public sealed class Tsdb : IDisposable
         Exception? exception)
         => ReportDiagnostic(operation, severity, message, exception);
 
-    internal int CleanExpiredKeyspacesFromBackground(int limitPerKeyspace)
+    internal int CleanExpiredKeyspacesFromBackground(int limitPerKeyspace, CancellationToken cancellationToken = default)
     {
         // 测试注入点：模拟后台过期清理抛出，验证 KvExpirerWorker 的诊断兜底（C11）。
         _kvExpirerFaultHook?.Invoke();
-        return Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
+        return Keyspaces.CleanExpiredOpenedMaintenance(DateTimeOffset.UtcNow, limitPerKeyspace, cancellationToken);
     }
 
     internal KvCleanupRoundResult CleanupKeyspacesFromBackground(int maxFilesPerKeyspace)

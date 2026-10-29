@@ -121,6 +121,7 @@
 
 ### Fixed
 - 修复 SonnetMQ 目录模式打开时将 `wal/`、`documents/` 等无关子目录强行按 hex 解码而失败的问题：恢复前验证目录编码及 Topic 名称，只跳过非 Topic 目录，保留真实消息段损坏报错与消息、消费进度恢复行为。
+- 木垒现场 SQL 唯一索引点读、布尔/NULL 前缀、残余条件有序查询和空输入 JOIN 保持既有语义并降低恢复查询开销；KV 后台过期清理增加有界分页，远程事务终态按独立预算回收，避免已完成回执耗尽保留容量。SQL/KV/事务定向测试与现场 R3 样本通过；完整长期和跨平台验收另列。
 - 修复 Parity crash reliability 回归：keyless DML 断言当前 v16 目录下限，并将 DDL journal prepared/committed 与 recovery 子进程场景接入 CrashTests Child 分发；完整 CrashTests 82/82 通过。
 
 - 修复旧 `DATETIME` 写入 `DateTimeOffset` 的参数类型边界：未声明参数在亚毫秒值下 fail-closed，EF/Identity 显式 `DbType.DateTimeOffset` 兼容路径保留；修复 Reader 关闭异常测试的重复注入异常。Core 7890/7890、EF Core 295/295 及 Identity 定向回归通过。
