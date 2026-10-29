@@ -4384,6 +4384,23 @@ internal static partial class TableSqlExecutor
             out plan,
             out descending);
 
+    /// <summary>复用实际执行的成本计划选择有序残余路径，避免 EXPLAIN 与运行时索引不一致。</summary>
+    internal static bool TryChooseOrderedResidualRangeAccessPlan(
+        TableStore store,
+        TableSchema schema,
+        SelectStatement statement,
+        TableIndexAccessPlan? existingPlan,
+        out TableIndexAccessPlan plan,
+        out bool descending)
+        => TryChooseOrderedResidualRangeAccessPlan(
+            store,
+            schema,
+            statement,
+            BuildProjections(statement.Projections, schema),
+            existingPlan,
+            out plan,
+            out descending);
+
     /// <summary>
     /// 选择只省略阻塞排序、不提前截断候选的有序残余范围计划。
     /// </summary>
@@ -4402,12 +4419,16 @@ internal static partial class TableSqlExecutor
             || statement.Where is not BinaryExpression { Operator: SqlBinaryOperator.And } where
             || statement.OrderByList.Count == 0
             || !TryGetPaginationCandidateLimit(statement.Pagination, out _)
-            || ContainsDisjunctionOrIn(where)
             || (SqlTransactionContext.Current is { } transaction
                 && transaction.TryGetBufferedMutations(schema, out _)))
         {
             return false;
         }
+
+        // OR 仅作为已绑定等值分区内的标量残余复检；IN、函数及子查询不扩大到新路径。
+        bool hasDisjunction = ContainsDisjunctionOrIn(where);
+        if (hasDisjunction && !IsScalarOrderedResidualPredicate(where))
+            return false;
 
         foreach (TableIndexAccessPlan candidate in EnumerateOrderAwareIndexPlans(
             store,
@@ -4415,19 +4436,27 @@ internal static partial class TableSqlExecutor
             where,
             existingPlan))
         {
+            if (hasDisjunction && candidate.EqualityPrefixValues.Count == 0)
+                continue;
+
+            var orderedCandidate = candidate;
+            // 只有非空数值/时间排序列可以合成全范围，避免遗漏 NULL；候选仍不下推 LIMIT。
             if (candidate.Range is null
-                || IsWhereFullyCoveredByRangePlan(where, schema, candidate)
+                && (!hasDisjunction || !TryCreateUnboundedOrderRange(schema, candidate, out orderedCandidate)))
+                continue;
+
+            if (IsWhereFullyCoveredByRangePlan(where, schema, orderedCandidate)
                 || !OrderByMatchesRangeIndexSequence(
                     statement.OrderByList,
                     schema,
                     projections,
-                    candidate,
+                    orderedCandidate,
                     out descending))
             {
                 continue;
             }
 
-            plan = candidate;
+            plan = orderedCandidate;
             return true;
         }
 
@@ -4435,6 +4464,27 @@ internal static partial class TableSqlExecutor
         descending = false;
         return false;
     }
+
+    /// <summary>仅接受逐行比较、空值判断及 AND/OR/NOT，保留 IN、函数和子查询的既有回退。</summary>
+    private static bool IsScalarOrderedResidualPredicate(SqlExpression expression)
+        => expression switch
+        {
+            IdentifierExpression or LiteralExpression => true,
+            UnaryExpression { Operator: SqlUnaryOperator.Not } unary
+                => IsScalarOrderedResidualPredicate(unary.Operand),
+            IsNullExpression isNull => IsScalarOrderedResidualPredicate(isNull.Operand),
+            BinaryExpression binary when binary.Operator is SqlBinaryOperator.And
+                or SqlBinaryOperator.Or
+                or SqlBinaryOperator.Equal
+                or SqlBinaryOperator.NotEqual
+                or SqlBinaryOperator.LessThan
+                or SqlBinaryOperator.LessThanOrEqual
+                or SqlBinaryOperator.GreaterThan
+                or SqlBinaryOperator.GreaterThanOrEqual
+                => IsScalarOrderedResidualPredicate(binary.Left)
+                    && IsScalarOrderedResidualPredicate(binary.Right),
+            _ => false,
+        };
 
     /// <summary>
     /// 保持范围列的流式顺序，并在查询预算内外排单个并列组，以 SQL 比较语义校正复合索引后缀顺序。
@@ -5054,10 +5104,7 @@ internal static partial class TableSqlExecutor
             return Array.Empty<TableIndexAccessPlan>();
         }
 
-        bool hasColumnEqualities = TryCollectEqualityExpressions(
-            where,
-            allowNonEquality: true,
-            out var equalityByColumn);
+        bool hasColumnEqualities = TryCollectIndexEqualityExpressions(schema, where, out var equalityByColumn);
         var plans = new List<TableIndexAccessPlan>(schema.Indexes.Count);
         foreach (TableIndex candidate in schema.Indexes.OrderByDescending(static index => index.Columns.Count))
         {
@@ -5097,6 +5144,10 @@ internal static partial class TableSqlExecutor
                         }
                     }
                 }
+
+                // 唯一索引不保存任何含 NULL 的键，不能用其裁剪 IS NULL 的真实匹配行。
+                if (candidate.IsUnique && values.Contains(null))
+                    continue;
 
                 if (values.Count < candidate.Columns.Count)
                 {
@@ -5508,6 +5559,49 @@ internal static partial class TableSqlExecutor
                 return false;
         }
 
+        return equalityByColumn.Count > 0;
+    }
+
+    /// <summary>把顶层 AND 中经过 schema 验证的布尔列和 IS NULL 补作等值索引候选，保留最终三值谓词复检。</summary>
+    private static bool TryCollectIndexEqualityExpressions(
+        TableSchema schema,
+        SqlExpression where,
+        out Dictionary<string, SqlExpression> equalityByColumn)
+    {
+        if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out equalityByColumn))
+            equalityByColumn.Clear();
+
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        int visited = 0;
+        foreach (SqlExpression leaf in FlattenAnd(where))
+        {
+            // 超出分析预算时回退原扫描，不用未完成的前缀裁剪候选。
+            if (++visited > 65_536 || System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromSeconds(5))
+            {
+                equalityByColumn.Clear();
+                return false;
+            }
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (leaf is IsNullExpression { Negated: false, Operand: IdentifierExpression nullColumn }
+                && schema.TryGetColumn(nullColumn.Name) is not null)
+            {
+                // 普通非唯一索引保存 NULL 分区；候选收集阶段再明确排除不保存 NULL 的唯一索引。
+                equalityByColumn.TryAdd(nullColumn.Name, LiteralExpression.Null());
+                continue;
+            }
+
+            IdentifierExpression? identifier = leaf switch
+            {
+                IdentifierExpression direct => direct,
+                UnaryExpression { Operator: SqlUnaryOperator.Not, Operand: IdentifierExpression negated } => negated,
+                _ => null,
+            };
+            if (identifier is null || schema.TryGetColumn(identifier.Name)?.DataType != TableColumnType.Boolean)
+                continue;
+
+            // NULL 不满足裸布尔列或 NOT 布尔列；等值 TRUE/FALSE 的候选与该三值语义一致。
+            equalityByColumn.TryAdd(identifier.Name, LiteralExpression.Bool(leaf is IdentifierExpression));
+        }
         return equalityByColumn.Count > 0;
     }
 

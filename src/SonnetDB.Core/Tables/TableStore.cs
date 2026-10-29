@@ -24,7 +24,6 @@ public sealed partial class TableStore : IDisposable
     private long _fullScanCount;
     private long _primaryKeyLookupCount;
     private long _multiGetCount;
-    private long _uniqueIndexValidationScanCount;
     private TableStatistics? _statistics;
     private string? _statisticsLoadFailureReason;
     private AutomaticStatisticsRefreshWork? _automaticStatisticsRefresh;
@@ -176,8 +175,8 @@ public sealed partial class TableStore : IDisposable
     /// <summary>公开单快照批量点读累计次数，供 IN/MultiGet 回归测试观测。</summary>
     internal long MultiGetCount => Interlocked.Read(ref _multiGetCount);
 
-    /// <summary>公开唯一索引持久扫描累计次数，供未变化索引回归测试观测。</summary>
-    internal long UniqueIndexValidationScanCount => Interlocked.Read(ref _uniqueIndexValidationScanCount);
+    /// <summary>唯一性校验已改用精确点读，不再范围扫描；保留既有回归观测接口。</summary>
+    internal long UniqueIndexValidationScanCount => 0;
 
     /// <summary>测试范围查询时记录实际下推到索引扫描的候选上限。</summary>
     internal Action<int>? RangeScanLimitTestHook { get; set; }
@@ -630,12 +629,9 @@ public sealed partial class TableStore : IDisposable
                         string uniqueKey = index.Name + ":" + Convert.ToHexString(indexKey);
                         if (!pendingUniqueKeys.Add(uniqueKey))
                             throw UniqueViolation(schema, index);
-                        byte[] prefix = TableIndexCodec.TryEncodeIndexPrefix(index, row.Values, schema)!;
-                        foreach (var entry in _keyspace.ScanPrefix(prefix))
-                        {
-                            if (entry.Key.Span.SequenceEqual(indexKey))
-                                throw UniqueViolation(schema, index);
-                        }
+                        // 保留新版行锁与数值规范化，唯一性校验只读取完整索引键。
+                        if (_keyspace.Get(indexKey) is not null)
+                            throw UniqueViolation(schema, index);
                     }
 
                     operations.Add(TableMutationOperation.Insert(rowKey, row));
@@ -998,6 +994,9 @@ public sealed partial class TableStore : IDisposable
         if (indexColumnValues.Count != index.Columns.Count)
             throw new ArgumentException("索引值数量与索引列数量不一致。", nameof(indexColumnValues));
 
+        if (limit is not <= 0 && TryReadUniqueIndexPoint(index, indexColumnValues, covered: false, out var pointRow))
+            return pointRow is null ? [] : [pointRow];
+
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         return EnumerateByIndexPrefix(
             tableSnapshot.Snapshot,
@@ -1008,7 +1007,7 @@ public sealed partial class TableStore : IDisposable
     }
 
     /// <summary>
-    /// 在同一个稳定读快照内批量探测已编码的二级索引前缀，保持输入键及索引项顺序。
+    /// 在同一个一致读取窗口内批量探测已编码的二级索引前缀，保持输入键及索引项顺序。
     /// </summary>
     /// <param name="index">普通二级索引。</param>
     /// <param name="lookupPrefixes">已完成类型转换、物理编码和去重的索引查找前缀。</param>
@@ -1024,6 +1023,9 @@ public sealed partial class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(lookupPrefixes);
         Interlocked.Increment(ref _multiGetCount);
+
+        if (uniquePointLookup && index.IsUnique && string.IsNullOrWhiteSpace(index.JsonPath))
+            return ReadUniqueIndexPoints(index, lookupPrefixes, limit);
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         TableSchema schema = tableSnapshot.Schema;
@@ -1079,6 +1081,9 @@ public sealed partial class TableStore : IDisposable
                 nameof(indexColumnValues));
         }
 
+        if (limit is not <= 0 && TryReadUniqueIndexPoint(index, indexColumnValues, covered: false, out var pointRow))
+            return pointRow is null ? [] : [pointRow];
+
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         return EnumerateByIndexPrefix(
             tableSnapshot.Snapshot,
@@ -1102,6 +1107,13 @@ public sealed partial class TableStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(indexColumnValues);
+
+        if (limit is not <= 0 && TryReadUniqueIndexPoint(index, indexColumnValues, covered: false, out var pointRow))
+        {
+            if (pointRow is not null)
+                yield return pointRow;
+            yield break;
+        }
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         foreach (var row in EnumerateByIndexPrefix(
@@ -1134,6 +1146,14 @@ public sealed partial class TableStore : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (limit is <= 0)
             yield break;
+
+        if (range is null && TryReadUniqueIndexPoint(index, indexColumnValues, covered: true, out var pointRow))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (pointRow is not null)
+                yield return pointRow;
+            yield break;
+        }
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
         if (range is not null
@@ -2050,21 +2070,83 @@ public sealed partial class TableStore : IDisposable
                 }
             }
 
-            byte[]? prefix = TableIndexCodec.TryEncodeIndexPrefix(index, operation.NewRow.Values, schema);
-            if (prefix is null)
-                continue;
-            Interlocked.Increment(ref _uniqueIndexValidationScanCount);
-            foreach (var entry in _keyspace.ScanPrefix(prefix))
-            {
-                if (!entry.Key.Span.SequenceEqual(indexKey))
-                    continue;
-
-                if (operation.OldRow is not null && TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).SequenceEqual(operation.OldRow.PrimaryKey.Span))
-                    continue;
-
+            // 完整唯一索引键没有主键后缀；精确读取即可校验冲突，无须扫描整个覆盖层。
+            byte[]? existingPrimaryKey = _keyspace.Get(indexKey);
+            if (existingPrimaryKey is not null
+                && (operation.OldRow is null || !TableIndexCodec.DecodeIndexPrimaryKey(index, existingPrimaryKey).SequenceEqual(operation.OldRow.PrimaryKey.Span)))
                 throw UniqueViolation(schema, index);
+        }
+    }
+
+    /// <summary>完整非空普通唯一索引在同一表锁内点读索引和主行，避免复制、排序全表覆盖层。</summary>
+    private bool TryReadUniqueIndexPoint(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        bool covered,
+        out TableRow? row)
+    {
+        row = null;
+        if (!index.IsUnique || !string.IsNullOrWhiteSpace(index.JsonPath)
+            || indexColumnValues.Count != index.Columns.Count || indexColumnValues.Any(static value => value is null))
+            return false;
+
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordTableStoreLockWait(lockWait);
+            ThrowIfDisposedLocked();
+            byte[] key = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, _schema)!;
+            row = ReadUniqueIndexPointLocked(index, key, covered);
+        }
+        if (row is not null && !covered)
+            RowDecodedTestHook?.Invoke(1);
+        return true;
+    }
+
+    /// <summary>在一个表锁窗口内批量点读已编码的完整唯一索引键，保持输入键顺序和行数上限。</summary>
+    private IReadOnlyList<TableRow> ReadUniqueIndexPoints(
+        TableIndex index,
+        IReadOnlyList<byte[]> lookupPrefixes,
+        int? limit)
+    {
+        int take = limit ?? int.MaxValue;
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        List<TableRow> rows;
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordTableStoreLockWait(lockWait);
+            ThrowIfDisposedLocked();
+            rows = new List<TableRow>(Math.Max(0, Math.Min(lookupPrefixes.Count, take)));
+            for (int position = 0; position < lookupPrefixes.Count && rows.Count < take; position++)
+            {
+                // 同表写入也持有此锁，索引与主行不会跨越一次提交读取。
+                if (ReadUniqueIndexPointLocked(index, lookupPrefixes[position], covered: false) is { } row)
+                    rows.Add(row);
             }
         }
+        for (int position = 0; position < rows.Count; position++)
+            RowDecodedTestHook?.Invoke(1);
+        return rows;
+    }
+
+    /// <summary>调用方持有表锁时精确读取唯一索引；覆盖查询只解码索引，普通查询核对主行。</summary>
+    private TableRow? ReadUniqueIndexPointLocked(TableIndex index, byte[] key, bool covered)
+    {
+        KvEntry? entry = _keyspace.GetEntry(key);
+        if (entry is null)
+            return null;
+        // INCLUDE 索引值包含覆盖列，必须沿新版编码合同取主键，不能把整个索引值作为主键。
+        byte[] primaryKey = TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray();
+        if (covered)
+        {
+            byte[] indexNamePrefix = TableIndexCodec.EncodeLookupPrefix(index, [], _schema)!;
+            return new TableRow(
+                TableIndexCodec.DecodeCoveredValues(index, _schema, entry.Key.Span, entry.Value.Span, indexNamePrefix),
+                primaryKey);
+        }
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+        KvEntry? payload = _keyspace.GetEntry(rowKey);
+        return payload is null ? null : new TableRow(TableRowCodec.Decode(_schema, payload.Value.Span), primaryKey);
     }
 
     private static void ValidatePendingUniqueIndexes(

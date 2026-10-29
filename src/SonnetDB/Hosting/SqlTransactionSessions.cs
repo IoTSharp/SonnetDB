@@ -13,7 +13,7 @@ internal sealed class SqlTransactionSessions : IDisposable
 {
     private const int MaxSessions = 128;
     private const int MaxRetainedSessions = 8192;
-    private const int MaxSweepEntries = 8;
+    private const int MaxSweepRollbacks = 8;
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan TerminalRetention = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan AcquireWait = TimeSpan.FromSeconds(30);
@@ -25,6 +25,13 @@ internal sealed class SqlTransactionSessions : IDisposable
     private int _activeCount;
     private int _retainedCount;
     private int _sweepRunning;
+    private long _lastLimitDiagnostic;
+
+    /// <summary>当前活动事务数，终态回执不占用该配额。</summary>
+    internal int ActiveCount => Volatile.Read(ref _activeCount);
+
+    /// <summary>当前保留的活动及终态会话总数。</summary>
+    internal int RetainedCount => Volatile.Read(ref _retainedCount);
 
     public SqlTransactionSessions(ILogger<SqlTransactionSessions> logger)
     {
@@ -40,12 +47,14 @@ internal sealed class SqlTransactionSessions : IDisposable
         if (Interlocked.Increment(ref _activeCount) > MaxSessions)
         {
             Interlocked.Decrement(ref _activeCount);
+            ReportLimit("active");
             return false;
         }
         if (Interlocked.Increment(ref _retainedCount) > MaxRetainedSessions)
         {
             Interlocked.Decrement(ref _activeCount);
             Interlocked.Decrement(ref _retainedCount);
+            ReportLimit("retained");
             return false;
         }
 
@@ -106,37 +115,62 @@ internal sealed class SqlTransactionSessions : IDisposable
         session.ExpiresAt = DateTimeOffset.UtcNow + TerminalRetention;
     }
 
-    private void Sweep()
+    /// <summary>有界扫描全部保留槽位；仅对需要回滚的活动事务限流，已完成终态不能积压到容量耗尽。</summary>
+    internal void Sweep()
     {
         if (Interlocked.Exchange(ref _sweepRunning, 1) != 0)
             return;
         try
         {
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
-            int visited = 0;
+            int inspected = 0;
+            int rollbacks = 0;
+            int expired = 0;
             foreach (var session in _sessions.Values)
             {
-                if (visited >= MaxSweepEntries
+                if (inspected++ >= MaxRetainedSessions
                     || System.Diagnostics.Stopwatch.GetElapsedTime(started) >= SweepBudget)
                     break;
                 if (session.ExpiresAt > DateTimeOffset.UtcNow || !session.Gate.Wait(0))
                     continue;
-                visited++;
                 try
                 {
-                    if (session.ExpiresAt <= DateTimeOffset.UtcNow)
-                        TryExpire(session);
+                    if (session.ExpiresAt > DateTimeOffset.UtcNow)
+                        continue;
+                    // 完成事务的回执移除无需存储 I/O；昂贵的回滚仍保持原八项及两秒预算。
+                    if (!session.Transaction.IsCompleted)
+                    {
+                        if (rollbacks >= MaxSweepRollbacks)
+                            continue;
+                        rollbacks++;
+                    }
+                    TryExpire(session);
+                    expired++;
                 }
                 finally
                 {
                     session.Gate.Release();
                 }
             }
+            if (expired > 0)
+                _logger.LogInformation("远程事务到期清理：检查 {Inspected}，处理 {Expired}，回滚候选 {Rollbacks}，当前活动 {Active}，当前保留 {Retained}。",
+                    inspected, expired, rollbacks, ActiveCount, RetainedCount);
         }
         finally
         {
             Volatile.Write(ref _sweepRunning, 0);
         }
+    }
+
+    /// <summary>达到配额时每十五秒最多记录一次明确原因，避免把终态回执积压误诊为活动事务泄漏。</summary>
+    private void ReportLimit(string kind)
+    {
+        long now = Environment.TickCount64;
+        long previous = Volatile.Read(ref _lastLimitDiagnostic);
+        if (now - previous < 15_000 || Interlocked.CompareExchange(ref _lastLimitDiagnostic, now, previous) != previous)
+            return;
+        _logger.LogWarning("远程事务准入拒绝：配额 {Kind}，当前活动 {Active}/{ActiveLimit}，当前保留 {Retained}/{RetainedLimit}。",
+            kind, ActiveCount, MaxSessions, RetainedCount, MaxRetainedSessions);
     }
 
     private void Expire(Session session)

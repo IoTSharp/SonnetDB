@@ -147,9 +147,14 @@ internal sealed class KvExpirerWorker : IDisposable
                     try
                     {
                         int limit = _options.ExpirerBatchSize <= 0 ? int.MaxValue : _options.ExpirerBatchSize;
-                        int removed = _owner.CleanExpiredKeyspacesFromBackground(limit);
+                        int removed = _owner.CleanExpiredKeyspacesFromBackground(limit, _cts.Token);
                         Interlocked.Add(ref _removedKeys, removed);
                         Interlocked.Increment(ref _executedRounds);
+                    }
+                    catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                    {
+                        // 正常关闭中断有界清理，不把宿主取消记录为维护故障。
+                        break;
                     }
                     catch (Exception ex)
                     {
