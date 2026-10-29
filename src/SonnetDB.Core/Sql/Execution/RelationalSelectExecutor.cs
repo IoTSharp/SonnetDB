@@ -2134,6 +2134,7 @@ internal static partial class RelationalSelectExecutor
         return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
     }
 
+    /// <summary>保持声明连接顺序；空左输入的 INNER/LEFT/CROSS 不读取右输入，RIGHT/FULL 继续保留右行。</summary>
     private static Relation NestedLoopJoin(
         Tsdb tsdb,
         Relation left,
@@ -2151,6 +2152,13 @@ internal static partial class RelationalSelectExecutor
 
         IEnumerable<object?[]> JoinRows()
         {
+            SqlExecutor.ThrowIfCancellationRequested();
+            using IEnumerator<object?[]> leftEnumerator = left.Rows.GetEnumerator();
+            bool hasLeft = leftEnumerator.MoveNext();
+            bool preserveRight = kind is JoinKind.Right or JoinKind.Full;
+            if (!hasLeft && !preserveRight)
+                yield break;
+
             IReadOnlyList<object?[]> rightRows;
             if (SqlRowRetentionBudget.Current is { } budget)
             {
@@ -2166,10 +2174,9 @@ internal static partial class RelationalSelectExecutor
             {
                 rightRows = right.Rows.ToArray();
             }
-            bool preserveRight = kind is JoinKind.Right or JoinKind.Full;
             bool preserveLeft = kind is JoinKind.Left or JoinKind.Full;
             bool[] rightMatched = preserveRight ? new bool[rightRows.Count] : Array.Empty<bool>();
-            foreach (object?[] leftRow in left.Rows)
+            foreach (object?[] leftRow in hasLeft ? EnumerateCurrentRows(leftEnumerator) : [])
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 var matched = false;
@@ -2211,6 +2218,17 @@ internal static partial class RelationalSelectExecutor
                 }
             }
         }
+    }
+
+    /// <summary>重放已经读取的首行并沿同一枚举器继续，避免连接探测重复获取快照或漏掉第一行。</summary>
+    private static IEnumerable<object?[]> EnumerateCurrentRows(IEnumerator<object?[]> rows)
+    {
+        do
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            yield return rows.Current;
+        }
+        while (rows.MoveNext());
     }
 
     /// <summary>一组等值连接键：左关系列下标 = 右关系列下标。</summary>
@@ -3042,6 +3060,7 @@ internal static partial class RelationalSelectExecutor
             _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
         };
 
+    /// <summary>按选定侧构建哈希；先探测输入是否为空，保持同一枚举器与外连接的未匹配行语义。</summary>
     private static Relation HashJoin(
         Tsdb tsdb,
         Relation left,
@@ -3067,6 +3086,29 @@ internal static partial class RelationalSelectExecutor
                 bool buildRight = buildSide == RelationalHashBuildSide.Right;
                 IEnumerable<object?[]> buildRows = buildRight ? right.Rows : left.Rows;
                 IEnumerable<object?[]> probeRows = buildRight ? left.Rows : right.Rows;
+                SqlExecutor.ThrowIfCancellationRequested();
+                using IEnumerator<object?[]>? buildEnumerator = buildRight ? null : buildRows.GetEnumerator();
+                // 左侧被选作 build 时也先确认其存在，空左输入不能先为右侧取得扫描快照。
+                if (buildEnumerator is not null)
+                {
+                    if (!buildEnumerator.MoveNext())
+                        yield break;
+                    buildRows = EnumerateCurrentRows(buildEnumerator);
+                }
+                using IEnumerator<object?[]>? probeEnumerator = probeRows is IReadOnlyList<object?[]>
+                    ? null
+                    : probeRows.GetEnumerator();
+                // LEFT 规划必须 build 右侧；仅当 probe 为保留侧或 INNER 时才允许空输入短路。
+                bool hasProbe = probeRows is IReadOnlyList<object?[]> probeListBeforeBuild
+                    ? probeListBeforeBuild.Count > 0
+                    : probeEnumerator!.MoveNext();
+                if (!hasProbe && (kind == JoinKind.Inner || buildRight))
+                {
+                    yield break;
+                }
+                if (probeEnumerator is not null)
+                    probeRows = hasProbe ? EnumerateCurrentRows(probeEnumerator) : [];
+
                 SqlQueryResources? resources = SqlQueryResources.Current;
                 using var reservation = resources?.CreateReservation();
                 var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
@@ -3111,6 +3153,10 @@ internal static partial class RelationalSelectExecutor
                         bucket.Add(buildRow);
                     }
                 }
+
+                // INNER 的空 build（包括只有 NULL 连接键）没有匹配，避免再枚举剩余 probe。
+                if (kind == JoinKind.Inner && spillTable is null && buildTable.Count == 0)
+                    yield break;
 
                 bool hasResidual = residual.Count > 0;
 
