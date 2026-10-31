@@ -60,6 +60,24 @@ foreach ($shard in @('core', 'rest')) {
     if ((Test-ReleaseWorkflowEvidence $ciPolicy $missingSelection $sha $repository).ready) { throw "Missing Windows $shard selection step must block release." }
 }
 
+# The default BrowserDirect suite intentionally skips native-only tests. Their
+# dedicated StudioNative step must execute as part of the same successful job.
+$managementPolicy = @(Get-ReleaseWorkflowPolicy -Version $version | Where-Object File -EQ 'management-workbench-smoke.yml')[0]
+$management = Copy-Evidence
+$management.run.path = '.github/workflows/management-workbench-smoke.yml'
+$management.jobs = @($managementPolicy.Jobs | ForEach-Object {
+    @{ name = $_; status = 'completed'; conclusion = 'success'; steps = @(Get-RequiredReleaseSteps $_ | ForEach-Object { @{ name = $_; conclusion = 'success' } }) }
+})
+$management.artifacts = @($managementPolicy.Artifacts | ForEach-Object { @{ name = $_; expired = $false; size_in_bytes = 42; created_at = '2026-09-01T00:10:00Z' } })
+if (!(Test-ReleaseWorkflowEvidence $managementPolicy $management $sha $repository).ready) { throw 'Complete browser runtime profiles must satisfy readiness.' }
+foreach ($state in @('missing', 'skipped', 'failure')) {
+    $incomplete = $management | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+    $webJob = @($incomplete.jobs | Where-Object name -CEQ 'Web Admin and Studio bridge')[0]
+    if ($state -eq 'missing') { $webJob.steps = @($webJob.steps | Where-Object name -CNE 'Run Studio native browser contracts') }
+    else { @($webJob.steps | Where-Object name -CEQ 'Run Studio native browser contracts')[0].conclusion = $state }
+    if ((Test-ReleaseWorkflowEvidence $managementPolicy $incomplete $sha $repository).ready) { throw "A $state StudioNative step must block release." }
+}
+
 # Exercise actual artifact identities from both publishing workflows. A successful
 # dispatch of another package version at the same SHA must never validate this release.
 foreach ($workflow in @('publish.yml', 'connectors-release.yml')) {

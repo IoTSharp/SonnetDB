@@ -50,7 +50,7 @@ function Get-RequiredReleaseSteps {
         'Analyze (csharp)' { @('Build', 'Analyze code and upload results') }
         'Build Docs' { 'Build static site' }
         'Server management contracts' { 'Test multi-model management contracts' }
-        'Web Admin and Studio bridge' { @('Build Web Admin', 'Run management workbench smoke') }
+        'Web Admin and Studio bridge' { @('Build Web Admin', 'Run management workbench smoke', 'Run Studio native browser contracts') }
         'Studio desktop host' { 'Test Studio host contracts' }
         'VS Code HTTP consumer' { @('Test SQL language server', 'Run extension consumer smoke', 'Package VS Code extension') }
         'VS Code Extension Host' { 'Run Extension Host smoke' }

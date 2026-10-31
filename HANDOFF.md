@@ -6,19 +6,20 @@
 - 公开 4.0 包创建关系业务夹具，候选读取/事务 DDL/两表更新/两次重开通过；4.0 拒绝 v19 目录。关闭目录备份恢复后 4.0 两次重开通过，备份 SHA256 不变。不涵盖在线 Backup API、全部模型、实例 MQ、客户生产库或物理掉电；升级后新写入另需回补。
 - 完整 restore、Release solution /warnaserror 构建（0 警告/错误）和 CI 同等 Format 已通过；每次提交仍必须在最终树重新 restore + Format。验证回执及日志保留在 artifacts/release-fix-20261031/，原失败在 artifacts/release-review-20261031/。
 - 1fd0d277 的 11 类工作流成功，Management 失败。已修 OAuth 夹具错误 SSE Content-Type；Measurement 401 清空会话后禁止自动无凭证重读，并保留组件锁定和新建路由层 401/403 清载荷断言。Web build、472/472 合同、三个完整浏览器测试文件 37/37 通过（本机 Edge/受控 API，不能冒称真实 Server 授权）。
-- 当前远程证据冻结提交：1fd0d277bb8a55a801a5c6b9806bc71101eea9a0；版本 5.0.0-preview.readiness.20261031；快照 2026-10-31T17:00:58.577Z。
-  - Docker Publish: 41220450015 completed/success
-  - Connectors Release: 41220446609 completed/success
-  - M39 SQL Trigger Evidence: 41220443423 completed/success
-  - M19 Capacity Evidence: 41220439791 completed/success
-  - Ecosystem Soak: 41220436440 completed/success
-  - Document Store Soak: 41220433356 completed/success
-  - Parity: 41220430169 completed/success
-  - Management workbench smoke: 41220426069 completed/failure
-  - Docs Pages: 41220422981 completed/success
-  - CodeQL: 41220419714 completed/success
-  - Publish: 41220416355 completed/success
-  - CI: 41220409541 completed/success
+- 692c6433 的管理 smoke 为 313 PASS / 25 SKIP；单独补跑 StudioNative 暴露两个夹具的相同 SSE 错误，修复后 25/25 通过。已给 Management CI 与 readiness 加入必跑原生浏览器合同步骤，缺失/跳过/失败都阻断；旧提交的绿灯不能替代新步骤证据。原失败/超时日志保留，真实 WebView2/凭据库不由此推断。
+- 当前远程证据冻结提交：692c6433d78b28cac5a9d732465a482eac96c91e；版本 5.0.0-preview.readiness.20261031；快照 2026-10-31T17:31:21.603Z。
+  - Docker Publish: 41223446526 completed/success
+  - Connectors Release: 41223441947 completed/success
+  - M39 SQL Trigger Evidence: 41223439086 completed/success
+  - M19 Capacity Evidence: 41223435966 completed/success
+  - Ecosystem Soak: 41223432568 completed/success
+  - Document Store Soak: 41223429468 completed/success
+  - Parity: 41223426443 completed/success
+  - Management workbench smoke: 41223423315 completed/success
+  - Docs Pages: 41223420424 completed/success
+  - CodeQL: 41223416678 completed/success
+  - Publish: 41223412760 in_progress/
+  - CI: 41223370662 in_progress/
 - 机器放行报告：尚未取得最终修复提交的 READY；当前工作树的新增修复不得使用上一提交证据冒充放行。
 - 边界：七天 Parity 是非阻断观察；quick/ci/hosted 不等于固定硬件规模或长稳生产证据。MSI/Studio 构建不等于干净机器安装；VS Code 开发打包链 Dependabot #78 的 msal-node 告警尚未修复，不能据此直接推断 Server 运行时漏洞。不得把整个 4.5 路线图或 M49 宣称完成。
 - 下一顺序：提交新增管理修复前完成最终 Format；推送后在新 SHA 重新取得全部门禁，检查 raw Parity，更新本交接及审计。 实机安装和固定硬件/长期声明按实际渠道另验。迁移合同 docs/releases/5.0-migration.md，审计 docs/audits/release-repair-20261101.md。

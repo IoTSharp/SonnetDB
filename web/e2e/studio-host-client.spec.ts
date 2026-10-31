@@ -89,6 +89,7 @@ const test = base.extend<{ host: HostFixture }>({
         needsSetup: false, suggestedServerId: 'studio-e2e', serverId: 'studio-e2e', userCount: 1, databaseCount: 1,
       });
       if (path === '/v1/db') return json(route, { databases: [Database, 'RemoteDB', 'NewDB'] });
+      if (path === '/v1/events') return route.fulfill({ contentType: 'text/event-stream', body: 'event: hello\ndata: {}\n\n' });
       if (path.startsWith('/v1/') && path.endsWith('/schema')) return json(route, {
         measurements: [],
         tables: [{

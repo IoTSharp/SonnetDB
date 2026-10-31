@@ -68,3 +68,13 @@ Management run `41220426069` 的原始日志、截图和 trace 保留在本机 `
 保留组件 401/403 锁定、Schema/Auth 刷新后不得自行解锁和载荷清除断言，新增两个实际 Vue 路由的 401/403 浏览器夹具旅程：401 清空会话并保留原资源登录返回地址；403 保留会话并锁定，均不泄露旧点值、编辑或导入内容。它们使用受控 API，不冒称真实 Server 授权证据。
 
 本机 Web 构建通过，合同测试 472/472、OAuth/Measurement/会话过期三个完整测试文件 37/37 通过，0 失败、0 跳过。本机采用已安装 Edge（Chromium）及仓库自带 runner 的临时副本，仅在被忽略的副本中修正本机 PowerShell 路径；远程仍使用原 runner 与 Chromium。最终代码提交必须重新取得同 SHA 的十二类门禁与 raw Parity evidence，旧提交结果不移用。
+
+## StudioNative 配置补验与 CI 必跑步骤
+
+`692c6433` 的 Management run `41223423315` 成功，Web smoke 实际为 313 PASS / 25 SKIP；25 项分别属于 `copilot-studio-native.spec.ts`（13）及 `studio-host-client.spec.ts`（12），原先按默认 BrowserDirect 配置跳过。该提交的候选 raw Parity 两个 profile 各 51 场景通过，不能由这些结果推断 StudioNative 已验。
+
+单独启动 StudioNative 后，首次运行出现 4 个 45 秒超时，并在外部 240 秒边界结束；`web-studio-native.log` 保留此失败记录。两个夹具也把 `/v1/events` 返回为 JSON，导致会话过期，已修正为有效 SSE。两个首场景恢复后，两个完整文件 25/25 通过，0 失败、0 跳过；日志为 `web-studio-native-final.log`。这些依然是浏览器内受控桥接/API，不能冒称实际 WebView2 或原生凭据库验收。
+
+Management CI 新增明确的 `Run Studio native browser contracts` 步骤，在 StudioNative 配置下单独运行上述两个文件；readiness 同时要求默认 smoke 和此步骤实际成功。新增合同验证缺失、跳过或失败均拒绝放行。因此最终候选必须以包含新步骤的提交为准，不能继续使用 `692c6433` 的旧管理收据。
+
+远程 NuGet 原始消费者报告已下载并核对为 PASS。最终包归档的本地下载遇到超时/EOF，尚未取得远程包的本地升级复验；已完成的 4.0 升级/离线回退证据仍绑定先前本机候选，不宣称这次下载或复验已成功。
