@@ -237,6 +237,59 @@ public sealed class RelationalExistsAccessPathTests : IDisposable
     }
 
     /// <summary>
+    /// 普通 NULL 等值和 IS NULL 合取仍不可能为 TRUE，可安全使用唯一索引的空探测。
+    /// </summary>
+    [Theory]
+    [InlineData("idempotency_key = NULL")]
+    [InlineData("NULL = idempotency_key")]
+    [InlineData("idempotency_key IS NULL AND idempotency_key = NULL")]
+    [InlineData("idempotency_key = NULL AND idempotency_key IS NULL")]
+    public void Exists_NullEqualityOnUniqueIndex_ExaminesNoRowsWithoutScan(string predicate)
+    {
+        using var db = CreateAuditDatabase();
+        var store = db.Tables.Open("exists_audits");
+        long scansBefore = store.FullScanCount;
+
+        var (result, metrics) = ExecuteWithMetrics(db,
+            $"SELECT EXISTS (SELECT 1 FROM exists_audits WHERE {predicate})");
+
+        Assert.False(ReadExists(result));
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(0, metrics.ExistsRowsExamined);
+        Assert.Equal("secondary_index", metrics.LastExistsAccessPath);
+    }
+
+    /// <summary>
+    /// 单列及复合索引的 IS NULL 不能漏掉真实 NULL 行，唯一索引必须保留扫描回退。
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Exists_IsNullOnNullableIndex_PreservesMatches(bool unique, bool composite)
+    {
+        using var db = CreateAuditDatabase();
+        SqlExecutor.Execute(db, "DROP INDEX ux_exists_audits_key ON exists_audits");
+        SqlExecutor.Execute(db,
+            $"CREATE {(unique ? "UNIQUE " : "")}INDEX ix_exists_null ON exists_audits "
+            + (composite ? "(idempotency_key, status)" : "(idempotency_key)"));
+        var store = db.Tables.Open("exists_audits");
+        long scansBefore = store.FullScanCount;
+
+        var (result, metrics) = ExecuteWithMetrics(db, """
+            SELECT EXISTS (
+                SELECT 1 FROM exists_audits
+                WHERE idempotency_key IS NULL AND status = 'ready'
+            )
+            """);
+
+        Assert.True(ReadExists(result));
+        Assert.Equal(scansBefore + (unique ? 1 : 0), store.FullScanCount);
+        Assert.Equal(unique ? "table_scan" : "secondary_index", metrics.LastExistsAccessPath);
+    }
+
+    /// <summary>
     /// 首个外层键未命中时仍须标记相关，后续命中不得复用错误的 false 缓存。
     /// </summary>
     [Fact]

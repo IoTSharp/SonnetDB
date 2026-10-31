@@ -5104,7 +5104,8 @@ internal static partial class TableSqlExecutor
             return Array.Empty<TableIndexAccessPlan>();
         }
 
-        bool hasColumnEqualities = TryCollectIndexEqualityExpressions(schema, where, out var equalityByColumn);
+        bool hasColumnEqualities = TryCollectIndexEqualityExpressions(
+            schema, where, out var equalityByColumn, out var isNullColumns);
         var plans = new List<TableIndexAccessPlan>(schema.Indexes.Count);
         foreach (TableIndex candidate in schema.Indexes.OrderByDescending(static index => index.Columns.Count))
         {
@@ -5146,7 +5147,8 @@ internal static partial class TableSqlExecutor
                 }
 
                 // 唯一索引不保存任何含 NULL 的键，不能用其裁剪 IS NULL 的真实匹配行。
-                if (candidate.IsUnique && values.Contains(null))
+                // 普通 = NULL 保持 UNKNOWN，可用空索引探测；仅排除来自 IS NULL 的候选。
+                if (candidate.IsUnique && candidate.Columns.Take(values.Count).Any(isNullColumns.Contains))
                     continue;
 
                 if (values.Count < candidate.Columns.Count)
@@ -5566,8 +5568,10 @@ internal static partial class TableSqlExecutor
     private static bool TryCollectIndexEqualityExpressions(
         TableSchema schema,
         SqlExpression where,
-        out Dictionary<string, SqlExpression> equalityByColumn)
+        out Dictionary<string, SqlExpression> equalityByColumn,
+        out HashSet<string> isNullColumns)
     {
+        isNullColumns = new HashSet<string>(StringComparer.Ordinal);
         if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out equalityByColumn))
             equalityByColumn.Clear();
 
@@ -5586,7 +5590,8 @@ internal static partial class TableSqlExecutor
                 && schema.TryGetColumn(nullColumn.Name) is not null)
             {
                 // 普通非唯一索引保存 NULL 分区；候选收集阶段再明确排除不保存 NULL 的唯一索引。
-                equalityByColumn.TryAdd(nullColumn.Name, LiteralExpression.Null());
+                if (equalityByColumn.TryAdd(nullColumn.Name, LiteralExpression.Null()))
+                    isNullColumns.Add(nullColumn.Name);
                 continue;
             }
 
