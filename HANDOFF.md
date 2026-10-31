@@ -1,15 +1,28 @@
 ## 2026-11-01 EXISTS / 5.0 发布阻塞修复
 
-- 用户已明确选择保留新 API，按 5.0 主版本准备；当前分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并/删除 parity-results，未打标签、正式发包或部署。
-- 修复普通 = NULL 与 IS NULL 来源混淆导致的 EXISTS 全表扫描；保留唯一索引 NULL 保护、相关绑定、残余复检及事务 overlay。原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995，均 0 失败、0 跳过。
-- Protocol/Client 纳入 10 包打包、严格库存、SDK/完整 bundle、候选晋级与标签恢复。5.0.0-preview.readiness.20261031 的真实 10 包与仓库外独立缓存消费者通过，Core 创建/重开/NULL 查询及 Client 无引擎依赖的 Frame round-trip 已验证；真实远程和全模型/全语言 SDK 不由此推断。
-- 包校验保持开启：4.x 继续使用 4.0 基线，正常 pack 仍以 15 个 CP0001 + 2 个 CP0002 拒绝不兼容包；首个 5.0 建立新主版本边界，后续 5.x 自动使用正式 5.0.0 基线。24 项策略、20 项库存、10 项晋级、readiness/分片/网络默认/M43 合成合同通过。
-- 公开 4.0 包创建订单/流水数据库，候选读取旧数据、事务 DDL 与两表更新、两次重开通过；4.0 明确拒绝 unsupported format version 19。离线关闭目录备份恢复到另一目录后，4.0 两次重开通过，备份 SHA256 前后一致。此证据不涵盖在线 Backup API、所有模型、Server 实例 MQ 或物理掉电，也不能保证客户生产库已迁移。
-- 完整 dotnet restore SonnetDB.slnx 与 Release 全 solution /warnaserror 构建退出 0（0 警告/0 错误）；完整 CI 同等 Format Check 已通过。原始回执/日志/TRX 位于 artifacts/release-fix-20261031/；原失败位于 artifacts/release-review-20261031/。本机包基于修改中工作树，不能当作最终提交的可晋级产物。
-- 远程状态：{"commit":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","version":"5.0.0-preview.readiness.20261031","generatedAt":"2026-10-31T16:29:09.825Z","runs":[{"conclusion":"","databaseId":41219577836,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219577836","workflowName":"Docker Publish"},{"conclusion":"","databaseId":41219573831,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219573831","workflowName":"Connectors Release"},{"conclusion":"","databaseId":41219570694,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219570694","workflowName":"M39 SQL Trigger Evidence"},{"conclusion":"success","databaseId":41219567769,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"completed","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219567769","workflowName":"M19 Capacity Evidence"},{"conclusion":"success","databaseId":41219564327,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"completed","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219564327","workflowName":"Ecosystem Soak"},{"conclusion":"success","databaseId":41219561229,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"completed","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219561229","workflowName":"Document Store Soak"},{"conclusion":"","databaseId":41219558346,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219558346","workflowName":"Parity"},{"conclusion":"","databaseId":41219554975,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219554975","workflowName":"Management workbench smoke"},{"conclusion":"success","databaseId":41219551770,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"completed","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219551770","workflowName":"Docs Pages"},{"conclusion":"","databaseId":41219544156,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219544156","workflowName":"CodeQL"},{"conclusion":"failure","databaseId":41219222210,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"completed","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219222210","workflowName":"Publish"},{"conclusion":"","databaseId":41219218384,"event":"workflow_dispatch","headSha":"5f165d4ea0d96aa7c5cb3e1591db929e35285071","status":"in_progress","url":"https://github.com/IoTSharp/SonnetDB/actions/runs/41219218384","workflowName":"CI"}]}
-- 发布仍不放行：需最终冻结 SHA/version 的完整跨平台 CI、Publish/Connectors/Docker dispatch、候选 Parity 与其余十二类门禁；实机安装、固定硬件和长期证据按声明单独验收。七天 Parity 为非阻断观察，不能重复旧的“七次失败”结论。
-- 下一顺序：核对修复提交远程结果，修复实际失败并在同一提交重验；补其余候选硬门禁与适用业务/安装验证，再评审正式发布。5.0 迁移合同见 docs/releases/5.0-migration.md，本轮审计见 docs/audits/release-repair-20261101.md；不把整个 4.5 路线图或 M49 宣称完成。
-- HANDOFF 既有 122 行损坏 UTF-8 历史未清洗。本节按 UTF-8 字节前置并验证历史后缀 SHA256 完全不变，避免宽松解码覆盖历史；编码问题另行处理。
+- 用户已明确选择保留新 API，按 5.0 主版本准备。分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并 main，未打标签、正式发包或部署，保留 parity-results。
+- 已提交 48fe989b（EXISTS）、5f165d4e（5.0 包与消费者门禁）、1fd0d277（Publish 递归子模块）。EXISTS 原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995、Client 219/219、CAP 42/42，均无失败/跳过。
+- Protocol/Client 纳入 10 包打包、严格库存、SDK/完整 bundle、候选晋级与标签恢复；4.x 保留 4.0 基线并真实拒绝 17 项破坏，后续 5.x 使用 5.0.0 基线。真实外部隔离缓存消费者及 Frame round-trip 通过。未把新 Client 宣称为九模型完整 typed SDK。
+- 公开 4.0 包创建关系业务夹具，候选读取/事务 DDL/两表更新/两次重开通过；4.0 拒绝 v19 目录。关闭目录备份恢复后 4.0 两次重开通过，备份 SHA256 不变。不涵盖在线 Backup API、全部模型、实例 MQ、客户生产库或物理掉电；升级后新写入另需回补。
+- 完整 restore、Release solution /warnaserror 构建（0 警告/错误）和 CI 同等 Format 已通过；每次提交仍必须在最终树重新 restore + Format。验证回执及日志保留在 artifacts/release-fix-20261031/，原失败在 artifacts/release-review-20261031/。
+- 1fd0d277 的 11 类工作流成功，Management 失败。已修 OAuth 夹具错误 SSE Content-Type；Measurement 401 清空会话后禁止自动无凭证重读，并保留组件锁定和新建路由层 401/403 清载荷断言。Web build、472/472 合同、三个完整浏览器测试文件 37/37 通过（本机 Edge/受控 API，不能冒称真实 Server 授权）。
+- 当前远程证据冻结提交：1fd0d277bb8a55a801a5c6b9806bc71101eea9a0；版本 5.0.0-preview.readiness.20261031；快照 2026-10-31T17:00:58.577Z。
+  - Docker Publish: 41220450015 completed/success
+  - Connectors Release: 41220446609 completed/success
+  - M39 SQL Trigger Evidence: 41220443423 completed/success
+  - M19 Capacity Evidence: 41220439791 completed/success
+  - Ecosystem Soak: 41220436440 completed/success
+  - Document Store Soak: 41220433356 completed/success
+  - Parity: 41220430169 completed/success
+  - Management workbench smoke: 41220426069 completed/failure
+  - Docs Pages: 41220422981 completed/success
+  - CodeQL: 41220419714 completed/success
+  - Publish: 41220416355 completed/success
+  - CI: 41220409541 completed/success
+- 机器放行报告：尚未取得最终修复提交的 READY；当前工作树的新增修复不得使用上一提交证据冒充放行。
+- 边界：七天 Parity 是非阻断观察；quick/ci/hosted 不等于固定硬件规模或长稳生产证据。MSI/Studio 构建不等于干净机器安装；VS Code 开发打包链 Dependabot #78 的 msal-node 告警尚未修复，不能据此直接推断 Server 运行时漏洞。不得把整个 4.5 路线图或 M49 宣称完成。
+- 下一顺序：提交新增管理修复前完成最终 Format；推送后在新 SHA 重新取得全部门禁，检查 raw Parity，更新本交接及审计。 实机安装和固定硬件/长期声明按实际渠道另验。迁移合同 docs/releases/5.0-migration.md，审计 docs/audits/release-repair-20261101.md。
+- HANDOFF 既有 122 行损坏 UTF-8 历史未清洗；本节更新验证历史后缀字节和 SHA256 完全不变。
 
 <!-- release-repair-20261101:end -->
 

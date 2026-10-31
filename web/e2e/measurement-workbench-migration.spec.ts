@@ -84,11 +84,14 @@ for (const status of [401, 403]) {
 }
 
 for (const status of [401, 403]) {
-  test(`monitor fixture HTTP${status} locks all data planes and clears earlier point/editor/import payload`, async ({ page }) => {
+  test(`monitor component fixture HTTP${status} locks all data planes and clears earlier point/editor/import payload`, async ({ page }) => {
     let deny = false;
     const evidence = await prepare(page, { read: (route, request) => deny && request.kind === 'monitor'
       ? json(route, { code: status === 401 ? 'unauthorized' : 'forbidden', message: secret }, status) : defaultRead(route, request, secret) });
     await openMeasurement(page);
+    // Isolate the component lock contract from the app shell's 401 redirect.
+    // The routed session-expiration journey is verified separately below.
+    await mountHarness(page);
     await fillImport(page, 1, draft);
     await tab(page, '数据点');
     await fillPointEditor(page, draft);
@@ -101,6 +104,45 @@ for (const status of [401, 403]) {
     await tab(page, '数据点');
     await hiddenPermission(page);
     await expect(surface(page).getByRole('button', { name: '查询', exact: true })).toBeDisabled();
+    const before = evidence.reads.length;
+    await harness(page, 'refreshSchema');
+    await harness(page, 'refreshAuth');
+    await hiddenPermission(page);
+    expect(evidence.reads).toHaveLength(before);
+    assertEvidence(evidence);
+  });
+}
+
+for (const status of [401, 403]) {
+  test(`routed monitor HTTP${status} removes earlier payload and preserves the session contract`, async ({ page }) => {
+    let deny = false;
+    const evidence = await prepare(page, { read: (route, request) => deny && request.kind === 'monitor'
+      ? json(route, { code: status === 401 ? 'unauthorized' : 'forbidden', message: secret }, status) : defaultRead(route, request, secret) });
+    await openMeasurement(page);
+    await fillImport(page, 1, draft);
+    await tab(page, '数据点');
+    await fillPointEditor(page, draft);
+    await tab(page, '实时监控');
+    await refreshMonitor(page);
+    await expect(surface(page).locator('.measurement-monitor')).toContainText(secret);
+    deny = true;
+    await surface(page).getByRole('button', { name: '立即刷新', exact: true }).click();
+    if (status === 401) {
+      await expect(page).toHaveURL(/\/admin\/login\?redirect=/u);
+      const redirect = new URL(page.url()).searchParams.get('redirect');
+      expect(redirect).toContain('/admin/app/sql?');
+      expect(new URL(redirect!, page.url()).searchParams.get('node')).toBe(measurementName);
+      expect(await page.evaluate(() => localStorage.getItem('sndb.auth'))).toBeNull();
+      await expect(surface(page)).toHaveCount(0);
+    } else {
+      await hiddenPermission(page);
+      await expect(page).toHaveURL(/\/admin\/app\/sql\?/u);
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sndb.auth') ?? 'null')?.token)).toBe('fixture-token');
+    }
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(secret);
+    await expect(page.locator('body')).not.toContainText(draft);
+    expect(evidence.reads.filter((request) => request.kind === 'monitor')).toHaveLength(2);
     assertEvidence(evidence);
   });
 }

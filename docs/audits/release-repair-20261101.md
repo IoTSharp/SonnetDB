@@ -55,3 +55,16 @@
 Publish run `41219222210` 在 CAP 测试的编译阶段失败：该作业的 checkout 未初始化 CoAP/MQTT 子模块，出现 missing project / CS0246。已补递归检出，并使消费者证据只在对应步骤实际执行后上传；此项必须在新提交的干净 runner 上重验。本机包含子模块的 CAP 完整测试 42/42 通过，0 失败、0 跳过。原失败完整日志保存为 `publish-attempt01-failed.log`，不以本机 PASS 冒称远程已修复。
 
 推送时另核对到 Dependabot #78：`extensions/sonnetdb-vscode/package-lock.json` 中开发依赖链的 `@azure/msal-node 5.4.0`，GHSA-xcx6-jx8p-x3h5，修复版本 7.1.0。扩展没有 runtime dependencies，当前 `vsce package --no-dependencies` 且 `.vscodeignore` 排除 `node_modules/**`；本次没有使用该工具链的授权码登录入口。此告警仍应单独升级及验证开发/市场发布工具链，不能声称依赖告警已关闭，也不能据此直接断言数据库 Server 运行时受影响。
+
+## 第二轮远程预检与管理工作台修复
+
+提交 `1fd0d277bb8a55a801a5c6b9806bc71101eea9a0` 的十二类工作流全部结束：CI、Publish、CodeQL、Docs、Parity、Document Soak、Ecosystem Soak、M19、M39、Connectors 和 Docker 成功；Management smoke 失败。Publish 的 CAP、10 包及 Linux 隔离缓存消费者均成功，Linux/Windows 完整 bundle、网络默认值和已安装 INSERT RETURNING 合同通过。三平台 NativeAOT 成功，当前候选 Parity light/full 成功；这些不能覆盖管理 smoke 的失败。
+
+Management run `41220426069` 的原始日志、截图和 trace 保留在本机 `management-attempt01*`。本机复现了同样两项失败：
+
+- OAuth 夹具把 `/v1/events` 返回成 `200 application/json` 的 `{}`，浏览器 EventSource 永久关闭，应用按合同清空数据库会话并跳到登录页。已修成有效 `text/event-stream`，未修改生产 SSE 鉴权逻辑。
+- Measurement 监控 401 后，全局应用正确跳转登录；原测试却继续查找已卸载按钮。用已有组件宿主保持原清载荷断言后，又发现生产组件在登录态清空时自动重发 point 读取。已在无凭证时直接锁定、取消请求并清空载荷，防止旧请求回填或无凭证重读。
+
+保留组件 401/403 锁定、Schema/Auth 刷新后不得自行解锁和载荷清除断言，新增两个实际 Vue 路由的 401/403 浏览器夹具旅程：401 清空会话并保留原资源登录返回地址；403 保留会话并锁定，均不泄露旧点值、编辑或导入内容。它们使用受控 API，不冒称真实 Server 授权证据。
+
+本机 Web 构建通过，合同测试 472/472、OAuth/Measurement/会话过期三个完整测试文件 37/37 通过，0 失败、0 跳过。本机采用已安装 Edge（Chromium）及仓库自带 runner 的临时副本，仅在被忽略的副本中修正本机 PowerShell 路径；远程仍使用原 runner 与 Chromium。最终代码提交必须重新取得同 SHA 的十二类门禁与 raw Parity evidence，旧提交结果不移用。

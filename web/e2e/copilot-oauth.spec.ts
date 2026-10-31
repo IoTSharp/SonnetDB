@@ -415,6 +415,12 @@ async function corsJson(route: Route, payload: unknown): Promise<void> {
 }
 
 async function managementJson(route: Route, path: string): Promise<void> {
+  // The app shell opens a real EventSource. JSON here permanently closes it
+  // and expires the database session before the OAuth button can be used.
+  if (path === '/v1/events') {
+    await route.fulfill({ contentType: 'text/event-stream', body: 'event: hello\ndata: {}\n\n' });
+    return;
+  }
   let payload: unknown = {};
   if (path === '/v1/setup/status') payload = { needsSetup: false, suggestedServerId: 'oauth-fixture', serverId: 'oauth-fixture', userCount: 1, databaseCount: 0 };
   else if (path === '/v1/db') payload = { databases: [] };
