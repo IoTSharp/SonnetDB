@@ -297,6 +297,7 @@ function Assert-PublishedRelease {
         'SonnetDB.Caching.Distributed', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
     # CAP 从 4.1.0 开始交付；旧 tag 的恢复仍使用原七包合同。
     if ([version]($Version.Split('-')[0]) -ge [version]'4.1.0') { $releasePackageIds += 'SonnetDB.CAP' }
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.0.0') { $releasePackageIds += @('SonnetDB.Protocol', 'SonnetDB.Client') }
     foreach ($package in $releasePackageIds) {
         $expectedAssets.Add("$package.$Version.nupkg")
     }

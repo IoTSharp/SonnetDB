@@ -1,3 +1,31 @@
+## 2026-11-01 EXISTS / 5.0 发布阻塞修复
+
+- 用户已明确选择保留新 API，按 5.0 主版本准备；当前分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并/删除 parity-results，未打标签、正式发包或部署。
+- 修复普通 = NULL 与 IS NULL 来源混淆导致的 EXISTS 全表扫描；保留唯一索引 NULL 保护、相关绑定、残余复检及事务 overlay。原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995，均 0 失败、0 跳过。
+- Protocol/Client 纳入 10 包打包、严格库存、SDK/完整 bundle、候选晋级与标签恢复。5.0.0-preview.readiness.20261031 的真实 10 包与仓库外独立缓存消费者通过，Core 创建/重开/NULL 查询及 Client 无引擎依赖的 Frame round-trip 已验证；真实远程和全模型/全语言 SDK 不由此推断。
+- 包校验保持开启：4.x 继续使用 4.0 基线，正常 pack 仍以 15 个 CP0001 + 2 个 CP0002 拒绝不兼容包；首个 5.0 建立新主版本边界，后续 5.x 自动使用正式 5.0.0 基线。24 项策略、20 项库存、10 项晋级、readiness/分片/网络默认/M43 合成合同通过。
+- 公开 4.0 包创建订单/流水数据库，候选读取旧数据、事务 DDL 与两表更新、两次重开通过；4.0 明确拒绝 unsupported format version 19。离线关闭目录备份恢复到另一目录后，4.0 两次重开通过，备份 SHA256 前后一致。此证据不涵盖在线 Backup API、所有模型、Server 实例 MQ 或物理掉电，也不能保证客户生产库已迁移。
+- 完整 dotnet restore SonnetDB.slnx 与 Release 全 solution /warnaserror 构建退出 0（0 警告/0 错误）；完整 CI 同等 Format Check 已通过。原始回执/日志/TRX 位于 artifacts/release-fix-20261031/；原失败位于 artifacts/release-review-20261031/。本机包基于修改中工作树，不能当作最终提交的可晋级产物。
+- 远程状态：本条写入时尚未推送；下一步在修复提交上 dispatch CI 与 Publish 非发布预检，实际回执记录到本机 remote-state.json。
+- 发布仍不放行：需最终冻结 SHA/version 的完整跨平台 CI、Publish/Connectors/Docker dispatch、候选 Parity 与其余十二类门禁；实机安装、固定硬件和长期证据按声明单独验收。七天 Parity 为非阻断观察，不能重复旧的“七次失败”结论。
+- 下一顺序：核对修复提交远程结果，修复实际失败并在同一提交重验；补其余候选硬门禁与适用业务/安装验证，再评审正式发布。5.0 迁移合同见 docs/releases/5.0-migration.md，本轮审计见 docs/audits/release-repair-20261101.md；不把整个 4.5 路线图或 M49 宣称完成。
+- HANDOFF 既有 122 行损坏 UTF-8 历史未清洗。本节按 UTF-8 字节前置并验证历史后缀 SHA256 完全不变，避免宽松解码覆盖历史；编码问题另行处理。
+
+<!-- release-repair-20261101:end -->
+
+## 2026-10-31 新版本发布评估（当前结论 NOT_READY）
+
+- 当前工作目录 `D:/source/SonnetDB`，分支 `main`。已 fetch 并从 `c194debd` fast-forward 到 `3c40730a35140a24589e606310bcf1e2dae88ec3`，远端 main 独立回读一致；parity-results 远端为 `b7c59769d3701a16dc4cc0efc5f4f149d42b90bc`，未合并、删除或人为改写。
+- 用户要求依据实际业务分析能否发布，不直接实施全部缺口。当前正式发行不放行；报告与机器证据为 `docs/audits/release-readiness-20261031.md/json`，本机原始日志/TRX/探针为 `artifacts/release-review-20261031/`。
+- 最新精确 CI 40818645990：Windows Core、Ubuntu 各 7985 PASS / 2 FAIL / 0 SKIP，另五个作业成功。本机重建并运行 RelationalExistsAccessPathTests 为 12 PASS / 2 FAIL / 0 SKIP；失败是 FullScanCount 期望0实际1，之前的结果正确性断言通过。前一主干7255f010的CI成功；应修复NULL相关EXISTS的无谓扫描，不删断言或称作错误结果已证实。
+- Core 实际打包 `4.5.0-review.20261031` 返回1：15项CP0001与2项CP0002，涉及公开类型迁入Protocol及分页属性int→long。保留拆分时建议评审主版本迁移；不能通过压制兼容校验发布普通4.x。
+- Protocol 是引擎与轻量远程Client共用的Frame格式/操作码/二进制读写库；Core已依赖它，正式8包清单及库存却遗漏它。Core nuspec确认同版本依赖；公开Protocol/Client索引404；仓库外独占包缓存消费者restore真实NU1101缺Protocol。首次仓库内fixture的NU1008为中央版本管理继承问题，原日志保留且不计产品缺陷。失败探针包不得分发。
+- 现有release verifier以候选4.5.0与精确SHA运行，返回NOT_READY：12类中2 READY、1失败、9缺合格当前候选记录。CodeQL及Parity通过；push Docker/Connectors成功不能替代要求的dispatch预检。用户未选择版本，本次版本仅作评估参数。
+- 纠正旧M20记录：最近九次scheduled成功；严格核验10/25—10/31连续七天原始light/full证据7/7 READY。当前候选light/full各51场景通过；七天窗口含多个SHA，当前SHA只有10/29—31三天。七天自9/27为非阻断观察，不必人为再等七天。
+- 下一顺序：EXISTS回归→版本/兼容合同与Protocol包闭包→真实干净包消费者/匹配Server→4.0业务数据升级、重开和备份回退→冻结最终候选，补齐12类门禁与适用业务/平台验收。新DDL永久v19 floor不能靠换旧二进制回滚；完整4.5的既有必选承诺不能静默延期，较小发行需显式冻结范围。
+- 本次没有修改产品源码、提交/推送、dispatch、打标签、发布/部署或Issue评论；未重跑本地完整solution restore/Format或全套测试。报告/JSON/本交接留在工作树待审阅；后续提交前仍须完整规定门禁。
+- 原HANDOFF已有122行严格UTF-8解码失败（追加前1324—1449之间）。Cordonix严格读取拒绝后，已逐行取证；本节以UTF-8字节前置，原文件全部字节保持不变，原快照及SHA回执保存在本机证据目录。未擅自修复或丢弃历史；后续应单独处理编码损坏。
+
 ## 2026-10-28 SonnetMQ 非 Topic 子目录恢复修复
 
 - 修复目录模式 `SonnetMqStore.Open` 遇到 `wal/`、`documents/` 等无关子目录抛出 `FormatException`，以及非法解码名称被注册为空 Topic 的问题。恢复前采用有界 hex 解码并复用现有 Topic 命名校验，真实 Topic 的 I/O 和损坏段异常继续抛出；目录编码、消息格式和单文件模式保持原合同。

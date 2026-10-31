@@ -9,7 +9,7 @@ SonnetDB 当前的发布物主要分为五类：
 
 | 类型 | 产物 | 说明 |
 | --- | --- | --- |
-| NuGet | `SonnetDB.*.nupkg` | 嵌入式核心库、ADO.NET、EF Core Provider、缓存扩展与 CLI 工具包 |
+| NuGet | `SonnetDB.*.nupkg` | 共享协议、轻量远程 Client、嵌入式核心库、ADO.NET、EF Core Provider、缓存扩展与 CLI 工具包 |
 | SDK Bundle | `sndb-sdk-<version>-<rid>` | 面向开发者，包含 NuGet 包、本地 CLI 与配套文档 |
 | Server Bundle | `sonnetdb-full-<version>-<rid>` | 面向部署者，包含 `SonnetDB`、前端、CLI 与默认启动配置 |
 | Installer | `.msi` / `.deb` / `.rpm` | 面向最终安装的操作系统包 |
@@ -32,6 +32,8 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
+下一主版本按 5.0 准备，迁移合同见 [5.0 升级准备]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-migration/)。这不表示候选已通过发布门禁或已经发布。
+
 - [SonnetDB 4.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
 - [SonnetDB 3.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-1-0/)
 - [SonnetDB 3.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-0-0/)
@@ -41,7 +43,7 @@ http://127.0.0.1:5080
 
 在准备打标签的同一提交上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的 `workflow_dispatch`。前两个流程使用实际候选版本（例如 `4.0.0`）；三个手动流程均不推送 NuGet、镜像或 GitHub Release，即使手动选择 tag 也只执行验证。
 
-`Publish` 检查完整的七包库存、内部版本与 SHA-256，生成 Windows/Linux NativeAOT bundle 和安装包，并运行新旧客户端/Server 的包合同。连接器手动运行完整构建、打包和原生入口检查。Docker 先构建并启动候选镜像，检查 readiness 和内嵌 Admin UI；正式推送直接使用这个已经检查过的镜像。
+`Publish` 检查完整的十包库存（含 `SonnetDB.Protocol`、`SonnetDB.Client`）、内部版本与 SHA-256，生成 Windows/Linux NativeAOT bundle 和安装包，并运行新旧客户端/Server 的包合同。连接器手动运行完整构建、打包和原生入口检查。Docker 先构建并启动候选镜像，检查 readiness 和内嵌 Admin UI；正式推送直接使用这个已经检查过的镜像。
 
 只有 `push` 标签事件可以正式发布。三个发布流程均通过 `eng/verify-release-readiness.ps1 -CommitSha <full-sha> -Version <version>` 验证同一提交、同一候选版本的十二类 Actions 工作流及当前候选 light/full Parity 的原始证据；这些必需结果缺少、未完成或失败时会阻断发布。Publish 的 NuGet、平台 bundle、包合同证据及连接器产物名称包含实际构建和校验的版本，其他版本或旧版无版本产物不能替代当前候选预检。主 Publish 流程先上传完整资产，再公开 Release；连接器等待该流程成功后附加资产。主线镜像仅更新 `edge` 和提交标签，稳定版本标签通过门禁后才更新 `latest`。
 
@@ -59,7 +61,7 @@ http://127.0.0.1:5080
 
 如果候选预检已经成功而只需重新验证 readiness，可追加 `-ReuseSuccessfulPreflight`；脚本会校验并复用最新成功的同 commit 预检，不会再次 dispatch。
 
-脚本先从远端解析 tag 的精确 commit，再在该 tag 上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的非发布预检，拒绝不唯一或失败的 run。三个预检成功后，它会先用同一 commit/version 运行完整发布就绪核验；未满足的 CI、Parity 或 artifact 证据会写入 `artifacts/tagged-release-recovery/` 并停止，不会进入发布。通过后才按 `Publish`、`Docker Publish`、`Connectors Release` 的顺序重跑原 tag workflow，最后核对 GitHub Release 不是 draft、七个 NuGet 包可下载，以及全部 bundle、installer、校验和和连接器资产已经上传。它不会创建、删除或移动 tag；默认不带 `-Resume` 时只显示解析出的 commit 和执行计划。
+脚本先从远端解析 tag 的精确 commit，再在该 tag 上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的非发布预检，拒绝不唯一或失败的 run。三个预检成功后，它会先用同一 commit/version 运行完整发布就绪核验；未满足的 CI、Parity 或 artifact 证据会写入 `artifacts/tagged-release-recovery/` 并停止，不会进入发布。通过后才按 `Publish`、`Docker Publish`、`Connectors Release` 的顺序重跑原 tag workflow，最后核对 GitHub Release 不是 draft、对应版本的 NuGet 库存可下载（4.0 七包，5.0 十包），以及全部 bundle、installer、校验和和连接器资产已经上传。它不会创建、删除或移动 tag；默认不带 `-Resume` 时只显示解析出的 commit 和执行计划。
 
 ## 本地 Windows 打包
 
@@ -73,12 +75,16 @@ http://127.0.0.1:5080
 
 `final/` 目录中只保留可发布文件，例如：
 
+- `SonnetDB.Protocol.<version>.nupkg`
+- `SonnetDB.Client.<version>.nupkg`
 - `SonnetDB.Core.<version>.nupkg`
 - `SonnetDB.<version>.nupkg`
 - `SonnetDB.EntityFrameworkCore.<version>.nupkg`
 - `SonnetDB.Caching.EasyCaching.<version>.nupkg`
 - `SonnetDB.Caching.Distributed.<version>.nupkg`
+- `SonnetDB.CAP.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
+- `Testcontainers.SonnetDB.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`
 - `sonnetdb-studio-<version>-win-x64.zip`

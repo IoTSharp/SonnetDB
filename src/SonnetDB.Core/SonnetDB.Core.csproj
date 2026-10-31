@@ -9,8 +9,10 @@
     <Description>SonnetDB 嵌入式多模型数据库核心库，提供 SQL、时序、关系表、KV、文档、搜索、向量、本地消息队列和公开原生属性图 API。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <EnablePackageValidation>true</EnablePackageValidation>
-    <!-- Keep the released 4.x binary contract; the major 4.0.0 transition has its own API boundary. -->
-    <PackageValidationBaselineVersion Condition="'$(PackageVersion)' != '4.0.0' And !$([System.String]::Copy('$(PackageVersion)').StartsWith('4.0.0-'))">4.0.0</PackageValidationBaselineVersion>
+    <!-- 4.x 继续校验 4.0 合同；5.0 主版本因 Protocol 拆分和分页 long API 建立新边界。
+         首个 5.0 包无旧版基线；后续 5.x 自动以正式 5.0.0 为基线。包内框架兼容校验始终启用。 -->
+    <PackageValidationBaselineVersion Condition="$([System.String]::Copy('$(PackageVersion)').StartsWith('4.')) And '$(PackageVersion)' != '4.0.0' And !$([System.String]::Copy('$(PackageVersion)').StartsWith('4.0.0-'))">4.0.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion Condition="$([System.String]::Copy('$(PackageVersion)').StartsWith('5.')) And '$(PackageVersion)' != '5.0.0' And !$([System.String]::Copy('$(PackageVersion)').StartsWith('5.0.0-'))">5.0.0</PackageValidationBaselineVersion>
     <JiebaDictionaryCompilerProject>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\SonnetDB.FullText.DictionaryCompiler.csproj</JiebaDictionaryCompilerProject>
     <JiebaDictionaryCompilerOutput>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\bin\$(Configuration)\$(TargetFramework)\</JiebaDictionaryCompilerOutput>
     <JiebaDictionaryCompilerDll>$(JiebaDictionaryCompilerOutput)SonnetDB.FullText.DictionaryCompiler.dll</JiebaDictionaryCompilerDll>

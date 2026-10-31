@@ -35,7 +35,7 @@ function Get-ReleaseWorkflowPolicy {
         @{ File = 'm39-trigger-evidence.yml'; Jobs = @('evidence'); Artifacts = @('m39-trigger-v2-*') }
         # These names use the same resolved version passed to the package validators.
         # An unversioned artifact or a successful preflight for another version is not evidence.
-        @{ File = 'publish.yml'; DispatchOnly = $true; Jobs = @('NuGet Packages', 'Release Bundles (linux-x64)', 'Release Bundles (win-x64)'); Artifacts = @("nuget-packages-$Version", "release-$Version-linux-x64", "release-$Version-win-x64", "insert-returning-contract-$Version-linux-x64", "insert-returning-contract-$Version-win-x64") }
+        @{ File = 'publish.yml'; DispatchOnly = $true; Jobs = @('NuGet Packages', 'Release Bundles (linux-x64)', 'Release Bundles (win-x64)'); Artifacts = @("nuget-packages-$Version", "package-consumers-$Version", "release-$Version-linux-x64", "release-$Version-win-x64", "insert-returning-contract-$Version-linux-x64", "insert-returning-contract-$Version-win-x64") }
         @{ File = 'connectors-release.yml'; DispatchOnly = $true; Jobs = @('Connectors (linux-x64)', 'Connectors (win-x64)', 'Connectors (win-x86)'); Artifacts = @("connectors-$Version-linux-x64", "connectors-$Version-win-x64", "connectors-$Version-win-x86") }
         @{ File = 'docker-publish.yml'; DispatchOnly = $true; Jobs = @('Build, Verify and Publish Docker Image'); Artifacts = @('docker-validation') }
     )
@@ -55,7 +55,7 @@ function Get-RequiredReleaseSteps {
         'VS Code HTTP consumer' { @('Test SQL language server', 'Run extension consumer smoke', 'Package VS Code extension') }
         'VS Code Extension Host' { 'Run Extension Host smoke' }
         'Parity (*' { @('Start parity stack', 'Run parity gates', 'Run reliability gates', 'Gate parity result') }
-        'NuGet Packages' { 'Pack NuGet packages' }
+        'NuGet Packages' { @('Pack NuGet packages', 'Verify clean package consumers') }
         'Release Bundles (*)' { @('Build bundles and installers', 'Verify bundle network defaults with the NativeAOT Server', 'Verify installed INSERT RETURNING contract and published compatibility') }
         'Connectors (*)' { @('Build and package connectors', 'Verify connector package inventory and native entries') }
         'Build, Verify and Publish Docker Image' { @('Build image for local verification', 'Verify container startup, readiness and embedded Admin UI') }

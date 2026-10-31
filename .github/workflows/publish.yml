@@ -75,6 +75,20 @@ jobs:
         shell: pwsh
         run: ./eng/release.ps1 -Tasks nuget -Version '${{ steps.version.outputs.version }}'
 
+      - name: Verify clean package consumers
+        shell: pwsh
+        run: ./eng/verify-package-consumers.ps1 -Version '${{ steps.version.outputs.version }}' -PackageSource artifacts/release/nuget -OutputRoot artifacts/package-consumers
+
+      - name: Upload package consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-consumers-${{ steps.version.outputs.version }}
+          path: |
+            artifacts/package-consumers/result.json
+            artifacts/package-consumers/*.log
+          if-no-files-found: error
+
       - name: Upload NuGet artifacts
         uses: actions/upload-artifact@v7
         with:

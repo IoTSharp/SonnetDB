@@ -52,7 +52,7 @@ function Build-Consumer([string]$PackageVersion, [string]$Name, [switch]$Publish
     $source = if ($Published) { 'https://api.nuget.org/v3/index.json' } else { $PackageSource }
     $escapedSource = [Security.SecurityElement]::Escape($source)
     $dependencySource = if ($Published) { '' } else { '<add key="dependencies" value="https://api.nuget.org/v3/index.json" />' }
-    $contractPatterns = if ($Published) { '<package pattern="*" />' } else { '<package pattern="SonnetDB" /><package pattern="SonnetDB.Core" />' }
+    $contractPatterns = if ($Published) { '<package pattern="*" />' } else { '<package pattern="SonnetDB" /><package pattern="SonnetDB.*" />' }
     $dependencyMapping = if ($Published) { '' } else { '<packageSource key="dependencies"><package pattern="*" /></packageSource>' }
     $config = @"
 <configuration>
@@ -74,7 +74,8 @@ function Build-Consumer([string]$PackageVersion, [string]$Name, [switch]$Publish
     Invoke-CheckedDotNet @('restore', $project, "-p:SmokePackageVersion=$PackageVersion", '--configfile', $configPath,
         '--packages', $packageCache) "$Name-restore"
     $assets = Get-Content -LiteralPath (Join-Path $directory 'obj/project.assets.json') -Raw | ConvertFrom-Json -AsHashtable
-    foreach ($id in @('SonnetDB', 'SonnetDB.Core'))
+    $packageIds = if ($Published) { @('SonnetDB', 'SonnetDB.Core') } else { @('SonnetDB', 'SonnetDB.Core', 'SonnetDB.Protocol') }
+    foreach ($id in $packageIds)
     {
         if (!$assets.libraries.ContainsKey("$id/$PackageVersion")) { throw "Consumer did not restore $id/$PackageVersion." }
         if ($assets.libraries["$id/$PackageVersion"].type -ne 'package') { throw "$id is not a package reference." }
