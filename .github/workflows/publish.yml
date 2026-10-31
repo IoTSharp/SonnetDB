@@ -34,6 +34,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -76,11 +78,12 @@ jobs:
         run: ./eng/release.ps1 -Tasks nuget -Version '${{ steps.version.outputs.version }}'
 
       - name: Verify clean package consumers
+        id: package-consumers
         shell: pwsh
         run: ./eng/verify-package-consumers.ps1 -Version '${{ steps.version.outputs.version }}' -PackageSource artifacts/release/nuget -OutputRoot artifacts/package-consumers
 
       - name: Upload package consumer evidence
-        if: always()
+        if: always() && contains(fromJSON('["success", "failure", "cancelled"]'), steps.package-consumers.outcome)
         uses: actions/upload-artifact@v7
         with:
           name: package-consumers-${{ steps.version.outputs.version }}

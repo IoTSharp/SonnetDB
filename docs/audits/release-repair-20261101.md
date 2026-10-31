@@ -47,3 +47,11 @@
 本机修复结果不等于最终发行已获准。最终冻结 commit/version 仍要通过跨平台 CI、Publish/Connectors/Docker dispatch、候选 Parity 以及现有十二类门禁；安装器实机、固定目标硬件和长期证据按实际发行渠道和声明另验。七天 Parity 仍是非阻断观察，不人为重新等待七天。
 
 当前未打标签、未发包、未部署。本轮本机候选绑定的是修改中的工作树，不能冒充后续提交的不可变发布产物；需由最终提交重新构建和验证。
+
+## 第一轮远程预检
+
+已推送 SQL 修复 `48fe989b` 和 5.0 发包链 `5f165d4e`，远端回读一致，`parity-results` 保持 `b7c59769`。在 `5f165d4e` 上派发十二类既有门禁；Parity 使用 both 且不写入结果分支，容量使用 GitHub-hosted、文档使用 quick、生态使用 ci，不把这些 profile 冒称固定硬件或长稳证据。
+
+Publish run `41219222210` 在 CAP 测试的编译阶段失败：该作业的 checkout 未初始化 CoAP/MQTT 子模块，出现 missing project / CS0246。已补递归检出，并使消费者证据只在对应步骤实际执行后上传；此项必须在新提交的干净 runner 上重验。本机包含子模块的 CAP 完整测试 42/42 通过，0 失败、0 跳过。原失败完整日志保存为 `publish-attempt01-failed.log`，不以本机 PASS 冒称远程已修复。
+
+推送时另核对到 Dependabot #78：`extensions/sonnetdb-vscode/package-lock.json` 中开发依赖链的 `@azure/msal-node 5.4.0`，GHSA-xcx6-jx8p-x3h5，修复版本 7.1.0。扩展没有 runtime dependencies，当前 `vsce package --no-dependencies` 且 `.vscodeignore` 排除 `node_modules/**`；本次没有使用该工具链的授权码登录入口。此告警仍应单独升级及验证开发/市场发布工具链，不能声称依赖告警已关闭，也不能据此直接断言数据库 Server 运行时受影响。
