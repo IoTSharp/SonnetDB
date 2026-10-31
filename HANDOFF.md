@@ -1,28 +1,30 @@
 ## 2026-11-01 EXISTS / 5.0 发布阻塞修复
 
 - 用户已明确选择保留新 API，按 5.0 主版本准备。分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并 main，未打标签、正式发包或部署，保留 parity-results。
-- 已提交 48fe989b（EXISTS）、5f165d4e（5.0 包与消费者门禁）、1fd0d277（Publish 递归子模块）。EXISTS 原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995、Client 219/219、CAP 42/42，均无失败/跳过。
+- 已提交 48fe989b（EXISTS）、5f165d4e（5.0 包与消费者门禁）、1fd0d277（Publish 递归子模块）、692c6433（会话过期锁定与管理夹具）、89d80740（StudioNative SSE 夹具和必跑门禁）。EXISTS 原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995、Client 219/219、CAP 42/42，均无失败/跳过。
 - Protocol/Client 纳入 10 包打包、严格库存、SDK/完整 bundle、候选晋级与标签恢复；4.x 保留 4.0 基线并真实拒绝 17 项破坏，后续 5.x 使用 5.0.0 基线。真实外部隔离缓存消费者及 Frame round-trip 通过。未把新 Client 宣称为九模型完整 typed SDK。
-- 公开 4.0 包创建关系业务夹具，候选读取/事务 DDL/两表更新/两次重开通过；4.0 拒绝 v19 目录。关闭目录备份恢复后 4.0 两次重开通过，备份 SHA256 不变。不涵盖在线 Backup API、全部模型、实例 MQ、客户生产库或物理掉电；升级后新写入另需回补。
+- 最终 Publish 41225641681 的 10 个远程 nupkg 已下载，版本/提交/附件 SHA256 与真实消费者报告核对通过。下载的最终 Core/Protocol 包重新执行公开 4.0 → 候选读取/事务 DDL/两表更新/两次重开，全部通过；4.0 明确拒绝 v19 目录。关闭目录备份恢复后 4.0 两次重开通过，备份 SHA256 不变。证据为 final-nuget-inventory.json、remote-package-consumers-89d80740/result.json、upgrade-final-89d80740/upgrade-result.json。不涵盖在线 Backup API、全部模型、实例 MQ、客户生产库或物理掉电；升级后新写入另需回补。
 - 完整 restore、Release solution /warnaserror 构建（0 警告/错误）和 CI 同等 Format 已通过；每次提交仍必须在最终树重新 restore + Format。验证回执及日志保留在 artifacts/release-fix-20261031/，原失败在 artifacts/release-review-20261031/。
 - 1fd0d277 的 11 类工作流成功，Management 失败。已修 OAuth 夹具错误 SSE Content-Type；Measurement 401 清空会话后禁止自动无凭证重读，并保留组件锁定和新建路由层 401/403 清载荷断言。Web build、472/472 合同、三个完整浏览器测试文件 37/37 通过（本机 Edge/受控 API，不能冒称真实 Server 授权）。
 - 692c6433 的管理 smoke 为 313 PASS / 25 SKIP；单独补跑 StudioNative 暴露两个夹具的相同 SSE 错误，修复后 25/25 通过。已给 Management CI 与 readiness 加入必跑原生浏览器合同步骤，缺失/跳过/失败都阻断；旧提交的绿灯不能替代新步骤证据。原失败/超时日志保留，真实 WebView2/凭据库不由此推断。
-- 当前远程证据冻结提交：692c6433d78b28cac5a9d732465a482eac96c91e；版本 5.0.0-preview.readiness.20261031；快照 2026-10-31T17:31:21.603Z。
-  - Docker Publish: 41223446526 completed/success
-  - Connectors Release: 41223441947 completed/success
-  - M39 SQL Trigger Evidence: 41223439086 completed/success
-  - M19 Capacity Evidence: 41223435966 completed/success
-  - Ecosystem Soak: 41223432568 completed/success
-  - Document Store Soak: 41223429468 completed/success
-  - Parity: 41223426443 completed/success
-  - Management workbench smoke: 41223423315 completed/success
-  - Docs Pages: 41223420424 completed/success
-  - CodeQL: 41223416678 completed/success
-  - Publish: 41223412760 in_progress/
-  - CI: 41223370662 in_progress/
-- 机器放行报告：尚未取得最终修复提交的 READY；当前工作树的新增修复不得使用上一提交证据冒充放行。
-- 边界：七天 Parity 是非阻断观察；quick/ci/hosted 不等于固定硬件规模或长稳生产证据。MSI/Studio 构建不等于干净机器安装；VS Code 开发打包链 Dependabot #78 的 msal-node 告警尚未修复，不能据此直接推断 Server 运行时漏洞。不得把整个 4.5 路线图或 M49 宣称完成。
-- 下一顺序：提交新增管理修复前完成最终 Format；推送后在新 SHA 重新取得全部门禁，检查 raw Parity，更新本交接及审计。 实机安装和固定硬件/长期声明按实际渠道另验。迁移合同 docs/releases/5.0-migration.md，审计 docs/audits/release-repair-20261101.md。
+- 当前远程证据冻结提交：89d807406293084a9311fb98fda2099a59b12345；版本 5.0.0-preview.readiness.20261031；快照 2026-10-31T18:03:22.374Z。
+  - Docker Publish: 41225677469 completed/success
+  - Connectors Release: 41225674534 completed/success
+  - M39 SQL Trigger Evidence: 41225671451 completed/success
+  - M19 Capacity Evidence: 41225667988 completed/success
+  - Ecosystem Soak: 41225664422 completed/success
+  - Document Store Soak: 41225661113 completed/success
+  - Parity: 41225657087 completed/success
+  - Management workbench smoke: 41225652886 completed/success
+  - Docs Pages: 41225649388 completed/success
+  - CodeQL: 41225645867 completed/success
+  - Publish: 41225641681 completed/success
+  - CI: 41225638080 completed/success
+- 机器放行报告：READY，十二类同 SHA 工作流及候选 raw Parity 已验。此结论只绑定上述提交/版本。
+- 最终归档为仅文档提交，记录审计、本交接和 docs/audits/release-evidence-5.0-20261101.json；代码候选继续冻结 89d807406293084a9311fb98fda2099a59b12345。文档提交不继承该 SHA 的门禁；正式 5.0.0 仍须对精确版本重新取得产物预检。最终归档提交前必须完整 restore + Format；提交后推送并确认工作树干净。
+- 最新七次 scheduled Parity（2026-10-25 至 2026-10-31）raw 数据 7/7 有效，覆盖多个历史 SHA，不能称为最终候选连续七天证据；此项仍为非阻断观察。候选分支 CodeQL 开放告警 0；VS Code 开发打包链 Dependabot #78 的 msal-node 告警仍 open，不能据此直接推断 Server 运行时漏洞。
+- 边界：quick/ci/hosted 不等于固定硬件规模或长稳生产证据，MSI/Studio 构建不等于干净机器安装；不得把整个 4.5 路线图或 M49 宣称完成。
+- 下一顺序：按已冻结候选及升级合同评审实际发布范围；正式标签、发包、部署仍需用户明确要求。 实机安装和固定硬件/长期声明按实际渠道另验。迁移合同 docs/releases/5.0-migration.md，审计 docs/audits/release-repair-20261101.md。
 - HANDOFF 既有 122 行损坏 UTF-8 历史未清洗；本节更新验证历史后缀字节和 SHA256 完全不变。
 
 <!-- release-repair-20261101:end -->

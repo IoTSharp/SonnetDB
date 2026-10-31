@@ -2,6 +2,16 @@
 
 用户已选择保留新 API，按 **5.0 主版本**准备。此记录接续 [10 月 31 日发布评估](release-readiness-20261031.md)；该评估中的失败证据保留，以下结果不能倒写成旧 main 已通过。
 
+## 最终候选与发行范围
+
+代码候选冻结为 `89d807406293084a9311fb98fda2099a59b12345`，预检版本为 `5.0.0-preview.readiness.20261031`。同提交的十二类远程工作流全部成功；完整放行验证器于北京时间 2026-11-01 02:04:39 返回 **READY**，issues 为空，逐项门禁见 [证据归档](release-evidence-5.0-20261101.json)。本节描述最终候选，后文保留各轮真实失败及修复过程。
+
+最终远程 10 包已下载，逐包核对版本、repository commit 和附件 SHA-256；Core/Protocol/Client 的字节与远程隔离缓存消费者报告一致。公开 4.0 包到这组最终远程包的升级、事务写入、重复重开及离线备份回退均已复验通过。管理工作台默认配置为 313 PASS / 25 项 native-only SKIP，新增的 StudioNative 必跑步骤另取得 25 PASS / 0 SKIP。
+
+本轮代码阻塞修复及候选技术预检已经完成，可以评审 5.0 预发布。尚未正式发布 `5.0.0`；正式版必须对精确版本重新取得产物预检。Windows 干净机器的安装/升级/卸载、固定目标硬件与长期运行，以及 VS Code 打包工具链告警仍按对应渠道或发行声明验收，不能由本轮绿灯推断完成。
+
+本次收尾仅提交审计、机器证据及 HANDOFF，不改变冻结代码。文档提交不继承 `89d80740` 的门禁，READY 只能绑定证据中的代码 SHA 和预检版本。未合并 main、未打标签、未正式发包或部署。
+
 ## 本轮实现
 
 - 修复索引候选收集对 `= NULL` / `IS NULL` 来源的混淆：普通 NULL 等值仍为 UNKNOWN，允许空唯一索引探测；真实 IS NULL 不使用遗漏 NULL 键的唯一索引。保留原扫描断言、相关绑定、完整残余谓词及事务 overlay。
@@ -40,13 +50,15 @@
 3. 旧 4.0 包重开升级目录，实际抛出 `InvalidDataException: TableSchema: unsupported format version 19`。
 4. 从未改动的升级前离线备份恢复到另一目录，4.0 连续两次独立进程重开，恢复原金额；备份前后 SHA-256 清单一致。
 
-原始日志为 `upgrade-*.log`，机器结果与备份文件清单为 `upgrade-result.json`。此证据只覆盖本机的关系表业务夹具与关闭数据库后的目录复制，不涵盖在线 Backup API、所有模型、物理掉电、客户真实生产库或整个 Server/MQ 实例。候选上的新写入不会出现在升级前备份，回退仍需处理这些写入的回补。
+最终复验使用 Publish run `41225641681` 下载的不可变包，日志为 `upgrade-final-89d80740/upgrade-*.log`，机器结果与备份文件清单为 `upgrade-final-89d80740/upgrade-result.json`；关键结果已纳入跟踪的机器证据归档。此证据只覆盖本机的关系表业务夹具与关闭数据库后的目录复制，不涵盖在线 Backup API、所有模型、物理掉电、客户真实生产库或整个 Server/MQ 实例。候选上的新写入不会出现在升级前备份，回退仍需处理这些写入的回补。
 
 ## 正式发布仍须满足
 
-本机修复结果不等于最终发行已获准。最终冻结 commit/version 仍要通过跨平台 CI、Publish/Connectors/Docker dispatch、候选 Parity 以及现有十二类门禁；安装器实机、固定目标硬件和长期证据按实际发行渠道和声明另验。七天 Parity 仍是非阻断观察，不人为重新等待七天。
+最终冻结 commit/version 已通过跨平台 CI、Publish/Connectors/Docker dispatch、候选 Parity 以及现有十二类门禁。安装器实机、固定目标硬件和长期证据按实际发行渠道和声明另验。七天 Parity 仍是非阻断观察，不人为重新等待七天。
 
-当前未打标签、未发包、未部署。本轮本机候选绑定的是修改中的工作树，不能冒充后续提交的不可变发布产物；需由最终提交重新构建和验证。
+本次还验证了 2026-10-25 至 2026-10-31 最新七次 scheduled Parity 原始数据，7/7 有效、各次 light/full 均通过。它们覆盖多个历史提交，不能称为最终候选连续七天运行的证据。
+
+当前未打标签、未正式发包、未部署。最终预检证据绑定不可变提交及 preview 版本，不冒充后续文档提交或正式 `5.0.0` 的产物证据。
 
 ## 第一轮远程预检
 
@@ -77,4 +89,25 @@ Management run `41220426069` 的原始日志、截图和 trace 保留在本机 `
 
 Management CI 新增明确的 `Run Studio native browser contracts` 步骤，在 StudioNative 配置下单独运行上述两个文件；readiness 同时要求默认 smoke 和此步骤实际成功。新增合同验证缺失、跳过或失败均拒绝放行。因此最终候选必须以包含新步骤的提交为准，不能继续使用 `692c6433` 的旧管理收据。
 
-远程 NuGet 原始消费者报告已下载并核对为 PASS。最终包归档的本地下载遇到超时/EOF，尚未取得远程包的本地升级复验；已完成的 4.0 升级/离线回退证据仍绑定先前本机候选，不宣称这次下载或复验已成功。
+远程 NuGet 原始消费者报告已下载并核对为 PASS。最终包归档下载曾遇到超时/EOF，保留了原失败记录；随后为下载子进程关闭 HTTP/2，成功取得完整 10 包。上文最终远程包升级/回退复验已完成，该历史下载失败不再是当前阻塞。
+
+## 最终同提交远程收据
+
+以下均绑定 `89d807406293084a9311fb98fda2099a59b12345`，结论均为 success：
+
+| 工作流 | Run ID | 验证范围 |
+| --- | --- | --- |
+| CI | 41225638080 | Linux/Windows 全量分片、Format、Linux x64/ARM64 与 Windows NativeAOT |
+| Publish | 41225641681 | 10 包、真实消费者、Linux/Windows bundles、网络默认值及解包后 SQL 合同；未正式发布 |
+| CodeQL | 41225645867 | 分析成功；候选分支开放 code-scanning 告警 0 |
+| Docs Pages | 41225649388 | 文档检查 |
+| Management workbench smoke | 41225652886 | 五个作业成功；默认浏览器 smoke 与 StudioNative 分别实际运行 |
+| Parity | 41225657087 | light/full 各 51 场景，raw artifacts 验证有效、issues 为空；不写结果分支 |
+| Document Store Soak | 41225661113 | quick，不能冒称长期运行 |
+| Ecosystem Soak | 41225664422 | ci profile |
+| M19 Capacity Evidence | 41225667988 | GitHub-hosted，不能冒称固定目标硬件 |
+| M39 SQL Trigger Evidence | 41225671451 | quick=false |
+| Connectors Release | 41225674534 | 三平台连接器预检 |
+| Docker Publish | 41225677469 | dispatch 预检，不推送正式镜像 |
+
+Dependabot #78 在本次查询时仍 open，属于 VS Code 开发打包工具链的高危依赖；没有关闭告警或添加未经验证的 major override。候选 CodeQL 结果不能代替该工具链的独立依赖升级与验证。

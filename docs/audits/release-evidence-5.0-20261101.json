@@ -1,0 +1,530 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-10-31T18:06:09.162Z",
+  "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+  "version": "5.0.0-preview.readiness.20261031",
+  "readiness": {
+    "schemaVersion": 1,
+    "status": "READY",
+    "repository": "IoTSharp/SonnetDB",
+    "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+    "version": "5.0.0-preview.readiness.20261031",
+    "source": "github",
+    "generatedAtUtc": "2026-10-31T18:04:39.7917905+00:00",
+    "workflows": [
+      {
+        "workflow": "ci.yml",
+        "ready": true,
+        "runId": 41225638080,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225638080",
+        "issues": []
+      },
+      {
+        "workflow": "codeql.yml",
+        "ready": true,
+        "runId": 41225645867,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225645867",
+        "issues": []
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "ready": true,
+        "runId": 41225649388,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225649388",
+        "issues": []
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "ready": true,
+        "runId": 41225652886,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225652886",
+        "issues": []
+      },
+      {
+        "workflow": "parity.yml",
+        "ready": true,
+        "runId": 41225657087,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225657087",
+        "issues": []
+      },
+      {
+        "workflow": "document-soak.yml",
+        "ready": true,
+        "runId": 41225661113,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225661113",
+        "issues": []
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "ready": true,
+        "runId": 41225664422,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225664422",
+        "issues": []
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "ready": true,
+        "runId": 41225667988,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225667988",
+        "issues": []
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "ready": true,
+        "runId": 41225671451,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225671451",
+        "issues": []
+      },
+      {
+        "workflow": "publish.yml",
+        "ready": true,
+        "runId": 41225641681,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225641681",
+        "issues": []
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "ready": true,
+        "runId": 41225674534,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225674534",
+        "issues": []
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "ready": true,
+        "runId": 41225677469,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41225677469",
+        "issues": []
+      }
+    ],
+    "issues": [],
+    "observations": [
+      {
+        "name": "scheduled-parity-seven-days",
+        "blocking": false,
+        "status": "READY",
+        "validRunCount": 7,
+        "requiredRunCount": 7,
+        "reportPath": "D:\\source\\SonnetDB\\artifacts\\release-fix-20261031\\parity-nightly.json",
+        "issues": []
+      }
+    ],
+    "boundary": "Release readiness requires the candidate workflows and raw Parity evidence. Seven-day scheduled Parity is a non-blocking observation. Quick profiles do not establish fixed-hardware capacity, clean offline installation, model quality or production acceptance."
+  },
+  "candidateParity": {
+    "schemaVersion": 1,
+    "status": "READY",
+    "repository": "IoTSharp/SonnetDB",
+    "source": "github",
+    "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+    "runId": "41225657087",
+    "requiredRunCount": 1,
+    "validRunCount": 1,
+    "profiles": [
+      {
+        "profile": "light",
+        "valid": true,
+        "status": "passing",
+        "totalScenarios": 51,
+        "issues": []
+      },
+      {
+        "profile": "full",
+        "valid": true,
+        "status": "passing",
+        "totalScenarios": 51,
+        "issues": []
+      }
+    ]
+  },
+  "scheduledParityObservation": {
+    "schemaVersion": 1,
+    "status": "READY",
+    "repository": "IoTSharp/SonnetDB",
+    "source": "github",
+    "requiredRunCount": 7,
+    "examinedRunCount": 7,
+    "validRunCount": 7,
+    "successRate": 100,
+    "generatedAtUtc": "2026-10-31T18:04:33.1838901Z",
+    "issues": [],
+    "runs": [
+      {
+        "runId": "41183248043",
+        "createdAtUtc": "2026-10-31T08:06:42.0000000+00:00",
+        "commitSha": "3c40730a35140a24589e606310bcf1e2dae88ec3",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41183248043",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "41025088082",
+        "createdAtUtc": "2026-10-30T08:14:10.0000000+00:00",
+        "commitSha": "3c40730a35140a24589e606310bcf1e2dae88ec3",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41025088082",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "40840260586",
+        "createdAtUtc": "2026-10-29T08:10:31.0000000+00:00",
+        "commitSha": "3c40730a35140a24589e606310bcf1e2dae88ec3",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/40840260586",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "40653709700",
+        "createdAtUtc": "2026-10-28T08:00:09.0000000+00:00",
+        "commitSha": "dbc8178988a0293ed67d24e6f70b78b970465aa0",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/40653709700",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "40467244111",
+        "createdAtUtc": "2026-10-27T07:27:38.0000000+00:00",
+        "commitSha": "dbc8178988a0293ed67d24e6f70b78b970465aa0",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/40467244111",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "40286265797",
+        "createdAtUtc": "2026-10-26T07:31:03.0000000+00:00",
+        "commitSha": "dbc8178988a0293ed67d24e6f70b78b970465aa0",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/40286265797",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      },
+      {
+        "runId": "40172489871",
+        "createdAtUtc": "2026-10-25T07:21:58.0000000+00:00",
+        "commitSha": "09628bf99694fb8dc7fbf564ddff18dd8c803de2",
+        "conclusion": "success",
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/40172489871",
+        "valid": true,
+        "issues": [],
+        "profiles": [
+          {
+            "profile": "light",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          },
+          {
+            "profile": "full",
+            "valid": true,
+            "status": "passing",
+            "totalScenarios": 51,
+            "issues": []
+          }
+        ]
+      }
+    ]
+  },
+  "packageInventory": {
+    "status": "PASS",
+    "runId": "41225641681",
+    "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+    "version": "5.0.0-preview.readiness.20261031",
+    "checks": [
+      {
+        "id": "SonnetDB",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "826d69558a2de9966021f6c1a727fac1dfdbb339049fd4662b5d1eaa71b7cad8"
+      },
+      {
+        "id": "SonnetDB.Caching.Distributed",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "124ca8774c96a2a7913de87465c8554a8a5271ae391c91c8e0491a3a70d1af03"
+      },
+      {
+        "id": "SonnetDB.Caching.EasyCaching",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "eb60eb27e359cbea274e174e88377f0e450f20ebe136435f2c1c2a9235cfe0e1"
+      },
+      {
+        "id": "SonnetDB.CAP",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "2e771b5c00456e85300f7ae964c3967be2e54da3888a4518471a86be975712d8"
+      },
+      {
+        "id": "SonnetDB.Cli",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "08e04b559efc0db211d6cbad573f084a66e7d709e6e471eb21432f485a69debb"
+      },
+      {
+        "id": "SonnetDB.Client",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "10d8672162006c043c2f2e13a5ea5a5ad3f338dba04dd53a44a39c41de9852bb"
+      },
+      {
+        "id": "SonnetDB.Core",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "e15d0a0388627c69c6adbb9e4b7c0fc83b7f6741c69920a753d9515ba468c544"
+      },
+      {
+        "id": "SonnetDB.EntityFrameworkCore",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "cd93fa3dd25ddffa7244397b570178e2a28ee59878ad5b2116e0eed42147a8a7"
+      },
+      {
+        "id": "SonnetDB.Protocol",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "af6b22b9df93548d2d763672098a7a02ffc75fb3a74919e18211660731e5a3f2"
+      },
+      {
+        "id": "Testcontainers.SonnetDB",
+        "version": "5.0.0-preview.readiness.20261031",
+        "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+        "sha256": "4a259b4f3e09201d1ead84dddf94958b34699e3862f9535ee8f29525d0395cca"
+      }
+    ]
+  },
+  "packageConsumers": {
+    "status": "PASS",
+    "version": "5.0.0-preview.readiness.20261031",
+    "checks": [
+      {
+        "consumer": "core",
+        "package": "SonnetDB.Core",
+        "sha256": "E15D0A0388627C69C6ADBB9E4B7C0FC83B7F6741C69920A753D9515BA468C544"
+      },
+      {
+        "consumer": "core",
+        "package": "SonnetDB.Protocol",
+        "sha256": "AF6B22B9DF93548D2D763672098A7A02FFC75FB3A74919E18211660731E5A3F2"
+      },
+      {
+        "consumer": "core",
+        "mode": "create",
+        "status": "PASS"
+      },
+      {
+        "consumer": "core",
+        "mode": "reopen",
+        "status": "PASS"
+      },
+      {
+        "consumer": "client",
+        "package": "SonnetDB.Client",
+        "sha256": "10D8672162006C043C2F2E13A5EA5A5AD3F338DBA04DD53A44A39C41DE9852BB"
+      },
+      {
+        "consumer": "client",
+        "package": "SonnetDB.Protocol",
+        "sha256": "AF6B22B9DF93548D2D763672098A7A02FFC75FB3A74919E18211660731E5A3F2"
+      },
+      {
+        "consumer": "client",
+        "mode": "roundtrip",
+        "status": "PASS"
+      }
+    ]
+  },
+  "upgrade": {
+    "status": "PASS",
+    "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+    "runId": "41225641681",
+    "oldVersion": "4.0.0",
+    "candidateVersion": "5.0.0-preview.readiness.20261031",
+    "backupMethod": "offline closed-directory copy",
+    "checks": [
+      {
+        "name": "candidate-restore",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-build",
+        "exitCode": 0
+      },
+      {
+        "name": "read-old-data",
+        "exitCode": 0
+      },
+      {
+        "name": "transaction-ddl-and-write",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-reopen-1",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-reopen-2",
+        "exitCode": 0
+      },
+      {
+        "name": "old-rejects-new-floor",
+        "exitCode": 3762504530
+      },
+      {
+        "name": "rollback-reopen-1",
+        "exitCode": 0
+      },
+      {
+        "name": "rollback-reopen-2",
+        "exitCode": 0
+      }
+    ],
+    "backupFileCount": 17,
+    "unchangedBackupInventorySha256": "e4d4c87793c3d7be5065727a861785b387446dd211f0efdf17e2a54b75b8329b"
+  },
+  "management": {
+    "runId": 41225652886,
+    "browserDirect": {
+      "passed": 313,
+      "skippedNativeOnly": 25
+    },
+    "studioNative": {
+      "passed": 25,
+      "skipped": 0
+    },
+    "boundary": "Controlled browser APIs and native bridge fixtures; actual Server/Studio host jobs are distinct."
+  },
+  "security": {
+    "generatedAtUtc": "2026-10-31T18:02:32.964Z",
+    "commitSha": "89d807406293084a9311fb98fda2099a59b12345",
+    "ref": "refs/heads/codex/fix-exists-release-readiness-20261031",
+    "codeScanning": {
+      "runId": 41225645867,
+      "conclusion": "success",
+      "openAlertCount": 0,
+      "alerts": []
+    },
+    "dependabot": [
+      {
+        "number": 78,
+        "state": "open",
+        "manifestPath": "extensions/sonnetdb-vscode/package-lock.json",
+        "dependencyScope": "development",
+        "package": "@azure/msal-node",
+        "severity": "high",
+        "ghsaId": "GHSA-xcx6-jx8p-x3h5",
+        "firstPatchedVersion": "7.1.0",
+        "boundary": "VS Code development packaging dependency; independent toolchain upgrade and validation remains required. This does not establish a database Server runtime vulnerability."
+      }
+    ]
+  },
+  "boundaries": [
+    "This evidence binds only the exact candidate commit and prerelease version; formal 5.0.0 artifacts require preflights for that exact version.",
+    "No tag, formal package/image publication, main merge or deployment was performed.",
+    "Offline closed-directory backup with a relational business fixture does not establish online Backup API, whole-instance MQ recovery, all-model migration or physical power-loss behavior.",
+    "MSI/Studio build and browser fixtures do not establish clean-machine installation, WebView2 setup, upgrade/uninstall lifecycle or data retention.",
+    "Hosted/quick/ci profiles do not establish fixed-hardware capacity, long-duration production acceptance or real model quality/cost.",
+    "The VS Code packaging development dependency alert remains open and requires separate toolchain validation before that channel is published."
+  ]
+}
