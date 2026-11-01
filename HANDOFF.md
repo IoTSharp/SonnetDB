@@ -1582,6 +1582,16 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - Commit `078347a2` pushed the focused fix and Unreleased changelog entry. Local `npm run build` passed (Vite emitted its existing chunk-size advisory) and `npm run test:contracts` passed 472/472. `npm ci` passed using `npm_config_replace_registry_host=always` and `--registry=https://registry.npmjs.org` because lockfile mirror URLs were unreachable; audit reported 0 vulnerabilities.
 - Required `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exited 0 with workspace-loading/reference warnings. `dotnet restore SonnetDB.slnx` remains blocked by four missing extension submodule project files. Post-fix workflow run 41338466824 for code commit `078347a2` is `action_required` with zero jobs, so no fresh job logs or Playwright E2E results are available; review the run before treating the job as closed.
 
+## 2026-11-02 GitHub API 恢复与扩展打包安全修复
+
+- PR #384 已由 maikebing 于北京时间 2026-11-02 02:59:09 合入 main，当前基线 ad8f7a0181c8d2bba8a6472f339bc4bafadc8763。此前 API 不可用与 PR 未创建记录已过时；parity-results 保持独立，不合入或删除。
+- GitHub keyring 登录有效，账号 maikebing、有仓库 ADMIN 权限。直连 api.github.com 重置连接会让 gh auth status 误报 token 无效；按进程传 HTTPS_PROXY/HTTP_PROXY=http://127.0.0.1:7890 与 NO_PROXY=localhost,127.0.0.1,::1 后 REST/GraphQL/Actions/Dependabot 已恢复。没有全局修改代理，没有读出或保存明文 token，无须再登录。
+- 当前独立分支 codex/fix-vscode-minimatch-20261102：vsce 3.9.2→4.1.0 去掉受 GHSA-3g3m-2fjr-6pw4 影响的 glob；minimatch override 11.0.3 修 GHSA-g3hv-75wg-m249 / Dependabot #81。保留 engines.vscode 与 @types/vscode ^1.100.0、现有 Node22 CI。此前延期的 vsce4 在本次独立安全修复中实际迁移。
+- 本机 Node24.15/npm11.12：npm ci --ignore-scripts、59/59 测试、实际 .NET language-server publish + VSIX 打包（41 文件/约6.89MB）、真实 VS Code1.100.3 宿主测试均退出0。官方 npm audit --json --registry=https://registry.npmjs.org 报0漏洞；npmmirror 审计端点404不能算PASS。npm ls 确认vsce4.1/minimatch11.0.3且无glob。未发布Marketplace或正式5.0。
+- 本提交还更新根CHANGELOG、依赖审计与扩展开发说明；提交前将执行完整restore和规定format检查，实际结果以终端收据和提交为准。HANDOFF存在历史非法UTF8，本次只追加UTF8字节，保留旧字节。
+- main工作流41339384277：Format、三平台AOT通过，Ubuntu Build & Test已失败，两个Windows分片仍运行；Connectors Release、Docker Publish、Management smoke、Docs Pages已通过，CodeQL仍运行。本安全分支的远端CI尚未取得，不能称全部CI或发布门禁通过。
+- 后续顺序：提交并推送本安全分支、创建唯一PR并等待门禁；独立定位main Ubuntu失败，复核Dependabot #81自动关闭与剩余告警，继续HTTP/2/parity、正式包安装与5.0发行检查。当前未正式发布。
+
 ## 2026-11-02 Linux CI 测试宿主 inotify 修复
 
 - GitHub API 已通过本机127.0.0.1:7890代理恢复，gh keyring账号maikebing有效，不用重新登录或提供token。每次进程传HTTPS_PROXY/HTTP_PROXY及NO_PROXY=localhost,127.0.0.1,::1；没有全局代理修改。PR #384 已合入main ad8f7a01，parity-results保留独立。
@@ -1592,3 +1602,17 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 提交前将再次执行完整restore和规定format；通过后提交独立CI修复PR。后续先取得Ubuntu完整PASS并合并CI修复，再让安全PR基于修复后的main重验后合并，核对剩余open PR/Dependabot告警、parity和5.0包安装。正式发布、7天scheduled证据未完成，不能因本机434项通过称5.0已可发布。HANDOFF保留原非法UTF8历史，仅追加字节。
 
 - CI修复提交前首次完整restore因MSBuild并行子节点OutOfMemory退出，不能计PASS；后续只在子进程环境设置DOTNET_PROCESSOR_COUNT=4、MSBUILDDISABLENODEREUSE=1重跑同一restore/format命令，避免更改仓库门禁或清理其它会话进程。
+
+## 2026-11-02 两项独立修复的组合验证
+
+- PR #386 的CI修复提交40f3b186已同步到PR #385安全分支，保留两项独立提交与全部交接历史字节。先等待并合并#386，使用merge方式保留其祖先提交，再合并已验证组合的#385；在#386进入main后，#385相对main只保留安全依赖变更。
+- 本段写入时两个PR仍在运行远端门禁，main仍为ad8f7a01；本机434项集成测试、安全工具链59项、VSIX及1.100.3宿主验证通过。组合提交前重新执行完整restore与规定format，不能以旧提交的门禁替代最终待提交树。
+- 后续核对两个PR、最新main的CI/CodeQL、Dependabot #81、其它open PR及parity-results引用。5.0仍不正式发布；完整parity、7天scheduled和正式包安装等边界继续保留。
+
+## 2026-11-02 扩展评审修正与 Linux 完整回归
+
+- PR #385评审发现此前审计不准确：声明^1.100.0仍允许lock实际安装@types/vscode1.144.0。当前已将package及lock精确固定1.100.0，保持engines.vscode^1.100.0，npm ci后实际npm ls核对1.100.0；此前关于类型已恢复的文字应以本段为准。重新执行59/59、VSIX真实打包和VSCode1.100.3宿主均exit0，官方npm audit仍0漏洞。
+- 本机Server完整1552/1552通过，0fail/skip；加EF295和Accuracy9，完整受影响项目共1856项。PR #386提交40f3b186的CI41342898839中Ubuntu全量Build & Test已success，三平台AOT及Format通过，Windows两个分片和CodeQL记录时仍运行。
+- 组合提交262724ba已启动Parity41343481070（both且publish_results=false）和Publish41343484447（5.0.0-preview.readiness.20261102，仅构建验证）。NuGet job已成功，下载的干净Core/Protocol/Client消费者result为PASS；bundles和Parity尚待结束。随后本次扩展类型精确固定会形成新提交，旧SHA收据不能冒充新提交门禁，需按最新HEAD复核。
+- 最新scheduled Parity41290638954的失败是Web TS2589导致Docker构建失败，该修复已随#384进入main。七天历史按现行readiness规则为观察项，无须人为重新等待七天；必须取得最终候选light/full raw evidence与当前包安装合同。先前交接提到7天未完成仅代表证据边界，不应额外发明硬门禁。
+- 本次提交前将对最终待提交树重新restore/format；随后更新PR #385，继续等待#386及安全PR各自门禁，用户已授权合并，无须再次申请许可。未正式发布或部署；parity-results引用保持。

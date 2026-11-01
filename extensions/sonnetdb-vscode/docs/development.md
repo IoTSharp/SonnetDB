@@ -14,6 +14,16 @@ Install dependencies from `extensions/sonnetdb-vscode`:
 npm ci
 ```
 
+The packaging tool is `@vscode/vsce` 4, which requires Node.js 22 or later. The root `minimatch` override pins 11.0.3 to address GHSA-g3hv-75wg-m249 while vsce still requests version 10. Keep the override until its dependency range includes a fixed version, and verify both VSIX packaging and the Extension Host smoke test when changing it.
+
+Pin `@types/vscode` to 1.100.0 so compilation checks the minimum supported host API. A caret range such as `^1.100.0` permits newer type versions and does not enforce that API boundary. Upgrade this pin together with an intentional change to `engines.vscode`.
+
+Use the official npm registry for the security check; the configured mirror may not implement the audit endpoint:
+
+```powershell
+npm audit --registry=https://registry.npmjs.org
+```
+
 ## Directory layout
 
 ```text

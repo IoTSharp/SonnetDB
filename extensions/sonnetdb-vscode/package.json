@@ -422,11 +422,14 @@
     "build:language-server": "npm run clean:language-server && dotnet publish ../../src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj --configuration Release --output language-server -p:UseAppHost=false",
     "package:vsix": "npm run test && npm run build:language-server && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
   },
+  "overrides": {
+    "minimatch": "11.0.3"
+  },
   "devDependencies": {
     "@types/node": "^22.19.0",
-    "@types/vscode": "^1.100.0",
+    "@types/vscode": "1.100.0",
     "@vscode/test-electron": "3.1.0",
-    "@vscode/vsce": "^3.9.2",
+    "@vscode/vsce": "^4.1.0",
     "typescript": "^5.8.3"
   }
 }
