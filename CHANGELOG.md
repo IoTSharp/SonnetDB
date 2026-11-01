@@ -7,6 +7,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
+
 ### Changed
 - 依赖升级收口（2026-11-01）：NuGet 的 .NET 10.0.14、Microsoft.Extensions 10.0.14、OnnxRuntime 1.31.1、SkiaSharp 4.154.0、OpenTelemetry 1.20.1、Qdrant 1.20.0、StackExchange.Redis 3.4.29、AWS S3 4.0.104.8、NATS 3.3.2、MongoDB.Driver 3.13.0 等兼容版本，以及 Web/VS Code 的锁文件更新已通过当前门禁；NUnit 5、Roslyn 5.9、Vite 8、TypeScript 7、Pinia 4、Vue Router 5、marked 18 和 VS Code 打包工具链主版本升级保留为独立迁移，详见 `docs/audits/dependency-upgrade-20261101.md`。
 - 下一发行按 5.0 主版本准备：保留 Protocol 程序集拆分及分页 `long` API，明确重新编译与数据库备份回退要求；4.x 仍以 4.0.0 校验，后续 5.x 自动以 5.0.0 为包兼容基线，不压制 API 诊断。

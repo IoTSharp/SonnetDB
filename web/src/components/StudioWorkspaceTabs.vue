@@ -39,7 +39,7 @@
         <template #icon><Gauge :size="16" /></template>
         诊断
       </n-button>
-      <n-dropdown trigger="click" :options="connectionOptions" @select="$emit('connection-select', $event)">
+      <n-dropdown trigger="click" :options="connectionOptions" @select="onConnectionSelect">
         <n-button quaternary class="connection-button">
           <CircleCheck :size="15" />
           {{ connectionName }}
@@ -165,7 +165,7 @@ const props = defineProps<{
   connectionHealthBusy: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'select-tab': [id: string];
   'close-tab': [id: string];
   'create-tab': [];
@@ -182,6 +182,10 @@ defineEmits<{
   'show-history': [];
   'show-diagnostics': [];
 }>();
+
+function onConnectionSelect(key: string | number): void {
+  emit('connection-select', key);
+}
 
 const identityLabel = computed(() => {
   const identity = props.studioActiveIdentity;

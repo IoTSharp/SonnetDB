@@ -11,7 +11,7 @@
 
       <div class="workbench-context__tools">
         <div class="connection-switcher">
-          <n-dropdown trigger="click" :options="connectionOptions" @select="$emit('connection-select', $event)">
+          <n-dropdown trigger="click" :options="connectionOptions" @select="onConnectionSelect">
             <n-button size="small" secondary>
               {{ connectionName }}
             </n-button>
@@ -178,7 +178,7 @@ const props = defineProps<{
   nativeServerBusy: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'connection-select': [key: string | number];
   'open-connection': [];
   'set-tool': [tool: WorkbenchTool];
@@ -186,6 +186,10 @@ defineEmits<{
   'start-native-server': [];
   'stop-native-server': [];
 }>();
+
+function onConnectionSelect(key: string | number): void {
+  emit('connection-select', key);
+}
 
 const nativeServerLabel = computed(() => {
   if (!props.nativeServerStatus) return 'Studio';

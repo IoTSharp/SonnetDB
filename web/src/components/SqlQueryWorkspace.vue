@@ -7,7 +7,7 @@
         </n-button>
         <n-button size="small" @click="$emit('explain')">Explain</n-button>
         <n-button size="small" @click="$emit('format')">Format</n-button>
-        <n-dropdown trigger="click" placement="bottom-start" :options="quickSqlOptions" @select="$emit('quick-sql-select', $event)">
+        <n-dropdown trigger="click" placement="bottom-start" :options="quickSqlOptions" @select="onQuickSqlSelect">
           <n-button size="small">Quick SQL</n-button>
         </n-dropdown>
         <n-dropdown
@@ -214,6 +214,10 @@ const messageDescription = computed(() => {
 
 function selectSection(section: SqlSection): void {
   activeSection.value = section;
+}
+
+function onQuickSqlSelect(key: string | number): void {
+  emit('quick-sql-select', key);
 }
 
 function onClosedTabAction(key: string | number): void {
