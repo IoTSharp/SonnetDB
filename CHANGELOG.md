@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Changed
+- 下一发行按 5.0 主版本准备：保留 Protocol 程序集拆分及分页 `long` API，明确重新编译与数据库备份回退要求；4.x 仍以 4.0.0 校验，后续 5.x 自动以 5.0.0 为包兼容基线，不压制 API 诊断。
+- NuGet、SDK/完整 bundle、候选晋级和发行恢复清单纳入 `SonnetDB.Protocol`、`SonnetDB.Client`；真实包合同从候选源安装并核对 Protocol，避免缺包或意外使用公开 feed。
 - 更新 M46 压缩路线规划：明确类型无损编码、Block 自适应选择与 raw 回退、可选二级 LZ4/Zstd、范围解码及版本/恢复/性能验收；规划更新不表示算法实现、默认开启或性能收益已验证。
 - M49-C02/Java：新增 Java 8 可编译的 `SonnetDbFrameCodec`，覆盖 SQL Execute v1 的完整 little-endian Frame、12 种显式参数、预算/绑定/Decimal/finite vector 守卫和 committed 响应；无 Maven/Gradle 的 `javac --release 8 -Xlint:all -Werror` 合同测试 3/3 通过，真实 HTTP/2/JNI/Java 8 运行矩阵另验。
 - M49-R02：`SonnetDB.Client` 新增仅面向 SQL Query、Vector Search、Graph Expand、Object Get 的有界 HTTP/2 多帧读取器；逐帧先校验身份再分配，按帧数/累计字节预算限制，终态确认 EOF 后才交付，缺终态、尾帧、取消、传输中止和早退均保留未知结果并释放响应资源。真实 Server/TLS 与九模型 typed 解码仍未运行。
@@ -120,6 +122,10 @@
 - Windows CI 按 Core 与其余项目分片运行完整测试集合，保留每任务 60 分钟、Test 步骤 50 分钟和单项挂起 10 分钟上限；两片均完整构建原方案，发布就绪门禁要求两片任务、分片选择步骤及独立结果产物齐全且成功。
 
 ### Fixed
+- 管理工作台 CI 单独必跑 StudioNative 的 25 项 Copilot/宿主浏览器合同，并将缺失、跳过或失败纳入发布拒绝条件；修正两个原生宿主测试夹具的事件流响应，防止默认 BrowserDirect 跳过掩盖失效测试。
+- 修复 Measurement 在 401 清空登录态后自动重新读取的问题：无凭证时锁定并清除点值、监控、编辑及导入载荷，不再重试；补组件与真实路由层 401/403 回归，并修正 OAuth 测试夹具的 SSE Content-Type。
+- 修复 Publish 的 NuGet/CAP 验证作业未递归检出 CoAP/MQTT 子模块而在干净 Linux runner 编译失败的问题；消费者证据仅在对应检查实际执行后上传。
+- 修复 nullable 参数/相关值的 EXISTS 等值谓词因混同 `= NULL` 与 `IS NULL` 退回全表扫描的问题；普通 NULL 等值保留 UNKNOWN 并使用空索引探测，唯一索引的 IS NULL 仍保留正确回退，补充单列/复合索引回归。
 - 修复 SonnetMQ 目录模式打开时将 `wal/`、`documents/` 等无关子目录强行按 hex 解码而失败的问题：恢复前验证目录编码及 Topic 名称，只跳过非 Topic 目录，保留真实消息段损坏报错与消息、消费进度恢复行为。
 - 木垒现场 SQL 唯一索引点读、布尔/NULL 前缀、残余条件有序查询和空输入 JOIN 保持既有语义并降低恢复查询开销；KV 后台过期清理增加有界分页，远程事务终态按独立预算回收，避免已完成回执耗尽保留容量。SQL/KV/事务定向测试与现场 R3 样本通过；完整长期和跨平台验收另列。
 - 修复 Parity crash reliability 回归：keyless DML 断言当前 v16 目录下限，并将 DDL journal prepared/committed 与 recovery 子进程场景接入 CrashTests Child 分发；完整 CrashTests 82/82 通过。

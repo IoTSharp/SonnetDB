@@ -1181,6 +1181,9 @@ watch(identity, (value) => {
 watch([() => auth.state, () => auth.state?.token, () => auth.api,
   () => props.measurement, () => props.measurements, () => props.tables,
   () => JSON.stringify([props.measurement, props.measurements, props.tables])], () => {
+  // A 401 expires auth before the rejected read resumes. Lock here so the
+  // context invalidation cannot trigger another read without a credential.
+  if (!auth.state?.token) { lockPermission(); return; }
   invalidateContext();
   if (!permissionDenied.value) void loadPoints();
 }, { flush: 'sync' });

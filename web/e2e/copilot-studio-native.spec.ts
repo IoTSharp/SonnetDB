@@ -108,6 +108,7 @@ const test = base.extend<{ native: NativeFixture }>({
         return json(route, { jsonrpc: '2.0', id: body.id, result });
       }
       if (url.pathname === '/healthz') return json(route, { status: fixture.localReady ? 'ok' : 'down' }, undefined, fixture.localReady ? 200 : 503);
+      if (url.pathname === '/v1/events') return route.fulfill({ contentType: 'text/event-stream', body: 'event: hello\ndata: {}\n\n' });
       if (url.pathname.startsWith('/v1/')) return management(route, request, url.pathname);
       if (url.pathname === '/metrics') return route.fulfill({ contentType: 'text/plain', body: '' });
       return route.continue();

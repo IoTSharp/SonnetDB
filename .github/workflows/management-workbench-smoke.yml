@@ -100,6 +100,13 @@ jobs:
         working-directory: web
         run: npm run test:e2e
 
+      - name: Run Studio native browser contracts
+        working-directory: web
+        timeout-minutes: 10
+        env:
+          SONNETDB_E2E_RUNTIME: StudioNative
+        run: npm run test:e2e -- copilot-studio-native.spec.ts studio-host-client.spec.ts
+
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7

@@ -39,6 +39,8 @@ function Pack-NuGetPackages
     Write-Section "Packing NuGet packages"
     Reset-Directory $NuGetOutput
 
+    Invoke-DotNetPack 'src/SonnetDB.Protocol/SonnetDB.Protocol.csproj' $NuGetOutput
+    Invoke-DotNetPack 'connectors/dotnet/SonnetDB.Client/SonnetDB.Client.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput

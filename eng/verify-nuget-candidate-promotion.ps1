@@ -11,9 +11,9 @@ if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 required.' }
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $root = [IO.Path]::GetFullPath($ArtifactRoot)
 if ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Artifact root cannot be a reparse point.' }
-$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'Testcontainers.SonnetDB')
+$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Protocol', 'Testcontainers.SonnetDB')
 $packages = @(Get-ChildItem -LiteralPath $root -File -Filter '*.nupkg')
-if ($packages.Count -ne $ids.Count) { throw 'The candidate must contain exactly eight NuGet packages.' }
+if ($packages.Count -ne $ids.Count) { throw "The candidate must contain exactly $($ids.Count) NuGet packages." }
 $records = [Collections.Generic.List[object]]::new()
 for ($index = 0; $index -lt $ids.Count -and $clock.Elapsed.TotalSeconds -lt 90; $index++) {
     $id = $ids[$index]

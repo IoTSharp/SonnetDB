@@ -6,6 +6,8 @@
     <PackageTags>sonnetdb;http2;frame;remote</PackageTags>
     <Description>SonnetDB 原生 HTTP/2 Frame 远程访问基础库，不包含嵌入式引擎或 REST 回落。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion Condition="$([System.String]::Copy('$(PackageVersion)').StartsWith('5.')) And '$(PackageVersion)' != '5.0.0' And !$([System.String]::Copy('$(PackageVersion)').StartsWith('5.0.0-'))">5.0.0</PackageValidationBaselineVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/SonnetDB.Protocol/SonnetDB.Protocol.csproj" />
