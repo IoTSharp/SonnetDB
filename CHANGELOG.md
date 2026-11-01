@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Fixed
+- VS Code 扩展打包工具升级至 `@vscode/vsce` 4.1.0，移除有漏洞的 glob 并将间接 minimatch 固定为 11.0.3，修复 GHSA-3g3m-2fjr-6pw4 与 GHSA-g3hv-75wg-m249；保留 VS Code 1.100 宿主合同，实际 VSIX、59 项测试、1.100.3 宿主测试及官方 npm 安全审计通过。
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed

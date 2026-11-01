@@ -1581,3 +1581,13 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - Actions run 41337552868 / job 124941389124 failed during `npm run build`: `vue-tsc` reported TS2589 at the inline `n-dropdown` selection `$emit` in `SqlQueryWorkspace.vue`. Replacing the inline template emit with a typed handler resolved that error; the next type-check surfaced the same failure in `StudioWorkspaceTabs.vue` and `SqlWorkbenchHeader.vue`, which now use matching typed handlers.
 - Commit `078347a2` pushed the focused fix and Unreleased changelog entry. Local `npm run build` passed (Vite emitted its existing chunk-size advisory) and `npm run test:contracts` passed 472/472. `npm ci` passed using `npm_config_replace_registry_host=always` and `--registry=https://registry.npmjs.org` because lockfile mirror URLs were unreachable; audit reported 0 vulnerabilities.
 - Required `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exited 0 with workspace-loading/reference warnings. `dotnet restore SonnetDB.slnx` remains blocked by four missing extension submodule project files. Post-fix workflow run 41338466824 for code commit `078347a2` is `action_required` with zero jobs, so no fresh job logs or Playwright E2E results are available; review the run before treating the job as closed.
+
+## 2026-11-02 GitHub API 恢复与扩展打包安全修复
+
+- PR #384 已由 maikebing 于北京时间 2026-11-02 02:59:09 合入 main，当前基线 ad8f7a0181c8d2bba8a6472f339bc4bafadc8763。此前 API 不可用与 PR 未创建记录已过时；parity-results 保持独立，不合入或删除。
+- GitHub keyring 登录有效，账号 maikebing、有仓库 ADMIN 权限。直连 api.github.com 重置连接会让 gh auth status 误报 token 无效；按进程传 HTTPS_PROXY/HTTP_PROXY=http://127.0.0.1:7890 与 NO_PROXY=localhost,127.0.0.1,::1 后 REST/GraphQL/Actions/Dependabot 已恢复。没有全局修改代理，没有读出或保存明文 token，无须再登录。
+- 当前独立分支 codex/fix-vscode-minimatch-20261102：vsce 3.9.2→4.1.0 去掉受 GHSA-3g3m-2fjr-6pw4 影响的 glob；minimatch override 11.0.3 修 GHSA-g3hv-75wg-m249 / Dependabot #81。保留 engines.vscode 与 @types/vscode ^1.100.0、现有 Node22 CI。此前延期的 vsce4 在本次独立安全修复中实际迁移。
+- 本机 Node24.15/npm11.12：npm ci --ignore-scripts、59/59 测试、实际 .NET language-server publish + VSIX 打包（41 文件/约6.89MB）、真实 VS Code1.100.3 宿主测试均退出0。官方 npm audit --json --registry=https://registry.npmjs.org 报0漏洞；npmmirror 审计端点404不能算PASS。npm ls 确认vsce4.1/minimatch11.0.3且无glob。未发布Marketplace或正式5.0。
+- 本提交还更新根CHANGELOG、依赖审计与扩展开发说明；提交前将执行完整restore和规定format检查，实际结果以终端收据和提交为准。HANDOFF存在历史非法UTF8，本次只追加UTF8字节，保留旧字节。
+- main工作流41339384277：Format、三平台AOT通过，Ubuntu Build & Test已失败，两个Windows分片仍运行；Connectors Release、Docker Publish、Management smoke、Docs Pages已通过，CodeQL仍运行。本安全分支的远端CI尚未取得，不能称全部CI或发布门禁通过。
+- 后续顺序：提交并推送本安全分支、创建唯一PR并等待门禁；独立定位main Ubuntu失败，复核Dependabot #81自动关闭与剩余告警，继续HTTP/2/parity、正式包安装与5.0发行检查。当前未正式发布。
