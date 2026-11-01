@@ -20,6 +20,8 @@ internal static class EfTestServerHost
         {
             "--contentRoot",
             contentRoot,
+            // 测试配置在启动前写完且不再更改，重复建宿主无需占用 Linux inotify 实例。
+            "--hostBuilder:reloadConfigOnChange=false",
             "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
         };
         if (extraArgs is not null)
