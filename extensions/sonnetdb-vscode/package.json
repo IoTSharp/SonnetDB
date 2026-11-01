@@ -423,8 +423,8 @@
     "package:vsix": "npm run test && npm run build:language-server && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "@types/vscode": "^1.100.0",
+    "@types/node": "^22.19.0",
+    "@types/vscode": "^1.144.0",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "^3.9.2",
     "typescript": "^5.8.3"
