@@ -37,9 +37,9 @@
 
 ## 2026-11-02 后续安全迁移
 
-- 上述依赖候选已随 PR #384 合入 `main`（`ad8f7a01`）。评审时将 `@types/vscode` 恢复到 `^1.100.0`，保持与扩展最低宿主版本一致；前文 1.144.0 是候选历史，不是当前版本。
+- 上述依赖候选已随 PR #384 合入 `main`（`ad8f7a01`）。该 PR 将 `@types/vscode` 声明改为 `^1.100.0`，但 caret 范围仍允许锁定 1.144.0；本 PR 评审据此指出原审计把声明范围当成实际安装版本。本次将声明及锁文件都固定为精确 `1.100.0`，用最低宿主的 API 类型重新验证。
 - 本次独立修复将 `@vscode/vsce` 从 3.9.2 升至 4.1.0，并将间接依赖 `minimatch` 显式固定为 11.0.3。vsce 4 使用 tinyglobby，移除存在 GHSA-3g3m-2fjr-6pw4 的 glob；override 修复 GHSA-g3hv-75wg-m249。只更新 minimatch 会留下 glob 告警，故前文延期的 vsce 4 在本次单独迁移。
-- vsce 4 要求 Node.js >=22，符合扩展现有开发文档与 CI 的 Node 22 基线。本机验证使用 Node 24.15.0 / npm 11.12.1；不能据此替代 CI Node 22 的结果。扩展 `engines.vscode` 和 `@types/vscode` 仍为 `^1.100.0`。
+- vsce 4 要求 Node.js >=22，符合扩展现有开发文档与 CI 的 Node 22 基线。本机验证使用 Node 24.15.0 / npm 11.12.1；不能据此替代 CI Node 22 的结果。扩展 `engines.vscode` 仍为 `^1.100.0`，编译类型固定为 `@types/vscode` 1.100.0。
 - `npm ci --ignore-scripts`、59/59 单元测试及实际 `npm run package:vsix` 均通过；VSIX 包含 language server 及其运行时依赖，共 41 个文件、约 6.89 MB。制品仅留在忽略目录，未发布至 Marketplace。
 - `npm run test:host` 在真实 VS Code 1.100.3（最低宿主系列）通过，扩展已加载且宿主退出 0。
 - `npm audit --json --registry=https://registry.npmjs.org` 退出 0，报告 0 个漏洞；`npm ls minimatch glob @vscode/vsce --json` 确认 vsce 4.1.0、minimatch 11.0.3 且无 glob。默认 npmmirror 的审计端点返回 404 NOT_IMPLEMENTED，不能作为审计通过证据。

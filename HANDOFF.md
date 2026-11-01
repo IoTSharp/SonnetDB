@@ -1608,3 +1608,11 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - PR #386 的CI修复提交40f3b186已同步到PR #385安全分支，保留两项独立提交与全部交接历史字节。先等待并合并#386，使用merge方式保留其祖先提交，再合并已验证组合的#385；在#386进入main后，#385相对main只保留安全依赖变更。
 - 本段写入时两个PR仍在运行远端门禁，main仍为ad8f7a01；本机434项集成测试、安全工具链59项、VSIX及1.100.3宿主验证通过。组合提交前重新执行完整restore与规定format，不能以旧提交的门禁替代最终待提交树。
 - 后续核对两个PR、最新main的CI/CodeQL、Dependabot #81、其它open PR及parity-results引用。5.0仍不正式发布；完整parity、7天scheduled和正式包安装等边界继续保留。
+
+## 2026-11-02 扩展评审修正与 Linux 完整回归
+
+- PR #385评审发现此前审计不准确：声明^1.100.0仍允许lock实际安装@types/vscode1.144.0。当前已将package及lock精确固定1.100.0，保持engines.vscode^1.100.0，npm ci后实际npm ls核对1.100.0；此前关于类型已恢复的文字应以本段为准。重新执行59/59、VSIX真实打包和VSCode1.100.3宿主均exit0，官方npm audit仍0漏洞。
+- 本机Server完整1552/1552通过，0fail/skip；加EF295和Accuracy9，完整受影响项目共1856项。PR #386提交40f3b186的CI41342898839中Ubuntu全量Build & Test已success，三平台AOT及Format通过，Windows两个分片和CodeQL记录时仍运行。
+- 组合提交262724ba已启动Parity41343481070（both且publish_results=false）和Publish41343484447（5.0.0-preview.readiness.20261102，仅构建验证）。NuGet job已成功，下载的干净Core/Protocol/Client消费者result为PASS；bundles和Parity尚待结束。随后本次扩展类型精确固定会形成新提交，旧SHA收据不能冒充新提交门禁，需按最新HEAD复核。
+- 最新scheduled Parity41290638954的失败是Web TS2589导致Docker构建失败，该修复已随#384进入main。七天历史按现行readiness规则为观察项，无须人为重新等待七天；必须取得最终候选light/full raw evidence与当前包安装合同。先前交接提到7天未完成仅代表证据边界，不应额外发明硬门禁。
+- 本次提交前将对最终待提交树重新restore/format；随后更新PR #385，继续等待#386及安全PR各自门禁，用户已授权合并，无须再次申请许可。未正式发布或部署；parity-results引用保持。

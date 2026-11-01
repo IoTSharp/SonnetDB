@@ -22,3 +22,9 @@ Server、EF 和 Accuracy 三个测试宿主 helper 都先生成独立临时目�
 - 本机验证显式设置 `NO_PROXY=localhost,127.0.0.1,::1`，真实本地 HTTP/2 此次通过；旧会话的 `RequestVersionExact` 环境失败不是本次结果。
 - Linux inotify 问题的完整修复以新 PR 的 Ubuntu 全量 CI 为准；Windows 定向验证不能替代该结果。完整 parity/light/full、7 天 scheduled、正式发行包安装仍是独立门禁。
 - 测试 TRX 保存在本机忽略目录 `artifacts/ci-watchers-20261102/`，未提交制品。
+
+## 后续完整验证
+
+- 本机 Server 全套 1,552/1,552 PASS，0 FAIL / 0 SKIP，持续约 2 分 50 秒。
+- PR #386 的提交 `40f3b186c24c9af940ec6453acf7dc38313012be`，CI run `41342898839` 的 Ubuntu `Build & Test` 已成功，三平台 AOT 与 Format Check 也成功。这是包含全部 Linux 测试集合的实际收据，原 inotify 阻塞不再是该提交的失败项。
+- 记录时两个 Windows 分片和 CodeQL 仍在运行；尚未合并 PR，最终状态需回读，不能把本段扩展为所有发行门禁已通过。
