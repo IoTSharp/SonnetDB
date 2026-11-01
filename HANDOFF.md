@@ -1569,3 +1569,9 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 依赖候选提交 `c2d0c267` 已推送到 `origin/codex/dependency-upgrade-20261101`，工作树在推送后保持干净。
 - GitHub PR 创建及 open PR/CI API 查询因当前网络无法连接 `api.github.com`，未绕过远端门禁直接写入 `main`；下一次会话应先核对是否已创建 PR，再等待 CI/CodeQL 后决定合并。
 - 推送回执报告默认分支仍有 1 个中危 Dependabot 漏洞（告警 #81），详情尚未取得；不能把本轮升级写成安全告警已清零，也不能发布正式版本。
+
+## 2026-11-01 VS Code extension review fix
+
+- PR #384 review fix committed as f5682c35: synchronized `@types/vscode` to `^1.100.0` in the extension manifest and lockfile, matching the existing VS Code host minimum.
+- Extension tests remain blocked: npm dependency installation failed (offline cache miss and online npm internal error), leaving required typings unavailable. `dotnet restore` also failed because four referenced extension projects are absent; `dotnet format` exited 0 with workspace-loading warnings. CodeQL reported no analyzable code changes.
+- The fix is pushed. For further verification, restore the missing projects/dependencies and rerun extension tests and VSIX packaging smoke.
