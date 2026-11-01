@@ -16,7 +16,8 @@ internal static class TestServerHost
         Directory.CreateDirectory(contentRoot);
         WriteAppSettings(contentRoot, options);
 
-        string[] args = ["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"];
+        // 每个测试使用一次性、启动前写好的配置；禁用文件热加载，避免大量宿主耗尽 Linux inotify 实例。
+        string[] args = ["--contentRoot", contentRoot, "--hostBuilder:reloadConfigOnChange=false", "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"];
         if (extraArgs is { Length: > 0 })
             args = [.. args, .. extraArgs];
 

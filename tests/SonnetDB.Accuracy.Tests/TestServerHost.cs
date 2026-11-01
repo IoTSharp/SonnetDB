@@ -16,7 +16,8 @@ internal static class TestServerHost
         var json = JsonSerializer.Serialize(settings);
         File.WriteAllText(Path.Combine(contentRoot, "appsettings.json"), json);
 
-        var app = Program.BuildApp(["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"]);
+        // 配置在启动前固定，避免为短生命周期测试宿主创建文件监听器。
+        var app = Program.BuildApp(["--contentRoot", contentRoot, "--hostBuilder:reloadConfigOnChange=false", "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"]);
         app.Lifetime.ApplicationStopped.Register(static state =>
         {
             var root = (string)state!;
