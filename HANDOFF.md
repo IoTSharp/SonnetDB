@@ -1563,3 +1563,9 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 全量门禁仍有 HTTP/2/h2c `RequestVersionExact` 环境失败，不能写成依赖升级回归或发布通过；需在可建立 HTTP/2 的 CI/真实服务环境重新取得完整 light/full 与 scheduled 证据。
 - GitHub API 本轮网络不稳定，未凭 API 失败响应声称远端状态；正式发布前需再次核对 open PR、CodeQL、Dependabot alerts、包安装合同和发布工作流。
 - 下一步：复核最终 diff，执行 restore、format verify-no-changes，再提交依赖升级候选并等待远端门禁；未经 HTTP/2、scheduled、包安装和安全告警复核，不发布正式版本。
+
+## 2026-11-01 远端合并边界
+
+- 依赖候选提交 `c2d0c267` 已推送到 `origin/codex/dependency-upgrade-20261101`，工作树在推送后保持干净。
+- GitHub PR 创建及 open PR/CI API 查询因当前网络无法连接 `api.github.com`，未绕过远端门禁直接写入 `main`；下一次会话应先核对是否已创建 PR，再等待 CI/CodeQL 后决定合并。
+- 推送回执报告默认分支仍有 1 个中危 Dependabot 漏洞（告警 #81），详情尚未取得；不能把本轮升级写成安全告警已清零，也不能发布正式版本。
