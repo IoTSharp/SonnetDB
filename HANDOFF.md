@@ -1554,3 +1554,30 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 用户已授权提交并推送全部现场代码。本检出保留 `5424b666` 客户端基线及其唯一索引、残余查询、布尔/NULL 索引和空 JOIN 补丁，供父项目继续使用；数据库服务使用独立的较新源码基线，不能以此旧客户端重建 R3 数据库。
 - 此次源码归入 `codex/mulei-client-20261029`，父项目以可从 GitHub 获取的子模块提交固定客户端；实际提交和远端位置以 Git 回读及父项目交接记录为准。数据库服务修复另在 `codex/mulei-server-20261029` 保存，避免把两个运行基线混成一个提交。
 - 先执行完整 `dotnet restore SonnetDB.slnx` 成功；`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 首次 180 秒超时并回收进程，随后在独立有界运行中退出 0，仅有工作区加载警告。10 月 8 日的定向测试及 10 月 29 日现场证据边界见原记录和父项目报告，不能将格式门禁扩展为全套测试。
+
+## 2026-11-01 依赖升级与发布候选收口
+
+- 当前分支 `codex/dependency-upgrade-20261101` 基于 `origin/main` 的 `a9565e7d`，远端抓取已完成；本次同步前的 Dependabot 依赖 PR 已合入，已删除的 Dependabot 远端分支已由 fetch 清理。
+- 当前工作树只保留兼容性依赖升级：`Directory.Packages.props`、`web/package.json`/lock 和 `extensions/sonnetdb-vscode/package.json`/lock。主版本迁移（NUnit 5、Roslyn 5.9、Vite 8、TypeScript 7、Pinia 4、Vue Router 5、marked 18、vsce 4）未混入。
+- 验证通过：restore；Release solution build 0 warning/0 error；Core 7995/7995；Client 非 HTTP/2 213/213；Native 12/12；CAP 42/42；EF Core 295/295；Web build；Web contracts 472/472；VS Code extension 59/59。
+- 全量门禁仍有 HTTP/2/h2c `RequestVersionExact` 环境失败，不能写成依赖升级回归或发布通过；需在可建立 HTTP/2 的 CI/真实服务环境重新取得完整 light/full 与 scheduled 证据。
+- GitHub API 本轮网络不稳定，未凭 API 失败响应声称远端状态；正式发布前需再次核对 open PR、CodeQL、Dependabot alerts、包安装合同和发布工作流。
+- 下一步：复核最终 diff，执行 restore、format verify-no-changes，再提交依赖升级候选并等待远端门禁；未经 HTTP/2、scheduled、包安装和安全告警复核，不发布正式版本。
+
+## 2026-11-01 远端合并边界
+
+- 依赖候选提交 `c2d0c267` 已推送到 `origin/codex/dependency-upgrade-20261101`，工作树在推送后保持干净。
+- GitHub PR 创建及 open PR/CI API 查询因当前网络无法连接 `api.github.com`，未绕过远端门禁直接写入 `main`；下一次会话应先核对是否已创建 PR，再等待 CI/CodeQL 后决定合并。
+- 推送回执报告默认分支仍有 1 个中危 Dependabot 漏洞（告警 #81），详情尚未取得；不能把本轮升级写成安全告警已清零，也不能发布正式版本。
+
+## 2026-11-01 VS Code extension review fix
+
+- PR #384 review fix committed as f5682c35: synchronized `@types/vscode` to `^1.100.0` in the extension manifest and lockfile, matching the existing VS Code host minimum.
+- Extension tests remain blocked: npm dependency installation failed (offline cache miss and online npm internal error), leaving required typings unavailable. `dotnet restore` also failed because four referenced extension projects are absent; `dotnet format` exited 0 with workspace-loading warnings. CodeQL reported no analyzable code changes.
+- The fix is pushed. For further verification, restore the missing projects/dependencies and rerun extension tests and VSIX packaging smoke.
+
+## 2026-11-01 Web Admin build failure follow-up
+
+- Actions run 41337552868 / job 124941389124 failed during `npm run build`: `vue-tsc` reported TS2589 at the inline `n-dropdown` selection `$emit` in `SqlQueryWorkspace.vue`. Replacing the inline template emit with a typed handler resolved that error; the next type-check surfaced the same failure in `StudioWorkspaceTabs.vue` and `SqlWorkbenchHeader.vue`, which now use matching typed handlers.
+- Commit `078347a2` pushed the focused fix and Unreleased changelog entry. Local `npm run build` passed (Vite emitted its existing chunk-size advisory) and `npm run test:contracts` passed 472/472. `npm ci` passed using `npm_config_replace_registry_host=always` and `--registry=https://registry.npmjs.org` because lockfile mirror URLs were unreachable; audit reported 0 vulnerabilities.
+- Required `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exited 0 with workspace-loading/reference warnings. `dotnet restore SonnetDB.slnx` remains blocked by four missing extension submodule project files. Post-fix workflow run 41338466824 for code commit `078347a2` is `action_required` with zero jobs, so no fresh job logs or Playwright E2E results are available; review the run before treating the job as closed.

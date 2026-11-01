@@ -6,29 +6,29 @@
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.14" />
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
-    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.12" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.14" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.14" />
     <PackageVersion Include="ModelContextProtocol" Version="2.3.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.3.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.14" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
     <PackageVersion Include="NativeWebHost.Windows" Version="2.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.31.0" />
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.1" />
     <!-- 图片处理不需要许可证激活或构建密钥；Linux 原生资产不依赖 Fontconfig。 -->
-    <PackageVersion Include="SkiaSharp" Version="4.153.1" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
+    <PackageVersion Include="SkiaSharp" Version="4.154.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.154.0" />
     <PackageVersion Include="TiffLibrary" Version="0.6.65" />
     <!-- 2.26.2 在 linux-x64 原生初始化时触发 SIGILL；保留真实 native 探针通过的 2.26.0。 -->
     <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.6" />
@@ -41,10 +41,10 @@
       OpenTelemetry SDK 仅允许出现在 src/SonnetDB（Server 程序集）：Core 只用 BCL Meter/ActivitySource（M17）。
       Prometheus.AspNetCore 上游尚无稳定版（规范仍 experimental），固定 beta 版本。
     -->
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.18.0-beta.1" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
@@ -71,19 +71,19 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <!-- CoAP tests still use NUnit 3 CollectionAssert APIs removed in NUnit 4. -->
     <PackageVersion Include="nunit" Version="3.14.0" />
-    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.1" />
     <PackageVersion Include="Testcontainers" Version="4.16.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
-    <PackageVersion Include="Qdrant.Client" Version="1.19.0" />
-    <PackageVersion Include="StackExchange.Redis" Version="3.1.31" />
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.102.4" />
-    <PackageVersion Include="NATS.Client.Core" Version="3.2.0" />
-    <PackageVersion Include="NATS.Client.JetStream" Version="3.2.0" />
+    <PackageVersion Include="Qdrant.Client" Version="1.20.0" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.4.29" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />
+    <PackageVersion Include="NATS.Client.Core" Version="3.3.2" />
+    <PackageVersion Include="NATS.Client.JetStream" Version="3.3.2" />
     <PackageVersion Include="MeiliSearch" Version="0.20.0" />
-    <PackageVersion Include="MongoDB.Driver" Version="3.11.1" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
     <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
   </ItemGroup>
