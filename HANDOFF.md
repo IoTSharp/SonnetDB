@@ -1616,3 +1616,14 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 组合提交262724ba已启动Parity41343481070（both且publish_results=false）和Publish41343484447（5.0.0-preview.readiness.20261102，仅构建验证）。NuGet job已成功，下载的干净Core/Protocol/Client消费者result为PASS；bundles和Parity尚待结束。随后本次扩展类型精确固定会形成新提交，旧SHA收据不能冒充新提交门禁，需按最新HEAD复核。
 - 最新scheduled Parity41290638954的失败是Web TS2589导致Docker构建失败，该修复已随#384进入main。七天历史按现行readiness规则为观察项，无须人为重新等待七天；必须取得最终候选light/full raw evidence与当前包安装合同。先前交接提到7天未完成仅代表证据边界，不应额外发明硬门禁。
 - 本次提交前将对最终待提交树重新restore/format；随后更新PR #385，继续等待#386及安全PR各自门禁，用户已授权合并，无须再次申请许可。未正式发布或部署；parity-results引用保持。
+
+## 2026-11-02 #230 发行与 FreeSql 消费者收口
+
+- 发行冻结为5.0.0，tag v5.0.0固定455bf3b53b1e56df0064d8f574b0595cbb0b609e，不得移动或重建。PR#386与#385已合入main6a3b761b；main与455源码tree相同。EXISTS/NULL回归已修复；Ubuntu完整10243/10243，VSIX59项/最低宿主1.100.3及官方npm0漏洞通过，Dependabot#81已fixed，候选CodeQL open0。parity-results独立保留，不得合入/删除。
+- 同提交/精确5.0.0的现行12类发行门禁READY，readiness-5.0.0-455bf3b5.json保留全部run；当前light/full及raw verifier通过。七天scheduled6/7依现行政策是非阻断观察项，不能宣称7天通过或自行添加等待硬门禁。公开4.0数据升级、事务DDL/双表写入、两次重开、旧版拒绝新floor、原备份恢复及4.0两次重开全部PASS。
+- 正式Publish41348714535：NuGet构建、Linux/Windows bundles/安装合同全部成功，首个NuGet推送403明确API Key过期；无十包公开交付，GitHub Release跳过。Connectors41348714371三平台构建PASS、上传因Publish失败而失败；Docker41348714479成功，属于部分分发。不能把tag或Docker成功写成整个版本已发布。已请用户更新GitHub Actions的NUGET_API_KEY，密钥不发到聊天、不保存明文；secret最近更新时间仍为2026-04-23。
+- FreeSql工作区D:/source/FreeSql-readiness-20261102，分支codex/sonnetdb-pr-readiness-20261102，新增提交a2268c1ff已推送现有上游PR#2291。5.0依赖、按列时间参数、无参数精细时间CAST、视图结构化去重和独立ReleaseAcceptance已交付，FreeSql核心零修改。完整237/237、0fail/skip；纯候选Core/Provider包的隔离消费者restore/build及embedded/REST/frame-http2各25业务+8重开PASS，真实日志REST SQL68/HTTP2 Frame32/事务21。DATETIMEOFFSET是UTC ticks/零offset；迁移只测支持的STRING→INT。原夹具修正、输出上限中断保留日志，不冒充产品缺陷或完整通过。
+- 公开FreeSql Core3.5.311没有DataType.SonnetDB，隔离消费者实际CS0117；Provider公开NuGet索引404。当前账号对dotnetcore/FreeSql只有READ，需要上游合入#2291并发布新Core/Provider。#230已更新正文且保持开放，不能用候选包PASS提前关闭。
+- 本批SonnetDB分支codex/issue-230-release-20261102从origin/main6a3b761b创建，只更新docs/audits/issue-230-release-20261102.md/.json、迁移状态、CHANGELOG与本交接；不改发行tag和产品源码。原HANDOFF历史非法UTF8字节保留，仅追加UTF8。原始TRX/日志/探针/失败发布日志与待用发行说明在ignored artifacts/release-followup-20261102，未提交编译产物。
+- 下一顺序：用户更新NUGET_API_KEY后重跑原Publish的failed jobs，再恢复Connectors上传；正式成功后用release-5.0.0-notes.md更新发行说明，核验十个公开包、nuspec/source和DLL内容及实际Server。NuGet签名可改变整包SHA，不能要求签名后包与unsigned候选整包一致。以新缓存/公开SonnetDB重跑237和三协议旅程，再等FreeSql新Core/Provider公开并执行全公共组合后关闭#230。
+- 本批提交前必须取得最终树完整dotnet restore及规定dotnet format verify退出0；收据保留在release-followup-20261102/issue-230-docs-restore.log和issue-230-docs-format.log。未取得通过不得commit。当前候选验收不代表物理掉电、干净机器安装、固定硬件、全模型/Server MQ恢复或生产负载。
