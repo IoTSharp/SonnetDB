@@ -1575,3 +1575,9 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - PR #384 review fix committed as f5682c35: synchronized `@types/vscode` to `^1.100.0` in the extension manifest and lockfile, matching the existing VS Code host minimum.
 - Extension tests remain blocked: npm dependency installation failed (offline cache miss and online npm internal error), leaving required typings unavailable. `dotnet restore` also failed because four referenced extension projects are absent; `dotnet format` exited 0 with workspace-loading warnings. CodeQL reported no analyzable code changes.
 - The fix is pushed. For further verification, restore the missing projects/dependencies and rerun extension tests and VSIX packaging smoke.
+
+## 2026-11-01 Web Admin build failure follow-up
+
+- Actions run 41337552868 / job 124941389124 failed during `npm run build`: `vue-tsc` reported TS2589 at the inline `n-dropdown` selection `$emit` in `SqlQueryWorkspace.vue`. Replacing the inline template emit with a typed handler resolved that error; the next type-check surfaced the same failure in `StudioWorkspaceTabs.vue` and `SqlWorkbenchHeader.vue`, which now use matching typed handlers.
+- Commit `078347a2` pushed the focused fix and Unreleased changelog entry. Local `npm run build` passed (Vite emitted its existing chunk-size advisory) and `npm run test:contracts` passed 472/472. `npm ci` passed using `npm_config_replace_registry_host=always` and `--registry=https://registry.npmjs.org` because lockfile mirror URLs were unreachable; audit reported 0 vulnerabilities.
+- Required `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exited 0 with workspace-loading/reference warnings. `dotnet restore SonnetDB.slnx` remains blocked by four missing extension submodule project files. The full GitHub Actions workflow and Playwright E2E steps have not yet rerun; check the new commit’s CI before treating the job as closed.
