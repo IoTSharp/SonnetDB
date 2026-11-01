@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "verifiedAtUtc": "2026-11-01T21:15:50.122Z",
+  "date": "2026-11-02",
+  "status": "BLOCKED_CREDENTIAL_AND_UPSTREAM_RELEASE",
+  "issue": 230,
+  "version": "5.0.0",
+  "commit": "455bf3b53b1e56df0064d8f574b0595cbb0b609e",
+  "readiness": {
+    "schemaVersion": 1,
+    "status": "READY",
+    "repository": "IoTSharp/SonnetDB",
+    "commitSha": "455bf3b53b1e56df0064d8f574b0595cbb0b609e",
+    "version": "5.0.0",
+    "source": "github",
+    "generatedAtUtc": "2026-11-01T20:47:26.5052205+00:00",
+    "workflows": [
+      {
+        "workflow": "ci.yml",
+        "ready": true,
+        "runId": 41345345369,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345345369",
+        "issues": []
+      },
+      {
+        "workflow": "codeql.yml",
+        "ready": true,
+        "runId": 41345348672,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345348672",
+        "issues": []
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "ready": true,
+        "runId": 41345353023,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345353023",
+        "issues": []
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "ready": true,
+        "runId": 41345357094,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345357094",
+        "issues": []
+      },
+      {
+        "workflow": "parity.yml",
+        "ready": true,
+        "runId": 41344841180,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41344841180",
+        "issues": []
+      },
+      {
+        "workflow": "document-soak.yml",
+        "ready": true,
+        "runId": 41345360457,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345360457",
+        "issues": []
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "ready": true,
+        "runId": 41345363858,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345363858",
+        "issues": []
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "ready": true,
+        "runId": 41345367093,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345367093",
+        "issues": []
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "ready": true,
+        "runId": 41345370477,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345370477",
+        "issues": []
+      },
+      {
+        "workflow": "publish.yml",
+        "ready": true,
+        "runId": 41346120155,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41346120155",
+        "issues": []
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "ready": true,
+        "runId": 41346123540,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41346123540",
+        "issues": []
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "ready": true,
+        "runId": 41345377669,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/41345377669",
+        "issues": []
+      }
+    ],
+    "issues": [],
+    "observations": [
+      {
+        "name": "scheduled-parity-seven-days",
+        "blocking": false,
+        "status": "NOT_READY",
+        "validRunCount": 6,
+        "requiredRunCount": 7,
+        "issues": [
+          {
+            "code": "scheduled_run_failed_validation",
+            "message": "At least one scheduled run or profile did not pass evidence validation."
+          }
+        ]
+      }
+    ],
+    "boundary": "Release readiness requires the candidate workflows and raw Parity evidence. Seven-day scheduled Parity is a non-blocking observation. Quick profiles do not establish fixed-hardware capacity, clean offline installation, model quality or production acceptance."
+  },
+  "preflightPackages": {
+    "source": "Actions 41346120155 dispatch preflight",
+    "commit": "455bf3b53b1e56df0064d8f574b0595cbb0b609e",
+    "status": "PASS",
+    "packages": [
+      {
+        "id": "SonnetDB",
+        "version": "5.0.0",
+        "sha256": "3f8696a1bc51d34e1cc26810ebd70450a904305dc3295b99bf93715ad1e0b46f"
+      },
+      {
+        "id": "SonnetDB.Caching.Distributed",
+        "version": "5.0.0",
+        "sha256": "2786520b17658343a2419b0bc885c6deb734522b52e32b13a8f5b8f85ba54d18"
+      },
+      {
+        "id": "SonnetDB.Caching.EasyCaching",
+        "version": "5.0.0",
+        "sha256": "e3826e30fc16974c09e3601506ee382be9deb83709bf905daa47d619f5ab3a3c"
+      },
+      {
+        "id": "SonnetDB.CAP",
+        "version": "5.0.0",
+        "sha256": "741d7aa24ea12c311de666c2805eba49d47ef361303da839dc5409f156c2ae5a"
+      },
+      {
+        "id": "SonnetDB.Cli",
+        "version": "5.0.0",
+        "sha256": "85251dbe49eb3e9f77e7a09d0f8e3f0991d9fc9b91b1dc0e739229935ebf734b"
+      },
+      {
+        "id": "SonnetDB.Client",
+        "version": "5.0.0",
+        "sha256": "e1b66512b8f3ea7805544fcf238f30929de14221da2a31aad396451af8743dcb"
+      },
+      {
+        "id": "SonnetDB.Core",
+        "version": "5.0.0",
+        "sha256": "38e662aedd74e330081cac022bbc612f9d20e5416ac04b45d56355a3234ba998"
+      },
+      {
+        "id": "SonnetDB.EntityFrameworkCore",
+        "version": "5.0.0",
+        "sha256": "b8711d8a39cf29b769838624611986467f5e898d3689913fb6da2ec30a49083a"
+      },
+      {
+        "id": "SonnetDB.Protocol",
+        "version": "5.0.0",
+        "sha256": "cdf77d75c45461f3b1cef3986793fe1c948b77097164d3bf49b32939ce371894"
+      },
+      {
+        "id": "Testcontainers.SonnetDB",
+        "version": "5.0.0",
+        "sha256": "b900756b93dfe899613794b96ba61814030bc969b47701a2faee9939fb765448"
+      }
+    ]
+  },
+  "upgrade": {
+    "status": "PASS",
+    "oldVersion": "4.0.0",
+    "candidateVersion": "5.0.0",
+    "backupMethod": "offline closed-directory copy",
+    "checks": [
+      {
+        "name": "candidate-restore",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-build",
+        "exitCode": 0
+      },
+      {
+        "name": "read-old-data",
+        "exitCode": 0
+      },
+      {
+        "name": "transaction-ddl-and-write",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-reopen-1",
+        "exitCode": 0
+      },
+      {
+        "name": "candidate-reopen-2",
+        "exitCode": 0
+      },
+      {
+        "name": "old-rejects-new-floor",
+        "exitCode": 3762504530
+      },
+      {
+        "name": "rollback-reopen-1",
+        "exitCode": 0
+      },
+      {
+        "name": "rollback-reopen-2",
+        "exitCode": 0
+      }
+    ],
+    "backupUnchanged": true
+  },
+  "freeSql": {
+    "pullRequest": "dotnetcore/FreeSql#2291",
+    "commit": "a2268c1ff",
+    "coreChanges": false,
+    "providerSuite": {
+      "total": 237,
+      "executed": 237,
+      "passed": 237,
+      "failed": 0,
+      "error": 0,
+      "timeout": 0,
+      "aborted": 0,
+      "inconclusive": 0,
+      "passedButRunAborted": 0,
+      "notRunnable": 0,
+      "notExecuted": 0,
+      "disconnected": 0,
+      "warning": 0,
+      "completed": 0,
+      "inProgress": 0,
+      "pending": 0
+    },
+    "candidatePackageMatrix": {
+      "status": "PASS",
+      "serverSha256": "6c54f8a324e828f9034863ee0ab9556b3e2f32018baa91d8dec049546474c411",
+      "consumerSha256": "297cb21d8e60fc4eea4bad3da8634b09bc92ce0d1380078b674924e70990ebba",
+      "checks": [
+        {
+          "name": "embedded-exercise",
+          "count": 25,
+          "status": "PASS"
+        },
+        {
+          "name": "embedded-reopen",
+          "count": 8,
+          "status": "PASS"
+        },
+        {
+          "name": "rest-exercise",
+          "count": 25,
+          "status": "PASS"
+        },
+        {
+          "name": "frame-http2-exercise",
+          "count": 25,
+          "status": "PASS"
+        },
+        {
+          "name": "rest-reopen",
+          "count": 8,
+          "status": "PASS"
+        },
+        {
+          "name": "frame-http2-reopen",
+          "count": 8,
+          "status": "PASS"
+        }
+      ],
+      "protocolReceipts": {
+        "restSql": 68,
+        "http2Frames": 32,
+        "http2Transactions": 21
+      },
+      "restartBoundary": "Server process terminated after acknowledged commits, then restarted on the same directory; no power-loss claim.",
+      "finishedUtc": "2026-11-01T20:59:44.523Z"
+    },
+    "publicCoreProbe": {
+      "version": "3.5.311",
+      "status": "FAIL",
+      "error": "CS0117: DataType has no SonnetDB member",
+      "providerPublicIndex": 404
+    },
+    "boundaries": [
+      "The source FreeSql core/provider and exact-version SonnetDB candidate packages passed; this is not public FreeSql package delivery.",
+      "DATETIMEOFFSET returns full UTC ticks and zero offset; initial local-offset expectation was corrected without changing product semantics.",
+      "INT to STRING is unsupported; initial migration fixture was corrected to supported STRING to INT without changing the engine."
+    ]
+  },
+  "publication": {
+    "tag": "v5.0.0",
+    "tagCommit": "455bf3b53b1e56df0064d8f574b0595cbb0b609e",
+    "publish": {
+      "runId": 41348714535,
+      "conclusion": "failure",
+      "platformContracts": "PASS linux-x64 and win-x64",
+      "reason": "NuGet HTTP 403: the specified API key has expired",
+      "nugetPackagesPublished": 0,
+      "githubRelease": "SKIPPED"
+    },
+    "connectors": {
+      "runId": 41348714371,
+      "builds": "PASS win-x64/linux-x64/win-x86",
+      "upload": "FAILED due to Publish prerequisite"
+    },
+    "docker": {
+      "runId": 41348714479,
+      "conclusion": "success"
+    },
+    "publicSonnetConsumer": "NOT_RUN: publication failed"
+  },
+  "nextActions": [
+    "Update NUGET_API_KEY in GitHub Actions secrets; do not move v5.0.0",
+    "Rerun failed Publish jobs, then connector upload; verify Release and ten public packages",
+    "Run full provider suite and three-protocol consumers from new cache against public SonnetDB packages and final Server",
+    "Upstream FreeSql maintainers merge #2291 and publish new Core plus Provider",
+    "Run public FreeSql/SonnetDB consumer combination before closing #230"
+  ]
+}
