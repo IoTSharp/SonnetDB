@@ -1581,3 +1581,14 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - Actions run 41337552868 / job 124941389124 failed during `npm run build`: `vue-tsc` reported TS2589 at the inline `n-dropdown` selection `$emit` in `SqlQueryWorkspace.vue`. Replacing the inline template emit with a typed handler resolved that error; the next type-check surfaced the same failure in `StudioWorkspaceTabs.vue` and `SqlWorkbenchHeader.vue`, which now use matching typed handlers.
 - Commit `078347a2` pushed the focused fix and Unreleased changelog entry. Local `npm run build` passed (Vite emitted its existing chunk-size advisory) and `npm run test:contracts` passed 472/472. `npm ci` passed using `npm_config_replace_registry_host=always` and `--registry=https://registry.npmjs.org` because lockfile mirror URLs were unreachable; audit reported 0 vulnerabilities.
 - Required `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` exited 0 with workspace-loading/reference warnings. `dotnet restore SonnetDB.slnx` remains blocked by four missing extension submodule project files. Post-fix workflow run 41338466824 for code commit `078347a2` is `action_required` with zero jobs, so no fresh job logs or Playwright E2E results are available; review the run before treating the job as closed.
+
+## 2026-11-02 Linux CI 测试宿主 inotify 修复
+
+- GitHub API 已通过本机127.0.0.1:7890代理恢复，gh keyring账号maikebing有效，不用重新登录或提供token。每次进程传HTTPS_PROXY/HTTP_PROXY及NO_PROXY=localhost,127.0.0.1,::1；没有全局代理修改。PR #384 已合入main ad8f7a01，parity-results保留独立。
+- 安全修复已作为4880be2d推送codex/fix-vscode-minimatch-20261102并创建PR #385：vsce4.1.0去掉glob、minimatch11.0.3 override，保留VSCode1.100。59测试、VSIX、真实1.100.3宿主及官方npm审计0漏洞通过；提交前restore/规定format均exit0，格式仅工作区加载warning。#81待实际合入默认分支后复核自动关闭。
+- main CI41339384277：Windows core/rest、Format、三平台AOT通过；Ubuntu job124945958761在EF 22项、Server949项报inotify用户实例128上限。日志确认失败发生在JSON配置监听器创建，不可将这些统称业务断言失败。Docker/Management/Connectors/Docs通过，CodeQL结果待刷新。
+- 当前独立分支codex/fix-test-host-watchers-20261102基于main：仅为Server/EF/Accuracy测试helper默认添加--hostBuilder:reloadConfigOnChange=false。它们配置在启动前固定，extraArgs仍可覆盖；产品默认热加载、真实Kestrel/REST/HTTP2、测试集合及断言不变，不提高系统限额、不跳过测试。依据ASP.NET Core10 WebApplicationBuilder源码；审计见docs/audits/ci-inotify-20261102.md。
+- 本机本轮真实验证：EF295/295（含REST/HTTP2）、Server定向130/130、Accuracy9/9，均无失败/跳过。显式NO_PROXY排除loopback后本轮HTTP2通过，旧的本地环境失败记录不代表当前结果。TRX仅在ignored artifacts/ci-watchers-20261102，不提交制品。Windows验证不代替Linux完整CI。
+- 提交前将再次执行完整restore和规定format；通过后提交独立CI修复PR。后续先取得Ubuntu完整PASS并合并CI修复，再让安全PR基于修复后的main重验后合并，核对剩余open PR/Dependabot告警、parity和5.0包安装。正式发布、7天scheduled证据未完成，不能因本机434项通过称5.0已可发布。HANDOFF保留原非法UTF8历史，仅追加字节。
+
+- CI修复提交前首次完整restore因MSBuild并行子节点OutOfMemory退出，不能计PASS；后续只在子进程环境设置DOTNET_PROCESSOR_COUNT=4、MSBUILDDISABLENODEREUSE=1重跑同一restore/format命令，避免更改仓库门禁或清理其它会话进程。
