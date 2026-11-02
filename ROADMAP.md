@@ -1,5 +1,7 @@
 # ROADMAP — SonnetDB 4.5 与后续里程碑
 
+2026-11-02：新增 **[M50：时序时间戳精度与无损时间链路](#milestone-50)**，按库真正保存 `ms/us/ns`、默认 `ms`，规划 30 项必选与 2 项条件任务；全部 `📋 planned`。完整实现思路、源码归属、依赖/验收、迁移/旧端拒绝与初步工作量见 [M50 专题](docs/design/m50-timeseries-timestamp-precision.md)。M50 独立冻结版本与批次，本次仅更新规划，不启动源码改造或变更现有 4.5/预览/连接器批次范围。
+
 2026-10-16：按用户确认修订 **[M49：连接器/嵌入式拆分、九模型访问与有界批处理](#milestone-49)**。远程各语言原生 HTTP/2 二进制 Frame，嵌入式 .NET 托管与非 .NET 共用 AOT；VB6/PureBasic 仅远程。首批只做九模型数据访问、先64位、Java8兼容、直接重构不留旧兼容层，允许分批正式发行。D01/F01/C01～C08/R01～R05 共15包，首片已实施、均未整体完成；详见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
 
 2026-10-17：F01 关系 SQL 写入首片已接通新 Client→真实 HTTP/2→Server：Execute=2/payload v1、精确参数、类型化 NULL、单条自动提交、完整终态与未知提交无重试。旧 ADO 迁移等待多结果/事务合同；九模型 F01 与 R01～R03 仍未关闭。见[协议](docs/sql-execute-frame.md)和[换机入口](docs/handoffs/m49-next-computer.md)。
@@ -12,7 +14,7 @@ M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程�
 
 2026-10-15：接收最新 main `c7b307f6`，首次核对 46 条开放 Issue，最终快照 48 条（新增 #312/#313/#314，关闭 #273），清理两个已合并本地分支。本批 [十项实现任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：GH-Issue #224 的 HAVING/复合投影/排序分页，#229 多结果 ADO，#257 全表关系 UPDATE，以及 M45/M46 的 Int64 众数/近似去重和三项聚合状态校验。最终 Core 2938 项、真实 REST/h2c 167 项回归通过；实际提交和远端 Issue 闭环见根 HANDOFF，不重做已合入的 #219～#223/#225/#228，不把局部任务提升为整个里程碑、正式发布或下游 ORM 完成。
 
-更新日期：2026-10-16（Asia/Shanghai）。**Workbench 继续按 Web 预览后续、Studio 与 VS Code 各自门禁推进；M48 单独冻结日志 R1 范围。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
+更新日期：2026-11-02（Asia/Shanghai）。**Workbench 继续按 Web 预览后续、Studio 与 VS Code 各自门禁推进；M48 单独冻结日志 R1 范围。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
 
 根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
 
@@ -38,7 +40,7 @@ M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程�
 
 1. 代码必须存在且由真实产品入口调用；原型、未调用类型和文档计划不算功能交付。
 2. 实现合同、本地回归、真实服务、固定硬件、真实模型、长期运行及远程发布分别记录；一个层级的 PASS 不升级其它层级。
-3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`M49-Cxx/Rxx/D01/F01`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
+3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`M49-Cxx/Rxx/D01/F01`、`M50-Txx`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
 4. P0 为基础合同与优先交付，P1 为本版深化与验收，P2 为条件候选；只有明确必选范围参与 4.5 完成判定，条件项未经独立评审不成为版本承诺。
 5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；未校准保持 `NOT_READY`，不以自造数据或缩规模 PASS 代替真实效果。
 6. Core 保持 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT/trim 零相关警告及 public API 中文 XML 文档。API/帧保持兼容；新落盘格式必须版本化、拒绝不兼容旧 writer，提供迁移或明确拒绝及恢复方案。SQL 名称遵守 GH-Issue #211。
@@ -342,6 +344,53 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 
 独立切片可并行；共享源码、构建输出和资源验证按所有权协调。单 PR 只做一个可审查切片。
 
+<a id="milestone-50"></a>
+
+## Milestone 50 — 时序时间戳精度与无损时间链路
+
+2026-11-02 新增独立规划：**真正保存 ms/us/ns，默认 ms，创建数据库时固定并持久化时序精度。** 输入单位、存储单位与来源授时准确度分别定义；现有 ms 库不自动改精度，迁移采用新库和显式对账。当前只完成规划，以下 **30 项必选、2 项条件任务全部为 `📋 planned`**，不是已创建的 GitHub Issue/PR，也不是新精度已经实现。
+
+这是存储、查询/物理时长、协议/SDK、工具和迁移/恢复的中大型改造。初估嵌入式闭环 10～15 工程人日，完整首版累计 40～70 工程人日；硬件、长稳和发行等待另计，T01 复核后重估，不能当作日历承诺。详细源码归属、兼容决策、逐项交付物/验收、阶段退出与来源见 [M50 详细设计](docs/design/m50-timeseries-timestamp-precision.md)。
+
+| ID | 状态 | 优先级 / 依赖 | 工作与退出条件 |
+|---|---|---|---|
+| M50-T01 | 📋 | P0；无 | 逐链路登记毫秒假设，冻结 legacy/新合同、首批矩阵、负基线与估算；未校准不预填收益。 |
+| M50-T02 | 📋 | P0；T01 | 精确整数/单位/时长、checked 缩放/商余、DateTime 100ns 与查询界限；不经 Double。 |
+| M50-T03 | 📋 | P0；T01/T02 | 创建时固定单位，打开/挂载校验身份/版本；真实旧引擎须在修改前拒绝高精度库。 |
+| M50-T04 | 📋 | P0；T03 | WAL 编码/滚动/replay 绑定精度，保留确认/fsync；相邻 1ns 经强杀重开不丢失。 |
+| M50-T05 | 📋 | P0；T03/T04 | Segment/Block 上下界、时间索引、raw/codec/range decode 保真，格式/极值/损坏明确拒绝。 |
+| M50-T06 | 📋 | P0；T04/T05 | flush/compaction/墓碑/checkpoint 保持单位，合并/删除/恢复不误读、不误删。 |
+| M50-T07 | 📋 | P0；T02/T05/T06 | 精确范围、DESC/latest-N/稀疏合并与裁剪，游标/缓存绑定单位及代际，与扫描参考对拍。 |
+| M50-T08 | 📋 | P0；T02/T07 | SQL time/参数/now/duration/分桶/日期互转统一绑定；空结果保留精度，亚毫秒不先转 ms。 |
+| M50-T09 | 📋 | P1；T08 | 速率/积分/PID/预测归一物理时长一次；同一过程三精度结果对齐，未知函数提前拒绝。 |
+| M50-T10 | 📋 | P0；T02/T03/T06/T07 | NowFn/TTL/cutoff 与后台物理时长分开，边界/回拨/溢出不误删；不是全局乘倍率。 |
+| M50-T11 | 📋 | P0；T03～T10 | 三精度真实 create→write→query→flush→reopen→delete；旧 ms 语义与不支持路径明确。 |
+| M50-T12 | 📋 | P0；T03/T11 | Server 建库/注册/挂载/列表/权限/能力、源生成 DTO；多库精度上下文不串用。 |
+| M50-T13 | 📋 | P0；T02/T12 | 独立 Protocol 的参数/结果/批次/终态/版本协商，真实 HTTP/2 纳秒往返，旧端明确拒绝。 |
+| M50-T14 | 📋 | P0；T02/T12 | REST/SQL/NDJSON 使用精确整数文本及单位元数据；>2^53、零行/NULL 与取消不丢精度。 |
+| M50-T15 | 📋 | P0；T02/T11 | LP/JSON/BulkValues 原始时间先保留，在库边界只换算一次；余数/溢出/批次错误可查。 |
+| M50-T16 | 📋 | P1；T12/T13/T14/T15 | Influx HTTP/UDP/MQTT/CoAP 与固定 ms 来源保留输入默认值；真实监听对拍，发送不等耐久。 |
+| M50-T17 | 📋 | P0；T11/T13/T14/T15 | .NET SDK/Data/ADO 精确类型、builder/writer、schema 和日期转换；实际包消费者/AOT 分列。 |
+| M50-T18 | 📋 | P0；T13/T17 | C/NativeAOT 版本化 ABI/头文件/所有权，原生远程与 embedded 两路精确消费者各自验证。 |
+| M50-T19 | 📋 | P1；T13/T18 | Go/Rust 原生 Frame 与 FFI 精确时间映射、取消/重开；不以别的语言 PASS 代验。 |
+| M50-T20 | 📋 | P1；T13/T18 | Java8 Instant/long 与 Python 整数/可选 DataFrame，时区/NaT/非整 us 值有明确合同。 |
+| M50-T21 | 📋 | P1；T13 | VB6/PureBasic 仅远程，精确文本/高低位不经 Double；缺实际工具链保持 NOT_RUN。 |
+| M50-T22 | 📋 | P1；T12/T13/T14/T17 | CLI/Web/Studio/VS Code 精确输入/排序/游标/导出及能力提示，三个宿主分别真实验收。 |
+| M50-T23 | 📋 | P1；T08/T09/T10/T13 | 持久窗口/水位、CDC/桥接与派生 checkpoint 版本；不同单位不静默混算，不另造流引擎。 |
+| M50-T24 | 📋 | P0；T03/T06/T23 | 备份 manifest/inspect/restore 保留单位和恢复域，错目标/旧恢复器拒绝，不暗中变精度。 |
+| M50-T25 | 📋 | P0；T11/T24 | dry-run、目标库有界迁移/续传/余数与碰撞对账、切换/回退；保留源并处理切换后新写。 |
+| M50-T26 | 📋 | P0；T11/T13/T14/T15/T17 | 黄金整数/旧 ms 夹具、新旧矩阵及固定外部版本对拍；时间戳严格相等，light/full 分列。 |
+| M50-T27 | 📋 | P0；T06/T23/T24/T25 | WAL/维护/迁移/恢复的强杀/损坏/满盘/取消；确认等级可对账，拒绝打开无副作用。 |
+| M50-T28 | 📋 | P1；T26 | 固定 x64/ARM64、两类同物理/更高信息量语料，测尾延迟/CPU/RSS/I/O/压缩，不预填倍数。 |
+| M50-T29 | 📋 | P1；T27/T28；本批适用 T16～T23 | 同候选多库混合精度与维护/消费者 168 小时；资源/停止条件有界，M20 七天独立回读。 |
+| M50-T30 | 📋 | P0；T24～T29；本批声明矩阵 | 本批 AOT/原格式门禁、真实包/安装/版本/限制/回退及发行回读；整体完成须全部必选。 |
+| M50-T31 | 📋 | P2 条件；对应基础与外部接收能力已冻结 | 按 M48/实际消费者冻结 OTLP/Arrow 单位/NULL/时区和纳秒往返；不自动建设 APM/全部接收器。 |
+| M50-T32 | 📋 | P2 条件；有明确硬件/设备/现场授权与 profile | 获明确硬件/现场授权后验证打戳位置、时标/偏差/抖动；ns 存储不等于 1ns 授时准确度。 |
+
+推进顺序：**G0 T01～T03 → G1 T04～T11 → G2 T12～T18 → G3 T19～T23 按批 → G4 T24～T29 → G5 T30**；T26/T27 的正确性与恢复用例从对应切片累积。首个实施任务为 T01，先冻结 ms 兼容、精确换算、真实持久格式防护与首批 .NET/C 矩阵；存储/恢复和维护未闭环前不开公开高精度建库。
+
+M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不要求等待这些里程碑整体完成。目标版本与首批范围由 T01 独立冻结，不自动改变现有 4.5、已发布 Workbench 预览或 M49 批次门槛；分批正式发行只声明实际通过的矩阵。设置只影响时序 measurement time，不把关系日期、MQ、文档 TTL 或网络超时统一改成库单位。
+
 ## 真机验证待办
 
 记录硬件/架构、commit、配置/版本/命令/时间、真实 P50/P95/P99、working set/heap/分配/GC、逻辑与物理 I/O 区别、正确性/恢复与原始样本。不可用项为 `NOT_RUN`/`NOT_READY`/`DEFERRED`。
@@ -362,6 +411,7 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 | M45 | batch↔stream、merge/retract、late/update/delete、rollup/spill/reopen | 新规划，冻结首批子集/误差。 |
 | M46 | 编码/高熵回退、旧新格式、损坏/极值/放大/冷读 | 新规划，不预填提升倍数。 |
 | M48（独立 R1） | 固定日志 profile、真实 Logstash、窗口外检索/全量统计、磁盘容量、保留/恢复、规则通知及 168 小时 | 全部 planned；版本/阈值待 L01 冻结，不由研究或已有模型局部 PASS 宣布日志平台完成。 |
+| M50（独立增量） 📋 | 三精度同候选、真实协议/消费者、旧引擎拒绝、迁移/恢复、固定 x64/ARM64 与 168 小时 | T01 冻结范围/阈值，T26～T30 分别留证；T32 硬件授时条件项不由软件纳秒往返替代。 |
 
 
 ## 待补验收证据

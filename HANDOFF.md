@@ -1633,3 +1633,38 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - CI run 41351603877 / job 124982789767 built successfully; the REST shard failed only `SonnetDbProviderTests.Query_StringPatterns_LiteralSemanticsMatchListCountAndPage` for `StartsWith("泵_%\\😀设备", constant: false)`. Its caller-supplied 30-second cancellation deadline expired before the first query executed (stack reaches `SndbCommand.ExecuteCoreAsync` cancellation check); the case ran 34 seconds under the Windows shard load. No query assertion or build failure was reported.
 - Raised only this theory's bounded setup/query deadline to two minutes; list/count/page assertions and production command timeouts are unchanged. Changelog updated. The focused run/build and full solution restore are blocked by missing source submodules (`extensions/IoTSharp.CoAP.NET` and `extensions/MQTTnet.AspNetCore.Routing`); restore failed with `MSB3202`. The exact format command returned 0 but reported workspace warnings and that required `Testcontainers.SonnetDB` references did not load, so a complete format pass is NOT verified.
 - Secret scan reported no secrets; CodeQL skipped the all-trivial test/documentation diff. The worktree remains uncommitted because the required complete restore/format gate cannot be proven. Next: use a recursive-submodule checkout, run the focused test, complete restore and exact format command, then commit via report_progress. This adjusts a test-only guard, not a production query-performance fix or evidence that the remote CI rerun passed.
+
+
+## 时间戳精度只读核查（2026-11-02，Asia/Shanghai）
+
+- 本轮仅核对现有实现，未修改源码、配置、测试，未构建、提交、推送或部署；工作树中既有发布与文档脏改动保持不动。
+- 时序 `Point.Timestamp` 及其当前存储合同仍是 Unix 毫秒。`TimePrecision` 只在 Line Protocol、JSON points、类型化时序 writer、Influx HTTP 和 UDP 入口把 `ns/us/ms/s` 归一为毫秒；微秒/纳秒输入中低于 1 ms 的部分会被丢弃，不能宣称已保留微秒/纳秒。
+- 当前没有数据库级持久化 timestamp precision 字段：Influx HTTP 是请求级 `precision`，类型化 SDK 是 writer 级 `SndbTimeSeriesWriteOptions.Precision`，UDP 是监听器级 `SonnetDBServer:LineProtocolUdp:Precision`；专用 `/v1/.../lp` 与 MQTT/CoAP 的 Line Protocol 默认按毫秒，JSON 顶层可自行声明 `precision`。
+- 关系 SQL 继续区分旧 `DATETIME`/measurement Unix 毫秒与 `DATETIME2`、`DATETIMEOFFSET` 的 UTC 100ns ticks；`Retention.TtlInTimestampUnits` 只控制 TTL 与 `NowFn` 的数值单位，不是数据库时间戳精度开关。
+- 若后续需要每库持久化“输入默认单位”，应先单独设计 catalog/registry 默认值并保留毫秒规范化存储；若要真正持久化微秒/纳秒，则需另立格式、WAL、索引、查询范围、retention、协议和迁移门禁，不能只增加一个配置项。
+
+## 时序时间精度选型建议（2026-11-02，Asia/Shanghai）
+
+- 用户要求结合物理采集/授时、GitHub 开源实现与公开资料给出建议。本轮核对 Prometheus timestamp.go（UnixMilli）、InfluxDB models/points.go（UnixNano 与精度倍率）、TDengine tdef.h（ms/us/ns）、QuestDB ColumnType.java（TIMESTAMP_MICRO/TIMESTAMP_NANO）、Apache Arrow Schema.fbs（64-bit Timestamp 与四种 TimeUnit）、OpenTelemetry logs.proto（事件与观测时间的 Unix 纳秒），并对照 InfluxDB、TDengine、IoTDB、PostgreSQL、ClickHouse 官方文档及 chrony 授时说明。
+- 建议为产品能力支持真正的 ms/us/ns 存储，以数据库创建时固定并持久化的时序 time 精度为边界；默认继续 ms，工业高频/亚毫秒对齐新库评估 us，硬件打戳/日志追踪/原始纳秒来源使用 ns。此为设计建议，当前没有实现新存储精度或新 SQL 语法。上一轮“优先只增加默认输入单位”的实施顺序应调整：优先解决原始亚毫秒信息的无损保存。
+- 明确区分表示分辨率、采样周期、授时准确度与事件排序。普通网络校时与硬件打戳条件不同；支持 ns 不代表时钟有 1ns 准确度。事件时间与采集系统观测时间可分别保存，同时间戳需要独立 sequence/event identity，不得伪造纳秒递增值代替真实事件时间。
+- ms/us/ns 都可以用固定 8-byte Int64 表示，但实际压缩/I/O/CPU 成本未测；Unix Int64 纳秒的日历范围约 1677–2262，不能无条件把全部旧日期改为 ns。.NET DateTime/DateTimeOffset 仅 100ns ticks，真 ns 必须保留整数或专门类型；浏览器传输需防止 JavaScript Number 对纳秒整数丢精度。
+- 后续实施须冻结明确单位/纪元/时标、无损换算及显式有损策略、每库元数据/版本校验、旧库 ms 识别与显式迁移；验证范围包括 WAL/Segment/恢复、查询分桶/retention/now、协议往返、溢出及同时间戳行为。该设置只定义时序 measurement time，不能推断为关系日期类型、MQ 或其它模型的统一单位变更。
+- 本轮仅增加交接建议，未修改生产源码/配置或路线图，未构建、运行性能/硬件/恢复测试、提交、推送或部署；既有脏工作树继续保留。公开来源为当前读取的文档和活动分支快照，不能当作 SonnetDB 已实现或通过验收的证据。
+
+## M50 时序时间精度里程碑规划（2026-11-02，Asia/Shanghai）
+
+- 按用户要求把时间精度研究落成独立 M50：根 ROADMAP、总里程碑索引、新设计专题和 CHANGELOG 的文档条目已同步；M50-T01～T30 为必选、T31/T32 为条件项，32 项全部 planned，没有创建远程 Issue/PR或实施产品功能。
+- 决策为时序库创建时固定 ms/us/ns、默认 ms，输入与存储单位分开；旧 ms 库不自动迁移，有损默认拒绝的新合同与 legacy 截断兼容须由 T01 冻结。R1 延续非负时间，ns 实际范围约 1970～2262；.NET 100ns、浏览器整数、真实 header/旧 writer 防护和后台误删风险已列入任务。
+- 设计逐项记录依赖、源码范围、交付物与完成条件，含 G0～G5、按批消费者、WAL/Segment/查询/物理时长、设备协议、三宿主、持久流状态、备份/可续传迁移/回退、Parity/强杀/固定硬件/168 小时和 AOT/发行。初估最小闭环 10～15 工程人日，完整首版累计 40～70 人日，仅供 T01 重估，不是日历排期承诺。
+- 本次仅修改上述四份文档和本交接共五个路径；基线 main/HEAD=7255f0104a1176fd15b883814222dd0f23591d8d，本地可见 origin/main=3c40730a35140a24589e606310bcf1e2dae88ec3、落后 4 提交。本轮未 fetch/pull/merge、创建分支、暂存、提交、推送或部署；保留所有既有发布/文档脏内容，parity-results 不变。
+- 验证范围为 UTF-8/LF、新增段空白、链接、32 任务/优先级/依赖/阶段一致性、规划边界与自有差异，结果和原文件 SHA 见 artifacts/m50-timestamp-precision-plan-20261102/validation.json；原有 HANDOFF 历史空白与其它脏改动不清理。产品 build/test、完整 restore/Format、AOT、真实性能/硬件/恢复和远端 CI 均 NOT_RUN，未取得提交门禁且用户本轮未要求提交。
+- 下一步仅在开始实施时先做 T01 的当前 commit/负基线、首批矩阵和版本合同，再 T02/T03；优先最小真实持久化闭环，后续按任务依赖逐个推进。M50 不自动改写现有 4.5、M47 预览或 M49 批次门槛，外部 OTLP/硬件条件项保持独立。
+
+## M50 文档提交推送（2026-11-02，Asia/Shanghai）
+
+- 用户本轮明确授权提交并推送。本次仅提交 M50 详细设计、根路线/总索引、CHANGELOG 文档条目及本会话三段时间精度交接；其它未提交发布和路线修改继续保留。
+- 提交候选从实时 origin/main 979a766b7a35594040cc58bff79911e45b79f76c 准备，研究基线仍按专题历史说明。隔离工作树只重放自有增量，保留远端全部既有文档和代码；已有表格列数按主干上下文适配，没有混入本地其它路线表情整理。
+- 提交前须在最终候选完整执行 dotnet restore SonnetDB.slnx 与原 Format Check，二项退出 0 且候选无变动才提交；实际命令/退出码/候选与提交 SHA/远端回读记入 artifacts/m50-timestamp-precision-push-20261102/，不以本地静态检查替代远端 CI。
+- 研究和 M50 的 32 项仍全部 planned；未新增生产实现、性能/恢复/硬件结果、包发布或部署。先 T01 冻结当前基线及首批矩阵，再实施 T02/T03；parity-results 始终独立保留。
+- 共享主目录的其它会话内容以 source-state.json 和原文件快照守护；最终本地分支与工作树同步/保留状态、任务进程和隔离工作树清理以同目录最终回执为准，不能依据本段预先推断。
