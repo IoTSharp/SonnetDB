@@ -1049,7 +1049,7 @@ public sealed class SonnetDbProviderTests : IDisposable
     public async Task Query_StringPatterns_LiteralSemanticsMatchListCountAndPage(
         string method, string? pattern, bool constant)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         var interceptor = new ReaderCommandCaptureInterceptor();
         using var context = new NullableDeviceContext(
             new DbContextOptionsBuilder<NullableDeviceContext>()
