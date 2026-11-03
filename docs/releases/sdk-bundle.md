@@ -18,7 +18,7 @@ SDK Bundle 面向开发者，目标是“一次下载，直接拥有完整开发
 - `packages/SonnetDB.Caching.Distributed.<version>.nupkg`
 - `packages/SonnetDB.CAP.<version>.nupkg`
 - `packages/SonnetDB.Cli.<version>.nupkg`
-- `packages/Testcontainers.SonnetDB.<version>.nupkg`
+- `packages/SonnetDB.Testcontainers.<version>.nupkg`
 - `cli/` 本地命令行工具
 - `docs/` 使用说明
 

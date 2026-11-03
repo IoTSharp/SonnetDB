@@ -6,8 +6,8 @@
     <OutputType>Library</OutputType>
     <RootNamespace>Testcontainers.SonnetDB</RootNamespace>
     <AssemblyName>Testcontainers.SonnetDB</AssemblyName>
-    <PackageId>Testcontainers.SonnetDB</PackageId>
-    <Title>Testcontainers.SonnetDB</Title>
+    <PackageId>SonnetDB.Testcontainers</PackageId>
+    <Title>SonnetDB.Testcontainers</Title>
     <Description>SonnetDB 的 Testcontainers for .NET 模块，用于在集成测试中启动临时 SonnetDB Server 容器并生成远程连接字符串。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <PackageTags>sonnetdb;testcontainers;docker;testing;database</PackageTags>

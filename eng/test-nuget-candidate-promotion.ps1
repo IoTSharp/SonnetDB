@@ -7,7 +7,7 @@ $owner = [Guid]::NewGuid().ToString('N')
 $root = Join-Path ([IO.Path]::GetTempPath()) ('nuget-promotion-test-' + $owner)
 $version = '1.2.3-candidate.1'
 $commit = 'a' * 40
-$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Protocol', 'Testcontainers.SonnetDB')
+$ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Protocol', 'SonnetDB.Testcontainers')
 $verifier = Join-Path $PSScriptRoot 'verify-nuget-candidate-promotion.ps1'
 if (Test-Path -LiteralPath $root) { throw 'Unique fixture path already exists.' }
 New-Item -ItemType Directory -Path $root | Out-Null

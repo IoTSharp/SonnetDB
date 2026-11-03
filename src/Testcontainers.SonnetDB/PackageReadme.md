@@ -1,11 +1,11 @@
-# Testcontainers.SonnetDB
+# SonnetDB.Testcontainers
 
-`Testcontainers.SonnetDB` 提供 SonnetDB Server 的 Testcontainers for .NET 模块，适合集成测试中临时启动 `iotsharp/sonnetdb` 容器。
+`SonnetDB.Testcontainers` 提供 SonnetDB Server 的 Testcontainers for .NET 模块，适合集成测试中临时启动 `iotsharp/sonnetdb` 容器。NuGet 包名使用 SonnetDB 前缀；程序集及 C# 命名空间仍为 `Testcontainers.SonnetDB`。
 
 ## 安装
 
 ```bash
-dotnet add package Testcontainers.SonnetDB
+dotnet add package SonnetDB.Testcontainers --version 5.0.0
 ```
 
 ## 基本用法
