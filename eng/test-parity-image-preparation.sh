@@ -39,7 +39,8 @@ case "$1 $2" in
   'buildx bake')
     target="${@: -1}"
     printf 'bake:%s\n' "$target" >> "$state/events"
-    [[ "$*" == *'--file docker-compose.parity.yml --load '* ]]
+    [[ $# -eq 9 && "$3" == "--allow=fs.read=$PARITY_TEST_REPO_ROOT" && "$4" == --builder
+      && "$6" == --file && "$7" == docker-compose.parity.yml && "$8" == --load ]]
     if [[ "$scenario" == build-failure ]]; then exit 42; fi
     if [[ "$scenario" == cancel ]]; then : > "$state/baking"; sleep 20; fi;;
   'buildx rm')
@@ -78,7 +79,7 @@ run_case() {
   local scenario="$1" profile="$2"
   result=0
   env PATH="$fixture_root/bin:$PATH" PARITY_TEST_STATE="$state" PARITY_TEST_SCENARIO="$scenario" \
-    RUNNER_TEMP="$state/runner-temp" GITHUB_RUN_ID=12345 GITHUB_RUN_ATTEMPT=2 \
+    PARITY_TEST_REPO_ROOT="$repo_root" RUNNER_TEMP="$state/runner-temp" GITHUB_RUN_ID=12345 GITHUB_RUN_ATTEMPT=2 \
     timeout --signal=TERM --kill-after=3s 12s bash "$repo_root/eng/prepare-parity-images.sh" "$profile" "$state/diagnostics" \
     > "$state/output" 2>&1 || result=$?
   local scratch=("$state"/runner-temp/sonnetdb-parity-build-*)
@@ -133,7 +134,7 @@ done
 
 prepare_case
 env PATH="$fixture_root/bin:$PATH" PARITY_TEST_STATE="$state" PARITY_TEST_SCENARIO=cancel \
-  RUNNER_TEMP="$state/runner-temp" GITHUB_RUN_ID=12345 GITHUB_RUN_ATTEMPT=2 \
+  PARITY_TEST_REPO_ROOT="$repo_root" RUNNER_TEMP="$state/runner-temp" GITHUB_RUN_ID=12345 GITHUB_RUN_ATTEMPT=2 \
   bash "$repo_root/eng/prepare-parity-images.sh" full "$state/diagnostics" > "$state/output" 2>&1 &
 test_pid=$!
 cancel_deadline=$((SECONDS + 5))

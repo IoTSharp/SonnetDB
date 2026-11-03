@@ -129,7 +129,7 @@ for service in sonnetdb minio; do
 
   # Bake reads the original Compose contexts, Dockerfiles and image tags. One
   # target and --load keep the final image in Docker after its builder is gone.
-  if ! run_bounded 900 docker buildx bake --builder "$builder" --file "$compose_file" --load "$service"; then
+  if ! run_bounded 900 docker buildx bake --allow=fs.read="$repo_root" --builder "$builder" --file "$compose_file" --load "$service"; then
     capture_capacity "$service-build-failed"
     echo "::error::Parity $service image build/load failed before reference pulls; see capacity diagnostics." >&2
     exit 1

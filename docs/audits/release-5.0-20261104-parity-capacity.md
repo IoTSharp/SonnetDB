@@ -60,3 +60,28 @@ Linux 合同使用已安装的 `postgres:15.1`，冻结镜像 ID 为 `sha256:025
 4. 如果 full 仍然 ENOSPC，保留该 FAIL 与容量日志，继续诊断实际峰值；不能以缩小 profile、跳过参考端、删除 SDK 或替换 SQL 对照证据放行。
 
 此修复降低构建缓存与 reference 镜像的同时驻留量；实际空间余量和新 builder 冷构建所需时间尚需最终 hosted full 验证。长期/固定硬件、连续 scheduled 证据、生产或物理设备验收均不由本合同推出。
+
+## 追加：59eba8d0 的实际 hosted 失败与精确 filesystem entitlement
+
+最终统一源 `59eba8d0e6cc337fbb02ba778bc806dd9a2493c6` 的 [Parity 41712946229](https://github.com/IoTSharp/SonnetDB/actions/runs/41712946229) 已实际执行，light job `126185469611`、full job `126185469943` 均失败。helper 的 8 项合同通过，但真实 SonnetDB Bake 在加载 Compose 后、任何产品镜像构建或 reference 拉取之前被拒绝：
+
+```text
+Read access to path /home/runner/work/SonnetDB/SonnetDB
+Pass "--allow=fs.read=/home/runner/work/SonnetDB/SonnetDB" to grant requested privileges.
+ERROR: additional privileges requested
+```
+
+原始日志保留在 `artifacts/release-5.0-20261104-parity-publish-monitor/parity-full-job.log`（SHA256 `5ac6db738fac873237ce51ccdc7679e7ff3b41b470affd560074176e23a883eb`，第 431～444 行）及 `parity-light-job.log`（`3abbf21a88cf2618127291487583a7341678e5dcfcc9295d2c3d2b9e607fe8a1`，第 413～426 行）。两个已创建的专属 builder 均在失败后正常 removed。Gate 原始脚本确认 stack outcome 为 failure；步骤 API 的表面 success 受 continue-on-error 影响，不能当作真实起栈成功。
+
+因此本次是确定性的 Bake filesystem entitlement 缺失，不是旧 ENOSPC 重现、外部网络瞬断或 SQL 对照失败。两个 profile 的 Parity runner 均 skipped；reliability 各 **84/84 PASS**。完整 12 服务/10 必需 reference 没有启动或执行，保持 **NOT_RUN**；单独合同通过不升级该结论。同 SHA 的基础设施重试不能解决这一确定性输入缺口。
+
+经主流程授权，只在 `prepare-parity-images.sh` 的真实 Bake 增加 `--allow=fs.read="$repo_root"`。`repo_root` 的真实解析和原 Compose working directory 不变；只允许当前仓库根目录，不允许 wildcard、盘符/用户根目录，也不关闭 BUILDX_BAKE_ENTITLEMENTS_FS 检查。原顺序构建、单 target load、CPU/并发/时间界限、精确 builder 清理与全部服务/reference 保留。
+
+对应 fake contract 现在要求 Bake 恰好九个 argv，许可参数必须精确等于本次解析的 repo_root，且其余 builder/file/load 参数位置匹配；不接受额外 allow 参数。仍执行原八个成功/失败/取消场景。
+
+- **PASS**：已有 Linux 镜像 `postgres:15.1` 的隔离域中，原 **8/8 场景**及两个 `bash -n` 一轮通过。仅四个必要输入的只读 staging、network none、CPU 1、memory 256m、专属 tmpfs。
+- **PASS**：真实 `docker buildx bake --print --allow=fs.read=<当前仓库根> --load sonnetdb minio` 退出 0，SonnetDB/MinIO 的 context、Dockerfile、tag 与 docker 输出保持原合同；仅解析/展开，没有实际 build/pull。
+- **PASS**：本批容器 `d5d521cea375028a963e5590d5dd44068c95d72145984b7e07b70659f6a185dc` 由精确 ID 与独占 label 核对后删除，staging finally 已回收；Cordonix PID 42172 报告 cleanup_complete=true、active_processes_after_cleanup=0。
+- **NOT_RUN**：本次修复后的 hosted light/full 与实际容量余量。主流程须在最终树 restore/Format 后提交新 SHA，再完整取得同一新 SHA 的所有发行门禁；59eba8d0 的预检和产物只作历史证据，不跨 SHA 复用。
+
+本批输入与执行回执位于 `artifacts/release-5.0-20261104-parity-entitlement-fix/`；helper SHA256 为 `65b39bbe8e3d396dc9611ee81f1c470c2f981e2891352b38aef5f703f6f737b6`，合同脚本为 `9814a0a1ca563770222c6607f7d05893310671917f2cbeacebee1bafcb77e82e`。旧本机合同、59eba8d0 原始失败和本批通过分别保留。本 worker 未触碰根 HANDOFF/CHANGELOG、Git index、分支、tag 或发布动作。
