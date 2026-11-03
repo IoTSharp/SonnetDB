@@ -69,7 +69,7 @@ public sealed class SonnetDbNativeDateTimeOffsetTests : IDisposable
         using var context = CreateContext(legacy: false);
         var mappings = context.GetService<IRelationalTypeMappingSource>();
         Assert.Equal("DATETIMEOFFSET", mappings.FindMapping(typeof(DateTimeOffset))!.StoreType);
-        Assert.Equal("DATETIME", mappings.FindMapping(typeof(DateTime))!.StoreType);
+        Assert.Equal("DATETIME2", mappings.FindMapping(typeof(DateTime))!.StoreType);
         Assert.Equal(typeof(DateTimeOffset), mappings.FindMapping("DATETIMEOFFSET")!.ClrType);
     }
 
