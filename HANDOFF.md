@@ -1,5 +1,13 @@
 ## 2026-11-03 M51 WorkBuddy 生态里程碑与续做入口
 
+## 2026-11-04 WorkBuddy PR #390 重启端口归属修复
+
+- 基于 PR #390 的 e4715991，独立分支 codex/workbuddy-port-review-20261104。容器即使带隔离标签，也必须具有与 base-url 相同的 127.0.0.1 TCP 端口映射才允许重启；继续使用 inspect 返回的完整 ID。健康探测增加最多 60 次和单调时钟 60 秒边界（每次 HTTP 另有最多 60 秒请求超时）。
+- 新增无 Docker 副作用的六组重启拒绝/接受回归；真实容器恢复和 WorkBuddy 宿主安装不由此推断。完整 restore 与 CI 同等 Format 在本切片最终树执行后才允许提交。
+- 主线、PR #389、正式标签与发布由发布聊天 01a1a0f7-bf7e-7e12-a697-1e8509b4de86 统一协调。本聊天仅交付 owned 源码分支，不合并 main、不发正式版本。此前重跑的旧 389 CI/CodeQL 不作为发布放行证据。
+- HANDOFF 历史包含损坏 UTF-8；本节按字节前置并核对原后缀 SHA256，不改写或清洗历史。最终验证结果见 docs/audits/workbuddy-port-review-20261104.md。
+
+
 - 用户要求将本次已完成和未完成工作一起入里程碑，并提交推送。`ROADMAP.md#milestone-51` 已登记 M51-B01～B07 实际基线与 M51-W01～W17 后续任务，区分只读首发、九模型补齐、管理运维、独立 Skill、专家与条件 Buddy 应用。
 - 下一步 W01 冻结首批范围，W02 用户上传 `outputs/sonnetdb-workbuddy-0.1.1-review.zip` 取得平台解析结果，再做真实宿主/HTTPS及按批送审。当前 NOT_SUBMITTED，无审核或发布回执；不重做已通过的 Docker 基线，不以原生九模型代替 MCP 六模型。
 - 四个通配域白名单只登记为待核配置对象/认证方案需求，未擅自修改回调或 CORS。最终测试 replacement/admin Token 无撤销证据，随机凭据未保存，旧容器/卷保留但不假定可登录。

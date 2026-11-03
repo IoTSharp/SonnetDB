@@ -3,7 +3,7 @@
 
 首次运行随机密码仅存内存，后续运行从 WBVERIFY_ADMIN_USERNAME 和
 WBVERIFY_ADMIN_PASSWORD 环境变量登录。不会保存凭据、原始响应或请求日志。
---restart-container 是显式选择的 Docker restart；须先核对隔离标签或匹配的回环端口
+--restart-container 是显式选择的 Docker restart；须先核对匹配的回环端口
 及 SonnetDB 镜像，不删除容器或数据卷。
 原生 HTTP 九模型成功不代表九模型 MCP 均可用，报告分别记录。
 """
@@ -640,8 +640,6 @@ class Verification:
             image = config.get("Image")
             require(isinstance(image, str) and image.split("@", 1)[0].rsplit("/", 1)[-1].split(":", 1)[0] == "sonnetdb",
                     "docker_restart_image_not_sonnetdb")
-            labels = config.get("Labels")
-            tagged = isinstance(labels, dict) and labels.get("sonnetdb.purpose") == "workbuddy-verification"
             network = container.get("NetworkSettings")
             ports = network.get("Ports") if isinstance(network, dict) else None
             expected_port = str(urllib.parse.urlsplit(self.args.base_url).port)
@@ -650,7 +648,8 @@ class Verification:
                     isinstance(binding, dict) and binding.get("HostIp") == "127.0.0.1"
                     and binding.get("HostPort") == expected_port for binding in bindings)
                 for port, bindings in ports.items() if isinstance(port, str) and port.endswith("/tcp"))
-            require(tagged or matching_port, "docker_restart_target_not_verified")
+            # 隔离标签只说明用途，不能证明该容器提供本次 base-url 的服务。
+            require(matching_port, "docker_restart_target_not_verified")
             container_id = container.get("Id")
             require(isinstance(container_id, str) and len(container_id) == 64
                     and all(c in "0123456789abcdef" for c in container_id), "docker_inspect_id_invalid")
@@ -662,9 +661,10 @@ class Verification:
             except (OSError, subprocess.TimeoutExpired):
                 raise CheckFailure("docker_restart_failed") from None
             require(result.returncode == 0, "docker_restart_failed")
-            # time.time 提供本次验证统一的时间来源；每次健康探测有界。
-            deadline = time.time() + 60
-            while time.time() < deadline:
+            deadline = time.monotonic() + 60
+            for _ in range(60):
+                if time.monotonic() >= deadline:
+                    break
                 try:
                     self.http.request("GET", "/healthz/live")
                     return {"restartRequested": True}
@@ -717,7 +717,7 @@ def main():
     parser.add_argument("--base-url", required=True, help="隔离本机源地址，如 http://127.0.0.1:18580")
     parser.add_argument("--output", required=True, help="脱敏 JSON 验证报告路径")
     parser.add_argument("--timeout", type=float, default=15, help="单次 HTTP 超时秒数")
-    parser.add_argument("--restart-container", help="显式允许重启指定隔离容器并复读；先 inspect 核验 SonnetDB 镜像及隔离标签或匹配 base-url 的回环端口；默认不执行 Docker 命令")
+    parser.add_argument("--restart-container", help="显式允许重启指定隔离容器并复读；先 inspect 核验 SonnetDB 镜像及匹配 base-url 的回环端口，隔离标签不能替代端口匹配；默认不执行 Docker 命令")
     parser.add_argument("--image-version", help="操作者已核实的镜像版本，不从 llms.txt 推断")
     parser.add_argument("--image-revision", help="操作者已核实的镜像源提交")
     parser.add_argument("--image-digest", help="操作者已核实的镜像 digest")

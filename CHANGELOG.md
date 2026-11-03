@@ -12,6 +12,7 @@
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
+- WorkBuddy 重启验收即使检测到隔离标签，也必须匹配 base-url 的回环 TCP 端口，避免重启其它实例后产生错误的持久化 PASS；健康探测增加单调时钟与次数双边界。
 - Prevent Windows CI from cancelling the EF Core string-pattern semantics test while the runner is under load by allowing its setup and list/count/page queries a bounded two-minute deadline.
 - VS Code 扩展打包工具升级至 `@vscode/vsce` 4.1.0，移除有漏洞的 glob 并将间接 minimatch 固定为 11.0.3，修复 GHSA-3g3m-2fjr-6pw4 与 GHSA-g3hv-75wg-m249；将 `@types/vscode` 精确锁定为最低宿主 API 的 1.100.0，实际 VSIX、59 项测试、1.100.3 宿主测试及官方 npm 安全审计通过。
 - 集成测试的 Server/EF/Accuracy 临时宿主禁用固定 appsettings 的文件热加载，避免完整 Linux CI 反复创建宿主时耗尽 128 个 inotify 实例；保留真实 Kestrel、REST/HTTP2 与产品默认配置行为。
