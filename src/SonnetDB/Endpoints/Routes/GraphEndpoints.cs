@@ -955,13 +955,13 @@ internal static partial class SonnetDbEndpoints
     private static GraphInfoDto ToInfo(GraphDefinition definition)
         => new() { Name = definition.Name, StorageId = definition.StorageId, RecordFormatVersion = definition.RecordFormatVersion };
 
-    private static GraphVertexDto ToDto(GraphVertex vertex)
+    internal static GraphVertexDto ToDto(GraphVertex vertex)
         => new() { Id = vertex.Id.Value, ElementVersion = vertex.ElementVersion, Labels = vertex.Labels.Select(static label => label.Value).ToArray(), Properties = vertex.Properties.Select(ToDto).ToArray() };
 
     private static GraphEdgeDto ToDto(GraphEdge edge)
         => new() { Id = edge.Id.Value, ElementVersion = edge.ElementVersion, SourceId = edge.SourceId.Value, TargetId = edge.TargetId.Value, LabelId = edge.LabelId.Value, Properties = edge.Properties.Select(ToDto).ToArray() };
 
-    private static GraphExpansionDto ToDto(GraphExpansion expansion)
+    internal static GraphExpansionDto ToDto(GraphExpansion expansion)
         => new() { AnchorId = expansion.AnchorId.Value, NeighborId = expansion.NeighborId.Value, Direction = expansion.Direction, Edge = ToDto(expansion.Edge) };
 
     private static GraphPathDto ToDto(GraphPath path)
@@ -988,10 +988,10 @@ internal static partial class SonnetDbEndpoints
             _ => throw new InvalidDataException("未知 graph property kind。"),
         };
 
-    private static IEnumerable<LabelId> ToLabels(IReadOnlyList<int> labels)
+    internal static IEnumerable<LabelId> ToLabels(IReadOnlyList<int> labels)
         => labels.Select(static value => new LabelId(value));
 
-    private static IEnumerable<GraphProperty> ToProperties(IReadOnlyList<GraphPropertyDto> properties)
+    internal static IEnumerable<GraphProperty> ToProperties(IReadOnlyList<GraphPropertyDto> properties)
     {
         foreach (GraphPropertyDto property in properties)
         {

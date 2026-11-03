@@ -1,5 +1,19 @@
 ## 2026-11-01 EXISTS / 5.0 发布阻塞修复
 
+<!-- mcp-models-20261104:start -->
+## 2026-11-04 九模型 MCP 读写切片（统一发布待整合）
+
+- 分支 codex/mcp-nine-models-20261104，基线 main 78c2c746。原9工具保留，新增34工具，合计43（28只读/15写入）。KV、桶/对象、文档、全文/向量搜索、MQ和原生图发现/读写，及受限数据面 execute_sql 已实现；Write grant 逐调用校验，新增MCP取消/输入与响应预算/未知写入边界。
+- 真实 Kestrel + 官方 MCP client 定向47/47通过，0失败/跳过。早先新夹具的语法及降权调用错误已纠正并保留原TRX；没有因此修改生产解析/授权语义。NativeAOT及最终提交门禁在审计 docs/audits/mcp-model-tools-20261104.md 和 artifacts/mcp-models-20261104/ 记录。
+- MQ按endpoint数据库限定主题授权/过滤，但物理存储仍在实例.system/mq；单库备份不覆盖MQ。旧WorkBuddy九工具/旧Server证据不计作本次43工具支持，宿主/市场/正式部署另验。
+- 独立WorkBuddy端口修复已推送57deb851140affc192989cc635bb462b607144fd，六组子场景、静态包、完整restore及CI同等Format通过；PR390描述已补实，修复由统一协调者整合。
+- 发布聊天01a1a0f7-bf7e-7e12-a697-1e8509b4de86负责主线、PR389/390、最终5.0标签与NuGet/Docker/GitHub发布。本聊天未改写main/标签/发行资产；曾重跑的旧389 CI/CodeQL不计作新候选门禁。parity-results保留。
+- 原共享工作树保持原有在途文档；本工作树及源码/证据保留供整合。本交接按字节前置，历史损坏UTF-8后缀未清洗。
+- 后续独审发现页读取/Graph输入/响应编码预算滞后，已新增按调用预算的Core KV/文档入口（不收紧原API）、固定容量writer和Graph预检。Core89/89、Server118/118通过，含冷大值物理读0与真实MCP负边界/续读/64KiB正例；旧AOT SHA不可替代预算修复后的最终实物证据，后续结果见同一审计。
+- 预算后NativeAOT重新编译/运行通过：新实物SHA256 440cdfee0c68ffa2609723da960aa3c4b9ba7fbe136ccee199f0771e37f6ca57，43工具/36项实物检查PASS；13个生产源码SHA前后不变。报告aot-budget-smoke.json、清单budget-source-inputs.json；旧产物和失败回执保留。Server57192退出、临时数据已删除，owned进程树由Cordonix回收。
+<!-- mcp-models-20261104:end -->
+
+
 - 用户已明确选择保留新 API，按 5.0 主版本准备。分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并 main，未打标签、正式发包或部署，保留 parity-results。
 - 已提交 48fe989b（EXISTS）、5f165d4e（5.0 包与消费者门禁）、1fd0d277（Publish 递归子模块）、692c6433（会话过期锁定与管理夹具）、89d80740（StudioNative SSE 夹具和必跑门禁）。EXISTS 原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995、Client 219/219、CAP 42/42，均无失败/跳过。
 - Protocol/Client 纳入 10 包打包、严格库存、SDK/完整 bundle、候选晋级与标签恢复；4.x 保留 4.0 基线并真实拒绝 17 项破坏，后续 5.x 使用 5.0.0 基线。真实外部隔离缓存消费者及 Frame round-trip 通过。未把新 Client 宣称为九模型完整 typed SDK。

@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Added
+- MCP 新增九模型资源发现、KV/对象/文档/MQ/图读取及全文/显式向量搜索，并提供逐调用校验数据库 Write grant 的数据面写工具；保留既有九个只读工具、source-generated JSON 与 AOT 合同，加入 Base64/分页/字节预算及未知写入不盲重试边界。MQ 只暴露 endpoint 数据库限定主题，物理存储与备份仍为实例范围。
+- 为新增MCP路径提供按调用指定的KV/文档读取预算：先检查内存/磁盘metadata再复制或物理读取，页截断保留真实游标；Graph输入字段/数组先预检，JSON通过固定容量writer编码。已有不带预算的Core读取合同和数据格式不变。
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
