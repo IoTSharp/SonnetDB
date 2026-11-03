@@ -1,3 +1,17 @@
+## 2026-11-04（Asia/Shanghai）5.0 正式发布：BLOCKED_CREDENTIAL
+
+- 本节是发布后续的纯文档交接。发布代码与冻结分支 `codex/release-5-0-final-20261104` 保持 `84433f9edcceb84605520ebecc4b2879e3c4aa79`；`v5.0.0` annotated object 为 `c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9`，远端 peel 已独立回读到该代码。文档提交可推进 main，不能把文档提交重新固定为 5.0 发包源码。
+- 同源十二类 preflight 全部 success；原始 light/full Parity 候选 verifier 与本机/正式 hosted release-readiness 均 READY。各档真实 23 对拍、84 可靠性检查、12 服务起栈/清理有原日志。最新 scheduled 观察是 NOT_READY、6/7 有效（85.71%，失败41290638954），属于非阻断观察，不能沿用旧“七次全失败”快照。
+- 正式 Docker run41721062233 success，Docker Hub 匿名 manifest/config 回读 PASS：`iotsharp/sonnetdb@sha256:f35b6493c9cbc41032ba7f825b02780a24be8c6c7072ee0442544cf3a4fbd325`，OCI version5.0.0/revision为完整844。GHCR匿名仍401，不算公开PASS；旧455/6c5974镜像证据保留历史。
+- 新正式 Publish run41721062306 attempt1 两平台 bundle/安装器/网络默认/INSERT RETURNING 全部 success，但05:44:12推首包 SonnetDB.5.0.0.nupkg 实际403：The specified API key has expired。05:47 fresh十个准确公开nupkg均404（0/10），认证GitHub v5Release404。仓库级 NUGET_API_KEY metadata updated_at=2026-11-02T03:35:45Z，不代表有效；未读取/输出明文。当前进程无新key，组织metadata无权限且未扩权；父聊天已发必要凭据输入请求，仍pending。
+- Connectors run41721062359 的Linux x64/Windows x64/x86构建与库存全PASS，上传因Publish失败而拒绝。没有重复push、退tag、改门禁或创建部分Release；旧8bf0e812恢复分支不合入、不dispatch。
+- 正式十包工件13273590352已核source844及SHA；逐entry载荷与成功preflight十包相同，ZIP容器整体hash不同不写成整包相同。Windows正式工件13272379315只下载一次，五payload/五SHA与SDK/full四包绑定PASS；解出Server ProductVersion=5.0.0+完整844，SHA256=`4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e`。它仍是Actions工件，publicReleaseDownload=false；未启动该Server/公开ORM。
+- 最终 Testcontainers/ABP/FreeSql/XCode/Chloe/SqlSugar 的公开5.0消费者仍NOT_RUN，夹具按source844/独占空缓存/不可变镜像准备；不拿旧455、私有包或候选PASS替代。ABP PR2 head979c3e4e仍Draft，需公开22项与该head最新CI；其它上游正式包发布分别核验，#230不得因SonnetDB局部交付关闭。#392—#403保留后续范围。
+- 恢复顺序：纠正 IoTSharp/SonnetDB 仓库级 NUGET_API_KEY → fresh metadata/十包/Release与tag冲突对账 → `gh run rerun 41721062306 --failed --repo IoTSharp/SonnetDB` → 确认新attempt的实际NuGet与公开Release → `gh run rerun 41721062359 --failed --repo IoTSharp/SonnetDB` → public十包签名/DLL/载荷、52资产及Docker重新回读 → fresh公开Windows Server身份 → 各真实消费者与资源清理。失败结果未知时先对账，不自动重复创建/上传。
+- 详见 `docs/audits/release-5.0-20261104-final-publication.md`；本机原始回执/恢复脚本位于 `artifacts/release-5.0-20261104-final-execution/`，跨机器从正式run取同源工件。旧标签object/commit另存local refs/codex-release-backups/v5.0.0-20261104，原commit仍是844祖先。
+- 下方完整保留原HANDOFF的853541字节，原SHA256=`67c9e77bf8ab17a57a0586836ac3d1db1c5a3e450a37f7d6485099bd5428ac20`；本节只按字节前置，不清洗历史损坏UTF8。纯文档提交前必须在最终树取得完整restore与规定Format PASS，并在交接回执记录实际新main文档提交及source/tag不变。
+
+
 ## 2026-11-04 WorkBuddy 与统一发布源整合（未正式发布）
 
 - #389已合main f79d5982，#391已以6274a335合main；当前合入WorkBuddy0.2.0/4a0b5960（含57deb851端口身份修复），源码/原始报告身份分别保留。
