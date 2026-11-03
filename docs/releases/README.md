@@ -32,8 +32,9 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
-下一主版本按 5.0 准备，迁移合同见 [5.0 升级准备]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-migration/)。这不表示候选已通过发布门禁或已经发布。
+5.0 的变更、包清单与已知限制见 [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)，升级前阅读 [5.0 迁移合同]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-migration/)。公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
 
+- [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)
 - [SonnetDB 4.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
 - [SonnetDB 3.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-1-0/)
 - [SonnetDB 3.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-0-0/)
@@ -84,7 +85,7 @@ http://127.0.0.1:5080
 - `SonnetDB.Caching.Distributed.<version>.nupkg`
 - `SonnetDB.CAP.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
-- `Testcontainers.SonnetDB.<version>.nupkg`
+- `SonnetDB.Testcontainers.<version>.nupkg`（5.0 起；程序集及 C# 命名空间仍为 `Testcontainers.SonnetDB`）
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`
 - `sonnetdb-studio-<version>-win-x64.zip`

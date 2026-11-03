@@ -11,6 +11,9 @@
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
+- GH-Issue #230：EF 默认 `DateTime` 改为原生 `DATETIME2` / `DbType.DateTime2` 并使用保留 UTC ticks 的字面量；显式旧 `DATETIME` 仍拒绝亚毫秒输入。原生非主键 schema 演进仅在主键完整定义及逐行编码均未改变时免除无用的子表重写，恢复带自引用外键的标准日期迁移；保留原外键校验、journal、格式 floor 及真实主键变更边界。新增日期及迁移回归，并完成 EF309项、相关Core403项和ABP22项候选复验。
+- 5.0 发布验证：损坏恢复测试为真实初始化/刷盘保留有界余量，继续验证锁超时和原数据保留；Parity 按任务专属 BuildKit builder 分别构建并加载本地镜像、释放各自缓存后再启动完整参考栈，避免构建缓存与全部参考镜像同时占用峰值空间。未缩减 full 服务或原始证据门禁，最终 hosted 结果按发布候选单独核验。
+- GH-Issue #230：将被 NuGet 保留前缀阻断的 Testcontainers 模块包名改为 `SonnetDB.Testcontainers`，保留程序集及 C# 命名空间；同步十包库存、晋级、SDK 和版本化恢复合同，并增加独立缓存的真实包消费者验证。补齐 5.0.0 发行说明和升级入口。
 - Prevent Windows CI from cancelling the EF Core string-pattern semantics test while the runner is under load by allowing its setup and list/count/page queries a bounded two-minute deadline.
 - VS Code 扩展打包工具升级至 `@vscode/vsce` 4.1.0，移除有漏洞的 glob 并将间接 minimatch 固定为 11.0.3，修复 GHSA-3g3m-2fjr-6pw4 与 GHSA-g3hv-75wg-m249；将 `@types/vscode` 精确锁定为最低宿主 API 的 1.100.0，实际 VSIX、59 项测试、1.100.3 宿主测试及官方 npm 安全审计通过。
 - 集成测试的 Server/EF/Accuracy 临时宿主禁用固定 appsettings 的文件热加载，避免完整 Linux CI 反复创建宿主时耗尽 128 个 inotify 实例；保留真实 Kestrel、REST/HTTP2 与产品默认配置行为。

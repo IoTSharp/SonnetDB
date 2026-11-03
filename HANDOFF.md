@@ -1,3 +1,28 @@
+## 2026-11-04 统一 5.0 / MCP / WorkBuddy 发布任务（进行中，未放行）
+
+- 用户要求将聊天 `01a1a21a-84e7-74c2-aea2-77a9cc1abafd` 的分支合并、MCP模型工具与WorkBuddy任务并入本发布聊天。已发送协调指令并读取其确认：对方只继续MCP与WorkBuddy切片，本聊天统一main/正式tag/发包。用户在对方聊天已明确授权新增写工具并按数据库权限校验；该授权纳入统一范围。
+- 活动工作树为 `C:/Users/mysti/.codex/worktrees/sonnetdb-5-release-20261103/SonnetDB`，分支 `codex/release-5-0-20261103`，已推HEAD `29f206fc9238919721f314a7763a66a835cab842`，对应PR#389。该提交仍未放行；其中MCP/WorkBuddy以及新发现EF/ABP等修复尚待统一整合。远端main仍78c2c746；旧修复/Dependabot分支已是其祖先，parity-results保持独立。原D:/source/SonnetDB外来dirty未带入、覆盖或暂存。
+- 本机FileStreaming相关TRX确认287/287 PASS、0 FAIL/SKIP，针对损坏恢复夹具初开2秒预算改10秒，45秒总限/真实锁超时/原spool与checkpoint断言保留。原执行工具回执因host generation切换不可继续读取，TRX完整保存，不能由此推断全机进程均已退出。
+- EF默认DateTime原用旧DATETIME导致ABP真实Clock亚毫秒失败；新默认DATETIME2/DateTime2与显式legacy拒绝边界的完整EF309/309通过。Core最小修复后，ABP standard日期迁移与原22项全PASS，未删FK、改Clock、压制模型警告或改历史迁移。Core定向8/8、相关组403/403通过，已核存量GUID/STRING键首次native迁移和两次重开。
+- Parity full旧29因最终镜像extract ENOSPC失败，SQL runner NOT_RUN，原reliability84/84。专属builder分项load/释放cache再完整up --no-build已通过Linux8合同与真实bake/compose配置核验，最终hosted full仍待新SHA门禁；未删SDK、共享cache或缩参考栈。
+- ORM候选及外部fork进度见独占报告；SqlSugar18f9df7e已推，XCode新Draft PR103/f21d0c75与Chloe现有Draft PR435/742ea2ac已推，业务50/101×3及三协议重开通过；ABP新Draft PR2/979c3e4e待公开5.0复验。MCP PR391/49731955已交付43工具、118Server回归、89Core回归及NativeAOT36实调，预算P2修订已绑定实物；WorkBuddy端口57deb851及当前能力说明正统一整合。
+- 用户已批准新Testcontainers包ID及必要时重新固定v5.0.0；旧tag对象a3d3e7ba→455bf3b5仍未动。正式新NuGet/GitHub/Docker发布尚未开始，旧Docker部分分发不算新候选完成。冻结统一新提交并取得十二类精确SHA/version与公开消费者后再发布结项。
+- 用户要求后续SonnetDB缺口直接建Issue，已去重创建并回读#392—#401，见 `docs/audits/release-5.0-20261104-followups.md`。统一范围及下一顺序见 `docs/audits/release-5.0-20261104-coordination.md`。本节以UTF8原始字节前置，完整历史后缀保留，损坏UTF8不清洗。下一次提交前仍须在最终树完整restore和规定Format。
+
+
+## 2026-11-03 5.0 正式发行重审与发包阻断修复（进行中）
+
+- 用户要求以 #230 为依据，使用多个智能体核查全部既有接入要求，具备条件后完成 GitHub / NuGet / Docker 正式发布；明确授权发现问题后修复、将 `v5.0.0` 重新固定到新提交。用户已确认更新有效 `NUGET_API_KEY`，并明确选择 Testcontainers 新包名 `SonnetDB.Testcontainers`。
+- 当前独立工作树 `C:/Users/mysti/.codex/worktrees/sonnetdb-5-release-20261103/SonnetDB`，分支 `codex/release-5-0-20261103`，基线 main `78c2c74699e7c8231e6228b878fbaa4bf345f27a`。原 `D:/source/SonnetDB` 的大量其它会话改动未带入、覆盖或暂存；`parity-results` 未改写或合并。
+- 实时核查旧 tag 仍绑定 `455bf3b53b1e56df0064d8f574b0595cbb0b609e`。Publish 41348714535 attempt4 仍因过期密钥403失败；公开 5.0 十包为0/10、GitHub Release404。Docker Hub已有旧提交的5.0镜像，重发后必须核对新的源码标签与digest，不把旧镜像当新提交证据。
+- 已修复被 NuGet 保留前缀拒绝的包名，保留 Testcontainers 程序集/命名空间，更新十包库存、候选晋级、SDK与版本化恢复。5.0恢复使用新ID且十包；4.0/4.1历史恢复分别保留原七包/八包合同。补齐 `docs/releases/5.0.0.md` 新闻/发行说明与升级入口，使用可直接用于 GitHub Release 的绝对链接。
+- 本机：完整 solution restore成功；release artifact合同20项及候选晋级10项通过；新包五个TFM pack成功；独立缓存的 Core create/reopen/NULL、Client/Protocol Frame往返及新NuGet包/旧命名空间builder消费者全部通过。最初 pack遗漏PackageVersion得到0.0.0-dev及深目录缓存导致Testcontainers依赖DLL路径过长的失败证据均保留；使用正式pack属性和仓库外短缓存复验通过。
+- 本机上述包夹具复用了旧正式run的九个包及本机新Testcontainers包，只是rename验证，不是最终新提交十包/Server的公开消费者验收。最终提交前仍须对最终树执行完整restore和规定Format；新提交必须重新取得十二类精确SHA/version门禁，不能继承455bf3b5的绿灯。
+- 三个独立worker分别完成流水线审计，并继续 XCode/Chloe、SqlSugar 与 FreeSql 候选适配及真实三协议/重开复验。上游仍有4.0 guards、旧依赖和未合并PR，未宣称所有适配或公开安装组合已完成；数据库能力、候选补丁、上游合入及正式发包分开记录。
+- 下一顺序：提交/推送本修复→新提交十二类预检及适配消费者→全部必要门槛通过后按用户授权替换旧tag→确认NuGet十包、完整Release资产、连接器和Docker新身份→全新公开缓存消费者及最终交接。尚未移动标签、推送本提交或发布新包；不得在远程门槛未通过前声称正式发布成功。
+- 本次ignored证据在工作树 `artifacts/release-5.0-20261103/`；共享候选与worker证据在原工作树 `artifacts/release-5.0-20261103-*`。历史HANDOFF含损坏UTF8，本节以UTF8原始字节前置并保留历史后缀及SHA，不清洗旧记录。
+
+
 ## 2026-11-01 EXISTS / 5.0 发布阻塞修复
 
 - 用户已明确选择保留新 API，按 5.0 主版本准备。分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并 main，未打标签、正式发包或部署，保留 parity-results。

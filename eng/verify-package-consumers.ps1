@@ -19,19 +19,24 @@ $checks = [Collections.Generic.List[object]]::new()
 $report = [ordered]@{ version = $Version; status = 'RUNNING'; fixtureRoot = $fixtureRoot; checks = $checks }
 $utf8 = [Text.UTF8Encoding]::new($false)
 try {
-    foreach ($name in @('core', 'client')) {
+    foreach ($name in @('core', 'client', 'testcontainers')) {
         $directory = Join-Path $fixtureRoot $name
         $null = New-Item -ItemType Directory -Path $directory
         foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props')) {
             [IO.File]::WriteAllText((Join-Path $directory $file), '<Project />', $utf8)
         }
-        $id = if ($name -eq 'core') { 'SonnetDB.Core' } else { 'SonnetDB.Client' }
+        $id = switch ($name) {
+            'core' { 'SonnetDB.Core' }
+            'client' { 'SonnetDB.Client' }
+            'testcontainers' { 'SonnetDB.Testcontainers' }
+        }
+        $aotCompatible = if ($name -eq 'testcontainers') { 'false' } else { 'true' }
         [IO.File]::WriteAllText((Join-Path $directory 'consumer.csproj'), @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>$aotCompatible</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="$id" Version="[$Version]" /></ItemGroup>
 </Project>
@@ -47,7 +52,14 @@ try {
   <fallbackPackageFolders><clear /></fallbackPackageFolders>
 </configuration>
 "@, $utf8)
-        $source = if ($name -eq 'client') { @'
+        $source = if ($name -eq 'testcontainers') { @'
+using Testcontainers.SonnetDB;
+
+var builder = new SonnetDbBuilder("iotsharp/sonnetdb:5.0.0").WithDatabase("package_consumer");
+if (builder.GetType().Assembly.GetName().Name != "Testcontainers.SonnetDB")
+    throw new InvalidOperationException("The renamed package changed its assembly identity.");
+Console.WriteLine("PASS SonnetDB.Testcontainers package with the existing Testcontainers.SonnetDB namespace and builder.");
+'@ } elseif ($name -eq 'client') { @'
 using System.Buffers;
 using SonnetDB.Client;
 using SonnetDB.Protocol;
@@ -95,11 +107,13 @@ Console.WriteLine("PASS packaged Core create/reopen and nullable unique EXISTS."
 '@ }
         [IO.File]::WriteAllText((Join-Path $directory 'Program.cs'), $source, $utf8)
         $project = Join-Path $directory 'consumer.csproj'
-        $cache = Join-Path $OutputRoot "$name-packages"
+        # 独占缓存跟随较短的仓库外夹具，避免 Windows 深层输出目录导致依赖 DLL 路径超长。
+        $cache = Join-Path $directory 'packages'
         & dotnet restore $project --configfile (Join-Path $directory 'NuGet.config') --packages $cache *> (Join-Path $OutputRoot "$name-restore.log")
         if ($LASTEXITCODE -ne 0) { throw "$name consumer restore failed; see $OutputRoot." }
         $assets = Get-Content -LiteralPath (Join-Path $directory 'obj/project.assets.json') -Raw | ConvertFrom-Json -AsHashtable
-        foreach ($packageId in @($id, 'SonnetDB.Protocol')) {
+        $requiredPackages = if ($name -eq 'testcontainers') { @($id) } else { @($id, 'SonnetDB.Protocol') }
+        foreach ($packageId in $requiredPackages) {
             if (!$assets.libraries.ContainsKey("$packageId/$Version") -or $assets.libraries["$packageId/$Version"].type -cne 'package') {
                 throw "Missing installed candidate $packageId/$Version."
             }
@@ -107,21 +121,21 @@ Console.WriteLine("PASS packaged Core create/reopen and nullable unique EXISTS."
             $installed = Join-Path $cache "$($packageId.ToLowerInvariant())/$Version/$($packageId.ToLowerInvariant()).$Version.nupkg"
             $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash
             if ($hash -cne (Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash) { throw 'Installed candidate bytes differ.' }
-            $checks.Add([ordered]@{ consumer = $name; package = $packageId; sha256 = $hash })
+            $checks.Add([ordered]@{ consumer = $name; package = $packageId; sha256 = $hash; cache = $cache })
         }
         if ($name -eq 'client' -and @($assets.libraries.Keys | Where-Object { $_ -match '^SonnetDB(\.Core|\.Data)?/' }).Count -ne 0) {
             throw 'Lightweight Client unexpectedly depends on the engine or ADO.NET.'
         }
         & dotnet build $project -c Release --no-restore -o (Join-Path $directory 'bin') *> (Join-Path $OutputRoot "$name-build.log")
         if ($LASTEXITCODE -ne 0) { throw "$name consumer build failed; see $OutputRoot." }
-        foreach ($mode in $(if ($name -eq 'core') { @('create', 'reopen') } else { @('roundtrip') })) {
+        foreach ($mode in $(if ($name -eq 'core') { @('create', 'reopen') } elseif ($name -eq 'testcontainers') { @('builder') } else { @('roundtrip') })) {
             & dotnet (Join-Path $directory 'bin/consumer.dll') $mode (Join-Path $OutputRoot 'database') *> (Join-Path $OutputRoot "$name-$mode.log")
             if ($LASTEXITCODE -ne 0) { throw "$name consumer $mode failed; see $OutputRoot." }
             $checks.Add([ordered]@{ consumer = $name; mode = $mode; status = 'PASS' })
         }
     }
     $report.status = 'PASS'
-    Write-Host 'Package consumers passed: independent caches, exact candidate bytes, Core reopen/NULL semantics, lightweight Client/Protocol round-trip.'
+    Write-Host 'Package consumers passed: independent caches, exact candidate bytes, Core reopen/NULL semantics, lightweight Client/Protocol round-trip and renamed Testcontainers package.'
 }
 catch {
     $report.status = 'FAIL'

@@ -17,7 +17,8 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
     private static readonly BoolTypeMapping Bool = new("BOOL");
     private static readonly StringTypeMapping String = new("STRING", DbType.String);
     private static readonly ByteArrayTypeMapping Bytes = new("BLOB");
-    private static readonly DateTimeTypeMapping DateTime = new("DATETIME");
+    private static readonly SonnetDbDateTimeTypeMapping DateTime = new();
+    private static readonly SonnetDbDateTimeTypeMapping LegacyDateTime = new("DATETIME");
     private static readonly SonnetDbDateTimeOffsetTypeMapping DateTimeOffset = new();
     private static readonly SonnetDbDateTimeOffsetTypeMapping LegacyDateTimeOffset = new("DATETIME");
     private static readonly GuidTypeMapping Guid = new("STRING", DbType.Guid);
@@ -35,7 +36,8 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
         ["TEXT"] = String,
         ["BLOB"] = Bytes,
         ["JSON"] = String,
-        ["DATETIME"] = DateTime,
+        ["DATETIME"] = LegacyDateTime,
+        ["DATETIME2"] = DateTime,
         ["DATETIMEOFFSET"] = DateTimeOffset
     };
 
@@ -71,6 +73,13 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
     /// <inheritdoc />
     protected override RelationalTypeMapping? FindMapping(in RelationalTypeMappingInfo mappingInfo)
     {
+        if (mappingInfo.ClrType is { } dateTimeType
+            && (Nullable.GetUnderlyingType(dateTimeType) ?? dateTimeType) == typeof(DateTime))
+        {
+            return string.Equals(mappingInfo.StoreTypeName, "DATETIME", StringComparison.OrdinalIgnoreCase)
+                ? LegacyDateTime : DateTime;
+        }
+
         if (mappingInfo.ClrType is { } temporalType
             && (Nullable.GetUnderlyingType(temporalType) ?? temporalType) == typeof(DateTimeOffset))
         {

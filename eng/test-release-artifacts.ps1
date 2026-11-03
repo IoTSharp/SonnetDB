@@ -44,7 +44,7 @@ function Assert-Rejected {
 try {
     $nugetRoot = Join-Path $testRoot 'nuget'
     $ids = @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Caching.EasyCaching',
-        'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
+        'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Testcontainers')
     foreach ($id in $ids) {
         Write-Zip -Path (Join-Path $nugetRoot "$id.$version.nupkg") -Entries @{
             "$id.nuspec" = "<package><metadata><id>$id</id><version>$version</version></metadata></package>"
