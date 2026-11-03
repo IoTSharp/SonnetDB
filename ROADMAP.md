@@ -1,6 +1,6 @@
 # ROADMAP — SonnetDB 4.5 与后续里程碑
 
-2026-11-03：新增 **[M51：WorkBuddy 生态集成与 SonnetDB 全生命周期闭环](#milestone-51)**。将连接器、独立 Skill、公开资料库、专家与 Buddy 应用的后续建设、分层验收和分阶段审核/发布统一登记；新增工作全部 `📋 planned`。已有 Docker/协议联调只作为基线证据，0.1.1 平台重新解析、宿主验收与正式送审尚未完成。本次仅规划，后续从 M51-W01 冻结范围及 W02 平台解析续做，不执行发布。
+2026-11-04：**[M51：WorkBuddy生态集成](#milestone-51)**当前连接器/Skill合同更新为0.2.0，面向SonnetDB 5.0的43工具发现、默认Read和用户明确授权的Write。生产切片49731955保持冻结，不重复开发；历史Docker/r2九工具证据保留source。平台解析、HTTPS、宿主验收与正式送审仍未完成，由统一发布流程逐项整合。
 
 2026-11-02：新增 **[M50：时序时间戳精度与无损时间链路](#milestone-50)**，按库真正保存 `ms/us/ns`、默认 `ms`，规划 30 项必选与 2 项条件任务；全部 `📋 planned`。完整实现思路、源码归属、依赖/验收、迁移/旧端拒绝与初步工作量见 [M50 专题](docs/design/m50-timeseries-timestamp-precision.md)。M50 独立冻结版本与批次，本次仅更新规划，不启动源码改造或变更现有 4.5/预览/连接器批次范围。
 
@@ -399,34 +399,34 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 目标：让 SonnetDB 用户通过 WorkBuddy 完成部署、安全连接、九模型访问与使用，以及升级、备份、恢复、维护和排障。连接器负责 MCP 接入/授权，Skill 负责操作流程，资料库负责可追溯公开知识，专家负责统一助手入口，Buddy 应用负责已验收的完整场景封装；不要求五类资产同时发布。M51 独立冻结版本和每批范围，不改变既有 4.5、M47 预览或 M49/M50 门槛，也不将 Graph Beta 升格为正式稳定能力。
 
-### 本次已完成基线（2026-11-03）
+### 已完成基线与当前接入合同（2026-11-04）
 
 以下仅说明实际完成的切片，不代表 M51 整体完成或平台已批准。
 
 | 证据 ID | 状态 | 本次成果与验收边界 |
 |---|---|---|
-| M51-B01 | 🟢 本地草案完成 | `connectors/workbuddy-sonnetdb/` 已有 MCP 元信息、Token 表单、图标、内置 Skill、README、清洁包校验器和回环 Compose。九个工具为只读工具，不等于九模型完整 typed API；部署和运维当前只提供指导。 |
+| M51-B01 | 🟢 本地草案完成 | 当前连接器/Skill为0.2.0，目标SonnetDB 5.0的43工具以tools/list和schema发现；默认目标库Read，用户已明确授权且有Write grant时使用独立写工具，query_sql仍只读。43生产切片49731955/PR391待统一整合；部署、升级和服务重启需另有授权，不能由工具存在推断授权。 |
 | M51-B02 | 🟢 公开资料初次归档 | 闭环指南、九模型手册、提交清单已建于 `docs/workbuddy-sonnetdb-*.md`，并归档至 [IoTSharp 公开空间](https://www.workbuddy.cn/space/s/dQLhaiG6IukkkFwHCd8Rzj)。后续本地纠偏与最新报告尚未同步在线，不能把初次上传视为内容持续一致。 |
-| M51-B03 | 🟢 真实 Docker 基线 | 官方 `iotsharp/sonnetdb` 5.0.0，revision `455bf3b53b1e56df0064d8f574b0595cbb0b609e`，digest `sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597`；回环端口、独立卷、合成数据。两轮容器正常停止并保留卷，未接生产库；镜像验证不是本地源码构建验证。 |
-| M51-B04 | 🟢 协议客户端分层通过 | `eng/workbuddy-sonnetdb-verify.py` 第二轮报告：19 通用检查、原生九模型、重启读回九模型、MCP 六模型通过。覆盖工具发现、只读、401/403、库隔离、参数边界/截断及 Token 轮换。KV/对象/MQ 的 MCP 三项 `not_available`，不计通过；正常重启不等于升级、备份恢复或掉电恢复。 |
+| M51-B03 | 🟢 历史 Docker 基线 | 2026-11-03官方 `iotsharp/sonnetdb` 5.0.0，revision `455bf3b53b1e56df0064d8f574b0595cbb0b609e`，digest `sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597`；该镜像只公布九工具。两轮回环容器/独立卷正常停止并保留，未接生产库；不作为当前43工具的Docker/宿主验收。 |
+| M51-B04 | 🟢 历史协议分层通过 | 2026-11-03 r2报告仍为19通用检查、原生九模型、重启读回九模型、MCP六模型，KV/对象/MQ的MCP三项not_available；日期/source不改写。当前脚本改为43工具发现与Read凭据九模型读取/写拒绝，不把本次离线校验写成新版实调PASS。正常重启不等于升级、备份恢复或掉电恢复。 |
 | M51-B05 | 🟢 测试端纠错可追溯 | 首轮 MCP 六项因脚本未解码 `JsonElementValue` 比较失败，修复 typed cell 解码后用独立第二轮容器复验通过；保留两轮报告及实际 `tools/list` schema，不覆盖失败。报告为本地 HTTP 客户端证据，不是 WorkBuddy 宿主证据。 |
 | M51-B06 | 🟡 0.1.1 本地修复完成 | 0.1.0 在真实平台因 URL 模板无显式 scheme 解析失败；已改为 `https://${SONNETDB_HOST}/mcp/${SONNETDB_DATABASE}`，host/database/token 三字段，版本 0.1.1，六组静态检查与五文件清洁包检查通过。0.1.1 重新上传解析尚无回执；0.1.0 不再使用。 |
 | M51-B07 | 🟡 控制台入口已打开 | 已登录并进入连接器发布流程；本会话浏览器无文件上传接口，需用户手动选择新 ZIP。**NOT_SUBMITTED：尚无正式送审、审核通过或发布回执**。资料库公开不等于连接器送审。 |
 
-证据入口：[验收脚本](eng/workbuddy-sonnetdb-verify.py)、[连接器说明](connectors/workbuddy-sonnetdb/README.md)、[闭环指南](docs/workbuddy-sonnetdb-closed-loop-guide.md)、[九模型手册](docs/workbuddy-sonnetdb-model-playbook.md)、[提交清单](docs/workbuddy-sonnetdb-submission-checklist.md)。本次脱敏报告/工具 schema 随源码保存在 `outputs/`，ZIP 只保留本地且可用校验器重建；W03/W05 将审计后的证据同步公开空间，W16 绑定最终候选 SHA256，不能沿用 0.1.0 报告指纹代表 0.1.1。随机凭据未落盘，最终 replacement/admin Token 未取得撤销证据；不得假定旧测试环境仍可登录或令牌已全部撤销。
+证据入口：[验收脚本](eng/workbuddy-sonnetdb-verify.py)、[连接器说明](connectors/workbuddy-sonnetdb/README.md)、[闭环指南](docs/workbuddy-sonnetdb-closed-loop-guide.md)、[九模型手册](docs/workbuddy-sonnetdb-model-playbook.md)、[提交清单](docs/workbuddy-sonnetdb-submission-checklist.md)。历史脱敏报告/工具schema保存在outputs并保留日期/source；ZIP仅本地重建，W16绑定最终候选SHA256，不能沿用0.1.0/0.1.1或r2九工具报告代表0.2.0/43工具。后续公开空间同步和宿主/HTTPS验收仍待完成；历史随机凭据未落盘，不假定旧环境仍可登录或Token已全部撤销。
 
 ### 后续工作包
 
-所有新增工作均为 `📋 planned`，编号只作规划 ID，不表示已创建 Issue/PR；现有切片只在上表计完成。
+状态按各行实际切片记录；规划编号本身不表示已创建Issue/PR。43工具生产切片已验，不重复实施，集成与平台门禁继续独立验收。
 
 | ID | 状态 / 范围 | 待交付工作 | 依赖与退出条件 |
 |---|---|---|---|
-| M51-W01 | 📋 P0 必选 | 冻结首批只读范围、资产职责、版本/平台矩阵和发布顺序 | 先确认限定只读首发还是等待九模型完整接入；文案明确指导/执行差别，不因完整愿景阻断可独立验收的只读批次。 |
-| M51-W02 | 📋 P0 必选 | 0.1.1 平台重新解析与上传自测 | 用户上传新包，保留实际解析结果；检查 HTTPS 模板和三字段映射。修复后用新版本/新包，不覆盖旧失败；解析成功不等于送审。 |
+| M51-W01 | 📋 P0 必选 | 冻结0.2.0的43工具、默认Read/授权Write和发布矩阵 | 当前用户已明确授权补齐写工具；按tools/list、schema与实际grant绑定能力，不能把发现等同授权或把数据面写权限当运维权限。 |
+| M51-W02 | 📋 P0 必选 | 0.2.0 平台解析与上传自测 | 使用新五文件包，保留0.1.0/0.1.1历史失败/未知状态；检查HTTPS模板和三字段映射，取得真实平台解析回执，解析成功不等于送审。 |
 | M51-W03 | 📋 P0 必选 | WorkBuddy 真实宿主安装、表单、连接、重连与卸载验收 | W02；有效 HTTPS/证书和审核网络可达；现场调用工具，验证 401/403、只读、截断及新旧 Token 轮换交互，不能复用脚本 PASS 代验。 |
 | M51-W04 | 📋 P0 必选 | Token 生命周期、隐私/外发与白名单安全合同 | 最小 Read、密钥脱敏、撤销/到期/轮换、重定向与日志边界；先明确请求白名单与回调白名单的配置对象、实际认证方案和通配支持。用户提出的 `https://*.tencent.com`、`https://*.workbuddy.cn`、`https://*.workbuddy.ai`、`https://*.codebuddy.cn` 仅记为待核需求；当前 Token 模式无 OAuth 回调，不盲目开放 CORS/回调。 |
 | M51-W05 | 📋 P0 必选 | 证据/文档收口与公开空间同步 | 将本地纠偏、分层矩阵和审核清单更新至指定 IoTSharp 空间；固定版本/来源及脱敏报告索引，检查框据实更新。仅上传公开内容，不上传 Token、客户数据和内部敏感日志。 |
-| M51-W06 | 📋 P1 全量模型批次 | KV、对象、SonnetMQ 的 MCP 能力评估与实现 | 冻结有界 typed 操作/ACL/错误合同后补工具；对象分页/Range/大小和 MQ 消费副作用、offset/确认权限分别设计；不把有副作用的消费冒称只读。 |
+| M51-W06 | 🟡 源码切片已验 / 集成待验 | 九模型MCP43工具的统一整合与客户端验收 | 生产实现冻结49731955/PR391，权限/预算与NativeAOT43/36、118/89已验；不重复开发。当前0.2.0更新能力声明/规则，宿主/HTTPS/平台/发布门禁仍按实际渠道验，不把带副作用消费称为只读。 |
 | M51-W07 | 📋 P1 全量模型批次 | 九模型 MCP 与真实宿主联合回归 | W06 及对应模型合同；原生 API、MCP、宿主分层测试，覆盖权限、预算、分页、取消/超时、删除/恢复和不支持路径。Graph Beta 及模型能力限制继续公开。 |
 | M51-W08 | 📋 P0 按批适用 | 知识 provider 与工具/schema 合同回归 | docs_search/skill_search/skill_load 的成功、不可用及不可信内容；错误码、超时/取消、契约版本与安全工具发现；CI 使用合成数据，输出脱敏可复算证据。 |
 | M51-W09 | 📋 P1 运维批次 | 管理执行能力与人工审批模型设计 | 管理面与只读面隔离；显式计划、作用域/目标、dry-run、二次确认、审计、取消和失败终态。禁止凭只读 Token 提权或开放任意 shell。 |

@@ -8,7 +8,9 @@
 
 连接器负责把 WorkBuddy 接入用户已经部署的 SonnetDB MCP 服务；Skill 提供九模型的选型和使用指导，并且只调用现场实际发现且已授权的工具；资料库负责存放版本化、可检索、可审计的产品文档和运行手册。
 
-**覆盖指导不等于覆盖可执行工具。** 当前 Server MCP 的九个只读工具不是九种模型的完整 typed API，不能代替 KV、Document、对象或 MQ 等模型的原生入口。真实联调应分别记录原生 HTTP API 成功、MCP 工具成功和 WorkBuddy 宿主连接成功，三者不可相互替代。部署、升级、备份、恢复目前仅有操作指导，尚未形成该连接器可执行的管理工具；其完整闭环仍待实现和验证。
+当前连接器0.2.0以含九模型43工具的SonnetDB 5.0合同为基线（28只读、15写入），实际能力以现场 `tools/list` 与 `inputSchema` / `outputSchema` 为准，不能仅依据5.0版本字符串判断。默认推荐目标库Read凭据；用户已明确授权写入且目标库具备Write grant时，才调用独立写工具。**工具发现不等于写授权，覆盖数据工具不等于运维授权。** 原生API、MCP、WorkBuddy宿主和HTTPS/平台审核分别验收。
+
+部署、升级、备份、恢复、服务重启不属于这43个数据工具，需要另有授权和执行入口。本地文档修订不代表这些操作已执行。
 
 ## 一、三件套的职责边界
 
@@ -19,7 +21,7 @@
 - SonnetDB MCP 地址配置：`/mcp/{database}`。
 - 用户自填 Bearer Token。
 - 最小权限和 HTTPS 使用提示。
-- 只读 MCP 工具发现与调用。
+- 发现43工具及现场schema，按Read或已有明确授权的Write范围调用。
 
 连接器不应保存真实 Token，也不应把任意本地命令、数据库目录写入或高风险管理操作直接暴露给 Agent。
 
@@ -30,7 +32,7 @@ Skill 提供：
 - 查询顺序和 SQL 生成规则。
 - 九种模型的选择、schema 探索、读取和结果解释。
 - 部署、升级、备份、恢复、维护和故障排查清单。
-- 对写入、DDL、重启、恢复、目录操作的人工确认边界。
+- 区分用户明确写授权、数据库Write grant和另行授权的重启/恢复/目录操作；已有授权不重复询问。
 - SonnetDB 的产品边界：单节点、非 PostgreSQL/MongoDB/Redis/Kafka/S3 集群兼容，Graph 为 Beta。
 
 ### 3. 资料库
@@ -66,12 +68,12 @@ WorkBuddy 使用具体数据库的 MCP 地址：
 https://<host>/mcp/<database>
 ```
 
-使用最小权限 Token，至少拥有目标数据库 `Read` grant。连接后推荐顺序：
+默认使用仅有目标库Read grant的最小权限Token；已有明确写授权时选择该库适当Write grant，不要求管理员或全库凭据，不在提示词/日志中传递Token。连接后先读 `tools/list` 和输入/输出schema，再按顺序：
 
 1. `list_databases`
 2. 时序：`list_measurements` → `describe_measurement`
-3. 关系：`SHOW TABLES` → `DESCRIBE TABLE`
-4. 其他模型：读取对应模型的公开 schema/索引/元数据
+3. 关系：`list_tables` → 受支持的 `DESCRIBE TABLE`
+4. KV、文档、对象、MQ和图：使用现场发布的专用发现/读取工具；全文与向量先检查 `describe_collection`
 5. `sample_rows` 或小范围 `SELECT`
 6. `explain_sql`
 7. 带 `LIMIT/FETCH` 的 `query_sql`
@@ -82,15 +84,17 @@ https://<host>/mcp/<database>
 |---|---|---|---|
 | 时序 | 遥测、指标、窗口分析 | measurement、TAG/FIELD、时间范围、聚合 | 不猜列类型，查询必须有时间范围 |
 | 关系表 | 业务实体、JOIN、事务 | `SHOW TABLES`、`DESCRIBE TABLE`、参数化 SQL | 不假设完整 PostgreSQL 兼容 |
-| KV/缓存 | 状态、会话、TTL、CAS | keyspace、TTL、计数器、CAS 说明 | 写操作必须人工确认 |
+| KV/缓存 | 状态、会话、TTL、CAS | list/get/scan与独立put/delete；未发布的CAS仅指导 | 写操作需已有明确用户授权及Write grant |
 | JSON 文档 | collection、过滤、更新、聚合 | 使用 SonnetDB 原生 document 语义 | 不是 MongoDB wire/官方 Driver 兼容 |
 | 全文检索 | BM25、中文/多语言、模糊检索 | 先确认索引、字段和分词策略 | 不凭字段名猜索引 |
 | 向量检索 | 相似度、ANN、Hybrid Search | 确认维度、距离和 embedding profile | 不猜维度，不把测试模型当质量证据 |
 | 对象存储 | bucket、对象、Range、版本、multipart | 区分元数据和内容传输 | 不是分布式 S3 集群 |
 | SonnetMQ | topic、consumer group、offset、pull/ack、replay | 区分消息实例与数据库目录 | 单库备份不能覆盖实例 MQ |
-| 原生属性图（Graph Beta） | 顶点、边、标签、属性、邻接 | 使用已发布 SQL/Graph 只读入口 | Beta，不是完整 GQL/Cypher 或生产承诺 |
+| 原生属性图（Graph Beta） | 顶点、边、标签、属性、邻接 | list/get/expand及独立版本化写工具 | Beta，不是完整 GQL/Cypher 或生产承诺 |
 
 对于每次回答，Agent 应说明：目标数据库、实际模型、schema 来源、时间范围、行数上限、是否截断、查询假设和未验证边界。
+
+`query_sql` 始终只读；写入和受支持建模使用独立 `execute_sql` 或对应模型写工具。该入口拒绝控制面、多语句、事务、INSERT SELECT及RETURNING。写入超时、取消、断连或 `write_outcome_unknown` 先回读，不盲重试，特别是不重复发布MQ。KV/文档的 `nextCursor`、对象范围/游标和MQ offset按现场schema续读，不能以部分页冒充完整结果。
 
 ## 四、升级、备份与恢复
 
@@ -140,7 +144,7 @@ https://<host>/mcp/<database>
 - `skills/sonnetdb-skill/SKILL.md`。
 - 连接器 README 和隐私/安全说明。
 - 真实部署的 MCP 地址验收记录（地址本身可脱敏）。
-- `tools/list`、连接、只读查询、行数上限、错误码和 Token 轮换验证记录。
+- `tools/list`、43工具schema、默认Read读取/写拒绝、已有写授权下Write回读、预算/游标、错误码及Token轮换分别记录。
 - 九种模型至少一项代表性访问/使用说明；不能验证的模型必须明确标为未验证。
 - 部署、升级、备份、恢复和维护指导的版本对应关系。
 - 不包含真实 Token、密码、客户数据和内部敏感日志的清洁包。
@@ -153,3 +157,5 @@ https://<host>/mcp/<database>
 - WorkBuddy 连接器审核结果。
 
 不能把其中一类证据冒称为另一类，也不能把 Skill/资料库中的指导冒称为已执行的运维动作。
+
+2026-11-03历史r2报告绑定镜像revision455bf3b5、九工具和六模型MCP，不修改为43工具通过。新MCP切片49731955的NativeAOT43/36与118/89属于生产实现证据；本次0.2.0静态包和文案校验不能替代新版WorkBuddy宿主、HTTPS或平台审核。

@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -21,10 +22,65 @@ PACKAGE_FILES = (
 LOCAL_ONLY = {"README.md", "validate-package.py", "docker-compose.verify.yml"}
 KEBAB = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 VARIABLE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
-TOOLS = (
-    "list_databases", "list_measurements", "describe_measurement", "sample_rows",
-    "explain_sql", "query_sql", "docs_search", "skill_search", "skill_load",
+LEGACY_TOOLS = (
+    "list_databases",
+    "list_measurements",
+    "describe_measurement",
+    "sample_rows",
+    "explain_sql",
+    "query_sql",
+    "docs_search",
+    "skill_search",
+    "skill_load",
 )
+READ_TOOLS = (
+    "list_databases",
+    "list_measurements",
+    "describe_measurement",
+    "sample_rows",
+    "explain_sql",
+    "query_sql",
+    "docs_search",
+    "skill_search",
+    "skill_load",
+    "list_keyspaces",
+    "get_kv",
+    "scan_kv",
+    "list_buckets",
+    "list_objects",
+    "get_object",
+    "list_collections",
+    "get_document",
+    "scan_documents",
+    "list_mq_topics",
+    "read_mq",
+    "get_mq_stats",
+    "list_tables",
+    "list_graphs",
+    "get_graph_vertex",
+    "expand_graph",
+    "search_fulltext",
+    "search_vector",
+    "describe_collection",
+)
+WRITE_TOOLS = (
+    "put_kv",
+    "delete_kv",
+    "create_bucket",
+    "delete_bucket",
+    "put_object",
+    "delete_object",
+    "put_document",
+    "delete_document",
+    "publish_mq",
+    "ack_mq",
+    "upsert_graph_vertex",
+    "delete_graph_vertex",
+    "upsert_graph_edge",
+    "delete_graph_edge",
+    "execute_sql",
+)
+TOOLS = READ_TOOLS + WRITE_TOOLS
 
 
 def require(condition, message):
@@ -60,9 +116,13 @@ def english(value):
 def check_files():
     for name in PACKAGE_FILES:
         require((ROOT / name).is_file(), "缺少正式包文件：" + name)
-    for path in ROOT.rglob("*"):
+    deadline = time.monotonic() + 5
+    for index, path in enumerate(ROOT.rglob("*")):
+        require(index < 64 and time.monotonic() < deadline, "连接器文件检查超过数量或时间预算")
         require(not path.is_symlink(), "连接器目录不得包含符号链接")
+        require(not getattr(path, "is_junction", lambda: False)(), "连接器目录不得包含目录联接")
         if path.is_file():
+            require(path.stat().st_size <= 262144, "连接器文件超过静态检查字节预算")
             name = path.relative_to(ROOT).as_posix()
             # 不读取环境文件；发现即拒绝，避免把本地凭证混入连接器目录。
             require(not path.name.lower().startswith(".env"), "发现环境文件，未读取其内容")
@@ -83,7 +143,11 @@ def check_meta():
                 "中英文示例各需 2 至 5 条（项目策略）")
     require(all(english(v) for v in meta["examples_en"]), "英文示例必须为英文")
     require(meta.get("type") == "mcp" and meta.get("auth_mode") == "token", "本包必须使用 MCP token 模式")
-    version(meta.get("version"))
+    require(version(meta.get("version")) >= (0, 2, 0), "当前连接器合同至少为0.2.0")
+    require(all(marker in meta["description_zh"] for marker in ("5.0", "43", "tools/list", "Read", "Write", "授权")),
+            "元信息必须区分5.0工具发现、Read默认和已授权Write")
+    require(all(marker in meta["description_en"] for marker in ("5.0", "43", "Read", "Write", "authorization")),
+            "英文元信息缺少当前能力或授权边界")
     require(version(meta.get("minWorkbuddyVersion")) >= (4, 23, 0), "Token 模式最低版本为 4.23.0")
     require("server_auth" not in meta, "Token 模式不应包含 OAuth 密钥配置")
 
@@ -130,6 +194,8 @@ def check_mcp_and_fields():
     require(by_key["SONNETDB_HOST"]["type"] == "text", "主机必须为 text")
     require(by_key["SONNETDB_DATABASE"]["type"] == "text", "数据库必须为 text")
     require("HTTPS" in by_key["SONNETDB_HOST"].get("description", ""), "主机指引必须要求 HTTPS")
+    require(all(marker in schema["description"] for marker in ("43", "tools/list", "Read", "Write", "明确授权")),
+            "表单必须区分工具发现、默认Read和明确授权Write")
 
 
 def check_skill():
@@ -147,11 +213,19 @@ def check_skill():
     require(front["name"] == "sonnetdb-skill" and nonempty(front.get("description")), "Skill 名称或描述不完整")
     require(front.get("version") == load_json("connector-meta.json")["version"], "Skill 和连接器版本应一致")
     body = parts[2]
-    for tool in TOOLS:
+    for tool in LEGACY_TOOLS:
         require("### " + tool + "\n" in body, "Skill 缺少独立工具说明：" + tool)
-    for marker in ("九个只读 MCP 工具不等于九模型 typed API", "不保证每个模型可由 MCP 直接访问",
-                   "不提供写入、DDL", "401", "revoked", "轮换", "最小权限", "不可信数据", "tools/list"):
+    for tool in TOOLS:
+        require(re.search(r"\b" + re.escape(tool) + r"\b", body), "Skill 缺少当前模型工具：" + tool)
+    for marker in ("43工具", "用户已明确授权", "Write grant", "query_sql", "仍只读", "write_outcome_unknown",
+                   "禁止盲目重试写入", "实例", "单库", "另有授权", "日志或提示词", "401", "revoked", "轮换", "最小", "不可信数据", "tools/list", "inputSchema", "outputSchema"):
         require(marker in body, "Skill 缺少权限、能力边界或错误处理说明")
+    for stale in ("九个只读 MCP 工具不等于九模型 typed API", "当前 MCP contract 是只读入口",
+                  "不保证每个模型可由 MCP 直接访问", "不提供写入、DDL"):
+        require(stale not in body, "Skill 仍使用过期九工具只读合同")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    require(all(marker in readme for marker in ("43", "Read", "Write grant", "tools/list", "仍只读", "write_outcome_unknown", "另有授权")),
+            "README缺少当前工具/权限/未知写入边界")
 
 
 def check_svg():

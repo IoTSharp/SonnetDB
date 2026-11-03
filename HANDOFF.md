@@ -1,3 +1,12 @@
+## 2026-11-04 WorkBuddy 0.2.0当前能力合同（57deb851后续）
+
+- 仍在codex/workbuddy-port-review-20261104分支，续接57deb851端口修复。README、Skill、token-schema/metadata统一0.2.0，面向SonnetDB 5.0现场43工具/schema，默认Read；用户已有明确写授权且有Write grant时使用独立写工具，query_sql仍只读，未知写入先回读且不盲重试。部署/升级/备份恢复/服务重启需另有授权。
+- 校验器/联调脚本当前43工具合同与读写注解已同步；默认Read读取/写拒绝，不做正向写入授权推断。旧九工具服务明确拒绝新版能力检查；当前修改只跑静态/离线合同/端口回归，不生成新在线PASS报告。
+- 六组静态检查、七项离线合同和端口六组子场景通过；生成outputs/sonnetdb-workbuddy-0.2.0-review.zip，仅五白名单文件，包指纹/历史文件不变/四脚本语法回执在artifacts/workbuddy-contract-20261104/。
+- 历史r2九工具/六模型报告保持日期、source和原字节，未替换为43PASS。生产源码及MCP分支49731955860537215fea598afa607e05d14473a8冻结不动，不重跑118/89或NativeAOT43/36。未上传平台、未验证新版HTTPS/宿主/平台审核。
+- main、PR390 head快进、最终标签与发布由聊天01a1a0f7-bf7e-7e12-a697-1e8509b4de86统一执行；不根据旧#230机器绿灯恢复发布，也不扩做#392—#401。提交前仍需完整restore/CI同等Format，完整分支供协调者快进整合。
+- 历史HANDOFF包含损坏UTF-8，本节按字节前置，原文件整体作为后缀保持不变。审计docs/audits/workbuddy-contract-0.2.0-20261104.md与交付回执记录最终结果。
+
 ## 2026-11-03 M51 WorkBuddy 生态里程碑与续做入口
 
 ## 2026-11-04 WorkBuddy PR #390 重启端口归属修复

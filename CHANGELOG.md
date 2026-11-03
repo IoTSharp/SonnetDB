@@ -19,6 +19,7 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- WorkBuddy连接器与Skill升级0.2.0，按SonnetDB 5.0现场43工具/schema声明能力；默认Read，已有明确用户写授权和目标库Write grant时调用独立写工具，query_sql仍只读，未知写入不盲重试。同步表单、元信息、校验器及联调资料，保留历史r2九工具证据，不表示平台解析/HTTPS/宿主/送审完成。
 - 新增 M51 WorkBuddy 生态集成与全生命周期闭环路线：登记本次连接器/Skill、公开资料、Docker 分层验收和平台解析修复基线，以及 17 项后续工作；严格区分平台解析、宿主验收、送审、批准及发布。本条仅记录规划文档交付，不表示九模型 MCP、自动运维、专家或 Buddy 应用已完成。
 - 新增 M50 时序时间戳精度规划及详细设计：按库真正保存 ms/us/ns、默认 ms，拆分 30 项必选和 2 项条件任务，明确源码归属、兼容/迁移、协议/SDK、恢复/性能及阶段退出；本条仅记录文档交付，不表示高精度功能或格式已经实现。
 - 依赖升级收口（2026-11-01）：NuGet 的 .NET 10.0.14、Microsoft.Extensions 10.0.14、OnnxRuntime 1.31.1、SkiaSharp 4.154.0、OpenTelemetry 1.20.1、Qdrant 1.20.0、StackExchange.Redis 3.4.29、AWS S3 4.0.104.8、NATS 3.3.2、MongoDB.Driver 3.13.0 等兼容版本，以及 Web/VS Code 的锁文件更新已通过当前门禁；NUnit 5、Roslyn 5.9、Vite 8、TypeScript 7、Pinia 4、Vue Router 5、marked 18 和 VS Code 打包工具链主版本升级保留为独立迁移，详见 `docs/audits/dependency-upgrade-20261101.md`。

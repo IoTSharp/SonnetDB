@@ -27,8 +27,11 @@ MODELS = ("timeseries", "relational", "kv", "document", "fulltext",
           "vector", "object", "mq", "graph_beta")
 KNOWN_CODES = {"invalid_argument", "invalid_sql", "read_only_violation",
                "measurement_not_found", "operation_failed", "forbidden",
-               "unauthorized", "bad_request"}
+               "unauthorized", "bad_request", "limit_exceeded", "write_outcome_unknown",
+               "request_cancelled", "provider_unavailable"}
 MAX_BODY = 2 * 1024 * 1024
+READ_TOOLS = frozenset(["list_databases","list_measurements","describe_measurement","sample_rows","explain_sql","query_sql","docs_search","skill_search","skill_load","list_keyspaces","get_kv","scan_kv","list_buckets","list_objects","get_object","list_collections","get_document","scan_documents","list_mq_topics","read_mq","get_mq_stats","list_tables","list_graphs","get_graph_vertex","expand_graph","search_fulltext","search_vector","describe_collection"])
+WRITE_TOOLS = frozenset(["put_kv","delete_kv","create_bucket","delete_bucket","put_object","delete_object","put_document","delete_document","publish_mq","ack_mq","upsert_graph_vertex","delete_graph_vertex","upsert_graph_edge","delete_graph_edge","execute_sql"])
 
 
 class CheckFailure(Exception):
@@ -47,6 +50,27 @@ def json_value(raw):
         return json.loads(raw)
     except (ValueError, UnicodeError):
         raise CheckFailure("invalid_json") from None
+
+
+def validate_discovery(tools):
+    """检查能力与schema，发现结果不表示当前凭据或用户已授权写入。"""
+    require(isinstance(tools, list) and len(tools) <= 256, "mcp_tools_shape_or_budget")
+    by_name = {tool.get("name"): tool for tool in tools if isinstance(tool, dict)}
+    require(len(by_name) == len(tools), "mcp_duplicate_or_invalid_tools")
+    required = READ_TOOLS | WRITE_TOOLS
+    require(required <= set(by_name), "mcp_5_0_tools_missing")
+    for name in sorted(required):
+        tool = by_name[name]
+        annotation = tool.get("annotations", {})
+        require(annotation.get("readOnlyHint") is (name in READ_TOOLS), "mcp_read_write_annotation")
+        require(annotation.get("destructiveHint") is (name in WRITE_TOOLS and name not in {"create_bucket", "publish_mq"}),
+                "mcp_destructive_annotation")
+        require(annotation.get("idempotentHint") is (name in READ_TOOLS), "mcp_idempotent_annotation")
+        for schema_key in ("inputSchema", "outputSchema"):
+            schema = tool.get(schema_key)
+            require(isinstance(schema, dict) and schema.get("type") == "object", "mcp_tool_schema_missing")
+        require("contractVersion" in tool["outputSchema"].get("properties", {}), "mcp_contract_version_schema_missing")
+    return required
 
 
 def ndjson(raw):
@@ -481,12 +505,8 @@ class Verification:
         self.mcp = Mcp(self.http, self.db, self.reader["token"])
         self.mcp.initialize()
         tools = self.mcp.rpc("tools/list").get("tools", [])
-        required = {"list_databases", "list_measurements", "describe_measurement", "query_sql",
-                    "sample_rows", "explain_sql", "docs_search", "skill_search", "skill_load"}
+        required = validate_discovery(tools)
         names = {item.get("name") for item in tools}
-        require(required <= names, "mcp_established_tools_missing")
-        require(all(item.get("annotations", {}).get("readOnlyHint") is True for item in tools
-                    if item.get("name") in required), "mcp_read_only_annotation")
         self.report["mcpTools"] = sorted(name for name in names if isinstance(name, str) and name in required)
         safe_keys = {"name", "title", "description", "inputSchema", "outputSchema", "annotations"}
         safe_tools = [{key: value for key, value in tool.items() if key in safe_keys}
@@ -495,12 +515,18 @@ class Verification:
         schema_name = output.name.replace("verification", "tools", 1)
         schema_path = output.with_name(schema_name if schema_name != output.name else output.stem + "-tools.json")
         schema_path.parent.mkdir(parents=True, exist_ok=True)
-        schema_path.write_text(json.dumps({"transport": "stdlib_http_mcp_client",
+        require(not schema_path.exists(), "schema_output_exists")
+        with schema_path.open("x", encoding="utf-8") as schema_file:
+            schema_file.write(json.dumps({"transport": "stdlib_http_mcp_client",
             "hostInstallationVerified": False, "credentialsSaved": False,
             "capturedUnix": time.time(), "tools": safe_tools}, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8")
+            )
         self.report["mcpToolsSchemaFile"] = str(schema_path)
-        return {"establishedTools": len(required), "hostInstallationVerified": False}
+        self.report["mcpContractBaseline"] = {"server": "SonnetDB 5.0", "connectorVersion": "0.2.0",
+            "readTools": len(READ_TOOLS), "writeTools": len(WRITE_TOOLS),
+            "mcpWritePositiveChecks": "NOT_RUN_read_credential_mode", "writeAuthorizationInferred": False}
+        return {"requiredTools": len(required), "readTools": len(READ_TOOLS), "writeTools": len(WRITE_TOOLS),
+                "writeAuthorizationInferred": False, "hostInstallationVerified": False}
 
     def expect_tool_error(self, sql, max_rows, allowed):
         try:
@@ -578,31 +604,80 @@ class Verification:
                 require(len(result["rows"]) == count and result.get("truncated") is cut, "mcp_truncation_contract")
                 return {"returnedRows": count, "truncated": cut}
             self.run_check("timeseries", "mcp_http", "truncation_" + (suffix.strip().replace(" ", "_") or "without_LIMIT"), truncation)
-        n = self.names
-        queries = {
-            "timeseries": (self.measurement_query, [[self.timestamp + i, "probe", i + 0.5] for i in range(3)]),
-            "relational": (self.table_query, [[1, "synthetic"], [2, "sample"], [3, "bounded"]]),
-            "document": ("SELECT id, json_value(document, '$.label') AS label FROM " + n["documents"], [["sample", "synthetic"]]),
-            "fulltext": ("SELECT id FROM " + n["fulltext"] + " WHERE match(" + n["fulltextIndex"] +
-                         ", '$.body', 'pump alarm', 3)", [["sample"]]),
-            "vector": ("SELECT id FROM vector_search(source => " + n["vectorDocs"] +
-                       ", vector_field => '$.embedding', vector => [0, 0, 0], k => 1, metric => 'l2')", [["sample"]]),
-            "graph_beta": ("SELECT target_id FROM GRAPH_TABLE (" + n["graph"] +
-                           " MATCH (a IS 10)-[e IS 30]->(b IS 10) COLUMNS (b.id AS target_id))", [[2]])}
+        readers = self.mcp_model_readers()
         for model in MODELS:
-            if model not in queries:
-                self.report["mcpModels"].append({"model": model, "transport": "mcp_http",
-                    "assertions": ["read_synthetic_sample"], "status": "not_available",
-                    "code": "NOT_RUN_no_published_read_only_tool_or_confirmed_SELECT_contract",
-                    "reason": "tools/list 无专用只读入口；未将原生 API 能力冒称为 MCP 能力"})
-                continue
-            query, expected = queries[model]
-            def mcp_read(sql=query, rows=expected):
-                result = self.mcp.query(sql)
-                require(result.get("truncated") is False, "mcp_unexpected_truncation")
-                return self.assert_rows(result["rows"], rows)
-            self.run_check(model, "mcp_http", "read_synthetic_sample", mcp_read, self.report["mcpModels"])
+            self.run_check(model, "mcp_http", "read_synthetic_sample", readers[model], self.report["mcpModels"])
+        def write_grant_rejection():
+            try:
+                self.mcp.tool("put_kv", {"keyspace": self.names["keyspace"], "key": "unauthorized_probe", "valueBase64": "AA=="})
+            except CheckFailure as exc:
+                require(exc.code == "forbidden", "mcp_write_grant_wrong_rejection")
+                return {"rejectionCode": "forbidden", "positiveWriteVerified": False}
+            raise CheckFailure("mcp_read_token_write_not_rejected")
+        self.run_check("authorization", "mcp_http", "independent_write_tool_read_token_rejected", write_grant_rejection)
         self.run_check("authorization", "native_http+mcp_http", "issue_revoke_rotation", self.rotation)
+
+    def mcp_model_readers(self):
+        """九模型读取探针，仅使用默认Read凭据；不执行已授权写入的正向探针。"""
+        n = self.names
+
+        def sql_rows(query, expected):
+            result = self.mcp.query(query)
+            require(result.get("truncated") is False, "mcp_unexpected_truncation")
+            return self.assert_rows(result["rows"], expected)
+
+        def kv():
+            result = self.mcp.tool("get_kv", {"keyspace": n["keyspace"], "key": "sample"})
+            require(result.get("found") is True and result.get("valueBase64") ==
+                    base64.b64encode(b"wbverify synthetic kv").decode("ascii"), "mcp_kv_sample")
+            return {"items": 1}
+
+        def document():
+            result = self.mcp.tool("get_document", {"collection": n["documents"], "id": "sample"})
+            documents = result.get("documents", [])
+            require(len(documents) == 1 and json_value(documents[0].get("json", "")) ==
+                    {"label": "synthetic", "count": 7}, "mcp_document_sample")
+            return {"documents": 1}
+
+        def search(name, arguments):
+            result = self.mcp.tool(name, arguments)
+            rows = result.get("rows", [])
+            require(len(rows) == 1 and len(rows[0]) == 1 and Mcp.scalar(rows[0][0]) == "sample", "mcp_search_sample")
+            return {"hits": 1, "qualityEvidence": False}
+
+        def object_read():
+            result = self.mcp.tool("get_object", {"bucket": n["bucket"], "key": "sample.txt", "maxBytes": 1024})
+            require(result.get("found") is True and result.get("truncated") is False
+                    and result.get("valueBase64") == base64.b64encode(b"wbverify synthetic object\n").decode("ascii"),
+                    "mcp_object_sample")
+            return {"bytes": 26}
+
+        def mq():
+            result = self.mcp.tool("read_mq", {"topic": n["topic"], "offset": 0, "maxRows": 2})
+            messages = result.get("messages", [])
+            require(result.get("storageScope") == "instance" and len(messages) == 1
+                    and messages[0].get("payloadBase64") == base64.b64encode(b"wbverify synthetic mq").decode("ascii"),
+                    "mcp_mq_sample")
+            return {"messages": 1, "storageScope": "instance", "consumerStateChanged": False}
+
+        def graph():
+            vertex = self.mcp.tool("get_graph_vertex", {"graph": n["graph"], "vertexId": 1})
+            require(vertex.get("found") is True, "mcp_graph_vertex")
+            result = self.mcp.tool("expand_graph", {"graph": n["graph"], "vertexId": 1, "maxRows": 2})
+            edges = result.get("edges", [])
+            require(len(edges) == 1 and edges[0].get("neighborId") == 2, "mcp_graph_expansion")
+            return {"vertices": 1, "edges": 1, "beta": True}
+
+        return {
+            "timeseries": lambda: sql_rows(self.measurement_query, [[self.timestamp + i, "probe", i + 0.5] for i in range(3)]),
+            "relational": lambda: sql_rows(self.table_query, [[1, "synthetic"], [2, "sample"], [3, "bounded"]]),
+            "kv": kv, "document": document,
+            "fulltext": lambda: search("search_fulltext", {"collection": n["fulltext"], "index": n["fulltextIndex"],
+                                                        "path": "$.body", "query": "pump alarm", "maxRows": 3}),
+            "vector": lambda: search("search_vector", {"collection": n["vectorDocs"], "path": "$.embedding",
+                                                      "vector": [0, 0, 0], "k": 1, "metric": "l2"}),
+            "object": object_read, "mq": mq, "graph_beta": graph,
+        }
 
     def rotation(self):
         issued = self.control("ISSUE TOKEN FOR " + self.reader_name)
@@ -707,13 +782,14 @@ class Verification:
         self.report["status"] = "fail" if self.report["counts"]["fail"] else "pass"
         output = Path(self.args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(self.report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        with output.open("x", encoding="utf-8") as report_file:
+            report_file.write(json.dumps(self.report, ensure_ascii=False, indent=2) + "\n")
         print("验证结束 " + self.report["status"] + "；报告 " + str(output), flush=True)
         return 1 if self.report["status"] == "fail" else 0
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SonnetDB 隔离本机原生 HTTP / 只读 MCP 真联调；不保存凭据")
+    parser = argparse.ArgumentParser(description="SonnetDB 5.0隔离联调：43工具发现、Read凭据九模型读取/写拒绝；不保存凭据")
     parser.add_argument("--base-url", required=True, help="隔离本机源地址，如 http://127.0.0.1:18580")
     parser.add_argument("--output", required=True, help="脱敏 JSON 验证报告路径")
     parser.add_argument("--timeout", type=float, default=15, help="单次 HTTP 超时秒数")
@@ -722,6 +798,8 @@ def main():
     parser.add_argument("--image-revision", help="操作者已核实的镜像源提交")
     parser.add_argument("--image-digest", help="操作者已核实的镜像 digest")
     args = parser.parse_args()
+    if Path(args.output).exists():
+        parser.error("报告已存在，拒绝覆盖历史证据；请为本轮选择新路径")
     parsed = urllib.parse.urlsplit(args.base_url)
     if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1" or not parsed.port
             or parsed.path not in ("", "/") or parsed.query or parsed.fragment

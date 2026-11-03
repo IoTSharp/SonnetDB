@@ -2,24 +2,24 @@
   "name": "SonnetDB",
   "name_zh": "SonnetDB",
   "name_en": "SonnetDB",
-  "description": "通过 MCP 只读查询 SonnetDB；提供九模型使用与部署、升级、备份、恢复指导，不自动执行运维。",
-  "description_zh": "通过 MCP 只读查询 SonnetDB；提供九模型使用与部署、升级、备份、恢复指导，不自动执行运维。",
-  "description_en": "Read-only MCP queries; guidance for nine models, deployment, upgrades, backups, and recovery.",
+  "description": "接入 SonnetDB 5.0 九模型43工具；按 tools/list 发现，默认 Read，已授权写入还需目标库 Write grant。运维须另行授权。",
+  "description_zh": "接入 SonnetDB 5.0 九模型43工具；按 tools/list 发现，默认 Read，已授权写入还需目标库 Write grant。运维须另行授权。",
+  "description_en": "Discover 43 SonnetDB 5.0 tools for nine models. Default to Read; writes require explicit user authorization and a database Write grant. Operations require separate authorization.",
   "source": "sonnetdb",
   "type": "mcp",
   "auth_mode": "token",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "minWorkbuddyVersion": "4.23.0",
   "examples_zh": [
     "列出这个 SonnetDB 数据库里的 measurement，并说明每个 schema。",
     "查询过去 24 小时每台设备的温度均值，结果最多返回 100 行。",
-    "先解释这条 SonnetDB SQL 的扫描范围，再执行只读查询。",
+    "在我已授权且具备目标库 Write grant 时，写入指定 KV 并回读；query_sql 仍只读。",
     "帮我制定 SonnetDB 的部署、备份和升级检查清单。"
   ],
   "examples_en": [
     "List the measurements in this SonnetDB database and describe their schemas.",
     "Query the average temperature per device for the last 24 hours, returning at most 100 rows.",
-    "Explain the scan scope of this SonnetDB SQL, then run the read-only query.",
+    "After my explicit authorization and a database Write grant, write the specified KV value and verify it by reading it back.",
     "Create a SonnetDB deployment, backup, and upgrade checklist."
   ]
 }
