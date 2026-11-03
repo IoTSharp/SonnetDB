@@ -14,10 +14,10 @@ using SonnetDB.Sql.Execution;
 namespace SonnetDB.Mcp;
 
 /// <summary>
-/// SonnetDB 服务端的只读 MCP tools。
+/// SonnetDB 服务端的 MCP tools，保留既有只读工具并提供逐调用授权的数据面写入。
 /// </summary>
 [McpServerToolType]
-internal sealed class SonnetDbMcpTools
+internal sealed partial class SonnetDbMcpTools
 {
     /// <summary>
     /// 列出当前凭据可见的数据库集合。

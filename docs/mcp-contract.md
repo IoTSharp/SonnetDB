@@ -20,13 +20,21 @@ SonnetDB Server 通过 `/mcp/{database}` 提供无状态 Streamable HTTP MCP。�
 
 ## 权限边界
 
-所有工具均声明 `readOnly=true`、`destructive=false`、`idempotent=true`、`openWorld=false`。
-这些 annotation 只用于发现，不能替代服务端授权：
+既有九个工具保留只读合同。新增模型工具在 `tools/list` 中分别声明读写、破坏性和幂等性，
+所有工具仍使用 `openWorld=false`。这些 annotation 只用于发现，不能替代服务端授权：
 
 - 进入 MCP 协议处理前，Server 会校验 Bearer 身份、数据库名、数据库存在性和目标数据库的 `Read` grant。
 - `list_databases` 只返回当前凭据可见的数据库；未授权数据库不会出现在结果中。
-- `query_sql` / `explain_sql` 在 SQL AST 层只允许只读语句。MCP 不提供写工具，也不能绕过数据库 grant。
+- `query_sql` / `explain_sql` 在 SQL AST 层只允许只读语句。新增写工具每次调用重新校验绑定数据库的 `Write` grant，只有 `Read` 权限时返回 `forbidden`，不会尝试写入。数据库管理员、普通用户 grant 和旧角色 Token 使用与 REST 相同的权限计算。
 - `docs_search`、`skill_search` 和 `skill_load` 同样位于绑定数据库的授权 endpoint 后；provider 未就绪不会放宽权限。
+
+新增模型工具覆盖 KV、对象、文档、搜索、向量和原生图的发现/读取，以及经授权的数据面写入。
+完整名称、分页、预算和操作示例见[九模型 MCP 工具](mcp-model-tools.md)。`execute_sql` 是独立的写入口，
+不会改变 `query_sql` 的只读语义，也不开放用户/权限/数据库控制面或跨调用事务。
+
+MQ 的物理存储仍在 Server 实例范围。新增工具按 endpoint 的数据库名限定主题并过滤主题列表，
+不暴露其它数据库或历史未限定主题；返回 `storageScope: "instance"`。`read_mq` 按 offset 读取，不创建组、
+不确认消息；`ack_mq` 需要 Write 权限。单库备份仍不包含实例 MQ。
 
 数据库名非法、不存在或无 grant 时，调用尚未进入工具层，Server 分别以 HTTP
 `bad_request`、`db_not_found` 或 `forbidden` 结束请求。
@@ -85,6 +93,9 @@ SonnetDB Server 通过 `/mcp/{database}` 提供无状态 Streamable HTTP MCP。�
 | `provider_unavailable` | embedding/provider 未就绪或暂不可用 | 是 |
 | `request_cancelled` | 调用被取消 | 是 |
 | `operation_failed` | 已授权操作执行失败 | 否 |
+| `forbidden` | 当前凭据没有新增工具所需的数据库权限 | 否 |
+| `limit_exceeded` | 新增模型工具的存量值、页、Graph输入或响应编码超过预算 | 否 |
+| `write_outcome_unknown` | 写入开始后发生取消或存储异常，结果可能已提交 | 否，先独立回读 |
 
 成功与错误 JSON 均通过 `ServerJsonContext` source generation 序列化，不使用反射型
 `JsonSerializerOptions` 重载。

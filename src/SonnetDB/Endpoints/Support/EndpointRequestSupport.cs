@@ -194,7 +194,7 @@ internal static partial class SonnetDbEndpoints
         return new MqAccessResult(MqAccessStatus.Ok, string.Empty);
     }
 
-    private static bool IsValidKeyspaceName(string? name)
+    internal static bool IsValidKeyspaceName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || name.Length > 128)
             return false;

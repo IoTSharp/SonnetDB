@@ -21,7 +21,7 @@ namespace SonnetDB.Tests;
 /// <summary>
 /// 端到端测试：启动真实 SonnetDB Server，并通过官方 MCP client 调用 `/mcp/{db}`。
 /// </summary>
-public sealed class McpEndToEndTests : IAsyncLifetime
+public sealed partial class McpEndToEndTests : IAsyncLifetime
 {
     private WebApplication? _app;
     private string _baseUrl = string.Empty;
@@ -82,7 +82,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
 
         if (_dataRoot is not null && Directory.Exists(_dataRoot))
         {
-            try { Directory.Delete(_dataRoot, recursive: true); } catch { /* best effort */ }
+            Directory.Delete(_dataRoot, recursive: true);
         }
     }
 

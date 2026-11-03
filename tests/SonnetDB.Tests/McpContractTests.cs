@@ -8,6 +8,7 @@ using SonnetDB.Copilot;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Mcp;
+using SonnetMQ;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -18,7 +19,7 @@ namespace SonnetDB.Tests;
 public sealed class McpContractTests
 {
     [Fact]
-    public void RegisterTools_WithSourceGeneratedMetadata_AdvertisesAllReadOnlySchemas()
+    public void RegisterTools_WithSourceGeneratedMetadata_AdvertisesReadAndWriteSchemas()
     {
         // Use only the production source-generated resolver, even when the test host enables reflection.
         var options = SonnetDbMcpJson.ToolOptions;
@@ -32,18 +33,25 @@ public sealed class McpContractTests
         services.AddSingleton<DocsSearchService>();
         services.AddSingleton<SkillSearchService>();
         services.AddSingleton<SkillRegistry>();
+        services.AddSingleton<SonnetMqStore>(_ => throw new InvalidOperationException("Schema-only fixture."));
         services.AddMcpServer().WithTools<SonnetDbMcpTools>(options);
         using var provider = services.BuildServiceProvider();
 
         var tools = provider.GetServices<McpServerTool>().ToArray();
-        Assert.Equal(9, tools.Length);
+        Assert.True(tools.Length >= 43);
+        string[] writeTools = ["put_kv", "delete_kv", "create_bucket", "delete_bucket", "put_object", "delete_object",
+            "put_document", "delete_document", "publish_mq", "ack_mq", "upsert_graph_vertex", "delete_graph_vertex",
+            "upsert_graph_edge", "delete_graph_edge", "execute_sql"];
+        Assert.All(writeTools, name => Assert.Contains(tools, tool => tool.ProtocolTool.Name == name));
         Assert.All(tools, tool =>
         {
             var contract = tool.ProtocolTool;
-            Assert.True(contract.Annotations?.ReadOnlyHint);
-            Assert.False(contract.Annotations?.DestructiveHint);
-            Assert.True(contract.Annotations?.IdempotentHint);
+            var write = writeTools.Contains(contract.Name, StringComparer.Ordinal);
+            Assert.Equal(!write, contract.Annotations?.ReadOnlyHint);
+            Assert.Equal(write && contract.Name is not ("create_bucket" or "publish_mq"), contract.Annotations?.DestructiveHint);
+            Assert.Equal(!write, contract.Annotations?.IdempotentHint);
             Assert.False(contract.Annotations?.OpenWorldHint);
+            Assert.False(contract.InputSchema.GetProperty("properties").TryGetProperty("cancellationToken", out _));
             Assert.True(contract.OutputSchema.HasValue);
             var output = contract.OutputSchema.GetValueOrDefault();
             Assert.Equal(JsonValueKind.Object, output.ValueKind);
