@@ -1,0 +1,740 @@
+{
+  "transport": "stdlib_http_mcp_client",
+  "hostInstallationVerified": false,
+  "credentialsSaved": false,
+  "capturedUnix": 1793703185.4513202,
+  "tools": [
+    {
+      "name": "list_databases",
+      "title": "List Databases",
+      "description": "列出当前凭据可见的数据库。返回 MCP typed contract v1 结构，且不会泄露未授权数据库。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "currentDatabase": {
+            "type": "string"
+          },
+          "databases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "currentDatabase",
+          "databases"
+        ]
+      },
+      "annotations": {
+        "title": "List Databases",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "query_sql",
+      "title": "Query SQL",
+      "description": "执行一条只读 SonnetDB SQL，并在 AST 层强制结果行上限。写语句和控制面语句会被拒绝。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "description": "只读 SonnetDB SQL。",
+            "type": "string"
+          },
+          "maxRows": {
+            "description": "最大返回行数，范围 1..1000；省略时为 100。",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "sql"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "statementType": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "integer"
+                  },
+                  "stringValue": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "integerValue": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "doubleValue": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "booleanValue": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            }
+          },
+          "returnedRows": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "statementType",
+          "columns",
+          "rows",
+          "returnedRows",
+          "truncated"
+        ]
+      },
+      "annotations": {
+        "title": "Query SQL",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "list_measurements",
+      "title": "List Measurements",
+      "description": "列出当前 MCP endpoint 所绑定数据库中的 measurement 名称，结果有界且按 schema 快照返回。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "maxRows": {
+            "description": "最大返回 measurement 数量，范围 1..1000；省略时为 100。",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "minimum": 1,
+            "maximum": 1000
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "measurements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "schemaRevision": {
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "measurements",
+          "truncated",
+          "schemaRevision"
+        ]
+      },
+      "annotations": {
+        "title": "List Measurements",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "describe_measurement",
+      "title": "Describe Measurement",
+      "description": "返回指定 measurement 的 TAG/FIELD 列名与数据类型。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "measurement 名称。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "measurement": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "columnType": {
+                  "type": "string"
+                },
+                "dataType": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "columnType",
+                "dataType"
+              ]
+            }
+          },
+          "schemaRevision": {
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "measurement",
+          "columns",
+          "schemaRevision"
+        ]
+      },
+      "annotations": {
+        "title": "Describe Measurement",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "sample_rows",
+      "title": "Sample Rows",
+      "description": "返回指定 measurement 的少量有界样例行，用于在生成查询前确认实际列和值类型。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "measurement": {
+            "description": "measurement 名称。",
+            "type": "string"
+          },
+          "n": {
+            "description": "样例行数，范围 1..100；省略时为 5。",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "measurement"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "measurement": {
+            "type": "string"
+          },
+          "requestedRows": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "integer"
+                  },
+                  "stringValue": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "integerValue": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "doubleValue": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "default": null
+                  },
+                  "booleanValue": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            }
+          },
+          "returnedRows": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "measurement",
+          "requestedRows",
+          "columns",
+          "rows",
+          "returnedRows",
+          "truncated"
+        ]
+      },
+      "annotations": {
+        "title": "Sample Rows",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "explain_sql",
+      "title": "Explain SQL",
+      "description": "解释一条只读 SonnetDB SQL 的访问范围和估算扫描成本，不执行该 SQL。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "description": "待解释的只读 SonnetDB SQL。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sql"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "statementType": {
+            "type": "string"
+          },
+          "measurement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matchedSeriesCount": {
+            "type": "integer"
+          },
+          "estimatedSegmentCount": {
+            "type": "integer"
+          },
+          "estimatedBlockCount": {
+            "type": "integer"
+          },
+          "estimatedScannedRows": {
+            "type": "integer"
+          },
+          "estimatedMemTableRows": {
+            "type": "integer"
+          },
+          "estimatedSegmentRows": {
+            "type": "integer"
+          },
+          "hasTimeFilter": {
+            "type": "boolean"
+          },
+          "tagFilterCount": {
+            "type": "integer"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "database",
+          "statementType",
+          "measurement",
+          "matchedSeriesCount",
+          "estimatedSegmentCount",
+          "estimatedBlockCount",
+          "estimatedScannedRows",
+          "estimatedMemTableRows",
+          "estimatedSegmentRows",
+          "hasTimeFilter",
+          "tagFilterCount"
+        ]
+      },
+      "annotations": {
+        "title": "Explain SQL",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "docs_search",
+      "title": "Search Copilot Docs",
+      "description": "在 SonnetDB 文档知识库中检索与问题相关的有界片段；需要已就绪的 embedding provider。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "description": "检索问题。",
+            "type": "string"
+          },
+          "k": {
+            "description": "建议返回命中数为 1..50；省略或不大于 0 时为 5，大于 50 时按 50 处理。",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "requested": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "section": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "source",
+                "title",
+                "section",
+                "content",
+                "score"
+              ]
+            }
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "query",
+          "requested",
+          "hits"
+        ]
+      },
+      "annotations": {
+        "title": "Search Copilot Docs",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "skill_search",
+      "title": "Search Copilot Skills",
+      "description": "在 SonnetDB Copilot 技能库中检索技能元数据；需要已就绪的 embedding provider。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "description": "检索问题。",
+            "type": "string"
+          },
+          "k": {
+            "description": "建议返回命中数为 1..50；省略或不大于 0 时为 5，大于 50 时按 50 处理。",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "requested": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "triggers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requiresTools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "triggers",
+                "requiresTools",
+                "score"
+              ]
+            }
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "query",
+          "requested",
+          "hits"
+        ]
+      },
+      "annotations": {
+        "title": "Search Copilot Skills",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "skill_load",
+      "title": "Load Copilot Skill",
+      "description": "按精确名称加载一个 SonnetDB Copilot 技能的完整 Markdown 正文。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "技能名称。",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "contractVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "triggers",
+          "requiresTools",
+          "body",
+          "source"
+        ]
+      },
+      "annotations": {
+        "title": "Load Copilot Skill",
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    }
+  ]
+}

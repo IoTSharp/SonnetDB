@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- 新增 SonnetDB WorkBuddy MCP 连接器草案、闭环使用指南、九模型说明和审核清单；真实 Docker 服务联调证据与连接器静态包校验分别记录，不将原生 API 能力或文档指导宣称为九模型完整 MCP 工具或市场审核通过。
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
@@ -17,6 +18,7 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- 新增 M51 WorkBuddy 生态集成与全生命周期闭环路线：登记本次连接器/Skill、公开资料、Docker 分层验收和平台解析修复基线，以及 17 项后续工作；严格区分平台解析、宿主验收、送审、批准及发布。本条仅记录规划文档交付，不表示九模型 MCP、自动运维、专家或 Buddy 应用已完成。
 - 新增 M50 时序时间戳精度规划及详细设计：按库真正保存 ms/us/ns、默认 ms，拆分 30 项必选和 2 项条件任务，明确源码归属、兼容/迁移、协议/SDK、恢复/性能及阶段退出；本条仅记录文档交付，不表示高精度功能或格式已经实现。
 - 依赖升级收口（2026-11-01）：NuGet 的 .NET 10.0.14、Microsoft.Extensions 10.0.14、OnnxRuntime 1.31.1、SkiaSharp 4.154.0、OpenTelemetry 1.20.1、Qdrant 1.20.0、StackExchange.Redis 3.4.29、AWS S3 4.0.104.8、NATS 3.3.2、MongoDB.Driver 3.13.0 等兼容版本，以及 Web/VS Code 的锁文件更新已通过当前门禁；NUnit 5、Roslyn 5.9、Vite 8、TypeScript 7、Pinia 4、Vue Router 5、marked 18 和 VS Code 打包工具链主版本升级保留为独立迁移，详见 `docs/audits/dependency-upgrade-20261101.md`。
 - 下一发行按 5.0 主版本准备：保留 Protocol 程序集拆分及分页 `long` API，明确重新编译与数据库备份回退要求；4.x 仍以 4.0.0 校验，后续 5.x 自动以 5.0.0 为包兼容基线，不压制 API 诊断。
