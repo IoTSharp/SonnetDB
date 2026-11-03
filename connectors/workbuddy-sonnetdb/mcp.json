@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sonnetdb": {
+      "type": "streamableHttp",
+      "url": "https://${SONNETDB_HOST}/mcp/${SONNETDB_DATABASE}",
+      "headers": {
+        "Authorization": "Bearer ${SONNETDB_TOKEN}"
+      },
+      "timeout": 30000
+    }
+  }
+}

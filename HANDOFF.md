@@ -1,3 +1,68 @@
+## 2026-11-04 WorkBuddy 与统一发布源整合（未正式发布）
+
+- #389已合main f79d5982，#391已以6274a335合main；当前合入WorkBuddy0.2.0/4a0b5960（含57deb851端口身份修复），源码/原始报告身份分别保留。
+- 已修EF/ABP和native非主键自引用迁移，最终发布仍须统一新SHA的十二类门禁、公开十包/Release/连接器及镜像回读；旧v5标签尚未由本流程替换。
+- 其它机器8bf0e812恢复补充保留分支，4项外部结果对账/来源风险已建#402，当前不合入或dispatch；后续任务#392—#402均保持待办。
+- 以下保留WorkBuddy分支新增的完整57行交接内容，随后是本发布源全部既有字节；历史损坏UTF8未清洗。
+
+## 2026-11-04 WorkBuddy 0.2.0当前能力合同（57deb851后续）
+
+- 仍在codex/workbuddy-port-review-20261104分支，续接57deb851端口修复。README、Skill、token-schema/metadata统一0.2.0，面向SonnetDB 5.0现场43工具/schema，默认Read；用户已有明确写授权且有Write grant时使用独立写工具，query_sql仍只读，未知写入先回读且不盲重试。部署/升级/备份恢复/服务重启需另有授权。
+- 校验器/联调脚本当前43工具合同与读写注解已同步；默认Read读取/写拒绝，不做正向写入授权推断。旧九工具服务明确拒绝新版能力检查；当前修改只跑静态/离线合同/端口回归，不生成新在线PASS报告。
+- 六组静态检查、七项离线合同和端口六组子场景通过；生成outputs/sonnetdb-workbuddy-0.2.0-review.zip，仅五白名单文件，包指纹/历史文件不变/四脚本语法回执在artifacts/workbuddy-contract-20261104/。
+- 历史r2九工具/六模型报告保持日期、source和原字节，未替换为43PASS。生产源码及MCP分支49731955860537215fea598afa607e05d14473a8冻结不动，不重跑118/89或NativeAOT43/36。未上传平台、未验证新版HTTPS/宿主/平台审核。
+- main、PR390 head快进、最终标签与发布由聊天01a1a0f7-bf7e-7e12-a697-1e8509b4de86统一执行；不根据旧#230机器绿灯恢复发布，也不扩做#392—#401。提交前仍需完整restore/CI同等Format，完整分支供协调者快进整合。
+- 历史HANDOFF包含损坏UTF-8，本节按字节前置，原文件整体作为后缀保持不变。审计docs/audits/workbuddy-contract-0.2.0-20261104.md与交付回执记录最终结果。
+
+## 2026-11-03 M51 WorkBuddy 生态里程碑与续做入口
+
+## 2026-11-04 WorkBuddy PR #390 重启端口归属修复
+
+- 基于 PR #390 的 e4715991，独立分支 codex/workbuddy-port-review-20261104。容器即使带隔离标签，也必须具有与 base-url 相同的 127.0.0.1 TCP 端口映射才允许重启；继续使用 inspect 返回的完整 ID。健康探测增加最多 60 次和单调时钟 60 秒边界（每次 HTTP 另有最多 60 秒请求超时）。
+- 新增无 Docker 副作用的六组重启拒绝/接受回归；真实容器恢复和 WorkBuddy 宿主安装不由此推断。完整 restore 与 CI 同等 Format 在本切片最终树执行后才允许提交。
+- 主线、PR #389、正式标签与发布由发布聊天 01a1a0f7-bf7e-7e12-a697-1e8509b4de86 统一协调。本聊天仅交付 owned 源码分支，不合并 main、不发正式版本。此前重跑的旧 389 CI/CodeQL 不作为发布放行证据。
+- HANDOFF 历史包含损坏 UTF-8；本节按字节前置并核对原后缀 SHA256，不改写或清洗历史。最终验证结果见 docs/audits/workbuddy-port-review-20261104.md。
+
+
+- 用户要求将本次已完成和未完成工作一起入里程碑，并提交推送。`ROADMAP.md#milestone-51` 已登记 M51-B01～B07 实际基线与 M51-W01～W17 后续任务，区分只读首发、九模型补齐、管理运维、独立 Skill、专家与条件 Buddy 应用。
+- 下一步 W01 冻结首批范围，W02 用户上传 `outputs/sonnetdb-workbuddy-0.1.1-review.zip` 取得平台解析结果，再做真实宿主/HTTPS及按批送审。当前 NOT_SUBMITTED，无审核或发布回执；不重做已通过的 Docker 基线，不以原生九模型代替 MCP 六模型。
+- 四个通配域白名单只登记为待核配置对象/认证方案需求，未擅自修改回调或 CORS。最终测试 replacement/admin Token 无撤销证据，随机凭据未保存，旧容器/卷保留但不假定可登录。
+- 提交前收口：默认 ZIP 文件名按元信息版本派生、README 补独立卷与凭据复现要求、报告区分 0.1.0 历史与 0.1.1 新包指纹；restart 增加 inspect 镜像/隔离标签或回环端口校验并固定容器 ID，主代理四项离线 mock 通过，未重启实际容器。六组静态检查、JSON/脚本语法及最终 restore/format 均通过（format 有工作区加载警告）；历史 HANDOFF 字节保持原样。源码及脱敏 JSON/报告纳入本次提交，三个生成 ZIP 留本地，不纳入 Git。
+
+## 2026-11-03 平台上传解析修复 0.1.1
+
+- 用户实际上传0.1.0后平台拒绝：mcp.json URL模板 `${SONNETDB_MCP_URL}` 缺少显式协议头。修为 `https://${SONNETDB_HOST}/mcp/${SONNETDB_DATABASE}`，表单拆分host/database/token，禁止指引填写userinfo；版本及Skill升0.1.1。
+- 校验器增加模板自身HTTPS/authority无@检查，变量集同步。静态六组检查及diff检查通过，新包 `outputs/sonnetdb-workbuddy-0.1.1-review.zip` 五文件白名单；旧包保留不覆盖。平台重新上传/解析尚未确认，未正式送审。浏览器已进入/connector/publish，但上传需用户本地选择文件。
+
+## 2026-11-03 Docker 真实 MCP 与九模型验收
+
+- Docker Desktop 已真实部署官方 SonnetDB 5.0.0 镜像，revision `455bf3b53b1e56df0064d8f574b0595cbb0b609e`，digest `sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597`；本地 HEAD 为 `78c2c746`，不混同镜像与源码验证。
+- 首轮容器 `sonnetdb-workbuddy-verify-20261103`（18580）、第二轮 `sonnetdb-workbuddy-verify-20261103-r2`（18581），均回环端口、同名独立命名卷及合成数据。结束后均正常停止并保留卷，无生产库接入。随机凭据仅内存，不保存；不得假定能用已丢失随机密码继续登录。
+- 新增 `eng/workbuddy-sonnetdb-verify.py`；首轮六个 MCP 行值比较因测试端未解析 JsonElementValue 失败，仅修脚本；原失败报告保留 `outputs/workbuddy-sonnetdb-verification.json`。r2 全新容器实跑 exit0：19 通用检查、9 原生模型、9 重启读回、6 MCP 模型通过；KV/对象/MQ 的 MCP 入口 NOT_AVAILABLE，不计通过。r2 报告 `outputs/workbuddy-sonnetdb-verification-r2.json`，现场工具 schema 同目录 tools-r2 文件。
+- 实测包含 initialize/tools/list、resources/list、measurement schema/sample/explain、只读 SQL、无Token401/无grant403、隐藏库隔离、写拒绝、maxRows边界与截断、新Token可读/旧Token吊销401。不是 WorkBuddy 宿主安装/表单/轮换交互验收；未测生产HTTPS、全部错误码/取消及知识provider；正常重启不等于备份恢复或跨版本升级。
+- 连接器文案纠正九模型指导与可执行工具边界；新增清洁包校验器及回环 Compose 辅助配置。白名单五文件 ZIP `outputs/sonnetdb-workbuddy-0.1.0-review.zip`，SHA256 `cf8f817ff5caa5b7b29ec3af869d27100c0489529acc038de38483d97a40b4f5`；实际验收报告 `outputs/SonnetDB-WorkBuddy-真实联调与送审报告.md`。
+- 完整 restore + 规定 Format 流程完成，输出工作区加载警告未报告格式差异；git diff --check 通过。没有commit/push、标签、生产发布或正式送审。公开开发文档未提供可调用送审API/具体上传页面；下一步获取开放平台开发者实际入口/主体信息，补宿主及HTTPS验收，决定限定只读0.1.0或先补KV/对象/MQ MCP再送审。不得宣称完整运维执行闭环或已审批。
+
+## 2026-11-03 IoTSharp 公开资料归档
+
+- 用户指定 IoTSharp 各项目公开资料统一归档空间为 https://www.workbuddy.cn/space/s/dQLhaiG6IukkkFwHCd8Rzj 。
+- 将本会话已经上传的闭环指南、九模型手册、审核清单三份文档迁入该空间根目录；三项跨空间迁移回读均为 success，原文档链接保持不变。未批量上传仓库、凭证或内部日志；未修改空间公开权限设置。
+
+## 2026-11-03 WorkBuddy SonnetDB 闭环扩展
+
+- 在 `connectors/workbuddy-sonnetdb/` 扩展连接器描述和 Skill，明确覆盖部署、连接、九种数据模型访问/使用、升级/备份/恢复、维护与故障排查；MCP 仍严格保持只读，写入/DDL/运维动作只给出人工确认计划。
+- 新增闭环资料：`docs/workbuddy-sonnetdb-closed-loop-guide.md`、`docs/workbuddy-sonnetdb-model-playbook.md`、`docs/workbuddy-sonnetdb-submission-checklist.md`。
+- 三份 Markdown 已上传到 WorkBuddy 资料库：闭环指南 `https://www.workbuddy.cn/space/d/rmj6k0yYZbqcmAj9RRm284`；九模型手册 `https://www.workbuddy.cn/space/d/LiiWWkZlTTrPZc4Y5Q101x`；提交审核清单 `https://www.workbuddy.cn/space/d/pdahu0u4pAK4QnqhnthSji`。
+- 本地 JSON 解析、`git diff --check` 通过。尚未用真实 Server/Token 完成 MCP 联调，也未宣称 WorkBuddy 审核通过。资料库上传不包含凭证。
+
+## 2026-11-03 WorkBuddy SonnetDB 连接器
+
+- 新增未提交目录 `connectors/workbuddy-sonnetdb/`，按 WorkBuddy 官方 MCP + Skill 规范提供 `connector-meta.json`、`mcp.json`、`token-schema.json`、`icon.svg`、README 和查询/部署维护 Skill。
+- 采用 `auth_mode: token`，用户填写具体 `/mcp/{database}` 地址和最小权限 Bearer Token；连接器仅接入 SonnetDB 当前只读 MCP contract，不把写入、DDL、部署、备份或恢复冒称为已自动执行。
+- 本地验证：三个 JSON 通过 Python 解析，`git diff --check` 通过；未使用真实服务地址或凭证，尚未完成真实部署上的 tools/list、连接、查询、错误和轮换验证，也未提交、打包或送审。
+- 下一步：在真实 SonnetDB Server 上完成 MCP 连接器验收，补充实际版本/运行记录后再按 WorkBuddy 开放平台流程打包提交审核；不要把本地 JSON 通过写成市场审核通过。
+
+
 ## 2026-11-04 统一 5.0 / MCP / WorkBuddy 发布任务（进行中，未放行）
 
 - 用户要求将聊天 `01a1a21a-84e7-74c2-aea2-77a9cc1abafd` 的分支合并、MCP模型工具与WorkBuddy任务并入本发布聊天。已发送协调指令并读取其确认：对方只继续MCP与WorkBuddy切片，本聊天统一main/正式tag/发包。用户在对方聊天已明确授权新增写工具并按数据库权限校验；该授权纳入统一范围。
