@@ -24,7 +24,125 @@
 
 本专属工作树基于 origin/main 78c2c746；大 KV 索引按16键重启块稀疏定位、按需分页、复用4KiB读取缓冲；生命周期采用稳定快照和逐对象写锁，并提供精确对象回收；readiness检查运行中事务恢复保护状态。磁盘格式与生产内存额度未变。569项存储回归、15项服务端合同通过；真实ARM64的1945万键索引常驻6.08GB降至0.322GB，首次点查基本持平、热查询改善。另在现场基线0a5acf0d工作树精确移植并发布，未直接部署本主线工作树。源码未提交/推送，完整失败、演练与发布边界见父仓 docs/mulei-memory-notification-repair-20261104.md。以下原交接历史字节保留。
 
+## 2026-11-04（Asia/Shanghai）5.0 正式发布：BLOCKED_CREDENTIAL
+
+- 本节是发布后续的纯文档交接。发布代码与冻结分支 `codex/release-5-0-final-20261104` 保持 `84433f9edcceb84605520ebecc4b2879e3c4aa79`；`v5.0.0` annotated object 为 `c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9`，远端 peel 已独立回读到该代码。文档提交可推进 main，不能把文档提交重新固定为 5.0 发包源码。
+- 同源十二类 preflight 全部 success；原始 light/full Parity 候选 verifier 与本机/正式 hosted release-readiness 均 READY。各档真实 23 对拍、84 可靠性检查、12 服务起栈/清理有原日志。最新 scheduled 观察是 NOT_READY、6/7 有效（85.71%，失败41290638954），属于非阻断观察，不能沿用旧“七次全失败”快照。
+- 正式 Docker run41721062233 success，Docker Hub 匿名 manifest/config 回读 PASS：`iotsharp/sonnetdb@sha256:f35b6493c9cbc41032ba7f825b02780a24be8c6c7072ee0442544cf3a4fbd325`，OCI version5.0.0/revision为完整844。GHCR匿名仍401，不算公开PASS；旧455/6c5974镜像证据保留历史。
+- 新正式 Publish run41721062306 attempt1 两平台 bundle/安装器/网络默认/INSERT RETURNING 全部 success，但05:44:12推首包 SonnetDB.5.0.0.nupkg 实际403：The specified API key has expired。05:47 fresh十个准确公开nupkg均404（0/10），认证GitHub v5Release404。仓库级 NUGET_API_KEY metadata updated_at=2026-11-02T03:35:45Z，不代表有效；未读取/输出明文。当前进程无新key，组织metadata无权限且未扩权；父聊天已发必要凭据输入请求，仍pending。
+- Connectors run41721062359 的Linux x64/Windows x64/x86构建与库存全PASS，上传因Publish失败而拒绝。没有重复push、退tag、改门禁或创建部分Release；旧8bf0e812恢复分支不合入、不dispatch。
+- 正式十包工件13273590352已核source844及SHA；逐entry载荷与成功preflight十包相同，ZIP容器整体hash不同不写成整包相同。Windows正式工件13272379315只下载一次，五payload/五SHA与SDK/full四包绑定PASS；解出Server ProductVersion=5.0.0+完整844，SHA256=`4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e`。它仍是Actions工件，publicReleaseDownload=false；未启动该Server/公开ORM。
+- 最终 Testcontainers/ABP/FreeSql/XCode/Chloe/SqlSugar 的公开5.0消费者仍NOT_RUN，夹具按source844/独占空缓存/不可变镜像准备；不拿旧455、私有包或候选PASS替代。ABP PR2 head979c3e4e仍Draft，需公开22项与该head最新CI；其它上游正式包发布分别核验，#230不得因SonnetDB局部交付关闭。#392—#403保留后续范围。
+- 恢复顺序：纠正 IoTSharp/SonnetDB 仓库级 NUGET_API_KEY → fresh metadata/十包/Release与tag冲突对账 → `gh run rerun 41721062306 --failed --repo IoTSharp/SonnetDB` → 确认新attempt的实际NuGet与公开Release → `gh run rerun 41721062359 --failed --repo IoTSharp/SonnetDB` → public十包签名/DLL/载荷、52资产及Docker重新回读 → fresh公开Windows Server身份 → 各真实消费者与资源清理。失败结果未知时先对账，不自动重复创建/上传。
+- 详见 `docs/audits/release-5.0-20261104-final-publication.md`；本机原始回执/恢复脚本位于 `artifacts/release-5.0-20261104-final-execution/`，跨机器从正式run取同源工件。旧标签object/commit另存local refs/codex-release-backups/v5.0.0-20261104，原commit仍是844祖先。
+- 下方完整保留原HANDOFF的853541字节，原SHA256=`67c9e77bf8ab17a57a0586836ac3d1db1c5a3e450a37f7d6485099bd5428ac20`；本节只按字节前置，不清洗历史损坏UTF8。纯文档提交前必须在最终树取得完整restore与规定Format PASS，并在交接回执记录实际新main文档提交及source/tag不变。
+
+
+## 2026-11-04 WorkBuddy 与统一发布源整合（未正式发布）
+
+- #389已合main f79d5982，#391已以6274a335合main；当前合入WorkBuddy0.2.0/4a0b5960（含57deb851端口身份修复），源码/原始报告身份分别保留。
+- 已修EF/ABP和native非主键自引用迁移，最终发布仍须统一新SHA的十二类门禁、公开十包/Release/连接器及镜像回读；旧v5标签尚未由本流程替换。
+- 其它机器8bf0e812恢复补充保留分支，4项外部结果对账/来源风险已建#402，当前不合入或dispatch；后续任务#392—#402均保持待办。
+- 以下保留WorkBuddy分支新增的完整57行交接内容，随后是本发布源全部既有字节；历史损坏UTF8未清洗。
+
+## 2026-11-04 WorkBuddy 0.2.0当前能力合同（57deb851后续）
+
+- 仍在codex/workbuddy-port-review-20261104分支，续接57deb851端口修复。README、Skill、token-schema/metadata统一0.2.0，面向SonnetDB 5.0现场43工具/schema，默认Read；用户已有明确写授权且有Write grant时使用独立写工具，query_sql仍只读，未知写入先回读且不盲重试。部署/升级/备份恢复/服务重启需另有授权。
+- 校验器/联调脚本当前43工具合同与读写注解已同步；默认Read读取/写拒绝，不做正向写入授权推断。旧九工具服务明确拒绝新版能力检查；当前修改只跑静态/离线合同/端口回归，不生成新在线PASS报告。
+- 六组静态检查、七项离线合同和端口六组子场景通过；生成outputs/sonnetdb-workbuddy-0.2.0-review.zip，仅五白名单文件，包指纹/历史文件不变/四脚本语法回执在artifacts/workbuddy-contract-20261104/。
+- 历史r2九工具/六模型报告保持日期、source和原字节，未替换为43PASS。生产源码及MCP分支49731955860537215fea598afa607e05d14473a8冻结不动，不重跑118/89或NativeAOT43/36。未上传平台、未验证新版HTTPS/宿主/平台审核。
+- main、PR390 head快进、最终标签与发布由聊天01a1a0f7-bf7e-7e12-a697-1e8509b4de86统一执行；不根据旧#230机器绿灯恢复发布，也不扩做#392—#401。提交前仍需完整restore/CI同等Format，完整分支供协调者快进整合。
+- 历史HANDOFF包含损坏UTF-8，本节按字节前置，原文件整体作为后缀保持不变。审计docs/audits/workbuddy-contract-0.2.0-20261104.md与交付回执记录最终结果。
+
+## 2026-11-03 M51 WorkBuddy 生态里程碑与续做入口
+
+## 2026-11-04 WorkBuddy PR #390 重启端口归属修复
+
+- 基于 PR #390 的 e4715991，独立分支 codex/workbuddy-port-review-20261104。容器即使带隔离标签，也必须具有与 base-url 相同的 127.0.0.1 TCP 端口映射才允许重启；继续使用 inspect 返回的完整 ID。健康探测增加最多 60 次和单调时钟 60 秒边界（每次 HTTP 另有最多 60 秒请求超时）。
+- 新增无 Docker 副作用的六组重启拒绝/接受回归；真实容器恢复和 WorkBuddy 宿主安装不由此推断。完整 restore 与 CI 同等 Format 在本切片最终树执行后才允许提交。
+- 主线、PR #389、正式标签与发布由发布聊天 01a1a0f7-bf7e-7e12-a697-1e8509b4de86 统一协调。本聊天仅交付 owned 源码分支，不合并 main、不发正式版本。此前重跑的旧 389 CI/CodeQL 不作为发布放行证据。
+- HANDOFF 历史包含损坏 UTF-8；本节按字节前置并核对原后缀 SHA256，不改写或清洗历史。最终验证结果见 docs/audits/workbuddy-port-review-20261104.md。
+
+
+- 用户要求将本次已完成和未完成工作一起入里程碑，并提交推送。`ROADMAP.md#milestone-51` 已登记 M51-B01～B07 实际基线与 M51-W01～W17 后续任务，区分只读首发、九模型补齐、管理运维、独立 Skill、专家与条件 Buddy 应用。
+- 下一步 W01 冻结首批范围，W02 用户上传 `outputs/sonnetdb-workbuddy-0.1.1-review.zip` 取得平台解析结果，再做真实宿主/HTTPS及按批送审。当前 NOT_SUBMITTED，无审核或发布回执；不重做已通过的 Docker 基线，不以原生九模型代替 MCP 六模型。
+- 四个通配域白名单只登记为待核配置对象/认证方案需求，未擅自修改回调或 CORS。最终测试 replacement/admin Token 无撤销证据，随机凭据未保存，旧容器/卷保留但不假定可登录。
+- 提交前收口：默认 ZIP 文件名按元信息版本派生、README 补独立卷与凭据复现要求、报告区分 0.1.0 历史与 0.1.1 新包指纹；restart 增加 inspect 镜像/隔离标签或回环端口校验并固定容器 ID，主代理四项离线 mock 通过，未重启实际容器。六组静态检查、JSON/脚本语法及最终 restore/format 均通过（format 有工作区加载警告）；历史 HANDOFF 字节保持原样。源码及脱敏 JSON/报告纳入本次提交，三个生成 ZIP 留本地，不纳入 Git。
+
+## 2026-11-03 平台上传解析修复 0.1.1
+
+- 用户实际上传0.1.0后平台拒绝：mcp.json URL模板 `${SONNETDB_MCP_URL}` 缺少显式协议头。修为 `https://${SONNETDB_HOST}/mcp/${SONNETDB_DATABASE}`，表单拆分host/database/token，禁止指引填写userinfo；版本及Skill升0.1.1。
+- 校验器增加模板自身HTTPS/authority无@检查，变量集同步。静态六组检查及diff检查通过，新包 `outputs/sonnetdb-workbuddy-0.1.1-review.zip` 五文件白名单；旧包保留不覆盖。平台重新上传/解析尚未确认，未正式送审。浏览器已进入/connector/publish，但上传需用户本地选择文件。
+
+## 2026-11-03 Docker 真实 MCP 与九模型验收
+
+- Docker Desktop 已真实部署官方 SonnetDB 5.0.0 镜像，revision `455bf3b53b1e56df0064d8f574b0595cbb0b609e`，digest `sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597`；本地 HEAD 为 `78c2c746`，不混同镜像与源码验证。
+- 首轮容器 `sonnetdb-workbuddy-verify-20261103`（18580）、第二轮 `sonnetdb-workbuddy-verify-20261103-r2`（18581），均回环端口、同名独立命名卷及合成数据。结束后均正常停止并保留卷，无生产库接入。随机凭据仅内存，不保存；不得假定能用已丢失随机密码继续登录。
+- 新增 `eng/workbuddy-sonnetdb-verify.py`；首轮六个 MCP 行值比较因测试端未解析 JsonElementValue 失败，仅修脚本；原失败报告保留 `outputs/workbuddy-sonnetdb-verification.json`。r2 全新容器实跑 exit0：19 通用检查、9 原生模型、9 重启读回、6 MCP 模型通过；KV/对象/MQ 的 MCP 入口 NOT_AVAILABLE，不计通过。r2 报告 `outputs/workbuddy-sonnetdb-verification-r2.json`，现场工具 schema 同目录 tools-r2 文件。
+- 实测包含 initialize/tools/list、resources/list、measurement schema/sample/explain、只读 SQL、无Token401/无grant403、隐藏库隔离、写拒绝、maxRows边界与截断、新Token可读/旧Token吊销401。不是 WorkBuddy 宿主安装/表单/轮换交互验收；未测生产HTTPS、全部错误码/取消及知识provider；正常重启不等于备份恢复或跨版本升级。
+- 连接器文案纠正九模型指导与可执行工具边界；新增清洁包校验器及回环 Compose 辅助配置。白名单五文件 ZIP `outputs/sonnetdb-workbuddy-0.1.0-review.zip`，SHA256 `cf8f817ff5caa5b7b29ec3af869d27100c0489529acc038de38483d97a40b4f5`；实际验收报告 `outputs/SonnetDB-WorkBuddy-真实联调与送审报告.md`。
+- 完整 restore + 规定 Format 流程完成，输出工作区加载警告未报告格式差异；git diff --check 通过。没有commit/push、标签、生产发布或正式送审。公开开发文档未提供可调用送审API/具体上传页面；下一步获取开放平台开发者实际入口/主体信息，补宿主及HTTPS验收，决定限定只读0.1.0或先补KV/对象/MQ MCP再送审。不得宣称完整运维执行闭环或已审批。
+
+## 2026-11-03 IoTSharp 公开资料归档
+
+- 用户指定 IoTSharp 各项目公开资料统一归档空间为 https://www.workbuddy.cn/space/s/dQLhaiG6IukkkFwHCd8Rzj 。
+- 将本会话已经上传的闭环指南、九模型手册、审核清单三份文档迁入该空间根目录；三项跨空间迁移回读均为 success，原文档链接保持不变。未批量上传仓库、凭证或内部日志；未修改空间公开权限设置。
+
+## 2026-11-03 WorkBuddy SonnetDB 闭环扩展
+
+- 在 `connectors/workbuddy-sonnetdb/` 扩展连接器描述和 Skill，明确覆盖部署、连接、九种数据模型访问/使用、升级/备份/恢复、维护与故障排查；MCP 仍严格保持只读，写入/DDL/运维动作只给出人工确认计划。
+- 新增闭环资料：`docs/workbuddy-sonnetdb-closed-loop-guide.md`、`docs/workbuddy-sonnetdb-model-playbook.md`、`docs/workbuddy-sonnetdb-submission-checklist.md`。
+- 三份 Markdown 已上传到 WorkBuddy 资料库：闭环指南 `https://www.workbuddy.cn/space/d/rmj6k0yYZbqcmAj9RRm284`；九模型手册 `https://www.workbuddy.cn/space/d/LiiWWkZlTTrPZc4Y5Q101x`；提交审核清单 `https://www.workbuddy.cn/space/d/pdahu0u4pAK4QnqhnthSji`。
+- 本地 JSON 解析、`git diff --check` 通过。尚未用真实 Server/Token 完成 MCP 联调，也未宣称 WorkBuddy 审核通过。资料库上传不包含凭证。
+
+## 2026-11-03 WorkBuddy SonnetDB 连接器
+
+- 新增未提交目录 `connectors/workbuddy-sonnetdb/`，按 WorkBuddy 官方 MCP + Skill 规范提供 `connector-meta.json`、`mcp.json`、`token-schema.json`、`icon.svg`、README 和查询/部署维护 Skill。
+- 采用 `auth_mode: token`，用户填写具体 `/mcp/{database}` 地址和最小权限 Bearer Token；连接器仅接入 SonnetDB 当前只读 MCP contract，不把写入、DDL、部署、备份或恢复冒称为已自动执行。
+- 本地验证：三个 JSON 通过 Python 解析，`git diff --check` 通过；未使用真实服务地址或凭证，尚未完成真实部署上的 tools/list、连接、查询、错误和轮换验证，也未提交、打包或送审。
+- 下一步：在真实 SonnetDB Server 上完成 MCP 连接器验收，补充实际版本/运行记录后再按 WorkBuddy 开放平台流程打包提交审核；不要把本地 JSON 通过写成市场审核通过。
+
+
+## 2026-11-04 统一 5.0 / MCP / WorkBuddy 发布任务（进行中，未放行）
+
+- 用户要求将聊天 `01a1a21a-84e7-74c2-aea2-77a9cc1abafd` 的分支合并、MCP模型工具与WorkBuddy任务并入本发布聊天。已发送协调指令并读取其确认：对方只继续MCP与WorkBuddy切片，本聊天统一main/正式tag/发包。用户在对方聊天已明确授权新增写工具并按数据库权限校验；该授权纳入统一范围。
+- 活动工作树为 `C:/Users/mysti/.codex/worktrees/sonnetdb-5-release-20261103/SonnetDB`，分支 `codex/release-5-0-20261103`，已推HEAD `29f206fc9238919721f314a7763a66a835cab842`，对应PR#389。该提交仍未放行；其中MCP/WorkBuddy以及新发现EF/ABP等修复尚待统一整合。远端main仍78c2c746；旧修复/Dependabot分支已是其祖先，parity-results保持独立。原D:/source/SonnetDB外来dirty未带入、覆盖或暂存。
+- 本机FileStreaming相关TRX确认287/287 PASS、0 FAIL/SKIP，针对损坏恢复夹具初开2秒预算改10秒，45秒总限/真实锁超时/原spool与checkpoint断言保留。原执行工具回执因host generation切换不可继续读取，TRX完整保存，不能由此推断全机进程均已退出。
+- EF默认DateTime原用旧DATETIME导致ABP真实Clock亚毫秒失败；新默认DATETIME2/DateTime2与显式legacy拒绝边界的完整EF309/309通过。Core最小修复后，ABP standard日期迁移与原22项全PASS，未删FK、改Clock、压制模型警告或改历史迁移。Core定向8/8、相关组403/403通过，已核存量GUID/STRING键首次native迁移和两次重开。
+- Parity full旧29因最终镜像extract ENOSPC失败，SQL runner NOT_RUN，原reliability84/84。专属builder分项load/释放cache再完整up --no-build已通过Linux8合同与真实bake/compose配置核验，最终hosted full仍待新SHA门禁；未删SDK、共享cache或缩参考栈。
+- ORM候选及外部fork进度见独占报告；SqlSugar18f9df7e已推，XCode新Draft PR103/f21d0c75与Chloe现有Draft PR435/742ea2ac已推，业务50/101×3及三协议重开通过；ABP新Draft PR2/979c3e4e待公开5.0复验。MCP PR391/49731955已交付43工具、118Server回归、89Core回归及NativeAOT36实调，预算P2修订已绑定实物；WorkBuddy端口57deb851及当前能力说明正统一整合。
+- 用户已批准新Testcontainers包ID及必要时重新固定v5.0.0；旧tag对象a3d3e7ba→455bf3b5仍未动。正式新NuGet/GitHub/Docker发布尚未开始，旧Docker部分分发不算新候选完成。冻结统一新提交并取得十二类精确SHA/version与公开消费者后再发布结项。
+- 用户要求后续SonnetDB缺口直接建Issue，已去重创建并回读#392—#401，见 `docs/audits/release-5.0-20261104-followups.md`。统一范围及下一顺序见 `docs/audits/release-5.0-20261104-coordination.md`。本节以UTF8原始字节前置，完整历史后缀保留，损坏UTF8不清洗。下一次提交前仍须在最终树完整restore和规定Format。
+
+
+## 2026-11-03 5.0 正式发行重审与发包阻断修复（进行中）
+
+- 用户要求以 #230 为依据，使用多个智能体核查全部既有接入要求，具备条件后完成 GitHub / NuGet / Docker 正式发布；明确授权发现问题后修复、将 `v5.0.0` 重新固定到新提交。用户已确认更新有效 `NUGET_API_KEY`，并明确选择 Testcontainers 新包名 `SonnetDB.Testcontainers`。
+- 当前独立工作树 `C:/Users/mysti/.codex/worktrees/sonnetdb-5-release-20261103/SonnetDB`，分支 `codex/release-5-0-20261103`，基线 main `78c2c74699e7c8231e6228b878fbaa4bf345f27a`。原 `D:/source/SonnetDB` 的大量其它会话改动未带入、覆盖或暂存；`parity-results` 未改写或合并。
+- 实时核查旧 tag 仍绑定 `455bf3b53b1e56df0064d8f574b0595cbb0b609e`。Publish 41348714535 attempt4 仍因过期密钥403失败；公开 5.0 十包为0/10、GitHub Release404。Docker Hub已有旧提交的5.0镜像，重发后必须核对新的源码标签与digest，不把旧镜像当新提交证据。
+- 已修复被 NuGet 保留前缀拒绝的包名，保留 Testcontainers 程序集/命名空间，更新十包库存、候选晋级、SDK与版本化恢复。5.0恢复使用新ID且十包；4.0/4.1历史恢复分别保留原七包/八包合同。补齐 `docs/releases/5.0.0.md` 新闻/发行说明与升级入口，使用可直接用于 GitHub Release 的绝对链接。
+- 本机：完整 solution restore成功；release artifact合同20项及候选晋级10项通过；新包五个TFM pack成功；独立缓存的 Core create/reopen/NULL、Client/Protocol Frame往返及新NuGet包/旧命名空间builder消费者全部通过。最初 pack遗漏PackageVersion得到0.0.0-dev及深目录缓存导致Testcontainers依赖DLL路径过长的失败证据均保留；使用正式pack属性和仓库外短缓存复验通过。
+- 本机上述包夹具复用了旧正式run的九个包及本机新Testcontainers包，只是rename验证，不是最终新提交十包/Server的公开消费者验收。最终提交前仍须对最终树执行完整restore和规定Format；新提交必须重新取得十二类精确SHA/version门禁，不能继承455bf3b5的绿灯。
+- 三个独立worker分别完成流水线审计，并继续 XCode/Chloe、SqlSugar 与 FreeSql 候选适配及真实三协议/重开复验。上游仍有4.0 guards、旧依赖和未合并PR，未宣称所有适配或公开安装组合已完成；数据库能力、候选补丁、上游合入及正式发包分开记录。
+- 下一顺序：提交/推送本修复→新提交十二类预检及适配消费者→全部必要门槛通过后按用户授权替换旧tag→确认NuGet十包、完整Release资产、连接器和Docker新身份→全新公开缓存消费者及最终交接。尚未移动标签、推送本提交或发布新包；不得在远程门槛未通过前声称正式发布成功。
+- 本次ignored证据在工作树 `artifacts/release-5.0-20261103/`；共享候选与worker证据在原工作树 `artifacts/release-5.0-20261103-*`。历史HANDOFF含损坏UTF8，本节以UTF8原始字节前置并保留历史后缀及SHA，不清洗旧记录。
+
+
 ## 2026-11-01 EXISTS / 5.0 发布阻塞修复
+
+<!-- mcp-models-20261104:start -->
+## 2026-11-04 九模型 MCP 读写切片（统一发布待整合）
+
+- 分支 codex/mcp-nine-models-20261104，基线 main 78c2c746。原9工具保留，新增34工具，合计43（28只读/15写入）。KV、桶/对象、文档、全文/向量搜索、MQ和原生图发现/读写，及受限数据面 execute_sql 已实现；Write grant 逐调用校验，新增MCP取消/输入与响应预算/未知写入边界。
+- 真实 Kestrel + 官方 MCP client 定向47/47通过，0失败/跳过。早先新夹具的语法及降权调用错误已纠正并保留原TRX；没有因此修改生产解析/授权语义。NativeAOT及最终提交门禁在审计 docs/audits/mcp-model-tools-20261104.md 和 artifacts/mcp-models-20261104/ 记录。
+- MQ按endpoint数据库限定主题授权/过滤，但物理存储仍在实例.system/mq；单库备份不覆盖MQ。旧WorkBuddy九工具/旧Server证据不计作本次43工具支持，宿主/市场/正式部署另验。
+- 独立WorkBuddy端口修复已推送57deb851140affc192989cc635bb462b607144fd，六组子场景、静态包、完整restore及CI同等Format通过；PR390描述已补实，修复由统一协调者整合。
+- 发布聊天01a1a0f7-bf7e-7e12-a697-1e8509b4de86负责主线、PR389/390、最终5.0标签与NuGet/Docker/GitHub发布。本聊天未改写main/标签/发行资产；曾重跑的旧389 CI/CodeQL不计作新候选门禁。parity-results保留。
+- 原共享工作树保持原有在途文档；本工作树及源码/证据保留供整合。本交接按字节前置，历史损坏UTF-8后缀未清洗。
+- 后续独审发现页读取/Graph输入/响应编码预算滞后，已新增按调用预算的Core KV/文档入口（不收紧原API）、固定容量writer和Graph预检。Core89/89、Server118/118通过，含冷大值物理读0与真实MCP负边界/续读/64KiB正例；旧AOT SHA不可替代预算修复后的最终实物证据，后续结果见同一审计。
+- 预算后NativeAOT重新编译/运行通过：新实物SHA256 440cdfee0c68ffa2609723da960aa3c4b9ba7fbe136ccee199f0771e37f6ca57，43工具/36项实物检查PASS；13个生产源码SHA前后不变。报告aot-budget-smoke.json、清单budget-source-inputs.json；旧产物和失败回执保留。Server57192退出、临时数据已删除，owned进程树由Cordonix回收。
+<!-- mcp-models-20261104:end -->
+
 
 - 用户已明确选择保留新 API，按 5.0 主版本准备。分支 codex/fix-exists-release-readiness-20261031，开发基线 3c40730a35140a24589e606310bcf1e2dae88ec3。未合并 main，未打标签、正式发包或部署，保留 parity-results。
 - 已提交 48fe989b（EXISTS）、5f165d4e（5.0 包与消费者门禁）、1fd0d277（Publish 递归子模块）、692c6433（会话过期锁定与管理夹具）、89d80740（StudioNative SSE 夹具和必跑门禁）。EXISTS 原失败 2 项恢复，新增 8 项；定向 22/22、完整 Core 7995/7995、Client 219/219、CAP 42/42，均无失败/跳过。

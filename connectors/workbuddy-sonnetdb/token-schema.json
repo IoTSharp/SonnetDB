@@ -1,0 +1,40 @@
+{
+  "title": "SonnetDB 连接配置",
+  "title_en": "SonnetDB Connection",
+  "description": "连接 SonnetDB 5.0 并按 tools/list 发现43工具。默认使用目标库 Read 最小权限令牌；仅在用户已明确授权写入时使用适当 Write grant。工具存在不等于写授权。",
+  "description_en": "Discover the 43 SonnetDB 5.0 tools through tools/list. Default to a target-database Read token; use an appropriate Write grant only for explicitly authorized writes. Discovery does not grant write permission.",
+  "docUrl": "https://github.com/IoTSharp/SonnetDB/blob/49731955860537215fea598afa607e05d14473a8/docs/mcp-model-tools.md",
+  "docLabel": "查看 SonnetDB Agent 接入指南",
+  "fields": [
+    {
+      "key": "SONNETDB_HOST",
+      "label": "SonnetDB 主机及可选端口",
+      "label_en": "SonnetDB host and optional port",
+      "type": "text",
+      "required": true,
+      "placeholder": "db.example.com:443",
+      "description": "仅填写主机及可选端口，不含协议、路径、@、用户名或密码。连接固定使用 HTTPS，证书须有效。",
+      "description_en": "Enter only host and optional port, without scheme, path, @ or credentials. HTTPS with a valid certificate is required."
+    },
+    {
+      "key": "SONNETDB_DATABASE",
+      "label": "目标数据库名",
+      "label_en": "Target database name",
+      "type": "text",
+      "required": true,
+      "placeholder": "metrics",
+      "description": "填写已存在的目标数据库名，默认 Read；已获用户明确写授权时使用该库 Write grant。不填 URL、斜杠、查询串或片段。",
+      "description_en": "Enter an existing target database, defaulting to Read. Explicitly authorized writes also require its Write grant. Do not enter a URL, slash, query or fragment."
+    },
+    {
+      "key": "SONNETDB_TOKEN",
+      "label": "SonnetDB Bearer Token",
+      "label_en": "SonnetDB Bearer Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "默认目标库 Read；已授权写操作才使用 Write 凭据",
+      "description": "凭证仅填此字段，不进入提示词、SQL、日志或仓库。默认最小 Read；用户已明确授权写入才使用对应 Write grant。工具发现不是授权。轮换后更新配置，撤销旧令牌应返回 HTTP 401。",
+      "description_en": "Use this field only; never include credentials in prompts, SQL, logs or source control. Default to minimum Read; use Write only for explicitly authorized writes. Tool discovery is not authorization. Update after rotation; revoked tokens must receive HTTP 401."
+    }
+  ]
+}

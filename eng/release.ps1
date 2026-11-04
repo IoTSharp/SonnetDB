@@ -484,6 +484,8 @@ function Write-SdkBundleReadme
 
 该目录包含：
 
+- `packages/SonnetDB.Protocol.__VERSION__.nupkg`
+- `packages/SonnetDB.Client.__VERSION__.nupkg`
 - `packages/SonnetDB.Core.__VERSION__.nupkg`
 - `packages/SonnetDB.__VERSION__.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
@@ -491,7 +493,7 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.Caching.Distributed.__VERSION__.nupkg`
 - `packages/SonnetDB.CAP.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
-- `packages/Testcontainers.SonnetDB.__VERSION__.nupkg`
+- `packages/SonnetDB.Testcontainers.__VERSION__.nupkg`
 - `cli/` 原生命令行工具
 - `docs/` 发布与使用说明
 

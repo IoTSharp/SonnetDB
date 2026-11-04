@@ -1,0 +1,498 @@
+{
+  "schemaVersion": "1.0",
+  "startedUnix": 1793702639.1720207,
+  "baseUrl": "http://127.0.0.1:18580",
+  "database": "wbverify",
+  "runId": "616708cc99",
+  "credentialsSaved": false,
+  "scope": "隔离本机小样本；原生 API 与 MCP 分开验收；非质量、规模或生产认证",
+  "checks": [
+    {
+      "model": "setup",
+      "transport": "native_http",
+      "assertions": [
+        "initialize_or_login_and_reader_read_grant"
+      ],
+      "status": "pass",
+      "observation": {
+        "fresh": true,
+        "readerSuperuser": false
+      }
+    },
+    {
+      "model": "mcp",
+      "transport": "mcp_http",
+      "assertions": [
+        "initialize_and_tools_list"
+      ],
+      "status": "pass",
+      "observation": {
+        "establishedTools": 9
+      }
+    },
+    {
+      "model": "authorization",
+      "transport": "mcp_http",
+      "assertions": [
+        "database_visibility"
+      ],
+      "status": "pass",
+      "observation": {
+        "authorizedDatabaseVisible": true,
+        "hiddenDatabaseVisible": false
+      }
+    },
+    {
+      "model": "authorization",
+      "transport": "mcp_http",
+      "assertions": [
+        "missing_bearer_401"
+      ],
+      "status": "pass"
+    },
+    {
+      "model": "authorization",
+      "transport": "mcp_http",
+      "assertions": [
+        "hidden_database_403"
+      ],
+      "status": "pass"
+    },
+    {
+      "model": "authorization",
+      "transport": "mcp_http",
+      "assertions": [
+        "write_rejected"
+      ],
+      "status": "pass",
+      "observation": {
+        "rejectionCode": "read_only_violation"
+      }
+    },
+    {
+      "model": "mcp",
+      "transport": "mcp_http",
+      "assertions": [
+        "invalid_maxRows_0"
+      ],
+      "status": "pass",
+      "observation": {
+        "rejectionCode": "invalid_argument"
+      }
+    },
+    {
+      "model": "mcp",
+      "transport": "mcp_http",
+      "assertions": [
+        "invalid_maxRows_-1"
+      ],
+      "status": "pass",
+      "observation": {
+        "rejectionCode": "invalid_argument"
+      }
+    },
+    {
+      "model": "mcp",
+      "transport": "mcp_http",
+      "assertions": [
+        "invalid_maxRows_1001"
+      ],
+      "status": "pass",
+      "observation": {
+        "rejectionCode": "invalid_argument"
+      }
+    },
+    {
+      "model": "timeseries",
+      "transport": "mcp_http",
+      "assertions": [
+        "truncation_without_LIMIT"
+      ],
+      "status": "pass",
+      "observation": {
+        "returnedRows": 2,
+        "truncated": true
+      }
+    },
+    {
+      "model": "timeseries",
+      "transport": "mcp_http",
+      "assertions": [
+        "truncation_LIMIT_3"
+      ],
+      "status": "pass",
+      "observation": {
+        "returnedRows": 2,
+        "truncated": true
+      }
+    },
+    {
+      "model": "timeseries",
+      "transport": "mcp_http",
+      "assertions": [
+        "truncation_LIMIT_1"
+      ],
+      "status": "pass",
+      "observation": {
+        "returnedRows": 1,
+        "truncated": false
+      }
+    },
+    {
+      "model": "authorization",
+      "transport": "native_http+mcp_http",
+      "assertions": [
+        "issue_revoke_rotation"
+      ],
+      "status": "pass",
+      "observation": {
+        "oldTokenUnauthorized": true,
+        "replacementReadSucceeded": true
+      }
+    },
+    {
+      "model": "persistence",
+      "transport": "docker",
+      "assertions": [
+        "explicit_restart"
+      ],
+      "status": "pass",
+      "observation": {
+        "restartRequested": true
+      }
+    }
+  ],
+  "nativeModels": [
+    {
+      "model": "timeseries",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "rows": 3
+      }
+    },
+    {
+      "model": "relational",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "rows": 3
+      }
+    },
+    {
+      "model": "kv",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "items": 1
+      }
+    },
+    {
+      "model": "document",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "documents": 1
+      }
+    },
+    {
+      "model": "fulltext",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "hits": 1
+      }
+    },
+    {
+      "model": "vector",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "hits": 1,
+        "syntheticDimension": 3,
+        "qualityEvidence": false
+      }
+    },
+    {
+      "model": "object",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "bytes": 26
+      }
+    },
+    {
+      "model": "mq",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "messages": 1,
+        "offset": 0
+      }
+    },
+    {
+      "model": "graph_beta",
+      "transport": "native_http",
+      "assertions": [
+        "write_then_read_synthetic_sample"
+      ],
+      "status": "pass",
+      "observation": {
+        "vertices": 2,
+        "edges": 1,
+        "beta": true
+      }
+    }
+  ],
+  "mcpModels": [
+    {
+      "model": "timeseries",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    },
+    {
+      "model": "relational",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    },
+    {
+      "model": "kv",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "not_available",
+      "code": "NOT_RUN_no_published_read_only_tool_or_confirmed_SELECT_contract",
+      "reason": "tools/list 无专用只读入口；未将原生 API 能力冒称为 MCP 能力"
+    },
+    {
+      "model": "document",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    },
+    {
+      "model": "fulltext",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    },
+    {
+      "model": "vector",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    },
+    {
+      "model": "object",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "not_available",
+      "code": "NOT_RUN_no_published_read_only_tool_or_confirmed_SELECT_contract",
+      "reason": "tools/list 无专用只读入口；未将原生 API 能力冒称为 MCP 能力"
+    },
+    {
+      "model": "mq",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "not_available",
+      "code": "NOT_RUN_no_published_read_only_tool_or_confirmed_SELECT_contract",
+      "reason": "tools/list 无专用只读入口；未将原生 API 能力冒称为 MCP 能力"
+    },
+    {
+      "model": "graph_beta",
+      "transport": "mcp_http",
+      "assertions": [
+        "read_synthetic_sample"
+      ],
+      "status": "fail",
+      "code": "synthetic_rows_mismatch"
+    }
+  ],
+  "persistence": {
+    "status": "pass",
+    "checks": [
+      {
+        "model": "timeseries",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "rows": 3
+        }
+      },
+      {
+        "model": "relational",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "rows": 3
+        }
+      },
+      {
+        "model": "kv",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "items": 1
+        }
+      },
+      {
+        "model": "document",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "documents": 1
+        }
+      },
+      {
+        "model": "fulltext",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "hits": 1
+        }
+      },
+      {
+        "model": "vector",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "hits": 1,
+          "syntheticDimension": 3,
+          "qualityEvidence": false
+        }
+      },
+      {
+        "model": "object",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "bytes": 26
+        }
+      },
+      {
+        "model": "mq",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "messages": 1,
+          "offset": 0
+        }
+      },
+      {
+        "model": "graph_beta",
+        "transport": "native_http_after_restart",
+        "assertions": [
+          "persisted_synthetic_readback"
+        ],
+        "status": "pass",
+        "observation": {
+          "vertices": 2,
+          "edges": 1,
+          "beta": true
+        }
+      }
+    ]
+  },
+  "initializedFreshServer": true,
+  "syntheticResources": {
+    "measurement": "wbv_616708cc99_time",
+    "table": "wbv_616708cc99_table",
+    "keyspace": "wbv_616708cc99_kv",
+    "documents": "wbv_616708cc99_docs",
+    "fulltext": "wbv_616708cc99_ftdocs",
+    "fulltextIndex": "wbv_616708cc99_ftidx",
+    "vectors": "wbv_616708cc99_vectors",
+    "vectorDocs": "wbv_616708cc99_vdocs",
+    "graph": "wbv_616708cc99_graph",
+    "bucket": "wbv-616708cc99",
+    "topic": "wbv_616708cc99_topic"
+  },
+  "mcpTools": [
+    "describe_measurement",
+    "docs_search",
+    "explain_sql",
+    "list_databases",
+    "list_measurements",
+    "query_sql",
+    "sample_rows",
+    "skill_load",
+    "skill_search"
+  ],
+  "finishedUnix": 1793702657.6707087,
+  "counts": {
+    "pass": 32,
+    "fail": 6,
+    "not_available": 3
+  },
+  "status": "fail"
+}

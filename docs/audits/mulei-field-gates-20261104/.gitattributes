@@ -1,0 +1,2 @@
+# 原始现场JSON保留字节和SHA；CRLF为合法行尾，其它尾部空白仍检查。
+*.json -text whitespace=trailing-space,space-before-tab,cr-at-eol

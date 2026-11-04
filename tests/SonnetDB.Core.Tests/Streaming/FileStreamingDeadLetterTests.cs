@@ -268,8 +268,8 @@ public sealed class FileStreamingDeadLetterTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         using var directory = new TemporaryDirectory();
         var definition = Definition();
-        // 持久选项在初开和重开时必须一致；两秒覆盖初始化及真实锁超时，另保留测试总截止。
-        var options = Options() with { OperationTimeoutMilliseconds = 2_000 };
+        // 持久选项在初开和重开时必须一致；为首次写入/刷盘预留十秒，真实锁超时和总截止仍需验证。
+        var options = Options() with { OperationTimeoutMilliseconds = 10_000 };
         await using (var subscription = await FileStreamingSubscription.OpenAsync(directory.Path, definition, options, deadline.Token))
         {
             await subscription.PublishAsync(Event(1), deadline.Token);

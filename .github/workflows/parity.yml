@@ -84,6 +84,11 @@ jobs:
           ./tests/SonnetDB.Parity/scripts/test-verify-parity-nightly-evidence.ps1
           ./tests/SonnetDB.Parity/scripts/test-compose-contract.ps1
 
+      - name: Validate parity image preparation
+        if: steps.selection.outputs.run == 'true'
+        shell: bash
+        run: timeout --signal=TERM --kill-after=10s 90s bash eng/test-parity-image-preparation.sh
+
       - name: Restore parity projects
         id: restore
         if: steps.selection.outputs.run == 'true'
@@ -146,7 +151,15 @@ jobs:
             return 1
           }
 
-          if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --build "${services[@]}"; then
+          # Load the two locally built images and remove their private BuildKit
+          # caches before any reference images are pulled or containers started.
+          if ! bash ../../eng/prepare-parity-images.sh "${{ matrix.profile }}" "${GITHUB_WORKSPACE}/artifacts/parity/${{ matrix.profile }}/stack-diagnostics"; then
+            capture_diagnostics
+            echo "Parity local image preparation failed."
+            exit 1
+          fi
+
+          if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --no-build "${services[@]}"; then
             capture_diagnostics
             echo "Parity stack failed to start."
             exit 1

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">SonnetDB</title>
+  <desc id="desc">SonnetDB database cylinder with connected nodes</desc>
+  <rect width="64" height="64" rx="14" fill="#2563EB"/>
+  <ellipse cx="32" cy="18" rx="16" ry="7" fill="#DBEAFE"/>
+  <path d="M16 18v24c0 4 7 7 16 7s16-3 16-7V18" fill="#93C5FD"/>
+  <path d="M16 30c0 4 7 7 16 7s16-3 16-7M16 42c0 4 7 7 16 7s16-3 16-7" fill="none" stroke="#1D4ED8" stroke-width="3"/>
+  <circle cx="48" cy="45" r="5" fill="#FBBF24" stroke="#fff" stroke-width="2"/>
+  <path d="M45 42l-8-7" stroke="#fff" stroke-width="2"/>
+</svg>

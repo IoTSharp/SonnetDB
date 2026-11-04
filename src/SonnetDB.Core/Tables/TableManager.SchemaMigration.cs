@@ -21,7 +21,8 @@ public sealed partial class TableManager
     {
         SqlExecutor.ThrowIfCancellationRequested();
         IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
-        var children = PrepareSchemaMigrationChildren(current, updated, previousSchemas);
+        bool preservesPrimaryKey = HasUnchangedSchemaMigrationPrimaryKeyDefinition(current, updated);
+        var children = PrepareSchemaMigrationChildren(current, updated, previousSchemas, preservesPrimaryKey);
         var updatedByName = children.ToDictionary(static child => child.Updated.Name,
             static child => child.Updated, StringComparer.Ordinal);
         updatedByName.Add(updated.Name, updated);
@@ -62,6 +63,16 @@ public sealed partial class TableManager
                     ValidateSchemaMigrationRow(schema, values);
                     validate?.Invoke(schema, values);
                 }, TableRowIdentity.Create, budget);
+            if (preservesPrimaryKey)
+            {
+                // 主键定义相同还不足以证明引用保持有效；迁移后的实际键集合也必须原样保留。
+                foreach (var row in principalPlan.Rows)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (!row.OriginalPrimaryKey.AsSpan().SequenceEqual(row.UpdatedRow.PrimaryKey.Span))
+                        throw SchemaMigrationUnsupported(current.Name, "非主键 schema 迁移不能修改现有主键编码。");
+                }
+            }
             plans.Add(current.Name, (principalStore, principalPlan));
             budget.Reserve(principalPlan.Rows.Count * 80L);
             var principalByOriginalKey = principalPlan.Rows.ToDictionary(static row => row.OriginalPrimaryKey,
@@ -94,13 +105,16 @@ public sealed partial class TableManager
     }
 
     private List<SchemaMigrationChild> PrepareSchemaMigrationChildren(
-        TableSchema current, TableSchema updated, IReadOnlyList<TableSchema> schemas)
+        TableSchema current, TableSchema updated, IReadOnlyList<TableSchema> schemas, bool preservesPrimaryKey)
     {
         var changedTypes = current.Columns.Where(column =>
             column.DataType != updated.TryGetColumn(column.Name)?.DataType).Select(static column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
         if (current.ForeignKeys.Any(foreignKey => foreignKey.Columns.Any(changedTypes.Contains)))
             throw SchemaMigrationUnsupported(current.Name, "主键类型迁移暂不支持同时承担出站外键的列。");
+        // 原生非主键列仍需整表 journal 迁移，但不应改写引用同一组原主键的子表。
+        // principal plan 的逐行键字节校验和现有 FK 校验在任何持久写入前继续执行。
+        if (preservesPrimaryKey) return [];
         var children = new List<SchemaMigrationChild>();
         foreach (var child in schemas)
         {
@@ -151,6 +165,22 @@ public sealed partial class TableManager
             children.Add(new SchemaMigrationChild(child, childUpdated, references));
         }
         return children;
+    }
+
+    private static bool HasUnchangedSchemaMigrationPrimaryKeyDefinition(TableSchema current, TableSchema updated)
+    {
+        if (!string.Equals(current.PrimaryKeyConstraintName, updated.PrimaryKeyConstraintName, StringComparison.Ordinal)
+            || !current.PrimaryKey.SequenceEqual(updated.PrimaryKey, StringComparer.Ordinal))
+            return false;
+        foreach (string name in current.PrimaryKey)
+        {
+            TableColumn original = current.TryGetColumn(name)!;
+            TableColumn target = updated.TryGetColumn(name)!;
+            // 非主键列的增删可改变 ordinal；键编码按主键名称及声明次序提取值。
+            // 其余完整列定义必须相同，包含类型、DECIMAL 约束、长度和生成语义。
+            if ((original with { Ordinal = target.Ordinal }) != target) return false;
+        }
+        return true;
     }
 
     private static IReadOnlyList<object?> TransformSchemaMigrationChildRow(

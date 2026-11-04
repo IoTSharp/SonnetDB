@@ -1,0 +1,25 @@
+# 本机真实联调：仅使用独立合成数据卷，不填入生产凭证。
+# 与正式连接器审核包分开，不随 MCP 配置打包。
+# 当前digest为2026-11-03九工具历史基线；0.2.0/43工具联调须另选含49731955切片的镜像及独立名称/卷，不改写历史报告。
+services:
+  sonnetdb:
+    image: iotsharp/sonnetdb@sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597
+    container_name: sonnetdb-workbuddy-verify-20261103
+    labels:
+      sonnetdb.purpose: workbuddy-verification
+    ports:
+      - "127.0.0.1:18580:5080"
+    environment:
+      SONNETDB_SonnetDBServer__Mqtt__Enabled: "false"
+    volumes:
+      - verification-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5080/healthz/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: "no"
+volumes:
+  verification-data:
+    external: true
+    name: sonnetdb-workbuddy-verify-20261103

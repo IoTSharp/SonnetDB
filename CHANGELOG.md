@@ -8,16 +8,27 @@
 ## [Unreleased]
 
 ### Added
+- MCP 新增九模型资源发现、KV/对象/文档/MQ/图读取及全文/显式向量搜索，并提供逐调用校验数据库 Write grant 的数据面写工具；保留既有九个只读工具、source-generated JSON 与 AOT 合同，加入 Base64/分页/字节预算及未知写入不盲重试边界。MQ 只暴露 endpoint 数据库限定主题，物理存储与备份仍为实例范围。
+- 为新增MCP路径提供按调用指定的KV/文档读取预算：先检查内存/磁盘metadata再复制或物理读取，页截断保留真实游标；Graph输入字段/数组先预检，JSON通过固定容量writer编码。已有不带预算的Core读取合同和数据格式不变。
+- 新增 SonnetDB WorkBuddy 连接器、九模型使用和权限指引及审核清单；0.2.0按现场43工具/schema配置，历史0.1.1九工具联调证据保留，平台HTTPS、宿主与审核另行验收。
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
 - 木垒真机修复：大KV索引按16键页稀疏定位与缓冲读取，生命周期采用稳定快照逐对象回收并提供精确对象入口；readiness检查运行中事务恢复保护状态。ARM64真实读取与6组功能子项完成，现存大桶列表分页超时和完整长稳仍保留待办，详见`docs/audits/mulei-field-gates-20261104/README.md`。
+- Parity 镜像预构建显式将 Bake 的文件读取授权限制为已解析的当前仓库目录，修复 hosted runner 从子目录读取跨目录 build context 被拒绝；合同检查拒绝额外或宽泛 fs.read 授权，仍保留全部参考栈与原门禁。
+- GH-Issue #230：EF 默认 `DateTime` 改为原生 `DATETIME2` / `DbType.DateTime2` 并使用保留 UTC ticks 的字面量；显式旧 `DATETIME` 仍拒绝亚毫秒输入。原生非主键 schema 演进仅在主键完整定义及逐行编码均未改变时免除无用的子表重写，恢复带自引用外键的标准日期迁移；保留原外键校验、journal、格式 floor 及真实主键变更边界。新增日期及迁移回归，并完成 EF309项、相关Core403项和ABP22项候选复验。
+- 5.0 发布验证：损坏恢复测试为真实初始化/刷盘保留有界余量，继续验证锁超时和原数据保留；Parity 按任务专属 BuildKit builder 分别构建并加载本地镜像、释放各自缓存后再启动完整参考栈，避免构建缓存与全部参考镜像同时占用峰值空间。未缩减 full 服务或原始证据门禁，最终 hosted 结果按发布候选单独核验。
+- GH-Issue #230：将被 NuGet 保留前缀阻断的 Testcontainers 模块包名改为 `SonnetDB.Testcontainers`，保留程序集及 C# 命名空间；同步十包库存、晋级、SDK 和版本化恢复合同，并增加独立缓存的真实包消费者验证。补齐 5.0.0 发行说明和升级入口。
+- WorkBuddy 重启验收即使检测到隔离标签，也必须匹配 base-url 的回环 TCP 端口，避免重启其它实例后产生错误的持久化 PASS；健康探测增加单调时钟与次数双边界。
 - Prevent Windows CI from cancelling the EF Core string-pattern semantics test while the runner is under load by allowing its setup and list/count/page queries a bounded two-minute deadline.
 - VS Code 扩展打包工具升级至 `@vscode/vsce` 4.1.0，移除有漏洞的 glob 并将间接 minimatch 固定为 11.0.3，修复 GHSA-3g3m-2fjr-6pw4 与 GHSA-g3hv-75wg-m249；将 `@types/vscode` 精确锁定为最低宿主 API 的 1.100.0，实际 VSIX、59 项测试、1.100.3 宿主测试及官方 npm 安全审计通过。
 - 集成测试的 Server/EF/Accuracy 临时宿主禁用固定 appsettings 的文件热加载，避免完整 Linux CI 反复创建宿主时耗尽 128 个 inotify 实例；保留真实 Kestrel、REST/HTTP2 与产品默认配置行为。
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- 5.0.0 发布交接记录同一代码 `84433f9e` 的十二类 READY、正式 Docker Hub 来源与 digest，以及新正式 NuGet 运行首包 403 expired 的实际阻断；保留公开十包 0/10、Release 404、连接器上传与最终公开消费者未完成状态，并提供仅恢复失败作业的精确顺序。交接文档不移动正式标签或冻结发布源码。
+- WorkBuddy连接器与Skill升级0.2.0，按SonnetDB 5.0现场43工具/schema声明能力；默认Read，已有明确用户写授权和目标库Write grant时调用独立写工具，query_sql仍只读，未知写入不盲重试。同步表单、元信息、校验器及联调资料，保留历史r2九工具证据，不表示平台解析/HTTPS/宿主/送审完成。
+- 新增 M51 WorkBuddy 生态集成与全生命周期闭环路线：登记本次连接器/Skill、公开资料、Docker 分层验收和平台解析修复基线，以及 17 项后续工作；严格区分平台解析、宿主验收、送审、批准及发布。本条仅记录规划文档交付，不表示九模型 MCP、自动运维、专家或 Buddy 应用已完成。
 - 新增 M50 时序时间戳精度规划及详细设计：按库真正保存 ms/us/ns、默认 ms，拆分 30 项必选和 2 项条件任务，明确源码归属、兼容/迁移、协议/SDK、恢复/性能及阶段退出；本条仅记录文档交付，不表示高精度功能或格式已经实现。
 - 依赖升级收口（2026-11-01）：NuGet 的 .NET 10.0.14、Microsoft.Extensions 10.0.14、OnnxRuntime 1.31.1、SkiaSharp 4.154.0、OpenTelemetry 1.20.1、Qdrant 1.20.0、StackExchange.Redis 3.4.29、AWS S3 4.0.104.8、NATS 3.3.2、MongoDB.Driver 3.13.0 等兼容版本，以及 Web/VS Code 的锁文件更新已通过当前门禁；NUnit 5、Roslyn 5.9、Vite 8、TypeScript 7、Pinia 4、Vue Router 5、marked 18 和 VS Code 打包工具链主版本升级保留为独立迁移，详见 `docs/audits/dependency-upgrade-20261101.md`。
 - 下一发行按 5.0 主版本准备：保留 Protocol 程序集拆分及分页 `long` API，明确重新编译与数据库备份回退要求；4.x 仍以 4.0.0 校验，后续 5.x 自动以 5.0.0 为包兼容基线，不压制 API 诊断。

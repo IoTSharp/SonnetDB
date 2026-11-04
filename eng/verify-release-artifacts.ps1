@@ -53,7 +53,7 @@ function Assert-Archive {
 
 if ($Stage -eq 'nuget') {
     $packageIds = @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore',
-        'SonnetDB.Caching.EasyCaching', 'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'Testcontainers.SonnetDB')
+        'SonnetDB.Caching.EasyCaching', 'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Testcontainers')
     $packages = @(Get-ChildItem -LiteralPath $ArtifactRoot -Filter '*.nupkg' -File)
     if ($packages.Count -ne $packageIds.Count) { throw "Expected exactly $($packageIds.Count) NuGet packages; found $($packages.Count)." }
     foreach ($id in $packageIds) {
