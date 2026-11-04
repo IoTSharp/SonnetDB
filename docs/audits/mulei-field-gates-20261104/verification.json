@@ -1,0 +1,346 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-04T14:37:07.172677+08:00",
+  "acceptanceScope": "ARM64真实功能验收；按用户确认不以同功能x64重复验证阻塞",
+  "releaseDecision": "DEFERRED",
+  "wholeMilestonesComplete": false,
+  "sourceBaselines": {
+    "optimizationMain": "78c2c74699e7c8231e6228b878fbaa4bf345f27a",
+    "deployedServerBase": "0a5acf0d3fc42bf88617604bc47f4a0d4a911694 + field patch",
+    "deployedClientBase": "2fb18c78c9c8092d44ab4f31441654a22fb5231a + compatible patch",
+    "serverImage": "tolnsd.eth0.click:5000/sonnetdb:mulei-arm64-20261104-memory-notification-r1@sha256:6167357de671da4fe44a00b6f7ac1fd3e857a694da0b436d4706aff5ffc0afee",
+    "clientSha256": "b92bc02541405b58aff4d1859c25170e75f1bf7fd6ce5ed8009b7aaa4c14a86b"
+  },
+  "cases": [
+    {
+      "scope": "M42 / SQL-002 REST preview",
+      "source": "preview-paging.json",
+      "checks": [
+        {
+          "id": "rest_default_complete_six",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "rest_preview_three_explicitly_truncated",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "rest_exact_three_complete",
+          "status": "PASS",
+          "details": null
+        }
+      ],
+      "status": "PASS",
+      "remaining": "执行内存、首行、完整阻塞查询和中途取消压力仍另验。"
+    },
+    {
+      "scope": "M42 covered index read",
+      "source": "coverage-minimal.json",
+      "checks": [
+        {
+          "id": "covered_base_projection_parity",
+          "status": "PASS",
+          "details": {
+            "rows": 14
+          }
+        },
+        {
+          "id": "actual_explain_complete",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "covered_path_index_only",
+          "status": "PASS",
+          "details": "secondary_index_only"
+        },
+        {
+          "id": "base_path_materializes_rows",
+          "status": "PASS",
+          "details": "secondary_index"
+        }
+      ],
+      "status": "PASS",
+      "remaining": "只覆盖显式索引列；隐含主键、未覆盖列和复杂谓词仍按合同回表，完整性能分布未验。"
+    },
+    {
+      "scope": "M41 #381 DESC/OFFSET fixed identities",
+      "source": "frozen-paging-verified.json",
+      "checks": [
+        {
+          "id": "frozen_identity_and_values_unchanged",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "frozen_desc_offset_exact_suffix",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "frozen_same_timestamp_desc_primary_key",
+          "status": "PASS",
+          "details": {
+            "pairs": 7
+          }
+        }
+      ],
+      "status": "PASS",
+      "remaining": "固定12个身份的排序/分页，不是冻结整个业务库或五类原查询同语料门禁。"
+    },
+    {
+      "scope": "M36 #314/#315 timeseries REST real data",
+      "source": "timeseries.json",
+      "checks": [
+        {
+          "id": "timeseries_schema_complete",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "timeseries_real_rows_complete",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "timeseries_aggregate_complete",
+          "status": "PASS",
+          "details": null
+        }
+      ],
+      "status": "PASS",
+      "remaining": "只读一已结束分钟；写入、删除、吞吐、重开另验。"
+    },
+    {
+      "scope": "M36/M42 deployed ADO REST/Frame/object SDK",
+      "source": "sdk-run-verified.json",
+      "checks": [
+        {
+          "id": "Rest_complete_six",
+          "status": "PASS",
+          "detail": "rows=6"
+        },
+        {
+          "id": "Rest_pre_cancel",
+          "status": "PASS",
+          "detail": "caller cancellation"
+        },
+        {
+          "id": "Rest_usable_after_cancel",
+          "status": "PASS",
+          "detail": "same result"
+        },
+        {
+          "id": "Rest_timeseries_real_rows",
+          "status": "PASS",
+          "detail": "rows=22"
+        },
+        {
+          "id": "FrameHttp2_complete_six",
+          "status": "PASS",
+          "detail": "rows=6"
+        },
+        {
+          "id": "FrameHttp2_pre_cancel",
+          "status": "PASS",
+          "detail": "caller cancellation"
+        },
+        {
+          "id": "FrameHttp2_usable_after_cancel",
+          "status": "PASS",
+          "detail": "same result"
+        },
+        {
+          "id": "FrameHttp2_timeseries_real_rows",
+          "status": "PASS",
+          "detail": "rows=22"
+        },
+        {
+          "id": "rest_frame_exact_parity",
+          "status": "PASS",
+          "detail": "fixed six receipt identities"
+        },
+        {
+          "id": "rest_frame_timeseries_parity",
+          "status": "PASS",
+          "detail": "same closed minute"
+        },
+        {
+          "id": "sdk_object_complete_sha",
+          "status": "PASS",
+          "detail": "bytes=13250932;sha256=221d4fdcdceed578b9bcdc06d107b5cdf4addab06899394a02712c54d5c82d5e"
+        }
+      ],
+      "status": "PASS",
+      "remaining": "使用已部署兼容Data程序集；预取消不代替运行中查询取消，新M49独立Client、CLI、NativeAOT及包消费者另验。"
+    },
+    {
+      "scope": "M36 #311/#323 HTTP object GET/Range/conditions",
+      "source": "objects-verified.json",
+      "checks": [
+        {
+          "id": "object_head_real_metadata",
+          "status": "PASS",
+          "details": {
+            "bytes": 13250932,
+            "etag": "\"a8c83280d5e9b61ee77114639b8a43a6\""
+          }
+        },
+        {
+          "id": "object_full_sha_and_length",
+          "status": "PASS",
+          "details": null
+        },
+        {
+          "id": "object_range_first",
+          "status": "PASS",
+          "details": {
+            "status": 206,
+            "bytes": 64,
+            "contentRange": "bytes 0-63/13250932"
+          }
+        },
+        {
+          "id": "object_range_middle",
+          "status": "PASS",
+          "details": {
+            "status": 206,
+            "bytes": 128,
+            "contentRange": "bytes 1024-1151/13250932"
+          }
+        },
+        {
+          "id": "object_range_suffix",
+          "status": "PASS",
+          "details": {
+            "status": 206,
+            "bytes": 32,
+            "contentRange": "bytes 13250900-13250931/13250932"
+          }
+        },
+        {
+          "id": "object_range_unsatisfiable",
+          "status": "PASS",
+          "details": {
+            "status": 416
+          }
+        },
+        {
+          "id": "object_if_none_match",
+          "status": "PASS",
+          "details": {
+            "status": 304
+          }
+        },
+        {
+          "id": "object_if_match_rejected",
+          "status": "PASS",
+          "details": {
+            "status": 412
+          }
+        }
+      ],
+      "status": "PASS",
+      "remaining": "13.25MB真实对象，不代表大容量、multipart、断点恢复、高变更分页或流式内存上界。"
+    },
+    {
+      "scope": "M36 #323 object two-page cursor",
+      "source": "objects-verified.json",
+      "status": "FAIL_TIMEOUT",
+      "checks": [
+        {
+          "id": "object_list_first_page_within_8_seconds",
+          "status": "FAIL",
+          "details": {
+            "path": "/v1/db/TOLNSD/s3/vehicle-recognition?list-type=2&prefix=flows%2F2026%2F11%2F04%2F&max-keys=3",
+            "method": "GET"
+          }
+        }
+      ],
+      "remaining": "首个max-keys=3列表请求达到8秒预算；未取得有效第一页，不判断第二页正确性。"
+    }
+  ],
+  "assertions": {
+    "passed": 32,
+    "failed": 1
+  },
+  "artifacts": [
+    {
+      "file": "inventory-ascii.json",
+      "bytes": 9163,
+      "sha256": "30f689e24bbd16e6a30d810bf85f35043a4f47dbc860535ececbdc13699f7502",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\inventory-ascii.json"
+    },
+    {
+      "file": "coverage-minimal.json",
+      "bytes": 12749,
+      "sha256": "438934f20007380592d4a45595cc517980f0e2693a7a81590560fe3de384dbb7",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\coverage-minimal.json"
+    },
+    {
+      "file": "preview-paging.json",
+      "bytes": 7872,
+      "sha256": "aab75e09c906f6bdd0cee93d4c95daad6bef840a597e53aa95977a597b5cce0c",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\preview-paging.json"
+    },
+    {
+      "file": "frozen-paging-verified.json",
+      "bytes": 8383,
+      "sha256": "7460ac1904aac2c59cbfe4d0b5f0c269397a1316b6ceffb07776c635aff93e95",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\frozen-paging-verified.json"
+    },
+    {
+      "file": "objects-verified.json",
+      "bytes": 4146,
+      "sha256": "4762bbeeac583aeb54303649106c0d27d23fd4c86f2994765edfbf7e99e6d07b",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\objects-verified.json"
+    },
+    {
+      "file": "timeseries.json",
+      "bytes": 4461,
+      "sha256": "44a8158925eb0eedd1557d06a1527f5a997e73d350c3d5f10892a8ff1f86f551",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\timeseries.json"
+    },
+    {
+      "file": "sdk-run-verified.json",
+      "bytes": 2180,
+      "sha256": "9a1a7a4a140d3536a80995a5d0a5b36972bc8ee7d75c1bf2864a743af1c3082d",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\sdk-run-verified.json"
+    },
+    {
+      "file": "final-status.json",
+      "bytes": 4407,
+      "sha256": "56996fd3878b55067d70b31b4882bad77f122f90fb1f758bc99ac098f15bde8d",
+      "source": "D:\\Uixe\\TOLNSD\\.runs\\sonnetdb-field-gates-20261104\\final-status.json"
+    }
+  ],
+  "productionMutations": false,
+  "isolatedProbe": {
+    "architecture": "Arm64",
+    "exitCode": 0,
+    "oomKilled": false,
+    "cleanup": {
+      "taskContainersRemaining": [],
+      "credentialFileRemoved": true,
+      "uploadedProbeRemoved": true
+    }
+  },
+  "retainedFailures": [
+    "首次SHOW INDEXES FROM为探针语法错误，改用ON；原错误与编码错误记录保留，不计产品FAIL。",
+    "未冻结状态分区的OFFSET首轮对账不一致；固定身份前后核准后通过，不把首轮结果改写为PASS。",
+    "覆盖查询首次包含未覆盖的Id列，实际回表；最小显式覆盖列形状随后验证通过。",
+    "对象列表分页首请求两次达到8秒预算，FAIL_TIMEOUT保留。",
+    "SDK初始网络前置要求单网络，现场是两共享网络；未创建资源即退出，按实际业务网络修正后通过。"
+  ],
+  "notRunOrPartial": [
+    "全九模型权限/写删/重开/完整恢复",
+    "真正NativeAOT目标启动及原生依赖",
+    "完整五类冻结语料与旧查询指纹",
+    "中途取消/断连压力及资源释放",
+    "完整实例MQ snapshot/restore 与整站对象正文备份恢复",
+    "新候选168小时混合负载",
+    "指定平台容量及质量/相关性/模型成本门禁"
+  ]
+}

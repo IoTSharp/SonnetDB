@@ -284,7 +284,7 @@ internal sealed class RelationalTableWarmupService(
 }
 
 /// <summary>把关系表启动预热状态映射为标准 readiness 结果。</summary>
-internal sealed class RelationalTableWarmupHealthCheck(RelationalTableWarmupState state) : IHealthCheck
+internal sealed class RelationalTableWarmupHealthCheck(RelationalTableWarmupState state, TsdbRegistry? registry = null) : IHealthCheck
 {
     /// <summary>预热完成后放行；尚未开始、执行中或失败时阻断 readiness。</summary>
     public Task<HealthCheckResult> CheckHealthAsync(
@@ -292,6 +292,16 @@ internal sealed class RelationalTableWarmupHealthCheck(RelationalTableWarmupStat
         CancellationToken cancellationToken = default)
     {
         RelationalTableWarmupSnapshot snapshot = state.Read();
+        // 启动预热成功不代表运行期事务一直健康；只读取已打开实例的状态，不执行额外 SQL 或冷开。
+        if (snapshot.Phase == RelationalTableWarmupPhase.Completed && registry is not null)
+        {
+            foreach (string name in registry.ListDatabases())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (registry.TryGet(name, out var database) && database.Tables.RequiresTransactionRecovery)
+                    return Task.FromResult(HealthCheckResult.Unhealthy("关系表运行状态需要事务恢复。", data: BuildData(snapshot)));
+            }
+        }
         HealthCheckResult result = snapshot.Phase switch
         {
             RelationalTableWarmupPhase.Completed => HealthCheckResult.Healthy(

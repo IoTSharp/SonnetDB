@@ -123,9 +123,12 @@ internal static class ObjectStorageEndpointHandler
                 return;
             }
 
-            if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("lifecycle"))
+            if (HttpMethods.IsPost(ctx.Request.Method)
+                && (ctx.Request.Query.ContainsKey("lifecycle") || ctx.Request.Query.ContainsKey("object-lifecycle")))
             {
-                var applied = store.ApplyLifecycle(bucket);
+                var applied = ctx.Request.Query.ContainsKey("object-lifecycle")
+                    ? store.ApplyObjectLifecycle(bucket, ctx.Request.Query["key"].ToString(), ctx.RequestAborted)
+                    : store.ApplyLifecycle(bucket, ctx.RequestAborted);
                 int cleanupJobs = 0;
                 var processing = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>();
                 string database = GetDatabaseName(ctx);

@@ -33,6 +33,9 @@ public sealed partial class TableManager : IDisposable
     private bool _disposed;
     private Exception? _transactionFailure;
 
+    /// <summary>关系事务已进入需重开恢复的保护状态；读取该状态不访问磁盘或取得业务表锁。</summary>
+    public bool RequiresTransactionRecovery => Volatile.Read(ref _transactionFailure) is not null;
+
     // M39 #333 crash/commit evidence hook.  It is intentionally internal and
     // unset in production; tests use it to stop between independent keyspace
     // commits without changing the public transaction contract.

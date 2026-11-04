@@ -54,6 +54,7 @@ public sealed class SndbObjectClientContractTests
                 () => client.GetLifecycleAsync("media", token),
                 () => client.SetLifecycleAsync("media", null, null, null, token),
                 () => client.ApplyLifecycleAsync("media", token),
+                () => client.ApplyObjectLifecycleAsync("media", "a", token),
                 () => client.GetRetentionAsync("media", token),
                 () => client.SetRetentionAsync("media", null, null, token),
                 () => client.GetQuotaAsync("media", token),
@@ -80,6 +81,23 @@ public sealed class SndbObjectClientContractTests
             if (Directory.Exists(directory))
                 Directory.Delete(directory, recursive: true);
         }
+    }
+
+    /// <summary>旧服务器拒绝精确回收时保留错误，不以全桶扫描作为兼容回退。</summary>
+    [Fact]
+    public async Task ApplyObjectLifecycle_UnsupportedServer_DoesNotFallbackToWholeBucket()
+    {
+        var requests = new List<string>();
+        using var client = CreateClient(new Handler(request =>
+        {
+            requests.Add(request.RequestUri!.Query);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.MethodNotAllowed)
+            {
+                Content = new StringContent("{\"error\":\"method_not_allowed\",\"message\":\"unsupported\"}", Encoding.UTF8, "application/json"),
+            });
+        }));
+        await Assert.ThrowsAsync<SndbServerException>(() => client.ApplyObjectLifecycleAsync("media", "dir/a+b"));
+        Assert.Equal("?object-lifecycle&key=dir%2Fa%2Bb", Assert.Single(requests));
     }
 
     [Theory]

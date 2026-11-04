@@ -43,70 +43,92 @@ internal static class KvStateFile
         int entryPrefixBytes = GetEntryPrefixBytes(header.Version);
         byte[] prefixBuffer = new byte[entryPrefixBytes];
         byte[] crcBuffer = new byte[4];
-        var entries = new List<KvDiskIndexEntry>(header.Count);
-        byte[] previousKey = [];
-
-        for (int i = 0; i < header.Count; i++)
+        bool paged = header.Count > KvPagedDiskIndex.EagerIndexThreshold;
+        var entries = paged ? null : new List<KvDiskIndexEntry>(header.Count);
+        var fences = paged ? new KvDiskIndexFence[(header.Count - 1) / KvPagedDiskIndex.PageSize + 1] : [];
+        byte[] keyBuffer = ArrayPool<byte>.Shared.Rent(256);
+        int previousKeyLength = 0;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
         {
-            Span<byte> prefix = prefixBuffer;
-            long prefixOffset = fs.Position;
-            if (ReadExact(fs, prefix) < entryPrefixBytes)
-                throw new InvalidDataException("KV state entry prefix is truncated.");
+            for (int i = 0; i < header.Count; i++)
+            {
+                // 打开时仅保存稀疏边界并复用键缓冲；大表不再为每个键创建常驻对象。
+                if ((i & 1023) == 0 && System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(15))
+                    throw new TimeoutException("KV state index opening exceeded its time budget.");
+                Span<byte> prefix = prefixBuffer;
+                long prefixOffset = fs.Position;
+                if (ReadExact(fs, prefix) < entryPrefixBytes)
+                    throw new InvalidDataException("KV state entry prefix is truncated.");
 
-            int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix[..4]);
-            int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(4, 4));
-            long entryVersion = BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(8, 8));
-            long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
-                ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
-                : 0;
-            int sharedKeyBytes = header.Version >= 5
-                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(24, 4))
-                : 0;
-            int storedKeyBytes = header.Version >= 5
-                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(28, 4))
-                : keyLength;
-            ValidateEntryHeader(
-                keyLength,
-                valueLength,
-                expiresAtUtcTicks,
-                sharedKeyBytes,
-                storedKeyBytes,
-                previousKey.Length,
-                header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
+                int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix[..4]);
+                int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(4, 4));
+                long entryVersion = BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(8, 8));
+                long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
+                    ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
+                    : 0;
+                int sharedKeyBytes = header.Version >= 5
+                    ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(24, 4))
+                    : 0;
+                int storedKeyBytes = header.Version >= 5
+                    ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(28, 4))
+                    : keyLength;
+                ValidateEntryHeader(
+                    keyLength,
+                    valueLength,
+                    expiresAtUtcTicks,
+                    sharedKeyBytes,
+                    storedKeyBytes,
+                    previousKeyLength,
+                    header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
 
-            long payloadOffset = fs.Position;
-            byte[] key = new byte[keyLength];
-            previousKey.AsSpan(0, sharedKeyBytes).CopyTo(key);
-            if (ReadExact(fs, key.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
-                throw new InvalidDataException("KV state entry key is truncated.");
+                long payloadOffset = fs.Position;
+                if (keyLength > keyBuffer.Length)
+                {
+                    byte[] replacement = ArrayPool<byte>.Shared.Rent(keyLength);
+                    keyBuffer.AsSpan(0, sharedKeyBytes).CopyTo(replacement);
+                    ArrayPool<byte>.Shared.Return(keyBuffer);
+                    keyBuffer = replacement;
+                }
+                if (ReadExact(fs, keyBuffer.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
+                    throw new InvalidDataException("KV state entry key is truncated.");
 
-            fs.Position += valueLength;
-            if (fs.Position > fs.Length)
-                throw new InvalidDataException("KV state entry value is truncated.");
+                fs.Position += valueLength;
+                if (fs.Position > fs.Length)
+                    throw new InvalidDataException("KV state entry value is truncated.");
 
-            if (ReadExact(fs, crcBuffer) < crcBuffer.Length)
-                throw new InvalidDataException("KV state entry CRC is truncated.");
+                if (ReadExact(fs, crcBuffer) < crcBuffer.Length)
+                    throw new InvalidDataException("KV state entry CRC is truncated.");
 
-            uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcBuffer);
-            DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
-                ? new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero)
-                : null;
-            entries.Add(new KvDiskIndexEntry(
-                key,
-                valueLength,
-                entryVersion,
-                expiresAtUtc,
-                prefixOffset,
-                payloadOffset,
-                expectedCrc,
-                storedKeyBytes));
-            previousKey = key;
+                uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcBuffer);
+                DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
+                    ? new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero)
+                    : null;
+                if (paged)
+                {
+                    if (i % KvPagedDiskIndex.PageSize == 0)
+                        fences[i / KvPagedDiskIndex.PageSize] = new KvDiskIndexFence(keyBuffer.AsSpan(0, keyLength).ToArray(), prefixOffset);
+                }
+                else entries!.Add(new KvDiskIndexEntry(
+                    keyBuffer.AsSpan(0, keyLength).ToArray(),
+                    valueLength,
+                    entryVersion,
+                    expiresAtUtc,
+                    prefixOffset,
+                    payloadOffset,
+                    expectedCrc,
+                    storedKeyBytes));
+                previousKeyLength = keyLength;
+            }
+
+            if (fs.Position != fs.Length)
+                throw new InvalidDataException("KV state file contains trailing data.");
+
+            return paged
+                ? new KvDiskState(path, header.Sequence, header.Generation, header.Version, header.Count, fences, readBudget)
+                : new KvDiskState(path, header.Sequence, header.Generation, entries!, readBudget);
         }
-
-        if (fs.Position != fs.Length)
-            throw new InvalidDataException("KV state file contains trailing data.");
-
-        return new KvDiskState(path, header.Sequence, header.Generation, entries, readBudget);
+        finally { ArrayPool<byte>.Shared.Return(keyBuffer); }
     }
 
     private static void Save(
@@ -209,7 +231,7 @@ internal static class KvStateFile
         return new KvStateHeader(version, sequence, count, generation);
     }
 
-    private static int GetEntryPrefixBytes(int version)
+    internal static int GetEntryPrefixBytes(int version)
         => version switch
         {
             1 => EntryPrefixBytesV1,
@@ -218,7 +240,7 @@ internal static class KvStateFile
             _ => throw new InvalidDataException("KV state entry version is unsupported."),
         };
 
-    private static void ValidateEntryHeader(
+    internal static void ValidateEntryHeader(
         int keyLength,
         int valueLength,
         long expiresAtUtcTicks,
@@ -301,7 +323,7 @@ internal sealed class KvStateSnapshot
 internal sealed class KvDiskState : IDisposable
 {
     private readonly object _sync = new();
-    private readonly KvDiskIndexEntry[] _entries;
+    private readonly IReadOnlyList<KvDiskIndexEntry> _entries;
     private readonly FileStream _stream;
     private readonly SafeFileHandle _readHandle;
     private readonly KvDiskReadBudget _readBudget;
@@ -325,13 +347,29 @@ internal sealed class KvDiskState : IDisposable
         long generation,
         IReadOnlyList<KvDiskIndexEntry> entries,
         KvDiskReadBudget? readBudget = null)
+        : this(path, sequence, generation, readBudget)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        _entries = entries.ToArray();
+    }
+
+    /// <summary>大状态文件只常驻稀疏目录；页面按查询需要从原始不可变文件读取。</summary>
+    internal KvDiskState(string path, long sequence, long generation, int version, int count,
+        KvDiskIndexFence[] fences, KvDiskReadBudget? readBudget = null)
+        : this(path, sequence, generation, readBudget)
+    {
+        _entries = new KvPagedDiskIndex(count, fences,
+            (offset, first, take, token) => ReadIndexPage(version, offset, first, take, token));
+    }
+
+    /// <summary>为值读取和索引页读取共享同一文件句柄、读预算和生命周期。</summary>
+    private KvDiskState(string path, long sequence, long generation, KvDiskReadBudget? readBudget)
     {
         ArgumentNullException.ThrowIfNull(path);
-        ArgumentNullException.ThrowIfNull(entries);
         Path = path;
         Sequence = sequence;
         Generation = generation;
-        _entries = entries.ToArray();
+        _entries = [];
         _ownsReadBudget = readBudget is null;
         _readBudget = readBudget ?? new KvDiskReadBudget(KvDiskReadBudget.DefaultMaxConcurrentReads);
         _readBudget.AddStateReference();
@@ -360,7 +398,7 @@ internal sealed class KvDiskState : IDisposable
 
     public long Generation { get; }
 
-    public int Count => _entries.Length;
+    public int Count => _entries.Count;
 
     /// <summary>取得共享当前不可变磁盘状态的读租约。</summary>
     public KvDiskStateLease AcquireLease()
@@ -373,18 +411,29 @@ internal sealed class KvDiskState : IDisposable
         }
     }
 
-    public bool Contains(ReadOnlySpan<byte> key) => FindIndex(key) >= 0;
+    public bool Contains(ReadOnlySpan<byte> key)
+    {
+        AddReadReference();
+        try { return FindIndex(key) >= 0; }
+        finally { ReleaseLease(); }
+    }
 
     public KvValueEntry? Get(ReadOnlySpan<byte> key)
         => Get(key, CancellationToken.None);
 
     public KvValueEntry? Get(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
-        int index = FindIndex(key);
-        if (index < 0)
-            return null;
+        AddReadReference();
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int index = FindIndex(key, cancellationToken);
+            if (index < 0)
+                return null;
 
-        return Read(_entries[index], cancellationToken);
+            return Read(_entries[index], cancellationToken);
+        }
+        finally { ReleaseLease(); }
     }
 
     /// <summary>
@@ -424,13 +473,13 @@ internal sealed class KvDiskState : IDisposable
 
         int startIndex = LowerBound(lowerBound);
         if (lowerBoundExclusive
-            && startIndex < _entries.Length
+            && startIndex < _entries.Count
             && Compare(_entries[startIndex].Key, lowerBound) == 0)
         {
             startIndex++;
         }
 
-        for (int i = startIndex; i < _entries.Length; i++)
+        for (int i = startIndex; i < _entries.Count; i++)
         {
             var entry = _entries[i];
             ScanIndexVisitedTestHook?.Invoke(i);
@@ -468,7 +517,7 @@ internal sealed class KvDiskState : IDisposable
         }
 
         int startIndex = upperExclusive is null
-            ? _entries.Length - 1
+            ? _entries.Count - 1
             : LowerBound(upperExclusive) - 1;
         for (int i = startIndex; i >= 0; i--)
         {
@@ -497,6 +546,57 @@ internal sealed class KvDiskState : IDisposable
             return upper[..(i + 1)];
         }
         return null;
+    }
+
+    /// <summary>按需要解码一页索引；值正文仍留在文件中，且与普通读取共享取消和物理 I/O 调度。</summary>
+    private KvDiskIndexEntry[] ReadIndexPage(int version, long offset, int firstIndex, int count,
+        CancellationToken cancellationToken)
+    {
+        AddReadReference();
+        try
+        {
+            using KvDiskReadBudget.ReadLease lease = _readBudget.Acquire(cancellationToken, maintenanceRead: false);
+            int prefixBytes = KvStateFile.GetEntryPrefixBytes(version);
+            byte[] prefix = new byte[prefixBytes];
+            byte[] crc = new byte[4];
+            byte[] previous = [];
+            var entries = new KvDiskIndexEntry[count];
+            using var reader = new KvIndexPageReader(_readHandle, cancellationToken);
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            for (int i = 0; i < count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromSeconds(30))
+                    throw new TimeoutException("KV index page read exceeded its time budget.");
+                long prefixOffset = offset;
+                if (reader.Read(prefix, offset) != prefixBytes)
+                    throw new InvalidDataException("KV state entry prefix is truncated.");
+                int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix);
+                int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.AsSpan(4));
+                long entryVersion = BinaryPrimitives.ReadInt64LittleEndian(prefix.AsSpan(8));
+                long expiry = prefixBytes >= 24 ? BinaryPrimitives.ReadInt64LittleEndian(prefix.AsSpan(16)) : 0;
+                int shared = version >= 5 ? BinaryPrimitives.ReadInt32LittleEndian(prefix.AsSpan(24)) : 0;
+                int stored = version >= 5 ? BinaryPrimitives.ReadInt32LittleEndian(prefix.AsSpan(28)) : keyLength;
+                KvStateFile.ValidateEntryHeader(keyLength, valueLength, expiry, shared, stored, previous.Length,
+                    version >= 5 && (firstIndex + i) % 16 == 0);
+                long payloadOffset = checked(offset + prefixBytes);
+                byte[] key = new byte[keyLength];
+                previous.AsSpan(0, shared).CopyTo(key);
+                if (reader.Read(key.AsSpan(shared, stored), payloadOffset) != stored)
+                    throw new InvalidDataException("KV state entry key is truncated.");
+                long crcOffset = checked(payloadOffset + stored + valueLength);
+                if (reader.Read(crc, crcOffset) != 4)
+                    throw new InvalidDataException("KV state entry CRC is truncated.");
+                entries[i] = new KvDiskIndexEntry(key, valueLength, entryVersion,
+                    expiry > 0 ? new DateTimeOffset(expiry, TimeSpan.Zero) : null,
+                    prefixOffset, payloadOffset, BinaryPrimitives.ReadUInt32LittleEndian(crc), stored);
+                previous = key;
+                offset = checked(crcOffset + 4);
+            }
+            lease.RecordRead(reader.BytesRead);
+            return entries;
+        }
+        finally { ReleaseLease(); }
     }
 
     public KvValueEntry Read(KvDiskIndexEntry entry)
@@ -567,39 +667,43 @@ internal sealed class KvDiskState : IDisposable
         return total;
     }
 
+    /// <summary>通过独立文件偏移校验全部正文，不在状态锁内等待索引页或物理读取许可。</summary>
     public void ValidateAllEntries()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        AddReadReference();
         byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
         try
         {
             var crc = new Crc32();
-            lock (_sync)
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            foreach (KvDiskIndexEntry entry in _entries)
             {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                foreach (KvDiskIndexEntry entry in _entries)
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(15))
+                    throw new TimeoutException("KV state validation exceeded its time budget.");
+                crc.Reset();
+                crc.Append(entry.Key);
+                long offset = entry.ValueOffset;
+                int remaining = entry.ValueLength;
+                // 新状态文件校验沿用独立顺序读取，避免重复占用生成 checkpoint 的维护许可。
                 {
-                    crc.Reset();
-                    crc.Append(entry.Key);
-                    _stream.Position = entry.ValueOffset;
-                    int remaining = entry.ValueLength;
-                    while (remaining > 0)
+                    for (int block = 0; remaining > 0 && block <= entry.ValueLength / buffer.Length; block++)
                     {
-                        int read = _stream.Read(buffer, 0, Math.Min(buffer.Length, remaining));
-                        if (read == 0)
-                            throw new InvalidDataException("KV state entry value is truncated.");
+                        int take = Math.Min(buffer.Length, remaining);
+                        int read = ReadExactAt(buffer.AsSpan(0, take), offset);
+                        if (read != take) throw new InvalidDataException("KV state entry value is truncated.");
                         crc.Append(buffer.AsSpan(0, read));
+                        offset += read;
                         remaining -= read;
                     }
-
-                    if (crc.GetCurrentHashAsUInt32() != entry.PayloadCrc)
-                        throw new InvalidDataException("KV state entry CRC mismatch.");
                 }
+                if (remaining != 0 || crc.GetCurrentHashAsUInt32() != entry.PayloadCrc)
+                    throw new InvalidDataException("KV state entry CRC mismatch.");
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
+            ReleaseLease();
         }
     }
 
@@ -643,10 +747,15 @@ internal sealed class KvDiskState : IDisposable
         }
     }
 
-    private int FindIndex(ReadOnlySpan<byte> key)
+    private int FindIndex(ReadOnlySpan<byte> key, CancellationToken cancellationToken = default)
     {
+        if (_entries is KvPagedDiskIndex paged)
+        {
+            int index = paged.LowerBound(key, cancellationToken);
+            return index < Count && Compare(_entries[index].Key, key) == 0 ? index : -1;
+        }
         int lo = 0;
-        int hi = _entries.Length - 1;
+        int hi = _entries.Count - 1;
         while (lo <= hi)
         {
             int mid = lo + ((hi - lo) / 2);
@@ -667,8 +776,9 @@ internal sealed class KvDiskState : IDisposable
     /// </summary>
     private int LowerBound(ReadOnlySpan<byte> key)
     {
+        if (_entries is KvPagedDiskIndex paged) return paged.LowerBound(key);
         int lo = 0;
-        int hi = _entries.Length;
+        int hi = _entries.Count;
         while (lo < hi)
         {
             int mid = lo + ((hi - lo) / 2);

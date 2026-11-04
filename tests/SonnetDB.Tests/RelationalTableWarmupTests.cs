@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -109,6 +110,38 @@ public sealed class RelationalTableWarmupTests
 
         Assert.Equal(HealthStatus.Unhealthy, result.Status);
         Assert.Equal("关系表启动预热失败：索引恢复失败", result.Description);
+    }
+
+    /// <summary>已预热数据库进入真实事务恢复状态后，readiness 必须变红，不能只返回历史完成状态。</summary>
+    [Fact]
+    public async Task HealthCheck_AfterTransactionFailure_ReturnsUnhealthy()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "sndb-runtime-health-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var registry = new TsdbRegistry(root);
+            Assert.True(registry.TryCreate("production", out var db));
+            db.Tables.Create(CreateSchema("weights"));
+            db.Tables.Create(CreateSchema("captures"));
+            var state = new RelationalTableWarmupState();
+            state.MarkCompleted(1, 2);
+            var healthCheck = new RelationalTableWarmupHealthCheck(state, registry);
+            Assert.Equal(HealthStatus.Healthy, (await healthCheck.CheckHealthAsync(new HealthCheckContext())).Status);
+            // 通过既有故障注入点模拟提交决定落盘后的确认失败，实际进入 TableManager 的恢复保护状态。
+            PropertyInfo hook = typeof(TableManager).GetProperty("ApplyTransactionAfterCompleteTestHook", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            hook.SetValue(db.Tables, (Action)(() => throw new IOException("completion acknowledgement failure")));
+            Assert.ThrowsAny<IOException>(() => db.Tables.ApplyTransaction(new Dictionary<string, IReadOnlyList<TableRowMutation>>
+            {
+                ["weights"] = [new TableRowMutation(null, [1L, "weight"])],
+                ["captures"] = [new TableRowMutation(null, [1L, "capture"])],
+            }));
+            hook.SetValue(db.Tables, null);
+            Assert.True(db.Tables.RequiresTransactionRecovery);
+            HealthCheckResult result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+            Assert.Equal(HealthStatus.Unhealthy, result.Status);
+            Assert.Contains("事务恢复", result.Description);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
     }
 
     /// <summary>创建用于启动预热验证的最小关系表 schema。</summary>

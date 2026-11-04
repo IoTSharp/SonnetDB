@@ -63,6 +63,34 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         }
     }
 
+    /// <summary>精确回收端点只删除指定对象历史，缺少对象键时明确拒绝。</summary>
+    [Fact]
+    public async Task ObjectLifecycleEndpoint_OnlyReclaimsRequestedKey()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var client = CreateClient();
+        const string bucket = "scoped-lifecycle";
+        var create = await client.PutAsJsonAsync($"/v1/db/objects/s3/{bucket}", new ObjectBucketCreateRequest("test"),
+            ServerJsonContext.Default.ObjectBucketCreateRequest, deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        foreach (string key in new[] { "target", "target-other" })
+        {
+            using var put = await client.PutAsync($"/v1/db/objects/s3/{bucket}/{key}", new ByteArrayContent([1]), deadline.Token);
+            Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+            using var delete = await client.DeleteAsync($"/v1/db/objects/s3/{bucket}/{key}", deadline.Token);
+            Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        }
+        using var policy = await client.PutAsJsonAsync($"/v1/db/objects/s3/{bucket}?lifecycle", new ObjectLifecycleRequest(null, 0, 0),
+            ServerJsonContext.Default.ObjectLifecycleRequest, deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, policy.StatusCode);
+        using var apply = await client.PostAsync($"/v1/db/objects/s3/{bucket}?object-lifecycle&key=target", null, deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, apply.StatusCode);
+        using var result = JsonDocument.Parse(await client.GetStringAsync($"/v1/db/objects/s3/{bucket}?versions&key=target-other", deadline.Token));
+        Assert.Equal(2, result.RootElement.GetProperty("versions").GetArrayLength());
+        using var missing = await client.PostAsync($"/v1/db/objects/s3/{bucket}?object-lifecycle", null, deadline.Token);
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+    }
+
     [Fact]
     public async Task ObjectStorage_PutRangeCopyTagsDeleteMarkerAndPresign_Works()
     {

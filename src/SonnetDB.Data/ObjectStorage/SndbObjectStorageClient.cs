@@ -813,7 +813,7 @@ public sealed partial class SndbObjectStorageClient : IDisposable
         ThrowIfDisposed();
         using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
-            return new SndbObjectStore(_embedded).ApplyLifecycle(bucket);
+            return new SndbObjectStore(_embedded).ApplyLifecycle(bucket, cancellationToken);
 
         using var request = CreateRequest(HttpMethod.Post, BucketUrl(bucket) + "?lifecycle");
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
