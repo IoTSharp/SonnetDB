@@ -35,17 +35,22 @@ public sealed class SonnetDbSqlGenerationHelper : RelationalSqlGenerationHelper
 
     /// <inheritdoc />
     public override string GenerateParameterName(string name)
-        => "@" + name;
+        => name.StartsWith('@') ? name : "@" + name;
 
     /// <inheritdoc />
     public override void GenerateParameterName(StringBuilder builder, string name)
-        => builder.Append('@').Append(name);
+    {
+        // 外部 DbParameter 可能已包含前缀，EF 再调用生成器时不得生成无法绑定的 @@name。
+        if (!name.StartsWith('@'))
+            builder.Append('@');
+        builder.Append(name);
+    }
 
     /// <inheritdoc />
     public override string GenerateParameterNamePlaceholder(string name)
-        => "@" + name;
+        => GenerateParameterName(name);
 
     /// <inheritdoc />
     public override void GenerateParameterNamePlaceholder(StringBuilder builder, string name)
-        => builder.Append('@').Append(name);
+        => GenerateParameterName(builder, name);
 }

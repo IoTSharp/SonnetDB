@@ -14,6 +14,7 @@
 - GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 
 ### Fixed
+- EF原始SQL接受显式DbParameter时，已有`@`前缀不再被重复添加；空名、普通名和已有前缀名均通过真实日期插入/比较回归，保留显式DbType和参数化语义。
 - 木垒真机修复：大KV索引按16键页稀疏定位与缓冲读取，生命周期采用稳定快照逐对象回收并提供精确对象入口；readiness检查运行中事务恢复保护状态。ARM64真实读取与6组功能子项完成，现存大桶列表分页超时和完整长稳仍保留待办，详见`docs/audits/mulei-field-gates-20261104/README.md`。
 - Parity 镜像预构建显式将 Bake 的文件读取授权限制为已解析的当前仓库目录，修复 hosted runner 从子目录读取跨目录 build context 被拒绝；合同检查拒绝额外或宽泛 fs.read 授权，仍保留全部参考栈与原门禁。
 - GH-Issue #230：EF 默认 `DateTime` 改为原生 `DATETIME2` / `DbType.DateTime2` 并使用保留 UTC ticks 的字面量；显式旧 `DATETIME` 仍拒绝亚毫秒输入。原生非主键 schema 演进仅在主键完整定义及逐行编码均未改变时免除无用的子表重写，恢复带自引用外键的标准日期迁移；保留原外键校验、journal、格式 floor 及真实主键变更边界。新增日期及迁移回归，并完成 EF309项、相关Core403项和ABP22项候选复验。
