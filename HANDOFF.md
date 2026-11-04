@@ -1,3 +1,14 @@
+## 2026-11-04（Asia/Shanghai）NuGet 组织凭据与重跑取值诊断
+
+- 用户确认组织 Key 未过期并要求先检查重跑取值。已确认仓库级 NUGET_API_KEY 覆盖值删除；仓库侧 organization-secrets API 可读，组织值 updated_at=2026-11-02T03:22:41Z。未读取或输出密钥明文，未扩大 admin:org 权限。
+- 正式 Publish 41721062306 attempt2 在北京时间14:30再次实际首包403 expired，成功打包与两平台合同保留；Release skipped。官方只说明 org/repo Secrets queued读取，rerun文档不保证Secrets快照或刷新；不能直接把该失败归因于当前组织Key过期。
+- 增加独立手动 Check current NuGet credential：新 workflow_dispatch 对已存在 SonnetDB4.0.0 执行一次官方 GET verifykey，30秒/响应字节及次数双界，不跟随重定向；仅输出运行身份、是否有值、HTTP与固定分类。普通发布Key不上传/改包，官方会有审计/telemetry；临时verification key不可作为发布密钥。新Actions实际探针尚待入main后执行。
+- 代码与正式标签继续冻结84433f9edcceb84605520ebecc4b2879e3c4aa79 / c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9，不合入或dispatch有已知缺口的8bf0e812恢复候选。十包与公开Release未交付，正式公开消费者仍NOT_RUN；DockerHub新digest匿名PASS，GHCR匿名401分别记录。
+- 本轮上游只读更新：XCode#103已被维护者关闭且未合并，需要按virtual扩展/独立架构PR重新处理，不是仅等待公开包；XCode公开包仍依赖4.0。Chloe#435/SqlSugar#1457/ABP#2仍Draft，FreeSql#2291仍OPEN。ABP最新CI失败在未公开EF5.0的restore，不能当作业务失败。各消费者入口离线检查通过，尚未以公开5.0执行。
+- 验证与证据：parser/-Plan、无密钥与格式错误负边界保留在 artifacts/nuget-secret-diagnostic-20261104/；最终完整restore及规定Format回执也写入该目录，只有取得双PASS才提交。详细依据见 docs/audits/nuget-secret-diagnosis-20261104.md。
+- 后续顺序：新排队探针实际结果 → 确认当前有效凭据/具体拒绝 → 按固定原始tag与已验工件恢复发布 → 十包/52资产/公开Server及真实消费者 → 更新#230；上游未合入/未发布边界分别保留。任何未知外部写入先回读，不盲重试。
+- 原HANDOFF完整字节按后缀保留，不修复或清洗已有损坏UTF8；修改前SHA256为3ae46be5c00cb7655462c75af18319187711889ed84a0f4cb6de3f25a2bce9b4。
+
 ## 2026-11-04（Asia/Shanghai）5.0 正式发布：BLOCKED_CREDENTIAL
 
 - 本节是发布后续的纯文档交接。发布代码与冻结分支 `codex/release-5-0-final-20261104` 保持 `84433f9edcceb84605520ebecc4b2879e3c4aa79`；`v5.0.0` annotated object 为 `c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9`，远端 peel 已独立回读到该代码。文档提交可推进 main，不能把文档提交重新固定为 5.0 发包源码。
