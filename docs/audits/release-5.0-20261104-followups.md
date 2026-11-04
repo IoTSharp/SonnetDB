@@ -1,6 +1,6 @@
 # 5.0 核查后的 SonnetDB 后续任务
 
-日期：2026-11-04（Asia/Shanghai）。按用户“未完成且需SonnetDB完成的内容直接创建Issue，后续继续”的要求执行。创建前读取现有开放Issue及相关已关闭工作范围；创建后逐项独立回读确认首批10项均为OPEN、正文有唯一标记及验收清单。跨机器恢复候选及WorkBuddy渠道审查后追加#402、#403并独立回读，合计12项。
+日期：2026-11-04（Asia/Shanghai）。按用户“未完成且需SonnetDB完成的内容直接创建Issue，后续继续”的要求执行。创建前读取现有开放Issue及相关已关闭工作范围；创建后逐项独立回读确认首批10项均为OPEN、正文有唯一标记及验收清单。跨机器恢复候选及WorkBuddy渠道审查后追加#402、#403；正式公开消费者复验后新增XCode架构审查后续#404，合计13项。
 
 | Issue | 后续范围 | 已完成范围及边界 |
 | --- | --- | --- |
@@ -16,7 +16,8 @@
 | [#401](https://github.com/IoTSharp/SonnetDB/issues/401) | M50按库ms/us/ns及无损全链路迁移 | 当前measurement time仍ms；关系DATETIME2/DTO的100ns不等于时序ns。 |
 | [#402](https://github.com/IoTSharp/SonnetDB/issues/402) | 固定tag发布恢复、外部结果对账及已验证资产白名单 | 8bf0e812备用分支保留；13策略单测不等于实际恢复及未知/部分发布对账已验。 |
 | [#403](https://github.com/IoTSharp/SonnetDB/issues/403) | M51 WorkBuddy正式HTTPS、宿主、平台送审与生命周期闭环 | 43工具/授权/预算/AOT已完成；本地HTTP、静态包和旧镜像不是渠道批准或正式宿主验收。 |
+| [#404](https://github.com/IoTSharp/SonnetDB/issues/404) | XCode Provider按上游virtual扩展点重构，必要通用架构PR独立评审 | 上游#103已关闭且未合并；公开SonnetDB5.0加固定fork的50项PASS，不代表上游架构接纳或公开5.0 Provider。已有引擎功能不重做。 |
 
-已有 [#230](https://github.com/IoTSharp/SonnetDB/issues/230) 继续跟踪正式发行与公开消费者交付；压缩优化继续使用已有 [#367](https://github.com/IoTSharp/SonnetDB/issues/367)。上游FreeSql/XCode/Chloe/SqlSugar的合并和包发布关联现有PR，不重复创建为SonnetDB引擎缺陷。
+已有 [#230](https://github.com/IoTSharp/SonnetDB/issues/230) 继续跟踪正式发行与公开消费者交付；压缩优化继续使用已有 [#367](https://github.com/IoTSharp/SonnetDB/issues/367)。上游FreeSql/Chloe/SqlSugar的合并和包发布关联现有PR，不重复创建为SonnetDB引擎缺陷。XCode#103的明确架构拒绝已超出“等发包”的状态，#404专门跟踪Provider重构，不混同于引擎欠缺。
 
 各Issue包含当前依据、剩余工作和完成条件，不承诺未经验证的性能/平台或把已完成代码重做。本清单不替代当前5.0必需的精确SHA门禁、公开包与Docker回读。创建/回读收据位于ignored `artifacts/followups-20261104/issue-creation-receipt.json` 与 `issue-readback.json`，没有凭据或外部私有数据。

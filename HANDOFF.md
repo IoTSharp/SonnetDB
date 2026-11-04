@@ -1,3 +1,17 @@
+## 2026-11-04（Asia/Shanghai）5.0 已公开交付：PUBLISHED_PUBLIC_VERIFIED
+
+- 这次已接续并完成原发布聊天。正式代码仍为84433f9edcceb84605520ebecc4b2879e3c4aa79，v5.0.0 annotated object仍为c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9；十二类同源门禁READY。诊断代码8477fcc3已入main，本节与最终审计只形成后续文档提交，不能把文档HEAD当作正式发包来源；实际提交/推送回读保存在本机收尾回执。
+- 原Publish41721062306的attempt3和Connectors41721062359的attempt2均success，成功构建沿用未重编。公开NuGet十包10/10，source/DLL有效载荷及dotnet nuget verify --all加密签名全PASS；GitHub Release433640152非draft/非prerelease，52/52唯一资产实际匿名下载共1,675,087,792字节，API digest全匹配、19个checksum通过，14连接器库存通过。正文只比冻结稿多一个开头LF，未改内容。
+- DockerHub匿名digest/source为iotsharp/sonnetdb@sha256:f35b6493c9cbc41032ba7f825b02780a24be8c6c7072ee0442544cf3a4fbd325 / source844；平台linux/amd64。公开Windows Server ProductVersion=5.0.0+完整844，SHA256=4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e。GHCR匿名401独立保留，不算公开PASS。
+- 凭据原因已现场确认：NuGet公告超过30天的旧Key于2026-11-01失效、新Key最长30天，原sonnetdb明确Expired。旧rerun及新排队41789891046均403 expired；用户授权后已单次新建SonnetDB-5-release-20261104，MysticBoy/SonnetDB*/允许新包和版本/无unlist，到期北京时间2026-12-04 15:34。已安全保存当前用户Windows凭据并写本仓库NUGET_API_KEY（updated_at2026-11-04T07:43:06Z），值不在聊天/日志/明文文件；安全目标仅在ignored转交回执中。新GET验钥41794394242返回400 Bad Request，保留INCONCLUSIVE，不用它误判实际发布权限；十次Created与公共读回是成功实证。浏览器Value清空、named session及有界接收器均已关闭。
+- 真实公开SonnetDB消费者全PASS：FreeSql237/237、三协议各25业务+8重开（REST SQL68、Frame32、HTTP2事务21）；XCode50/50；Chloe embedded/REST/frame各101/101及独立重开；SqlSugar三协议各93/93且无协议回退；ABP原22/22。均核对public包/source844/实际DLL，适用远程用公开匹配Server。ABP固定head979c3e4e406d1ff564756c2b189386886ba41780，本机restore/Format/build/test与远程CI41688290416 attempt2均success。
+- Testcontainers用公开四包及上述不可变镜像完成UTC100ns、typed NULL、同容器Stop/Start、重开读回和Dispose，session容器/volume/network为空。保留原拉取120秒超时和夹具内联PK的400 sql_error；仅将ignored夹具改表级PRIMARY KEY，显式NULL与全部ReadBack断言不变，不改产品/包/tag。ABP首次600秒restore未完成也保留，在同一独占首次空public-only缓存有界续跑后22项全过。
+- 上游分发继续为PARTIAL，#230保持OPEN：公开FreeSql Core/Provider与全公开组合还需上游交付，不能用固定fork加公开SonnetDB的PASS关闭。XCode#103已被维护者关闭且架构拒绝，已去重创建#404按virtual扩展点重构，不能称等发包即可Ready；Chloe/SqlSugar等上游PR与公开包各验。SqlSugar原上游Oracle依赖图有Pkcs8.0.1/NU1903，9条warning保留，未压制或改依赖；不归入已检查的SonnetDB/Core/Protocol依赖。
+- 最终报告docs/audits/release-5.0-20261104-final-publication.md与机器清单release-5.0-20261104-public-acceptance.json，诊断nuget-secret-diagnosis-20261104.md，后续清单#392—#404。公开资产/signature原证据在artifacts/release-5.0-20261104-final-execution；本次门禁/推送/密钥安全元数据在artifacts/nuget-secret-diagnostic-20261104；消费者原始路径由checked-evidence-paths.json和dotnet-public/public-consumers-final-summary.json指向，不提交构建产物。
+- 各worker已清理only-owned Server、PostgreSQL及卷、测试容器、进程子树和有标记的scratch，native回执cleanup_complete=true/后代0；公开缓存/下载/日志/TRX留作证据，全机进程可见性partial仍保留。原D:/source/SonnetDB的外来dirty未带入或改动。提交前仍在最终待提交树执行完整restore及规定Format，结果在本次证据目录；不得用历史PASS代替。
+- 下一顺序：按#230等待/核对上游公开Core/Provider与全公开组合；按#404处理XCode架构review；其它#392—#403按原范围继续。固定硬件、实机安装、生产、物理掉电和实例MQ备份恢复未由此次发布验收覆盖。不要重打正式tag、重推已发布包或采用未完成8bf恢复分支。
+- 下方HANDOFF原全部字节保留，前置前SHA256=2cc7a6be91a1168a29715e073a1840d29f1e32acf6ada1ff3eb0899aae58adc9；不清洗既有损坏UTF8。文档源码身份与已公开source844严格分列。
+
 ## 2026-11-04（Asia/Shanghai）NuGet 组织凭据与重跑取值诊断
 
 - 用户确认组织 Key 未过期并要求先检查重跑取值。已确认仓库级 NUGET_API_KEY 覆盖值删除；仓库侧 organization-secrets API 可读，组织值 updated_at=2026-11-02T03:22:41Z。未读取或输出密钥明文，未扩大 admin:org 权限。

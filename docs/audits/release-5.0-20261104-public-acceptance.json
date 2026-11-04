@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-11-04T09:16:10.544Z",
+  "timezone": "Asia/Shanghai",
+  "status": "PUBLISHED_PUBLIC_VERIFIED",
+  "sourceCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+  "tag": "v5.0.0",
+  "tagObject": "c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9",
+  "releaseUrl": "https://github.com/IoTSharp/SonnetDB/releases/tag/v5.0.0",
+  "publication": {
+    "publish": {
+      "runId": 41721062306,
+      "attempt": 3,
+      "conclusion": "success"
+    },
+    "connectors": {
+      "runId": 41721062359,
+      "attempt": 2,
+      "conclusion": "success"
+    },
+    "docker": {
+      "runId": 41721062233,
+      "attempt": 1,
+      "conclusion": "success"
+    },
+    "candidateGates": {
+      "required": 12,
+      "passed": 12,
+      "sourceCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+      "nightlyObservation": "6/7 in the frozen readiness report; non-blocking, not a current exact-SHA seven-day guarantee"
+    }
+  },
+  "nuget": {
+    "status": "PASS",
+    "publicPackages": 10,
+    "cryptographicSignaturesVerified": 10,
+    "allPublicDllPayloadsMatchFormalArtifacts": true,
+    "packages": [
+      {
+        "id": "SonnetDB",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb/5.0.0/sonnetdb.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "a7405be43c11f689ee9bff944babc459a6bd398796adebf9edd9b194a293cf03",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Core",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.core/5.0.0/sonnetdb.core.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "7447b709413d3b4c46db1c0e82a64ab830fb5c81774b296b2ac1b9e3468dbc04",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Protocol",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.protocol/5.0.0/sonnetdb.protocol.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "f89e333a4ee80087f07574c92e85a863dfe04f13850ca6e039f693f769f800d2",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Client",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.client/5.0.0/sonnetdb.client.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "6c1f52ac275145dea0297c907eeb54cdf931fde3d7b8b26662ca09ce4b157992",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.EntityFrameworkCore",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.entityframeworkcore/5.0.0/sonnetdb.entityframeworkcore.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "f29ac7c313518eeff754e4464f46a220fa2ab1b7512e149080fb44d18ffbfc6b",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.CAP",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.cap/5.0.0/sonnetdb.cap.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "78a84dec08577bae9a3922991cd0423d807d32bb4e869c65c9782c60bd6df904",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Cli",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.cli/5.0.0/sonnetdb.cli.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "c6e2aae71b7f5afb995bd8d2d5d898bd0c63b1481dcf737a7ac8123506e60409",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Caching.Distributed",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.caching.distributed/5.0.0/sonnetdb.caching.distributed.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "4158c7a04c0360d3c203df7772ff0f81d2e46903578a774e32a19b5ca5364ffb",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Caching.EasyCaching",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.caching.easycaching/5.0.0/sonnetdb.caching.easycaching.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "b0185fe16174e8b102e15a25404988d62c7d1e844662f3ffa0dcd1bbaf32bb57",
+        "signaturePresent": true
+      },
+      {
+        "id": "SonnetDB.Testcontainers",
+        "version": "5.0.0",
+        "url": "https://api.nuget.org/v3-flatcontainer/sonnetdb.testcontainers/5.0.0/sonnetdb.testcontainers.5.0.0.nupkg",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "publicSignedSha256": "d13f332dc2844fb407aeb8bf88d8c2e0acbfbdc45839c12c270355856377034e",
+        "signaturePresent": true
+      }
+    ]
+  },
+  "releaseAssets": {
+    "status": "PASS",
+    "releaseId": 433640152,
+    "actualDownloaded": 52,
+    "totalBytes": 1675087792,
+    "allApiDigestsMatch": true,
+    "checksumPayloads": 19,
+    "connectors": 14,
+    "githubUnsignedPackagesMatchFormalArtifacts": 10,
+    "windowsPayloadsMatchFormalArtifacts": 5,
+    "missing": [],
+    "unexpected": [],
+    "bodySha256": "d774446c613f9a21300e7c0af6a106d838adefbb9c97bfa25e93e5f072c166a1",
+    "frozenBodySha256": "bec8905a1d8a989055bb4adc39222d8ccee76569eb42c1545a9672fb2afd7afb",
+    "bodyDifference": "ONE_LEADING_LINE_FEED"
+  },
+  "server": {
+    "productVersion": "5.0.0+84433f9edcceb84605520ebecc4b2879e3c4aa79",
+    "sourceCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+    "sha256": "4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e",
+    "publicReleaseDownload": true
+  },
+  "dockerHub": {
+    "status": "PASS",
+    "platform": "linux/amd64",
+    "reference": "iotsharp/sonnetdb@sha256:f35b6493c9cbc41032ba7f825b02780a24be8c6c7072ee0442544cf3a4fbd325",
+    "sourceCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79"
+  },
+  "consumers": {
+    "sonnetDbPackagesFromPublicNugetOnly": true,
+    "freeSql": {
+      "status": "PASS",
+      "providerPassed": 237,
+      "failed": 0,
+      "skipped": 0,
+      "businessPerProtocol": 25,
+      "reopenPerProtocol": 8,
+      "protocols": [
+        "embedded",
+        "REST",
+        "HTTP2-Frame"
+      ],
+      "providerSource": "a2268c1ff580b77d9ee202b3d34f230be59eab8b",
+      "providerDistribution": "fixed candidate source, not a fully public FreeSql combination"
+    },
+    "xcode": {
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0,
+      "fork": "f21d0c7537955b0bcd79f875b9d649546f762147",
+      "upstreamAccepted": false
+    },
+    "chloe": {
+      "passedPerProtocol": 101,
+      "failed": 0,
+      "skipped": 0,
+      "fork": "742ea2acb9b0f108e441cd8fc503100a737f9b17"
+    },
+    "sqlSugar": {
+      "status": "PASS",
+      "counts": [
+        {
+          "protocol": "embedded",
+          "passed": 93,
+          "failed": 0
+        },
+        {
+          "protocol": "rest",
+          "passed": 93,
+          "failed": 0
+        },
+        {
+          "protocol": "frame-http2",
+          "passed": 93,
+          "failed": 0
+        }
+      ],
+      "providerSource": "18f9df7ede7b575b6caba5f46bcc070a4da95784",
+      "upstreamBuildWarnings": 9,
+      "nu1903": {
+        "package": "System.Security.Cryptography.Pkcs",
+        "version": "8.0.1",
+        "parent": "Oracle.ManagedDataAccess.Core/23.8.0",
+        "advisory": "https://github.com/advisories/GHSA-846f-f764-76mx",
+        "source": "upstream SqlSugar graph; absent from checked SonnetDB/Core/Protocol graph"
+      }
+    },
+    "abp": {
+      "status": "PASS",
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "sourceCommit": "979c3e4e406d1ff564756c2b189386886ba41780",
+      "remoteCi": {
+        "runId": 41688290416,
+        "attempt": 2,
+        "status": "completed",
+        "conclusion": "success",
+        "headSha": "979c3e4e406d1ff564756c2b189386886ba41780"
+      }
+    },
+    "testcontainers": {
+      "status": "PASS",
+      "utc100ns": true,
+      "typedNull": true,
+      "sameContainerRestart": true,
+      "reopenRead": true,
+      "disposeCompleted": true,
+      "fixtureCorrection": "Inline primary key replaced with supported table-level PRIMARY KEY; no product/package/tag change"
+    }
+  },
+  "credentials": {
+    "status": "PUBLISH_CONFIRMED",
+    "keyName": "SonnetDB-5-release-20261104",
+    "owner": "MysticBoy",
+    "glob": "SonnetDB*",
+    "allowsNewPackagesAndVersions": true,
+    "allowsUnlist": false,
+    "expiresUtc": "2026-12-04T07:34:43.2449037Z",
+    "repositorySecretUpdatedUtc": "2026-11-04T07:43:06Z",
+    "secretScope": "IoTSharp/SonnetDB repository",
+    "valueLogged": false,
+    "plaintextKeyFileCreated": false,
+    "oldKeyReason": "Official NuGet banner: keys longer than 30 days expired on 2026-11-01",
+    "auxiliaryGetVerify": {
+      "oldFreshRun": 41789891046,
+      "oldStatus": 403,
+      "oldClassification": "EXPIRED",
+      "newFreshRun": 41794394242,
+      "newStatus": 400,
+      "newClassification": "INCONCLUSIVE",
+      "authoritativePublishRun": 41721062306,
+      "authoritativePublishAttempt": 3
+    }
+  },
+  "boundaries": {
+    "issue230": "OPEN pending upstream public FreeSql Core/Provider and fully public consumers",
+    "xcodeArchitectureFollowUp": 404,
+    "ghcrAnonymous": "401; not counted as public PASS",
+    "installerCleanSystem": "NOT_RUN",
+    "fixedHardwareCapacity": "NOT_RUN",
+    "physicalPowerLoss": "NOT_RUN",
+    "productionDeployment": "NOT_RUN",
+    "serverInstanceMqRestore": "NOT_RUN"
+  }
+}
