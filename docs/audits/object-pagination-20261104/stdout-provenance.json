@@ -1,0 +1,77 @@
+{
+  "source": "verbatim stdout recovered from this session tool results",
+  "captures": [
+    {
+      "path": "field-comparison-r2.json",
+      "sha256": "269b425c1db95a8f05c62414663f202bd634d7159f176e4d2126155b65c798e6",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 655,
+      "callId": "call_a827972bfe4549a6a82549e45f535130",
+      "recordSha256": "aa74423a4d8262b0073451a5012169598a7ddea211fc35450fa1b3ac57d848dc"
+    },
+    {
+      "path": "field-comparison-r3.json",
+      "sha256": "1246cea6cac5c35162be4c20e94fa3f67455950a91dc05f41a4a866e91f8f4e8",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 712,
+      "callId": "call_138bd31737054066a0a027e2ed116bdb",
+      "recordSha256": "0273c7f382839d0770dfdb3b451c8ecd82e1e3a9cfe65ed4eec8baca8cfcc5a5"
+    },
+    {
+      "path": "field-comparison-r4.json",
+      "sha256": "edaf9df7ec5be287b81c12c81ffcd4400cad290925a612d82e07faa1b458b7a1",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 749,
+      "callId": "call_3749e316af8f4a7685ba0e7ee5fdab15",
+      "recordSha256": "88a2d67dc76568e823194a800296c7908e60147d0ada26b19f4f5c93b80f7c18"
+    },
+    {
+      "path": "field-comparison-r5.json",
+      "sha256": "6a78a1291ac5708b73bc6cf2c612e125d3a3dec83cd169c5d98a7337b93deb5f",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 1075,
+      "callId": "call_619111e523a24b0b912951d711a1b867",
+      "recordSha256": "9f270b0e5e788a7dd394eaceafd0c2eaa1cf5d84e7c5fc29fdc9483ac210a4ad"
+    },
+    {
+      "path": "field-comparison-r6.json",
+      "sha256": "00b43450b67f47c876ebfef0734ed82f433b308739c2a4c54768d4c6ccdd3473",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 1155,
+      "callId": "call_110836c4ec454f269ec79d888c4d41bb",
+      "recordSha256": "9956e21e4e3d047617a738475925ae4abdc5f09029ed193d8377a8262a8fcd0d"
+    },
+    {
+      "path": "field-comparison-r7.json",
+      "sha256": "145ddf680346f480322d2b00ccd0d6a5054a851a4bcd86ed6e9f9cd9c135d389",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 1223,
+      "callId": "call_8f6dc56973a44099a04215a2beb15727",
+      "recordSha256": "0d45bf1402ce051fcdf919b2f1f81a83dd06e29cc02c2df832287942ccb430e1"
+    },
+    {
+      "path": "field-inspection.json",
+      "sha256": "d12e40a8ef4fe95d0ce67d4eacf175f37742ea498c96f3b176250e2f60913941",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 441,
+      "callId": "call_c2502a86849b4e4aa73d6227ae777a1c",
+      "recordSha256": "ce6d00611f3149b8f601d4ef39571ccce5191a47a20e103751faefb956a31d34"
+    },
+    {
+      "path": "field-inspection-r3.json",
+      "sha256": "f950defacca21471e9b42ad5f7c66862a51b2e4956cfb9d5abb178379ff689d4",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 667,
+      "callId": "call_abbd69158cd2463fbbddac0565c33378",
+      "recordSha256": "b6dca47e5fb3089cee60caf683a831502227233518169b7a88bb00c5c4c48110"
+    },
+    {
+      "path": "field-monitor-recovered-final.json",
+      "sha256": "dd7072ae287dae1aebe360d949de5f53cd3dd5d65b560e8bcfe500c27a44523b",
+      "sessionId": "01a1a619-68c2-75f2-b816-c6bb49651587",
+      "line": 1223,
+      "callId": "call_8f6dc56973a44099a04215a2beb15727",
+      "recordSha256": "0d45bf1402ce051fcdf919b2f1f81a83dd06e29cc02c2df832287942ccb430e1"
+    }
+  ]
+}

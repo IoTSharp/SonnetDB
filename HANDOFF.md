@@ -1,3 +1,40 @@
+## 2026-11-04 对象分页后续：前缀回填、真实网络资源释放与隔离恢复
+
+- 专属工作树 `C:/Users/mysti/.codex/worktrees/object-pagination-20261104/SonnetDB`，分支 `codex/object-pagination-20261104`，基于已推送 `b6f8d60c5992cfc30870c30b239dd2cfe0e2d57d` 并整合 `origin/main@5742bbe536e60dd321843c409b0f837722016c0e`。main 合并只在交接前置段冲突，保留双方新增记录及历史后缀原字节；共享 D:/source/SonnetDB 的外来脏文件未修改。parity-results 保留。
+- 已修复旧桶首次列表整桶清理/重建：按请求前缀定位 latest、精确 ordinal 过滤、持久化绑定桶版本的前缀完成标记；取消较大范围补建保留已完成前缀，新空桶原子标记完整。磁盘格式、CRC、公开 API、SQL 名称与原生日期精度合同均保持。
+- 大元数据冷打开改用现有读取器的固定64KiB缓冲和逻辑偏移，正常点读仍4KiB，累计读字节改Int64。实际冷打开仍约237秒，不宣称冷启动性能达标。
+- 最终 Core/KV/对象/备份/MQ snapshot/codec 回归566/566，真实Kestrel/SDK43/43，均0失败/跳过。包括28项分页合同、执行中SQL取消、下载收到正文后取消/主动断连、RequestAborted/服务端退出、临时文件/旧文件保留、后续完整读取及分片503后换客户端从清单续传。原目录整体离线后的单库对象历史正文与独立实例MQ恢复、消息头/offset/继续发布/再次重开通过，属于本地嵌入式合同。
+- 实际ARM64上对23,814,699,967字节元数据做通过修改隔离验证的XFS reflink副本，捕获sequence24527236；network=none、4CPU/2GiB。前缀flows/2026/11/04/、maxKeys3的首查2338.9011ms，续页1.9418/1.4502ms；回填4443候选，三页列表12候选；独立扫描3,175,639条latest并检查版本，前三页9对象有序、无重复、与权威前缀一致。八秒请求预算未变。候选Core SHA256 e341e5d67577f456aeeacc5f3a6e71d28422d34f40bfff10c0eadd2a4c90f88b。正常退出0和dispose_end，无OOM，验证容器/副本均删除且独立回读为空。
+- 失败不改写：修复前3项回归失败、Server夹具API/断连观测的编译和运行失败、首个远程stdin编码失败、复制预算/依赖闭包/冷打开准备超时等全部留档。复用ASCII guard和完整运行时DLL闭包；原R1同副本对照未完成冷打开，保持DEFERRED，不计算新旧加速比。当前生产仍原R1、同启动时间、healthy/restart0/OOMKilled=false，没有业务DDL/DML、部署、重启、包发布或消息发送。
+- 完整restore与规定CI同等Format已实际通过；归档最终树后再次执行同样两项，实际门禁、源码/证据SHA及交付状态见docs/audits/object-pagination-20261104/evidence.json和本机artifacts/object-pagination-20261104/。本交接随本批修复提交保存，最终提交SHA及远端独立回读以delivery.json/Git为准。
+- 归档时确认原生SSH stdout绕过PowerShell对象管道；空文件不计证据。已从当前会话工具结果原文恢复r2～r7并记录callId/行摘要/字节SHA，新增独占PS7进程边界捕获工具，原生stdout和拒绝覆盖回执的验证通过。
+- 剩余顺序：完整高变更率和跨进程/断电对象传输 → 真实独立对象卷及实例MQ恢复/RPO/RTO → 真实九模型与冻结语料质量 → 适用NativeAOT/固定硬件容量及冷启动 → 新候选完整168小时。继续复用已有能力；本批只关闭声明的功能切片，不把本地恢复、换客户端或三页结果扩大为全门禁。详见docs/audits/object-pagination-20261104/README.md。
+
+
+## 2026-11-04（Asia/Shanghai）5.0 已公开交付：PUBLISHED_PUBLIC_VERIFIED
+
+- 这次已接续并完成原发布聊天。正式代码仍为84433f9edcceb84605520ebecc4b2879e3c4aa79，v5.0.0 annotated object仍为c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9；十二类同源门禁READY。诊断代码8477fcc3已入main，本节与最终审计只形成后续文档提交，不能把文档HEAD当作正式发包来源；实际提交/推送回读保存在本机收尾回执。
+- 原Publish41721062306的attempt3和Connectors41721062359的attempt2均success，成功构建沿用未重编。公开NuGet十包10/10，source/DLL有效载荷及dotnet nuget verify --all加密签名全PASS；GitHub Release433640152非draft/非prerelease，52/52唯一资产实际匿名下载共1,675,087,792字节，API digest全匹配、19个checksum通过，14连接器库存通过。正文只比冻结稿多一个开头LF，未改内容。
+- DockerHub匿名digest/source为iotsharp/sonnetdb@sha256:f35b6493c9cbc41032ba7f825b02780a24be8c6c7072ee0442544cf3a4fbd325 / source844；平台linux/amd64。公开Windows Server ProductVersion=5.0.0+完整844，SHA256=4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e。GHCR匿名401独立保留，不算公开PASS。
+- 凭据原因已现场确认：NuGet公告超过30天的旧Key于2026-11-01失效、新Key最长30天，原sonnetdb明确Expired。旧rerun及新排队41789891046均403 expired；用户授权后已单次新建SonnetDB-5-release-20261104，MysticBoy/SonnetDB*/允许新包和版本/无unlist，到期北京时间2026-12-04 15:34。已安全保存当前用户Windows凭据并写本仓库NUGET_API_KEY（updated_at2026-11-04T07:43:06Z），值不在聊天/日志/明文文件；安全目标仅在ignored转交回执中。新GET验钥41794394242返回400 Bad Request，保留INCONCLUSIVE，不用它误判实际发布权限；十次Created与公共读回是成功实证。浏览器Value清空、named session及有界接收器均已关闭。
+- 真实公开SonnetDB消费者全PASS：FreeSql237/237、三协议各25业务+8重开（REST SQL68、Frame32、HTTP2事务21）；XCode50/50；Chloe embedded/REST/frame各101/101及独立重开；SqlSugar三协议各93/93且无协议回退；ABP原22/22。均核对public包/source844/实际DLL，适用远程用公开匹配Server。ABP固定head979c3e4e406d1ff564756c2b189386886ba41780，本机restore/Format/build/test与远程CI41688290416 attempt2均success。
+- Testcontainers用公开四包及上述不可变镜像完成UTC100ns、typed NULL、同容器Stop/Start、重开读回和Dispose，session容器/volume/network为空。保留原拉取120秒超时和夹具内联PK的400 sql_error；仅将ignored夹具改表级PRIMARY KEY，显式NULL与全部ReadBack断言不变，不改产品/包/tag。ABP首次600秒restore未完成也保留，在同一独占首次空public-only缓存有界续跑后22项全过。
+- 上游分发继续为PARTIAL，#230保持OPEN：公开FreeSql Core/Provider与全公开组合还需上游交付，不能用固定fork加公开SonnetDB的PASS关闭。XCode#103已被维护者关闭且架构拒绝，已去重创建#404按virtual扩展点重构，不能称等发包即可Ready；Chloe/SqlSugar等上游PR与公开包各验。SqlSugar原上游Oracle依赖图有Pkcs8.0.1/NU1903，9条warning保留，未压制或改依赖；不归入已检查的SonnetDB/Core/Protocol依赖。
+- 最终报告docs/audits/release-5.0-20261104-final-publication.md与机器清单release-5.0-20261104-public-acceptance.json，诊断nuget-secret-diagnosis-20261104.md，后续清单#392—#404。公开资产/signature原证据在artifacts/release-5.0-20261104-final-execution；本次门禁/推送/密钥安全元数据在artifacts/nuget-secret-diagnostic-20261104；消费者原始路径由checked-evidence-paths.json和dotnet-public/public-consumers-final-summary.json指向，不提交构建产物。
+- 各worker已清理only-owned Server、PostgreSQL及卷、测试容器、进程子树和有标记的scratch，native回执cleanup_complete=true/后代0；公开缓存/下载/日志/TRX留作证据，全机进程可见性partial仍保留。原D:/source/SonnetDB的外来dirty未带入或改动。提交前仍在最终待提交树执行完整restore及规定Format，结果在本次证据目录；不得用历史PASS代替。
+- 下一顺序：按#230等待/核对上游公开Core/Provider与全公开组合；按#404处理XCode架构review；其它#392—#403按原范围继续。固定硬件、实机安装、生产、物理掉电和实例MQ备份恢复未由此次发布验收覆盖。不要重打正式tag、重推已发布包或采用未完成8bf恢复分支。
+- 下方HANDOFF原全部字节保留，前置前SHA256=2cc7a6be91a1168a29715e073a1840d29f1e32acf6ada1ff3eb0899aae58adc9；不清洗既有损坏UTF8。文档源码身份与已公开source844严格分列。
+
+## 2026-11-04（Asia/Shanghai）NuGet 组织凭据与重跑取值诊断
+
+- 用户确认组织 Key 未过期并要求先检查重跑取值。已确认仓库级 NUGET_API_KEY 覆盖值删除；仓库侧 organization-secrets API 可读，组织值 updated_at=2026-11-02T03:22:41Z。未读取或输出密钥明文，未扩大 admin:org 权限。
+- 正式 Publish 41721062306 attempt2 在北京时间14:30再次实际首包403 expired，成功打包与两平台合同保留；Release skipped。官方只说明 org/repo Secrets queued读取，rerun文档不保证Secrets快照或刷新；不能直接把该失败归因于当前组织Key过期。
+- 增加独立手动 Check current NuGet credential：新 workflow_dispatch 对已存在 SonnetDB4.0.0 执行一次官方 GET verifykey，30秒/响应字节及次数双界，不跟随重定向；仅输出运行身份、是否有值、HTTP与固定分类。普通发布Key不上传/改包，官方会有审计/telemetry；临时verification key不可作为发布密钥。新Actions实际探针尚待入main后执行。
+- 代码与正式标签继续冻结84433f9edcceb84605520ebecc4b2879e3c4aa79 / c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9，不合入或dispatch有已知缺口的8bf0e812恢复候选。十包与公开Release未交付，正式公开消费者仍NOT_RUN；DockerHub新digest匿名PASS，GHCR匿名401分别记录。
+- 本轮上游只读更新：XCode#103已被维护者关闭且未合并，需要按virtual扩展/独立架构PR重新处理，不是仅等待公开包；XCode公开包仍依赖4.0。Chloe#435/SqlSugar#1457/ABP#2仍Draft，FreeSql#2291仍OPEN。ABP最新CI失败在未公开EF5.0的restore，不能当作业务失败。各消费者入口离线检查通过，尚未以公开5.0执行。
+- 验证与证据：parser/-Plan、无密钥与格式错误负边界保留在 artifacts/nuget-secret-diagnostic-20261104/；最终完整restore及规定Format回执也写入该目录，只有取得双PASS才提交。详细依据见 docs/audits/nuget-secret-diagnosis-20261104.md。
+- 后续顺序：新排队探针实际结果 → 确认当前有效凭据/具体拒绝 → 按固定原始tag与已验工件恢复发布 → 十包/52资产/公开Server及真实消费者 → 更新#230；上游未合入/未发布边界分别保留。任何未知外部写入先回读，不盲重试。
+- 原HANDOFF完整字节按后缀保留，不修复或清洗已有损坏UTF8；修改前SHA256为3ae46be5c00cb7655462c75af18319187711889ed84a0f4cb6de3f25a2bce9b4。
 ## 2026-11-04 新版客户端统一与显式参数修复
 
 用户确认不保留无必要的旧客户端分叉。最新版Data/EF已经完成TOLNSD构建与现场ARM64读取；应用现库为毫秒DATETIME，需在其模型和原始SQL中明确UTC毫秒参数，原生高精度默认值保持。真实EF日期读取/范围、REST/Frame、时序和对象15项现场断言通过。原始SQL验证另发现显式DbParameter的@前缀重复生成，已修复统一生成器，空名/普通名/已有前缀名真实回归和原生日期合计20项通过。业务扩展回归105项的6个原始SQL失败随后在35项入口/存储复验中全部通过，失败回执保留。

@@ -1,0 +1,492 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-04T12:47:28.556085+00:00",
+  "scope": "M36 bounded object-prefix, cancellation, transfer and recovery slice",
+  "status": "PASS",
+  "wholeMilestonesComplete": false,
+  "releaseDecision": "DEFERRED",
+  "source": {
+    "branch": "codex/object-pagination-20261104",
+    "base": "b6f8d60c5992cfc30870c30b239dd2cfe0e2d57d",
+    "mergedMain": "5742bbe536e60dd321843c409b0f837722016c0e",
+    "coreSha256": "e341e5d67577f456aeeacc5f3a6e71d28422d34f40bfff10c0eadd2a4c90f88b",
+    "files": [
+      {
+        "path": "src/SonnetDB.Core/Kv/KvIndexPageReader.cs",
+        "sha256": "5fd9b27531d5a707f1264c601dbedd541c7341b33bf9d4ff3c4bde8a3b877316"
+      },
+      {
+        "path": "src/SonnetDB.Core/Kv/KvStateFile.cs",
+        "sha256": "7e6fd849b65062d5bfdda07ac83908799fcb01995f61430697fbec8758bc9bc4"
+      },
+      {
+        "path": "src/SonnetDB.Core/ObjectStorage/SndbObjectStore.Listing.cs",
+        "sha256": "30425fd2c10dfb5e5a5edae92a08e5957dee7ccf91b3229615e876714452745a"
+      },
+      {
+        "path": "src/SonnetDB.Core/ObjectStorage/SndbObjectStore.cs",
+        "sha256": "8dbb811afb281c062819b590e7d3fc4c672ef365a07525e50bf04a66b7ff7cc6"
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/BackupServiceTests.cs",
+        "sha256": "d1f93d53fddcedc828d5e353f43c8d74cc005a637224f05c7e6246407309aa68"
+      },
+      {
+        "path": "tests/SonnetDB.Core.Tests/ObjectStorage/ObjectPaginationTests.cs",
+        "sha256": "893378045e7e8467347ad7cd012bab024426ca28659fd0ddb01b3b1773e5f657"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/ObjectStorageClientTests.cs",
+        "sha256": "c5151f615918a67d7ba6dd1fece12a21b3a677982cd8393f80c6ee5ad90dc639"
+      },
+      {
+        "path": "tests/SonnetDB.Tests/ObjectTransferCancellationTests.cs",
+        "sha256": "0e3fa2d9a62f7d36ee9694534afbc3896e8f8a0826d6d561d109c839d0d63c45"
+      },
+      {
+        "path": "eng/validation/object-prefix-probe/Program.cs",
+        "sha256": "58953bc0b8e76cc24abbc3045ac02f5a7858f26317dd7108aed0cbe5db8af017"
+      },
+      {
+        "path": "eng/validation/object-prefix-probe/object-prefix-probe.csproj",
+        "sha256": "c4dbc23b8f2e7b610af6008dd9009c377a4f04c061e5c399f9419d0512271734"
+      },
+      {
+        "path": "SonnetDB.slnx",
+        "sha256": "08435aa9b80e504ff4fa6833b4d4c6a676a05dabc45d348a05b160db66ccbdba"
+      },
+      {
+        "path": "eng/validation/object-prefix-probe/Capture-FieldOutput.ps1",
+        "sha256": "f3d212682809a6ee4eabffc0e3c4c90b8156814efbcc3c7192984527a31a4586"
+      }
+    ]
+  },
+  "finalTests": {
+    "core": {
+      "passed": 566,
+      "failed": 0,
+      "skipped": 0,
+      "artifact": "core-kv-object-final.trx.gz"
+    },
+    "serverSdk": {
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0,
+      "artifact": "server-object-r6.trx.gz"
+    }
+  },
+  "field": {
+    "status": "PASS",
+    "layer": "isolated ARM64 embedded Core against real metadata",
+    "captureBytes": 23814699967,
+    "sequence": 24527236,
+    "coldOpenMilliseconds": 237351.471,
+    "requestBudgetMilliseconds": 8000,
+    "pageMilliseconds": [
+      2338.9011,
+      1.9418,
+      1.4502
+    ],
+    "backfillCandidates": 4443,
+    "pageCandidates": 12,
+    "oracleCandidates": 3175639,
+    "verifiedObjects": 9,
+    "fullCorpusSha256": "NOT_RUN",
+    "baselineSameCopyComparison": "DEFERRED"
+  },
+  "gates": {
+    "restore": "PASS",
+    "format": "PASS",
+    "formatWorkspaceWarning": true,
+    "gateReceipt": "delivery-gates.json",
+    "finalDelivery": "artifacts/object-pagination-20261104/delivery.json or the branch Git history"
+  },
+  "boundaries": {
+    "productionDeployment": "NOT_RUN",
+    "newArm64ServerSdkNetwork": "NOT_RUN",
+    "highMutationWholeBucket": "DEFERRED",
+    "crossProcessCrashTransfer": "NOT_RUN",
+    "independentVolumeFieldRecovery": "NOT_RUN",
+    "fixedHardwareCapacity": "DEFERRED",
+    "nativeAot": "NOT_RUN",
+    "newCandidate168Hours": "NOT_RUN",
+    "realModelQuality": "NOT_RUN"
+  },
+  "testAttempts": [
+    {
+      "path": "core-kv-object-final.trx.gz",
+      "counters": {
+        "total": "566",
+        "executed": "566",
+        "passed": "566",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": []
+    },
+    {
+      "path": "core-storage.trx.gz",
+      "counters": {
+        "total": "181",
+        "executed": "181",
+        "passed": "181",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": []
+    },
+    {
+      "path": "isolated-recovery.trx.gz",
+      "counters": {
+        "total": "1",
+        "executed": "1",
+        "passed": "1",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": []
+    },
+    {
+      "path": "prefix-after.trx.gz",
+      "counters": {
+        "total": "27",
+        "executed": "27",
+        "passed": "27",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": []
+    },
+    {
+      "path": "prefix-before.trx.gz",
+      "counters": {
+        "total": "3",
+        "executed": "3",
+        "passed": "0",
+        "failed": "3",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": [
+        "SonnetDB.Core.Tests.ObjectStorage.ObjectPaginationTests.ListObjects_LegacyPrefixFirstPage_DoesNotRebuildUnrelatedKeys(checkpoint: True)",
+        "SonnetDB.Core.Tests.ObjectStorage.ObjectPaginationTests.ListObjects_LegacyPrefixFirstPage_DoesNotRebuildUnrelatedKeys(checkpoint: False)",
+        "SonnetDB.Core.Tests.ObjectStorage.ObjectPaginationTests.ListObjects_InterruptedBroaderBackfill_PreservesCompletedPrefix"
+      ]
+    },
+    {
+      "path": "server-cancellation-r4.trx.gz",
+      "counters": {
+        "total": "3",
+        "executed": "3",
+        "passed": "1",
+        "failed": "2",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": [
+        "SonnetDB.Tests.ObjectTransferCancellationTests.Download_InFlightCancellationOrDisconnect_ReleasesResponseAndPreservesFile(disconnect: True)",
+        "SonnetDB.Tests.ObjectTransferCancellationTests.Download_InFlightCancellationOrDisconnect_ReleasesResponseAndPreservesFile(disconnect: False)"
+      ]
+    },
+    {
+      "path": "server-object-final.trx.gz",
+      "counters": {
+        "total": "43",
+        "executed": "43",
+        "passed": "42",
+        "failed": "1",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": [
+        "SonnetDB.Tests.ObjectTransferCancellationTests.Download_InFlightCancellationOrDisconnect_ReleasesResponseAndPreservesFile(disconnect: False)"
+      ]
+    },
+    {
+      "path": "server-object-r3.trx.gz",
+      "counters": {
+        "total": "43",
+        "executed": "43",
+        "passed": "41",
+        "failed": "2",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": [
+        "SonnetDB.Tests.ObjectTransferCancellationTests.Download_InFlightCancellationOrDisconnect_ReleasesResponseAndPreservesFile(disconnect: False)",
+        "SonnetDB.Tests.ObjectTransferCancellationTests.Download_InFlightCancellationOrDisconnect_ReleasesResponseAndPreservesFile(disconnect: True)"
+      ]
+    },
+    {
+      "path": "server-object-r6.trx.gz",
+      "counters": {
+        "total": "43",
+        "executed": "43",
+        "passed": "43",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "failedTests": []
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "field-inspection.json",
+      "bytes": 2526,
+      "sha256": "d12e40a8ef4fe95d0ce67d4eacf175f37742ea498c96f3b176250e2f60913941"
+    },
+    {
+      "path": "field-inspection-r3.json",
+      "bytes": 2673,
+      "sha256": "f950defacca21471e9b42ad5f7c66862a51b2e4956cfb9d5abb178379ff689d4"
+    },
+    {
+      "path": "field-comparison-r2.json",
+      "bytes": 975,
+      "sha256": "269b425c1db95a8f05c62414663f202bd634d7159f176e4d2126155b65c798e6"
+    },
+    {
+      "path": "field-comparison-r3.json",
+      "bytes": 8380,
+      "sha256": "1246cea6cac5c35162be4c20e94fa3f67455950a91dc05f41a4a866e91f8f4e8"
+    },
+    {
+      "path": "field-comparison-r4.json",
+      "bytes": 6357,
+      "sha256": "edaf9df7ec5be287b81c12c81ffcd4400cad290925a612d82e07faa1b458b7a1"
+    },
+    {
+      "path": "field-comparison-r5.json",
+      "bytes": 8409,
+      "sha256": "6a78a1291ac5708b73bc6cf2c612e125d3a3dec83cd169c5d98a7337b93deb5f"
+    },
+    {
+      "path": "field-comparison-r6.json",
+      "bytes": 5238,
+      "sha256": "00b43450b67f47c876ebfef0734ed82f433b308739c2a4c54768d4c6ccdd3473"
+    },
+    {
+      "path": "field-comparison-r7.json",
+      "bytes": 9534,
+      "sha256": "145ddf680346f480322d2b00ccd0d6a5054a851a4bcd86ed6e9f9cd9c135d389"
+    },
+    {
+      "path": "probe-bundle-r6.json",
+      "bytes": 1111,
+      "sha256": "c3be0a8dc970c17bb09d50077ccf54da5696e851ce72f45813f9dc581ed90f01"
+    },
+    {
+      "path": "tool-receipts.json",
+      "bytes": 50089,
+      "sha256": "1e1033c3e5b53c0ba7383de18864e0605e71e96264f857eca3f44d8274d539d6"
+    },
+    {
+      "path": "compare-field.ps1",
+      "bytes": 9800,
+      "sha256": "84b5268a4e1f6891081b509265b130e7b907e7bb36a0f005618e6fda9a86abd9"
+    },
+    {
+      "path": "monitor-field.ps1",
+      "bytes": 2872,
+      "sha256": "10aab7f8911fbff400a8e7ff4fd4516c355f72f12a516dd89ae167d405f062d7"
+    },
+    {
+      "path": "compare-field-original-r7.ps1",
+      "bytes": 9830,
+      "sha256": "33e92ad613da8bb33c003c8fbef610e4767ee91693cf18b5a3f5a106890d72a2"
+    },
+    {
+      "path": "stdout-provenance.json",
+      "bytes": 3450,
+      "sha256": "11be13f26b18df3ccc7b393fd50ea815f909deeb14ab818ecc3778d77e8682c9"
+    },
+    {
+      "path": "capture-selftest.json",
+      "bytes": 391,
+      "sha256": "5074ef06474d7ac56e0d8245c5dafb92b8cc6b208647603960f460b6c8b33fad"
+    },
+    {
+      "path": "final-health-cleanup.json",
+      "bytes": 491,
+      "sha256": "dd7072ae287dae1aebe360d949de5f53cd3dd5d65b560e8bcfe500c27a44523b"
+    },
+    {
+      "path": "core-kv-object-final.trx.gz",
+      "bytes": 146459,
+      "sha256": "6417314ee7359163de39abd2ccbb8a9677b139e4747837650d12f653c80d7734",
+      "originalPath": "artifacts/object-pagination-20261104/core-kv-object-final.trx",
+      "originalBytes": 860629,
+      "originalSha256": "05460cf5ecf5a5c675a63611f38b54188483fedf050986fcd71d19a36f2e4f9f"
+    },
+    {
+      "path": "core-storage.trx.gz",
+      "bytes": 45400,
+      "sha256": "be8d0c9bbebdb7ed1f50b75698983aa918eaca5dc63e96614fd893e040c15896",
+      "originalPath": "artifacts/object-pagination-20261104/core-storage.trx",
+      "originalBytes": 280633,
+      "originalSha256": "bfcf118213d5a0bcdf43beb325af8215539d49d2ce31c025c0f14836896df6f6"
+    },
+    {
+      "path": "isolated-recovery.trx.gz",
+      "bytes": 1494,
+      "sha256": "46aad2aea74db7cb14ea366ba837c44dad5d4935edb281b5cd05a19a1eebea68",
+      "originalPath": "artifacts/object-pagination-20261104/isolated-recovery.trx",
+      "originalBytes": 3468,
+      "originalSha256": "ccd6d54165a9855c180743e174dfb7081803de223ad7c6e915e9ba1aa2ce1b57"
+    },
+    {
+      "path": "prefix-after.trx.gz",
+      "bytes": 5437,
+      "sha256": "4507652d3cf6571f22b51481d36265d1a1253cc306c073287e44069f4898682c",
+      "originalPath": "artifacts/object-pagination-20261104/prefix-after.trx",
+      "originalBytes": 43958,
+      "originalSha256": "5375cc0327ce416233f9a662fdf7d6b64396dad8958a478fffae2465db1c56d1"
+    },
+    {
+      "path": "prefix-before.trx.gz",
+      "bytes": 2669,
+      "sha256": "e3e7e8eeb625e4d909f1a6b660e3e4e11c2c0defa9566ee94d84ec2d8cc80f29",
+      "originalPath": "artifacts/object-pagination-20261104/prefix-before.trx",
+      "originalBytes": 15956,
+      "originalSha256": "ece1fa2a86a00373f28614df6f19c556012c669d53167464e79e6787e39fed0c"
+    },
+    {
+      "path": "server-cancellation-r4.trx.gz",
+      "bytes": 7813,
+      "sha256": "a1d99a1ac88835ee77849fb7c3108d8532e92365739e115565168cc9b69c24ce",
+      "originalPath": "artifacts/object-pagination-20261104/server-cancellation-r4.trx",
+      "originalBytes": 141156,
+      "originalSha256": "08e7e621a796f7f1d7f7d6e0b7e8c9baf46121f4c06f740c65a48a5eafe6f4c4"
+    },
+    {
+      "path": "server-object-final.trx.gz",
+      "bytes": 101560,
+      "sha256": "50931938b364fe79270031513c62b9ad593343efbc8157c5719b25a3c57d85a7",
+      "originalPath": "artifacts/object-pagination-20261104/server-object-final.trx",
+      "originalBytes": 2457439,
+      "originalSha256": "5d88dbd06ce835a56090c51a16946b20c306d02aa06a3629d564fb94699c9a69"
+    },
+    {
+      "path": "server-object-r3.trx.gz",
+      "bytes": 102673,
+      "sha256": "5232963ce2bbf4c5e2c997e1fe248a06d19af9bbe9f99b74d4a3a5ab56f2e5ee",
+      "originalPath": "artifacts/object-pagination-20261104/server-object-r3.trx",
+      "originalBytes": 2446143,
+      "originalSha256": "cb5e65e9b33c4e077badd78a1ffc623c2bed0b3bdad73866b8cda96b774c9d9c"
+    },
+    {
+      "path": "server-object-r6.trx.gz",
+      "bytes": 100315,
+      "sha256": "a9a7a60a4bd45c6e2cca7e2528771126f971a05e41555808a7da0a1249943e77",
+      "originalPath": "artifacts/object-pagination-20261104/server-object-r6.trx",
+      "originalBytes": 2461645,
+      "originalSha256": "48ddfcaebab441b416c4296ba56c12d000ce70b45f8b720f0d1ae2ee88e030e0"
+    },
+    {
+      "path": "delivery-gates.json",
+      "bytes": 1093,
+      "sha256": "038eedbd7b327fa7b995a280dee655bd79c1062754dc4ede617be81f4b839936"
+    }
+  ],
+  "captureValidation": {
+    "nativeStdout": "PASS",
+    "rejectExistingReceipt": "PASS",
+    "emptyFilesNotEvidence": true,
+    "provenance": "stdout-provenance.json"
+  }
+}

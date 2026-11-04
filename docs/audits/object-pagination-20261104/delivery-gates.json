@@ -1,0 +1,18 @@
+{
+  "deliveryRestore": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"status\":\"completed\",\"process_status\":\"completed\",\"exit_code\":0,\"pid\":67160,\"cleanup_complete\":true,\"active_processes_before_cleanup\":7,\"active_processes_after_cleanup\":0,\"stdout\":\"  正在确定要还原的项目…\\u000d\\u000a  所有项目均是最新的，无法还原。\\u000d\\u000a\",\"stderr\":\"\",\"output_truncated\":false,\"elapsed_ms\":5046,\"output_encoding\":\"utf-8\",\"win32_error\":0}"
+      }
+    ]
+  },
+  "deliveryFormat": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"status\":\"completed\",\"process_status\":\"completed\",\"exit_code\":0,\"pid\":61160,\"cleanup_complete\":true,\"active_processes_before_cleanup\":0,\"active_processes_after_cleanup\":0,\"stdout\":\"\",\"stderr\":\"加载工作区时遇到警告。要记录警告，请将“详细级别”选项设置为“诊断”级别。\\u000d\\u000a\",\"output_truncated\":false,\"elapsed_ms\":122313,\"output_encoding\":\"utf-8\",\"win32_error\":0}"
+      }
+    ]
+  }
+}

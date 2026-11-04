@@ -15,6 +15,106 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
     private readonly string _root = Path.Combine(Path.GetTempPath(), "SonnetDB.ObjectPages." + Guid.NewGuid().ToString("N"));
     private readonly CancellationTokenSource _deadline = new(TimeSpan.FromSeconds(90));
 
+    /// <summary>旧桶首次读取指定前缀时，只补齐该前缀，续页和重开均复用已完成的索引。</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ListObjects_LegacyPrefixFirstPage_DoesNotRebuildUnrelatedKeys(bool checkpoint)
+    {
+        const string prefix = "flows/2026/11/04/";
+        string[] expected = Enumerable.Range(0, 9).Select(i => $"{prefix}{i:D3}").ToArray();
+        string? continuation;
+        using (var db = Open())
+        {
+            var store = new SndbObjectStore(db);
+            store.CreateBucket(Bucket);
+            SeedLegacy(db, Enumerable.Range(0, 8192).Select(i => $"archive/{i:D6}").Concat(expected));
+            if (checkpoint)
+                db.Keyspaces.Open("__object_storage").CreateSnapshot();
+            int rebuilt = 0;
+            store.ListRebuildEntryTestHook = () =>
+            {
+                Assert.InRange(++rebuilt, 1, 9);
+            };
+            var first = store.ListObjects(Bucket, prefix, 3, null, null, _deadline.Token);
+            Assert.Equal(expected.Take(3), first.Objects.Select(x => x.Key));
+            Assert.Equal(9, rebuilt);
+            Assert.True(first.IsTruncated);
+            continuation = first.NextContinuationToken;
+            store.ListRebuildEntryTestHook = () => throw new InvalidOperationException("A continuation must not rescan the legacy bucket.");
+            var second = store.ListObjects(Bucket, prefix, 3, continuation, null, _deadline.Token);
+            Assert.Equal(expected.Skip(3).Take(3), second.Objects.Select(x => x.Key));
+            continuation = second.NextContinuationToken;
+        }
+        using (var db = Open())
+        {
+            var store = new SndbObjectStore(db)
+            {
+                ListRebuildEntryTestHook = () => throw new InvalidOperationException("A completed prefix must survive reopen."),
+            };
+            var last = store.ListObjects(Bucket, prefix, 3, continuation, null, _deadline.Token);
+            Assert.Equal(expected.Skip(6), last.Objects.Select(x => x.Key));
+            Assert.False(last.IsTruncated);
+            Assert.Null(last.NextContinuationToken);
+        }
+    }
+
+    /// <summary>Base64 的不完整尾组只能作为粗定位；原始前缀、顺序和相邻键仍按 ordinal 核对。</summary>
+    [Theory]
+    [InlineData("a")]
+    [InlineData("ab")]
+    [InlineData("abc")]
+    [InlineData("中/é")]
+    public void ListObjects_LegacyPrefixEncoding_MatchesExactOrdinalScope(string prefix)
+    {
+        using var db = Open();
+        var store = new SndbObjectStore(db);
+        store.CreateBucket(Bucket);
+        string[] keys = [prefix, prefix + "/Z", prefix + "/a", prefix + "/中", prefix + "/\U00010000", prefix + "/\ue000", "`", "b", "aa", "ac", "abd", "中/ê"];
+        SeedLegacy(db, keys.Distinct(StringComparer.Ordinal));
+        VerifyPages(store, Oracle(db, prefix, null), prefix, null, 2);
+        VerifyPages(store, Oracle(db, prefix, "/"), prefix, "/", 1);
+    }
+
+    /// <summary>较大范围的补建被取消后，已完成的较小前缀不能丢失派生行或复用半成品。</summary>
+    [Fact]
+    public void ListObjects_InterruptedBroaderBackfill_PreservesCompletedPrefix()
+    {
+        using var db = Open();
+        var store = new SndbObjectStore(db);
+        store.CreateBucket(Bucket);
+        SeedLegacy(db, Enumerable.Range(0, 600).Select(i => $"key-{i:D4}").Concat(["ready/a", "ready/b"]));
+        VerifyPages(store, ["o:ready/a", "o:ready/b"], "ready/", null, 1);
+        using var cancel = new CancellationTokenSource();
+        int visited = 0;
+        store.ListRebuildEntryTestHook = () => { if (++visited == 260) cancel.Cancel(); };
+        Assert.Throws<OperationCanceledException>(() => store.ListObjects(Bucket, null, 3, null, null, cancel.Token));
+        store.ListRebuildEntryTestHook = () => throw new InvalidOperationException("A cancelled backfill must preserve a completed prefix.");
+        VerifyPages(store, ["o:ready/a", "o:ready/b"], "ready/", null, 1);
+    }
+
+    /// <summary>新桶无需回填；同名桶重建后，历史前缀完成标记也不能遮蔽新注入的旧格式数据。</summary>
+    [Fact]
+    public async Task ListObjects_NewAndRecreatedBucket_DoesNotReuseOldPrefixReadiness()
+    {
+        using var db = Open();
+        var store = new SndbObjectStore(db);
+        store.CreateBucket(Bucket);
+        await store.PutObjectAsync(Bucket, "same/a", Stream.Null, cancellationToken: _deadline.Token);
+        store.ListRebuildEntryTestHook = () => throw new InvalidOperationException("A new bucket already maintains a complete index.");
+        VerifyPages(store, ["o:same/a"], "same/", null, 1);
+        db.Keyspaces.Open("__object_storage").Delete("object-list-ready-v1:" + Bucket);
+        store.ListRebuildEntryTestHook = null;
+        VerifyPages(store, ["o:same/a"], "same/", null, 1);
+        store.DeleteObject(Bucket, "same/a");
+        store.SetLifecycle(Bucket, null, 0, 0);
+        store.ApplyLifecycle(Bucket);
+        Assert.True(store.DeleteBucket(Bucket));
+        store.CreateBucket(Bucket);
+        SeedLegacy(db, ["same/b"]);
+        VerifyPages(store, ["o:same/b"], "same/", null, 1);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -415,6 +515,8 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
     private void SeedLegacy(Tsdb db, IEnumerable<string> keys)
     {
         var metadata = db.Keyspaces.Open("__object_storage");
+        // 直接注入旧 latest/版本记录，明确模拟尚无完整派生索引的历史桶。
+        metadata.Delete("object-list-ready-v1:" + Bucket);
         foreach (string[] chunk in keys.Chunk(128))
         {
             _deadline.Token.ThrowIfCancellationRequested();

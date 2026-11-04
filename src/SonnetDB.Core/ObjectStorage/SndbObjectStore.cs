@@ -84,7 +84,11 @@ public sealed partial class SndbObjectStore
 
             var now = DateTimeOffset.UtcNow;
             var created = new SndbBucketRecord(bucket, normalizedPurpose, now, now);
-            _metadata.Put(key, Serialize(created, SndbObjectStoreJsonContext.Default.SndbBucketRecord));
+            // 新桶为空，和桶记录一起声明完整索引；后续对象批次持续原子维护它，无需首次列表再补建。
+            _metadata.ApplyBatch([
+                KvBatchMutation.Put(Utf8.GetBytes(key), Serialize(created, SndbObjectStoreJsonContext.Default.SndbBucketRecord)),
+                KvBatchMutation.Put(Utf8.GetBytes(ObjectListReadyKey(bucket)), "1"u8.ToArray()),
+            ]);
             Directory.CreateDirectory(Path.Combine(_contentRoot, BucketHash(bucket)));
             AppendAudit("bucket.create", bucket, null, null, new Dictionary<string, string> { ["purpose"] = normalizedPurpose });
             return new SndbBucketInfo(bucket, normalizedPurpose, now, now);

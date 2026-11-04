@@ -12,6 +12,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data;
 using SonnetDB.Data.ObjectStorage;
+using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
 using Xunit;
@@ -64,6 +65,54 @@ public sealed class ObjectStorageClientTests : IAsyncLifetime
         {
             try { Directory.Delete(_dataRoot, recursive: true); } catch { }
         }
+    }
+
+    /// <summary>真实 Server 和 SDK 对旧桶按前缀首查、续页及交错删除/写入保持顺序与游标边界。</summary>
+    [Fact]
+    public async Task RemoteClient_LegacyBucketPrefixPages_DoesNotBackfillWholeBucket()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        var registry = _app!.Services.GetRequiredService<TsdbRegistry>();
+        Assert.True(registry.TryGet("objectsclient", out var db));
+        var store = new SndbObjectStore(db);
+        const string bucket = "legacy-prefix";
+        const string prefix = "flows/2026/11/04/";
+        store.CreateBucket(bucket);
+        string[] expected = Enumerable.Range(0, 9).Select(i => $"{prefix}{i:D3}").ToArray();
+        foreach (string key in Enumerable.Range(0, 96).Select(i => $"archive/{i:D3}").Concat(expected).Reverse())
+            await store.PutObjectAsync(bucket, key, Stream.Null, cancellationToken: deadline.Token);
+        var metadata = db.Keyspaces.Open("__object_storage");
+        // 移除派生索引和完成标记，保留经产品写入口生成的权威 latest/版本，模拟旧库升级。
+        var derived = metadata.ScanPrefix("object-list-v1:" + bucket + ":", int.MaxValue);
+        foreach (var entry in derived)
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            Assert.True(metadata.Delete(entry.Key.Span));
+        }
+        Assert.True(metadata.Delete("object-list-ready-v1:" + bucket));
+        metadata.CreateSnapshot();
+
+        using var client = new SndbObjectStorageClient($"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objectsclient;Token={AdminToken};Protocol=rest;Timeout=8");
+        var first = await client.ListObjectsAsync(bucket, prefix, 3, cancellationToken: deadline.Token);
+        Assert.Equal(expected.Take(3), first.Objects.Select(x => x.Key));
+        Assert.True(first.IsTruncated);
+        Assert.NotNull(first.NextContinuationToken);
+        Assert.Null(metadata.Get("object-list-ready-v1:" + bucket));
+        long sequence = metadata.LastSequence;
+        var second = await client.ListObjectsAsync(bucket, prefix, 3, first.NextContinuationToken, cancellationToken: deadline.Token);
+        Assert.Equal(expected.Skip(3).Take(3), second.Objects.Select(x => x.Key));
+        Assert.NotEqual(first.NextContinuationToken, second.NextContinuationToken);
+        Assert.Equal(sequence + 1, metadata.LastSequence); // 只有本页审计，不重复写入回填索引。
+
+        await client.DeleteObjectAsync(bucket, expected[6], cancellationToken: deadline.Token);
+        await client.PutObjectAsync(bucket, prefix + "009", Stream.Null, cancellationToken: deadline.Token);
+        var last = await client.ListObjectsAsync(bucket, prefix, 3, second.NextContinuationToken, cancellationToken: deadline.Token);
+        Assert.Equal(new[] { expected[7], expected[8], prefix + "009" }, last.Objects.Select(x => x.Key));
+        Assert.False(last.IsTruncated);
+        Assert.Null(last.NextContinuationToken);
+        string[] all = first.Objects.Concat(second.Objects).Concat(last.Objects).Select(x => x.Key).ToArray();
+        Assert.Equal(all.Order(StringComparer.Ordinal), all);
+        Assert.Equal(all.Length, all.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]

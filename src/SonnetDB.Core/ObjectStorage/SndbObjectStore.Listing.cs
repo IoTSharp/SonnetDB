@@ -22,7 +22,7 @@ public sealed partial class SndbObjectStore
     /// <param name="delimiter">目录分隔符；空值表示不分组。</param>
     /// <param name="cancellationToken">取消令牌；锁等待、重建及分页均观察取消。</param>
     /// <returns>当前页；只在存在下一项时返回后续令牌。</returns>
-    /// <remarks>旧数据库首次列表需重建派生索引。每次调用最多两分钟，超时不返回半页。
+    /// <remarks>旧数据库首次列表只补齐请求前缀的派生索引。每次调用最多两分钟，超时不返回半页。
     /// 各页读取调用时的当前状态，不固定跨页快照。索引与对象版本共用原有 KV/WAL 批次。</remarks>
     public SndbObjectListResult ListObjects(
         string bucket, string? prefix, int maxKeys, string? continuationToken,
@@ -49,8 +49,8 @@ public sealed partial class SndbObjectStore
             token.ThrowIfCancellationRequested();
             if (!entered)
                 throw new TimeoutException("Object list timed out waiting for the bucket lock.");
-            GetRequiredBucketEntry(bucket, token);
-            EnsureObjectListIndex(bucket, token);
+            KvEntry bucketEntry = GetRequiredBucketEntry(bucket, token);
+            EnsureObjectListIndex(bucket, normalizedPrefix, bucketEntry.Version, token);
 
             byte[] scanPrefix = ObjectListKey(bucket, normalizedPrefix);
             byte[]? after = cursor is null ? null : ObjectListKey(bucket, cursor.Key);
@@ -139,33 +139,33 @@ public sealed partial class SndbObjectStore
         }
     }
 
-    private void EnsureObjectListIndex(string bucket, CancellationToken token)
+    /// <summary>先定位旧 latest 中的请求前缀，完成后持久化该范围，续页不再扫描无关对象。</summary>
+    private void EnsureObjectListIndex(string bucket, string prefix, long bucketVersion, CancellationToken token)
     {
         _metadata.EnableOrderedOverlayScans(token);
         if (_metadata.GetEntry(ObjectListReadyKey(bucket), token) is { } ready && ready.Value.Span.SequenceEqual("1"u8))
             return;
-        // 完成标记最后提交；中断后先清掉旧派生项，再从权威 latest 重建，不发布部分索引。
+        string readyKey = prefix.Length == 0 ? ObjectListReadyKey(bucket) : ObjectListPrefixReadyKey(bucket, prefix);
+        byte[] readyValue = prefix.Length == 0 ? "1"u8.ToArray()
+            : Utf8.GetBytes(bucketVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (prefix.Length > 0 && _metadata.GetEntry(readyKey, token) is { } prefixReady
+            && prefixReady.Value.Span.SequenceEqual(readyValue))
+            return;
+
+        // 所有对象写入/删除都与 latest 原子维护派生行；回填只需补齐，不能先清空已经完成的其它范围。
+        // 完成标记最后提交；取消后不发布部分范围，也不会破坏较小前缀已完成的索引。
         using var budget = _metadata.EnterIndexRebuildBudgetScope(token);
-        byte[] derivedPrefix = ObjectListKey(bucket, string.Empty);
+        string latestPrefix = LatestObjectPrefix(bucket);
+        // 无 padding Base64 的末字符可能含补零位；去掉该字符，粗定位后再按原始名称精确过滤。
+        string encodedPrefix = EscapeKey(prefix);
+        if (Utf8.GetByteCount(prefix) % 3 != 0)
+            encodedPrefix = encodedPrefix[..^1];
+        byte[] scanPrefix = Utf8.GetBytes(latestPrefix + encodedPrefix);
         byte[]? after = null;
         for (int page = 0; page < 1_000_000; page++)
         {
             token.ThrowIfCancellationRequested();
-            var entries = _metadata.ScanRange(derivedPrefix, null, null, after, ObjectListPageSize, token);
-            if (entries.Count == 0)
-                break;
-            after = entries[^1].Key.ToArray();
-            _metadata.ApplyIndexRebuildBatch(entries.Select(static entry => KvBatchMutation.Delete(entry.Key.ToArray())).ToArray(), token);
-            if (page == 999_999)
-                throw new IOException("Object listing index cleanup exceeded its page budget.");
-        }
-
-        string latestPrefix = LatestObjectPrefix(bucket);
-        after = null;
-        for (int page = 0; page < 1_000_000; page++)
-        {
-            token.ThrowIfCancellationRequested();
-            var entries = _metadata.ScanRange(Utf8.GetBytes(latestPrefix), null, null, after, ObjectListPageSize, token);
+            var entries = _metadata.ScanRange(scanPrefix, null, null, after, ObjectListPageSize, token);
             if (entries.Count == 0)
                 break;
             var mutations = new List<KvBatchMutation>(entries.Count);
@@ -174,9 +174,10 @@ public sealed partial class SndbObjectStore
                 token.ThrowIfCancellationRequested();
                 ListRebuildEntryTestHook?.Invoke();
                 string key = UnescapeKey(Utf8.GetString(entry.Key.Span)[latestPrefix.Length..]);
+                if (!key.StartsWith(prefix, StringComparison.Ordinal))
+                    continue;
                 var record = LoadObjectRecord(bucket, key, Utf8.GetString(entry.Value.Span), token);
-                if (record is not null && !record.IsDeleteMarker)
-                    mutations.Add(ObjectListMutation(record));
+                mutations.Add(record is null ? KvBatchMutation.Delete(ObjectListKey(bucket, key)) : ObjectListMutation(record));
             }
             token.ThrowIfCancellationRequested();
             if (mutations.Count > 0)
@@ -186,10 +187,14 @@ public sealed partial class SndbObjectStore
                 throw new IOException("Object listing index rebuild exceeded its page budget.");
         }
         token.ThrowIfCancellationRequested();
-        _metadata.ApplyIndexRebuildBatch([KvBatchMutation.Put(Utf8.GetBytes(ObjectListReadyKey(bucket)), "1"u8.ToArray())], token);
+        _metadata.ApplyIndexRebuildBatch([KvBatchMutation.Put(Utf8.GetBytes(readyKey), readyValue)], token);
     }
 
+    /// <summary>整桶标记继续使用既有格式，供旧数据库和新版空桶共用。</summary>
     private static string ObjectListReadyKey(string bucket) => "object-list-ready-v1:" + bucket;
+
+    /// <summary>前缀标记绑定桶条目版本，删除再创建的同名桶不会复用旧完成状态。</summary>
+    private static string ObjectListPrefixReadyKey(string bucket, string prefix) => "object-list-prefix-ready-v1:" + bucket + ":" + EscapeKey(prefix);
 
     private static KvBatchMutation ObjectListMutation(SndbObjectRecord record) => record.IsDeleteMarker
         ? KvBatchMutation.Delete(ObjectListKey(record.Bucket, record.Key))

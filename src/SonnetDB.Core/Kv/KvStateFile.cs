@@ -40,6 +40,11 @@ internal static class KvStateFile
 
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var header = ReadHeader(fs);
+        // 冷打开顺序构造稀疏目录，复用邻近元数据；逐条设置 FileStream.Position 会反复丢弃读取缓冲。
+        // 用显式逻辑偏移跳过值，64 KiB 仅为本次打开的固定缓冲，不改变后续点读的 4 KiB 合同。
+        using var indexReader = new KvIndexPageReader(fs.SafeFileHandle, CancellationToken.None, 64 * 1024);
+        long position = HeaderSize;
+        long fileLength = fs.Length;
         int entryPrefixBytes = GetEntryPrefixBytes(header.Version);
         byte[] prefixBuffer = new byte[entryPrefixBytes];
         byte[] crcBuffer = new byte[4];
@@ -57,9 +62,10 @@ internal static class KvStateFile
                 if ((i & 1023) == 0 && System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(15))
                     throw new TimeoutException("KV state index opening exceeded its time budget.");
                 Span<byte> prefix = prefixBuffer;
-                long prefixOffset = fs.Position;
-                if (ReadExact(fs, prefix) < entryPrefixBytes)
+                long prefixOffset = position;
+                if (indexReader.Read(prefix, position) < entryPrefixBytes)
                     throw new InvalidDataException("KV state entry prefix is truncated.");
+                position = checked(position + entryPrefixBytes);
 
                 int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix[..4]);
                 int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(4, 4));
@@ -82,7 +88,7 @@ internal static class KvStateFile
                     previousKeyLength,
                     header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
 
-                long payloadOffset = fs.Position;
+                long payloadOffset = position;
                 if (keyLength > keyBuffer.Length)
                 {
                     byte[] replacement = ArrayPool<byte>.Shared.Rent(keyLength);
@@ -90,15 +96,16 @@ internal static class KvStateFile
                     ArrayPool<byte>.Shared.Return(keyBuffer);
                     keyBuffer = replacement;
                 }
-                if (ReadExact(fs, keyBuffer.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
+                if (indexReader.Read(keyBuffer.AsSpan(sharedKeyBytes, storedKeyBytes), position) < storedKeyBytes)
                     throw new InvalidDataException("KV state entry key is truncated.");
 
-                fs.Position += valueLength;
-                if (fs.Position > fs.Length)
+                position = checked(position + storedKeyBytes + valueLength);
+                if (position > fileLength)
                     throw new InvalidDataException("KV state entry value is truncated.");
 
-                if (ReadExact(fs, crcBuffer) < crcBuffer.Length)
+                if (indexReader.Read(crcBuffer, position) < crcBuffer.Length)
                     throw new InvalidDataException("KV state entry CRC is truncated.");
+                position = checked(position + crcBuffer.Length);
 
                 uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcBuffer);
                 DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
@@ -121,7 +128,7 @@ internal static class KvStateFile
                 previousKeyLength = keyLength;
             }
 
-            if (fs.Position != fs.Length)
+            if (position != fileLength)
                 throw new InvalidDataException("KV state file contains trailing data.");
 
             return paged
@@ -593,7 +600,7 @@ internal sealed class KvDiskState : IDisposable
                 previous = key;
                 offset = checked(crcOffset + 4);
             }
-            lease.RecordRead(reader.BytesRead);
+            lease.RecordRead(checked((int)reader.BytesRead));
             return entries;
         }
         finally { ReleaseLease(); }

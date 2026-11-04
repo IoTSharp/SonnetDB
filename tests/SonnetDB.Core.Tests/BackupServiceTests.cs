@@ -7,8 +7,10 @@ using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
 using SonnetDB.Graphs.Storage;
 using SonnetDB.Model;
+using SonnetDB.ObjectStorage;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
+using SonnetMQ;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Backup;
@@ -22,6 +24,93 @@ public sealed class BackupServiceTests : IDisposable
     public BackupServiceTests()
     {
         Directory.CreateDirectory(_rootDirectory);
+    }
+
+    /// <summary>分别恢复单库正文与实例 MQ；原目录整体离线后仍能读取对象历史、消息头和消费者位置。</summary>
+    [Fact]
+    public async Task DatabaseAndInstanceSnapshots_OriginalDirectoryOffline_RestoreObjectBodiesAndMqOffsetsSeparately()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        string instance = Path.Combine(_rootDirectory, "source-instance");
+        string dbRoot = Path.Combine(instance, "main");
+        string databaseBackup = Path.Combine(_rootDirectory, "database-backup");
+        string mqBackup = Path.Combine(_rootDirectory, "instance-mq-backup");
+        string restoredInstance = Path.Combine(_rootDirectory, "restored-instance");
+        string restoredDbRoot = Path.Combine(restoredInstance, "main");
+        string restoredMqRoot = Path.Combine(restoredInstance, ".system", "mq");
+        byte[] oldBody = "original-version"u8.ToArray();
+        byte[] currentBody = new byte[512 * 1024];
+        Array.Fill(currentBody, (byte)0x7d);
+        string oldVersion;
+        var mqOptions = new SonnetMqOptions
+        {
+            Path = Path.Combine(instance, ".system", "mq"),
+            RetentionInterval = TimeSpan.Zero,
+            TrimAcknowledgedMessages = false,
+        };
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        }))
+        using (var mq = SonnetMqStore.Open(mqOptions))
+        {
+            var objects = new SndbObjectStore(db);
+            objects.CreateBucket("restore-assets");
+            oldVersion = (await objects.PutObjectAsync("restore-assets", "images/item.bin", new MemoryStream(oldBody), cancellationToken: deadline.Token)).VersionId;
+            await objects.PutObjectAsync("restore-assets", "images/item.bin", new MemoryStream(currentBody), cancellationToken: deadline.Token);
+            Assert.Single(objects.ListObjects("restore-assets", "images/", 1).Objects);
+            mq.Publish("events", "first"u8, new SonnetMqPublishOptions(new Dictionary<string, string> { ["message-id"] = "restore-1" }));
+            mq.Publish("events", "second"u8);
+            mq.Ack("events", "workers", 0);
+
+            var manifest = new BackupService().Create(db, new BackupCreateOptions { DestinationDirectory = databaseBackup });
+            Assert.Contains(manifest.Files, file => file.Path.StartsWith("objects/", StringComparison.Ordinal) && file.SizeBytes == currentBody.Length);
+            Assert.DoesNotContain(manifest.Files, file => file.Path.StartsWith(".system/mq/", StringComparison.Ordinal));
+            mq.CreateSnapshot(mqBackup);
+        }
+
+        // 验证目标绝对路径仍属于本用例，再让全部原始文件离线，杜绝恢复结果误读原对象正文。
+        string offline = Path.Combine(_rootDirectory, "source-offline");
+        string ownedPrefix = Path.GetFullPath(_rootDirectory) + Path.DirectorySeparatorChar;
+        Assert.StartsWith(ownedPrefix, Path.GetFullPath(instance), StringComparison.Ordinal);
+        Assert.StartsWith(ownedPrefix, Path.GetFullPath(offline), StringComparison.Ordinal);
+        Directory.Move(instance, offline);
+        new BackupService().Restore(new BackupRestoreOptions { BackupDirectory = databaseBackup, TargetDirectory = restoredDbRoot });
+        Assert.False(Directory.Exists(restoredMqRoot));
+        SonnetMqStore.RestoreSnapshot(mqBackup, restoredMqRoot);
+
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = restoredDbRoot }))
+        {
+            var objects = new SndbObjectStore(db);
+            Assert.Equal(2, objects.ListObjectVersions("restore-assets", "images/item.bin").Versions.Count);
+            foreach (var expected in new[] { (Version: (string?)null, Body: currentBody), (Version: (string?)oldVersion, Body: oldBody) })
+            {
+                deadline.Token.ThrowIfCancellationRequested();
+                var read = objects.OpenRead("restore-assets", "images/item.bin", versionId: expected.Version);
+                Assert.NotNull(read);
+                await using (read.Content)
+                {
+                    using var copied = new MemoryStream();
+                    await read.Content.CopyToAsync(copied, deadline.Token);
+                    Assert.Equal(expected.Body, copied.ToArray());
+                    Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(expected.Body)), read.Info.Sha256);
+                }
+            }
+            Assert.Single(objects.ListObjects("restore-assets", "images/", 1).Objects);
+        }
+        using (var mq = SonnetMqStore.Open(mqOptions with { Path = restoredMqRoot }))
+        {
+            var message = Assert.Single(mq.Pull("events", "workers", 10));
+            Assert.Equal(1, message.Offset);
+            Assert.Equal("second"u8.ToArray(), message.Payload);
+            Assert.Equal("restore-1", Assert.Single(mq.Pull("events", 0, 1)).Headers["message-id"]);
+            Assert.Equal(2, mq.Publish("events", "third"u8));
+            mq.Ack("events", "workers", 1);
+        }
+        using var reopened = SonnetMqStore.Open(mqOptions with { Path = restoredMqRoot });
+        Assert.Equal(2, Assert.Single(reopened.Pull("events", "workers", 10)).Offset);
     }
 
     [Fact]

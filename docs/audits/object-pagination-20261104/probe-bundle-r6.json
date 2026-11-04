@@ -1,0 +1,33 @@
+{
+  "bundleSha256": "f1663af30f97953db291db51d52abadd51adabf1d345d3aa7d2e9dafe79cfe69",
+  "files": [
+    {
+      "path": "SonnetDB.Core.dll",
+      "sha256": "e341e5d67577f456aeeacc5f3a6e71d28422d34f40bfff10c0eadd2a4c90f88b"
+    },
+    {
+      "path": "SonnetDB.Protocol.dll",
+      "sha256": "dadcd105e90f3dc38e69240089e9063e2b86ffedae247d76076f9ab94699b576"
+    },
+    {
+      "path": "System.IO.Hashing.dll",
+      "sha256": "649ad5b26c96c3e4494a0879ffa8d1e7cce296754b40bb207c3ca938e3567a4e"
+    },
+    {
+      "path": "System.Numerics.Tensors.dll",
+      "sha256": "431dc761810087c957ab04b45e1697a41200681c742520e0292b8dbca04a8868"
+    },
+    {
+      "path": "object-prefix-probe.dll",
+      "sha256": "84f178d086ebf070e5cee720af3386ef597249b4d1bb20c03f2ad82895fc0ed1"
+    },
+    {
+      "path": "object-prefix-probe.deps.json",
+      "sha256": "87c80bd9556a3a15ad144a1719b203188bab4e30585f62585bdf25efee03a520"
+    },
+    {
+      "path": "object-prefix-probe.runtimeconfig.json",
+      "sha256": "c230a317a54dd960bcbeb5f347f52e18dc665a26f7efda2159fced9a5ac7e097"
+    }
+  ]
+}

@@ -8,18 +8,19 @@ internal sealed class KvIndexPageReader : IDisposable
 {
     private readonly SafeFileHandle _handle;
     private readonly CancellationToken _cancellationToken;
-    private readonly byte[] _buffer = ArrayPool<byte>.Shared.Rent(4096);
+    private readonly byte[] _buffer;
     private long _offset = -1;
     private int _length;
 
     /// <summary>复用磁盘状态持有的句柄；读取器仅拥有临时缓冲。</summary>
-    internal KvIndexPageReader(SafeFileHandle handle, CancellationToken cancellationToken)
+    internal KvIndexPageReader(SafeFileHandle handle, CancellationToken cancellationToken, int bufferSize = 4096)
     {
         _handle = handle;
         _cancellationToken = cancellationToken;
+        _buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
     }
 
-    internal int BytesRead { get; private set; }
+    internal long BytesRead { get; private set; }
 
     /// <summary>按明确偏移读取元数据，跨大值直接跳转；不把对象正文整体预读到内存。</summary>
     internal int Read(Span<byte> destination, long offset)
