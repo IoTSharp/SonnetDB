@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -126,7 +127,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
 
         if (operation.Property is not { DeclaringType: IEntityType entityType } property
             || !entityType.IsMappedToJson()
-            || entityType.FindOwnership() is not { IsUnique: true }
+            || entityType.FindOwnership() is null
             || !string.Equals(entityType.GetContainerColumnName(), operation.ColumnName, StringComparison.Ordinal)
             || operation.TypeMapping is null || operation.TypeMapping.Converter is not null)
         {
@@ -158,18 +159,19 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
     private static bool TryGetOwnedPath(IEntityType entityType, string? leafName, string? jsonPath, string columnName, out string path)
     {
         path = string.Empty;
-        if (entityType.FindOwnership() is not { IsUnique: true } ownership)
+        if (entityType.FindOwnership() is not { } ownership || jsonPath is null || jsonPath.Length > 1024)
             return false;
-        // EF 的 JsonPath 以点连接原始名称。使用模型名称重建路径，不猜测分隔点或数组索引。
-        List<string> names = leafName is null ? [] : [leafName];
+        // EF 的路径是原始名称与序号的拼接。按模型名称的完整长度匹配，仅在集合位置读取序号；
+        // 属性名自身的点、方括号和引号始终作为名称处理，不按分隔符拆分。
+        List<(string Name, bool IsCollection)> names = leafName is null ? [] : [(leafName, false)];
         for (var depth = 0; ownership.PrincipalEntityType.IsMappedToJson() && depth < 64; depth++)
         {
             var ownedName = entityType.GetJsonPropertyName();
             if (names.Count >= 64 || string.IsNullOrWhiteSpace(ownedName) || ownedName.Length > 1019)
                 return false;
-            names.Add(ownedName);
+            names.Add((ownedName, !ownership.IsUnique));
             entityType = ownership.PrincipalEntityType;
-            if (entityType.FindOwnership() is not { IsUnique: true } parentOwnership)
+            if (entityType.FindOwnership() is not { } parentOwnership)
                 return false;
             ownership = parentOwnership;
         }
@@ -180,17 +182,49 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
 
         names.Reverse();
         var quotedPath = new StringBuilder("$");
-        var efPath = new StringBuilder("$");
-        foreach (var name in names)
+        ReadOnlySpan<char> efPath = jsonPath;
+        if (efPath.IsEmpty || efPath[0] != '$')
+            return false;
+        var position = 1;
+        if (!ownership.IsUnique
+            && !TryAppendCollectionOrdinal(efPath, ref position, quotedPath, allowWholeCollection: names.Count == 0))
+            return false;
+        for (var index = 0; index < names.Count; index++)
         {
+            var (name, isCollection) = names[index];
+            if (position >= efPath.Length || efPath[position++] != '.'
+                || !efPath[position..].StartsWith(name, StringComparison.Ordinal))
+                return false;
+            position += name.Length;
             quotedPath.Append("['").Append(name.Replace("'", "''", StringComparison.Ordinal)).Append("']");
+            if (isCollection
+                && !TryAppendCollectionOrdinal(efPath, ref position, quotedPath, allowWholeCollection: index == names.Count - 1))
+                return false;
             if (quotedPath.Length > 1024)
                 return false;
-            efPath.Append('.').Append(name);
         }
 
         path = quotedPath.ToString();
-        return string.Equals(jsonPath, efPath.ToString(), StringComparison.Ordinal);
+        return position == efPath.Length;
+    }
+
+    private static bool TryAppendCollectionOrdinal(
+        ReadOnlySpan<char> efPath, ref int position, StringBuilder quotedPath, bool allowWholeCollection)
+    {
+        if (position == efPath.Length)
+            return allowWholeCollection;
+        if (efPath[position++] != '[')
+            return false;
+        var start = position;
+        for (var digits = 0; digits < 10 && position < efPath.Length && char.IsAsciiDigit(efPath[position]); digits++)
+            position++;
+        ReadOnlySpan<char> ordinalText = efPath[start..position];
+        if (ordinalText.IsEmpty || (ordinalText.Length > 1 && ordinalText[0] == '0')
+            || position >= efPath.Length || efPath[position++] != ']'
+            || !int.TryParse(ordinalText, NumberStyles.None, CultureInfo.InvariantCulture, out int ordinal))
+            return false;
+        quotedPath.Append('[').Append(ordinal.ToString(CultureInfo.InvariantCulture)).Append(']');
+        return quotedPath.Length <= 1024;
     }
 
     private static bool TryGetContainerUpdatePath(IReadOnlyModificationCommand command, IColumnModification operation, out string path)

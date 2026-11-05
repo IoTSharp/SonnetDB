@@ -686,7 +686,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         public int Counter { get; set; }
     }
 
-    private sealed class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable
+    private sealed partial class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable
     {
         private readonly string _owner = Guid.NewGuid().ToString("N");
         private readonly string _root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "sndb-ef-json-crud-" + Guid.NewGuid().ToString("N")));

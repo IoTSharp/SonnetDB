@@ -1,3 +1,10 @@
+## 2026-11-05 Issue #394 OwnsMany 跟踪集合源码切片
+
+- 更新SQL生成器按模型完整JSON名称匹配路径，仅在集合位置解析最多10位Int32序号；根/嵌套对象数组可跟踪属性、子树和整集合更新，未改Core JSON或#395批量更新边界。
+- worker完整EF340/340、0失败/跳过，新增22合同覆盖三协议、数组增删清空、嵌套、converter/Guid、null/缺失、Unicode、缺失元素拒绝、事务/并发和真实重开；实际原始TRX/native回执在canonical `artifacts/branch-cleanup-20261105/workers/issue392-394/`。最终整合将再验组合。
+- 保留EF10确定限制：含嵌套OwnsMany的父数组重排ordinal后，同context继续改动会在发下一UPDATE前被identifying key校验拒绝。应用显式Clear并重新加载后支持继续，Provider没有伪造键状态。#394继续OPEN等待完整后续/公开包/真实应用，不能由本切片提前关闭。
+- #395固定标量ExecuteUpdate已由9ada35e14b46389320a7952903c9e3d44fe0d197推送main并回读。此次源码和文档仍须完整restore/规定Format通过后独立提交；没有发布、部署或平台操作。
+
 ## 2026-11-05 Issue #395 参数化 JSON ExecuteUpdate 首片
 
 - 通过EF公开扩展点加入provider visitor/factory，支持OwnsOne/Complex固定标量路径；同列多个setter按声明顺序嵌套json_set_value，右侧读取更新前的行，可与普通列共同原子更新。路径和值均实际进入参数，未回退客户端读改写或反射JSON。
