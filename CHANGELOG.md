@@ -15,6 +15,7 @@
 - GH-Issue #230：补充固定5.0.0的十二类门禁及公开消费者审计；保留旧NuGet过期403证据，修复凭据后完成十包、52个Release资产和DockerHub公开回读，分别记录FreeSql237、XCode50、Chloe三协议各101、SqlSugar各93、ABP22及真实Testcontainers结果。上游Provider公开分发与本次SonnetDB交付分别验收。
 
 ### Fixed
+- GH-Issue #402：增加发行恢复来源、写前tag fence、NuGet有效payload/Release资产对账、精确artifact清单与current/frozen政策校验基础，13+69项离线合同及正式公开包只读样本通过。未新增恢复workflow，可信attempt来源/双verifier接线与实际预发布恢复仍未完成，本条不代表发布恢复已闭环。
 - GH-Issue #400：新增实例MQ离线CLI快照/检查/全新目标恢复与目录owner排他租约，复用manifest v1和一致快照引擎；唯一staging原子发布避免竞态删除外来文件，修复Windows锁文件大小写及关闭异常后的完整句柄释放。保留单库备份/身份配置、旧Server停机和生产/物理掉电边界。
 - GH-Issue #367：显式 DeltaValue 下对 Int64 质量列选择更小的独立 RLE，常数/长游程的完整双字段段文件实测缩小约36.4%～36.6%，交替/递增原样回退不膨胀；范围无命中也完整验证 RLE。新写 `.SDBSEG` 全部升级v7，新reader兼容v2～v6，旧引擎明确拒绝v7，降级须恢复升级前备份；Header/WAL/Catalog布局未变，未实现共享时间戳或浮点新算法。
 - 对象下载取消测试在真实断连回调前保留未完成正文，并避免用同一RequestAborted取消观测等待，消除响应先完成或取消延续先注销observer的时序竞态；原64B/3MiB、五秒等待、RequestAborted/退出、原文件与临时文件断言均保留。

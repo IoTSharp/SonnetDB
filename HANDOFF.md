@@ -1,3 +1,11 @@
+## 2026-11-05 Issue #402 来源与外部结果对账基础收口
+
+- source-policy13项和reconciliation69项在worker及整合树均通过；接入既有CI离线合同。覆盖真实ZIP/nupkg、签名差异/有效payload、同版本换DLL/commit、写前tag移动、未知写入不重试、404/auth/network、run/attempt/job/ID/digest/files集合与政策漂移。没有启用恢复workflow、修改既有recover-tagged-release或任何外部发布写入。
+- 正式Protocol5.0只读对账：Release原包和NuGet签名包整包hash不同，排除根.signature.p7s后7个有效文件digest同为a41efb7106e4bc19338c1e4f2dd6e1a837b9cd39eb7d4dedcf5f432da2d92a23，nuspec与现有远端tag同为84433f9e；不冒称已校验签名信任或恢复了一个发布。
+- #402继续OPEN：可信artifact到attempt来源适配、双verifier实际接线、受控失败预发布tag的Actions恢复、真实部分外部写入后的对账/公开读回及新缓存消费者仍待完成。PS原生崩溃、ZIP短读/1B数组及网络失败均保留，后续有界修复验证不覆盖历史。
+- #400已由389bc54499addbb25ef19c8f1948c1102b0ac692正常推送main并回读；#367/#406分别正常合并4534280a/7fe6dbe9。本机整合全solution Release0警告/0错误，Core8073(v7/自引用片)、最终MQ124/EF360/Server1595/Crash14及对象取消两树各3项均通过。最终同SHA远端CI、GitHub/Gitee/本地main同步、issue关闭回读和临时worktree回收按canonical收口回执，不提前宣称完成。
+- WorkBuddy任务已回填#403/#398/#399，应用集合验证补充#394。#392/#394/#395仍OPEN保留新公开包/完整应用等边界。所有每项提交前均执行规定完整restore/Format，#400单一格式失败只修字典换行后已重验通过。没有新正式tag/发包/部署。
+
 ## 2026-11-05 Issue #400 Server实例MQ离线快照/恢复
 
 - 新增sndb mq snapshot/inspect/restore，显式绝对ServerRoot/.system/mq、snapshot/restore需--offline，拒绝已有/嵌套/链接目标，只恢复到新DataRoot；复用既有manifest v1和一致快照，不重做MQ。CLI回执手写Utf8JsonWriter，未引入反射JSON、远程管理端点或MCP运维工具。

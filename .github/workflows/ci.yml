@@ -77,6 +77,8 @@ jobs:
           ./eng/test-release-network-defaults.ps1
           ./eng/test-release-readiness.ps1
           ./eng/test-nuget-candidate-promotion.ps1
+          ./eng/test-tag-publication-policy.ps1
+          ./eng/test-tag-publication-reconciliation.ps1
           ./eng/test-ci-test-shards.ps1
           ./eng/test-m43-release-evidence.ps1
 
