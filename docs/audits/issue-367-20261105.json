@@ -1,0 +1,130 @@
+{
+  "issue": 367,
+  "date": "2026-11-05",
+  "baselineCommit": "a7125ffb15c3d2182ff811036173316c75329ba9",
+  "candidateState": "uncommitted_worktree",
+  "format": {
+    "writeVersion": 7,
+    "readVersions": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "int64RleFlag": 16,
+    "legacyDeltaValueInt64": "raw8",
+    "allNewSegmentsUseVersion7": true,
+    "containerAndWalVersionUnchanged": true,
+    "rollback": "restore_pre_upgrade_backup"
+  },
+  "environment": {
+    "os": "Windows x64 10.0.26300",
+    "cpu": "Intel Core Ultra 9 185H",
+    "logicalCpus": 22,
+    "memoryBytes": 68137205760,
+    "dotnetSdk": "10.0.403",
+    "runtime": "10.0.14",
+    "dotnetProcessorCount": 2,
+    "msbuildMaxCpuCount": 1
+  },
+  "corpus": {
+    "rowsPerDataset": 8192,
+    "fields": [
+      "value Float64",
+      "quality Int64"
+    ],
+    "timestamp": "1700000000000+i*1000",
+    "value": "100+(i%100)*0.01",
+    "timestampEncoding": "DeltaTimestamp",
+    "valueEncoding": "DeltaValue",
+    "fsyncOnCommit": true
+  },
+  "measurements": [
+    {
+      "dataset": "constant",
+      "baselineFileBytes": 179117,
+      "candidateFileBytes": 113591,
+      "baselineQualityBytes": 65536,
+      "candidateQualityBytes": 10,
+      "eachTimestampPayloadBytes": 8200,
+      "valuePayloadBytes": 54089
+    },
+    {
+      "dataset": "runs256",
+      "baselineFileBytes": 179229,
+      "candidateFileBytes": 114013,
+      "baselineQualityBytes": 65536,
+      "candidateQualityBytes": 320,
+      "eachTimestampPayloadBytes": 8200,
+      "valuePayloadBytes": 54089
+    },
+    {
+      "dataset": "alternating",
+      "baselineFileBytes": 178749,
+      "candidateFileBytes": 178749,
+      "baselineQualityBytes": 65536,
+      "candidateQualityBytes": 65536,
+      "eachTimestampPayloadBytes": 8200,
+      "valuePayloadBytes": 54089
+    },
+    {
+      "dataset": "counter",
+      "baselineFileBytes": 182717,
+      "candidateFileBytes": 182717,
+      "baselineQualityBytes": 65536,
+      "candidateQualityBytes": 65536,
+      "eachTimestampPayloadBytes": 8200,
+      "valuePayloadBytes": 54089
+    },
+    {
+      "dataset": "extremes256",
+      "baselineFileBytes": 178909,
+      "candidateFileBytes": 113693,
+      "baselineQualityBytes": 65536,
+      "candidateQualityBytes": 320,
+      "eachTimestampPayloadBytes": 8200,
+      "valuePayloadBytes": 54089
+    }
+  ],
+  "validation": {
+    "baselineRegression": "FAIL raw=56642 compressed=56642",
+    "storageTests": {
+      "passed": 297,
+      "failed": 0,
+      "skipped": 0,
+      "addedCases": 28
+    },
+    "walReplayAndTwoReopens": "PASS",
+    "crcAndMalformedPayloads": "PASS",
+    "actualLegacyReaderControl": "PASS blocks=2 points=16384",
+    "actualCurrentReaderLegacyFile": "PASS blocks=2 points=16384",
+    "actualLegacyReaderRejectV7": {
+      "processExitCode": 0,
+      "processStatus": "completed",
+      "captureStatus": "encoding_error",
+      "decodedKnownEncoding": "cp936",
+      "decodedResult": "REJECT_PASS Version=7 expected=v6",
+      "retried": false
+    },
+    "coreAndProbeBuildWarnings": 0,
+    "coreAndProbeBuildErrors": 0,
+    "scopedFormat13ChangedCsharpFiles": "PASS exit=0",
+    "fullSolutionFormat": "NOT_RUN_worker_no_commit",
+    "fullCoreSuite": "NOT_RUN_worker",
+    "remoteCi": "NOT_RUN",
+    "nativeAotPublish": "NOT_RUN",
+    "production": "NOT_RUN"
+  },
+  "legacyCoreAssemblySha256": "5d7e74276b68b70c29d223be0332560397da9d2f38ba0a51d330d0287e605bc9",
+  "excludedClaims": [
+    "shared_timestamps",
+    "new_float64_codec",
+    "integer_delta_bitpack",
+    "compressed_WAL",
+    "complete_M46",
+    "production_2_to_3_bytes_per_point",
+    "P95_or_P99_performance"
+  ]
+}

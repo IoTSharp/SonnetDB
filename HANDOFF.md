@@ -1,3 +1,11 @@
+## 2026-11-05 Issue #367 Int64质量列压缩与v7段
+
+- 显式DeltaValue下新增独立Int64Rle=16，仅严格比raw小时采用，完整Int64无损；新段全部v7，读取v2～v6，旧引擎实际拒绝v7。64/80/64字节Header/BlockHeader/Footer布局、通用FileHeader/WAL/Catalog保持；降级须恢复升级前备份。此格式变更将在单一#367 PR说明后正常合入，不打tag/发包/部署。
+- 固定8192行(value+quality)真实全文件：常数179117→113591B(-36.583%)，256行游程179229→114013B(-36.387%)，极值游程约-36.452%；交替/递增文件不膨胀。两份时间戳各8200B/Float载荷54089B不变，不宣称2～3B生产目标。
+- worker存储297/297，独立review新增空命中RLE完整校验后303/303，0失败/跳过；实际旧二进制读v6/拒v7、WAL真实replay与两次重开通过。旧readerCP936导致encoding_error但原生exit0及保留Base64/REJECT_PASS分开记录。新增codec无核心运行时依赖。
+- 原始段/旧DLL/探针/完整TRX与回执已复制canonical `artifacts/branch-cleanup-20261105/workers/issue367/`；新增review delta亦须最终同步。独立review无另一个确定性v6硬编码断言问题。最终整合将执行Core全套与CI，不能用303项或本机合成字节替代发布/生产/物理掉电。
+- #394已由d1d4b57c8caa63e444e3485152db58aec05fcc7e正常推送main并回读。后续仍按单项完整restore/规定Format与实际测试收口；#392/#394/#395公开新包等未完成边界继续OPEN。
+
 ## 2026-11-05 Issue #394 OwnsMany 跟踪集合源码切片
 
 - 更新SQL生成器按模型完整JSON名称匹配路径，仅在集合位置解析最多10位Int32序号；根/嵌套对象数组可跟踪属性、子树和整集合更新，未改Core JSON或#395批量更新边界。

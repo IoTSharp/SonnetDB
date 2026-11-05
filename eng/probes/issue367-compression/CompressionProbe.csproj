@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(LegacyCoreDirectory)' == ''">
+    <ProjectReference Include="../../../src/SonnetDB.Core/SonnetDB.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(LegacyCoreDirectory)' != ''">
+    <Reference Include="SonnetDB.Core" HintPath="$(LegacyCoreDirectory)/SonnetDB.Core.dll" />
+    <Reference Include="SonnetDB.Protocol" HintPath="$(LegacyCoreDirectory)/SonnetDB.Protocol.dll" />
+    <Reference Include="System.IO.Hashing" HintPath="$(LegacyCoreDirectory)/System.IO.Hashing.dll" />
+  </ItemGroup>
+</Project>

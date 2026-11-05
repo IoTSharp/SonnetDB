@@ -15,6 +15,7 @@
 - GH-Issue #230：补充固定5.0.0的十二类门禁及公开消费者审计；保留旧NuGet过期403证据，修复凭据后完成十包、52个Release资产和DockerHub公开回读，分别记录FreeSql237、XCode50、Chloe三协议各101、SqlSugar各93、ABP22及真实Testcontainers结果。上游Provider公开分发与本次SonnetDB交付分别验收。
 
 ### Fixed
+- GH-Issue #367：显式 DeltaValue 下对 Int64 质量列选择更小的独立 RLE，常数/长游程的完整双字段段文件实测缩小约36.4%～36.6%，交替/递增原样回退不膨胀；范围无命中也完整验证 RLE。新写 `.SDBSEG` 全部升级v7，新reader兼容v2～v6，旧引擎明确拒绝v7，降级须恢复升级前备份；Header/WAL/Catalog布局未变，未实现共享时间戳或浮点新算法。
 - GH-Issue #394：EF OwnsMany 按模型名称及集合位置解析有界元素路径，接通根/嵌套对象数组的跟踪属性、子树及整集合更新；覆盖三协议、增删/清空、转换器、事务/并发与重开。保留 EF 10 父 ordinal 变化后的显式清跟踪/重载要求及公开新包边界，不绕过内部 identifying key 校验。
 - GH-Issue #395：EF `ExecuteUpdate` 将 OwnsOne/Complex JSON 容器的固定标量路径和值参数化为服务器端 `json_set_value`，同列多路径按声明顺序组合并可与普通列原子更新；实际 embedded/REST/Frame、回滚/重开、并发影响行数与无效 JSON 整条拒绝回归通过。对象/数组子树、集合元素、完整类型矩阵及新公开包仍待验收。
 - GH-Issue #392：EF 迁移的受支持关系表/列/索引/外键/CHECK DDL 保留事务，与种子数据及迁移历史共同提交或回滚；序列/schema 及显式事务外 SQL 保留独立边界，新增真实迁移失败、历史写入拒绝、约束与两次重开回归。公开旧 5.0.0 的行为不因源码修复而改变。

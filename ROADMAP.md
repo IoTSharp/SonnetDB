@@ -161,7 +161,7 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 ## Milestone 46 — 存储编码与执行成本优化（压缩深化）
 
-M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典，Int64 仍 raw 8B，Vector/GeoPoint 仍 raw，WAL 仍是逐条原始 payload + CRC。v6 已内嵌 HNSW/sketch；mmap 仍有复制，解码缓存按 reader 设置，共享 HNSW 缓存及 KV I/O 预算另有实现。不能把可选编码、局部压缩率、mmap 或局部额度写成默认压缩、zero-copy 或进程总内存上限。
+M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典；2026-11-05 GH-Issue #367 增加显式 Int64 的独立v7 RLE及raw回退，旧V2 Int64仍为raw 8B，详见[实际文件与恢复审计](docs/audits/issue-367-20261105.md)。Vector/GeoPoint仍raw，WAL仍是逐条原始payload + CRC。v6起已内嵌HNSW/sketch；mmap仍有复制，解码缓存按reader设置，共享HNSW缓存及KV I/O预算另有实现。不能把此切片当作S02/S09完整交付，或把可选编码、局部压缩率、mmap与局部额度写成默认压缩、zero-copy或进程总内存上限。
 
 | ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
 |---|---|---|---|
