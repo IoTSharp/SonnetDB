@@ -22,7 +22,7 @@ namespace SonnetDB.Storage.Segments;
 /// ┌─────────────────────────────────────────────────────────────────┐
 /// │  SegmentHeader  (固定 64 字节，offset = 0)                       │
 /// │    Magic = "SDBSEGv1"                                           │
-/// │    FormatVersion = 6                                        │
+/// │    FormatVersion = 7                                        │
 /// │    SegmentId                                                    │
 /// │    CreatedAtUtcTicks                                            │
 /// │    BlockCount（回填）                                            │
@@ -342,12 +342,22 @@ public sealed class SegmentWriter
         int valPayloadLen = useV2Val
             ? ValuePayloadCodecV2.Measure(bucket.FieldType, points)
             : ValuePayloadCodec.MeasureValuePayload(bucket.FieldType, points);
+        bool useInt64Rle = false;
+        if (useV2Val && bucket.FieldType == FieldType.Int64)
+        {
+            int rleLength = Int64RleCodec.Measure(points.Span);
+            useInt64Rle = rleLength < valPayloadLen;
+            if (useInt64Rle)
+                valPayloadLen = rleLength;
+        }
         byte[] valBuf = ArrayPool<byte>.Shared.Rent(Math.Max(valPayloadLen, 1));
         try
         {
             if (valPayloadLen > 0)
             {
-                if (useV2Val)
+                if (useInt64Rle)
+                    Int64RleCodec.Write(points.Span, valBuf.AsSpan(0, valPayloadLen));
+                else if (useV2Val)
                     ValuePayloadCodecV2.Write(bucket.FieldType, points, valBuf.AsSpan(0, valPayloadLen));
                 else
                     ValuePayloadCodec.WritePayload(bucket.FieldType, points, valBuf.AsSpan(0, valPayloadLen));
@@ -375,9 +385,11 @@ public sealed class SegmentWriter
                 tsLen: tsSpan.Length,
                 valLen: valSpan.Length);
             bh.Crc32 = crc32;
-            BlockEncoding valueEncodingFlag = useV2Val
-                ? BlockEncoding.DeltaValue
-                : (isVector ? BlockEncoding.VectorRaw : (isGeoPoint ? BlockEncoding.GeoPointRaw : BlockEncoding.None));
+            BlockEncoding valueEncodingFlag = useInt64Rle
+                ? BlockEncoding.Int64Rle
+                : (useV2Val
+                    ? BlockEncoding.DeltaValue
+                    : (isVector ? BlockEncoding.VectorRaw : (isGeoPoint ? BlockEncoding.GeoPointRaw : BlockEncoding.None)));
             bh.Encoding = tsEncoding | valueEncodingFlag;
             short aggregateFlags = TryBuildAggregateMetadata(
                 bucket.FieldType, points.Span,

@@ -94,7 +94,11 @@ internal static class BlockDecoder
             int end = UpperBound(timestamps, toInclusive);
 
             if (start >= end)
+            {
+                if ((d.ValueEncoding & BlockEncoding.Int64Rle) != 0)
+                    Int64RleCodec.DecodeRangeInto(valPayload, count, 0, 0, Span<DataPoint>.Empty);
                 return [];
+            }
 
             int rangeCount = end - start;
             var result = new DataPoint[rangeCount];
@@ -142,7 +146,11 @@ internal static class BlockDecoder
         int end = UpperBoundRaw(tsPayload, count, toInclusive);
 
         if (start >= end)
+        {
+            if ((d.ValueEncoding & BlockEncoding.Int64Rle) != 0)
+                Int64RleCodec.DecodeRangeInto(valPayload, count, 0, 0, Span<DataPoint>.Empty);
             return [];
+        }
 
         int rangeCount = end - start;
         var result = new DataPoint[rangeCount];
@@ -158,6 +166,11 @@ internal static class BlockDecoder
 
     private static void ReadValues(FieldType fieldType, BlockEncoding valEncoding, ReadOnlySpan<byte> valPayload, int count, DataPoint[] result)
     {
+        if ((valEncoding & BlockEncoding.Int64Rle) != 0)
+        {
+            Int64RleCodec.DecodeRangeInto(valPayload, count, 0, count, result.AsSpan(0, count));
+            return;
+        }
         if ((valEncoding & BlockEncoding.DeltaValue) != 0)
         {
             ValuePayloadCodecV2.DecodeInto(fieldType, valPayload, count, result.AsSpan(0, count));
@@ -216,6 +229,11 @@ internal static class BlockDecoder
         int rangeCount,
         DataPoint[] result)
     {
+        if ((valEncoding & BlockEncoding.Int64Rle) != 0)
+        {
+            Int64RleCodec.DecodeRangeInto(valPayload, totalCount, start, rangeCount, result.AsSpan(0, rangeCount));
+            return;
+        }
         if ((valEncoding & BlockEncoding.DeltaValue) != 0)
         {
             ValuePayloadCodecV2.DecodeRangeInto(
