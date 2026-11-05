@@ -172,7 +172,8 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
     /// <inheritdoc />
     protected override Expression VisitUpdate(UpdateExpression updateExpression)
     {
-        if (updateExpression.ColumnValueSetters.Any(static setter => setter.Column.TypeMapping is SonnetDbJsonTypeMapping))
+        if (updateExpression.ColumnValueSetters.Any(static setter => setter.Column.TypeMapping is SonnetDbJsonTypeMapping
+            && setter.Value is not SqlFunctionExpression { Name: "json_set_value" }))
         {
             throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }

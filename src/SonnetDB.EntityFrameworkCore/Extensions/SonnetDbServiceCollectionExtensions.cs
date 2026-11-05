@@ -43,6 +43,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<IRelationalTransactionFactory, SonnetDbRelationalTransactionFactory>()
             .TryAdd<IRelationalDatabaseCreator, SonnetDbDatabaseCreator>()
             .TryAdd<IQueryCompilationContextFactory, SonnetDbQueryCompilationContextFactory>()
+            .TryAdd<IQueryableMethodTranslatingExpressionVisitorFactory, SonnetDbQueryableMethodTranslatingExpressionVisitorFactory>()
             .TryAdd<IRelationalTypeMappingSource, SonnetDbTypeMappingSource>()
             .TryAdd<ISqlGenerationHelper, SonnetDbSqlGenerationHelper>()
             .TryAdd<IQuerySqlGeneratorFactory, SonnetDbQuerySqlGeneratorFactory>()

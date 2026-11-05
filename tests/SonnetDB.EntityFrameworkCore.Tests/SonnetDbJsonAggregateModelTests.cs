@@ -279,31 +279,15 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExecuteUpdate_JsonPath_RejectsBeforeOpeningDatabase(bool owned)
+    public void ExecuteUpdate_JsonScalarPath_TranslatesBeforeOpeningDatabase(bool owned)
     {
         var blocker = new ConnectionBlocker();
         using var context = CreateContext(owned, blocker);
 
-        var exception = Assert.ThrowsAny<Exception>(() => context.Set<Passkey>().ExecuteUpdate(setters =>
+        var exception = Assert.Throws<InvalidOperationException>(() => context.Set<Passkey>().ExecuteUpdate(setters =>
             setters.SetProperty(passkey => passkey.Data.DisplayName, "changed")));
-        if (exception is NotSupportedException)
-        {
-            Assert.Contains("This JSON operation is not supported", exception.Message);
-        }
-        else
-        {
-            Assert.IsType<InvalidOperationException>(exception);
-            if (owned)
-            {
-                Assert.Contains("could not be translated", exception.Message);
-            }
-            else
-            {
-                Assert.Equal(RelationalStrings.JsonPartialExecuteUpdateNotSupportedByProvider, exception.Message);
-            }
-        }
-
-        Assert.Equal(0, blocker.OpenAttempts);
+        Assert.Equal("The JSON model-only test must not open a database connection.", exception.Message);
+        Assert.Equal(1, blocker.OpenAttempts);
     }
 
     private static void AssertJsonContainer(IModel model)

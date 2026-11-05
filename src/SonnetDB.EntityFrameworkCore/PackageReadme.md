@@ -39,7 +39,9 @@ var online = await context.Devices
 - 支持 migrations SQL、默认 `__EFMigrationsHistory` 和自定义 history table。
 - `ToJson` 支持整容器读写和固定标量路径查询。根 `OwnsOne(...).ToJson(...)` 容器只修改一个直接标量属性时，`SaveChanges` 使用 `json_set_value` 保留其它成员；支持 `string`、`bool`、`byte`、`short`、`int`、`long`、有限 `float`/`double` 及其可空形式。值沿用 EF 参数绑定，属性名按模型的 JSON 名称精确转义；可添加缺失的末端属性，但容器必须已经是有效对象。
 - 嵌套 `OwnsOne` 的属性也支持上述更新；每一级属性名均取自唯一 ownership 链的模型元数据，固定路径最多 64 个属性片段和 1024 字符，现有父级必须为对象。数组、Guid、日期、二进制和带转换器的属性使用 EF 自身的 JSON metadata writer 生成完整片段并参数化写入；数组支持整替及 EF 检测到的原地元素修改。没有 JSON writer 的类型与非有限浮点值仍拒绝。
-- 同一嵌套 `OwnsOne` 多属性变化时支持 EF 生成的子树替换；只从当前修改命令的最多 1024 个 entry/type 及其唯一 ownership 祖先解析路径，歧义或集合索引路径拒绝。替换保留目标外的兄弟，目标子树内部及整容器替换中的模型外成员不承诺保留。`OwnsMany` 元素路径和 JSON `ExecuteUpdate` 仍不支持。EF Provider 不声明 Native AOT 兼容；源码验证不代表公开包或官方 BookStore/Passkey 已验收。
+- 同一嵌套 `OwnsOne` 多属性变化时支持 EF 生成的子树替换；只从当前修改命令的最多 1024 个 entry/type 及其唯一 ownership 祖先解析路径，歧义或集合索引路径拒绝。替换保留目标外的兄弟，目标子树内部及整容器替换中的模型外成员不承诺保留。`OwnsMany` 元素路径仍不支持。EF Provider 不声明 Native AOT 兼容；源码验证不代表公开包或官方 BookStore/Passkey 已验收。
+- `ExecuteUpdate` / `ExecuteUpdateAsync` 支持 `OwnsOne` 或 `ComplexProperty` JSON 容器中的固定标量路径，类型与上述原生标量合同一致，属性路径和值均参数化。单表、无分组/排序/分页的更新在一条 SQL 中完成，最多 64 个 setter；同列按 `SetProperty` 顺序嵌套 `json_set_value`，重复路径以后一次为准，各右侧表达式读取更新前的行。可同时修改普通列，并保留 JSON 路径外成员。现有父级须为对象，允许新增缺失末端属性和写入 JSON null；无效父级使整条语句失败。
+- JSON `ExecuteUpdate` 不接受集合元素、对象/数组子树替换、Guid、日期、二进制或带转换器属性；这些形状保持拒绝边界。批量更新不自动应用跟踪实体的并发 Token，需要在 `Where` 中显式携带 Token 并检查影响行数。事务、同列路径及真实嵌入式/REST/HTTP2 Frame 验证范围见 `docs/audits/issue-395-20261105.md`；该源码切片不等于公开 NuGet 消费者已验收。
 - SQL `json_set_value(json, path, value, TRUE)` 显式将第三个参数当 JSON 片段，可替换对象/数组；省略第四参数或传 `FALSE` 时保持原 SQL 标量语义，JSON 外观字符串仍为字符串。片段与源文本各限 8 MiB UTF-8，共用 100000 输入节点预算，结果另限 8 MiB/100000 节点/64 层，保留 10 秒协作式预算及 SQL 取消。EF/DOM/输出分配不计入编码 scratch 的 5120 字节上限，不能把该数值当总内存上限。
 - 支持 `StartsWith`、`EndsWith`、`Contains` 到 `LIKE` 的基础字符串模式翻译。
 - 支持 `DateTime` / `DateTimeOffset` 的 `Now`、`UtcNow`、`Today`、`Date`、常用日期分量、`AddYears` 至 `AddTicks`，以及 `DateTimeOffset.ToUnixTimeSeconds()` / `ToUnixTimeMilliseconds()` 翻译。

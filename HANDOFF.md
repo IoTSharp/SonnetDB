@@ -1,3 +1,10 @@
+## 2026-11-05 Issue #395 参数化 JSON ExecuteUpdate 首片
+
+- 通过EF公开扩展点加入provider visitor/factory，支持OwnsOne/Complex固定标量路径；同列多个setter按声明顺序嵌套json_set_value，右侧读取更新前的行，可与普通列共同原子更新。路径和值均实际进入参数，未回退客户端读改写或反射JSON。
+- 独立worker完整EF332/332，含三协议真实更新、参数/Unicode/未知成员保留、同步异步/事务/重开、显式并发Token的影响行数、8项写前拒绝与6项无效JSON跨行原子失败。原始native回执/源码绑定/完整TRX在worker `artifacts/issue395/`。整合后还将复验组合EF/Server/Core，源码测试不等于公开旧5.0.0具备该行为。
+- 对象/数组子树、OwnsMany ExecuteUpdate元素路径、部分类型/converter及公开新包消费者仍在#395后续范围，回复实际已合入切片并保持OPEN。#394跟踪更新的集合生命周期是独立实现，不与ExecuteUpdate混淆。
+- #392已由7a2a42de7dac6f54117f1310120d5b00f61a37ec正常推送origin/main并读回；本节提交同样须取得最终完整restore/规定Format通过。没有发包、移动tag、部署或对外平台提交。
+
 ## 2026-11-05 Issue #392 EF 迁移事务源码切片
 
 - 受支持关系DDL保留EF事务，序列/schema逐操作抑制、raw SQL继续尊重显式SuppressTransaction。历史写入、种子数据和多DDL共同提交/回滚；未改Core格式或公开API。
