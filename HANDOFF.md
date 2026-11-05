@@ -1,3 +1,9 @@
+## 2026-11-05 对象取消CI观测时序修复
+
+- PR#405两平台CI同一disconnect:false用例在Aborted等待五秒超时，Ubuntu/Windows各Server1594中唯一失败；两边Core8073、EF360、三平台AOT/连接器、Format及CodeQL均成功。原日志保存在canonical artifacts/branch-cleanup-20261105/ubuntu405-job-log.txt和windows405-rest-job-log.txt。
+- 独立修复只改变测试fixture：首64B/暂停后至多再发4KiB真实探测块，剩余正文保持未完成，等唯一RequestAborted回调后退出；等待用独立用例deadline，避免被观测取消令牌抢先注销observer。I/O/取消异常保留，原5秒/3MiB/真实断连/退出/文件及临时资源/后续checksum断言全部保留。不是增大超时、重试断言或修改产品路径。
+- 本节与fixture将作为独立CI修复PR，在完整restore/规定Format及现有用例真实复跑通过后提交；实际CI/merge结果须继续核对，未提前宣称#405通过/已合并。#400两项owner异常复核已修复并99项通过，#402基础82项通过，后续在主整合树继续。
+
 ## 2026-11-05 Issue #394 OwnsMany 跟踪集合源码切片
 
 - 更新SQL生成器按模型完整JSON名称匹配路径，仅在集合位置解析最多10位Int32序号；根/嵌套对象数组可跟踪属性、子树和整集合更新，未改Core JSON或#395批量更新边界。
