@@ -28,6 +28,9 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case "hold_mq_instance_lifecycle_lease":
+        MqLifecycleLeaseScenario.Run(root, readyFile);
+        return 0;
     case "crash_ctas_stage-created":
     case "crash_ctas_stage-durable":
     case "crash_ctas_rowstore-moved":

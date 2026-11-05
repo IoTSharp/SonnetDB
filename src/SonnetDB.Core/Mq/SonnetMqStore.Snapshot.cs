@@ -4,6 +4,8 @@ namespace SonnetMQ;
 
 public sealed partial class SonnetMqStore
 {
+    internal static Action<string, string>? SnapshotBeforePublishTestHook { get; set; }
+
     /// <summary>
     /// 创建全局 SonnetMQ 实例的一致快照。
     /// 快照期间发布、ACK、NACK、offset reset、retention 和新 Topic 创建均被阻断；
@@ -26,11 +28,12 @@ public sealed partial class SonnetMqStore
         if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
             throw new IOException("SonnetMQ 快照目标目录必须为空。");
 
-        Directory.CreateDirectory(destination);
+        string staging = destination + ".snapshot-" + Guid.NewGuid().ToString("N");
         _snapshotGate.EnterWriteLock();
         try
         {
             EnsureNotDisposed();
+            Directory.CreateDirectory(staging);
             TopicState[] states = _topics.Values.OrderBy(static state => state.Topic, StringComparer.Ordinal).ToArray();
             var lockedStates = new List<TopicState>(states.Length);
             try
@@ -46,7 +49,7 @@ public sealed partial class SonnetMqStore
                 foreach (string sourcePath in EnumerateSnapshotFiles(sourceRoot))
                 {
                     string relativePath = Path.GetRelativePath(sourceRoot, sourcePath);
-                    string targetPath = ResolveSnapshotPath(destination, relativePath);
+                    string targetPath = ResolveSnapshotPath(staging, relativePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                     File.Copy(sourcePath, targetPath, overwrite: false);
                     entries.Add(new SonnetMqSnapshotFile(
@@ -60,7 +63,9 @@ public sealed partial class SonnetMqStore
                     SonnetMqInstanceSnapshotManifest.CurrentFormatVersion,
                     DateTimeOffset.UtcNow,
                     entries.AsReadOnly());
-                SonnetMqInstanceSnapshotCodec.WriteManifest(destination, manifest);
+                SonnetMqInstanceSnapshotCodec.WriteManifest(staging, manifest);
+                SnapshotBeforePublishTestHook?.Invoke("snapshot", destination);
+                PublishSnapshotDirectory(staging, destination, overwrite: false);
                 return new SonnetMqInstanceSnapshotResult(
                     destination,
                     Path.Combine(destination, SonnetMqInstanceSnapshotManifest.FileName),
@@ -75,7 +80,7 @@ public sealed partial class SonnetMqStore
         }
         catch
         {
-            TryDeleteDirectory(destination);
+            TryDeleteDirectory(staging);
             throw;
         }
         finally
@@ -134,9 +139,8 @@ public sealed partial class SonnetMqStore
             }
 
             ValidateManifest(staging, manifest, verifyFiles: true);
-            if (Directory.Exists(target))
-                Directory.Delete(target, recursive: true);
-            Directory.Move(staging, target);
+            SnapshotBeforePublishTestHook?.Invoke("restore", target);
+            PublishSnapshotDirectory(staging, target, overwrite);
             return manifest;
         }
         catch
@@ -172,8 +176,20 @@ public sealed partial class SonnetMqStore
             yield break;
         }
 
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         foreach (string path in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
-            yield return path;
+        {
+            if (!string.Equals(path, Path.Combine(sourceRoot, LifecycleLockFileName), comparison))
+                yield return path;
+        }
+    }
+
+    private static void PublishSnapshotDirectory(string staging, string target, bool overwrite)
+    {
+        // 非覆盖模式仅允许删除仍为空的目录，检查后出现的外来文件不能被递归删除。
+        if (Directory.Exists(target))
+            Directory.Delete(target, recursive: overwrite);
+        Directory.Move(staging, target);
     }
 
     private static void ValidateManifest(

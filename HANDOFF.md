@@ -1,3 +1,11 @@
+## 2026-11-05 Issue #400 Server实例MQ离线快照/恢复
+
+- 新增sndb mq snapshot/inspect/restore，显式绝对ServerRoot/.system/mq、snapshot/restore需--offline，拒绝已有/嵌套/链接目标，只恢复到新DataRoot；复用既有manifest v1和一致快照，不重做MQ。CLI回执手写Utf8JsonWriter，未引入反射JSON、远程管理端点或MCP运维工具。
+- 目录MQ从Replay前到Dispose最后持有owner lease，含空目录；快照排除锁文件。Core改唯一staging后原子发布，非覆盖发布只非递归处理仍空兼容目标，竞态外来文件保留；独立review修复Windows大小写锁排除和单topic关闭异常后完整释放所有writer/cache/流、lease最后释放，单异常EDI原样重抛/多异常聚合。
+- worker99/99(原96+3review回归)、跨进程空owner强杀1/1、真实Server/MCP恢复2/2及CLI31/31通过，组间重叠不相加。主整合全solution Release构建0警告/0错误、MQ扩大124/124、EF360/360、Server1595/1595、主键/租约crash14/14，全部0失败/跳过。400恢复到当前main后逐文件核对16个源文件SHA与上述完成测试的源码完全一致，证据400-reapply-source-verification.json。
+- 显式边界：MQ消息/ACK/NACK/DLQ/元数据/哈希清单属于备份；身份、Token/grant、Server配置、数据库目录与外部对象卷不包含。旧Server不持新lease仍须操作者先实际停机；同步复制无硬取消，真实copy进程强杀、大规模/慢盘/满盘、生产RPO/RTO、物理掉电与WorkBuddy现场仍NOT_RUN，#403保留现场交接。
+- PR#406已正常合并7fe6dbe91b99aa5822a8870ee6d5e98434d97da0且最终全检查成功；PR#405包含该测试修复后正常合并4534280a8345a28e8c15abc34aa483ab78108f7c。v7压缩源码已入main，仍未发新正式包/部署。此400独立提交前执行完整restore/规定Format；最终SHA/远端CI和issue关闭由收口核对。
+
 ## 2026-11-05 Issue #367 Int64质量列压缩与v7段
 
 - 显式DeltaValue下新增独立Int64Rle=16，仅严格比raw小时采用，完整Int64无损；新段全部v7，读取v2～v6，旧引擎实际拒绝v7。64/80/64字节Header/BlockHeader/Footer布局、通用FileHeader/WAL/Catalog保持；降级须恢复升级前备份。此格式变更将在单一#367 PR说明后正常合入，不打tag/发包/部署。
