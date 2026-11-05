@@ -5,6 +5,11 @@
 - worker存储297/297，独立review新增空命中RLE完整校验后303/303，0失败/跳过；实际旧二进制读v6/拒v7、WAL真实replay与两次重开通过。旧readerCP936导致encoding_error但原生exit0及保留Base64/REJECT_PASS分开记录。新增codec无核心运行时依赖。
 - 原始段/旧DLL/探针/完整TRX与回执已复制canonical `artifacts/branch-cleanup-20261105/workers/issue367/`；新增review delta亦须最终同步。独立review无另一个确定性v6硬编码断言问题。最终整合将执行Core全套与CI，不能用303项或本机合成字节替代发布/生产/物理掉电。
 - #394已由d1d4b57c8caa63e444e3485152db58aec05fcc7e正常推送main并回读。后续仍按单项完整restore/规定Format与实际测试收口；#392/#394/#395公开新包等未完成边界继续OPEN。
+## 2026-11-05 对象取消CI观测时序修复
+
+- PR#405两平台CI同一disconnect:false用例在Aborted等待五秒超时，Ubuntu/Windows各Server1594中唯一失败；两边Core8073、EF360、三平台AOT/连接器、Format及CodeQL均成功。原日志保存在canonical artifacts/branch-cleanup-20261105/ubuntu405-job-log.txt和windows405-rest-job-log.txt。
+- 独立修复只改变测试fixture：首64B/暂停后至多再发4KiB真实探测块，剩余正文保持未完成，等唯一RequestAborted回调后退出；等待用独立用例deadline，避免被观测取消令牌抢先注销observer。I/O/取消异常保留，原5秒/3MiB/真实断连/退出/文件及临时资源/后续checksum断言全部保留。不是增大超时、重试断言或修改产品路径。
+- 本节与fixture将作为独立CI修复PR，在完整restore/规定Format及现有用例真实复跑通过后提交；实际CI/merge结果须继续核对，未提前宣称#405通过/已合并。#400两项owner异常复核已修复并99项通过，#402基础82项通过，后续在主整合树继续。
 
 ## 2026-11-05 Issue #394 OwnsMany 跟踪集合源码切片
 
