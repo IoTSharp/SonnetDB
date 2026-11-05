@@ -1,0 +1,52 @@
+INPUTS (required):
+1. sonnetdb-explainer-v5-contrast.png -- fixed, user-approved identity/outfit reference.
+   SHA256: 8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c
+2. sonnetdb-explainer-face-v1.png -- optional additional face detail; never substitutes
+   for the full-body reference. Verify its SHA256 in manifest.json.
+
+MODEL: use the configured GPT Image 2.5 route from the gpt-image-design skill
+(currently gpt-image-2.5-sunburst). Actually attach the reference image(s).
+
+PROMPT:
+Create a new SonnetDB educational image using the supplied approved character
+reference. Keep exactly the same recognizable adult East Asian woman, about 25:
+the same facial features, sweet warm natural smile, long softly wavy dark brown
+hair, wispy fringe, mint hair clip and adult proportions. Preserve her friendly,
+approachable technical-presenter personality.
+
+Keep the approved outfit: ivory knit cardigan with subtle mint edging, white
+blouse, mint/ivory/very restrained blush plaid pleated skirt and matching ribbon
+bow, small mint hair accessory and refined ivory high-heeled pumps. Hosiery must
+match V5: extremely sheer nylon, predominantly natural warm skin undertone with
+a very faint cool mint sheen and delicate highlights; clear knee/calf/ankle
+shading. Do not render opaque colored tights, gray-yellow-green skin, saturated
+cyan legs, green-painted skin or flat digital recoloring. Mint is primarily
+expressed by the outfit and coordinated small accents.
+
+Keep the face and educational topic as the visual focus. Make the light outfit
+stand out clearly against its surroundings. Default to a softly defocused,
+low-saturation darker blue-gray technical setting with soft warm key light and
+gentle edge separation. The topic background may vary but must preserve this
+foreground/background clarity; avoid the previous pale warm background blending
+into the pale outfit.
+
+Change only the article-specific diagram, educational prop, gesture, composition
+and requested channel dimensions. Keep character identity, hair, age impression,
+wardrobe and material appearance fixed unless the user explicitly requests a new
+version. Maintain natural anatomy and photographic fabric/skin detail.
+
+Article topic: [TOPIC]
+Verified facts and required boundary labels: [FACTS_AND_LABELS]
+Teaching gesture / props / layout: [COMPOSITION]
+Brand / readable Chinese title / follow guidance: [CHANNEL_TEXT]
+Requested dimensions / crop-safe region: [SIZE_AND_CROP]
+
+Only display verified technical information. Do not invent performance numbers,
+customer results or production readiness. Label Graph Beta when relevant.
+
+REVIEW:
+Record reference path + SHA256, final prompt, model, requested/actual dimensions,
+output SHA256 and actual visual review. Check the same face, adult sweetness,
+hair, outfit, heels (when visible), sheer hosiery, natural leg shading, background
+separation, legible Chinese and accurate technical content. A new topic is not
+a new person. Missing references block generation; a poor match blocks approval.

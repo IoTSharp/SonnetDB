@@ -1914,3 +1914,14 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 研究和 M50 的 32 项仍全部 planned；未新增生产实现、性能/恢复/硬件结果、包发布或部署。先 T01 冻结当前基线及首批矩阵，再实施 T02/T03；parity-results 始终独立保留。
 - 共享主目录的其它会话内容以 source-state.json 和原文件快照守护；最终本地分支与工作树同步/保留状态、任务进程和隔离工作树清理以同目录最终回执为准，不能依据本段预先推断。
 \n## 2026-11-05 SonnetDB 24ff94e4 木垒现场部署\n\n- 用户明确要求按大件运输沟通接续并部署 SonnetDB 新版本。本轮将父仓 `D:/Uixe/TOLNSD` 的 `externals/SonnetDB` gitlink 从 `b6f8d60c` 更新到 `24ff94e4ae681eb9872a8cde2d9fddc268389137`，父仓提交 `2aabdb7069b69ab93e9a077ced5d700fb3ef3172` 已推送 Gitee `master` 并独立回读。\n- 从该精确提交执行 `dotnet publish -r linux-arm64 --no-self-contained`；以现场 R1 ARM64 runtime digest 为基础层构建并推送 `sonnetdb:mulei-arm64-20261105-object-pagination-24ff94e4@sha256:1a7cd40e69c104184bcae400076f6e5c838eb6e899ac8df2be6729e9aefde34f`，现场 `docker image inspect` 架构为 `arm64`。\n- 现场仅修改 `SONNETDB_IMAGE`，备份 `.env.bak-20261105-134824` 和对应 compose 备份；TOLNSD、dingtalk-sender 未重启，旧容器 ID/启动时间保留。新 SonnetDB 容器 `af808c0c...` 于 `2026-11-05T05:48:33Z` 启动，restart=0、OOM=false、healthy；readiness/livez=200，容器内 Frame 5081 reachable。\n- 真实现场对象分页回读：`vehicle-recognition`、`flows/2026/11/04/`、`max-keys=3` 首页439.948ms、第二页54.332ms，6键无重复且游标顺序正确。原现场 R1 大件业务链路和中心上传待验边界见 TOLNSD 最新交接，未在本节改写。\n- 本地 SonnetDB Core/Server 回归、ARM64隔离副本、完整 restore/Format 见上一节及 `docs/audits/object-pagination-20261104/`。新版本现场部署不等于完成中心上传回读、群终端显示/人工已读、固定硬件容量、NativeAOT或168小时长稳；这些继续保持相应状态。\n- 捕获器首次因远端 stdout 混合文本拒绝单JSON，未自动重试外部切换；现场状态随后独立回读并确认最终 PASS，原始输出及备份路径保留在 `artifacts/deploy-readonly-20261105/`。\n
+
+<!-- sonnetdb-character-v5-approved-20261106:begin -->
+## 2026-11-06 讲解人物 V5 定稿与后续生成规则
+
+- 用户查看V5后要求提交推送，并明确要求以后智能体按此规则生成，故固定sonnetdb-explainer规范1.0。全身基准sonnetdb-explainer-v5-contrast.png，1024x1536，SHA256=8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c；脸部参考由此图无损裁切310x350，坐标/哈希见docs/blogs/assets/character/manifest.json，批准原话见approval-20261106.json。
+- AGENTS.md、docs/blogs/character-profile.md、封面规范及生成模板均要求实际传入基准并校验SHA，保持同一成年约25岁甜美女性、长发、米白开衫、薄荷/米白/浅粉格纹与领结、米白高跟鞋。丝袜以V5近肤色极轻冷薄荷调和轻透光泽为准；背景须和浅色人物清楚分离，默认较深冷蓝灰，不再回退旧亮青/灰黄绿袜或浅暖背景。主题、道具、动作、构图可变，身份和造型变更需新用户要求。
+- 原V5生成/目视回执保留当时pending历史，当前清单及批准记录为approved并覆盖该历史状态。较早候选、用户原始穿搭图、调色试作和临时执行脚本留作本地过程证据，不作为后续生成依赖，也不随本次推送扩大上传。
+- 本机.NET SDK10.0.403，完整dotnet restore SonnetDB.slnx实际退出0；与CI相同dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/实际退出0，保留一条workspace加载警告，不能写成零警告。资产哈希/脸部像素/模板与清单引用/文档链接和编码本地核验通过。本次无产品源码变更，不将这些门禁当成产品测试、远程CI或发布验收。
+- 提交范围只含13个明确角色交付路径；CHANGELOG只暂存本条人物说明，HANDOFF只暂存本节，不带入共享文件中的其它会话改动。基线main=6a205df8eca2c5503a76c493931b477675d11a54；具体提交与远端回读见artifacts/character-commit-20261106-01a1ab73/收据及Git记录。未发布文章、上传渠道素材或部署产品，parity-results保留。
+- 后续所有智能体从根AGENTS入口读取固定档案并按模板生成；每篇新主题不等于换人，发布前实际审图，不把输入参考或已生成图片自动视为已发表。原有外来脏工作、忽略文件和其它渠道状态保持。门禁进程由Cordonix有界执行，回执cleanup_complete=true，无任务独占后台服务。
+<!-- sonnetdb-character-v5-approved-20261106:end -->
