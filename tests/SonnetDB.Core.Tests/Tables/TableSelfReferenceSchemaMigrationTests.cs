@@ -42,29 +42,29 @@ public sealed class TableSelfReferenceSchemaMigrationTests : IDisposable
         Assert.Equal(3L, Row(again, "SELECT node_id FROM links WHERE id=11")[0]);
     }
 
-    /// <summary>真实主键列替换或类型变化仍拒绝自引用迁移，包括没有行的表。</summary>
+    /// <summary>真实主键列替换或无损类型变化统一迁移自引用和外部引用，包括空表。</summary>
     [Theory]
     [InlineData(false, "ALTER TABLE nodes ALTER PRIMARY KEY(code)")]
     [InlineData(true, "ALTER TABLE nodes ALTER PRIMARY KEY(code)")]
-    [InlineData(false, "ALTER TABLE nodes ALTER COLUMN id TYPE STRING")]
-    [InlineData(true, "ALTER TABLE nodes ALTER COLUMN id TYPE STRING")]
-    public void AlterPrimaryKey_WithSelfReference_RejectsDefinitionChangesBeforeWrites(bool populated, string sql)
+    [InlineData(false, "ALTER TABLE nodes ALTER COLUMN id TYPE DECIMAL(18,0)")]
+    [InlineData(true, "ALTER TABLE nodes ALTER COLUMN id TYPE DECIMAL(18,0)")]
+    public void AlterPrimaryKey_WithSelfReference_UpdatesDefinitionAndReferences(bool populated, string sql)
     {
         using var db = Open();
         Setup(db, populated);
-        byte[] catalog = File.ReadAllBytes(db.Tables.SchemaPath);
-        long wal = db.Tables.Open("nodes").ActiveWalLengthForEvidence;
-        var error = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db, sql));
-        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
-        Assert.Contains("自引用", error.Message);
-        Assert.Equal(catalog, File.ReadAllBytes(db.Tables.SchemaPath));
-        Assert.Equal(wal, db.Tables.Open("nodes").ActiveWalLengthForEvidence);
-        Assert.False(File.Exists(JournalPath));
+        SqlExecutor.Execute(db, sql);
+        bool replacesKey = sql.Contains("ALTER PRIMARY KEY", StringComparison.Ordinal);
+        string key = replacesKey ? "code" : "id";
+        var schema = db.Tables.Catalog.TryGet("nodes")!;
+        Assert.Equal([key], schema.PrimaryKey);
+        Assert.Equal([key], Assert.Single(schema.ForeignKeys).PrincipalColumns);
+        Assert.Equal([key], Assert.Single(db.Tables.Catalog.TryGet("links")!.ForeignKeys).PrincipalColumns);
+        Assert.True(TableSchemaMigrationJournal.Read(JournalPath)!.IsComplete);
         if (populated)
         {
-            Assert.Equal(1L, Row(db, "SELECT parent_id FROM nodes WHERE id=2")[0]);
-            Assert.Equal(2L, Row(db, "SELECT node_id FROM links WHERE id=10")[0]);
-            AssertForeignKeyRejections(db);
+            Assert.Equal(replacesKey ? (object)101L : 1m, Row(db, "SELECT parent_id FROM nodes WHERE code=102")[0]);
+            Assert.Equal(replacesKey ? (object)102L : 2m, Row(db, "SELECT node_id FROM links WHERE id=10")[0]);
+            Assert.Equal("child", Row(db, "SELECT label FROM nodes WHERE code=102")[0]);
         }
     }
 

@@ -22,10 +22,26 @@ public sealed partial class TableManager
         SqlExecutor.ThrowIfCancellationRequested();
         IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
         bool preservesPrimaryKey = HasUnchangedSchemaMigrationPrimaryKeyDefinition(current, updated);
+        if (!preservesPrimaryKey && current.ForeignKeys.Any(key => key.PrincipalObjectName == current.ObjectName)
+            && (current.SchemaName != TableObjectName.DefaultSchemaName
+                || current.ForeignKeys.Any(key => key.PrincipalSchemaName != TableObjectName.DefaultSchemaName)
+                || previousSchemas.Select(static schema => schema.Name).Distinct(StringComparer.Ordinal).Count() != previousSchemas.Count
+                || previousSchemas.Any(schema => schema.ForeignKeys.Any(key => key.PrincipalTable == current.Name
+                    && (schema.SchemaName != TableObjectName.DefaultSchemaName
+                        || key.PrincipalSchemaName != TableObjectName.DefaultSchemaName)))))
+        {
+            // 既有 journal 仍按短表名查找恢复对象；在完成成对身份迁移前不得扩大其恢复合同。
+            throw SchemaMigrationUnsupported(current.Name,
+                "自引用主键迁移仅支持 main 内的相关表，且关系目录不得存在跨 schema 同名表。");
+        }
         var children = PrepareSchemaMigrationChildren(current, updated, previousSchemas, preservesPrimaryKey);
+        SchemaMigrationChild? selfReference = children.Find(child =>
+            string.Equals(child.Original.Name, current.Name, StringComparison.Ordinal));
+        TableSchema principalTarget = selfReference?.Updated ?? updated;
+        if (selfReference is not null) children.Remove(selfReference);
         var updatedByName = children.ToDictionary(static child => child.Updated.Name,
             static child => child.Updated, StringComparer.Ordinal);
-        updatedByName.Add(updated.Name, updated);
+        updatedByName.Add(principalTarget.Name, principalTarget);
         if (updatedByName.Count > TableSchemaMigrationJournal.MaxTables)
             throw SchemaMigrationUnsupported(current.Name, "迁移涉及的关系表超过 32 张上限。");
         TableSchema[] candidateSchemas = previousSchemas.Select(schema =>
@@ -73,10 +89,23 @@ public sealed partial class TableManager
                         throw SchemaMigrationUnsupported(current.Name, "非主键 schema 迁移不能修改现有主键编码。");
                 }
             }
-            plans.Add(current.Name, (principalStore, principalPlan));
             budget.Reserve(principalPlan.Rows.Count * 80L);
             var principalByOriginalKey = principalPlan.Rows.ToDictionary(static row => row.OriginalPrimaryKey,
                 static row => row.UpdatedRow, KvKeyComparer.Instance);
+            if (selfReference is not null)
+            {
+                // 先冻结所有旧键到新父行的映射，再在同一迁移计划中处理自引用。
+                // 不依赖遍历顺序，循环引用也无需临时删除约束或写入半迁移状态。
+                principalPlan = principalStore.PrepareSchemaMigration(principalTarget,
+                    (_, row) => TransformSchemaMigrationChildRow(current, updated, selfReference, row,
+                        principalByOriginalKey, principalByOriginalKey[row.PrimaryKey.ToArray()].Values),
+                    (schema, values) =>
+                    {
+                        ValidateSchemaMigrationRow(schema, values);
+                        validate?.Invoke(schema, values);
+                    }, TableRowIdentity.Create, budget);
+            }
+            plans.Add(current.Name, (principalStore, principalPlan));
             foreach (var child in children)
             {
                 TableStore store = _stores[child.Original.ObjectName];
@@ -121,8 +150,7 @@ public sealed partial class TableManager
             TableForeignKey[] references = child.ForeignKeys.Where(foreignKey =>
                 string.Equals(foreignKey.PrincipalTable, current.Name, StringComparison.Ordinal)).ToArray();
             if (references.Length == 0) continue;
-            if (string.Equals(child.Name, current.Name, StringComparison.Ordinal))
-                throw SchemaMigrationUnsupported(current.Name, "主键迁移暂不支持自引用外键。");
+            bool isSelfReference = string.Equals(child.Name, current.Name, StringComparison.Ordinal);
             if (updated.PrimaryKey.Count == 0 || current.PrimaryKey.Count != updated.PrimaryKey.Count)
                 throw SchemaMigrationUnsupported(current.Name, "存在入站外键时，新旧主键必须保留相同列数。");
             var mappedColumns = new HashSet<string>(StringComparer.Ordinal);
@@ -137,13 +165,16 @@ public sealed partial class TableManager
                             && other.Columns.Contains(name, StringComparer.Ordinal)))
                         throw SchemaMigrationUnsupported(child.Name, "主键迁移暂不支持多个外键共享子表列。");
                     TableColumn column = child.TryGetColumn(name)!;
+                    if (isSelfReference && (column.IsPrimaryKey
+                        || updated.PrimaryKey.Contains(name, StringComparer.Ordinal)))
+                        throw SchemaMigrationUnsupported(child.Name, "自引用外键源列不能与旧或新主键列重叠。");
                     if (column.IsAutoIncrement || column.IsRowVersion)
                         throw SchemaMigrationUnsupported(child.Name, "主键迁移不能改写子表的生成列。");
                     if (column.IsPrimaryKey && HasInboundForeignKeyLocked(child.Name))
                         throw SchemaMigrationUnsupported(child.Name, "主键迁移暂不支持继续级联到被引用的子表主键。");
                 }
             }
-            TableSchema childUpdated = child;
+            TableSchema childUpdated = isSelfReference ? updated : child;
             foreach (var reference in references)
             {
                 childUpdated = childUpdated.WithoutForeignKey(reference.Name);
@@ -185,9 +216,10 @@ public sealed partial class TableManager
 
     private static IReadOnlyList<object?> TransformSchemaMigrationChildRow(
         TableSchema current, TableSchema updated, SchemaMigrationChild child, TableRow row,
-        IReadOnlyDictionary<byte[], TableRow> principalByOriginalKey)
+        IReadOnlyDictionary<byte[], TableRow> principalByOriginalKey,
+        IReadOnlyList<object?>? transformedValues = null)
     {
-        object?[] values = row.Values.ToArray();
+        object?[] values = (transformedValues ?? row.Values).ToArray();
         foreach (var reference in child.References)
         {
             IReadOnlyList<object?>? oldForeignKey = ExtractForeignKeyValues(child.Original, row, reference);

@@ -79,6 +79,10 @@ switch (scenario)
     case "crash_kill9_primary_key_migration_type_after_catalog":
     case "crash_kill9_primary_key_migration_type_after_complete":
     case "crash_kill9_primary_key_migration_recovery_after_catalog":
+    case "crash_kill9_primary_key_migration_self_after_journal":
+    case "crash_kill9_primary_key_migration_self_after_parent":
+    case "crash_kill9_primary_key_migration_self_after_catalog":
+    case "crash_kill9_primary_key_migration_self_after_complete":
         PrimaryKeyMigrationCrashScenario.Run(root, readyFile, scenario);
         return 0;
     case "crash_kill9_keyless_between_tables":

@@ -22,15 +22,24 @@ internal static class PrimaryKeyMigrationCrashScenario
         }
 
         using var db = Tsdb.Open(Options(root));
+        bool selfReference = phase.StartsWith("self-", StringComparison.Ordinal);
+        if (selfReference) phase = phase["self-".Length..];
         bool typeChange = phase.StartsWith("type-", StringComparison.Ordinal);
         if (typeChange) phase = phase["type-".Length..];
-        SqlExecutor.Execute(db, "CREATE TABLE parents(id INT AUTO_INCREMENT,code INT NOT NULL,label STRING DEFAULT 'base',version INT ROWVERSION,PRIMARY KEY(id),CHECK(code>0))");
+        SqlExecutor.Execute(db, selfReference
+            ? "CREATE TABLE parents(id INT AUTO_INCREMENT,code INT NOT NULL,label STRING DEFAULT 'base',version INT ROWVERSION,parent_id INT,PRIMARY KEY(id),CHECK(code>0),CONSTRAINT fk_self FOREIGN KEY(parent_id) REFERENCES parents(id))"
+            : "CREATE TABLE parents(id INT AUTO_INCREMENT,code INT NOT NULL,label STRING DEFAULT 'base',version INT ROWVERSION,PRIMARY KEY(id),CHECK(code>0))");
         SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_label ON parents(label)");
         SqlExecutor.Execute(db, "CREATE INDEX ix_code ON parents(code)");
         SqlExecutor.Execute(db, "CREATE TABLE children(id INT,parent_id INT,PRIMARY KEY(id),FOREIGN KEY(parent_id) REFERENCES parents(id))");
         SqlExecutor.Execute(db, "CREATE INDEX ix_parent ON children(parent_id)");
         SqlExecutor.Execute(db, "INSERT INTO parents(code,label) VALUES(2,'one'),(1,'two')");
         SqlExecutor.Execute(db, "INSERT INTO children(id,parent_id) VALUES(10,1)");
+        if (selfReference)
+        {
+            SqlExecutor.Execute(db, "UPDATE parents SET parent_id=2 WHERE id=1");
+            SqlExecutor.Execute(db, "UPDATE parents SET parent_id=1 WHERE id=2");
+        }
         if (typeChange)
             SqlExecutor.Execute(db, "ALTER TABLE parents ALTER PRIMARY KEY(code)");
         if (phase == "after-page")
@@ -52,7 +61,8 @@ internal static class PrimaryKeyMigrationCrashScenario
         void Pause()
         {
             File.WriteAllText(readyFile, scenario);
-            Thread.Sleep(Timeout.Infinite);
+            Thread.Sleep(TimeSpan.FromSeconds(30));
+            throw new TimeoutException("Parent did not terminate the owned migration worker within 30 seconds.");
         }
     }
 

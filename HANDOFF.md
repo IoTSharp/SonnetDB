@@ -1,3 +1,11 @@
+## 2026-11-05 Issue #393 受限自引用主键迁移
+
+- 本轮用户授权多个智能体实现新增 issue、合入 main、回复并在验收完成后关闭。canonical `D:/source/SonnetDB` 的外来文档/发布 dirty 保留；整合树为独立 detached `sonnetdb-issue-integration-20261105/SonnetDB`，基线 `a7125ffb15c3d2182ff811036173316c75329ba9`。
+- #393 复用既有 journal，先冻结旧键到新父行映射，再统一准备自引用与外部子表；支持循环/自环、复合键、MATCH SIMPLE 和既有严格无损类型变更，保留源/新旧主键重叠、共享 FK 源列与继续级联拓扑的写前拒绝。未改存储格式。相关表限 main，目录存在跨 schema 同短名时在屏障前拒绝，以避免既有短名 journal 的恢复缺口；双准备计入合计行/内存预算。
+- 本机 Core 定向 43/43、Crash 主键迁移 12/12（含新增自引用强杀4阶段），均0失败/跳过；原始失败与通过回执保留在 `artifacts/branch-cleanup-20261105/`。后续收口还须对最终代码运行完整 Core/EF/Server适用回归及远端CI，不将这些定向结果提升为物理掉电、公开新包或生产验收。
+- 已清理19本地、17 GitHub开发分支；只保留本地main、远端main与强制保护parity-results。12个改写前/未采用候选refs在 `artifacts/branch-cleanup-20261105/legacy-branches.bundle` 已verify；既有worktree只detach、全部文件保留。#403已更新WorkBuddy宿主/平台执行表并独立回读，#402已记录归档提交接续入口；未采用不完整恢复候选。
+- 本节提交前将在整合最终树执行完整restore与规定Format，实际退出结果以对应receipt为准；最终提交/推送SHA及两端main同步由会话收口记录，不提前宣称发布或部署。
+
 ## 2026-11-04 对象分页后续：前缀回填、真实网络资源释放与隔离恢复
 
 - 专属工作树 `C:/Users/mysti/.codex/worktrees/object-pagination-20261104/SonnetDB`，分支 `codex/object-pagination-20261104`，基于已推送 `b6f8d60c5992cfc30870c30b239dd2cfe0e2d57d` 并整合 `origin/main@5742bbe536e60dd321843c409b0f837722016c0e`。main 合并只在交接前置段冲突，保留双方新增记录及历史后缀原字节；共享 D:/source/SonnetDB 的外来脏文件未修改。parity-results 保留。

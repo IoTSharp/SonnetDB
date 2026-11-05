@@ -9,6 +9,33 @@ namespace SonnetDB.CrashTests;
 
 public sealed partial class CrashReliabilityTests
 {
+    /// <summary>强制终止自引用主键迁移后，循环和外部引用依同一持久决定恢复并重复重开。</summary>
+    [Theory]
+    [InlineData("after_journal", false)]
+    [InlineData("after_parent", false)]
+    [InlineData("after_catalog", false)]
+    [InlineData("after_complete", true)]
+    public void SelfPrimaryKeyMigration_HardKill_RestoresWholeMappingAcrossTwoReopens(string phase, bool committed)
+    {
+        string root = RunKillScenario("crash_kill9_primary_key_migration_self_" + phase, TimeSpan.Zero);
+        for (int reopen = 0; reopen < 2; reopen++)
+        {
+            using var db = Tsdb.Open(MakeOptions(root));
+            string key = committed ? "code" : "id";
+            Assert.Equal([key], db.Tables.Catalog.TryGet("parents")!.PrimaryKey);
+            Assert.Equal([key], Assert.Single(db.Tables.Catalog.TryGet("parents")!.ForeignKeys).PrincipalColumns);
+            Assert.Equal([key], Assert.Single(db.Tables.Catalog.TryGet("children")!.ForeignKeys).PrincipalColumns);
+            Assert.Equal(committed ? 1L : 2L, Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT parent_id FROM parents WHERE label='one'")).Rows)[0]);
+            Assert.Equal(committed ? 2L : 1L, Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT parent_id FROM parents WHERE label='two'")).Rows)[0]);
+            Assert.Equal(committed ? 2L : 1L, Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT parent_id FROM children WHERE id=10")).Rows)[0]);
+            Assert.Equal(TableConstraintException.ForeignKeyViolation, Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(db, "INSERT INTO children(id,parent_id) VALUES(11,99999)")).ErrorCode);
+        }
+    }
+
     [Theory]
     [InlineData("before_barrier", false)]
     [InlineData("after_barrier", false)]
