@@ -11,6 +11,8 @@ namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 /// </summary>
 public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
 {
+    private bool _suppressNonRelationalTransaction;
+
     /// <summary>
     /// 创建 SonnetDB 迁移 SQL 生成器。
     /// </summary>
@@ -19,6 +21,29 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         : base(dependencies)
     {
     }
+
+    /// <inheritdoc />
+    protected override void Generate(MigrationOperation operation, IModel? model, MigrationCommandListBuilder builder)
+    {
+        // 独立序列和 schema 不属于关系 DDL workspace；不把它们和关系表/迁移历史伪装成原子提交。
+        bool previous = _suppressNonRelationalTransaction;
+        _suppressNonRelationalTransaction = operation is
+            CreateSequenceOperation or AlterSequenceOperation or DropSequenceOperation
+            or RenameSequenceOperation or RestartSequenceOperation
+            or EnsureSchemaOperation or DropSchemaOperation;
+        try
+        {
+            base.Generate(operation, model, builder);
+        }
+        finally
+        {
+            _suppressNonRelationalTransaction = previous;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void EndStatement(MigrationCommandListBuilder builder, bool suppressTransaction = false)
+        => base.EndStatement(builder, suppressTransaction || _suppressNonRelationalTransaction);
 
     /// <inheritdoc />
     protected override void Generate(
@@ -478,7 +503,9 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     private void EndDdlStatement(MigrationCommandListBuilder builder)
-        => EndStatement(builder, suppressTransaction: true);
+        // 所有调用方都是 #227 已支持的关系表/索引 DDL；由 EF 与历史行一起提交或回滚。
+        // 序列、视图及控制面不走此入口，手写 SQL 继续尊重 SqlOperation.SuppressTransaction。
+        => EndStatement(builder);
 
     private static string GenerateSqlLiteral(object? value)
         => value switch

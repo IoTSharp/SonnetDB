@@ -96,8 +96,10 @@ public sealed class IdentityConstraintTests : IDisposable
     public async Task SaveChanges_WithRemoteCommitConcurrencyFailure_ReportsConcurrencyEntries(bool useAsync)
     {
         var failure = new SndbServerException(TableConstraintException.ConcurrencyConflict, "提交版本冲突。", HttpStatusCode.Conflict);
-        await using var context = CreateContext(new CommitFailureInterceptor(failure));
+        var interceptor = new CommitFailureInterceptor(failure);
+        await using var context = CreateContext(interceptor);
         await context.Database.EnsureCreatedAsync(_timeout.Token);
+        interceptor.Armed = true;
         context.Users.AddRange(
             new ConstraintUser { Id = "first", NormalizedUserName = "FIRST" },
             new ConstraintUser { Id = "second", NormalizedUserName = "SECOND" });
@@ -123,8 +125,10 @@ public sealed class IdentityConstraintTests : IDisposable
         Exception failure = useRemoteError
             ? new SndbServerException("frame_transport_error", "提交结果未知。", HttpStatusCode.BadGateway)
             : new IOException("提交存储不可用。");
-        await using var context = CreateContext(new CommitFailureInterceptor(failure));
+        var interceptor = new CommitFailureInterceptor(failure);
+        await using var context = CreateContext(interceptor);
         await context.Database.EnsureCreatedAsync(_timeout.Token);
+        interceptor.Armed = true;
         context.Users.AddRange(
             new ConstraintUser { Id = "first", NormalizedUserName = "FIRST" },
             new ConstraintUser { Id = "second", NormalizedUserName = "SECOND" });
@@ -196,12 +200,15 @@ public sealed class IdentityConstraintTests : IDisposable
 
     private sealed class CommitFailureInterceptor(Exception failure) : DbTransactionInterceptor
     {
+        // 建表现在也会提交事务；仅在 schema 初始化完成后注入本用例要验证的 SaveChanges 失败。
+        internal bool Armed { get; set; }
+
         /// <inheritdoc />
         public override InterceptionResult TransactionCommitting(
             DbTransaction transaction,
             TransactionEventData eventData,
             InterceptionResult result)
-            => throw failure;
+            => Armed ? throw failure : result;
 
         /// <inheritdoc />
         public override ValueTask<InterceptionResult> TransactionCommittingAsync(
@@ -209,6 +216,6 @@ public sealed class IdentityConstraintTests : IDisposable
             TransactionEventData eventData,
             InterceptionResult result,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromException<InterceptionResult>(failure);
+            => Armed ? ValueTask.FromException<InterceptionResult>(failure) : ValueTask.FromResult(result);
     }
 }

@@ -1,3 +1,10 @@
+## 2026-11-05 Issue #392 EF 迁移事务源码切片
+
+- 受支持关系DDL保留EF事务，序列/schema逐操作抑制、raw SQL继续尊重显式SuppressTransaction。历史写入、种子数据和多DDL共同提交/回滚；未改Core格式或公开API。
+- 独立worker完整EF318/318、0失败/跳过，覆盖embedded同步/异步、REST、Frame实际迁移、后续唯一索引/迁移历史失败整笔回滚、同连接重试、外键/索引和两次重开。初始失败及注入夹具修正证据保留在worker `artifacts/issue392-tests/`，最终集成将再验适用组合。
+- #393已由 `ff614086417ae14386b1bb42b4fbf273043e2edf` 正常快进推送origin/main并独立回读，未移动发行tag。#392本节与源码将在最终树取得完整restore/Format通过后独立提交，后续SHA以收口记录为准。
+- #392仍须新公开Provider包/真实应用迁移等验收，不能只用源码测试关闭；先回复实际已合入范围，保留OPEN。所有未运行的物理掉电、生产、公开新包保持NOT_RUN。
+
 ## 2026-11-05 Issue #393 受限自引用主键迁移
 
 - 本轮用户授权多个智能体实现新增 issue、合入 main、回复并在验收完成后关闭。canonical `D:/source/SonnetDB` 的外来文档/发布 dirty 保留；整合树为独立 detached `sonnetdb-issue-integration-20261105/SonnetDB`，基线 `a7125ffb15c3d2182ff811036173316c75329ba9`。
