@@ -1,3 +1,11 @@
+## 2026-11-07（Asia/Shanghai）共同 Provider 候选三线监督启动
+
+- 已实际启动 migration_392、json_395、ownsmany_394 三位独立worker，复核本地/GitHub/Gitee main同为537dc9bb9ea5bc701d722c4663593d10d26e0467；旧发行协调已结束。干净隔离树 C:/Users/mysti/.codex/worktrees/pr413-merge-review-20261106，分支codex/provider-candidate-20261107；canonical外来dirty及parity-results原状保留。
+- 三消费者补齐同一已打开连接失败重试、after-ACK包进程强杀入口、JSON旧行右值/拒绝/参数化/竞争及OwnsMany完整跟踪应用，保留EF10父ordinal变化后的Clear/重载边界。尚无本轮已复现的公共产品代码缺陷。
+- 准备隔离候选5.1.0-rc.20261107.1，四包和匹配win-x64 Server绑定本轮已提交source；旧0d候选不外推。原始命令/包与DLL身份/三协议/重开收据留artifacts/provider-next-phase-20261107/，应用实际运行目前NOT_RUN，专题随后按收据回填。
+- 完整restore退出0，最终提交前执行规定Format。FileShare.None共享锁、CPU2、单MSBuild节点、禁持久构建服务，Cordonix回收所属Job；预检/restore清理后进程0。脚本/请求/日志为本任务证据保留，无常驻Server，消费者复制到仓库外专属目录。历史HANDOFF含非UTF8字节，以原始byte前置保留后缀。
+- 用户已授权实现/测试/文档/提交推送/既有issue跟进；正式tag、NuGet/Release与生产操作继续延期，#392/#394/#395仍OPEN。先完成本候选，随后按根路线冻结#397单一工作包。
+
 ## 2026-11-07（Asia/Shanghai）提交收尾并移交新监督会话
 
 - 用户明确要求“现在提交代码并推送，然后创建新会话，在新会话中开始下一执行顺序，使用多个智能体并行，新会话监督”。产品代码已由PR#413正常合入main@e1ea61d2并同步两端；本次只补交自有最终收口段、根路线更新和docs/handoffs/provider-next-phase-20261107.md，不将canonical其它44份dirty或素材/账本混入提交。

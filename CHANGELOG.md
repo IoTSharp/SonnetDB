@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- 共同Provider候选验收新增独立OwnsMany包消费者，并增强迁移应用同连接失败重试/after-ACK强杀及JSON补货应用的旧行右值、参数化、拒绝和并发断言；源码、隔离候选与公开发行分别记账。
 - 对象存储及SDK新增认证只读容量接口，返回正文所在文件系统容量；目录不可用明确失败，查询不扫描对象或桶元数据。
 - GH-Issue #395：JSON `ExecuteUpdate` 补齐对象/数组/整根和固定 OwnsMany 元素子树、模型编码的 Guid/日期/decimal/二进制/enum/converter 常量，以及固定 primitive 元素目标与集合标量右值；目标/RHS路径和值参数化，同列按声明顺序、右值用更新前行，保留写前拒绝与单条 SQL 原子性。新增独立 PackageReference 产品补货应用，源码/候选/公开包验收分别记录。
 - GH-Issue #397 / M49-C03：独立 .NET Client 新增原生 HTTP/2 Frame 的 KV Get/Put/单页 Scan typed API；共享 Protocol codec 保持现有字节合同，值/键独立拥有、Int64 版本和 UTC ticks 过期时间无损，请求编码前预算与单页条数约束沿用完整响应、取消和未知写入不重试边界。其它模型/语言、TLS及公开包另行验收。

@@ -4,6 +4,8 @@
 
 PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容量查询重建目录问题，并在最终精确源码验证后合入 main；已合入切片不重新立项。下一阶段由新监督会话按[共同 Provider 三线并行合同](docs/handoffs/provider-next-phase-20261107.md)接续第一顺序，逐项状态及后续见 [PR #413 审查与 issue 矩阵](docs/audits/pr413-integration-20261107.md)。
 
+2026-11-07：新监督会话已实际启动三位独立worker，增强迁移和JSON消费者并新增OwnsMany跟踪应用，准备同源隔离候选`5.1.0-rc.20261107.1`。当前仍在验收，结果见对应[迁移](docs/audits/provider-candidate-20261107-migrations.md)、[JSON](docs/audits/provider-candidate-20261107-json-update.md)、[集合](docs/audits/provider-candidate-20261107-ownsmany.md)审计；正式发行延期及公开门保持。
+
 | 顺序 | 接续范围 | 下一份可验收交付 |
 | --- | --- | --- |
 | 1 | #392 / #395 / #394：共同 Provider 候选 | 从全部整合后的最终 source 冻结包与匹配 Server，重验库存迁移/回退、补货 JSON 更新及 OwnsMany 生命周期。正式发布已延期；恢复发行后以公开新包及独占空缓存复验，满足后关闭。 |
