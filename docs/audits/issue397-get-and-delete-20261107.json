@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "scope": "M49 .NET typed KV GetAndDelete",
+  "sourceCommit": "336f9aa84d32951f2fbaf90bc41caedf9b313431",
+  "version": "0.0.0-issue397.local.20261107.1",
+  "baseCommit": "f09b4375c1010e7f7699b2bc62ee90e769fc7d6c",
+  "pr": "https://github.com/IoTSharp/SonnetDB/pull/415",
+  "publicApi": "Task<KvDataFrameExchangeResult> GetAndDeleteKvAsync(string db, string keyspace, ReadOnlyMemory<byte> key, uint streamId=1, CancellationToken cancellationToken=default)",
+  "wire": "Existing KV opcode 6 and fixed little-endian Int64 exchange layout; no new wire format",
+  "validation": {
+    "codecCore": {
+      "passed": 44,
+      "failed": 0,
+      "skipped": 0,
+      "receipt": "artifacts/issue397-get-and-delete-20261107/test-core/codec.trx"
+    },
+    "fullClient": {
+      "passed": 272,
+      "failed": 0,
+      "skipped": 0,
+      "newCases": 38,
+      "receipt": "artifacts/issue397-get-and-delete-20261107/test-client/client.trx"
+    },
+    "productServer": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "receipt": "artifacts/issue397-get-and-delete-20261107/test-server-r2/server.trx"
+    }
+  },
+  "candidate": {
+    "boundary": "LOCAL_SDK_CANDIDATE_NOT_PUBLIC",
+    "packages": [
+      {
+        "file": "D:\\source\\SonnetDB\\artifacts\\issue397-get-and-delete-20261107\\feed\\SonnetDB.Protocol.0.0.0-issue397.local.20261107.1.nupkg",
+        "id": "SonnetDB.Protocol",
+        "dllSha256": "D01892EEA988AE1FB4FD172BF8128769CF8CCD4ED34CDD05062CDF8E206F58A2",
+        "assembly": "SonnetDB.Protocol",
+        "repositoryCommit": "336f9aa84d32951f2fbaf90bc41caedf9b313431",
+        "sha256": "BB79E370A774935681F34128AB3DA80EB34E997D61FB7AD8420CE9E41CC7B102"
+      },
+      {
+        "file": "D:\\source\\SonnetDB\\artifacts\\issue397-get-and-delete-20261107\\feed\\SonnetDB.Client.0.0.0-issue397.local.20261107.1.nupkg",
+        "id": "SonnetDB.Client",
+        "dllSha256": "71CDF321EF6109B5FE1B77A1CB0F3663B6AE907BF556DBCEB7EACEEF34EC2616",
+        "assembly": "SonnetDB.Client",
+        "repositoryCommit": "336f9aa84d32951f2fbaf90bc41caedf9b313431",
+        "sha256": "CEC5F9E8ED066A4F61569F92B9E8A3C0D195C1FC56C37A8E88F8E189AC9EAA03"
+      }
+    ],
+    "serverArchive": {
+      "bytes": 72384324,
+      "path": "D:\\source\\SonnetDB\\artifacts\\issue397-get-and-delete-20261107\\server-win-x64-0.0.0-issue397.local.20261107.1.zip",
+      "sha256": "2A006168FFF211759DBB830F887F1408F1849D35254E451AB288FB368030A48E"
+    },
+    "serverFiles": [
+      {
+        "bytes": 2845,
+        "file": "appsettings.Container.json",
+        "sha256": "8801B04D5065FBA66BB85D431872DBB98BB42847BCC582B38E6812B5C4FD4C5E"
+      },
+      {
+        "bytes": 117,
+        "file": "appsettings.Development.json",
+        "sha256": "BAD466E2D0BA0D69F6EF5B179334585C8AF6B5BD4C87CBDE672D9A1DAF62A824"
+      },
+      {
+        "bytes": 3419,
+        "file": "appsettings.json",
+        "sha256": "B5DC98BF4295C4EA6714A322828F6302CA77D955ECA540007BECA829429292D7"
+      },
+      {
+        "bytes": 5155728,
+        "file": "BouncyCastle.Cryptography.dll",
+        "sha256": "EF92FC661E8D7BA8EC4D39A7CDFCDBA41F14CB327F0D24FE79D0B5BB428899B5"
+      },
+      {
+        "bytes": 18944,
+        "file": "Cloud.Unum.USearch.dll",
+        "sha256": "55D2825AF59DD5402445D336F9AF2ED4181448162023E06272E22332C8C9828F"
+      },
+      {
+        "bytes": 293376,
+        "file": "CoAP.NET.dll",
+        "sha256": "8E87866F67F771933E6A2A54A08263990CFBA88059423B7BF05152CBB99BDBC0"
+      },
+      {
+        "bytes": 127248,
+        "file": "CoAP.NET.pdb",
+        "sha256": "DA5E7F442E40AB16ADA0EEE532F3FD210340C605B9BD21732E6FC139A9F9213D"
+      },
+      {
+        "bytes": 489568,
+        "file": "Google.Protobuf.dll",
+        "sha256": "B71BE7A4E721D1B79456A0B52602A01A4414EB09BAB4A04400F6F9D8A3895157"
+      },
+      {
+        "bytes": 109568,
+        "file": "JpegLibrary.dll",
+        "sha256": "573527D55649DDDFBD9590BB41757D0EB33EA8074422A5FB43027EFA920EB792"
+      },
+      {
+        "bytes": 12903776,
+        "file": "libSkiaSharp.dll",
+        "sha256": "82F9B2EE2B2DC91F738AE4BAA54CD21FDD1181883C0FA207AB7066C708F07108"
+      },
+      {
+        "bytes": 96210944,
+        "file": "libSkiaSharp.pdb",
+        "sha256": "DA9120BA04E4D1A9688CD648EB4D7395337AF9EEA8F23B1E85984164F29B97F3"
+      },
+      {
+        "bytes": 164864,
+        "file": "libusearch_c.dll",
+        "sha256": "A717499CE7B46F16D25DDBBF0AB810C1B2E9A5293752B6C566FF3BED32F0858C"
+      },
+      {
+        "bytes": 38184,
+        "file": "Microsoft.AspNetCore.SpaProxy.dll",
+        "sha256": "E6AF59BF679EDBBB398345C48AC8D27DAC15FA1404D5DAA7D221EE52C08E9631"
+      },
+      {
+        "bytes": 679224,
+        "file": "Microsoft.Extensions.AI.Abstractions.dll",
+        "sha256": "A3216886DEC2B2528B2D7212C438D21C3D6DE2061B500BD2EA505A41F896F8D3"
+      },
+      {
+        "bytes": 530744,
+        "file": "Microsoft.Extensions.AI.dll",
+        "sha256": "46B9555315E477312FEC8744243B83800B2B79B6D87F482CA6C8FA61DA1EB512"
+      },
+      {
+        "bytes": 28968,
+        "file": "Microsoft.Extensions.Hosting.WindowsServices.dll",
+        "sha256": "563E740F4D2A64ED7A4833DD79EE6E38C598EA01ACFBCAE13B7A925574D2FFE8"
+      },
+      {
+        "bytes": 253752,
+        "file": "Microsoft.ML.OnnxRuntime.dll",
+        "sha256": "739FC785C73691941355105C7FE6362BD0614538B8E48C32473CCE9090C6CD8E"
+      },
+      {
+        "bytes": 325416,
+        "file": "Microsoft.ML.Tokenizers.dll",
+        "sha256": "3130D6AB12517CE8B0BAE3C59CC6EDC8145B1BCC64221C06AD7D603A802EE5B5"
+      },
+      {
+        "bytes": 148480,
+        "file": "ModelContextProtocol.AspNetCore.dll",
+        "sha256": "B89EFF1C8B94F81345D3281220C2B18ADB36061DCBAF63767303AF9BA393A85D"
+      },
+      {
+        "bytes": 1302016,
+        "file": "ModelContextProtocol.Core.dll",
+        "sha256": "80757DD4FDE30EAED2D99849915C5642D2428487059C711373690A3336CAA9B4"
+      },
+      {
+        "bytes": 91136,
+        "file": "ModelContextProtocol.dll",
+        "sha256": "45C63242855E574FD6BDB35AAD7D6E4AF16B67517E20A775B6D19103FAD38C63"
+      },
+      {
+        "bytes": 54184,
+        "file": "MQTTnet.AspNetCore.dll",
+        "sha256": "B4152220D1D1D8C2B933F431C83A0141C764716408BE4A065BF8E148AD3A6225"
+      },
+      {
+        "bytes": 172032,
+        "file": "MQTTnet.AspNetCore.Routing.dll",
+        "sha256": "0760302A9BE6C99531DAF7D60E332E98821E0D295CD9F32D3562B8C3500AE2D1"
+      },
+      {
+        "bytes": 74548,
+        "file": "MQTTnet.AspNetCore.Routing.pdb",
+        "sha256": "267F1CA7BF64FD6E9936806EA638D020CECAE5C3109B8689AD2C8E539664225D"
+      },
+      {
+        "bytes": 243624,
+        "file": "MQTTnet.dll",
+        "sha256": "1BB34492A9018FEC3F627458364DC6E46FEF076A647DF181403246DA65F5BCE2"
+      },
+      {
+        "bytes": 152488,
+        "file": "MQTTnet.Server.dll",
+        "sha256": "259A6473D7A287E797846831951188114CF7BC5FC1FF78751FFA520DEA76EC77"
+      },
+      {
+        "bytes": 2178048,
+        "file": "numkong.dll",
+        "sha256": "01A1302373B5C1949DED94B49D9D18BB8C3767AF0AC6DCB537749ABF1CDDD228"
+      },
+      {
+        "bytes": 21816,
+        "file": "onnxruntime_providers_shared.dll",
+        "sha256": "8CEA20BE64259950CDA8643AF0ED42C2A424400FC3BB9BB29F9A35CEE6B3419F"
+      },
+      {
+        "bytes": 2314,
+        "file": "onnxruntime_providers_shared.lib",
+        "sha256": "04E1EE653CBEFA7ED5DD342747484D20422463710577BDC597D2B323D332BCEE"
+      },
+      {
+        "bytes": 17253728,
+        "file": "onnxruntime.dll",
+        "sha256": "CB2FA518B18356617F6F9F460C012501DA2819EC7E5C1D80BD8F5DE20492DB0C"
+      },
+      {
+        "bytes": 2124,
+        "file": "onnxruntime.lib",
+        "sha256": "8022D994B1ABB84D4B8B25E37937DFA921EF1E2A2EBBA66F5A9AF1F8433FA05C"
+      },
+      {
+        "bytes": 84992,
+        "file": "OpenTelemetry.Api.dll",
+        "sha256": "BD75BBAB25A4BF769727EC6C17457D4BF189A8C2C70034E5C212AE345132591D"
+      },
+      {
+        "bytes": 24576,
+        "file": "OpenTelemetry.Api.ProviderBuilderExtensions.dll",
+        "sha256": "DFAAB1ECFB87773CCEF2737AAFBF1EB22A9F074C44E9FDD31947702DA59234BC"
+      },
+      {
+        "bytes": 344064,
+        "file": "OpenTelemetry.dll",
+        "sha256": "63FB9724258D4A1AC76C7DDFFC2E0B18EE5125A1C8FF4B242A570A3410C97FC6"
+      },
+      {
+        "bytes": 45568,
+        "file": "OpenTelemetry.Exporter.Console.dll",
+        "sha256": "1909706DCE27CAD39346F6049813D022647E940990A9A47666824598278C23CB"
+      },
+      {
+        "bytes": 201728,
+        "file": "OpenTelemetry.Exporter.OpenTelemetryProtocol.dll",
+        "sha256": "65FB06071DCDA27215F1DD42D6C8DE8CC98691CEF0225B36C8FB22F995FD1759"
+      },
+      {
+        "bytes": 92160,
+        "file": "OpenTelemetry.Exporter.Prometheus.AspNetCore.dll",
+        "sha256": "0C0236F67F43CBA8FD68DC44CA0F42D1C940395F6A99369E557D16AA1139AA43"
+      },
+      {
+        "bytes": 15872,
+        "file": "OpenTelemetry.Extensions.Hosting.dll",
+        "sha256": "442D9C18F5CC9FFA65E3F486874F01B375866854B0AD08E40E6367139EB9B35A"
+      },
+      {
+        "bytes": 76800,
+        "file": "OpenTelemetry.Instrumentation.AspNetCore.dll",
+        "sha256": "369897CCFE1A4483AB92C09AA1846D562C1353AFD93EE103ADA4E638BCDFBCE5"
+      },
+      {
+        "bytes": 69632,
+        "file": "OpenTelemetry.Instrumentation.Http.dll",
+        "sha256": "BDD562D21BC152308CD5935394038551137ADEF50068EB41AB2CA7A820987287"
+      },
+      {
+        "bytes": 560480,
+        "file": "SkiaSharp.dll",
+        "sha256": "71274EF112EEFDF5CA8A1517086787BC786C7103C30115ABBB9DC424A09DB43E"
+      },
+      {
+        "bytes": 48640,
+        "file": "Snappier.dll",
+        "sha256": "CFCCFE3683587E56A8AE91B69A3A036D1CF45291334BF6760DE857EBF2DB0B35"
+      },
+      {
+        "bytes": 19143680,
+        "file": "SonnetDB.Core.dll",
+        "sha256": "1AE6FCA21C89887406C08E880D9F4C287D7CC0304C91E5320E78BA976F416818"
+      },
+      {
+        "bytes": 2696724,
+        "file": "SonnetDB.Core.pdb",
+        "sha256": "DBD47568708C80EAAD0F0B90DBA0BE333FDA5ADE65EE1786DCAF22FF539E93D7"
+      },
+      {
+        "bytes": 25903,
+        "file": "SonnetDB.deps.json",
+        "sha256": "A63823BCACEA5E185A41F694457FE79F401DD53B5A34C1EC5C47DF5F35AFB19F"
+      },
+      {
+        "bytes": 6197760,
+        "file": "SonnetDB.dll",
+        "sha256": "6AA2D32BE3EF650DDDCAFB3DA0EEED9BC1ED5F4BEE3C9EBD76278FF91E7A5A7F"
+      },
+      {
+        "bytes": 162816,
+        "file": "SonnetDB.exe",
+        "sha256": "ABC399E3A842CFD50EC61CE476846B4B26425E8143416113E90639FBBC6B0687"
+      },
+      {
+        "bytes": 2516416,
+        "file": "SonnetDB.pdb",
+        "sha256": "FABF73C58917309E3B59F734F768E820BA79B20D300C1F98ED7C1E5B3E37FF31"
+      },
+      {
+        "bytes": 52224,
+        "file": "SonnetDB.Protocol.dll",
+        "sha256": "D01892EEA988AE1FB4FD172BF8128769CF8CCD4ED34CDD05062CDF8E206F58A2"
+      },
+      {
+        "bytes": 26320,
+        "file": "SonnetDB.Protocol.pdb",
+        "sha256": "38FB8D2BC06C7F8425342E1872F512CD5AB8EE3B4284FE863861E8EA72E3BB6A"
+      },
+      {
+        "bytes": 676,
+        "file": "SonnetDB.runtimeconfig.json",
+        "sha256": "43F15ED5C7AD02191D209A18F2FFB69CB7431E5C08B9578D9F78A5114237899B"
+      },
+      {
+        "bytes": 13233,
+        "file": "SonnetDB.staticwebassets.endpoints.json",
+        "sha256": "2EE7E4806FB718D2923C750936FF1456AF45ED37AE1824A346F9399E9A557A82"
+      },
+      {
+        "bytes": 56144,
+        "file": "System.IO.Hashing.dll",
+        "sha256": "649AD5B26C96C3E4494A0879FFA8D1E7CCE296754B40BB207C3CA938E3567A4E"
+      },
+      {
+        "bytes": 517928,
+        "file": "System.Numerics.Tensors.dll",
+        "sha256": "431DC761810087C957AB04B45E1697A41200681C742520E0292B8DBCA04A8868"
+      },
+      {
+        "bytes": 91984,
+        "file": "System.ServiceProcess.ServiceController.dll",
+        "sha256": "39EAC7AE10E2FB8914C27B741D1794FA557AE46FF60EFDB78D418AA43203BF77"
+      },
+      {
+        "bytes": 879616,
+        "file": "TiffLibrary.dll",
+        "sha256": "7104F4E0D349E9A8859F1AEC3A470F16B9B68A5D9EAD3F6DF10D51D145A34D03"
+      },
+      {
+        "bytes": 475,
+        "file": "web.config",
+        "sha256": "3D0CE5D51F3E6BB430EC7239C18A5211BB99E95076BBC2F8A843ED8795B9338F"
+      }
+    ],
+    "manifest": "artifacts/issue397-get-and-delete-20261107/candidate-manifest.json"
+  },
+  "consumer": {
+    "status": "PASS",
+    "root": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1",
+    "receipt": "C:/Users/mysti/.codex/issue397-consumer-20261107-local-1/result.json",
+    "steps": [
+      {
+        "label": "restore",
+        "status": "PASS",
+        "exitCode": 0
+      },
+      {
+        "label": "build",
+        "status": "PASS",
+        "exitCode": 0
+      },
+      {
+        "label": "seed",
+        "status": "PASS",
+        "exitCode": 0
+      },
+      {
+        "label": "exchange",
+        "status": "PASS",
+        "exitCode": 0
+      },
+      {
+        "label": "verify-deleted",
+        "status": "PASS",
+        "exitCode": 0
+      }
+    ],
+    "phaseReceipts": [
+      {
+        "processId": 59672,
+        "sha256": "5535CEB7D111457B26BC81E8FBB0E363715D0BC89A658EC23553195124852595",
+        "path": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\evidence\\seed.json",
+        "phase": "seed"
+      },
+      {
+        "processId": 28228,
+        "sha256": "9C085DC0189A855AEE3331C1AA6206756F7861C19A446D1905FA42221F322011",
+        "path": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\evidence\\exchange.json",
+        "phase": "exchange"
+      },
+      {
+        "processId": 52388,
+        "sha256": "B0DD2E047EBF53EB3029FA4B94B3EC6753B6DCAF6FF7A3205D330E7C1855ECDE",
+        "path": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\evidence\\verify-deleted.json",
+        "phase": "verify-deleted"
+      }
+    ],
+    "servers": [
+      {
+        "pid": 60240,
+        "creationUtc": "2026-11-06T19:34:09.6296229Z",
+        "parentPid": 60188,
+        "status": "PASS",
+        "exitCode": -1,
+        "rootExited": true,
+        "dataRoot": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\server-data"
+      },
+      {
+        "pid": 48864,
+        "creationUtc": "2026-11-06T19:34:13.1247434Z",
+        "parentPid": 60188,
+        "status": "PASS",
+        "exitCode": -1,
+        "rootExited": true,
+        "dataRoot": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\server-data"
+      }
+    ],
+    "wire": [
+      {
+        "protocol": "HTTP/2",
+        "completionLine": 27,
+        "status": "PASS",
+        "path": "/v1/frame",
+        "log": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\server-1.stdout.log",
+        "requestLine": 24,
+        "generation": 1,
+        "tls": "NOT_RUN"
+      },
+      {
+        "protocol": "HTTP/2",
+        "completionLine": 21,
+        "status": "PASS",
+        "path": "/v1/frame",
+        "log": "C:\\Users\\mysti\\.codex\\issue397-consumer-20261107-local-1\\server-2.stdout.log",
+        "requestLine": 18,
+        "generation": 2,
+        "tls": "NOT_RUN"
+      }
+    ]
+  },
+  "ci": {
+    "head": "336f9aa84d32951f2fbaf90bc41caedf9b313431",
+    "status": "PASS",
+    "success": 12,
+    "skipped": 1,
+    "checks": [
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/runs/128117719525",
+        "name": "CodeQL",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330033/job/128114203680",
+        "name": "Upload Connector Release Assets",
+        "state": "SKIPPED"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329574",
+        "name": "AOT Publish (ubuntu-24.04-arm)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329262",
+        "name": "Build & Test (ubuntu-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330033/job/128107328529",
+        "name": "Connectors (win-x86)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329061",
+        "name": "Build & Test (windows-latest, rest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329199",
+        "name": "Build & Test (windows-latest, core)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329244",
+        "name": "Format Check",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107329309",
+        "name": "AOT Publish (ubuntu-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330033/job/128107328478",
+        "name": "Connectors (linux-x64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330037/job/128107328982",
+        "name": "AOT Publish (windows-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330054/job/128107327789",
+        "name": "Analyze (csharp)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/IoTSharp/SonnetDB/actions/runs/42280330033/job/128107327893",
+        "name": "Connectors (win-x64)",
+        "state": "SUCCESS"
+      }
+    ],
+    "receipt": "artifacts/issue397-get-and-delete-20261107/ci-final.json",
+    "testRun": 42280330037,
+    "rawTrxCount": 27,
+    "ubuntu": {
+      "Core": 8175,
+      "Client": 272,
+      "EF": 438,
+      "Server": 1610,
+      "EfMigrationCrash": 10
+    },
+    "windows": {
+      "Core": 8175,
+      "Client": 272,
+      "EF": 438,
+      "Server": 1610,
+      "EfMigrationCrash": 10,
+      "Studio": 90
+    },
+    "failed": 0,
+    "notExecuted": 0,
+    "nativeAotScope": "Server/CLI/codec smoke on three RIDs; typed Client NativeAOT consumer remains NOT_RUN"
+  },
+  "failuresRetained": [
+    {
+      "step": "product Server first run",
+      "passed": 6,
+      "failed": 1,
+      "skipped": 0,
+      "reason": "Anonymous request correctly rejected by auth before post-auth observer; test expectation corrected to HTTP401/zero observations plus unchanged original value/version",
+      "receipt": "artifacts/issue397-get-and-delete-20261107/test-server/server.trx"
+    }
+  ],
+  "tlsAlpn": "NOT_RUN",
+  "publicNugetOnly": "NOT_RUN",
+  "clientNativeAotAndAbiMatrix": "NOT_RUN",
+  "otherModelsLanguagesPlatforms": "NOT_RUN",
+  "productionAndFixedHardware": "NOT_RUN",
+  "parentIssue": {
+    "number": 397,
+    "state": "OPEN",
+    "reason": "This single .NET operation does not complete the wider SDK and public acceptance contract"
+  }
+}

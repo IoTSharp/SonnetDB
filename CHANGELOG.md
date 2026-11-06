@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- GH-Issue #397 / M49-C03：轻量.NET Client新增原子GetAndDeleteKvAsync，复用已有op6，返回独立旧值、旧版本/完整UTC ticks和变更版本；共享Protocol严格解码既有固定Int64交换布局，保持请求预算、完整帧/EOF、取消与未知结果不重放。真实h2c权限、并发、预算后独立对账及同目录重开验证，TLS/公开消费另计。
 - 共同Provider候选验收新增独立OwnsMany包消费者，并增强迁移应用同连接失败重试/after-ACK强杀及JSON补货应用的旧行右值、参数化、拒绝和并发断言；源码、隔离候选与公开发行分别记账。
 - 对象存储及SDK新增认证只读容量接口，返回正文所在文件系统容量；目录不可用明确失败，查询不扫描对象或桶元数据。
 - GH-Issue #395：JSON `ExecuteUpdate` 补齐对象/数组/整根和固定 OwnsMany 元素子树、模型编码的 Guid/日期/decimal/二进制/enum/converter 常量，以及固定 primitive 元素目标与集合标量右值；目标/RHS路径和值参数化，同列按声明顺序、右值用更新前行，保留写前拒绝与单条 SQL 原子性。新增独立 PackageReference 产品补货应用，源码/候选/公开包验收分别记录。
@@ -49,6 +50,7 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- GH-Issue #397：补充typed GetAndDelete的精确source本地两包、独占空缓存和同源Server应用收据；旧值/版本/UTCticks、竞争及真实HTTP2/同目录重开逐层验收，公开包与TLS/ALPN保持独立门禁。
 - 完成共同Provider候选三线真实包消费审计：冻结eb5c0e5f/5.1.0-rc.20261107.1，本地与实际CI/NativeAOT Server各69步骤及12类发行readiness通过；公开NuGet-only、正式发行和实机边界单独保留，相关母issue仍OPEN。
 - 补充 PR #413 最终分支/测试/Issue 收口交接，新增下一阶段监督会话的共同 Provider 候选三线并行合同，明确迁移、JSON 更新与 OwnsMany 的文件归属、统一候选和验证队列；正式发行继续延期。
 - 5.0.0发布交接记录同源`84433f9e`十二类READY、NuGet十包加密签名/有效载荷PASS、52项匿名实际下载与DockerHub不可变digest；说明NuGet旧Key于11月1日失效的30天政策及本仓库新凭据，保留400辅助验钥的INCONCLUSIVE身份。正式tag与构建工件沿用，XCode架构拒绝登记#404，全公开上游组合与安装/生产边界继续保留。

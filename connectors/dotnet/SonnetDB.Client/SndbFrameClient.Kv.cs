@@ -26,6 +26,28 @@ public sealed partial class SndbFrameClient
         }
     }
 
+    /// <summary>通过原生 HTTP/2 Frame 原子读取并删除 KV，返回删除前记录及本次变更版本。</summary>
+    /// <param name="db">目标数据库名。</param>
+    /// <param name="keyspace">keyspace 名。</param>
+    /// <param name="key">原始二进制键。</param>
+    /// <param name="streamId">关联编号。</param>
+    /// <param name="cancellationToken">调用方取消令牌。</param>
+    /// <returns>独立拥有的旧值、旧版本及完整 UTC 过期时间，以及服务器确认的删除变更版本；缺失键的两个字段均为空引用。</returns>
+    /// <remarks>请求开始发送后，取消、超时、响应超预算或回执不完整均可能发生在删除提交之后；保留未知结果，不自动重试或重放。</remarks>
+    public async Task<KvDataFrameExchangeResult> GetAndDeleteKvAsync(string db, string keyspace, ReadOnlyMemory<byte> key,
+        uint streamId = 1, CancellationToken cancellationToken = default)
+    {
+        ValidateKvCall(db, keyspace, cancellationToken);
+        var encoded = new ArrayBufferWriter<byte>();
+        KvDataFrameCodec.EncodeGetAndDeleteRequest(encoded, streamId, db, keyspace, key.Span, _maxPayloadBytes);
+        ReadOnlyMemory<byte> response = await SendKvAsync(KvFrameOp.GetAndDelete, streamId, encoded, cancellationToken).ConfigureAwait(false);
+        try { return KvDataFrameCodec.DecodeExchangeResponse(response.Span); }
+        catch (Exception exception) when (exception is FrameFormatException or InvalidOperationException)
+        {
+            throw InvalidKvResponse(exception);
+        }
+    }
+
     /// <summary>通过原生 HTTP/2 Frame 写入 KV；未取得完整可信回执时保留未知结果，不自动重试。</summary>
     /// <param name="db">目标数据库名。</param>
     /// <param name="keyspace">keyspace 名。</param>

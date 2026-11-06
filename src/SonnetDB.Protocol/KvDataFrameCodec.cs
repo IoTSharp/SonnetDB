@@ -17,8 +17,8 @@ public sealed record KvDataFrameValue(byte[] Value, long Version, DateTimeOffset
 /// <param name="ExpiresAtUtc">完整 UTC ticks 过期时间。</param>
 public sealed record KvDataFrameEntry(byte[] Key, byte[] Value, long Version, DateTimeOffset? ExpiresAtUtc);
 
-/// <summary>KV Get/Put/Scan 的引擎无关请求编码和响应解码，保持既有 Frame v1 字节合同。</summary>
-public static class KvDataFrameCodec
+/// <summary>KV Get/Put/Scan/GetAndDelete 的引擎无关请求编码和响应解码，保持既有 Frame v1 字节合同。</summary>
+public static partial class KvDataFrameCodec
 {
     /// <summary>数据库及 keyspace 名称的 UTF-8 字节上限。</summary>
     public const int MaxNameBytes = 512;
