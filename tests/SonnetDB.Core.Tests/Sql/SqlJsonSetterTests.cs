@@ -54,6 +54,31 @@ public sealed partial class SqlJsonSetterTests : IDisposable
         Assert.Equal("900719925474099312345678901234567890", document.RootElement.GetProperty("keep").GetRawText());
     }
 
+    /// <summary>目标外字符串保留原始 +、Unicode 和转义词法，不因更新另一属性重新编码。</summary>
+    [Theory]
+    [InlineData("\"2026-11-06T12:34:56.1234567+05:30\"")]
+    [InlineData("\"\\u4e2d\\u6587\\ud83d\\ude03\\u002b+\"")]
+    [InlineData("\"中文😃+\\\\\\\"\"")]
+    public void SetValue_UntouchedString_PreservesOriginalToken(string token)
+    {
+        string source = "{\"value\":0,\"keep\":" + token + ",\"large\":9007199254740993}";
+        string updated = SetWithBoundedScratch(source, "$.value", 1L);
+        using var result = JsonDocument.Parse(updated);
+        Assert.Equal(token, result.RootElement.GetProperty("keep").GetRawText());
+        Assert.Equal("9007199254740993", result.RootElement.GetProperty("large").GetRawText());
+        Assert.Equal(source.Replace("\"value\":0", "\"value\":1", StringComparison.Ordinal), updated);
+    }
+
+    /// <summary>原文复制的 UTF-16 分块不能拆开跨 1024 字符边界的 surrogate pair。</summary>
+    [Fact]
+    public void SetValue_UntouchedSurrogateAtChunkBoundary_PreservesOriginalToken()
+    {
+        string token = "\"" + new string('a', 1022) + "😃+\\u4e2d\"";
+        string source = "{\"value\":0,\"keep\":" + token + "}";
+        using var result = JsonDocument.Parse(SetWithBoundedScratch(source, "$.value", 1L));
+        Assert.Equal(token, result.RootElement.GetProperty("keep").GetRawText());
+    }
+
     /// <summary>JSON 外观的字符串保持字符串，特殊属性名按精确拼写匹配。</summary>
     [Fact]
     public void SetValue_NestedSpecialNames_PreservesSiblingsAndStringValue()
