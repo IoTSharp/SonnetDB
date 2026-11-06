@@ -474,6 +474,13 @@ public static partial class SqlExecutor
         if (transaction is { IsCompleted: false }
             && SqlDdlTransactionStatement.IsSupported(statement))
         {
+            if (ddlWorkspace is not null)
+            {
+                // 后续 DDL 必须看到先前成功的 DML；同时在更换 schema 对象或行布局前
+                // 消费其旧 schema 绑定。仅写入私有副本，源目录仍由同一 journal 原子提交。
+                transaction.ValidateMutationSchemas(ddlWorkspace.Tables.Catalog);
+                transaction.PromoteBufferedDmlToDdlWorkspace(ddlWorkspace);
+            }
             ddlWorkspace ??= transaction.GetOrCreateDdlWorkspace(
                 tsdb,
                 cancellationToken: options.CancellationToken);
