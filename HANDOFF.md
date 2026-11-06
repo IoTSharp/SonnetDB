@@ -1,3 +1,13 @@
+## 2026-11-07（Asia/Shanghai）#397 typed GetAndDelete 独立切片
+
+- 按共同Provider第一顺序之后的根路线，以独立SDK树 sdk-kv-get-and-delete-20261107/SonnetDB、branch codex/sdk-kv-get-and-delete-20261107开工，已从eb5起点安全ff到main f09b4375。三位真实worker分别拥有共享Protocol codec/Core对拍、Client API/假handler测试/包应用、真实产品Server测试，主监督拥有接口/集成/候选/最终验证及共享文档；不改变Provider冻结的eb5c0e5f/rc候选。
+- 新增GetAndDeleteKvAsync和KvDataFrameExchangeResult(PreviousValue,MutationVersion)，复用现有op6、db/keyspace/key和fixed Int64交换response，无新opcode、无Core/Data/Native客户端依赖，不改现有签名或Server/持久格式。返回旧值/旧版本/UTCticks及确认删除版本，缺失与空值区分；完整帧及EOF未确认前均不成功，发送后取消/超预算/错误回包保留未知结果，不重放。
+- 本地codec44/44、完整Client272/272、真实h2c Server最终7/7 PASS，全部0失败/跳过。二真实op6请求在服务端均抵达后放行，仅一旧值；大旧值超预算后独立Get/Scan及版本对账证明已删，随后同目录Server重开。Server初轮6/7唯一失败来自匿名401先于测试观察点；按确切认证顺序修夹具，仍核401/零观察、readonly forbidden/恰1观察及原值/版本不变，原FAIL/TRX保留。
+- 最小PackageReference app已准备seed/exchange/verify-deleted，只有Client直接依赖及Protocol传递依赖，复制到仓库外新cache；计划独立本地0.0.0-issue397.local.20261107.1两包/同源win-x64 Server，准确已提交source/包/DLL/服务指纹及实际consumer状态随后收据冻结，目前NOT_RUN。TLS/ALPN、SDK NativeAOT/ABI全矩阵、其他语言/九模型和公开包仍NOT_RUN，#397继续OPEN。
+- 所有restore/build/test/format/pack由主监督持FileShare.None共享锁、CPU2/-m1/禁持久服务执行。root完整restore已0，最终提交前执行规定Format；Cordonix结束所属Job后进程0。真实测试宿主/独占temp目录由夹具关闭核路径后回收，原始日志/TRX/脚本保留artifacts/issue397-get-and-delete-20261107/，不清共享缓存或按进程名终止。
+- Provider PR#414已正常合入main f09b4375c1010e7f7699b2bc62ee90e769fc7d6c，GitHub/Gitee/本地独立读回一致；已验证bundle后按expected SHA删除其本地/两远端开发refs，44份canonical外来dirty字节/暂存语义保持，三份共享文档仅前置/插入自有内容。parity-results三个独立refs原样保留。完整候选收据 artifacts/provider-next-phase-20261107/provider-completion.json，#392/#394/#395新公开门继续OPEN，已各一次回复并读回；#394已准确4/5。
+- 用户已授权Git整合/双端推送/完成分支清理，未授权恢复正式NuGet/Release/生产操作；继续延期。项目门面会话仍等待人物方向选择，未就绪资料及其分支不混入或误删。下一#230/#404上游仍以实际合入/公开消费条件推进，不将本SDK单操作当作M49母issue完成。历史HANDOFF非法UTF8字节原样byte保留。
+
 ## 2026-11-07（Asia/Shanghai）共同Provider候选三线验收完成与Git整合授权
 
 - 三位真实worker完成并交叉审查消费者，冻结source eb5c0e5f938372109b473db2194670761dc26a96 / 5.1.0-rc.20261107.1，PR#414。本节随最终证据文档提交，准确文档head/合并和两端ref以本任务Git收据独立读回，不改变冻结包的source/SHA。
