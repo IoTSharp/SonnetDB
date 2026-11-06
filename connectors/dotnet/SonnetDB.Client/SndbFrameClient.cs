@@ -7,7 +7,7 @@ using SonnetDB.Protocol;
 namespace SonnetDB.Client;
 
 /// <summary>只使用 HTTP/2 二进制 Frame 的远程传输入口，不依赖本地数据库引擎。</summary>
-public sealed class SndbFrameClient : IDisposable
+public sealed partial class SndbFrameClient : IDisposable
 {
     private const string ContentType = "application/x-sonnetdb-frame";
     private readonly HttpClient _http;

@@ -1,10 +1,34 @@
 ## 2026-11-06 Issue #395 固定 OwnsMany 元素 ExecuteUpdate
 
-- 专属分支 codex/issue395-json-update-20261106 基于 main 2a2f77c7，未触碰 canonical 外来文档/发布 dirty。仅放行表达式中的非负 Int32 常量下标与 EF 直接 JSON 标量目标，复用参数路径、同列 setter 顺序与原行右值；根/嵌套数组索引器及适用 ElementAt 实际通过，数字属性键 0 按属性处理。
+- 专属分支 codex/issue395-json-update-20261106 基于原始 main 2a2f77c7，未触碰 canonical 外来文档/发布 dirty。仅放行表达式中的非负 Int32 常量下标与 EF 直接 JSON 标量目标，复用参数路径、同列 setter 顺序与原行右值；根/嵌套数组索引器及适用 ElementAt 实际通过，数字属性键 0 按属性处理。
 - 新增28项；修复前真实三协议3/3拒绝，最终 ExecuteUpdate 定向50/50、完整EF388/388均0失败/跳过。覆盖参数/中文、未知成员与数值原文、事务/Token/回滚/重开，以及缺失元素/错误父级跨两行整条拒绝。原360项EF保留，失败与通过TRX在 artifacts/issue395-20261106/，详细范围见 docs/audits/issue-395-collection-update-20261106.md。
 - 动态/负数下标、条件元素目标、primitive集合、集合元素右值、Guid/转换器等继续写前拒绝。#395仍须对象/数组子树、其余类型及新公开包/真实应用，不由本片关闭；没有发包、移动正式tag、合并main或部署。
 - 最终代码完整restore/规定Format均退出0（7.2秒/191.0秒，workspace加载警告保留）；提交/推送/PR身份与远端CI以最终PR及执行回执为准，不将本机测试当公开包或生产验收。两个固定子模块使用本worktree独占gitdir，未改指针；native有界任务最终cleanup_complete=true、active_processes_after_cleanup=0，进程全机查询partial不作全机无残留断言。
 - 下一步：按PR复核和精确head CI收口；继续 #395 其余单一工作包及公开包/应用验收后再关闭母单。历史HANDOFF含无效UTF8，本节按字节前置并核对原后缀SHA，未清洗历史内容。
+## 2026-11-06 PR #409 正常整合已合入 main 的聚合修复
+
+- 本片原提交3dfd8af31e27ba7041c2bf3c6f902234c548c679正常merge精确main 1420b1b14278216f396943213129c2c39958dd42；本轮只进行一次main整合，不rebase、不force push。实际只有HANDOFF前置段冲突，CHANGELOG自动合并；双方新增记录和共同历史原始字节全部保留，历史后缀SHA256仍为2e0d76d84b78e5a94b54bf9069d337affaa842c474b7ffe8c8fe557341f372fc。
+- 接受的产品增量仅是已审PR#408的QueryEngine两处Int64Rle guard与16项聚合回归，KV产品和测试源码不变。主代理已核实#408合入、#407关闭及#405Copilot回复/resolve；没有转授本worker合并GitHub PR的权限。
+- 原Client234/Server42/Core56本机通过继续绑定原KV切片3dfd8af3，不能直接标为新merge head完整CI通过；新head按远端CI独立验收。本轮不重复全套本机测试，提交前仍要求本merge待提交树完整restore/规定Format实际退出0，结果随收口文档记账。
+- 后续以本PR最终push回读的精确head交接#395整合，完整检查完成后释放Format slot；不发布包、不改正式tag、不部署、不关闭#397。
+
+## 2026-11-06 Issue #397 .NET typed KV Frame 切片
+
+- 工作分支 codex/issue397-typed-client-20261106，起点 origin/main 2a2f77c762badcad2a16dc2cad2c8e9abd09eebe。独立 Client 新增 GetKvAsync/PutKvAsync/ScanKvPageAsync；Protocol 共享 codec 接管既有 Core 的三个请求编码及 Get/Put 响应解码，Core 原类型和帧字节保留，Client 不依赖 Core/Data/Native。
+- 本机 Client 全套234/234、真实HTTP/2产品Server扩大42/42、原Core KV协议56/56均通过，0失败/0跳过。新15项Client合同及6项产品Server旅程验证二进制/完整UTC ticks/版本/单页预算、授权、取消与RequestAborted/后续可用、commit后断连只写一次、两次重开；相关生产工程AOT/trim分析构建0警告错误。
+- 初始冷Server编译300秒超时且所属子树4→0；首次6项setup HTTP1失败、次轮5/6仅响应预算夹具失败均保留TRX，改为exact HTTP2及允许17B请求的32B预算后最终42项通过。只修夹具，未放宽生产预算或自动重试。
+- 单页Scan显式1～10000条，不自动全量遍历或跨页快照；请求先预算后编码，响应条数先检查后分配。未交付其它模型/语言、TLS/ALPN、其它平台、新公开包/消费者、固定硬件或生产；#397仍OPEN。未发包、改tag或部署。
+- 最终本树完整restore与规定Format均退出0（29.8/176.3秒），Format的workspace加载警告单列；检查后仅更新验证文档、不改代码。最终commit/PR与回执按会话收口核实。说明和证据入口 docs/audits/issue397-typed-kv-20261106.md、artifacts/issue397-20261106/。两个已登记子模块只checkout固定gitlink，gitdir在本worktree独立modules下；本机构建所有长命令均由Cordonix有界执行并回收所属子树。
+- 下一步：审阅并合入本片PR，按M49冻结操作矩阵继续其它KV和模型切片；公开新版和真实消费者另验收后才能推进母Issue关闭。历史HANDOFF含无效UTF8，本节以UTF8字节前置，原后缀逐字节保留。
+
+## 2026-11-06 Issue #407：采纳 PR #405 Copilot 的 Int64Rle 聚合缺陷建议
+
+- 专属工作树 `sonnetdb-review405-20261106/SonnetDB`，分支 `codex/fix-int64-rle-aggregates-20261106`，基线 origin/main `2a2f77c762badcad2a16dc2cad2c8e9abd09eebe`；共享 canonical 外来 dirty 未修改，parity-results 未操作。实现和 PR 交付由本 worker 完成，合并/Issue 评论关闭由主代理统一。
+- 建议成立：raw/delta 时间戳聚合判定漏排除 Int64Rle，原 14 项真实刷盘回归全部越界失败；追加 4 点 `[5,5,9,9]` 仅第二点的 raw/delta 两项均静默返回 2306（期望5）。只在两处既有 guard 位掩码排除 Int64Rle，回退既有 BlockDecoder；没有格式/压缩选择/JSON/依赖变更。
+- 修复后 Query/Int64 存储扩大472/472通过，最终16项回归16/16通过，均0失败/跳过；前14项实际断言 RLE/空MemTable，并在初次打开及两次独立重开验证。完整 Core 在900秒上限 TIMED_OUT、无完成TRX；不冒称整套通过，等待精确PR head远端CI。首次30KB输出限制终止及后续完整红灯、超时与进程清理回执均保留。
+- 完整restore/规定Format在最终代码树执行，提交仅在两项实际退出0后进行；实际提交SHA、PR与远端CI以主代理收口回读为准。两个固定子模块仅为检查初始化，指针不变且gitdir各位于本worktree独立的SonnetDB6/modules；不改共享canonical子模块。
+- 原始TRX/执行回执位于本树 `artifacts/review405/`；审计 `docs/audits/issue-407-rle-aggregates-20261106.md`。HANDOFF历史含损坏UTF8，本节按字节前置、原后缀保持；不清洗历史。
+- #407在适用验证通过且修复合入后关闭；#367不重开、不重复关闭。尚未发布新包/标签/部署，公开5.0.0与main未发布v7分别记账；下一步由主代理跟踪本PR精确CI、决定合并并回复Copilot/关闭#407。本任务执行器已回收其测试进程子树，未按进程名清理共享服务。
 
 ## 2026-11-05 Issue #402 来源与外部结果对账基础收口
 
