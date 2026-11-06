@@ -2247,7 +2247,10 @@ public sealed partial class TableStore : IDisposable
         if (mutations.Count == 0)
             return;
 
-        _keyspace.ApplyBatch(mutations);
+        // 仅重等尚未追加 WAL 的预算背压，不拆分关系批次，也不重试已开始的提交。
+        _keyspace.ApplyBatchWithCheckpointBackpressure(
+            mutations,
+            SqlQueryResources.Current?.CancellationToken ?? default);
         if (rollback is not null)
             applied!.AddRange(rollback);
     }

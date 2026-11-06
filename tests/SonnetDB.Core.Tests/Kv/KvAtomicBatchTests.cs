@@ -191,6 +191,130 @@ public sealed class KvAtomicBatchTests : IDisposable
         Assert.Null(keyspace.Get("large"));
     }
 
+    /// <summary>关系表批次自动等待旧覆盖层检查点，整批仍使用同一提交序号且可恢复。</summary>
+    [Fact]
+    public void RelationalBatch_CurrentOverlayPressure_WaitsAndCommitsAtomically()
+    {
+        long committed;
+        using (var keyspace = KvKeyspace.Open("relational-budget", _root, OverlayBudgetOptions(2)))
+        {
+            keyspace.Put("existing", [1]);
+            committed = keyspace.ApplyBatchWithCheckpointBackpressure(
+            [
+                KvBatchMutation.Put("row"u8.ToArray(), [2]),
+                KvBatchMutation.Put("index"u8.ToArray(), [3]),
+            ]);
+            Assert.True(keyspace.AutoCheckpointScheduleCount > 0);
+            Assert.Equal([1], keyspace.Get("existing"));
+            Assert.Equal([2], keyspace.Get("row"));
+            Assert.Equal([3], keyspace.Get("index"));
+        }
+
+        using var recovered = KvKeyspace.Open("relational-budget", _root, Options());
+        Assert.Equal(committed, recovered.LastSequence);
+        Assert.Equal([1], recovered.Get("existing"));
+        Assert.Equal([2], recovered.Get("row"));
+        Assert.Equal([3], recovered.Get("index"));
+    }
+
+    /// <summary>等待预算时取消不能发布行或索引，保留此前已提交的数据。</summary>
+    [Fact]
+    public void RelationalBatch_CancelWhileWaiting_DoesNotAppendBatch()
+    {
+        using var keyspace = KvKeyspace.Open("relational-cancel", _root, OverlayBudgetOptions(2));
+        keyspace.Put("existing", [1]);
+        long before = keyspace.LastSequence;
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        keyspace.WriteBackpressureTestHook = cancellation.Cancel;
+
+        Assert.Throws<OperationCanceledException>(() => keyspace.ApplyBatchWithCheckpointBackpressure(
+        [
+            KvBatchMutation.Put("row"u8.ToArray(), [2]),
+            KvBatchMutation.Put("index"u8.ToArray(), [3]),
+        ], cancellation.Token));
+
+        Assert.Equal(before, keyspace.LastSequence);
+        Assert.Equal([1], keyspace.Get("existing"));
+        Assert.Null(keyspace.Get("row"));
+        Assert.Null(keyspace.Get("index"));
+    }
+
+    /// <summary>批次自身超过空白预算时仍立即拒绝，不拆分原子批次或放宽资源上限。</summary>
+    [Fact]
+    public void RelationalBatch_ExceedsFreshBudget_RejectsWithoutCheckpoint()
+    {
+        using var keyspace = KvKeyspace.Open("relational-too-large", _root, OverlayBudgetOptions(1));
+        long before = keyspace.LastSequence;
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatchWithCheckpointBackpressure(
+        [
+            KvBatchMutation.Put("row"u8.ToArray(), [2]),
+            KvBatchMutation.Put("index"u8.ToArray(), [3]),
+        ]));
+
+        Assert.True(KvAtomicBatchErrors.IsTooLarge(error));
+        Assert.Equal(before, keyspace.LastSequence);
+        Assert.Equal(0, keyspace.AutoCheckpointScheduleCount);
+        Assert.Null(keyspace.Get("row"));
+        Assert.Null(keyspace.Get("index"));
+    }
+
+    /// <summary>WAL 同步失败已跨过安全重试边界，只尝试一次并保留原始 I/O 故障。</summary>
+    [Fact]
+    public void RelationalBatch_WalSyncFailure_IsNotRetried()
+    {
+        using var keyspace = KvKeyspace.Open("relational-sync-failure", _root, Options());
+        int syncCalls = 0;
+        keyspace.WalSyncTestHook = () =>
+        {
+            syncCalls++;
+            throw new IOException("injected relational WAL sync failure");
+        };
+
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatchWithCheckpointBackpressure(
+            [KvBatchMutation.Put("row"u8.ToArray(), [2])]));
+
+        Assert.Contains("injected relational WAL sync failure", error.Message, StringComparison.Ordinal);
+        Assert.Equal(1, syncCalls);
+        Assert.Null(keyspace.Get("row"));
+        keyspace.WalSyncTestHook = null;
+    }
+
+    /// <summary>检查点未能在配置预算内释放余量时有界失败，不能追加或部分发布本批数据。</summary>
+    [Fact]
+    public void RelationalBatch_CheckpointBlocked_TimesOutWithoutAppendingBatch()
+    {
+        using var keyspace = KvKeyspace.Open("relational-timeout", _root,
+            OverlayBudgetOptions(2) with { CheckpointWriteBackpressureTimeout = TimeSpan.FromMilliseconds(250) });
+        using var releaseCheckpoint = new ManualResetEventSlim();
+        keyspace.Put("existing", [1]);
+        long before = keyspace.LastSequence;
+        keyspace.CheckpointTestHook = phase =>
+        {
+            if (phase == KvCheckpointPhase.BeforeFreeze && !releaseCheckpoint.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("test did not release checkpoint");
+        };
+        try
+        {
+            IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatchWithCheckpointBackpressure(
+            [
+                KvBatchMutation.Put("row"u8.ToArray(), [2]),
+                KvBatchMutation.Put("index"u8.ToArray(), [3]),
+            ]));
+
+            Assert.IsType<TimeoutException>(error.InnerException);
+            Assert.True(KvAtomicBatchErrors.IsRetryableCheckpointPressure(error));
+            Assert.Equal(before, keyspace.LastSequence);
+            Assert.Equal([1], keyspace.Get("existing"));
+            Assert.Null(keyspace.Get("row"));
+            Assert.Null(keyspace.Get("index"));
+        }
+        finally
+        {
+            keyspace.CheckpointTestHook = null;
+            releaseCheckpoint.Set();
+        }
+    }
+
     [Fact]
     public void ApplyBatch_WalBudget_CurrentWalCanBeCheckpointedAndRetried()
     {

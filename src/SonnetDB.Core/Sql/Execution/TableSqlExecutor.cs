@@ -4018,7 +4018,8 @@ internal static partial class TableSqlExecutor
                     residualRows,
                     schema,
                     residualOrderedPlan,
-                    statement.OrderByList);
+                    statement.OrderByList,
+                    projections);
             }
 
             return (
@@ -4446,7 +4447,7 @@ internal static partial class TableSqlExecutor
                 continue;
 
             if (IsWhereFullyCoveredByRangePlan(where, schema, orderedCandidate)
-                || !OrderByMatchesRangeIndexSequence(
+                || !OrderByCanUseRangeValueGroups(
                     statement.OrderByList,
                     schema,
                     projections,
@@ -4465,11 +4466,13 @@ internal static partial class TableSqlExecutor
         return false;
     }
 
-    /// <summary>仅接受逐行比较、空值判断及 AND/OR/NOT，保留 IN、函数和子查询的既有回退。</summary>
+    /// <summary>接受逐行比较、常量 CAST、空值判断及 AND/OR/NOT，保留列转换、函数和子查询的既有回退。</summary>
     private static bool IsScalarOrderedResidualPredicate(SqlExpression expression)
         => expression switch
         {
             IdentifierExpression or LiteralExpression => true,
+            // UTC 毫秒时间常量的显式类型绑定仍由原求值器校验，不改变比较类型或残余复检。
+            CastExpression { Operand: LiteralExpression } => true,
             UnaryExpression { Operator: SqlUnaryOperator.Not } unary
                 => IsScalarOrderedResidualPredicate(unary.Operand),
             IsNullExpression isNull => IsScalarOrderedResidualPredicate(isNull.Operand),
@@ -4493,20 +4496,16 @@ internal static partial class TableSqlExecutor
         IEnumerable<TableRow> rows,
         TableSchema schema,
         TableIndexAccessPlan plan,
-        IReadOnlyList<OrderBySpec> orderBy)
+        IReadOnlyList<OrderBySpec> orderBy,
+        IReadOnlyList<Projection> projections)
     {
         int rangeOrdinal = plan.Range!.Column.Ordinal;
         var orderOrdinals = new int[orderBy.Count];
-        int explicitStart = plan.EqualityPrefixValues.Count;
-        int explicitCount = plan.Index.Columns.Count - explicitStart;
         for (int index = 0; index < orderBy.Count; index++)
         {
-            string columnName = index < explicitCount
-                ? plan.Index.Columns[explicitStart + index]
-                : schema.PrimaryKey[index - explicitCount];
-            orderOrdinals[index] = schema.TryGetColumn(columnName)?.Ordinal
-                ?? throw new InvalidOperationException(
-                    $"索引 '{plan.Index.Name}' 引用了未知列 '{columnName}'。");
+            // 范围值相同的完整组按 SQL 请求列排序，不借用可能不同的业务索引后缀。
+            orderOrdinals[index] = ResolveOrderByColumn(orderBy[index], schema, projections)?.Ordinal
+                ?? throw new InvalidOperationException("有序残余计划包含无法绑定的排序列。");
         }
 
         var comparer = new TableRowIndexOrderComparer(orderOrdinals, orderBy[0].Direction);
@@ -4680,6 +4679,45 @@ internal static partial class TableSqlExecutor
         }
 
         return true;
+    }
+
+    /// <summary>残余路径完整读取并排序同一范围值组，因此次排序列无需与物理索引后缀一致。</summary>
+    private static bool OrderByCanUseRangeValueGroups(
+        IReadOnlyList<OrderBySpec> orderBy,
+        TableSchema schema,
+        IReadOnlyList<Projection> projections,
+        TableIndexAccessPlan plan,
+        out bool descending)
+    {
+        descending = false;
+        if (plan.Range is null || orderBy.Count == 0)
+            return false;
+        SortDirection direction = orderBy[0].Direction;
+        descending = direction == SortDirection.Descending;
+        for (int index = 0; index < orderBy.Count; index++)
+        {
+            TableColumn? column = ResolveOrderByColumn(orderBy[index], schema, projections);
+            if (orderBy[index].Direction != direction || column is null
+                || index == 0 && column.Ordinal != plan.Range.Column.Ordinal)
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>复用 SELECT 的别名优先合同解析直接排序列，表达式和函数别名仍回退原路径。</summary>
+    private static TableColumn? ResolveOrderByColumn(
+        OrderBySpec orderBy,
+        TableSchema schema,
+        IReadOnlyList<Projection> projections)
+    {
+        if (orderBy.Expression is not IdentifierExpression identifier)
+            return null;
+        foreach (TableColumn column in schema.Columns)
+        {
+            if (OrderByResolvesToColumn(identifier, projections, column))
+                return column;
+        }
+        return null;
     }
 
     /// <summary>

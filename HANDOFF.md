@@ -1,3 +1,13 @@
+## 2026-11-06 木垒运行证据驱动的关系提交与有序查询修复（源码候选）
+
+- 用户授权根据现场问题直接修改业务、EF与数据库，保持能力和真实验收。在TOLNSD父仓当前子模块D:/Uixe/TOLNSD/externals/SonnetDB的24ff94e4基线上修改，未切换或重置分支，没有改动共享D:/source/SonnetDB外来dirty。
+- 关系表整批行/索引提交新增WAL追加前的有界检查点等待：仍整批原子提交，保留空白预算拒绝、取消、超时、真实I/O错误与未知提交不重试。直接KV原超限合同不改。残余查询接受常量CAST，复用范围值完整分组按SQL请求/别名列排序，修复BusinessId物理后缀与Id请求后缀不同时的FIFO回退；不固定截断候选，不减少结果，不新增索引或改格式。
+- 最终Core四组及事务/原生日期组合219项通过、零失败/跳过；父仓完整抓拍回填/治理清理18项通过，零失败/跳过。修复前过期、常量CAST和竞争索引失败保留；初始旧assets缺Protocol引用经正常restore修复，不靠删测或压制错误。数据库构建零警告/错误，业务既有81警告保留日志。
+- 报告在父仓docs/mulei-runtime-fixes-20261106.md；TRX在父仓output/runtime-fixes-20261106，完整现场计划output/runtime-fixes-20261106-plans-complete.txt。现场约197万行是过期统计估计，不冒称实扫；未发布所以不能宣称现场延迟/CPU改善、中心积压已消失。
+- 没有Git提交/推送、NuGet或镜像发布、生产部署/重启、DDL/DML、队列重放或群消息。当前子模块保持原HEAD且有本任务未提交变更，父仓gitlink不变。后续先审查源码与证据，再按单独授权发布并核准同SQL实际扫描、长尾、CPU/GC及自然上传确认；统计取消、media_missing、历史缺车头和完整长期验收继续保留。
+- 下方既有HANDOFF原字节完整保留，前置前SHA256=6fafc40fe0228a386a6efec79adad23336da9e08cbdf456c08b3d60ef208f384，含原有损坏UTF8，未清洗。
+
+
 ## 2026-11-04 对象分页后续：前缀回填、真实网络资源释放与隔离恢复
 
 - 专属工作树 `C:/Users/mysti/.codex/worktrees/object-pagination-20261104/SonnetDB`，分支 `codex/object-pagination-20261104`，基于已推送 `b6f8d60c5992cfc30870c30b239dd2cfe0e2d57d` 并整合 `origin/main@5742bbe536e60dd321843c409b0f837722016c0e`。main 合并只在交接前置段冲突，保留双方新增记录及历史后缀原字节；共享 D:/source/SonnetDB 的外来脏文件未修改。parity-results 保留。

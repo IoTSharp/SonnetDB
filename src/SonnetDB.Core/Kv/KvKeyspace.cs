@@ -1342,6 +1342,65 @@ public sealed partial class KvKeyspace : IDisposable
         return ApplyCanonicalBatch(batch);
     }
 
+    /// <summary>关系表提交只在 WAL 追加前有界等待检查点预算，整批行与索引仍一次原子发布。</summary>
+    /// <param name="mutations">不可拆分的关系表行与索引变更。</param>
+    /// <param name="cancellationToken">等待与 WAL 追加前的取消令牌。</param>
+    /// <returns>整批共享的提交序号。</returns>
+    internal long ApplyBatchWithCheckpointBackpressure(
+        IReadOnlyList<KvBatchMutation> mutations,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        cancellationToken.ThrowIfCancellationRequested();
+        KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (batch.Length == 0)
+            return LastSequence;
+
+        // 批次正文不会随检查点改变，字节预算只在锁外计算一次。
+        long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
+        long started = Stopwatch.GetTimestamp();
+        TimeSpan timeout = _options.CheckpointWriteBackpressureTimeout;
+        using (EnterAtomicWriteLock(cancellationToken, bounded: true))
+        {
+            for (int attempt = 0; attempt < 1_000_000; attempt++)
+            {
+                ThrowIfDisposed();
+                ThrowIfWriteFaultedLocked();
+                cancellationToken.ThrowIfCancellationRequested();
+                long expectedSequence = _wal!.NextSequence;
+                var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+                if (TryAdmitAtomicBatchLocked(
+                    publishPlan.OverlayEntryCount,
+                    publishPlan.PostCheckpointOverlayEntryCount,
+                    requiredWalBytes,
+                    "atomic mutation batch",
+                    waitForCheckpoint: true))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (attempt > 0)
+                        RecordCheckpointBackpressure(started, rejected: false);
+                    return CommitPlannedMutationBatchLocked(batch, publishPlan, expectedSequence);
+                }
+
+                // 等待只释放 KV 锁，关系表写锁仍保护已核准的行与索引；检查点不获取关系表锁。
+                ScheduleAutoCheckpointLocked(force: true);
+                if (LastCheckpointException is { } checkpointFailure && _checkpointState?.IsRunning != true)
+                    throw new IOException("KV relational write rejected because the automatic checkpoint failed.", checkpointFailure);
+                TimeSpan remaining = timeout - Stopwatch.GetElapsedTime(started);
+                if (remaining <= TimeSpan.Zero)
+                    break;
+                TimeSpan wait = remaining < TimeSpan.FromMilliseconds(50) ? remaining : TimeSpan.FromMilliseconds(50);
+                WriteBackpressureTestHook?.Invoke();
+                cancellationToken.ThrowIfCancellationRequested();
+                Monitor.Wait(_sync, wait);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            RecordCheckpointBackpressure(started, rejected: true);
+            throw CreateCheckpointBackpressureTimeout(timeout);
+        }
+    }
+
     /// <summary>
     /// 在 keyspace 写锁内校验全部条件，并仅在条件成立时把 mixed put/delete 作为一个 WAL record
     /// 发布。取消只在 WAL 追加前生效；返回冲突时不会追加 WAL。
@@ -3421,9 +3480,10 @@ public sealed partial class KvKeyspace : IDisposable
             ? _options.IndexRebuildMaxOverlayEntries
             : _options.MaxOverlayEntries;
 
-    private AtomicWriteLock EnterAtomicWriteLock(CancellationToken cancellationToken)
+    /// <summary>获取原子写锁；关系表显式要求无取消令牌时也遵守检查点等待上限。</summary>
+    private AtomicWriteLock EnterAtomicWriteLock(CancellationToken cancellationToken, bool bounded = false)
     {
-        if (!cancellationToken.CanBeCanceled)
+        if (!cancellationToken.CanBeCanceled && !bounded)
         {
             Monitor.Enter(_sync);
             return new AtomicWriteLock(_sync);
@@ -3822,7 +3882,8 @@ public sealed partial class KvKeyspace : IDisposable
         int overlayEntryCount,
         int postCheckpointOverlayEntryCount,
         long requiredWalBytes,
-        string batchName)
+        string batchName,
+        bool waitForCheckpoint = false)
     {
         if (!_options.AutoCheckpointEnabled)
             return true;
@@ -3847,6 +3908,8 @@ public sealed partial class KvKeyspace : IDisposable
             return true;
 
         ScheduleAutoCheckpointLocked(force: true);
+        if (waitForCheckpoint)
+            return false;
         SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
         throw KvAtomicBatchErrors.CreateCurrentCheckpointBudget(
             $"KV {batchName} was rejected before WAL append because it exceeds the current checkpoint budget; " +
