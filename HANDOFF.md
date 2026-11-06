@@ -1,3 +1,13 @@
+## 2026-11-07（Asia/Shanghai）#397 GetAndDelete源码与独立包验收收口
+
+- SDK产品source固定336f9aa84d32951f2fbaf90bc41caedf9b313431，独立本地两包0.0.0-issue397.local.20261107.1，PR#415。后续本节及机器清单为纯证据文档，不改变S1源码/制品摘要，也不把它并入Provider rc候选。
+- Source S1的精确远端检查12 SUCCESS/1项按PR发布条件SKIPPED，当前无未解决review；CI42280330037的27份原始TRX已下载解析，Ubuntu/Windows Core各8175、Client各272、EF各438、Server各1610，另行迁移强杀各10，全部零失败/未执行；Windows Studio90通过。三RID NativeAOT是Server/CLI/codec smoke，typed Client NativeAOT消费者/ABI矩阵仍NOT_RUN。
+- 本地新codec44/完整Client272/真实产品Server7均PASS；首轮Server6/7匿名观察位置错误保留。仓库外 C:/Users/mysti/.codex/issue397-consumer-20261107-local-1 的真正PackageReference/cache仅Client和Protocol，五步骤restore/build/seed/exchange/verify-deleted全PASS，实际加载DLL/nuspec/source/包与匹配JIT Server/archive指纹一致。三phase23/35/10检查，旧main版本1→mutation5、empty2→6、race3→7且[1,0]，值/ticks/空值/缺失及幸存记录均独立核对；两代Server60240→48864同目录强停重开，真实HTTP2 /v1/frame和200均读回。Server及Cordonix所属树结束回收0；原始artifact/cache/worktree保留为证据。
+- 评审与机器收据 docs/audits/issue397-get-and-delete-20261107.md/.json；原命令/TRX/包与Server/CI在artifacts/issue397-get-and-delete-20261107/。完整restore/规定Format及diff检查按本轮最终文档树单独执行；所有本机重负载仍共享FileShare.None锁CPU2/-m1/禁持久服务。
+- 正式发行/公开NuGet-only、TLS/ALPN、其他模型/语言/平台和实际Client AOT/ABI/实机均未完成，#397仍OPEN；不以一个KV操作关M49母issue。Provider#392/#394/#395公开门同样OPEN，相关已完成#227/#266/#194/#367/#393/#400/#407已关闭，不重复关单。
+- Git整合/双端同步/完成分支清理已获当前用户明确授权，Provider#414/main f09b4375已正常合并并同步/清理完成；SDK按其真实source门禁和本节文档提交继续正常合入及核expected SHA清理。parity-results本地/两端独立保护，canonical44份外来dirty字节/暂存状态保留；项目门面会话仍待用户选择人物方向，未就绪分支不删除。
+- 根路线下一包已只读复核：FreeSql#2291仍OPEN、Provider公开索引404；XCode#104→#105仍OPEN，#105有两条晚于旧完成快照的未解决review。现复用原干净Provider树a224144c，先只加DATETIME/TIME元数据和时间默认值no-ALTER两项真回归，生产/Architecture尚未改，红测由主监督排队。源修复与上游合并/公开消费分别验收，不只把可修review说成外部等待。本轮无正式tag/NuGet/Release/生产操作。
+
 ## 2026-11-07（Asia/Shanghai）#397 typed GetAndDelete 独立切片
 
 - 按共同Provider第一顺序之后的根路线，以独立SDK树 sdk-kv-get-and-delete-20261107/SonnetDB、branch codex/sdk-kv-get-and-delete-20261107开工，已从eb5起点安全ff到main f09b4375。三位真实worker分别拥有共享Protocol codec/Core对拍、Client API/假handler测试/包应用、真实产品Server测试，主监督拥有接口/集成/候选/最终验证及共享文档；不改变Provider冻结的eb5c0e5f/rc候选。

@@ -15,7 +15,7 @@ PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容�
 | 5 | #398 / #399 / #403：独立环境验收 | 先落实干净 OS、固定硬件/阈值、正式 HTTPS/WorkBuddy 宿主与平台入口，再分别执行安装生命周期、原规模容量/长稳、九模型及送审公开闭环。 |
 | 6 | #401：M50 高精度时序 | T01 冻结独立版本/API/矩阵→T02 精确换算→T03–T06 持久元数据/格式/WAL/恢复→T07–T11 查询/分桶/retention，再接协议、语言、迁移与固定硬件。 |
 
-2026-11-07下一独立切片：typed GetAndDeleteKvAsync复用既有op6并保留旧记录及变更版本，新增codec44例、完整Client272例及真实产品Server7例本地通过；独立Client/Protocol候选与包应用继续验证，TLS/ALPN和公开消费不外推。详见[#397专题](docs/audits/issue397-get-and-delete-20261107.md)，不修改已冻结的Provider候选。
+2026-11-07下一独立切片：typed GetAndDeleteKvAsync复用既有op6并保留旧记录及变更版本，新增codec44例、完整Client272例及真实产品Server7例本地通过；source336f9aa8的Client/Protocol两包候选及仓库外独占缓存应用、两代同目录Server重开均PASS。TLS/ALPN、公开消费和其余M49范围不外推，#397继续OPEN。详见[#397专题及机器收据](docs/audits/issue397-get-and-delete-20261107.md)，不修改已冻结的Provider候选。
 
 这 12 个母 issue 仍有未完成的公开、上游或实机门禁；#367/#393/#400/#407 已关闭。原 `0d687bd9` 5.1 候选的 PASS 不外推到新源码。Mulei 后续仍保留 FIFO 长尾、中心超时/积压、统计刷新取消、历史缺图及完整长稳；本次不执行生产操作。
 
