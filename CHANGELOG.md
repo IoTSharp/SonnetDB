@@ -49,6 +49,7 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- 完成共同Provider候选三线真实包消费审计：冻结eb5c0e5f/5.1.0-rc.20261107.1，本地与实际CI/NativeAOT Server各69步骤及12类发行readiness通过；公开NuGet-only、正式发行和实机边界单独保留，相关母issue仍OPEN。
 - 补充 PR #413 最终分支/测试/Issue 收口交接，新增下一阶段监督会话的共同 Provider 候选三线并行合同，明确迁移、JSON 更新与 OwnsMany 的文件归属、统一候选和验证队列；正式发行继续延期。
 - 5.0.0发布交接记录同源`84433f9e`十二类READY、NuGet十包加密签名/有效载荷PASS、52项匿名实际下载与DockerHub不可变digest；说明NuGet旧Key于11月1日失效的30天政策及本仓库新凭据，保留400辅助验钥的INCONCLUSIVE身份。正式tag与构建工件沿用，XCode架构拒绝登记#404，全公开上游组合与安装/生产边界继续保留。
 - WorkBuddy连接器与Skill升级0.2.0，按SonnetDB 5.0现场43工具/schema声明能力；默认Read，已有明确用户写授权和目标库Write grant时调用独立写工具，query_sql仍只读，未知写入不盲重试。同步表单、元信息、校验器及联调资料，保留历史r2九工具证据，不表示平台解析/HTTPS/宿主/送审完成。

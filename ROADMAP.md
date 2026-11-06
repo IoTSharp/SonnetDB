@@ -4,7 +4,7 @@
 
 PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容量查询重建目录问题，并在最终精确源码验证后合入 main；已合入切片不重新立项。下一阶段由新监督会话按[共同 Provider 三线并行合同](docs/handoffs/provider-next-phase-20261107.md)接续第一顺序，逐项状态及后续见 [PR #413 审查与 issue 矩阵](docs/audits/pr413-integration-20261107.md)。
 
-2026-11-07：新监督会话已实际启动三位独立worker，增强迁移和JSON消费者并新增OwnsMany跟踪应用，准备同源隔离候选`5.1.0-rc.20261107.1`。当前仍在验收，结果见对应[迁移](docs/audits/provider-candidate-20261107-migrations.md)、[JSON](docs/audits/provider-candidate-20261107-json-update.md)、[集合](docs/audits/provider-candidate-20261107-ownsmany.md)审计；正式发行延期及公开门保持。
+2026-11-07：三位独立worker完成共同候选`5.1.0-rc.20261107.1`/source`eb5c0e5f`的消费者增强和独立复核；本地四包/JIT与实际CI四包/NativeAOT Server各69步骤PASS，三协议、after-ACK强杀/Down/Up及Server重开齐全，12类发行readiness READY。证据见[发行评审/机器清单](docs/releases/provider-candidate-20261107.md)及[迁移](docs/audits/provider-candidate-20261107-migrations.md)、[JSON](docs/audits/provider-candidate-20261107-json-update.md)、[集合](docs/audits/provider-candidate-20261107-ownsmany.md)专题；正式发行延期及公开门保持，母issue不提前关闭。下一独立SDK切片冻结为typed GetAndDelete。
 
 | 顺序 | 接续范围 | 下一份可验收交付 |
 | --- | --- | --- |
