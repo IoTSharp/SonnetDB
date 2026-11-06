@@ -17,6 +17,7 @@
 - GH-Issue #230：补充固定5.0.0的十二类门禁及公开消费者审计；保留旧NuGet过期403证据，修复凭据后完成十包、52个Release资产和DockerHub公开回读，分别记录FreeSql237、XCode50、Chloe三协议各101、SqlSugar各93、ABP22及真实Testcontainers结果。上游Provider公开分发与本次SonnetDB交付分别验收。
 
 ### Fixed
+- GH-Issue #392：后续关系 DDL 前把缓冲 DML 应用到同一私有 workspace，修复真实 EF Down 的 schema 绑定冲突；prepared 启动恢复只修磁盘、避免重复装载 catalog，并保留 undo 至 journal 删除后以支持恢复中再次强杀。增加 undo owner 写前校验、真实 EF 多阶段强杀与独立包引用库存应用的迁移/回退验收；公开新版本仍须单独验证。
 - GH-Issue #395：EF JSON `ExecuteUpdate` 支持根/嵌套 OwnsMany 固定非负常量元素的直接标量目标，复用参数化路径、同列 setter 顺序与旧行右值；缺失元素或错误父级使跨行更新整条拒绝。动态下标、条件元素目标、原始标量集合、集合右值与未支持类型继续写前拒绝，公开新包/应用验收仍待完成。
 - GH-Issue #407：数值聚合的 raw 与 delta 时间戳融合快路径排除 Int64Rle 值载荷，交由既有解码器处理，修复压缩段刷盘后的局部区间、分桶、多聚合和扩展百分位查询越界；覆盖两种时间戳编码、SIMD 开关及两次重开，不改变段格式或压缩选择。
 - GH-Issue #402：增加发行恢复来源、写前tag fence、NuGet有效payload/Release资产对账、精确artifact清单与current/frozen政策校验基础，13+69项离线合同及正式公开包只读样本通过。未新增恢复workflow，可信attempt来源/双verifier接线与实际预发布恢复仍未完成，本条不代表发布恢复已闭环。

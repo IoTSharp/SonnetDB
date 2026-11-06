@@ -28,6 +28,9 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case var efMigration when efMigration.StartsWith("ef_migration_", StringComparison.Ordinal):
+        await EfMigrationCrashScenario.RunAsync(root, readyFile, scenario["ef_migration_".Length..]);
+        return 0;
     case "hold_mq_instance_lifecycle_lease":
         MqLifecycleLeaseScenario.Run(root, readyFile);
         return 0;

@@ -13,6 +13,75 @@ public sealed class SqlDdlTransactionWorkspaceTests : IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), "sndb-ddl-workspace-" + Guid.NewGuid().ToString("N"));
 
+    /// <summary>交错的 DML 在后续元数据和列布局 DDL 前应用到私有副本，提交或回滚仍覆盖整笔事务。</summary>
+    /// <param name="commit">是否提交。</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Execute_DmlBetweenDdl_PreservesAtomicStateAcrossReopen(bool commit)
+    {
+        using (var database = Open())
+        {
+            SqlExecutor.Execute(database, "CREATE TABLE items(id INT, value INT, note STRING, PRIMARY KEY(id), CONSTRAINT CK_Value CHECK(value>=0))");
+            SqlExecutor.Execute(database, "INSERT INTO items(id,value,note) VALUES(1,5,'old')");
+            var transaction = new SqlTransactionContext();
+            try
+            {
+                Execute("ALTER TABLE items ADD COLUMN extra STRING");
+                Execute("UPDATE items SET value=9 WHERE id=1");
+                Execute("ALTER TABLE items DROP CONSTRAINT CK_Value");
+                Execute("CREATE INDEX IX_Value ON items(value)");
+                Execute("UPDATE items SET note='new' WHERE id=1");
+                Execute("ALTER TABLE items DROP COLUMN extra");
+                Assert.Equal(5L, database.Tables.OpenPersistentForDdl("items").EnumerateScan().Single().Values[1]);
+                Execute(commit ? "COMMIT" : "ROLLBACK");
+
+                object? Execute(string sql) => SqlExecutor.ExecuteStatement(database, null, SqlParser.Parse(sql), null, transaction);
+            }
+            finally
+            {
+                if (!transaction.IsCompleted) transaction.MarkCompleted();
+            }
+        }
+
+        for (int reopen = 0; reopen < 2; reopen++)
+        {
+            using var reopened = Open();
+            var row = Assert.Single(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, "SELECT value,note FROM items")).Rows);
+            Assert.Equal(commit ? 9L : 5L, row[0]);
+            Assert.Equal(commit ? "new" : "old", row[1]);
+            TableSchema schema = reopened.Tables.Catalog.TryGet("items")!;
+            Assert.Null(schema.TryGetColumn("extra"));
+            Assert.Equal(commit ? 1 : 0, schema.Indexes.Count);
+            Assert.Equal(commit ? 0 : 1, schema.CheckConstraints.Count);
+        }
+    }
+
+    /// <summary>新增 CHECK 必须校验前一条 DML 的值，拒绝后源目录仍完全未变。</summary>
+    [Fact]
+    public void Execute_CheckAfterBufferedDml_ValidatesPriorWriteAndRollsBack()
+    {
+        using var database = Open();
+        SqlExecutor.Execute(database, "CREATE TABLE items(id INT,value INT,PRIMARY KEY(id))");
+        SqlExecutor.Execute(database, "INSERT INTO items(id,value) VALUES(1,5)");
+        var transaction = new SqlTransactionContext();
+        try
+        {
+            Execute("ALTER TABLE items ADD COLUMN note STRING");
+            Execute("UPDATE items SET value=20 WHERE id=1");
+            Assert.Throws<TableConstraintException>(() => Execute("ALTER TABLE items ADD CONSTRAINT CK_Bound CHECK(value<=10)"));
+            Assert.Equal(5L, database.Tables.OpenPersistentForDdl("items").EnumerateScan().Single().Values[1]);
+            Execute("ROLLBACK");
+            Assert.Null(database.Tables.Catalog.TryGet("items")!.TryGetColumn("note"));
+
+            object? Execute(string sql) => SqlExecutor.ExecuteStatement(database, null, SqlParser.Parse(sql), null, transaction);
+        }
+        finally
+        {
+            if (!transaction.IsCompleted) transaction.MarkCompleted();
+        }
+    }
+
     /// <summary>一万行既有数据和 schema 被克隆，workspace DDL 不对持久目录可见。</summary>
     [Fact]
     public void Create_WithTenThousandRows_ClonesAndKeepsSchemaIsolated()
