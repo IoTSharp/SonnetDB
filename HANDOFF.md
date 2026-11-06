@@ -1,3 +1,12 @@
+## 2026-11-06 Issue #407：采纳 PR #405 Copilot 的 Int64Rle 聚合缺陷建议
+
+- 专属工作树 `sonnetdb-review405-20261106/SonnetDB`，分支 `codex/fix-int64-rle-aggregates-20261106`，基线 origin/main `2a2f77c762badcad2a16dc2cad2c8e9abd09eebe`；共享 canonical 外来 dirty 未修改，parity-results 未操作。实现和 PR 交付由本 worker 完成，合并/Issue 评论关闭由主代理统一。
+- 建议成立：raw/delta 时间戳聚合判定漏排除 Int64Rle，原 14 项真实刷盘回归全部越界失败；追加 4 点 `[5,5,9,9]` 仅第二点的 raw/delta 两项均静默返回 2306（期望5）。只在两处既有 guard 位掩码排除 Int64Rle，回退既有 BlockDecoder；没有格式/压缩选择/JSON/依赖变更。
+- 修复后 Query/Int64 存储扩大472/472通过，最终16项回归16/16通过，均0失败/跳过；前14项实际断言 RLE/空MemTable，并在初次打开及两次独立重开验证。完整 Core 在900秒上限 TIMED_OUT、无完成TRX；不冒称整套通过，等待精确PR head远端CI。首次30KB输出限制终止及后续完整红灯、超时与进程清理回执均保留。
+- 完整restore/规定Format在最终代码树执行，提交仅在两项实际退出0后进行；实际提交SHA、PR与远端CI以主代理收口回读为准。两个固定子模块仅为检查初始化，指针不变且gitdir各位于本worktree独立的SonnetDB6/modules；不改共享canonical子模块。
+- 原始TRX/执行回执位于本树 `artifacts/review405/`；审计 `docs/audits/issue-407-rle-aggregates-20261106.md`。HANDOFF历史含损坏UTF8，本节按字节前置、原后缀保持；不清洗历史。
+- #407在适用验证通过且修复合入后关闭；#367不重开、不重复关闭。尚未发布新包/标签/部署，公开5.0.0与main未发布v7分别记账；下一步由主代理跟踪本PR精确CI、决定合并并回复Copilot/关闭#407。本任务执行器已回收其测试进程子树，未按进程名清理共享服务。
+
 ## 2026-11-05 Issue #402 来源与外部结果对账基础收口
 
 - source-policy13项和reconciliation69项在worker及整合树均通过；接入既有CI离线合同。覆盖真实ZIP/nupkg、签名差异/有效payload、同版本换DLL/commit、写前tag移动、未知写入不重试、404/auth/network、run/attempt/job/ID/digest/files集合与政策漂移。没有启用恢复workflow、修改既有recover-tagged-release或任何外部发布写入。
