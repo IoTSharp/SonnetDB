@@ -1,0 +1,310 @@
+{
+  "schemaVersion": 1,
+  "issue": "https://github.com/IoTSharp/SonnetDB/issues/392",
+  "generatedUtc": "2026-11-06T09:12:35.7643623Z",
+  "sourceBase": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+  "branch": "codex/issue392-recovery-20261106",
+  "dotnetSdk": "10.0.403",
+  "tests": [
+    {
+      "file": "artifacts/issue392-20261106/core-related.trx",
+      "sha256": "F0ACFECBD1E323C7C38A6C61E2A3D306AE97D363F4EE93F1F1382677B9558F94",
+      "failed": 0,
+      "passed": 290,
+      "total": 290
+    },
+    {
+      "file": "artifacts/issue392-20261106/ef-full02.trx",
+      "sha256": "85FBC912FA971E273B95BAE1DF7445470E18D74E913FE07DEA53E7FE4B5840A2",
+      "failed": 0,
+      "passed": 388,
+      "total": 388
+    },
+    {
+      "file": "artifacts/issue392-20261106/crash-all-final.trx",
+      "sha256": "2B75810326CC547517E7AAF2259FEE6F16F7AB7BD8B58D726AE7ACB079E6454C",
+      "failed": 0,
+      "passed": 9,
+      "total": 9
+    },
+    {
+      "file": "artifacts/issue392-20261106/crash-owner-guard02.trx",
+      "sha256": "3751376853870375761DAE2856019284B37AA6AC2AB27F6C329ABB9FB8586089",
+      "failed": 0,
+      "passed": 1,
+      "total": 1
+    }
+  ],
+  "localCandidate": {
+    "version": "0.0.0-issue392.local.20261106.1",
+    "packages": [
+      {
+        "file": "SonnetDB.0.0.0-issue392.local.20261106.1.nupkg",
+        "bytes": 917559,
+        "sha256": "CD6F76724226BD0B1293E151A08E9005CEE2368C57571640FABB91677EA3CB81"
+      },
+      {
+        "file": "SonnetDB.Core.0.0.0-issue392.local.20261106.1.nupkg",
+        "bytes": 7093485,
+        "sha256": "312280D2DDA4DFFF987F324E2A704E5AA382456A9C8F1CF80DC88BD6A4F4ED94"
+      },
+      {
+        "file": "SonnetDB.EntityFrameworkCore.0.0.0-issue392.local.20261106.1.nupkg",
+        "bytes": 160517,
+        "sha256": "821C999ACAB7B9FB84D532EF3BDA2EAA61D253095D7748A785BF7842427F2082"
+      },
+      {
+        "file": "SonnetDB.Protocol.0.0.0-issue392.local.20261106.1.nupkg",
+        "bytes": 136212,
+        "sha256": "3EEFB2FAC86D6D2122EC769E0FFF364CB1ED7F8018F4E360530AA4ED411FE08A"
+      }
+    ],
+    "sourceBase": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+    "boundary": "LOCAL_ONLY_DIRTY_SOURCE_NOT_PUBLIC",
+    "sourcePatchSha256": "2A5521D2738775A7884416FFFE7B89A7A76971178D8D0C21371B25B387B2A343"
+  },
+  "localCandidateDlls": [
+    {
+      "id": "SonnetDB.Protocol",
+      "dllSha256": "65CA9B5D5B3AC1C3AF6A88DEE4EADFA6089B5CD4B5601311E93799F41A709A6F",
+      "assembly": "lib/net10.0/SonnetDB.Protocol.dll",
+      "version": "0.0.0-issue392.local.20261106.1",
+      "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a"
+    },
+    {
+      "id": "SonnetDB.Core",
+      "dllSha256": "494B0FF9DAADE956BCC08EE4D084AC6F70284B10B50E1F46A5060517801C54C9",
+      "assembly": "lib/net10.0/SonnetDB.Core.dll",
+      "version": "0.0.0-issue392.local.20261106.1",
+      "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a"
+    },
+    {
+      "id": "SonnetDB",
+      "dllSha256": "D82C6E8B6365257AFA74430AC7EE8DBF66ECDEB055E95C8662C55F070625C800",
+      "assembly": "lib/net10.0/SonnetDB.Data.dll",
+      "version": "0.0.0-issue392.local.20261106.1",
+      "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a"
+    },
+    {
+      "id": "SonnetDB.EntityFrameworkCore",
+      "dllSha256": "96CB3A284323FE031CE5F471A50C6D8DA27E335570B34DF83DB9144EAE368C88",
+      "assembly": "lib/net10.0/SonnetDB.EntityFrameworkCore.dll",
+      "version": "0.0.0-issue392.local.20261106.1",
+      "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a"
+    }
+  ],
+  "application": {
+    "binaries": [
+      {
+        "file": "SonnetDB.Protocol.dll",
+        "sha256": "65CA9B5D5B3AC1C3AF6A88DEE4EADFA6089B5CD4B5601311E93799F41A709A6F"
+      },
+      {
+        "file": "SonnetDB.Core.dll",
+        "sha256": "494B0FF9DAADE956BCC08EE4D084AC6F70284B10B50E1F46A5060517801C54C9"
+      },
+      {
+        "file": "SonnetDB.Data.dll",
+        "sha256": "D82C6E8B6365257AFA74430AC7EE8DBF66ECDEB055E95C8662C55F070625C800"
+      },
+      {
+        "file": "SonnetDB.EntityFrameworkCore.dll",
+        "sha256": "96CB3A284323FE031CE5F471A50C6D8DA27E335570B34DF83DB9144EAE368C88"
+      }
+    ],
+    "executorSha256": "5F612942FECB855B20AF6C8C7E57C26BF0D344CC5BF8689C9D94E89AC4A1AFF7",
+    "actions": [
+      {
+        "log": "D:\\sndb-t\\issue392-20261106-local3\\app-0-roundtrip.log",
+        "exitCode": 0,
+        "action": "roundtrip"
+      },
+      {
+        "log": "D:\\sndb-t\\issue392-20261106-local3\\app-1-verify-new.log",
+        "exitCode": 0,
+        "action": "verify-new"
+      },
+      {
+        "log": "D:\\sndb-t\\issue392-20261106-local3\\app-2-verify-new.log",
+        "exitCode": 0,
+        "action": "verify-new"
+      }
+    ],
+    "receiptSha256": "CD41880B3F7AB67A810BFA10F1532DA72557805A4388E3A74D9B88F87E3D10C7",
+    "receipt": "D:/sndb-t/issue392-20261106-local3/result.json",
+    "executionDirectory": "D:\\sndb-t\\issue392-20261106-local3\\app",
+    "dependencies": [
+      {
+        "source": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-issue392-recovery-20261106\\SonnetDB\\artifacts\\issue392-20261106\\local-feed",
+        "sha512": "gbVE501AlTZSSMhZXR0jFvtxDlF6EVO7KTt9hq6uA093kxBwKxlZn/8XQhR2cKmbkLW1wdveybVW0b+oalVLnA==",
+        "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+        "path": "sonnetdb/0.0.0-issue392.local.20261106.1",
+        "identity": "SonnetDB/0.0.0-issue392.local.20261106.1",
+        "type": "package"
+      },
+      {
+        "source": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-issue392-recovery-20261106\\SonnetDB\\artifacts\\issue392-20261106\\local-feed",
+        "sha512": "Gq1mdgcvaXTL9Ja9euAvfhySgh3tPZAtsFb74/6dg4QbmR8+SrQV1IOQuM4MDrYMch5Pznba/mZhmuBQojptwg==",
+        "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+        "path": "sonnetdb.core/0.0.0-issue392.local.20261106.1",
+        "identity": "SonnetDB.Core/0.0.0-issue392.local.20261106.1",
+        "type": "package"
+      },
+      {
+        "source": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-issue392-recovery-20261106\\SonnetDB\\artifacts\\issue392-20261106\\local-feed",
+        "sha512": "EIc62bdJbKh4UIzWPov00DapbQ7/EvfW5xfk5md5zInXzEzIoedzZLAizG/w/o/FneSHT88/nGWrIttbV2Z8Ow==",
+        "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+        "path": "sonnetdb.entityframeworkcore/0.0.0-issue392.local.20261106.1",
+        "identity": "SonnetDB.EntityFrameworkCore/0.0.0-issue392.local.20261106.1",
+        "type": "package"
+      },
+      {
+        "source": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-issue392-recovery-20261106\\SonnetDB\\artifacts\\issue392-20261106\\local-feed",
+        "sha512": "UYe9ALHPlL27W97ClUfLTI+XxfL3TbgJbm/FUS9MraE4F8AgXHk0EU52uXRj91zgjXJ3eHTxKPVpvsqszT2CTQ==",
+        "repositoryCommit": "bee8b35ce9937125ec5e6681abf46f6cba68432a",
+        "path": "sonnetdb.protocol/0.0.0-issue392.local.20261106.1",
+        "identity": "SonnetDB.Protocol/0.0.0-issue392.local.20261106.1",
+        "type": "package"
+      }
+    ],
+    "status": "PASS_LOCAL_ONLY",
+    "inputs": [
+      {
+        "file": "InventoryMigrationApp.csproj",
+        "sha256": "BB3C36506E4DD3BEBB3149988762B746E761A968DDBBCA26F4F20601FCF16861"
+      },
+      {
+        "file": "Program.cs",
+        "sha256": "F3A5AF1E315FCFB0BC5BE9598C750BA8A2B9870CE53D0C164232D0D6DEC894EF"
+      },
+      {
+        "file": "InventoryModel.cs",
+        "sha256": "A8FFBCEA7DAA03ACBCA1085E6150E92E240A83E7C2FA403AC8ACB03B5F4C2C05"
+      },
+      {
+        "file": "InventoryMigrations.cs",
+        "sha256": "F8B1CA227163A724940F2C11D4C692A5E31318B058A647A9431400EEA9798865"
+      },
+      {
+        "file": "InventoryWorkflow.cs",
+        "sha256": "02F11780107835A0CA586800FE480E2DD440BF54A47A2E3132BEB11ADF13CC11"
+      }
+    ]
+  },
+  "public500NegativeControl": {
+    "failure": "History CHECK rejects the migration but Stock is already 5 rather than baseline 7",
+    "dependencies": [
+      {
+        "identity": "SonnetDB/5.0.0",
+        "sha512": "AVyTWOOpLqf0ihrhmybJbITdjEDPcncxpNRgLi85dWoxBm9EREFrcAntZ6cIF3w60PNK+Ws1Ftm0Zk6qApgMwA==",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "path": "sonnetdb/5.0.0",
+        "type": "package",
+        "source": "https://api.nuget.org/v3/index.json"
+      },
+      {
+        "identity": "SonnetDB.Core/5.0.0",
+        "sha512": "kpBreVrMZd8FK4LiVgiO7lY11THdZ63vHIFrzZmMSOvRdApnDrEHS6a8tn5AE7Q/BjPGu1LVVOErzvmcDBAIBg==",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "path": "sonnetdb.core/5.0.0",
+        "type": "package",
+        "source": "https://api.nuget.org/v3/index.json"
+      },
+      {
+        "identity": "SonnetDB.EntityFrameworkCore/5.0.0",
+        "sha512": "CAISpCJgRMPBS4zvHFozqV/eLVsDQrofzR0DxYb2tCwJ3RaHoW8vzOqjO65Og5P38/UR2MTUS7/uPtiPeI2M9w==",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "path": "sonnetdb.entityframeworkcore/5.0.0",
+        "type": "package",
+        "source": "https://api.nuget.org/v3/index.json"
+      },
+      {
+        "identity": "SonnetDB.Protocol/5.0.0",
+        "sha512": "VajcnSAitRGtbBzE5+OZj3nXE1R/a/A1lS1+VoyWo2UKdmVOtcrfCvx9UyEGSByk4tTlKFpm1XlLq1KRFu/lfg==",
+        "repositoryCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+        "path": "sonnetdb.protocol/5.0.0",
+        "type": "package",
+        "source": "https://api.nuget.org/v3/index.json"
+      }
+    ],
+    "receiptSha256": "A99C1AF8F0880E458694A44B2E306CC39C8B4B38786895058A04D637D0923964",
+    "status": "FAIL_EXPECTED_OLD_ATOMICITY_GAP",
+    "receipt": "D:/sndb-t/issue392-20261106-public500/result.json",
+    "logSha256": "C4BDC7A4C48929162B40624D7DCF18905C6816FE50DF469598A74BDB74965799",
+    "binaries": [
+      {
+        "file": "SonnetDB.Protocol.dll",
+        "sha256": "06201433EBC562736148F8DFF703DC663082C8342A0E175B2B3591D6F2354309"
+      },
+      {
+        "file": "SonnetDB.Core.dll",
+        "sha256": "7ABB14DB0816150AB16FF12466029E07AFF216B2B462CAB85E5932B85F170DCE"
+      },
+      {
+        "file": "SonnetDB.Data.dll",
+        "sha256": "67036787D6679930F3267E527866473BC8FE6343848AFB31B5C6ADD4B524FEB2"
+      },
+      {
+        "file": "SonnetDB.EntityFrameworkCore.dll",
+        "sha256": "F9A59625A3E1F13C735BFF09653712254AFFA7BFE554D593D359F592721BAFD9"
+      }
+    ]
+  },
+  "newPublicProvider": {
+    "immutable500Unchanged": true,
+    "status": "NOT_RUN",
+    "coordinatorThread": "01a1af4a-1732-79f3-bba6-c9a78edb07e1",
+    "tentativeVersion": "5.1.0",
+    "issueMayClose": false
+  },
+  "preCommitChecks": [
+    {
+      "pid": 87952,
+      "sha256": "67B0B8765C75C70A00F187291BB06D26B0643090E3D7AB39AD7994DD6DBB46DA",
+      "receipt": "artifacts/issue392-20261106/restore-final-native.json",
+      "exitCode": 0,
+      "cleanupComplete": true
+    },
+    {
+      "pid": 3584,
+      "sha256": "307A2E34FAB80FE9DE051C7EDFB5879786FC1453238EEBCA383DFF4BFCC2C03A",
+      "receipt": "artifacts/issue392-20261106/format-final-native.json",
+      "exitCode": 0,
+      "cleanupComplete": true
+    },
+    {
+      "pid": 74608,
+      "sha256": "585C78EB2471686C568D04AF5D307803742E3EDB5170F8B37EB023095393B3F7",
+      "receipt": "artifacts/issue392-20261106/format-crash-owned-native.json",
+      "exitCode": 0,
+      "cleanupComplete": true
+    }
+  ],
+  "formatBoundaries": {
+    "unchangedM43Blob": "c9f5901685fd05cee7e6ff327c7ffdb37382ab20",
+    "solutionCommandExactlyMatchesCI": true,
+    "solutionWorkspaceWarning": true,
+    "entireCrashProject": "FAIL_EXISTING_M43_WHITESPACE",
+    "crashOwnedFiles": "PASS"
+  },
+  "limits": {
+    "newPublicServer": "NOT_RUN",
+    "productionDeployment": "NOT_RUN",
+    "sourceCrashHooksArePublicPackageEvidence": false,
+    "physicalPowerLoss": "NOT_RUN"
+  },
+  "rawFailuresRetained": [
+    "crash-preflight.log",
+    "crash-smoke02.trx",
+    "crash-smoke03.trx",
+    "crash-smoke04.trx",
+    "crash-all.trx",
+    "core-targeted.trx",
+    "ef-full.trx",
+    "crash-owner-guard-native.json",
+    "consumer-local-native.json",
+    "format-crash-native.json",
+    "D:/sndb-t/issue392-20261106-local1/result.json",
+    "D:/sndb-t/issue392-20261106-public500/result.json"
+  ]
+}

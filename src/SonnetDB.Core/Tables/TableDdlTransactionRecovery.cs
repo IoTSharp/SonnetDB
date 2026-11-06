@@ -4,6 +4,7 @@ internal interface ITableDdlTransactionRecoveryBackend
 {
     void RollbackPrepared(TableDdlTransactionJournal journal, CancellationToken cancellationToken);
     void CompleteCommitted(TableDdlTransactionJournal journal, CancellationToken cancellationToken);
+    void CleanupRolledBack(TableDdlTransactionJournal journal) { }
 }
 
 internal enum TableDdlRecoveryResult
@@ -13,7 +14,7 @@ internal enum TableDdlRecoveryResult
     CompletedCommitted,
 }
 
-/// <summary>按 durable 决策幂等恢复 DDL 事务；日志删除是恢复的最后一步。</summary>
+/// <summary>按 durable 决策幂等恢复 DDL 事务；撤销副本保留至日志删除后，允许重复补偿。</summary>
 internal static class TableDdlTransactionRecovery
 {
     internal static Action<TableDdlTransactionDecision>? AfterBackendTestHook { get; set; }
@@ -43,6 +44,8 @@ internal static class TableDdlTransactionRecovery
         AfterBackendTestHook?.Invoke(journal.Decision);
         cancellationToken.ThrowIfCancellationRequested();
         TableDdlTransactionJournal.Complete(journalPath);
+        if (journal.Decision == TableDdlTransactionDecision.Prepared)
+            backend.CleanupRolledBack(journal);
         return result;
     }
 }

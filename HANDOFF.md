@@ -1980,3 +1980,25 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 提交范围只含13个明确角色交付路径；CHANGELOG只暂存本条人物说明，HANDOFF只暂存本节，不带入共享文件中的其它会话改动。基线main=6a205df8eca2c5503a76c493931b477675d11a54；具体提交与远端回读见artifacts/character-commit-20261106-01a1ab73/收据及Git记录。未发布文章、上传渠道素材或部署产品，parity-results保留。
 - 后续所有智能体从根AGENTS入口读取固定档案并按模板生成；每篇新主题不等于换人，发布前实际审图，不把输入参考或已生成图片自动视为已发表。原有外来脏工作、忽略文件和其它渠道状态保持。门禁进程由Cordonix有界执行，回执cleanup_complete=true，无任务独占后台服务。
 <!-- sonnetdb-character-v5-approved-20261106:end -->
+
+
+<!-- issue392-recovery-20261106 -->
+## 2026-11-06 #392：实际 EF 强杀恢复、库存消费应用与回退
+
+- 开发基线 `origin/main@bee8b35ce9937125ec5e6681abf46f6cba68432a`；独立工作树 `C:/Users/mysti/.codex/worktrees/sonnetdb-issue392-recovery-20261106/SonnetDB`、分支 `codex/issue392-recovery-20261106`。只提交本项明确文件，canonical 的其它文档/发行 dirty 不覆盖、不暂存；`parity-results` 保留。本节随实现提交，最终 source/PR/远端身份从 Git 和 #392 最新回执读取。
+- 不重做已合入的 EF DDL 事务标志。真实库存 Down 找到交错 DML→DDL 后旧 schema 绑定冲突，现于后续 DDL 前把已校验 DML 应用到同一私有 workspace；仍保留外部 schema 冲突检查及同一 journal 原子发布。
+- 真实 prepared/published 强杀暴露启动补偿重复加载 catalog，以及 journal 删除前先清 undo 导致恢复再杀无法重复补偿。现启动仅恢复磁盘、由构造器统一装 catalog；undo 保留到 journal 删除后；补偿在删除当前数据前校验固定 owner，缺失/错误归属拒绝。无格式、协议、公开 API、依赖或生产 JSON 改动。
+- 本次实际门禁：完整 EF `388/388`、Core DDL/Transaction/SchemaMigration 扩大 `290/290`、七提交点及两恢复再杀 `9/9`、undo owner 损坏保护另 `1/1`，均零失败/跳过。每个正向强杀场景含两独立 OS 进程重开、数据/schema/索引/FK/自引用/CHECK/历史/连接检查，以及真实业务 SaveChanges、幂等重试和 Down/Up。托管异常不冒称强杀，物理掉电/生产为 NOT_RUN。
+- `eng/probes/issue392-migration-app` 是实际包引用库存应用；最终 local3 在仓库外目录和空 NuGet/HTTP cache 执行，四包精确身份、cache→应用 DLL SHA、业务往返及两次独立重开均 PASS。暂态包 `0.0.0-issue392.local.20261106.1` 的准确 ID 为 `SonnetDB.Protocol` / `SonnetDB.Core` / `SonnetDB`（ADO，DLL=SonnetDB.Data）/ `SonnetDB.EntityFrameworkCore`，只计 LOCAL_ONLY；基线加 Core patch SHA `2A5521D2738775A7884416FFFE7B89A7A76971178D8D0C21371B25B387B2A343`，没有公开上传。
+- 官方 NuGet.org-only `5.0.0` 负控真 FAIL：四包均来自官方源并绑定 `84433f9e`，历史 CHECK 失败后库存仍已从 7 变成 5，Atomic stock 断言失败。不能把公开 5.0.0 当修复包，不能重推/替换该版本。保留原数据库、应用日志、nuspec、DLL SHA 和 result.json。
+- 最终完整 `dotnet restore SonnetDB.slnx` 与规定全 solution Format 均退出 0；Format 保留工作区加载警告，不称零警告。额外整个 Crash 项目仅有未改动 M43 第33行四处基线空白错误（当前与 HEAD blob=c9f5901685fd05cee7e6ff327c7ffdb37382ab20），本项8个C#文件额外检查退出0，未放宽必需全solution检查，也未混入 M43 修复。
+- 审计与机器证据：`docs/audits/issue-392-recovery-20261106.md/.json`。全部原始失败和 TRX/native/进程身份在本工作树 `artifacts/issue392-20261106/`；包应用在 `D:/sndb-t/issue392-20261106-local1`（原编译失败）、local2/local3（通过）及 public500（旧包负控失败）。最初 h2c 70失败全由本任务外网代理遗漏 loopback NO_PROXY，引入绕过后同二进制定向1/1和全EF388/388通过；没有改协议或原断言。一次锁等待按10分钟上限终止后确认目录未建才续接。
+- 本聊天不修改 #395 JSON 文件。`01a1af4a-1732-79f3-bba6-c9a78edb07e1` 是双方后续 Provider/发行唯一协调者，共同 `5.1.0` 目前只暂选、未冻结共同源/公开发布；需双方 PR 合入与准确候选、适用同源门禁及当前明确发行授权。正式上传/Secrets/生产部署均未执行。各聊天用 `D:/source/SonnetDB/artifacts/sonnetdb-heavy-20261106.lock` FileShare.None 串行高负载，CPU2/单节点/禁用持久构建服务；有界执行回执 cleanup_complete=true、after=0，不终止他方任务或共享 MCP，也不凭 partial 进程快照宣称全机无孤儿。
+- 下一顺序：核对本项独立 PR 的精确 CI 与共同源；#395 协调新候选/正式发布后，以本应用 `Run-Isolated.ps1` 指定新精确版本、不传 CandidateFeed、全新目录与公共缓存复验，匹配 Server 通道按实际另计。新公开 Provider/真实消费门尚 NOT_RUN，所以 #392 保持 OPEN；全部适用条件满足后再真实回复并关闭。
+
+## 2026-11-06 #395/#392 共同源同步门禁
+
+- #412首head7e9fb974已与main/#411 merge859c69618940cc50e1aff0941736876981103f4a在本工作树合并，CHANGELOG保留双方，HANDOFF原始896596字节保持SHA3d55ec7c93c7575aa9c6016e925faa60863a468780505b8998f8ad5946faa520，双方新增块均保留。没有修改#392 Migration源码。
+- 合并最终工作树完整restore0、EF438/438、Core JSON102/102、规定全solution Format0（287.8秒）；后续只追加审计/发行说明和本记录。合并提交将正常推送#412并重新取精确head CI，不以7e9旧检查或单片候选冒充。
+- 原7e9的LOCAL_ONLY 0.0.0-issue395.local.20261106.1四包独占缓存补货应用五阶段PASS，四包source7e9/cache-app DLL SHA一致；官方5.0负控真FAIL且独立重开未写PASS。两组身份/原始日志保留，均不等于最终共同5.1公开包。
+- 共同发行说明docs/releases/5.1.0-provider-candidate-20261106.md记录旧5.0部分迁移不能自动修复、停写备份及schema/数据/history核对、恢复一致备份回补或审查修复、v7段回退限制。共同版本仍目标5.1.0，未正式发布，未改tag/Secrets/生产。#392/#395继续OPEN；下一步新head CI、同源候选四包/Server及两应用新缓存、发行门禁和当前明确发布授权，公共回读全部适用完成后才关闭。

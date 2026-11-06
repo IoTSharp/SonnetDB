@@ -104,6 +104,14 @@ jobs:
         timeout-minutes: 50
         run: dotnet test "${{ steps.tests.outputs.solution }}" --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
 
+      - name: Verify EF migration process recovery
+        if: matrix.shard != 'core'
+        timeout-minutes: 10
+        env:
+          DOTNET_PROCESSOR_COUNT: 2
+          SONNETDB_EF_CRASH_EVIDENCE: ${{ github.workspace }}/TestResults/ef-migration-children
+        run: dotnet test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --configuration Release -m:1 --filter FullyQualifiedName~EfMigration --logger "trx;LogFileName=ef-migration-crash.trx" --results-directory ./TestResults --blame-hang-timeout 2m
+
       - name: Upload test results and diagnostics
         if: always()
         uses: actions/upload-artifact@v7
