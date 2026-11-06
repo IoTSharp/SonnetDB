@@ -1690,8 +1690,8 @@ public sealed class QueryEngine
         // 时间戳必须是 delta-of-delta（否则 raw 路径已覆盖）。
         if ((descriptor.TimestampEncoding & BlockEncoding.DeltaTimestamp) == 0)
             return false;
-        // 值必须是原始（无 XOR / delta 压缩）。
-        if ((descriptor.ValueEncoding & BlockEncoding.DeltaValue) != 0)
+        // 值必须是原始（无 XOR / delta / Int64 游程压缩）。
+        if ((descriptor.ValueEncoding & (BlockEncoding.DeltaValue | BlockEncoding.Int64Rle)) != 0)
             return false;
         // 仅支持数值字段。
         return descriptor.FieldType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
@@ -1963,7 +1963,7 @@ public sealed class QueryEngine
     private static bool CanAggregateRawBlock(in BlockDescriptor descriptor)
     {
         return (descriptor.TimestampEncoding & BlockEncoding.DeltaTimestamp) == 0
-            && (descriptor.ValueEncoding & BlockEncoding.DeltaValue) == 0;
+            && (descriptor.ValueEncoding & (BlockEncoding.DeltaValue | BlockEncoding.Int64Rle)) == 0;
     }
 
     private static double ReadRawNumericValue(
