@@ -1,5 +1,11 @@
 namespace SonnetDB.ObjectStorage;
 
+/// <summary>对象正文实际文件系统的物理容量，不统计对象数量或遍历元数据。</summary>
+/// <param name="TotalBytes">文件系统总字节数。</param>
+/// <param name="AvailableBytes">当前调用身份可用的字节数。</param>
+/// <param name="ObservedUtc">本次容量读取的UTC时刻。</param>
+public sealed record SndbStorageCapacityInfo(long TotalBytes, long AvailableBytes, DateTimeOffset ObservedUtc);
+
 /// <summary>
 /// 对象桶摘要。
 /// </summary>

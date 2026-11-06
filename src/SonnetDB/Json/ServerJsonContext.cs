@@ -315,6 +315,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(MqDeadLetterInfo))]
 [JsonSerializable(typeof(ObjectBucketCreateRequest))]
 [JsonSerializable(typeof(ObjectBucketResponse))]
+[JsonSerializable(typeof(SonnetDB.ObjectStorage.SndbStorageCapacityInfo))]
 [JsonSerializable(typeof(ObjectBucketResponse[]))]
 [JsonSerializable(typeof(ObjectInfoResponse))]
 [JsonSerializable(typeof(ObjectListResponse))]

@@ -9,6 +9,23 @@ namespace SonnetDB.Core.Tests.ObjectStorage;
 
 public sealed class SndbObjectStorageClientTests
 {
+    /// <summary>远程容量查询走认证对象根路径，源生成JSON保持实际字节与时间。</summary>
+    [Fact]
+    public async Task GetStorageCapacityAsync_RemoteCapacity_UsesObjectRoot()
+    {
+        Uri? captured = null;
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            captured = request.RequestUri;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent("{\"totalBytes\":8000000000000,\"availableBytes\":4100000000000,\"observedUtc\":\"2026-11-06T04:00:00Z\"}", Encoding.UTF8, "application/json") };
+        }));
+        var capacity = await client.GetStorageCapacityAsync();
+        Assert.Equal("/v1/db/testdb/s3", captured?.AbsolutePath);
+        Assert.Equal("?capacity", captured?.Query);
+        Assert.Equal(8_000_000_000_000, capacity.TotalBytes);
+        Assert.Equal(4_100_000_000_000, capacity.AvailableBytes);
+    }
     private const string ConnectionString =
         "Data Source=sonnetdb+http://object-client.test/testdb;Protocol=rest;Timeout=30";
 

@@ -83,6 +83,23 @@ public sealed partial class SndbObjectStorageClient : IDisposable
     /// </summary>
     public string Database => _database;
 
+    /// <summary>读取对象实际存储文件系统的容量，不以业务容器或客户端系统盘代替。</summary>
+    /// <param name="cancellationToken">本次只读容量请求的取消令牌。</param>
+    /// <returns>物理容量和可用字节；不可读取时传播错误，调用方须保留未知状态。</returns>
+    public async Task<SndbStorageCapacityInfo> GetStorageCapacityAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        using var deadline = BeginOperation(ref cancellationToken);
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetStorageCapacity();
+        using var response = await _http!.GetAsync($"v1/db/{Uri.EscapeDataString(_database)}/s3?capacity",
+            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.SndbStorageCapacityInfo,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// 列出所有 bucket。
     /// </summary>

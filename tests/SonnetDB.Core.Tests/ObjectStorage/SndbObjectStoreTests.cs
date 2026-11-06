@@ -8,6 +8,30 @@ namespace SonnetDB.Core.Tests.ObjectStorage;
 
 public sealed class SndbObjectStoreTests : IDisposable
 {
+    /// <summary>容量来自对象正文目录，查询不要求存在对象或加载桶元数据。</summary>
+    [Fact]
+    public void GetStorageCapacity_EmptyStore_ReturnsActualVolume()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory });
+        var store = new SndbObjectStore(db);
+        var before = DateTimeOffset.UtcNow;
+        var capacity = store.GetStorageCapacity();
+        var volume = new DriveInfo(Path.Combine(_rootDirectory, "objects"));
+        Assert.Equal(volume.TotalSize, capacity.TotalBytes);
+        Assert.InRange(capacity.AvailableBytes, 0, capacity.TotalBytes);
+        Assert.InRange(capacity.ObservedUtc, before, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>正文目录丢失时明确失败，不借用系统盘容量触发上层提前回收。</summary>
+    [Fact]
+    public void GetStorageCapacity_MissingObjectDirectory_RejectsFallback()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory });
+        var store = new SndbObjectStore(db);
+        Directory.Delete(Path.Combine(_rootDirectory, "objects"));
+        var exception = Assert.Throws<SndbObjectStorageException>(() => store.GetStorageCapacity());
+        Assert.Equal("storage_capacity_unavailable", exception.Code);
+    }
     private readonly string _rootDirectory = Path.Combine(
         Path.GetTempPath(),
         $"SonnetDB.ObjectStorage.Tests.{Guid.NewGuid():N}");

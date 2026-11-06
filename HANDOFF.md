@@ -1,3 +1,9 @@
+## 2026-11-06 对象正文卷容量只读接口
+
+新增SndbObjectStore.GetStorageCapacity、对象SDK GetStorageCapacityAsync及认证GET /v1/db/{db}/s3?capacity，返回对象正文目录实际所在文件系统的总字节、可用字节和观测时间。缺失目录或容量无效明确失败，不使用客户端/业务容器系统盘替代，不枚举桶、对象或KV元数据。Core和Server/Data的JSON上下文同步源生成注册，没有引入运行时依赖或改动磁盘格式。
+
+Core对象与SDK相关42项、真实HTTP对象端点10项通过，零失败/跳过/警告。含空存储、目录缺失禁止回退、远程路径和序列化、匿名访问拒绝；本机测试不证明现场跨挂载容量，现场8TB对象卷核验和镜像交付回执统一见父仓docs/vehicle-image-retention-policy.md及后续部署记录。此前全桶生命周期OOM约束继续有效，图片策略不得借容量查询恢复全桶扫描。提交前仍执行完整解决方案restore和CI等同Format，不把局部测试扩写为全仓验收。
+
 ## 2026-11-06 木垒运行优化已提交、推送及部署
 
 用户已明确授权全部提交推送及部署。代码提交7fbd6e1b81e9f337e284d25de9a989743832469a已推送codex/mulei-runtime-sql-20261106并核准本地/跟踪/远端一致，219项Core及18项业务回归通过。完整解决方案restore与CI同等Format通过；工作区加载警告原样保留。父仓业务674a2d2和后继只更新RoadTolnsd gitlink的4873a33均已推送。

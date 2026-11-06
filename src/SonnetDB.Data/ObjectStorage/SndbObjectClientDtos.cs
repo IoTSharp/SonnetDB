@@ -218,6 +218,7 @@ internal sealed record ObjectAuditListResponse(
     WriteIndented = false)]
 [JsonSerializable(typeof(ObjectBucketCreateRequest))]
 [JsonSerializable(typeof(ObjectBucketResponse))]
+[JsonSerializable(typeof(SonnetDB.ObjectStorage.SndbStorageCapacityInfo))]
 [JsonSerializable(typeof(ObjectBucketResponse[]))]
 [JsonSerializable(typeof(ObjectBucketSemanticOptionsRequest))]
 [JsonSerializable(typeof(ObjectBucketSemanticOptionsResponse))]

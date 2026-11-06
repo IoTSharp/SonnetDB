@@ -19,6 +19,20 @@ internal static class ObjectStorageEndpointHandler
     public static async Task HandleBucketsAsync(HttpContext ctx, Tsdb tsdb)
     {
         var store = new SndbObjectStore(tsdb);
+        if (ctx.Request.Query.ContainsKey("capacity"))
+        {
+            try
+            {
+                await Results.Json(store.GetStorageCapacity(), ServerJsonContext.Default.SndbStorageCapacityInfo)
+                    .ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SndbObjectStorageException)
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable,
+                    "storage_capacity_unavailable", "Object storage capacity is unavailable.").ConfigureAwait(false);
+            }
+            return;
+        }
         var buckets = store.ListBuckets()
             .Select(ToBucketResponse)
             .ToArray();

@@ -23,6 +23,23 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
     private string? _baseUrl;
     private string? _dataRoot;
 
+    /// <summary>真实HTTP容量端点只允许认证读，返回对象实际所在卷并保持源生成JSON。</summary>
+    [Fact]
+    public async Task StorageCapacityEndpoint_AuthenticatedRead_ReportsObjectVolume()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var client = CreateClient();
+        using var response = await client.GetAsync("/v1/db/objects/s3?capacity", deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var capacity = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.SndbStorageCapacityInfo, deadline.Token);
+        Assert.NotNull(capacity);
+        Assert.Equal(new DriveInfo(Path.Combine(_dataRoot!, "objects", "objects")).TotalSize, capacity.TotalBytes);
+        Assert.InRange(capacity.AvailableBytes, 0, capacity.TotalBytes);
+        client.DefaultRequestHeaders.Authorization = null;
+        using var denied = await client.GetAsync("/v1/db/objects/s3?capacity", deadline.Token);
+        Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
+    }
+
     public async Task InitializeAsync()
     {
         _dataRoot = Path.Combine(Path.GetTempPath(), "sonnetdb-s3-tests-" + Guid.NewGuid().ToString("N"));
