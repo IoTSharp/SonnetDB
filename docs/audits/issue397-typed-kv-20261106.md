@@ -33,3 +33,9 @@
 本机原始证据在 `artifacts/issue397-20261106/`：`client/client.trx`、`server/typed-kv-server.trx`、`server/typed-kv-server-2.trx`、`server/typed-kv-server-final.trx`、`core/kv-codec.trx`，并保存原生执行/清理回执。生成产物及本机日志不纳入源码提交。
 
 尚未执行：TLS/ALPN、其它操作系统/CPU、其它语言、公开新版 NuGet/全新公开缓存消费者、固定硬件性能和生产验收。此处 payload/页预算不等于引擎端到端有界或进程 RSS 硬上限；KV 资源/schema、条件写/CAS/TTL 修改和其它模型继续按 M49 分包推进。没有发布包、移动正式 tag、部署或关闭母 Issue。
+
+## PR #409 后续正常 main 整合
+
+原 KV 切片提交 `3dfd8af31e27ba7041c2bf3c6f902234c548c679` 已创建 PR #409；随后正常 merge 精确 main `1420b1b14278216f396943213129c2c39958dd42`，接受已合入 PR #408 的两处 Int64Rle 聚合 guard 修复及16项回归。KV 产品及测试源码未继续修改，原234/42/56本机结果仍属于原切片，不能转移为新 merge head 的完整 CI 证据。
+
+唯一冲突为 HANDOFF 的前置记录；按双方共同历史原字节提取两个新增前缀并合并，保留双方新增记录和全部889609字节历史，历史 SHA256 保持 `2e0d76d84b78e5a94b54bf9069d337affaa842c474b7ffe8c8fe557341f372fc`。CHANGELOG 自动合并。本轮未 rebase 或 force push，也未重复全套本机测试；正常 merge 提交前仍执行最终树完整 restore 和规定 Format，新 head CI 另行跟踪。

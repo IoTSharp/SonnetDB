@@ -1,3 +1,10 @@
+## 2026-11-06 PR #409 正常整合已合入 main 的聚合修复
+
+- 本片原提交3dfd8af31e27ba7041c2bf3c6f902234c548c679正常merge精确main 1420b1b14278216f396943213129c2c39958dd42；本轮只进行一次main整合，不rebase、不force push。实际只有HANDOFF前置段冲突，CHANGELOG自动合并；双方新增记录和共同历史原始字节全部保留，历史后缀SHA256仍为2e0d76d84b78e5a94b54bf9069d337affaa842c474b7ffe8c8fe557341f372fc。
+- 接受的产品增量仅是已审PR#408的QueryEngine两处Int64Rle guard与16项聚合回归，KV产品和测试源码不变。主代理已核实#408合入、#407关闭及#405Copilot回复/resolve；没有转授本worker合并GitHub PR的权限。
+- 原Client234/Server42/Core56本机通过继续绑定原KV切片3dfd8af3，不能直接标为新merge head完整CI通过；新head按远端CI独立验收。本轮不重复全套本机测试，提交前仍要求本merge待提交树完整restore/规定Format实际退出0，结果随收口文档记账。
+- 后续以本PR最终push回读的精确head交接#395整合，完整检查完成后释放Format slot；不发布包、不改正式tag、不部署、不关闭#397。
+
 ## 2026-11-06 Issue #397 .NET typed KV Frame 切片
 
 - 工作分支 codex/issue397-typed-client-20261106，起点 origin/main 2a2f77c762badcad2a16dc2cad2c8e9abd09eebe。独立 Client 新增 GetKvAsync/PutKvAsync/ScanKvPageAsync；Protocol 共享 codec 接管既有 Core 的三个请求编码及 Get/Put 响应解码，Core 原类型和帧字节保留，Client 不依赖 Core/Data/Native。
@@ -6,6 +13,15 @@
 - 单页Scan显式1～10000条，不自动全量遍历或跨页快照；请求先预算后编码，响应条数先检查后分配。未交付其它模型/语言、TLS/ALPN、其它平台、新公开包/消费者、固定硬件或生产；#397仍OPEN。未发包、改tag或部署。
 - 最终本树完整restore与规定Format均退出0（29.8/176.3秒），Format的workspace加载警告单列；检查后仅更新验证文档、不改代码。最终commit/PR与回执按会话收口核实。说明和证据入口 docs/audits/issue397-typed-kv-20261106.md、artifacts/issue397-20261106/。两个已登记子模块只checkout固定gitlink，gitdir在本worktree独立modules下；本机构建所有长命令均由Cordonix有界执行并回收所属子树。
 - 下一步：审阅并合入本片PR，按M49冻结操作矩阵继续其它KV和模型切片；公开新版和真实消费者另验收后才能推进母Issue关闭。历史HANDOFF含无效UTF8，本节以UTF8字节前置，原后缀逐字节保留。
+
+## 2026-11-06 Issue #407：采纳 PR #405 Copilot 的 Int64Rle 聚合缺陷建议
+
+- 专属工作树 `sonnetdb-review405-20261106/SonnetDB`，分支 `codex/fix-int64-rle-aggregates-20261106`，基线 origin/main `2a2f77c762badcad2a16dc2cad2c8e9abd09eebe`；共享 canonical 外来 dirty 未修改，parity-results 未操作。实现和 PR 交付由本 worker 完成，合并/Issue 评论关闭由主代理统一。
+- 建议成立：raw/delta 时间戳聚合判定漏排除 Int64Rle，原 14 项真实刷盘回归全部越界失败；追加 4 点 `[5,5,9,9]` 仅第二点的 raw/delta 两项均静默返回 2306（期望5）。只在两处既有 guard 位掩码排除 Int64Rle，回退既有 BlockDecoder；没有格式/压缩选择/JSON/依赖变更。
+- 修复后 Query/Int64 存储扩大472/472通过，最终16项回归16/16通过，均0失败/跳过；前14项实际断言 RLE/空MemTable，并在初次打开及两次独立重开验证。完整 Core 在900秒上限 TIMED_OUT、无完成TRX；不冒称整套通过，等待精确PR head远端CI。首次30KB输出限制终止及后续完整红灯、超时与进程清理回执均保留。
+- 完整restore/规定Format在最终代码树执行，提交仅在两项实际退出0后进行；实际提交SHA、PR与远端CI以主代理收口回读为准。两个固定子模块仅为检查初始化，指针不变且gitdir各位于本worktree独立的SonnetDB6/modules；不改共享canonical子模块。
+- 原始TRX/执行回执位于本树 `artifacts/review405/`；审计 `docs/audits/issue-407-rle-aggregates-20261106.md`。HANDOFF历史含损坏UTF8，本节按字节前置、原后缀保持；不清洗历史。
+- #407在适用验证通过且修复合入后关闭；#367不重开、不重复关闭。尚未发布新包/标签/部署，公开5.0.0与main未发布v7分别记账；下一步由主代理跟踪本PR精确CI、决定合并并回复Copilot/关闭#407。本任务执行器已回收其测试进程子树，未按进程名清理共享服务。
 
 ## 2026-11-05 Issue #402 来源与外部结果对账基础收口
 
