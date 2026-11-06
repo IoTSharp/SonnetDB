@@ -1,3 +1,16 @@
+## 2026-11-06 木垒运行优化已提交、推送及部署
+
+用户已明确授权全部提交推送及部署。代码提交7fbd6e1b81e9f337e284d25de9a989743832469a已推送codex/mulei-runtime-sql-20261106并核准本地/跟踪/远端一致，219项Core及18项业务回归通过。完整解决方案restore与CI同等Format通过；工作区加载警告原样保留。父仓业务674a2d2和后继只更新RoadTolnsd gitlink的4873a33均已推送。
+
+现场数据库/业务/发送器已换为mulei-arm64-20261106-runtime-sql-r1。数据库摘要4219011e...，业务摘要7c858ba7...；三处Core同为b9c3735d1dfb9c1cf09bdeda13358169283ae207eb8540938e281a53a8ff9c08。10:24:55数据库启动、10:29:56全部64表预热及Frame就绪、10:32:23业务live可用，随后四主要容器healthy/restart0/OOM=false。配置、Compose、资源额度与Tomur保持原指纹。
+
+首个停库快照因错误跨文件系统而失败，核准停库状态后改同盘成功；原失败保留，未盲重放。有效快照/var/data/tolnsd-storage/backups/runtime-perf-20261106/database，不含独立对象正文卷。维护约10分钟，不声称零丢失。临时凭据、隔离容器及失败不完整目录均已回收，两个发布unit inactive/dead。
+
+实机过期处理两批共696条、对应批次失败0；治理清理16批，日志和接入事件各16000条。15相机会话、MQ、新流水继续推进，中心有新成功回执。当前FIFO真实执行为secondary_index_range，检查8809条返回48条、约7.2秒，仍有长尾，不能宣布高效或积压清空；中心仍batch_timeout，统计刷新取消、历史缺图及完整长稳待验。启动后取消回滚和修订主键冲突仍明确保留。
+
+完整源码/现场/失败边界见docs/audits/mulei-runtime-sql-20261106.md及父仓docs/mulei-runtime-deployment-20261106.md；回执在父仓.runs/runtime-perf-release-20261106。当前后续提交仅补交付文档，不改已部署源代码；保持parity-results和共享D:/source/SonnetDB外来dirty。原HANDOFF全部历史字节保留。
+
+
 ## 2026-11-06 木垒运行证据驱动的关系提交与有序查询修复（源码候选）
 
 - 用户授权根据现场问题直接修改业务、EF与数据库，保持能力和真实验收。在TOLNSD父仓当前子模块D:/Uixe/TOLNSD/externals/SonnetDB的24ff94e4基线上修改，未切换或重置分支，没有改动共享D:/source/SonnetDB外来dirty。

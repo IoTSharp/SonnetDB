@@ -23,3 +23,17 @@
 ## 上线验收边界
 
 发布使用现场Registry和mulei-direct-target。检查新旧镜像及DLL指纹、原配置与资源额度，记录停机/预热窗口及回退点。必须在相同SQL和实际自然流水上分别核准访问路径、实际扫描、延迟长尾、CPU/GC、MQ游标及中心确认年龄。统计刷新取消、历史缺车头、缺媒体和完整长稳不由本次本地回归关闭。
+
+## 2026-11-06 现场交付回读
+
+源码7fbd6e1b81e9f337e284d25de9a989743832469a已推送codex/mulei-runtime-sql-20261106。完整解决方案restore及CI同等Format通过，工作区加载警告保留。父仓业务修复674a2d2已推送，其后4873a33只更新独立接收端gitlink；镜像构建来源为后者及本源码。正式publish的184个外部包与原现场一致。
+
+数据库镜像mulei-arm64-20261106-runtime-sql-r1摘要4219011ea5b3423c20cb14bbe7731c16f621650870566d9a52a75da77e9ebd83，业务/发送器同名标签摘要7c858ba72ce2755a21d65e43e6a5d2c9dbfbc5a653054c406d381cdc456962ea。三容器Core SHA256均b9c3735d1dfb9c1cf09bdeda13358169283ae207eb8540938e281a53a8ff9c08；业务DLL为dacb2456a405b39e13f4519b9a4dec86e9dd3664701f7182054d92cc41cf75a5。ARM64隔离容器network=none的真实HTTP/SQL及并列顺序检查通过，随后精确回收。
+
+10:22正常停止业务与数据库；首个快照错误地放在另一文件系统，跨盘reflink失败，原镜像尚未更改。独立核准停库状态后改到数据盘同文件系统，快照成功，原失败及不完整目录回收记录保留。有效快照为/var/data/tolnsd-storage/backups/runtime-perf-20261106/database，独立对象正文卷未复制，不称全对象备份。10:24:55启动新数据库，10:29:56全部64表和Frame端口就绪；10:32:23业务live可用。期间维护约10分钟，不声明零数据丢失。
+
+10:33四主要容器healthy、restart0、OOM=false；生产两份配置、Compose哈希及数据库128GiB额度保持，Tomur身份不变。流水、15个相机会话心跳及MQ继续推进。提醒/逃逸两批过期共696条且对应批次失败0；治理清理完成16批、日志16000条及接入事件16000条。中心flow/event/media有新成功回执。
+
+10:36真实当前FIFO执行为secondary_index_range，实际检查8809条、返回48条、约7204ms；残余过滤移除8761条。没有用估计197万行冒充旧版实扫，不计算未经同条件测量的加速比。第一次冻结截止点的执行探针6秒超时仍保留。中心调度/传输仍有batch_timeout、历史积压；旧统计刷新取消、历史缺车头及长稳仍待验。应用出现一次取消回滚及一次修订主键冲突，服务持续工作，未将它们包装为全无异常。
+
+发布阶段unit最终均inactive/dead，临时凭据与隔离容器已回收；生产三容器为有意保留的交付。完整记录见父仓docs/mulei-runtime-deployment-20261106.md、docs/evidence/mulei-runtime-release-20261106.json及.runs/runtime-perf-release-20261106。本文后的文档提交不改变上述已发布代码与程序集指纹。
