@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using Microsoft.EntityFrameworkCore.Query;
@@ -118,10 +119,19 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
         var builder = new StringBuilder("$");
         foreach (var segment in json.Path)
         {
-            if (segment.ArrayIndex is not null || string.IsNullOrWhiteSpace(segment.PropertyName)
-                || segment.PropertyName.Length > 1024 - builder.Length - 4)
-                throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
-            builder.Append("['").Append(segment.PropertyName.Replace("'", "''", StringComparison.Ordinal)).Append("']");
+            if (segment.ArrayIndex is not null)
+            {
+                if (segment.ArrayIndex is not SqlConstantExpression { Value: int index } || index < 0)
+                    throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+                builder.Append('[').Append(index.ToString(CultureInfo.InvariantCulture)).Append(']');
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(segment.PropertyName)
+                    || segment.PropertyName.Length > 1024 - builder.Length - 4)
+                    throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
+                builder.Append("['").Append(segment.PropertyName.Replace("'", "''", StringComparison.Ordinal)).Append("']");
+            }
             if (builder.Length > 1024)
                 throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }
@@ -138,14 +148,16 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
     {
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (node.Method.Name is "get_Item" or "ElementAt" or "ElementAtOrDefault")
+            if (node.Method.Name is "get_Item" or "ElementAt" or "ElementAtOrDefault"
+                && node.Arguments.LastOrDefault() is not ConstantExpression { Value: int and >= 0 })
                 throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
             return base.VisitMethodCall(node);
         }
 
         protected override Expression VisitBinary(BinaryExpression node)
         {
-            if (node.NodeType == ExpressionType.ArrayIndex)
+            if (node.NodeType == ExpressionType.ArrayIndex
+                && node.Right is not ConstantExpression { Value: int and >= 0 })
                 throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
             return base.VisitBinary(node);
         }

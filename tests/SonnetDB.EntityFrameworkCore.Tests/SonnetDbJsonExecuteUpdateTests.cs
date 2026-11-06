@@ -111,7 +111,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         {
             _ = shape switch
             {
-                "array" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Tags[0], "changed")),
+                "array" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Tags[-1], "changed")),
                 "converter" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Converted, "changed")),
                 "guid" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Identifier, Guid.Empty)),
                 "date" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.OccurredAt, DateTime.UnixEpoch)),
