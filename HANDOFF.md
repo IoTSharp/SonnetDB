@@ -1,3 +1,12 @@
+## 2026-11-06 Issue #397 .NET typed KV Frame 切片
+
+- 工作分支 codex/issue397-typed-client-20261106，起点 origin/main 2a2f77c762badcad2a16dc2cad2c8e9abd09eebe。独立 Client 新增 GetKvAsync/PutKvAsync/ScanKvPageAsync；Protocol 共享 codec 接管既有 Core 的三个请求编码及 Get/Put 响应解码，Core 原类型和帧字节保留，Client 不依赖 Core/Data/Native。
+- 本机 Client 全套234/234、真实HTTP/2产品Server扩大42/42、原Core KV协议56/56均通过，0失败/0跳过。新15项Client合同及6项产品Server旅程验证二进制/完整UTC ticks/版本/单页预算、授权、取消与RequestAborted/后续可用、commit后断连只写一次、两次重开；相关生产工程AOT/trim分析构建0警告错误。
+- 初始冷Server编译300秒超时且所属子树4→0；首次6项setup HTTP1失败、次轮5/6仅响应预算夹具失败均保留TRX，改为exact HTTP2及允许17B请求的32B预算后最终42项通过。只修夹具，未放宽生产预算或自动重试。
+- 单页Scan显式1～10000条，不自动全量遍历或跨页快照；请求先预算后编码，响应条数先检查后分配。未交付其它模型/语言、TLS/ALPN、其它平台、新公开包/消费者、固定硬件或生产；#397仍OPEN。未发包、改tag或部署。
+- 最终本树完整restore与规定Format均退出0（29.8/176.3秒），Format的workspace加载警告单列；检查后仅更新验证文档、不改代码。最终commit/PR与回执按会话收口核实。说明和证据入口 docs/audits/issue397-typed-kv-20261106.md、artifacts/issue397-20261106/。两个已登记子模块只checkout固定gitlink，gitdir在本worktree独立modules下；本机构建所有长命令均由Cordonix有界执行并回收所属子树。
+- 下一步：审阅并合入本片PR，按M49冻结操作矩阵继续其它KV和模型切片；公开新版和真实消费者另验收后才能推进母Issue关闭。历史HANDOFF含无效UTF8，本节以UTF8字节前置，原后缀逐字节保留。
+
 ## 2026-11-05 Issue #402 来源与外部结果对账基础收口
 
 - source-policy13项和reconciliation69项在worker及整合树均通过；接入既有CI离线合同。覆盖真实ZIP/nupkg、签名差异/有效payload、同版本换DLL/commit、写前tag移动、未知写入不重试、404/auth/network、run/attempt/job/ID/digest/files集合与政策漂移。没有启用恢复workflow、修改既有recover-tagged-release或任何外部发布写入。
