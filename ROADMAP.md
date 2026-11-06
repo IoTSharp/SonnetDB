@@ -19,6 +19,8 @@ PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容�
 
 这 12 个母 issue 仍有未完成的公开、上游或实机门禁；#367/#393/#400/#407 已关闭。原 `0d687bd9` 5.1 候选的 PASS 不外推到新源码。Mulei 后续仍保留 FIFO 长尾、中心超时/积压、统计刷新取消、历史缺图及完整长稳；本次不执行生产操作。
 
+2026-11-07上游接续：XCode #105新增两条late review已实际复现并由source9fc590a78最小修复，两个原测试从2 FAIL到2 PASS；六目标构建、source-linked及新两包66/66、三协议9进程/6次Server生命周期均通过，review已回复并读回resolved。新head CI为13 SUCCESS/3 FAILURE（OIDC/iOS工具链/s390x NovaDb），保留FAIL；#104→#105合入/公开Core-Provider/全公开新缓存链尚未完成，#404不关闭。FreeSql#2291仍OPEN、Provider索引404，#230不关闭。详见[上游review收据](docs/audits/issue404-review-20261107.md)。
+
 2026-11-04：**[M51：WorkBuddy生态集成](#milestone-51)**当前连接器/Skill合同更新为0.2.0，面向SonnetDB 5.0的43工具发现、默认Read和用户明确授权的Write。生产切片49731955保持冻结，不重复开发；历史Docker/r2九工具证据保留source。平台解析、HTTPS、宿主验收与正式送审仍未完成，由统一发布流程逐项整合。
 
 2026-11-02：新增 **[M50：时序时间戳精度与无损时间链路](#milestone-50)**，按库真正保存 `ms/us/ns`、默认 `ms`，规划 30 项必选与 2 项条件任务；全部 `📋 planned`。完整实现思路、源码归属、依赖/验收、迁移/旧端拒绝与初步工作量见 [M50 专题](docs/design/m50-timeseries-timestamp-precision.md)。M50 独立冻结版本与批次，本次仅更新规划，不启动源码改造或变更现有 4.5/预览/连接器批次范围。

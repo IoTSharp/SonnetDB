@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "scope": "PR105 late temporal metadata/default reviews",
+  "repository": "maikebing/NewLife.XCode",
+  "upstream": "NewLifeX/NewLife.XCode",
+  "pr": 105,
+  "sourceCommit": "9fc590a78ac109b8f14ff85cac8d22389614c443",
+  "baseCommit": "a224144c95865d5ae6f10c7f6db5eb8e6c816c9e",
+  "architecture": {
+    "pr": 104,
+    "source": "d53442b65dc8bf80a3b16e095fe74225f7537c55",
+    "state": "OPEN",
+    "changed": false
+  },
+  "validation": {
+    "before": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "receipt": "artifacts/issue404-review-20261107/before/pr105-reviews-before.trx"
+    },
+    "after": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "receipt": "artifacts/issue404-review-20261107/after-r2/pr105-reviews-after-r2.trx"
+    },
+    "frameworks": {
+      "status": "PASS",
+      "targets": [
+        "net45",
+        "net461",
+        "netstandard2.0",
+        "netstandard2.1",
+        "net8.0",
+        "net10.0"
+      ],
+      "warnings": 856,
+      "errors": 0,
+      "receipt": "artifacts/issue404-review-20261107/build-six-r2/result.json",
+      "newGuardWarning": "REMOVED without suppression"
+    },
+    "sourceSuite": {
+      "passed": 66,
+      "failed": 0,
+      "skipped": 0,
+      "boundary": "WORKING_TREE_NOT_PACKAGE_CANDIDATE",
+      "root": "C:/Users/mysti/.codex/xcode404-review-20261107-source/suite-source66-r1"
+    },
+    "packageSuite": {
+      "status": "PASS",
+      "passed": 66,
+      "failed": 0,
+      "skipped": 0,
+      "root": "C:/Users/mysti/.codex/xcode404-review-20261107-package/suite-package66-r1"
+    },
+    "journeys": {
+      "status": "PASS",
+      "processCount": 9,
+      "serverLifecycles": 6,
+      "protocols": [
+        "embedded",
+        "rest",
+        "frame-http2"
+      ],
+      "checksPerProtocol": [
+        18,
+        14,
+        14
+      ],
+      "root": "C:/Users/mysti/.codex/xcode404-review-20261107-package/journeys-package-nine-r1"
+    }
+  },
+  "candidate": {
+    "version": "12.3.2026.1107-pr404.2",
+    "boundary": "LOCAL_XCODE_CANDIDATE_WITH_PUBLIC_SONNETDB_5",
+    "packages": [
+      {
+        "id": "NewLife.XCode",
+        "version": "12.3.2026.1107-pr404.2",
+        "repositoryCommit": "9fc590a78ac109b8f14ff85cac8d22389614c443",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue404-review-20261107\\feed\\NewLife.XCode.12.3.2026.1107-pr404.2.nupkg",
+        "sha256": "5b29ca2ec3e859e6d56979242935c7adb95b119416ca4bc3220db8fb869714be",
+        "dlls": {
+          "lib/net10.0/XCode.dll": "56a9583e4516ea258ccbe18cb2eb0082de6e9fbabd43217afe20a27123d3db79",
+          "lib/net45/XCode.dll": "af89144bd7221c611473185ac0725dd3da7cc6597de5d0c2af0a56756a8cf71f",
+          "lib/net461/XCode.dll": "0bbd11fbd6c80defae050f633766da1559207fb1182d6149a9d05cfe2cae82fe",
+          "lib/net8.0/XCode.dll": "d2330293cf3fdce2cd4964cdad514e6d0f08c168022c330e3fb167e28dee5593",
+          "lib/netstandard2.0/XCode.dll": "e51eb26e0d3511a6b5b4360fc8a1e0980b66670831288c2deb3f9dc1a37c7306",
+          "lib/netstandard2.1/XCode.dll": "e9e6c210916bb90057ebf3a97e2a8f5a53b81bc3729b384f17e6b5a4524b2f0a"
+        }
+      },
+      {
+        "id": "XCode.SonnetDB",
+        "version": "12.3.2026.1107-pr404.2",
+        "repositoryCommit": "9fc590a78ac109b8f14ff85cac8d22389614c443",
+        "path": "D:\\source\\SonnetDB\\artifacts\\issue404-review-20261107\\feed\\XCode.SonnetDB.12.3.2026.1107-pr404.2.nupkg",
+        "sha256": "ea2aa08368206a0612fbffdd9ddf6f589dc929a830b0ceb7ad6b908ae08a84a2",
+        "dlls": {}
+      }
+    ],
+    "prepared": "C:/Users/mysti/.codex/xcode404-review-20261107-package/prepared.json"
+  },
+  "publicSonnetDB": {
+    "version": "5.0.0",
+    "source": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+    "server": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-5-release-20261103\\SonnetDB\\artifacts\\release-5.0-20261104-final-execution\\public-assets\\server-win-x64\\SonnetDB.exe",
+    "serverSha256": "4c6cdee527f3f82c25945bbe5683cc92790e8daaf2b3b227c1b8adf2911f882e",
+    "originalArchive": {
+      "path": "C:\\Users\\mysti\\.codex\\worktrees\\sonnetdb-5-release-20261103\\SonnetDB\\artifacts\\release-5.0-20261104-final-execution\\public-assets\\sonnetdb-full-5.0.0-win-x64.zip",
+      "status": "NOT_FOUND_AT_2026_11_07_READBACK",
+      "sha256": "03a1da759abf0e9dad8758661668ed62f0a9c07e9868b254f7ae415c3eb462ff"
+    }
+  },
+  "reviews": [
+    {
+      "comment": 4491044435,
+      "reply": 4497778234,
+      "url": "https://github.com/NewLifeX/NewLife.XCode/pull/105#discussion_r4497778234",
+      "bodyVerified": true,
+      "thread": "PRRT_kwDOHBwS5c60dAUy",
+      "isResolved": true
+    },
+    {
+      "comment": 4491044527,
+      "reply": 4497779045,
+      "url": "https://github.com/NewLifeX/NewLife.XCode/pull/105#discussion_r4497779045",
+      "bodyVerified": true,
+      "thread": "PRRT_kwDOHBwS5c60dAV6",
+      "isResolved": true
+    }
+  ],
+  "ci": {
+    "source": "9fc590a78ac109b8f14ff85cac8d22389614c443",
+    "status": "FAIL",
+    "success": 13,
+    "failure": 3,
+    "checks": [
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402247/job/128155785141",
+        "name": "aot (linux-arm64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155784941",
+        "name": "test (linux-arm64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402247/job/128155784602",
+        "name": "aot (linux-la64 / QEMU, JIT)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402287/job/128155784793",
+        "name": "arch (linux-riscv64 qemu)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402247/job/128155784868",
+        "name": "aot analyzer check",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402287/job/128155784372",
+        "name": "arch (linux-s390x qemu)",
+        "state": "FAILURE"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402246/job/128155784830",
+        "name": "ios simulator",
+        "state": "FAILURE"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402247/job/128155785231",
+        "name": "aot (win-x64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155785038",
+        "name": "test (win-x64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402246/job/128155784429",
+        "name": "android emulator",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402247/job/128155784879",
+        "name": "aot (linux-x64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155785088",
+        "name": "test (linux-x64)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402256/job/128155784281",
+        "name": "build-publish",
+        "state": "FAILURE"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155784520",
+        "name": "build solution",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155784996",
+        "name": "test (linux-la64 / QEMU)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/NewLifeX/NewLife.XCode/actions/runs/42294402250/job/128155784935",
+        "name": "localization checks",
+        "state": "SUCCESS"
+      }
+    ],
+    "failures": [
+      {
+        "job": "build-publish",
+        "reason": "GitHub OIDC unavailable in NuGet login",
+        "log": "artifacts/issue404-review-20261107/ci-publish-failed.log"
+      },
+      {
+        "job": "ios simulator",
+        "reason": ".NET iOS27.1 requires Xcode27.1; current runner26.6",
+        "log": "artifacts/issue404-review-20261107/ci-ios-failed-full.log"
+      },
+      {
+        "job": "arch linux-s390x qemu",
+        "reason": "NewLife.NovaDb string decode buffer length mismatch",
+        "log": "artifacts/issue404-review-20261107/ci-s390x-failed.log"
+      }
+    ]
+  },
+  "retainedFailures": [
+    {
+      "phase": "first pack",
+      "status": "FAIL",
+      "reason": "Source net10 restore narrowed shared obj assets; full multiframe restore and owned pack retry PASS",
+      "root": "artifacts/issue404-review-20261107/pack-core"
+    }
+  ],
+  "remaining": {
+    "issue404": "OPEN: architecture104 then provider105 upstream merge; public matched Core/Provider and fully-public new cache consumer",
+    "issue230": "OPEN: FreeSql2291 upstream merge/public Provider currently404",
+    "formalPublication": "NOT_RUN",
+    "production": "NOT_RUN"
+  },
+  "resources": {
+    "heavyLock": "artifacts/sonnetdb-heavy-20261106.lock",
+    "cpuCount": 2,
+    "msbuildNodes": 1,
+    "ownedServerRoots": "STOPPED; held handles; outer Cordonix Job cleanup",
+    "runtimeTokens": "Owned configs removed; not committed",
+    "oldEvidence": "RETAINED",
+    "foreignState": "UNTOUCHED"
+  }
+}

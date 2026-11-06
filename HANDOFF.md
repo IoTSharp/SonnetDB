@@ -1,3 +1,16 @@
+## 2026-11-07（Asia/Shanghai）三阶段监督与上游review收口
+
+- 用户授权的共同Provider候选、下一SDK单操作和XCode late-review可控源码工作均已落到可审查提交/包/原始验收。三位真实worker分工及独立peer/收据审查已执行；主监督集中接口、重负载、Git/issue状态，未把部分PASS当作母issue整体完成。
+- Provider source eb5c0e5f/5.1.0-rc.20261107.1：本地四包/JIT与CI四包/NativeAOT Server各69步骤PASS，12/12发行readiness READY；Ubuntu/Windows Core各8131/EF各438/Server各1603/迁移强杀各10。#414正常合入f09b4375，后续Git/包/source边界均有独立收据。
+- SDK source336f9aa8/0.0.0-issue397.local.20261107.1：GetAndDelete复用op6并保留旧值/变更版本，codec44/Client272/真实Server7本地PASS，新两包独占缓存五步骤与两代Server重开PASS；sourceCI12 SUCCESS/1按PR条件SKIPPED，27TRX两平台Core各8175/Client各272/EF各438/Server各1610/强杀各10。#415正常合入ee14517fb139394e1ba43c349540abfb177703a7，GitHub/Gitee/canonical已读回一致。
+- 两条SonnetDB完成分支已正常合并，验证增量bundle/祖先与expected SHA后删除本地和两端refs，保留可恢复worktree/证据；三处只剩main和各自parity-results。canonical44份外来dirty及其字节/暂存语义保留，三份共享文档只叠加自有段落。项目门面会话待用户选择方向的工作与其它发布账本未混入。本节纯文档提交的准确最终main另见收据，不改变前述已冻结候选source/SHA。
+- XCode #105两条晚于旧完成快照的review不再记为单纯等待。复用原干净Provider树a224144c，仅SonnetDB.cs加legacy DATETIME/TIME次级alias及兼容原生temporal CAST保留，普通字面量/字符串Ordinal规则不变；通用基类、Architecture#104/d53442b和正式SonnetDB5.0依赖未改。两原回归before2/2 FAIL，after2/2 PASS；sixTFMs全部build，856仓库警告/0errors，新CS8604通过显式guard修复而非压制。
+- 新XCode source9fc590a78ac109b8f14ff85cac8d22389614c443已推送原PR105并独立读回，候选12.3.2026.1107-pr404.2两包/source/nuspec/DDL payload冻结。仓库外fresh source-linked和package-only完整套件各66/66/0fail/0skip，公开Sdb/Data/Core/Protocol5.0/source844与当前hash4c6c...正式NativeAOT Server配对；原三协议18+14+14、9进程/6Server启停重开全PASS。原完整ZIP路径目前NOT_FOUND，仅保留历史hash，不冒称本轮重新验archive。首次pack因net10restore覆盖多目标obj资产FAIL，读回后完整restore恢复并唯一重试成功，原FAIL保留。
+- 两条review已一次回复并独立读回resolved=true；不是maintainer APPROVED/merge。新9fc CI实际13 SUCCESS/3 FAILURE，日志确认为NuGet OIDC不可用、iOS27.1需Xcode27.1而runner26.6、s390x NovaDb解码；不skip或放宽改绿。#104与#105仍OPEN，须维护者按顺序接受/合入并公开匹配包后做全公开消费者；#404不关闭，XCode未合入PR分支保留。FreeSql2291仍OPEN，Provider公共索引404，#230不关闭。
+- #392/#394/#395各已一次公开回复并读回，本地/CI包验收完成但正式新公开包门未做；#394清单已准确4/5。#397已一次公开回复并读回，TLS/ALPN、typed Client NativeAOT/ABI/其他模型语言及公开包仍独立未做。已核#227/#266/#194/#367/#393/#400/#407均CLOSED/COMPLETED，本轮新增关闭0；不缩减合同关单。
+- 完整收据分别在artifacts/provider-next-phase-20261107/、issue397-get-and-delete-20261107/、issue404-review-20261107/及对应docs/releases或audits的md/json。owned测试Server已按句柄关闭、token配置核SHA删除，Cordonix所属树结束0，partial全机查询不扩大为全机无进程。原始产物/cache/worktrees/scripts为验收证据保留；所有重负载共享FileShare.None锁、CPU2/单MSBuild节点/禁持久服务。历史HANDOFF非法UTF8按byte前置完整保留。
+- 正式tag/NuGet/Release、生产部署/重启/迁移仍按用户延期决定NOT_RUN。恢复正式发行时须按最终main重新冻结，不把eb5/336或9fc某一组候选外推到其它source。上游接受/公开是下一外部前置，AOT/发行恢复、环境验收及M50按根路线独立工作包接续，不混入本批冻结制品。
+
 ## 2026-11-07（Asia/Shanghai）#397 GetAndDelete源码与独立包验收收口
 
 - SDK产品source固定336f9aa84d32951f2fbaf90bc41caedf9b313431，独立本地两包0.0.0-issue397.local.20261107.1，PR#415。后续本节及机器清单为纯证据文档，不改变S1源码/制品摘要，也不把它并入Provider rc候选。
