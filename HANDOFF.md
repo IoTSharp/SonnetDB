@@ -1,3 +1,20 @@
+## 2026-11-07（Asia/Shanghai）提交收尾并移交新监督会话
+
+- 用户明确要求“现在提交代码并推送，然后创建新会话，在新会话中开始下一执行顺序，使用多个智能体并行，新会话监督”。产品代码已由PR#413正常合入main@e1ea61d2并同步两端；本次只补交自有最终收口段、根路线更新和docs/handoffs/provider-next-phase-20261107.md，不将canonical其它44份dirty或素材/账本混入提交。
+- 新监督会话立即接续根路线第一顺序#392/#395/#394，实际启动三位独立worker处理迁移/恢复、JSON更新、OwnsMany生命周期；主智能体负责唯一共同候选、接口/共享文档、独占重负载队列、集成/最终验证及issue状态。先并行准备合同与消费者，再用同一最终source/包/匹配Server取得三线证据，不复用0d候选PASS。
+- 正式发行沿用延期决定；本轮提交/创建会话不自动打tag、发NuGet/正式Release或部署生产。新阶段可完成必要源码修复、候选构建与真实包消费、提交推送及具体可审查发行材料，公开门未完不关闭母issue。
+- 本次提交前在干净隔离最终树执行完整restore和规定Format；原代码已通过的17项检查及两平台TRX仍绑定428f5ca4，不把文档提交冒充新增产品验证。具体提交/两端推送/新会话身份及启动回执见artifacts/next-supervision-20261107-01a1b0e8/。本任务无常驻进程，构建门禁持共享锁、CPU2/单节点/禁持久服务并回收所属Job；原审查worktree保留为detached证据。
+
+## 2026-11-07（Asia/Shanghai）PR #413 与全部开发分支收口完成
+
+- PR #413 已正常 merge，最终 main=e1ea61d27efa49ecacedb131f751b59e2549b195；GitHub/Gitee/本地三处独立读回一致，merge tree与经过验证的head428f5ca4完全相同。3条成立的review均修复、回复并读回resolved=true；PR标题/正文已按最终改动重写。
+- head428f5ca4的18项检查为17 SUCCESS/1按PR条件SKIPPED。CI42252001244：Ubuntu/Windows Core各8131/8131、EF各438/438、Server各1603/1603；另行EF迁移强杀各10/10。三RID AOT、三组连接器、Format、CodeQL与管理/Studio/VSCode全部适用检查通过。Studio首次88/90因两项BridgeHost启动取消失败，保持源码/断言/超时的单次同SHA复跑90/90通过，首失败日志保留。最终本地restore/Format退出0，workspace加载警告保留；Core178/HTTP14/EF438本地PASS不累加重复测试数。
+- 已清理5条原本地开发branch+本轮1条review branch、5条GitHub开发branch；Gitee原无开发branch。三处仅保留main与独立parity-results。local parity c27ac89d、GitHub parity5e7e1379、Gitee parity08ec01f7分别保留，不合入或强推彼此。清理前development-branches.bundle已verify，所需a7125ffb/24ff94e4祖先仍由main可达。旧worktree只detach并保留文件，issue395三份dirty及issue397交接dirty的hash/暂存语义核对保持。
+- canonical main从2a2f77c7安全前进：69个确认无外来修改的路径更新，44个原dirty文件保持未暂存；CHANGELOG正常三方合并、ROADMAP只插入本轮节，HANDOFF保留整份原字节为连续内容并纳入远端新增段。未reset/clean/stash/宽泛stage，也未提交这些外来dirty。
+- #230/#392/#394/#395/#396/#397/#398/#399/#401/#402/#403/#404均已发一次本轮明确后续回复并独立读回，仍OPEN；无符合完整关闭条件的新增项，新增关闭0，#367/#393/#400/#407保持CLOSED。首条#230因CRLF回读比较中断后先对账原comment6690507187，再接续其余11条，没有重复创建。公开评论与路线/audit链接及每条readback在issue-reply-receipts.json。
+- 根ROADMAP及docs/audits/pr413-integration-20261107.md已随428f5ca4合入，覆盖共同Provider新候选、SDK、上游、AOT/发行恢复、环境验收和M50。#392/#395发行仍延期；新最终source须重新冻结验收。本轮未打tag、发NuGet/正式Release、部署或重启生产。
+- 完整收据/原始失败/TRX/refs/备份归档在artifacts/pr413-integration-20261107/，入口completion.json。所有本轮长进程由Cordonix所属Job回收，active_after=0；全机查询partial不能扩大为全机无进程。专属审查工作树保留为detached可审查证据，产物/日志保留，不删除共享缓存或旧worktree。本节仅本地字节前置保留全部历史后缀，不整份暂存含外来dirty的HANDOFF。
+
 ## 2026-11-07（Asia/Shanghai）PR #413 审查与分支/Issue 整合
 
 - 用户明确授权审查并合并#413、整合/清理本地和两端开发分支、回复issue及关闭实际完成项、更新路线；本轮没有发包、移动正式tag、部署或重启生产。隔离树为 C:/Users/mysti/.codex/worktrees/pr413-merge-review-20261106，整合 origin/main@6305a1bf 与原PR head70cd2975，最终精确提交/PR/CI/refs以本批交付收据为准。
