@@ -1,3 +1,22 @@
+## 2026-11-07（Asia/Shanghai）共同Provider候选三线验收完成与Git整合授权
+
+- 三位真实worker完成并交叉审查消费者，冻结source eb5c0e5f938372109b473db2194670761dc26a96 / 5.1.0-rc.20261107.1，PR#414。本节随最终证据文档提交，准确文档head/合并和两端ref以本任务Git收据独立读回，不改变冻结包的source/SHA。
+- 本地四包+win-x64 JIT Server与实际CI四包+同源NativeAOT Server分别各69步骤status PASS，含三协议、同连接历史失败回滚重试、JSON准确拒绝/旧行RHS/竞争、OwnsMany跟踪与EF10 Clear重载、三次after-ACK应用强杀/Down-Up、两代Server重开。每组3个预期kill退出-1，其余66步骤退出0；包和实际加载DLL/Server/原始archive指纹分组核对，消费者均仓库外独占cache，无ProjectReference。
+- 精确source的12类发行readiness READY，原始Parity独立通过；scheduled七天6/7仅非阻断观察。手动CI42268465828的27份TRX已下载解析：Ubuntu/Windows Core各8131、EF各438、Server各1603，迁移强杀各10，全部零失败/未执行；Windows Studio90通过。Publish42265079795 attempt1 SUCCESS，十包/两平台原始发行物真实生成，实际应用只消费其中四包；EF应用JIT不被写成EF NativeAOT。
+- 正式tag、NuGet/Release和生产操作继续延期；公开NuGet-only新包消费NOT_RUN，#392/#394/#395仍OPEN。用户要求已完成相关issue关闭，已核#227/#266/#194及#367/#393/#400/#407均CLOSED/COMPLETED，#230仍缺上游公开交付，本轮新增关闭0，不降低母issue验收合同。
+- 用户通过项目门面会话明确追加授权：已就绪分支正常合入main、推送并分别读回GitHub/Gitee，备份/核祖先和expected SHA后清理已合入开发refs。由本会话唯一负责Provider/开发分支整合；严格保护parity-results、canonical外来dirty和其它会话未完工作。项目门面会话拥有AGENTS/README/llms/docs首页/人物档案与模板/新素材，将另供准确ref；不得混入本阶段暂存。
+- 下一单一#397切片已在独立工作树 C:/Users/mysti/.codex/worktrees/sdk-kv-get-and-delete-20261107/SonnetDB、branch codex/sdk-kv-get-and-delete-20261107开展，共享Protocol codec/Client API/真实Server测试三位worker互不覆盖；typed GetAndDelete复用既有op6并保留旧值/变更版本，不混入Provider候选。新SDK分支仍在工作，不因HEAD为main祖先误删。
+- 原始收据/27TRX/候选制品/机器readiness在 artifacts/provider-next-phase-20261107/，本地/CI消费者根分别为 C:/Users/mysti/.codex/provider-consumers-20261107-01a1b1e2-r2 与末尾-ci目录，完整评审 docs/releases/provider-candidate-20261107.md/.json。初轮调度变量冲突和归档入口错误保留；未删断言或skip换绿。两组各两代测试Server及Cordonix所属Job均清理后0，非全机无进程声明；原始制品/日志/cache/临时脚本作为本任务证据保留。
+- 本地所有重负载仍以FileShare.None持共享lock、CPU2/单节点/禁持久服务；02:36（Asia/Shanghai）探测lock可用且未由本任务持有，不是预留锁。文档最终restore/规定Format另留收据。历史HANDOFF含非法UTF8字节，继续按byte前置保留全部历史，不清洗或重编码。
+
+## 2026-11-07（Asia/Shanghai）共同 Provider 候选三线监督启动
+
+- 已实际启动 migration_392、json_395、ownsmany_394 三位独立worker，复核本地/GitHub/Gitee main同为537dc9bb9ea5bc701d722c4663593d10d26e0467；旧发行协调已结束。干净隔离树 C:/Users/mysti/.codex/worktrees/pr413-merge-review-20261106，分支codex/provider-candidate-20261107；canonical外来dirty及parity-results原状保留。
+- 三消费者补齐同一已打开连接失败重试、after-ACK包进程强杀入口、JSON旧行右值/拒绝/参数化/竞争及OwnsMany完整跟踪应用，保留EF10父ordinal变化后的Clear/重载边界。尚无本轮已复现的公共产品代码缺陷。
+- 准备隔离候选5.1.0-rc.20261107.1，四包和匹配win-x64 Server绑定本轮已提交source；旧0d候选不外推。原始命令/包与DLL身份/三协议/重开收据留artifacts/provider-next-phase-20261107/，应用实际运行目前NOT_RUN，专题随后按收据回填。
+- 完整restore退出0，最终提交前执行规定Format。FileShare.None共享锁、CPU2、单MSBuild节点、禁持久构建服务，Cordonix回收所属Job；预检/restore清理后进程0。脚本/请求/日志为本任务证据保留，无常驻Server，消费者复制到仓库外专属目录。历史HANDOFF含非UTF8字节，以原始byte前置保留后缀。
+- 用户已授权实现/测试/文档/提交推送/既有issue跟进；正式tag、NuGet/Release与生产操作继续延期，#392/#394/#395仍OPEN。先完成本候选，随后按根路线冻结#397单一工作包。
+
 ## 2026-11-07（Asia/Shanghai）提交收尾并移交新监督会话
 
 - 用户明确要求“现在提交代码并推送，然后创建新会话，在新会话中开始下一执行顺序，使用多个智能体并行，新会话监督”。产品代码已由PR#413正常合入main@e1ea61d2并同步两端；本次只补交自有最终收口段、根路线更新和docs/handoffs/provider-next-phase-20261107.md，不将canonical其它44份dirty或素材/账本混入提交。

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -14,8 +15,15 @@ public static class InventoryWorkflow
     /// <param name="connectionString">嵌入式或测试服务的连接串。</param>
     /// <returns>由调用方释放的库存上下文。</returns>
     public static InventoryContext Open(string connectionString)
-        => new(new DbContextOptionsBuilder<InventoryContext>().UseSonnetDB(connectionString)
-            .LogTo(Console.WriteLine, [RelationalEventId.CommandExecuting, RelationalEventId.CommandExecuted]).Options);
+        => new(CreateOptions(connectionString));
+
+    private static DbContextOptions<InventoryContext> CreateOptions(string connectionString, IInterceptor? interceptor = null)
+    {
+        var builder = new DbContextOptionsBuilder<InventoryContext>().UseSonnetDB(connectionString)
+            .LogTo(Console.WriteLine, [RelationalEventId.CommandExecuting, RelationalEventId.CommandExecuted]);
+        if (interceptor is not null) builder.AddInterceptors(interceptor);
+        return builder.Options;
+    }
 
     /// <summary>执行固定应用动作。</summary>
     /// <param name="action">初始化、升级、回退或验收动作。</param>
@@ -24,7 +32,8 @@ public static class InventoryWorkflow
     /// <returns>异步动作的完成任务。</returns>
     public static async Task RunAsync(string action, string connectionString, CancellationToken cancellationToken)
     {
-        await using var context = Open(connectionString);
+        var continuity = new ConnectionContinuityInterceptor();
+        await using var context = new InventoryContext(CreateOptions(connectionString, continuity));
         var migrator = context.GetService<IMigrator>();
         switch (action)
         {
@@ -45,44 +54,60 @@ public static class InventoryWorkflow
                 await VerifyAsync(context, upgraded: action == "verify-new", cancellationToken);
                 break;
             case "roundtrip":
-                await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
-                await VerifyAsync(context, upgraded: false, cancellationToken);
-                // Actual history write rejection occurs after all the migration's DDL/DML.
-                await context.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE \"__EFMigrationsHistory\" ADD CONSTRAINT \"CK_BlockShipping\" CHECK (\"MigrationId\" <> '"
-                    + InventoryShipping.Id + "')", cancellationToken);
-                Exception? failure = null;
-                try { await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken); }
-                catch (Exception exception) when (!cancellationToken.IsCancellationRequested) { failure = exception; }
-                Require(failure?.Message.Contains("CK_BlockShipping", StringComparison.Ordinal) == true,
-                    "Expected actual history constraint rejection.");
-                Console.WriteLine("EXPECTED_FAILURE " + failure!.GetType().Name + " | " + failure.Message);
-                await VerifyAsync(context, upgraded: false, cancellationToken);
-                await context.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE \"__EFMigrationsHistory\" DROP CONSTRAINT \"CK_BlockShipping\"", cancellationToken);
-                await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
-                await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
-                await VerifyAsync(context, upgraded: true, cancellationToken);
-                Console.WriteLine("BUSINESS query-start");
-                Product product = await context.Products.SingleAsync(row => row.Id == 10L, cancellationToken);
-                Console.WriteLine("BUSINESS save-start");
-                product.Stock = 4;
-                Require(await context.SaveChangesAsync(cancellationToken) == 1, "Business SaveChanges must update one product.");
-                Console.WriteLine("BUSINESS saved");
-                context.ChangeTracker.Clear();
-                Require(await context.Products.Where(row => row.Id == 10L).Select(row => row.Stock).SingleAsync(cancellationToken) == 4L,
-                    "Business stock readback.");
-                product = await context.Products.SingleAsync(row => row.Id == 10L, cancellationToken);
-                product.Stock = 5;
-                await context.SaveChangesAsync(cancellationToken);
-                context.ChangeTracker.Clear();
-                Console.WriteLine("BUSINESS downgrade-start");
-                await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
-                await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
-                await VerifyAsync(context, upgraded: false, cancellationToken);
-                Console.WriteLine("BUSINESS reupgrade-start");
-                await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
-                await VerifyAsync(context, upgraded: true, cancellationToken);
+                await context.Database.OpenConnectionAsync(cancellationToken);
+                DbConnection heldConnection = context.Database.GetDbConnection();
+                Require(continuity.Opens == 1 && continuity.Closes == 0, "Exactly one explicit connection open.");
+                try
+                {
+                    await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
+                    await VerifyAsync(context, upgraded: false, cancellationToken);
+                    // Actual history write rejection occurs after all the migration's DDL/DML.
+                    await context.Database.ExecuteSqlRawAsync(
+                        "ALTER TABLE \"__EFMigrationsHistory\" ADD CONSTRAINT \"CK_BlockShipping\" CHECK (\"MigrationId\" <> '"
+                        + InventoryShipping.Id + "')", cancellationToken);
+                    Exception? failure = null;
+                    try { await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken); }
+                    catch (Exception exception) when (!cancellationToken.IsCancellationRequested) { failure = exception; }
+                    Require(failure?.Message.Contains("CK_BlockShipping", StringComparison.Ordinal) == true,
+                        "Expected actual history constraint rejection.");
+                    Console.WriteLine("EXPECTED_FAILURE " + failure!.GetType().Name + " | " + failure.Message);
+                    Require(heldConnection.State == ConnectionState.Open && continuity.Opens == 1 && continuity.Closes == 0,
+                        "History rejection must retain the same continuously open connection.");
+                    await VerifyAsync(context, upgraded: false, cancellationToken);
+                    await context.Database.ExecuteSqlRawAsync(
+                        "ALTER TABLE \"__EFMigrationsHistory\" DROP CONSTRAINT \"CK_BlockShipping\"", cancellationToken);
+                    await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
+                    await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
+                    await VerifyAsync(context, upgraded: true, cancellationToken);
+                    Require(ReferenceEquals(heldConnection, context.Database.GetDbConnection())
+                        && heldConnection.State == ConnectionState.Open && continuity.Opens == 1 && continuity.Closes == 0,
+                        "Migration retry must use the same continuously open connection.");
+                    Console.WriteLine("SAME_CONNECTION history-rejection/rollback/retry | opens=1 | closes=0 | state=Open");
+                    Console.WriteLine("BUSINESS query-start");
+                    Product product = await context.Products.SingleAsync(row => row.Id == 10L, cancellationToken);
+                    Console.WriteLine("BUSINESS save-start");
+                    product.Stock = 4;
+                    Require(await context.SaveChangesAsync(cancellationToken) == 1, "Business SaveChanges must update one product.");
+                    Console.WriteLine("BUSINESS saved");
+                    context.ChangeTracker.Clear();
+                    Require(await context.Products.Where(row => row.Id == 10L).Select(row => row.Stock).SingleAsync(cancellationToken) == 4L,
+                        "Business stock readback.");
+                    product = await context.Products.SingleAsync(row => row.Id == 10L, cancellationToken);
+                    product.Stock = 5;
+                    await context.SaveChangesAsync(cancellationToken);
+                    context.ChangeTracker.Clear();
+                    Console.WriteLine("BUSINESS downgrade-start");
+                    await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
+                    await migrator.MigrateAsync(InventoryInitial.Id, cancellationToken);
+                    await VerifyAsync(context, upgraded: false, cancellationToken);
+                    Console.WriteLine("BUSINESS reupgrade-start");
+                    await migrator.MigrateAsync(InventoryShipping.Id, cancellationToken);
+                    await VerifyAsync(context, upgraded: true, cancellationToken);
+                }
+                finally
+                {
+                    await context.Database.CloseConnectionAsync();
+                }
                 break;
             default: throw new ArgumentOutOfRangeException(nameof(action));
         }
@@ -164,5 +189,28 @@ public static class InventoryWorkflow
     private static void Require(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
+    }
+
+    private sealed class ConnectionContinuityInterceptor : DbConnectionInterceptor
+    {
+        public int Opens { get; private set; }
+        public int Closes { get; private set; }
+
+        public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData) => Opens++;
+
+        public override Task ConnectionOpenedAsync(DbConnection connection, ConnectionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            Opens++;
+            return Task.CompletedTask;
+        }
+
+        public override void ConnectionClosed(DbConnection connection, ConnectionEndEventData eventData) => Closes++;
+
+        public override Task ConnectionClosedAsync(DbConnection connection, ConnectionEndEventData eventData)
+        {
+            Closes++;
+            return Task.CompletedTask;
+        }
     }
 }

@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "scope": "Provider migration/JSON ExecuteUpdate/OwnsMany package application acceptance",
+  "sourceCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+  "version": "5.1.0-rc.20261107.1",
+  "sourcePr": "https://github.com/IoTSharp/SonnetDB/pull/414",
+  "local": {
+    "boundary": "LOCAL_CANDIDATE_NOT_PUBLIC",
+    "manifest": "artifacts/provider-next-phase-20261107/candidate-manifest.json",
+    "packages": [
+      {
+        "dllSha256": "57404C753CB96A1DD71D250977D831E159A9DF53086F8F559CDC8F069234E2CF",
+        "assembly": "SonnetDB.Protocol",
+        "id": "SonnetDB.Protocol",
+        "sha256": "6F9E2638F110D1A240A6815BE2743A6BD50233C43FD024BDB1FD4C446DA500F8",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\feed\\SonnetDB.Protocol.5.1.0-rc.20261107.1.nupkg"
+      },
+      {
+        "dllSha256": "4A3A5BD871EC39796F0EA6ADBF88D8EB1899607946446ED912060DB4E0B2A914",
+        "assembly": "SonnetDB.Core",
+        "id": "SonnetDB.Core",
+        "sha256": "6D9546E0968EAA720A56F8EBF893BB0FE5A79F7DFEC3C10A2AB9424F6357455B",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\feed\\SonnetDB.Core.5.1.0-rc.20261107.1.nupkg"
+      },
+      {
+        "dllSha256": "B1E93FCE3CEE0EC7EA317E5D3E086A11E26B63DA5EF56F1CD1D2A179D45213BB",
+        "assembly": "SonnetDB.Data",
+        "id": "SonnetDB",
+        "sha256": "8DE95F34E0CFC53E20A86851D0DB0F861D499667208FF1E924A3924888FEC140",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\feed\\SonnetDB.5.1.0-rc.20261107.1.nupkg"
+      },
+      {
+        "dllSha256": "15037C532BC2D0F5319DF07ADB3834999E1E7CC8D92B1B0756B01EFE2E761C16",
+        "assembly": "SonnetDB.EntityFrameworkCore",
+        "id": "SonnetDB.EntityFrameworkCore",
+        "sha256": "A3F43CDAE4ABA6ED2DB544D7EC7CC2536E610174BF64285A49A5BAF62EAFEAB7",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\feed\\SonnetDB.EntityFrameworkCore.5.1.0-rc.20261107.1.nupkg"
+      }
+    ],
+    "serverArchive": {
+      "path": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\server-win-x64-5.1.0-rc.20261107.1.zip",
+      "sha256": "69FE3CC886FF9DF23B92CF4A5A8C0F798BA77D206259181EC8619FB995EBEF12",
+      "bytes": 72382707
+    },
+    "consumerReceipt": "C:/Users/mysti/.codex/provider-consumers-20261107-01a1b1e2-r2/result.json",
+    "status": "PASS",
+    "steps": 69,
+    "expectedAfterAckKills": 3
+  },
+  "ci": {
+    "boundary": "CI_CANDIDATE_NOT_PUBLISHED",
+    "manifest": "artifacts/provider-next-phase-20261107/ci-candidate-manifest.json",
+    "run": {
+      "conclusion": "success",
+      "created_at": "2026-11-06T17:49:05Z",
+      "event": "workflow_dispatch",
+      "head_branch": "codex/provider-candidate-20261107",
+      "head_sha": "eb5c0e5f938372109b473db2194670761dc26a96",
+      "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42265079795",
+      "id": 42265079795,
+      "path": ".github/workflows/publish.yml",
+      "run_attempt": 1,
+      "run_started_at": "2026-11-06T17:49:05Z",
+      "status": "completed"
+    },
+    "packages": [
+      {
+        "id": "SonnetDB.Protocol",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\ci-packages\\SonnetDB.Protocol.5.1.0-rc.20261107.1.nupkg",
+        "dllSha256": "619BA549AFC977E8F0CD6C8A9B94BEC7F69F13C1E9F8F00D6AE9456B6FD25F58",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "assembly": "SonnetDB.Protocol",
+        "sha256": "B86109BE53C1C1813576DC639F234D5C5082C9A687D13422A0B7EE2167D60092"
+      },
+      {
+        "id": "SonnetDB.Core",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\ci-packages\\SonnetDB.Core.5.1.0-rc.20261107.1.nupkg",
+        "dllSha256": "BD26AC8E18CF5B1978F1E197C240D08B9E21A4F634CA0DC1698ED3621EDB7024",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "assembly": "SonnetDB.Core",
+        "sha256": "F4F2D7AC48D4E30C03B3F0CF608BA217DFE8E51234A5E9128A24DF6366609650"
+      },
+      {
+        "id": "SonnetDB",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\ci-packages\\SonnetDB.5.1.0-rc.20261107.1.nupkg",
+        "dllSha256": "8AE0871CB80E3B06108119EB21E644CBE1B9A589CA217F1F3D7221D17EAF8A6D",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "assembly": "SonnetDB.Data",
+        "sha256": "5D699A2C9EE0CF22567F649977C9BB6E22F6DDF6193A613877FCFA01E41564FD"
+      },
+      {
+        "id": "SonnetDB.EntityFrameworkCore",
+        "file": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\ci-packages\\SonnetDB.EntityFrameworkCore.5.1.0-rc.20261107.1.nupkg",
+        "dllSha256": "A92697C9086917E0C5C9F0A55C646DB96343F8425F0313FF1535E09D408A543D",
+        "repositoryCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+        "assembly": "SonnetDB.EntityFrameworkCore",
+        "sha256": "645943CFC55656E53895635B528D6EF4AE0BEA926D302232EDE53F8F25C89E5B"
+      }
+    ],
+    "serverArchive": {
+      "path": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\ci-win\\bundles\\win-x64\\sonnetdb-full-5.1.0-rc.20261107.1-win-x64.zip",
+      "sha256": "041B4B36A6CE01C87457CF1249B2572FE55CCB7C314CC0D90DCA65DEF5875E1A",
+      "bytes": 201516388
+    },
+    "serverProductVersion": "5.1.0-rc.20261107.1+eb5c0e5f938372109b473db2194670761dc26a96",
+    "consumerReceipt": "C:/Users/mysti/.codex/provider-consumers-20261107-01a1b1e2-ci/result.json",
+    "status": "PASS",
+    "steps": 69,
+    "expectedAfterAckKills": 3
+  },
+  "releaseReadiness": {
+    "status": "READY",
+    "commitSha": "eb5c0e5f938372109b473db2194670761dc26a96",
+    "version": "5.1.0-rc.20261107.1",
+    "workflows": [
+      {
+        "workflow": "ci.yml",
+        "ready": true,
+        "runId": 42268465828,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268465828",
+        "issues": []
+      },
+      {
+        "workflow": "codeql.yml",
+        "ready": true,
+        "runId": 42268472252,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268472252",
+        "issues": []
+      },
+      {
+        "workflow": "docs-pages.yml",
+        "ready": true,
+        "runId": 42268478882,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268478882",
+        "issues": []
+      },
+      {
+        "workflow": "management-workbench-smoke.yml",
+        "ready": true,
+        "runId": 42268485489,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268485489",
+        "issues": []
+      },
+      {
+        "workflow": "parity.yml",
+        "ready": true,
+        "runId": 42268492446,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268492446",
+        "issues": []
+      },
+      {
+        "workflow": "document-soak.yml",
+        "ready": true,
+        "runId": 42268498790,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268498790",
+        "issues": []
+      },
+      {
+        "workflow": "ecosystem-soak.yml",
+        "ready": true,
+        "runId": 42268504919,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268504919",
+        "issues": []
+      },
+      {
+        "workflow": "m19-capacity-evidence.yml",
+        "ready": true,
+        "runId": 42268511772,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268511772",
+        "issues": []
+      },
+      {
+        "workflow": "m39-trigger-evidence.yml",
+        "ready": true,
+        "runId": 42268518236,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268518236",
+        "issues": []
+      },
+      {
+        "workflow": "publish.yml",
+        "ready": true,
+        "runId": 42265079795,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42265079795",
+        "issues": []
+      },
+      {
+        "workflow": "connectors-release.yml",
+        "ready": true,
+        "runId": 42268525071,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268525071",
+        "issues": []
+      },
+      {
+        "workflow": "docker-publish.yml",
+        "ready": true,
+        "runId": 42268531754,
+        "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42268531754",
+        "issues": []
+      }
+    ],
+    "observations": [
+      {
+        "name": "scheduled-parity-seven-days",
+        "blocking": false,
+        "status": "NOT_READY",
+        "validRunCount": 6,
+        "requiredRunCount": 7,
+        "reportPath": "D:\\source\\SonnetDB\\artifacts\\provider-next-phase-20261107\\readiness-final\\parity-nightly.json",
+        "issues": [
+          {
+            "code": "scheduled_run_failed_validation",
+            "message": "At least one scheduled run or profile did not pass evidence validation."
+          }
+        ]
+      }
+    ],
+    "evidence": "artifacts/provider-next-phase-20261107/readiness-final/report.json"
+  },
+  "publicNugetOnly": "NOT_RUN",
+  "formalPublication": "NOT_RUN: user deferred",
+  "production": "NOT_RUN",
+  "physicalPowerLoss": "NOT_RUN",
+  "issues": [
+    {
+      "number": 392,
+      "state": "OPEN",
+      "pending": "New public Provider and NuGet.org-only migration application acceptance"
+    },
+    {
+      "number": 394,
+      "state": "OPEN",
+      "pending": "New public Provider minimum version and lifecycle acceptance"
+    },
+    {
+      "number": 395,
+      "state": "OPEN",
+      "pending": "New public Provider NuGet.org-only JSON application acceptance"
+    }
+  ],
+  "failuresRetained": [
+    {
+      "step": "consumer orchestration first attempt",
+      "status": "FAIL",
+      "reason": "Read-only PowerShell HOME variable; corrected before applications/Server started",
+      "evidence": "artifacts/provider-next-phase-20261107/consumers/result.json"
+    },
+    {
+      "step": "CI bundle preparation first attempt",
+      "status": "FAIL",
+      "reason": "Bundle places SonnetDB.exe at root; preparation corrected to verified archive inventory",
+      "evidence": "artifacts/provider-next-phase-20261107/Prepare-CiCandidate.ps1"
+    }
+  ],
+  "boundary": "PASS applies to these frozen candidate bytes and application inputs. Public packages, field hardware, physical power loss and production are separate gates.",
+  "sourceTestEvidence": {
+    "runId": 42268465828,
+    "sourceCommit": "eb5c0e5f938372109b473db2194670761dc26a96",
+    "rawTrxCount": 27,
+    "ubuntu": {
+      "Core": 8131,
+      "EF": 438,
+      "Server": 1603,
+      "EfMigrationCrash": 10
+    },
+    "windows": {
+      "Core": 8131,
+      "EF": 438,
+      "Server": 1603,
+      "EfMigrationCrash": 10,
+      "Studio": 90
+    },
+    "failed": 0,
+    "notExecuted": 0,
+    "receipts": [
+      "artifacts/provider-next-phase-20261107/ci-tests/ubuntu-summary.json",
+      "artifacts/provider-next-phase-20261107/ci-tests/windows-core-summary.json",
+      "artifacts/provider-next-phase-20261107/ci-tests/windows-rest-summary.json"
+    ]
+  }
+}
