@@ -6,7 +6,7 @@ using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
-/// <summary>以固定资源上限重写单个 JSON 标量路径，不产生存储副作用。</summary>
+/// <summary>以固定资源上限重写 JSON 标量路径或子树，不产生存储副作用。</summary>
 internal static class JsonPathUpdater
 {
     private const int MaxUtf8Bytes = 8 * 1024 * 1024;
@@ -265,8 +265,8 @@ internal static class JsonPathUpdater
         {
             switch (element.ValueKind)
             {
-                case JsonValueKind.String: WriteString(output, element.GetString()!, budget); break;
-                case JsonValueKind.Number: WriteRawNumber(output, element.GetRawText(), budget); break;
+                case JsonValueKind.String: WriteRawToken(output, element.GetRawText(), budget); break;
+                case JsonValueKind.Number: WriteRawToken(output, element.GetRawText(), budget); break;
                 case JsonValueKind.True: output.Write("true"u8); break;
                 case JsonValueKind.False: output.Write("false"u8); break;
                 case JsonValueKind.Null: output.Write("null"u8); break;
@@ -316,17 +316,19 @@ internal static class JsonPathUpdater
         output.WriteByte((byte)'"');
     }
 
-    private static void WriteRawNumber(CappedOutput output, string text, WorkBudget budget)
+    private static void WriteRawToken(CappedOutput output, string text, WorkBudget budget)
     {
         budget.AcquireScratch(EncodingBytes);
         try
         {
-            // JsonDocument 已验证数字词法；按块复制原文，长整数也不经过 double 或 writer 预留。
+            // JsonDocument 已验证字符串/数字词法；按块复制原文，保留 offset 的 +、转义拼写和大整数。
             Span<byte> utf8 = stackalloc byte[EncodingBytes];
             for (int offset = 0; offset < text.Length;)
             {
                 budget.Consume();
                 int count = Math.Min(EncodingChars, text.Length - offset);
+                if (offset + count < text.Length && char.IsHighSurrogate(text[offset + count - 1]))
+                    count--;
                 int written = StrictUtf8.GetBytes(text.AsSpan(offset, count), utf8);
                 output.Write(utf8[..written]);
                 offset += count;

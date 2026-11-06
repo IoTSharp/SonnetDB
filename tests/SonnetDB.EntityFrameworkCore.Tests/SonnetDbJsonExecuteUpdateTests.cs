@@ -92,13 +92,13 @@ public sealed partial class SonnetDbJsonAggregateModelTests
 
     [Theory]
     [InlineData(true, "array")]
-    [InlineData(true, "converter")]
-    [InlineData(true, "guid")]
-    [InlineData(true, "date")]
+    [InlineData(true, "converter-rhs")]
+    [InlineData(true, "guid-rhs")]
+    [InlineData(true, "date-rhs")]
     [InlineData(false, "array")]
-    [InlineData(false, "converter")]
-    [InlineData(false, "guid")]
-    [InlineData(false, "date")]
+    [InlineData(false, "converter-rhs")]
+    [InlineData(false, "guid-rhs")]
+    [InlineData(false, "date-rhs")]
     public async Task ExecuteUpdate_UnsupportedJsonShape_RejectsBeforeSendingSql(bool owned, string shape)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -112,9 +112,9 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             _ = shape switch
             {
                 "array" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Tags[-1], "changed")),
-                "converter" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Converted, "changed")),
-                "guid" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Identifier, Guid.Empty)),
-                "date" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.OccurredAt, DateTime.UnixEpoch)),
+                "converter-rhs" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Converted, row => row.Stamp)),
+                "guid-rhs" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.Identifier, row => row.Data.Identifier)),
+                "date-rhs" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data.OccurredAt, row => row.Data.OccurredAt)),
                 _ => throw new InvalidOperationException("Unknown test shape."),
             };
         });

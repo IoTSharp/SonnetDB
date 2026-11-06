@@ -141,7 +141,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         Assert.Empty(capture.Commands);
     }
 
-    /// <summary>原始标量集合没有本批所需的元素翻译入口，发送命令前明确拒绝。</summary>
+    /// <summary>固定 primitive 元素目标与元素右值保持原行、参数和真实协议合同。</summary>
     [Theory]
     [InlineData("embedded", true)]
     [InlineData("embedded", false)]
@@ -149,7 +149,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     [InlineData("rest", false)]
     [InlineData("h2c", true)]
     [InlineData("h2c", false)]
-    public async Task ExecuteUpdate_PrimitiveCollectionElement_RejectsBeforeSendingSql(string profile, bool owned)
+    public async Task ExecuteUpdate_PrimitiveCollectionElement_UpdatesFromOriginalRow(string profile, bool owned)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var token = timeout.Token;
@@ -157,10 +157,24 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await fixture.StartAsync(token);
         var capture = new JsonCommandCapture();
         await using var context = fixture.CreateContext(owned, capture);
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => context.Set<AggregateRow>()
-            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Data.Tags[0], "changed"), token));
-        Assert.Contains("could not be translated", exception.Message);
-        Assert.Empty(capture.Commands);
+        await context.Database.EnsureCreatedAsync(token);
+        var initial = InitialAggregate();
+        context.Add(new AggregateRow { Id = 1, Stamp = "initial", Data = initial });
+        Assert.Equal(1, await context.SaveChangesAsync(token));
+        var before = capture.Commands.Count;
+        Assert.Equal(1, await context.Set<AggregateRow>().ExecuteUpdateAsync(setters => setters
+            .SetProperty(row => row.Data.Tags[0], "changed")
+            .SetProperty(row => row.Data.Optional, row => row.Data.Tags[0]), token));
+        var command = Assert.Single(capture.Commands.Skip(before));
+        Assert.Contains(command.Parameters, parameter => Equals(parameter.Value, "changed"));
+        using var raw = JsonDocument.Parse((await ReadRawAsync(context, 1, token))!);
+        Assert.Equal("changed", raw.RootElement.GetProperty("Tags")[0].GetString());
+        Assert.Equal(initial.Tags[0], raw.RootElement.GetProperty("Optional").GetString());
+        var after = capture.Commands.Count;
+        await Assert.ThrowsAsync<NotSupportedException>(() => context.Set<AggregateRow>().ExecuteUpdateAsync(setters => setters
+            .SetProperty(row => row.Data.Optional, row => row.Data.Tags[-1]), token));
+        Assert.Equal(after, capture.Commands.Count);
+        fixture.AssertTransport();
     }
 
     /// <summary>第二行数组缺失或父级类型错误时，第一行及普通列也必须整条回滚。</summary>
@@ -201,9 +215,9 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     [InlineData("captured")]
     [InlineData("row-index")]
     [InlineData("negative")]
-    [InlineData("converter")]
-    [InlineData("guid")]
-    [InlineData("indexed-value")]
+    [InlineData("converter-rhs")]
+    [InlineData("guid-rhs")]
+    [InlineData("indexed-value-dynamic")]
     [InlineData("element-at-dynamic")]
     public async Task ExecuteUpdate_UnsupportedCollectionShape_RejectsBeforeSendingSql(string shape)
     {
@@ -221,9 +235,9 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 "captured" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[index].Name, "changed")),
                 "row-index" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[(int)row.Id].Name, "changed")),
                 "negative" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[-1].Name, "changed")),
-                "converter" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[0].Converted, "changed")),
-                "guid" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[0].Token, Guid.Empty)),
-                "indexed-value" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Title, row => row.Data!.Items[0].Name)),
+                "converter-rhs" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[0].Converted, row => row.Stamp)),
+                "guid-rhs" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items[0].Token, row => row.Data!.Items[0].Token)),
+                "indexed-value-dynamic" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Title, row => row.Data!.Items[index].Name)),
                 "element-at-dynamic" => rows.ExecuteUpdate(setters => setters.SetProperty(row => row.Data!.Items.ElementAt(index).Name, "changed")),
                 _ => throw new InvalidOperationException("Unknown test shape."),
             };
