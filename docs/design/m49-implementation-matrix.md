@@ -9,6 +9,8 @@
 
 ## 九模型操作与当前 Frame 缺口
 
+2026-11-06 / GH-Issue #397：M49-C03 新增 .NET typed KV Get/Put/单页 Scan 切片，复用既有 Frame v1 字节合同和独立 Protocol codec；Client 不依赖 Core。原始二进制、Int64 版本、UTC ticks 过期时间、单页条数/编码预算、取消及未知写入无重试按实际测试记账。该增量不关闭九模型或各语言矩阵；原子 KV 操作、资源/schema 生命周期、TLS/ALPN、其它平台与公开包仍是后续范围。当前测试及真实 HTTP/2 产品 Server 证据见[本片审计](../audits/issue397-typed-kv-20261106.md)。
+
 以下为源码核对，不是运行验收。已有 operation 编号不复用为不同含义。
 
 | 模型 | 基线 Frame | 当前待补齐的数据访问 |
