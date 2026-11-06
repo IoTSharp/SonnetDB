@@ -406,6 +406,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 {
                     items.HasJsonPropertyName(CollectionName);
                     items.Property(item => item.Name).HasJsonPropertyName(ItemName);
+                    items.Property(item => item.NumericKey).HasJsonPropertyName("0");
                     items.Property(item => item.Converted).HasConversion(value => value.ToUpperInvariant(), value => value.ToLowerInvariant());
                     items.OwnsMany(item => item.Parts);
                 });
@@ -430,6 +431,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     private sealed class CollectionItem
     {
         public string Name { get; set; } = string.Empty;
+        public string NumericKey { get; set; } = string.Empty;
         public string? Optional { get; set; }
         public string Converted { get; set; } = string.Empty;
         public Guid Token { get; set; }

@@ -1,3 +1,11 @@
+## 2026-11-06 Issue #395 固定 OwnsMany 元素 ExecuteUpdate
+
+- 专属分支 codex/issue395-json-update-20261106 基于 main 2a2f77c7，未触碰 canonical 外来文档/发布 dirty。仅放行表达式中的非负 Int32 常量下标与 EF 直接 JSON 标量目标，复用参数路径、同列 setter 顺序与原行右值；根/嵌套数组索引器及适用 ElementAt 实际通过，数字属性键 0 按属性处理。
+- 新增28项；修复前真实三协议3/3拒绝，最终 ExecuteUpdate 定向50/50、完整EF388/388均0失败/跳过。覆盖参数/中文、未知成员与数值原文、事务/Token/回滚/重开，以及缺失元素/错误父级跨两行整条拒绝。原360项EF保留，失败与通过TRX在 artifacts/issue395-20261106/，详细范围见 docs/audits/issue-395-collection-update-20261106.md。
+- 动态/负数下标、条件元素目标、primitive集合、集合元素右值、Guid/转换器等继续写前拒绝。#395仍须对象/数组子树、其余类型及新公开包/真实应用，不由本片关闭；没有发包、移动正式tag、合并main或部署。
+- 最终代码完整restore/规定Format均退出0（7.2秒/191.0秒，workspace加载警告保留）；提交/推送/PR身份与远端CI以最终PR及执行回执为准，不将本机测试当公开包或生产验收。两个固定子模块使用本worktree独占gitdir，未改指针；native有界任务最终cleanup_complete=true、active_processes_after_cleanup=0，进程全机查询partial不作全机无残留断言。
+- 下一步：按PR复核和精确head CI收口；继续 #395 其余单一工作包及公开包/应用验收后再关闭母单。历史HANDOFF含无效UTF8，本节按字节前置并核对原后缀SHA，未清洗历史内容。
+
 ## 2026-11-05 Issue #402 来源与外部结果对账基础收口
 
 - source-policy13项和reconciliation69项在worker及整合树均通过；接入既有CI离线合同。覆盖真实ZIP/nupkg、签名差异/有效payload、同版本换DLL/commit、写前tag移动、未知写入不重试、404/auth/network、run/attempt/job/ID/digest/files集合与政策漂移。没有启用恢复workflow、修改既有recover-tagged-release或任何外部发布写入。
