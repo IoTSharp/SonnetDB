@@ -816,6 +816,35 @@ public sealed class TableStoreMaintenanceTests : IDisposable
             [("id", TableColumnType.Int64, false), ("name", TableColumnType.String, false)],
             ["id"]);
 
+    /// <summary>关系表行和索引可在当前预算不足时等待检查点，重开后保持一致。</summary>
+    [Fact]
+    public void Insert_CurrentCheckpointPressure_PreservesRowsAndIndexesAfterReopen()
+    {
+        string path = Path.Combine(_root, "relational-checkpoint-pressure");
+        var schema = IndexedSchema("relational_checkpoint_pressure");
+        var options = KvOptions.Default with
+        {
+            MaxWalBytes = long.MaxValue,
+            MaxOverlayEntries = 3,
+            SyncWalOnEveryWrite = false,
+            ExpirerEnabled = false,
+            CheckpointWriteBackpressureTimeout = TimeSpan.FromSeconds(5),
+        };
+        using (var store = new TableStore(schema, KvKeyspace.Open("relational-pressure", path, options)))
+        {
+            store.Insert([1L, "north"]);
+            store.Insert([2L, "south"]);
+            Assert.Equal(2, store.RowCount);
+            Assert.Single(store.GetByIndex(schema.Indexes[0], ["north"]));
+            Assert.Single(store.GetByIndex(schema.Indexes[0], ["south"]));
+        }
+
+        using var recovered = new TableStore(schema, KvKeyspace.Open("relational-pressure", path, options));
+        Assert.Equal(2, recovered.RowCount);
+        Assert.Single(recovered.GetByIndex(schema.Indexes[0], ["north"]));
+        Assert.Single(recovered.GetByIndex(schema.Indexes[0], ["south"]));
+    }
+
     private static TableSchema BlobSchema(string name)
         => TableSchema.Create(
             name,

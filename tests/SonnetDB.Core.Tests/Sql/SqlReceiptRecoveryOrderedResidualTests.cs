@@ -137,6 +137,7 @@ public sealed class SqlReceiptRecoveryOrderedResidualTests : IDisposable
     [InlineData("SELECT Guid FROM receipts WHERE State = 'pending' AND NextAttemptAt IN (0, 1) ORDER BY UpdatedAt LIMIT 1")]
     [InlineData("SELECT Guid FROM receipts WHERE State = 'pending' AND EXISTS (SELECT Guid FROM receipts_baseline) ORDER BY UpdatedAt LIMIT 1")]
     [InlineData("SELECT Guid FROM receipts WHERE State = 'pending' AND (LeaseUntil IS NULL OR ABS(1) = 1) ORDER BY UpdatedAt LIMIT 1")]
+    [InlineData("SELECT Guid FROM receipts WHERE State = 'pending' AND (LeaseUntil IS NULL OR CAST(NextAttemptAt AS DATETIME) <= 10000) ORDER BY UpdatedAt LIMIT 1")]
     [InlineData("SELECT DISTINCT Guid FROM receipts WHERE State = 'pending' AND (LeaseUntil IS NULL OR LeaseUntil <= 10000) ORDER BY UpdatedAt LIMIT 1")]
     [InlineData("SELECT Guid FROM receipts WHERE State = 'pending' AND (LeaseUntil IS NULL OR LeaseUntil <= 10000) ORDER BY UpdatedAt ASC, Guid DESC LIMIT 1")]
     public void RecoveryQuery_UnsupportedResidualShape_DoesNotChooseOrderedPlan(string query)
@@ -177,6 +178,53 @@ public sealed class SqlReceiptRecoveryOrderedResidualTests : IDisposable
         SqlExecutor.Execute(db, "CREATE INDEX ix_receipts_state_next ON receipts (State, NextAttemptAt)");
         SqlExecutor.Execute(db, "CREATE INDEX ix_receipts_state_updated ON receipts (State, UpdatedAt)");
         return db;
+    }
+
+    /// <summary>中心 FIFO 的显式毫秒时间常量不应阻止有序索引残余过滤，也不能提前截断未就绪记录。</summary>
+    [Theory]
+    [InlineData(false, 0, false)]
+    [InlineData(false, 5, false)]
+    [InlineData(true, 5, false)]
+    [InlineData(false, 0, true)]
+    [InlineData(false, 5, true)]
+    [InlineData(true, 5, true)]
+    public void CenterFifo_ExplicitDateCastsAfterRejectedPrefix_PreservesResultsAndStopsEarly(bool descending, int offset, bool competingIndex)
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        const string columns = "(Id STRING NOT NULL, Site STRING NOT NULL, Destination STRING NOT NULL, State STRING NOT NULL, CreatedAt DATETIME NOT NULL, Blocked BOOL NOT NULL, NextRetryAt DATETIME NULL, BusinessId STRING NOT NULL, PRIMARY KEY (Id))";
+        SqlExecutor.Execute(db, "CREATE TABLE deliveries " + columns);
+        SqlExecutor.Execute(db, "CREATE TABLE deliveries_baseline " + columns);
+        // 保留现场先建立的竞争索引，其业务身份后缀与 SQL 的主键排序不同。
+        if (competingIndex)
+            SqlExecutor.Execute(db, "CREATE INDEX ix_delivery_business ON deliveries (Destination, Blocked, State, CreatedAt, BusinessId)");
+        SqlExecutor.Execute(db, "CREATE INDEX ix_delivery_fifo ON deliveries (Site, Destination, State, CreatedAt)");
+        var rows = new IReadOnlyList<object?>[600];
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        for (int index = 0; index < rows.Length && index < 600; index++)
+        {
+            cancellation.Token.ThrowIfCancellationRequested();
+            long timestamp = descending ? (rows.Length - index) / 2 + 1 : index / 2 + 1;
+            rows[index] = [$"delivery-{index:D4}", "site-a", "flow", "queued",
+                DateTimeOffset.UnixEpoch.AddMilliseconds(timestamp), index < 200,
+                index is >= 200 and < 400 ? DateTimeOffset.UnixEpoch.AddMilliseconds(20_000) : null,
+                $"business-{600 - index:D4}"];
+        }
+        db.Tables.Open("deliveries").InsertMany(rows);
+        db.Tables.Open("deliveries_baseline").InsertMany(rows);
+        string suffix = " WHERE Site='site-a' AND Destination='flow' AND State='queued'"
+            + " AND CreatedAt>=CAST('1970-01-01T00:00:00Z' AS DATETIME) AND NOT Blocked"
+            + " AND (NextRetryAt IS NULL OR NextRetryAt<=CAST('1970-01-01T00:00:10Z' AS DATETIME))"
+            + $" ORDER BY CreatedAt {(descending ? "DESC" : "ASC")},Id {(descending ? "DESC" : "ASC")} LIMIT 20 OFFSET {offset}";
+
+        var (actual, metrics) = ExecuteWithMetrics(db, "SELECT Id,CreatedAt FROM deliveries" + suffix);
+        var (baseline, baselineMetrics) = ExecuteWithMetrics(db, "SELECT Id,CreatedAt FROM deliveries_baseline" + suffix);
+
+        Assert.Equal(baseline.Rows.Select(static row => row[0]).ToArray(), actual.Rows.Select(static row => row[0]).ToArray());
+        Assert.Equal(20, actual.Rows.Count);
+        Assert.Equal("secondary_index_range", metrics.AccessPath);
+        Assert.Equal(competingIndex ? "ix_delivery_business" : "ix_delivery_fifo", metrics.IndexName);
+        Assert.InRange(metrics.ExaminedRows, (competingIndex ? 220 : 420) + offset, (competingIndex ? 224 : 424) + offset);
+        Assert.Equal(600, baselineMetrics.ExaminedRows);
     }
 
     /// <summary>生成有界数据集，覆盖未来租约、未来重试及两字段的 NULL/到期组合。</summary>

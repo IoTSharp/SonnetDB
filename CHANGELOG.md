@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- 对象存储及SDK新增认证只读容量接口，返回正文所在文件系统容量；目录不可用明确失败，查询不扫描对象或桶元数据。
 - GH-Issue #395：JSON `ExecuteUpdate` 补齐对象/数组/整根和固定 OwnsMany 元素子树、模型编码的 Guid/日期/decimal/二进制/enum/converter 常量，以及固定 primitive 元素目标与集合标量右值；目标/RHS路径和值参数化，同列按声明顺序、右值用更新前行，保留写前拒绝与单条 SQL 原子性。新增独立 PackageReference 产品补货应用，源码/候选/公开包验收分别记录。
 - GH-Issue #397 / M49-C03：独立 .NET Client 新增原生 HTTP/2 Frame 的 KV Get/Put/单页 Scan typed API；共享 Protocol codec 保持现有字节合同，值/键独立拥有、Int64 版本和 UTC ticks 过期时间无损，请求编码前预算与单页条数约束沿用完整响应、取消和未知写入不重试边界。其它模型/语言、TLS及公开包另行验收。
 - 固定 SonnetDB V5 讲解人物基准、脸部参考与 GPT Image 2.5 生成模板；智能体与配图规则要求实际传入参考图并核对哈希，保持甜美成年角色、米白/薄荷粉格纹、高跟鞋、近肤色轻透丝袜及清楚的前景/背景分离；历史资产不自动替换。
@@ -18,6 +19,9 @@
 - GH-Issue #230：补充固定5.0.0的十二类门禁及公开消费者审计；保留旧NuGet过期403证据，修复凭据后完成十包、52个Release资产和DockerHub公开回读，分别记录FreeSql237、XCode50、Chloe三协议各101、SqlSugar各93、ABP22及真实Testcontainers结果。上游Provider公开分发与本次SonnetDB交付分别验收。
 
 ### Fixed
+- PR #413 审查修复：关系批次在每次 WAL admission 前核对共同期限，防止超时重新取得锁后迟到提交；对象容量只读入口不再构造门面、创建目录或打开元数据，Windows 按完整正文目录查询实际挂载卷。新增超时、嵌入式/HTTP 目录丢失和目录链接回归，不改格式。
+- 关系表原子批次在当前检查点余量不足、但批次能装入空白预算时，在 WAL 追加前有界等待并支持取消；行与索引仍整批原子发布，不拆分事务、不放宽预算，WAL 开始提交后的 I/O 故障不重试。直接 KV 批次的原超限拒绝合同保留。
+- 有序残余查询接受显式常量 CAST，并按范围值完整分组后使用 SQL 请求列排序，修复中心 FIFO 在物理 BusinessId 后缀与请求 Id 后缀不同时退回前缀扫描的问题。保留残余条件先于分页、并列组完整性、别名绑定、混合方向/表达式及事务 overlay 的回退；代表性数据与全扫逐行对拍，现场收益待独立发布验证。
 - GH-Issue #395：JSON 路径重写对目标外字符串有界复制原始 token，保留日期 offset 的 `+`、Unicode/转义拼写和 surrogate 分块边界；保持已有数字原文、输入/输出/节点/时间/取消及编码 scratch 预算，不改变数据或协议格式。
 - GH-Issue #392：后续关系 DDL 前把缓冲 DML 应用到同一私有 workspace，修复真实 EF Down 的 schema 绑定冲突；prepared 启动恢复只修磁盘、避免重复装载 catalog，并保留 undo 至 journal 删除后以支持恢复中再次强杀。增加 undo owner 写前校验、真实 EF 多阶段强杀与独立包引用库存应用的迁移/回退验收；公开新版本仍须单独验证。
 - GH-Issue #395：EF JSON `ExecuteUpdate` 支持根/嵌套 OwnsMany 固定非负常量元素的直接标量目标，复用参数化路径、同列 setter 顺序与旧行右值；缺失元素或错误父级使跨行更新整条拒绝。动态下标、条件元素目标、原始标量集合、集合右值与未支持类型继续写前拒绝，公开新包/应用验收仍待完成。

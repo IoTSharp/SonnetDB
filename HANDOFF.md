@@ -1,3 +1,41 @@
+## 2026-11-07（Asia/Shanghai）PR #413 审查与分支/Issue 整合
+
+- 用户明确授权审查并合并#413、整合/清理本地和两端开发分支、回复issue及关闭实际完成项、更新路线；本轮没有发包、移动正式tag、部署或重启生产。隔离树为 C:/Users/mysti/.codex/worktrees/pr413-merge-review-20261106，整合 origin/main@6305a1bf 与原PR head70cd2975，最终精确提交/PR/CI/refs以本批交付收据为准。
+- #413值得合入，但先修三项成立的review：每次WAL admission前核共同期限、Windows用完整正文目录查询实际卷、HTTP/embedded SDK容量读取不构造门面/创建目录/打开元数据。新静态入口为扩展API，沿用Safe-only简单P/Invoke、源生成JSON，不改格式或引入依赖；FIFO残余过滤/并列组/别名及直接KV原合同保留。
+- 原定向Core175/175，新缺陷回归修前2/2 FAIL，修后扩大Core178/178 PASS（含本机C:→D: junction容量）、真实HTTP对象/取消14/14、完整EF438/438 PASS，全部最终0失败/跳过。首次restore缺子模块FAIL，初始化固定gitlink后PASS；HTTP新用例首次字段名夹具失败13/14，按既有error合同修后14/14，原失败不覆盖。最终待提交树仍须完整restore与规定Format退出0后才提交；远端精确head CI独立核验，不以历史候选替代。
+- 根ROADMAP新增六组执行顺序，逐项矩阵在docs/audits/pr413-integration-20261107.md。当前12开放母issue均仍有公开包、上游或实机验收，继续OPEN；#367/#393/#400/#407保持已关闭。本轮逐项公开回复在最终读回收据记录，不重复关闭已经完成项。#392/#395正式发行沿用延期决定，新最终source重新冻结/验收，不外推0d687bd9候选。
+- 清理前保存refs/worktree/dirty状态并verify Git bundle；删除仅限已纳入main的开发ref，预期SHA防护。既有dirty工作树和证据文件保留，parity-results本地/远端独立保护；canonical共享dirty不混入本PR。最终同步、删除清单及清理例外由完成收据逐项记录。
+- 本机原始日志/TRX、脚本、refs快照和写入读回归档artifacts/pr413-integration-20261107；重负载经FileShare.None锁、CPU2/单MSBuild节点/禁持久服务，Cordonix各调用核所属树回收。任务创建的独立工作树、两个固定子模块及检查输出留作本次审查证据，后续只清理确认无用且归属本轮的资源。历史HANDOFF以下字节原样保留。
+
+## 2026-11-06 对象正文卷容量只读接口
+
+新增SndbObjectStore.GetStorageCapacity、对象SDK GetStorageCapacityAsync及认证GET /v1/db/{db}/s3?capacity，返回对象正文目录实际所在文件系统的总字节、可用字节和观测时间。缺失目录或容量无效明确失败，不使用客户端/业务容器系统盘替代，不枚举桶、对象或KV元数据。Core和Server/Data的JSON上下文同步源生成注册，没有引入运行时依赖或改动磁盘格式。
+
+Core对象与SDK相关42项、真实HTTP对象端点10项通过，零失败/跳过/警告。含空存储、目录缺失禁止回退、远程路径和序列化、匿名访问拒绝；本机测试不证明现场跨挂载容量，现场8TB对象卷核验和镜像交付回执统一见父仓docs/vehicle-image-retention-policy.md及后续部署记录。此前全桶生命周期OOM约束继续有效，图片策略不得借容量查询恢复全桶扫描。提交前仍执行完整解决方案restore和CI等同Format，不把局部测试扩写为全仓验收。
+
+## 2026-11-06 木垒运行优化已提交、推送及部署
+
+用户已明确授权全部提交推送及部署。代码提交7fbd6e1b81e9f337e284d25de9a989743832469a已推送codex/mulei-runtime-sql-20261106并核准本地/跟踪/远端一致，219项Core及18项业务回归通过。完整解决方案restore与CI同等Format通过；工作区加载警告原样保留。父仓业务674a2d2和后继只更新RoadTolnsd gitlink的4873a33均已推送。
+
+现场数据库/业务/发送器已换为mulei-arm64-20261106-runtime-sql-r1。数据库摘要4219011e...，业务摘要7c858ba7...；三处Core同为b9c3735d1dfb9c1cf09bdeda13358169283ae207eb8540938e281a53a8ff9c08。10:24:55数据库启动、10:29:56全部64表预热及Frame就绪、10:32:23业务live可用，随后四主要容器healthy/restart0/OOM=false。配置、Compose、资源额度与Tomur保持原指纹。
+
+首个停库快照因错误跨文件系统而失败，核准停库状态后改同盘成功；原失败保留，未盲重放。有效快照/var/data/tolnsd-storage/backups/runtime-perf-20261106/database，不含独立对象正文卷。维护约10分钟，不声称零丢失。临时凭据、隔离容器及失败不完整目录均已回收，两个发布unit inactive/dead。
+
+实机过期处理两批共696条、对应批次失败0；治理清理16批，日志和接入事件各16000条。15相机会话、MQ、新流水继续推进，中心有新成功回执。当前FIFO真实执行为secondary_index_range，检查8809条返回48条、约7.2秒，仍有长尾，不能宣布高效或积压清空；中心仍batch_timeout，统计刷新取消、历史缺图及完整长稳待验。启动后取消回滚和修订主键冲突仍明确保留。
+
+完整源码/现场/失败边界见docs/audits/mulei-runtime-sql-20261106.md及父仓docs/mulei-runtime-deployment-20261106.md；回执在父仓.runs/runtime-perf-release-20261106。当前后续提交仅补交付文档，不改已部署源代码；保持parity-results和共享D:/source/SonnetDB外来dirty。原HANDOFF全部历史字节保留。
+
+
+## 2026-11-06 木垒运行证据驱动的关系提交与有序查询修复（源码候选）
+
+- 用户授权根据现场问题直接修改业务、EF与数据库，保持能力和真实验收。在TOLNSD父仓当前子模块D:/Uixe/TOLNSD/externals/SonnetDB的24ff94e4基线上修改，未切换或重置分支，没有改动共享D:/source/SonnetDB外来dirty。
+- 关系表整批行/索引提交新增WAL追加前的有界检查点等待：仍整批原子提交，保留空白预算拒绝、取消、超时、真实I/O错误与未知提交不重试。直接KV原超限合同不改。残余查询接受常量CAST，复用范围值完整分组按SQL请求/别名列排序，修复BusinessId物理后缀与Id请求后缀不同时的FIFO回退；不固定截断候选，不减少结果，不新增索引或改格式。
+- 最终Core四组及事务/原生日期组合219项通过、零失败/跳过；父仓完整抓拍回填/治理清理18项通过，零失败/跳过。修复前过期、常量CAST和竞争索引失败保留；初始旧assets缺Protocol引用经正常restore修复，不靠删测或压制错误。数据库构建零警告/错误，业务既有81警告保留日志。
+- 报告在父仓docs/mulei-runtime-fixes-20261106.md；TRX在父仓output/runtime-fixes-20261106，完整现场计划output/runtime-fixes-20261106-plans-complete.txt。现场约197万行是过期统计估计，不冒称实扫；未发布所以不能宣称现场延迟/CPU改善、中心积压已消失。
+- 没有Git提交/推送、NuGet或镜像发布、生产部署/重启、DDL/DML、队列重放或群消息。当前子模块保持原HEAD且有本任务未提交变更，父仓gitlink不变。后续先审查源码与证据，再按单独授权发布并核准同SQL实际扫描、长尾、CPU/GC及自然上传确认；统计取消、media_missing、历史缺车头和完整长期验收继续保留。
+- 下方既有HANDOFF原字节完整保留，前置前SHA256=6fafc40fe0228a386a6efec79adad23336da9e08cbdf456c08b3d60ef208f384，含原有损坏UTF8，未清洗。
+
+
 ## 2026-11-06 Issue #395 源码门禁通过与独立 PR 提交
 
 - 分支 `codex/issue395-complete-20261106` 基于 `bee8b35ce9937125ec5e6681abf46f6cba68432a`，本节随本项源提交；准确提交/PR身份以Git及交付回执为准。canonical外来dirty未改，parity-results保留。
