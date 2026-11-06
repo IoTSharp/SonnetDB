@@ -32,4 +32,10 @@ public enum BlockEncoding : byte
     /// 该 Block 不可同时启用 <see cref="DeltaValue"/>。
     /// </summary>
     GeoPointRaw = 8,
+
+    /// <summary>
+    /// Int64 值列使用游程编码（v7）：每段为 8 字节小端原值和 UInt32 varint 正长度。
+    /// 仅在比原始载荷更小时使用，不可与其它值编码标志组合；旧 DeltaValue Int64 仍为 raw。
+    /// </summary>
+    Int64Rle = 16,
 }

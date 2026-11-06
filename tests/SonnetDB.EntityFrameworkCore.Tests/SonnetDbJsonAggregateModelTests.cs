@@ -279,31 +279,15 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExecuteUpdate_JsonPath_RejectsBeforeOpeningDatabase(bool owned)
+    public void ExecuteUpdate_JsonScalarPath_TranslatesBeforeOpeningDatabase(bool owned)
     {
         var blocker = new ConnectionBlocker();
         using var context = CreateContext(owned, blocker);
 
-        var exception = Assert.ThrowsAny<Exception>(() => context.Set<Passkey>().ExecuteUpdate(setters =>
+        var exception = Assert.Throws<InvalidOperationException>(() => context.Set<Passkey>().ExecuteUpdate(setters =>
             setters.SetProperty(passkey => passkey.Data.DisplayName, "changed")));
-        if (exception is NotSupportedException)
-        {
-            Assert.Contains("This JSON operation is not supported", exception.Message);
-        }
-        else
-        {
-            Assert.IsType<InvalidOperationException>(exception);
-            if (owned)
-            {
-                Assert.Contains("could not be translated", exception.Message);
-            }
-            else
-            {
-                Assert.Equal(RelationalStrings.JsonPartialExecuteUpdateNotSupportedByProvider, exception.Message);
-            }
-        }
-
-        Assert.Equal(0, blocker.OpenAttempts);
+        Assert.Equal("The JSON model-only test must not open a database connection.", exception.Message);
+        Assert.Equal(1, blocker.OpenAttempts);
     }
 
     private static void AssertJsonContainer(IModel model)
@@ -572,7 +556,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
 
         private void Capture(DbCommand command)
         {
-            if (Commands.Count >= 128 || command.Parameters.Count > 16)
+            if (Commands.Count >= 128 || command.Parameters.Count > 256)
                 throw new InvalidOperationException("JSON fixture command/parameter budget exceeded.");
             Commands.Add(new CapturedCommand(command.CommandText, command.Parameters.Cast<DbParameter>()
                 .Select(parameter => new CapturedParameter(parameter.ParameterName, parameter.DbType, parameter.Value)).ToArray()));
@@ -638,6 +622,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             builder.Entity<AggregateRow>().ToTable("AggregateRows");
             builder.Entity<AggregateRow>().Property(row => row.Id).ValueGeneratedNever();
             builder.Entity<AggregateRow>().Property(row => row.Stamp).IsConcurrencyToken();
+            builder.Entity<AggregateRow>().Property(row => row.RowVersion).IsConcurrencyToken().HasDefaultValue(0L).ValueGeneratedNever();
             builder.Entity<AggregateRow>().ComplexProperty(row => row.Data, data =>
             {
                 data.ToJson();
@@ -645,6 +630,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 data.ComplexProperty(item => item.Child).Property(item => item.Label).HasJsonPropertyName(ChildLabelJson);
                 data.Property(item => item.Tags);
                 data.Property(item => item.Converted).HasConversion(value => value.ToUpperInvariant(), value => value.ToLowerInvariant());
+                data.Property(item => item.State).HasConversion<string>();
             });
         }
     }
@@ -657,6 +643,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             builder.Entity<AggregateRow>().ToTable("AggregateRows");
             builder.Entity<AggregateRow>().Property(row => row.Id).ValueGeneratedNever();
             builder.Entity<AggregateRow>().Property(row => row.Stamp).IsConcurrencyToken();
+            builder.Entity<AggregateRow>().Property(row => row.RowVersion).IsConcurrencyToken().HasDefaultValue(0L).ValueGeneratedNever();
             builder.Entity<AggregateRow>().OwnsOne(row => row.Data, data =>
             {
                 data.ToJson("Data");
@@ -664,6 +651,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 data.OwnsOne(item => item.Child, child => child.Property(item => item.Label).HasJsonPropertyName(ChildLabelJson));
                 data.Property(item => item.Tags);
                 data.Property(item => item.Converted).HasConversion(value => value.ToUpperInvariant(), value => value.ToLowerInvariant());
+                data.Property(item => item.State).HasConversion<string>();
             });
             builder.Entity<AggregateRow>().Navigation(row => row.Data).IsRequired(false);
         }
@@ -673,6 +661,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
     {
         public long Id { get; set; }
         public string Stamp { get; set; } = string.Empty;
+        public long RowVersion { get; set; }
         public AggregateData Data { get; set; } = null!;
     }
 
@@ -694,7 +683,16 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         public DateTime OccurredAt { get; set; }
         public byte[] Bytes { get; set; } = [];
         public string Converted { get; set; } = string.Empty;
+        public Guid? MaybeIdentifier { get; set; }
+        public DateTimeOffset Offset { get; set; }
+        public DateOnly Day { get; set; }
+        public TimeOnly Time { get; set; }
+        public TimeSpan Duration { get; set; }
+        public decimal Amount { get; set; }
+        public AggregateState State { get; set; }
     }
+
+    private enum AggregateState { Pending, Ready }
 
     private sealed class AggregateChild
     {
@@ -702,7 +700,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         public int Counter { get; set; }
     }
 
-    private sealed class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable
+    private sealed partial class JsonFixture(string profile, ITestOutputHelper output) : IAsyncDisposable
     {
         private readonly string _owner = Guid.NewGuid().ToString("N");
         private readonly string _root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "sndb-ef-json-crud-" + Guid.NewGuid().ToString("N")));

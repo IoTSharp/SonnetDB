@@ -315,6 +315,28 @@ public sealed class KvAtomicBatchTests : IDisposable
         }
     }
 
+    /// <summary>等待重新获得锁时已过期限，即使检查点释放了预算也不得提交。</summary>
+    [Fact]
+    public void RelationalBatch_DeadlineExpiresBeforeReadmission_DoesNotAppend()
+    {
+        using var keyspace = KvKeyspace.Open("relational-late-admission", _root,
+            OverlayBudgetOptions(2) with { CheckpointWriteBackpressureTimeout = TimeSpan.FromMilliseconds(100) });
+        keyspace.Put("existing", [1]);
+        long before = keyspace.LastSequence;
+        keyspace.WriteBackpressureTestHook = () => Thread.Sleep(300);
+
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatchWithCheckpointBackpressure(
+        [
+            KvBatchMutation.Put("row"u8.ToArray(), [2]),
+            KvBatchMutation.Put("index"u8.ToArray(), [3]),
+        ]));
+
+        Assert.IsType<TimeoutException>(error.InnerException);
+        Assert.Equal(before, keyspace.LastSequence);
+        Assert.Null(keyspace.Get("row"));
+        Assert.Null(keyspace.Get("index"));
+    }
+
     [Fact]
     public void ApplyBatch_WalBudget_CurrentWalCanBeCheckpointedAndRetried()
     {

@@ -77,6 +77,8 @@ jobs:
           ./eng/test-release-network-defaults.ps1
           ./eng/test-release-readiness.ps1
           ./eng/test-nuget-candidate-promotion.ps1
+          ./eng/test-tag-publication-policy.ps1
+          ./eng/test-tag-publication-reconciliation.ps1
           ./eng/test-ci-test-shards.ps1
           ./eng/test-m43-release-evidence.ps1
 
@@ -101,6 +103,14 @@ jobs:
         # 单项无进展时生成 mini dump 并失败退出；步骤上限为诊断产物上传预留时间。
         timeout-minutes: 50
         run: dotnet test "${{ steps.tests.outputs.solution }}" --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
+
+      - name: Verify EF migration process recovery
+        if: matrix.shard != 'core'
+        timeout-minutes: 10
+        env:
+          DOTNET_PROCESSOR_COUNT: 2
+          SONNETDB_EF_CRASH_EVIDENCE: ${{ github.workspace }}/TestResults/ef-migration-children
+        run: dotnet test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --configuration Release -m:1 --filter FullyQualifiedName~EfMigration --logger "trx;LogFileName=ef-migration-crash.trx" --results-directory ./TestResults --blame-hang-timeout 2m
 
       - name: Upload test results and diagnostics
         if: always()

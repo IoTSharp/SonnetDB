@@ -59,6 +59,7 @@ internal sealed partial class CliApplication
                 "remote" => RunRemote(args),
                 "connect" => RunConnect(args),
                 "backup" => RunBackup(args),
+                "mq" => RunMqSnapshot(args),
                 "cp" => RunObjectCopy(args),
                 "sync" => RunObjectSync(args),
                 "document" => new DocumentImportCommandRunner(_output, _error, _profileStore).Run(args),
@@ -1039,6 +1040,9 @@ SonnetDB CLI __VERSION__
   sndb backup  dry-run --path ./backup --target ./restored [--overwrite] [--no-verify]
   sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes]
   sndb backup  rebuild-indexes --path ./restored
+  sndb mq      snapshot --server-root <绝对Server-DataRoot> --output <新快照目录> --offline
+  sndb mq      inspect --snapshot <绝对快照目录>
+  sndb mq      restore --snapshot <绝对快照目录> --server-root <不存在的新Server-DataRoot> --offline
   sndb cp      --connection "<conn>" <file-path|s3://bucket/key> <file-path|s3://bucket/key> [--dry-run]
   sndb sync    --connection "<conn>" <directory|s3://bucket/prefix> <directory|s3://bucket/prefix> --dry-run
   sndb document import --input ./dump/devices.bson --collection devices --path ./data [--dry-run] [--report ./migration-report.json]

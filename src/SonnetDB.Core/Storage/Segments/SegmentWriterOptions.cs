@@ -29,9 +29,9 @@ public sealed record SegmentWriterOptions
     /// <list type="bullet">
     ///   <item><description><c>None</c>：原始 8B/1B/UTF-8 直存（V1 默认）。</description></item>
     ///   <item><description><c>DeltaValue</c>：Float64 走简化版 Gorilla XOR；Boolean 走 RLE；
-    ///       String 走字典编码；Int64 仍按 8B LE 直存（PR #30 暂不压缩）。</description></item>
+    ///       String 走字典编码；Int64 在游程载荷更小时采用独立 v7 Int64Rle 标志，否则仍按 8B LE 直存。</description></item>
     /// </list>
-    /// 默认 <c>None</c>；显式开启时会在 <c>BlockHeader.Encoding</c> 上叠加 <c>DeltaValue</c> 标志。
+    /// 默认 <c>None</c>；显式开启时会在 <c>BlockHeader.Encoding</c> 上记录实际值编码标志。
     /// </summary>
     public Format.BlockEncoding ValueEncoding { get; init; } = Format.BlockEncoding.None;
 

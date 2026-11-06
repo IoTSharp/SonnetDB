@@ -32,6 +32,55 @@ public sealed class SndbObjectStoreTests : IDisposable
         var exception = Assert.Throws<SndbObjectStorageException>(() => store.GetStorageCapacity());
         Assert.Equal("storage_capacity_unavailable", exception.Code);
     }
+    /// <summary>正文目录链接到其它卷时，容量必须来自目标而不是数据库目录的盘符。</summary>
+    [Fact]
+    public void GetStorageCapacity_LinkedDirectory_ReportsTargetVolume()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory });
+        var store = new SndbObjectStore(db);
+        string objects = Path.Combine(_rootDirectory, "objects");
+        string targetRoot = Environment.GetEnvironmentVariable("SONNETDB_CAPACITY_TEST_ROOT") ?? Path.GetTempPath();
+        string target = Path.Combine(targetRoot, "sonnetdb-capacity-target-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(target);
+        Directory.Delete(objects);
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var start = new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "cmd.exe"))
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                foreach (string argument in new[] { "/d", "/c", "mklink", "/j", objects, target })
+                    start.ArgumentList.Add(argument);
+                using var process = System.Diagnostics.Process.Start(start)!;
+                if (!process.WaitForExit(10_000))
+                {
+                    process.Kill(entireProcessTree: true);
+                    Assert.True(process.WaitForExit(5_000));
+                    throw new TimeoutException("Creating the test junction timed out.");
+                }
+                Assert.Equal(0, process.ExitCode);
+            }
+            else
+            {
+                Directory.CreateSymbolicLink(objects, target);
+            }
+
+            var capacity = store.GetStorageCapacity();
+
+            Assert.Equal(new DriveInfo(target).TotalSize, capacity.TotalBytes);
+            Assert.Equal(capacity.TotalBytes, SndbObjectStore.GetStorageCapacity(db).TotalBytes);
+        }
+        finally
+        {
+            if (Directory.Exists(objects))
+                Directory.Delete(objects);
+            Directory.Delete(target);
+        }
+    }
+
     private readonly string _rootDirectory = Path.Combine(
         Path.GetTempPath(),
         $"SonnetDB.ObjectStorage.Tests.{Guid.NewGuid():N}");

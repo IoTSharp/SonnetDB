@@ -1,3 +1,12 @@
+## 2026-11-07（Asia/Shanghai）PR #413 审查与分支/Issue 整合
+
+- 用户明确授权审查并合并#413、整合/清理本地和两端开发分支、回复issue及关闭实际完成项、更新路线；本轮没有发包、移动正式tag、部署或重启生产。隔离树为 C:/Users/mysti/.codex/worktrees/pr413-merge-review-20261106，整合 origin/main@6305a1bf 与原PR head70cd2975，最终精确提交/PR/CI/refs以本批交付收据为准。
+- #413值得合入，但先修三项成立的review：每次WAL admission前核共同期限、Windows用完整正文目录查询实际卷、HTTP/embedded SDK容量读取不构造门面/创建目录/打开元数据。新静态入口为扩展API，沿用Safe-only简单P/Invoke、源生成JSON，不改格式或引入依赖；FIFO残余过滤/并列组/别名及直接KV原合同保留。
+- 原定向Core175/175，新缺陷回归修前2/2 FAIL，修后扩大Core178/178 PASS（含本机C:→D: junction容量）、真实HTTP对象/取消14/14、完整EF438/438 PASS，全部最终0失败/跳过。首次restore缺子模块FAIL，初始化固定gitlink后PASS；HTTP新用例首次字段名夹具失败13/14，按既有error合同修后14/14，原失败不覆盖。最终待提交树仍须完整restore与规定Format退出0后才提交；远端精确head CI独立核验，不以历史候选替代。
+- 根ROADMAP新增六组执行顺序，逐项矩阵在docs/audits/pr413-integration-20261107.md。当前12开放母issue均仍有公开包、上游或实机验收，继续OPEN；#367/#393/#400/#407保持已关闭。本轮逐项公开回复在最终读回收据记录，不重复关闭已经完成项。#392/#395正式发行沿用延期决定，新最终source重新冻结/验收，不外推0d687bd9候选。
+- 清理前保存refs/worktree/dirty状态并verify Git bundle；删除仅限已纳入main的开发ref，预期SHA防护。既有dirty工作树和证据文件保留，parity-results本地/远端独立保护；canonical共享dirty不混入本PR。最终同步、删除清单及清理例外由完成收据逐项记录。
+- 本机原始日志/TRX、脚本、refs快照和写入读回归档artifacts/pr413-integration-20261107；重负载经FileShare.None锁、CPU2/单MSBuild节点/禁持久服务，Cordonix各调用核所属树回收。任务创建的独立工作树、两个固定子模块及检查输出留作本次审查证据，后续只清理确认无用且归属本轮的资源。历史HANDOFF以下字节原样保留。
+
 ## 2026-11-06 对象正文卷容量只读接口
 
 新增SndbObjectStore.GetStorageCapacity、对象SDK GetStorageCapacityAsync及认证GET /v1/db/{db}/s3?capacity，返回对象正文目录实际所在文件系统的总字节、可用字节和观测时间。缺失目录或容量无效明确失败，不使用客户端/业务容器系统盘替代，不枚举桶、对象或KV元数据。Core和Server/Data的JSON上下文同步源生成注册，没有引入运行时依赖或改动磁盘格式。
@@ -26,6 +35,119 @@ Core对象与SDK相关42项、真实HTTP对象端点10项通过，零失败/跳�
 - 没有Git提交/推送、NuGet或镜像发布、生产部署/重启、DDL/DML、队列重放或群消息。当前子模块保持原HEAD且有本任务未提交变更，父仓gitlink不变。后续先审查源码与证据，再按单独授权发布并核准同SQL实际扫描、长尾、CPU/GC及自然上传确认；统计取消、media_missing、历史缺车头和完整长期验收继续保留。
 - 下方既有HANDOFF原字节完整保留，前置前SHA256=6fafc40fe0228a386a6efec79adad23336da9e08cbdf456c08b3d60ef208f384，含原有损坏UTF8，未清洗。
 
+
+## 2026-11-06 Issue #395 源码门禁通过与独立 PR 提交
+
+- 分支 `codex/issue395-complete-20261106` 基于 `bee8b35ce9937125ec5e6681abf46f6cba68432a`，本节随本项源提交；准确提交/PR身份以Git及交付回执为准。canonical外来dirty未改，parity-results保留。
+- 完整EF438/438、Core JSON102/102、最后NULL/负数RHS/旧Migrate短回归10/10和补充边界7/7均PASS、0失败/跳过。新增50个EF与4个Core回归。RowVersion竞争用双独立工作线程+10秒Barrier起跑，三协议均恰一条影响1、另一条0；原始失败均保留，旧清理IOException不推定唯一根因。
+- 完整solution restore已退出0，owned文件格式整理后，规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 退出0（247.9秒）。之后无实现变更，仅填写审计/交接/PR文案；各Cordonix执行均回收所属树，回执、TRX及源码/包身份位于 artifacts/issue395-complete。
+- 独立补货应用在仓库外、官方NuGet-only空cache restore/build/seed成功，5.0.0 ExecuteUpdate子树翻译真FAIL，随后独立verify-rejected PASS证明未写。四包SonnetDB/Protocol/Core/EF均来源NuGet.org、repositoryCommit84433f9e，cache/app四DLL SHA一致；这是旧包负控，不是新包正向证明。
+- #392独立PR#411准确head f39e1fedc0f172431471015601f197b8397f3a65，包含DML/DDL工作区、prepared undo恢复修复、真实9+1强杀/库存应用。两项Provider后续发行由本聊天单一协调；共同5.1.0仍未冻结，须双方PR精确CI与合入源、候选/匹配Server/依赖、两个独占空缓存应用后，再按当前明确授权处理正式发布。
+- #395继续OPEN，不能由本地源PASS关闭；新公开Provider/匹配Server/新公共cache应用及精确本PR远端CI尚NOT_RUN。未打tag、发包、改Secrets或部署。下一顺序：提交/推送本PR→精确CI→双方共同源候选及本地包业务验收→完整发行前workflow/原始Parity→核实具体正式发布授权→公共新包/Server及两个实际应用复验→满足后才回复关闭母issue。
+- 历史HANDOFF原始896596字节后缀SHA256为3d55ec7c93c7575aa9c6016e925faa60863a468780505b8998f8ad5946faa520，继续逐字节保留；原进行中记录在下方，不能以其旧状态覆盖本节最新已验事实。
+
+## 2026-11-06 Issue #395 完整补齐进行中与 Provider 候选归属
+
+- 专属工作树 `C:/Users/mysti/.codex/worktrees/issue395-complete-20261106/SonnetDB`，分支 `codex/issue395-complete-20261106`，基线与已回读 origin/main 为 `bee8b35ce9937125ec5e6681abf46f6cba68432a`。canonical 外来文档/发布 dirty 未修改，parity-results 未操作。
+- 接续 9ada35e1 与 #410，新增对象/数组/整根/固定 OwnsMany 元素子树、模型类型/converter 常量编码、固定 primitive 元素目标与集合原生标量 RHS。全部为服务器单条 SQL；目标/RHS path 与非 null 值参数化，同列按声明顺序、RHS 用更新前行；无客户端 SELECT 回写、反射 JSON 或新动态编译，无 AOT suppression。
+- 新类型矩阵含 Guid/Guid?、DateTime/DateTimeOffset offset+ticks、DateOnly/TimeOnly/TimeSpan、decimal、binary、enum/string converter；专用手写 writer 沿用 EF metadata/codecs，Provider 保留原非 NativeAOT 边界。动态/负数索引、条件元素目标、任意集合投影、非原生/converter 逐行 RHS 写前拒绝。
+- Core JSON 原文修复只在 Documents/JsonPathUpdater.cs：未修改字符串按有界 raw token 复制，保留 +、转义和 surrogate 块边界；数字、8MiB/节点/时间/SQL取消及 scratch 预算保持，无磁盘/协议格式改动。与 #392 的 SqlExecutor/TableManager/恢复文件互不重叠。
+- 已取得：ExecuteUpdate扩大90/90、Core JSON101/101、补充边界7/7均0失败/跳过。完整 EF首轮370/427（51个Offset词法、6个测试RowVersion缺初值）后修复；第二轮424/427剩OwnsMany编码器3项，已修；第三轮434/438剩新增root=null SQL常量白名单3项及旧迁移清理IOException1项。NULL形状和RHS索引守卫已写，原严格断言均保留，尚须最终438全套零失败。另补一个surrogate跨块Core回归待纳入102项复验。
+- 最新短回归 last-failures-v1 在共享锁300次/10分钟上限退出，未启动dotnet、未产生TRX，不能计作测试失败/通过。只读确认持锁者是#230 Core全套；#392已协调下一slot先验其包应用，#404无持锁/后续排队。本聊天不终止别人的进程。所有实际执行的Cordonix回执均已清树；原失败/TRX/native进程身份留 artifacts/issue395-complete。
+- 独立业务包应用在 eng/probes/issue395-json-app，仅PackageReference，产品补货策略/标签/供应商/显式RowVersion，分进程seed/update/verify，另verify-rejected验旧包未写。源码已准备，但应用构建/包消费尚未运行；独占NuGet.org-only旧5.0负控目录已准备，不能算新包证明。
+- 本聊天是 #392/#395 后续 Provider 候选/发行唯一协调者；#392 聊天 01a1af49-10c1-7831-b3c5-75e976049f56 负责迁移/恢复/库存应用。对方9真实强杀+1 undo归属保护、EF388、Core事务290已PASS；共同源仍须双方PR合入后精确复验。本轮独占本地候选版本由对方使用0.0.0-issue392.local.20261106.1，不公开；共同5.1.0仅暂定，未冻结/打tag/发包/改Secrets/部署。
+- 交接时没有代码提交/推送/PR：还须短回归、Core102、最终EF438、旧包负控应用编译、完整restore/规定Format全部通过，再提交/推送独立PR并跟精确CI；后续共同候选/公开新Provider+匹配Server/依赖/新空缓存应用均需实证。#395继续OPEN；只有全部适用条件满足才关闭。正式发布按本轮用户指令在可审核候选就绪后核实明确授权，不改写旧5.0.0。
+- 本节用UTF8前置，历史HANDOFF后缀原字节保留；本节是进行中记录，不是完成声明。最终提交/门禁/包身份须继续更新本节或追加最终收口。
+
+## 2026-11-06 Issue #395 固定 OwnsMany 元素 ExecuteUpdate
+
+- 专属分支 codex/issue395-json-update-20261106 基于原始 main 2a2f77c7，未触碰 canonical 外来文档/发布 dirty。仅放行表达式中的非负 Int32 常量下标与 EF 直接 JSON 标量目标，复用参数路径、同列 setter 顺序与原行右值；根/嵌套数组索引器及适用 ElementAt 实际通过，数字属性键 0 按属性处理。
+- 新增28项；修复前真实三协议3/3拒绝，最终 ExecuteUpdate 定向50/50、完整EF388/388均0失败/跳过。覆盖参数/中文、未知成员与数值原文、事务/Token/回滚/重开，以及缺失元素/错误父级跨两行整条拒绝。原360项EF保留，失败与通过TRX在 artifacts/issue395-20261106/，详细范围见 docs/audits/issue-395-collection-update-20261106.md。
+- 动态/负数下标、条件元素目标、primitive集合、集合元素右值、Guid/转换器等继续写前拒绝。#395仍须对象/数组子树、其余类型及新公开包/真实应用，不由本片关闭；没有发包、移动正式tag、合并main或部署。
+- 最终代码完整restore/规定Format均退出0（7.2秒/191.0秒，workspace加载警告保留）；提交/推送/PR身份与远端CI以最终PR及执行回执为准，不将本机测试当公开包或生产验收。两个固定子模块使用本worktree独占gitdir，未改指针；native有界任务最终cleanup_complete=true、active_processes_after_cleanup=0，进程全机查询partial不作全机无残留断言。
+- 下一步：按PR复核和精确head CI收口；继续 #395 其余单一工作包及公开包/应用验收后再关闭母单。历史HANDOFF含无效UTF8，本节按字节前置并核对原后缀SHA，未清洗历史内容。
+## 2026-11-06 PR #409 正常整合已合入 main 的聚合修复
+
+- 本片原提交3dfd8af31e27ba7041c2bf3c6f902234c548c679正常merge精确main 1420b1b14278216f396943213129c2c39958dd42；本轮只进行一次main整合，不rebase、不force push。实际只有HANDOFF前置段冲突，CHANGELOG自动合并；双方新增记录和共同历史原始字节全部保留，历史后缀SHA256仍为2e0d76d84b78e5a94b54bf9069d337affaa842c474b7ffe8c8fe557341f372fc。
+- 接受的产品增量仅是已审PR#408的QueryEngine两处Int64Rle guard与16项聚合回归，KV产品和测试源码不变。主代理已核实#408合入、#407关闭及#405Copilot回复/resolve；没有转授本worker合并GitHub PR的权限。
+- 原Client234/Server42/Core56本机通过继续绑定原KV切片3dfd8af3，不能直接标为新merge head完整CI通过；新head按远端CI独立验收。本轮不重复全套本机测试，提交前仍要求本merge待提交树完整restore/规定Format实际退出0，结果随收口文档记账。
+- 后续以本PR最终push回读的精确head交接#395整合，完整检查完成后释放Format slot；不发布包、不改正式tag、不部署、不关闭#397。
+
+## 2026-11-06 Issue #397 .NET typed KV Frame 切片
+
+- 工作分支 codex/issue397-typed-client-20261106，起点 origin/main 2a2f77c762badcad2a16dc2cad2c8e9abd09eebe。独立 Client 新增 GetKvAsync/PutKvAsync/ScanKvPageAsync；Protocol 共享 codec 接管既有 Core 的三个请求编码及 Get/Put 响应解码，Core 原类型和帧字节保留，Client 不依赖 Core/Data/Native。
+- 本机 Client 全套234/234、真实HTTP/2产品Server扩大42/42、原Core KV协议56/56均通过，0失败/0跳过。新15项Client合同及6项产品Server旅程验证二进制/完整UTC ticks/版本/单页预算、授权、取消与RequestAborted/后续可用、commit后断连只写一次、两次重开；相关生产工程AOT/trim分析构建0警告错误。
+- 初始冷Server编译300秒超时且所属子树4→0；首次6项setup HTTP1失败、次轮5/6仅响应预算夹具失败均保留TRX，改为exact HTTP2及允许17B请求的32B预算后最终42项通过。只修夹具，未放宽生产预算或自动重试。
+- 单页Scan显式1～10000条，不自动全量遍历或跨页快照；请求先预算后编码，响应条数先检查后分配。未交付其它模型/语言、TLS/ALPN、其它平台、新公开包/消费者、固定硬件或生产；#397仍OPEN。未发包、改tag或部署。
+- 最终本树完整restore与规定Format均退出0（29.8/176.3秒），Format的workspace加载警告单列；检查后仅更新验证文档、不改代码。最终commit/PR与回执按会话收口核实。说明和证据入口 docs/audits/issue397-typed-kv-20261106.md、artifacts/issue397-20261106/。两个已登记子模块只checkout固定gitlink，gitdir在本worktree独立modules下；本机构建所有长命令均由Cordonix有界执行并回收所属子树。
+- 下一步：审阅并合入本片PR，按M49冻结操作矩阵继续其它KV和模型切片；公开新版和真实消费者另验收后才能推进母Issue关闭。历史HANDOFF含无效UTF8，本节以UTF8字节前置，原后缀逐字节保留。
+
+## 2026-11-06 Issue #407：采纳 PR #405 Copilot 的 Int64Rle 聚合缺陷建议
+
+- 专属工作树 `sonnetdb-review405-20261106/SonnetDB`，分支 `codex/fix-int64-rle-aggregates-20261106`，基线 origin/main `2a2f77c762badcad2a16dc2cad2c8e9abd09eebe`；共享 canonical 外来 dirty 未修改，parity-results 未操作。实现和 PR 交付由本 worker 完成，合并/Issue 评论关闭由主代理统一。
+- 建议成立：raw/delta 时间戳聚合判定漏排除 Int64Rle，原 14 项真实刷盘回归全部越界失败；追加 4 点 `[5,5,9,9]` 仅第二点的 raw/delta 两项均静默返回 2306（期望5）。只在两处既有 guard 位掩码排除 Int64Rle，回退既有 BlockDecoder；没有格式/压缩选择/JSON/依赖变更。
+- 修复后 Query/Int64 存储扩大472/472通过，最终16项回归16/16通过，均0失败/跳过；前14项实际断言 RLE/空MemTable，并在初次打开及两次独立重开验证。完整 Core 在900秒上限 TIMED_OUT、无完成TRX；不冒称整套通过，等待精确PR head远端CI。首次30KB输出限制终止及后续完整红灯、超时与进程清理回执均保留。
+- 完整restore/规定Format在最终代码树执行，提交仅在两项实际退出0后进行；实际提交SHA、PR与远端CI以主代理收口回读为准。两个固定子模块仅为检查初始化，指针不变且gitdir各位于本worktree独立的SonnetDB6/modules；不改共享canonical子模块。
+- 原始TRX/执行回执位于本树 `artifacts/review405/`；审计 `docs/audits/issue-407-rle-aggregates-20261106.md`。HANDOFF历史含损坏UTF8，本节按字节前置、原后缀保持；不清洗历史。
+- #407在适用验证通过且修复合入后关闭；#367不重开、不重复关闭。尚未发布新包/标签/部署，公开5.0.0与main未发布v7分别记账；下一步由主代理跟踪本PR精确CI、决定合并并回复Copilot/关闭#407。本任务执行器已回收其测试进程子树，未按进程名清理共享服务。
+
+## 2026-11-05 Issue #402 来源与外部结果对账基础收口
+
+- source-policy13项和reconciliation69项在worker及整合树均通过；接入既有CI离线合同。覆盖真实ZIP/nupkg、签名差异/有效payload、同版本换DLL/commit、写前tag移动、未知写入不重试、404/auth/network、run/attempt/job/ID/digest/files集合与政策漂移。没有启用恢复workflow、修改既有recover-tagged-release或任何外部发布写入。
+- 正式Protocol5.0只读对账：Release原包和NuGet签名包整包hash不同，排除根.signature.p7s后7个有效文件digest同为a41efb7106e4bc19338c1e4f2dd6e1a837b9cd39eb7d4dedcf5f432da2d92a23，nuspec与现有远端tag同为84433f9e；不冒称已校验签名信任或恢复了一个发布。
+- #402继续OPEN：可信artifact到attempt来源适配、双verifier实际接线、受控失败预发布tag的Actions恢复、真实部分外部写入后的对账/公开读回及新缓存消费者仍待完成。PS原生崩溃、ZIP短读/1B数组及网络失败均保留，后续有界修复验证不覆盖历史。
+- #400已由389bc54499addbb25ef19c8f1948c1102b0ac692正常推送main并回读；#367/#406分别正常合并4534280a/7fe6dbe9。本机整合全solution Release0警告/0错误，Core8073(v7/自引用片)、最终MQ124/EF360/Server1595/Crash14及对象取消两树各3项均通过。最终同SHA远端CI、GitHub/Gitee/本地main同步、issue关闭回读和临时worktree回收按canonical收口回执，不提前宣称完成。
+- WorkBuddy任务已回填#403/#398/#399，应用集合验证补充#394。#392/#394/#395仍OPEN保留新公开包/完整应用等边界。所有每项提交前均执行规定完整restore/Format，#400单一格式失败只修字典换行后已重验通过。没有新正式tag/发包/部署。
+
+## 2026-11-05 Issue #400 Server实例MQ离线快照/恢复
+
+- 新增sndb mq snapshot/inspect/restore，显式绝对ServerRoot/.system/mq、snapshot/restore需--offline，拒绝已有/嵌套/链接目标，只恢复到新DataRoot；复用既有manifest v1和一致快照，不重做MQ。CLI回执手写Utf8JsonWriter，未引入反射JSON、远程管理端点或MCP运维工具。
+- 目录MQ从Replay前到Dispose最后持有owner lease，含空目录；快照排除锁文件。Core改唯一staging后原子发布，非覆盖发布只非递归处理仍空兼容目标，竞态外来文件保留；独立review修复Windows大小写锁排除和单topic关闭异常后完整释放所有writer/cache/流、lease最后释放，单异常EDI原样重抛/多异常聚合。
+- worker99/99(原96+3review回归)、跨进程空owner强杀1/1、真实Server/MCP恢复2/2及CLI31/31通过，组间重叠不相加。主整合全solution Release构建0警告/0错误、MQ扩大124/124、EF360/360、Server1595/1595、主键/租约crash14/14，全部0失败/跳过。400恢复到当前main后逐文件核对16个源文件SHA与上述完成测试的源码完全一致，证据400-reapply-source-verification.json。
+- 显式边界：MQ消息/ACK/NACK/DLQ/元数据/哈希清单属于备份；身份、Token/grant、Server配置、数据库目录与外部对象卷不包含。旧Server不持新lease仍须操作者先实际停机；同步复制无硬取消，真实copy进程强杀、大规模/慢盘/满盘、生产RPO/RTO、物理掉电与WorkBuddy现场仍NOT_RUN，#403保留现场交接。
+- PR#406已正常合并7fe6dbe91b99aa5822a8870ee6d5e98434d97da0且最终全检查成功；PR#405包含该测试修复后正常合并4534280a8345a28e8c15abc34aa483ab78108f7c。v7压缩源码已入main，仍未发新正式包/部署。此400独立提交前执行完整restore/规定Format；最终SHA/远端CI和issue关闭由收口核对。
+
+## 2026-11-05 Issue #367 Int64质量列压缩与v7段
+
+- 显式DeltaValue下新增独立Int64Rle=16，仅严格比raw小时采用，完整Int64无损；新段全部v7，读取v2～v6，旧引擎实际拒绝v7。64/80/64字节Header/BlockHeader/Footer布局、通用FileHeader/WAL/Catalog保持；降级须恢复升级前备份。此格式变更将在单一#367 PR说明后正常合入，不打tag/发包/部署。
+- 固定8192行(value+quality)真实全文件：常数179117→113591B(-36.583%)，256行游程179229→114013B(-36.387%)，极值游程约-36.452%；交替/递增文件不膨胀。两份时间戳各8200B/Float载荷54089B不变，不宣称2～3B生产目标。
+- worker存储297/297，独立review新增空命中RLE完整校验后303/303，0失败/跳过；实际旧二进制读v6/拒v7、WAL真实replay与两次重开通过。旧readerCP936导致encoding_error但原生exit0及保留Base64/REJECT_PASS分开记录。新增codec无核心运行时依赖。
+- 原始段/旧DLL/探针/完整TRX与回执已复制canonical `artifacts/branch-cleanup-20261105/workers/issue367/`；新增review delta亦须最终同步。独立review无另一个确定性v6硬编码断言问题。最终整合将执行Core全套与CI，不能用303项或本机合成字节替代发布/生产/物理掉电。
+- #394已由d1d4b57c8caa63e444e3485152db58aec05fcc7e正常推送main并回读。后续仍按单项完整restore/规定Format与实际测试收口；#392/#394/#395公开新包等未完成边界继续OPEN。
+## 2026-11-05 对象取消CI观测时序修复
+
+- PR#405两平台CI同一disconnect:false用例在Aborted等待五秒超时，Ubuntu/Windows各Server1594中唯一失败；两边Core8073、EF360、三平台AOT/连接器、Format及CodeQL均成功。原日志保存在canonical artifacts/branch-cleanup-20261105/ubuntu405-job-log.txt和windows405-rest-job-log.txt。
+- 独立修复只改变测试fixture：首64B/暂停后至多再发4KiB真实探测块，剩余正文保持未完成，等唯一RequestAborted回调后退出；等待用独立用例deadline，避免被观测取消令牌抢先注销observer。I/O/取消异常保留，原5秒/3MiB/真实断连/退出/文件及临时资源/后续checksum断言全部保留。不是增大超时、重试断言或修改产品路径。
+- 本节与fixture将作为独立CI修复PR，在完整restore/规定Format及现有用例真实复跑通过后提交；实际CI/merge结果须继续核对，未提前宣称#405通过/已合并。#400两项owner异常复核已修复并99项通过，#402基础82项通过，后续在主整合树继续。
+
+## 2026-11-05 Issue #394 OwnsMany 跟踪集合源码切片
+
+- 更新SQL生成器按模型完整JSON名称匹配路径，仅在集合位置解析最多10位Int32序号；根/嵌套对象数组可跟踪属性、子树和整集合更新，未改Core JSON或#395批量更新边界。
+- worker完整EF340/340、0失败/跳过，新增22合同覆盖三协议、数组增删清空、嵌套、converter/Guid、null/缺失、Unicode、缺失元素拒绝、事务/并发和真实重开；实际原始TRX/native回执在canonical `artifacts/branch-cleanup-20261105/workers/issue392-394/`。最终整合将再验组合。
+- 保留EF10确定限制：含嵌套OwnsMany的父数组重排ordinal后，同context继续改动会在发下一UPDATE前被identifying key校验拒绝。应用显式Clear并重新加载后支持继续，Provider没有伪造键状态。#394继续OPEN等待完整后续/公开包/真实应用，不能由本切片提前关闭。
+- #395固定标量ExecuteUpdate已由9ada35e14b46389320a7952903c9e3d44fe0d197推送main并回读。此次源码和文档仍须完整restore/规定Format通过后独立提交；没有发布、部署或平台操作。
+
+## 2026-11-05 Issue #395 参数化 JSON ExecuteUpdate 首片
+
+- 通过EF公开扩展点加入provider visitor/factory，支持OwnsOne/Complex固定标量路径；同列多个setter按声明顺序嵌套json_set_value，右侧读取更新前的行，可与普通列共同原子更新。路径和值均实际进入参数，未回退客户端读改写或反射JSON。
+- 独立worker完整EF332/332，含三协议真实更新、参数/Unicode/未知成员保留、同步异步/事务/重开、显式并发Token的影响行数、8项写前拒绝与6项无效JSON跨行原子失败。原始native回执/源码绑定/完整TRX在worker `artifacts/issue395/`。整合后还将复验组合EF/Server/Core，源码测试不等于公开旧5.0.0具备该行为。
+- 对象/数组子树、OwnsMany ExecuteUpdate元素路径、部分类型/converter及公开新包消费者仍在#395后续范围，回复实际已合入切片并保持OPEN。#394跟踪更新的集合生命周期是独立实现，不与ExecuteUpdate混淆。
+- #392已由7a2a42de7dac6f54117f1310120d5b00f61a37ec正常推送origin/main并读回；本节提交同样须取得最终完整restore/规定Format通过。没有发包、移动tag、部署或对外平台提交。
+
+## 2026-11-05 Issue #392 EF 迁移事务源码切片
+
+- 受支持关系DDL保留EF事务，序列/schema逐操作抑制、raw SQL继续尊重显式SuppressTransaction。历史写入、种子数据和多DDL共同提交/回滚；未改Core格式或公开API。
+- 独立worker完整EF318/318、0失败/跳过，覆盖embedded同步/异步、REST、Frame实际迁移、后续唯一索引/迁移历史失败整笔回滚、同连接重试、外键/索引和两次重开。初始失败及注入夹具修正证据保留在worker `artifacts/issue392-tests/`，最终集成将再验适用组合。
+- #393已由 `ff614086417ae14386b1bb42b4fbf273043e2edf` 正常快进推送origin/main并独立回读，未移动发行tag。#392本节与源码将在最终树取得完整restore/Format通过后独立提交，后续SHA以收口记录为准。
+- #392仍须新公开Provider包/真实应用迁移等验收，不能只用源码测试关闭；先回复实际已合入范围，保留OPEN。所有未运行的物理掉电、生产、公开新包保持NOT_RUN。
+
+## 2026-11-05 Issue #393 受限自引用主键迁移
+
+- 本轮用户授权多个智能体实现新增 issue、合入 main、回复并在验收完成后关闭。canonical `D:/source/SonnetDB` 的外来文档/发布 dirty 保留；整合树为独立 detached `sonnetdb-issue-integration-20261105/SonnetDB`，基线 `a7125ffb15c3d2182ff811036173316c75329ba9`。
+- #393 复用既有 journal，先冻结旧键到新父行映射，再统一准备自引用与外部子表；支持循环/自环、复合键、MATCH SIMPLE 和既有严格无损类型变更，保留源/新旧主键重叠、共享 FK 源列与继续级联拓扑的写前拒绝。未改存储格式。相关表限 main，目录存在跨 schema 同短名时在屏障前拒绝，以避免既有短名 journal 的恢复缺口；双准备计入合计行/内存预算。
+- 本机 Core 定向 43/43、Crash 主键迁移 12/12（含新增自引用强杀4阶段），均0失败/跳过；原始失败与通过回执保留在 `artifacts/branch-cleanup-20261105/`。后续收口还须对最终代码运行完整 Core/EF/Server适用回归及远端CI，不将这些定向结果提升为物理掉电、公开新包或生产验收。
+- 已清理19本地、17 GitHub开发分支；只保留本地main、远端main与强制保护parity-results。12个改写前/未采用候选refs在 `artifacts/branch-cleanup-20261105/legacy-branches.bundle` 已verify；既有worktree只detach、全部文件保留。#403已更新WorkBuddy宿主/平台执行表并独立回读，#402已记录归档提交接续入口；未采用不完整恢复候选。
+- 本节提交前将在整合最终树执行完整restore与规定Format，实际退出结果以对应receipt为准；最终提交/推送SHA及两端main同步由会话收口记录，不提前宣称发布或部署。
 
 ## 2026-11-04 对象分页后续：前缀回填、真实网络资源释放与隔离恢复
 
@@ -1884,3 +2006,37 @@ R3 文字兜底没有新的合格自然样本，保留 NOT_RUN；旧图文投递
 - 提交前须在最终候选完整执行 dotnet restore SonnetDB.slnx 与原 Format Check，二项退出 0 且候选无变动才提交；实际命令/退出码/候选与提交 SHA/远端回读记入 artifacts/m50-timestamp-precision-push-20261102/，不以本地静态检查替代远端 CI。
 - 研究和 M50 的 32 项仍全部 planned；未新增生产实现、性能/恢复/硬件结果、包发布或部署。先 T01 冻结当前基线及首批矩阵，再实施 T02/T03；parity-results 始终独立保留。
 - 共享主目录的其它会话内容以 source-state.json 和原文件快照守护；最终本地分支与工作树同步/保留状态、任务进程和隔离工作树清理以同目录最终回执为准，不能依据本段预先推断。
+\n## 2026-11-05 SonnetDB 24ff94e4 木垒现场部署\n\n- 用户明确要求按大件运输沟通接续并部署 SonnetDB 新版本。本轮将父仓 `D:/Uixe/TOLNSD` 的 `externals/SonnetDB` gitlink 从 `b6f8d60c` 更新到 `24ff94e4ae681eb9872a8cde2d9fddc268389137`，父仓提交 `2aabdb7069b69ab93e9a077ced5d700fb3ef3172` 已推送 Gitee `master` 并独立回读。\n- 从该精确提交执行 `dotnet publish -r linux-arm64 --no-self-contained`；以现场 R1 ARM64 runtime digest 为基础层构建并推送 `sonnetdb:mulei-arm64-20261105-object-pagination-24ff94e4@sha256:1a7cd40e69c104184bcae400076f6e5c838eb6e899ac8df2be6729e9aefde34f`，现场 `docker image inspect` 架构为 `arm64`。\n- 现场仅修改 `SONNETDB_IMAGE`，备份 `.env.bak-20261105-134824` 和对应 compose 备份；TOLNSD、dingtalk-sender 未重启，旧容器 ID/启动时间保留。新 SonnetDB 容器 `af808c0c...` 于 `2026-11-05T05:48:33Z` 启动，restart=0、OOM=false、healthy；readiness/livez=200，容器内 Frame 5081 reachable。\n- 真实现场对象分页回读：`vehicle-recognition`、`flows/2026/11/04/`、`max-keys=3` 首页439.948ms、第二页54.332ms，6键无重复且游标顺序正确。原现场 R1 大件业务链路和中心上传待验边界见 TOLNSD 最新交接，未在本节改写。\n- 本地 SonnetDB Core/Server 回归、ARM64隔离副本、完整 restore/Format 见上一节及 `docs/audits/object-pagination-20261104/`。新版本现场部署不等于完成中心上传回读、群终端显示/人工已读、固定硬件容量、NativeAOT或168小时长稳；这些继续保持相应状态。\n- 捕获器首次因远端 stdout 混合文本拒绝单JSON，未自动重试外部切换；现场状态随后独立回读并确认最终 PASS，原始输出及备份路径保留在 `artifacts/deploy-readonly-20261105/`。\n
+
+<!-- sonnetdb-character-v5-approved-20261106:begin -->
+## 2026-11-06 讲解人物 V5 定稿与后续生成规则
+
+- 用户查看V5后要求提交推送，并明确要求以后智能体按此规则生成，故固定sonnetdb-explainer规范1.0。全身基准sonnetdb-explainer-v5-contrast.png，1024x1536，SHA256=8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c；脸部参考由此图无损裁切310x350，坐标/哈希见docs/blogs/assets/character/manifest.json，批准原话见approval-20261106.json。
+- AGENTS.md、docs/blogs/character-profile.md、封面规范及生成模板均要求实际传入基准并校验SHA，保持同一成年约25岁甜美女性、长发、米白开衫、薄荷/米白/浅粉格纹与领结、米白高跟鞋。丝袜以V5近肤色极轻冷薄荷调和轻透光泽为准；背景须和浅色人物清楚分离，默认较深冷蓝灰，不再回退旧亮青/灰黄绿袜或浅暖背景。主题、道具、动作、构图可变，身份和造型变更需新用户要求。
+- 原V5生成/目视回执保留当时pending历史，当前清单及批准记录为approved并覆盖该历史状态。较早候选、用户原始穿搭图、调色试作和临时执行脚本留作本地过程证据，不作为后续生成依赖，也不随本次推送扩大上传。
+- 本机.NET SDK10.0.403，完整dotnet restore SonnetDB.slnx实际退出0；与CI相同dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/实际退出0，保留一条workspace加载警告，不能写成零警告。资产哈希/脸部像素/模板与清单引用/文档链接和编码本地核验通过。本次无产品源码变更，不将这些门禁当成产品测试、远程CI或发布验收。
+- 提交范围只含13个明确角色交付路径；CHANGELOG只暂存本条人物说明，HANDOFF只暂存本节，不带入共享文件中的其它会话改动。基线main=6a205df8eca2c5503a76c493931b477675d11a54；具体提交与远端回读见artifacts/character-commit-20261106-01a1ab73/收据及Git记录。未发布文章、上传渠道素材或部署产品，parity-results保留。
+- 后续所有智能体从根AGENTS入口读取固定档案并按模板生成；每篇新主题不等于换人，发布前实际审图，不把输入参考或已生成图片自动视为已发表。原有外来脏工作、忽略文件和其它渠道状态保持。门禁进程由Cordonix有界执行，回执cleanup_complete=true，无任务独占后台服务。
+<!-- sonnetdb-character-v5-approved-20261106:end -->
+
+
+<!-- issue392-recovery-20261106 -->
+## 2026-11-06 #392：实际 EF 强杀恢复、库存消费应用与回退
+
+- 开发基线 `origin/main@bee8b35ce9937125ec5e6681abf46f6cba68432a`；独立工作树 `C:/Users/mysti/.codex/worktrees/sonnetdb-issue392-recovery-20261106/SonnetDB`、分支 `codex/issue392-recovery-20261106`。只提交本项明确文件，canonical 的其它文档/发行 dirty 不覆盖、不暂存；`parity-results` 保留。本节随实现提交，最终 source/PR/远端身份从 Git 和 #392 最新回执读取。
+- 不重做已合入的 EF DDL 事务标志。真实库存 Down 找到交错 DML→DDL 后旧 schema 绑定冲突，现于后续 DDL 前把已校验 DML 应用到同一私有 workspace；仍保留外部 schema 冲突检查及同一 journal 原子发布。
+- 真实 prepared/published 强杀暴露启动补偿重复加载 catalog，以及 journal 删除前先清 undo 导致恢复再杀无法重复补偿。现启动仅恢复磁盘、由构造器统一装 catalog；undo 保留到 journal 删除后；补偿在删除当前数据前校验固定 owner，缺失/错误归属拒绝。无格式、协议、公开 API、依赖或生产 JSON 改动。
+- 本次实际门禁：完整 EF `388/388`、Core DDL/Transaction/SchemaMigration 扩大 `290/290`、七提交点及两恢复再杀 `9/9`、undo owner 损坏保护另 `1/1`，均零失败/跳过。每个正向强杀场景含两独立 OS 进程重开、数据/schema/索引/FK/自引用/CHECK/历史/连接检查，以及真实业务 SaveChanges、幂等重试和 Down/Up。托管异常不冒称强杀，物理掉电/生产为 NOT_RUN。
+- `eng/probes/issue392-migration-app` 是实际包引用库存应用；最终 local3 在仓库外目录和空 NuGet/HTTP cache 执行，四包精确身份、cache→应用 DLL SHA、业务往返及两次独立重开均 PASS。暂态包 `0.0.0-issue392.local.20261106.1` 的准确 ID 为 `SonnetDB.Protocol` / `SonnetDB.Core` / `SonnetDB`（ADO，DLL=SonnetDB.Data）/ `SonnetDB.EntityFrameworkCore`，只计 LOCAL_ONLY；基线加 Core patch SHA `2A5521D2738775A7884416FFFE7B89A7A76971178D8D0C21371B25B387B2A343`，没有公开上传。
+- 官方 NuGet.org-only `5.0.0` 负控真 FAIL：四包均来自官方源并绑定 `84433f9e`，历史 CHECK 失败后库存仍已从 7 变成 5，Atomic stock 断言失败。不能把公开 5.0.0 当修复包，不能重推/替换该版本。保留原数据库、应用日志、nuspec、DLL SHA 和 result.json。
+- 最终完整 `dotnet restore SonnetDB.slnx` 与规定全 solution Format 均退出 0；Format 保留工作区加载警告，不称零警告。额外整个 Crash 项目仅有未改动 M43 第33行四处基线空白错误（当前与 HEAD blob=c9f5901685fd05cee7e6ff327c7ffdb37382ab20），本项8个C#文件额外检查退出0，未放宽必需全solution检查，也未混入 M43 修复。
+- 审计与机器证据：`docs/audits/issue-392-recovery-20261106.md/.json`。全部原始失败和 TRX/native/进程身份在本工作树 `artifacts/issue392-20261106/`；包应用在 `D:/sndb-t/issue392-20261106-local1`（原编译失败）、local2/local3（通过）及 public500（旧包负控失败）。最初 h2c 70失败全由本任务外网代理遗漏 loopback NO_PROXY，引入绕过后同二进制定向1/1和全EF388/388通过；没有改协议或原断言。一次锁等待按10分钟上限终止后确认目录未建才续接。
+- 本聊天不修改 #395 JSON 文件。`01a1af4a-1732-79f3-bba6-c9a78edb07e1` 是双方后续 Provider/发行唯一协调者，共同 `5.1.0` 目前只暂选、未冻结共同源/公开发布；需双方 PR 合入与准确候选、适用同源门禁及当前明确发行授权。正式上传/Secrets/生产部署均未执行。各聊天用 `D:/source/SonnetDB/artifacts/sonnetdb-heavy-20261106.lock` FileShare.None 串行高负载，CPU2/单节点/禁用持久构建服务；有界执行回执 cleanup_complete=true、after=0，不终止他方任务或共享 MCP，也不凭 partial 进程快照宣称全机无孤儿。
+- 下一顺序：核对本项独立 PR 的精确 CI 与共同源；#395 协调新候选/正式发布后，以本应用 `Run-Isolated.ps1` 指定新精确版本、不传 CandidateFeed、全新目录与公共缓存复验，匹配 Server 通道按实际另计。新公开 Provider/真实消费门尚 NOT_RUN，所以 #392 保持 OPEN；全部适用条件满足后再真实回复并关闭。
+
+## 2026-11-06 #395/#392 共同源同步门禁
+
+- #412首head7e9fb974已与main/#411 merge859c69618940cc50e1aff0941736876981103f4a在本工作树合并，CHANGELOG保留双方，HANDOFF原始896596字节保持SHA3d55ec7c93c7575aa9c6016e925faa60863a468780505b8998f8ad5946faa520，双方新增块均保留。没有修改#392 Migration源码。
+- 合并最终工作树完整restore0、EF438/438、Core JSON102/102、规定全solution Format0（287.8秒）；后续只追加审计/发行说明和本记录。合并提交将正常推送#412并重新取精确head CI，不以7e9旧检查或单片候选冒充。
+- 原7e9的LOCAL_ONLY 0.0.0-issue395.local.20261106.1四包独占缓存补货应用五阶段PASS，四包source7e9/cache-app DLL SHA一致；官方5.0负控真FAIL且独立重开未写PASS。两组身份/原始日志保留，均不等于最终共同5.1公开包。
+- 共同发行说明docs/releases/5.1.0-provider-candidate-20261106.md记录旧5.0部分迁移不能自动修复、停写备份及schema/数据/history核对、恢复一致备份回补或审查修复、v7段回退限制。共同版本仍目标5.1.0，未正式发布，未改tag/Secrets/生产。#392/#395继续OPEN；下一步新head CI、同源候选四包/Server及两应用新缓存、发行门禁和当前明确发布授权，公共回读全部适用完成后才关闭。

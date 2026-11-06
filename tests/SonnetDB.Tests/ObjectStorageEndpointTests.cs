@@ -29,6 +29,8 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         using var client = CreateClient();
+        using var initialized = await client.GetAsync("/v1/db/objects/s3", deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, initialized.StatusCode);
         using var response = await client.GetAsync("/v1/db/objects/s3?capacity", deadline.Token);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var capacity = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.SndbStorageCapacityInfo, deadline.Token);
@@ -38,6 +40,25 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = null;
         using var denied = await client.GetAsync("/v1/db/objects/s3?capacity", deadline.Token);
         Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
+    }
+
+    /// <summary>真实HTTP容量读取在正文目录丢失时返回503，不重建目录或回退系统盘。</summary>
+    [Fact]
+    public async Task StorageCapacityEndpoint_MissingDirectory_DoesNotRecreate()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var client = CreateClient();
+        using var initialized = await client.GetAsync("/v1/db/objects/s3", deadline.Token);
+        Assert.Equal(HttpStatusCode.OK, initialized.StatusCode);
+        string objects = Path.Combine(_dataRoot!, "objects", "objects");
+        Directory.Delete(objects);
+
+        using var response = await client.GetAsync("/v1/db/objects/s3?capacity", deadline.Token);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(deadline.Token));
+        Assert.Equal("storage_capacity_unavailable", body.RootElement.GetProperty("error").GetString());
+        Assert.False(Directory.Exists(objects));
     }
 
     public async Task InitializeAsync()

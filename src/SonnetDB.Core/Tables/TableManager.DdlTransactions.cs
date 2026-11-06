@@ -131,16 +131,19 @@ public sealed partial class TableManager
         if (TableDdlTransactionJournal.Read(journalPath) is null)
             return;
 
-        var backend = new DdlTransactionBackend(this, new SqlDdlTransactionOptions());
+        // 启动构造器会在恢复完成后统一加载 catalog；此处只恢复磁盘，不能提前重复装载。
+        var backend = new DdlTransactionBackend(this, new SqlDdlTransactionOptions(), reloadCatalog: false);
         _ = TableDdlTransactionRecovery.Recover(journalPath, backend);
     }
 
     private sealed class DdlTransactionBackend(
         TableManager manager,
-        SqlDdlTransactionOptions options) : ITableDdlTransactionCommitBackend
+        SqlDdlTransactionOptions options,
+        bool reloadCatalog = true) : ITableDdlTransactionCommitBackend
     {
         private readonly TableManager _manager = manager;
         private readonly SqlDdlTransactionOptions _options = options;
+        private readonly bool _reloadCatalog = reloadCatalog;
 
         public void PrepareUndo(TableDdlTransactionJournal journal, CancellationToken cancellationToken)
         {
@@ -181,7 +184,17 @@ public sealed partial class TableManager
         {
             cancellationToken.ThrowIfCancellationRequested();
             string undo = ResolveRelative(journal.UndoRelativePath);
-            string workspace = ResolveRelative(journal.WorkspaceRelativePath);
+            // 缺失/损坏的撤销归属必须在删除当前目录前拒绝，不能把缺失备份解释为空数据库。
+            using (var owner = new FileStream(Path.Combine(undo, SqlDdlTransactionWorkspace.OwnerFileName),
+                FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Span<byte> marker = stackalloc byte[32];
+                if (owner.Length != marker.Length)
+                    throw new InvalidDataException("DDL prepared undo 的 owner 标记长度无效。");
+                owner.ReadExactly(marker);
+                if (!marker.SequenceEqual(Encoding.ASCII.GetBytes(journal.Owner.ToString("N"))))
+                    throw new InvalidDataException("DDL prepared undo 的 owner 不匹配，拒绝补偿。");
+            }
             using var publication = _manager.EnterDdlPublication();
             DeleteOptionalEntry(_manager.SchemaPath);
             DeleteOptionalEntry(Path.Combine(_manager._rootDirectory, "rowstore"));
@@ -189,9 +202,15 @@ public sealed partial class TableManager
             CopyOptionalEntry(Path.Combine(undo, "rowstore"), Path.Combine(_manager._rootDirectory, "rowstore"), cancellationToken);
             DeleteOptionalEntry(Path.Combine(undo, "published-old.tblschema"));
             DeleteOptionalEntry(Path.Combine(undo, "published-old-rowstore"));
-            _manager.ReloadPublishedCatalogLocked();
-            CleanupOwnedDirectory(undo, journal.Owner);
-            CleanupOwnedDirectory(workspace, journal.Owner);
+            if (_reloadCatalog)
+                _manager.ReloadPublishedCatalogLocked();
+            // prepared journal 还在时必须保留 undo；恢复进程可能在日志删除前再次崩溃。
+        }
+
+        public void CleanupRolledBack(TableDdlTransactionJournal journal)
+        {
+            CleanupOwnedDirectory(ResolveRelative(journal.UndoRelativePath), journal.Owner);
+            CleanupOwnedDirectory(ResolveRelative(journal.WorkspaceRelativePath), journal.Owner);
         }
 
         public void CompleteCommitted(TableDdlTransactionJournal journal, CancellationToken cancellationToken)

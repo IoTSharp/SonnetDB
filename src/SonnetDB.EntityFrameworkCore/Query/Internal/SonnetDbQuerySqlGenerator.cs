@@ -140,6 +140,7 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
         var clrType = Nullable.GetUnderlyingType(jsonScalarExpression.Type) ?? jsonScalarExpression.Type;
         if (jsonScalarExpression.TypeMapping is null
             || jsonScalarExpression.TypeMapping.Converter is not null
+            || jsonScalarExpression.Path.Any(static segment => segment.ArrayIndex is not null)
             || (clrType != typeof(string) && clrType != typeof(bool)
                 && clrType != typeof(byte) && clrType != typeof(short)
                 && clrType != typeof(int) && clrType != typeof(long)
@@ -149,30 +150,20 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
             throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }
 
-        var path = new StringBuilder("$");
-        foreach (var segment in jsonScalarExpression.Path)
-        {
-            if (segment.ArrayIndex is not null || string.IsNullOrWhiteSpace(segment.PropertyName)
-                || segment.PropertyName.Length > 1024 - path.Length - 4)
-            {
-                throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
-            }
-
-            path.Append("['").Append(segment.PropertyName.Replace("'", "''", StringComparison.Ordinal)).Append("']");
-            if (path.Length > 1024)
-                throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
-        }
+        var path = SonnetDbQueryableMethodTranslatingExpressionVisitor.BuildPath(jsonScalarExpression);
 
         Sql.Append("json_value(");
         Visit(jsonScalarExpression.Json);
-        Sql.Append(", ").Append(JsonPathLiteralMapping.GenerateSqlLiteral(path.ToString())).Append(")");
+        Sql.Append(", ").Append(JsonPathLiteralMapping.GenerateSqlLiteral(path)).Append(")");
         return jsonScalarExpression;
     }
 
     /// <inheritdoc />
     protected override Expression VisitUpdate(UpdateExpression updateExpression)
     {
-        if (updateExpression.ColumnValueSetters.Any(static setter => setter.Column.TypeMapping is SonnetDbJsonTypeMapping))
+        if (updateExpression.ColumnValueSetters.Any(static setter => setter.Column.TypeMapping is SonnetDbJsonTypeMapping
+            && setter.Value is not SqlFunctionExpression { Name: "json_set_value" } and not SqlParameterExpression
+                and not SqlConstantExpression { Value: null }))
         {
             throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }

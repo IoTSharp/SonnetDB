@@ -9,6 +9,8 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是在单�
 - **ZeroMQ 的轻量边界**：本地模式零第三方依赖，网络层保持薄协议，优先复用 ASP.NET Core 的高性能管道。
 - **SonnetDB 的部署体验**：支持单目录与单文件模式，默认落在 SonnetDB `DataRoot/.system/mq`，便于备份、迁移和嵌入式运行。
 
+实例目录模式的离线 `sndb mq snapshot/inspect/restore`、生命周期 owner、范围与限制见 [实例 MQ 恢复手册](sonnetmq-instance-recovery.md)；单库备份及 WorkBuddy/生产验收分别保持边界。
+
 ## 第一阶段：本地模式 MVP
 
 - 在 `src/SonnetDB.Core/Mq` 内提供 SonnetMQ 本地队列核心能力。

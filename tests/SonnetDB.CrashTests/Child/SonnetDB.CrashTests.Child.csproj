@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\SonnetDB.EntityFrameworkCore\SonnetDB.EntityFrameworkCore.csproj" />
+    <Compile Include="..\..\..\eng\probes\issue392-migration-app\Inventory*.cs" Link="InventoryApp\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

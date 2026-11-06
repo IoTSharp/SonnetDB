@@ -1,0 +1,54 @@
+{
+  "issue": 402,
+  "date": "2026-11-05",
+  "baselineCommit": "a7125ffb15c3d2182ff811036173316c75329ba9",
+  "reusedCandidateCommit": "8bf0e81222784db8b6a014619eaa9eb97d37cb31",
+  "deliveryScope": "local_policy_and_reconciliation_foundation",
+  "candidateState": "uncommitted_detached_worktree",
+  "newPublicationWorkflowEnabled": false,
+  "existingResumeEntryUnchanged": true,
+  "issueMustRemainOpen": true,
+  "tests": {
+    "sourcePolicy": {
+      "passed": 13,
+      "failed": 0
+    },
+    "reconciliation": {
+      "passed": 69,
+      "failed": 0
+    },
+    "totalPassed": 82,
+    "externalWrites": 0
+  },
+  "publicReadOnly": {
+    "packageId": "SonnetDB.Protocol",
+    "version": "5.0.0",
+    "tagObject": "c8f41918cedf624d486b0bd0e62e2d7bdd5b5cc9",
+    "sourceCommit": "84433f9edcceb84605520ebecc4b2879e3c4aa79",
+    "releaseNupkgSha256": "35bd64b129b24e349f08d3450382ed5398650a7aa05eed54c091c0c081f1b5df",
+    "nugetNupkgSha256": "f89e333a4ee80087f07574c92e85a863dfe04f13850ca6e039f693f769f800d2",
+    "effectiveFileCount": 7,
+    "effectivePayloadSha256": "a41efb7106e4bc19338c1e4f2dd6e1a837b9cd39eb7d4dedcf5f432da2d92a23",
+    "result": "ALREADY_PRESENT_SAME_PAYLOAD",
+    "scope": "one_existing_official_package_not_recovery_acceptance"
+  },
+  "remaining": {
+    "actualActionsRecovery": "NOT_RUN",
+    "trustedArtifactAttemptAdapter": "NOT_RUN",
+    "currentFrozenReadinessAdapter": "NOT_RUN",
+    "partialExternalWriteRecovery": "NOT_RUN",
+    "recoveredPublicReadback": "NOT_RUN",
+    "freshConsumerCache": "NOT_RUN",
+    "signatureTrustVerification": "NOT_RUN",
+    "fullSolutionRestoreAndFormat": "NOT_RUN_worker_no_commit",
+    "remoteCi": "NOT_RUN",
+    "linuxPwsh": "NOT_RUN"
+  },
+  "preservedFailures": [
+    "source_policy_process_0xC0000005_unknown_cause",
+    "case_insensitive_hashtable_literal_parser_error",
+    "one_byte_fixture_array_unwrap",
+    "real_zip_short_read_handling",
+    "github_direct_connection_timeout_then_bounded_proxy_success"
+  ]
+}

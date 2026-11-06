@@ -91,7 +91,7 @@ public sealed partial class SndbObjectStorageClient : IDisposable
         ThrowIfDisposed();
         using var deadline = BeginOperation(ref cancellationToken);
         if (_embedded is not null)
-            return new SndbObjectStore(_embedded).GetStorageCapacity();
+            return SndbObjectStore.GetStorageCapacity(_embedded);
         using var response = await _http!.GetAsync($"v1/db/{Uri.EscapeDataString(_database)}/s3?capacity",
             HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)

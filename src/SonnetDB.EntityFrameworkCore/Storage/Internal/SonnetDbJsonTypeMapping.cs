@@ -12,7 +12,7 @@ namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
 {
     internal const string UnsupportedOperationMessage =
-        "SonnetDB ToJson supports whole-container operations, supported fixed scalar queries and JSON property or subtree updates through OwnsOne containers. This JSON operation is not supported.";
+        "SonnetDB ToJson supports whole-container operations, supported fixed scalar queries and parameterized fixed-path scalar or subtree updates with model JSON codecs. This JSON operation is not supported.";
 
     private static readonly MethodInfo GetStringMethod =
         typeof(DbDataReader).GetMethod(nameof(DbDataReader.GetString), [typeof(int)])!;

@@ -14,10 +14,10 @@ namespace SonnetDB.Protocol;
 public static partial class KvFrameCodec
 {
     /// <summary>名字（db / keyspace）UTF-8 字节数上限。</summary>
-    public const int MaxNameBytes = 512;
+    public const int MaxNameBytes = KvDataFrameCodec.MaxNameBytes;
 
     /// <summary>key / prefix / afterKey 字节数上限（对齐 <c>KvOptions.MaxKeyBytes</c> 默认值）。</summary>
-    public const int MaxKeyBytes = 64 * 1024;
+    public const int MaxKeyBytes = KvDataFrameCodec.MaxKeyBytes;
 
     // ────────────────────────────── get (op=1) ──────────────────────────────
 
@@ -32,27 +32,7 @@ public static partial class KvFrameCodec
         ReadOnlySpan<byte> key)
     {
         ValidateKeyLength(key.Length, "key");
-        int metaLength =
-            SpanWriter.MeasureVarString(db) +
-            SpanWriter.MeasureVarString(keyspace) +
-            SpanWriter.MeasureVarUInt32((uint)key.Length);
-        long payloadLength = (long)metaLength + key.Length;
-        ValidateFramePayloadLength(payloadLength);
-
-        int keyLength = key.Length;
-        WriteHeaderAndMeta(
-            writer,
-            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-                (byte)FrameService.Kv, (byte)KvFrameOp.Get, (byte)FrameFlags.None, streamId),
-            metaLength,
-            (ref SpanWriter meta) =>
-            {
-                meta.WriteVarString(db);
-                meta.WriteVarString(keyspace);
-                meta.WriteVarUInt32((uint)keyLength);
-            });
-        if (!key.IsEmpty)
-            writer.Write(key);
+        KvDataFrameCodec.EncodeGetRequest(writer, streamId, db, keyspace, key);
     }
 
     /// <summary>
@@ -113,21 +93,8 @@ public static partial class KvFrameCodec
     /// </summary>
     public static KvGetFrameResult? DecodeGetResponse(ReadOnlyMemory<byte> payload)
     {
-        var reader = new SpanReader(payload.Span);
-        byte found = reader.ReadByte();
-        if (found > 1)
-            throw new FrameFormatException($"get 响应 found 标记 {found} 非法（0/1）。");
-        if (found == 0)
-        {
-            RequireEnd(ref reader, "get 响应");
-            return null;
-        }
-
-        long version = ReadVersion(ref reader);
-        DateTimeOffset? expiresAtUtc = ReadExpiry(ref reader);
-        ReadOnlyMemory<byte> value = ReadBody(ref reader, payload, "value");
-        RequireEnd(ref reader, "get 响应");
-        return new KvGetFrameResult(value.ToArray(), version, expiresAtUtc);
+        KvDataFrameValue? result = KvDataFrameCodec.DecodeGetResponse(payload.Span);
+        return result is null ? null : new KvGetFrameResult(result.Value, result.Version, result.ExpiresAtUtc);
     }
 
     // ────────────────────────────── put (op=2) ──────────────────────────────
@@ -145,36 +112,7 @@ public static partial class KvFrameCodec
         DateTimeOffset? expiresAtUtc = null)
     {
         ValidateKeyLength(key.Length, "key");
-        int headLength =
-            SpanWriter.MeasureVarString(db) +
-            SpanWriter.MeasureVarString(keyspace) +
-            SpanWriter.MeasureVarUInt32((uint)key.Length);
-        int tailLength = MeasureExpiry(expiresAtUtc) + SpanWriter.MeasureVarUInt32((uint)value.Length);
-        long payloadLength = (long)headLength + key.Length + tailLength + value.Length;
-        ValidateFramePayloadLength(payloadLength);
-
-        int keyLength = key.Length;
-        WriteHeaderAndMeta(
-            writer,
-            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-                (byte)FrameService.Kv, (byte)KvFrameOp.Put, (byte)FrameFlags.None, streamId),
-            headLength,
-            (ref SpanWriter meta) =>
-            {
-                meta.WriteVarString(db);
-                meta.WriteVarString(keyspace);
-                meta.WriteVarUInt32((uint)keyLength);
-            });
-        if (!key.IsEmpty)
-            writer.Write(key);
-
-        Span<byte> tail = writer.GetSpan(tailLength);
-        var tailWriter = new SpanWriter(tail[..tailLength]);
-        WriteExpiry(ref tailWriter, expiresAtUtc);
-        tailWriter.WriteVarUInt32((uint)value.Length);
-        writer.Advance(tailLength);
-        if (!value.IsEmpty)
-            writer.Write(value);
+        KvDataFrameCodec.EncodePutRequest(writer, streamId, db, keyspace, key, value, expiresAtUtc);
     }
 
     /// <summary>
@@ -211,10 +149,7 @@ public static partial class KvFrameCodec
     /// </summary>
     public static long DecodePutResponse(ReadOnlySpan<byte> payload)
     {
-        var reader = new SpanReader(payload);
-        long version = ReadVersion(ref reader);
-        RequireEnd(ref reader, "put 响应");
-        return version;
+        return KvDataFrameCodec.DecodePutResponse(payload);
     }
 
     // ────────────────────────────── scan (op=3) ──────────────────────────────
@@ -232,29 +167,9 @@ public static partial class KvFrameCodec
         ReadOnlySpan<byte> afterKey = default,
         int limit = 0)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(limit);
         ValidateKeyLength(prefix.Length, "prefix");
         ValidateKeyLength(afterKey.Length, "afterKey");
-        int payloadLength =
-            SpanWriter.MeasureVarString(db) +
-            SpanWriter.MeasureVarString(keyspace) +
-            SpanWriter.MeasureVarUInt32((uint)prefix.Length) + prefix.Length +
-            SpanWriter.MeasureVarUInt32((uint)afterKey.Length) + afterKey.Length +
-            SpanWriter.MeasureVarUInt32((uint)limit);
-
-        var header = new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-            (byte)FrameService.Kv, (byte)KvFrameOp.Scan, (byte)FrameFlags.None, streamId);
-        Span<byte> span = writer.GetSpan(FrameHeader.Size + payloadLength);
-        header.Write(span);
-        var w = new SpanWriter(span.Slice(FrameHeader.Size, payloadLength));
-        w.WriteVarString(db);
-        w.WriteVarString(keyspace);
-        w.WriteVarUInt32((uint)prefix.Length);
-        w.WriteBytes(prefix);
-        w.WriteVarUInt32((uint)afterKey.Length);
-        w.WriteBytes(afterKey);
-        w.WriteVarUInt32((uint)limit);
-        writer.Advance(FrameHeader.Size + payloadLength);
+        KvDataFrameCodec.EncodeScanRequest(writer, streamId, db, keyspace, prefix, afterKey, limit);
     }
 
     /// <summary>

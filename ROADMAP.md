@@ -1,5 +1,20 @@
 # ROADMAP — SonnetDB 4.5 与后续里程碑
 
+## 2026-11-07 分支整合后的执行顺序
+
+本批接续 [PR #413 审查与 issue 矩阵](docs/audits/pr413-integration-20261107.md)，已合入切片不重新立项。PR #413 先修复审查发现的超时后提交、Windows 挂载卷及只读容量查询重建目录问题，再取得最终精确源码验证。
+
+| 顺序 | 接续范围 | 下一份可验收交付 |
+| --- | --- | --- |
+| 1 | #392 / #395 / #394：共同 Provider 候选 | 从全部整合后的最终 source 冻结包与匹配 Server，重验库存迁移/回退、补货 JSON 更新及 OwnsMany 生命周期。正式发布已延期；恢复发行后以公开新包及独占空缓存复验，满足后关闭。 |
+| 2 | #397：M49 SDK | 在 typed KV Get/Put/Scan 基础上冻结下一操作/模型/语言包，补真实原生 HTTP/2、TLS/ALPN、取消/未知写入、ABI、重开及公开消费者。 |
+| 3 | #230 / #404：上游 Provider | 接续 FreeSql #2291、XCode #104→#105 的实际审查/合入，公开 Core/Provider 后验证全公开组合；候选与上游发行分别记账。 |
+| 4 | #396 / #402：AOT 与发行恢复 | EF 固定静态查询应用取得预编译/NativeAOT 的首个具体缺口；恢复流程先补可信 attempt 来源与双 verifier，再做受控预发布失败恢复。 |
+| 5 | #398 / #399 / #403：独立环境验收 | 先落实干净 OS、固定硬件/阈值、正式 HTTPS/WorkBuddy 宿主与平台入口，再分别执行安装生命周期、原规模容量/长稳、九模型及送审公开闭环。 |
+| 6 | #401：M50 高精度时序 | T01 冻结独立版本/API/矩阵→T02 精确换算→T03–T06 持久元数据/格式/WAL/恢复→T07–T11 查询/分桶/retention，再接协议、语言、迁移与固定硬件。 |
+
+这 12 个母 issue 仍有未完成的公开、上游或实机门禁；#367/#393/#400/#407 已关闭。原 `0d687bd9` 5.1 候选的 PASS 不外推到新源码。Mulei 后续仍保留 FIFO 长尾、中心超时/积压、统计刷新取消、历史缺图及完整长稳；本次不执行生产操作。
+
 2026-11-04：**[M51：WorkBuddy生态集成](#milestone-51)**当前连接器/Skill合同更新为0.2.0，面向SonnetDB 5.0的43工具发现、默认Read和用户明确授权的Write。生产切片49731955保持冻结，不重复开发；历史Docker/r2九工具证据保留source。平台解析、HTTPS、宿主验收与正式送审仍未完成，由统一发布流程逐项整合。
 
 2026-11-02：新增 **[M50：时序时间戳精度与无损时间链路](#milestone-50)**，按库真正保存 `ms/us/ns`、默认 `ms`，规划 30 项必选与 2 项条件任务；全部 `📋 planned`。完整实现思路、源码归属、依赖/验收、迁移/旧端拒绝与初步工作量见 [M50 专题](docs/design/m50-timeseries-timestamp-precision.md)。M50 独立冻结版本与批次，本次仅更新规划，不启动源码改造或变更现有 4.5/预览/连接器批次范围。
@@ -161,7 +176,7 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 ## Milestone 46 — 存储编码与执行成本优化（压缩深化）
 
-M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典，Int64 仍 raw 8B，Vector/GeoPoint 仍 raw，WAL 仍是逐条原始 payload + CRC。v6 已内嵌 HNSW/sketch；mmap 仍有复制，解码缓存按 reader 设置，共享 HNSW 缓存及 KV I/O 预算另有实现。不能把可选编码、局部压缩率、mmap 或局部额度写成默认压缩、zero-copy 或进程总内存上限。
+M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典；2026-11-05 GH-Issue #367 增加显式 Int64 的独立v7 RLE及raw回退，旧V2 Int64仍为raw 8B，详见[实际文件与恢复审计](docs/audits/issue-367-20261105.md)。Vector/GeoPoint仍raw，WAL仍是逐条原始payload + CRC。v6起已内嵌HNSW/sketch；mmap仍有复制，解码缓存按reader设置，共享HNSW缓存及KV I/O预算另有实现。不能把此切片当作S02/S09完整交付，或把可选编码、局部压缩率、mmap与局部额度写成默认压缩、zero-copy或进程总内存上限。
 
 | ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
 |---|---|---|---|

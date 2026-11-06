@@ -28,6 +28,12 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case var efMigration when efMigration.StartsWith("ef_migration_", StringComparison.Ordinal):
+        await EfMigrationCrashScenario.RunAsync(root, readyFile, scenario["ef_migration_".Length..]);
+        return 0;
+    case "hold_mq_instance_lifecycle_lease":
+        MqLifecycleLeaseScenario.Run(root, readyFile);
+        return 0;
     case "crash_ctas_stage-created":
     case "crash_ctas_stage-durable":
     case "crash_ctas_rowstore-moved":
@@ -79,6 +85,10 @@ switch (scenario)
     case "crash_kill9_primary_key_migration_type_after_catalog":
     case "crash_kill9_primary_key_migration_type_after_complete":
     case "crash_kill9_primary_key_migration_recovery_after_catalog":
+    case "crash_kill9_primary_key_migration_self_after_journal":
+    case "crash_kill9_primary_key_migration_self_after_parent":
+    case "crash_kill9_primary_key_migration_self_after_catalog":
+    case "crash_kill9_primary_key_migration_self_after_complete":
         PrimaryKeyMigrationCrashScenario.Run(root, readyFile, scenario);
         return 0;
     case "crash_kill9_keyless_between_tables":

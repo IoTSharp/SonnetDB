@@ -18,12 +18,11 @@ internal static class ObjectStorageEndpointHandler
 {
     public static async Task HandleBucketsAsync(HttpContext ctx, Tsdb tsdb)
     {
-        var store = new SndbObjectStore(tsdb);
         if (ctx.Request.Query.ContainsKey("capacity"))
         {
             try
             {
-                await Results.Json(store.GetStorageCapacity(), ServerJsonContext.Default.SndbStorageCapacityInfo)
+                await Results.Json(SndbObjectStore.GetStorageCapacity(tsdb), ServerJsonContext.Default.SndbStorageCapacityInfo)
                     .ExecuteAsync(ctx).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SndbObjectStorageException)
@@ -33,6 +32,7 @@ internal static class ObjectStorageEndpointHandler
             }
             return;
         }
+        var store = new SndbObjectStore(tsdb);
         var buckets = store.ListBuckets()
             .Select(ToBucketResponse)
             .ToArray();

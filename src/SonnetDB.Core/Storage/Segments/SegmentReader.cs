@@ -99,7 +99,7 @@ public sealed class SegmentReader : IDisposable
             if ((b.TimestampEncoding & BlockEncoding.DeltaTimestamp) != 0) deltaTs++;
             else rawTs++;
 
-            bool isDeltaVal = (b.ValueEncoding & BlockEncoding.DeltaValue) != 0;
+            bool isDeltaVal = (b.ValueEncoding & (BlockEncoding.DeltaValue | BlockEncoding.Int64Rle)) != 0;
             if (isDeltaVal) deltaVal++;
             else rawVal++;
 
@@ -222,6 +222,7 @@ public sealed class SegmentReader : IDisposable
                 "v4（PR #70）新增 BlockEncoding.GeoPointRaw 与 FieldType.GeoPoint，仅在使用 GEOPOINT 列时落盘；" +
                 "v5（PR #76）将 BlockHeader 扩展为 80B 并新增 GeoHashMin/GeoHashMax；" +
                 "v6 将 HNSW/聚合 sketch section 内嵌到 .SDBSEG，并在 SegmentHeader 写入 mini-footer；" +
+                "v7 新增独立 Int64Rle 值编码；旧引擎必须使用升级前备份回退；" +
                 "旧 v1 段文件需通过重放 WAL（删除 .SDBSEG 后启动）重新生成。");
 
         if (header.HeaderSize != FormatSizes.SegmentHeaderSize)
@@ -279,6 +280,17 @@ public sealed class SegmentReader : IDisposable
 
             var bh = ReadBlockHeader(source.ReadSpan(headerStart, blockHeaderSize), blockHeaderSize);
 
+            const BlockEncoding knownEncodings = BlockEncoding.DeltaTimestamp | BlockEncoding.DeltaValue
+                | BlockEncoding.VectorRaw | BlockEncoding.GeoPointRaw | BlockEncoding.Int64Rle;
+            if ((bh.Encoding & ~knownEncodings) != 0)
+                throw new SegmentCorruptedException(path, headerStart, $"Block[{i}] 包含未知编码标志。");
+            if ((bh.Encoding & BlockEncoding.Int64Rle) != 0
+                && (header.FormatVersion < 7 || bh.FieldType != FieldType.Int64
+                    || bh.Count <= 0 || bh.ValuePayloadLength <= 0
+                    || (bh.Encoding & (BlockEncoding.DeltaValue | BlockEncoding.VectorRaw | BlockEncoding.GeoPointRaw)) != 0))
+                throw new SegmentCorruptedException(path, headerStart,
+                    $"Block[{i}] Int64Rle 只允许出现在 v7+ Int64 块且不能组合其它值编码。");
+
             // 校验 BlockHeader 与 IndexEntry 一致性
             if (bh.SeriesId != entry.SeriesId)
                 throw new SegmentCorruptedException(path, headerStart,
@@ -322,13 +334,15 @@ public sealed class SegmentReader : IDisposable
                 TimestampEncoding = (bh.Encoding & BlockEncoding.DeltaTimestamp) != 0
                     ? BlockEncoding.DeltaTimestamp
                     : BlockEncoding.None,
-                ValueEncoding = (bh.Encoding & BlockEncoding.DeltaValue) != 0
-                    ? BlockEncoding.DeltaValue
-                    : ((bh.Encoding & BlockEncoding.VectorRaw) != 0
-                        ? BlockEncoding.VectorRaw
-                        : ((bh.Encoding & BlockEncoding.GeoPointRaw) != 0
-                            ? BlockEncoding.GeoPointRaw
-                            : BlockEncoding.None)),
+                ValueEncoding = (bh.Encoding & BlockEncoding.Int64Rle) != 0
+                    ? BlockEncoding.Int64Rle
+                    : ((bh.Encoding & BlockEncoding.DeltaValue) != 0
+                        ? BlockEncoding.DeltaValue
+                        : ((bh.Encoding & BlockEncoding.VectorRaw) != 0
+                            ? BlockEncoding.VectorRaw
+                            : ((bh.Encoding & BlockEncoding.GeoPointRaw) != 0
+                                ? BlockEncoding.GeoPointRaw
+                                : BlockEncoding.None))),
                 FieldName = fieldName,
                 FileOffset = headerStart,
                 BlockLength = entry.BlockLength,
@@ -898,7 +912,7 @@ public sealed class SegmentReader : IDisposable
 
         // #195：footer 自校验（仅当 v6+ 且 FooterChecksum 非 0）。旧版本（v2~v5）或未写该校验的
         // 旧 v6 文件 FooterChecksum==0，跳过以保持向后读兼容。检出满足布局等式但字段被位翻转的静默损坏。
-        if (footer.FormatVersion >= TsdbMagic.SegmentFormatVersion && !footer.VerifyFooterChecksum())
+        if (footer.FormatVersion >= 6 && !footer.VerifyFooterChecksum())
         {
             error = $"SegmentFooter 自校验 CRC 失败（footer 字段疑似损坏，FooterChecksum=0x{footer.FooterChecksum:X8}）";
             return false;

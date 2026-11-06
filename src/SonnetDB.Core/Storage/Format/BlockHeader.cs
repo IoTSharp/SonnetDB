@@ -4,7 +4,7 @@ using SonnetDB.Buffers;
 namespace SonnetDB.Storage.Format;
 
 /// <summary>
-/// SonnetDB 段文件中每个 Block 的头部（固定 80 字节，<see cref="TsdbMagic.SegmentFormatVersion"/> = 6）。
+/// SonnetDB 段文件中每个 Block 的头部（v5 起固定 80 字节）。
 /// <para>
 /// 一个 Block 由 BlockHeader + FieldNameUtf8 + TimestampPayload + ValuePayload 组成。
 /// </para>

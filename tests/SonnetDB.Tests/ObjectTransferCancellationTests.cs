@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -35,7 +36,7 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
         {
             DataRoot = Path.Combine(_root, "server"),
             Tokens = new Dictionary<string, string> { [Token] = ServerRoles.Admin },
-        }, services => services.AddSingleton<IStartupFilter>(new PauseStartupFilter(_observation)));
+        }, services => services.AddSingleton<IStartupFilter>(new PauseStartupFilter(_observation, _deadline.Token)));
         await _app.StartAsync(_deadline.Token);
         string url = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         using var http = new HttpClient { BaseAddress = new Uri(url) };
@@ -168,7 +169,7 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
     }
 
     /// <summary>用真实 HTTP RequestAborted 验证服务端响应退出。</summary>
-    private sealed class PauseStartupFilter(PausedResponse observation) : IStartupFilter
+    private sealed class PauseStartupFilter(PausedResponse observation, CancellationToken deadline) : IStartupFilter
     {
         /// <summary>在产品端点之前安装仅供测试的正文背压。</summary>
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
@@ -190,7 +191,7 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
                 Stream original = context.Response.Body;
                 // 保持正文为 identity，固定首个真实对象数据块，避免压缩器先写 gzip 头造成观测歧义。
                 context.Request.Headers.AcceptEncoding = "identity";
-                context.Response.Body = new PausingWriteStream(original, observation, context.RequestAborted);
+                context.Response.Body = new PausingWriteStream(original, observation, context.RequestAborted, deadline);
                 using var registration = context.RequestAborted.Register(() => observation.Aborted.TrySetResult());
                 try { await handler(context); }
                 finally
@@ -211,7 +212,7 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
     }
 
     /// <summary>发送第一个真实数据块后施加有超时、可取消的背压，内部流仍归 Kestrel 所有。</summary>
-    private sealed class PausingWriteStream(Stream inner, PausedResponse observation, CancellationToken aborted) : Stream
+    private sealed class PausingWriteStream(Stream inner, PausedResponse observation, CancellationToken aborted, CancellationToken deadline) : Stream
     {
         private bool _paused;
         public override bool CanRead => false;
@@ -230,7 +231,7 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
             WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-        /// <summary>只暂停一次，等待上限十五秒；请求断连立即结束等待。</summary>
+        /// <summary>首块暂停后只发一个有界探测块，保留未完成正文直到真实断连回调发生。</summary>
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             if (!_paused)
@@ -241,10 +242,31 @@ public sealed class ObjectTransferCancellationTests : IAsyncLifetime
                 await inner.WriteAsync(buffer[..first], cancellationToken);
                 await inner.FlushAsync(cancellationToken);
                 observation.BodyStarted.TrySetResult();
-                await observation.Release.Task.WaitAsync(TimeSpan.FromSeconds(15), aborted);
+                await observation.Release.Task.WaitAsync(TimeSpan.FromSeconds(15), deadline);
                 buffer = buffer[first..];
             }
-            await inner.WriteAsync(buffer, cancellationToken);
+            if (buffer.IsEmpty)
+                return;
+
+            // 整个剩余正文可能被套接字一次接收，导致响应先完成、observer先注销。
+            // 只再写/flush至多4KiB，使3MiB对象仍有未发送正文，真实取消传播期间保持handler存活。
+            Exception? writeFailure = null;
+            try
+            {
+                await inner.WriteAsync(buffer[..Math.Min(4096, buffer.Length)], cancellationToken);
+                await inner.FlushAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is IOException or OperationCanceledException)
+            {
+                writeFailure = exception;
+            }
+            // 不用RequestAborted令牌取消此等待：它的取消回调可能先于唯一observer运行。
+            // 必须等observer实际收到同一RequestAborted，再允许finally注销registration。
+            await observation.Aborted.Task.WaitAsync(TimeSpan.FromSeconds(5), deadline);
+            if (writeFailure is not null)
+                ExceptionDispatchInfo.Throw(writeFailure);
+            aborted.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("RequestAborted回调未对应真实取消令牌。");
         }
     }
 }

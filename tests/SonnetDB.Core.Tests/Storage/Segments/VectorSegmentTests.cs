@@ -425,11 +425,11 @@ public sealed class VectorSegmentTests : IDisposable
     // ── Segment 文件头：版本号升级到 v6 + 历史版本只读兼容 ──────────────────
 
     [Fact]
-    public void TsdbMagic_SegmentFormatVersion_IsSix()
-        => Assert.Equal(6, TsdbMagic.SegmentFormatVersion);
+    public void TsdbMagic_SegmentFormatVersion_IsSeven()
+        => Assert.Equal(7, TsdbMagic.SegmentFormatVersion);
 
     [Fact]
-    public void TsdbMagic_SupportedSegmentFormatVersions_ContainsV2ThroughV6()
+    public void TsdbMagic_SupportedSegmentFormatVersions_ContainsV2ThroughV7()
     {
         int[] supported = TsdbMagic.SupportedSegmentFormatVersions.ToArray();
         Assert.Contains(2, supported);
@@ -437,14 +437,15 @@ public sealed class VectorSegmentTests : IDisposable
         Assert.Contains(4, supported);
         Assert.Contains(5, supported);
         Assert.Contains(6, supported);
+        Assert.Contains(7, supported);
     }
 
     [Fact]
-    public void SegmentHeader_IsCompatibleForRead_AcceptsV2ThroughV6_RejectsOthers()
+    public void SegmentHeader_IsCompatibleForRead_AcceptsV2ThroughV7_RejectsOthers()
     {
         var h = SegmentHeader.CreateNew(1L);
 
-        for (int version = 2; version <= 6; version++)
+        for (int version = 2; version <= 7; version++)
         {
             h.FormatVersion = version;
             Assert.True(h.IsCompatibleForRead());

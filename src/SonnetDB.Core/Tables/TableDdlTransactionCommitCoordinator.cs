@@ -50,6 +50,7 @@ internal static class TableDdlTransactionCommitCoordinator
                     "DDL 发布失败且补偿失败；保留 prepared 日志，必须重启恢复。",
                     new AggregateException(publishFailure, rollbackFailure));
             }
+            backend.CleanupRolledBack(journal);
             throw;
         }
 

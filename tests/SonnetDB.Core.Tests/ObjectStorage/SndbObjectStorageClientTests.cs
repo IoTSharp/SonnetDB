@@ -26,6 +26,30 @@ public sealed class SndbObjectStorageClientTests
         Assert.Equal(8_000_000_000_000, capacity.TotalBytes);
         Assert.Equal(4_100_000_000_000, capacity.AvailableBytes);
     }
+    /// <summary>嵌入式容量读取不能重新创建已丢失的正文目录。</summary>
+    [Fact]
+    public async Task GetStorageCapacityAsync_EmbeddedMissingDirectory_DoesNotRecreate()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "sonnetdb-capacity-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var client = new SndbObjectStorageClient($"Data Source={root}");
+            string objects = Path.Combine(root, "objects");
+            Directory.CreateDirectory(objects);
+            Directory.Delete(objects);
+
+            var error = await Assert.ThrowsAsync<SndbObjectStorageException>(() => client.GetStorageCapacityAsync());
+
+            Assert.Equal("storage_capacity_unavailable", error.Code);
+            Assert.False(Directory.Exists(objects));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
     private const string ConnectionString =
         "Data Source=sonnetdb+http://object-client.test/testdb;Protocol=rest;Timeout=30";
 

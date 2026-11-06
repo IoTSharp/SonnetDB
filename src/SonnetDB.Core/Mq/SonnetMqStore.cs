@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.Collections.Concurrent;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
@@ -79,7 +80,7 @@ public sealed partial class SonnetMqStore : IDisposable
             if (options.OpenMode == SonnetMqOpenMode.SingleFile)
                 store.OpenSingleFile();
             else
-                Directory.CreateDirectory(store.RootDirectory);
+                store.AcquireDirectoryOwnership();
 
             store.Replay();
             store.SeekWritableSegmentsToEnd();
@@ -95,6 +96,9 @@ public sealed partial class SonnetMqStore : IDisposable
     }
 
     internal long ColdPayloadBytesRead => Interlocked.Read(ref _coldPayloadBytesRead);
+
+    // 仅供测试在实际 Topic writer 关闭后注入失败，验证其余 owned 资源仍被回收。
+    internal Action<string>? AfterTopicDisposeTestHook { get; set; }
 
     internal long ColdPayloadBytesSkipped => Interlocked.Read(ref _coldPayloadBytesSkipped);
 
@@ -688,40 +692,65 @@ public sealed partial class SonnetMqStore : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _retentionCts?.Cancel();
-        _retentionWorker?.Join(TimeSpan.FromSeconds(2));
+        List<Exception>? failures = null;
+        lock (_globalSync)
+        {
+            if (_disposed) return;
+            try { _retentionCts?.Cancel(); }
+            catch (Exception failure) { (failures ??= []).Add(failure); }
+        }
+        try { _retentionWorker?.Join(TimeSpan.FromSeconds(2)); }
+        catch (Exception failure) { (failures ??= []).Add(failure); }
 
+        bool ownsClose = false;
         _snapshotGate.EnterWriteLock();
         try
         {
-            _retentionCts?.Dispose();
-
             lock (_globalSync)
             {
-                if (_disposed)
-                    return;
-                _disposed = true;
+                ownsClose = !_disposed;
+                if (ownsClose) _disposed = true;
             }
-
-            foreach (var state in _topics.Values)
+            if (ownsClose)
             {
-                // 在 SyncRoot 内置 Faulted + 故障 pulse（#236）：与等待者的条件检查串行化，杜绝故障后新建 pulse 永不完成。
-                lock (state.SyncRoot)
+                try { _retentionCts?.Dispose(); }
+                catch (Exception failure) { (failures ??= []).Add(failure); }
+                foreach (var state in _topics.Values)
                 {
-                    state.FaultWaiters(new ObjectDisposedException(nameof(SonnetMqStore)));
-                    state.Dispose();
+                    // 一个 Topic 关闭失败不能跳过其它 writer 和缓存；租约一直保留到全部 owned 资源尝试关闭。
+                    lock (state.SyncRoot)
+                    {
+                        try { state.FaultWaiters(new ObjectDisposedException(nameof(SonnetMqStore))); }
+                        catch (Exception failure) { (failures ??= []).Add(failure); }
+                        try
+                        {
+                            state.Dispose();
+                            AfterTopicDisposeTestHook?.Invoke(state.Topic);
+                        }
+                        catch (Exception failure) { (failures ??= []).Add(failure); }
+                    }
+                }
+                try { _handleCache.Dispose(); }
+                catch (Exception failure) { (failures ??= []).Add(failure); }
+
+                lock (_globalSync)
+                {
+                    try { _singleFileStream?.Dispose(); }
+                    catch (Exception failure) { (failures ??= []).Add(failure); }
                 }
             }
-
-            _handleCache.Dispose();
-
-            lock (_globalSync)
-                _singleFileStream?.Dispose();
         }
         finally
         {
             _snapshotGate.ExitWriteLock();
+            if (ownsClose)
+            {
+                try { ReleaseDirectoryOwnership(); }
+                catch (Exception failure) { (failures ??= []).Add(failure); }
+            }
         }
+        if (failures?.Count == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures?.Count > 1) throw new AggregateException("SonnetMQ 关闭多个 owned 资源失败。", failures);
     }
 
     private string RootDirectory => Path.GetFullPath(_options.Path);

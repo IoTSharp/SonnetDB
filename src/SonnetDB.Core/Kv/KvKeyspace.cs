@@ -1367,6 +1367,9 @@ public sealed partial class KvKeyspace : IDisposable
                 ThrowIfDisposed();
                 ThrowIfWriteFaultedLocked();
                 cancellationToken.ThrowIfCancellationRequested();
+                // Monitor.Wait 重新取得锁可能晚于期限；过期后不得借新释放的预算提交。
+                if (Stopwatch.GetElapsedTime(started) >= timeout)
+                    break;
                 long expectedSequence = _wal!.NextSequence;
                 var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
                 if (TryAdmitAtomicBatchLocked(

@@ -33,7 +33,7 @@ public sealed record SegmentStats
     /// <summary>使用 V1（<see cref="BlockEncoding.None"/>）原始值编码的 Block 数。</summary>
     public int RawValueBlocks { get; init; }
 
-    /// <summary>使用 V2（<see cref="BlockEncoding.DeltaValue"/>）编码的 Block 数。</summary>
+    /// <summary>使用类型压缩（<see cref="BlockEncoding.DeltaValue"/> 或 <see cref="BlockEncoding.Int64Rle"/>）编码的 Block 数。</summary>
     public int DeltaValueBlocks { get; init; }
 
     /// <summary>按 <see cref="FieldType"/> 分组的子统计。</summary>
@@ -54,7 +54,7 @@ public sealed record SegmentStats
 }
 
 /// <summary>
-/// 按 <see cref="FieldType"/> 分组的统计：Block 数、点数、值载荷字节、V2 启用 Block 数。
+/// 按 <see cref="FieldType"/> 分组的统计：Block 数、点数、值载荷字节、类型压缩启用 Block 数。
 /// </summary>
 public sealed record FieldTypeStats(
     int BlockCount,

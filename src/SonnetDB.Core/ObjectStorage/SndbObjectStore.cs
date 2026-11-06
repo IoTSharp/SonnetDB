@@ -64,20 +64,6 @@ public sealed partial class SndbObjectStore
             .ToArray();
     }
 
-    /// <summary>读取对象正文目录所在文件系统的容量，目录不可用时不回退为其它盘的余量。</summary>
-    /// <returns>对象实际存储卷的总容量、可用字节与观测时间。</returns>
-    public SndbStorageCapacityInfo GetStorageCapacity()
-    {
-        if (!Directory.Exists(_contentRoot))
-            throw new SndbObjectStorageException("storage_capacity_unavailable", "Object storage directory is not available.");
-        var drive = new DriveInfo(_contentRoot);
-        long total = drive.TotalSize;
-        long available = drive.AvailableFreeSpace;
-        if (total <= 0 || available < 0 || available > total)
-            throw new SndbObjectStorageException("storage_capacity_unavailable", "Object storage capacity is invalid.");
-        return new SndbStorageCapacityInfo(total, available, DateTimeOffset.UtcNow);
-    }
-
     /// <summary>
     /// 创建 bucket；已存在时返回当前 bucket。
     /// </summary>

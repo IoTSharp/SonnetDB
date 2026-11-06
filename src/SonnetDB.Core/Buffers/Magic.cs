@@ -52,13 +52,17 @@ public static class TsdbMagic
     /// 聚合 sketch section 改为写入主 `.SDBSEG` 的索引区与 Footer 之间。读取层兼容 v4/v5，
     /// v6 在尾部 footer 损坏时可提供更精确诊断。
     /// </para>
+    /// <para>
+    /// v7：新增独立 Int64Rle 值编码，旧 DeltaValue Int64 仍为原始 8 字节。
+    /// Header/BlockHeader/Footer 布局不变；读取层兼容 v2-v6，旧引擎明确拒绝 v7。
+    /// </para>
     /// </summary>
-    public const int SegmentFormatVersion = 6;
+    public const int SegmentFormatVersion = 7;
 
     /// <summary>
     /// SegmentReader 允许读取的段格式版本集合（含历史只读兼容版本）。
     /// </summary>
-    public static ReadOnlySpan<int> SupportedSegmentFormatVersions => [2, 3, 4, 5, 6];
+    public static ReadOnlySpan<int> SupportedSegmentFormatVersions => [2, 3, 4, 5, 6, 7];
 
     /// <summary>构造文件 magic <see cref="InlineBytes8"/>。</summary>
     /// <returns>内容为 <c>"SONNETDB"</c>（8 字节 ASCII）的 <see cref="InlineBytes8"/> 实例。</returns>

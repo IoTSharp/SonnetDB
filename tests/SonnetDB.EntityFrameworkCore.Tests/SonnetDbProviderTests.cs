@@ -1662,7 +1662,7 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
-    public void MigrationsSqlGenerator_DdlCommandsSuppressTransactionsButInsertDataDoesNot()
+    public void MigrationsSqlGenerator_SupportedRelationalDdlAndInsertData_PreserveTransactions()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());
         var generator = context.GetService<IMigrationsSqlGenerator>();
@@ -1721,23 +1721,42 @@ public sealed class SonnetDbProviderTests : IDisposable
             command =>
             {
                 Assert.Contains("CREATE TABLE", command.CommandText, StringComparison.Ordinal);
-                Assert.True(command.TransactionSuppressed);
+                Assert.False(command.TransactionSuppressed);
             },
             command =>
             {
                 Assert.Contains("ADD COLUMN", command.CommandText, StringComparison.Ordinal);
-                Assert.True(command.TransactionSuppressed);
+                Assert.False(command.TransactionSuppressed);
             },
             command =>
             {
                 Assert.Contains("ALTER COLUMN", command.CommandText, StringComparison.Ordinal);
-                Assert.True(command.TransactionSuppressed);
+                Assert.False(command.TransactionSuppressed);
             },
             command =>
             {
                 Assert.Contains("INSERT INTO", command.CommandText, StringComparison.Ordinal);
                 Assert.False(command.TransactionSuppressed);
             });
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_SequenceAndExplicitRawSql_KeepIndependentTransactionBoundaries()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var commands = generator.Generate(
+        [
+            new CreateSequenceOperation { Name = "OrderIds", ClrType = typeof(long) },
+            new DropSequenceOperation { Name = "OrderIds" },
+            new SqlOperation { Sql = "CREATE VIEW device_view AS SELECT 1", SuppressTransaction = true },
+            new SqlOperation { Sql = "INSERT INTO Devices (Id) VALUES (1)", SuppressTransaction = false },
+            new AddColumnOperation { Table = "Devices", Name = "Note", ClrType = typeof(string), ColumnType = "STRING", IsNullable = true },
+        ]);
+
+        Assert.Equal([true, true, true, false, false], commands.Select(command => command.TransactionSuppressed));
+        Assert.Contains("CREATE SEQUENCE", commands[0].CommandText, StringComparison.Ordinal);
+        Assert.Contains("DROP SEQUENCE", commands[1].CommandText, StringComparison.Ordinal);
     }
 
     [Fact]
