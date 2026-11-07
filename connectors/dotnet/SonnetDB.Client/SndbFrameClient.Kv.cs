@@ -41,7 +41,13 @@ public sealed partial class SndbFrameClient
         var encoded = new ArrayBufferWriter<byte>();
         KvDataFrameCodec.EncodeGetAndDeleteRequest(encoded, streamId, db, keyspace, key.Span, _maxPayloadBytes);
         ReadOnlyMemory<byte> response = await SendKvAsync(KvFrameOp.GetAndDelete, streamId, encoded, cancellationToken).ConfigureAwait(false);
-        try { return KvDataFrameCodec.DecodeExchangeResponse(response.Span); }
+        try
+        {
+            var result = KvDataFrameCodec.DecodeExchangeResponse(response.Span);
+            if (result.PreviousValue is null && result.MutationVersion is not null)
+                throw new FrameFormatException("GetAndDelete 缺失旧记录时不能返回变更版本。");
+            return result;
+        }
         catch (Exception exception) when (exception is FrameFormatException or InvalidOperationException)
         {
             throw InvalidKvResponse(exception);

@@ -80,6 +80,27 @@ public sealed class KvGetAndDeleteClientTests
     }
 
     [Theory]
+    [InlineData(1L)]
+    [InlineData(long.MaxValue)]
+    public async Task GetAndDeleteKvAsync_MissingOldValueWithMutation_IsUnknownAndNeverRetried(long mutationVersion)
+    {
+        var payload = new byte[9];
+        BinaryPrimitives.WriteInt64LittleEndian(payload, mutationVersion);
+        var exchange = KvDataFrameCodec.DecodeExchangeResponse(payload);
+        Assert.Null(exchange.PreviousValue);
+        Assert.Equal(mutationVersion, exchange.MutationVersion);
+
+        var handler = new Handler((_, _) => Task.FromResult(Reply(payload)));
+        using var http = new HttpClient(handler);
+        using var client = new SndbFrameClient(http, Server);
+        var failure = await Assert.ThrowsAsync<SndbFrameException>(() => client.GetAndDeleteKvAsync("d", "k", new byte[] { 1 }, StreamId));
+        Assert.Equal("frame_kv_terminal", failure.Code);
+        Assert.IsType<FrameFormatException>(failure.InnerException);
+        Assert.True(failure.OutcomeUnknown);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(KvDataFrameCodec.MaxKeyBytes)]
     public async Task GetAndDeleteKvAsync_EmptyAndMaximumKey_SendExactlyOnce(int keyLength)

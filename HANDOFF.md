@@ -1,3 +1,12 @@
+## 2026-11-07（Asia/Shanghai）PR #415 审查回执校验修正
+
+- 用户明确要求落实 discussion_r4497146088；实时回读 PR #415 已 MERGED，main 起点 66633d6de7e35d047fd5a9cb2cb37c4f5fc59202。GetAndDeleteKvAsync 缺少操作专属存在性校验，导致 found=0/正变更版本被误报成功；通用 exchange 对 GetAndSet 则合法。
+- 仅在 Client 解码后的 try 内拒绝 PreviousValue=null 且 MutationVersion 非空，以 FrameFormatException 进入现有 frame_kv_terminal/OutcomeUnknown 路径；共享 codec、wire/API/依赖保持原合同。回归测试覆盖版本1/long.MaxValue、通用解码合法、异常类型/错误码/未知结果及恰一次发送。
+- 原实现新增两例实测2 FAIL（未抛异常），最小修正后完整Client274/274 PASS、0失败/跳过；完整 SonnetDB.slnx restore、规定 Format Check 均退出0，Format保留工作区加载警告，不宣称零警告。原FAIL与新PASS的日志/TRX/PID/命令/时限在 artifacts/pr415-review-20261107/，validation.json 独立解析TRX计数。不外推完整Core/Server套件、Linux/AOT、公开包或生产，均本轮 NOT_RUN。
+- 全工作树 diff --check 命中既有HANDOFF/其它会话文档空白并触发输出上限，非本修正的通过证据；不修范围外空白，最终仅核本任务源码/测试/CHANGELOG及新增交接段。
+- 本任务拥有 Client 源文件、对应Client测试、自有CHANGELOG一条及本交接段；canonical其它文档/素材/发布账本dirty按原字节及暂存语义保留。用户随后明确授权提交、推送及回复原PR讨论；本段随最小修正提交，最终source提交、双端main一致性与一次回复的独立读回见 artifacts/pr415-review-20261107/delivery.json。无正式发布或部署。
+- 重负载复用既有 Invoke-Heavy.ps1，经 FileShare.None 共享锁、CPU2/-m1/禁持久构建服务及明确时限执行；15秒小输入预检先通过。Cordonix回收所属Job，完成调用均cleanup_complete=true/after0；无常驻服务或独占MCP。证据目录作为交付保留，不清共享cache。HANDOFF历史含非法UTF8字节，本段以UTF8前置，原后缀逐字节保留并记录hash；其它共享dirty不清洗。
+
 ## 2026-11-07（Asia/Shanghai）三阶段监督与上游review收口
 
 - 用户授权的共同Provider候选、下一SDK单操作和XCode late-review可控源码工作均已落到可审查提交/包/原始验收。三位真实worker分工及独立peer/收据审查已执行；主监督集中接口、重负载、Git/issue状态，未把部分PASS当作母issue整体完成。
