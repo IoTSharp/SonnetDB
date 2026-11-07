@@ -51,8 +51,13 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- 将 HTTP OpenTelemetry instrumentation 升级至 1.20.2，纳入语义规范 1.45.0 与 .NET Framework 异步请求上下文修复，保留现有 .NET 10 引导和 core/exporter 1.20.1 组合（PR #419）。
+- 将 ASP.NET Core OpenTelemetry instrumentation 升级至 1.20.2，纳入 fallback route/span 命名修正和长 route 缓存限制，保持现有观测引导及 core/exporter 1.20.1 组合（PR #418）。
+- 将 MCP 与 ASP.NET Core 传输包同步升级至 2.3.1，纳入有状态会话身份校验加固；保留 SonnetDB 显式无状态传输、工具及逐调用 Read/Write 授权合同（PR #417）。
+- 将 CodeQL init/analyze 同步升级至 4.39.3，保留当前 C# 分析权限、构建和默认 bundle 合同，包含特殊路径的 diff alert 过滤修复（PR #416）。
 - 同步用户确认的代码 issue 关闭口径及当前六条关闭/六条开放状态，区分已完成实现与仍未执行的公开包、上游或宿主事项，保留历史候选、验证和发行延期边界。
 - 整理智能体约束、稳定产品首页、文档导航与短/完整 Agent 上下文，修正 MCP、事务、锁定读、压缩及恢复的过期说明；按用户选择将 B-20261107 设为讲解人物规范 1.1 的默认参考，保留 V5 与三方案历史证据，后续生成必须实际传入 B 基准并校验 SHA。
+- 将 SkiaSharp 与 Linux NoDependencies 原生资产成对升级至 4.155.0，并将两包纳入同一 Dependabot 更新组，避免仅升级一侧造成 native API 154/155 范围不兼容（PR #420、#421）；保留原失败及独立图像/NativeAOT 验证边界。
 - 记录XCode上游#105后续temporal review的真实红绿回归、新精确候选/公开SonnetDB5.0消费者及三项仍失败的CI门禁；两条review resolved与上游合入/公开包/母issue关闭分别说明。
 - GH-Issue #397：补充typed GetAndDelete的精确source本地两包、独占空缓存和同源Server应用收据；旧值/版本/UTCticks、竞争及真实HTTP2/同目录重开逐层验收，公开包与TLS/ALPN保持独立门禁。
 - 完成共同Provider候选三线真实包消费审计：冻结eb5c0e5f/5.1.0-rc.20261107.1，本地与实际CI/NativeAOT Server各69步骤及12类发行readiness通过；公开NuGet-only、正式发行和实机边界单独保留，相关母issue仍OPEN。
