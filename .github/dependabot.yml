@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      skiasharp:
+        patterns:
+          - "SkiaSharp"
+          - "SkiaSharp.NativeAssets.Linux.NoDependencies"
     ignore:
       - dependency-name: "Cloud.Unum.USearch"
         versions: ["2.26.2"]

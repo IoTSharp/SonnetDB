@@ -1,3 +1,11 @@
+## 2026-11-07（Asia/Shanghai）SkiaSharp 两条依赖 PR 配对候选
+
+- 用户原“所有分支合并，已合入本地/远端清理”的剩余范围包含Dependabot #416～#421；主监督继续唯一拥有整合、适用验证与双端状态。canonical37份外来dirty保持，parity-results不合并、不删除。
+- #420/bcc66d29只升托管包后，Linux实际native154不在[155,156)；#421/0609bff9只升native后，native155不在托管层[154,155)。两条原CI均有Ubuntu测试与linux-x64/arm64图像NativeAOT smoke失败，退出134的完整AOT日志及明确标注截断的测试日志已保留。
+- 在 codex/skia-4.155-pair-20261107 以#421原head为起点正常合并#420，显式解决相邻版本行冲突，使两包均为4.155.0；保留原NoDependencies/无Fontconfig合同，不跳过或降低图像测试/AOT。Dependabot为这两包建立单独成组更新，修正本次已证实的拆包升级原因，不扩展其它依赖范围。
+- 本地Windows图像解码/缩略图/语义对象旅程、完整restore和规定Format按本候选实际收据记录；最终包含main643及其余四条依赖更新的候选还必须取得适用完整CI，尤其Linux x64/ARM64真实image codec NativeAOT smoke后才能进入main。原失败不改写为成功，Windows不能替代Linux。
+- 证据存 D:/source/SonnetDB/artifacts/dependabot-integration-20261107/；上游发布说明、源码及版本约束分别核对，未直接信任Dependabot对OpenTelemetry引用的AWS发布说明。所有本机重负载使用共享FileShare.None锁、CPU2/单MSBuild节点/禁持久服务和所属进程回收。正式tag/NuGet/Release、生产部署/重启/迁移继续延期；本阶段仅候选，不声称已合主干或全部PR完成。
+
 ## 2026-11-07（Asia/Shanghai）三阶段监督与上游review收口
 
 - 用户授权的共同Provider候选、下一SDK单操作和XCode late-review可控源码工作均已落到可审查提交/包/原始验收。三位真实worker分工及独立peer/收据审查已执行；主监督集中接口、重负载、Git/issue状态，未把部分PASS当作母issue整体完成。
