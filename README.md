@@ -18,71 +18,59 @@
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
-## Workbench Web Preview 1（R1，发布准备中）
+## SonnetDB 是什么
 
-首个Web预览限定Windows 11 x64、同源环回Web＋匹配NativeAOT Server。候选10已完成本机R1实物验收及四附件准备，产品仍 **NOT_READY**；P07门禁和P08授权发布未完成，暂无该预览公开下载。可评估有界SQL、关系表、measurement和一次授权单行插入；七个专用模型工作台、Studio与VS Code延期。[使用、限制、升级/回退与反馈](docs/design/m47-unified-management-workbench/sonnetdb-workbench-web-4.5.0-preview.1.10-notes.md)和[独立分发状态](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md)描述实际范围。
+SonnetDB 是一款面向 .NET 10 的单节点多模型数据引擎。它把时序、关系表、键值、JSON 文档、全文、向量、对象、消息队列和原生属性图放在同一个引擎中，同时保留每种模型自己的建模和查询语义。
 
-## 在线演示与测试账号
+应用可以在进程内打开数据库目录，也可以连接独立 Server。SQL、ADO.NET、EF Core、CLI、HTTP REST/Frame、Web Admin、Studio、VS Code、MCP 和多语言连接器共享清晰的边界与权限模型。
 
-- 演示地址：<https://iotsharp.online/sonnetdb/admin/login>
-- 演示账号：`demo@iotsharp.online`
-- 演示密码：`P@ssw0rd`
+数据库目录是持久化边界。Server 的身份、授权、Token 和实例级 SonnetMQ 位于不同范围；单库备份不等于整个 Server 实例的备份。版本、配置、恢复和外部依赖应按 [发布与打包](docs/releases/README.md) 及对应专题合同核对。
 
-仅公共演示账号的用户名和密码每半小时恢复一次。**正常注册账号可用于测试服务，账号、密码和业务数据均不参与演示重置，长期保留。** 公共演示账号仅能访问演示数据库。
+## 九种数据模型
 
-## 🧩 SonnetDB 是什么
+| 模型 | 适合处理的内容 | 主要入口 |
+| --- | --- | --- |
+| 时序 | 设备指标、工业采集、时间窗口聚合、Retention | SQL、批量写入、Line Protocol、MQTT、SndbTimeSeriesClient |
+| 关系表 | 业务实体、主键、索引、JOIN、约束与同库事务 | SQL、ADO.NET、EF Core、Frame SQL |
+| KV / 缓存 | 状态、会话、配置、TTL、前缀读取与原子操作 | SndbKvClient、DistributedCache、EasyCaching |
+| JSON 文档 | 集合、JSON path、过滤、投影、排序、索引和聚合 | SndbDocumentClient、SQL、REST |
+| 全文检索 | BM25、中文和多语言分词、短语与模糊检索 | SndbFullTextClient、SQL |
+| 向量检索 | 精确检索、HNSW、混合检索和 VectorData 集成 | SonnetDBVectorStore、SQL、REST |
+| 对象存储 | Bucket、分片上传、Range 读取、版本和保留策略 | SndbObjectStorageClient、REST/Frame |
+| SonnetMQ | Topic、消费者组、Pull/Push、ACK、Replay、Retention 和 DLQ | SndbMqClient、Server |
+| 原生属性图（Graph Beta） | 顶点、边、标签、属性、受限路径和 SQL/PGQ | SndbGraphClient、SQL/PGQ、Graph API |
 
-**SonnetDB 是一款多模型数据引擎。**
+空间/轨迹、流处理/订阅、CDC/本地同步、AI/RAG、治理/恢复/观测是跨模型平台能力，不增加原生模型数量。每个能力的成熟度和证据见 [能力成熟度](docs/capability-maturity.md) 与 [十四项能力证据索引](docs/audits/fourteen-capability-evidence-index.json)。
 
-它把时序、关系表、键值、JSON 文档、全文检索、向量检索、对象存储、消息队列和原生属性图——九类通常需要多个独立系统才能覆盖的数据能力——统一进同一个引擎，通过 SQL、标准 API 和管理工具访问。
+## 选择使用方式
 
-SonnetDB 的核心价值是**统一**：九种数据模型保留各自的原生语义和访问方式，共用服务进程、权限入口和管理后台，并在同一引擎内协同工作。持久化与恢复仍有模型边界：数据库备份覆盖该数据库目录中的资源；Server 的 SonnetMQ 位于实例级 `.system/mq`，当前不包含在单库备份中，不能把单库恢复视为九模型一致性恢复。
-
-部署形态保持灵活：既可作为库嵌入进程内直接使用，也可部署为独立服务，适用于本地应用、设备与边缘节点、业务系统、私有化环境等不同场景。
-
-## 🗂️ 九种数据模型，各有原生语义，共享一套引擎
-
-| 数据模型 | 一个引擎内直接提供 |
+| 你的目标 | 推荐入口 |
 | --- | --- |
-| **时序** | 设备指标、工业采集、时间窗口聚合、压缩、Retention |
-| **关系表** | 业务表、主键、索引、JOIN、同库关系表轻事务、外键、EF Core |
-| **键值 / 缓存** | 设备状态、会话、配置、TTL、前缀扫描、原子操作 |
-| **JSON 文档** | 文档集合、JSON path 查询、文档索引、文档向量索引 |
-| **全文检索** | BM25 排序、多语言分词、模糊检索 |
-| **向量检索** | HNSW 近邻索引 + 精确回退、Hybrid Search |
-| **对象存储** | S3 风格 bucket、分片上传、Range 读取、Presigned URL；不承诺全量 S3/SigV4 兼容 |
-| **消息队列** | SonnetMQ topic、消费者组、推送 / ack、重启 replay |
-| **原生属性图（Graph Beta）** | 顶点、边、标签、属性、双向原生邻接、SQL/PGQ `GRAPH_TABLE`、可选的嵌入式受限 GQL 风格只读入口 |
+| 在 .NET 进程内嵌入引擎 | SonnetDB.Core 的 `Tsdb.Open(...)` 与 SQL 执行器 |
+| 为应用提供标准数据库连接 | SonnetDB 包中的 SonnetDB.Data / SndbConnection |
+| 接入 EF Core | SonnetDB.EntityFrameworkCore 的 UseSonnetDB |
+| 启动独立服务 | Docker 镜像或 src/SonnetDB，见 [开始使用](docs/getting-started.md) |
+| 管理本地或远程实例 | sndb CLI、Web Admin、Studio 或 VS Code |
+| 走高吞吐 HTTP/2 | Frame 协议；REST 仍是兼容入口 |
+| 对接设备和工业协议 | MQTT、Sparkplug B、CoAP、Line Protocol、Modbus（按配置和权限启用） |
+| 从其他语言接入 | connectors/c、go、rust、java、python、vb6、purebasic |
+| 让 AI / Agent 查询数据 | Copilot、MCP、llms.txt 和 llms-full.txt |
 
-关系型 SQL 是一个实用子集，覆盖常见查询、聚合、JOIN、事务和多模型扩展，但不是完整的 SQL 标准实现。原生属性图的 Graph Beta 名称描述当前功能范围，不表示正式 Beta 语义/容量 gate 已通过，也不代表完整 GQL、Cypher 或 Neo4j 兼容；固定硬件、外部语义对拍和长稳生产门禁仍未完成。各能力的成熟度以对应的专题文档为准。
+## 快速开始
 
-### 十四项能力与成熟度
+### 嵌入式最小示例
 
-九种原生数据模型之外，SonnetDB 还把空间/轨迹、流处理/订阅、CDC/边缘同步、多模态 AI/RAG 和治理/恢复/观测列为五项平台能力，共十四项能力。每项能力的稳定 ID、真实入口、路线图归属、证据路径和当前边界见[机器可读证据索引](docs/audits/fourteen-capability-evidence-index.json)。公开状态只使用 `supported`、`partial`、`planned`、`not_planned` 和 `beta`；完整定义见[能力成熟度口径](docs/capability-maturity.md)。`beta` 只表示有限合同可用，不表示生产门禁已经通过。
+使用 .NET 10 创建示例应用并安装核心包：
 
-## ⚡ 通用二进制帧协议
+~~~bash
+dotnet new console -f net10.0 -n SonnetDemo
+cd SonnetDemo
+dotnet add package SonnetDB.Core
+~~~
 
-3.0 在 HTTP/2 之上落地了一套覆盖七个基础数据面服务（消息队列、时序、SQL、向量、KV、对象、文档）的**通用二进制帧协议**。这些服务共享同一条高吞吐通道：时序批量写以列式紧凑二进制直传，SQL 结果以列式分块回传，向量检索的查询向量以原生 f32 二进制承载。SQL 分块限制的是响应编码缓冲；当前端点仍先取得完整的 `SelectExecutionResult.Rows`，大结果集的执行和结果内存会随数据量增长，尚不具备从执行器到客户端的全链路有界流式读取。当前 Graph Beta 又由 M40 #351 在同一端点追加 `service=8` 的受限单跳 `Expand`；原生属性图同时通过 API 和 SQL/PGQ 接入，其余图操作仍按各自 API/SQL 边界执行。REST 接口完整保留作兼容，客户端可通过连接串 `Protocol` 选项在 `auto` / `frame-http2` / `rest` 之间自由切换。
+将 Program.cs 替换为以下内容，在新建的数据目录上运行：
 
-## 🔌 接入方式
-
-| 使用方式 | 入口 |
-| --- | --- |
-| 嵌入式 | `Tsdb.Open(...)` 直接在进程内打开数据库目录 |
-| 服务端 | Docker / HTTP API / Web Admin |
-| .NET 生态 | ADO.NET、EF Core、`IDistributedCache` / EasyCaching Provider |
-| 命令行 | `sndb` 本地 / 远程执行 SQL、备份和维护 |
-| VS Code | [安装 SonnetDB 官方扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)，在编辑器内连接、浏览 schema、执行 SQL 和查看结果 |
-| 二进制帧协议 | HTTP/2 上的高吞吐帧接入，覆盖七个基础服务，并提供 Graph `service=8` 单跳 Expand，REST 全保留作兼容 |
-| 设备接入 | 内建 MQTT broker（设备直连落库）+ 外部 MQTT client（订阅现有 EMQX / Mosquitto） |
-| 多语言 | C、Go、Rust、Java、Python、VB6、PureBasic 连接器 |
-| AI / Agent | Web CopilotDock、MCP 工具入口 |
-
-## 🚀 快速开始
-
-### 1. 🧩 嵌入式最小示例
-
-```csharp
+~~~csharp
 using SonnetDB.Engine;
 using SonnetDB.Sql.Execution;
 
@@ -111,35 +99,39 @@ foreach (var row in result.Rows)
 {
     Console.WriteLine($"{row[0]} {row[1]} {row[2]}");
 }
-```
+~~~
 
-### 2. 🐳 启动服务端
+运行 `dotnet run` 查看查询结果。
 
-仓库的 Docker 发布工作流会额外构建并推送预编译镜像 `iotsharp/sonnetdb` 与 `ghcr.io/<owner>/sonnetdb`，可直接拉取：
+### 启动服务端
 
-```bash
-docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
-```
+下面使用滚动镜像快速体验。[Docker 镜像说明](docs/releases/docker-image.md)列出版本标签规则；需要固定版本时，从发行记录选择对应标签或 digest。
 
-也可以从源码自行构建镜像：
+~~~bash
+docker run --rm -p 127.0.0.1:5080:5080 \
+  -v ./sonnetdb-data:/data \
+  iotsharp/sonnetdb:latest
+~~~
 
-```bash
+也可以从仓库根目录构建：
+
+~~~bash
 docker build -f src/SonnetDB/Dockerfile -t sonnetdb .
 docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb
-```
+~~~
 
-启动后访问：
+启动后可访问管理界面和帮助中心：
 
-- `http://127.0.0.1:5080/admin/`
-- `http://127.0.0.1:5080/help/`
+- [管理界面](http://127.0.0.1:5080/admin/)
+- [帮助中心](http://127.0.0.1:5080/help/)
 
-当 `/data/.system` 为空时，`/admin/` 会进入首次安装流程。向导会根据主机名和本机硬件指纹生成稳定的服务器 ID，并默认填写组织名称、管理员用户名和随机 Bearer Token；管理员密码必须手动输入。
+首次安装、认证、远程开放接口和容器卷的边界见 [Docker 首次初始化与远程部署](docs/releases/docker-image.md)。
 
-示例端口仅绑定主机 loopback。远程部署请先用 `SONNETDB_USER` / `SONNETDB_PASSWORD` 引导并验证 `needsSetup=false` 与管理员认证，再显式开放需要的接口，见 [Docker 首次初始化与远程部署](docs/releases/docker-image.md#首次初始化与远程部署)。
+### ADO.NET 与 CLI
 
-### 3. 🔗 通过 ADO.NET 访问
+应用访问使用 NuGet 包 [SonnetDB](https://www.nuget.org/packages/SonnetDB)，命名空间为 `SonnetDB.Data`。以下示例查询前面创建的数据库：
 
-```csharp
+~~~csharp
 using SonnetDB.Data;
 
 using var connection = new SndbConnection("Data Source=./demo-data");
@@ -147,175 +139,85 @@ connection.Open();
 
 using var command = connection.CreateCommand();
 command.CommandText = "SELECT count(*) FROM cpu";
-
 var count = (long)(command.ExecuteScalar() ?? 0L);
 Console.WriteLine(count);
-```
+~~~
 
-远程连接示例（支持 `Data Source=` URL 与 PostgreSQL 风格的 `Host`/`Port`/`Username`/`Password` 两种连接串）：
-
-```csharp
-using var connection = new SndbConnection(
-    "Host=127.0.0.1;Port=5080;Database=metrics;Username=alice;Password=secret");
-connection.Open();
-```
-
-### 4. 💻 通过 CLI 访问
-
-```bash
-# 安装
+~~~bash
 dotnet tool install --global SonnetDB.Cli
-
-# 本地直接使用
 sndb local --path ./demo-data --command "SELECT count(*) FROM cpu"
-
-# 保存 profile，下次免输路径
-sndb local --path ./demo-data --save-profile home --default
-sndb connect home --command "SELECT count(*) FROM cpu"
-
-# 连接远程服务端
 sndb remote --url http://127.0.0.1:5080 --database metrics --token your-token --repl
-```
+~~~
 
-更完整的 CLI、ADO.NET、文档客户端、嵌入式、远程和批量写入示例见 [docs](docs/index.md)。
+更多嵌入式、ADO.NET、EF Core、CLI、远程连接和批量写入示例见 [文档中心](docs/index.md)。
 
-## 📦 生态下载
-
-### VS Code
-
-[![Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=SonnetDB)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
-[![Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/iotsharp.sonnetdb-vscode?label=Installs)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
-
-在 VS Code 扩展市场搜索 `SonnetDB`，或直接运行：
-
-```bash
-code --install-extension iotsharp.sonnetdb-vscode
-```
+## 下载与生态
 
 ### NuGet
 
-[![SonnetDB.Core Version](https://img.shields.io/nuget/v/SonnetDB.Core?label=SonnetDB.Core)](https://www.nuget.org/packages/SonnetDB.Core)
-[![SonnetDB Version](https://img.shields.io/nuget/v/SonnetDB?label=SonnetDB)](https://www.nuget.org/packages/SonnetDB)
-[![SonnetDB.EntityFrameworkCore Version](https://img.shields.io/nuget/v/SonnetDB.EntityFrameworkCore?label=SonnetDB.EntityFrameworkCore)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
-[![SonnetDB.Caching.EasyCaching Version](https://img.shields.io/nuget/v/SonnetDB.Caching.EasyCaching?label=SonnetDB.Caching.EasyCaching)](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching)
-[![SonnetDB.Caching.Distributed Version](https://img.shields.io/nuget/v/SonnetDB.Caching.Distributed?label=SonnetDB.Caching.Distributed)](https://www.nuget.org/packages/SonnetDB.Caching.Distributed)
-[![SonnetDB.Cli Version](https://img.shields.io/nuget/v/SonnetDB.Cli?label=SonnetDB.Cli)](https://www.nuget.org/packages/SonnetDB.Cli)
+[SonnetDB.Core](https://www.nuget.org/packages/SonnetDB.Core) ·
+[SonnetDB](https://www.nuget.org/packages/SonnetDB) ·
+[SonnetDB.EntityFrameworkCore](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore) ·
+[SonnetDB.Caching.Distributed](https://www.nuget.org/packages/SonnetDB.Caching.Distributed) ·
+[SonnetDB.Caching.EasyCaching](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching) ·
+[SonnetDB.Cli](https://www.nuget.org/packages/SonnetDB.Cli)
 
-### Docker
+版本和兼容组合以 NuGet、GitHub Release 和 [发布说明](docs/releases/README.md)的实际读回为准。
 
-[![Docker Image](https://img.shields.io/docker/v/iotsharp/sonnetdb?label=iotsharp/sonnetdb&sort=semver)](https://hub.docker.com/r/iotsharp/sonnetdb)
-[![Docker Pulls](https://img.shields.io/docker/pulls/iotsharp/sonnetdb?label=Docker%20Pulls)](https://hub.docker.com/r/iotsharp/sonnetdb)
-[![GHCR Package](https://img.shields.io/badge/GHCR-ghcr.io%2Fiotsharp%2Fsonnetdb-2ea44f)](https://github.com/IoTSharp/SonnetDB/pkgs/container/sonnetdb)
+### Docker、VS Code 和连接器
 
-### 连接器
+- [Docker Hub](https://hub.docker.com/r/iotsharp/sonnetdb) · [GHCR](https://github.com/IoTSharp/SonnetDB/pkgs/container/sonnetdb)
+- [SonnetDB for VS Code](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
+- [C](connectors/c/README.md) · [Go](connectors/go/README.md) · [Rust](connectors/rust/README.md) · [Java](connectors/java/README.md)
+- [Python](connectors/python/README.md) · [VB6](connectors/vb6/README.md) · [PureBasic](connectors/purebasic/README.md)
 
-[![C Connector](https://img.shields.io/badge/C-Connector-blue)](connectors/c/README.md)
-[![Go Connector](https://img.shields.io/badge/Go-Connector-00ADD8)](connectors/go/README.md)
-[![Rust Connector](https://img.shields.io/badge/Rust-Connector-DEA584)](connectors/rust/README.md)
-[![Java Connector](https://img.shields.io/badge/Java-Connector-f89820)](connectors/java/README.md)
-[![Python Connector](https://img.shields.io/badge/Python-Connector-3776AB)](connectors/python/README.md)
-[![VB6 Connector](https://img.shields.io/badge/VB6-Connector-5C2D91)](connectors/vb6/README.md)
-[![PureBasic Connector](https://img.shields.io/badge/PureBasic-Connector-5A5A5A)](connectors/purebasic/README.md)
-[![Connector Releases](https://img.shields.io/badge/Downloads-GitHub%20Releases-black)](https://github.com/IoTSharp/SonnetDB/releases)
+## 项目组成
 
-## 🧱 项目组成
-
-| 组件 | 说明 |
+| 目录或项目 | 职责 |
 | --- | --- |
-| `src/SonnetDB.Core` | 多模型核心库：时序、关系表、KV、文档、搜索、对象存储适配、本地消息队列、原生属性图、备份恢复和底层持久化。核心库不引入第三方运行时依赖 |
-| `src/SonnetDB` | HTTP 服务端、首次安装流程、认证授权、SSE、MCP、Admin UI、Copilot 桥接、二进制帧端点、MQTT broker/client 和内置 `/help` 文档站点 |
-| `src/SonnetDB.Data` | ADO.NET 提供程序，NuGet 包名 `SonnetDB`，命名空间 `SonnetDB.Data`；承接 `Microsoft.Extensions.VectorData` 的 SonnetDB adapter |
-| `src/SonnetDB.EntityFrameworkCore` | EF Core Provider，提供 `UseSonnetDB(...)`、类型映射、查询翻译和 migrations SQL |
-| `src/SonnetDB.Cli` | 命令行工具 `sndb`：本地 / 远程连接、profile 管理、交互式 REPL |
-| `extensions/SonnetDB.Caching.EasyCaching` | 基于 SonnetDB KV keyspace 的 EasyCaching Provider |
-| `extensions/SonnetDB.Caching.Distributed` | 基于 SonnetDB KV keyspace 的 `IDistributedCache` Provider |
-| `web` | 管理后台前端（含 SonnetDB Studio、全局 CopilotDock 与 SPA 发布静态资源） |
-| `src/SonnetDB.Studio` | 基于 NativeWebHost 的 SonnetDB Studio 桌面壳 |
-| `extensions/sonnetdb-vscode` | [官方 VS Code 扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)：远程/托管本地连接、Explorer、SQL、结果视图与 Copilot |
-| `docs` | JekyllNet 文档站点源码；构建镜像时生成并打包到 `/help` |
+| src/SonnetDB.Core | 多模型核心、目录、WAL、索引与持久化 |
+| src/SonnetDB | HTTP Server、REST/Frame、MCP、Admin、Copilot、MQTT 与帮助站 |
+| src/SonnetDB.Data | ADO.NET 和 VectorData 适配 |
+| src/SonnetDB.EntityFrameworkCore | EF Core Provider |
+| src/SonnetDB.Cli | sndb 命令行工具 |
+| src/SonnetDB.Studio | NativeWebHost 桌面壳 |
+| web | Admin、Studio 和静态资源 |
+| connectors | 多语言和 .NET 客户端 |
+| extensions | 缓存、CAP、媒体和协议扩展 |
+| samples / tests | 可运行样例、单元测试、生态测试、Parity 和基准 |
+| docs / eng | 用户文档、设计/审计/发布记录、构建和验证工具 |
 
-## 📚 深入文档
+## 文档导航
 
-README 只保留项目概览和最短入门路径，完整说明在专题文档中：
+- [文档中心](docs/index.md)：按用户目标选择主题。
+- [开始使用](docs/getting-started.md)、[架构总览](docs/architecture.md)、[数据模型](docs/data-model.md)。
+- [SQL 参考](docs/sql-reference.md)、[SQL Cookbook](docs/sql-cookbook.md)、[ADO.NET](docs/ado-net.md)、[EF Core](docs/efcore.md)、[CLI](docs/cli-reference.md)。
+- [KV](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[向量搜索](docs/vector-search.md)、[批量写入](docs/bulk-ingest.md)。
+- [帧协议](docs/frame-protocol.md)、[设备接入](docs/protocol-ingest.md)、[Sparkplug B](docs/sparkplug-b.md)、[可观测性](docs/observability.md)。
+- [Web Admin 与管理工具](docs/web-workbench.md)、[三面能力矩阵](docs/management-tools.md)、[发布与打包](docs/releases/README.md)。
+- [AI / Agent 指南](docs/ai-agent-guide.md)、[MCP Typed Contract](docs/mcp-contract.md)、[llms.txt](llms.txt)、[llms-full.txt](llms-full.txt)。
+- [路线图](ROADMAP.md)、[变更日志](CHANGELOG.md)、[AI 协作规范](AGENTS.md)。
 
-Workbench 正在准备 **Preview 1**：首版优先 Web Admin 与匹配 Server 的已验收子集，发布范围、候选/版本、真实登录与权限、发行物部署及最终门禁按 [根路线图](ROADMAP.md#workbench-preview-1) 的 M47-P01～P08 顺序收口。Studio 与 VS Code 各自通过实物安装/完整宿主旅程后再纳入；当前仍 NOT_READY，未宣布新版本发布。
+## 适用范围
 
-九模型页面及受限真实服务旅程已有交付，Studio WB80 已取得本机切库/重启恢复和正常关闭证据。现有远端 Web smoke 失败、当前候选包与版本、真实登录/承诺范围，以及桌面安装/原生文件对话框、扩展完整 Query/history/退出仍需分别补证。历史实现与窗口记录见 [CHANGELOG完成归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)，当前判断见 [发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)及[M47原始验证](docs/design/m47-unified-management-workbench/validation-report.md)；旧局部PASS或失败不代替新候选结论。
+- SonnetDB 当前是单节点引擎，没有内置复制、分片、自动故障转移或高可用集群。
+- SQL 是 SonnetDB 方言的实用子集；对象、MongoDB-like、Redis-like、MQ 和 Graph 入口不自动承诺外部协议兼容。
+- Graph Beta、性能、恢复、安装、固定硬件、长稳、真实模型质量和生产门禁必须按各自证据报告判断。
+- 源码、公开包、真实 Server/消费者、NativeAOT、现场和公开读回分别计证；一个层级通过不能推导其他层级通过。
+- 版本、宿主和部署 profile 决定可用操作；具体范围以匹配版本的文档和实际 schema 为准。
 
-| 主题 | 文档 |
-| --- | --- |
-| 入门、部署、首次安装 | [开始使用](docs/getting-started.md) |
-| 时序建模、measurement / tag / field / time | [数据模型](docs/data-model.md) |
-| SQL 语法、函数、控制面 SQL | [SQL 参考](docs/sql-reference.md)、[SQL Cookbook](docs/sql-cookbook.md) |
-| Web Admin、SQL 工作台、Copilot | [SonnetDB Studio](docs/web-workbench.md) |
-| Copilot Provider、模型分组、本地模型 | [Copilot Provider 与模型目录](docs/copilot-providers.md) |
-| 九模型管理工作台、Studio 桌面与 VS Code parity | [管理工具与三面能力矩阵](docs/management-tools.md) |
-| VS Code 扩展安装、连接与开发 | [从 Marketplace 安装](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)、[SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
-| 嵌入式 API、ADO.NET、EF Core、CLI | [嵌入式 API](docs/embedded-api.md)、[ADO.NET](docs/ado-net.md)、[CLI](docs/cli-reference.md) |
-| .NET 生态接入与 Profile 边界 | [生态接入](docs/ecosystem-integration.md)、[可运行样例](samples/SonnetDB.EcosystemSample/README.md) |
-| SigLIP2 文搜图、图搜图与 Bucket 异步摄取 | [语义图片检索](docs/semantic-image-search.md)、[工业图片样例](samples/SonnetDB.SemanticImages/README.md) |
-| 确定性文本分块、完整快照 diff 与有界 RAG 应用回调（Core building blocks） | [RAG 摄取 Core](docs/rag-ingestion-core.md) |
-| 批量写入、Line Protocol、JSON ingest | [批量写入](docs/bulk-ingest.md) |
-| KV、文档、全文、向量、Hybrid Search | [KV Keyspace](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md)、[MongoDB-like 迁移](docs/mongodb-migration.md)、[向量搜索](docs/vector-search.md) |
-| Graph Beta 本地功能、SQL/PGQ、GQL 风格查询与 GraphRAG 合同（固定硬件/外部对拍/长稳发布门禁未完成） | [Graph GQL 风格查询入口](docs/m40-graph-364-gql-entry.md)、[知识图谱与 GraphRAG 合同](docs/m40-graph-365-knowledge-contract.md)、[原生属性图路线与边界](docs/native-graph-database-roadmap.md) |
-| 二进制帧协议、MQTT 与 Sparkplug B 接入 | [帧协议](docs/frame-protocol.md)、[Sparkplug B](docs/sparkplug-b.md) |
-| 地理空间、轨迹、预测、PID | [地理空间](docs/geo-spatial.md)、[预测](docs/forecast.md)、[PID 控制](docs/pid-control.md) |
-| 架构、目录布局、备份恢复 | [架构总览](docs/architecture.md)、[文件格式](docs/file-format.md)、[备份恢复](docs/backup-restore.md) |
-| 发布产物、Docker、安装包 | [发布与打包](docs/releases/README.md) |
-| 性能与可靠性 | [基准说明](tests/SonnetDB.Benchmarks/README.md)、[生态底座长稳与恢复](docs/benchmarks/ecosystem-soak.md)、[近期性能与可靠性变更](docs/performance-reliability-updates.md) |
-| 历史交付声明、证据边界与未兑现计划 | [变更日志核查](docs/audits/changelog-verification-20260905.md)、[历史计划归档](docs/audits/historical-plans-from-changelog.md)、[后续路线图](ROADMAP.md) |
+## 性能与可靠性
 
-## 📊 基准与可靠性
+性能数字必须连同版本、机器、语料、命令和原始样本阅读。已有报告多为同机或受限环境对照，不代表你的生产硬件。
 
-性能数字请以 [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) 和各报告的环境、命令与原始样本为准。**已有报告包括本机嵌入式测试和同机容器对照，只能说明各自工作负载的结果，不代表生产部署性能。** [历史九域性能报告](docs/benchmarks/system-performance-20260901.md) 的原始证据已撤回，其中数字不能作为当前性能结论；固定硬件、ARM64、生产同语料和七天混合负载仍待重新取证。
+WAL、segment、对象传输、MQ、CDC、RAG 和备份都有各自的持久化与恢复边界。写入响应、正常重开、强杀恢复、断电、介质故障和完整机器恢复是不同证据等级，详见 [性能与可靠性近期变更](docs/performance-reliability-updates.md) 与 [备份恢复](docs/backup-restore.md)。
 
-- 嵌入式写入、范围查询、时间窗口聚合、向量召回和地理空间查询都有独立 benchmark。
-- 时序 WAL 落盘强度分三级（进程内缓冲 / OS page cache / 每批 fsync）；segment 默认在发布前执行 fsync，时序 Delete 无条件同步 WAL。持久性取决于配置、操作系统及存储设备的落盘保证，现有崩溃恢复测试不构成任意断电或介质故障下零丢失的承诺；详见[架构总览](docs/architecture.md)与[近期性能与可靠性变更](docs/performance-reliability-updates.md)。
+## 在线演示与社区
 
-## 🤝 与开源栈的能力对齐（Parity）
+- [在线演示](https://iotsharp.online/sonnetdb/admin/login)：账号和权限以演示站当前页面为准。
+- [GitHub Issues](https://github.com/IoTSharp/SonnetDB/issues) · [GitHub Releases](https://github.com/IoTSharp/SonnetDB/releases)
+- [企业微信交流群](docs/assets/qr-group.png)
 
-SonnetDB 提供独立的 parity 套件，与 PostgreSQL、MongoDB、InfluxDB、VictoriaMetrics、Redis、Qdrant、MinIO、NATS JetStream、Meilisearch 和 ClickHouse 对照已覆盖场景的行为。MongoDB 仅作为 Document 语义参考，明确不验证 wire protocol / BSON command / 官方 Driver 直连兼容。`.github/workflows/parity.yml` 配置每日运行 `light` / `full` 矩阵，能力、可靠性和算法准确度作为红绿门槛，性能数字只进入 warning/report。配置定时任务、样例报告和局部测试通过不等于完整外部栈与连续七天证据通过，当前完成状态应查阅 [ROADMAP.md](ROADMAP.md) 的 M20 证据记录。可读样例见 [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md)，路线见 [docs/parity-roadmap.md](docs/parity-roadmap.md)。
-
-## 🎯 定位与边界
-
-为了避免误解，这里明确说清 SonnetDB **不是**什么、当前的能力上限在哪里：
-
-- **单机数据引擎**：目前只支持单节点部署，**没有**内置复制、高可用、自动故障转移或分片集群。跨节点冗余需要在应用层或运维层自行处理。
-- **多模型是能力组合，不是各项第一**：把多种数据模型放进一个进程是为了减少组件数量，不是宣称在每个模型上都优于专用数据库。对时序、向量、关系有极致性能要求的场景，仍应评估对应的专用产品。
-- **SQL 是子集**：SQL 方言覆盖常见查询、聚合、JOIN、事务和多模型扩展，但不保证完整的 SQL 标准兼容。
-- **基准是同机粗测**：README 与文档里的性能数字来自同一台开发机上的同机对照，用于横向参考和持续回归，**不代表**你的生产硬件表现。
-
-在这些边界内，SonnetDB 的目标是把「一个组件覆盖常见数据需求」做得可靠、够快、够用。
-
-C# / .NET 是 SonnetDB 的核心实现与主要集成生态；嵌入式、服务端、工业边缘、设备数据和 AI 应用都是具体部署方式或使用场景，不改变“多模型数据引擎”的核心产品类别。
-
-## 🧭 设计原则
-
-- 核心库 safe-only，不使用 `unsafe`，且不引入第三方运行时依赖。
-- 一个数据库目录承载持久化数据。
-- 嵌入式和服务端共享 SQL / API 语义。
-- 管理能力内置到 Server、Web Admin、CLI 和 Copilot 中。
-- AI 能力通过 Copilot、MCP 和 provider 抽象服务于数据查询、诊断和运维，不把 SonnetDB 绑定到单一模型供应商。
-
-## 💬谁在用?
-
-- VelaShell   一款为运维与开发者打造的现代化跨平台 SSH 终端客户端   https://github.com/joesdu/VelaShell
-
-  
-## 💬 交流与社区
-
-欢迎扫码加入 SonnetDB 企业微信交流群，获取版本动态、提问和反馈：
-
-<img src="docs/assets/qr-group.png" alt="SonnetDB 企业微信交流群二维码" width="240" />
-
-- 提 issue / PR：[GitHub Issues](https://github.com/IoTSharp/SonnetDB/issues)
-- 路线图见 [ROADMAP.md](ROADMAP.md)
-- 变更记录见 [CHANGELOG.md](CHANGELOG.md)
-- AI 协作规范见 [AGENTS.md](AGENTS.md)
-- AI / Agent 快速索引见 [llms.txt](llms.txt)
-- 面向任意大模型的完整机器上下文见 [llms-full.txt](llms-full.txt)
-- 外部 Agent、MCP 与安全使用见 [AI / Agent 指南](docs/ai-agent-guide.md)
-
-## 📄 License
+## License
 
 [MIT](LICENSE)

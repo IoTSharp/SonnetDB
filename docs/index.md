@@ -1,15 +1,13 @@
-﻿---
+---
 layout: default
 title: "SonnetDB 文档中心"
-description: "SonnetDB 多模型数据引擎的产品、开发与部署文档总览，覆盖九种数据模型、嵌入式、服务端、Studio、Copilot、ADO.NET、CLI 和批量写入。"
+description: "SonnetDB 多模型数据引擎的产品、开发、运维与 AI Agent 文档总览。"
 permalink: /
 ---
 
-SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶、消息队列和原生属性图（Graph Beta），并配套 SQL、标准 API、SonnetDB Studio、Copilot 与 MCP 接口。
+SonnetDB 是一款单节点多模型数据引擎：时序、关系表、KV、JSON 文档、全文、向量、对象、消息队列和原生属性图各自保留原生语义，共享一套数据库引擎、目录、权限入口和管理工具。
 
-“九种数据模型，各有原生语义，共享一套引擎”是 SonnetDB 的核心产品口径。九种模型共用数据库目录、权限、运维、备份恢复和管理工具，但保留各自的建模与查询语义。SonnetDB 支持嵌入式与服务端部署，可用于本地应用、业务系统、设备与边缘节点、搜索与 AI 应用等不同场景；具体行业和部署方式不构成产品定位限制。
-
-当前版本的持久化方式是数据库目录中的多文件布局，不再以“单文件数据库”作为产品描述。文档中的示例、目录结构和启动方式都以当前仓库代码为准。
+SonnetDB 可以嵌入 .NET 进程，也可以作为独立 Server 运行。SQL、标准 API、HTTP REST/Frame、CLI、Web Admin、Studio、VS Code、MCP 和多语言连接器分别覆盖应用访问、管理和自动化场景。
 
 <div class="hero-link-row">
   <a class="hero-link hero-link-primary" href="{{ site.home_primary_url | default: '/admin/' }}">{{ site.home_primary_text | default: '打开管理界面' }}</a>
@@ -20,85 +18,70 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 <div class="callout-grid">
   <section class="callout-card">
     <strong>嵌入式与服务端</strong>
-    <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过 SQL 与标准 API 访问。</p>
+    <p>在进程内打开数据库目录，或连接独立 Server，通过同一套 SQL 和模型 API 工作。</p>
   </section>
   <section class="callout-card">
     <strong>九种数据模型</strong>
-    <p>支持设备时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶、本地消息队列和原生属性图（Graph Beta），并在全文与向量之上提供 Hybrid Search。</p>
+    <p>覆盖设备时序、关系表、KV、JSON 文档、全文、向量、对象、消息队列和原生属性图。</p>
   </section>
   <section class="callout-card">
-    <strong>AI、Agent 与运维</strong>
-    <p>内置聚合、窗口、预测、PID、地理空间、Copilot、MCP、权限、Token、备份恢复和管理后台。</p>
+    <strong>管理与 AI</strong>
+    <p>提供 Web Admin、Studio、VS Code、Copilot、MCP、权限、备份恢复和可观测性入口。</p>
   </section>
 </div>
 
-## 从哪里开始
+## 按目标开始
 
-| 如果你要做什么 | 建议先看 |
+### 使用产品
+
+| 目标 | 先看 |
 | --- | --- |
-| 启动 Docker 镜像、完成首次安装、打开后台 | [开始使用]({{ site.docs_baseurl | default: '/help' }}/getting-started/) |
-| 了解 measurement、tag、field、time 和 series 的关系 | [数据模型]({{ site.docs_baseurl | default: '/help' }}/data-model/) |
-| 编写 `CREATE/INSERT/SELECT/DELETE` 或控制面 SQL | [SQL 参考]({{ site.docs_baseurl | default: '/help' }}/sql-reference/) |
-| 想直接复制一段常用 SQL 模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
-| 使用 SonnetDB Studio 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
-| 在 VS Code 中连接 SonnetDB、浏览 schema、执行 SQL 和查看结果 | [从 Visual Studio Marketplace 安装 SonnetDB 扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) |
-| 对比 Web Admin、Studio 桌面、VS Code 的九模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
-| 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
-| 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
-| 让任意大模型或外部 Agent 正确理解并安全使用 SonnetDB | [面向大模型与 AI Agent 使用 SonnetDB]({{ site.docs_baseurl | default: '/help' }}/ai-agent-guide/) |
-| 对接版本化 MCP typed contract | [MCP Typed Contract]({{ site.docs_baseurl | default: '/help' }}/mcp-contract/) |
-| 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
+| 启动 Docker、完成首次安装、打开后台 | [开始使用]({{ site.docs_baseurl | default: '/help' }}/getting-started/) |
+| 了解 measurement、tag、field、time 和 series | [数据模型]({{ site.docs_baseurl | default: '/help' }}/data-model/) |
+| 编写 CREATE、INSERT、SELECT、DELETE 或控制面 SQL | [SQL 参考]({{ site.docs_baseurl | default: '/help' }}/sql-reference/) |
+| 复制常用查询和写入模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
+| 通过 ADO.NET 或 EF Core 接入应用 | [ADO.NET]({{ site.docs_baseurl | default: '/help' }}/ado-net/) · [EF Core]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
-| 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
-| 生成确定性文本分块、比较完整快照并以有界 callback 应用 RAG 计划 | [RAG 摄取 Core]({{ site.docs_baseurl | default: '/help' }}/rag-ingestion-core/) |
-| 试用受限 GQL 风格的原生图或关系映射图查询 | [Graph GQL 风格查询入口]({{ site.docs_baseurl | default: '/help' }}/graph-gql/) |
-| 通过 provenance、claim 与 source/chunk 引用构建 GraphRAG | [知识图谱与 GraphRAG 合同]({{ site.docs_baseurl | default: '/help' }}/knowledge-graph-contract/) |
-| 使用 JSON 文档集合或从 MongoDB-like 负载迁移 | [Document Store 能力矩阵]({{ site.docs_baseurl | default: '/help' }}/document-store/) 和 [迁移指南]({{ site.docs_baseurl | default: '/help' }}/mongodb-migration/) |
-| 使用 SigLIP2 做文搜图或图搜图 | [语义图片检索]({{ site.docs_baseurl | default: '/help' }}/semantic-image-search/) 和 [可运行工业图片样例](https://github.com/IoTSharp/SonnetDB/tree/main/samples/SonnetDB.SemanticImages) |
-| 评估 Document Store 推荐规模、恢复时间和内存曲线 | [Document Store 容量与长稳报告]({{ site.docs_baseurl | default: '/help' }}/benchmarks/document-store-capacity/) |
-| 运行生态底座长稳、故障恢复和 #125 专项 profile | [生态底座长稳与恢复基线]({{ site.docs_baseurl | default: '/help' }}/benchmarks/ecosystem-soak/) |
-| 审阅 M19 #125 固定目标硬件容量证据合同 | [M19 固定目标硬件容量证据]({{ site.docs_baseurl | default: '/help' }}/benchmarks/m19-capacity-hardware/) |
-| 复核 M27 #185 本地 ONNX model profile 与语义执行门禁 | [M27 #185 provider model profile 证据]({{ site.docs_baseurl | default: '/help' }}/benchmarks/m27-provider-model-profile/) |
-| 复核 M41 查询优化本地收口和现场验证后置项 | [M41 #381 生产收口]({{ site.docs_baseurl | default: '/help' }}/benchmarks/m41-production-closeout/) |
-| 通过 ADO.NET 访问本地或远程实例 | [ADO.NET 参考]({{ site.docs_baseurl | default: '/help' }}/ado-net/) |
-| 通过 EF Core DbContext 与现有 .NET 应用集成 | [EF Core Provider]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
-| 使用 `sndb` 命令行工具 | [CLI 参考]({{ site.docs_baseurl | default: '/help' }}/cli-reference/) |
-| 走 Line Protocol、JSON 或批量 VALUES 快路径 | [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/) |
-| 在 MQTT、Sparkplug B、CoAP、Line Protocol HTTP/UDP 中选择设备接入方式 | [设备与遥测协议接入]({{ site.docs_baseurl | default: '/help' }}/protocol-ingest/) |
-| 通过工业 MQTT 接入 Sparkplug B 节点与设备 | [Sparkplug B 接入]({{ site.docs_baseurl | default: '/help' }}/sparkplug-b/) |
+| 使用 KV、JSON 文档、全文或向量 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) · [Document Store]({{ site.docs_baseurl | default: '/help' }}/document-store/) · [向量搜索]({{ site.docs_baseurl | default: '/help' }}/vector-search/) |
+| 使用对象存储、批量摄取或设备协议 | [对象传输]({{ site.docs_baseurl | default: '/help' }}/object-transfer-manager/) · [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/) · [设备接入]({{ site.docs_baseurl | default: '/help' }}/protocol-ingest/) |
+| 使用 Graph Beta、SQL/PGQ 或 GraphRAG | [Graph GQL 入口]({{ site.docs_baseurl | default: '/help' }}/graph-gql/) · [知识图谱合同]({{ site.docs_baseurl | default: '/help' }}/knowledge-graph-contract/) |
+| 使用 CLI、备份或恢复 | [CLI 参考]({{ site.docs_baseurl | default: '/help' }}/cli-reference/) · [备份恢复]({{ site.docs_baseurl | default: '/help' }}/backup-restore/) |
+
+### 管理、AI 与 Agent
+
+| 目标 | 先看 |
+| --- | --- |
+| 浏览 schema、编辑 SQL、使用 staged preview | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
+| 对比 Web Admin、Studio 和 VS Code 的范围 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
+| 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
+| 让外部模型安全理解 SonnetDB | [AI Agent 指南]({{ site.docs_baseurl | default: '/help' }}/ai-agent-guide/) |
+| 对接版本化 MCP typed contract | [MCP Typed Contract]({{ site.docs_baseurl | default: '/help' }}/mcp-contract/) |
+| 构建工业 AI、RAG 或语义图片应用 | [工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) · [RAG 摄取 Core]({{ site.docs_baseurl | default: '/help' }}/rag-ingestion-core/) · [语义图片检索]({{ site.docs_baseurl | default: '/help' }}/semantic-image-search/) |
+
+### 工程与运维
+
+| 目标 | 先看 |
+| --- | --- |
+| 了解组件关系、目录和持久化 | [架构总览]({{ site.docs_baseurl | default: '/help' }}/architecture/) · [文件格式与目录布局]({{ site.docs_baseurl | default: '/help' }}/file-format/) |
+| 了解 REST、Frame、MQTT 和 Sparkplug B | [帧协议]({{ site.docs_baseurl | default: '/help' }}/frame-protocol/) · [Sparkplug B]({{ site.docs_baseurl | default: '/help' }}/sparkplug-b/) |
 | 接入 Prometheus、OTLP、Grafana 或 Aspire Dashboard | [可观测性]({{ site.docs_baseurl | default: '/help' }}/observability/) |
-| 定位慢查询、内存、ThreadPool、Flush 或 Compaction 问题 | [故障排查]({{ site.docs_baseurl | default: '/help' }}/troubleshooting/) |
-| 了解当前组件关系与存储路径 | [架构总览]({{ site.docs_baseurl | default: '/help' }}/architecture/) 和 [文件格式与目录布局]({{ site.docs_baseurl | default: '/help' }}/file-format/) |
-| 复核最近的性能、可靠性和格式演进 | [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
-| 查看发布产物与打包说明 | [发布与打包]({{ site.docs_baseurl | default: '/help' }}/releases/) |
+| 定位慢查询、内存、ThreadPool、Flush 或 Compaction | [故障排查]({{ site.docs_baseurl | default: '/help' }}/troubleshooting/) |
+| 查看发布物、Docker 和安装边界 | [发布与打包]({{ site.docs_baseurl | default: '/help' }}/releases/) |
+| 查看性能、恢复和长稳证据 | [基准说明]({{ site.docs_baseurl | default: '/help' }}/benchmarks/ecosystem-soak/) · [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
+| 查看路线、能力成熟度和证据索引 | [ROADMAP](https://github.com/IoTSharp/SonnetDB/blob/main/ROADMAP.md) · [能力成熟度]({{ site.docs_baseurl | default: '/help' }}/capability-maturity/) · [十四项能力索引](https://github.com/IoTSharp/SonnetDB/blob/main/docs/audits/fourteen-capability-evidence-index.json) |
 
-## 当前产品形态
+## 产品边界
 
-SonnetDB 现在由这些主线组成：
-
-1. 多模型核心库 `SonnetDB.Core`
-2. HTTP 服务端 `SonnetDB`
-3. ADO.NET 提供程序：NuGet 包 `SonnetDB`，命名空间 `SonnetDB.Data`
-4. EF Core Provider：NuGet 包 `SonnetDB.EntityFrameworkCore`
-5. CLI 工具 `SonnetDB.Cli`
-6. SonnetDB Studio 与 CopilotDock
-7. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
-8. [SonnetDB for VS Code](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
-9. 面向 AI / Agent 的 `llms.txt`、`llms-full.txt`、MCP 工具和厂商中立使用指南
-
-这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
-
-- 首次安装流程
-- 用户、授权、Token 管理
-- `/admin/` 管理界面
-- `/help/` 静态帮助中心
-- `/v1/events` SSE 事件流
-- `/healthz` 与 `/metrics`
-- `/mcp/{db}` 工具入口
-- Copilot 云端桥接、上下文摘要和写入审批
+- 数据库以目录为持久化边界，当前不是单文件数据库。
+- 单节点部署不提供内置复制、分片、自动故障转移或高可用集群。
+- SQL、MongoDB-like、Redis-like、对象、MQ 和 Graph 入口遵循 SonnetDB 自己的合同，不自动承诺外部协议或官方驱动兼容。
+- Graph 是有限合同的 Beta 能力；性能、恢复、固定硬件、安装、现场和生产门禁必须查看对应证据。
+- Server 实例级 MQ、身份和授权与单库数据有不同备份/恢复范围。
+- 文档示例说明用法；发布版本、live schema 和实际验收优先于路线计划或历史报告。
 
 ## 文档约定
 
-- 示例优先使用当前测试和包说明中已经验证过的写法。
-- 详细示例统一放在具体主题页，首页只保留导航和产品定位。
-- 如果代码行为与常见 TSDB 习惯不同，会在对应页面明确标注当前真实行为。
+- 示例优先使用当前测试、样例和匹配版本的包说明。
+- 详细行为和限制放在对应主题页，首页只负责导航和稳定产品口径。
+- 如果实现与常见数据库习惯不同，主题页会明确标注 SonnetDB 的实际行为。
+- 版本、发布物、路线和验收状态属于易变信息，分别以 [发布记录]({{ site.docs_baseurl | default: '/help' }}/releases/)、[ROADMAP](https://github.com/IoTSharp/SonnetDB/blob/main/ROADMAP.md) 和审计/专题文档为准。

@@ -1,8 +1,14 @@
+CHARACTER: sonnetdb-explainer; profile version 1.1; approved baseline B-20261107.
+The user selected B on 2026-11-07. B retains the V5 identity and fixed outfit;
+V5 is a historical approved baseline, and A/C are historical candidates only.
+
 INPUTS (required):
-1. sonnetdb-explainer-v5-contrast.png -- fixed, user-approved identity/outfit reference.
-   SHA256: 8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c
-2. sonnetdb-explainer-face-v1.png -- optional additional face detail; never substitutes
+1. options-20261107/b-sweet.png -- current user-approved full-body identity/outfit reference.
+   SHA256: e27e1bcd8935ec3c4b32fb080506d6b4fc60a5ca6b81edb2c7296caea0b65c31
+2. sonnetdb-explainer-face-b-20261107.png -- optional additional face detail; never substitutes
    for the full-body reference. Verify its SHA256 in manifest.json.
+Read approval-20261107-b.json and manifest.json before generation. Actually attach
+the B reference; do not silently fall back to V5, A/C or a newly invented identity.
 
 MODEL: use the configured GPT Image 2.5 route from the gpt-image-design skill
 (currently gpt-image-2.5-sunburst). Actually attach the reference image(s).
@@ -17,7 +23,8 @@ approachable technical-presenter personality.
 Keep the approved outfit: ivory knit cardigan with subtle mint edging, white
 blouse, mint/ivory/very restrained blush plaid pleated skirt and matching ribbon
 bow, small mint hair accessory and refined ivory high-heeled pumps. Hosiery must
-match V5: extremely sheer nylon, predominantly natural warm skin undertone with
+match the approved B reference, continuing V5: extremely sheer nylon,
+predominantly natural warm skin undertone with
 a very faint cool mint sheen and delicate highlights; clear knee/calf/ankle
 shading. Do not render opaque colored tights, gray-yellow-green skin, saturated
 cyan legs, green-painted skin or flat digital recoloring. Mint is primarily
@@ -25,10 +32,36 @@ expressed by the outfit and coordinated small accents.
 
 Keep the face and educational topic as the visual focus. Make the light outfit
 stand out clearly against its surroundings. Default to a softly defocused,
-low-saturation darker blue-gray technical setting with soft warm key light and
-gentle edge separation. The topic background may vary but must preserve this
+low-saturation darker blue-gray technical setting lit by soft natural window
+light and realistic shadows. Use only restrained fill or edge light when needed
+to separate the outfit; avoid a staged studio-lighting look. The topic background
+may vary but must preserve this
 foreground/background clarity; avoid the previous pale warm background blending
 into the pale outfit.
+
+Use the natural, everyday photographic texture specified in the character
+profile. Avoid an airbrushed AI finish: keep subtle skin pores, fine facial hair,
+small expression lines, individual hair strands, knit texture and natural fabric
+folds. Do not exaggerate texture into stains, noise or defects. Prefer relaxed,
+slightly asymmetric framing and a candid teaching gesture over perfectly mirrored
+posing. The scene should feel like an ordinary smartphone photograph of a real
+teaching moment, rather than a polished advertisement.
+
+Keep the face and teaching content readable while allowing natural depth of field
+and mild focus falloff in secondary areas. Very slight handheld softness or focus
+imperfection may support the everyday look, but must not blur facial identity,
+Chinese text, required labels or the technical diagram. A few topic-relevant
+everyday objects and a little natural background irregularity are welcome when
+they do not compete with the presenter or teaching point.
+
+Keep face, hand and leg skin temperatures coherent. Preserve natural joint shading
+without red knee patches, chalky ankles, green leg shadows or narrow white shin
+stripes. Use broad soft gradients consistent with the actual window direction.
+For full-body images, keep approved B adult proportions, relaxed weight bearing, aligned knee
+and foot directions, continuous knee/calf/ankle contours, and grounded shoes with
+believable contact shadows. Do not lengthen calves or pinch knees and ankles.
+Coordinate ivory clothes/shoes, mint plaid and restrained blush lines; keep bright
+windows and reflected green light from competing with the face.
 
 Change only the article-specific diagram, educational prop, gesture, composition
 and requested channel dimensions. Keep character identity, hair, age impression,
@@ -48,5 +81,7 @@ REVIEW:
 Record reference path + SHA256, final prompt, model, requested/actual dimensions,
 output SHA256 and actual visual review. Check the same face, adult sweetness,
 hair, outfit, heels (when visible), sheer hosiery, natural leg shading, background
-separation, legible Chinese and accurate technical content. A new topic is not
+separation, natural texture/window light, relaxed framing, legible Chinese and
+accurate technical content. Reject plastic skin, excessive retouching, contrived
+studio lighting or blur that compromises the face or lesson. A new topic is not
 a new person. Missing references block generation; a poor match blocks approval.
