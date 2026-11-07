@@ -51,6 +51,7 @@
 - Web Admin 的 SQL 工作区和 Studio 连接下拉改用显式类型化处理器转发选择事件，避免 `vue-tsc` 在模板 `$emit` 上触发深度类型实例化错误。
 
 ### Changed
+- 将 HTTP OpenTelemetry instrumentation 升级至 1.20.2，纳入语义规范 1.45.0 与 .NET Framework 异步请求上下文修复，保留现有 .NET 10 引导和 core/exporter 1.20.1 组合（PR #419）。
 - 将 ASP.NET Core OpenTelemetry instrumentation 升级至 1.20.2，纳入 fallback route/span 命名修正和长 route 缓存限制，保持现有观测引导及 core/exporter 1.20.1 组合（PR #418）。
 - 将 MCP 与 ASP.NET Core 传输包同步升级至 2.3.1，纳入有状态会话身份校验加固；保留 SonnetDB 显式无状态传输、工具及逐调用 Read/Write 授权合同（PR #417）。
 - 将 CodeQL init/analyze 同步升级至 4.39.3，保留当前 C# 分析权限、构建和默认 bundle 合同，包含特殊路径的 diff alert 过滤修复（PR #416）。
