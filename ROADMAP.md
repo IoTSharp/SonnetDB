@@ -2,6 +2,8 @@
 
 ## 2026-11-07 分支整合后的执行顺序
 
+2026-11-07 上午状态更新：用户明确普通代码 issue 以代码完整实现及必要代码层验证为关闭依据，公开包、上游维护者合入、部署与外部宿主验收分别跟踪；本身属于发布、部署或环境验收的问题仍按其实际合同处理。#230/#392/#394/#395/#403/#404 已回复并关闭为 completed，公开/上游/宿主事项继续保留原始 NOT_RUN 或未完成状态。#396/#397/#398/#399/#401/#402 仍 OPEN，具体缺口已逐条回复。下方较早记录中的“母 issue 继续 OPEN”是当时的关闭口径，不作为当前状态。GetAndDelete 后续修复 cdaebfa5 已拒绝缺失旧记录却带变更版本的确认，保留未知结果且不重试；完整 Client 274/274 通过，准确推送与回读见根 HANDOFF。
+
 PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容量查询重建目录问题，并在最终精确源码验证后合入 main；已合入切片不重新立项。下一阶段由新监督会话按[共同 Provider 三线并行合同](docs/handoffs/provider-next-phase-20261107.md)接续第一顺序，逐项状态及后续见 [PR #413 审查与 issue 矩阵](docs/audits/pr413-integration-20261107.md)。
 
 2026-11-07：三位独立worker完成共同候选`5.1.0-rc.20261107.1`/source`eb5c0e5f`的消费者增强和独立复核；本地四包/JIT与实际CI四包/NativeAOT Server各69步骤PASS，三协议、after-ACK强杀/Down/Up及Server重开齐全，12类发行readiness READY。证据见[发行评审/机器清单](docs/releases/provider-candidate-20261107.md)及[迁移](docs/audits/provider-candidate-20261107-migrations.md)、[JSON](docs/audits/provider-candidate-20261107-json-update.md)、[集合](docs/audits/provider-candidate-20261107-ownsmany.md)专题；正式发行延期及公开门保持，母issue不提前关闭。下一独立SDK切片冻结为typed GetAndDelete。

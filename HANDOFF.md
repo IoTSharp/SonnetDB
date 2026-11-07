@@ -1,3 +1,11 @@
+## 2026-11-07（Asia/Shanghai）代码关闭口径与后续整合同步
+
+- 用户在“更新 Issue 关闭标准”会话明确：普通代码 issue 在实现完整且必要代码验证完成后回复关闭，发布、公开包、上游合入与外部验收另记；未实现或不完整则回复缺口并保持开放。本次主监督已读取实际用户消息，不沿用旧公开发包前置。
+- GitHub 已独立读回 #230/#392/#394/#395/#403/#404 为 CLOSED/COMPLETED，均附最新代码关闭说明；#396/#397/#398/#399/#401/#402 仍 OPEN。这些状态由负责 issue 全量复核的会话写入，本会话没有重复评论或关闭。公开新包、上游接受/发行、WorkBuddy 宿主/平台与生产状态未因关单变为 PASS。
+- 修复会话已提交 cdaebfa5a9890d0d27ff69b6dfe9baa8f7607315：Client 拒绝“旧记录缺失却有变更版本”的 GetAndDelete 响应，结果 UNKNOWN 且不重试；完整 Client 274/274、restore/Format 由修复会话完成，原 PR #415 讨论已回复。主监督干净整合树已包含该提交，双端 main 仍逐次独立回读，不重复制造源码提交。
+- 文档会话 docs-character-20261107/SonnetDB 仍拥有门面与人物 B 定稿；用户已选 B 并授权提交推送，但此记录冻结时尚无新提交，manifest/脸部裁切/批准收据仍待其协调完成。主监督保留其工作树和 canonical 对应 dirty，取得准确 SHA/门禁收据后再正常合并；不复制未冻结材料，不重新生成图片。
+- 本次只同步 ROADMAP、CHANGELOG 和此 HANDOFF 前置段，旧 HANDOFF 历史字节原样保留；最终树规定 restore/Format 与 Git、进程回收收据存 artifacts/main-integration-20261107-0110/。main/两端 parity-results 各自保护，canonical 外来改动及暂存语义保持；正式 tag/NuGet/Release、部署、重启和生产迁移仍延期。
+
 ## 2026-11-07（Asia/Shanghai）PR #415 审查回执校验修正
 
 - 用户明确要求落实 discussion_r4497146088；实时回读 PR #415 已 MERGED，main 起点 66633d6de7e35d047fd5a9cb2cb37c4f5fc59202。GetAndDeleteKvAsync 缺少操作专属存在性校验，导致 found=0/正变更版本被误报成功；通用 exchange 对 GetAndSet 则合法。
