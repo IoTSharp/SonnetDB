@@ -1,0 +1,47 @@
+{
+  "status": "generated",
+  "requestCount": 1,
+  "userApproval": "pending",
+  "startedAtUtc": "2026-11-06T16:00:41.223072+00:00",
+  "pid": 22456,
+  "parentPid": 28608,
+  "argv": [
+    "D:\\source\\SonnetDB\\artifacts\\facade-character-20261106\\generate-sample.py"
+  ],
+  "interpreter": "C:\\Users\\mysti\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+  "model": "gpt-image-2.5-sunburst",
+  "requestedSize": "1536x1024",
+  "quality": "high",
+  "sdkMaxRetries": 0,
+  "httpTimeoutSeconds": 180,
+  "wallClockLimitSeconds": 240,
+  "skill": "C:\\Users\\mysti\\.codex\\skills\\gpt-image-design\\scripts\\gpt_image_design.py",
+  "skillSha256": "8e53ca6b721e77eb020e7096c0c58786d4fa8fc716d9d6c88c23157fb50da1f9",
+  "prompt": "docs\\blogs\\assets\\character\\sonnetdb-explainer-sample-facade-20261106-prompt.txt",
+  "promptSha256": "42e9b57c72e8c124edef2085812f12dfac79b8a6940296d28bfe9e90ad8e2f94",
+  "references": [
+    {
+      "path": "docs\\blogs\\assets\\character\\sonnetdb-explainer-v5-contrast.png",
+      "sha256": "8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c"
+    },
+    {
+      "path": "docs\\blogs\\assets\\character\\sonnetdb-explainer-face-v1.png",
+      "sha256": "1d1768940eb691ebc7a532c135c7c1808f85c7b2ae9e4749649c8851d0afb4e8"
+    }
+  ],
+  "previousPreflight": {
+    "status": "missing_environment_key",
+    "requestCount": 0
+  },
+  "credentialSource": "existing Windows Credential Manager bridge",
+  "visualReview": "NOT_RUN",
+  "publication": "NOT_RUN",
+  "actualSize": [
+    1536,
+    1024
+  ],
+  "output": "docs\\blogs\\assets\\character\\sonnetdb-explainer-sample-facade-20261106.png",
+  "outputSha256": "a5d23c2ed51b2cab13c6551e1acad75f54c2cd4b5294509fe6e9e8092d73b48e",
+  "elapsedSeconds": 73.745,
+  "finishedAtUtc": "2026-11-06T16:01:54.968441+00:00"
+}

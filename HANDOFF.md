@@ -1,3 +1,12 @@
+## 2026-11-07 门面整理与 B 人物基准 1.1 交付
+
+- 用户已从三方案中明确选择“B吧。然后提交并推送。”；默认基准冻结为 B-20261107，规范1.1，全身图 options-20261107/b-sweet.png，SHA e27e1bcd8935ec3c4b32fb080506d6b4fc60a5ca6b81edb2c7296caea0b65c31。B脸部参考从选定原图无损裁切；manifest、批准记录、profile和模板统一绑定B。V5历史批准/输入及A/C候选保留，未重新生成或替换历史公开素材。
+- 本交付同时完成AGENTS长期规则与易变状态分层、README稳定产品入口、docs按目标导航、llms短/完整上下文的版本/MCP/事务/压缩/恢复说明修正。独立审查后补回AOT零IL警告、SQL共享命名空间/显式迁移、CHANGELOG和提交门禁等原强制细节。
+- 已直接读取“更新 Issue 关闭标准”会话的人类原话，普通代码issue按代码完整实现+必要代码层验证回复关闭；发布/公开包/生产等独立记录。该口径已写回AGENTS，不改写旧历史证据的NOT_RUN或原关闭过程。
+- 分支 codex/docs-character-20261107 以 cdaebfa5 为源码基线。整合监督01a1b1e2-0bcd-7220-9c4d-43d9ef3b891b负责最终正常合并、最终树门禁、GitHub/Gitee同步及已合入分支清理；parity-results独立保留。没有把canonical其它dirty/账本混入本提交。
+- 验证范围：7文本严格UTF8/LF，图片/参考/批准/脸部像素裁切及本地文档链接检查；独立代理的候选JSON秘密形态扫描无命中。完整restore和CI同级Format为本提交的强制门禁，执行器仅在两者退出0且最终文件SHA未变时允许提交；逐阶段原始stdout/stderr、进程身份、退出码和提交/远端读回收据保存 artifacts/docs-character-final-20261107/。不由文档提交宣称产品完整测试、真实服务或发行/生产验收。
+- 执行使用共享FileShare.None锁、CPU2、MSBuild单节点/禁持久服务及所属进程树回收。任务结束以本地git状态和delivery-result.json读回为准；此根文件保留基线历史字节，不复制canonical整份外来交接。后续按整合监督继续合并/清理，无正式发包或生产部署授权。
+
 ## 2026-11-07（Asia/Shanghai）PR #415 审查回执校验修正
 
 - 用户明确要求落实 discussion_r4497146088；实时回读 PR #415 已 MERGED，main 起点 66633d6de7e35d047fd5a9cb2cb37c4f5fc59202。GetAndDeleteKvAsync 缺少操作专属存在性校验，导致 found=0/正变更版本被误报成功；通用 exchange 对 GetAndSet 则合法。

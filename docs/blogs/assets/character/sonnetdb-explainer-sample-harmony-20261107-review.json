@@ -1,0 +1,29 @@
+{
+  "status": "READY_FOR_USER_REVIEW",
+  "identityAndWardrobe": "PASS",
+  "legPostureAndGrounding": "IMPROVED",
+  "paletteAndLight": "IMPROVED",
+  "skinAndCandidPose": "PARTIAL",
+  "observations": [
+    "Weight-bearing stance is clearer with knees and feet less tightly crossed; both pumps are grounded.",
+    "Skin temperature and leg shading are more continuous, white shin stripes and window glare are reduced.",
+    "Ivory, muted mint and slate blue-gray are more coherent.",
+    "The smile/gesture and skin still retain some posed, polished character; this is an example for user review.",
+    "Hosiery sheen is very restrained and can read as bare skin at thumbnail size; blush plaid lines remain slightly prominent."
+  ],
+  "output": "docs\\blogs\\assets\\character\\sonnetdb-explainer-sample-harmony-20261107.png",
+  "outputSha256": "3ef3555f6687adf669887628efc3935037e2ea5452f5f17b6fe18ab2add7a7dd",
+  "actualSize": [
+    1536,
+    1024
+  ],
+  "model": "gpt-image-2.5-sunburst",
+  "userApproval": "pending",
+  "publication": "NOT_RUN",
+  "manifestReplacement": "NOT_RUN",
+  "reviewedAtUtc": "2026-11-06T16:43:33.895395+00:00",
+  "reviewers": [
+    "primary agent",
+    "independent character/style reviewer"
+  ]
+}

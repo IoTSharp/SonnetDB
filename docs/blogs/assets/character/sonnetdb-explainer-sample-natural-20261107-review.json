@@ -1,0 +1,25 @@
+{
+  "status": "REVISED_AFTER_USER_FEEDBACK",
+  "identityAndWardrobe": "PASS",
+  "officeScene": "PASS",
+  "skinAndCandidPose": "PARTIAL",
+  "observations": [
+    "Real window, desk and everyday objects improve the setting.",
+    "User requested more harmonious legs and palette; preserve the source and its first assessment."
+  ],
+  "output": "docs\\blogs\\assets\\character\\sonnetdb-explainer-sample-natural-20261107.png",
+  "outputSha256": "0d3abbf91e83a376e0f28f38d21faee369640e796bc068639d77dd9c897179c9",
+  "actualSize": [
+    1536,
+    1024
+  ],
+  "model": "gpt-image-2.5-sunburst",
+  "userApproval": "pending",
+  "publication": "NOT_RUN",
+  "manifestReplacement": "NOT_RUN",
+  "reviewedAtUtc": "2026-11-06T16:43:33.895013+00:00",
+  "reviewers": [
+    "primary agent",
+    "independent character/style reviewer"
+  ]
+}

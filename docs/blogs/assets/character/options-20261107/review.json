@@ -1,0 +1,99 @@
+{
+  "status": "READY_FOR_USER_SELECTION",
+  "reviewedAtUtc": "2026-11-06T18:50:49.881090+00:00",
+  "model": "gpt-image-2.5-sunburst",
+  "size": [
+    1024,
+    1536
+  ],
+  "imageRequestCount": 3,
+  "sdkRetriesPerRequest": 0,
+  "referencesActuallyAttached": [
+    "V5 full body",
+    "V5 face crop",
+    "harmony office example"
+  ],
+  "selection": "pending",
+  "approvedReference": "V5 unchanged",
+  "reviewers": [
+    "primary agent",
+    "character_profile_reorg for A/B",
+    "character_asset_audit for C"
+  ],
+  "candidates": {
+    "a-natural": {
+      "visualStatus": "PASS_FOR_COMPARISON",
+      "strengths": [
+        "relaxed slight turn",
+        "both hands hold tablet",
+        "clear weight bearing"
+      ],
+      "limits": [
+        "still a posed portrait",
+        "face retains polished quality"
+      ]
+    },
+    "b-sweet": {
+      "visualStatus": "PASS_FOR_COMPARISON",
+      "strengths": [
+        "clear teaching gesture",
+        "stronger mint/bow identity",
+        "friendly adult face"
+      ],
+      "limits": [
+        "smile resembles A",
+        "more promotional pose",
+        "knees closer together"
+      ]
+    },
+    "c-professional": {
+      "visualStatus": "PASS_FOR_COMPARISON",
+      "wardrobeChange": "user-requested candidate exploration",
+      "strengths": [
+        "ivory blazer and solid mist-mint knee-length skirt",
+        "professional and approachable",
+        "continuous leg shading and grounded shoes"
+      ],
+      "limits": [
+        "mint is more gray-sage",
+        "less active teaching gesture",
+        "hosiery sheen is restrained"
+      ]
+    }
+  },
+  "commitPushAuthorization": "granted by user after composite refinement",
+  "integrationCoordinator": {
+    "threadId": "01a1b1e2-0bcd-7220-9c4d-43d9ef3b891b",
+    "title": "SonnetDB 下一阶段监督：Provider 三线并行验收",
+    "status": "accepted Git integration and branch cleanup ownership"
+  },
+  "notifiedActiveThreads": [
+    "01a1b206-6c08-7183-ac65-2badbd20c3fb",
+    "01a12004-2cc6-7351-a48d-b33f388839e5",
+    "01a155cb-36ce-7b80-be3b-f965dd1bba30",
+    "01a11eff-1586-7551-b50a-8db25b652ed7"
+  ],
+  "execution": {
+    "a-natural": {
+      "rootPid": 33788,
+      "elapsedMs": 116313,
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "ownedProcessesAfterCleanup": 0
+    },
+    "b-sweet": {
+      "rootPid": 11820,
+      "elapsedMs": 95250,
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "ownedProcessesAfterCleanup": 0
+    },
+    "c-professional": {
+      "rootPid": 39120,
+      "elapsedMs": 95985,
+      "exitCode": 0,
+      "cleanupComplete": true,
+      "ownedProcessesAfterCleanup": 0
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "characterId": "sonnetdb-explainer",
+  "version": "1.1",
+  "approvedDesignId": "B-20261107",
+  "status": "approved",
+  "approvalRecordedAtUtc": "2026-11-07T01:35:07.337180+00:00",
+  "userDate": "2026-11-07",
+  "userInstructions": [
+    "B吧 。 然后提交并推送。"
+  ],
+  "basis": "User selected candidate B after viewing the A/B/C comparison and explicitly authorized commit and push.",
+  "reference": "options-20261107/b-sweet.png",
+  "sha256": "e27e1bcd8935ec3c4b32fb080506d6b4fc60a5ca6b81edb2c7296caea0b65c31",
+  "actualSize": [
+    1024,
+    1536
+  ],
+  "faceReference": "sonnetdb-explainer-face-b-20261107.png",
+  "faceReferenceSha256": "1bcb030e395e53c46883fd07001faca25fdce81e581e9a61143df95505616ee4",
+  "supersedesDefaultReference": "sonnetdb-explainer-v5-contrast.png",
+  "scope": "Future default character reference and documentation; commit and push. Historical published assets remain unchanged. No platform publication or production deployment."
+}

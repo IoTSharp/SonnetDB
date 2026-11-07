@@ -1,0 +1,24 @@
+{
+  "status": "REVISED",
+  "identityAndWardrobe": "PASS",
+  "naturalOfficeStyle": "FAIL",
+  "observations": [
+    "Recognizable V5 identity and wardrobe; both shoes visible.",
+    "Studio-like exhibition background and polished skin did not meet the new everyday-photography direction."
+  ],
+  "output": "docs\\blogs\\assets\\character\\sonnetdb-explainer-sample-facade-20261106.png",
+  "outputSha256": "a5d23c2ed51b2cab13c6551e1acad75f54c2cd4b5294509fe6e9e8092d73b48e",
+  "actualSize": [
+    1536,
+    1024
+  ],
+  "model": "gpt-image-2.5-sunburst",
+  "userApproval": "pending",
+  "publication": "NOT_RUN",
+  "manifestReplacement": "NOT_RUN",
+  "reviewedAtUtc": "2026-11-06T16:43:33.894361+00:00",
+  "reviewers": [
+    "primary agent",
+    "independent character/style reviewer"
+  ]
+}

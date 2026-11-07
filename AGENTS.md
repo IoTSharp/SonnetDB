@@ -1,347 +1,214 @@
-﻿# AGENTS
+# AGENTS
 
-本文件定义 AI 协作（如 GitHub Copilot Agent）在 SonnetDB 仓库工作的规范与约束。所有 AI 辅助生成的代码和文档均须遵守此规范。
+本文件是 SonnetDB 仓库的长期协作与工程规则，适用于负责源码、测试、文档、样例、发布准备和审查的 AI 智能体。它描述“如何工作”和“哪些合同不能被悄悄改变”；随日期变化的路线、候选版本和验收结果放在 [ROADMAP.md](ROADMAP.md)、[CHANGELOG.md](CHANGELOG.md) 及对应专题证据中。
 
----
+## 1. 适用范围与优先级
 
-## 项目目标
+- 结合用户当前请求、机器/上层 AGENTS 和任务所在目录的适用规则开展工作；发生冲突时遵守更高优先级指令，并在交接中说明。
+- 本文件不自动授权提交、推送、发布、部署、重启、生产配置变更、数据库迁移或对外消息。只有用户明确授权的动作才能执行。
+- 开始工作前必须阅读 [HANDOFF.md](HANDOFF.md)、检查当前分支和工作树，并确认任务涉及的代码、测试、文档和证据入口。
+- 共享工作树中已有的修改属于其他工作时，必须保留其文件、字节、暂存状态和归属。不得使用 reset --hard、clean、全量 stash、宽泛 git add 或覆盖式复制来“整理”工作树。
+- parity-results 是只保存 parity 结果的独立分支，必须始终保留本地和远端引用，不能合并到 main 或其他开发分支。
+- 机器级 PowerShell、远程 shell、网络代理、有界执行、进程回收和 Graphify 禁止规则由上层 AGENTS 负责；本文件不重复改写，也不允许绕过。
 
-**SonnetDB** 是一个使用 C# / .NET 10 实现的多模型数据引擎，目标是：
+## 2. 每项任务的工作流程
 
-> 九种数据模型，各有原生语义，共享一套引擎；以数据库目录为持久化边界，通过 SQL、标准 API 和管理工具提供一致的治理与访问能力。
+### 2.1 先把请求变成可验收的范围
 
-当前推进以 [ROADMAP.md](ROADMAP.md) 的 2026-09-05 核查结果和 [综合审计](docs/audits/2026-09-05_project-SonnetDB-report.md) 为准：先验证 MCP 启动修复并恢复完整 Parity/nightly，再按九模型 gap catalog 推进真实用户旅程、恢复边界与性能缺口。已有实现不得重新包装为新任务，构建、mock、真实服务和生产门禁证据必须分开。
+在实现前检查相关代码、文档、测试和现有入口，明确：
 
-> 当前派单焦点：M20 最新七次 scheduled 全部失败，须在修复后重新取得 light/full 与 7 天证据；M19 #125、M25 #174 和 M42 的固定目标硬件报告；M27 真实模型质量/成本、双网客户端和 Agent Framework 边界。typed MCP、工业 Demo、在线 `IChatProvider` 和显式 profile 的本地 ONNX 路径已有实现，不能再称为空壳；hash fallback 和合成模型测试不能计作真实语义证据。M14 仍是 `Microsoft.Extensions.AI` 加自研 `CopilotAgent`，不是 Microsoft Agent Framework。M29 安装包/宿主合同已实现，实机安装仍待验证；M32/M34 已有交付不重做；M35 仍缺持久摄取/resume 等切片。M36 已扩为九模型验收，Graph 引擎仍归 M40；优先远程 KV、对象有界分页/传输、MQ 实例恢复和 SQL/Graph 工作流，单库备份不得冒称覆盖 Server 实例 MQ。M22 继续保留为上层应用候选。
+- 目标用户是谁，问题是什么，为什么需要这项变化；
+- 用户主流程、输入输出、边界和失败行为；
+- 与现有 API、文件格式、权限、恢复和部署合同的关系；
+- 可以由用户直接检查的验收标准；
+- 仍会改变结果的未决问题。
 
----
+如果问题会实质改变产品行为、兼容性或外部状态，应先提出具体问题并等待答案。请求已经足够明确、且选择不会改变合同的细节可以由智能体自行决定；不因模板化问题阻塞低风险工作。
 
-## 强制约束
+### 2.2 确认归属并保持最小变更
 
-以下约束**不得违反**。如需例外，必须在 PR 描述中明确说明理由，并通过 reviewer 评审后方可执行。
+- 为本任务列出拥有的文件、依赖、验证命令和完成边界；共享文档由主智能体串行维护。
+- 优先修复已确认原因，避免顺手重构、重排无关文件或把已完成能力包装成新任务。
+- 发现范围外问题时，记录为独立后续项；除非用户重新授权，不混入当前交付。
+- 删除、移动或覆盖前必须核对绝对路径和文件归属，只清理本任务创建且确认不再需要的对象。
 
-### 1. 禁止 `unsafe`
+### 2.3 用分层证据报告状态
 
-**第一版（Milestone 0 ～ Milestone 7）禁止使用 `unsafe` 关键字。**
+分别记录源代码、静态检查、构建/单元测试、真实服务、实际发布物、安装、固定硬件、现场操作、人验收和公开读回。一个层级的结果不能替代另一个层级。
 
-所有底层内存操作必须通过以下安全 API 完成：
+统一使用以下状态：
 
-| API | 用途 |
-|-----|------|
-| `Span<T>` / `ReadOnlySpan<T>` / `Memory<T>` | 内存切片与传递 |
-| `MemoryMarshal.CreateSpan` / `AsBytes` / `Cast` / `Read` / `Write` | 类型转换与 reinterpret |
-| `BinaryPrimitives` | 小端/大端整数读写 |
-| `[InlineArray(N)]` | 固定大小的栈/结构体内嵌缓冲（magic bytes、保留字段） |
-| `ArrayPool<T>` | 可复用堆缓冲区 |
-| `stackalloc` | 小型栈缓冲 |
-| `CollectionsMarshal` | `List<T>` 底层 span 访问 |
+- PASS：本轮按指定命令完成并有可核验收据；
+- FAIL：实际执行且未满足条件；
+- UNKNOWN：执行中断、结果不完整或外部状态无法确认；
+- NOT_RUN：本轮没有执行；
+- BLOCKED：存在明确的外部前置条件，且当前无法继续。
 
-### 2. 固定二进制结构体规范
+失败、超时、取消和未运行项必须保留原始边界，不能为了让摘要好看而改写为成功。性能、恢复、AOT、固定硬件、长稳和公开可见性必须逐项表述。
 
-所有固定二进制结构（`FileHeader`、`SegmentHeader`、`BlockHeader` 等）必须：
+### 2.4 测试、界面和可访问性
 
-```csharp
+涉及代码或用户流程时，先检查已有测试和实现，补充能证明行为的最小测试，至少覆盖：
+
+- 正常输入；
+- 无效、缺失和空输入；
+- 最小值、最大值、单项和批量边界；
+- 失败、取消、超时、重试和恢复；
+- 可能影响现有用户的回归路径。
+
+涉及页面或组件时，检查键盘导航和焦点、标签与错误消息、颜色对比度、窄屏布局和操作反馈。能自动化的部分自动化；需要真实浏览器、设备或人工判断的部分明确标为 NOT_RUN 或 UNKNOWN。
+
+### 2.5 发布准备与外部写入
+
+发布检查至少包括适用的 restore/build/format/test、配置和环境变量、迁移与兼容风险、监控和错误报告、回滚路径。没有用户明确授权，不得部署、重启、改生产设置或运行迁移。
+
+所有外部创建、上传、POST、发布、关闭或删除动作都必须：
+
+1. 重新读取当前目标状态，确认没有重复或状态漂移；
+2. 对一次明确的写入只发出一次请求；
+3. 独立读取写入结果和公开/目标侧状态；
+4. 对未知结果先对账，再决定是否需要后续动作，不能盲目重试。
+
+## 3. SonnetDB 产品边界
+
+SonnetDB 是使用 C# / .NET 10 实现的单节点多模型数据引擎。九种原生数据模型分别是时序、关系表、KV、JSON 文档、全文、向量、对象、SonnetMQ 和原生属性图；空间/轨迹、流处理/订阅、CDC/本地同步、AI/RAG、治理/恢复/观测是跨模型平台能力。数据库目录是持久化边界，Server 级身份、授权和 .system/mq 等实例资源有各自范围。
+
+稳定产品描述必须遵守这些边界：
+
+- 单节点不等于内置集群、分片、高可用或自动故障转移；
+- SQL、对象、MongoDB-like、Redis-like、MQ、GQL 等入口提供的是 SonnetDB 的已声明子集，不自动构成外部协议或官方驱动兼容；
+- Graph 是有限合同的 Beta 能力；存在实现入口不等于完成容量、固定硬件、长稳或生产门禁；
+- 数据库备份和 Server 实例/MQ、CDC、RAG、外部对象等恢复范围必须分别说明；
+- 源码实现、公开包、真实消费者、NativeAOT、安装、现场和生产证据是不同事实层；
+- 当前能力和剩余工作以 [ROADMAP.md](ROADMAP.md)、能力证据索引和专题合同为准，不能把计划 ID、历史测试或旧发布说明写成已交付能力。
+
+## 4. 工程与兼容性合同
+
+### 4.1 Safe-only 与固定二进制结构
+
+SonnetDB 自有源码默认禁止使用 unsafe。需要例外时，必须在独立 PR/ADR 中说明原因、范围、替代方案和兼容风险，并取得评审批准。
+
+底层内存操作优先使用：
+
+- `Span<T>`、`ReadOnlySpan<T>`、`Memory<T>`；
+- `MemoryMarshal`、`BinaryPrimitives`、`ArrayPool<T>`、`stackalloc`；
+- `[InlineArray(N)]` 和 `CollectionsMarshal`。
+
+固定二进制结构（例如 FileHeader、SegmentHeader、BlockHeader）必须是无托管引用的 unmanaged struct，使用：
+
+~~~csharp
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct FileHeader
 {
     // ...
 }
-```
+~~~
 
-- 类型必须为 `unmanaged struct`（不含托管引用）
-- 字节序统一 **little-endian**（使用 `BinaryPrimitives` 读写多字节字段）
-- 修改布局时必须同步升级 `FileHeader.Version`，并在 CHANGELOG 中记录
+多字节字段统一 little-endian。改变已发布布局时必须同时：
 
-### 3. 编译器选项
+1. 升级对应的格式/版本字段；
+2. 增加迁移或明确拒绝旧格式的逻辑；
+3. 在 CHANGELOG.md 和 PR 描述中记录兼容影响；
+4. 增加 round-trip、旧版本和恢复边界测试。
 
-所有项目必须启用：
+### 4.2 编译、依赖和警告
 
-```xml
+仓库项目通过 Directory.Build.props 统一启用：
+
+~~~xml
 <Nullable>enable</Nullable>
 <ImplicitUsings>enable</ImplicitUsings>
 <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-```
+~~~
 
-不得通过 `#pragma warning disable` 压制与本项目逻辑相关的警告，除非有充分注释说明。
+不得用 #pragma warning disable、降低严重级别或删除断言来掩盖与本项目逻辑有关的警告和失败。核心库保持最小运行时依赖；新增依赖须说明用途、许可证、AOT/trim 状态和不可用行为，并通过评审。
 
-### 4. 依赖约束
+### 4.3 JSON、Trim 和 NativeAOT
 
-- 核心类库 `src/SonnetDB` **不得**引入任何第三方 NuGet 运行时依赖
-- 测试项目可引用 `xUnit`、`xUnit.runner.visualstudio`、`Microsoft.NET.Test.Sdk`
-- 基准项目可引用 `BenchmarkDotNet`
-- **不得**引入 `Newtonsoft.Json`、`Dapper`、`EntityFramework` 等大型依赖
-- 若确有必要引入新依赖，须在 PR 描述中说明理由并通过评审
+生产代码中的 `System.Text.Json` 必须使用 source-generated context、`JsonTypeInfo<T>` 或等价的手写 AOT 友好读写：
 
-### 5. JSON 与 Native AOT 铁律
+- 新增或修改 DTO 时同步登记对应 JsonSerializerContext；
+- 不使用依赖反射或动态代码生成的 `Serialize(value, options)`、`Deserialize<T>(json, options)` 等重载；
+- 不以压制 IL2026、IL3050 等警告代替修复；
+- 第三方类型无法 source-generate 时，隔离在明确的非 AOT 边界或写显式转换；
+- 涉及 Server、CLI、Native connector、Frame/REST 客户端和发布工具链的 JSON 变更，必须在 AOT 分析或 NativeAOT 发布路径下保持 0 个 IL/AOT 警告；
+- AOT/trim 分析只证明被分析的程序集和宿主；发布、运行、消费者、安装和现场仍要分别验证。
 
-所有生产代码中的 `System.Text.Json` 序列化与反序列化必须保持 source-generated，并且必须支持 Native AOT；此规则不可弱化、不可绕过。
+### 4.4 SQL 标识符大小写合同
 
-- 新增或修改 JSON DTO 时，必须同步注册到对应的 `JsonSerializerContext`，并使用 `JsonTypeInfo<T>` 或 `JsonSerializerContext` 重载
-- `JsonSerializerOptions` 只能作为 source-generated context 的配置输入，不能作为反射元数据入口传给 `JsonSerializer.Serialize` / `Deserialize`
-- 禁止使用 `JsonSerializer.Serialize(value, options)`、`JsonSerializer.Deserialize<T>(json, options)` 等依赖运行时反射或动态代码生成的重载
-- 禁止为了通过构建而压制 `IL2026`、`IL3050` 或相关 trim/AOT 警告；必须改为 source-generated context、手写 `Utf8JsonReader` / `Utf8JsonWriter`，或显式的 AOT 友好转换器
-- 第三方类型若无法纳入 source generation，必须通过手写转换、外部类型自带的 AOT 友好模型接口，或隔离在非 AOT 边界处理，不能回退到反射序列化
-- 涉及 Server、CLI、Native connector、Frame/REST 客户端、发布工具链的 JSON 变更，必须在 AOT 分析或 NativeAOT 发布路径下保持 0 个 IL/AOT 警告
+表、measurement、视图、物化视图、关系列和 measurement 的 TAG/FIELD 保留创建时拼写。未加双引号的名称按 `OrdinalIgnoreCase` 解析；双引号名称按 `Ordinal` 精确解析；双引号内的 `""` 表示一个双引号。
 
-### 6. 格式版本变更
+表、measurement、视图和物化视图共享 SQL 数据源命名空间，同一命名空间禁止仅大小写不同的新增或重命名。旧目录若已存在冲突，普通引用必须报歧义，迁移工具只能显式检查和处理，不能静默选取、合并或覆盖。跨模型精确同名且引号无法消歧时，必须通过指明对象类型的 DDL 显式迁移。解析器必须把引号信息交给统一绑定阶段，执行器使用绑定后的原名；限定符、别名、CTE、DDL/DML 以及 Point/Line Protocol 摄取入口都遵守同一合同。该规则不改变字符串值、JSON 属性键或其他模型的数据键语义。
 
-不得修改已发布的文件二进制格式（`FileHeader`、`BlockHeader` 等结构体布局），除非同步：
-1. 升级 `FileHeader.Version` 字段值
-2. 在 PR 描述和 `CHANGELOG.md` 中明确标注格式变更
-3. 添加格式迁移或拒绝旧格式的处理逻辑
+## 5. 代码、文档和内容规范
 
-### 7. 提交前格式检查铁律
+### 5.1 C# 代码
 
-**每次提交代码前，必须在最终待提交的工作树上执行与 CI `Format Check` 相同的检查，并确认通过。**不得以提交后的 CI 检查代替，也不得跳过或降低检查级别：
+遵循 .NET 命名规范：类型、方法和属性使用 PascalCase，私有字段使用 _camelCase，局部变量和参数使用 camelCase，接口使用 IXxx，常量使用 PascalCase。
 
-```bash
+所有 public API（类型、方法、属性、构造函数）提供中文 XML 文档注释。参数校验使用现代 ArgumentNullException.ThrowIfNull、ArgumentOutOfRangeException.ThrowIfNegative 等 API；不吞掉 IOException、InvalidDataException 等存储层异常；自定义异常放在 SonnetDB.Exceptions 命名空间并继承 Exception。
+
+### 5.2 文档与发布状态
+
+README 只写稳定产品入口、边界和导航。路线、候选包、验证矩阵、发布状态和历史修正写入 ROADMAP、CHANGELOG、release/audit 或专题文档。任何文档不能把源码存在、mock/fixture、真实服务、公开包、现场或生产证据混为一谈。
+
+涉及 SonnetDB 讲解人物、文章封面或视频人物时，执行 [讲解人物档案](docs/blogs/character-profile.md) 和 [基准清单](docs/blogs/assets/character/manifest.json)；生成前实际使用档案指定的参考图和模型，保留输入/输出 SHA、提示词和目视审图结果。这个内容发布合同不应复制进普通代码任务。
+
+## 6. 测试和验证基线
+
+单元测试覆盖率目标为 80% 以上，具体门禁以 CI 和任务合同为准。至少保持以下类别的回归覆盖：
+
+| 类别 | 要求 |
+| --- | --- |
+| 二进制结构 | 使用 AsBytes/MemoryMarshal.Read 做 round-trip |
+| 边界 | 空输入、单点、最大值和最小值 |
+| 持久化 | WAL replay、Catalog 重载、Segment 读取和目录重开 |
+| 并发 | MemTable 或对应模型的并发读写边界 |
+| 失败恢复 | 取消、超时、强杀/重开和未知提交结果按合同验证 |
+
+基准测试集中放在 tests/SonnetDB.Benchmarks，报告必须绑定版本、机器、语料、命令和负载；同机粗测不能冒称生产性能。
+
+提交前必须在最终待提交工作树执行与 CI 相同的格式检查：
+
+~~~powershell
 dotnet restore SonnetDB.slnx
 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/
-```
+~~~
 
-检查失败时必须先修正格式问题，再重新运行检查；检查通过后若继续修改代码，提交前必须重新检查。未取得通过结果不得执行 `git commit`。
+格式检查失败时先修复并重跑；检查通过后如果继续修改，提交前必须再次运行。未取得 PASS 不得执行 git commit；不得降低检查级别或以未来 CI 代替提交前检查。不得把 bin/、obj/、.nupkg 等构建产物提交到仓库。
 
-### 8. SQL 标识符大小写合同（GH-Issue #211）
+## 7. Git、PR、CHANGELOG 与交接
 
-- SQL 表名、measurement 名称、视图及物化视图名称、关系表列名及 measurement 的 TAG/FIELD 列名必须保留创建时的原始拼写，不折叠为小写或大写；catalog、`SHOW`/`DESCRIBE` 与结果列元数据使用已保存的名称。
-- 未加双引号的名称按 `OrdinalIgnoreCase` 解析；双引号名称按 `Ordinal` 精确解析。创建 `DeviceID` 后，`deviceid`、`DEVICEID` 与 `"DeviceID"` 可引用它，`"deviceid"` 不匹配。该规则不依赖当前语言区域或数据 collation。
-- 新建或重命名时，禁止在同一命名空间内产生仅大小写不同的名称，即使加双引号也不允许；表、measurement、视图和物化视图共享 SQL 数据源命名空间。旧 catalog 中已存在的此类冲突须显式迁移；普通引用必须报歧义，允许用双引号精确检查和迁移，不能静默选取、合并或覆盖。跨模型精确同名无法由引号消歧时，须通过指明对象类型的 DDL 显式迁移。
-- 限定符、别名、CTE 名及 DDL/DML 中的名称引用遵循相同规则。解析器须把引号信息传给统一名称绑定阶段，执行器使用绑定后的原名；禁止各入口自行折叠或选择不同的比较规则。双引号内的转义 `""` 代表一个 `"`。
-- Point、Line Protocol 等摄取入口的 measurement/TAG/FIELD 名称也须解析到已有 schema 的拼写，避免仅因大小写变化而新增列或 series。此合同不改变字符串数据值、数据 collation、JSON 文档属性键或其他模型的数据键语义。
+- Commit 使用 Conventional Commits：`type(scope): summary`；PR 围绕一个交付或缺口，写清变更、对应路线、测试、兼容性和 CHANGELOG。
+- 每个 PR 必须更新 CHANGELOG.md 的 [Unreleased]，只记录实际行为或文档变更，不把未来计划写成发布记录。
+- 普通代码 issue 以代码完整实现并完成必要的代码层验证为关闭条件：回复实现范围、提交/PR 和验证结果后关闭；部分实现必须说明已完成范围、功能缺口与后续工作并保持开放。发布、NuGet 公开包、部署、生产/现场验收和公开读回独立记录，默认不作为普通代码 issue 的关闭前置条件；issue 本身明确针对发布、部署或线上验收时，仍按其对应合同判断。
+- 每次会话开始前阅读根 HANDOFF.md；若缺失，必须在开始修改前创建并记录缺口。每次会话结束前更新它，记录日期/时区、分支和提交、完成/未完成、验证状态、风险边界、授权边界、下一顺序以及本任务创建的进程或临时资源。
+- 交接必须与真实工作树一致。若共享 dirty 状态导致无法提交，保留文件并明确说明原因，不能把局部结果写成完整完成。
 
-### 9. 分支治理
+## 8. 当前仓库地图
 
-- `parity-results` 是仅用于保存 parity 结果的独立分支，严禁合并到 `main` 或其它开发分支；分支清理、同步和合并操作必须始终保留该分支及其远端引用。
-
-### 10. 会话交接
-
-- 每次会话开始前必须先阅读仓库根目录的 `HANDOFF.md`，把上次会话记录的未完成事项、待完善内容、边界和注意事项纳入当前计划；若文件不存在，必须在开始修改前创建并记录这一缺口。
-- 每次会话结束前必须更新 `HANDOFF.md`，记录本次已完成、未完成、下一次继续顺序、验证结果、风险边界以及下一会话需要知道的其它事项。交接文件必须与实际工作树、提交和分支状态一致，不得把计划或局部 PASS 写成完整完成。
-- `HANDOFF.md` 固定放在仓库根目录；会话结束前应把它纳入提交或明确说明为何暂不能提交。
-
----
-
-## 代码规范
-
-### 宣传讲解人物一致性
-
-- 涉及 SonnetDB 讲解人物、人物配图、文章封面或视频人物时，必须先读取 [讲解人物档案](docs/blogs/character-profile.md)、[基准清单](docs/blogs/assets/character/manifest.json) 和其中的生成模板；不得每篇重新随机设计一个人物。
-- 用户于 2026-11-06 要求提交推送并确保后续智能体按此规则生成，固定采用 V5：[全身基准图](docs/blogs/assets/character/sonnetdb-explainer-v5-contrast.png)，SHA-256 `8428a2a4867286a207d867bd7b54b31fd59f5763041251c6e0249b6dfb976b0c`。年龄约 25 岁成年亚洲女性，保持同一张甜美亲切的脸、深棕长发与轻薄刘海；新用户指示可明确修订此基准，旧候选不得自动替代。
-- 后续生成必须实际传入已确认全身基准图，脸部细节需要时同时传入档案中的脸部裁切；使用 `gpt-image-design` 的 GPT Image 2.5 路径，并核对输入 SHA。只复述文字、未传参考图不符合角色一致性要求；工具不支持参考图时必须说明阻断，不得静默改用随机文生人物或换模型。
-- 默认服饰固定为米白开衫、白衬衫、薄荷绿/米白/淡粉格纹裙与同款领结、小薄荷发饰、米白高跟鞋。丝袜以 V5 的近自然肤色、极轻冷薄荷调和细腻轻透光泽为准，不能回退到灰黄绿、亮青色或厚重不透的效果。背景随主题变化，但须保持与浅色人物清楚的明暗分离；默认低饱和较深冷蓝灰，避免浅暖背景使人物不鲜明。
-- 每篇可改变主题图示、道具、动作、构图和渠道尺寸，保持人物身份、发型、年龄感、确认服饰与质感。更换这些固定项须有用户新的明确要求。保留参考路径/输入 SHA、提示词、模型、输出 SHA 和实际目视审图结果；每篇新构图/新主题不等于更换角色。
-- 已发布或冻结的历史稿、原图及其它渠道状态不因本规则自动替换；沿用各渠道事实核查、独立配图及发布授权边界。
-- 设计评审须有独立判断：依据配色、视觉中心、人物气质、角色一致性及封面缩小后的可读性选择；不得自动照搬最新参考或机械叠加全部元素，没有受众证据不得宣称“大多数人更喜欢”。
-- 发布前审图须逐项核对同一人物、甜美成年气质、服饰/高跟鞋、轻透丝袜与腿部自然明暗、背景分离、中文及技术图示；生成成功不等于审图通过，缺失基准或不符时先修正，不以发布后再补替代。
-
-### 命名规范
-
-遵循 [.NET 官方命名规范](https://learn.microsoft.com/zh-cn/dotnet/standard/design-guidelines/naming-guidelines)：
-
-| 元素 | 规范 |
-|------|------|
-| 类型、方法、属性 | `PascalCase` |
-| 私有字段 | `_camelCase` |
-| 局部变量、参数 | `camelCase` |
-| 常量 | `PascalCase`（不用全大写） |
-| 接口 | `IXxx` |
-
-### XML 文档注释
-
-**所有 public API**（类型、方法、属性、构造函数）必须有 XML 文档注释，使用中文撰写：
-
-```csharp
-/// <summary>
-/// 按时间范围查询原始数据点。
-/// </summary>
-/// <param name="seriesId">序列标识符。</param>
-/// <param name="from">起始时间戳（毫秒，inclusive）。</param>
-/// <param name="to">结束时间戳（毫秒，exclusive）。</param>
-/// <returns>按时间递增排列的数据点序列。</returns>
-public IEnumerable<DataPoint> QueryRaw(SeriesId seriesId, long from, long to) { ... }
-```
-
-### 异常处理
-
-- 参数校验使用 `ArgumentNullException.ThrowIfNull`、`ArgumentOutOfRangeException.ThrowIfNegative` 等现代 API
-- 不吞掉 `IOException`、`InvalidDataException` 等存储层异常
-- 自定义异常继承 `Exception` 并放置在 `SonnetDB.Exceptions` 命名空间
-
----
-
-## 测试要求
-
-### 覆盖率目标
-
-单元测试覆盖率目标 **≥ 80%**（以行覆盖率计）。
-
-### 必测场景
-
-| 场景 | 要求 |
-|------|------|
-| 二进制 round-trip | 所有 `unmanaged struct` 必须有 `AsBytes` 写入后 `MemoryMarshal.Read` 读取的 round-trip 测试 |
-| 边界条件 | 空输入、单点、最大值/最小值 |
-| 持久化恢复 | WAL replay、Catalog 重载、Segment 读取 |
-| 并发安全 | MemTable 并发只读测试 |
-
-### 基准测试
-
-关键路径的 BenchmarkDotNet 基准在 **Milestone 8** 集中补齐，包括：
-
-- 批量写入吞吐量（点/秒）
-- 时间范围查询延迟
-- 聚合查询延迟
-- 内存占用
-
-### 测试命名
-
-遵循 `方法名_场景描述_预期结果` 格式：
-
-```csharp
-[Fact]
-public void QueryRaw_WithTimeRange_ReturnsPointsInOrder() { ... }
-
-[Fact]
-public void SeriesKey_WithUnorderedTags_NormalizesToSameKey() { ... }
-```
-
----
-
-## PR 规范
-
-### 标题格式
-
-```
-<type>: <简述>
-```
-
-`type` 取值范围：
-
-| type | 用途 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档变更 |
-| `refactor` | 重构（不改变行为） |
-| `perf` | 性能优化 |
-| `test` | 测试相关 |
-| `build` | 构建系统 |
-| `ci` | CI 配置 |
-| `chore` | 杂项（依赖升级、格式等） |
-
-示例：
-- `feat: 实现 SpanReader / SpanWriter`
-- `test: 补充 SegmentWriter round-trip 测试`
-- `docs: 更新 ROADMAP 中 Milestone 3 验收标准`
-
-### PR 内容要求
-
-每个 PR 描述必须包含以下部分：
-
-```markdown
-## 变更点
-- 简述本 PR 新增/修改了什么
-
-## 对应 ROADMAP
-- PR #N：<标题>
-
-## 测试说明
-- 新增 X 个测试，覆盖以下场景：...
-
-## 是否破坏兼容
-- [ ] 是（说明原因及迁移方案）
-- [x] 否
-
-## CHANGELOG 更新
-- [ ] 已在 CHANGELOG.md 的 [Unreleased] 段落中记录
-```
-
-### 单一职责
-
-**一个 PR 只做一件事**，对应 ROADMAP 中的一个编号。
-
-若发现范围外的 bug，单独创建 PR 修复，不混入当前 PR。
-
----
-
-## Commit 规范
-
-遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：
-
-```
-<type>(<scope>): <简述>
-
-[可选正文]
-
-[可选 footer，例如 BREAKING CHANGE: ...]
-```
-
-示例：
-
-```
-feat(io): 实现 SpanReader 与 SpanWriter
-
-基于 BinaryPrimitives + MemoryMarshal 实现 ref struct 读写工具。
-包含 byte/short/int/long/float/double 的 little-endian round-trip 测试。
-```
-
----
-
-## CHANGELOG 更新要求
-
-**每个 PR 必须更新 `CHANGELOG.md` 的 `[Unreleased]` 段落**，在对应分类（`Added / Changed / Fixed / Removed`）下添加条目：
-
-```markdown
-## [Unreleased]
-### Added
-- 实现 `SpanReader` / `SpanWriter`，支持 little-endian 整数与 double 读写（PR #4）
-```
-
----
-
-## 目录约定
-
-```
+~~~text
 SonnetDB/
 ├── src/
-│   ├── SonnetDB/                    # 核心类库（无第三方依赖）
-│   │   ├── Api/                   # 公共 API：TsdbDatabase / Connection / Command / Reader
-│   │   ├── Buffers/               # InlineArray 工具：Magic8、Reserved16
-│   │   ├── Catalog/               # SeriesCatalog
-│   │   ├── Compression/           # delta / XOR 编码
-│   │   ├── Format/                # unmanaged struct：FileHeader 等
-│   │   ├── IO/                    # SpanReader / SpanWriter
-│   │   ├── Model/                 # Point / DataPoint / SeriesKey 等
-│   │   ├── PageStore/             # page manager（Milestone 7）
-│   │   ├── Query/                 # QueryEngine / Aggregator
-│   │   ├── Sql/                   # Lexer / Parser / AST / Executor
-│   │   ├── Storage/               # MemTable / SegmentWriter / Reader / Flush / Compaction
-│   │   └── Wal/                   # WalWriter / WalReader
-│   └── SonnetDB.Cli/                # 命令行工具
-├── tests/
-│   ├── SonnetDB.Core.Tests/              # xUnit 单元测试（目录结构镜像 src/SonnetDB）
-│   └── SonnetDB.Benchmarks/         # BenchmarkDotNet 基准测试
-├── docs/                          # 额外文档
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                 # build + test
-│       └── publish.yml            # NuGet 发布
-├── .editorconfig
-├── Directory.Build.props
-└── SonnetDB.sln
-```
+│   ├── SonnetDB.Core/             # 多模型核心与持久化
+│   ├── SonnetDB/                  # Server、REST/Frame、MCP、Admin、Copilot
+│   ├── SonnetDB.Data/             # ADO.NET 与 VectorData
+│   ├── SonnetDB.EntityFrameworkCore/
+│   ├── SonnetDB.Cli/
+│   ├── SonnetDB.Studio/
+│   └── SonnetDB.Protocol/
+├── connectors/                    # 多语言和 .NET 客户端
+├── extensions/                    # 缓存、CAP、媒体及协议扩展
+├── samples/                       # 可运行样例
+├── tests/                         # Core、Server、生态、Parity 和基准
+├── web/                           # Admin/Studio 前端资源
+├── docs/                          # 用户文档、设计、审计和发布记录
+├── eng/                           # 构建、验证、发布与探针
+├── ROADMAP.md
+├── CHANGELOG.md
+├── HANDOFF.md
+├── llms.txt / llms-full.txt
+└── SonnetDB.slnx
+~~~
 
----
-
-## 禁止事项清单
-
-| 禁止 | 原因 |
-|------|------|
-| 使用 `unsafe` | 第一版 Safe-only 原则 |
-| 在 `src/SonnetDB` 中引入运行时第三方依赖 | 保持零依赖特性 |
-| 引入 `Newtonsoft.Json`、`Dapper` 等大型库 | 最小化依赖 |
-| 使用反射型 `JsonSerializerOptions` 重载 | 必须保持 source-generated JSON 与 Native AOT 兼容 |
-| 修改二进制格式不升级 `FileHeader.Version` | 破坏向后兼容 |
-| 压制编译警告（无注释说明） | 维护代码质量 |
-| 一个 PR 混入多个 ROADMAP 条目 | 保持 PR 可审查性 |
-| 提交 build artifacts（`bin/`、`obj/`、`.nupkg`） | 保持仓库整洁 |
+实现或文档变化时，先在对应专题页和现有入口中寻找权威合同，保持 README、docs 首页、AI 上下文和路线状态的职责边界。
