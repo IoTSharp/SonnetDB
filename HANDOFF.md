@@ -1,3 +1,20 @@
+## 2026-11-07（Asia/Shanghai）六条 Dependabot 更新的整合与兼容性审查
+
+- 按用户原“所有分支合并，已合入本地/远端清理”授权继续处理#416～#421。#416的CodeQL4.39.3仅更新两个action引用；#417的MCP2.3.1加固有状态会话身份，SonnetDB保持显式Stateless=true；#418/#419使用各自真正的OpenTelemetry发布记录及nuspec范围，未采信错误的AWS说明。两项instrumentation升级1.20.2，core/hosting/exporter保留1.20.1，实际restore解析无降级。
+- #420与#421原Linux测试和linux-x64/arm64 NativeAOT smoke均FAIL：一侧更新分别造成native154不在[155,156)、native155不在[154,155)。原始AOT日志完整保留；较大测试日志明确标为截断。未删除断言、跳过smoke或降低AOT/Format门禁。
+- 配对提交1398725bb7bb47cbc70c732c6596a92df49bc1d7以#421原head正常合并#420，统一托管包及Linux NoDependencies为4.155.0；本地Windows真实图像/语义对象测试58/58、零失败/跳过，完整restore/Format退出0。Dependabot仅为这两包增加同组更新，避免已证实的拆包不兼容；保留无Fontconfig边界。
+- 本批以main64387073为整合基线，使用codex/dependency-integration-20261107保留六个原PR head的真实祖先链。每个新merge提交前均在实际最终树执行完整restore和规定Format；CodeQL、MCP及两项OTel分别正常合并，Skia配对提交再整体合入，明确解决相邻版本行和两份共享文档冲突。原B人物/长期规则、ACK修复和全部历史字节保留。
+- 最终候选通过现有PR完整CI后才允许进入main，尤其须复验原失败的Linux两RID真实image codec NativeAOT smoke；Windows58项不能替代Linux。精确候选SHA、CI run/job/原始TRX、两端主干及PR merged读回、bundle/祖先/expected SHA清理均绑定 D:/source/SonnetDB/artifacts/dependabot-integration-20261107/ 的实际完成收据，不以原head通过或局部PASS外推新候选。
+- canonical37份外来tracked dirty、其它未跟踪内容及未暂存语义保留；parity-results三处独立ref不合并/删除。只有确实已进入主干的本批引用才在核验恢复bundle后清理，失败/新漂移引用保留。所有本机重负载共享FileShare.None锁、CPU2/单节点/禁持久服务和所属进程树回收。正式tag、NuGet/Release及手动生产部署/重启/迁移继续延期；源码/CI与公开包、真实宿主、现场验收分别记录。
+
+## 2026-11-07（Asia/Shanghai）SkiaSharp 两条依赖 PR 配对候选
+
+- 用户原“所有分支合并，已合入本地/远端清理”的剩余范围包含Dependabot #416～#421；主监督继续唯一拥有整合、适用验证与双端状态。canonical37份外来dirty保持，parity-results不合并、不删除。
+- #420/bcc66d29只升托管包后，Linux实际native154不在[155,156)；#421/0609bff9只升native后，native155不在托管层[154,155)。两条原CI均有Ubuntu测试与linux-x64/arm64图像NativeAOT smoke失败，退出134的完整AOT日志及明确标注截断的测试日志已保留。
+- 在 codex/skia-4.155-pair-20261107 以#421原head为起点正常合并#420，显式解决相邻版本行冲突，使两包均为4.155.0；保留原NoDependencies/无Fontconfig合同，不跳过或降低图像测试/AOT。Dependabot为这两包建立单独成组更新，修正本次已证实的拆包升级原因，不扩展其它依赖范围。
+- 本地Windows图像解码/缩略图/语义对象旅程、完整restore和规定Format按本候选实际收据记录；最终包含main643及其余四条依赖更新的候选还必须取得适用完整CI，尤其Linux x64/ARM64真实image codec NativeAOT smoke后才能进入main。原失败不改写为成功，Windows不能替代Linux。
+- 证据存 D:/source/SonnetDB/artifacts/dependabot-integration-20261107/；上游发布说明、源码及版本约束分别核对，未直接信任Dependabot对OpenTelemetry引用的AWS发布说明。所有本机重负载使用共享FileShare.None锁、CPU2/单MSBuild节点/禁持久服务和所属进程回收。正式tag/NuGet/Release、生产部署/重启/迁移继续延期；本阶段仅候选，不声称已合主干或全部PR完成。
+
 ## 2026-11-07（Asia/Shanghai）门面与 B 定稿的主干整合
 
 - 文档交付提交固定 6c7dc6e6d2033780f44ffd1aa68489e204afb2d5（37文件），以 cdaebfa5 为源码基线；本次与主干 306f3202 正常合并，保留两边状态记录和完整历史字节。AGENTS 的普通代码 issue 关闭口径、SQL 共享命名空间及跨模型显式 DDL 迁移合同均已独立复核；README、docs 首页和 llms 上下文按稳定产品入口整理。
