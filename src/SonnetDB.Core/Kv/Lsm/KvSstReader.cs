@@ -48,8 +48,11 @@ internal readonly record struct KvSstEntry(
 /// </remarks>
 internal sealed class KvSstReader : IDisposable
 {
+    private static long s_nextReaderId;
     private readonly SafeFileHandle _handle;
     private readonly KvDiskReadBudget? _readBudget;
+    private readonly KvBlockCache? _blockCache;
+    private readonly long _readerId = Interlocked.Increment(ref s_nextReaderId);
     private readonly KvSstBlock _index;
     private readonly KvBloomFilter _filter;
     private readonly long _dataEnd;
@@ -63,12 +66,14 @@ internal sealed class KvSstReader : IDisposable
         KvSstProperties properties,
         KvSstBlock index,
         KvBloomFilter filter,
-        long dataEnd)
+        long dataEnd,
+        KvBlockCache? blockCache)
     {
         FilePath = path;
         _handle = handle;
         FileLength = fileLength;
         _readBudget = readBudget;
+        _blockCache = blockCache;
         Properties = properties;
         _index = index;
         _filter = filter;
@@ -89,7 +94,8 @@ internal sealed class KvSstReader : IDisposable
     internal static KvSstReader Open(
         string path,
         KvDiskReadBudget? readBudget = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        KvBlockCache? blockCache = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         string fullPath = Path.GetFullPath(path);
@@ -147,7 +153,7 @@ internal sealed class KvSstReader : IDisposable
             }
 
             ValidateIndex(index, properties, footer.FilterOffset, fullPath);
-            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset);
+            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset, blockCache);
         }
         catch
         {
@@ -248,9 +254,13 @@ internal sealed class KvSstReader : IDisposable
             throw Corrupt(FilePath, $"data block handle ({handle.Offset}, {handle.Length}) is out of range");
         }
 
+        if (_blockCache is not null && _blockCache.TryGet(_readerId, handle.Offset, out KvSstBlock cached))
+            return cached;
         try
         {
-            return new KvSstBlock(ReadBlockCore(_handle, handle, FilePath, _readBudget, cancellationToken));
+            var block = new KvSstBlock(ReadBlockCore(_handle, handle, FilePath, _readBudget, cancellationToken));
+            _blockCache?.Insert(_readerId, handle.Offset, block);
+            return block;
         }
         catch (InvalidDataException exception) when (!exception.Message.StartsWith("KV-LSM SST '", StringComparison.Ordinal))
         {

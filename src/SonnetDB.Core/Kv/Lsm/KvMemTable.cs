@@ -40,6 +40,7 @@ internal sealed class KvMemTable
     private uint _random = 0x9E3779B9;
     private long _entryCount;
     private long _approximateBytes;
+    private long _usedBytes;
     private long _minSequence = long.MaxValue;
     private long _maxSequence = long.MinValue;
 
@@ -56,7 +57,10 @@ internal sealed class KvMemTable
     /// <summary>条目数。</summary>
     internal long EntryCount => Volatile.Read(ref _entryCount);
 
-    /// <summary>已分配的 arena 字节数（近似内存占用）。</summary>
+    /// <summary>条目实际占用的字节数（key + value + 节点记录 + next 槽位），用于轮转判断。</summary>
+    internal long UsedBytes => Volatile.Read(ref _usedBytes);
+
+    /// <summary>已分配的 arena 字节数（近似内存占用，含预分配分块）。</summary>
     internal long ApproximateMemoryUsage => Volatile.Read(ref _approximateBytes);
 
     /// <summary>最小 sequence；空表为 <see cref="long.MaxValue"/>。</summary>
@@ -132,6 +136,7 @@ internal sealed class KvMemTable
                 Volatile.Write(ref _minSequence, sequence);
             if (sequence > _maxSequence)
                 Volatile.Write(ref _maxSequence, sequence);
+            Interlocked.Add(ref _usedBytes, internalKey.Length + value.Length + NodeRecordBytes + (height * sizeof(int)));
             Interlocked.Increment(ref _entryCount);
         }
     }

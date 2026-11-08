@@ -39,6 +39,26 @@ internal static class KvLsmPaths
     internal static string SstPath(string root, long number)
         => Path.Combine(SstDirectory(root), number.ToString("D12", CultureInfo.InvariantCulture) + KvSstFormat.FileExtension);
 
+    /// <summary>WAL 子目录名。</summary>
+    internal const string WalDirectoryName = "wal";
+
+    /// <summary>WAL 文件扩展名。</summary>
+    internal const string WalExtension = ".SDBKVWAL";
+
+    internal static string WalDirectory(string root) => Path.Combine(root, WalDirectoryName);
+
+    internal static string WalPath(string root, long number)
+        => Path.Combine(WalDirectory(root), number.ToString("D12", CultureInfo.InvariantCulture) + WalExtension);
+
+    /// <summary>解析 <c>&lt;12 位数字&gt;.SDBKVWAL</c>。</summary>
+    internal static bool TryParseWalFileName(string fileName, out long number)
+    {
+        number = 0;
+        return fileName.Length == 12 + WalExtension.Length
+            && fileName.EndsWith(WalExtension, StringComparison.Ordinal)
+            && TryParseNumber(fileName.AsSpan(0, 12), out number);
+    }
+
     /// <summary>解析 <c>MANIFEST-&lt;12 位数字&gt;</c>。</summary>
     internal static bool TryParseManifestFileName(string fileName, out long number)
     {

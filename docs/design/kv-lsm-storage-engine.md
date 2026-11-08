@@ -309,6 +309,32 @@ AcquireReadSnapshot():
 
 value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（blob 文件 + 指针），避免 compaction 反复搬运大 value。第一阶段先在 SST 中原样存放，并在基准中单列大 value 场景。
 
+### 6.7 K4a 实现说明（`Kv/Lsm/KvLsmEngine.cs`）
+
+- **拆分原因**：`KvKeyspace` 中约 200 处直接操作 overlay、磁盘状态和 WAL，快照（`KvReadSnapshot`）、游标、命名空间和有界读取也都建立在 overlay 结构上。所以 K4 拆成两步：K4a 先做可以独立测试的引擎，K4b 再接到 `KvKeyspace` 上。拆分不改变产品行为和 D1～D4 决策。
+- **目录**：`CURRENT`、`MANIFEST-*`、`sst/`、`wal/<文件号>.SDBKVWAL`。WAL 直接复用 KV WAL v3（每个 memtable 一个文件，每个批次一条 `MutationBatch` 记录），引擎不会写 v3 以外的记录类型；重放时遇到 Clear/DeleteBatch 等 legacy 记录会拒绝。
+- **写入**：在写锁内依次完成规范化（同 key 取最后一次）、WAL 追加、可选 fsync、memtable 插入、发布 LastSequence。参数校验失败不进入 faulted；WAL 追加或插入失败则提交结果未知，引擎进入 faulted。活跃 memtable 实际占用（`KvMemTable.UsedBytes`，不含预分配的分块）达到 `WriteBufferBytes`（默认 16 MiB）时轮转：先建新 WAL 并对目录 fsync，再关闭（fsync）旧 WAL。
+- **flush**：按从旧到新的顺序把不可变 memtable 写成 L0 SST，以 `LogNumber = 剩余最旧 memtable 的 WAL 号` 提交 manifest，然后在同一次读状态切换里“移除 memtable、加入 SST”，最后删除旧 WAL 并清理孤儿文件。后台 flush 失败时引擎进入 faulted（WAL 完好），需要重新打开。
+- **快照**：先读 LastSequence 再读写时复制的读状态（memtable 集合 + 版本引用），在 `_stateLock` 内以 O(1) 完成；迭代器另外持有一份版本引用。
+- **背压**：不可变 memtable 数达到 `MaxImmutableMemTables`（默认 2）时，写入最多等待 `WriteBackpressureTimeout`，超时抛出与现有 KV 相同分类的可重试 `IOException`。
+- **恢复**：打开时重放 `LogNumber` 之后的全部 WAL（跳过 sequence ≤ manifest LastSequence 的记录，并截断撕裂尾部），恢复的数据直接写成一个 L0 SST；先创建新 WAL，再在同一次 VersionEdit 中提交新 LogNumber 与该 SST，最后删除旧 WAL。三个崩溃注入点（WAL 追加后、SST 已写但 manifest 未提交、manifest 已提交但旧 WAL 未删）重开后都恰好只有一个 L0，数据既不丢失也不重复。
+- **已知边界**：
+  - （K5a 已解决）当时没有 compaction，L0 会无限累积，随机负载测试单个约 6～10 s；K5a 之后同一测试约 1 s。
+  - 写入是逐条串行 fsync，没有跨线程组提交。
+  - 还没有 range tombstone（K5）。
+
+### 6.8 K5a 实现说明（`KvCompaction.cs`、`KvBlockCache.cs`、`KvLevelIterator.cs`）
+
+- **回收规则简化**：快照持有自己的版本引用，被替换的输入文件要等快照释放后才删除，已有快照读到的仍是旧文件。因此 compaction 不需要像 LevelDB 那样按“最小存活快照序号”保留旧版本：同一 user key 只保留最新版本；最新版本是墓碑、或带 TTL 且已到期时，如果输出层之下已没有该 key 就整体丢弃，否则写为墓碑，继续遮蔽下层的旧版本。
+- **TTL 时钟前提**：compaction 用 `UtcNowTicks`（默认当前 UTC）判断到期。之后获取的快照，读取时刻不能早于这个时钟，否则已被物理回收的到期条目对它不可见。`KvKeyspace` 总是用当前时刻创建快照，满足这个前提；测试中使用过去时刻的快照时，需要把时钟固定。
+- **选择**：L0 文件数 / `Level0CompactionTrigger`（默认 4）与 L1～L5 的“实际字节 / 目标字节”比较，取最高且 ≥1 的一层。L0 一次取全部文件，再加上 L1 中与之重叠的文件，保证留在 L0 的文件一定比 L1 新。L1+ 按轮转指针选一个文件；下层没有重叠时只做 trivial move（只在 manifest 里改层号，不重写数据）。
+- **输出**：按 `TargetFileSizeBytes` 切分输出，但只在 user key 边界切。这样 L1+ 按 user key 严格不重叠，点查在每层二分到唯一文件即可。
+- **背压**：L0 文件数达到 `Level0StopWritesTrigger`（默认 20）时写入等待，与不可变 memtable 上限共用同一个超时和可重试异常分类。
+- **调度**：每个引擎一个后台 compaction 线程，flush 完成后触发；同一时间只运行一个 compaction。compaction 失败时引擎进入 faulted。跨实例的全局调度在 K5b 实现。
+- **块缓存**：16 分片 LRU，按块字节计费，缓存键为 `(读取器唯一 ID, 块偏移)`，可在多个引擎间共享；未指定时每个引擎创建一个私有的 32 MiB 缓存。索引块和过滤器块常驻在读取器里，暂不计入缓存。
+- **读路径**：L1+ 每层只建一个 `KvLevelIterator`，按需打开文件，合并迭代器的子迭代器数量与层数相关，而不是与文件数相关。
+- **崩溃注入**：在“输出已写、manifest 未提交”和“manifest 已提交、输入未清理”两个点注入崩溃，重开后数据完整，磁盘上只剩版本引用的 SST。
+
 ## 7. 恢复、兼容与公开 API
 
 ### 7.1 恢复顺序
@@ -446,8 +472,10 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 | K1 ✅ 源码 | SST writer/reader、布隆、块编码、footer、CRC；round-trip 与损坏测试（2026-11-08：`Kv/Lsm` 44 项测试本机 PASS；未接入引擎，不改变任何现有行为） | 单元测试 |
 | K2 ✅ 源码 | Manifest / VersionEdit / Version 引用计数 / 孤儿清理（2026-11-08：`Kv/Lsm` 共 70 项测试本机 PASS，含追加、滚动、打开重写三类流程共 9 个故障注入点；未接入引擎） | 故障注入测试 |
 | K3 ✅ 源码 | 并发跳表 memtable + 基于 sequence 的快照 + `MergingIterator`（正/反向）（2026-11-08：`Kv/Lsm` 共 83 项测试本机 PASS，含 5 个数据源 × 4 个种子 × 60 次快照试验的差分对拍，以及 1 写 4 读的并发测试；未接入引擎） | 差分测试 |
-| K4 | `Lsm` 引擎接线（独立 keyspace）：写路径、flush、点查、范围、快照、背压；`StorageEngine` 选项；KV 测试矩阵双引擎运行 | G1、G4 |
-| K5 | Leveled compaction、全局调度器、墓碑/TTL 过滤、**range tombstone（WAL v4、`RangeDelBlock`、`DeleteRange`、Lsm 下的 `Clear`）**、`KvBlockCache`、`KvWriteBufferManager` | G3、G5、G7、G11 |
+| K4a ✅ 源码 | 独立 `KvLsmEngine`：WAL（复用 v3）、原子批量写、memtable 轮转、后台/同步 flush 到 L0、O(1) 快照、点查、双向范围迭代、背压、WAL 重放恢复（2026-11-08：引擎 15 项测试 + `Kv/Lsm` 共 98 项本机 PASS；尚未接入 `KvKeyspace`） | G4 前置 |
+| K4b | `KvKeyspace` 接线：`StorageEngine` 选项，CAS/NX/XX/TTL/Increment/条件批/有界读/游标/命名空间/Clear/清理等全部 API 路由到引擎；KV 测试矩阵双引擎运行 | G1、G4 |
+| K5a ✅ 源码 | Leveled compaction（L0 按文件数、L1+ 按字节评分、轮转指针、trivial move、L0 停写背压）、版本/墓碑/TTL 回收、手动全量 `CompactAll`、`KvBlockCache`、层内拼接迭代器（2026-11-08：compaction 10 项测试 + `Kv/Lsm` 共 108 项本机 PASS；随机负载测试单个由 6～10 s 降至约 1 s） | G3、G5 前置 |
+| K5b | **range tombstone（WAL v4、`RangeDelBlock`、`DeleteRange`、Lsm 下的 `Clear`）**、跨实例全局 compaction 调度器、`KvWriteBufferManager` | G7、G11 |
 | K6 | `KvLsmStore` 多逻辑 keyspace：`StorageId` 前缀句柄、`0\|*` 元数据、前缀布隆、按 keyspace 的 `LastSequence`；`TableSchema.StorageId` 与 codec 升版本；旧 schema 拒绝行为核验 | G1（表测试全集双引擎）、G10 |
 | K7 | 关系表接入共享实例：DDL 改写、多表事务改为单 batch、`TableStoreMaintenanceFile` 迁入元数据、持久化行数；**打开时自动迁移**（独立 keyspace + 表并入共享实例）、回滚命令、`KvGenerationFile` v3 降级拒绝、备份 pin Version、generation 清理 | G2、G8、G12 |
 | K8 | 新建数据库默认 `Lsm`（D1：G1～G8、G10～G12 本机 PASS 即可）；CHANGELOG 写明自动迁移与降级流程；文档与 ROADMAP 更新 | 本机门禁全部 PASS |

@@ -1,3 +1,13 @@
+## 2026-11-08（Asia/Shanghai）KV-LSM K4a 独立引擎与 K5a compaction
+
+- 分支 `feat/kv-lsm-k1-k3`，基于本分支 `13d525a5`（K1～K3）。提交范围只含 `src/SonnetDB.Core/Kv/Lsm/`（新增 `KvLsmEngine`、`KvCompaction`、`KvBlockCache`、`KvLevelIterator`；修改 `KvSstReader` 块缓存接入、`KvMemTable.UsedBytes`、WAL 文件命名）、`tests/SonnetDB.Core.Tests/Kv/Lsm/` 两个新测试文件、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 其余修改保持原样，未暂存。
+- 完成：K4 拆为 K4a（独立引擎，已完成）与 K4b（`KvKeyspace` 接线与双引擎测试矩阵，未开始）；K5 拆为 K5a（compaction、回收、块缓存，已完成）与 K5b（range tombstone、全局调度、写缓冲管理器，未开始），D3 仍在 K5 内交付。
+- 验证：Core 构建（TreatWarningsAsErrors 与 AOT/trim 分析器）PASS；`Kv/Lsm` 108/108 PASS（不重新编译重复 2 轮）；全部 KV 测试 365/365 PASS；提交前对最终工作树执行完整 restore 与规定 format 门禁。NOT_RUN：写放大/点查基准（G3/G5）、真实进程强杀、NativeAOT 发布、固定硬件、CI。
+- 风险边界：compaction 按 `UtcNowTicks` 回收到期条目，之后获取的快照读取时刻不得早于该时钟（`KvKeyspace` 使用当前时刻满足此前提）；写入逐条串行 fsync，尚无组提交；索引与过滤器块常驻读取器、未计入块缓存。
+- 授权边界：用户授权提交；push、PR、发布、合并均未授权。
+- 下一顺序：K5b（range tombstone、全局调度），随后 K4b、K6～K8。
+- 临时资源：测试只在 `%TEMP%` 下创建 `sndb-kv-*` 目录并在结束时删除；后台 flush/compaction 线程随引擎释放结束，本任务未留下常驻进程。
+
 ## 2026-11-08（Asia/Shanghai）竞品对照审查与 KV-LSM K1～K3
 
 - 分支 `feat/kv-lsm-k1-k3`（自 main `911ad1ff` 建立）；提交范围只含本任务文件：`src/SonnetDB.Core/Kv/Lsm/`、`tests/SonnetDB.Core.Tests/Kv/Lsm/`、`docs/audits/competitive-code-review-20261108.md`、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 中本节对应段落。工作树中其他人未提交的 ROADMAP、docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 的其余修改保持原样，未暂存。
