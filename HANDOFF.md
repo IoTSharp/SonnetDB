@@ -1,3 +1,18 @@
+## 2026-11-08（Asia/Shanghai）发布目录整理的限定提交
+
+- 用户已授权只提交并推送本次范围。SonnetDB 交付为 434 项发布材料取消跟踪、Git/Docker 排除及 AGENTS/CHANGELOG/HANDOFF 的本轮片段；发布材料继续保存在本机 `.publishing/`，不会进入提交。个人发布技能和两份独立 Agent 入口归档在私有技能仓库单独交付。
+- 主干先正常快进到 b33852ed，接受远端已合并的 MCP 依赖更新。提交候选从该基线建立隔离工作树，使用 canonical 精确暂存树；KV LSM 源码/测试、其它路线和历史交接 dirty 保留在 canonical，不进入候选。
+- 提交门禁为最终候选的完整 `dotnet restore SonnetDB.slnx` 与规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`；执行器只在两者退出 0 且树未漂移时提交。上轮发布器离线回归为 300/300，14 份技能格式及迁移完整性通过；此次只增加交付记录和备份索引，不触发平台发文或产品发布/部署。
+- 本次提交、双远端读回、技能归档及进程清理收据保存 `.publishing/commit-20261108.json`；一次性辅助文件只用 `.publishing/tmp/commit-20261108/`，收尾回收。共享浏览器/MCP 与其它开发进程保留，parity-results 不合并、不删除。
+
+## 2026-11-08（Asia/Shanghai）发布材料迁入本地隐藏目录
+
+- 用户要求博客、配图、JSON 台账与发布运行材料退出代码/文档目录。固定工作区为 `.publishing/`；Git 与 Docker 均忽略。`docs/blogs`、`docs/press-releases` 的 434 个已跟踪文件已从索引移除，本地文件保留；媒体投稿两目录、旧归档及 CSDN/微博/X/微信运行材料一并迁入。正常产品文档、发行说明、技术审计与必要截图保留。
+- 共核对 22425 个原文件、1337843771 字节；文章、图片、台账、发布 ID/unknown/marker 保留原字节，仅三份本地发布规则/检查脚本调整路径，并新增旧元数据解析器。活动 CSDN/抖音/微信/微博队列在 `.publishing/blogs/<channel>`；旧仓库 CSDN 快照另存 archive，未覆盖活动台账。历史外部路径保留兼容链接；浏览器 profile/凭据不复制。旧 MCP 进程需重新连接或用技能兼容入口加载新默认路径后再写入。
+- 12 项发布技能及另外两份 Agent 技能入口同步目录与临时清理约定；6 个现有自动化完成路径更新及独立回读，原时间、模型/线程、启停与通知策略保留，X 仍 PAUSED。逐篇发布流水以后只写发布区，根交接保留必要工程说明和入口。
+- PASS：迁移后逐文件 SHA256、外部链接、Git 索引归属和忽略、14 份技能格式、20 Python/17 JavaScript/22 PowerShell/3 JSON 语法、300 项发布器离线回归；真实第177篇标题/正文/配图及旧 sourceDocs 定位通过，CSDN/抖音原队列 status 可读取。NOT_RUN：平台发文、真实浏览器发布、产品构建/完整 .NET 门禁、commit/push。源 HEAD `55bf87158d182147a6cb801e02bf8bf62d0ff942`，分支 main；保留其余既有 dirty 与暂存状态。
+- 既有 HANDOFF 历史新增内容含空白格式问题，全树 diff --check 未取得 PASS；本任务拥有的四个规则/说明文件检查 PASS，本段无尾随空白，未改旧历史字节。执行期间 `.gitignore` 另出现已暂存 `.publishing` 一行，`docs/design/kv-lsm-storage-engine.md` 也有并发更新，均独立核对并保留，不回滚；其余范围外索引和记录的原字节与起点相同。验证器首轮受测试脚本导入的 StrictMode 影响失败，隔离与实际独立调用一致的作用域后通过，未篡改产品/发布状态。只保留 `.publishing/migration-20261108.json` 的迁移及验证摘要；本任务临时脚本/快照收尾删除，无新增长期服务，共享 MCP/浏览器不终止。
+
 ## 2026-11-07（Asia/Shanghai）六条 Dependabot 更新的整合与兼容性审查
 
 - 按用户原“所有分支合并，已合入本地/远端清理”授权继续处理#416～#421。#416的CodeQL4.39.3仅更新两个action引用；#417的MCP2.3.1加固有状态会话身份，SonnetDB保持显式Stateless=true；#418/#419使用各自真正的OpenTelemetry发布记录及nuspec范围，未采信错误的AWS说明。两项instrumentation升级1.20.2，core/hosting/exporter保留1.20.1，实际restore解析无降级。

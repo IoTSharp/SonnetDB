@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Repository
+- 将博客、投稿稿件、发布配图和渠道台账迁到本地 `.publishing/`，取消相关内容的 Git 跟踪并排除 Docker 构建上下文；统一发布技能的目录约定和临时文件清理规则，保留正常产品、发行与工程文档。
+
+
 ### Added
 - GH-Issue #397 / M49-C03：轻量.NET Client新增原子GetAndDeleteKvAsync，复用已有op6，返回独立旧值、旧版本/完整UTC ticks和变更版本；共享Protocol严格解码既有固定Int64交换布局，保持请求预算、完整帧/EOF、取消与未知结果不重放。真实h2c权限、并发、预算后独立对账及同目录重开验证，TLS/公开消费另计。
 - 共同Provider候选验收新增独立OwnsMany包消费者，并增强迁移应用同连接失败重试/after-ACK强杀及JSON补货应用的旧行右值、参数化、拒绝和并发断言；源码、隔离候选与公开发行分别记账。

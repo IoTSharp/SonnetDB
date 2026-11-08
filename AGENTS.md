@@ -152,7 +152,13 @@ public struct FileHeader
 
 README 只写稳定产品入口、边界和导航。路线、候选包、验证矩阵、发布状态和历史修正写入 ROADMAP、CHANGELOG、release/audit 或专题文档。任何文档不能把源码存在、mock/fixture、真实服务、公开包、现场或生产证据混为一谈。
 
-涉及 SonnetDB 讲解人物、文章封面或视频人物时，执行 [讲解人物档案](docs/blogs/character-profile.md) 和 [基准清单](docs/blogs/assets/character/manifest.json)；生成前实际使用档案指定的参考图和模型，保留输入/输出 SHA、提示词和目视审图结果。这个内容发布合同不应复制进普通代码任务。
+博客、新闻投稿、社交平台文章及其配图、人物素材、提示词、JSON/JSONL 台账、审核和发布回执统一放在仓库根目录 `.publishing/`，由 Git 与 Docker 忽略。正文与共用素材放 `.publishing/blogs/`，渠道运行材料放 `.publishing/channels/<channel>/`，新闻投稿放 `.publishing/press-releases/` 或 `.publishing/releases/`；不得重新写入 `docs/blogs/`、`docs/press-releases/` 或其他源码/文档目录。`docs/` 只保留正常产品介绍、使用/开发/运维文档、发行说明、工程审计及这些文档实际需要的图片。
+
+一次性脚本、预览、截图和调试输出只放 `.publishing/tmp/<task>/`，任务结束后清理本任务创建且不再需要的文件。长期只保留必要的定稿、配图、来源/哈希、发布 ID、去重台账及必要失败回执；不得为每一步堆积整页快照、日志或重复副本。迁移旧材料时保留原发布身份与未知结果，不覆盖活跃台账，不改写冻结素材来刷新哈希。浏览器登录档案与凭据仍由各平台原有生命周期管理。
+
+逐篇发布进度、浏览器操作流水及渠道交接写入 `.publishing/` 内相应渠道的 `PROGRESS.md` 或 `HANDOFF.md`。仓库根 `HANDOFF.md` 只记录必要的工程变更、目录约定和本地交接入口，不再追加逐篇发稿日志。
+
+涉及 SonnetDB 讲解人物、文章封面或视频人物时，读取本机 `.publishing/blogs/character-profile.md` 和 `.publishing/blogs/assets/character/manifest.json`；生成前实际使用指定参考图和模型，保留输入/输出 SHA、提示词和目视审图结果。本地材料未恢复时先恢复原档案，不从代码仓库重建或编造批准记录。这个内容发布合同不应复制进普通代码任务。
 
 ## 6. 测试和验证基线
 

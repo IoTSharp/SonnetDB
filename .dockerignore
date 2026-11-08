@@ -6,6 +6,7 @@
 **/.gitignore
 !**/.gitignore
 **/.playwright-cli
+**/.publishing
 **/.project
 **/.settings
 **/.tmp

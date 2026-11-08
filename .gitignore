@@ -439,6 +439,13 @@ output/
 .codex-artifacts/
 .playwright-cli/
 
+# Local editorial workspace: manuscripts, artwork, channel ledgers and scratch files.
+/.publishing/
+# Retired publication paths must not be added again by older tools.
+/docs/blogs/
+/docs/press-releases/
+/docs/releases/*-news-*/
+
 # Generated M29 prototype renders
 docs/design/m29-workbench-redesign/renders/
 graphify-out/
