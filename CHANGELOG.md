@@ -12,6 +12,7 @@
 
 
 ### Added
+- KV-LSM K1～K3（内部组件，尚未接入引擎，不改变现有 KV 行为与文件格式）：新增 `src/SonnetDB.Core/Kv/Lsm/`，包括 SST v1 写入/读取（前缀压缩数据块、全文件布隆过滤器、索引与属性块、64 字节 little-endian footer、逐块 CRC32、tmp→fsync→改名→目录 fsync 发布、带路径的损坏异常）；manifest/VersionEdit/引用计数版本集（CURRENT 原子切换、仅忽略末条撕裂记录而中段损坏拒绝打开、提交结果未知时 fail closed、打开时重写快照 manifest 并清理孤儿文件）；safe-only arena 并发跳表 memtable，以及双向合并迭代器与按 sequence/读取时刻过滤的快照视图迭代器。新增 83 项单元测试覆盖往返、逐字节损坏、9 个 manifest 故障注入点、多数据源随机差分对拍与 1 写 4 读并发。同时加入[竞品对照代码审查](docs/audits/competitive-code-review-20261108.md)与 [KV-LSM 设计](docs/design/kv-lsm-storage-engine.md)；性能、恢复强杀与固定硬件门禁尚未执行。
 - GH-Issue #397 / M49-C03：轻量.NET Client新增原子GetAndDeleteKvAsync，复用已有op6，返回独立旧值、旧版本/完整UTC ticks和变更版本；共享Protocol严格解码既有固定Int64交换布局，保持请求预算、完整帧/EOF、取消与未知结果不重放。真实h2c权限、并发、预算后独立对账及同目录重开验证，TLS/公开消费另计。
 - 共同Provider候选验收新增独立OwnsMany包消费者，并增强迁移应用同连接失败重试/after-ACK强杀及JSON补货应用的旧行右值、参数化、拒绝和并发断言；源码、隔离候选与公开发行分别记账。
 - 对象存储及SDK新增认证只读容量接口，返回正文所在文件系统容量；目录不可用明确失败，查询不扫描对象或桶元数据。

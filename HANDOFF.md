@@ -1,3 +1,13 @@
+## 2026-11-08（Asia/Shanghai）竞品对照审查与 KV-LSM K1～K3
+
+- 分支 `feat/kv-lsm-k1-k3`（自 main `911ad1ff` 建立）；提交范围只含本任务文件：`src/SonnetDB.Core/Kv/Lsm/`、`tests/SonnetDB.Core.Tests/Kv/Lsm/`、`docs/audits/competitive-code-review-20261108.md`、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 中本节对应段落。工作树中其他人未提交的 ROADMAP、docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 的其余修改保持原样，未暂存。
+- 完成：竞品对照审查（P0：KV checkpoint 全量重写、写后快照复制排序、时序单写锁与逐字段 WAL、无时间分区/单一 TTL、重复时间戳全部保留）；KV-LSM 设计及用户确认的四项决策（D1 本机门禁通过即默认切换、D2 打开时自动迁移、D3 range tombstone 提前到 K5、D4 关系表共享 LSM 实例）；K1 SST、K2 manifest/版本集、K3 memtable 与迭代器，全部为未接入引擎的内部组件，现有 KV 行为和文件格式不变。
+- 验证：Core 构建（TreatWarningsAsErrors 与 AOT/trim 分析器）PASS；`Kv/Lsm` 83/83 PASS（不重新编译重复 3 轮）；全部 KV 测试 340/340 PASS；提交前对最终工作树执行完整 `dotnet restore SonnetDB.slnx` 与规定 `dotnet format ... --verify-no-changes`。NOT_RUN：性能基准、真实进程强杀/掉电、NativeAOT 发布、固定硬件、CI。
+- 风险边界：差分测试每种子 3～5 s，主要因为尚无块缓存（K5）；故障注入为进程内异常模拟，真实强杀留待 K7；SST 索引分隔 key 暂用块末 key。
+- 授权边界：用户授权准备提交；push、PR、发布、合并均未授权。
+- 下一顺序：K4 引擎接线（`StorageEngine` 选项、写路径、flush、点查/范围/快照、背压、双引擎 KV 测试矩阵），随后 K5～K8 按设计文档第 10 节推进。
+- 临时资源：测试只在 `%TEMP%` 下创建 `sndb-kv-*` 目录并在结束时删除；本任务未启动常驻进程。
+
 ## 2026-11-08（Asia/Shanghai）发布目录整理的限定提交
 
 - 用户已授权只提交并推送本次范围。SonnetDB 交付为 434 项发布材料取消跟踪、Git/Docker 排除及 AGENTS/CHANGELOG/HANDOFF 的本轮片段；发布材料继续保存在本机 `.publishing/`，不会进入提交。个人发布技能和两份独立 Agent 入口归档在私有技能仓库单独交付。
