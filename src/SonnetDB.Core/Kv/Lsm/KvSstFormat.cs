@@ -17,8 +17,11 @@ internal static class KvSstFormat
     /// <summary>文件扩展名。</summary>
     internal const string FileExtension = ".SDBKVSST";
 
-    /// <summary>当前格式版本。</summary>
+    /// <summary>只含点条目的格式版本。</summary>
     internal const int CurrentVersion = 1;
+
+    /// <summary>包含 range tombstone 块的格式版本。</summary>
+    internal const int RangeDeletionVersion = 2;
 
     /// <summary>块 trailer 字节数。</summary>
     internal const int BlockTrailerSize = 5;
@@ -159,10 +162,20 @@ internal struct KvSstFooter
         footer.RangeDelLength = BinaryPrimitives.ReadInt32LittleEndian(source[56..]);
         footer.FooterCrc = crc;
 
-        if (footer.FormatVersion != KvSstFormat.CurrentVersion)
+        if (footer.FormatVersion == KvSstFormat.CurrentVersion)
+        {
+            if (footer.RangeDelOffset != 0 || footer.RangeDelLength != 0)
+                throw new InvalidDataException("KV-LSM SST v1 cannot contain a range tombstone block.");
+        }
+        else if (footer.FormatVersion == KvSstFormat.RangeDeletionVersion)
+        {
+            if (footer.RangeDelOffset <= 0 || footer.RangeDelLength <= 0)
+                throw new InvalidDataException("KV-LSM SST v2 must contain a range tombstone block.");
+        }
+        else
+        {
             throw new InvalidDataException($"KV-LSM SST format version {footer.FormatVersion} is not supported.");
-        if (footer.RangeDelOffset != 0 || footer.RangeDelLength != 0)
-            throw new InvalidDataException("KV-LSM SST v1 cannot contain a range tombstone block.");
+        }
         return footer;
     }
 }
@@ -182,6 +195,7 @@ internal struct KvSstFooter
 /// <param name="RawValueBytes">全部 value 载荷字节数。</param>
 /// <param name="SmallestKey">最小 internal key。</param>
 /// <param name="LargestKey">最大 internal key。</param>
+/// <param name="RangeDeletionCount">range tombstone 数。</param>
 internal sealed record KvSstProperties(
     long EntryCount,
     long DeletionCount,
@@ -194,17 +208,22 @@ internal sealed record KvSstProperties(
     long RawKeyBytes,
     long RawValueBytes,
     byte[] SmallestKey,
-    byte[] LargestKey)
+    byte[] LargestKey,
+    long RangeDeletionCount = 0)
 {
     private const int Version = 1;
+    private const int RangeVersion = 2;
     private const int FixedSize = 4 + (8 * 9) + 4;
+    private const int FixedSizeV2 = FixedSize + 8;
 
     /// <summary>编码为属性块载荷（little-endian 定长字段 + 长度前缀 key）。</summary>
     internal byte[] Encode()
     {
-        byte[] result = new byte[FixedSize + 8 + SmallestKey.Length + LargestKey.Length];
+        bool ranged = RangeDeletionCount > 0;
+        int fixedSize = ranged ? FixedSizeV2 : FixedSize;
+        byte[] result = new byte[fixedSize + 8 + SmallestKey.Length + LargestKey.Length];
         Span<byte> span = result;
-        BinaryPrimitives.WriteInt32LittleEndian(span, Version);
+        BinaryPrimitives.WriteInt32LittleEndian(span, ranged ? RangeVersion : Version);
         BinaryPrimitives.WriteInt64LittleEndian(span[4..], EntryCount);
         BinaryPrimitives.WriteInt64LittleEndian(span[12..], DeletionCount);
         BinaryPrimitives.WriteInt64LittleEndian(span[20..], MinSequence);
@@ -215,7 +234,9 @@ internal sealed record KvSstProperties(
         BinaryPrimitives.WriteInt64LittleEndian(span[60..], RawKeyBytes);
         BinaryPrimitives.WriteInt64LittleEndian(span[68..], RawValueBytes);
         BinaryPrimitives.WriteInt32LittleEndian(span[76..], DataBlockCount);
-        int position = FixedSize;
+        if (ranged)
+            BinaryPrimitives.WriteInt64LittleEndian(span[FixedSize..], RangeDeletionCount);
+        int position = fixedSize;
         BinaryPrimitives.WriteInt32LittleEndian(span[position..], SmallestKey.Length);
         SmallestKey.CopyTo(span[(position + 4)..]);
         position += 4 + SmallestKey.Length;
@@ -230,10 +251,15 @@ internal sealed record KvSstProperties(
     {
         if (source.Length < FixedSize + 8)
             throw new InvalidDataException("KV-LSM SST properties block is truncated.");
-        if (BinaryPrimitives.ReadInt32LittleEndian(source) != Version)
+        int version = BinaryPrimitives.ReadInt32LittleEndian(source);
+        if (version is not (Version or RangeVersion))
             throw new InvalidDataException("KV-LSM SST properties version is not supported.");
+        int fixedSize = version == RangeVersion ? FixedSizeV2 : FixedSize;
+        if (source.Length < fixedSize + 8)
+            throw new InvalidDataException("KV-LSM SST properties block is truncated.");
+        long rangeDeletions = version == RangeVersion ? BinaryPrimitives.ReadInt64LittleEndian(source[FixedSize..]) : 0;
 
-        int position = FixedSize;
+        int position = fixedSize;
         byte[] smallest = ReadKey(source, ref position);
         byte[] largest = ReadKey(source, ref position);
         if (position != source.Length)
@@ -251,12 +277,17 @@ internal sealed record KvSstProperties(
             RawKeyBytes: BinaryPrimitives.ReadInt64LittleEndian(source[60..]),
             RawValueBytes: BinaryPrimitives.ReadInt64LittleEndian(source[68..]),
             SmallestKey: smallest,
-            LargestKey: largest);
+            LargestKey: largest,
+            RangeDeletionCount: rangeDeletions);
 
-        if (properties.EntryCount <= 0
+        if (properties.EntryCount < 0
+            || properties.RangeDeletionCount < 0
+            || (version == RangeVersion) != (properties.RangeDeletionCount > 0)
+            || properties.EntryCount + properties.RangeDeletionCount <= 0
             || properties.DeletionCount < 0
             || properties.DeletionCount > properties.EntryCount
-            || properties.DataBlockCount <= 0
+            || properties.DataBlockCount < 0
+            || (properties.DataBlockCount == 0) != (properties.EntryCount == 0)
             || properties.MinSequence < 0
             || properties.MaxSequence < properties.MinSequence
             || properties.MaxSequence > KvInternalKey.MaxSequence
@@ -268,8 +299,8 @@ internal sealed record KvSstProperties(
             throw new InvalidDataException("KV-LSM SST properties contain invalid values.");
         }
 
-        KvInternalKey.Validate(smallest);
-        KvInternalKey.Validate(largest);
+        KvInternalKey.ValidateBoundary(smallest);
+        KvInternalKey.ValidateBoundary(largest);
         if (KvInternalKey.Compare(smallest, largest) > 0)
             throw new InvalidDataException("KV-LSM SST properties key range is inverted.");
         return properties;

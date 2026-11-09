@@ -240,7 +240,7 @@ internal sealed class KvLsmEngine : IDisposable
             DirectoryFsync.FlushRequired(walDirectory);
 
             var edit = new KvVersionEdit { LogNumber = walNumber, LastSequence = lastSequence };
-            if (recovered.EntryCount > 0)
+            if (!recovered.IsEmpty)
                 edit.AddedFiles.Add(WriteLevel0(versions, recovered, options));
             versions.LogAndApply(edit);
 
@@ -269,9 +269,26 @@ internal sealed class KvLsmEngine : IDisposable
     /// <exception cref="IOException">WAL 写入失败（引擎进入 faulted）或背压等待超时（可重试分类）。</exception>
     /// <exception cref="InvalidOperationException">引擎已 faulted。</exception>
     internal long Apply(IReadOnlyList<KvBatchMutation> mutations, CancellationToken cancellationToken = default)
+        => Apply(mutations, [], cancellationToken);
+
+    /// <summary>
+    /// 原子提交一批点写入与范围删除：范围删除只遮蔽 sequence 更小的条目，因此同批次点写入不受影响。
+    /// </summary>
+    /// <exception cref="ArgumentException">批次为空、mutation 或范围无效。</exception>
+    internal long Apply(
+        IReadOnlyList<KvBatchMutation> mutations,
+        IReadOnlyList<KvRangeDeletion> rangeDeletions,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mutations);
-        KvBatchMutation[] batch = Canonicalize(mutations);
+        ArgumentNullException.ThrowIfNull(rangeDeletions);
+        foreach (KvRangeDeletion range in rangeDeletions)
+        {
+            ArgumentNullException.ThrowIfNull(range, nameof(rangeDeletions));
+            range.Validate();
+        }
+        KvBatchMutation[] batch = Canonicalize(mutations, allowEmpty: rangeDeletions.Count > 0);
+        KvRangeDeletion[] ranges = [.. rangeDeletions];
 
         lock (_writeLock)
         {
@@ -281,7 +298,9 @@ internal sealed class KvLsmEngine : IDisposable
             long sequence;
             try
             {
-                sequence = _wal.AppendMutationBatch(batch);
+                sequence = ranges.Length > 0
+                    ? _wal.AppendMutationBatchWithRanges(batch, ranges)
+                    : _wal.AppendMutationBatch(batch);
             }
             catch (ArgumentException)
             {
@@ -299,6 +318,8 @@ internal sealed class KvLsmEngine : IDisposable
                 if (_options.SyncWalOnEveryWrite)
                     _wal.Sync();
                 _options.TestHook?.Invoke(KvLsmEnginePhase.AfterWalAppend);
+                foreach (KvRangeDeletion range in ranges)
+                    _mutable.AddRangeDeletion(range, sequence);
                 foreach (KvBatchMutation mutation in batch)
                 {
                     bool delete = mutation.Value is null;
@@ -318,6 +339,104 @@ internal sealed class KvLsmEngine : IDisposable
             if (_mutable.UsedBytes >= _options.WriteBufferBytes)
                 RotateLocked();
             return sequence;
+        }
+    }
+
+    /// <summary>删除 <c>[startInclusive, endExclusive)</c> 内的全部现有 key（O(1) 写入一个 range tombstone）。</summary>
+    internal long DeleteRange(byte[] startInclusive, byte[] endExclusive, CancellationToken cancellationToken = default)
+        => Apply([], [new KvRangeDeletion(startInclusive, endExclusive)], cancellationToken);
+
+    /// <summary>
+    /// 清空整个实例：在一次 VersionEdit 中推进 generation、删除全部 SST 并把 WAL 下界移到新 WAL，
+    /// 同时丢弃全部 memtable。已有快照仍读取其固定的旧状态。返回新的 generation。
+    /// </summary>
+    /// <remarks>与后台 flush/compaction 互斥；<see cref="KvLsmEngineOptions.BackgroundFlush"/> 为 false 的同步模式仅供单线程测试。</remarks>
+    internal long Clear(CancellationToken cancellationToken = default)
+    {
+        _flushGate.Wait(cancellationToken);
+        try
+        {
+            _compactionGate.Wait(cancellationToken);
+            try
+            {
+                long walNumber;
+                lock (_writeLock)
+                {
+                    ThrowIfUnwritableLocked();
+                    walNumber = _versions.NewFileNumber();
+                    _versions.ReleasePendingOutput(walNumber);
+                    KvWalFile next;
+                    try
+                    {
+                        next = KvWalFile.Open(KvLsmPaths.WalPath(_root, walNumber), _lastSequence + 1, _options.WalBufferSize);
+                        DirectoryFsync.FlushRequired(KvLsmPaths.WalDirectory(_root));
+                    }
+                    catch (Exception exception)
+                    {
+                        _fault ??= exception;
+                        throw;
+                    }
+
+                    var edit = new KvVersionEdit
+                    {
+                        Generation = _versions.Generation + 1,
+                        LogNumber = walNumber,
+                        LastSequence = _lastSequence,
+                    };
+                    KvVersion current = _versions.AcquireCurrent();
+                    try
+                    {
+                        foreach (KvLsmFileMetadata file in current.AllFiles)
+                            edit.DeletedFiles.Add((file.Level, file.FileNumber));
+                    }
+                    finally
+                    {
+                        current.Release();
+                    }
+
+                    try
+                    {
+                        _versions.LogAndApply(edit);
+                    }
+                    catch (Exception exception)
+                    {
+                        next.Dispose();
+                        _fault ??= exception;
+                        throw;
+                    }
+
+                    try
+                    {
+                        _wal.Dispose();
+                    }
+                    catch (IOException)
+                    {
+                        // 旧 WAL 已低于新的 LogNumber，内容不再需要。
+                    }
+                    _wal = next;
+                    Volatile.Write(ref _walNumber, walNumber);
+                    _immutables.Clear();
+                    _mutable = new KvMemTable();
+                    PublishState(_versions.AcquireCurrent());
+                    Monitor.PulseAll(_writeLock);
+                }
+
+                foreach ((long number, string path) in EnumerateWalFiles(KvLsmPaths.WalDirectory(_root)))
+                {
+                    if (number < walNumber)
+                        TryDelete(path);
+                }
+                CleanupObsoleteFiles();
+                return _versions.Generation;
+            }
+            finally
+            {
+                _compactionGate.Release();
+            }
+        }
+        finally
+        {
+            _flushGate.Release();
         }
     }
 
@@ -350,7 +469,7 @@ internal sealed class KvLsmEngine : IDisposable
         lock (_writeLock)
         {
             ThrowIfUnwritableLocked();
-            if (_mutable.EntryCount > 0)
+            if (!_mutable.IsEmpty)
                 RotateLocked();
         }
 
@@ -745,6 +864,7 @@ internal sealed class KvLsmEngine : IDisposable
                 version,
                 _versions,
                 file => GetReader(file.FileNumber, cancellationToken).CreateIterator(cancellationToken),
+                file => GetReader(file.FileNumber, cancellationToken).RangeTombstones,
                 _options.SstWriterOptions,
                 _options.Compaction,
                 _options.UtcNowTicks(),
@@ -784,6 +904,8 @@ internal sealed class KvLsmEngine : IDisposable
                 using KvMemTableIterator iterator = table.CreateIterator();
                 for (iterator.SeekToFirst(); iterator.Valid; iterator.MoveNext())
                     writer.Add(iterator.Key, iterator.Value, iterator.ExpiresAtUtcTicks);
+                foreach (KvRangeTombstone tombstone in table.RangeTombstones)
+                    writer.AddRangeTombstone(tombstone);
                 properties = writer.Finish();
             }
             return KvLsmFileMetadata.FromProperties(number, level: 0, new FileInfo(path).Length, properties);
@@ -809,6 +931,19 @@ internal sealed class KvLsmEngine : IDisposable
                         mutation.ExpiresAtUtc?.UtcTicks ?? 0);
                 }
                 break;
+            case KvWalRecordKind.MutationBatchWithRanges:
+                (IReadOnlyList<KvBatchMutation> mutations, IReadOnlyList<KvRangeDeletion> ranges) = KvWalFile.DecodeMutationBatchWithRanges(record);
+                foreach (KvRangeDeletion range in ranges)
+                    table.AddRangeDeletion(range, record.Sequence);
+                foreach (KvBatchMutation mutation in mutations)
+                {
+                    bool delete = mutation.Value is null;
+                    table.Add(
+                        KvInternalKey.Encode(mutation.Key, record.Sequence, delete ? KvEntryKind.Delete : KvEntryKind.Put),
+                        mutation.Value,
+                        mutation.ExpiresAtUtc?.UtcTicks ?? 0);
+                }
+                break;
             case KvWalRecordKind.Put:
                 table.Add(KvInternalKey.Encode(record.Key, record.Sequence, KvEntryKind.Put), record.Value, record.ExpiresAtUtc?.UtcTicks ?? 0);
                 break;
@@ -820,10 +955,14 @@ internal sealed class KvLsmEngine : IDisposable
         }
     }
 
-    private static KvBatchMutation[] Canonicalize(IReadOnlyList<KvBatchMutation> mutations)
+    private static KvBatchMutation[] Canonicalize(IReadOnlyList<KvBatchMutation> mutations, bool allowEmpty)
     {
         if (mutations.Count == 0)
+        {
+            if (allowEmpty)
+                return [];
             throw new ArgumentException("KV-LSM batch must contain at least one mutation.", nameof(mutations));
+        }
         var lastIndex = new Dictionary<byte[], int>(KvKeyComparer.Instance);
         for (int i = 0; i < mutations.Count; i++)
         {
@@ -905,20 +1044,28 @@ internal sealed class KvLsmSnapshot : IDisposable
     internal KvEntry? Get(ReadOnlySpan<byte> key, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
-        if (_mutable.TryGet(key, Sequence, out KvSstEntry entry))
-            return ToEntry(entry);
-        foreach (KvMemTable table in _immutables)
+        // 从新到旧检查数据源；每个数据源先累计覆盖该 key 的 range tombstone 最大 sequence，
+        // 首个找到的点版本若早于该 sequence 则视为已删除（较旧数据源的 tombstone 不会比较新数据源的条目更新）。
+        long covering = 0;
+        KvSstEntry entry;
+        foreach (KvMemTable table in Enumerable.Prepend(_immutables, _mutable))
         {
+            covering = Math.Max(covering, KvRangeTombstone.MaxCovering(table.RangeTombstones, key, Sequence));
             if (table.TryGet(key, Sequence, out entry))
-                return ToEntry(entry);
+                return Resolve(entry, covering);
         }
 
         foreach (KvLsmFileMetadata file in _version.Files(0))
         {
-            if (Covers(file, key) && _engine.GetReader(file.FileNumber, cancellationToken).TryGet(key, Sequence, out entry, cancellationToken))
-                return ToEntry(entry);
+            if (!Covers(file, key))
+                continue;
+            KvSstReader reader = _engine.GetReader(file.FileNumber, cancellationToken);
+            covering = Math.Max(covering, KvRangeTombstone.MaxCovering(reader.RangeTombstones, key, Sequence));
+            if (reader.TryGet(key, Sequence, out entry, cancellationToken))
+                return Resolve(entry, covering);
         }
 
+        byte[] seekKey = KvInternalKey.EncodeSeekKey(key, Sequence);
         for (int level = 1; level < KvVersion.LevelCount; level++)
         {
             IReadOnlyList<KvLsmFileMetadata> files = _version.Files(level);
@@ -927,31 +1074,40 @@ internal sealed class KvLsmSnapshot : IDisposable
             while (low < high)
             {
                 int middle = low + ((high - low) / 2);
-                if (KvInternalKey.UserKey(files[middle].LargestKey).SequenceCompareTo(key) < 0)
+                if (KvInternalKey.Compare(files[middle].LargestKey, seekKey) < 0)
                     low = middle + 1;
                 else
                     high = middle;
             }
-            if (low < files.Count
-                && Covers(files[low], key)
-                && _engine.GetReader(files[low].FileNumber, cancellationToken).TryGet(key, Sequence, out entry, cancellationToken))
-            {
-                return ToEntry(entry);
-            }
+            if (low >= files.Count || !Covers(files[low], key))
+                continue;
+            KvSstReader reader = _engine.GetReader(files[low].FileNumber, cancellationToken);
+            covering = Math.Max(covering, KvRangeTombstone.MaxCovering(reader.RangeTombstones, key, Sequence));
+            if (reader.TryGet(key, Sequence, out entry, cancellationToken))
+                return Resolve(entry, covering);
         }
         return null;
     }
+
+    private KvEntry? Resolve(KvSstEntry entry, long coveringSequence)
+        => entry.Sequence < coveringSequence ? null : ToEntry(entry);
 
     /// <summary>创建 <c>[lowerBound, upperBound)</c> 的双向用户视图迭代器（创建后需定位）。</summary>
     internal KvSnapshotIterator CreateIterator(byte[]? lowerBound = null, byte[]? upperBound = null, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
         var children = new List<IKvInternalIterator> { _mutable.CreateIterator() };
+        var tombstones = new List<KvRangeTombstone>(_mutable.RangeTombstones);
         foreach (KvMemTable table in _immutables)
+        {
             children.Add(table.CreateIterator());
+            tombstones.AddRange(table.RangeTombstones);
+        }
         KvVersion pinned = _version.AddReference();
         try
         {
+            foreach (KvLsmFileMetadata file in pinned.AllFiles)
+                tombstones.AddRange(_engine.GetReader(file.FileNumber, cancellationToken).RangeTombstones);
             foreach (KvLsmFileMetadata file in pinned.Files(0))
                 children.Add(_engine.GetReader(file.FileNumber, cancellationToken).CreateIterator(cancellationToken));
             for (int level = 1; level < KvVersion.LevelCount; level++)
@@ -972,7 +1128,8 @@ internal sealed class KvLsmSnapshot : IDisposable
         }
         return new KvSnapshotIterator(
             new VersionPinnedIterator(new KvMergingIterator(children), pinned),
-            Sequence, ReadTimestampUtcTicks, lowerBound, upperBound);
+            Sequence, ReadTimestampUtcTicks, lowerBound, upperBound,
+            KvRangeTombstoneSet.Build(tombstones, Sequence));
     }
 
     /// <summary>释放版本引用（幂等）。</summary>

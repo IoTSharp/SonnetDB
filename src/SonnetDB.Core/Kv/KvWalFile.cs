@@ -17,6 +17,10 @@ internal sealed class KvWalFile : IDisposable
     private const int CurrentVersion = 3;
     private const int MutationBatchMetadataBytes = sizeof(int);
     private const int MutationMetadataBytes = sizeof(int) + sizeof(int) + sizeof(long);
+    private const int RangedMutationMetadataBytes = 1 + sizeof(int) + sizeof(int) + sizeof(long);
+    private const byte RangedOpPut = 1;
+    private const byte RangedOpDelete = 2;
+    private const byte RangedOpRangeDelete = 3;
 
     private static ReadOnlySpan<byte> Magic => "SDBKVWAL"u8;
 
@@ -449,6 +453,7 @@ internal sealed class KvWalFile : IDisposable
                         or KvWalRecordKind.DeleteBatch
                         or KvWalRecordKind.DeleteBatchCommit
                         or KvWalRecordKind.MutationBatch
+                        or KvWalRecordKind.MutationBatchWithRanges
                         ? value
                         : null,
                     expiresAtUtc);
@@ -771,6 +776,7 @@ internal sealed class KvWalFile : IDisposable
                 or KvWalRecordKind.DeleteBatch
                 or KvWalRecordKind.DeleteBatchCommit
                 or KvWalRecordKind.MutationBatch
+                or KvWalRecordKind.MutationBatchWithRanges
                 ? value
                 : null,
             expiresAtUtc);
@@ -801,7 +807,8 @@ internal sealed class KvWalFile : IDisposable
             && rawKind != (byte)KvWalRecordKind.ClearGeneration
             && rawKind != (byte)KvWalRecordKind.DeleteBatch
             && rawKind != (byte)KvWalRecordKind.DeleteBatchCommit
-            && rawKind != (byte)KvWalRecordKind.MutationBatch)
+            && rawKind != (byte)KvWalRecordKind.MutationBatch
+            && rawKind != (byte)KvWalRecordKind.MutationBatchWithRanges)
             return false;
 
         kind = (KvWalRecordKind)rawKind;
@@ -839,6 +846,8 @@ internal sealed class KvWalFile : IDisposable
                 && valueLength == sizeof(long) + (sizeof(int) * 2),
             KvWalRecordKind.MutationBatch => keyLength == 0
                 && valueLength >= MutationBatchMetadataBytes + MutationMetadataBytes + 1,
+            KvWalRecordKind.MutationBatchWithRanges => keyLength == 0
+                && valueLength >= MutationBatchMetadataBytes + RangedMutationMetadataBytes + 1,
             _ => false,
         };
         if (!validShape)
@@ -987,6 +996,176 @@ internal sealed class KvWalFile : IDisposable
         if (offset != payload.Length)
             throw new InvalidDataException("KV atomic batch WAL record contains trailing bytes.");
         return mutations;
+    }
+
+    /// <summary>
+    /// 把点写入与范围删除编码为单个原子 <see cref="KvWalRecordKind.MutationBatchWithRanges"/> 记录，返回其 sequence。
+    /// </summary>
+    /// <remarks>
+    /// 载荷：<c>count(int32) | (op(1B) | keyLength(int32) | valueLength(int32) | expires(int64) | key | value)*</c>；
+    /// op 1=put、2=delete（valueLength=-1）、3=范围删除（key=起点，value=终点）。只由 KV-LSM 引擎写入。
+    /// </remarks>
+    internal long AppendMutationBatchWithRanges(
+        IReadOnlyList<KvBatchMutation> mutations,
+        IReadOnlyList<Lsm.KvRangeDeletion> rangeDeletions)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        ArgumentNullException.ThrowIfNull(rangeDeletions);
+        ThrowIfDisposed();
+        if (!SupportsMutationBatch)
+            throw new InvalidOperationException("KV ranged batch cannot be appended to a legacy active WAL.");
+        int count = mutations.Count + rangeDeletions.Count;
+        if (count == 0)
+            throw new ArgumentException("KV ranged batch 至少需要一个 mutation。", nameof(mutations));
+
+        long payloadLength = MutationBatchMetadataBytes;
+        foreach (KvBatchMutation mutation in mutations)
+        {
+            ArgumentNullException.ThrowIfNull(mutation);
+            ArgumentNullException.ThrowIfNull(mutation.Key);
+            if (mutation.Key.Length == 0)
+                throw new ArgumentException("KV ranged batch key 不能为空。", nameof(mutations));
+            if (mutation.Value is null && mutation.ExpiresAtUtc.HasValue)
+                throw new ArgumentException("KV delete mutation 不能设置 expires-at。", nameof(mutations));
+            payloadLength = checked(payloadLength + RangedMutationMetadataBytes + mutation.Key.Length + (mutation.Value?.Length ?? 0));
+        }
+        foreach (Lsm.KvRangeDeletion range in rangeDeletions)
+        {
+            ArgumentNullException.ThrowIfNull(range);
+            range.Validate();
+            payloadLength = checked(payloadLength + RangedMutationMetadataBytes + range.StartInclusive.Length + range.EndExclusive.Length);
+        }
+        if (payloadLength > int.MaxValue - PayloadPrefixBytesV2)
+            throw new ArgumentOutOfRangeException(nameof(mutations), "KV ranged batch WAL payload is too large.");
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent((int)payloadLength);
+        Span<byte> payload = rented.AsSpan(0, (int)payloadLength);
+        try
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(payload, count);
+            int offset = MutationBatchMetadataBytes;
+            foreach (Lsm.KvRangeDeletion range in rangeDeletions)
+                offset = WriteRangedEntry(payload, offset, RangedOpRangeDelete, range.StartInclusive, range.EndExclusive, 0);
+            foreach (KvBatchMutation mutation in mutations)
+            {
+                offset = WriteRangedEntry(
+                    payload,
+                    offset,
+                    mutation.Value is null ? RangedOpDelete : RangedOpPut,
+                    mutation.Key,
+                    mutation.Value,
+                    mutation.ExpiresAtUtc?.UtcTicks ?? 0);
+            }
+
+            long sequence = _nextSequence++;
+            AppendRecord(KvWalRecordKind.MutationBatchWithRanges, sequence, ReadOnlySpan<byte>.Empty, payload, expiresAtUtc: null);
+            return sequence;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    private static int WriteRangedEntry(Span<byte> payload, int offset, byte op, byte[] key, byte[]? value, long expiresAtUtcTicks)
+    {
+        payload[offset] = op;
+        offset += 1;
+        BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(offset, sizeof(int)), key.Length);
+        offset += sizeof(int);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(offset, sizeof(int)), value?.Length ?? -1);
+        offset += sizeof(int);
+        BinaryPrimitives.WriteInt64LittleEndian(payload.Slice(offset, sizeof(long)), expiresAtUtcTicks);
+        offset += sizeof(long);
+        key.CopyTo(payload[offset..]);
+        offset += key.Length;
+        if (value is { Length: > 0 })
+        {
+            value.CopyTo(payload[offset..]);
+            offset += value.Length;
+        }
+        return offset;
+    }
+
+    /// <summary>解码 <see cref="KvWalRecordKind.MutationBatchWithRanges"/> 记录。</summary>
+    /// <exception cref="InvalidDataException">载荷结构、操作码或范围无效。</exception>
+    internal static (IReadOnlyList<KvBatchMutation> Mutations, IReadOnlyList<Lsm.KvRangeDeletion> RangeDeletions) DecodeMutationBatchWithRanges(KvWalRecord record)
+    {
+        if (record.Kind != KvWalRecordKind.MutationBatchWithRanges
+            || record.Value is not { Length: >= MutationBatchMetadataBytes + RangedMutationMetadataBytes + 1 } payload)
+        {
+            throw new InvalidDataException("KV ranged batch WAL record payload is invalid.");
+        }
+
+        int count = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(0, sizeof(int)));
+        int maximumCount = (payload.Length - MutationBatchMetadataBytes) / (RangedMutationMetadataBytes + 1);
+        if (count <= 0 || count > maximumCount)
+            throw new InvalidDataException("KV ranged batch WAL record contains an invalid mutation count.");
+
+        var mutations = new List<KvBatchMutation>();
+        var ranges = new List<Lsm.KvRangeDeletion>();
+        int offset = MutationBatchMetadataBytes;
+        for (int i = 0; i < count; i++)
+        {
+            if (offset > payload.Length - RangedMutationMetadataBytes)
+                throw new InvalidDataException("KV ranged batch WAL record is truncated.");
+            byte op = payload[offset];
+            offset += 1;
+            int keyLength = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(offset, sizeof(int)));
+            offset += sizeof(int);
+            int valueLength = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(offset, sizeof(int)));
+            offset += sizeof(int);
+            long expiresAtUtcTicks = BinaryPrimitives.ReadInt64LittleEndian(payload.AsSpan(offset, sizeof(long)));
+            offset += sizeof(long);
+
+            bool validShape = op switch
+            {
+                RangedOpPut => keyLength > 0 && valueLength >= 0 && expiresAtUtcTicks >= 0,
+                RangedOpDelete => keyLength > 0 && valueLength == -1 && expiresAtUtcTicks == 0,
+                RangedOpRangeDelete => keyLength >= 0 && valueLength > 0 && expiresAtUtcTicks == 0,
+                _ => false,
+            };
+            if (!validShape)
+                throw new InvalidDataException("KV ranged batch WAL record contains invalid mutation metadata.");
+
+            long entryBytes = (long)keyLength + Math.Max(valueLength, 0);
+            if (entryBytes > payload.Length - offset)
+                throw new InvalidDataException("KV ranged batch WAL record contains a truncated mutation.");
+            byte[] key = payload.AsSpan(offset, keyLength).ToArray();
+            offset += keyLength;
+            byte[]? value = valueLength < 0 ? null : payload.AsSpan(offset, valueLength).ToArray();
+            offset += Math.Max(valueLength, 0);
+
+            if (op == RangedOpRangeDelete)
+            {
+                var range = new Lsm.KvRangeDeletion(key, value!);
+                try
+                {
+                    range.Validate();
+                }
+                catch (ArgumentException exception)
+                {
+                    throw new InvalidDataException("KV ranged batch WAL record contains an invalid range.", exception);
+                }
+                ranges.Add(range);
+                continue;
+            }
+
+            DateTimeOffset? expiresAtUtc;
+            try
+            {
+                expiresAtUtc = expiresAtUtcTicks == 0 ? null : new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero);
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new InvalidDataException("KV ranged batch WAL record contains an invalid expires-at value.", exception);
+            }
+            mutations.Add(new KvBatchMutation(key, value, expiresAtUtc));
+        }
+
+        if (offset != payload.Length)
+            throw new InvalidDataException("KV ranged batch WAL record contains trailing bytes.");
+        return (mutations, ranges);
     }
 
     private static int CalculateMutationBatchPayloadBytes(IReadOnlyList<KvBatchMutation> mutations)

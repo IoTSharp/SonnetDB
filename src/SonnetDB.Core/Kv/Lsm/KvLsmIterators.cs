@@ -237,6 +237,7 @@ internal sealed class KvSnapshotIterator : IDisposable
     private readonly long _readTimestampUtcTicks;
     private readonly byte[]? _lowerBound;
     private readonly byte[]? _upperBound;
+    private readonly KvRangeTombstoneSet _rangeTombstones;
     private bool _forward = true;
     private bool _valid;
     private byte[] _savedKey = new byte[64];
@@ -252,13 +253,16 @@ internal sealed class KvSnapshotIterator : IDisposable
     /// <param name="readTimestampUtcTicks">判断 TTL 的固定时刻（UTC ticks）。</param>
     /// <param name="lowerBound">包含的 user key 下界；null 表示无下界。</param>
     /// <param name="upperBound">不包含的 user key 上界；null 表示无上界。</param>
+    /// <param name="rangeTombstones">该快照可见的 range tombstone 分段视图；null 表示没有。</param>
     internal KvSnapshotIterator(
         IKvInternalIterator source,
         long snapshotSequence,
         long readTimestampUtcTicks,
         byte[]? lowerBound = null,
-        byte[]? upperBound = null)
+        byte[]? upperBound = null,
+        KvRangeTombstoneSet? rangeTombstones = null)
     {
+        _rangeTombstones = rangeTombstones ?? KvRangeTombstoneSet.Empty;
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfNegative(snapshotSequence);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(snapshotSequence, KvInternalKey.MaxSequence);
@@ -475,7 +479,9 @@ internal sealed class KvSnapshotIterator : IDisposable
 
     private bool IsLivePut(ReadOnlySpan<byte> internalKey, long expiresAtUtcTicks)
         => KvInternalKey.Kind(internalKey) == KvEntryKind.Put
-            && (expiresAtUtcTicks == 0 || expiresAtUtcTicks > _readTimestampUtcTicks);
+            && (expiresAtUtcTicks == 0 || expiresAtUtcTicks > _readTimestampUtcTicks)
+            && (_rangeTombstones.IsEmpty
+                || _rangeTombstones.MaxCovering(KvInternalKey.UserKey(internalKey)) <= KvInternalKey.Sequence(internalKey));
 
     private void SaveKey(ReadOnlySpan<byte> userKey)
     {

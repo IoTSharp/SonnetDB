@@ -41,6 +41,7 @@ internal sealed class KvMemTable
     private long _entryCount;
     private long _approximateBytes;
     private long _usedBytes;
+    private KvRangeTombstone[] _rangeTombstones = [];
     private long _minSequence = long.MaxValue;
     private long _maxSequence = long.MinValue;
 
@@ -56,6 +57,12 @@ internal sealed class KvMemTable
 
     /// <summary>条目数。</summary>
     internal long EntryCount => Volatile.Read(ref _entryCount);
+
+    /// <summary>是否既没有点条目也没有 range tombstone。</summary>
+    internal bool IsEmpty => EntryCount == 0 && Volatile.Read(ref _rangeTombstones).Length == 0;
+
+    /// <summary>当前 range tombstone 快照（写时复制，只读）。</summary>
+    internal IReadOnlyList<KvRangeTombstone> RangeTombstones => Volatile.Read(ref _rangeTombstones);
 
     /// <summary>条目实际占用的字节数（key + value + 节点记录 + next 槽位），用于轮转判断。</summary>
     internal long UsedBytes => Volatile.Read(ref _usedBytes);
@@ -138,6 +145,29 @@ internal sealed class KvMemTable
                 Volatile.Write(ref _maxSequence, sequence);
             Interlocked.Add(ref _usedBytes, internalKey.Length + value.Length + NodeRecordBytes + (height * sizeof(int)));
             Interlocked.Increment(ref _entryCount);
+        }
+    }
+
+    /// <summary>追加一个 range tombstone；可与读者并发，多个写者之间由内部锁串行化。</summary>
+    /// <exception cref="ArgumentException">范围无效。</exception>
+    internal void AddRangeDeletion(KvRangeDeletion range, long sequence)
+    {
+        ArgumentNullException.ThrowIfNull(range);
+        range.Validate();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sequence);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sequence, KvInternalKey.MaxSequence);
+        lock (_writeSync)
+        {
+            KvRangeTombstone[] current = _rangeTombstones;
+            var next = new KvRangeTombstone[current.Length + 1];
+            Array.Copy(current, next, current.Length);
+            next[^1] = new KvRangeTombstone([.. range.StartInclusive], [.. range.EndExclusive], sequence);
+            Volatile.Write(ref _rangeTombstones, next);
+            if (sequence < _minSequence)
+                Volatile.Write(ref _minSequence, sequence);
+            if (sequence > _maxSequence)
+                Volatile.Write(ref _maxSequence, sequence);
+            Interlocked.Add(ref _usedBytes, range.StartInclusive.Length + range.EndExclusive.Length + 32);
         }
     }
 

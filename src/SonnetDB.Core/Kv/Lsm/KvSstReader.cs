@@ -56,6 +56,7 @@ internal sealed class KvSstReader : IDisposable
     private readonly KvSstBlock _index;
     private readonly KvBloomFilter _filter;
     private readonly long _dataEnd;
+    private readonly KvRangeTombstone[] _rangeTombstones;
     private int _disposed;
 
     private KvSstReader(
@@ -67,8 +68,10 @@ internal sealed class KvSstReader : IDisposable
         KvSstBlock index,
         KvBloomFilter filter,
         long dataEnd,
-        KvBlockCache? blockCache)
+        KvBlockCache? blockCache,
+        KvRangeTombstone[] rangeTombstones)
     {
+        _rangeTombstones = rangeTombstones;
         FilePath = path;
         _handle = handle;
         FileLength = fileLength;
@@ -88,6 +91,9 @@ internal sealed class KvSstReader : IDisposable
 
     /// <summary>属性块。</summary>
     internal KvSstProperties Properties { get; }
+
+    /// <summary>文件中的 range tombstone（按起点升序）。</summary>
+    internal IReadOnlyList<KvRangeTombstone> RangeTombstones => _rangeTombstones;
 
     /// <summary>打开并校验 SST 元数据。</summary>
     /// <exception cref="InvalidDataException">footer、属性、索引或过滤器无效。</exception>
@@ -121,13 +127,18 @@ internal sealed class KvSstReader : IDisposable
 
             long footerOffset = fileLength - KvSstFooter.Size;
             long trailer = KvSstFormat.BlockTrailerSize;
-            if (footer.FilterOffset <= 0
+            long metadataEnd = footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+                ? footer.RangeDelOffset
+                : footerOffset;
+            if (footer.FilterOffset < 0
                 || footer.FilterLength <= 0
                 || footer.IndexLength <= 0
                 || footer.PropertiesLength <= 0
                 || footer.IndexOffset != footer.FilterOffset + footer.FilterLength + trailer
                 || footer.PropertiesOffset != footer.IndexOffset + footer.IndexLength + trailer
-                || footer.PropertiesOffset + footer.PropertiesLength + trailer != footerOffset)
+                || footer.PropertiesOffset + footer.PropertiesLength + trailer != metadataEnd
+                || (footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+                    && footer.RangeDelOffset + footer.RangeDelLength + trailer != footerOffset))
             {
                 throw Corrupt(fullPath, "footer block layout is invalid");
             }
@@ -135,6 +146,7 @@ internal sealed class KvSstReader : IDisposable
             KvSstProperties properties;
             KvSstBlock index;
             KvBloomFilter filter;
+            KvRangeTombstone[] rangeTombstones;
             try
             {
                 properties = KvSstProperties.Decode(ReadBlockCore(
@@ -146,6 +158,13 @@ internal sealed class KvSstReader : IDisposable
                 filter = KvBloomFilter.Parse(ReadBlockCore(
                     handle, new KvSstBlockHandle(footer.FilterOffset, footer.FilterLength),
                     fullPath, readBudget, cancellationToken));
+                rangeTombstones = footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+                    ? KvSstWriter.DecodeRangeTombstones(ReadBlockCore(
+                        handle, new KvSstBlockHandle(footer.RangeDelOffset, footer.RangeDelLength),
+                        fullPath, readBudget, cancellationToken))
+                    : [];
+                if (rangeTombstones.Length != properties.RangeDeletionCount)
+                    throw new InvalidDataException("range tombstone count does not match properties");
             }
             catch (InvalidDataException exception) when (!exception.Message.StartsWith("KV-LSM SST '", StringComparison.Ordinal))
             {
@@ -153,7 +172,7 @@ internal sealed class KvSstReader : IDisposable
             }
 
             ValidateIndex(index, properties, footer.FilterOffset, fullPath);
-            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset, blockCache);
+            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset, blockCache, rangeTombstones);
         }
         catch
         {
@@ -205,6 +224,7 @@ internal sealed class KvSstReader : IDisposable
     /// <exception cref="InvalidDataException">任一校验失败。</exception>
     internal void VerifyAll(CancellationToken cancellationToken = default)
     {
+        bool ranged = _rangeTombstones.Length > 0;
         long entries = 0;
         long deletions = 0;
         long minSequence = long.MaxValue;
@@ -217,8 +237,13 @@ internal sealed class KvSstReader : IDisposable
             KvSstEntry current = iterator.Current;
             if (previous is not null && KvInternalKey.Compare(previous, current.InternalKey) >= 0)
                 throw Corrupt(FilePath, "keys are not strictly increasing");
-            if (previous is null && !current.InternalKey.AsSpan().SequenceEqual(Properties.SmallestKey))
+            if (previous is null
+                && (ranged
+                    ? KvInternalKey.Compare(current.InternalKey, Properties.SmallestKey) < 0
+                    : !current.InternalKey.AsSpan().SequenceEqual(Properties.SmallestKey)))
+            {
                 throw Corrupt(FilePath, "first key does not match properties");
+            }
             previous = current.InternalKey;
             entries++;
             if (current.Kind == KvEntryKind.Delete)
@@ -227,8 +252,17 @@ internal sealed class KvSstReader : IDisposable
             maxSequence = Math.Max(maxSequence, current.Sequence);
         }
 
-        if (previous is null || !previous.AsSpan().SequenceEqual(Properties.LargestKey))
+        foreach (KvRangeTombstone tombstone in _rangeTombstones)
+        {
+            minSequence = Math.Min(minSequence, tombstone.Sequence);
+            maxSequence = Math.Max(maxSequence, tombstone.Sequence);
+        }
+        if (ranged
+            ? previous is not null && KvInternalKey.Compare(previous, Properties.LargestKey) > 0
+            : previous is null || !previous.AsSpan().SequenceEqual(Properties.LargestKey))
+        {
             throw Corrupt(FilePath, "last key does not match properties");
+        }
         if (entries != Properties.EntryCount
             || deletions != Properties.DeletionCount
             || minSequence != Properties.MinSequence
@@ -299,7 +333,10 @@ internal sealed class KvSstReader : IDisposable
 
         if (expectedOffset != dataEnd || blocks != properties.DataBlockCount)
             throw Corrupt(path, "index does not cover the data region");
-        if (previousKey is null || !previousKey.AsSpan().SequenceEqual(properties.LargestKey))
+        bool lastKeyValid = properties.RangeDeletionCount > 0
+            ? previousKey is null || KvInternalKey.Compare(previousKey, properties.LargestKey) <= 0
+            : previousKey is not null && previousKey.AsSpan().SequenceEqual(properties.LargestKey);
+        if (!lastKeyValid)
             throw Corrupt(path, "last index key does not match properties");
     }
 

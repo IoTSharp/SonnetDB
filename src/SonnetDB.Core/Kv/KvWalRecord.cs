@@ -8,6 +8,9 @@ internal enum KvWalRecordKind : byte
     DeleteBatch = 4,
     DeleteBatchCommit = 5,
     MutationBatch = 6,
+
+    /// <summary>含范围删除的原子批次（仅 KV-LSM 引擎写入）。</summary>
+    MutationBatchWithRanges = 7,
 }
 
 internal sealed class KvWalRecord

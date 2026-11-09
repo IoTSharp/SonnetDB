@@ -305,6 +305,17 @@ AcquireReadSnapshot():
   - 公开 `DeletePrefix(prefix, limit)` 保持现有语义（返回实际删除数，可带上限），仍逐键删除；
   - 公开 `Clear()`：Lsm 下写 range tombstone 并推进 generation；`KvClearResult.RemovedKeys` 为保持合同，先做一次只读 key 的计数扫描（读成本 O(N)，无写放大），表 TRUNCATE/DROP 走不计数的内部快速路径。
 
+#### 6.5.1 K5b 实现说明（与上文设计的差异以本节为准）
+
+- **WAL**：没有把 WAL 文件头升到 v4。原因是 legacy `KvKeyspace` 与 LSM 共用 `KvWalFile`，升级文件头会改变 legacy WAL 的写出格式。改为在 v3 文件里新增记录类型 `7 = MutationBatchWithRanges`：每条变更带一个操作字节（1=put、2=delete、3=范围删除，范围删除以 key 存起点、value 存终点），范围删除与点写入在同一条记录里原子提交。只有含范围删除的批次才写类型 7，K4a 产生的 WAL 字节不变。`KvWalFile` 遇到未知类型会当作撕裂尾部截断，所以解析端已同步放行类型 7。旧版本二进制本来就无法打开 LSM 目录（§7.4.4）。
+- **语义**：tombstone 只遮蔽 sequence **严格小于**自身的条目。同一批次里范围删除先生效、点写入与它共享 sequence，所以同批点写入不受影响，可用于“TRUNCATE + 元数据更新”同批提交。范围必须有界（`end` 非空且大于 `start`，`start` 可以为空）；整库清空走 generation。
+- **SST**：只含点条目的文件仍写 v1，字节与 K1 相同。含 tombstone 的文件写 v2：在属性块之后增加 `RangeDelBlock`（`varint count | (varint len | start | varint len | end | varint seq)*`，存原始 tombstone，按起点升序），属性块升到 v2 并增加 `RangeDeletionCount`。允许只含 tombstone、没有任何点条目的文件，此时数据块数为 0、索引块为空块。
+- **文件边界**：tombstone 起点在文件边界中记为 `(start, MaxSequence, Put)`（trailer 为 1），终点哨兵记为 `(end, MaxSequence, SeekMarker)`（trailer 为 0）。终点哨兵小于 user key 为 `end` 的任何条目，因此相邻文件以 `end` 为界时，按 internal key 严格不重叠。相应地，L1+ 点查改为用 `EncodeSeekKey(key, snapshot)` 按 internal key 二分定位文件。
+- **读**：点查从新到旧遍历数据源，每个数据源先累计覆盖该 key 的 tombstone 最大 sequence，第一个找到的点版本早于它就视为已删除。迭代器创建时收集快照可见的全部 tombstone，构建分段视图（`KvRangeTombstoneSet`，O(log 片段数) 查询），被覆盖的条目按删除处理。
+- **compaction**：输入中被更新 tombstone 覆盖的点条目直接丢弃。输出层之下已无重叠文件时，tombstone 也丢弃；否则在输出切分点处裁剪成片段，写入对应输出文件；只有 tombstone、没有点条目时单独输出一个文件。
+- **Clear**：与后台 flush/compaction 互斥。先创建新 WAL，再在同一次 VersionEdit 中提交 `Generation+1`、`LogNumber = 新 WAL`、`LastSequence`，并删除全部 SST；随后丢弃全部 memtable，删除旧 WAL。已有快照仍读取固定的旧状态。
+- **已知边界**：分段视图在构建时为 O(边界数 × tombstone 数)，适合 TRUNCATE/DROP 这类低频大范围删除；大量细碎范围删除需要先改成扫描线算法。“文件完全被覆盖时整文件删除”尚未实现，目前仍通过合并来回收。
+
 ### 6.6 大 value（第二阶段）
 
 value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（blob 文件 + 指针），避免 compaction 反复搬运大 value。第一阶段先在 SST 中原样存放，并在基准中单列大 value 场景。
@@ -475,7 +486,8 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 | K4a ✅ 源码 | 独立 `KvLsmEngine`：WAL（复用 v3）、原子批量写、memtable 轮转、后台/同步 flush 到 L0、O(1) 快照、点查、双向范围迭代、背压、WAL 重放恢复（2026-11-08：引擎 15 项测试 + `Kv/Lsm` 共 98 项本机 PASS；尚未接入 `KvKeyspace`） | G4 前置 |
 | K4b | `KvKeyspace` 接线：`StorageEngine` 选项，CAS/NX/XX/TTL/Increment/条件批/有界读/游标/命名空间/Clear/清理等全部 API 路由到引擎；KV 测试矩阵双引擎运行 | G1、G4 |
 | K5a ✅ 源码 | Leveled compaction（L0 按文件数、L1+ 按字节评分、轮转指针、trivial move、L0 停写背压）、版本/墓碑/TTL 回收、手动全量 `CompactAll`、`KvBlockCache`、层内拼接迭代器（2026-11-08：compaction 10 项测试 + `Kv/Lsm` 共 108 项本机 PASS；随机负载测试单个由 6～10 s 降至约 1 s） | G3、G5 前置 |
-| K5b | **range tombstone（WAL v4、`RangeDelBlock`、`DeleteRange`、Lsm 下的 `Clear`）**、跨实例全局 compaction 调度器、`KvWriteBufferManager` | G7、G11 |
+| K5b ✅ 源码 | **range tombstone（WAL 记录类型 7、SST v2 `RangeDelBlock`、`DeleteRange`、引擎 `Clear`）**（2026-11-09：范围删除 11 项测试 + `Kv/Lsm` 共 119 项本机 PASS；尚未接入 `KvKeyspace`） | G11 前置 |
+| K5c | 跨实例全局 compaction 调度器、`KvWriteBufferManager` | G7 |
 | K6 | `KvLsmStore` 多逻辑 keyspace：`StorageId` 前缀句柄、`0\|*` 元数据、前缀布隆、按 keyspace 的 `LastSequence`；`TableSchema.StorageId` 与 codec 升版本；旧 schema 拒绝行为核验 | G1（表测试全集双引擎）、G10 |
 | K7 | 关系表接入共享实例：DDL 改写、多表事务改为单 batch、`TableStoreMaintenanceFile` 迁入元数据、持久化行数；**打开时自动迁移**（独立 keyspace + 表并入共享实例）、回滚命令、`KvGenerationFile` v3 降级拒绝、备份 pin Version、generation 清理 | G2、G8、G12 |
 | K8 | 新建数据库默认 `Lsm`（D1：G1～G8、G10～G12 本机 PASS 即可）；CHANGELOG 写明自动迁移与降级流程；文档与 ROADMAP 更新 | 本机门禁全部 PASS |

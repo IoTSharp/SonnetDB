@@ -134,8 +134,8 @@ internal sealed record KvLsmFileMetadata(
             throw new InvalidDataException($"KV-LSM file metadata for #{FileNumber} is invalid.");
         }
 
-        KvInternalKey.Validate(SmallestKey);
-        KvInternalKey.Validate(LargestKey);
+        KvInternalKey.ValidateBoundary(SmallestKey);
+        KvInternalKey.ValidateBoundary(LargestKey);
         if (KvInternalKey.Compare(SmallestKey, LargestKey) > 0)
             throw new InvalidDataException($"KV-LSM file #{FileNumber} key range is inverted.");
     }

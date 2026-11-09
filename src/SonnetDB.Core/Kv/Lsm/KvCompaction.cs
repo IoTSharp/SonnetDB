@@ -156,6 +156,7 @@ internal static class KvCompactionExecutor
         KvVersion version,
         KvVersionSet versions,
         Func<KvLsmFileMetadata, IKvInternalIterator> open,
+        Func<KvLsmFileMetadata, IReadOnlyList<KvRangeTombstone>> rangeTombstonesOf,
         KvSstWriterOptions writerOptions,
         KvCompactionOptions options,
         long ttlHorizonTicks,
@@ -182,9 +183,17 @@ internal static class KvCompactionExecutor
                 children.Add(new KvLevelIterator(levelFiles, open));
         }
 
+        // 输入中的全部 range tombstone：用于判断点条目是否被覆盖；仍可能遮蔽下层数据的部分随输出保留。
+        var inputTombstones = job.Inputs.SelectMany(rangeTombstonesOf).ToList();
+        KvRangeTombstoneSet coverage = KvRangeTombstoneSet.Build(inputTombstones, KvInternalKey.MaxSequence);
+        var retainedTombstones = inputTombstones
+            .Where(t => !IsBaseLevelForRange(version, job.OutputLevel, t.Start, t.End))
+            .ToList();
+
         var outputs = new List<long>();
         KvSstWriter? writer = null;
         long writerNumber = 0;
+        byte[]? fileLower = null;
         try
         {
             using var merged = new KvMergingIterator(children);
@@ -209,6 +218,10 @@ internal static class KvCompactionExecutor
 
                     if (writer is not null && writer.EstimatedFileSize >= options.TargetFileSizeBytes)
                     {
+                        // 在 user key 边界切分：本文件承担 [fileLower, user) 内的 tombstone 片段。
+                        byte[] cut = user.ToArray();
+                        AddClippedTombstones(writer, retainedTombstones, fileLower, cut);
+                        fileLower = cut;
                         FinishWriter(writer, writerNumber, job.OutputLevel, versions, edit);
                         writer.Dispose();
                         writer = null;
@@ -221,6 +234,11 @@ internal static class KvCompactionExecutor
                 }
 
                 KvEntryKind kind = KvInternalKey.Kind(key);
+                if (!coverage.IsEmpty && coverage.MaxCovering(user) > KvInternalKey.Sequence(key))
+                {
+                    // 最新版本已被更新的 range tombstone 覆盖：整个 key 删除；若下层仍有旧版本，由保留的 tombstone 继续遮蔽。
+                    continue;
+                }
                 long expires = merged.ExpiresAtUtcTicks;
                 bool expired = kind == KvEntryKind.Put && expires != 0 && expires <= ttlHorizonTicks;
                 bool deleteLike = kind == KvEntryKind.Delete || expired;
@@ -242,8 +260,17 @@ internal static class KvCompactionExecutor
                     writer.Add(key, merged.Value, expires);
             }
 
+            if (writer is null && retainedTombstones.Count > 0)
+            {
+                writerNumber = versions.NewFileNumber();
+                outputs.Add(writerNumber);
+                writer = new KvSstWriter(
+                    KvLsmPaths.SstPath(versions.RootDirectory, writerNumber),
+                    writerOptions with { Generation = versions.Generation });
+            }
             if (writer is not null)
             {
+                AddClippedTombstones(writer, retainedTombstones, fileLower, upper: null);
                 FinishWriter(writer, writerNumber, job.OutputLevel, versions, edit);
                 writer.Dispose();
                 writer = null;
@@ -256,6 +283,35 @@ internal static class KvCompactionExecutor
             foreach (long number in outputs)
                 versions.ReleasePendingOutput(number);
             throw;
+        }
+    }
+
+    /// <summary>输出层之下的各层都没有与 <c>[start, end)</c> 重叠的文件时返回 true，此时 range tombstone 可以丢弃。</summary>
+    internal static bool IsBaseLevelForRange(KvVersion version, int outputLevel, ReadOnlySpan<byte> start, ReadOnlySpan<byte> end)
+    {
+        for (int level = outputLevel + 1; level < KvVersion.LevelCount; level++)
+        {
+            foreach (KvLsmFileMetadata file in version.Files(level))
+            {
+                if (KvInternalKey.UserKey(file.LargestKey).SequenceCompareTo(start) >= 0
+                    && KvInternalKey.UserKey(file.SmallestKey).SequenceCompareTo(end) < 0)
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /// <summary>把与 <c>[lower, upper)</c>（null 表示无界）相交的 tombstone 片段写入当前输出文件。</summary>
+    private static void AddClippedTombstones(KvSstWriter writer, List<KvRangeTombstone> tombstones, byte[]? lower, byte[]? upper)
+    {
+        foreach (KvRangeTombstone tombstone in tombstones)
+        {
+            byte[] start = lower is not null && lower.AsSpan().SequenceCompareTo(tombstone.Start) > 0 ? lower : tombstone.Start;
+            byte[] end = upper is not null && upper.AsSpan().SequenceCompareTo(tombstone.End) < 0 ? upper : tombstone.End;
+            if (start.AsSpan().SequenceCompareTo(end) < 0)
+                writer.AddRangeTombstone(new KvRangeTombstone(start, end, tombstone.Sequence));
         }
     }
 

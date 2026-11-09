@@ -1,3 +1,14 @@
+## 2026-11-09（Asia/Shanghai）KV-LSM K5b range tombstone
+
+- 分支 `feat/kv-lsm-k1-k3`，基于本分支 `2f80e351`（K4a/K5a）。提交范围只含 `src/SonnetDB.Core/Kv/KvWalFile.cs`、`KvWalRecord.cs`（新增记录类型 7，这两个文件此前没有他人修改）、`src/SonnetDB.Core/Kv/Lsm/`、`tests/SonnetDB.Core.Tests/Kv/Lsm/KvLsmRangeDeletionTests.cs`、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 其余修改保持原样，未暂存。
+- 完成：range tombstone 全链路（WAL 类型 7、memtable、SST v2 `RangeDelBlock`、点查/迭代覆盖判断、flush、WAL 重放、compaction 回收与裁剪）、引擎 `DeleteRange` 与 generation `Clear`。原 K5b 中的全局 compaction 调度与 `KvWriteBufferManager` 移到 K5c，D3 要求的 range tombstone 已在 K5 内交付。
+- 与设计差异：没有把 WAL 文件头升到 v4（legacy `KvKeyspace` 共用 `KvWalFile`），改为 v3 文件内新增记录类型 7；`KvWalFile` 对未知类型按撕裂尾部截断，解析端已同步放行。详见设计文档 6.5.1。
+- 验证：Core 构建（TreatWarningsAsErrors 与 AOT/trim 分析器）PASS；`Kv/Lsm` 119/119 PASS（不重新编译重复 2 轮）；全部 KV 测试 376/376 PASS（含 legacy WAL 测试）；提交前对最终工作树执行完整 restore 与规定 format 门禁。NOT_RUN：G11 TRUNCATE 耗时基准、真实进程强杀、NativeAOT 发布、固定硬件、CI。
+- 风险边界：`KvRangeTombstoneSet` 构建为 O(边界数 × tombstone 数)，只适合低频大范围删除；“文件被完全覆盖时直接删文件”未实现；同步模式（`BackgroundFlush=false`）仅供单线程测试。
+- 授权边界：用户授权提交；push、PR、发布、合并均未授权。
+- 下一顺序：K5c（全局调度、写缓冲管理器）或 K4b（`KvKeyspace` 接线），随后 K6～K8。
+- 临时资源：测试只在 `%TEMP%` 下创建 `sndb-kv-*` 目录并在结束时删除；未留下常驻进程。
+
 ## 2026-11-08（Asia/Shanghai）KV-LSM K4a 独立引擎与 K5a compaction
 
 - 分支 `feat/kv-lsm-k1-k3`，基于本分支 `13d525a5`（K1～K3）。提交范围只含 `src/SonnetDB.Core/Kv/Lsm/`（新增 `KvLsmEngine`、`KvCompaction`、`KvBlockCache`、`KvLevelIterator`；修改 `KvSstReader` 块缓存接入、`KvMemTable.UsedBytes`、WAL 文件命名）、`tests/SonnetDB.Core.Tests/Kv/Lsm/` 两个新测试文件、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 其余修改保持原样，未暂存。

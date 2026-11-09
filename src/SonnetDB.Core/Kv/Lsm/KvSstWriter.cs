@@ -53,6 +53,7 @@ internal sealed class KvSstWriter : IDisposable
     private readonly KvSstBlockBuilder _dataBlock;
     private readonly KvSstBlockBuilder _indexBlock = new(restartInterval: 1);
     private readonly List<ulong> _bloomHashes = [];
+    private readonly List<KvRangeTombstone> _rangeTombstones = [];
     private FileStream? _stream;
     private long _offset;
     private byte[] _lastKey = [];
@@ -154,13 +155,24 @@ internal sealed class KvSstWriter : IDisposable
         _entryCount++;
     }
 
+    /// <summary>加入一个 range tombstone（任意顺序；写出时排序）。</summary>
+    /// <exception cref="ArgumentException">范围或 sequence 无效。</exception>
+    internal void AddRangeTombstone(KvRangeTombstone tombstone)
+    {
+        ThrowIfUnusable();
+        new KvRangeDeletion(tombstone.Start, tombstone.End).Validate();
+        if (tombstone.Sequence <= 0 || tombstone.Sequence > KvInternalKey.MaxSequence)
+            throw new ArgumentOutOfRangeException(nameof(tombstone), "KV-LSM range tombstone sequence is out of range.");
+        _rangeTombstones.Add(tombstone);
+    }
+
     /// <summary>写出过滤器、索引、属性与 footer，fsync 并发布最终文件。</summary>
     /// <returns>写入的属性。</returns>
     /// <exception cref="InvalidOperationException">没有任何条目。</exception>
     internal KvSstProperties Finish()
     {
         ThrowIfUnusable();
-        if (_entryCount == 0)
+        if (_entryCount == 0 && _rangeTombstones.Count == 0)
             throw new InvalidOperationException("KV-LSM SST must contain at least one entry.");
 
         FlushDataBlock();
@@ -169,24 +181,46 @@ internal sealed class KvSstWriter : IDisposable
         KvSstBlockHandle filterHandle = WriteBlock(filter);
         KvSstBlockHandle indexHandle = WriteBlock(_indexBlock.Finish());
 
+        byte[]? smallest = _smallestKey;
+        byte[]? largest = _entryCount > 0 ? _lastKey.AsSpan(0, _lastKeyLength).ToArray() : null;
+        long minSequence = _minSequence;
+        long maxSequence = _maxSequence;
+        foreach (KvRangeTombstone tombstone in _rangeTombstones)
+        {
+            byte[] start = KvInternalKey.EncodeRangeStart(tombstone.Start);
+            byte[] end = KvInternalKey.EncodeRangeEnd(tombstone.End);
+            if (smallest is null || KvInternalKey.Compare(start, smallest) < 0)
+                smallest = start;
+            if (largest is null || KvInternalKey.Compare(end, largest) > 0)
+                largest = end;
+            minSequence = Math.Min(minSequence, tombstone.Sequence);
+            maxSequence = Math.Max(maxSequence, tombstone.Sequence);
+        }
+
         var properties = new KvSstProperties(
             EntryCount: _entryCount,
             DeletionCount: _deletionCount,
             DataBlockCount: _dataBlockCount,
-            MinSequence: _minSequence,
-            MaxSequence: _maxSequence,
+            MinSequence: minSequence,
+            MaxSequence: maxSequence,
             MinExpiresAtUtcTicks: _minExpiresAtUtcTicks,
             Generation: _options.Generation,
             CreatedUtcTicks: DateTime.UtcNow.Ticks,
             RawKeyBytes: _rawKeyBytes,
             RawValueBytes: _rawValueBytes,
-            SmallestKey: _smallestKey!,
-            LargestKey: _lastKey.AsSpan(0, _lastKeyLength).ToArray());
+            SmallestKey: smallest!,
+            LargestKey: largest!,
+            RangeDeletionCount: _rangeTombstones.Count);
         KvSstBlockHandle propertiesHandle = WriteBlock(properties.Encode());
+        KvSstBlockHandle rangeHandle = _rangeTombstones.Count > 0
+            ? WriteBlock(EncodeRangeTombstones(_rangeTombstones))
+            : default;
 
         KvSstFooter footer = default;
         KvSstFormat.Magic.CopyTo(footer.Magic.AsSpan());
-        footer.FormatVersion = KvSstFormat.CurrentVersion;
+        footer.FormatVersion = _rangeTombstones.Count > 0 ? KvSstFormat.RangeDeletionVersion : KvSstFormat.CurrentVersion;
+        footer.RangeDelOffset = rangeHandle.Offset;
+        footer.RangeDelLength = rangeHandle.Length;
         footer.FilterOffset = filterOffset;
         footer.FilterLength = filterHandle.Length;
         footer.IndexOffset = indexHandle.Offset;
@@ -224,6 +258,69 @@ internal sealed class KvSstWriter : IDisposable
         }
         catch (UnauthorizedAccessException)
         {
+        }
+    }
+
+    /// <summary>编码 range tombstone 块：<c>varint count | (varint len | start | varint len | end | varint seq)*</c>，按起点升序、sequence 降序。</summary>
+    internal static byte[] EncodeRangeTombstones(IReadOnlyList<KvRangeTombstone> tombstones)
+    {
+        var ordered = tombstones
+            .OrderBy(static t => t.Start, Comparer<byte[]>.Create(static (a, b) => a.AsSpan().SequenceCompareTo(b)))
+            .ThenByDescending(static t => t.Sequence)
+            .ToList();
+        int size = KvLsmVarint.MaxLength;
+        foreach (KvRangeTombstone tombstone in ordered)
+            size += (KvLsmVarint.MaxLength * 3) + tombstone.Start.Length + tombstone.End.Length;
+        byte[] buffer = new byte[size];
+        int position = KvLsmVarint.Write(buffer, (ulong)ordered.Count);
+        foreach (KvRangeTombstone tombstone in ordered)
+        {
+            position += KvLsmVarint.Write(buffer.AsSpan(position), (ulong)tombstone.Start.Length);
+            tombstone.Start.CopyTo(buffer, position);
+            position += tombstone.Start.Length;
+            position += KvLsmVarint.Write(buffer.AsSpan(position), (ulong)tombstone.End.Length);
+            tombstone.End.CopyTo(buffer, position);
+            position += tombstone.End.Length;
+            position += KvLsmVarint.Write(buffer.AsSpan(position), (ulong)tombstone.Sequence);
+        }
+        return buffer.AsSpan(0, position).ToArray();
+    }
+
+    /// <summary>解码 range tombstone 块并校验每个范围与 sequence。</summary>
+    /// <exception cref="InvalidDataException">编码截断、范围无效或存在多余字节。</exception>
+    internal static KvRangeTombstone[] DecodeRangeTombstones(ReadOnlySpan<byte> payload)
+    {
+        int position = 0;
+        int count = KvLsmVarint.ReadInt32(payload, ref position);
+        if (count <= 0 || count > payload.Length)
+            throw new InvalidDataException("KV-LSM range tombstone count is invalid.");
+        var result = new KvRangeTombstone[count];
+        for (int i = 0; i < count; i++)
+        {
+            byte[] start = ReadBytes(payload, ref position);
+            byte[] end = ReadBytes(payload, ref position);
+            long sequence = KvLsmVarint.ReadInt64(payload, ref position);
+            if (end.Length == 0
+                || start.AsSpan().SequenceCompareTo(end) >= 0
+                || sequence <= 0
+                || sequence > KvInternalKey.MaxSequence)
+            {
+                throw new InvalidDataException("KV-LSM range tombstone is invalid.");
+            }
+            result[i] = new KvRangeTombstone(start, end, sequence);
+        }
+        if (position != payload.Length)
+            throw new InvalidDataException("KV-LSM range tombstone block has trailing bytes.");
+        return result;
+
+        static byte[] ReadBytes(ReadOnlySpan<byte> source, ref int offset)
+        {
+            int length = KvLsmVarint.ReadInt32(source, ref offset);
+            if (length > source.Length - offset)
+                throw new InvalidDataException("KV-LSM range tombstone key is truncated.");
+            byte[] bytes = source.Slice(offset, length).ToArray();
+            offset += length;
+            return bytes;
         }
     }
 

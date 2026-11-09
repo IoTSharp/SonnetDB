@@ -135,6 +135,13 @@ internal sealed class KvSstBlock
         _data = data;
         _restartCount = (int)restartCount;
         _restartsOffset = (int)restartsOffset;
+        if (_restartsOffset == 0)
+        {
+            // 空块（例如只含 range tombstone 的 SST 的索引块）：唯一 restart 必须为 0。
+            if (_restartCount != 1 || RestartPoint(0) != 0)
+                throw new InvalidDataException("KV-LSM empty block restart array is invalid.");
+            return;
+        }
         int previous = -1;
         for (int i = 0; i < _restartCount; i++)
         {

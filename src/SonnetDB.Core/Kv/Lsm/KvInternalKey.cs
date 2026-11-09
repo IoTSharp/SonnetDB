@@ -75,6 +75,30 @@ internal static class KvInternalKey
         return result;
     }
 
+    /// <summary>
+    /// range tombstone 起点在文件边界中的表示：<c>(start, MaxSequence, Put)</c>，trailer 为 1，
+    /// 不大于任何真实条目，且严格大于同一 user key 的终点哨兵。
+    /// </summary>
+    internal static byte[] EncodeRangeStart(ReadOnlySpan<byte> start)
+        => EncodeCore(start, MaxSequence, KvEntryKind.Put);
+
+    /// <summary>
+    /// range tombstone 终点（不包含）在文件边界中的哨兵：<c>(end, MaxSequence, SeekMarker)</c>，trailer 为 0，
+    /// 小于 user key 为 <paramref name="end"/> 的任何条目，因此相邻文件以 end 为界时边界不重叠。
+    /// </summary>
+    internal static byte[] EncodeRangeEnd(ReadOnlySpan<byte> end)
+        => EncodeCore(end, MaxSequence, KvEntryKind.SeekMarker);
+
+    /// <summary>校验文件边界 key：允许条目 key 与 range tombstone 终点哨兵（SeekMarker）。</summary>
+    /// <exception cref="InvalidDataException">长度不足 trailer 或类型未知。</exception>
+    internal static void ValidateBoundary(ReadOnlySpan<byte> internalKey)
+    {
+        if (internalKey.Length < TrailerSize)
+            throw new InvalidDataException("KV-LSM boundary key is shorter than its trailer.");
+        if (Kind(internalKey) is not (KvEntryKind.SeekMarker or KvEntryKind.Put or KvEntryKind.Delete))
+            throw new InvalidDataException($"KV-LSM boundary key has unsupported kind {(byte)Kind(internalKey)}.");
+    }
+
     /// <summary>返回 internal key 中的 user key 部分。</summary>
     internal static ReadOnlySpan<byte> UserKey(ReadOnlySpan<byte> internalKey)
         => internalKey[..^TrailerSize];
