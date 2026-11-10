@@ -130,6 +130,16 @@ public sealed class KvKeyspaceManager : IDisposable
         }
     }
 
+    /// <summary>备份期间稳定已打开的实例集合，阻止新打开或删除目录与版本捕获交错。</summary>
+    internal T ExecuteConsistentBackup<T>(Func<T> action)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return action();
+        }
+    }
+
     /// <summary>删除 generation manager 已确认不再被查询租用的独占 keyspace。</summary>
     /// <param name="name">Keyspace 名称。</param>
     /// <returns>物理目录存在并删除时返回 <see langword="true"/>。</returns>

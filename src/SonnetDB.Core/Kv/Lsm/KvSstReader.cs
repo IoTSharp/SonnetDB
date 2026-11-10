@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Microsoft.Win32.SafeHandles;
 
 namespace SonnetDB.Kv.Lsm;
@@ -55,6 +56,7 @@ internal sealed class KvSstReader : IDisposable
     private readonly long _readerId = Interlocked.Increment(ref s_nextReaderId);
     private readonly KvSstBlock _index;
     private readonly KvBloomFilter _filter;
+    private readonly KvBloomFilter? _prefixFilter;
     private readonly long _dataEnd;
     private readonly KvRangeTombstone[] _rangeTombstones;
     private int _disposed;
@@ -69,7 +71,8 @@ internal sealed class KvSstReader : IDisposable
         KvBloomFilter filter,
         long dataEnd,
         KvBlockCache? blockCache,
-        KvRangeTombstone[] rangeTombstones)
+        KvRangeTombstone[] rangeTombstones,
+        KvBloomFilter? prefixFilter)
     {
         _rangeTombstones = rangeTombstones;
         FilePath = path;
@@ -80,6 +83,7 @@ internal sealed class KvSstReader : IDisposable
         Properties = properties;
         _index = index;
         _filter = filter;
+        _prefixFilter = prefixFilter;
         _dataEnd = dataEnd;
     }
 
@@ -128,7 +132,8 @@ internal sealed class KvSstReader : IDisposable
 
             long footerOffset = fileLength - KvSstFooter.Size;
             long trailer = KvSstFormat.BlockTrailerSize;
-            long metadataEnd = footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+            bool hasRanges = footer.RangeDelLength > 0;
+            long metadataEnd = hasRanges
                 ? footer.RangeDelOffset
                 : footerOffset;
             if (footer.FilterOffset < 0
@@ -138,7 +143,7 @@ internal sealed class KvSstReader : IDisposable
                 || footer.IndexOffset != footer.FilterOffset + footer.FilterLength + trailer
                 || footer.PropertiesOffset != footer.IndexOffset + footer.IndexLength + trailer
                 || footer.PropertiesOffset + footer.PropertiesLength + trailer != metadataEnd
-                || (footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+                || (hasRanges
                     && footer.RangeDelOffset + footer.RangeDelLength + trailer != footerOffset))
             {
                 throw Corrupt(fullPath, "footer block layout is invalid");
@@ -147,6 +152,7 @@ internal sealed class KvSstReader : IDisposable
             KvSstProperties properties;
             KvSstBlock index;
             KvBloomFilter filter;
+            KvBloomFilter? prefixFilter = null;
             KvRangeTombstone[] rangeTombstones;
             try
             {
@@ -157,10 +163,26 @@ internal sealed class KvSstReader : IDisposable
                 index = new KvSstBlock(ReadBlockCore(
                     handle, new KvSstBlockHandle(footer.IndexOffset, footer.IndexLength),
                     fullPath, readBudget, maintenanceRead, cancellationToken), footer.IndexLength);
-                filter = KvBloomFilter.Parse(ReadBlockCore(
+                byte[] filterBytes = ReadBlockCore(
                     handle, new KvSstBlockHandle(footer.FilterOffset, footer.FilterLength),
-                    fullPath, readBudget, maintenanceRead, cancellationToken), footer.FilterLength);
-                rangeTombstones = footer.FormatVersion == KvSstFormat.RangeDeletionVersion
+                    fullPath, readBudget, maintenanceRead, cancellationToken);
+                if (footer.FormatVersion == KvSstFormat.SharedPrefixVersion)
+                {
+                    if (!properties.SharedPrefixes || footer.FilterLength < 22)
+                        throw new InvalidDataException("shared prefix properties or filter are missing");
+                    int length = BinaryPrimitives.ReadInt32LittleEndian(filterBytes);
+                    if (length < 9 || length > footer.FilterLength - 13)
+                        throw new InvalidDataException("shared prefix filter lengths are invalid");
+                    filter = KvBloomFilter.Parse(filterBytes, 4, length);
+                    prefixFilter = KvBloomFilter.Parse(filterBytes, 4 + length, footer.FilterLength - 4 - length);
+                }
+                else
+                {
+                    if (properties.SharedPrefixes)
+                        throw new InvalidDataException("shared prefix properties require SST v3");
+                    filter = KvBloomFilter.Parse(filterBytes, footer.FilterLength);
+                }
+                rangeTombstones = hasRanges
                     ? KvSstWriter.DecodeRangeTombstones(ReadMetadataBlock(
                         handle, new KvSstBlockHandle(footer.RangeDelOffset, footer.RangeDelLength),
                         fullPath, readBudget, maintenanceRead, cancellationToken))
@@ -174,7 +196,7 @@ internal sealed class KvSstReader : IDisposable
             }
 
             ValidateIndex(index, properties, footer.FilterOffset, fullPath);
-            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset, blockCache, rangeTombstones);
+            return new KvSstReader(fullPath, handle, fileLength, readBudget, properties, index, filter, footer.FilterOffset, blockCache, rangeTombstones, prefixFilter);
         }
         catch
         {
@@ -184,7 +206,25 @@ internal sealed class KvSstReader : IDisposable
     }
 
     /// <summary>布隆过滤器判断：false 表示文件中一定没有该 user key。</summary>
-    internal bool MayContain(ReadOnlySpan<byte> userKey) => _filter.MayContain(userKey);
+    internal bool MayContain(ReadOnlySpan<byte> userKey) => (userKey.Length < 8 || MayContainStoragePrefix(userKey[..8])) && _filter.MayContain(userKey);
+
+    /// <summary>共享实例的表前缀过滤；范围墓碑始终按覆盖区间保留，不能产生假阴性。</summary>
+    internal bool MayContainStoragePrefix(ReadOnlySpan<byte> prefix)
+    {
+        if (_prefixFilter is null || prefix.Length != 8)
+            return true;
+        if (_rangeTombstones.Length != 0)
+        {
+            byte[]? upper = KvLsmKeyspaceBackend.PrefixUpperBound(prefix.ToArray());
+            foreach (KvRangeTombstone tombstone in _rangeTombstones)
+                if (tombstone.End.AsSpan().SequenceCompareTo(prefix) > 0
+                    && (upper is null || tombstone.Start.AsSpan().SequenceCompareTo(upper) < 0))
+                    return true;
+        }
+        long id = BinaryPrimitives.ReadInt64BigEndian(prefix);
+        return Properties.EntryCount > 0 && id >= Properties.MinStorageId && id <= Properties.MaxStorageId
+            && _prefixFilter.MayContain(prefix);
+    }
 
     /// <summary>
     /// 查找 <paramref name="userKey"/> 在 <paramref name="snapshotSequence"/> 可见的最新版本（可能是墓碑）。
@@ -197,7 +237,7 @@ internal sealed class KvSstReader : IDisposable
         CancellationToken cancellationToken = default)
     {
         entry = default;
-        if (!_filter.MayContain(userKey))
+        if (!MayContain(userKey))
             return false;
         if (userKey.SequenceCompareTo(KvInternalKey.UserKey(Properties.SmallestKey)) < 0
             || userKey.SequenceCompareTo(KvInternalKey.UserKey(Properties.LargestKey)) > 0)

@@ -97,11 +97,7 @@ internal static class KvManifestFile
         var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
         try
         {
-            Span<byte> header = stackalloc byte[HeaderSize];
-            Magic.CopyTo(header);
-            BinaryPrimitives.WriteInt32LittleEndian(header[8..], CurrentVersion);
-            BinaryPrimitives.WriteUInt32LittleEndian(header[12..], Crc32.HashToUInt32(header[..12]));
-            stream.Write(header);
+            WriteHeader(stream);
             return stream;
         }
         catch
@@ -109,6 +105,16 @@ internal static class KvManifestFile
             stream.Dispose();
             throw;
         }
+    }
+
+    /// <summary>写入独立快照 manifest 的格式头。</summary>
+    internal static void WriteHeader(Stream stream)
+    {
+        Span<byte> header = stackalloc byte[HeaderSize];
+        Magic.CopyTo(header);
+        BinaryPrimitives.WriteInt32LittleEndian(header[8..], CurrentVersion);
+        BinaryPrimitives.WriteUInt32LittleEndian(header[12..], Crc32.HashToUInt32(header[..12]));
+        stream.Write(header);
     }
 
     /// <summary>以追加方式打开已有 manifest，并把撕裂尾部截断到 <paramref name="validLength"/>。</summary>

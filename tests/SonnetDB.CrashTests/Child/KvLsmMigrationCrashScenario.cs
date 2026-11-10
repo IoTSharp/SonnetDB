@@ -38,6 +38,7 @@ internal static class KvLsmMigrationCrashScenario
             using Tsdb legacy = Tsdb.Open(DatabaseOptions(data, KvStorageEngine.Legacy));
             SqlExecutor.Execute(legacy, "CREATE TABLE items(id INT, code VARCHAR, PRIMARY KEY(id))");
             SqlExecutor.Execute(legacy, "CREATE INDEX ix_items_code ON items(code)");
+            SqlExecutor.Execute(legacy, "TRUNCATE TABLE items");
             SqlExecutor.Execute(legacy, "CREATE TABLE untouched(id INT, PRIMARY KEY(id))");
             SqlExecutor.Execute(legacy, "INSERT INTO untouched(id) VALUES(77)");
             var rows = new IReadOnlyList<object?>[2050];

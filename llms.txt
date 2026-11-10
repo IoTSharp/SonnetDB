@@ -22,7 +22,7 @@ Spatial/trajectory, streaming/subscriptions, CDC/local synchronization, AI/RAG, 
 
 One database is a managed directory containing catalogs, WAL, segments, indexes and model-specific state. SonnetDB runs embedded in a .NET process or as a Server. It is a single-node engine; it does not provide built-in clustering, sharding, automatic failover or a universal cross-model transaction.
 
-Current source defaults to LSM KV storage, with relational tables sharing a database-local store. Opening legacy data can migrate it automatically; older binaries reject migrated directories. Verify the installed version and read the [migration and downgrade contract](https://github.com/IoTSharp/SonnetDB/blob/main/docs/operations/kv-lsm-migration.md) before opening an existing directory. Retained legacy files allow rollback only while still present and before any new writes.
+Current source defaults to LSM KV storage, with relational tables sharing a database-local store. Opening legacy data can migrate it automatically; older binaries reject migrated directories. Verify the installed version and read the [migration and downgrade contract](https://github.com/IoTSharp/SonnetDB/blob/main/docs/operations/kv-lsm-migration.md) before opening an existing directory. Retained legacy files allow rollback only while still present and before any new writes. The offline rollback CLI requires a database root, a concrete KV/table directory and exclusive lifecycle leases.
 
 ## Start here
 

@@ -127,14 +127,28 @@ public sealed partial class TableManager : IDisposable
         try
         {
             CollectOrphanedSharedStorage();
-            foreach (var undo in TableTransactionJournal.ReadPending(TransactionJournalPath))
+            IReadOnlyList<TableTransactionUndo> pending = TableTransactionJournal.ReadPending(TransactionJournalPath);
+            _recoveringTransactionJournal = true;
+            try
             {
-                var schema = _catalog.TryGet(undo.TableObjectName)
-                    ?? throw new InvalidDataException($"事务恢复引用了不存在的 table {undo.TableObjectName}。");
-                OpenStoreLocked(schema).RestoreTransactionUndo(undo);
+                foreach (var undo in pending)
+                {
+                    var schema = _catalog.TryGet(undo.TableObjectName)
+                        ?? throw new InvalidDataException($"事务恢复引用了不存在的 table {undo.TableObjectName}。");
+                    OpenStoreLocked(schema).RestoreTransactionUndo(undo);
+                }
+                if (File.Exists(TransactionJournalPath))
+                    TableTransactionJournal.Complete(TransactionJournalPath);
             }
-            if (File.Exists(TransactionJournalPath))
-                TableTransactionJournal.Complete(TransactionJournalPath);
+            finally { _recoveringTransactionJournal = false; }
+            if (pending.Count != 0)
+            {
+                // Reopen lazily after the undo decision is durable. Only then may legacy
+                // stores migrate; no business access can observe the recovery handles.
+                foreach (TableStore store in _stores.Values) store.Dispose();
+                _stores.Clear();
+                CloseSharedStore();
+            }
         }
         catch
         {
@@ -1382,6 +1396,42 @@ public sealed partial class TableManager : IDisposable
                 }
                 ValidateCheckConstraintsLocked(prepared);
                 ValidateForeignKeysLocked(prepared);
+
+                KvLsmStore? sharedStore = prepared.Values.First().Store.SharedStore;
+                if (sharedStore is not null && prepared.Values.All(entry => ReferenceEquals(entry.Store.SharedStore, sharedStore)))
+                {
+                    var batches = prepared.Values.Select(static entry => entry.Store.PrepareSharedBatch(entry.Batch)).ToArray();
+                    bool multiple = prepared.Values.Count(static entry => entry.Batch.AffectedRows > 0) > 1;
+                    // Shared commits have no intermediate per-table durable state. These pre-commit
+                    // boundaries remain useful for cancellation/failure tests before the single WAL append.
+                    foreach (TableObjectName tableName in prepared.Keys)
+                        ApplyTransactionAfterTableTestHook?.Invoke(DisplayName(tableName));
+                    if (multiple)
+                        ApplyTransactionBeforeCompleteTestHook?.Invoke();
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    SqlTransactionContext.Current?.CheckCommitDeadline();
+                    bool committed = false;
+                    try
+                    {
+                        KvKeyspace.ApplySharedTransaction(batches, SqlQueryResources.Current?.CancellationToken ?? default);
+                        committed = true;
+                        foreach (var entry in prepared.Values)
+                            entry.Store.PublishSharedBatch(entry.Batch);
+                        if (multiple)
+                            ApplyTransactionAfterCompleteTestHook?.Invoke();
+                    }
+                    catch (Exception failure) when (committed || sharedStore.Engine.Fault is not null)
+                    {
+                        _transactionFailure = failure;
+                        foreach (var store in _stores.Values)
+                            store.InvalidateTransaction(failure);
+                        throw new TableTransactionRecoveryException("共享关系事务提交结果未知，必须关闭并重新打开数据库完成恢复。", failure);
+                    }
+                    finalRows = includeFinalRows
+                        ? prepared.ToDictionary(static pair => pair.Key, static pair => pair.Value.Batch.FinalRows, TableObjectName.ExactComparer)
+                        : _emptyFinalRows;
+                    return prepared.Values.Sum(static entry => entry.Batch.AffectedRows);
+                }
 
                 bool journaled = prepared.Values.Count(static entry => entry.Batch.AffectedRows > 0) > 1;
                 var undoTables = journaled

@@ -25,6 +25,7 @@ public sealed partial class TableManager
 
     private readonly object _sharedStoreSync = new();
     private KvLsmStore? _sharedStore;
+    private bool _recoveringTransactionJournal;
 
     /// <summary>共享 LSM 实例目录。</summary>
     internal string SharedStorageDirectory => Path.Combine(_rootDirectory, SharedStorageDirectoryName);
@@ -38,16 +39,20 @@ public sealed partial class TableManager
     /// <param name="standaloneBudget">独立打开时使用的读取预算；为 null 时使用管理器预算。共享实例始终使用管理器预算。</param>
     private KvKeyspace OpenTableKeyspace(string keyspaceName, string tableDirectory, KvDiskReadBudget? standaloneBudget = null)
     {
+        KvLegacyMigration.RecoverRollback(tableDirectory);
         // 先补完上一次中断在导入之后的迁移（导入之前中断的编号由孤立回收处理）。
         KvLegacyMigration.RecoverShared(tableDirectory);
-        if (KvLsmLayoutMarkerFile.TryRead(tableDirectory, out KvLsmLayoutMarker marker) && marker.Kind == KvLsmLayoutKind.Shared)
+        if (KvLsmLayoutMarkerFile.TryRead(tableDirectory, out KvLsmLayoutMarker marker)
+            && marker.FormatVersion == KvLsmLayoutMarkerFile.RollbackVersion)
+            throw new InvalidDataException("Table rollback barrier has no completed intent; rerun the offline rollback command before opening the table.");
+        if (marker.Kind == KvLsmLayoutKind.Shared)
         {
             KvKeyspace shared = KvKeyspace.OpenShared(keyspaceName, tableDirectory, GetSharedStore(), marker.StorageId, _kvOptions, _diskReadBudget);
             KvLegacyMigration.CleanupRetained(tableDirectory, _kvOptions.LegacyMigrationRetention);
             return shared;
         }
 
-        bool lsm = _kvOptions.StorageEngine == KvStorageEngine.Lsm;
+        bool lsm = _kvOptions.StorageEngine == KvStorageEngine.Lsm && !_recoveringTransactionJournal;
         bool fresh = !KvLsmKeyspaceBackend.HasLegacyData(tableDirectory) && !KvLsmKeyspaceBackend.IsLsmLayout(tableDirectory);
         if (!fresh && lsm && _kvOptions.LegacyMigration == KvLegacyMigrationMode.Auto && KvLsmKeyspaceBackend.HasLegacyData(tableDirectory))
         {
@@ -127,6 +132,8 @@ public sealed partial class TableManager
         string rowstore = Path.Combine(_rootDirectory, "rowstore");
         if (Directory.Exists(rowstore))
         {
+            foreach (string pending in Directory.EnumerateFiles(rowstore, KvLegacyMigration.RollbackPendingFileName, SearchOption.AllDirectories).ToArray())
+                KvLegacyMigration.RecoverRollback(Path.GetDirectoryName(pending)!);
             // 先补完导入后中断的迁移：它们的编号此时只记录在待处理日志中，还没有表目录标记指向。
             foreach (string pending in Directory.EnumerateFiles(rowstore, KvLegacyMigration.PendingFileName, SearchOption.AllDirectories).ToArray())
                 KvLegacyMigration.RecoverShared(Path.GetDirectoryName(pending)!);

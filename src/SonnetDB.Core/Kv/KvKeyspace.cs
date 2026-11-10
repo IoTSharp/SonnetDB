@@ -500,8 +500,16 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         Directory.CreateDirectory(rootDirectory);
+        if (File.Exists(Path.Combine(rootDirectory, KvLegacyMigration.RollbackPendingFileName)))
+        {
+            using FileStream rollbackLease = AcquireLifecycleLease(rootDirectory);
+            KvLegacyMigration.RecoverRollback(rootDirectory);
+        }
         // 共享实例的附属目录只能经由 OpenShared 打开：其数据位于共享 LSM 实例中，按独立目录打开会看到空 keyspace。
-        if (KvLsmLayoutMarkerFile.TryRead(rootDirectory, out KvLsmLayoutMarker marker) && marker.Kind == KvLsmLayoutKind.Shared)
+        if (KvLsmLayoutMarkerFile.TryRead(rootDirectory, out KvLsmLayoutMarker marker)
+            && marker.FormatVersion == KvLsmLayoutMarkerFile.RollbackVersion)
+            throw new InvalidDataException("KV rollback barrier has no completed intent; rerun the offline rollback command before opening the directory.");
+        if (marker.Kind == KvLsmLayoutKind.Shared)
         {
             throw new InvalidOperationException(
                 $"KV keyspace directory '{rootDirectory}' belongs to shared LSM storage #{marker.StorageId}; open it through its owning store.");
@@ -3309,7 +3317,7 @@ public sealed partial class KvKeyspace : IDisposable
     /// </summary>
     /// <param name="rootDirectory">需要独占的 keyspace 根目录。</param>
     /// <returns>必须随 keyspace 完整生命周期持有的文件句柄。</returns>
-    private static FileStream AcquireLifecycleLease(string rootDirectory)
+    internal static FileStream AcquireLifecycleLease(string rootDirectory)
     {
         string path = Path.Combine(rootDirectory, LifecycleLockFileName);
         try

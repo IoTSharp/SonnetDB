@@ -28,6 +28,9 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case var followup when followup.StartsWith("kv_lsm_followup_", StringComparison.Ordinal):
+        KvLsmFollowupCrashScenario.Run(root, readyFile, scenario["kv_lsm_followup_".Length..]);
+        return 0;
     case var kvMigration when kvMigration.StartsWith("kv_lsm_migration_", StringComparison.Ordinal):
         KvLsmMigrationCrashScenario.Run(root, readyFile, scenario["kv_lsm_migration_".Length..]);
         return 0;

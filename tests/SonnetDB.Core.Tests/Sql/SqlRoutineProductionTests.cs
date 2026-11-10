@@ -305,7 +305,9 @@ public sealed class SqlRoutineProductionTests : IDisposable
     [InlineData("DELETE FROM source_rows WHERE id = 1", "DELETE")]
     public void Journal_IncompleteCompletion_RestoresExactRowsAndUniqueIndexes(string dml, string triggerEvent)
     {
-        using (var db = Open())
+        // This test corrupts the legacy/mixed transaction journal. Shared LSM transactions
+        // have a single WAL batch and intentionally do not create that file.
+        using (var db = Open(legacyJournal: true))
         {
             SqlExecutor.Execute(db, "CREATE TABLE source_rows (id INT, value INT, PRIMARY KEY (id))");
             SqlExecutor.Execute(db, "CREATE UNIQUE INDEX value_index ON source_rows (value)");
@@ -321,14 +323,14 @@ public sealed class SqlRoutineProductionTests : IDisposable
         string journalPath = Path.Combine(_root, "tables", "transaction.sdbtxn");
         using (var file = new FileStream(journalPath, FileMode.Open, FileAccess.Write))
             file.SetLength(file.Length - 4);
-        using (var reopened = Open())
+        using (var reopened = Open(legacyJournal: true))
         {
             Assert.Equal(10L, Assert.Single(Select(reopened, "SELECT value FROM source_rows WHERE id = 1").Rows)[0]);
             Assert.Empty(Select(reopened, "SELECT * FROM audit_rows").Rows);
             Assert.Single(Select(reopened, "SELECT * FROM source_rows WHERE value = 10").Rows);
             Assert.Empty(Select(reopened, "SELECT * FROM source_rows WHERE value = 20").Rows);
         }
-        using var second = Open();
+        using var second = Open(legacyJournal: true);
         Assert.Single(Select(second, "SELECT * FROM source_rows WHERE value = 10").Rows);
         Assert.Empty(Select(second, "SELECT * FROM audit_rows").Rows);
     }
@@ -336,12 +338,12 @@ public sealed class SqlRoutineProductionTests : IDisposable
     [Fact]
     public void Journal_CorruptedPayload_RejectsOpenBeforeApplyingRecovery()
     {
-        using (var db = Open()) { Setup(db); SqlExecutor.Execute(db, "CALL add_order(1)"); }
+        using (var db = Open(legacyJournal: true)) { Setup(db); SqlExecutor.Execute(db, "CALL add_order(1)"); }
         string path = Path.Combine(_root, "tables", "transaction.sdbtxn");
         byte[] bytes = File.ReadAllBytes(path);
         bytes[32] ^= 1;
         File.WriteAllBytes(path, bytes);
-        Assert.Throws<InvalidDataException>(() => Open());
+        Assert.Throws<InvalidDataException>(() => Open(legacyJournal: true));
     }
 
     [Fact]
@@ -485,9 +487,14 @@ public sealed class SqlRoutineProductionTests : IDisposable
         }
     }
 
-    private Tsdb Open() => Tsdb.Open(new TsdbOptions
+    private Tsdb Open(bool legacyJournal = false) => Tsdb.Open(new TsdbOptions
     {
         RootDirectory = _root,
+        Kv = legacyJournal ? SonnetDB.Kv.KvOptions.Default with
+        {
+            StorageEngine = SonnetDB.Kv.KvStorageEngine.Legacy,
+            LegacyMigration = SonnetDB.Kv.KvLegacyMigrationMode.Disabled,
+        } : SonnetDB.Kv.KvOptions.Default,
         BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
     });
 

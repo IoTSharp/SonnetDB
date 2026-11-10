@@ -43,7 +43,7 @@ public sealed partial class TableStore : IDisposable
         _statisticsRefreshBudget = statisticsRefreshBudget ?? new TableStatisticsRefreshBudget();
         byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(schema);
         if (!TableStoreMaintenanceFile.IsLegacyMigrationComplete(
-            keyspace.RootDirectory,
+            keyspace,
             keyspace.Generation,
             schemaFingerprint))
         {
@@ -52,21 +52,21 @@ public sealed partial class TableStore : IDisposable
             MigrateLegacyRowsLocked();
             keyspace.SyncWalForMaintenance();
             TableStoreMaintenanceFile.MarkLegacyMigrationComplete(
-                keyspace.RootDirectory,
+                keyspace,
                 keyspace.Generation,
                 schemaFingerprint);
         }
 
         LoadOnlineIndexBuildLocked();
         if (!TableStoreMaintenanceFile.ConsumeCleanIndexes(
-            keyspace.RootDirectory,
+            keyspace,
             keyspace.Generation,
             keyspace.LastSequence,
             schemaFingerprint))
         {
             RebuildIndexesLocked();
         }
-        _rowCount = _keyspace.CountPrefix([(byte)'r']);
+        _rowCount = _keyspace.LoadTableRowCount();
         LoadStatisticsLocked();
     }
 
@@ -1884,17 +1884,27 @@ public sealed partial class TableStore : IDisposable
             long generation = _keyspace.Generation;
             long sequence = _keyspace.LastSequence;
             byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
-            _keyspace.Dispose();
-            // 未完成在线索引保留游标元数据；不写入 clean 标记，重启时不得把 pending 键当作可丢弃垃圾。
-            if (_onlineIndexBuild is null)
+            bool shared = _keyspace.SharedStore is not null;
+            if (!shared)
+                _keyspace.Dispose();
+            try
             {
-                TableStoreMaintenanceFile.MarkIndexesClean(
-                    _keyspace.RootDirectory,
-                    generation,
-                    sequence,
-                    schemaFingerprint);
+                // 未完成在线索引或共享 WAL 故障时不发布 clean 令牌。
+                if (_onlineIndexBuild is null && _keyspace.SharedStore?.Engine.Fault is null)
+                {
+                    TableStoreMaintenanceFile.MarkIndexesClean(
+                        _keyspace,
+                        generation,
+                        sequence,
+                        schemaFingerprint);
+                }
             }
-            _disposed = true;
+            finally
+            {
+                if (shared)
+                    _keyspace.Dispose();
+                _disposed = true;
+            }
         }
     }
 
@@ -2185,6 +2195,23 @@ public sealed partial class TableStore : IDisposable
         IReadOnlyList<TableMutationOperation> operations,
         List<RollbackAction>? applied)
     {
+        (List<KvBatchMutation> mutations, List<RollbackAction>? rollback) = BuildMutationsLocked(schema, operations, applied is not null);
+        if (mutations.Count == 0)
+            return;
+
+        // 仅重等尚未追加 WAL 的预算背压，不拆分关系批次，也不重试已开始的提交。
+        _keyspace.ApplyBatchWithCheckpointBackpressure(
+            mutations,
+            SqlQueryResources.Current?.CancellationToken ?? default);
+        if (rollback is not null)
+            applied!.AddRange(rollback);
+    }
+
+    private (List<KvBatchMutation> Mutations, List<RollbackAction>? Rollback) BuildMutationsLocked(
+        TableSchema schema,
+        IReadOnlyList<TableMutationOperation> operations,
+        bool captureRollback)
+    {
         ThrowIfDisposedLocked();
         RequireRowWrites(operations);
         var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
@@ -2223,7 +2250,7 @@ public sealed partial class TableStore : IDisposable
         }
 
         var mutations = new List<KvBatchMutation>(desiredValues.Count);
-        var rollback = applied is null ? null : new List<RollbackAction>(desiredValues.Count);
+        var rollback = captureRollback ? new List<RollbackAction>(desiredValues.Count) : null;
         foreach ((byte[] key, byte[]? desiredValue) in desiredValues)
         {
             byte[]? previous = _keyspace.Get(key);
@@ -2250,15 +2277,7 @@ public sealed partial class TableStore : IDisposable
                 : RollbackAction.Put(key, previous));
         }
 
-        if (mutations.Count == 0)
-            return;
-
-        // 仅重等尚未追加 WAL 的预算背压，不拆分关系批次，也不重试已开始的提交。
-        _keyspace.ApplyBatchWithCheckpointBackpressure(
-            mutations,
-            SqlQueryResources.Current?.CancellationToken ?? default);
-        if (rollback is not null)
-            applied!.AddRange(rollback);
+        return (mutations, rollback);
     }
 
     private IReadOnlyList<IndexEntry> BuildIndexEntries(TableSchema schema, TableRow row)
@@ -2285,11 +2304,20 @@ public sealed partial class TableStore : IDisposable
     {
         using var budgetScope = _keyspace.EnterIndexRebuildBudgetScope();
         bool[] materializedColumns = CreateIndexRecoveryProjectionLocked();
-        int actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
-        // 在线构建的键尚未完整，不参加已发布索引计数，也不能在恢复时被当成垃圾删除。
-        if (_onlineIndexBuild is not null && _schema.TryGetIndex(_onlineIndexBuild.Index.Name) is null)
-            actualIndexCount -= _keyspace.CountPrefix(TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema)!);
-        int expectedIndexCount = RepairExpectedIndexesLocked(materializedColumns, out int addedIndexCount);
+        int actualIndexCount;
+        int expectedIndexCount;
+        int addedIndexCount;
+        if (_schema.Indexes.Count == 0)
+        {
+            actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
+            if (_onlineIndexBuild is not null)
+                actualIndexCount -= _keyspace.CountPrefix(TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema)!);
+            expectedIndexCount = addedIndexCount = 0;
+        }
+        else
+        {
+            expectedIndexCount = RepairExpectedIndexesLocked(materializedColumns, out addedIndexCount, out actualIndexCount);
+        }
 
         // 期望键均已校验或补齐；实际数量相等时不可能再存在额外 stale/orphan 键。
         if (checked(actualIndexCount + addedIndexCount) == expectedIndexCount)
@@ -2323,24 +2351,31 @@ public sealed partial class TableStore : IDisposable
     /// </summary>
     /// <param name="addedIndexCount">本次实际补写的缺失索引键数量。</param>
     /// <returns>当前 schema 与全部主行共同要求的索引键数量。</returns>
-    private int RepairExpectedIndexesLocked(bool[] materializedColumns, out int addedIndexCount)
+    private int RepairExpectedIndexesLocked(bool[] materializedColumns, out int addedIndexCount, out int actualIndexCount)
     {
         int added = 0;
+        int actual = 0;
         int expectedIndexCount = 0;
-        if (_schema.Indexes.Count == 0)
-        {
-            addedIndexCount = 0;
-            return expectedIndexCount;
-        }
+        byte[]? pendingPrefix = _onlineIndexBuild is not null && _schema.TryGetIndex(_onlineIndexBuild.Index.Name) is null
+            ? TableIndexCodec.EncodeLookupPrefix(_onlineIndexBuild.Index, [], _schema) : null;
 
         using var repairSpool = new TableIndexRepairSpool();
-        _keyspace.ReadStablePrefixPages([(byte)'r'], IndexRebuildRowPageSize, rows =>
+        // Count index keys in the same stable pass as projecting primary rows. A separate
+        // prefix count can read the next large row block just to discover the prefix end.
+        _keyspace.ReadStablePrefixProjectedPages<TableRow?>([], IndexRebuildRowPageSize,
+            (key, value) =>
+            {
+                if (key.Length > 0 && key[0] == (byte)'i' && (pendingPrefix is null || !key.StartsWith(pendingPrefix)))
+                    actual = checked(actual + 1);
+                return key.Length > 0 && key[0] == (byte)'r'
+                    ? new TableRow(TableRowCodec.DecodeProjection(_schema, value, materializedColumns),
+                        TableIndexCodec.DecodePrimaryKeyFromRowKey(key.ToArray()).ToArray()) : null;
+            }, rows =>
         {
             var desiredEntries = new Dictionary<byte[], DesiredIndexEntry>(KvKeyComparer.Instance);
-            foreach (var rowEntry in rows)
+            foreach (var row in rows)
             {
-                var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(rowEntry.Key).ToArray();
-                var row = new TableRow(TableRowCodec.DecodeProjection(_schema, rowEntry.Value.Span, materializedColumns), primaryKey);
+                if (row is null) continue;
                 var entries = BuildIndexEntries(_schema, row);
                 foreach (var entry in entries)
                 {
@@ -2393,6 +2428,7 @@ public sealed partial class TableStore : IDisposable
         int mutationPageSize = _keyspace.GetIndexRebuildBatchEntryLimit(IndexRepairMutationPageSize);
         repairSpool.ReplayPages(mutationPageSize, entries => ApplyExpectedIndexRepairPageLocked(entries, materializedColumns));
         addedIndexCount = added;
+        actualIndexCount = actual;
         return expectedIndexCount;
     }
 
@@ -2495,13 +2531,11 @@ public sealed partial class TableStore : IDisposable
         index ??= _onlineIndexBuild?.Index is { } pending && entry.Key.Span.StartsWith(TableIndexCodec.EncodeLookupPrefix(pending, [], _schema)) ? pending : null;
         if (index is null) return false;
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span));
-        byte[]? rowPayload = _keyspace.Get(rowKey);
-        if (rowPayload is null)
+        var row = _keyspace.ReadProjectedValue(rowKey, value => new TableRow(
+            TableRowCodec.DecodeProjection(_schema, value, materializedColumns),
+            TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray()));
+        if (row is null)
             return false;
-
-        var row = new TableRow(
-            TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
-            TableIndexCodec.DecodeIndexPrimaryKey(index, entry.Value.Span).ToArray());
         return BuildMutationIndexEntries(_schema, row).Any(expected =>
             expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
             && expected.Value.AsSpan().SequenceEqual(entry.Value.Span));
@@ -2516,13 +2550,11 @@ public sealed partial class TableStore : IDisposable
             ?? throw new InvalidDataException("唯一索引引用未知目录项。");
         ReadOnlySpan<byte> primaryKey = TableIndexCodec.DecodeIndexPrimaryKey(index, persistedPrimaryKey);
         byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-        byte[]? rowPayload = _keyspace.Get(rowKey);
-        if (rowPayload is null)
+        byte[] primaryKeyCopy = primaryKey.ToArray();
+        var row = _keyspace.ReadProjectedValue(rowKey, value => new TableRow(
+            TableRowCodec.DecodeProjection(_schema, value, materializedColumns), primaryKeyCopy));
+        if (row is null)
             return false;
-
-        var row = new TableRow(
-            TableRowCodec.DecodeProjection(_schema, rowPayload, materializedColumns),
-            primaryKey.ToArray());
         foreach (var entry in BuildIndexEntries(_schema, row))
         {
             if (entry.Key.AsSpan().SequenceEqual(indexKey)
@@ -2721,6 +2753,16 @@ public sealed partial class TableStore : IDisposable
 
     private void ApplyPreparedBatchLocked(PreparedTableBatch batch)
     {
+        ValidatePreparedBatchLocked(batch);
+
+        ApplyMutationsLocked(batch.Schema, batch.Operations, batch.Applied);
+
+        _rowCount = checked(_rowCount + batch.RowCountDelta);
+        batch.RowCountApplied = true;
+    }
+
+    private void ValidatePreparedBatchLocked(PreparedTableBatch batch)
+    {
         ThrowIfDisposedLocked();
         RequireRowWrites(batch.Operations);
         if (!ReferenceEquals(batch.Schema, _schema))
@@ -2731,8 +2773,20 @@ public sealed partial class TableStore : IDisposable
             throw new TableConstraintException(TableConstraintException.ConcurrencyConflict,
                 _schema.Name, "prepared_batch", $"table '{_schema.Name}' 在批次准备后发生变化，请重新准备整个事务。");
 
-        ApplyMutationsLocked(batch.Schema, batch.Operations, batch.Applied);
+    }
 
+    /// <summary>共享事务在持有所有表监视器时准备物理批次，提交后统一发布行数。</summary>
+    internal (KvKeyspace Keyspace, IReadOnlyList<KvBatchMutation> Mutations, long Sequence, long Generation) PrepareSharedBatch(PreparedTableBatch batch)
+    {
+        ValidatePreparedBatchLocked(batch);
+        _ = checked(_rowCount + batch.RowCountDelta);
+        return (_keyspace, BuildMutationsLocked(batch.Schema, batch.Operations, captureRollback: false).Mutations, batch.Sequence, batch.Generation);
+    }
+
+    internal KvLsmStore? SharedStore => _keyspace.SharedStore;
+
+    internal void PublishSharedBatch(PreparedTableBatch batch)
+    {
         _rowCount = checked(_rowCount + batch.RowCountDelta);
         batch.RowCountApplied = true;
     }

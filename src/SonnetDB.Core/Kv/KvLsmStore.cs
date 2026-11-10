@@ -23,6 +23,7 @@ internal sealed class KvLsmStore : IDisposable
     private static readonly byte[] MetaPrefix = new byte[8];
     private static readonly byte[] KeyspaceTag = "ks"u8.ToArray();
     private static readonly byte[] SequenceTag = "sq"u8.ToArray();
+    private static readonly byte[] MaintenanceTag = "maint"u8.ToArray();
     private static readonly byte[] NextIdKey = [.. MetaPrefix, .. "next-id"u8];
 
     private readonly KvLsmEngine _engine;
@@ -51,7 +52,10 @@ internal sealed class KvLsmStore : IDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(readBudget);
         string fullRoot = Path.GetFullPath(rootDirectory);
-        KvLsmEngine engine = KvLsmEngine.Open(fullRoot, KvLsmKeyspaceBackend.CreateEngineOptions(options, readBudget));
+        KvLsmEngine engine = KvLsmEngine.Open(fullRoot, KvLsmKeyspaceBackend.CreateEngineOptions(options, readBudget) with
+        {
+            SstWriterOptions = new KvSstWriterOptions { SharedPrefixes = true },
+        });
         var store = new KvLsmStore(fullRoot, engine);
         try
         {
@@ -89,9 +93,10 @@ internal sealed class KvLsmStore : IDisposable
     }
 
     /// <summary>分配新的逻辑 keyspace 编号并持久化其元数据（与 next-id 同批提交）。</summary>
-    internal long Create(string name)
+    internal long Create(string name, long generation = 0)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentOutOfRangeException.ThrowIfNegative(generation);
         return _engine.ExecuteUnderWriteLock(() =>
         {
             ThrowIfDisposed();
@@ -102,7 +107,7 @@ internal sealed class KvLsmStore : IDisposable
             long sequence = _engine.NextSequence;
             byte[] nextId = new byte[8];
             BinaryPrimitives.WriteInt64LittleEndian(nextId, id + 1);
-            var info = new KeyspaceInfo(name, Generation: 0, CreatedSequence: sequence, LastSequence: sequence);
+            var info = new KeyspaceInfo(name, Generation: generation, CreatedSequence: sequence, LastSequence: sequence);
             _engine.ApplyUnderWriteLock(
                 [
                     new KvBatchMutation(KeyspaceKey(id), EncodeRecord(info), null),
@@ -135,9 +140,11 @@ internal sealed class KvLsmStore : IDisposable
             }
             _engine.WaitForWriteBudgetUnderLock(CancellationToken.None);
             byte[] prefix = Prefix(storageId);
+            byte[] maintenance = MaintenancePrefix(storageId);
             _engine.ApplyUnderWriteLock(
                 [KvBatchMutation.Delete(KeyspaceKey(storageId)), KvBatchMutation.Delete(SequenceKey(storageId))],
-                [new KvRangeDeletion(prefix, KvLsmKeyspaceBackend.PrefixUpperBound(prefix)!)],
+                [new KvRangeDeletion(prefix, KvLsmKeyspaceBackend.PrefixUpperBound(prefix)!),
+                    new KvRangeDeletion(maintenance, KvLsmKeyspaceBackend.PrefixUpperBound(maintenance)!)],
                 null,
                 CancellationToken.None);
             lock (_sync)
@@ -177,6 +184,83 @@ internal sealed class KvLsmStore : IDisposable
 
     /// <summary>逻辑 keyspace 最后一次提交的 sequence（创建时为创建批次的 sequence）。</summary>
     internal long GetLastSequence(long storageId) => Get(storageId).LastSequence;
+
+    /// <summary>逻辑 keyspace 的已提交创建 sequence，兼容旧空表迁移记录。</summary>
+    internal long GetCreatedSequence(long storageId) => Get(storageId).CreatedSequence;
+
+    internal static byte[] MaintenancePrefix(long storageId) => MetaKey(MaintenanceTag, storageId);
+
+    private static byte[] MaintenanceKey(long storageId, string name)
+        => [.. MaintenancePrefix(storageId), .. Encoding.UTF8.GetBytes(name)];
+
+    /// <summary>读取派生的表维护状态；读取本身不追加 WAL。</summary>
+    internal byte[]? ReadMaintenance(long storageId, string name)
+    {
+        _ = Get(storageId);
+        using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue);
+        return snapshot.GetRaw(MaintenanceKey(storageId, name)) is { } value ? value.Value.ToArray() : null;
+    }
+
+    /// <summary>持久写入或消费表维护状态，不改变逻辑数据 sequence，因而不伪造迁移后业务写入。</summary>
+    internal void WriteMaintenance(long storageId, string name, byte[]? value)
+    {
+        _engine.ExecuteUnderWriteLock(() =>
+        {
+            _ = Get(storageId);
+            _engine.WaitForWriteBudgetUnderLock(CancellationToken.None);
+            _engine.ApplyUnderWriteLock([new KvBatchMutation(MaintenanceKey(storageId, name), value, null)], [], null, CancellationToken.None);
+            if (!_engine.SyncWalOnEveryWrite)
+                _engine.SyncWal();
+            return 0;
+        }, CancellationToken.None, lockTimeout: null);
+    }
+
+    internal int? ReadRowCount(long storageId)
+    {
+        byte[]? value = ReadMaintenance(storageId, "row-count");
+        KeyspaceInfo info = Get(storageId);
+        if (value is not { Length: 25 } || value[0] != 1
+            || BinaryPrimitives.ReadInt64LittleEndian(value.AsSpan(1)) != info.Generation
+            || BinaryPrimitives.ReadInt64LittleEndian(value.AsSpan(9)) != info.LastSequence)
+            return null;
+        long count = BinaryPrimitives.ReadInt64LittleEndian(value.AsSpan(17));
+        return count is >= 0 and <= int.MaxValue ? (int)count : null;
+    }
+
+    internal void InitializeRowCount(long storageId, int count)
+        => WriteMaintenance(storageId, "row-count", EncodeRowCount(GetGeneration(storageId), GetLastSequence(storageId), count));
+
+    /// <summary>主行计数与行、索引、sequence 在同一个 WAL 记录中发布。旧写者改变 sequence 后旧计数自动失效。</summary>
+    internal KvBatchMutation? RowCountMutation(long storageId, long sequence, IReadOnlyList<KvBatchMutation> mutations)
+    {
+        if (ReadRowCount(storageId) is not int count)
+            return null;
+        byte[] prefix = Prefix(storageId);
+        using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue);
+        foreach (KvBatchMutation mutation in mutations)
+        {
+            if (mutation.Key.Length == 0 || mutation.Key[0] != (byte)'r')
+                continue;
+            bool existed = snapshot.GetRaw([.. prefix, .. mutation.Key]) is not null;
+            if (existed != (mutation.Value is not null))
+                count = checked(count + (existed ? -1 : 1));
+        }
+        return new KvBatchMutation(MaintenanceKey(storageId, "row-count"), EncodeRowCount(GetGeneration(storageId), sequence, count), null);
+    }
+
+    internal KvBatchMutation EmptyRowCountMutation(long storageId, long generation, long sequence)
+        => new(MaintenanceKey(storageId, "row-count"), EncodeRowCount(generation, sequence, 0), null);
+
+    private static byte[] EncodeRowCount(long generation, long sequence, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        byte[] value = new byte[25];
+        value[0] = 1;
+        BinaryPrimitives.WriteInt64LittleEndian(value.AsSpan(1), generation);
+        BinaryPrimitives.WriteInt64LittleEndian(value.AsSpan(9), sequence);
+        BinaryPrimitives.WriteInt64LittleEndian(value.AsSpan(17), count);
+        return value;
+    }
 
     /// <summary>与数据同批提交的 sequence 元数据。</summary>
     internal static KvBatchMutation SequenceMutation(long storageId, long sequence)

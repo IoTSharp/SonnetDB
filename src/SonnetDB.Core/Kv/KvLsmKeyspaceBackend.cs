@@ -61,6 +61,9 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     /// <summary>是否是共享实例中的逻辑 keyspace。</summary>
     internal bool IsShared => _store is not null;
 
+    /// <summary>共享实例的身份；独立实例为空。</summary>
+    internal KvLsmStore? Store => _store;
+
     /// <summary>共享实例中的编号；独立实例为 0。</summary>
     internal long StorageId => _storageId;
 
@@ -120,6 +123,7 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             BlockCache = KvBlockCache.Shared,
             WriteBufferManager = KvWriteBufferManager.Shared,
             Scheduler = KvLsmBackgroundScheduler.Shared,
+            CompactionPauseReason = new KvLsmCompactionThrottle(options).GetReason,
         };
 
     /// <summary>打开（或创建）独立 LSM 引擎，并确保目录带有独立布局标记（降级防线）。调用方已持有目录生命周期租约。</summary>
@@ -178,6 +182,14 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     {
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
         return ToValueEntry(snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken));
+    }
+
+    internal T? ReadProjectedValue<T>(ReadOnlySpan<byte> key, KvValueProjection<T> project) where T : class
+    {
+        using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.UtcNow);
+        KvSstEntry? raw = snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key));
+        return raw is { } entry && (entry.ExpiresAtUtcTicks == 0 || entry.ExpiresAtUtcTicks > snapshot.ReadTimestampUtcTicks)
+            ? project(entry.Value.Span) : null;
     }
 
     /// <summary>
@@ -443,6 +455,8 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             var physical = new List<KvBatchMutation>(mutations.Count + 1);
             foreach (KvBatchMutation mutation in mutations)
                 physical.Add(new KvBatchMutation(Physical(mutation.Key), mutation.Value, mutation.ExpiresAtUtc));
+            if (_store.RowCountMutation(_storageId, next, mutations) is { } count)
+                physical.Add(count);
             physical.Add(KvLsmStore.SequenceMutation(_storageId, next));
             var ranges = new List<KvRangeDeletion>(rangeDeletions.Count);
             foreach (KvRangeDeletion range in rangeDeletions)
@@ -554,9 +568,17 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             _engine.WaitForWriteBudgetUnderLock(CancellationToken.None);
             long next = _engine.NextSequence;
             KvBatchMutation record = _store.ClearRecordMutation(_storageId, out long nextGeneration);
+            byte[] maintenance = KvLsmStore.MaintenancePrefix(_storageId);
+            // Metadata is outside the table's data prefix. Delete old generation markers in
+            // the same commit; the new row count uses the same sequence as the tombstone.
+            bool counted = _store.ReadRowCount(_storageId).HasValue;
+            var metadata = new List<KvBatchMutation> { record, KvLsmStore.SequenceMutation(_storageId, next) };
+            if (counted)
+                metadata.Add(_store.EmptyRowCountMutation(_storageId, nextGeneration, next));
             long sequence = _engine.ApplyUnderWriteLock(
-                [record, KvLsmStore.SequenceMutation(_storageId, next)],
-                [new KvRangeDeletion(_keyPrefix, _keyPrefixUpper!)],
+                metadata,
+                [new KvRangeDeletion(_keyPrefix, _keyPrefixUpper!),
+                    new KvRangeDeletion(maintenance, KvLsmKeyspaceBackend.PrefixUpperBound(maintenance)!)],
                 next,
                 CancellationToken.None);
             _store.OnCleared(_storageId, nextGeneration, sequence);

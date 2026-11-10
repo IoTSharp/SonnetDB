@@ -59,6 +59,7 @@ internal sealed partial class CliApplication
                 "remote" => RunRemote(args),
                 "connect" => RunConnect(args),
                 "backup" => RunBackup(args),
+                "kv" => RunKvMigration(args),
                 "mq" => RunMqSnapshot(args),
                 "cp" => RunObjectCopy(args),
                 "sync" => RunObjectSync(args),
@@ -1052,6 +1053,7 @@ SonnetDB CLI __VERSION__
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
   sndb diag dump [--endpoint http://host] [--token admin-token] [--output ./diagnostic-dump.json]
   sndb graph overview --connection "<conn>" --graph knowledge
+  sndb kv rollback-migration --database <db-root> --path <kv-or-table-directory> --offline
   sndb graph visualize --connection "<conn>" --graph knowledge [--limit 250]
   sndb graph export --connection "<conn>" --graph knowledge --output ./knowledge.graph.json
   sndb graph import --connection "<conn>" --graph knowledge --input ./knowledge.graph.json

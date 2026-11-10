@@ -9,6 +9,80 @@ namespace SonnetDB.Kv;
 /// </summary>
 public sealed partial class KvKeyspace
 {
+    /// <summary>共享表事务使用的实例身份。</summary>
+    internal KvLsmStore? SharedStore => _lsm?.Store;
+
+    internal long SharedStorageId => _lsm?.StorageId ?? 0;
+
+    internal int LoadTableRowCount()
+    {
+        if (SharedStore is not { } store)
+            return CountPrefix([(byte)'r']);
+        if (store.ReadRowCount(SharedStorageId) is int count)
+            return count;
+        // Only opening the table initializes metadata. Ordinary Count/reads never write.
+        count = CountPrefix([(byte)'r']);
+        store.InitializeRowCount(SharedStorageId, count);
+        return count;
+    }
+
+    /// <summary>把同一共享实例的已准备变更作为一个 WAL 批次提交；最后取消点在追加 WAL 之前。</summary>
+    internal static void ApplySharedTransaction(
+        IReadOnlyList<(KvKeyspace Keyspace, IReadOnlyList<KvBatchMutation> Mutations, long Sequence, long Generation)> entries,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (entries.Count == 0)
+            return;
+        KvLsmStore store = entries[0].Keyspace.SharedStore
+            ?? throw new InvalidOperationException("An atomic shared transaction requires a shared LSM store.");
+        var ids = new HashSet<long>();
+        foreach (var entry in entries)
+        {
+            entry.Keyspace.ThrowIfDisposedForLsm();
+            if (!ReferenceEquals(entry.Keyspace.SharedStore, store))
+                throw new InvalidOperationException("All keyspaces must belong to the same shared LSM store.");
+            if (!ids.Add(entry.Keyspace.SharedStorageId))
+                throw new ArgumentException("A logical keyspace can occur only once in a shared transaction.", nameof(entries));
+        }
+        KvLsmKeyspaceBackend backend = entries[0].Keyspace._lsm!;
+        backend.Execute(() =>
+        {
+            backend.Engine.WaitForWriteBudgetUnderLock(cancellationToken);
+            long next = backend.Engine.NextSequence;
+            var physical = new List<KvBatchMutation>();
+            foreach (var entry in entries)
+            {
+                if (entry.Keyspace.LastSequence != entry.Sequence || entry.Keyspace.Generation != entry.Generation)
+                    throw new InvalidOperationException("A prepared shared transaction has become stale.");
+                KvBatchMutation[] normalized = entry.Keyspace.CanonicalizeBatchMutations(entry.Mutations);
+                if (normalized.Length == 0)
+                    continue;
+                byte[] prefix = KvLsmStore.Prefix(entry.Keyspace._lsm!.StorageId);
+                foreach (var mutation in normalized)
+                    physical.Add(new KvBatchMutation([.. prefix, .. mutation.Key], mutation.Value, mutation.ExpiresAtUtc));
+                if (store.RowCountMutation(entry.Keyspace.SharedStorageId, next, normalized) is { } count)
+                    physical.Add(count);
+                physical.Add(KvLsmStore.SequenceMutation(entry.Keyspace._lsm.StorageId, next));
+            }
+            if (physical.Count == 0)
+                return 0;
+            // Enforce the combined physical WAL size, including prefixes and sequence metadata.
+            foreach (var entry in entries)
+                entry.Keyspace.LsmRejectOversizedBatch(physical, "shared table transaction");
+            cancellationToken.ThrowIfCancellationRequested();
+            long sequence = backend.Engine.ApplyUnderWriteLock(physical, [], next, CancellationToken.None);
+            // The former multi-table journal synchronized every participating WAL even
+            // when ordinary writes were buffered. Preserve that acknowledgement contract.
+            if (entries.Count(static entry => entry.Mutations.Count != 0) > 1 && !backend.Engine.SyncWalOnEveryWrite)
+                backend.Engine.SyncWal();
+            foreach (var entry in entries)
+                if (entry.Mutations.Count != 0)
+                    store.OnCommitted(entry.Keyspace._lsm!.StorageId, sequence);
+            return 0;
+        }, cancellationToken, bounded: true);
+    }
+
     private void ThrowIfDisposedForLsm()
     {
         lock (_sync)

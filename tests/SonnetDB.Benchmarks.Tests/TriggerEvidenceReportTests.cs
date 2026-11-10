@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SonnetDB.Benchmarks.Benchmarks;
+using SonnetDB.Kv;
 using Xunit;
 
 namespace SonnetDB.Benchmarks.Tests;
@@ -33,14 +34,14 @@ public sealed class TriggerEvidenceReportTests : IDisposable
 
     /// <summary>验证 quick 报告完整覆盖三种 DML、三条路径及精确回滚状态。</summary>
     [Fact]
-    public void Run_QuickMatrix_EmitsCompleteV4Contract()
+    public void Run_QuickMatrix_EmitsCompleteV5Contract()
     {
         TriggerEvidenceReport report = TriggerEvidenceReportRunner.Run(
             _outputDirectory,
             [1, 3],
             crashTestsVerified: false);
 
-        Assert.Equal("m39-trigger-v2-baseline-v4", report.Schema);
+        Assert.Equal("m39-trigger-v2-baseline-v5", report.Schema);
         Assert.Equal(["Insert", "Update", "Delete"], report.Operations);
         Assert.False(report.CrashTestsVerified);
         Assert.Equal(18, report.CostMatrix.Length);
@@ -59,7 +60,9 @@ public sealed class TriggerEvidenceReportTests : IDisposable
             Assert.Equal(row.Rows, row.RowsAffected);
             Assert.Equal(row.RowsInserted, row.RowsAffected);
             Assert.Equal(row.RowStoreBytes, row.RowStoreBytesDelta);
-            Assert.Equal(row.Path != "NoTrigger", row.JournalBytes > 0);
+            Assert.Equal("SharedLsm", row.StorageLayout);
+            Assert.Equal("SharedLsmBatch", row.CommitProtocol);
+            Assert.Equal(0, row.JournalBytes);
         });
         Assert.All(report.RollbackMatrix, static row =>
         {
@@ -78,16 +81,43 @@ public sealed class TriggerEvidenceReportTests : IDisposable
         Assert.NotEmpty(jsonBytes);
         Assert.Equal((byte)'{', jsonBytes[0]);
         using JsonDocument json = JsonDocument.Parse(jsonBytes);
-        Assert.Equal("m39-trigger-v2-baseline-v4", json.RootElement.GetProperty("schema").GetString());
+        Assert.Equal("m39-trigger-v2-baseline-v5", json.RootElement.GetProperty("schema").GetString());
         Assert.Equal(3, json.RootElement.GetProperty("operations").GetArrayLength());
         Assert.Equal(18, json.RootElement.GetProperty("costMatrix").GetArrayLength());
         Assert.Equal(18, json.RootElement.GetProperty("rollbackMatrix").GetArrayLength());
         JsonElement firstCost = json.RootElement.GetProperty("costMatrix")[0];
+        Assert.Equal("SharedLsm", firstCost.GetProperty("storageLayout").GetString());
+        Assert.Equal("SharedLsmBatch", firstCost.GetProperty("commitProtocol").GetString());
         Assert.Equal(
             firstCost.GetProperty("rowStoreBytes").GetInt64(),
             firstCost.GetProperty("rowStoreBytesDelta").GetInt64());
         string markdown = File.ReadAllText(markdownPath);
         Assert.Contains("Rowstore bytes delta", markdown, StringComparison.Ordinal);
         Assert.Contains("Audit restored", markdown, StringComparison.Ordinal);
+    }
+
+    /// <summary>实际日志和持久文件计量必须分别覆盖 legacy 与共享 LSM，不能把没有日志当成遗漏测量。</summary>
+    [Theory]
+    [InlineData(KvStorageEngine.Legacy, TriggerPath.NoTrigger)]
+    [InlineData(KvStorageEngine.Legacy, TriggerPath.V1RowTrigger)]
+    [InlineData(KvStorageEngine.Legacy, TriggerPath.CandidateStatementReference)]
+    [InlineData(KvStorageEngine.Lsm, TriggerPath.NoTrigger)]
+    [InlineData(KvStorageEngine.Lsm, TriggerPath.V1RowTrigger)]
+    [InlineData(KvStorageEngine.Lsm, TriggerPath.CandidateStatementReference)]
+    public void ExplicitEngine_RecordsActualCommitProtocolAndPersistedBytes(KvStorageEngine engine, TriggerPath path)
+    {
+        TriggerBaselineSample sample = new TriggerBaselineBenchmark
+        {
+            StorageEngine = engine,
+            Rows = 3,
+            Path = path,
+            Operation = TriggerDmlOperation.Insert,
+        }.RunSingleIteration();
+        Assert.Equal(engine == KvStorageEngine.Lsm ? "SharedLsm" : "Legacy", sample.StorageLayout);
+        Assert.Equal(engine == KvStorageEngine.Lsm ? "SharedLsmBatch"
+            : path == TriggerPath.NoTrigger ? "SingleKeyspaceWal" : "TableTransactionJournal", sample.CommitProtocol);
+        Assert.Equal(engine == KvStorageEngine.Legacy && path != TriggerPath.NoTrigger, sample.JournalBytes > 0);
+        Assert.True(sample.RowStoreBytesDelta > 0);
+        Assert.Equal(3, sample.RowsAffected);
     }
 }

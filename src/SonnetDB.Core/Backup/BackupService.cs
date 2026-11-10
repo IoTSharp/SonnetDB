@@ -363,7 +363,8 @@ public sealed class BackupService
     internal BackupManifest CreateAfterCheckpoint(
         Tsdb tsdb,
         BackupCreateOptions options,
-        IReadOnlyList<string> checkpointedKeyspaces)
+        IReadOnlyList<string> checkpointedKeyspaces,
+        SonnetDB.Kv.Lsm.KvLsmBackupSet lsmBackup)
     {
         string destination = Path.GetFullPath(options.DestinationDirectory);
         EnsureDirectoryIsOutsideSource(tsdb.RootDirectory, destination);
@@ -375,7 +376,7 @@ public sealed class BackupService
         var includePredicate = CreateIncludePredicate(
             options.IncludeFullTextIndexes,
             graphStorageIds);
-        var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includePredicate);
+        var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includePredicate, lsmBackup);
         var entries = new List<BackupFileEntry>(copied.Count);
         foreach (string relativePath in copied.Order(StringComparer.Ordinal))
         {
@@ -462,7 +463,8 @@ public sealed class BackupService
     private IReadOnlyList<string> CopyDatabaseFiles(
         string sourceRoot,
         string destinationRoot,
-        Predicate<string> include)
+        Predicate<string> include,
+        SonnetDB.Kv.Lsm.KvLsmBackupSet lsmBackup)
     {
         var copied = new List<string>();
         string[] sourceFiles = Directory
@@ -472,7 +474,7 @@ public sealed class BackupService
         foreach (string source in sourceFiles)
         {
             string relative = Path.GetRelativePath(sourceRoot, source);
-            if (!include(relative))
+            if (!include(relative) || lsmBackup.ContainsManagedFile(source))
                 continue;
 
             string target = Path.Combine(destinationRoot, relative);
@@ -481,6 +483,8 @@ public sealed class BackupService
             copied.Add(relative);
             AfterFileCopiedTestHook?.Invoke(NormalizeRelativePath(relative));
         }
+
+        copied.AddRange(lsmBackup.CopyTo(sourceRoot, destinationRoot, AfterFileCopiedTestHook, include));
 
         return copied.AsReadOnly();
     }
@@ -1878,7 +1882,7 @@ internal static class BackupTsdbExtensions
     public static BackupManifest CreateBackup(
         this Tsdb tsdb,
         BackupCreateOptions options,
-        Func<Tsdb, BackupCreateOptions, IReadOnlyList<string>, BackupManifest> afterCheckpoint)
+        Func<Tsdb, BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Kv.Lsm.KvLsmBackupSet, BackupManifest> afterCheckpoint)
     {
         return tsdb.CreateConsistentBackup(options, afterCheckpoint);
     }

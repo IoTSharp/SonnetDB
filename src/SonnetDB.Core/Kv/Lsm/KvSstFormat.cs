@@ -23,6 +23,9 @@ internal static class KvSstFormat
     /// <summary>包含 range tombstone 块的格式版本。</summary>
     internal const int RangeDeletionVersion = 2;
 
+    /// <summary>共享实例的 StorageId 属性与前缀布隆格式；旧读取器明确拒绝。</summary>
+    internal const int SharedPrefixVersion = 3;
+
     /// <summary>块 trailer 字节数。</summary>
     internal const int BlockTrailerSize = 5;
 
@@ -172,6 +175,12 @@ internal struct KvSstFooter
             if (footer.RangeDelOffset <= 0 || footer.RangeDelLength <= 0)
                 throw new InvalidDataException("KV-LSM SST v2 must contain a range tombstone block.");
         }
+        else if (footer.FormatVersion == KvSstFormat.SharedPrefixVersion)
+        {
+            if ((footer.RangeDelOffset == 0) != (footer.RangeDelLength == 0)
+                || footer.RangeDelOffset < 0 || footer.RangeDelLength < 0)
+                throw new InvalidDataException("KV-LSM SST v3 range tombstone handle is invalid.");
+        }
         else
         {
             throw new InvalidDataException($"KV-LSM SST format version {footer.FormatVersion} is not supported.");
@@ -209,21 +218,26 @@ internal sealed record KvSstProperties(
     long RawValueBytes,
     byte[] SmallestKey,
     byte[] LargestKey,
-    long RangeDeletionCount = 0)
+    long RangeDeletionCount = 0,
+    bool SharedPrefixes = false,
+    long MinStorageId = 0,
+    long MaxStorageId = 0)
 {
     private const int Version = 1;
     private const int RangeVersion = 2;
     private const int FixedSize = 4 + (8 * 9) + 4;
     private const int FixedSizeV2 = FixedSize + 8;
+    private const int SharedVersion = 3;
+    private const int FixedSizeV3 = FixedSizeV2 + 16;
 
     /// <summary>编码为属性块载荷（little-endian 定长字段 + 长度前缀 key）。</summary>
     internal byte[] Encode()
     {
         bool ranged = RangeDeletionCount > 0;
-        int fixedSize = ranged ? FixedSizeV2 : FixedSize;
+        int fixedSize = SharedPrefixes ? FixedSizeV3 : ranged ? FixedSizeV2 : FixedSize;
         byte[] result = new byte[fixedSize + 8 + SmallestKey.Length + LargestKey.Length];
         Span<byte> span = result;
-        BinaryPrimitives.WriteInt32LittleEndian(span, ranged ? RangeVersion : Version);
+        BinaryPrimitives.WriteInt32LittleEndian(span, SharedPrefixes ? SharedVersion : ranged ? RangeVersion : Version);
         BinaryPrimitives.WriteInt64LittleEndian(span[4..], EntryCount);
         BinaryPrimitives.WriteInt64LittleEndian(span[12..], DeletionCount);
         BinaryPrimitives.WriteInt64LittleEndian(span[20..], MinSequence);
@@ -234,8 +248,13 @@ internal sealed record KvSstProperties(
         BinaryPrimitives.WriteInt64LittleEndian(span[60..], RawKeyBytes);
         BinaryPrimitives.WriteInt64LittleEndian(span[68..], RawValueBytes);
         BinaryPrimitives.WriteInt32LittleEndian(span[76..], DataBlockCount);
-        if (ranged)
+        if (ranged || SharedPrefixes)
             BinaryPrimitives.WriteInt64LittleEndian(span[FixedSize..], RangeDeletionCount);
+        if (SharedPrefixes)
+        {
+            BinaryPrimitives.WriteInt64LittleEndian(span[FixedSizeV2..], MinStorageId);
+            BinaryPrimitives.WriteInt64LittleEndian(span[(FixedSizeV2 + 8)..], MaxStorageId);
+        }
         int position = fixedSize;
         BinaryPrimitives.WriteInt32LittleEndian(span[position..], SmallestKey.Length);
         SmallestKey.CopyTo(span[(position + 4)..]);
@@ -252,12 +271,12 @@ internal sealed record KvSstProperties(
         if (source.Length < FixedSize + 8)
             throw new InvalidDataException("KV-LSM SST properties block is truncated.");
         int version = BinaryPrimitives.ReadInt32LittleEndian(source);
-        if (version is not (Version or RangeVersion))
+        if (version is not (Version or RangeVersion or SharedVersion))
             throw new InvalidDataException("KV-LSM SST properties version is not supported.");
-        int fixedSize = version == RangeVersion ? FixedSizeV2 : FixedSize;
+        int fixedSize = version == SharedVersion ? FixedSizeV3 : version == RangeVersion ? FixedSizeV2 : FixedSize;
         if (source.Length < fixedSize + 8)
             throw new InvalidDataException("KV-LSM SST properties block is truncated.");
-        long rangeDeletions = version == RangeVersion ? BinaryPrimitives.ReadInt64LittleEndian(source[FixedSize..]) : 0;
+        long rangeDeletions = version >= RangeVersion ? BinaryPrimitives.ReadInt64LittleEndian(source[FixedSize..]) : 0;
 
         int position = fixedSize;
         byte[] smallest = ReadKey(source, ref position);
@@ -278,11 +297,15 @@ internal sealed record KvSstProperties(
             RawValueBytes: BinaryPrimitives.ReadInt64LittleEndian(source[68..]),
             SmallestKey: smallest,
             LargestKey: largest,
-            RangeDeletionCount: rangeDeletions);
+            RangeDeletionCount: rangeDeletions,
+            SharedPrefixes: version == SharedVersion,
+            MinStorageId: version == SharedVersion ? BinaryPrimitives.ReadInt64LittleEndian(source[FixedSizeV2..]) : 0,
+            MaxStorageId: version == SharedVersion ? BinaryPrimitives.ReadInt64LittleEndian(source[(FixedSizeV2 + 8)..]) : 0);
 
         if (properties.EntryCount < 0
             || properties.RangeDeletionCount < 0
-            || (version == RangeVersion) != (properties.RangeDeletionCount > 0)
+            || (version != SharedVersion && (version == RangeVersion) != (properties.RangeDeletionCount > 0))
+            || properties.MinStorageId < 0 || properties.MaxStorageId < properties.MinStorageId
             || properties.EntryCount + properties.RangeDeletionCount <= 0
             || properties.DeletionCount < 0
             || properties.DeletionCount > properties.EntryCount

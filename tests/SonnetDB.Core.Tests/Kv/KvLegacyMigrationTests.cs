@@ -128,6 +128,68 @@ public sealed class KvLegacyMigrationTests : IDisposable
     }
 
     /// <summary>legacy 关系表在选择 LSM 后打开时导入共享实例：行、索引与 SQL 查询保持；表目录改为共享标记。</summary>
+    [Theory]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(true, 0)]
+    public void Shared_MigrationPreservesGeneration_AndEmptyMigrationCanRollBack(bool empty, int generation)
+    {
+        string table = Path.Combine(_root, "generation-table");
+        using (KvKeyspace legacy = KvKeyspace.Open("t", table, Options(KvStorageEngine.Legacy)))
+        {
+            for (int clear = 0; clear < generation; clear++)
+            {
+                legacy.Put("removed", [9]);
+                legacy.Clear();
+            }
+            if (!empty) legacy.Put("kept", [42]);
+            Assert.Equal(generation, legacy.Generation);
+        }
+        using var budget = new KvDiskReadBudget(2);
+        using KvLsmStore store = KvLsmStore.Open(Path.Combine(_root, "generation-lsm"), Options(), budget);
+        long id = KvLegacyMigration.TryMigrateIntoShared("t", table, store, Options(), budget, out _)!.Value;
+        using (KvKeyspace shared = KvKeyspace.OpenShared("t", table, store, id, Options(), budget))
+        {
+            Assert.Equal(generation, shared.Generation);
+            Assert.Equal(empty ? 0 : 1, shared.Count);
+        }
+        KvLegacyMigration.RollbackShared(table, store);
+        using KvKeyspace restored = KvKeyspace.Open("t", table, Options(KvStorageEngine.Legacy));
+        Assert.Equal(generation, restored.Generation);
+        Assert.Equal(empty ? null : new byte[] { 42 }, restored.Get("kept"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Shared_OldEmptyImportWithZeroSequence_RollsBackOnlyBeforeAnyWrite(bool written)
+    {
+        string table = Path.Combine(_root, "old-empty");
+        using (KvKeyspace.Open("e", table, Options(KvStorageEngine.Legacy))) { }
+        using var budget = new KvDiskReadBudget(2);
+        using KvLsmStore store = KvLsmStore.Open(Path.Combine(_root, "old-empty-lsm"), Options(), budget);
+        long id = KvLegacyMigration.TryMigrateIntoShared("e", table, store, Options(), budget, out _)!.Value;
+        string retained = Assert.Single(Directory.GetDirectories(table, KvLegacyMigration.RetainedPrefix + "*"));
+        string info = Path.Combine(retained, KvLegacyMigration.InfoFileName);
+        string[] lines = File.ReadAllLines(info);
+        File.WriteAllLines(info, lines.Select(static line => line.StartsWith("importedSequence=", StringComparison.Ordinal) ? "importedSequence=0" : line));
+        if (written)
+        {
+            using (KvKeyspace shared = KvKeyspace.OpenShared("e", table, store, id, Options(), budget)) shared.Put("new", [42]);
+            Assert.Throws<InvalidOperationException>(() => KvLegacyMigration.RollbackShared(table, store));
+            using KvKeyspace still = KvKeyspace.OpenShared("e", table, store, id, Options(), budget);
+            Assert.Equal([42], still.Get("new"));
+        }
+        else
+        {
+            KvLegacyMigration.RollbackShared(table, store);
+            using KvKeyspace restored = KvKeyspace.Open("e", table, Options(KvStorageEngine.Legacy));
+            Assert.Equal(0, restored.Count);
+            Assert.False(store.Contains(id));
+        }
+    }
+
+    /// <summary>legacy 关系表在选择 LSM 后打开时导入共享实例：行、索引与 SQL 查询保持；表目录改为共享标记。</summary>
     [Fact]
     public void Tables_MigrateIntoSharedStorageOnOpen()
     {

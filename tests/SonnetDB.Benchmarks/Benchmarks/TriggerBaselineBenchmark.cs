@@ -44,6 +44,10 @@ public class TriggerBaselineBenchmark
     [Params(TriggerPath.NoTrigger, TriggerPath.V1RowTrigger, TriggerPath.CandidateStatementReference)]
     public TriggerPath Path { get; set; }
 
+    /// <summary>本次基线显式选择的 KV 引擎，报告按实际布局记录提交协议。</summary>
+    [Params(KvStorageEngine.Legacy, KvStorageEngine.Lsm)]
+    public KvStorageEngine StorageEngine { get; set; } = KvOptions.Default.StorageEngine;
+
     /// <summary>在一次测量迭代前建立干净数据库和对应 schema。</summary>
     [IterationSetup]
     public void IterationSetup()
@@ -60,6 +64,7 @@ public class TriggerBaselineBenchmark
             FlushWalToOsOnWrite = true,
             Kv = KvOptions.Default with
             {
+                StorageEngine = StorageEngine,
                 SyncWalOnEveryWrite = false,
                 AutoCheckpointEnabled = false,
                 MaxWalBytes = 0,
@@ -193,6 +198,9 @@ public class TriggerBaselineBenchmark
                 Operation = Operation,
                 JournalBytes = File.Exists(System.IO.Path.Combine(_rootDirectory, "tables", "transaction.sdbtxn"))
                     ? new FileInfo(System.IO.Path.Combine(_rootDirectory, "tables", "transaction.sdbtxn")).Length : 0,
+                StorageLayout = _database!.Tables.Open("trigger_source").SharedStore is not null ? "SharedLsm" : StorageEngine.ToString(),
+                CommitProtocol = _database.Tables.Open("trigger_source").SharedStore is not null ? "SharedLsmBatch"
+                    : Path == TriggerPath.NoTrigger ? "SingleKeyspaceWal" : "TableTransactionJournal",
             };
         }
         finally
@@ -237,7 +245,9 @@ public class TriggerBaselineBenchmark
         string rowStoreDirectory = System.IO.Path.Combine(rootDirectory, "tables", "rowstore");
         return checked(
             SumFiles(rowStoreDirectory, "*.SDBKVSNP")
-            + SumFiles(rowStoreDirectory, "*.SDBKVSEG"));
+            + SumFiles(rowStoreDirectory, "*.SDBKVSEG")
+            + SumFiles(rowStoreDirectory, "*.SDBKVSST")
+            + SumFiles(System.IO.Path.Combine(rootDirectory, "tables", "lsm"), "*.SDBKVSST"));
     }
 
     /// <summary>按文件模式递归统计目录中的文件总字节数。</summary>
@@ -480,6 +490,12 @@ public sealed record TriggerBaselineSample(
     long ManagedBytes,
     long AllocatedBytes)
 {
+    /// <summary>实际 rowstore 布局；旧样本未声明时保持 unknown。</summary>
+    public string StorageLayout { get; init; } = "unknown";
+
+    /// <summary>本样本的单 keyspace WAL、共享原子批次或多表恢复日志协议。</summary>
+    public string CommitProtocol { get; init; } = "unknown";
+
     /// <summary>跨表恢复日志的持久化字节数；独立于各表 WAL 计量。</summary>
     public long JournalBytes { get; init; }
     /// <summary>本样本执行的 DML 类型；旧调用方默认仍表示 INSERT。</summary>

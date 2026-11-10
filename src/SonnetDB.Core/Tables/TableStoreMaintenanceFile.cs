@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Security.Cryptography;
 using System.Text;
+using SonnetDB.Kv;
 
 namespace SonnetDB.Tables;
 
@@ -17,6 +18,58 @@ internal static class TableStoreMaintenanceFile
 
     internal const string LegacyMigrationFileName = "legacy-rows-v1.complete";
     internal const string CleanIndexesFileName = "indexes.clean";
+
+    internal static bool IsLegacyMigrationComplete(KvKeyspace keyspace, long generation, ReadOnlySpan<byte> schemaFingerprint)
+    {
+        if (keyspace.SharedStore is not { } store)
+            return IsLegacyMigrationComplete(keyspace.RootDirectory, generation, schemaFingerprint);
+        byte[]? content = store.ReadMaintenance(keyspace.SharedStorageId, LegacyMigrationFileName);
+        if (content is null)
+        {
+            string oldPath = Path.Combine(keyspace.RootDirectory, LegacyMigrationFileName);
+            if (File.Exists(oldPath))
+            {
+                content = File.ReadAllBytes(oldPath);
+                store.WriteMaintenance(keyspace.SharedStorageId, LegacyMigrationFileName, content);
+                File.Delete(oldPath);
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(keyspace.RootDirectory);
+            }
+        }
+        return content is not null && TryDecode(content, MarkerKind.LegacyMigration, out var marker)
+            && marker.Generation == generation && marker.SchemaFingerprint.AsSpan().SequenceEqual(schemaFingerprint);
+    }
+
+    internal static void MarkLegacyMigrationComplete(KvKeyspace keyspace, long generation, ReadOnlySpan<byte> schemaFingerprint)
+    {
+        if (keyspace.SharedStore is { } store)
+            store.WriteMaintenance(keyspace.SharedStorageId, LegacyMigrationFileName, Encode(MarkerKind.LegacyMigration, generation, 0, schemaFingerprint));
+        else
+            MarkLegacyMigrationComplete(keyspace.RootDirectory, generation, schemaFingerprint);
+    }
+
+    internal static bool ConsumeCleanIndexes(KvKeyspace keyspace, long generation, long sequence, ReadOnlySpan<byte> schemaFingerprint)
+    {
+        if (keyspace.SharedStore is not { } store)
+            return ConsumeCleanIndexes(keyspace.RootDirectory, generation, sequence, schemaFingerprint);
+        byte[]? content = store.ReadMaintenance(keyspace.SharedStorageId, CleanIndexesFileName);
+        // Remove an old sidecar token too: an interrupted upgrade must never resurrect it.
+        bool oldMatches = ConsumeCleanIndexes(keyspace.RootDirectory, generation, sequence, schemaFingerprint);
+        if (content is null)
+            return oldMatches;
+        bool matches = TryDecode(content, MarkerKind.CleanIndexes, out var marker)
+            && marker.Generation == generation && marker.Sequence == sequence
+            && marker.SchemaFingerprint.AsSpan().SequenceEqual(schemaFingerprint);
+        store.WriteMaintenance(keyspace.SharedStorageId, CleanIndexesFileName, null);
+        return matches;
+    }
+
+    internal static void MarkIndexesClean(KvKeyspace keyspace, long generation, long sequence, ReadOnlySpan<byte> schemaFingerprint)
+    {
+        if (keyspace.SharedStore is { } store)
+            store.WriteMaintenance(keyspace.SharedStorageId, CleanIndexesFileName, Encode(MarkerKind.CleanIndexes, generation, sequence, schemaFingerprint));
+        else
+            MarkIndexesClean(keyspace.RootDirectory, generation, sequence, schemaFingerprint);
+    }
 
     internal static bool IsLegacyMigrationComplete(
         string rootDirectory,
@@ -134,15 +187,27 @@ internal static class TableStoreMaintenanceFile
         long sequence,
         ReadOnlySpan<byte> schemaFingerprint)
     {
+        byte[] content = Encode(kind, generation, sequence, schemaFingerprint);
+        string directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        string tempPath = path + ".tmp";
+        using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            stream.Write(content);
+            stream.Flush(flushToDisk: true);
+        }
+        File.Move(tempPath, path, overwrite: true);
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+    }
+
+    private static byte[] Encode(MarkerKind kind, long generation, long sequence, ReadOnlySpan<byte> schemaFingerprint)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(generation);
         ArgumentOutOfRangeException.ThrowIfNegative(sequence);
         if (schemaFingerprint.Length != FingerprintLength)
             throw new ArgumentException("Table schema fingerprint must be 32 bytes.", nameof(schemaFingerprint));
 
-        string directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-        string tempPath = path + ".tmp";
-        Span<byte> content = stackalloc byte[FileSize];
+        Span<byte> content = new byte[FileSize];
         Magic.CopyTo(content[..Magic.Length]);
         BinaryPrimitives.WriteInt32LittleEndian(content.Slice(8, sizeof(int)), CurrentVersion);
         BinaryPrimitives.WriteInt32LittleEndian(content.Slice(12, sizeof(int)), (int)kind);
@@ -153,14 +218,7 @@ internal static class TableStoreMaintenanceFile
             content.Slice(CrcOffset, sizeof(uint)),
             Crc32.HashToUInt32(content[..CrcOffset]));
 
-        using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            stream.Write(content);
-            stream.Flush(flushToDisk: true);
-        }
-
-        File.Move(tempPath, path, overwrite: true);
-        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+        return content.ToArray();
     }
 
     private static bool TryRead(string path, MarkerKind expectedKind, out MaintenanceMarker marker)
@@ -169,7 +227,12 @@ internal static class TableStoreMaintenanceFile
         if (!File.Exists(path))
             return false;
 
-        byte[] content = File.ReadAllBytes(path);
+        return TryDecode(File.ReadAllBytes(path), expectedKind, out marker);
+    }
+
+    private static bool TryDecode(byte[] content, MarkerKind expectedKind, out MaintenanceMarker marker)
+    {
+        marker = default;
         if (content.Length != FileSize
             || !content.AsSpan(0, Magic.Length).SequenceEqual(Magic)
             || BinaryPrimitives.ReadInt32LittleEndian(content.AsSpan(8, sizeof(int))) != CurrentVersion

@@ -73,6 +73,7 @@ public sealed partial class CrashReliabilityTests
         {
             using Tsdb database = Tsdb.Open(MakeOptions(data) with { Kv = KvMigrationOptions() });
             var table = database.Tables.Open("items");
+            Assert.Equal(1, table.Generation);
             Assert.Equal(2050, table.RowCount);
             for (int index = 0; index < 2050; index++)
             {

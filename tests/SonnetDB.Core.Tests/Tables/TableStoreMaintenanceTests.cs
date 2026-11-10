@@ -531,7 +531,8 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         int indexScans = 0;
         recoveryKeyspace.StablePrefixScanTestHook = prefix =>
         {
-            if (prefix.Span.SequenceEqual([(byte)'r']))
+            // Index counting and row repair share one stable pass over the table.
+            if (prefix.IsEmpty)
                 Interlocked.Increment(ref rowScans);
             else if (prefix.Span.SequenceEqual([(byte)'i']))
                 Interlocked.Increment(ref indexScans);

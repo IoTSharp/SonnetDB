@@ -153,34 +153,62 @@ public sealed class KvMemTableTests
         var table = new KvMemTable();
         int writerDone = 0;
         long readerScans = 0;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        using var start = new Barrier(5);
+        using var firstWrite = new ManualResetEventSlim();
+        using var readersObserved = new CountdownEvent(4);
 
-        Task writer = Task.Run(() =>
+        Task Actor(Action action) => Task.Factory.StartNew(() =>
         {
-            var random = new Random(9);
-            var used = new HashSet<int>();
-            for (int i = 0; i < total; i++)
+            try
             {
-                int id;
-                do { id = random.Next(); } while (!used.Add(id));
-                byte[] userKey = new byte[4];
-                BinaryPrimitives.WriteInt32BigEndian(userKey, id);
-                byte[] key = KvInternalKey.Encode(userKey, i + 1, KvEntryKind.Put);
-                table.Add(key, ValueFor(userKey));
+                if (!start.SignalAndWait(TimeSpan.FromSeconds(10), deadline.Token))
+                    throw new TimeoutException("Concurrent actors did not start.");
+                action();
             }
-            Volatile.Write(ref writerDone, 1);
+            catch { deadline.Cancel(); throw; }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        // Dedicated actors ensure DOTNET_PROCESSOR_COUNT=2 cannot serialize the writer
+        // ahead of every reader. Every reader observes a published row before writing continues.
+        Task writer = Actor(() =>
+        {
+            try
+            {
+                int[] order = Enumerable.Range(0, total).ToArray();
+                new Random(9).Shuffle(order);
+                for (int i = 0; i < total; i++)
+                {
+                    deadline.Token.ThrowIfCancellationRequested();
+                    byte[] userKey = new byte[4];
+                    BinaryPrimitives.WriteInt32BigEndian(userKey, order[i]);
+                    byte[] key = KvInternalKey.Encode(userKey, i + 1, KvEntryKind.Put);
+                    table.Add(key, ValueFor(userKey));
+                    if (i == 0)
+                    {
+                        firstWrite.Set();
+                        if (!readersObserved.Wait(TimeSpan.FromSeconds(10), deadline.Token))
+                            throw new TimeoutException("Concurrent readers did not observe the initial row.");
+                    }
+                }
+            }
+            finally { Volatile.Write(ref writerDone, 1); firstWrite.Set(); }
         });
 
-        Task[] readers = Enumerable.Range(0, 4).Select(seed => Task.Run(() =>
+        Task[] readers = Enumerable.Range(0, 4).Select(seed => Actor(() =>
         {
+            if (!firstWrite.Wait(TimeSpan.FromSeconds(10), deadline.Token))
+                throw new TimeoutException("Concurrent writer did not publish the initial row.");
             var random = new Random(seed);
             using KvMemTableIterator iterator = table.CreateIterator();
-            while (Volatile.Read(ref writerDone) == 0)
+            for (int scan = 0; scan < 10_000 && Volatile.Read(ref writerDone) == 0; scan++)
             {
+                deadline.Token.ThrowIfCancellationRequested();
                 byte[]? previous = null;
                 int seen = 0;
-                byte[] start = new byte[4];
-                BinaryPrimitives.WriteInt32BigEndian(start, random.Next());
-                for (iterator.Seek(KvInternalKey.EncodeSeekKey(start, KvInternalKey.MaxSequence));
+                byte[] seek = new byte[4];
+                BinaryPrimitives.WriteInt32BigEndian(seek, random.Next(total));
+                for (iterator.Seek(KvInternalKey.EncodeSeekKey(seek, KvInternalKey.MaxSequence));
                     iterator.Valid && seen < 2_000;
                     iterator.MoveNext(), seen++)
                 {
@@ -194,17 +222,21 @@ public sealed class KvMemTableTests
                 for (iterator.SeekToLast(), seen = 0; iterator.Valid && seen < 200; iterator.MovePrev(), seen++)
                     Assert.Equal(ValueFor(KvInternalKey.UserKey(iterator.Key)), iterator.Value.ToArray());
                 Interlocked.Increment(ref readerScans);
+                if (scan == 0)
+                {
+                    Assert.True(seen > 0);
+                    readersObserved.Signal();
+                }
             }
         })).ToArray();
 
-        await writer.WaitAsync(TimeSpan.FromMinutes(2));
-        await Task.WhenAll(readers).WaitAsync(TimeSpan.FromMinutes(2));
+        await Task.WhenAll(readers.Append(writer)).WaitAsync(TimeSpan.FromSeconds(125));
 
         Assert.Equal(total, table.EntryCount);
         Assert.True(Interlocked.Read(ref readerScans) > 0);
         using KvMemTableIterator final = table.CreateIterator();
         int count = 0;
-        for (final.SeekToFirst(); final.Valid; final.MoveNext())
+        for (final.SeekToFirst(); final.Valid && count <= total; final.MoveNext())
             count++;
         Assert.Equal(total, count);
     }

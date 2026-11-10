@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using SonnetDB.Buffers;
 using SonnetDB.Wal;
 
@@ -26,6 +27,9 @@ internal sealed record KvSstWriterOptions
     /// <summary>为 true 时在发布后对所在目录执行 fsync。</summary>
     internal bool SyncDirectory { get; init; } = true;
 
+    /// <summary>共享 store 的 key 使用 8 字节 StorageId 前缀；启用 SST v3 属性和前缀布隆。</summary>
+    internal bool SharedPrefixes { get; init; }
+
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(BlockSize, 256);
@@ -53,6 +57,9 @@ internal sealed class KvSstWriter : IDisposable
     private readonly KvSstBlockBuilder _dataBlock;
     private readonly KvSstBlockBuilder _indexBlock = new(restartInterval: 1);
     private readonly List<ulong> _bloomHashes = [];
+    private readonly List<ulong> _prefixHashes = [];
+    private long _minStorageId = long.MaxValue;
+    private long _maxStorageId;
     private readonly List<KvRangeTombstone> _rangeTombstones = [];
     private FileStream? _stream;
     private long _offset;
@@ -109,6 +116,9 @@ internal sealed class KvSstWriter : IDisposable
         }
 
         ArgumentOutOfRangeException.ThrowIfNegative(expiresAtUtcTicks);
+        ReadOnlySpan<byte> userKey = KvInternalKey.UserKey(internalKey);
+        if (_options.SharedPrefixes && (userKey.Length < 8 || BinaryPrimitives.ReadInt64BigEndian(userKey) < 0))
+            throw new ArgumentException("Shared SST keys require a nonnegative 8-byte StorageId.", nameof(internalKey));
         if (_entryCount > 0 && KvInternalKey.Compare(_lastKey.AsSpan(0, _lastKeyLength), internalKey) >= 0)
             throw new ArgumentException("KV-LSM SST keys must be strictly increasing.", nameof(internalKey));
 
@@ -141,7 +151,14 @@ internal sealed class KvSstWriter : IDisposable
             FlushDataBlock();
         }
 
-        ReadOnlySpan<byte> userKey = KvInternalKey.UserKey(internalKey);
+        if (_options.SharedPrefixes)
+        {
+            long id = BinaryPrimitives.ReadInt64BigEndian(userKey);
+            if (_prefixHashes.Count == 0 || id != _maxStorageId)
+                _prefixHashes.Add(KvBloomFilter.Hash(userKey[..8]));
+            _minStorageId = Math.Min(_minStorageId, id);
+            _maxStorageId = Math.Max(_maxStorageId, id);
+        }
         if (_entryCount == 0 || !KvInternalKey.UserKey(_lastKey.AsSpan(0, _lastKeyLength)).SequenceEqual(userKey))
             _bloomHashes.Add(KvBloomFilter.Hash(userKey));
 
@@ -183,6 +200,15 @@ internal sealed class KvSstWriter : IDisposable
         FlushDataBlock();
         long filterOffset = _offset;
         byte[] filter = KvBloomFilter.Build(_bloomHashes, _options.BloomBitsPerKey);
+        if (_options.SharedPrefixes)
+        {
+            byte[] prefixes = KvBloomFilter.Build(_prefixHashes, _options.BloomBitsPerKey);
+            byte[] combined = new byte[4 + filter.Length + prefixes.Length];
+            BinaryPrimitives.WriteInt32LittleEndian(combined, filter.Length);
+            filter.CopyTo(combined, 4);
+            prefixes.CopyTo(combined, 4 + filter.Length);
+            filter = combined;
+        }
         KvSstBlockHandle filterHandle = WriteBlock(filter);
         KvSstBlockHandle indexHandle = WriteBlock(_indexBlock.Finish());
 
@@ -215,7 +241,10 @@ internal sealed class KvSstWriter : IDisposable
             RawValueBytes: _rawValueBytes,
             SmallestKey: smallest!,
             LargestKey: largest!,
-            RangeDeletionCount: _rangeTombstones.Count);
+            RangeDeletionCount: _rangeTombstones.Count,
+            SharedPrefixes: _options.SharedPrefixes,
+            MinStorageId: !_options.SharedPrefixes || _entryCount == 0 ? 0 : _minStorageId,
+            MaxStorageId: _maxStorageId);
         KvSstBlockHandle propertiesHandle = WriteBlock(properties.Encode());
         KvSstBlockHandle rangeHandle = _rangeTombstones.Count > 0
             ? WriteBlock(EncodeRangeTombstones(_rangeTombstones))
@@ -223,7 +252,8 @@ internal sealed class KvSstWriter : IDisposable
 
         KvSstFooter footer = default;
         KvSstFormat.Magic.CopyTo(footer.Magic.AsSpan());
-        footer.FormatVersion = _rangeTombstones.Count > 0 ? KvSstFormat.RangeDeletionVersion : KvSstFormat.CurrentVersion;
+        footer.FormatVersion = _options.SharedPrefixes ? KvSstFormat.SharedPrefixVersion
+            : _rangeTombstones.Count > 0 ? KvSstFormat.RangeDeletionVersion : KvSstFormat.CurrentVersion;
         footer.RangeDelOffset = rangeHandle.Offset;
         footer.RangeDelLength = rangeHandle.Length;
         footer.FilterOffset = filterOffset;

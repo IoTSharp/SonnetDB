@@ -16,10 +16,11 @@ internal enum KvLsmLayoutKind
 /// <summary>LSM 布局标记的内容。</summary>
 /// <param name="Kind">布局种类。</param>
 /// <param name="StorageId">共享实例中的逻辑 keyspace 编号；独立实例为 0。</param>
-internal readonly record struct KvLsmLayoutMarker(KvLsmLayoutKind Kind, long StorageId);
+/// <param name="FormatVersion">普通 LSM 布局为 v3，离线回滚屏障为 v4。</param>
+internal readonly record struct KvLsmLayoutMarker(KvLsmLayoutKind Kind, long StorageId, int FormatVersion = KvLsmLayoutMarkerFile.Version);
 
 /// <summary>
-/// LSM 布局标记：写在 <c>generation.meta</c> 中的 v3 记录。
+/// LSM 布局标记：写在 <c>generation.meta</c> 中的 v3 记录，离线回滚期间使用 v4 屏障。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,6 +36,9 @@ internal static class KvLsmLayoutMarkerFile
 {
     /// <summary>标记使用的 generation 文件版本。</summary>
     internal const int Version = 3;
+
+    /// <summary>离线回滚期间的降级屏障；旧 LSM 版本也必须拒绝打开。</summary>
+    internal const int RollbackVersion = 4;
 
     private const int FileSize = 64;
     private static ReadOnlySpan<byte> Magic => "SDBKVGEN"u8;
@@ -58,7 +62,7 @@ internal static class KvLsmLayoutMarkerFile
         if (!content[..8].SequenceEqual(Magic))
             return false;
         int version = BinaryPrimitives.ReadInt32LittleEndian(content.Slice(8, 4));
-        if (version != Version)
+        if (version is not (Version or RollbackVersion))
             return false;
 
         int kind = BinaryPrimitives.ReadInt32LittleEndian(content.Slice(12, 4));
@@ -72,7 +76,7 @@ internal static class KvLsmLayoutMarkerFile
             throw new InvalidDataException($"KV-LSM layout marker '{path}' is invalid.");
         }
 
-        marker = new KvLsmLayoutMarker((KvLsmLayoutKind)kind, storageId);
+        marker = new KvLsmLayoutMarker((KvLsmLayoutKind)kind, storageId, version);
         return true;
     }
 
@@ -80,6 +84,8 @@ internal static class KvLsmLayoutMarkerFile
     internal static void Write(string rootDirectory, KvLsmLayoutMarker marker)
     {
         if (marker.Kind is not (KvLsmLayoutKind.Standalone or KvLsmLayoutKind.Shared))
+            throw new ArgumentOutOfRangeException(nameof(marker));
+        if (marker.FormatVersion is not (Version or RollbackVersion))
             throw new ArgumentOutOfRangeException(nameof(marker));
         if (marker.Kind == KvLsmLayoutKind.Shared ? marker.StorageId <= 0 : marker.StorageId != 0)
             throw new ArgumentOutOfRangeException(nameof(marker), "KV-LSM storage id does not match the layout kind.");
@@ -90,7 +96,7 @@ internal static class KvLsmLayoutMarkerFile
         Span<byte> content = stackalloc byte[FileSize];
         content.Clear();
         Magic.CopyTo(content[..8]);
-        BinaryPrimitives.WriteInt32LittleEndian(content.Slice(8, 4), Version);
+        BinaryPrimitives.WriteInt32LittleEndian(content.Slice(8, 4), marker.FormatVersion);
         BinaryPrimitives.WriteInt32LittleEndian(content.Slice(12, 4), (int)marker.Kind);
         BinaryPrimitives.WriteInt64LittleEndian(content.Slice(16, 8), marker.StorageId);
         BinaryPrimitives.WriteInt64LittleEndian(content.Slice(24, 8), DateTime.UtcNow.Ticks);

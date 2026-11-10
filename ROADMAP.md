@@ -4,7 +4,9 @@
 
 K1～K8 的阶段源码已随 `ca495cae` 进入 main；K7 为部分完成。该提交的 [CI](https://github.com/IoTSharp/SonnetDB/actions/runs/42754412252)（含 Ubuntu/Windows Core LSM 轮次及三个 AOT Publish 作业）、CodeQL、Docker Publish、Connectors Release、Docs Pages 已成功。该证据只绑定 `ca495cae`，不代替后续提交、公开包、生产或固定硬件验收。默认 LSM、打开时自动迁移、旧版本拒绝 v3 布局的合同见 [设计 §7.6](docs/design/kv-lsm-storage-engine.md#76-k6k8-实现说明与上文设计的差异以本节为准)及[迁移运维](docs/operations/kv-lsm-migration.md)。
 
-本轮接续：文档与证据入口收尾 → 容量基准及迁移各阶段真实进程强杀 → 10 万／100 万条有界本机基线。完整千万条、1000 表 × 1 万行、随机强杀 200 轮、一亿条／168 小时固定硬件门禁分别验收。K7 的多表单批次、维护元数据、持久化行数、回滚 CLI，以及前缀布隆／StorageId SST 属性、Version 级备份仍未实现；时序 P0-3～P0-5 单独设计。逐项结果见 [KV-LSM 基准与恢复证据](docs/benchmarks/kv-lsm-capacity-20261110.md)，不得把本机基线视为全部门禁通过。
+`f71e8a80` 已提交 10 万／100 万条有界本机基线、基准入口和 13 阶段迁移真实强杀，原始证据见 [KV-LSM 基准与恢复证据](docs/benchmarks/kv-lsm-capacity-20261110.md)。本轮接续已实现 K7 同实例多表原子批次、维护元数据、共享表持久行数、离线回滚 CLI 及回滚中断恢复；并增加共享 SST v3 StorageId 区间／前缀布隆、Version 备份、后台压力暂停和大行恢复 Span 投影。分层验证与重复测量见[本轮接续证据](docs/benchmarks/kv-lsm-followup-20261110.md)；本批提交和双端推送的精确状态见根 HANDOFF 及对应 Git 读回，不由本段推断发行或生产验收。
+
+K7 的完整性能／容量门禁仍分别验收：千万条、1000 表 × 1 万行、随机强杀 200 轮、真实旧版二进制、一亿条／168 小时固定硬件不由局部代码或本机基线自动通过。时序 P0-3～P0-5 的[独立设计与具体决策问题](docs/design/time-series-write-partition-duplicates-decisions.md)等待用户决定，本轮未改变时序行为。
 
 ## 2026-11-07 分支整合后的执行顺序
 

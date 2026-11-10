@@ -5,6 +5,12 @@
 本文档记录触发器性能与恢复的可复现实验口径。2026-09-06 已补入生命周期、事务恢复与诊断，
 见 [M39 审计](../audits/m39-production-20260906.md)。statement trigger 等尚未准入的语义不能由参考路径推断支持。
 
+## 2026-11-10 KV-LSM 接续
+
+当前 runner 新写 `m39-trigger-v2-baseline-v5`：成本样本增加 `storageLayout` 与 `commitProtocol`，明确区分 `SharedLsmBatch`、`SingleKeyspaceWal` 和 `TableTransactionJournal`。同实例共享表事务不会产生独立协调日志，`journalBytes=0` 是实际协议结果；legacy 触发器／客户端跨表事务仍记录协调日志。`wal_bytes` 按物理 WAL 路径去重，持久 rowstore 字节计入独立与共享 `.SDBKVSST`，并保留原有快照／段计量。
+
+历史 v4 报告和下面的旧运行口径保持原始身份，不能把它们改写成 v5 或当前源码的 PASS。当前局部验证见 [KV-LSM 接续证据](kv-lsm-followup-20261110.md)。BenchmarkDotNet 的引擎参数显式覆盖 Legacy／LSM；普通 report runner 仍使用当前产品默认引擎，并在每个成本样本中记录实际布局。
+
 ## 固定运行口径
 
 - 代码基线：运行命令时的提交 SHA，运行时为 .NET 10（`global.json` 指定的 SDK）。

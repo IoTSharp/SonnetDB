@@ -40,6 +40,9 @@ internal static class KvLegacyMigration
     /// <summary>表迁移待处理日志（位于表目录）。</summary>
     internal const string PendingFileName = "lsm-migration.pending";
 
+    /// <summary>离线回滚的持久意图；存在时必须先补完回滚，不能按普通目录打开。</summary>
+    internal const string RollbackPendingFileName = "lsm-rollback.pending";
+
     private const long SpaceMarginBytes = 64L * 1024 * 1024;
     private const int ImportBatchEntries = 1024;
     private const long ImportBatchBytes = 4L * 1024 * 1024;
@@ -208,6 +211,8 @@ internal static class KvLegacyMigration
     /// <exception cref="InvalidOperationException">没有可回滚的迁移，或迁移后已有新写入。</exception>
     internal static void RollbackStandalone(string rootDirectory)
     {
+        if (RecoverRollback(rootDirectory))
+            return;
         string retained = FindRetained(rootDirectory)
             ?? throw new InvalidOperationException($"KV directory '{rootDirectory}' has no retained legacy migration to roll back.");
         MigrationInfo info = MigrationInfo.Read(Path.Combine(retained, InfoFileName));
@@ -222,29 +227,8 @@ internal static class KvLegacyMigration
                 $"KV directory '{rootDirectory}' has new writes after migration (sequence {sequence} > {info.Sequence}); export the data instead of rolling back.");
         }
 
-        string rolledBack = Path.Combine(rootDirectory, "lsm-rolledback-" + DateTime.UtcNow.Ticks.ToString("D20", CultureInfo.InvariantCulture));
-        Directory.CreateDirectory(rolledBack);
-        foreach (string entry in Directory.EnumerateFileSystemEntries(rootDirectory).ToArray())
-        {
-            string fileName = Path.GetFileName(entry);
-            if (fileName == KvLsmPaths.CurrentFileName)
-                continue;
-            if (fileName is KvLsmPaths.SstDirectoryName or "wal" || fileName == KvGenerationFile.FileName
-                || fileName.StartsWith(KvLsmPaths.ManifestPrefix, StringComparison.Ordinal))
-            {
-                MoveEntry(entry, Path.Combine(rolledBack, fileName));
-            }
-        }
-        // CURRENT 最先移走：一旦它不在根目录，目录就不再被识别为 LSM 布局。
-        File.Move(KvLsmPaths.CurrentPath(rootDirectory), Path.Combine(rolledBack, KvLsmPaths.CurrentFileName));
-        foreach (string entry in Directory.EnumerateFileSystemEntries(retained).ToArray())
-        {
-            string fileName = Path.GetFileName(entry);
-            if (fileName != InfoFileName)
-                MoveEntry(entry, Path.Combine(rootDirectory, fileName));
-        }
-        Directory.Delete(retained, recursive: true);
-        SonnetDB.Wal.DirectoryFsync.FlushRequired(rootDirectory);
+        BeginRollback(rootDirectory, info);
+        RecoverRollback(rootDirectory);
     }
 
     // ───────────────────────────── 关系表（共享实例） ─────────────────────────────
@@ -276,12 +260,15 @@ internal static class KvLegacyMigration
         if (!HasRoomFor(tableDirectory, out skippedReason))
             return null;
 
-        long storageId = store.Create(name);
+        long storageId;
         MigrationInfo info;
         KvOptions legacyOptions = options with { StorageEngine = KvStorageEngine.Legacy, LegacyMigration = KvLegacyMigrationMode.Disabled };
         using (KvKeyspace legacy = KvKeyspace.Open(name, tableDirectory, legacyOptions, readBudget))
         {
-            long imported = 0;
+            storageId = store.Create(name, legacy.Generation);
+            // Even an empty keyspace has a committed creation sequence. Rollback must
+            // compare against that sequence rather than an uncommitted zero sentinel.
+            long imported = store.GetLastSequence(storageId);
             using KvReadSnapshot snapshot = legacy.AcquireReadSnapshot();
             using KvRangeCursor cursor = snapshot.OpenRangeCursor(MigrationScan);
             var batch = new List<KvBatchMutation>(ImportBatchEntries);
@@ -341,38 +328,102 @@ internal static class KvLegacyMigration
     /// <exception cref="InvalidOperationException">没有可回滚的迁移，或导入后已有新写入。</exception>
     internal static void RollbackShared(string tableDirectory, KvLsmStore store)
     {
+        if (RecoverRollback(tableDirectory, store))
+            return;
         string retained = FindRetained(tableDirectory)
             ?? throw new InvalidOperationException($"Table directory '{tableDirectory}' has no retained legacy migration to roll back.");
         MigrationInfo info = MigrationInfo.Read(Path.Combine(retained, InfoFileName));
         if (info.Kind != "shared")
             throw new InvalidOperationException("The retained migration is not a shared-table migration.");
-        if (!store.Contains(info.StorageId) || store.GetLastSequence(info.StorageId) != info.ImportedSequence)
+        long expected = store.Contains(info.StorageId)
+            ? info.ImportedSequence == 0 ? store.GetCreatedSequence(info.StorageId) : info.ImportedSequence
+            : -1;
+        if (expected < 0 || store.GetLastSequence(info.StorageId) != expected)
         {
             throw new InvalidOperationException(
                 $"Table directory '{tableDirectory}' has new writes after migration; export the data instead of rolling back.");
         }
 
-        // 先恢复 legacy generation 文件（覆盖 v3 标记），目录随即重新被识别为 legacy；再移回其余文件并删除共享数据。
-        foreach (string entry in Directory.EnumerateFileSystemEntries(retained).ToArray())
+        // Old empty imports recorded zero. Equality with the durable creation sequence
+        // proves that no data import or subsequent business write has committed.
+        BeginRollback(tableDirectory, info with { ImportedSequence = expected });
+        RecoverRollback(tableDirectory, store);
+    }
+
+    private static void BeginRollback(string directory, MigrationInfo info)
+    {
+        if (!KvLsmLayoutMarkerFile.TryRead(directory, out KvLsmLayoutMarker marker))
+            throw new InvalidDataException("KV rollback requires an LSM layout marker.");
+        // Publish the downgrade barrier before the intent: an old LSM reader must not
+        // recreate an empty engine after CURRENT has been isolated by an interrupted rollback.
+        KvLsmLayoutMarkerFile.Write(directory, marker with { FormatVersion = KvLsmLayoutMarkerFile.RollbackVersion });
+        PhaseTestHook?.Invoke("rollback-barrier-written", directory);
+        info.Write(Path.Combine(directory, RollbackPendingFileName));
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+        PhaseTestHook?.Invoke("rollback-planned", directory);
+    }
+
+    /// <summary>补完已经持久决定的回滚。根目录恢复旧文件后，共享编号由当前实例或下次孤立回收删除。</summary>
+    internal static bool RecoverRollback(string directory, KvLsmStore? store = null)
+    {
+        string pending = Path.Combine(directory, RollbackPendingFileName);
+        if (!File.Exists(pending))
+            return false;
+        MigrationInfo info = MigrationInfo.Read(pending);
+        if (info.Kind is not ("standalone" or "shared") || info.Sequence < 0 || info.Generation < 0 || info.CommittedUtcTicks <= 0
+            || info.Kind == "shared" && (info.StorageId <= 0 || info.ImportedSequence <= 0))
+            throw new InvalidDataException("Invalid KV rollback intent.");
+        string retained = Path.Combine(directory, RetainedName(info.Sequence));
+        string archive = Path.Combine(directory, "lsm-rolledback-" + info.CommittedUtcTicks.ToString("D20", CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(archive);
+        string isolated = Path.Combine(archive, "isolated");
+        if (!File.Exists(isolated))
         {
-            string fileName = Path.GetFileName(entry);
-            if (fileName == KvGenerationFile.FileName)
-                File.Move(entry, Path.Combine(tableDirectory, fileName), overwrite: true);
+            if (info.Kind == "standalone")
+            {
+                foreach (string name in new[] { KvLsmPaths.CurrentFileName, KvLsmPaths.SstDirectoryName, "wal" }
+                    .Concat(Directory.EnumerateFiles(directory, KvLsmPaths.ManifestPrefix + "*").Select(static path => Path.GetFileName(path)!)))
+                {
+                    string source = Path.Combine(directory, name);
+                    string target = Path.Combine(archive, name);
+                    if (File.Exists(source)) File.Move(source, target);
+                    else if (Directory.Exists(source)) Directory.Move(source, target);
+                }
+            }
+            // Keep the v3 downgrade barrier until every legacy file has been restored.
+            string generation = Path.Combine(directory, KvGenerationFile.FileName);
+            if (File.Exists(generation))
+                File.Copy(generation, Path.Combine(archive, KvGenerationFile.FileName), overwrite: true);
+            info.Write(isolated);
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(archive);
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
         }
-        if (!File.Exists(Path.Combine(tableDirectory, KvGenerationFile.FileName))
-            || KvLsmLayoutMarkerFile.TryRead(tableDirectory, out _))
+        PhaseTestHook?.Invoke("rollback-isolated", directory);
+        foreach (string name in LegacyEntries.Where(static name => name != KvGenerationFile.FileName))
         {
-            File.Delete(Path.Combine(tableDirectory, KvGenerationFile.FileName));
+            string source = Path.Combine(retained, name);
+            string target = Path.Combine(directory, name);
+            if (File.Exists(source)) File.Move(source, target);
+            else if (Directory.Exists(source)) Directory.Move(source, target);
         }
-        foreach (string entry in Directory.EnumerateFileSystemEntries(retained).ToArray())
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+        string oldGeneration = Path.Combine(retained, KvGenerationFile.FileName);
+        if (File.Exists(oldGeneration))
+            File.Move(oldGeneration, Path.Combine(directory, KvGenerationFile.FileName), overwrite: true);
+        else if (KvLsmLayoutMarkerFile.TryRead(directory, out _))
+            File.Delete(Path.Combine(directory, KvGenerationFile.FileName));
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+        PhaseTestHook?.Invoke("rollback-restored", directory);
+        if (info.Kind == "shared" && store is not null)
         {
-            string fileName = Path.GetFileName(entry);
-            if (fileName != InfoFileName)
-                MoveEntry(entry, Path.Combine(tableDirectory, fileName));
+            if (store.Drop(info.StorageId) && !store.Engine.SyncWalOnEveryWrite)
+                store.Engine.SyncWal();
         }
-        Directory.Delete(retained, recursive: true);
-        SonnetDB.Wal.DirectoryFsync.FlushRequired(tableDirectory);
-        store.Drop(info.StorageId);
+        if (Directory.Exists(retained))
+            Directory.Delete(retained, recursive: true);
+        File.Delete(pending);
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(directory);
+        return true;
     }
 
     // ───────────────────────────── 公共 ─────────────────────────────

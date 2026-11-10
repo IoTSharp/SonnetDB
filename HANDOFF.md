@@ -1,3 +1,23 @@
+## 2026-11-10（Asia/Shanghai）KV-LSM K7 提交与双端推送
+
+- 当前用户明确授权“现在提交代码并推送”。本次只提交上一轮拥有的 52 个文件并推送 main 到 GitHub／Gitee；源码基线 f71e8a80，C# 文件仍绑定 `6f8e1695af92`，先在最终待提交树重新执行完整 restore 和规定 format，未 PASS 不提交。提交、父提交、精确树及双端独立读回保存在 `artifacts/kv-lsm-followup-20261110/submission/`；本段随本批提交，不能仅凭本段推断推送已成功。
+- 下节的分层测试、初始 FAIL、完整 Core 的 UNKNOWN、性能差距及 NOT_RUN 门禁原样保留；Git 交付不提升这些证据状态。时序语义仅有待决草案，没有运行时变更。没有授权 tag、正式发行、人工部署、重启或生产迁移。
+- 共享工作树开始时没有外来修改或暂存项；只使用精确文件清单，不合并、修改或删除 parity-results 的独立引用。HANDOFF 以原始字节作为完整后缀保留。辅助脚本位于 `.publishing/tmp/kv-lsm-submit-followup-20261110/`，结束时只清理本任务对象；门禁、进程与资源回收收据保留在 submission。
+
+
+## 2026-11-10（Asia/Shanghai）KV-LSM K7 后续本地代码交付
+
+- 基线与权限：从干净 `main @ f71e8a80eeb08eade3080b44bb7d3fa9a5ccff96` 开始。本轮只执行本地实现、验证和文档更新，没有暂存、提交、推送、合并、tag、发行、部署或生产迁移。原提交 GitHub/Gitee main 独立读回仍为 f71e8a80；CI 42801259934、CodeQL、Docker、Connectors、Docs 全部 success，不能外推到本轮新代码。parity-results 未修改。
+- 完成代码：同共享实例多表原子 WAL 批次；`0|maint|id` 维护令牌与持久主行数；离线回滚 CLI、v4 临时降级屏障与可重入恢复；共享 SST v3 StorageId 属性／前缀布隆；固定 Version 与 WAL 长度的备份；compaction 查询／CPU／内存压力暂停；大行恢复 Span 投影及合并索引计数扫描。混合 legacy／独立 LSM／共享事务继续使用恢复日志，普通 KV／TTL 计数仍保留扫描合同。
+- 恢复修正：旧多表日志先恢复再允许迁移；共享导入保留 generation；新空表使用实际创建 sequence；旧空表的零导入 sequence 仅在当前 sequence 仍等于创建值时允许回滚。未知提交不写反向补偿、WAL 故障进入只读、读操作不追加 WAL 的合同保留。维护与回滚 DROP 去掉重复强同步；引擎先关闭、备份晚释放的 SST 句柄残留已有复现与修复。
+- 源码与文档入口：`docs/design/kv-lsm-storage-engine.md` §7.7、`docs/operations/kv-lsm-migration.md`、`docs/benchmarks/kv-lsm-followup-20261110.md`。最终源码身份 `6f8e1695af92`，完整文件／程序集 SHA 为 `artifacts/kv-lsm-followup-20261110/source-final-delivery.json`，交付源码归档 `delivery-source-6f8e1695af92.zip`。实际性能采样身份是此前的 `c171dd713cd8`，不把旧测量改标成新源码 PASS。
+- 验证按阶段记录：LSM 相关 762/762；Legacy 相关 861/861，恢复增量 105/105；完整 CrashTests 126/126；备份句柄微调后 40/40；最后旧空表兼容 31/31；Benchmarks.Tests 90/90；最终基准程序构建 0 警告／0 错误；完整 restore 与最终规定 format（format-final-04）PASS。源／程序集与所有首次 FAIL、TRX、命令见 `verification-final-summary.json` 及原始收据；上述集合不能冒称最后完整 Core 全绿。生产项目 AOT／trim 分析无 IL 警告；NativeAOT 发布／运行／安装 NOT_RUN。
+- 保留 FAIL／UNKNOWN：完整 LSM Core 首轮 8249/8254，三个旧 journal 假设和大行分配已修正并通过定向回归，Modbus 并发调度超时随后 3/3，根因 UNKNOWN。再跑完整 Core 超过 900 秒，无完整 TRX，UNKNOWN；完整 Legacy Core 本轮 NOT_RUN。原 CURRENT 改名 Windows Access denied 没有复现，修改前方法 3/3，根因 UNKNOWN，没有盲重试或跳过。memtable 并发夹具首次零扫描 FAIL 后补真实启动握手，保留排序、完整值和 15 万条断言。M39 runner 更新 v5 实际布局／提交协议及 SST 计量，旧 v4 证据保留。
+- 性能：18 组正式采样和 1 次小语料全部 PASS，数据目录清理并独立读回。10 万条／100 B 逐次 fsync 三轮中位 Legacy 2478、LSM 2407 ops/s；10 万条／1 KiB 缓冲随机写 63917／46825 ops/s，正向 scan100 P99 1575.5／1693.0 µs，快照 P99 4627.6／2.5 µs。缓冲写分配与部分尾延迟差距仍在，不能宣布全部性能门禁通过。原 22 组证据与归档未改写。完整千万条、1000 表×1 万行、随机强杀 200 轮、真实旧版本二进制、一亿条／168h 固定硬件和生产验收仍分别 NOT_RUN。
+- 时序边界：`docs/design/time-series-write-partition-duplicates-decisions.md` 是待用户决定的独立设计草案，列出 T1 写入原子单元、T2 分区／TTL、T3 重复点策略及先后顺序；没有改变时序行为或格式。
+- 资源与后续：重负载始终串行持 FileShare.None 锁、CPU2／单 MSBuild 节点／禁持久 server，所属进程树由 Cordonix Job 回收。`.publishing/tmp/kv-lsm-followup-20261110/` 辅助文件收尾按清单核对后删除，收据 `cleanup.json`；必要原始证据保留。此前 `sndb-crash-g3cbpi1v.lbu` 本轮只读核对已不存在，未按历史 PID 或目录时间猜测删除。后续先 review 本轮 diff，再按用户明确指令决定提交／推送；完整 Core 时间与偶发调度、写分配／scan 尾延迟、完整规模及固定硬件门禁独立接续。
+
+
 ## 2026-11-10（Asia/Shanghai）KV-LSM 本轮提交授权与新会话接续
 
 - 用户已明确授权“现在提交并推送代码，在新会话中完成后续代码开发工作”。本会话负责提交前完整 restore／规定 format、精确暂存本轮 18 个文件、提交并推送 main 到 GitHub／Gitee，以及独立读回；实际提交 SHA、双端状态与新会话身份保存于 `artifacts/kv-lsm-evidence-20261110/submission/`。本节随本轮交付提交，不能仅凭本段推断远端已成功。

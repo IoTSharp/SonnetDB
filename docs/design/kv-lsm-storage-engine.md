@@ -352,7 +352,7 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 - **关闭**：引擎关闭时先停止接收新作业，再等待本引擎正在执行的作业观察到取消后退出（上限为 `ShutdownTimeout`）；已排队的作业出队后发现引擎已关闭，直接返回。
 - **写缓冲预算**：进程共享的 `KvWriteBufferManager`（默认 256 MiB）。引擎在 memtable 占用（按 arena 分块粒度）或刷盘请求状态变化时上报；超限时，扣除正在刷盘的不可变 memtable 与已有待处理请求的活跃 memtable 后仍超限，才请求活跃 memtable 最大且不小于 64 KiB 的引擎轮转刷盘。请求只设置标志并排队 flush 作业，不获取其他引擎的锁；同步模式下由下一次写入兑现。
 - **块缓存**：`KvKeyspace` 的 LSM 引擎改用进程共享的 64 MiB 块缓存（每分片 4 MiB）。独立使用 `KvLsmEngine` 且未指定缓存时，仍创建私有缓存。
-- **与设计差异**：`CleanupPauseWhenQueriesActive`、CPU/内存负载阈值尚未接入 compaction 调度（仍只作用于 legacy 清理任务）；预算是软上限，不对写入做全局停顿。
+- K7 接续已把查询活跃、CPU/GC 内存负载阈值接入后台 compaction，见 §7.7；写缓冲预算仍是软上限，不对写入做全局停顿。
 
 ## 7. 恢复、兼容与公开 API
 
@@ -492,15 +492,15 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 
 - 每个数据库的关系表共用 `tables/lsm/` 下的一个引擎；物理 key 为 8 字节大端 `StorageId` + 用户 key。`StorageId = 0` 是元数据：`ks|id`（名称、generation、创建 sequence）、`sq|id`（该逻辑 keyspace 最后一次提交的 sequence）、`next-id`。编号单调分配、永不复用。
 - 逻辑 keyspace 的每次提交在同一批次中写入 `sq|id`，所以 `LastSequence` 只随本表的提交变化，重开与 WAL 重放后保持；`Clear` 在同一批次中写入覆盖本前缀的 range tombstone 与 generation + 1；`Drop` 写 range tombstone 并删除元数据。
-- flush、compaction、WAL 同步、诊断计数与故障（只读）都作用于整个共享实例；`Count` 为本前缀的零复制遍历。
-- **与设计差异**：没有给 `TableSchema` 增加 `StorageId`、也没有升级 schema codec。表目录（`tables/rowstore/...`）保留，作为附属目录保存租约、维护标记、统计等文件，以及指向编号的 v3 标记。因此 RENAME、CTAS 暂存目录改名、DDL 事务的目录切换都随目录携带编号而不移动数据，不需要改写这些 DDL 流程。前缀布隆与 SST 的 `StorageId` 区间属性未实现。
+- flush、compaction、WAL 同步、诊断计数与故障（只读）都作用于整个共享实例；普通 KV `Count` 保持本前缀的零复制遍历。共享表主行计数按 §7.7 持久化。
+- **与设计差异**：没有给 `TableSchema` 增加 `StorageId`、也没有升级 schema codec。表目录（`tables/rowstore/...`）保留租约和指向编号的 v3 标记。因此 RENAME、CTAS 暂存目录改名、DDL 事务的目录切换都随目录携带编号而不移动数据，不需要改写这些 DDL 流程。后续维护元数据与 SST v3 的前缀布隆／StorageId 属性见 §7.7。
 
 #### 7.6.3 关系表接入（K7）
 
 - 选择 LSM 时新表进入共享实例；已有 legacy 数据的表按迁移规则处理；独立 LSM 布局的表（K4b 期间创建）保持独立。
 - DROP 先删表目录、再删编号数据：崩溃时只留下孤立编号。管理器打开时先补完导入后中断的迁移，再回收所有没有被任何表目录标记引用的编号（DROP/CTAS 失败、DDL 事务切换后被替换的旧数据）。
 - DDL 发布前与表存储一起关闭共享实例；DDL 事务的撤销副本、工作区切换与回滚都同时复制/移动 `tables/lsm`。
-- **未做（仍按现状工作）**：多表事务仍使用 `TableTransactionJournal`（没有改为单批次）；`TableStoreMaintenanceFile` 仍在表目录；没有持久化行数。
+- 后续已实现共享实例内多表原子批次、维护元数据与持久化主行计数；混合 legacy／独立 LSM 的事务继续使用 `TableTransactionJournal`。准确边界见 §7.7。
 
 #### 7.6.4 打开时迁移（K7，决策 D2，`KvLegacyMigration`）
 
@@ -508,11 +508,11 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 - 独立 keyspace：在 `.lsm-migrating` 中把 legacy 全部可见条目按 key 顺序直接写成最底层 SST，**保留每条记录的版本与 TTL、LastSequence 与 generation**；写入 `switching` 标记后切换：legacy 文件移入 `legacy-<sequence>`，LSM 文件移入根目录（CURRENT 最后），写 v3 标记。`switching` 之前崩溃则丢弃暂存结果、legacy 不变；之后崩溃则下次打开补完。
 - 关系表：legacy 条目分批导入共享实例的新编号（新提交 sequence，行版本随之改变），同步 WAL 后写 `lsm-migration.pending`，再移动 legacy 文件并写共享标记。日志之前崩溃，导入的编号作为孤立数据回收；之后崩溃则补完。
 - 只移动 legacy KV 自身文件（generation、WAL、快照、段、清理清单），表与文档集合目录中的其他附属文件保持原位。
-- 保留目录超过 `LegacyMigrationRetention`（默认 7 天）后在下一次打开时删除。回滚：`KvLegacyMigration.RollbackStandalone` / `RollbackShared`（内部 API），只在保留目录仍在且迁移后没有新写入时允许；命令行入口尚未提供。
+- 保留目录超过 `LegacyMigrationRetention`（默认 7 天）后在下一次打开时删除。回滚只在保留目录仍在且迁移后没有新写入时允许；内部 API 与离线 CLI、回滚中断恢复见 §7.7 和[运维说明](../operations/kv-lsm-migration.md)。
 
 #### 7.6.5 备份一致性（K7）
 
-- 备份在 checkpoint 之后、复制文件期间，暂停数据库根目录下所有已打开 LSM 引擎的 flush 与 compaction（取得各引擎的 flush/compaction 门），复制期间不会产生或删除 SST/MANIFEST；WAL 仍可追加，复制到的撕裂尾部由恢复截断。
+- 初始 K7 在复制期间暂停 LSM 维护；后续按 §7.7 改为短暂捕获固定 Version、完整 manifest 快照与 WAL 字节边界，复制期间 flush/compaction 可以继续。
 - 共享调度线程不会阻塞在被暂停引擎的门上：作业取不到门就登记重试并返回，持有者释放后重新排队，其他数据库的引擎不受影响。
 
 #### 7.6.6 默认切换（K8，决策 D1）
@@ -520,6 +520,21 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 - `KvOptions.StorageEngine` 默认改为 `Lsm`：新建数据库使用 LSM，已有 legacy 数据在首次打开时自动迁移。Server 配置新增 `Kv:StorageEngine`（默认 `Lsm`）与 `Kv:LegacyMigration`（默认 `Auto`），并在配置快照中显示。
 - 降级：迁移后的目录带 v3 标记，旧版本二进制明确拒绝打开；降级前需在保留期内回滚或先导出数据。
 - 用户确认“代码实现即可”：§9 的性能、容量与固定硬件门禁未执行（NOT_RUN），默认切换只基于本机功能回归。
+
+### 7.7 K7 后续实现（2026-11-10，本地源码）
+
+- **共享事务**：所有参与表属于同一个 `KvLsmStore` 时，先完成约束、版本和行锁校验及编码，再把主行、索引、各表 `sq|id` 和计数放进一个 WAL mutation batch。校验、取消、超大批次在 WAL 前失败；追加或同步失败置共享实例只读，结果未知时不写反向补偿。多表事务保留原日志路径的确认语义：即使普通写为缓冲 WAL，事务也强制一次同步。自增号的提前保留与允许缺号合同不变。混合 legacy／独立 LSM／共享表继续走原撤销日志。
+- **维护状态**：共享表把 `legacy-rows-v1.complete`、`indexes.clean` 放在 `0|maint|StorageId|name`；旧文件在打开时导入或消费，独立 LSM 与 legacy 保留文件路径。维护写入、干净令牌消费强制同步；不推进本表数据 sequence，因而不会把初始化计数或索引令牌误认为迁移后的业务写入。统计正文仍沿用原有 `ms` key。
+- **迁移前恢复**：旧多表日志的 undo 与完成标记必须先在原目录中落盘，随后关闭恢复句柄，再允许按默认配置迁移表。共享导入保留原 generation；空表的导入 sequence 使用已提交的逻辑 keyspace 创建 sequence，因而无新写入的空表也能回滚。维护写入和共享回滚 DROP 在强同步模式下复用批次已有的 fsync，缓冲模式下补一次，不重复同步。
+- **旧空表记录兼容**：早期共享迁移可能记录 `importedSequence=0`；仅当当前逻辑 sequence 仍等于已持久化的创建 sequence 时接受回滚，新的回滚意图写入实际的正 sequence。有任何后续数据写入仍拒绝，不按空表或配置猜测提交状态。
+- **行数**：`0|maint|id|row-count` 的版本 1 值为 `version(1B)|generation(8B LE)|sourceSequence(8B LE)|rows(8B LE)`。主行变更和计数同批提交，重开后点查恢复 `RowCount`，TRUNCATE 同批清零。记录缺失、版本不支持或 generation/sequence 不匹配时仅在打开阶段重算并持久化。旧写者忽略可选元数据但会推进 `sq|id`，所以下次新版本打开能识别陈旧计数。普通读取不写入；任意 KV 前缀及带 TTL 的 KV 计数仍遵守原扫描合同。
+- **回滚 CLI**：`sndb kv rollback-migration --database <db-root> --path <kv-or-table-directory> --offline`。复用数据库根目录与 keyspace 生命周期租约，拒绝运行中的实例、越界目录和迁移后的新写入。先写 `generation.meta` v4 临时屏障，再写 `lsm-rollback.pending` 持久回滚决定；隔离 LSM、恢复 legacy、退休旧迁移保留目录三个阶段可重入，打开前先补完。v4 屏障使旧 LSM 读取器也拒绝打开缺失 CURRENT 的半恢复目录；屏障已写而意图尚未落盘时，新版明确拒绝普通打开，重跑 CLI 即可接续。屏障在 legacy 文件全部恢复后才移除。隔离的 LSM 文件保留为 `lsm-rolledback-*`，不自动删除。再次打开若要保持 legacy，显式禁用自动迁移。
+- **共享 SST v3**：footer 仍为 64B，版本升为 3；属性版本 3 追加点条目的 StorageId 最小／最大值，过滤器块为 `fullFilterLength(int32 LE)|full-key bloom|StorageId bloom`。range tombstone 块可选。新读取器兼容 v1/v2；旧读取器不接受 v3，不能降级写入共享目录。点查与有界扫描跳过无关文件，但与前缀相交的范围墓碑始终参与合并，避免假阴性。standalone SST 继续使用 v1/v2。
+- **Version 备份**：捕获时短暂取得维护门和写锁，固定 Version、manifest 完整快照、对应 WAL 只读句柄及字节长度。随后释放维护门，按版本引用复制 SST、生成一致 CURRENT/MANIFEST，并只复制捕获长度内的 WAL。compaction/Clear 不能回收固定的 SST；WAL 后续追加不进入本份备份。共享实例集合及 KV 管理器的打开／删除入口在备份范围内保持稳定。当前使用复制，不声称已实现硬链接优化。
+- **后台压力**：复用 `CleanupPauseWhenQueriesActive`、`CleanupMaxCpuPercent`、`CleanupMaxMemoryLoadPercent`；CPU 按进程共享采样。仅有待压实任务的引擎在压力下用单次 250ms 定时回调再排队，空闲引擎不轮询，共享工作线程不等待。flush、显式 Compact 不受暂停影响；L0 到停写水位时允许后台 compaction 推进以解除背压。
+- **大行恢复**：主行修复扫描与索引核对在快照内立即按 Span 投影，仅复制所需列与主键；跳过的大 BLOB 不再为投影额外复制整行。冷 SST 仍须读取完整数据块，大 value 分离不在本轮范围。
+
+本轮验证、首次失败、受限测量和未执行门禁绑定[接续证据](../benchmarks/kv-lsm-followup-20261110.md)，不能由本节的源码完成推断 G1～G12、正式发行或生产验收全部通过。
 
 ## 8. 影响面
 
@@ -592,7 +607,7 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 | K5b ✅ 源码 | **range tombstone（WAL 记录类型 7、SST v2 `RangeDelBlock`、`DeleteRange`、引擎 `Clear`）**（2026-11-09：范围删除 11 项测试 + `Kv/Lsm` 共 119 项本机 PASS；尚未接入 `KvKeyspace`） | G11 前置 |
 | K5c ✅ 源码 | 进程共享后台调度器（flush/compaction 两条通道）、`KvWriteBufferManager`、共享块缓存（2026-11-10：调度与预算 6 项测试本机 PASS，全量结果同 K4b；G7 内存基准 NOT_RUN；见 §6.9） | G7 |
 | K6 ✅ 源码 | `KvLsmStore` 多逻辑 keyspace：`StorageId` 前缀、`0\|*` 元数据、按 keyspace 的 `LastSequence`/generation、v3 布局标记（2026-11-10：共享实例 5 项测试本机 PASS；`StorageId` 由表目录标记承载而非 schema codec，前缀布隆未做，见 §7.6.2） | G1（表测试全集双引擎）、G10 |
-| K7 ✅ 源码（部分） | 关系表接入共享实例、DDL 事务携带共享目录、孤立编号回收；**打开时自动迁移**（独立 keyspace 保留版本、表并入共享实例，含崩溃补完与回滚 API）、v3 降级拒绝、备份期间暂停维护（2026-11-10：迁移 11 项测试本机 PASS；多表单批次、维护文件迁入元数据、持久化行数、回滚命令行未做，见 §7.6.3～7.6.5） | G2、G8、G12 |
+| K7 🟡 源码功能补齐，门禁分项验证 | 表接入、迁移／回滚／降级防线；同共享实例多表单批次、维护元数据、持久主行计数、回滚 CLI、Version 备份及恢复投影均已实现（§7.7）。历史与本轮证据分别保留；混合目录兼容路径、性能、旧二进制与固定硬件仍按各自门禁验收 | G2、G8、G12、[本轮证据](../benchmarks/kv-lsm-followup-20261110.md) |
 | K8 ✅ 源码 | 默认 `Lsm`、Server `Kv:StorageEngine`/`Kv:LegacyMigration`、CI 增加 Core LSM 轮次（2026-11-10：用户确认以代码实现为准，性能与固定硬件门禁 NOT_RUN，见 §7.6.6） | 本机功能回归 |
 | 后续 | value 分离、块压缩、文档/图存储是否并入共享实例（单独评估） | 独立立项 |
 
@@ -607,7 +622,7 @@ K1～K3 互不依赖格式决策，可先行；K6 依赖 K4 的引擎接线，K7
 | 共享 WAL 的单写锁 | 所有表写入共用一把 store 写锁；锁内只做 sequence 分配 + WAL 追加 + 跳表插入，需用 many-tables 基准确认它不是新瓶颈；若是，再考虑按 `StorageId` 分片 memtable | K6/K7 基准 |
 | legacy 保留期占用磁盘 | 迁移后 7 天内同时保留新旧两份数据 | 发布说明；保留期可配置 |
 | 文档/图是否并入共享实例 | 本设计只覆盖关系表（D4 的范围） | K8 之后单独设计 |
-| Version 级备份 | K7 已在复制期间暂停 LSM flush/compaction（§7.6.5）；§7.3 规划的 pin Version、按引用文件复制与硬链接尚未实现。当前默认引擎是 LSM | 后续备份优化 |
-| K7 表元数据与事务 | 多表事务仍用 TableTransactionJournal；维护文件仍在表目录；Count 仍为 O(n)，未持久化计数；回滚只有内部 API | K7 后续 |
-| 共享 SST 与维护调度 | 前缀布隆、StorageId 区间属性，以及 compaction CPU/内存负载阈值尚未实现 | 独立改进 |
-| 大行恢复分配 | 3MB 级大行在表恢复中约为原始行 4 倍分配（§7.5.3） | K7 span 读取或后续 value 分离 |
+| Version 级备份 | 已实现 pin Version、独立 manifest 快照及按 WAL 字节边界复制；硬链接未实现 | 复制／恢复回归与后续优化 |
+| K7 表元数据与事务 | 同实例多表单批次、维护元数据、共享表持久行数、离线回滚 CLI 已实现；混合目录事务仍用日志，任意 KV Count 仍扫描 | 本地分层验证，见 §7.7 |
+| 共享 SST 与维护调度 | SST v3 StorageId 区间／前缀布隆与后台 CPU／内存／活跃查询暂停已实现；旧版本拒绝新 SST | 兼容、性能与固定硬件门禁分别记录 |
+| 大行恢复分配 | 已增加借用载荷的 Span 投影，冷 SST 整块读取与 value 分离仍为后续项 | 分配回归／实测 |

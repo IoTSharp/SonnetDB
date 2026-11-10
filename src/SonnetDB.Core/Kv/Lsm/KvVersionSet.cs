@@ -220,6 +220,25 @@ internal sealed class KvVersionSet : IDisposable
         }
     }
 
+    /// <summary>固定一个 Version，并导出与该版本一致的完整 manifest 快照；不依赖源 manifest 继续存在。</summary>
+    internal (KvVersion Version, KvVersionEdit Snapshot, long ManifestNumber) AcquireBackup()
+    {
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfFaultedLocked();
+            var snapshot = new KvVersionEdit
+            {
+                Generation = _generation,
+                LogNumber = _logNumber,
+                LastSequence = _lastSequence,
+                NextFileNumber = _nextFileNumber,
+            };
+            _current.AddAllFilesTo(snapshot);
+            return (_current.AddReference(), snapshot, _manifestNumber);
+        }
+    }
+
     /// <summary>分配新文件号并登记为进行中输出，清理时不会删除。</summary>
     internal long NewFileNumber()
     {

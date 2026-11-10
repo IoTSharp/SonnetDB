@@ -30,7 +30,7 @@ namespace SonnetDB.Engine;
 /// </list>
 /// 同一数据库根目录只能由一个实例打开（进程内根目录所有权与 WAL active segment 文件句柄共同保护）。
 /// </summary>
-public sealed class Tsdb : IDisposable
+public sealed partial class Tsdb : IDisposable
 {
     private const int MaxRootDirectoryLinkResolutions = 64;
 
@@ -1528,7 +1528,7 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     internal SonnetDB.Backup.BackupManifest CreateConsistentBackup(
         SonnetDB.Backup.BackupCreateOptions options,
-        Func<Tsdb, SonnetDB.Backup.BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Backup.BackupManifest> afterCheckpoint)
+        Func<Tsdb, SonnetDB.Backup.BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Kv.Lsm.KvLsmBackupSet, SonnetDB.Backup.BackupManifest> afterCheckpoint)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(afterCheckpoint);
@@ -1558,14 +1558,13 @@ public sealed class Tsdb : IDisposable
                     Documents.CompactAll();
                     return Generations.ExecuteConsistentBackup(() =>
                         Graphs.ExecuteConsistentBackup(() =>
-                        _sequences.ExecuteConsistentBackup(() =>
+                        _sequences.ExecuteConsistentBackup(() => Keyspaces.ExecuteConsistentBackup(() =>
                         {
                             var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
-                            // KV-LSM：复制期间暂停本数据库目录下所有 LSM 引擎的 flush/compaction，
-                            // 使 CURRENT/MANIFEST/SST 在复制过程中不被替换或删除（WAL 尾部撕裂由恢复截断）。
-                            using IDisposable lsmPause = SonnetDB.Kv.Lsm.KvLsmEngine.PauseMaintenanceUnder(RootDirectory);
-                            return afterCheckpoint(this, options, checkpointedKeyspaces);
-                        })));
+                            // 短暂停维护以固定 Version 与 WAL 字节边界；复制期间维护可继续。
+                            using SonnetDB.Kv.Lsm.KvLsmBackupSet lsmBackup = SonnetDB.Kv.Lsm.KvLsmEngine.AcquireBackupsUnder(RootDirectory);
+                            return afterCheckpoint(this, options, checkpointedKeyspaces, lsmBackup);
+                        }))));
                 });
             }
         }

@@ -105,6 +105,8 @@ public static class TriggerEvidenceReportRunner
                         Operation = operation.ToString(),
                         RowsAffected = baseline.RowsAffected,
                         JournalBytes = baseline.JournalBytes,
+                        StorageLayout = baseline.StorageLayout,
+                        CommitProtocol = baseline.CommitProtocol,
                     });
 
                     ForceCollection();
@@ -147,7 +149,7 @@ public static class TriggerEvidenceReportRunner
         DateTimeOffset finishedUtc = DateTimeOffset.UtcNow;
         bool fullMatrix = IsFullMatrix(rowCounts, costs, rollbacks);
         var report = new TriggerEvidenceReport(
-            "m39-trigger-v2-baseline-v4",
+            "m39-trigger-v2-baseline-v5",
             "#333",
             ResolveCommitSha(),
             startedUtc,
@@ -361,12 +363,12 @@ public static class TriggerEvidenceReportRunner
         text.AppendLine();
         text.AppendLine("## Cost matrix");
         text.AppendLine();
-        text.AppendLine("| Rows | Operation | Path | Rows affected | Rows/sec | Elapsed ms | WAL bytes | Journal bytes | Rowstore bytes delta | Working set | Managed | Allocated |");
-        text.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| Rows | Operation | Path | Storage layout | Commit protocol | Rows affected | Rows/sec | Elapsed ms | WAL bytes | Journal bytes | Rowstore bytes delta | Working set | Managed | Allocated |");
+        text.AppendLine("| ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (TriggerCostEvidence row in report.CostMatrix)
         {
             text.AppendLine(CultureInfo.InvariantCulture,
-                $"| {row.Rows:N0} | {row.Operation} | {row.Path} | {row.RowsAffected:N0} | "
+                $"| {row.Rows:N0} | {row.Operation} | {row.Path} | {row.StorageLayout} | {row.CommitProtocol} | {row.RowsAffected:N0} | "
                 + $"{row.RowsPerSecond:F2} | {row.ElapsedMilliseconds:F2} | "
                 + $"{row.WalBytes:N0} | {row.JournalBytes:N0} | {row.RowStoreBytesDelta:N0} | {row.WorkingSetBytes:N0} | "
                 + $"{row.ManagedBytes:N0} | {row.AllocatedBytes:N0} |");
@@ -455,6 +457,12 @@ public sealed record TriggerCostEvidence(
     long ManagedBytes,
     long AllocatedBytes)
 {
+    /// <summary>实际 rowstore 布局；旧报告缺失时为 unknown。</summary>
+    public string StorageLayout { get; init; } = "unknown";
+
+    /// <summary>本样本实际使用的原子批次或恢复日志协议。</summary>
+    public string CommitProtocol { get; init; } = "unknown";
+
     /// <summary>跨表恢复日志的字节数，独立于每表 WAL 逻辑字节数。</summary>
     public long JournalBytes { get; init; }
     /// <summary>本样本执行的 DML 类型；旧构造调用默认仍表示 INSERT。</summary>

@@ -5,3 +5,4 @@
 [assembly: InternalsVisibleTo("SonnetDB.CrashTests.Child")]
 [assembly: InternalsVisibleTo("SonnetDB.Benchmarks")]
 [assembly: InternalsVisibleTo("SonnetDB")]
+[assembly: InternalsVisibleTo("SonnetDB.Cli")]

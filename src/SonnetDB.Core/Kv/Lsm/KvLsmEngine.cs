@@ -81,6 +81,9 @@ internal sealed record KvLsmEngineOptions
     /// <summary>后台调度时每轮最多执行的 compaction 作业数，之后重新排队，让其他引擎有机会执行。</summary>
     internal int MaxCompactionJobsPerTurn { get; init; } = 4;
 
+    /// <summary>仅后台 compaction 的暂停条件；flush 与显式 Compact 不受影响，L0 停写水位强制推进。</summary>
+    internal Func<KvCleanupThrottleReason>? CompactionPauseReason { get; init; }
+
     /// <summary>
     /// compaction 判断 TTL 到期所用的时钟（UTC ticks）；默认 <see cref="DateTimeOffset.UtcNow"/>。
     /// 前提：之后获取的快照读取时刻不早于该时钟，否则已被物理回收的到期条目对其不可见。
@@ -141,7 +144,7 @@ internal sealed record KvLsmEngineStats(
 /// 任何不晚于该 sequence 的提交都必然包含在所取得的状态中。
 /// </para>
 /// </remarks>
-internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
+internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
 {
     private readonly string _root;
     private readonly KvLsmEngineOptions _options;
@@ -158,6 +161,10 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
     private readonly KvWriteBufferManager? _writeBufferManager;
     private readonly Action _flushJob;
     private readonly Action _compactionJob;
+    private readonly Timer? _compactionDelay;
+    private long _compactionPauseCount;
+
+    internal long CompactionPauseCount => Interlocked.Read(ref _compactionPauseCount);
     private readonly object _backgroundSync = new();
     private int _backgroundJobs;
     private bool _shuttingDown;
@@ -194,6 +201,8 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         _blockCache = options.BlockCache ?? new KvBlockCache(32L * 1024 * 1024);
         _flushJob = RunScheduledFlush;
         _compactionJob = RunScheduledCompaction;
+        if (options.BackgroundFlush && options.CompactionPauseReason is not null)
+            _compactionDelay = new Timer(static state => ((KvLsmEngine)state!).ScheduleCompaction(), this, Timeout.Infinite, Timeout.Infinite);
         _writeBufferManager = options.WriteBufferManager;
         _writeBufferManager?.Register(this);
         LiveEngines.TryAdd(this, 0);
@@ -333,6 +342,15 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
             {
                 try
                 {
+                    if (ShouldDelayCompaction())
+                    {
+                        Interlocked.Increment(ref _compactionPauseCount);
+                        // Idle engines never arm a polling timer. Only pending compaction work
+                        // retries under pressure, without occupying a shared worker.
+                        try { _compactionDelay?.Change(250, Timeout.Infinite); }
+                        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed)) { }
+                        return;
+                    }
                     more = CompactCore(_shutdown.Token, Math.Max(1, _options.MaxCompactionJobsPerTurn));
                 }
                 finally
@@ -355,6 +373,19 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         // 执行期间若有其他作业因门被占用而放弃（例如新的 L0 文件触发的 compaction），在这里补排一次。
         if (more || (ran && Interlocked.Exchange(ref _compactionRetry, 0) == 1))
             ScheduleCompaction();
+    }
+
+    private bool ShouldDelayCompaction()
+    {
+        if (_options.CompactionPauseReason is null) return false;
+        KvVersion version = _versions.AcquireCurrent();
+        try
+        {
+            return version.Files(0).Count < _options.Level0StopWritesTrigger
+                && KvCompactionPicker.Pick(version, _options.Compaction, _compactPointers) is not null
+                && _options.CompactionPauseReason() != KvCleanupThrottleReason.None;
+        }
+        finally { version.Release(); }
     }
 
     /// <summary>
@@ -481,6 +512,8 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
     internal Exception? Fault { get { lock (_writeLock) return _fault; } }
 
     private Action? _walSyncTestHook;
+    /// <summary>共享事务真实强杀的 WAL 已同步、memtable 尚未发布边界。</summary>
+    internal Action? AfterWalAppendTestHook { get; set; }
     private Action? _walDisposeFlushTestHook;
 
     /// <summary>测试钩子：在每次 WAL fsync 前调用（随 WAL 轮转转移到新文件）。</summary>
@@ -519,6 +552,8 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
 
     /// <summary>下一次提交将分配的 sequence（不保留；仅供在同一写锁外乐观构造批次）。</summary>
     internal long NextSequence => Volatile.Read(ref _lastSequence) + 1;
+
+    internal bool SyncWalOnEveryWrite => _options.SyncWalOnEveryWrite;
 
     /// <summary>活跃 WAL 的字节数；已释放时为 0。</summary>
     internal long ActiveWalLength
@@ -758,6 +793,7 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
                 if (_options.SyncWalOnEveryWrite)
                     _wal.Sync();
                 _options.TestHook?.Invoke(KvLsmEnginePhase.AfterWalAppend);
+                AfterWalAppendTestHook?.Invoke();
                 foreach (KvRangeDeletion range in ranges)
                     _mutable.AddRangeDeletion(range, sequence);
                 foreach (KvBatchMutation mutation in batch)
@@ -998,6 +1034,7 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         }
 
         _shutdown.Cancel();
+        _compactionDelay?.Dispose();
         // 停止接收新的后台作业，并等待本引擎正在执行的 flush/compaction 观察到取消后退出。
         lock (_backgroundSync)
         {
@@ -1578,13 +1615,33 @@ internal sealed class KvLsmSnapshot : IDisposable
         KvVersion pinned = _version.AddReference();
         try
         {
-            foreach (KvLsmFileMetadata file in pinned.AllFiles)
-                tombstones.AddRange(_engine.GetReader(file.FileNumber, cancellationToken).RangeTombstones);
-            foreach (KvLsmFileMetadata file in pinned.Files(0))
+            byte[]? storagePrefix = null;
+            if (lowerBound is { Length: >= 8 } && upperBound is not null)
+            {
+                byte[] prefix = lowerBound[..8];
+                byte[]? prefixEnd = KvLsmKeyspaceBackend.PrefixUpperBound(prefix);
+                if (upperBound.AsSpan().StartsWith(prefix) || prefixEnd is not null && upperBound.AsSpan().SequenceEqual(prefixEnd))
+                    storagePrefix = prefix;
+            }
+            bool Include(KvLsmFileMetadata file)
+            {
+                if (lowerBound is not null && KvInternalKey.UserKey(file.LargestKey).SequenceCompareTo(lowerBound) < 0
+                    || upperBound is not null && KvInternalKey.UserKey(file.SmallestKey).SequenceCompareTo(upperBound) >= 0)
+                    return false;
+                return storagePrefix is null || _engine.GetReader(file.FileNumber, cancellationToken).MayContainStoragePrefix(storagePrefix);
+            }
+            var filesByLevel = new IReadOnlyList<KvLsmFileMetadata>[KvVersion.LevelCount];
+            for (int level = 0; level < filesByLevel.Length; level++)
+            {
+                filesByLevel[level] = pinned.Files(level).Where(Include).ToArray();
+                foreach (KvLsmFileMetadata file in filesByLevel[level])
+                    tombstones.AddRange(_engine.GetReader(file.FileNumber, cancellationToken).RangeTombstones);
+            }
+            foreach (KvLsmFileMetadata file in filesByLevel[0])
                 children.Add(_engine.GetReader(file.FileNumber, cancellationToken).CreateIterator(cancellationToken));
             for (int level = 1; level < KvVersion.LevelCount; level++)
             {
-                IReadOnlyList<KvLsmFileMetadata> files = pinned.Files(level);
+                IReadOnlyList<KvLsmFileMetadata> files = filesByLevel[level];
                 if (files.Count > 0)
                 {
                     children.Add(new KvLevelIterator(

@@ -20,12 +20,14 @@ internal sealed class KvBloomFilter
     private readonly byte[] _filter;
     private readonly long _bitCount;
     private readonly int _probes;
+    private readonly int _offset;
 
-    private KvBloomFilter(byte[] filter, long bitCount, int probes)
+    private KvBloomFilter(byte[] filter, long bitCount, int probes, int offset = 0)
     {
         _filter = filter;
         _bitCount = bitCount;
         _probes = probes;
+        _offset = offset;
     }
 
     /// <summary>按 user key 哈希值构建过滤器载荷。</summary>
@@ -70,16 +72,21 @@ internal sealed class KvBloomFilter
     /// <summary>以 <paramref name="filter"/> 的前 <paramref name="length"/> 字节解析过滤器（其后可附带块 trailer），不复制位数组。</summary>
     /// <exception cref="InvalidDataException">过滤器截断或探测次数无效。</exception>
     internal static KvBloomFilter Parse(byte[] filter, int length)
+        => Parse(filter, 0, length);
+
+    /// <summary>解析同一缓冲区内的子过滤器，不复制位数组。</summary>
+    internal static KvBloomFilter Parse(byte[] filter, int offset, int length)
     {
         ArgumentNullException.ThrowIfNull(filter);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(length, filter.Length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(offset, filter.Length - length);
         if (length < 9)
             throw new InvalidDataException("KV-LSM bloom filter is truncated.");
-        int probes = filter[length - 1];
+        int probes = filter[offset + length - 1];
         if (probes is < 1 or > MaxProbes)
             throw new InvalidDataException("KV-LSM bloom filter probe count is invalid.");
-        return new KvBloomFilter(filter, (long)(length - 1) * 8, probes);
+        return new KvBloomFilter(filter, (long)(length - 1) * 8, probes, offset);
     }
 
     /// <summary>计算 user key 的过滤器哈希。</summary>
@@ -94,7 +101,7 @@ internal sealed class KvBloomFilter
         for (int i = 0; i < _probes; i++)
         {
             long bit = (long)((h1 + ((ulong)(uint)i * h2)) % (ulong)_bitCount);
-            if ((_filter[bit >> 3] & (1 << (int)(bit & 7))) == 0)
+            if ((_filter[_offset + (bit >> 3)] & (1 << (int)(bit & 7))) == 0)
                 return false;
         }
         return true;
