@@ -23,6 +23,7 @@
 - GH-Issue #395：JSON `ExecuteUpdate` 补齐对象/数组/整根和固定 OwnsMany 元素子树、模型编码的 Guid/日期/decimal/二进制/enum/converter 常量，以及固定 primitive 元素目标与集合标量右值；目标/RHS路径和值参数化，同列按声明顺序、右值用更新前行，保留写前拒绝与单条 SQL 原子性。新增独立 PackageReference 产品补货应用，源码/候选/公开包验收分别记录。
 - GH-Issue #397 / M49-C03：独立 .NET Client 新增原生 HTTP/2 Frame 的 KV Get/Put/单页 Scan typed API；共享 Protocol codec 保持现有字节合同，值/键独立拥有、Int64 版本和 UTC ticks 过期时间无损，请求编码前预算与单页条数约束沿用完整响应、取消和未知写入不重试边界。其它模型/语言、TLS及公开包另行验收。
 - 固定 SonnetDB V5 讲解人物基准、脸部参考与 GPT Image 2.5 生成模板；智能体与配图规则要求实际传入参考图并核对哈希，保持甜美成年角色、米白/薄荷粉格纹、高跟鞋、近肤色轻透丝袜及清楚的前景/背景分离；历史资产不自动替换。
+- GH-Issue #230：补充固定 5.0.0 候选的十二类门禁、FreeSql 237项回归与三协议/重开消费者审计；记录正式 NuGet 因过期发布密钥返回403、公开FreeSql Core/Provider仍不可安装的真实阻塞，未将候选通过或Docker部分发布标成完整交付。
 - 增加仅手动运行的 NuGet 发布凭据诊断，对已有公开包执行一次官方验钥请求，保存新运行身份及固定结果分类，避免将失败重跑的 expired 日志直接归因于当前组织 Secret；不输出密钥、不上传包。
 - MCP 新增九模型资源发现、KV/对象/文档/MQ/图读取及全文/显式向量搜索，并提供逐调用校验数据库 Write grant 的数据面写工具；保留既有九个只读工具、source-generated JSON 与 AOT 合同，加入 Base64/分页/字节预算及未知写入不盲重试边界。MQ 只暴露 endpoint 数据库限定主题，物理存储与备份仍为实例范围。
 - 为新增MCP路径提供按调用指定的KV/文档读取预算：先检查内存/磁盘metadata再复制或物理读取，页截断保留真实游标；Graph输入字段/数组先预检，JSON通过固定容量writer编码。已有不带预算的Core读取合同和数据格式不变。
@@ -80,6 +81,7 @@
 - 下一发行按 5.0 主版本准备：保留 Protocol 程序集拆分及分页 `long` API，明确重新编译与数据库备份回退要求；4.x 仍以 4.0.0 校验，后续 5.x 自动以 5.0.0 为包兼容基线，不压制 API 诊断。
 - NuGet、SDK/完整 bundle、候选晋级和发行恢复清单纳入 `SonnetDB.Protocol`、`SonnetDB.Client`；真实包合同从候选源安装并核对 Protocol，避免缺包或意外使用公开 feed。
 - 更新 M46 压缩路线规划：明确类型无损编码、Block 自适应选择与 raw 回退、可选二级 LZ4/Zstd、范围解码及版本/恢复/性能验收；规划更新不表示算法实现、默认开启或性能收益已验证。
+- 路线图状态统一使用表情标记：根路线、M44～M49/V45 工作包、M20 Parity、SonnetMQ、搜索/向量合并、原生 Graph、GitHub Issues、历史归档与 VS Code 扩展路线均明确区分已完成、局部完成、进行中、未开始、待验证、失败/阻断、暂停和未知；M49 保留“十个本地切片已闭环、整体仍进行中”的边界。
 - M49-C02/Java：新增 Java 8 可编译的 `SonnetDbFrameCodec`，覆盖 SQL Execute v1 的完整 little-endian Frame、12 种显式参数、预算/绑定/Decimal/finite vector 守卫和 committed 响应；无 Maven/Gradle 的 `javac --release 8 -Xlint:all -Werror` 合同测试 3/3 通过，真实 HTTP/2/JNI/Java 8 运行矩阵另验。
 - M49-R02：`SonnetDB.Client` 新增仅面向 SQL Query、Vector Search、Graph Expand、Object Get 的有界 HTTP/2 多帧读取器；逐帧先校验身份再分配，按帧数/累计字节预算限制，终态确认 EOF 后才交付，缺终态、尾帧、取消、传输中止和早退均保留未知结果并释放响应资源。真实 Server/TLS 与九模型 typed 解码仍未运行。
 - M49-C02：统一 `FrameCodec.ValidateResponse` 并让 unary/streaming Client 共用版本、service、opcode、stream id 和响应标志校验，减少入口间的身份规则漂移；Client 全量 219/219 与 FrameHeader 11/11 通过。

@@ -21,6 +21,20 @@ PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容�
 
 这 12 个母 issue 仍有未完成的公开、上游或实机门禁；#367/#393/#400/#407 已关闭。原 `0d687bd9` 5.1 候选的 PASS 不外推到新源码。Mulei 后续仍保留 FIFO 长尾、中心超时/积压、统计刷新取消、历史缺图及完整长稳；本次不执行生产操作。
 
+## 路线图状态图例
+
+| 标记 | 含义 |
+|---|---|
+| ✅ | 已完成：该任务声明范围的实现与适用证据齐全。 |
+| 🟡 | 局部完成：已有本地/单片证据，外部、发布、硬件或长期证据仍待补。 |
+| 🚧 | 进行中：已开始实施或验收，仍有明确剩余工作。 |
+| 📋 | 未开始：已规划，尚未实施。 |
+| ⏳ | 待验证：已有实现或材料，但关键验证尚未运行。 |
+| ❌ | 失败/阻断：最近执行失败，需修复后重试。 |
+| ⏸️ | 暂停：明确暂停，保持现状等待恢复条件。 |
+| ❓ | 未知：证据不足，不能推断完成情况。 |
+
+状态只描述对应任务声明的范围；局部代码、mock、fixture、单机短跑或历史回执不自动升级为远程、固定硬件、生产、长期运行或正式发布完成。
 2026-11-07上游接续：XCode #105新增两条late review已实际复现并由source9fc590a78最小修复，两个原测试从2 FAIL到2 PASS；六目标构建、source-linked及新两包66/66、三协议9进程/6次Server生命周期均通过，review已回复并读回resolved。新head CI为13 SUCCESS/3 FAILURE（OIDC/iOS工具链/s390x NovaDb），保留FAIL；#104→#105合入/公开Core-Provider/全公开新缓存链尚未完成，#404不关闭。FreeSql#2291仍OPEN、Provider索引404，#230不关闭。详见[上游review收据](docs/audits/issue404-review-20261107.md)。
 
 2026-11-04：**[M51：WorkBuddy生态集成](#milestone-51)**当前连接器/Skill合同更新为0.2.0，面向SonnetDB 5.0的43工具发现、默认Read和用户明确授权的Write。生产切片49731955保持冻结，不重复开发；历史Docker/r2九工具证据保留source。平台解析、HTTPS、宿主验收与正式送审仍未完成，由统一发布流程逐项整合。
@@ -45,16 +59,16 @@ M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程�
 
 ## 当前执行顺序：Workbench Preview 1
 
-| 顺序 | 交付 ID | 目标 | 依赖 / 当前状态 |
-|---|---|---|---|
-| 1 | M47-P01 | 冻结预览范围、已提交候选、版本与发布物白名单 | **🟢 范围冻结完成，产品仍 NOT_READY**。[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[候选01](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)、[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)已记录；入口与分发实现仍阻断。 |
-| 2 | M47-P02 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
-| 3 | M47-P03 | 首版真实登录、授权、预算和终态 | **R1本地完成；完整模式四片307通过/25原skip**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；KV/measurement视口渲染与完整/选中导出回归通过；[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
-| 4 | M47-P04 | 生成来源明确的 Web/Server 预览发行物 | **候选12 P04通过**：4.5.0-preview.1.12/source5bcd3b81、38145580702 attempt1 success，290项库存/hash/NativeAOT身份独立通过；旧失败保留。 |
-| 5 | M47-P05 | 用实际发行物验首次启动、部署与用户旅程 | **候选12本机R1实物通过**：四阶段37记录、五类拒绝、快照恢复/导出和17回执244身份非空审计通过；[冻结记录](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)。 |
-| 6 | M47-P06 | 完成预览说明、已知限制、升级/回退和反馈入口 | **候选12真实四附件prepare通过**：独立原archive digest、附件/ZIP核验PASS；[分发冻结](docs/design/m47-unified-management-workbench/preview-1-distribution-12.json)保持原P04包字节。 |
-| 7 | M47-P07 | 按现有发布门禁核同一候选并作放行评审 | **✅ 完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 |
-| 8 | M47-P08 | 发布、独立回读下载结果并归档首版 | **✅ 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 |
+| 顺序 | 交付 ID | 状态 | 目标 | 依赖 / 当前状态 |
+|---|---|---|---|---|
+| 1 | M47-P01 | 🟡 | 冻结预览范围、已提交候选、版本与发布物白名单 | **范围冻结完成，产品仍 NOT_READY**。[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[候选01](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)、[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)已记录；入口与分发实现仍阻断。 |
+| 2 | M47-P02 | 🟡 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
+| 3 | M47-P03 | 🟡 | 首版真实登录、授权、预算和终态 | **R1本地完成；完整模式四片307通过/25原skip**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；KV/measurement视口渲染与完整/选中导出回归通过；[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
+| 4 | M47-P04 | 🟡 | 生成来源明确的 Web/Server 预览发行物 | **候选12 P04通过**：4.5.0-preview.1.12/source5bcd3b81、38145580702 attempt1 success，290项库存/hash/NativeAOT身份独立通过；旧失败保留。 |
+| 5 | M47-P05 | 🟡 | 用实际发行物验首次启动、部署与用户旅程 | **候选12本机R1实物通过**：四阶段37记录、五类拒绝、快照恢复/导出和17回执244身份非空审计通过；[冻结记录](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)。 |
+| 6 | M47-P06 | 🟡 | 完成预览说明、已知限制、升级/回退和反馈入口 | **候选12真实四附件prepare通过**：独立原archive digest、附件/ZIP核验PASS；[分发冻结](docs/design/m47-unified-management-workbench/preview-1-distribution-12.json)保持原P04包字节。 |
+| 7 | M47-P07 | ✅ | 按现有发布门禁核同一候选并作放行评审 | **完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 |
+| 8 | M47-P08 | ✅ | 发布、独立回读下载结果并归档首版 | **已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 |
 
 具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。P01候选01来源固定为 `c40fa670e3a170c5fac8cefa181d618631862270`，保留版本 `4.5.0-preview.1.1`；仅为已提交实现起点，未构建/验收/打标签。后续代码、配置或打包变更须新增候选与版本，不覆盖该清单、不用 dirty 工作树发包。首版限定 win-x64 同源环回 Web＋Server；旧 `workbench` 定时保持 `PAUSED`。 后继候选02已绑定修复提交 `ed4f48242c5d5b4e7e16861504d03cc845146402` 与保留版本 4.5.0-preview.1.2；本地验收通过，未打包/推送/发布，P07须重核最终候选的全部门禁。
 
@@ -70,7 +84,7 @@ M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程�
 5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；未校准保持 `NOT_READY`，不以自造数据或缩规模 PASS 代替真实效果。
 6. Core 保持 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT/trim 零相关警告及 public API 中文 XML 文档。API/帧保持兼容；新落盘格式必须版本化、拒绝不兼容旧 writer，提供迁移或明确拒绝及恢复方案。SQL 名称遵守 GH-Issue #211。
 
-状态：`🟢` 当前范围已完成 / `📋` 规划或尚未启动 / `🚧` 有剩余实现或验收 / `🟡` 指定本地切片完成、外部证据待补 / `⏳` 未执行 / `❌` 已执行失败。历史完成范围在 CHANGELOG，主路线只列待办。
+状态图例同上：`✅` 已完成 / `🟡` 局部完成、外部证据待补 / `🚧` 进行中 / `📋` 未开始 / `⏳` 待验证 / `❌` 失败或阻断 / `⏸️` 暂停 / `❓` 未知。历史完成范围在 CHANGELOG，主路线只列待办。
 
 ## 4.5 目标与范围
 
@@ -124,6 +138,7 @@ M49 按用户确认拆为原生 Frame 远程与托管/AOT 嵌入式两条线；�
 | **46** | **存储编码与执行成本优化** | **📋** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
 | **47** | **统一数据库管理工作台与三面发布** | **🚧 / Web Preview 1已发布** | P01～P08 Web预览已收尾，再补Studio/VS Code；正式版共享合同、九模型完整权限/预算/恢复、AI/MCP与逐页矩阵继续验收。已完成切片见CHANGELOG。 |
 | **48** | **单机日志与事件分析** | **📋 planned** | 独立增量 R1：L01～L20 覆盖接入、检索/统计、容量、生命周期、Web 排障与告警；L21～L24 为 OTLP/Trace/语义/生态条件项。版本与时间待冻结，功能未实施。 |
+| **49** | **连接器/嵌入式拆分、九模型访问与有界批处理** | **🟡 / 🚧** | 十个本地切片已闭环；整体 15 包仍进行中，真实 Server/HTTP2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布和性能/恢复证据待补。 |
 | **51** | **WorkBuddy 生态集成与 SonnetDB 全生命周期闭环** | **🚧 基线已有 / 后续 📋 planned** | 已有只读连接器/内置 Skill、三份公开资料及 Docker 分层证据；0.1.1 平台解析、真实宿主、九模型 MCP 缺口、可执行运维、独立 Skill/专家/Buddy 应用与分阶段审核发布待做，详见 [M51](#milestone-51)。 |
 
 M22 保持上层应用候选；样例验证通用合同，行业规则不直接内置引擎。M0~M13、M15~M18、M21、M23/M24/M26/M28/M30~M34/M37/M38 及其它完成代码范围只在 CHANGELOG 追溯。
@@ -148,18 +163,18 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 ### 工作包
 
-| ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
-|---|---|---|---|
-| M44-A01 | P0 必选 | 模型/profile、版本和输入输出增量合同 | 延续 M27/M35；维度/版本/能力不匹配拒绝，切换可回读/回滚。 |
-| M44-A02 | P0 必选 | 权限、出域、时限、成本/并发预算及追踪 | 接 V45-X02；未授权数据不入检索/prompt，缓存不跨 ACL/模型。 |
-| M44-A03 | P0 必选 | 时序预测、异常及诊断应用 | 复用算法，接 M45 分组；独立测试集对照 naive/seasonal 基线，验证误报/不规则采样。 |
-| M44-A04 | P0 必选 | 有出处的混合检索与证据回答 | 复用 RRF/重排；真实召回、引用支持率、无证据回答及删除同步。 |
-| M44-A05 | P0 必选 | 可恢复的有界批量推理任务 | 复用摄取/M43；checkpoint、结果幂等、取消/恢复、积压及外部未知结果。 |
-| M44-A06 | P0 必选 | 真实模型/应用评测与发布 profile | 质量/延迟/成本/版本可复算；hash fallback/tiny fixture 仅作合同证据。 |
-| M44-A07 | P0 必选 | 工业诊断、业务分析、知识/资产助手三条旅程 | 嵌入式和真实 Server/SDK/MCP，覆盖九模型职责、权限/删除/失败/重开及批准写回。 |
-| M44-A08 | P1 条件 | provider 原生流式及中断/预算 | 部分现有 provider 为完整响应；先对拍能力发现、首 token、取消、成本及续流。 |
-| M44-A09 | P1 条件 | 有界 GraphRAG 证据扩展 | M40 适用 gate；真实对照收益，不足时降级、不编造路径。 |
-| M44-A10 | P2 后续 | 高级离线/多模态/自适应模型候选 | 有任务、资产许可及质量/内存证明再单项纳入，不承诺训练平台。 |
+| ID | 状态 | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
+|---|---|---|---|---|
+| M44-A01 | 🟡 | P0 必选 | 模型/profile、版本和输入输出增量合同 | 延续 M27/M35；维度/版本/能力不匹配拒绝，切换可回读/回滚。 |
+| M44-A02 | 🟡 | P0 必选 | 权限、出域、时限、成本/并发预算及追踪 | 接 V45-X02；未授权数据不入检索/prompt，缓存不跨 ACL/模型。 |
+| M44-A03 | 🟡 | P0 必选 | 时序预测、异常及诊断应用 | 复用算法，接 M45 分组；独立测试集对照 naive/seasonal 基线，验证误报/不规则采样。 |
+| M44-A04 | 🟡 | P0 必选 | 有出处的混合检索与证据回答 | 复用 RRF/重排；真实召回、引用支持率、无证据回答及删除同步。 |
+| M44-A05 | 🟡 | P0 必选 | 可恢复的有界批量推理任务 | 复用摄取/M43；checkpoint、结果幂等、取消/恢复、积压及外部未知结果。 |
+| M44-A06 | 🚧 | P0 必选 | 真实模型/应用评测与发布 profile | 质量/延迟/成本/版本可复算；hash fallback/tiny fixture 仅作合同证据。 |
+| M44-A07 | 🚧 | P0 必选 | 工业诊断、业务分析、知识/资产助手三条旅程 | 嵌入式和真实 Server/SDK/MCP，覆盖九模型职责、权限/删除/失败/重开及批准写回。 |
+| M44-A08 | 📋 | P1 条件 | provider 原生流式及中断/预算 | 部分现有 provider 为完整响应；先对拍能力发现、首 token、取消、成本及续流。 |
+| M44-A09 | 📋 | P1 条件 | 有界 GraphRAG 证据扩展 | M40 适用 gate；真实对照收益，不足时降级、不编造路径。 |
+| M44-A10 | 📋 | P2 后续 | 高级离线/多模态/自适应模型候选 | 有任务、资产许可及质量/内存证明再单项纳入，不承诺训练平台。 |
 
 逐项设计与评测见 [M44 专题](docs/design/sonnetdb-45-ai-applications.md)。应用评测不关闭 M27 双网或 M35/M40 底层容量门禁。
 
@@ -167,18 +182,18 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 覆盖关系、measurement、文档可适配数据及增量，不限设备分析。复用 M31 类型、DISTINCT 子集、时间函数、M33 下推/sketch、M37 全量物化、M41 GROUP BY spill 和 M43 持久滚动/滑动/会话窗口。首批TAG/time分组已归档，通用列/扩展表达式分组矩阵仍待补；有 `Merge` 不代表可撤回，持久数值窗口拒绝坏值/NULL 也不自动等价 SQL 忽略 NULL。
 
-| ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
-|---|---|---|---|
-| M45-C01 | P0 必选 | 扩展已交付TAG/time分组的支持矩阵，统一类型/NULL/空集/overflow/名称边界 | 2026-10-15 续作 HAVING/复合投影/排序分页与 Int64 mode，见[十任务验收](docs/audits/implementation-batch-01-20261015.md)；剩余预算、完整类型/空集统一仍独立推进。 |
-| M45-C02 | P0 必选 | 版本化聚合 state 与 Add/Merge 复用 | 分别声明结合/交换/顺序敏感性；COUNT/SUM merge 不冒称幂等，投递去重在输入身份层。 |
-| M45-C03 | P0 必选 | 支持源的 before/after、retract、更新/删除修正 | 非可逆 MIN/MAX/sketch 有界重算或拒绝；缺 before-image 不静默按追加处理。 |
-| M45-C04 | P0 必选 | 有限 SQL 的增量物化/rollup 与有界回填 | 复用 generation/位点/调度；快照增量无缺口、失效重算、原子发布与依赖变更。 |
-| M45-C05 | P1 必选 | SQL 批流窗口及分区 event-time 推进 | 复用窗口；乱序/迟到/idle、水位回退/关闭及回填可对拍。 |
-| M45-C06 | P1 必选 | 精确/近似分位、distinct/sketch 准确性和资源 | 2026-10-15 修正 Int64 distinct_count 输入身份及旧 HLL 回退；复用 TDigest/HLL，完整误差/merge/偏态/种子与资源验收仍待补齐，不冒称精确结果。 |
-| M45-C07 | P1 必选 | 时间加权、率、积分、采样/填补边界和 state | 核对已有函数；边界点、重复时间、counter reset、缺失及最大跨度。 |
-| M45-C08 | P1 必选 | 聚合 state 预算、落盘及恢复 | 2026-10-15 增加 TDigest 权重/排序/计数、HLL rank 与 Histogram 极值状态守卫；高基数准入、spill/V45-X02、取消/磁盘满及完整恢复仍独立验收。 |
-| M45-C09 | P0 必选 | 批流、内存/落盘、跨端对拍和观测 | 同事件日志离线/增量等价；重投/更新/删除/重开，计数精确、浮点误差有声明。 |
-| M45-C10 | P2 条件 | ROLLUP/GROUPING SETS、扩展窗口与 ASOF | 真实查询驱动单项选择；CUBE/count/state/change windows/ASOF 不全部默认纳入。 |
+| ID | 状态 | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
+|---|---|---|---|---|
+| M45-C01 | 🟡 | P0 必选 | 扩展已交付TAG/time分组的支持矩阵，统一类型/NULL/空集/overflow/名称边界 | 2026-10-15 续作 HAVING/复合投影/排序分页与 Int64 mode，见[十任务验收](docs/audits/implementation-batch-01-20261015.md)；剩余预算、完整类型/空集统一仍独立推进。 |
+| M45-C02 | 📋 | P0 必选 | 版本化聚合 state 与 Add/Merge 复用 | 分别声明结合/交换/顺序敏感性；COUNT/SUM merge 不冒称幂等，投递去重在输入身份层。 |
+| M45-C03 | 📋 | P0 必选 | 支持源的 before/after、retract、更新/删除修正 | 非可逆 MIN/MAX/sketch 有界重算或拒绝；缺 before-image 不静默按追加处理。 |
+| M45-C04 | 📋 | P0 必选 | 有限 SQL 的增量物化/rollup 与有界回填 | 复用 generation/位点/调度；快照增量无缺口、失效重算、原子发布与依赖变更。 |
+| M45-C05 | 📋 | P1 必选 | SQL 批流窗口及分区 event-time 推进 | 复用窗口；乱序/迟到/idle、水位回退/关闭及回填可对拍。 |
+| M45-C06 | 🟡 | P1 必选 | 精确/近似分位、distinct/sketch 准确性和资源 | 2026-10-15 修正 Int64 distinct_count 输入身份及旧 HLL 回退；复用 TDigest/HLL，完整误差/merge/偏态/种子与资源验收仍待补齐，不冒称精确结果。 |
+| M45-C07 | 📋 | P1 必选 | 时间加权、率、积分、采样/填补边界和 state | 核对已有函数；边界点、重复时间、counter reset、缺失及最大跨度。 |
+| M45-C08 | 🟡 | P1 必选 | 聚合 state 预算、落盘及恢复 | 2026-10-15 增加 TDigest 权重/排序/计数、HLL rank 与 Histogram 极值状态守卫；高基数准入、spill/V45-X02、取消/磁盘满及完整恢复仍独立验收。 |
+| M45-C09 | 📋 | P0 必选 | 批流、内存/落盘、跨端对拍和观测 | 同事件日志离线/增量等价；重投/更新/删除/重开，计数精确、浮点误差有声明。 |
+| M45-C10 | 📋 | P2 条件 | ROLLUP/GROUPING SETS、扩展窗口与 ASOF | 真实查询驱动单项选择；CUBE/count/state/change windows/ASOF 不全部默认纳入。 |
 
 冻结首批源、AST、聚合及变更种类；不支持的 JOIN/递归/UDF/事务在计划阶段拒绝。M45 负责计算语义与状态，M43 负责运输、位点、订阅及任务生命周期。详见 [M45 专题](docs/design/sonnetdb-45-aggregation-continuous-compute.md)。
 
@@ -186,17 +201,17 @@ M22 保持上层应用候选；样例验证通用合同，行业规则不直接�
 
 M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按类型做无损编码，二级按 Block 选择可选的通用压缩，编码膨胀时回退 raw，并同时测量完整物理文件成本、解码工作量、读写放大和恢复代价。当前 `SegmentWriterOptions` 的时间戳和值编码默认均为 `None`；现有 V2 为 Timestamp delta-of-delta + ZigZag varint、Float64 简化 Gorilla XOR、Boolean RLE、String 字典；2026-11-05 GH-Issue #367 增加显式 Int64 的独立v7 RLE及raw回退，旧V2 Int64仍为raw 8B，详见[实际文件与恢复审计](docs/audits/issue-367-20261105.md)。Vector/GeoPoint仍raw，WAL仍是逐条原始payload + CRC。v6起已内嵌HNSW/sketch；mmap仍有复制，解码缓存按reader设置，共享HNSW缓存及KV I/O预算另有实现。不能把此切片当作S02/S09完整交付，或把可选编码、局部压缩率、mmap与局部额度写成默认压缩、zero-copy或进程总内存上限。
 
-| ID | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
-|---|---|---|---|
-| M46-S01 | P0 必选 | 冻结真实语料、Block 大小、raw/legacy V2/候选 Auto、持久性与收益门槛 | 同一 commit、硬件、配置下记录 payload、header、字典、checkpoint、index、CRC、HNSW/sketch、WAL 和临时文件；默认是否切 Auto 由完整证据决定。 |
-| M46-S02 | P0 必选 | 完整 Int64 自适应编码：RLE、ZigZag/delta、delta-binary-packed/FOR、bit-pack 与 raw fallback | 覆盖完整 Int64 值域、差分溢出、counter reset、重复、乱序、随机高熵和 Block 边界；保留 v6 `DeltaValue` 的 raw Int64 含义，不偷改旧标志。 |
-| M46-S03 | P0 必选 | Float64 canonical Gorilla window reuse 与 Boolean RLE/bit-packing hybrid | 保留 NaN 位模式、±0、Infinity；高熵浮点和交替/随机 Boolean 必须可回退；CHIMP/ALP 只作为有同语料证据的候选，不默认量化或有损压缩。 |
-| M46-S04 | P1 必选 | 有界 String dictionary、bit-packed index、稀疏 presence 与大值回退 | 字典条目数、总字节和构建工作集有上限；Unicode、空串、NULL、缺失、false/零值分开；超预算回退或拒绝，不截断、不合并语义。 |
-| M46-S05 | P1 必选 | Timestamp 自适应编码、restart checkpoint、分块与范围解码 | 在 delta-i、delta-d、RLE、Simple8b/bit-pack、varint、raw 之间按完整成本选择；窄读、跨 checkpoint、全扫描分别测实际 I/O、CPU、分配和读放大。 |
-| M46-S06 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收，必要时关闭不安全快路径。 |
-| M46-S07 | P1 必选 | 解码分配、缓存、预算与读成本接线 | 接 V45-X01/X02；租约、取消、淘汰、mmap 复制、解码缓存和共享 HNSW 竞争可观测，不新造平行资源管理器。 |
-| M46-S08 | P1 必选 | 二级 LZ4/Zstd 边界、WAL 批压缩、small-segment 与 compaction 成本 | 热路径与冷 compaction 分开测；Core 零第三方运行时依赖、AOT、许可和平台边界单列；写放大、fsync、临时空间、合并读尾延迟、WAL replay 和故障恢复共同验收。 |
-| M46-S09 | P0 必选 | 统一语料、codec ID/版本、兼容/损坏/迁移及性能验收 | commit/硬件/配置/原始样本可复算；旧格式可读，新 codec 从持久 metadata 解码，不兼容旧 writer 明确拒绝；CRC、长度、截断、非法 run/varint、混合段、升级/回退、收益与代价分别留证。 |
+| ID | 状态 | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
+|---|---|---|---|---|
+| M46-S01 | 📋 | P0 必选 | 冻结真实语料、Block 大小、raw/legacy V2/候选 Auto、持久性与收益门槛 | 同一 commit、硬件、配置下记录 payload、header、字典、checkpoint、index、CRC、HNSW/sketch、WAL 和临时文件；默认是否切 Auto 由完整证据决定。 |
+| M46-S02 | 📋 | P0 必选 | 完整 Int64 自适应编码：RLE、ZigZag/delta、delta-binary-packed/FOR、bit-pack 与 raw fallback | 覆盖完整 Int64 值域、差分溢出、counter reset、重复、乱序、随机高熵和 Block 边界；保留 v6 `DeltaValue` 的 raw Int64 含义，不偷改旧标志。 |
+| M46-S03 | 📋 | P0 必选 | Float64 canonical Gorilla window reuse 与 Boolean RLE/bit-packing hybrid | 保留 NaN 位模式、±0、Infinity；高熵浮点和交替/随机 Boolean 必须可回退；CHIMP/ALP 只作为有同语料证据的候选，不默认量化或有损压缩。 |
+| M46-S04 | 📋 | P1 必选 | 有界 String dictionary、bit-packed index、稀疏 presence 与大值回退 | 字典条目数、总字节和构建工作集有上限；Unicode、空串、NULL、缺失、false/零值分开；超预算回退或拒绝，不截断、不合并语义。 |
+| M46-S05 | 📋 | P1 必选 | Timestamp 自适应编码、restart checkpoint、分块与范围解码 | 在 delta-i、delta-d、RLE、Simple8b/bit-pack、varint、raw 之间按完整成本选择；窄读、跨 checkpoint、全扫描分别测实际 I/O、CPU、分配和读放大。 |
+| M46-S06 | 🟡 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收，必要时关闭不安全快路径。 |
+| M46-S07 | 📋 | P1 必选 | 解码分配、缓存、预算与读成本接线 | 接 V45-X01/X02；租约、取消、淘汰、mmap 复制、解码缓存和共享 HNSW 竞争可观测，不新造平行资源管理器。 |
+| M46-S08 | 📋 | P1 必选 | 二级 LZ4/Zstd 边界、WAL 批压缩、small-segment 与 compaction 成本 | 热路径与冷 compaction 分开测；Core 零第三方运行时依赖、AOT、许可和平台边界单列；写放大、fsync、临时空间、合并读尾延迟、WAL replay 和故障恢复共同验收。 |
+| M46-S09 | 📋 | P0 必选 | 统一语料、codec ID/版本、兼容/损坏/迁移及性能验收 | commit/硬件/配置/原始样本可复算；旧格式可读，新 codec 从持久 metadata 解码，不兼容旧 writer 明确拒绝；CRC、长度、截断、非法 run/varint、混合段、升级/回退、收益与代价分别留证。 |
 
 指标包含磁盘字节、读写放大、解码 CPU、P95/P99、分配/GC 和恢复，不预设倍数。落盘改动先设计版本/CRC，遵守格式升级、CHANGELOG、迁移或显式拒绝规则。详见 [M46 专题](docs/design/sonnetdb-45-storage-performance.md)。
 
@@ -225,16 +240,16 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 
 以下 `M47-Pxx` 是本地规划 ID，不是已创建 GitHub issue/PR。每项围绕一个实际缺口实施；已有功能只做与候选相关的必要回归，不重新补造实现。
 
-| ID / 优先级 | 具体交付 | 完成与验收证据 |
-|---|---|---|
-| **M47-P01 / P0** | **🟢 范围冻结完成**：候选01完整SHA、版本/兼容、13组动作、入口限制及独立分发白名单 | [冻结合同](docs/design/m47-unified-management-workbench/preview-1-scope.md)与[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)可供后续引用。九模型限定读取＋关系表单行审批插入；C01～C05/D01仍需P03～P06实施/验收，产品NOT_READY。Studio/VSIX延期，Publish默认含Studio而不含VSIX；独立渠道不得触发v*全套发布。 |
-| **M47-P02 / P0** | **本地完成**：修复 Web smoke 夹具/环境/收集边界，冻结候选02 | 修复来源 `ed4f48242c5d5b4e7e16861504d03cc845146402`，保留版本 4.5.0-preview.1.2；build、448 Node合同、307 fixture与12 StudioHost通过，25默认skip和30 real suite分列，所有远端门禁NOT_RUN。原两次CI失败、旧Object flaky和执行器越界事件保留；详见[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。 |
-| **M47-P03 / P0** | **R1本地完成；完整模式四片307通过/25原skip**：入口/动作拒绝、登录授权、SQL预算、一次单行审批及终态 | [P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)分列真实Server、浏览器故障注入、正常重开与完整模式回归。七个模型专用读取因服务端预算未证延期；KV及时序表格超时已关闭，[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4。P04～P08未执行，NOT_READY。 |
-| **M47-P04 / P0** | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
-| **M47-P05 / P0** | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
-| **M47-P06 / P0** | **本地说明/四附件/限定手动分发合同完成**：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
-| **M47-P07 / P0** | **✅ 完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 | 原完整同source门禁和验收已通过，公开交付见P08。 |
-| **M47-P08 / 发布** | **✅ 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 | 预览、源码、四附件及原审批/回读/首跑无损证据全部归档，M47三面正式验收继续。 |
+| ID / 优先级 | 状态 | 具体交付 | 完成与验收证据 |
+|---|---|---|---|
+| **M47-P01 / P0** | 🟡 | 范围冻结完成：候选01完整SHA、版本/兼容、13组动作、入口限制及独立分发白名单 | [冻结合同](docs/design/m47-unified-management-workbench/preview-1-scope.md)与[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)可供后续引用。九模型限定读取＋关系表单行审批插入；C01～C05/D01仍需P03～P06实施/验收，产品NOT_READY。Studio/VSIX延期，Publish默认含Studio而不含VSIX；独立渠道不得触发v*全套发布。 |
+| **M47-P02 / P0** | 🟡 | 本地完成：修复 Web smoke 夹具/环境/收集边界，冻结候选02 | 修复来源 `ed4f48242c5d5b4e7e16861504d03cc845146402`，保留版本 4.5.0-preview.1.2；build、448 Node合同、307 fixture与12 StudioHost通过，25默认skip和30 real suite分列，所有远端门禁NOT_RUN。原两次CI失败、旧Object flaky和执行器越界事件保留；详见[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。 |
+| **M47-P03 / P0** | 🟡 | R1本地完成；完整模式四片307通过/25原skip：入口/动作拒绝、登录授权、SQL预算、一次单行审批及终态 | [P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)分列真实Server、浏览器故障注入、正常重开与完整模式回归。七个模型专用读取因服务端预算未证延期；KV及时序表格超时已关闭，[候选04](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)固定`57222f57e4cc` / 4.5.0-preview.1.4。P04～P08未执行，NOT_READY。 |
+| **M47-P04 / P0** | 🟡 | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
+| **M47-P05 / P0** | 🟡 | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
+| **M47-P06 / P0** | 🟡 | 本地说明/四附件/限定手动分发合同完成：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
+| **M47-P07 / P0** | ✅ | 完成：更新分发工具后P07 READY，12/12门禁、8/8验收：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 | 原完整同source门禁和验收已通过，公开交付见P08。 |
+| **M47-P08 / 发布** | ✅ | 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 | 预览、源码、四附件及原审批/回读/首跑无损证据全部归档，M47三面正式验收继续。 |
 
 现有发布验证读取 [release-readiness policy](eng/release-readiness-policy.ps1)：Workbench 五个 job 及要求的 artifact，CI/Format/AOT、适用 CodeQL、Parity light/full、soak/容量合同和发布/连接器等检查按原 policy 执行。排除首版 Studio 或 VS Code 下载物，不等于可以跳过其既有基础 CI job。七天 scheduled Parity 保持独立非阻断观察，不将其误设为首个 Web 预览必须等待七天，也不把缩规模验证当固定硬件/生产证据。
 
@@ -242,14 +257,14 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 
 ### 首版之后：Studio、VS Code 与正式版
 
-| 顺序 / 原始归属 | 剩余交付 | 退出条件 |
-|---|---|---|
-| **下一宿主：M47-U06 / M29** | Studio 当前候选包的原生文件对话框、Managed Local/Remote、干净 Windows/WebView2、安装/升级卸载与端口/进程生命周期 | 复用 WB13/15/39/40/80，补当前包与源码来源绑定、承诺文件操作和实机旅程；不推断 Server 优雅关闭、任意崩溃恢复或旧失败原因。独立通过后发布桌面预览。 |
-| **下一宿主：M47-U07** | VS Code 向导、完整 Query/history/正常退出，所承诺分页/Notebook/LSP/EXPLAIN和治理深链接 | 复用 WB14/16/48/58/59，本地合同与真实 Host 分列；新 VSIX 用新不可变版本，核安装、组件版本映射、实际语言服务文件和包 SHA256。独立通过后发布扩展预览。 |
-| **正式版：M47-U02 / U03** | 三宿主共享合同实际消费、完整分页/取消/离线、身份隔离、结果/草稿/历史和审批组合 | 共用 typed client/能力/权限/资源合同；按宿主与真实服务分别取得证据，未支持路径明确拒绝，局部切片不计整包完成。 |
-| **正式版：M47-U04 / U05** | 九模型剩余写/维护/导入导出、显式恢复、完整权限/只读、全链路资源预算与 Web 治理 | 按模型单项收口；Graph 完整身份/edge/import、Object Multipart/大文件、KV 原子/TTL/Int64、MQ Nack/实例恢复、Vector Profile/完整写和 FullText 高级读取各自验收。当前窗口导出不代替全库快照。 |
-| **正式版：M47-U08 / U09** | WorkBuddy/Claude/Cursor/Codex AI/MCP onboarding、自检、凭据隔离、逐页视觉/可访问性与三面版本兼容矩阵 | typed MCP/stdio 既有实现不重做；补真实配置/稳定宿主能力、只读工具与数据外发边界。七导航、30全局页/166任务页签的设计覆盖不计逐页生产完成。 |
-| **条件项：M47-U10 / P2** | manifest/签名、插件/连接器目录、权限撤销、升级回滚与市场治理深化 | 核心工作台与安全评审完成后单项纳入；首版必需的版本/哈希/发布清单由 P01/P04/P06 完成，不以 U10 条件项延期这些基本交付。 |
+| 顺序 / 原始归属 | 状态 | 剩余交付 | 退出条件 |
+|---|---|---|---|
+| **下一宿主：M47-U06 / M29** | 🚧 | Studio 当前候选包的原生文件对话框、Managed Local/Remote、干净 Windows/WebView2、安装/升级卸载与端口/进程生命周期 | 复用 WB13/15/39/40/80，补当前包与源码来源绑定、承诺文件操作和实机旅程；不推断 Server 优雅关闭、任意崩溃恢复或旧失败原因。独立通过后发布桌面预览。 |
+| **下一宿主：M47-U07** | 🚧 | VS Code 向导、完整 Query/history/正常退出，所承诺分页/Notebook/LSP/EXPLAIN和治理深链接 | 复用 WB14/16/48/58/59，本地合同与真实 Host 分列；新 VSIX 用新不可变版本，核安装、组件版本映射、实际语言服务文件和包 SHA256。独立通过后发布扩展预览。 |
+| **正式版：M47-U02 / U03** | 🚧 | 三宿主共享合同实际消费、完整分页/取消/离线、身份隔离、结果/草稿/历史和审批组合 | 共用 typed client/能力/权限/资源合同；按宿主与真实服务分别取得证据，未支持路径明确拒绝，局部切片不计整包完成。 |
+| **正式版：M47-U04 / U05** | 🚧 | 九模型剩余写/维护/导入导出、显式恢复、完整权限/只读、全链路资源预算与 Web 治理 | 按模型单项收口；Graph 完整身份/edge/import、Object Multipart/大文件、KV 原子/TTL/Int64、MQ Nack/实例恢复、Vector Profile/完整写和 FullText 高级读取各自验收。当前窗口导出不代替全库快照。 |
+| **正式版：M47-U08 / U09** | 🚧 | WorkBuddy/Claude/Cursor/Codex AI/MCP onboarding、自检、凭据隔离、逐页视觉/可访问性与三面版本兼容矩阵 | typed MCP/stdio 既有实现不重做；补真实配置/稳定宿主能力、只读工具与数据外发边界。七导航、30全局页/166任务页签的设计覆盖不计逐页生产完成。 |
+| **条件项：M47-U10 / P2** | 📋 | manifest/签名、插件/连接器目录、权限撤销、升级回滚与市场治理深化 | 核心工作台与安全评审完成后单项纳入；首版必需的版本/哈希/发布清单由 P01/P04/P06 完成，不以 U10 条件项延期这些基本交付。 |
 
 M47-U01 的设计基线及既有页面/合同切片已归档，后续不重新派单。Studio/VS Code 延期只调整首版预览的分发范围，4.5 正式版原 M47-U01～U09 必选合同继续保留。任一宿主未通过自己的实物安装/真实服务/用户旅程，不能把三面整体标为发布完成。
 
@@ -264,32 +279,32 @@ M47-U01 的设计基线及既有页面/合同切片已归档，后续不重新�
 
 R1 必选 **L01～L20**：一个节点可以接收多主机日志；先支持 .NET 结构化日志与 Web 访问日志、真实 Logstash HTTP 批量适配、Web 日志探索及一个受控 Webhook 通道。L01 冻结目标版本、平台、硬件、真实语料、负载和门槛；不自动扩大既有 4.5 发布范围。P0/P1 均为 R1 必选，P2 为后续条件。
 
-| ID / 优先级 | 具体交付与主要依赖 | 完成与验收条件 |
-|---|---|---|
-| M48-L01 / P0 | 源码缺口复核、真实日志语料、范围/版本/负载 profile；复用 V45-X06 | 固定预期结果、来源/哈希、硬件/持久性/内存/SLO；复现候选窗口与 10000 条边界，未校准不称达标。 |
-| M48-L02 / P0 | 事件信封、时间/精度/字段/来源身份；依赖 L01 | 缺失/NULL/整数、时区/源精度、数组/点号/大小写、重复身份冲突均明确；DTO/source generation 与拒绝矩阵齐全。 |
-| M48-L03 / P0 | LogStream 目录、模板、分区与滚动；依赖 L02 | 默认按摄取时间/容量滚动，event_time 用于检索；并发写/崩溃后单一写目标，schema/流重建代际不串用。 |
-| M48-L04 / P0 | 批量接入、逐项/通用批次确认、幂等/未知提交；依赖 L02/L03 | 区分已接收/耐久/可搜索；混合有效无效、ACK 丢失、重复冲突、超限/满盘可对账，不把内存入队当持久。 |
-| M48-L05 / P0 | 版本化处理管线、模拟、转换/脱敏/失败分流；依赖 L02/L04 | 两类真实模板、日期与类型错误、脱敏失败、配置换代和原版本重放；禁止无界匹配/任意脚本。 |
-| M48-L06 / P0 | .NET 示例和真实 Logstash HTTP/json_batch；依赖 L04/L05 | 固定消费者版本，实际 JSON 数组/鉴权/重试/429/503/断网；HTTP 成功不可掩盖未处理的批内失败。 |
-| M48-L07 / P0 | M43 spool/检查点/重投/背压/DLQ 日志集成；依赖 L03/L04 | 来源位点不先于持久决定；提交前后/ACK 丢失/暂停/隔离/重放/满队列恢复，未知状态明确交接。 |
-| M48-L08 / P0 | 文本+时间+精确字段+权限统一过滤；依赖 L02/L03 | 纯过滤、窗口外命中、超过 10000 条与全扫描参考对拍；总数/分面不再冒称候选窗口为完整集合。 |
-| M48-L09 / P0 | 磁盘全文块访问、缓存、批量段/Top-K/合并；复用 M35/M42/M46 | 大于内存工作集、冷读/损坏/取消/满盘和前后台竞争；不全量加载或无界合并后宣称预算成立，格式升级可回退。 |
-| M48-L10 / P0 | 固定读取视图、稳定时间排序/游标、上下文/有界导出；依赖 L03/L08/L09 | 写入/滚动/删除/同时间戳/撤权/过期不静默漏读重复；资源租约与游标绑定明确，当前窗口导出与完整导出区分。 |
-| M48-L11 / P1 | 全过滤集合 facet/时间桶/统计列/精确和近似聚合；依赖 L08～L10/M45 | UTC 半开桶、missing/NULL/多值/Top-N、Int64/误差与高基数验证；派生水位/代际可查，批流同一致性点对拍。 |
-| M48-L12 / P1 | 保留、封存、回收和归档；依赖 L03/L07/L09/L10 | 迟到、未来时间、保留缩短、活跃视图与删除中崩溃；原事件/索引/派生引用一致，归档不冒称可直接查询。 |
-| M48-L13 / P0 | 采集/读取/管理权限、隔离/审计/原文与 DLQ 脱敏；贯穿 | 两库及多身份真实拒绝，hits/facet/总数/上下文/导出/规则一致；现有权限不足时用数据库隔离，不靠 UI 隐藏。 |
-| M48-L14 / P0 | 全链路预算、公平性、取消与观测；复用 M42/V45-X01/X02 | 解析/候选/posting/排序/聚合/响应/spool/合并费用归属，临时峰值计费；超限明确拒绝，取消释放，有限指标标签。 |
-| M48-L15 / P1 | Web 日志探索/时间轴/筛选/详情/上下文；依赖 L08/L10/L11/L13/L14 | 真实 Server/浏览器完整旅程，迟返/撤权/资源错误/视图过期可理解；消费实际 typed 入口。 |
-| M48-L16 / P1 | 保存查询、轻量看板、联动/共享/导出；依赖 L10/L11/L13/L15 | 定义版本/权限/恢复、流删除/schema 改变失效、多面板预算与下载；不保存 token 或静默跨库。 |
-| M48-L17 / P1 | 阈值规则、持久状态/静默/恢复通知/Webhook outbox；依赖 L07/L11/L13/L14/M45 | 迟到/重复/零分母/规则换代/数据中断/发送回执丢失；Unknown 不当作零或恢复，外部通知至少一次。 |
-| M48-L18 / P0 | 备份恢复、强杀/磁盘故障/版本迁移与回退；依赖已交付核心切片 | 目录/事件/源位点/幂等/派生/定义/规则逐项对账；外部 spool 或 `.system/mq` 单列，kill 不代替掉电。 |
-| M48-L19 / P1 | typed SDK/CLI/能力发现、真实示例与迁移运维说明；依赖实际入口 | embedded/REST/适用 Frame 独立矩阵，字段转换与失败回执可重现；不承诺原 ES 客户端/Kibana 即插即用。 |
-| M48-L20 / P0 | 固定 profile/168 小时/原生候选/发行收口；依赖 L01～L19 | 同候选真实采集器、权限、容量、恢复、AOT/原发布 policy、安装首跑齐全；未验项保持 NOT_READY。 |
-| M48-L21 / P2 | OTLP Logs 接收与真实 Collector 适配；R1 后条件项 | 独立冻结 transport/encoding/partial success/字段/精度；Logs 不自动涵盖 Metrics/Traces。 |
-| M48-L22 / P2 | Trace 接收/查询与日志关联视图；依赖 L21/独立 span 合同 | 真实 span/父子/采样/迟到/重复验证；相同 trace_id 日志聚合不称完整 APM。 |
-| M48-L23 / P2 | 语义日志与设备/业务关联；复用 M27/M35/M44 | 真实相关性/误报/成本、ACL/删除/模型换代及有证据解释；hash/合成不计语义质量。 |
-| M48-L24 / P2 | 扩展采集器/字段包和必要的协议迁移子集 | 具体消费者、版本/请求/错误矩阵与许可评审；不默认重做完整 ELK/Fleet/插件生态。 |
+| ID / 优先级 | 状态 | 具体交付与主要依赖 | 完成与验收条件 |
+|---|---|---|---|
+| M48-L01 / P0 | 📋 | 源码缺口复核、真实日志语料、范围/版本/负载 profile；复用 V45-X06 | 固定预期结果、来源/哈希、硬件/持久性/内存/SLO；复现候选窗口与 10000 条边界，未校准不称达标。 |
+| M48-L02 / P0 | 📋 | 事件信封、时间/精度/字段/来源身份；依赖 L01 | 缺失/NULL/整数、时区/源精度、数组/点号/大小写、重复身份冲突均明确；DTO/source generation 与拒绝矩阵齐全。 |
+| M48-L03 / P0 | 📋 | LogStream 目录、模板、分区与滚动；依赖 L02 | 默认按摄取时间/容量滚动，event_time 用于检索；并发写/崩溃后单一写目标，schema/流重建代际不串用。 |
+| M48-L04 / P0 | 📋 | 批量接入、逐项/通用批次确认、幂等/未知提交；依赖 L02/L03 | 区分已接收/耐久/可搜索；混合有效无效、ACK 丢失、重复冲突、超限/满盘可对账，不把内存入队当持久。 |
+| M48-L05 / P0 | 📋 | 版本化处理管线、模拟、转换/脱敏/失败分流；依赖 L02/L04 | 两类真实模板、日期与类型错误、脱敏失败、配置换代和原版本重放；禁止无界匹配/任意脚本。 |
+| M48-L06 / P0 | 📋 | .NET 示例和真实 Logstash HTTP/json_batch；依赖 L04/L05 | 固定消费者版本，实际 JSON 数组/鉴权/重试/429/503/断网；HTTP 成功不可掩盖未处理的批内失败。 |
+| M48-L07 / P0 | 📋 | M43 spool/检查点/重投/背压/DLQ 日志集成；依赖 L03/L04 | 来源位点不先于持久决定；提交前后/ACK 丢失/暂停/隔离/重放/满队列恢复，未知状态明确交接。 |
+| M48-L08 / P0 | 📋 | 文本+时间+精确字段+权限统一过滤；依赖 L02/L03 | 纯过滤、窗口外命中、超过 10000 条与全扫描参考对拍；总数/分面不再冒称候选窗口为完整集合。 |
+| M48-L09 / P0 | 📋 | 磁盘全文块访问、缓存、批量段/Top-K/合并；复用 M35/M42/M46 | 大于内存工作集、冷读/损坏/取消/满盘和前后台竞争；不全量加载或无界合并后宣称预算成立，格式升级可回退。 |
+| M48-L10 / P0 | 📋 | 固定读取视图、稳定时间排序/游标、上下文/有界导出；依赖 L03/L08/L09 | 写入/滚动/删除/同时间戳/撤权/过期不静默漏读重复；资源租约与游标绑定明确，当前窗口导出与完整导出区分。 |
+| M48-L11 / P1 | 📋 | 全过滤集合 facet/时间桶/统计列/精确和近似聚合；依赖 L08～L10/M45 | UTC 半开桶、missing/NULL/多值/Top-N、Int64/误差与高基数验证；派生水位/代际可查，批流同一致性点对拍。 |
+| M48-L12 / P1 | 📋 | 保留、封存、回收和归档；依赖 L03/L07/L09/L10 | 迟到、未来时间、保留缩短、活跃视图与删除中崩溃；原事件/索引/派生引用一致，归档不冒称可直接查询。 |
+| M48-L13 / P0 | 📋 | 采集/读取/管理权限、隔离/审计/原文与 DLQ 脱敏；贯穿 | 两库及多身份真实拒绝，hits/facet/总数/上下文/导出/规则一致；现有权限不足时用数据库隔离，不靠 UI 隐藏。 |
+| M48-L14 / P0 | 📋 | 全链路预算、公平性、取消与观测；复用 M42/V45-X01/X02 | 解析/候选/posting/排序/聚合/响应/spool/合并费用归属，临时峰值计费；超限明确拒绝，取消释放，有限指标标签。 |
+| M48-L15 / P1 | 📋 | Web 日志探索/时间轴/筛选/详情/上下文；依赖 L08/L10/L11/L13/L14 | 真实 Server/浏览器完整旅程，迟返/撤权/资源错误/视图过期可理解；消费实际 typed 入口。 |
+| M48-L16 / P1 | 📋 | 保存查询、轻量看板、联动/共享/导出；依赖 L10/L11/L13/L15 | 定义版本/权限/恢复、流删除/schema 改变失效、多面板预算与下载；不保存 token 或静默跨库。 |
+| M48-L17 / P1 | 📋 | 阈值规则、持久状态/静默/恢复通知/Webhook outbox；依赖 L07/L11/L13/L14/M45 | 迟到/重复/零分母/规则换代/数据中断/发送回执丢失；Unknown 不当作零或恢复，外部通知至少一次。 |
+| M48-L18 / P0 | 📋 | 备份恢复、强杀/磁盘故障/版本迁移与回退；依赖已交付核心切片 | 目录/事件/源位点/幂等/派生/定义/规则逐项对账；外部 spool 或 `.system/mq` 单列，kill 不代替掉电。 |
+| M48-L19 / P1 | 📋 | typed SDK/CLI/能力发现、真实示例与迁移运维说明；依赖实际入口 | embedded/REST/适用 Frame 独立矩阵，字段转换与失败回执可重现；不承诺原 ES 客户端/Kibana 即插即用。 |
+| M48-L20 / P0 | 📋 | 固定 profile/168 小时/原生候选/发行收口；依赖 L01～L19 | 同候选真实采集器、权限、容量、恢复、AOT/原发布 policy、安装首跑齐全；未验项保持 NOT_READY。 |
+| M48-L21 / P2 | 📋 | OTLP Logs 接收与真实 Collector 适配；R1 后条件项 | 独立冻结 transport/encoding/partial success/字段/精度；Logs 不自动涵盖 Metrics/Traces。 |
+| M48-L22 / P2 | 📋 | Trace 接收/查询与日志关联视图；依赖 L21/独立 span 合同 | 真实 span/父子/采样/迟到/重复验证；相同 trace_id 日志聚合不称完整 APM。 |
+| M48-L23 / P2 | 📋 | 语义日志与设备/业务关联；复用 M27/M35/M44 | 真实相关性/误报/成本、ACL/删除/模型换代及有证据解释；hash/合成不计语义质量。 |
+| M48-L24 / P2 | 📋 | 扩展采集器/字段包和必要的协议迁移子集 | 具体消费者、版本/请求/错误矩阵与许可评审；不默认重做完整 ELK/Fleet/插件生态。 |
 
 ### 依赖与阶段退出
 
@@ -309,41 +324,43 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 
 2026-10-16 按用户确认修订，实施已开始：C01/C02/D01/R02/R03 首片进行中，其余 planned，15 包均未整体完成。[实施矩阵](docs/design/m49-implementation-matrix.md)跟踪实际边界。`connectors/` 为各语言原生 HTTP/2 二进制 Frame，平行 `embedded/` 为托管 .NET 与统一 AOT C ABI 绑定。远程八语言，嵌入式六语言；VB6/PureBasic 仅远程，VB6 固有 x86 不需要 32位 AOT 桥接。Linux/Windows/macOS、适用 x64/ARM64/glibc/musl 按每批矩阵验收，普通32位后续；Java8兼容，FFM按需。用户明确直接重构，不保留旧兼容层。
 
+当前状态（2026-10-26）：🟡 十个本地切片已闭环；🚧 M49 整体仍进行中。真实 Server HTTP/2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布、性能与恢复证据仍未验收，不能把局部 PASS 升级为整条路线完成。
+
 **首批只做九模型数据访问，允许分批正式发行，剩余语言/平台/能力后续完成。** AI/RAG、通用流处理/CDC/备份治理API后续；现有鉴权授权、资源预算、持久性和恢复验证继续执行。当前Frame操作不完整，F01必须补齐，不能经REST绕过；仅确有语言限制才讨论有证据的例外。已存在的批量/参数/类型/多结果和 M41/M42/M46 实现继续复用，物化缺口仍需端到端修复。
 
-| ID | 优先级 / 依赖 | 工作与退出条件 |
-|---|---|---|
-| M49-C01 | P0；先行 | 冻结首批九模型操作、两条产品线、每批语言/64位平台与证据基线；复现物化，核 Java 8/BASIC HTTP/2 候选，分批正式发行范围可审查。 |
-| M49-C02 | P0；C01 | 冻结精确类型/参数、批 schema、预算/终态/错误/未知提交与 ABI/Frame 版本；共享语义和黄金语料，不强制远程复用 C ABI，不维护旧 API 兼容层。 |
-| M49-D01 | P0；C02 | 直接拆分 connectors/embedded 的目录、包、依赖与构建入口；.NET 嵌入式托管，非 .NET 共用 AOT；BASIC 仅远程，去除旧门面/桥接依赖；不改磁盘格式。 |
-| M49-F01 | P0；C02；与 D01 按切片衔接 | 逐模型补齐 HTTP/2 Frame 服务端操作、参数/适用事务、完整错误/终态/取消与必要认证路径；远程不得以 REST/HTTP1 回落代替缺口，例外逐项留证。 |
-| M49-C03 | P0；D01/F01、R01/R02/R03 对应切片 | 打通 .NET 托管和 C→AOT 嵌入式，以及 .NET/C 原生 Frame 远程路径；精确类型、九模型、批次/取消/重开与适用 AOT 分别验收；生态接口按新边界调整。 |
-| M49-C04 | P1；C03 对应切片 | Go/Rust 各实现原生 Frame 远程 SDK 与独立 embedded FFI；惯用迭代/批写、context/取消、RAII/所有权和 database/sql 适用语义逐端实跑。 |
-| M49-C05 | P1；C03 对应切片 | Java 8 兼容原生 Frame 远程库与 JNI 嵌入式绑定；AutoCloseable/精确类型/取消/异常和缓冲生命周期实跑；必要时拆 Java8 包，FFM 可选。 |
-| M49-C06 | P1；C03 对应切片 | Python 原生 Frame 远程 SDK 与 embedded ctypes 分开交付；DB-API/有界批与可选 Pandas 映射，dtype/NULL/时间/大整数和整结果容量明确。 |
-| M49-C07 | P1；F01/C02 对应切片 | VB6/PureBasic 仅实现原生远程 Frame；允许系统网络库，验证实际 HTTP/2、二进制/Int64/取消与适用订阅；不建 AOT/x86 引擎桥接，缺授权工具链保留 NOT_RUN。 |
-| M49-C08 | P1；本批适用 C03～C07/R05 | 按本批语言/平台/操作交付正式候选包、匹配共享库/头文件、模型 demo、文档与干净消费者；批次可独立完成，构建/发布/下载回读分列，不等全矩阵。 |
-| M49-R01 | P0；C01/C02 | 复用 M41/M42 为有限关系/measurement 扫描建立 pull/批执行；不先生成全量 Rows，排序/JOIN/聚合等阻塞路径明确预算/spill/拒绝。 |
-| M49-R02 | P0；R01/C02、D01/F01 对应切片 | 托管/AOT 嵌入式与 Server→Frame→各语言原生远程路径贯通批大小、背压、能力/版本与完整终态；不经 C ABI 中转远程，缺 end 不算成功 EOF。 |
-| M49-R03 | P0；C02，贯穿 R01/R02/C03/F01 | 接 V45-X02，对执行/编码/解码/预取/缓存租约及累计请求计费，验证公平准入与取消/关闭释放；估算预算与实测 RSS 分列。 |
-| M49-R04 | P1；R01～R03、M46 适用切片 | 列/时间裁剪、范围解码、批传递和复制成本优化；宽/窄、冷/热、稀疏/高熵对拍，不牺牲精确类型和取消安全。 |
-| M49-R05 | P1；本批适用 C03～C07/R01～R04/F01 | 每批分别验收目标语言的 embedded/真实 HTTP2 Frame、失败/取消/断连/重开、资源/性能和新版本协商；公开限制，单端 PASS 不升级未交付矩阵。 |
+| ID | 状态 | 优先级 / 依赖 | 工作与退出条件 |
+|---|---|---|---|
+| M49-C01 | ✅ | P0；先行 | 冻结首批九模型操作、两条产品线、每批语言/64位平台与证据基线；复现物化，核 Java 8/BASIC HTTP/2 候选，分批正式发行范围可审查。 |
+| M49-C02 | 🟡 | P0；C01 | 冻结精确类型/参数、批 schema、预算/终态/错误/未知提交与 ABI/Frame 版本；共享语义和黄金语料，不强制远程复用 C ABI，不维护旧 API 兼容层。 |
+| M49-D01 | 🟡 | P0；C02 | 直接拆分 connectors/embedded 的目录、包、依赖与构建入口；.NET 嵌入式托管，非 .NET 共用 AOT；BASIC 仅远程，去除旧门面/桥接依赖；不改磁盘格式。 |
+| M49-F01 | 🟡 | P0；C02；与 D01 按切片衔接 | 逐模型补齐 HTTP/2 Frame 服务端操作、参数/适用事务、完整错误/终态/取消与必要认证路径；远程不得以 REST/HTTP1 回落代替缺口，例外逐项留证。 |
+| M49-C03 | 🟡 | P0；D01/F01、R01/R02/R03 对应切片 | 打通 .NET 托管和 C→AOT 嵌入式，以及 .NET/C 原生 Frame 远程路径；精确类型、九模型、批次/取消/重开与适用 AOT 分别验收；生态接口按新边界调整。 |
+| M49-C04 | 🟡 | P1；C03 对应切片 | Go/Rust 各实现原生 Frame 远程 SDK 与独立 embedded FFI；惯用迭代/批写、context/取消、RAII/所有权和 database/sql 适用语义逐端实跑。 |
+| M49-C05 | 🟡 | P1；C03 对应切片 | Java 8 兼容原生 Frame 远程库与 JNI 嵌入式绑定；AutoCloseable/精确类型/取消/异常和缓冲生命周期实跑；必要时拆 Java8 包，FFM 可选。 |
+| M49-C06 | 🟡 | P1；C03 对应切片 | Python 原生 Frame 远程 SDK 与 embedded ctypes 分开交付；DB-API/有界批与可选 Pandas 映射，dtype/NULL/时间/大整数和整结果容量明确。 |
+| M49-C07 | 📋 | P1；F01/C02 对应切片 | VB6/PureBasic 仅实现原生远程 Frame；允许系统网络库，验证实际 HTTP/2、二进制/Int64/取消与适用订阅；不建 AOT/x86 引擎桥接，缺授权工具链保留 NOT_RUN。 |
+| M49-C08 | 📋 | P1；本批适用 C03～C07/R05 | 按本批语言/平台/操作交付正式候选包、匹配共享库/头文件、模型 demo、文档与干净消费者；批次可独立完成，构建/发布/下载回读分列，不等全矩阵。 |
+| M49-R01 | 🚧 | P0；C01/C02 | 复用 M41/M42 为有限关系/measurement 扫描建立 pull/批执行；不先生成全量 Rows，排序/JOIN/聚合等阻塞路径明确预算/spill/拒绝。 |
+| M49-R02 | 🟡 | P0；R01/C02、D01/F01 对应切片 | 托管/AOT 嵌入式与 Server→Frame→各语言原生远程路径贯通批大小、背压、能力/版本与完整终态；不经 C ABI 中转远程，缺 end 不算成功 EOF。 |
+| M49-R03 | 🚧 | P0；C02，贯穿 R01/R02/C03/F01 | 接 V45-X02，对执行/编码/解码/预取/缓存租约及累计请求计费，验证公平准入与取消/关闭释放；估算预算与实测 RSS 分列。 |
+| M49-R04 | 📋 | P1；R01～R03、M46 适用切片 | 列/时间裁剪、范围解码、批传递和复制成本优化；宽/窄、冷/热、稀疏/高熵对拍，不牺牲精确类型和取消安全。 |
+| M49-R05 | 📋 | P1；本批适用 C03～C07/R01～R04/F01 | 每批分别验收目标语言的 embedded/真实 HTTP2 Frame、失败/取消/断连/重开、资源/性能和新版本协商；公开限制，单端 PASS 不升级未交付矩阵。 |
 
 推进顺序：**C01 → C02 → D01/F01 + R01/R02/R03/C03 → C04～C07 → R04/R05 → 按批 C08**，依赖按可验收切片处理。建议先 .NET/C 的 Windows/Linux x64，再扩语言与平台；正式批次只声明实际通过的矩阵，不等待整个M49完成，也不把局部PASS升级为九模型全部支持。详细边界见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
 
 不改变磁盘格式规则，不盲重放未知写，不隐藏全量物化/无界预取。外部对象存储、普通32位库、平台能力API与通用历史修订保持后续边界；Core Safe-only、零第三方运行时依赖、source-generated JSON 与适用 AOT 零警告保持。已开始 Native SQL reader 生命周期与唯一 AOT 工程迁移；Core 物化、远程新 SDK、性能和包验收不能从本片推断通过。
 
 
-| ID / 归属 | 优先级 / 范围 | 交付与验收 |
-|---|---|---|
-| V45-X01 / M41、M42 | P0 必选 | 执行器→REST/Frame→ADO/SDK 批/惰性读取、首行、取消/断连、行/字节准入及工作集；以 M49-R01/R02 接通托管/AOT嵌入式与各语言原生Frame连接器，明确阻塞/spill，不把切帧/预览当全链路有界。 |
-| V45-X02 / M42 | P0 必选 | 基于 SQL worker/内存、KV I/O 和缓存，增加数据库/进程总预算、分类归属及公平准入；接 M49-R03 的批次/编码/预取/客户端消费，治理 reader 缓存随段数放大、共享 HNSW 跨库配置、AI/后台与前台竞争，记录 CPU/I/O/heap/排队/释放。 |
-| V45-X03 / M43 | P0 必选 | 已有本地 CDC/桥接/任务之外的有界远程合同：schema/version、历史增量、冲突/删除/TTL、续传/积压/offset；首批限定源和拓扑，不把副本称为 HA。 |
-| V45-X04 / M36、M43 | P0 必选 | MQ 实例 snapshot/restore 与数据库恢复组合；对账 offset、任务/checkpoint、物化结果、派生 AI 索引/模型引用的一致性点与顺序，公开 RPO/RTO 和非原子边界，单库备份不含 `.system/mq`。 |
-| V45-X05 / M35、M36、M29 | P1 必选 | 全文相关性/重建、filtered ANN/Recall、KV continuation/TTL、对象高变更率分页与大文件校验、图有界结果、SDK/CLI/Workbench 对拍；按明确缺口实施，UI 不先于入口。 |
-| V45-X06 / 既有证据里程碑 | P0 必选 | 固定语料/机器/版本/持久性/客户端；分开功能、质量、容量、恢复及长期报告，九模型/AI/聚合/编码可复算，失败样本保留，冻结适用门槛。 |
-| V45-X07 / M43 架构决策 | P2 条件 | 主备/复制先定义模型边界、fencing、单写者、日志缺口、未知提交、RPO/RTO 和 split-brain 矩阵；真实需求及一致性证据后单独实现，不承诺 4.5 自动 failover/完整分片。 |
-| V45-X08 / M36、M44、M45 | P1 必选 | measurement/TAG/FIELD 上的设备/业务实体模板、静态属性映射、稀疏观测及跨实体分析；复用关系实体，不新增原生模型，名称/类型/模板演进与普通 SQL 一致。 |
+| ID / 归属 | 状态 | 优先级 / 范围 | 交付与验收 |
+|---|---|---|---|
+| V45-X01 / M41、M42 | 🚧 | P0 必选 | 执行器→REST/Frame→ADO/SDK 批/惰性读取、首行、取消/断连、行/字节准入及工作集；以 M49-R01/R02 接通托管/AOT嵌入式与各语言原生Frame连接器，明确阻塞/spill，不把切帧/预览当全链路有界。 |
+| V45-X02 / M42 | 🚧 | P0 必选 | 基于 SQL worker/内存、KV I/O 和缓存，增加数据库/进程总预算、分类归属及公平准入；接 M49-R03 的批次/编码/预取/客户端消费，治理 reader 缓存随段数放大、共享 HNSW 跨库配置、AI/后台与前台竞争，记录 CPU/I/O/heap/排队/释放。 |
+| V45-X03 / M43 | 📋 | P0 必选 | 已有本地 CDC/桥接/任务之外的有界远程合同：schema/version、历史增量、冲突/删除/TTL、续传/积压/offset；首批限定源和拓扑，不把副本称为 HA。 |
+| V45-X04 / M36、M43 | 📋 | P0 必选 | MQ 实例 snapshot/restore 与数据库恢复组合；对账 offset、任务/checkpoint、物化结果、派生 AI 索引/模型引用的一致性点与顺序，公开 RPO/RTO 和非原子边界，单库备份不含 `.system/mq`。 |
+| V45-X05 / M35、M36、M29 | 🚧 | P1 必选 | 全文相关性/重建、filtered ANN/Recall、KV continuation/TTL、对象高变更率分页与大文件校验、图有界结果、SDK/CLI/Workbench 对拍；按明确缺口实施，UI 不先于入口。 |
+| V45-X06 / 既有证据里程碑 | 🚧 | P0 必选 | 固定语料/机器/版本/持久性/客户端；分开功能、质量、容量、恢复及长期报告，九模型/AI/聚合/编码可复算，失败样本保留，冻结适用门槛。 |
+| V45-X07 / M43 架构决策 | 📋 | P2 条件 | 主备/复制先定义模型边界、fencing、单写者、日志缺口、未知提交、RPO/RTO 和 split-brain 矩阵；真实需求及一致性证据后单独实现，不承诺 4.5 自动 failover/完整分片。 |
+| V45-X08 / M36、M44、M45 | 📋 | P1 必选 | measurement/TAG/FIELD 上的设备/业务实体模板、静态属性映射、稀疏观测及跨实体分析；复用关系实体，不新增原生模型，名称/类型/模板演进与普通 SQL 一致。 |
 
 ### 九模型验收与参考负载
 
@@ -475,23 +492,23 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 记录硬件/架构、commit、配置/版本/命令/时间、真实 P50/P95/P99、working set/heap/分配/GC、逻辑与物理 I/O 区别、正确性/恢复与原始样本。不可用项为 `NOT_RUN`/`NOT_READY`/`DEFERRED`。
 
-| 来源 | 保留验收 | 当前边界 |
+| 来源 | 状态 | 保留验收 | 当前边界 |
 |---|---|---|
-| M19 #125 | 百万 series、万 segment、20 次 kill/reopen、万 measurement | 固定 Linux x64 四档待证。 |
-| M25 #174 | million/ten-million 文档写查/TTL/重建/备份恢复/内存 | 固定目标及 attestation 待证。 |
-| M20 #136 | 同候选light/full真实backend/artifact、七天scheduled观察 | 2026-10-10审查核到远端5424b666的10月8/9日light/full成功，非本地预览候选证明；七天完整观察未核。 |
-| M27 #184/#185/#187/#340 | 真实模型/成本、IdP/broker、双网/续流及 Studio | 功能/本地已归档，现场独立验收。 |
-| M29 #258 | 干净 Windows、WebView2、升级/卸载、端口/生命周期 | 安装包/宿主已有，实机待验。 |
-| M35 / M36 | 真实语料、模型换代、九模型跨端/权限/取消/删除/恢复 | 2026-11-04 ARM64关系/时序真实REST与HTTP2 Frame读取、ADO预取消及后续查询已过；完整九模型旅程、写删和容量仍待验。 |
-| M36 #323/#325/#326 | 对象大文件/分页/校验、MQ 实例/offset 恢复 | 真实13.25MB读取原证据保留；旧桶分页已修复，ARM64真实元数据隔离副本首查2.339秒、三页9对象与317万latest对拍通过。真实Server/SDK取消、断连、换客户端续传及本地单库正文+独立MQ恢复通过；完整高变更率、跨进程/现场恢复和发布仍待验。[本批证据](docs/audits/object-pagination-20261104/README.md)。 |
-| M39 | 混合 DML、触发器/deferred/outbox 长期尾延迟 | 研发之外的生产观察。 |
-| M40 #352/#367 / Couplet | 外部对拍、LDBC/Graphalytics、1m/10m、AOT、hard-kill/168 小时 | Beta 与联合环境 gate 独立。 |
-| M41 / M42 | 目标硬件、同语料、冷启动/首行/heap/I/O、恢复/168 小时 | 2026-11-04 ARM64覆盖索引/回表对照、REST完整/截断、固定身份DESC/OFFSET并列时间排序及ADO两协议读取已过；完整性能分布、恢复和168小时继续待验。 |
-| M44 | 三条旅程真实质量/成本、防泄漏、删除/回滚/任务恢复 | 新规划，fixture/hash 不计效果。 |
-| M45 | batch↔stream、merge/retract、late/update/delete、rollup/spill/reopen | 新规划，冻结首批子集/误差。 |
-| M46 | 编码/高熵回退、旧新格式、损坏/极值/放大/冷读 | 新规划，不预填提升倍数。 |
-| M48（独立 R1） | 固定日志 profile、真实 Logstash、窗口外检索/全量统计、磁盘容量、保留/恢复、规则通知及 168 小时 | 全部 planned；版本/阈值待 L01 冻结，不由研究或已有模型局部 PASS 宣布日志平台完成。 |
-| M50（独立增量） 📋 | 三精度同候选、真实协议/消费者、旧引擎拒绝、迁移/恢复、固定 x64/ARM64 与 168 小时 | T01 冻结范围/阈值，T26～T30 分别留证；T32 硬件授时条件项不由软件纳秒往返替代。 |
+| M19 #125 | ⏳ | 百万 series、万 segment、20 次 kill/reopen、万 measurement | 固定 Linux x64 四档待证。 |
+| M25 #174 | ⏳ | million/ten-million 文档写查/TTL/重建/备份恢复/内存 | 固定目标及 attestation 待证。 |
+| M20 #136 | 🚧 | 同候选light/full真实backend/artifact、七天scheduled观察 | 2026-10-10审查核到远端5424b666的10月8/9日light/full成功，非本地预览候选证明；七天完整观察未核。 |
+| M27 #184/#185/#187/#340 | 🚧 | 真实模型/成本、IdP/broker、双网/续流及 Studio | 功能/本地已归档，现场独立验收。 |
+| M29 #258 | 🟡 | 干净 Windows、WebView2、升级/卸载、端口/生命周期 | 安装包/宿主已有，实机待验。 |
+| M35 / M36 | 🚧 | 真实语料、模型换代、九模型跨端/权限/取消/删除/恢复 | 本地不替代完整旅程、远程或容量。 |
+| M36 #323/#325/#326 | 🚧 | 对象大文件/分页/校验、MQ 实例/offset 恢复 | 不由单库备份推出实例一致性。 |
+| M39 | ⏳ | 混合 DML、触发器/deferred/outbox 长期尾延迟 | 研发之外的生产观察。 |
+| M40 #352/#367 / Couplet | 🚧 | 外部对拍、LDBC/Graphalytics、1m/10m、AOT、hard-kill/168 小时 | Beta 与联合环境 gate 独立。 |
+| M41 / M42 | 🚧 | 固定 x64/ARM64、同语料、冷启动/首行/heap/I/O、恢复/168 小时 | 本地预算/快路径不代替目标机。 |
+| M44 | 📋 | 三条旅程真实质量/成本、防泄漏、删除/回滚/任务恢复 | 新规划，fixture/hash 不计效果。 |
+| M45 | 📋 | batch↔stream、merge/retract、late/update/delete、rollup/spill/reopen | 新规划，冻结首批子集/误差。 |
+| M46 | 📋 | 编码/高熵回退、旧新格式、损坏/极值/放大/冷读 | 新规划，不预填提升倍数。 |
+| M48（独立 R1） | 📋 | 固定日志 profile、真实 Logstash、窗口外检索/全量统计、磁盘容量、保留/恢复、规则通知及 168 小时 | 全部 planned；版本/阈值待 L01 冻结，不由研究或已有模型局部 PASS 宣布日志平台完成。 |
+| M50（独立增量） | 📋 | 三精度同候选、真实协议/消费者、旧引擎拒绝、迁移/恢复、固定 x64/ARM64 与 168 小时 | T01 冻结范围/阈值，T26～T30 分别留证；T32 硬件授时条件项不由软件纳秒往返替代。 |
 
 
 2026-11-04按用户确认，本轮托管功能正确性以ARM64真机通过作为验收依据，不以同功能尚未重复执行x64阻塞收口；未执行的指定平台容量、NativeAOT或原生依赖专项不列为实测PASS。本轮6组功能子项、32条通过断言及1项对象分页超时见[木垒真机收口](docs/audits/mulei-field-gates-20261104/README.md)和[机器证据](docs/audits/mulei-field-gates-20261104/verification.json)。这些子项完成不扩大为整个M36/M41/M42或最新独立Client已发布。
@@ -517,7 +534,7 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 #382~#384、本地 CDC/窗口/任务/DLQ/自动投递/桥接及汇总工具移至 CHANGELOG；这里只保留剩余。M44 应用、M45 计算语义、M46 编码各自归属新里程碑。
 
 | 范围 | 状态 | 剩余交付 |
-| M49（两条产品线） | 首批九模型、真实托管/AOT嵌入式和原生HTTP2 Frame、精确类型/预算/取消/恢复及独立包消费者 | 首片进行中，15包均未整体完成；先64位，Java8兼容，BASIC仅远程，按实际矩阵分批正式发行；平台API后续。 |
+| M49（两条产品线） | 🟡 / 🚧 | 首批九模型、真实托管/AOT嵌入式和原生HTTP2 Frame、精确类型/预算/取消/恢复及独立包消费者；十个本地切片已闭环，整体15包仍进行中。 |
 |---|---|---|
 | #385~#390 | 🚧 | 远程同步、schema/冲突、离线续传、客户端及现场故障/容量。 |
 | #391~#395 | 🚧 | 远程投递/接管、权限、业务副作用边界与现场恢复，已有本地底座不重做。 |
@@ -531,12 +548,12 @@ CAP 生态适配新增统一 `SonnetDB.CAP` 项目（2026-10-09），按用户�
 
 ## 性能观察项
 
-| 编号 | 候选 | 进入条件 |
+| 编号 | 状态 | 候选 | 进入条件 |
 |---|---|---|
-| PF1 | 级联删除按选择率切索引/哈希 | 1/10/50/100 父键矩阵收益及回滚等价。 |
-| PF2 | fuzzy 高基数词典结构 | 100k/500k term 证实瓶颈及收益；原至少 2 倍候选门槛保留，不是当前性能声明。 |
-| PF3 | ANN tombstone 区间/gate | 墓碑是主要成本且不降召回/精确语义。 |
-| PF4 | `pg_vectorsearch` / PRISM 分区式 ANN | 作为 2026-10-13 Tiger Data alpha 的外部候选，对比 HNSW、IVF-Flat、IVF-PQ 与精确扫描在长尾/分区倾斜/高频更新下的 Recall@K、尾延迟、建索引时间、磁盘/内存和重建成本；厂商自测与 alpha 结果不计入门禁。 |
+| PF1 | 📋 | 级联删除按选择率切索引/哈希 | 1/10/50/100 父键矩阵收益及回滚等价。 |
+| PF2 | 📋 | fuzzy 高基数词典结构 | 100k/500k term 证实瓶颈及收益；原至少 2 倍候选门槛保留，不是当前性能声明。 |
+| PF3 | 📋 | ANN tombstone 区间/gate | 墓碑是主要成本且不降召回/精确语义。 |
+| PF4 | 📋 | `pg_vectorsearch` / PRISM 分区式 ANN | 作为 2026-10-13 Tiger Data alpha 的外部候选，对比 HNSW、IVF-Flat、IVF-PQ 与精确扫描在长尾/分区倾斜/高频更新下的 Recall@K、尾延迟、建索引时间、磁盘/内存和重建成本；厂商自测与 alpha 结果不计入门禁。 |
 
 候选不自动转为必选；有基准后并入 M46/V45-X05 单项评审。
 

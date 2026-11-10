@@ -7,5 +7,5 @@
     "denyWrite": []
   },
   "chat.agent.sandbox.enabled": "on",
-  "cmake.sourceDirectory": "D:/GitHub/SonnetDBEE/SonnetDB/connectors/c"
+  "cmake.sourceDirectory": "D:/source/SonnetDB/connectors/c"
 }

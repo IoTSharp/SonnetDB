@@ -1,5 +1,7 @@
 # GitHub Issues Roadmap Snapshot
 
+状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。当前队列中的开放事项统一保留为 `🚧`，直到实现、验证和外部收口全部完成。
+
 ## Current queue — 2026-10-15
 
 The initial GitHub API read found **46 open issues and no open pull requests**, with the oldest requests created on 2026-10-08. A second read found **48 open issues**, adding #312 (explicit relation primary-key updates) and #313 (bounded measurement FIELD updates). The final snapshot still has **48 open issues**: #314 (exact Decimal ROUND) is newly recorded and #273 is now closed/completed after [public-package verification](audits/issue-273-public-package-20261015.md). The ordered [machine-readable snapshot](audits/github-open-issues-20261015.json) preserves its capture time; the initial counts remain historical facts. The [first ten implementation tasks](audits/implementation-batch-01-20261015.md) distinguish new implementation from release and downstream-provider acceptance.
@@ -29,11 +31,11 @@ The latest authenticated GitHub read-back on 2026-09-25 found 30 Issues: 27 clos
 
 On 2026-09-23, GH-Issue #177, #180 and #193 completed embedded, real REST, HTTP/2 Frame and model-boundary acceptance, with 358/358 passing regressions. Code was pushed through `6ca5ce7a939a7b62db2e82a37f1ae4d2827b43c3`, then all three issues were closed as `completed` and read back from GitHub. See [`sql-provider-closure-20260923.md`](audits/sql-provider-closure-20260923.md). Fixed-hardware, production, long-run and external database comparison evidence remain separate roadmap work.
 
-| Open request | Required closure scope |
-|---|---|
-| GH-Issue #91 | Clean offline Windows MSI/WebView2 installation and first-run evidence for the existing embedded-database Studio workflow. |
-| GH-Issue #184 | Remote session is implemented on `main`; release version and deployed failure/recovery evidence remain. |
-| GH-Issue #197 | [Installed candidate and official 3.1.0 compatibility checks](audits/issue-197-package-contract-20260926.md) now cover the INSERT RETURNING contract. The first complete public release, tagged workflow and post-release verification remain; published 3.1.0 is not sufficient. |
+| Open request | Status | Required closure scope |
+|---|---|---|
+| GH-Issue #91 | 🚧 | Clean offline Windows MSI/WebView2 installation and first-run evidence for the existing embedded-database Studio workflow. |
+| GH-Issue #184 | 🚧 | Remote session is implemented on `main`; release version and deployed failure/recovery evidence remain. |
+| GH-Issue #197 | 🚧 | [Installed candidate and official 3.1.0 compatibility checks](audits/issue-197-package-contract-20260926.md) now cover the INSERT RETURNING contract. The first complete public release, tagged workflow and post-release verification remain; published 3.1.0 is not sufficient. |
 
 GH-Issue #171 evidence boundary: the 2026-09-25 follow-up supports ordered output-column lists for non-recursive CTEs, including JOIN, aggregation, parameterized `IN`/`EXISTS`, ordering/pagination, set operations and relation/measurement/document sources. Empty-result width mismatch and duplicate names fail explicitly; embedded ADO preserves the renamed name and Int64 type. The dedicated `SqlCteTests` regression passed 13/13. Bounded `WITH RECURSIVE` is tracked separately under #189. Remote parity and the external issue-thread follow-up remain pending. See [the #171 audit](audits/github-issue-171-cte-columns-20260925.md).
 

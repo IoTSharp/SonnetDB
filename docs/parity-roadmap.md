@@ -2,6 +2,10 @@
 
 > SonnetDB 的目标是让物联网 / 工业 / 边缘场景下，**一台 SonnetDB 替掉一组开源组件的组合**（PostgreSQL + Redis + InfluxDB + MinIO + NATS + Meilisearch + Qdrant + ClickHouse）。本路线图规定如何对这一目标做"可证伪"的对齐验证。
 
+当前总状态：🚧 进行中。场景、适配器和可靠性切片已有交付；M20 最近 scheduled 观察仍有失败，七天完整证据与同候选发布级回读尚未闭环。
+
+状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。
+
 ## 设计前提
 
 1. **不做协议兼容**。SonnetDB 不实现 SigV4 / MQTT 3.1.1 / RESP / Postgres wire / MongoDB wire / Kafka wire。我们走自己的 `SndbConnection` / `SndbDocumentClient` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider / HTTP API。竞品也走它们各自的官方 .NET 客户端（`Npgsql` / `MongoDB.Driver` / `StackExchange.Redis` / `InfluxDB.Client` / `Minio` / `NATS.Client.Core` / `Meilisearch.Net` / `Qdrant.Client` / `ClickHouse.Client`）；MongoDB Driver 只连接参考 MongoDB 容器。
@@ -212,26 +216,26 @@ assertions:
 
 简略路径：
 
-1. **#127**：compose 栈 + harness 骨架 + 第一对适配器（SonnetDB + Postgres）
-2. **#128**：IDataPlane 契约 + Capability 标志 + 关系型场景套件
-3. **#129**：TSDB 场景套件（vs InfluxDB / VictoriaMetrics）+ 算法准确度判定
-4. **#130**：KV 场景套件（vs Redis）+ 向量套件（vs Qdrant）
-5. **#131**：对象桶套件（vs MinIO）+ multipart 正确性
-6. **#132**：MQ 套件（vs NATS）+ replay 语义对齐
-7. **#133**：全文套件（vs Meilisearch）+ BM25 排序对齐
-8. **#134**：分析套件（vs ClickHouse）+ 聚合精度对齐
-9. **#135**：可靠性套件（kill -9 / disk-full / oom / power-loss）
-10. **#136**：CI gating + nightly + parity-results 分支 + README badge
+1. ✅ **#127**：compose 栈 + harness 骨架 + 第一对适配器（SonnetDB + Postgres）
+2. ✅ **#128**：IDataPlane 契约 + Capability 标志 + 关系型场景套件
+3. ✅ **#129**：TSDB 场景套件（vs InfluxDB / VictoriaMetrics）+ 算法准确度判定
+4. ✅ **#130**：KV 场景套件（vs Redis）+ 向量套件（vs Qdrant）
+5. ✅ **#131**：对象桶套件（vs MinIO）+ multipart 正确性
+6. ✅ **#132**：MQ 套件（vs NATS）+ replay 语义对齐
+7. ✅ **#133**：全文套件（vs Meilisearch）+ BM25 排序对齐
+8. ✅ **#134**：分析套件（vs ClickHouse）+ 聚合精度对齐
+9. ✅ **#135**：可靠性套件（kill -9 / disk-full / oom / power-loss）
+10. 🚧 **#136**：CI gating + nightly + parity-results 分支 + README badge；scheduled 观察和发布级证据仍待修复/补齐
 
 ## 推进期间的连带产出
 
 里程碑跑下来会顺带把以下事情做掉（不另立 PR，作为各 PR 的副产品）：
 
-- **KV** 补齐 `INCR` / `DECR` / `CompareAndSet` / `EXPIRE` / `PERSIST` / `TTL`（#130 强需求）
-- **MQ** 补 `RecordTypeTombstone` 段滚动（#132 强需求）+ `FlushOnPublish=true` 默认值（不延迟到下一里程碑）
-- **对象桶** 补 `ListObjectsV2` `ContinuationToken` 分页（#131 强需求）
-- **可靠性** 引入 `tests/SonnetDB.CrashTests/` 真子进程 + `Process.Kill(true)` 注杀（#135）
-- **README 措辞对齐**：本里程碑期间逐项把 oversold 文案改成与代码一致（"S3-compatible bucket" → "Embedded object bucket"，"消息队列" → "嵌入式追加日志"）
+- ✅ **KV** 补齐 `INCR` / `DECR` / `CompareAndSet` / `EXPIRE` / `PERSIST` / `TTL`（#130 强需求）
+- ✅ **MQ** 补 `RecordTypeTombstone` 段滚动（#132 强需求）+ `FlushOnPublish=true` 默认值（不延迟到下一里程碑）
+- ✅ **对象桶** 补 `ListObjectsV2` `ContinuationToken` 分页（#131 强需求）
+- ✅ **可靠性** 引入 `tests/SonnetDB.CrashTests/` 真子进程 + `Process.Kill(true)` 注杀（#135）
+- ✅ **README 措辞对齐**：本里程碑期间逐项把 oversold 文案改成与代码一致（"S3-compatible bucket" → "Embedded object bucket"，"消息队列" → "嵌入式追加日志"）
 
 ## 不引入的依赖
 

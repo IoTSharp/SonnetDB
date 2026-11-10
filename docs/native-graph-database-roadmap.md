@@ -1,5 +1,9 @@
 # 原生属性图数据库路线图
 
+当前总状态：🟡 局部完成。代码与本地 strict evaluator 已完成，Graph Beta 的外部对拍、固定硬件、容量、AOT、hard-kill 与 168 小时门禁仍待验证。
+
+状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。
+
 > 本文定义 SonnetDB Milestone 40 的工程路线。2026-09-08 收口结论：Phase 0（#341～#346）、Phase 1（#347～#352）、Phase 2（#353～#359）和 Phase 3 功能切片（#360～#367）的编码、合同、文档、Server/SDK/CLI/Studio parity、恢复边界、strict evaluator 与本地自动化回归均已完成。步骤 6~7 的路径/离线 spill 分配、维护审计尾部恢复、quick kill/reopen、typed point read 的 `graph_not_found` parity 与 exact-revision lease 已落地；Couplet C0 及可在本仓库完成的 source-lane 接线也已归档。固定 workload、外部 Neo4j/PostgreSQL、LDBC/Graphalytics、固定硬件、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 和 7 天发布证据属于部署后真机/外部环境路线，统一标记为 `DEFERRED` 并回填主路线的[真机验证待办](../ROADMAP.md#真机验证待办)。M40 研发状态为 ✅（待真机验证）；在 #352/#367 正式 gate 通过前仍不得宣称 Preview/Production 发布门禁通过。
 
 ## 1. 决策与目标
