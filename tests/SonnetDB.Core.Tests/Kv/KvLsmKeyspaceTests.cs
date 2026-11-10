@@ -40,7 +40,7 @@ public sealed class KvLsmKeyspaceTests : IDisposable
     }
 
     [Fact]
-    public void ExistingLegacyDirectory_KeepsLegacyEngineEvenWhenLsmIsSelected()
+    public void ExistingLegacyDirectory_MigrationDisabled_KeepsLegacyEngine()
     {
         string path = Path.Combine(_root, "legacy");
         using (KvKeyspace legacy = KvKeyspace.Open("legacy", path, Options(KvStorageEngine.Legacy)))
@@ -50,21 +50,21 @@ public sealed class KvLsmKeyspaceTests : IDisposable
             legacy.CreateSnapshot();
         }
 
-        using KvKeyspace reopened = KvKeyspace.Open("legacy", path, Options());
+        using KvKeyspace reopened = KvKeyspace.Open("legacy", path, Options() with { LegacyMigration = KvLegacyMigrationMode.Disabled });
         Assert.Equal(KvStorageEngine.Legacy, reopened.StorageEngine);
         Assert.Equal([1], reopened.Get("a"));
         Assert.False(File.Exists(Path.Combine(path, KvLsmPaths.CurrentFileName)));
     }
 
     [Fact]
-    public void ExistingLegacyDirectoryWithOnlyWal_KeepsLegacyEngine()
+    public void ExistingLegacyDirectoryWithOnlyWal_MigrationDisabled_KeepsLegacyEngine()
     {
         string path = Path.Combine(_root, "legacy-wal");
         using (KvKeyspace legacy = KvKeyspace.Open("legacy-wal", path, Options(KvStorageEngine.Legacy)))
             legacy.Put("a", [1]);
 
         Assert.True(KvLsmKeyspaceBackend.HasLegacyData(path));
-        using KvKeyspace reopened = KvKeyspace.Open("legacy-wal", path, Options());
+        using KvKeyspace reopened = KvKeyspace.Open("legacy-wal", path, Options() with { LegacyMigration = KvLegacyMigrationMode.Disabled });
         Assert.Equal(KvStorageEngine.Legacy, reopened.StorageEngine);
         Assert.Equal([1], reopened.Get("a"));
     }

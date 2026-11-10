@@ -159,6 +159,8 @@ public sealed partial class TableManager
                 Path.Combine(_manager._rootDirectory, "rowstore"),
                 Path.Combine(undo, "rowstore"),
                 cancellationToken);
+            // 共享 LSM 实例已随表存储关闭，文件静止；与 rowstore 一起保留撤销副本。
+            CopyOptionalEntry(_manager.SharedStorageDirectory, Path.Combine(undo, SharedStorageDirectoryName), cancellationToken);
             DirectoryFsync.FlushRequired(undo);
             DirectoryFsync.FlushRequired(Path.GetDirectoryName(undo)!);
         }
@@ -171,11 +173,14 @@ public sealed partial class TableManager
             string workspaceTables = Path.Combine(workspace, "tables");
             string oldSchema = Path.Combine(undo, "published-old.tblschema");
             string oldRowstore = Path.Combine(undo, "published-old-rowstore");
+            string oldSharedStorage = Path.Combine(undo, "published-old-" + SharedStorageDirectoryName);
             using var publication = _manager.EnterDdlPublication();
             MoveOptionalEntry(_manager.SchemaPath, oldSchema);
             MoveOptionalEntry(Path.Combine(_manager._rootDirectory, "rowstore"), oldRowstore);
+            MoveOptionalEntry(_manager.SharedStorageDirectory, oldSharedStorage);
             MoveOptionalEntry(Path.Combine(workspaceTables, TableSchemaCodec.FileName), _manager.SchemaPath);
             MoveOptionalEntry(Path.Combine(workspaceTables, "rowstore"), Path.Combine(_manager._rootDirectory, "rowstore"));
+            MoveOptionalEntry(Path.Combine(workspaceTables, SharedStorageDirectoryName), _manager.SharedStorageDirectory);
             DirectoryFsync.FlushRequired(_manager._rootDirectory);
             _manager.ReloadPublishedCatalogLocked();
         }
@@ -198,10 +203,13 @@ public sealed partial class TableManager
             using var publication = _manager.EnterDdlPublication();
             DeleteOptionalEntry(_manager.SchemaPath);
             DeleteOptionalEntry(Path.Combine(_manager._rootDirectory, "rowstore"));
+            DeleteOptionalEntry(_manager.SharedStorageDirectory);
             CopyOptionalEntry(Path.Combine(undo, TableSchemaCodec.FileName), _manager.SchemaPath, cancellationToken);
             CopyOptionalEntry(Path.Combine(undo, "rowstore"), Path.Combine(_manager._rootDirectory, "rowstore"), cancellationToken);
+            CopyOptionalEntry(Path.Combine(undo, SharedStorageDirectoryName), _manager.SharedStorageDirectory, cancellationToken);
             DeleteOptionalEntry(Path.Combine(undo, "published-old.tblschema"));
             DeleteOptionalEntry(Path.Combine(undo, "published-old-rowstore"));
+            DeleteOptionalEntry(Path.Combine(undo, "published-old-" + SharedStorageDirectoryName));
             if (_reloadCatalog)
                 _manager.ReloadPublishedCatalogLocked();
             // prepared journal 还在时必须保留 undo；恢复进程可能在日志删除前再次崩溃。
@@ -335,6 +343,12 @@ public sealed partial class TableManager
         }
         _stores.Clear();
         _tableLockTokens.Clear();
+        try
+        {
+            // 共享 LSM 实例在发布期间可能被复制或整体移动，必须先关闭（Windows 下打开的句柄会阻止目录改名）。
+            CloseSharedStore();
+        }
+        catch (Exception exception) { (failures ??= []).Add(exception); }
         if (failures is not null)
             throw new AggregateException("关闭 DDL 发布前关系表存储失败。", failures);
     }

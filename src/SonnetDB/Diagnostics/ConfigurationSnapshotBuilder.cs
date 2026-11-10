@@ -161,6 +161,8 @@ internal static class ConfigurationSnapshotBuilder
         Add("Engine:Kv:MaxConcurrentStateReads", options.Kv.MaxConcurrentStateReads);
         Add("Engine:Kv:MaxQueuedStateReads", options.Kv.MaxQueuedStateReads);
         Add("Engine:Kv:StateReadWaitTimeoutMilliseconds", options.Kv.StateReadWaitTimeoutMilliseconds);
+        Add("Engine:Kv:StorageEngine", options.Kv.StorageEngine);
+        Add("Engine:Kv:LegacyMigration", options.Kv.LegacyMigration);
         Add("Engine:Kv:DefaultScanLimit", options.Kv.DefaultScanLimit);
         Add("Engine:Kv:BatchDeleteMaxKeys", options.Kv.BatchDeleteMaxKeys);
         Add("Engine:Kv:BatchDeleteMaxBytes", options.Kv.BatchDeleteMaxBytes);

@@ -1,4 +1,4 @@
-﻿namespace SonnetDB.Configuration;
+namespace SonnetDB.Configuration;
 
 /// <summary>
 /// 服务器配置。绑定路径：<c>"SonnetDBServer"</c>。
@@ -134,6 +134,17 @@ public sealed class ServerOptions
 /// </summary>
 public sealed class KvStorageOptions
 {
+    /// <summary>
+    /// KV keyspace 的存储引擎，默认 <c>Lsm</c>。设为 <c>Legacy</c> 时新目录使用 legacy 布局；已是 LSM 布局的目录总是以 LSM 打开。
+    /// </summary>
+    public SonnetDB.Kv.KvStorageEngine StorageEngine { get; set; } = SonnetDB.Kv.KvStorageEngine.Lsm;
+
+    /// <summary>
+    /// 选择 LSM 时已有 legacy 数据目录的处理方式，默认 <c>Auto</c>：首次打开时自动迁移（旧文件在保留期内可回滚）；
+    /// <c>Disabled</c> 时继续以 legacy 打开。
+    /// </summary>
+    public SonnetDB.Kv.KvLegacyMigrationMode LegacyMigration { get; set; } = SonnetDB.Kv.KvLegacyMigrationMode.Auto;
+
     /// <summary>
     /// 普通 KV 自动检查点允许的 WAL 最大字节数，默认 256 MiB；
     /// 服务端绑定限制在 1 MiB 到 64 GiB，避免部署配置导致无界 WAL 增长。

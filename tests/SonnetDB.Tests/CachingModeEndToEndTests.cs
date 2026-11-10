@@ -132,8 +132,9 @@ public sealed class CachingModeEndToEndTests : IAsyncLifetime
         await kv.SetAsync("cache", @namespace, "expired:janitor", [4], DateTimeOffset.UtcNow.AddMilliseconds(-1));
         await kv.SetAsync("cache", @namespace, "active:janitor", [5], DateTimeOffset.UtcNow.AddMinutes(1));
         // Core 后台过期清理可能先完成；只核本轮计数和物理过期项，不让后续 Get 的惰性删除掩盖结果。
+        // LSM 引擎读取不做惰性删除（设计 §7.5.2），此前读到已过期的 "short" 仍在，可能与 "expired:janitor" 一起被本轮清理。
         int removed = await kv.CleanExpiredAsync("cache");
-        Assert.InRange(removed, 0, 1);
+        Assert.InRange(removed, 0, 2);
         Assert.Equal(0, (await kv.GetExpirationStatsAsync("cache")).ExpiredKeys);
         Assert.Null(await kv.GetAsync("cache", @namespace, "expired:janitor"));
         var active = Assert.IsType<SndbKvEntry>(await kv.GetAsync("cache", @namespace, "active:janitor"));

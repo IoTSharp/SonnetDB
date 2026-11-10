@@ -200,6 +200,33 @@ public sealed class KvLsmSchedulingTests : IDisposable
         Assert.False(Directory.Exists(_root));
     }
 
+    /// <summary>备份期间的维护暂停：根目录在指定目录下的引擎暂停 flush/compaction，释放后补做被推迟的作业；其他目录不受影响。</summary>
+    [Fact]
+    public void PauseMaintenanceUnder_BlocksFlushOnlyForEnginesBelowTheDirectory()
+    {
+        using var scheduler = new KvLsmBackgroundScheduler(1, 1, "Test");
+        KvLsmEngineOptions options = Options(scheduler) with { WriteBufferBytes = 64 * 1024, WriteBackpressureTimeout = TimeSpan.FromSeconds(30) };
+        using KvLsmEngine inside = KvLsmEngine.Open(Path.Combine(_root, "db", "a"), options);
+        using KvLsmEngine outside = KvLsmEngine.Open(Path.Combine(_root, "other"), options);
+        string value = new('p', 1024);
+
+        using (KvLsmEngine.PauseMaintenanceUnder(Path.Combine(_root, "db")))
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                inside.Apply([Put($"k{i:D3}", value)]);
+                outside.Apply([Put($"k{i:D3}", value)]);
+            }
+            Assert.True(SpinWait.SpinUntil(() => outside.GetStats().FlushCount > 0, TimeSpan.FromSeconds(30)));
+            Thread.Sleep(200);
+            Assert.Equal(0, inside.GetStats().FlushCount);
+            Assert.True(inside.GetStats().ImmutableMemTables > 0);
+        }
+
+        Assert.True(SpinWait.SpinUntil(() => inside.GetStats().FlushCount > 0, TimeSpan.FromSeconds(30)));
+        Assert.Equal(value, Text(inside.Get(Bytes("k099"))!.Value));
+    }
+
     private static KvLsmEngineOptions Options(KvLsmBackgroundScheduler? scheduler) => new()
     {
         Scheduler = scheduler,

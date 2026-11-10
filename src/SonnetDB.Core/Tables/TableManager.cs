@@ -96,6 +96,12 @@ public sealed partial class TableManager : IDisposable
         _schemaMutationGuard = schemaMutationGuard;
         Directory.CreateDirectory(_rootDirectory);
 
+        // 每个管理器只创建一个预算，避免各关系表独立限流后放大总读取并发。
+        // 在任何恢复之前创建：主键迁移恢复可能需要打开共享 LSM 实例（K7）。
+        _diskReadBudget = new KvDiskReadBudget(
+            _kvOptions.MaxConcurrentStateReads,
+            _kvOptions.MaxQueuedStateReads,
+            TimeSpan.FromMilliseconds(_kvOptions.StateReadWaitTimeoutMilliseconds));
         RecoverSchemaMigrationBeforeOpeningStores();
         _catalog = new TableCatalog();
         RecoverDdlTransactionBeforeOpeningCatalog();
@@ -117,13 +123,10 @@ public sealed partial class TableManager : IDisposable
             else
                 SonnetDB.Wal.DirectoryFsync.FlushRequired(_rootDirectory);
         }
-        // 每个管理器只创建一个预算，避免各关系表独立限流后放大总读取并发。
-        _diskReadBudget = new KvDiskReadBudget(
-            _kvOptions.MaxConcurrentStateReads,
-            _kvOptions.MaxQueuedStateReads,
-            TimeSpan.FromMilliseconds(_kvOptions.StateReadWaitTimeoutMilliseconds));
+        // 每个管理器只创建一个预算（已在构造开始时创建）。
         try
         {
+            CollectOrphanedSharedStorage();
             foreach (var undo in TableTransactionJournal.ReadPending(TransactionJournalPath))
             {
                 var schema = _catalog.TryGet(undo.TableObjectName)
@@ -940,8 +943,10 @@ public sealed partial class TableManager : IDisposable
 
                     PersistCatalogLocked();
                     string tableDirectory = TableDirectory(objectName);
+                    long? sharedStorageId = TryGetSharedStorageId(tableDirectory);
                     if (Directory.Exists(tableDirectory))
                         Directory.Delete(tableDirectory, recursive: true);
+                    ReleaseSharedStorage(sharedStorageId);
 
                     return true;
                 }
@@ -1641,8 +1646,13 @@ public sealed partial class TableManager : IDisposable
             {
                 ThrowIfDisposed();
                 long total = 0;
+                // 共享 LSM 实例中的表共用一个 WAL，按文件路径去重，只计一次。
+                var counted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (TableStore store in _stores.Values)
-                    total = checked(total + store.ActiveWalLengthForEvidence);
+                {
+                    if (counted.Add(store.ActiveWalPathForEvidence))
+                        total = checked(total + store.ActiveWalLengthForEvidence);
+                }
                 return total;
             }
         }
@@ -1698,6 +1708,14 @@ public sealed partial class TableManager : IDisposable
         finally
         {
             _stores.Clear();
+            try
+            {
+                CloseSharedStore();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
             // 只释放管理器所有权；预算在全部 state 与在途读取结束后才关闭信号量。
             _diskReadBudget.Dispose();
         }
@@ -1722,7 +1740,7 @@ public sealed partial class TableManager : IDisposable
     private TableStore CreateStore(TableSchema schema)
     {
         string tableDirectory = TableDirectory(schema.ObjectName);
-        var kv = KvKeyspace.Open(KeyspaceName(schema.ObjectName), tableDirectory, _kvOptions, _diskReadBudget);
+        var kv = OpenTableKeyspace(KeyspaceName(schema.ObjectName), tableDirectory);
         try
         {
             object token;

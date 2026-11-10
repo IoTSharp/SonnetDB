@@ -9,10 +9,22 @@ public enum KvStorageEngine
     Legacy = 0,
 
     /// <summary>
-    /// 分层 LSM 引擎（预览）：memtable + 多层 SST + manifest，快照为 O(1)。
-    /// 只对新建或已是 LSM 布局的目录生效；已有 legacy 数据的目录继续使用 legacy 引擎。
+    /// 分层 LSM 引擎（默认）：memtable + 多层 SST + manifest，快照为 O(1)。
+    /// 已有 legacy 数据的目录按 <see cref="KvOptions.LegacyMigration"/> 在打开时迁移。
     /// </summary>
     Lsm = 1,
+}
+
+/// <summary>
+/// 选择 LSM 引擎时对已有 legacy 数据目录的处理方式。
+/// </summary>
+public enum KvLegacyMigrationMode
+{
+    /// <summary>打开时自动迁移到 LSM；磁盘空间不足时跳过迁移并继续以 legacy 打开。</summary>
+    Auto = 0,
+
+    /// <summary>不迁移，继续以 legacy 打开（运维逃生口）。</summary>
+    Disabled = 1,
 }
 
 /// <summary>

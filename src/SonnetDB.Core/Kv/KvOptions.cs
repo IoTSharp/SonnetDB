@@ -6,10 +6,21 @@ namespace SonnetDB.Kv;
 public sealed record KvOptions
 {
     /// <summary>
-    /// 新建 keyspace 使用的存储引擎，默认 <see cref="KvStorageEngine.Legacy"/>。
-    /// 已有 legacy 数据的目录总是继续以 legacy 打开（K7 前不自动迁移）；已是 LSM 布局的目录总是以 LSM 打开。
+    /// keyspace 使用的存储引擎，默认 <see cref="KvStorageEngine.Lsm"/>（K8 起）。已是 LSM 布局的目录总是以 LSM 打开；
+    /// 选择 LSM 时，已有 legacy 数据的目录按 <see cref="LegacyMigration"/> 在打开时迁移或继续以 legacy 打开。
+    /// 选择 <see cref="KvStorageEngine.Legacy"/> 时新目录使用 legacy 布局（已是 LSM 布局的目录仍以 LSM 打开）。
     /// </summary>
-    public KvStorageEngine StorageEngine { get; init; } = KvStorageEngineTestDefaults.Override ?? KvStorageEngine.Legacy;
+    public KvStorageEngine StorageEngine { get; init; } = KvStorageEngineTestDefaults.Override ?? KvStorageEngine.Lsm;
+
+    /// <summary>
+    /// 选择 <see cref="KvStorageEngine.Lsm"/> 时如何处理已有 legacy 数据的目录，默认 <see cref="KvLegacyMigrationMode.Auto"/>：
+    /// 在打开过程中迁移到 LSM（崩溃可续，旧文件保留在 <c>legacy-&lt;sequence&gt;</c> 子目录供回滚）。
+    /// <see cref="KvLegacyMigrationMode.Disabled"/> 时继续以 legacy 打开。
+    /// </summary>
+    public KvLegacyMigrationMode LegacyMigration { get; init; } = KvLegacyMigrationMode.Auto;
+
+    /// <summary>迁移后保留旧 legacy 文件的时长，超过后在打开时删除，默认 7 天。</summary>
+    public TimeSpan LegacyMigrationRetention { get; init; } = TimeSpan.FromDays(7);
 
     /// <summary>KV WAL 写缓冲区大小（字节），默认 64 KB。</summary>
     public int WalBufferSize { get; init; } = 64 * 1024;

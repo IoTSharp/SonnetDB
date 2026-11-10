@@ -22,8 +22,12 @@ public sealed class TableSelfReferenceSchemaMigrationTests : IDisposable
             AssertForeignKeyRejections(db);
             var inbound = db.Tables.Open("links");
             long inboundWal = inbound.ActiveWalLengthForEvidence;
+            long inboundSequence = inbound.RowLockSequence;
             SqlExecutor.Execute(db, "ALTER TABLE nodes ALTER COLUMN stamp TYPE DATETIME2");
-            Assert.Equal(inboundWal, inbound.ActiveWalLengthForEvidence);
+            // 入向引用表没有任何提交；共享 LSM 实例中各表共用一个 WAL，只能以本表 sequence 作为证据。
+            Assert.Equal(inboundSequence, inbound.RowLockSequence);
+            if (!inbound.UsesSharedStorageForEvidence)
+                Assert.Equal(inboundWal, inbound.ActiveWalLengthForEvidence);
             AssertMigratedRows(db, DateTime.UnixEpoch);
             SqlExecutor.Execute(db,
                 "UPDATE nodes SET stamp=CAST('1970-01-01T00:00:00.0000001Z' AS DATETIME2) WHERE id=2");

@@ -164,6 +164,8 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
     private int _flushQueued;
     private int _compactionQueued;
     private int _bufferFlushRequested;
+    private int _flushRetry;
+    private int _compactionRetry;
     private long _immutableBytes;
     private long _reportedWriteBufferBytes = -1;
     private bool _reportedFlushPending;
@@ -194,6 +196,7 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         _compactionJob = RunScheduledCompaction;
         _writeBufferManager = options.WriteBufferManager;
         _writeBufferManager?.Register(this);
+        LiveEngines.TryAdd(this, 0);
         if (options.BackgroundFlush)
         {
             // 不再为每个引擎启动专用线程：flush/compaction 作为作业排入进程共享调度器。
@@ -267,6 +270,7 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         Interlocked.Exchange(ref _flushQueued, 0);
         if (!TryEnterBackgroundJob())
             return;
+        bool ran = false;
         try
         {
             if (Interlocked.Exchange(ref _bufferFlushRequested, 0) == 1)
@@ -279,7 +283,19 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
                         ReportWriteBufferLocked(); // 请求已作废（例如写入路径已轮转）：同步告知预算管理器
                 }
             }
-            FlushPending(_shutdown.Token);
+            // 共享调度线程不得阻塞在本引擎的门上（暂停维护或另一作业持有时），否则会拖住其他引擎。
+            ran = TryEnterGate(_flushGate, ref _flushRetry);
+            if (ran)
+            {
+                try
+                {
+                    FlushPendingCore(_shutdown.Token);
+                }
+                finally
+                {
+                    _flushGate.Release();
+                }
+            }
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -292,6 +308,15 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         {
             ExitBackgroundJob();
         }
+        // 执行期间若有其他作业因门被占用而放弃，补排一次（只在确有待刷 memtable 时）。
+        if (ran && Interlocked.Exchange(ref _flushRetry, 0) == 1)
+        {
+            bool pending;
+            lock (_writeLock)
+                pending = _immutables.Count > 0 && _fault is null && !_disposed;
+            if (pending)
+                ScheduleFlush();
+        }
     }
 
     private void RunScheduledCompaction()
@@ -300,9 +325,21 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         if (!TryEnterBackgroundJob())
             return;
         bool more = false;
+        bool ran = false;
         try
         {
-            more = MaybeCompact(_shutdown.Token, Math.Max(1, _options.MaxCompactionJobsPerTurn));
+            ran = TryEnterGate(_compactionGate, ref _compactionRetry);
+            if (ran)
+            {
+                try
+                {
+                    more = CompactCore(_shutdown.Token, Math.Max(1, _options.MaxCompactionJobsPerTurn));
+                }
+                finally
+                {
+                    _compactionGate.Release();
+                }
+            }
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -315,8 +352,25 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         {
             ExitBackgroundJob();
         }
-        if (more)
+        // 执行期间若有其他作业因门被占用而放弃（例如新的 L0 文件触发的 compaction），在这里补排一次。
+        if (more || (ran && Interlocked.Exchange(ref _compactionRetry, 0) == 1))
             ScheduleCompaction();
+    }
+
+    /// <summary>
+    /// 不阻塞地取得门。取不到时登记重试再试一次：持有者释放门后检查重试标志并重新排队，
+    /// 二者之间不存在遗漏窗口。取得后清除重试标志（本次执行覆盖之前的请求）。
+    /// </summary>
+    private static bool TryEnterGate(SemaphoreSlim gate, ref int retry)
+    {
+        if (!gate.Wait(0))
+        {
+            Interlocked.Exchange(ref retry, 1);
+            if (!gate.Wait(0))
+                return false;
+        }
+        Interlocked.Exchange(ref retry, 0);
+        return true;
     }
 
     /// <summary>在写锁内向全局写缓冲预算上报 memtable 占用与刷盘请求状态（只在变化时上报）。</summary>
@@ -336,6 +390,77 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
 
     /// <summary>块缓存（诊断与测试用）。</summary>
     internal KvBlockCache BlockCache => _blockCache;
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<KvLsmEngine, byte> LiveEngines = new();
+
+    /// <summary>
+    /// 暂停本引擎的 flush 与 compaction（等待正在执行的作业结束），直到返回值被释放；期间不会产生或删除 SST/MANIFEST。
+    /// 写入仍可进入 memtable 与 WAL，memtable 用满时按背压规则等待或超时。
+    /// </summary>
+    internal IDisposable EnterMaintenancePause()
+    {
+        _flushGate.Wait();
+        try
+        {
+            _compactionGate.Wait();
+        }
+        catch
+        {
+            _flushGate.Release();
+            throw;
+        }
+        return new MaintenancePause(this);
+    }
+
+    /// <summary>
+    /// 暂停根目录位于 <paramref name="directory"/> 之下的所有已打开引擎的 flush/compaction（备份复制文件期间使用）。
+    /// </summary>
+    internal static IDisposable PauseMaintenanceUnder(string directory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(directory);
+        string prefix = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var pauses = new List<IDisposable>();
+        try
+        {
+            foreach (KvLsmEngine engine in LiveEngines.Keys.OrderBy(static engine => engine._root, StringComparer.Ordinal))
+            {
+                if (engine._root.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    pauses.Add(engine.EnterMaintenancePause());
+            }
+        }
+        catch
+        {
+            foreach (IDisposable pause in pauses)
+                pause.Dispose();
+            throw;
+        }
+        return new CompositePause(pauses);
+    }
+
+    private sealed class MaintenancePause(KvLsmEngine engine) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) != 0)
+                return;
+            engine._compactionGate.Release();
+            engine._flushGate.Release();
+            // 暂停期间被推迟的作业重新排队。
+            engine.ScheduleFlush();
+            engine.ScheduleCompaction();
+        }
+    }
+
+    private sealed class CompositePause(List<IDisposable> pauses) : IDisposable
+    {
+        public void Dispose()
+        {
+            foreach (IDisposable pause in pauses)
+                pause.Dispose();
+        }
+    }
 
     /// <summary>取得当前版本的引用（诊断与测试用），调用方必须释放。</summary>
     internal KvVersion AcquireCurrentVersion() => _versions.AcquireCurrent();
@@ -887,6 +1012,7 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
             }
         }
         _writeBufferManager?.Unregister(this);
+        LiveEngines.TryRemove(this, out _);
 
         Exception? walFailure = null;
         lock (_writeLock)
@@ -1026,34 +1152,40 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         _flushGate.Wait(cancellationToken);
         try
         {
-            while (true)
-            {
-                KvMemTable table;
-                lock (_writeLock)
-                {
-                    if (_immutables.Count == 0 || _fault is not null)
-                        return;
-                    table = _immutables[^1].Table;
-                }
-
-                try
-                {
-                    FlushOne(table, cancellationToken);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    lock (_writeLock)
-                    {
-                        _fault ??= exception;
-                        Monitor.PulseAll(_writeLock);
-                    }
-                    throw;
-                }
-            }
+            FlushPendingCore(cancellationToken);
         }
         finally
         {
             _flushGate.Release();
+        }
+    }
+
+    /// <summary>刷盘全部不可变 memtable（从旧到新）；调用方已持有 flush 门。</summary>
+    private void FlushPendingCore(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            KvMemTable table;
+            lock (_writeLock)
+            {
+                if (_immutables.Count == 0 || _fault is not null)
+                    return;
+                table = _immutables[^1].Table;
+            }
+
+            try
+            {
+                FlushOne(table, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                lock (_writeLock)
+                {
+                    _fault ??= exception;
+                    Monitor.PulseAll(_writeLock);
+                }
+                throw;
+            }
         }
     }
 
@@ -1147,33 +1279,39 @@ internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
         _compactionGate.Wait(cancellationToken);
         try
         {
-            for (int executed = 0; ; executed++)
-            {
-                lock (_writeLock)
-                {
-                    if (_fault is not null || _disposed)
-                        return false;
-                }
-
-                KvVersion version = _versions.AcquireCurrent();
-                try
-                {
-                    KvCompactionJob? job = KvCompactionPicker.Pick(version, _options.Compaction, _compactPointers);
-                    if (job is null)
-                        return false;
-                    if (executed >= maxJobs)
-                        return true;
-                    RunCompactionJob(job, version, cancellationToken);
-                }
-                finally
-                {
-                    version.Release();
-                }
-            }
+            return CompactCore(cancellationToken, maxJobs);
         }
         finally
         {
             _compactionGate.Release();
+        }
+    }
+
+    /// <summary>调用方已持有 compaction 门；执行最多 <paramref name="maxJobs"/> 个作业，返回是否仍有待执行的作业。</summary>
+    private bool CompactCore(CancellationToken cancellationToken, int maxJobs)
+    {
+        for (int executed = 0; ; executed++)
+        {
+            lock (_writeLock)
+            {
+                if (_fault is not null || _disposed)
+                    return false;
+            }
+
+            KvVersion version = _versions.AcquireCurrent();
+            try
+            {
+                KvCompactionJob? job = KvCompactionPicker.Pick(version, _options.Compaction, _compactPointers);
+                if (job is null)
+                    return false;
+                if (executed >= maxJobs)
+                    return true;
+                RunCompactionJob(job, version, cancellationToken);
+            }
+            finally
+            {
+                version.Release();
+            }
         }
     }
 

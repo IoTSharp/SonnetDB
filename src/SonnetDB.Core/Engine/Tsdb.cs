@@ -1561,6 +1561,9 @@ public sealed class Tsdb : IDisposable
                         _sequences.ExecuteConsistentBackup(() =>
                         {
                             var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+                            // KV-LSM：复制期间暂停本数据库目录下所有 LSM 引擎的 flush/compaction，
+                            // 使 CURRENT/MANIFEST/SST 在复制过程中不被替换或删除（WAL 尾部撕裂由恢复截断）。
+                            using IDisposable lsmPause = SonnetDB.Kv.Lsm.KvLsmEngine.PauseMaintenanceUnder(RootDirectory);
                             return afterCheckpoint(this, options, checkpointedKeyspaces);
                         })));
                 });

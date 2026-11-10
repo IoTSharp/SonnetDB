@@ -103,7 +103,7 @@ public sealed partial class TableManager
     {
         if (rows.Count > 100_000) throw new InvalidOperationException("CTAS 最多物化 100000 行。");
         long started = Stopwatch.GetTimestamp();
-        using var keyspace = KvKeyspace.Open("table." + schema.Name, directory, _kvOptions, _diskReadBudget);
+        using var keyspace = OpenTableKeyspace("table." + schema.Name, directory);
         using var store = new TableStore(schema, keyspace, _statisticsRefreshBudget);
         long bytes = 0;
         for (int index = 0; index < rows.Count; index += 256)

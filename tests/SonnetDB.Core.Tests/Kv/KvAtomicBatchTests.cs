@@ -541,6 +541,8 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    // legacy WAL 格式升级；LSM 轮次中含 legacy 数据的目录会在打开时迁移，不再滚动 legacy active WAL。
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_V2ActiveWal_ReplaysAndRollsToV3ActiveWal()
     {
         string walDirectory = KvKeyspace.WalDirectory(_root);

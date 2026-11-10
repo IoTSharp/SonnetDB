@@ -500,7 +500,21 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         Directory.CreateDirectory(rootDirectory);
+        // 共享实例的附属目录只能经由 OpenShared 打开：其数据位于共享 LSM 实例中，按独立目录打开会看到空 keyspace。
+        if (KvLsmLayoutMarkerFile.TryRead(rootDirectory, out KvLsmLayoutMarker marker) && marker.Kind == KvLsmLayoutKind.Shared)
+        {
+            throw new InvalidOperationException(
+                $"KV keyspace directory '{rootDirectory}' belongs to shared LSM storage #{marker.StorageId}; open it through its owning store.");
+        }
         // 引擎在创建 legacy 目录之前决定：已是 LSM 布局的目录总以 LSM 打开；有 legacy 数据的目录总以 legacy 打开。
+        // 选择 LSM 且允许迁移时，先补完上次中断的迁移，再把 legacy 数据迁移为独立 LSM 布局（K7，决策 D2）。
+        KvLegacyMigration.RecoverStandalone(rootDirectory);
+        if (options.StorageEngine == KvStorageEngine.Lsm
+            && options.LegacyMigration == KvLegacyMigrationMode.Auto
+            && !KvLsmKeyspaceBackend.IsLsmLayout(rootDirectory))
+        {
+            KvLegacyMigration.TryMigrateStandalone(name, rootDirectory, options, out _);
+        }
         bool useLsm = KvLsmKeyspaceBackend.IsLsmLayout(rootDirectory)
             || (options.StorageEngine == KvStorageEngine.Lsm && !KvLsmKeyspaceBackend.HasLegacyData(rootDirectory));
         if (!useLsm)
@@ -524,6 +538,8 @@ public sealed partial class KvKeyspace : IDisposable
             if (useLsm)
             {
                 lsm = KvLsmKeyspaceBackend.Open(rootDirectory, options, diskReadBudget ?? ownedDiskReadBudget!);
+                // 成功按 LSM 打开后，删除超过保留期的迁移前 legacy 文件。
+                KvLegacyMigration.CleanupRetained(rootDirectory, options.LegacyMigrationRetention);
                 return new KvKeyspace(
                     name,
                     rootDirectory,
@@ -545,6 +561,78 @@ public sealed partial class KvKeyspace : IDisposable
         catch
         {
             lsm?.Dispose();
+            lifecycleLease.Dispose();
+            ownedDiskReadBudget?.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 打开共享 LSM 实例中的逻辑 keyspace（K6）。数据位于 <paramref name="store"/> 的 <paramref name="storageId"/> 前缀下；
+    /// <paramref name="sidecarDirectory"/> 只保存生命周期租约与 v3 布局标记（降级防线），关闭本实例不会关闭共享实例。
+    /// </summary>
+    /// <param name="name">Keyspace 名称。</param>
+    /// <param name="sidecarDirectory">附属目录（例如表目录），作为 <see cref="RootDirectory"/>。</param>
+    /// <param name="store">共享实例。</param>
+    /// <param name="storageId">已在共享实例中登记的编号。</param>
+    /// <param name="options">KV 存储选项。</param>
+    /// <param name="diskReadBudget">可选的共享物理读取预算。</param>
+    /// <exception cref="KeyNotFoundException">编号未登记。</exception>
+    /// <exception cref="InvalidOperationException">附属目录已标记为其他编号或独立布局，或含有 legacy 数据。</exception>
+    internal static KvKeyspace OpenShared(
+        string name,
+        string sidecarDirectory,
+        KvLsmStore store,
+        long storageId,
+        KvOptions options,
+        KvDiskReadBudget? diskReadBudget = null)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(sidecarDirectory);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(options);
+
+        Directory.CreateDirectory(sidecarDirectory);
+        if (KvLsmLayoutMarkerFile.TryRead(sidecarDirectory, out KvLsmLayoutMarker marker))
+        {
+            if (marker.Kind != KvLsmLayoutKind.Shared || marker.StorageId != storageId)
+            {
+                throw new InvalidOperationException(
+                    $"KV keyspace directory '{sidecarDirectory}' is marked as {marker.Kind} #{marker.StorageId}, not shared #{storageId}.");
+            }
+        }
+        else if (KvLsmKeyspaceBackend.HasLegacyData(sidecarDirectory) || KvLsmKeyspaceBackend.IsLsmLayout(sidecarDirectory))
+        {
+            throw new InvalidOperationException(
+                $"KV keyspace directory '{sidecarDirectory}' already contains standalone data; migrate it before binding shared storage #{storageId}.");
+        }
+
+        FileStream lifecycleLease = AcquireLifecycleLease(sidecarDirectory);
+        KvDiskReadBudget? ownedDiskReadBudget = null;
+        try
+        {
+            ownedDiskReadBudget = diskReadBudget is null
+                ? new KvDiskReadBudget(
+                    options.MaxConcurrentStateReads,
+                    options.MaxQueuedStateReads,
+                    TimeSpan.FromMilliseconds(options.StateReadWaitTimeoutMilliseconds))
+                : null;
+            KvDiskReadBudget budget = diskReadBudget ?? ownedDiskReadBudget!;
+            KvLsmKeyspaceBackend lsm = KvLsmKeyspaceBackend.OpenShared(store, storageId, options, budget);
+            // 标记在绑定成功后写入：旧版本二进制看到 v3 generation 文件即拒绝打开该目录。
+            if (marker.Kind != KvLsmLayoutKind.Shared)
+                KvLsmLayoutMarkerFile.Write(sidecarDirectory, new KvLsmLayoutMarker(KvLsmLayoutKind.Shared, storageId));
+            return new KvKeyspace(
+                name,
+                sidecarDirectory,
+                options,
+                lsm,
+                lifecycleLease,
+                budget,
+                ownsDiskReadBudget: ownedDiskReadBudget is not null);
+        }
+        catch
+        {
             lifecycleLease.Dispose();
             ownedDiskReadBudget?.Dispose();
             throw;

@@ -277,6 +277,8 @@ internal static class SonnetDbServiceRegistration
         ArgumentNullException.ThrowIfNull(options);
         return KvOptions.Default with
         {
+            StorageEngine = options.StorageEngine,
+            LegacyMigration = options.LegacyMigration,
             MaxWalBytes = options.MaxWalBytes,
             MaxOverlayEntries = options.MaxOverlayEntries,
             MaxSnapshotOverlayEntries = options.MaxSnapshotOverlayEntries,

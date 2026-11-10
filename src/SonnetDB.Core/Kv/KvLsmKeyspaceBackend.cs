@@ -6,7 +6,8 @@ using SonnetDB.Kv.Lsm;
 namespace SonnetDB.Kv;
 
 /// <summary>
-/// 以 <see cref="KvLsmEngine"/> 作为存储的 <see cref="KvKeyspace"/> 后端（K4b）。
+/// 以 <see cref="KvLsmEngine"/> 作为存储的 <see cref="KvKeyspace"/> 后端（K4b），可以独占一个引擎，
+/// 也可以是共享 <see cref="KvLsmStore"/> 中按 <c>StorageId</c> 前缀划分的逻辑 keyspace（K6）。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,6 +23,11 @@ namespace SonnetDB.Kv;
 /// 原子读取-判断-提交的操作（Set NX/XX、CAS、GetAndSet、条件批、DeleteMany 等）都在引擎写锁内完成：
 /// 读取用 O(1) 快照，提交用 <see cref="KvLsmEngine.ApplyUnderWriteLock"/>，期间不会插入其他提交。
 /// </para>
+/// <para>
+/// 共享模式下，所有 key 在进入引擎前加上 8 字节前缀、读出时去掉前缀；每次提交在同一批次中写入本逻辑 keyspace 的
+/// sequence 元数据，因此 <see cref="LastSequence"/> 只随本 keyspace 的提交变化。<c>Clear</c> 写入覆盖本前缀的 range tombstone，
+/// flush/compaction/WAL 同步作用于整个共享实例。
+/// </para>
 /// </remarks>
 internal sealed class KvLsmKeyspaceBackend : IDisposable
 {
@@ -31,24 +37,38 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     private readonly KvLsmEngine _engine;
     private readonly KvOptions _options;
     private readonly KvDiskReadBudget _readBudget;
+    private readonly KvLsmStore? _store;
+    private readonly long _storageId;
+    private readonly byte[] _keyPrefix;
+    private readonly byte[]? _keyPrefixUpper;
     private byte[]? _expirationMaintenanceCursor;
     private int _indexRebuildScopeDepth;
 
-    private KvLsmKeyspaceBackend(KvLsmEngine engine, KvOptions options, KvDiskReadBudget readBudget)
+    private KvLsmKeyspaceBackend(KvLsmEngine engine, KvOptions options, KvDiskReadBudget readBudget, KvLsmStore? store, long storageId)
     {
         _engine = engine;
         _options = options;
         _readBudget = readBudget;
+        _store = store;
+        _storageId = storageId;
+        _keyPrefix = store is null ? [] : KvLsmStore.Prefix(storageId);
+        _keyPrefixUpper = store is null ? null : PrefixUpperBound(_keyPrefix);
     }
 
     /// <summary>底层引擎（诊断与测试用）。</summary>
     internal KvLsmEngine Engine => _engine;
 
-    /// <summary>当前最后 sequence。</summary>
-    internal long LastSequence => _engine.LastSequence;
+    /// <summary>是否是共享实例中的逻辑 keyspace。</summary>
+    internal bool IsShared => _store is not null;
+
+    /// <summary>共享实例中的编号；独立实例为 0。</summary>
+    internal long StorageId => _storageId;
+
+    /// <summary>当前最后 sequence（共享模式下为本逻辑 keyspace 最后一次提交的 sequence）。</summary>
+    internal long LastSequence => _store is null ? _engine.LastSequence : _store.GetLastSequence(_storageId);
 
     /// <summary>当前 generation。</summary>
-    internal long Generation => _engine.Generation;
+    internal long Generation => _store is null ? _engine.Generation : _store.GetGeneration(_storageId);
 
     /// <summary>活跃 WAL 字节数。</summary>
     internal long ActiveWalLength => _engine.ActiveWalLength;
@@ -58,13 +78,13 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
 
     /// <summary>
     /// 判断 <paramref name="rootDirectory"/> 中是否已经存在 legacy 布局的数据（状态文件、WAL 或 generation 元数据）。
-    /// 存在时即使选择了 LSM 引擎也继续用 legacy 打开（决策：K7 之前不自动迁移）。
+    /// 存在时即使选择了 LSM 引擎也继续用 legacy 打开（决策：K7 之前不自动迁移）。v3 LSM 布局标记不算 legacy 数据。
     /// </summary>
     internal static bool HasLegacyData(string rootDirectory)
     {
         if (!Directory.Exists(rootDirectory))
             return false;
-        if (File.Exists(Path.Combine(rootDirectory, KvGenerationFile.FileName)))
+        if (File.Exists(Path.Combine(rootDirectory, KvGenerationFile.FileName)) && !KvLsmLayoutMarkerFile.TryRead(rootDirectory, out _))
             return true;
         if (File.Exists(KvKeyspace.ActiveWalPath(rootDirectory)))
             return true;
@@ -78,14 +98,14 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             && Directory.EnumerateFiles(wal).Any(static path => Path.GetFileName(path).StartsWith("sealed-", StringComparison.Ordinal));
     }
 
-    /// <summary>判断目录是否已经是 LSM 布局。</summary>
+    /// <summary>判断目录是否已经是独立 LSM 布局（有 CURRENT，或有独立布局标记）。</summary>
     internal static bool IsLsmLayout(string rootDirectory)
-        => File.Exists(Path.Combine(rootDirectory, LsmMarkerFileName));
+        => File.Exists(Path.Combine(rootDirectory, LsmMarkerFileName))
+            || (KvLsmLayoutMarkerFile.TryRead(rootDirectory, out KvLsmLayoutMarker marker) && marker.Kind == KvLsmLayoutKind.Standalone);
 
-    /// <summary>打开（或创建）LSM 引擎。调用方已持有目录生命周期租约。</summary>
-    internal static KvLsmKeyspaceBackend Open(string rootDirectory, KvOptions options, KvDiskReadBudget readBudget)
-    {
-        var engineOptions = new KvLsmEngineOptions
+    /// <summary>由 <see cref="KvOptions"/> 生成引擎选项（独立实例与共享实例共用）。</summary>
+    internal static KvLsmEngineOptions CreateEngineOptions(KvOptions options, KvDiskReadBudget readBudget)
+        => new()
         {
             SyncWalOnEveryWrite = options.SyncWalOnEveryWrite,
             WalBufferSize = options.WalBufferSize,
@@ -101,11 +121,48 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             WriteBufferManager = KvWriteBufferManager.Shared,
             Scheduler = KvLsmBackgroundScheduler.Shared,
         };
-        return new KvLsmKeyspaceBackend(KvLsmEngine.Open(rootDirectory, engineOptions), options, readBudget);
+
+    /// <summary>打开（或创建）独立 LSM 引擎，并确保目录带有独立布局标记（降级防线）。调用方已持有目录生命周期租约。</summary>
+    internal static KvLsmKeyspaceBackend Open(string rootDirectory, KvOptions options, KvDiskReadBudget readBudget)
+    {
+        KvLsmEngine engine = KvLsmEngine.Open(rootDirectory, CreateEngineOptions(options, readBudget));
+        try
+        {
+            if (!KvLsmLayoutMarkerFile.TryRead(rootDirectory, out _))
+                KvLsmLayoutMarkerFile.Write(rootDirectory, new KvLsmLayoutMarker(KvLsmLayoutKind.Standalone, 0));
+        }
+        catch
+        {
+            engine.Dispose();
+            throw;
+        }
+        return new KvLsmKeyspaceBackend(engine, options, readBudget, store: null, storageId: 0);
+    }
+
+    /// <summary>打开共享实例中的逻辑 keyspace（不拥有引擎）。</summary>
+    /// <exception cref="KeyNotFoundException">编号未在共享实例中登记。</exception>
+    internal static KvLsmKeyspaceBackend OpenShared(KvLsmStore store, long storageId, KvOptions options, KvDiskReadBudget readBudget)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        if (!store.Contains(storageId))
+            throw new KeyNotFoundException($"KV-LSM shared store '{store.RootDirectory}' has no logical keyspace #{storageId}.");
+        return new KvLsmKeyspaceBackend(store.Engine, options, readBudget, store, storageId);
     }
 
     /// <summary>首个让引擎拒绝写入的异常。</summary>
     internal Exception? Fault => _engine.Fault;
+
+    // ───────────────────────────── key 映射 ─────────────────────────────
+
+    private byte[] Physical(ReadOnlySpan<byte> key)
+    {
+        byte[] physical = new byte[_keyPrefix.Length + key.Length];
+        _keyPrefix.CopyTo(physical, 0);
+        key.CopyTo(physical.AsSpan(_keyPrefix.Length));
+        return physical;
+    }
+
+    private byte[]? PhysicalOptional(byte[]? key) => key is null ? null : Physical(key);
 
     // ───────────────────────────── 读取 ─────────────────────────────
 
@@ -113,14 +170,14 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     internal KvValueEntry? GetVisible(ReadOnlySpan<byte> key, DateTimeOffset utcNow, CancellationToken cancellationToken)
     {
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(utcNow);
-        return ToVisible(snapshot.GetRaw(key, cancellationToken), utcNow);
+        return ToVisible(snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken), utcNow);
     }
 
     /// <summary>当前最新的 Put 版本（含已到期）；不存在或已删除返回 null。</summary>
     internal KvValueEntry? GetRaw(ReadOnlySpan<byte> key, CancellationToken cancellationToken)
     {
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
-        return ToValueEntry(snapshot.GetRaw(key, cancellationToken));
+        return ToValueEntry(snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken));
     }
 
     /// <summary>
@@ -134,7 +191,7 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     internal KvEntry? GetVisibleBounded(byte[] key, int maxValueBytes, DateTimeOffset utcNow, CancellationToken cancellationToken)
     {
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
-        KvSstEntry? raw = snapshot.GetRaw(key, cancellationToken);
+        KvSstEntry? raw = snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken);
         if (raw is not { } entry || (entry.ExpiresAtUtcTicks != 0 && entry.ExpiresAtUtcTicks <= utcNow.UtcTicks))
             return null;
         if (entry.Value.Length > maxValueBytes)
@@ -148,20 +205,22 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
 
     /// <summary>
     /// 按 key 升序访问 <paramref name="prefix"/> 下 <paramref name="afterKey"/> 之后的全部 Put 版本（含已到期），
-    /// 回调期间 <see cref="KvSnapshotIterator.Key"/>/<see cref="KvSnapshotIterator.Value"/> 有效且未复制，
+    /// 回调期间 <see cref="KvLsmCursor.Key"/>/<see cref="KvLsmCursor.Value"/> 有效且未复制，
     /// 调用方可先按长度计费再复制。回调返回 false 时停止。
     /// </summary>
-    internal void ScanForward(byte[] prefix, byte[]? afterKey, CancellationToken cancellationToken, Func<KvSnapshotIterator, bool> visit)
+    internal void ScanForward(byte[] prefix, byte[]? afterKey, CancellationToken cancellationToken, Func<KvLsmCursor, bool> visit)
     {
+        byte[] physicalPrefix = Physical(prefix);
+        byte[]? physicalAfter = PhysicalOptional(afterKey);
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
         using KvSnapshotIterator iterator = snapshot.CreateIterator(
-            prefix.Length == 0 ? null : prefix,
-            PrefixUpperBound(prefix),
+            physicalPrefix.Length == 0 ? null : physicalPrefix,
+            PrefixUpperBound(physicalPrefix),
             cancellationToken);
-        if (afterKey is not null && KvKeyComparer.Instance.Compare(afterKey, prefix) >= 0)
+        if (physicalAfter is not null && KvKeyComparer.Instance.Compare(physicalAfter, physicalPrefix) >= 0)
         {
-            iterator.Seek(afterKey);
-            if (iterator.Valid && iterator.Key.SequenceEqual(afterKey))
+            iterator.Seek(physicalAfter);
+            if (iterator.Valid && iterator.Key.SequenceEqual(physicalAfter))
                 iterator.MoveNext();
         }
         else
@@ -169,10 +228,11 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             iterator.SeekToFirst();
         }
 
+        var cursor = new KvLsmCursor(iterator, _keyPrefix.Length);
         for (; iterator.Valid; iterator.MoveNext())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!iterator.Key.StartsWith(prefix) || !visit(iterator))
+            if (!iterator.Key.StartsWith(physicalPrefix) || !visit(cursor))
                 return;
         }
     }
@@ -193,7 +253,7 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
             snapshot.Dispose();
             throw;
         }
-        return new KvReadSnapshot(new KvReadSnapshotState(snapshot, _readBudget.ReleaseStateReference));
+        return new KvReadSnapshot(new KvReadSnapshotState(snapshot, _keyPrefix, _readBudget.ReleaseStateReference));
     }
 
     /// <summary>
@@ -208,42 +268,51 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     {
         // 读取时刻取最小值，使到期条目也可见；物理回收由 compaction 与 CleanExpired 负责。
         KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
-        return EnumerateOwned(snapshot, prefix, startInclusive, endExclusive, afterKey, descending: false, () => cancellationToken);
+        return EnumerateCore(snapshot, _keyPrefix, prefix, startInclusive, endExclusive, afterKey, descending: false, () => cancellationToken, ownsSnapshot: true);
     }
 
     /// <summary>以 <see cref="KvReadSnapshot"/> 的语义枚举一个快照（供 <see cref="KvReadSnapshotState"/> 使用）。</summary>
+    /// <param name="snapshot">引擎快照。</param>
+    /// <param name="keyPrefix">逻辑 keyspace 的物理前缀；独立实例为空。</param>
+    /// <param name="prefix">用户 key 前缀。</param>
+    /// <param name="startInclusive">用户 key 下界。</param>
+    /// <param name="endExclusive">用户 key 上界。</param>
+    /// <param name="afterKey">排他续扫位置。</param>
+    /// <param name="descending">是否降序。</param>
+    /// <param name="cancellationTokenProvider">取消令牌来源。</param>
     internal static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateSnapshot(
         KvLsmSnapshot snapshot,
+        byte[] keyPrefix,
         byte[] prefix,
         byte[]? startInclusive,
         byte[]? endExclusive,
         byte[]? afterKey,
         bool descending,
         Func<CancellationToken> cancellationTokenProvider)
-        => EnumerateCore(snapshot, prefix, startInclusive, endExclusive, afterKey, descending, cancellationTokenProvider, ownsSnapshot: false);
+        => EnumerateCore(snapshot, keyPrefix, prefix, startInclusive, endExclusive, afterKey, descending, cancellationTokenProvider, ownsSnapshot: false);
 
-    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateOwned(
-        KvLsmSnapshot snapshot,
-        byte[] prefix,
-        byte[]? startInclusive,
-        byte[]? endExclusive,
-        byte[]? afterKey,
-        bool descending,
-        Func<CancellationToken> cancellationTokenProvider)
-        => EnumerateCore(snapshot, prefix, startInclusive, endExclusive, afterKey, descending, cancellationTokenProvider, ownsSnapshot: true);
+    private static byte[] Concat(byte[] keyPrefix, byte[] key)
+        => keyPrefix.Length == 0 ? key : [.. keyPrefix, .. key];
 
     private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateCore(
         KvLsmSnapshot snapshot,
-        byte[] prefix,
-        byte[]? startInclusive,
-        byte[]? endExclusive,
-        byte[]? afterKey,
+        byte[] keyPrefix,
+        byte[] userPrefix,
+        byte[]? userStart,
+        byte[]? userEnd,
+        byte[]? userAfter,
         bool descending,
         Func<CancellationToken> cancellationTokenProvider,
         bool ownsSnapshot)
     {
         try
         {
+            byte[] prefix = Concat(keyPrefix, userPrefix);
+            byte[]? startInclusive = userStart is null ? null : Concat(keyPrefix, userStart);
+            byte[]? endExclusive = userEnd is null ? null : Concat(keyPrefix, userEnd);
+            byte[]? afterKey = userAfter is null ? null : Concat(keyPrefix, userAfter);
+            int skip = keyPrefix.Length;
+
             // 下界 = max(prefix, start)；上界 = min(PrefixUpper(prefix), end)。afterKey 为排他边界。
             byte[] lower = prefix;
             if (startInclusive is not null && KvKeyComparer.Instance.Compare(startInclusive, lower) > 0)
@@ -276,7 +345,7 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
                     cancellationTokenProvider().ThrowIfCancellationRequested();
                     if (!iterator.Key.StartsWith(prefix))
                         yield break;
-                    yield return Materialize(iterator);
+                    yield return Materialize(iterator, skip);
                 }
             }
             else
@@ -297,7 +366,7 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
                     cancellationTokenProvider().ThrowIfCancellationRequested();
                     if (KvKeyComparer.Instance.Compare(iterator.Key.ToArray(), lower) < 0 || !iterator.Key.StartsWith(prefix))
                         yield break;
-                    yield return Materialize(iterator);
+                    yield return Materialize(iterator, skip);
                 }
             }
         }
@@ -308,9 +377,9 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
         }
     }
 
-    private static KeyValuePair<byte[], KvValueEntry> Materialize(KvSnapshotIterator iterator)
+    private static KeyValuePair<byte[], KvValueEntry> Materialize(KvSnapshotIterator iterator, int skip)
         => new(
-            iterator.Key.ToArray(),
+            iterator.Key[skip..].ToArray(),
             new KvValueEntry(
                 iterator.Value.ToArray(),
                 iterator.Sequence,
@@ -366,7 +435,21 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
         try
         {
             // 提交开始后不再观察取消：传入 None，避免背压等待之后的取消把已提交的结果误报为取消。
-            return _engine.ApplyUnderWriteLock(mutations, rangeDeletions, expectedSequence, CancellationToken.None);
+            if (_store is null)
+                return _engine.ApplyUnderWriteLock(mutations, rangeDeletions, expectedSequence, CancellationToken.None);
+
+            // 共享模式：写锁内下一 sequence 稳定；本 keyspace 的 sequence 元数据与数据同批提交。
+            long next = _engine.NextSequence;
+            var physical = new List<KvBatchMutation>(mutations.Count + 1);
+            foreach (KvBatchMutation mutation in mutations)
+                physical.Add(new KvBatchMutation(Physical(mutation.Key), mutation.Value, mutation.ExpiresAtUtc));
+            physical.Add(KvLsmStore.SequenceMutation(_storageId, next));
+            var ranges = new List<KvRangeDeletion>(rangeDeletions.Count);
+            foreach (KvRangeDeletion range in rangeDeletions)
+                ranges.Add(new KvRangeDeletion(Physical(range.StartInclusive), Physical(range.EndExclusive)));
+            long sequence = _engine.ApplyUnderWriteLock(physical, ranges, expectedSequence ?? next, CancellationToken.None);
+            _store.OnCommitted(_storageId, sequence);
+            return sequence;
         }
         catch (InvalidOperationException exception) when (exception.InnerException is { } fault && ReferenceEquals(fault, _engine.Fault))
         {
@@ -424,20 +507,20 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
 
     // ───────────────────────────── 维护 ─────────────────────────────
 
-    /// <summary>刷盘全部 memtable 并返回刷盘时的 <c>LastSequence</c>。</summary>
+    /// <summary>刷盘全部 memtable 并返回刷盘时的 <c>LastSequence</c>（共享模式下刷整个共享实例）。</summary>
     internal long CreateSnapshot()
     {
-        long sequence = _engine.LastSequence;
+        long sequence = LastSequence;
         RunMaintenance(() => _engine.Flush());
-        return Math.Max(sequence, _engine.LastSequence);
+        return Math.Max(sequence, LastSequence);
     }
 
-    /// <summary>刷盘并把全部 SST 合并到最底层，返回完成时的 <c>LastSequence</c>。</summary>
+    /// <summary>刷盘并把全部 SST 合并到最底层，返回完成时的 <c>LastSequence</c>（共享模式下作用于整个共享实例）。</summary>
     internal long Compact()
     {
-        long sequence = _engine.LastSequence;
+        long sequence = LastSequence;
         RunMaintenance(() => _engine.CompactAll());
-        return Math.Max(sequence, _engine.LastSequence);
+        return Math.Max(sequence, LastSequence);
     }
 
     /// <summary>fsync 活跃 WAL。</summary>
@@ -448,16 +531,38 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     }
 
     /// <summary>
-    /// 清空 keyspace：先写一条覆盖全部 key 的提交以消耗一个 sequence（与 legacy 一致），再推进 generation 并丢弃全部数据。
+    /// 清空 keyspace 并推进 generation，消耗一个 sequence（与 legacy 一致）。独立实例切换引擎 generation 并丢弃全部文件；
+    /// 共享实例在同一批次中写入覆盖本前缀的 range tombstone 与 generation + 1 的元数据。
     /// </summary>
     internal KvClearResult Clear()
     {
         int removed = 0;
-        foreach (KeyValuePair<byte[], KvValueEntry> _ in EnumerateRaw([], null, null, null, CancellationToken.None))
+        ScanForward([], null, CancellationToken.None, _ =>
+        {
             removed++;
+            return true;
+        });
 
-        RunMaintenance(() => _engine.Clear());
-        return new KvClearResult(removed, _engine.Generation, 0);
+        if (_store is null)
+        {
+            RunMaintenance(() => _engine.Clear());
+            return new KvClearResult(removed, _engine.Generation, 0);
+        }
+
+        long generation = Execute(() =>
+        {
+            _engine.WaitForWriteBudgetUnderLock(CancellationToken.None);
+            long next = _engine.NextSequence;
+            KvBatchMutation record = _store.ClearRecordMutation(_storageId, out long nextGeneration);
+            long sequence = _engine.ApplyUnderWriteLock(
+                [record, KvLsmStore.SequenceMutation(_storageId, next)],
+                [new KvRangeDeletion(_keyPrefix, _keyPrefixUpper!)],
+                next,
+                CancellationToken.None);
+            _store.OnCleared(_storageId, nextGeneration, sequence);
+            return nextGeneration;
+        }, CancellationToken.None);
+        return new KvClearResult(removed, generation, 0);
     }
 
     /// <summary>进入索引恢复预算 scope（LSM 没有覆盖层预算，仅维护深度计数）。</summary>
@@ -477,15 +582,19 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
         set => _expirationMaintenanceCursor = value;
     }
 
-    /// <summary>生成诊断信息中与存储相关的计数。</summary>
+    /// <summary>生成诊断信息中与存储相关的计数（共享模式下为整个共享实例）。</summary>
     internal (int Mutable, int Frozen, long WalBytes) DiagnosticsCounts()
     {
         (long mutable, long immutable) = _engine.MemTableEntryCounts;
         return ((int)Math.Min(int.MaxValue, mutable), (int)Math.Min(int.MaxValue, immutable), _engine.ActiveWalLength);
     }
 
-    /// <summary>关闭引擎。WAL 关闭失败按原类型抛出（legacy 合同）。</summary>
-    public void Dispose() => _engine.Dispose();
+    /// <summary>关闭独立引擎（WAL 关闭失败按原类型抛出，legacy 合同）；共享模式下不关闭共享实例。</summary>
+    public void Dispose()
+    {
+        if (_store is null)
+            _engine.Dispose();
+    }
 
     private void RunMaintenance(Action action)
     {
@@ -533,4 +642,32 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
                 throw new InvalidOperationException("KV index rebuild budget scope is not active.");
         }
     }
+}
+
+/// <summary>
+/// <see cref="KvLsmKeyspaceBackend.ScanForward"/> 回调中的当前条目：key 已去掉逻辑 keyspace 前缀，
+/// key/value 只在回调期间有效，需要保留时由调用方复制。
+/// </summary>
+internal sealed class KvLsmCursor
+{
+    private readonly KvSnapshotIterator _iterator;
+    private readonly int _skip;
+
+    internal KvLsmCursor(KvSnapshotIterator iterator, int skip)
+    {
+        _iterator = iterator;
+        _skip = skip;
+    }
+
+    /// <summary>用户 key（不含逻辑 keyspace 前缀）。</summary>
+    internal ReadOnlySpan<byte> Key => _iterator.Key[_skip..];
+
+    /// <summary>value。</summary>
+    internal ReadOnlySpan<byte> Value => _iterator.Value;
+
+    /// <summary>到期时间（UTC ticks），0 表示无 TTL。</summary>
+    internal long ExpiresAtUtcTicks => _iterator.ExpiresAtUtcTicks;
+
+    /// <summary>条目 sequence。</summary>
+    internal long Sequence => _iterator.Sequence;
 }

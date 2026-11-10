@@ -146,9 +146,15 @@ public sealed partial class TableStore : IDisposable
     }
 
     /// <summary>
-    /// 返回当前表 active WAL 的逻辑长度，供基准和恢复证据读取。
+    /// 返回当前表 active WAL 的逻辑长度，供基准和恢复证据读取。共享 LSM 实例中的表返回整个共享 WAL 的长度。
     /// </summary>
     internal long ActiveWalLengthForEvidence => _keyspace.ActiveWalLength;
+
+    /// <summary>当前表 active WAL 文件路径（共享 LSM 实例中多张表相同），用于去重统计。</summary>
+    internal string ActiveWalPathForEvidence => _keyspace.CurrentWalPath;
+
+    /// <summary>当前表所在的 KV 是否是共享 LSM 实例中的逻辑 keyspace。</summary>
+    internal bool UsesSharedStorageForEvidence => _keyspace.LsmBackend?.IsShared == true;
 
     /// <summary>供在线索引回归核对自动检查点没有被重复调度。</summary>
     internal long AutoCheckpointScheduleCount => _keyspace.AutoCheckpointScheduleCount;

@@ -128,6 +128,11 @@ internal static class ServerOptionsBinder
 
         // 索引恢复预算必须保持正数和明确上限，避免配置错误导致无界 WAL 或内存增长。
         // 普通写入预算同样必须有界，现场数据库迁移期间可通过配置提高但不能取消上限。
+        // 数值形式配置出未定义的引擎/迁移模式时回到默认值，不把未知值传进 Core。
+        if (!Enum.IsDefined(options.Kv.StorageEngine))
+            options.Kv.StorageEngine = SonnetDB.Kv.KvStorageEngine.Lsm;
+        if (!Enum.IsDefined(options.Kv.LegacyMigration))
+            options.Kv.LegacyMigration = SonnetDB.Kv.KvLegacyMigrationMode.Auto;
         options.Kv.MaxOverlayEntries = Math.Clamp(
             options.Kv.MaxOverlayEntries,
             1,

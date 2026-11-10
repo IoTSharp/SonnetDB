@@ -104,6 +104,14 @@ jobs:
         timeout-minutes: 50
         run: dotnet test "${{ steps.tests.outputs.solution }}" --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
 
+      - name: Test Core on the LSM KV engine
+        # Core 测试程序集默认以 legacy 运行全部回归；这一轮按产品默认引擎（LSM）重跑，排除只观察 legacy 内部状态的测试。
+        if: matrix.shard == 'core' || matrix.shard == 'all'
+        timeout-minutes: 40
+        env:
+          SONNETDB_KV_ENGINE: Lsm
+        run: dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --configuration Release --no-build -m:1 --filter "KvEngine!=LegacyOnly" --logger "trx;LogFileName=core-lsm.trx" --results-directory ./TestResults --blame-hang-timeout 10m --blame-hang-dump-type mini
+
       - name: Verify EF migration process recovery
         if: matrix.shard != 'core'
         timeout-minutes: 10

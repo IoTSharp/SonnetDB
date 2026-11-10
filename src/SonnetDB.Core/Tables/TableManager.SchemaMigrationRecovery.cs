@@ -47,8 +47,7 @@ public sealed partial class TableManager
             // 全部 generation 先校验，任一错配都不得先修改已成功打开的表。
             foreach (var undo in record.Tables.OrderBy(static table => table.TableName, StringComparer.Ordinal))
             {
-                var keyspace = KvKeyspace.Open("table." + undo.TableName, TableDirectory(undo.TableName),
-                    _kvOptions, recoveryBudget);
+                var keyspace = OpenTableKeyspace("table." + undo.TableName, TableDirectory(undo.TableName), recoveryBudget);
                 opened.Add((undo, keyspace));
                 if (keyspace.Generation != undo.Generation)
                     throw new InvalidDataException($"table '{undo.TableName}' 的主键迁移恢复 generation 不匹配。");
@@ -81,6 +80,9 @@ public sealed partial class TableManager
                 try { entry.Keyspace.Dispose(); }
                 catch (Exception failure) { (disposeFailures ??= []).Add(failure); }
             }
+            // 共享 LSM 实例按需重新打开；恢复失败时构造函数不会再有机会关闭它。
+            try { CloseSharedStore(); }
+            catch (Exception failure) { (disposeFailures ??= []).Add(failure); }
             if (disposeFailures is not null)
             {
                 if (recoveryFailure is not null) disposeFailures.Insert(0, recoveryFailure);

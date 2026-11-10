@@ -107,9 +107,14 @@ internal sealed class KvReadSnapshotState
     }
 
     /// <summary>以 KV-LSM 快照作为读视图；状态释放时释放该快照并调用 <paramref name="onReleased"/>。</summary>
-    internal KvReadSnapshotState(Lsm.KvLsmSnapshot lsmSnapshot, Action? onReleased = null)
+    /// <param name="lsmSnapshot">引擎快照。</param>
+    /// <param name="keyPrefix">共享实例中逻辑 keyspace 的物理前缀；独立实例为空。</param>
+    /// <param name="onReleased">状态释放后的回调。</param>
+    internal KvReadSnapshotState(Lsm.KvLsmSnapshot lsmSnapshot, byte[] keyPrefix, Action? onReleased = null)
     {
         ArgumentNullException.ThrowIfNull(lsmSnapshot);
+        ArgumentNullException.ThrowIfNull(keyPrefix);
+        _lsmKeyPrefix = keyPrefix;
         _mutableValues = [];
         _frozenValues = [];
         _lsmSnapshot = lsmSnapshot;
@@ -119,6 +124,7 @@ internal sealed class KvReadSnapshotState
     }
 
     private Action? _onLsmReleased;
+    private readonly byte[] _lsmKeyPrefix = [];
 
     public long Sequence { get; }
 
@@ -153,7 +159,7 @@ internal sealed class KvReadSnapshotState
         if (_lsmSnapshot is { } lsm)
         {
             return KvLsmKeyspaceBackend.EnumerateSnapshot(
-                    lsm, prefix, startInclusive, endExclusive, afterKey, options.Descending,
+                    lsm, _lsmKeyPrefix, prefix, startInclusive, endExclusive, afterKey, options.Descending,
                     cancellationTokenProvider ?? (() => CancellationToken.None))
                 .GetEnumerator();
         }
@@ -184,7 +190,7 @@ internal sealed class KvReadSnapshotState
         byte[] lookup = key.ToArray();
         if (_lsmSnapshot is { } lsm)
         {
-            KvEntry? found = lsm.Get(lookup, cancellationToken);
+            KvEntry? found = lsm.Get(_lsmKeyPrefix.Length == 0 ? lookup : [.. _lsmKeyPrefix, .. lookup], cancellationToken);
             return found is null ? null : new KvEntry(lookup, found.Value, found.Version, found.ExpiresAtUtc);
         }
 
