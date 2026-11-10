@@ -1,5 +1,11 @@
 # ROADMAP — SonnetDB 4.5 与后续里程碑
 
+## 2026-11-10 KV-LSM 接续
+
+K1～K8 的阶段源码已随 `ca495cae` 进入 main；K7 为部分完成。该提交的 [CI](https://github.com/IoTSharp/SonnetDB/actions/runs/42754412252)（含 Ubuntu/Windows Core LSM 轮次及三个 AOT Publish 作业）、CodeQL、Docker Publish、Connectors Release、Docs Pages 已成功。该证据只绑定 `ca495cae`，不代替后续提交、公开包、生产或固定硬件验收。默认 LSM、打开时自动迁移、旧版本拒绝 v3 布局的合同见 [设计 §7.6](docs/design/kv-lsm-storage-engine.md#76-k6k8-实现说明与上文设计的差异以本节为准)及[迁移运维](docs/operations/kv-lsm-migration.md)。
+
+本轮接续：文档与证据入口收尾 → 容量基准及迁移各阶段真实进程强杀 → 10 万／100 万条有界本机基线。完整千万条、1000 表 × 1 万行、随机强杀 200 轮、一亿条／168 小时固定硬件门禁分别验收。K7 的多表单批次、维护元数据、持久化行数、回滚 CLI，以及前缀布隆／StorageId SST 属性、Version 级备份仍未实现；时序 P0-3～P0-5 单独设计。逐项结果见 [KV-LSM 基准与恢复证据](docs/benchmarks/kv-lsm-capacity-20261110.md)，不得把本机基线视为全部门禁通过。
+
 ## 2026-11-07 分支整合后的执行顺序
 
 2026-11-07 上午状态更新：用户明确普通代码 issue 以代码完整实现及必要代码层验证为关闭依据，公开包、上游维护者合入、部署与外部宿主验收分别跟踪；本身属于发布、部署或环境验收的问题仍按其实际合同处理。#230/#392/#394/#395/#403/#404 已回复并关闭为 completed，公开/上游/宿主事项继续保留原始 NOT_RUN 或未完成状态。#396/#397/#398/#399/#401/#402 仍 OPEN，具体缺口已逐条回复。下方较早记录中的“母 issue 继续 OPEN”是当时的关闭口径，不作为当前状态。GetAndDelete 后续修复 cdaebfa5 已拒绝缺失旧记录却带变更版本的确认，保留未知结果且不重试；完整 Client 274/274 通过，准确推送与回读见根 HANDOFF。

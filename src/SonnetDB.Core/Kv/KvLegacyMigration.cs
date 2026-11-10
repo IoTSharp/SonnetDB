@@ -48,7 +48,7 @@ internal static class KvLegacyMigration
     /// <summary>迁移扫描：页字节预算放宽到单条大值也能读出（迁移必须复制全部记录）。</summary>
     private static readonly KvRangeScanOptions MigrationScan = new() { PageSize = 256, MaxPageBytes = 1024 * 1024 * 1024 };
 
-    /// <summary>测试钩子：在指定阶段抛出异常即模拟在该点崩溃。</summary>
+    /// <summary>测试钩子：支持阶段异常注入，以及由父进程在持久化边界强制终止真实迁移子进程。</summary>
     internal static Action<string, string>? PhaseTestHook { get; set; }
 
     /// <summary>legacy KV 自身拥有的根目录条目（迁移时整体移动）。</summary>
@@ -130,6 +130,7 @@ internal static class KvLegacyMigration
             writer.Dispose();
             writer = null;
             edit.AddedFiles.Add(KvLsmFileMetadata.FromProperties(fileNumber, KvVersion.LevelCount - 1, new FileInfo(path!).Length, properties));
+            PhaseTestHook?.Invoke("standalone-sst-finished", Path.GetDirectoryName(staging)!);
         }
 
         try
@@ -192,10 +193,12 @@ internal static class KvLegacyMigration
         PhaseTestHook?.Invoke("standalone-current-moved", rootDirectory);
 
         KvLsmLayoutMarkerFile.Write(rootDirectory, new KvLsmLayoutMarker(KvLsmLayoutKind.Standalone, 0));
+        PhaseTestHook?.Invoke("standalone-marker-written", rootDirectory);
         info.Write(Path.Combine(retained, InfoFileName));
         SonnetDB.Wal.DirectoryFsync.FlushRequired(retained);
         Directory.Delete(staging, recursive: true);
         SonnetDB.Wal.DirectoryFsync.FlushRequired(rootDirectory);
+        PhaseTestHook?.Invoke("standalone-completed", rootDirectory);
     }
 
     /// <summary>
@@ -293,6 +296,7 @@ internal static class KvLegacyMigration
                     if (batch.Count >= ImportBatchEntries || batchBytes >= ImportBatchBytes)
                     {
                         imported = store.Import(storageId, batch);
+                        PhaseTestHook?.Invoke("shared-batch-imported", tableDirectory);
                         batch.Clear();
                         batchBytes = 0;
                     }
@@ -322,10 +326,12 @@ internal static class KvLegacyMigration
         MoveLegacyEntries(tableDirectory, retained);
         PhaseTestHook?.Invoke("shared-legacy-moved", tableDirectory);
         KvLsmLayoutMarkerFile.Write(tableDirectory, new KvLsmLayoutMarker(KvLsmLayoutKind.Shared, info.StorageId));
+        PhaseTestHook?.Invoke("shared-marker-written", tableDirectory);
         info.Write(Path.Combine(retained, InfoFileName));
         SonnetDB.Wal.DirectoryFsync.FlushRequired(retained);
         File.Delete(Path.Combine(tableDirectory, PendingFileName));
         SonnetDB.Wal.DirectoryFsync.FlushRequired(tableDirectory);
+        PhaseTestHook?.Invoke("shared-completed", tableDirectory);
     }
 
     /// <summary>

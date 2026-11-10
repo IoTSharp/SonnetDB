@@ -28,6 +28,9 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case var kvMigration when kvMigration.StartsWith("kv_lsm_migration_", StringComparison.Ordinal):
+        KvLsmMigrationCrashScenario.Run(root, readyFile, scenario["kv_lsm_migration_".Length..]);
+        return 0;
     case var efMigration when efMigration.StartsWith("ef_migration_", StringComparison.Ordinal):
         await EfMigrationCrashScenario.RunAsync(root, readyFile, scenario["ef_migration_".Length..]);
         return 0;

@@ -560,7 +560,9 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 
 同时记录：版本 SHA、机器、CPU、磁盘、.NET 版本、RSS 峰值、GC 次数、Gen2 暂停。参照基准（可选，仅作机制对照）：RocksDB `db_bench` 同负载。
 
-### 9.2 门禁（全部 NOT_RUN，待实测确认或修订）
+### 9.2 门禁（按对应负载独立验收）
+
+10 万／100 万条有界本机基线、1000 冷表的缩减语料和迁移阶段真实进程强杀见 [2026-11-10 本机证据](../benchmarks/kv-lsm-capacity-20261110.md)。缩减规模、单轮测量及确定性阶段强杀不替代下表中的完整规模、随机 200 轮或固定硬件门禁。
 
 | 门禁 | 阈值 | 层级 |
 |---|---|---|
@@ -600,10 +602,12 @@ K1～K3 互不依赖格式决策，可先行；K6 依赖 K4 的引擎接线，K7
 
 | 项 | 说明 | 在哪个阶段解决 |
 |---|---|---|
-| schema 降级拒绝 | 需核实旧版本 `TableSchemaCodec` 遇到更高版本时是否报错；不报错则必须同时升级 `tables.tblschema` 文件头 | K6 开始前 |
+| 布局降级拒绝 | K6 实际使用 v3 `generation.meta`，未升级 TableSchema codec；旧二进制拒绝标记的合同见 §7.6.1，真实旧版本消费者仍需单独验证 | G8/G12 |
 | 自动迁移的启动时间 | 大库首次打开时间与数据量线性相关，需在发布说明中给出每 GiB 耗时 | K7 基准 |
 | 共享 WAL 的单写锁 | 所有表写入共用一把 store 写锁；锁内只做 sequence 分配 + WAL 追加 + 跳表插入，需用 many-tables 基准确认它不是新瓶颈；若是，再考虑按 `StorageId` 分片 memtable | K6/K7 基准 |
 | legacy 保留期占用磁盘 | 迁移后 7 天内同时保留新旧两份数据 | 发布说明；保留期可配置 |
 | 文档/图是否并入共享实例 | 本设计只覆盖关系表（D4 的范围） | K8 之后单独设计 |
-checkpoint（LSM“checkpoint（LSM 为 flush）后复制目录”，后台 compaction 可能在复制期间删除 SST，复制可能失败或缺文件；默认引擎为 legacy，不影响现有数据库 | K7（备份 pin Version，§7.3） |
+| Version 级备份 | K7 已在复制期间暂停 LSM flush/compaction（§7.6.5）；§7.3 规划的 pin Version、按引用文件复制与硬链接尚未实现。当前默认引擎是 LSM | 后续备份优化 |
+| K7 表元数据与事务 | 多表事务仍用 TableTransactionJournal；维护文件仍在表目录；Count 仍为 O(n)，未持久化计数；回滚只有内部 API | K7 后续 |
+| 共享 SST 与维护调度 | 前缀布隆、StorageId 区间属性，以及 compaction CPU/内存负载阈值尚未实现 | 独立改进 |
 | 大行恢复分配 | 3MB 级大行在表恢复中约为原始行 4 倍分配（§7.5.3） | K7 span 读取或后续 value 分离 |

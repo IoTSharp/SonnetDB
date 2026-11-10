@@ -1,3 +1,25 @@
+## 2026-11-10（Asia/Shanghai）KV-LSM 本轮提交授权与新会话接续
+
+- 用户已明确授权“现在提交并推送代码，在新会话中完成后续代码开发工作”。本会话负责提交前完整 restore／规定 format、精确暂存本轮 18 个文件、提交并推送 main 到 GitHub／Gitee，以及独立读回；实际提交 SHA、双端状态与新会话身份保存于 `artifacts/kv-lsm-evidence-20261110/submission/`。本节随本轮交付提交，不能仅凭本段推断远端已成功。
+- 提交基线为 main `a037b01f`，包括下节的文档、基准与迁移强杀改动；此前验证与 22 组原始测量身份保持。parity-results 本地／两端引用各自独立，只推 main。未授权 tag、正式发行、部署、重启或生产迁移。
+- 新会话先核对推送提交和 CI，有限复核 CURRENT 改名偶发与完整 CrashTests 超时，再按依赖完成 K7 多表原子批次、维护元数据、持久化行数和迁移回滚 CLI，补崩溃／重开与双引擎回归。前缀布隆／StorageId 属性、Version 备份、CPU／内存调度和大行恢复按现有设计分项推进；时序 P0-3～P0-5 涉及语义／格式，继续先设计与决策。
+- 本次提交推送授权针对已经完成的本轮交付；新会话可直接继续本地开发和测试，新代码提交推送仍按用户后续指令。执行仍需 PowerShell 7、明确循环与墙钟边界、受控并发、PID／创建时间／父链归属及任务资源回收；不得启动 Graphify 或混入其他会话改动。
+- 提交前辅助脚本仅在 `.publishing/tmp/kv-lsm-submit-20261110/`，交付后按精确路径清理；保留必要原始校验、提交和推送回执，不创建常驻进程。下节的首次失败、完整 CrashTests UNKNOWN、固定硬件 NOT_RUN 与无法充分归属的历史临时目录继续保留。
+
+## 2026-11-10（Asia/Shanghai）KV-LSM 文档收尾、容量基线与迁移真实强杀
+
+- 本轮基线 `main @ a037b01f6c673e25bd1dae205188535a40c6f290`，开始时工作树干净。KV-LSM K1～K8 阶段提交已进入 main，K7 仍为部分完成；开始时只读核对 GitHub main 为 a037b01f、Gitee main 为 ca495cae。本轮仅授权本地修改与测试，未暂存、提交、推送、合并、打 tag、发布或部署；parity-results 三处引用未改动。
+- 远端证据已读回：ca495cae 的 CI 42754412252（Ubuntu/Windows Core LSM 轮次及三个 AOT Publish 作业）、CodeQL、Docker Publish、Connectors Release、Docs Pages 均成功。收据 `artifacts/kv-lsm-evidence-20261110/ci-ca495cae.json`；不外推到本轮未提交源码。当前 main 的较晚状态刷新遇到 GitHub API EOF，保持 UNKNOWN，不覆盖已核实的历史提交证据。
+- 文档完成：ROADMAP、十四能力证据索引、README、llms.txt/llms-full.txt 增加默认 LSM 与迁移入口；设计 §11 修正过期备份描述，区分已实现的暂停维护复制与未实现的 Version 级备份；迁移运维与 CHANGELOG 同步。历史 HANDOFF 原字节作为完整后缀保留，本轮未重编码或清洗历史。
+- 实现完成：`KvLsmCapacityBenchmark`/CLI 的 kv、tables、migration、memory 四场景，有界参数、固定语料、完整读回、延迟／分配／RSS／磁盘记录，source-generated JSON，开始时落盘 UNKNOWN 目录身份；新增真实迁移强杀 13 个阶段（独立 KV 7、共享表 6）。生产迁移代码只新增阶段测试钩子，没有改变迁移格式或业务语义。源码归属：上述文档、`src/SonnetDB.Core/Kv/KvLegacyMigration.cs`、Benchmarks 及其测试、CrashTests 与 Child 入口。
+- 测量完成：16 组初始基线 + 4 组百万条内存窗口 + 2 组随机冷读预热后的 1000 冷表缩减语料，共 22 组 PASS，全部基准数据目录已核对清理。机器为 Core Ultra 9 185H／约 64 GiB RAM／NVMe SN8000S；每进程 DOTNET_PROCESSOR_COUNT=2。百万条 100B 随机写 LSM/Legacy 为 57822/30897 ops/s；百万条 1KiB 为 42481/15169 ops/s；十秒窗口稳定 RSS 1KiB 为 183.8/473.0 MiB。逐次 fsync 写与部分 scan100 P99 较慢，未把单轮结果写成全性能门禁通过。
+- 验证：完整 restore PASS，CrashTests 子／父项目另行显式 restore 修复旧 assets；最终规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` PASS。Legacy KV 414/414；LSM KV 最终 321/321；Benchmarks.Tests 全量 84/84，随后局部改进的最终定向回归 19/19；迁移真实强杀最终 13/13，均 0 跳过。
+- 保留失败与未知：LSM KV 首轮 320/321，随机重开在 CURRENT 改名时出现 Windows Access denied，原始 FAIL 保留；该方法随后 3/3、LSM KV 重跑 321/321，原因仍 UNKNOWN，未改该路径、未加重试或跳过。额外完整 CrashTests 超过 360 秒预算，外层 380 秒硬超时，缺完整 TRX，状态 UNKNOWN。初始 stale-assets 构建失败及其修复收据均保留。
+- 证据：`docs/benchmarks/kv-lsm-capacity-20261110.md`；`artifacts/kv-lsm-evidence-20261110/` 含命令／进程收据、TRX、22 份原始报告、汇总和源码／DLL SHA。原始 schema 1 的准确源码保留为 measured-source-v1.zip；schema 1.1 和 memory 结果绑定 source-before-memory.json，不改写旧测量。
+- 风险／未完成：千万条、完整 1000 表×10000 行、随机强杀 200 轮、真实旧版本二进制、一亿条／168小时固定硬件与生产验收均 NOT_RUN；多表原子批次、维护元数据、持久化计数、回滚 CLI、前缀布隆／SST 属性及 Version 备份未做。时序 P0-3～P0-5 继续单独设计。
+- 资源：本轮执行器按所属 Windows Job 回收进程树；22 组基准目录已删除。完整 CrashTests 超时窗口发现 `C:\Users\mysti\AppData\Local\Temp\sndb-crash-g3cbpi1v.lbu`，其中 child-process.txt 指向 mid_compaction；缺少存活父链供完整归属复核，保留并记入 temporary-root-audit.json。任务辅助脚本／请求所在 `.publishing/tmp/kv-lsm-evidence-20261110/` 已按精确路径清理，收据 cleanup.json；原始测量、源码归档、失败回执作为证据保留。
+- 下一顺序：定位 CURRENT 改名偶发与完整 CrashTests 超时；重复采样 fsync 写和范围扫描尾延迟并剖析；再独立推进 K7 功能与完整规模门禁。Git 写入、发布和部署须另获明确授权。
+
 ## 2026-11-10（Asia/Shanghai）KV-LSM K6～K8：共享实例、打开时迁移与默认切换
 
 - 分支 `feat/kv-lsm-k1-k3`，基于本分支 `f94a162e`（K4b/K5c）。用户授权：提交、完成会话初定的 KV-LSM 各阶段、推送并合并其他分支。提交范围：`src/SonnetDB.Core/Kv/`（新增 `KvLsmStore.cs`、`KvLsmLayoutMarkerFile.cs`、`KvLegacyMigration.cs`；修改 `KvKeyspace.cs`、`KvLsmKeyspaceBackend.cs`、`KvReadSnapshot.cs`、`KvOptions.cs`、`KvStorageEngine.cs`）、`src/SonnetDB.Core/Kv/Lsm/KvLsmEngine.cs`、`src/SonnetDB.Core/Tables/`（新增 `TableManager.SharedStorage.cs`；修改 `TableManager.cs`、`.CreateAs.cs`、`.DdlTransactions.cs`、`.SchemaMigrationRecovery.cs`、`TableStore.cs`）、`src/SonnetDB.Core/Engine/Tsdb.cs`（备份暂停维护）、`src/SonnetDB/`（Server `Kv:StorageEngine`/`Kv:LegacyMigration`）、`.github/workflows/ci.yml`（Core LSM 轮次）、测试（新增 `Kv/KvLsmStoreTests.cs`、`Kv/KvLegacyMigrationTests.cs`，以及调度、矩阵与少量引擎无关化修改）、`docs/design/kv-lsm-storage-engine.md`（§7.5.1、§7.5.4、§7.6、§10、§11）、`docs/operations/kv-lsm-migration.md`，以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件、`.vscode/settings.json` 及 CHANGELOG/HANDOFF 其余修改保持原样。

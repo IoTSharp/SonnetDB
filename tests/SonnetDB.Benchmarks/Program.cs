@@ -1,6 +1,22 @@
 ﻿using BenchmarkDotNet.Running;
 using SonnetDB.Benchmarks.Benchmarks;
 
+if (args.Contains("--kv-lsm-capacity", StringComparer.Ordinal))
+{
+    using var cancellation = new CancellationTokenSource();
+    ConsoleCancelEventHandler cancel = (_, signal) => { signal.Cancel = true; cancellation.Cancel(); };
+    Console.CancelKeyPress += cancel;
+    try
+    {
+        KvLsmCapacityReport report = KvLsmCapacityBenchmark.Run(KvLsmCapacityCommand.Parse(args), cancellation.Token);
+        Console.WriteLine($"kv-lsm-capacity={report.Status} output={report.Options.Output} cleanup={report.CleanupComplete}");
+        if (report.Error is not null) Console.Error.WriteLine(report.Error);
+        Environment.ExitCode = report.Status == "PASS" ? 0 : 1;
+    }
+    finally { Console.CancelKeyPress -= cancel; }
+    return;
+}
+
 // BenchmarkDotNet 需要在 Release 模式下运行。
 // 使用示例：
 //   dotnet run -c Release -- --filter *Insert*
