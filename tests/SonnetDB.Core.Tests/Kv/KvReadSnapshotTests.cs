@@ -14,6 +14,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     public KvReadSnapshotTests() => Directory.CreateDirectory(_root);
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task AcquireReadSnapshot_DuringCheckpoint_PreservesFrozenMutableAndDiskView()
     {
         using var keyspace = KvKeyspace.Open("checkpoint-view", _root, Options());
@@ -104,6 +105,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task ReadNextPage_UsesOneDiskEnumeratorAndDoesNotHoldKeyspaceLock()
     {
         using var keyspace = KvKeyspace.Open("forward-cursor", _root, Options());
@@ -219,6 +221,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ReadNextPage_DescendingDiskRangeSeeksFromUpperBound()
     {
         using var keyspace = KvKeyspace.Open("descending-disk-seek", _root, Options());
@@ -263,6 +266,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AcquireReadSnapshot_OverlayLimitFailsWithoutChangingWalOrState()
     {
         using var keyspace = KvKeyspace.Open(
@@ -286,6 +290,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task AcquireReadSnapshot_FrozenOverlayCountsTowardLimitWithoutChangingWalOrState()
     {
         using var keyspace = KvKeyspace.Open(
@@ -498,6 +503,7 @@ public sealed class KvReadSnapshotTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task ReadNextPage_LargeFrozenOverlayAllocatesOnlyBoundedPageMemory()
     {
         const int entryCount = 10_000;
@@ -558,6 +564,7 @@ public sealed class KvReadSnapshotTests : IDisposable
 
     /// <summary>验证同一 sequence 的查询复用有序覆盖层，并在写入后重建且保持旧快照稳定。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AcquireReadSnapshot_UnchangedOverlayReusesSortedCacheAndWriteInvalidatesIt()
     {
         using var keyspace = KvKeyspace.Open("snapshot-overlay-cache", _root, Options());
@@ -585,6 +592,7 @@ public sealed class KvReadSnapshotTests : IDisposable
 
     /// <summary>并发冷 miss 只允许一个调用者复制并排序覆盖层，等待者复用已发布缓存。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task AcquireReadSnapshot_ConcurrentColdMisses_BuildOverlayOnlyOnce()
     {
         using var keyspace = KvKeyspace.Open("snapshot-overlay-single-flight", _root, Options());

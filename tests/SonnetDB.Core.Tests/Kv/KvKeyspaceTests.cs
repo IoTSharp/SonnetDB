@@ -60,6 +60,7 @@ public sealed class KvKeyspaceTests : IDisposable
 
     /// <summary>验证公共 Get 与 GetEntry 可同时进入同一不可变 state 的按位置读取。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task GetAndGetEntry_DiskReadsRunOutsideTheKeyspaceLock()
     {
         using var keyspace = KvKeyspace.Open("public-point-read", _root, PointReadOptions());
@@ -86,6 +87,7 @@ public sealed class KvKeyspaceTests : IDisposable
 
     /// <summary>验证带取消令牌的对象元数据点读在磁盘读取期间不会占用 keyspace 写锁。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task CancellableGetEntry_DiskReadDoesNotBlockUnrelatedWrite()
     {
         using var keyspace = KvKeyspace.Open("cancellable-point-read", _root, PointReadOptions());
@@ -119,6 +121,7 @@ public sealed class KvKeyspaceTests : IDisposable
 
     /// <summary>验证 keyspace 释放 owner 时，在途公共点读仍由磁盘租约保护到完成。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Get_InFlightDispose_KeepsDiskStateAliveUntilReadCompletes()
     {
         var keyspace = KvKeyspace.Open("public-dispose-read", _root, PointReadOptions());
@@ -156,6 +159,7 @@ public sealed class KvKeyspaceTests : IDisposable
 
     /// <summary>验证 checkpoint 替换磁盘 state 时不会关闭公共点读正在使用的旧句柄。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Get_InFlightCheckpoint_KeepsPreviousDiskStateAliveUntilReadCompletes()
     {
         using var keyspace = KvKeyspace.Open("public-checkpoint-read", _root, PointReadOptions());
@@ -269,6 +273,7 @@ public sealed class KvKeyspaceTests : IDisposable
     /// 验证 checkpoint 冻结期间范围扫描正确合并可变层、冻结层和磁盘层的覆盖与删除。
     /// </summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task ScanRange_DuringCheckpoint_MergesMutableFrozenAndDiskLayers()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
@@ -416,6 +421,7 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_Reopen_LoadsSegmentAndTruncatesWal()
     {
         string walPath;
@@ -561,6 +567,8 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    // 最后一条断言依赖 legacy 读取时的惰性删除；LSM 读取不写入（K4b 决策 1），对应语义见 KvLsmKeyspaceTests。
+    [Trait("KvEngine", "LegacyOnly")]
     public void Put_WithExpiresAt_HidesExpiredKeyAndPreservesMetadata()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
@@ -599,6 +607,7 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void CleanExpired_AfterCompact_RemovesExpiredDiskEntries()
     {
         using var db = Tsdb.Open(new TsdbOptions

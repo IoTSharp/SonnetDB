@@ -110,6 +110,37 @@ public sealed partial class KvKeyspace : IDisposable
     private Exception? _writeFault;
     private FileStream? _lifecycleLease;
     private bool _disposed;
+    // 非 null 时本实例由 KV-LSM 引擎承载；legacy 覆盖层、磁盘状态与 WAL 字段保持空闲。
+    private readonly KvLsmKeyspaceBackend? _lsm;
+
+    private KvKeyspace(
+        string name,
+        string rootDirectory,
+        KvOptions options,
+        KvLsmKeyspaceBackend lsm,
+        FileStream lifecycleLease,
+        KvDiskReadBudget diskReadBudget,
+        bool ownsDiskReadBudget)
+    {
+        Name = name;
+        RootDirectory = rootDirectory;
+        _options = options;
+        _values = new KvOrderedOverlay(orderedScans: true);
+        _lsm = lsm;
+        _diskReadBudget = diskReadBudget;
+        _ownsDiskReadBudget = ownsDiskReadBudget;
+        _lifecycleLease = lifecycleLease;
+        _diskReadBudgetKeyspaceLease = diskReadBudget.AcquireKeyspaceReference();
+    }
+
+    /// <summary>本实例实际使用的存储引擎。</summary>
+    internal KvStorageEngine StorageEngine => _lsm is null ? KvStorageEngine.Legacy : KvStorageEngine.Lsm;
+
+    /// <summary>LSM 后端（仅 <see cref="KvStorageEngine.Lsm"/> 时非 null；诊断与测试用）。</summary>
+    internal KvLsmKeyspaceBackend? LsmBackend => _lsm;
+
+    /// <summary>当前接收提交的 WAL 文件路径：legacy 为 active WAL，LSM 为活跃 memtable 对应的 WAL（测试读取已提交记录用）。</summary>
+    internal string CurrentWalPath => _lsm?.ActiveWalPath ?? ActiveWalPath(RootDirectory);
 
     private KvKeyspace(
         string name,
@@ -149,6 +180,21 @@ public sealed partial class KvKeyspace : IDisposable
     {
         get
         {
+            if (_lsm is not null)
+            {
+                // 与 legacy 的 Count 合同一致：不按 TTL 过滤，统计全部尚未删除的 key（含已到期但未清理的）。
+                // 差异只在于 LSM 读取不再惰性删除，已到期 key 要等 CleanExpired、后台清理或 compaction 才会移除。
+                // 零复制遍历（O(n)，不物化 key/value）；K6 持久化计数后改为 O(1)。
+                ThrowIfDisposedForLsm();
+                int count = 0;
+                _lsm.ScanForward([], null, CancellationToken.None, _ =>
+                {
+                    count++;
+                    return true;
+                });
+                return count;
+            }
+
             lock (_sync)
                 return CountVisibleLocked();
         }
@@ -159,6 +205,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         get
         {
+            if (_lsm is not null)
+                return _lsm.LastSequence;
             lock (_sync)
                 return _lastSequence;
         }
@@ -169,6 +217,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         get
         {
+            if (_lsm is not null)
+                return _lsm.Generation;
             lock (_sync)
                 return _generation;
         }
@@ -188,7 +238,11 @@ public sealed partial class KvKeyspace : IDisposable
         get
         {
             lock (_sync)
+            {
+                if (_lsm is not null)
+                    return _disposed ? 0 : _lsm.ActiveWalLength;
                 return _wal?.Length ?? 0;
+            }
         }
     }
 
@@ -248,7 +302,13 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
-    internal Exception? LastCheckpointException { get; private set; }
+    internal Exception? LastCheckpointException
+    {
+        get => _lsm is not null ? _lsm.Fault : _lastCheckpointException;
+        private set => _lastCheckpointException = value;
+    }
+
+    private Exception? _lastCheckpointException;
 
     internal Action<KvCheckpointPhase>? CheckpointTestHook { get; set; }
 
@@ -296,6 +356,11 @@ public sealed partial class KvKeyspace : IDisposable
     {
         set
         {
+            if (_lsm is not null)
+            {
+                _lsm.Engine.WalDisposeFlushTestHook = value;
+                return;
+            }
             lock (_sync)
             {
                 if (_wal is not null)
@@ -308,6 +373,11 @@ public sealed partial class KvKeyspace : IDisposable
     {
         set
         {
+            if (_lsm is not null)
+            {
+                _lsm.Engine.WalSyncTestHook = value;
+                return;
+            }
             lock (_sync)
             {
                 if (_wal is not null)
@@ -322,6 +392,13 @@ public sealed partial class KvKeyspace : IDisposable
     internal bool IsWriteCommitOutcomeUnknown(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
+        if (_lsm is not null)
+        {
+            // LSM 故障按原异常对象重抛，或包装在只读 IOException 的 InnerException 中。
+            Exception? fault = _lsm.Fault;
+            return fault is not null
+                && (ReferenceEquals(fault, exception) || ReferenceEquals(fault, exception.InnerException));
+        }
         lock (_sync)
             return ReferenceEquals(_writeFault, exception);
     }
@@ -333,6 +410,14 @@ public sealed partial class KvKeyspace : IDisposable
     /// <summary>以可取消的锁等待同步 WAL，供依赖审计耐久性的外部调用使用。</summary>
     internal void SyncWalForMaintenance(CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+        {
+            lock (_sync)
+                ThrowIfDisposed();
+            _lsm.SyncWal(cancellationToken);
+            return;
+        }
+
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -348,6 +433,13 @@ public sealed partial class KvKeyspace : IDisposable
     /// <returns>释放后恢复普通预算的 scope。</returns>
     internal IDisposable EnterIndexRebuildBudgetScope(CancellationToken cancellationToken = default)
     {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            cancellationToken.ThrowIfCancellationRequested();
+            return _lsm.EnterIndexRebuildScope();
+        }
+
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -367,7 +459,8 @@ public sealed partial class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_options.AutoCheckpointEnabled)
+            // LSM 没有覆盖层条目预算：memtable 轮转与 L0 背压负责限流。
+            if (_lsm is not null || !_options.AutoCheckpointEnabled)
                 return preferredPageSize;
             int overlayBudget = EffectiveMaxOverlayEntriesLocked;
             return overlayBudget > 0
@@ -407,12 +500,19 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         Directory.CreateDirectory(rootDirectory);
-        Directory.CreateDirectory(WalDirectory(rootDirectory));
-        Directory.CreateDirectory(SnapshotsDirectory(rootDirectory));
-        Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
+        // 引擎在创建 legacy 目录之前决定：已是 LSM 布局的目录总以 LSM 打开；有 legacy 数据的目录总以 legacy 打开。
+        bool useLsm = KvLsmKeyspaceBackend.IsLsmLayout(rootDirectory)
+            || (options.StorageEngine == KvStorageEngine.Lsm && !KvLsmKeyspaceBackend.HasLegacyData(rootDirectory));
+        if (!useLsm)
+        {
+            Directory.CreateDirectory(WalDirectory(rootDirectory));
+            Directory.CreateDirectory(SnapshotsDirectory(rootDirectory));
+            Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
+        }
 
         FileStream lifecycleLease = AcquireLifecycleLease(rootDirectory);
         KvDiskReadBudget? ownedDiskReadBudget = null;
+        KvLsmKeyspaceBackend? lsm = null;
         try
         {
             ownedDiskReadBudget = diskReadBudget is null
@@ -421,6 +521,19 @@ public sealed partial class KvKeyspace : IDisposable
                     options.MaxQueuedStateReads,
                     TimeSpan.FromMilliseconds(options.StateReadWaitTimeoutMilliseconds))
                 : null;
+            if (useLsm)
+            {
+                lsm = KvLsmKeyspaceBackend.Open(rootDirectory, options, diskReadBudget ?? ownedDiskReadBudget!);
+                return new KvKeyspace(
+                    name,
+                    rootDirectory,
+                    options,
+                    lsm,
+                    lifecycleLease,
+                    diskReadBudget ?? ownedDiskReadBudget!,
+                    ownsDiskReadBudget: ownedDiskReadBudget is not null);
+            }
+
             return OpenWithLifecycleLease(
                 name,
                 rootDirectory,
@@ -431,6 +544,7 @@ public sealed partial class KvKeyspace : IDisposable
         }
         catch
         {
+            lsm?.Dispose();
             lifecycleLease.Dispose();
             ownedDiskReadBudget?.Dispose();
             throw;
@@ -640,6 +754,8 @@ public sealed partial class KvKeyspace : IDisposable
 
         byte[] keyCopy = key.ToArray();
         byte[] valueCopy = value.ToArray();
+        if (_lsm is not null)
+            return LsmPut(keyCopy, valueCopy, expiresAtUtc, CancellationToken.None);
 
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
@@ -753,7 +869,7 @@ public sealed partial class KvKeyspace : IDisposable
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
         RecordRead(lookup);
-        KvValueEntry? entry = ReadVisibleEntry(lookup);
+        KvValueEntry? entry = _lsm is not null ? LsmReadVisible(lookup, CancellationToken.None) : ReadVisibleEntry(lookup);
         return entry?.Value.ToArray();
     }
 
@@ -767,7 +883,7 @@ public sealed partial class KvKeyspace : IDisposable
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
         RecordRead(lookup);
-        KvValueEntry? entry = ReadVisibleEntry(lookup);
+        KvValueEntry? entry = _lsm is not null ? LsmReadVisible(lookup, CancellationToken.None) : ReadVisibleEntry(lookup);
         return entry is null
             ? null
             : new KvEntry(lookup, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
@@ -788,7 +904,7 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(key);
         byte[] lookup = EncodeUtf8Key(key, _options);
         RecordRead(lookup);
-        KvValueEntry? entry = ReadVisibleEntry(lookup, cancellationToken);
+        KvValueEntry? entry = _lsm is not null ? LsmReadVisible(lookup, cancellationToken) : ReadVisibleEntry(lookup, cancellationToken);
         return entry is null
             ? null
             : new KvEntry(lookup, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
@@ -903,6 +1019,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmIncrement(lookup, delta);
 
         lock (_sync)
         {
@@ -999,6 +1117,8 @@ public sealed partial class KvKeyspace : IDisposable
 
         byte[] lookup = key.ToArray();
         byte[] valueCopy = value.ToArray();
+        if (_lsm is not null)
+            return LsmCompareAndSet(lookup, expectedVersion, valueCopy, expiresAtUtc, cancellationToken);
 
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -1089,6 +1209,8 @@ public sealed partial class KvKeyspace : IDisposable
         ValidateKey(key, _options);
         ValidateUtc(expiresAtUtc, nameof(expiresAtUtc));
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmRewriteTtl(lookup, expiresAtUtc, requireExistingTtl: false, cancellationToken);
 
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -1138,6 +1260,8 @@ public sealed partial class KvKeyspace : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmRewriteTtl(lookup, expiresAtUtc: null, requireExistingTtl: true, cancellationToken);
 
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -1182,6 +1306,8 @@ public sealed partial class KvKeyspace : IDisposable
         DateTimeOffset now = utcNow ?? DateTimeOffset.UtcNow;
         ValidateUtc(now, nameof(utcNow));
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmGetTimeToLive(lookup, now);
 
         lock (_sync)
         {
@@ -1216,6 +1342,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmDelete(lookup);
 
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
@@ -1336,6 +1464,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(mutations);
         KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (_lsm is not null)
+            return LsmApplyBatch(batch, CancellationToken.None, bounded: false);
         if (batch.Length == 0)
             return LastSequence;
 
@@ -1353,6 +1483,8 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(mutations);
         cancellationToken.ThrowIfCancellationRequested();
         KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (_lsm is not null)
+            return LsmApplyBatch(batch, cancellationToken, bounded: true);
         if (batch.Length == 0)
             return LastSequence;
 
@@ -1421,6 +1553,8 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(preconditions);
         KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
         KvBatchPrecondition[] conditions = CanonicalizeBatchPreconditions(preconditions);
+        if (_lsm is not null)
+            return LsmApplyConditional(batch, conditions, cancellationToken);
         return ApplyCanonicalConditionalBatch(batch, conditions, cancellationToken);
     }
 
@@ -1430,6 +1564,8 @@ public sealed partial class KvKeyspace : IDisposable
         KvBatchPrecondition[] conditions,
         CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+            return LsmApplyConditional(batch, conditions, cancellationToken);
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -1484,6 +1620,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(mutations);
         KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (_lsm is not null)
+            return LsmApplyIndexRebuildBatch(batch, CancellationToken.None, bounded: false);
         if (batch.Length == 0)
             return LastSequence;
 
@@ -1495,6 +1633,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(mutations);
         cancellationToken.ThrowIfCancellationRequested();
+        if (_lsm is not null)
+            return LsmApplyIndexRebuildBatch(CanonicalizeBatchMutations(mutations), cancellationToken, bounded: true);
         return ApplyPage(CanonicalizeBatchMutations(mutations));
 
         long ApplyPage(KvBatchMutation[] batch)
@@ -1602,6 +1742,8 @@ public sealed partial class KvKeyspace : IDisposable
     internal long ApplyBatch(Func<long, IReadOnlyList<KvBatchMutation>> mutationFactory)
     {
         ArgumentNullException.ThrowIfNull(mutationFactory);
+        if (_lsm is not null)
+            return LsmApplySequenceFactory(mutationFactory);
 
         long expectedSequence = ReadNextMutationSequence();
         int optimisticInvalidations = 0;
@@ -1933,6 +2075,8 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(keys);
         if (keys.Count == 0)
             return 0;
+        if (_lsm is not null)
+            return LsmDeleteMany(keys);
 
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
@@ -1980,6 +2124,19 @@ public sealed partial class KvKeyspace : IDisposable
     /// </summary>
     public KvClearResult Clear()
     {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            long lsmStarted = SonnetDbMeter.KvClearDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+            KvClearResult lsmResult = _lsm.Clear();
+            // 与 legacy 相同的 Clear 指标；LSM 旧文件随过期文件清理立即删除，不产生待回收文件指标。
+            SonnetDbMeter.KvClearedKeys.Add(lsmResult.RemovedKeys);
+            SonnetDbMeter.KvGenerationChanges.Add(1);
+            if (lsmStarted != 0)
+                SonnetDbMeter.KvClearDuration.Record(Stopwatch.GetElapsedTime(lsmStarted).TotalMilliseconds);
+            return lsmResult;
+        }
+
         long startTimestamp = SonnetDbMeter.KvClearDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
         KvDiskState? diskToDispose = null;
         KvClearResult result;
@@ -2049,6 +2206,12 @@ public sealed partial class KvKeyspace : IDisposable
     /// <summary>返回当前 generation 回收任务状态。</summary>
     public KvCleanupStatus GetCleanupStatus()
     {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            return new KvCleanupStatus(_lsm.Generation, 0, 0);
+        }
+
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -2078,6 +2241,12 @@ public sealed partial class KvKeyspace : IDisposable
         int take = maxFiles ?? _options.CleanupMaxFilesPerRound;
         if (take <= 0)
             return KvCleanupRoundResult.Empty;
+        if (_lsm is not null)
+        {
+            // LSM 的 Clear 同步删除 SST；旧文件由版本集在快照释放后回收，没有 generation 清单。
+            ThrowIfDisposedForLsm();
+            return KvCleanupRoundResult.Empty;
+        }
 
         long startTimestamp = SonnetDbMeter.KvCleanupDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
         lock (_sync)
@@ -2154,6 +2323,15 @@ public sealed partial class KvKeyspace : IDisposable
     /// </exception>
     public KvReadSnapshot AcquireReadSnapshot()
     {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            // LSM 快照为 O(1) 且不复制覆盖层；仍拒绝无效的配置，保持选项合同。
+            if (_options.MaxSnapshotOverlayEntries <= 0)
+                throw new InvalidOperationException("KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
+            return _lsm.AcquireReadSnapshot();
+        }
+
         KeyValuePair<byte[], KvValueEntry>[] mutableValues;
         KeyValuePair<byte[], KvValueEntry>[] frozenValues;
         Dictionary<byte[], KvValueEntry> mutableSource;
@@ -2383,6 +2561,8 @@ public sealed partial class KvKeyspace : IDisposable
             return Array.Empty<KvEntry>();
 
         byte[] prefixCopy = prefix.ToArray();
+        if (_lsm is not null)
+            return LsmScan(prefixCopy, startInclusive, endExclusive, afterKey, take, cancellationToken, candidateVisited);
 
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -2420,6 +2600,8 @@ public sealed partial class KvKeyspace : IDisposable
         byte[] prefix, byte[]? startInclusive, byte[]? endExclusive, byte[]? afterKey,
         int limit, CancellationToken cancellationToken, Action? candidateVisited = null)
     {
+        if (_lsm is not null)
+            return limit <= 0 ? Array.Empty<KvEntry>() : LsmScan(prefix, startInclusive, endExclusive, afterKey, limit, cancellationToken, candidateVisited);
         using (EnterAtomicWriteLock(cancellationToken))
         {
             if (!_values.OrderedScansEnabled
@@ -2432,6 +2614,12 @@ public sealed partial class KvKeyspace : IDisposable
     /// <summary>对象元数据按需启用可变及冻结覆盖层的有序访问，不改变其他 keyspace 的内存合同。</summary>
     internal void EnableOrderedOverlayScans(CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -2445,6 +2633,13 @@ public sealed partial class KvKeyspace : IDisposable
     internal bool TryEnableOrderedOverlayScans(int maximumEntries, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEntries);
+        if (_lsm is not null)
+        {
+            // LSM 视图天然有序，没有覆盖层条目上限。
+            ThrowIfDisposedForLsm();
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -2484,6 +2679,8 @@ public sealed partial class KvKeyspace : IDisposable
 
         byte[] prefixCopy = prefix.ToArray();
         byte[]? afterKeyCopy = afterKey.IsEmpty ? null : afterKey.ToArray();
+        if (_lsm is not null)
+            return LsmScanKeys(prefixCopy, afterKeyCopy, limit);
 
         lock (_sync)
         {
@@ -2523,6 +2720,11 @@ public sealed partial class KvKeyspace : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
         ArgumentNullException.ThrowIfNull(readPage);
         byte[] prefixCopy = prefix.ToArray();
+        if (_lsm is not null)
+        {
+            LsmReadStablePrefixPages(prefixCopy, pageSize, readPage);
+            return;
+        }
 
         lock (_sync)
         {
@@ -2562,6 +2764,8 @@ public sealed partial class KvKeyspace : IDisposable
     public int CountPrefix(ReadOnlySpan<byte> prefix)
     {
         byte[] prefixCopy = prefix.ToArray();
+        if (_lsm is not null)
+            return LsmCountPrefix(prefixCopy);
 
         lock (_sync)
         {
@@ -2653,6 +2857,8 @@ public sealed partial class KvKeyspace : IDisposable
             return 0;
 
         byte[] prefixCopy = prefix.ToArray();
+        if (_lsm is not null)
+            return LsmDeletePrefix(prefixCopy, take);
 
         lock (_sync)
         {
@@ -2690,6 +2896,8 @@ public sealed partial class KvKeyspace : IDisposable
 
         DateTimeOffset now = utcNow ?? DateTimeOffset.UtcNow;
         ValidateUtc(now, nameof(utcNow));
+        if (_lsm is not null)
+            return LsmCleanExpired(now, take);
 
         lock (_sync)
         {
@@ -2716,6 +2924,8 @@ public sealed partial class KvKeyspace : IDisposable
         if (maximumDeletes <= 0)
             return 0;
         ValidateUtc(utcNow, nameof(utcNow));
+        if (_lsm is not null)
+            return LsmCleanExpiredMaintenance(utcNow, maximumDeletes, cancellationToken);
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -2762,6 +2972,8 @@ public sealed partial class KvKeyspace : IDisposable
     {
         DateTimeOffset now = utcNow ?? DateTimeOffset.UtcNow;
         ValidateUtc(now, nameof(utcNow));
+        if (_lsm is not null)
+            return LsmGetExpirationStats(now);
 
         lock (_sync)
         {
@@ -2801,23 +3013,45 @@ public sealed partial class KvKeyspace : IDisposable
 
     /// <summary>
     /// 写出当前 keyspace 的完整快照，并截断快照版本之前的 KV WAL。
+    /// LSM 引擎下为刷盘全部 memtable 并提交 manifest，形成一致恢复点。
     /// </summary>
     /// <returns>快照覆盖到的版本号。</returns>
     public long CreateSnapshot()
-        => RunCheckpoint(isSegment: false);
+    {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            return _lsm.CreateSnapshot();
+        }
+        return RunCheckpoint(isSegment: false);
+    }
 
     /// <summary>
     /// 将当前 keyspace 压实为一个不可变段文件，并截断已压实版本之前的 KV WAL。
+    /// LSM 引擎下为刷盘并把全部 SST 合并到最底层。
     /// </summary>
     /// <returns>压实覆盖到的版本号。</returns>
     public long Compact()
-        => RunCheckpoint(isSegment: true);
+    {
+        if (_lsm is not null)
+        {
+            ThrowIfDisposedForLsm();
+            return _lsm.Compact();
+        }
+        return RunCheckpoint(isSegment: true);
+    }
 
     /// <summary>
     /// 关闭 keyspace 并刷盘 KV WAL。
     /// </summary>
     public void Dispose()
     {
+        if (_lsm is not null)
+        {
+            DisposeLsm();
+            return;
+        }
+
         bool checkpointRunning;
         KvWalFile? wal;
         lock (_sync)
@@ -3435,7 +3669,8 @@ public sealed partial class KvKeyspace : IDisposable
 
     private void ScheduleAutoCheckpointLocked(bool force = false, TimeSpan? delay = null)
     {
-        if (_disposed || !_options.AutoCheckpointEnabled)
+        // LSM 实例有自己的 flush/compaction 线程，绝不进入 legacy 检查点调度。
+        if (_disposed || _lsm is not null || !_options.AutoCheckpointEnabled)
             return;
         if (!force && !IsCheckpointDueLocked())
             return;
@@ -4056,6 +4291,8 @@ public sealed partial class KvKeyspace : IDisposable
         DateTimeOffset? expiresAtUtc,
         CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+            return LsmSet(keyCopy, valueCopy, condition, expiresAtUtc, cancellationToken);
         if (condition == KvSetCondition.Always)
         {
             long lockWait = SonnetDbMeter.StartLockWaitTiming();
@@ -4087,6 +4324,8 @@ public sealed partial class KvKeyspace : IDisposable
         DateTimeOffset? expiresAtUtc,
         CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+            return LsmGetAndSet(keyCopy, valueCopy, expiresAtUtc, cancellationToken);
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         using (EnterAtomicWriteLock(cancellationToken))
         {
@@ -4102,6 +4341,8 @@ public sealed partial class KvKeyspace : IDisposable
 
     private KvExchangeResult GetAndDeleteValidated(byte[] lookup, CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+            return LsmGetAndDelete(lookup, cancellationToken);
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         using (EnterAtomicWriteLock(cancellationToken))
         {

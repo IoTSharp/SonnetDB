@@ -220,6 +220,7 @@ public sealed class TableUniqueIndexPointTests : IDisposable
 
     /// <summary>磁盘索引与主行之间暂停时，更新不能穿过点读窗口产生索引与主行不一致。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task UniquePoint_ConcurrentIndexChange_HasAtomicVisibility()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));

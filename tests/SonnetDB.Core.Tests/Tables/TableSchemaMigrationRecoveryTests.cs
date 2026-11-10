@@ -13,12 +13,23 @@ public sealed class TableSchemaMigrationRecoveryTests : IDisposable
     private string TablesRoot => Path.Combine(_root, "tables");
     private string JournalPath => Path.Combine(TablesRoot, TableSchemaMigrationJournal.FileName);
 
-    /// <summary>后一个表的 generation 或指纹不匹配时，前一个表也不能先执行 undo。</summary>
+    /// <summary>后一个表的指纹不匹配或日志损坏时，前一个表也不能先执行 undo，且不改写任何表文件。</summary>
     [Theory]
-    [InlineData("generation")]
     [InlineData("fingerprint")]
     [InlineData("corruption")]
     public void Open_InvalidPendingJournal_RejectsWithoutChangingAnyTableFiles(string failure)
+        => AssertInvalidPendingJournalLeavesFilesUnchanged(failure);
+
+    /// <summary>
+    /// generation 错配需要先打开 rowstore 才能发现。legacy 打开不改写任何文件；
+    /// LSM 打开会轮换 WAL、把重放内容刷入 L0 并滚动 manifest（逻辑内容不变），因此逐字节比较只适用于 legacy。
+    /// </summary>
+    [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
+    public void Open_InvalidPendingJournalGeneration_RejectsWithoutChangingAnyTableFiles()
+        => AssertInvalidPendingJournalLeavesFilesUnchanged("generation");
+
+    private void AssertInvalidPendingJournalLeavesFilesUnchanged(string failure)
     {
         ArrangePending(failure);
         var before = SnapshotFiles();

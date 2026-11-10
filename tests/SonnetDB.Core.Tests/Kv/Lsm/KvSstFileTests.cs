@@ -264,6 +264,37 @@ public sealed class KvSstFileTests : IDisposable
         Assert.ThrowsAny<OperationCanceledException>(() => reader.VerifyAll(cancellation.Token));
     }
 
+    /// <summary>单条 ≥ 块大小的条目独占数据块，读取相邻小 key 时不读入大 value。</summary>
+    [Fact]
+    public void LargeEntry_IsIsolatedInItsOwnBlock_SoNeighbourReadsStaySmall()
+    {
+        byte[] large = new byte[64 * 1024];
+        new Random(17).NextBytes(large);
+        var entries = new List<TestEntry>
+        {
+            Put("a", 1, "small-a"),
+            Put("b", 2, "small-b"),
+            Put("c", 3, large),
+            Put("d", 4, "small-d"),
+        };
+        string path = WriteFile("isolated", entries, new KvSstWriterOptions { BlockSize = 4096, SyncDirectory = false });
+        using var budget = new KvDiskReadBudget(maxConcurrentReads: 2);
+
+        using KvSstReader reader = KvSstReader.Open(path, budget);
+        reader.VerifyAll();
+        Assert.Equal(3, reader.Properties.DataBlockCount); // [a,b] [c] [d]
+
+        foreach (string key in new[] { "b", "d" })
+        {
+            long before = budget.CompletedBytes;
+            Assert.True(reader.TryGet(Encoding.UTF8.GetBytes(key), long.MaxValue >> 9, out KvSstEntry entry));
+            Assert.Equal("small-" + key, Encoding.UTF8.GetString(entry.Value.Span));
+            Assert.InRange(budget.CompletedBytes - before, 1, 1024);
+        }
+        Assert.True(reader.TryGet("c"u8, long.MaxValue >> 9, out KvSstEntry largeEntry));
+        Assert.Equal(large, largeEntry.Value.ToArray());
+    }
+
     [Fact]
     public void DisposedReader_RejectsNewIterators()
     {

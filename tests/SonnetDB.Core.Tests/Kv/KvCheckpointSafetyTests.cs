@@ -19,6 +19,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Reopen_UncoveredSealedWal_AutomaticallyCheckpointsWithoutAnotherWrite()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -44,6 +45,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Reopen_StateCoveredSealedWal_AutomaticallyCleansWithoutAnotherWrite()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -70,6 +72,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
 
     /// <summary>验证在途检查点期间低于 fresh overlay 预算的普通写不会排队第二轮检查点。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RunningCheckpoint_WriteBelowFreshBudget_DoesNotReschedule()
     {
         using var db = Open(KvOptions.Default with
@@ -112,6 +115,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
 
     /// <summary>验证在途检查点期间 fresh overlay 达到预算后仍准确执行一轮后续检查点。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RunningCheckpoint_FreshOverlayReachesBudget_ReschedulesOnce()
     {
         using var db = Open(KvOptions.Default with
@@ -167,6 +171,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
 
     /// <summary>验证 worker 尚未 freeze 时的 force 请求由已排队轮次吸收，不产生冗余第二轮。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task QueuedCheckpoint_ForceBeforeFreeze_DoesNotRunRedundantCheckpoint()
     {
         using var db = Open(KvOptions.Default with
@@ -234,6 +239,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task PausedCheckpoint_StopsWritesAtBudgetUntilNextOverlayIsFrozen()
     {
         using var db = Open(KvOptions.Default with
@@ -291,6 +297,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task DeleteMany_BackpressureWait_ReevaluatesKeysAfterConcurrentClear()
     {
         using var db = Open(KvOptions.Default with
@@ -354,6 +361,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void PausedCheckpoint_InOneKeyspace_DoesNotStarveAnotherKeyspace()
     {
         using var db = Open(KvOptions.Default with
@@ -394,6 +402,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AutomaticCheckpoint_TransientDirectoryFsyncFailure_RetriesWithoutAnotherWrite()
     {
         using var db = Open(KvOptions.Default with
@@ -423,6 +432,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AutomaticCheckpoint_PostPublishCleanupRetry_ClearsStaleFailureBeforeLaterWrites()
     {
         using var db = Open(KvOptions.Default with
@@ -454,6 +464,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_DirectoryFsyncFailure_PreservesSealedWalForRecovery()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -475,6 +486,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_StateValueCrcFailure_RejectsCandidateAndPreservesSealedWal()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -510,6 +522,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Clear_RebuildsActiveWalWithoutStartingAFullCheckpoint()
     {
         using (var db = Open(AutomaticCheckpointWithLargeThresholds()))
@@ -535,6 +548,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Clear_GenerationSaveFailure_LeavesCommittedClearVisibleAndFaultsWritesUntilReopen()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -557,6 +571,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void DeleteMany_AtomicBatchLargerThanWalBudget_IsRejectedBeforeAppend()
     {
         string[] keys = Enumerable.Range(0, 24).Select(i => $"key:{i:D2}").ToArray();
@@ -585,6 +600,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void DeleteMany_AtomicBatchLargerThanOverlayBudget_IsRejectedBeforeAppend()
     {
         string[] keys = ["key:1", "key:2", "key:3"];
@@ -614,6 +630,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Dispose_PausedCheckpoint_ReturnsAtConfiguredDeadlineAndDefersStateClose()
     {
         using var db = Open(AutoCheckpointDisabled() with
@@ -653,6 +670,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
 
     /// <summary>验证延迟 checkpoint 完成前，同一根目录不会被新实例打开并参与候选文件回滚。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Dispose_PausedAfterStateSaved_BlocksReopenUntilCheckpointFinishes()
     {
         string root = Path.Combine(_root, "deferred-checkpoint-lifecycle-lease");
@@ -702,6 +720,7 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Dispose_WalFlushFailure_StillClosesWalAndStateAndRemainsIdempotent()
     {
         using var db = Open(AutoCheckpointDisabled());

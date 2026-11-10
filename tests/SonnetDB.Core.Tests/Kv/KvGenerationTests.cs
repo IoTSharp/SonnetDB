@@ -18,6 +18,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void DeleteMany_WritesOneBatchRecordAndRecoversAtomically()
     {
         string walPath;
@@ -69,6 +70,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Clear_GenerationSurvivesCrashAndManifestCleanupIsResumable()
     {
         string oldSegment;
@@ -102,6 +104,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Clear_CleanupHonorsPerRoundFileBudget()
     {
         using var db = Open();
@@ -123,6 +126,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void CleanupManifest_RejectsNonStateFileInsideKeyspaceRoot()
     {
         using var db = Open();
@@ -146,6 +150,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void BackgroundCleanup_ThrottlesUnderPressureAndResumesFromManifest()
     {
         using var db = Tsdb.Open(new TsdbOptions
@@ -194,6 +199,7 @@ public sealed class KvGenerationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void BackgroundCleanup_ReportsLastErrorAndRetriesManifest()
     {
         using var db = Tsdb.Open(new TsdbOptions

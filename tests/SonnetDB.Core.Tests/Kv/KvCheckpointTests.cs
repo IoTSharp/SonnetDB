@@ -17,6 +17,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AutomaticCheckpoint_WalByteThreshold_BoundsHotKeyWalAndRecoversLatestValue()
     {
         const long maxWalBytes = 1024;
@@ -48,6 +49,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AutomaticCheckpoint_OverlayEntryThreshold_BoundsDistinctKeysAndRecoversAllValues()
     {
         using (var db = Open(KvOptions.Default with
@@ -75,6 +77,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void AutomaticCheckpoint_LargeImageLikeValues_BoundsWalAndRecoversEveryValue()
     {
         const int valueBytes = 1024 * 1024;
@@ -114,6 +117,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Compact_WhileStateWritePaused_AllowsReadsAndWritesAndPreservesOverlayPrecedence()
     {
         using var db = Open(AutoCheckpointDisabled());
@@ -158,6 +162,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_CrashAfterWalRotationBeforeStatePublish_ReplaysSealedThenActive()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -186,6 +191,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_OpenStateFailureAfterAtomicMove_DeletesCandidateAndRecoversFromWal()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -212,6 +218,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_CrashAfterStatePublishBeforeWalCleanup_SkipsCoveredWalAndRemainsIdempotent()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -246,6 +253,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Compact_ReopenWithCoveredSealedWal_CleansWalWithoutRewritingState()
     {
         var db = Open(AutoCheckpointDisabled());
@@ -272,6 +280,7 @@ public sealed class KvCheckpointTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Clear_WhileCheckpointFrozen_DoesNotPublishOrResurrectPreviousGeneration()
     {
         var db = Open(AutoCheckpointDisabled());

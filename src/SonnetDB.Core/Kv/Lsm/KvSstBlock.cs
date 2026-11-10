@@ -117,22 +117,35 @@ internal sealed class KvSstBlockBuilder
 internal sealed class KvSstBlock
 {
     private readonly byte[] _data;
+    private readonly int _length;
     private readonly int _restartsOffset;
     private readonly int _restartCount;
 
     /// <summary>解析块载荷并校验 restart 数组结构。</summary>
     /// <exception cref="InvalidDataException">restart 数组越界、非递增或首个 restart 不为 0。</exception>
     internal KvSstBlock(byte[] data)
+        : this(data, data?.Length ?? 0)
+    {
+    }
+
+    /// <summary>
+    /// 以 <paramref name="data"/> 的前 <paramref name="length"/> 字节作为块载荷（其后可附带 trailer），避免为读取结果再复制一次。
+    /// </summary>
+    /// <exception cref="InvalidDataException">restart 数组越界、非递增或首个 restart 不为 0。</exception>
+    internal KvSstBlock(byte[] data, int length)
     {
         ArgumentNullException.ThrowIfNull(data);
-        if (data.Length < 8)
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(length, data.Length);
+        if (length < 8)
             throw new InvalidDataException("KV-LSM block is shorter than its restart array.");
-        uint restartCount = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(data.Length - 4));
-        long restartsOffset = data.Length - 4 - ((long)restartCount * 4);
+        uint restartCount = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(length - 4, 4));
+        long restartsOffset = length - 4 - ((long)restartCount * 4);
         if (restartCount == 0 || restartsOffset < 0)
             throw new InvalidDataException("KV-LSM block restart count is invalid.");
 
         _data = data;
+        _length = length;
         _restartCount = (int)restartCount;
         _restartsOffset = (int)restartsOffset;
         if (_restartsOffset == 0)
@@ -152,8 +165,8 @@ internal sealed class KvSstBlock
         }
     }
 
-    /// <summary>块载荷字节数（不含 trailer）。</summary>
-    internal int Size => _data.Length;
+    /// <summary>块载荷字节数（不含 trailer），用于块缓存计费。</summary>
+    internal int Size => _length;
 
     /// <summary>创建位于首条目之前的迭代器。</summary>
     internal KvSstBlockIterator CreateIterator() => new(_data, _restartsOffset, _restartCount);

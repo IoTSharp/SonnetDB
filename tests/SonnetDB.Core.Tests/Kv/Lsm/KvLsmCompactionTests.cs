@@ -55,6 +55,37 @@ public sealed class KvLsmCompactionTests : IDisposable
         AssertMatches(reopened, expected);
     }
 
+    /// <summary>
+    /// 请求读取预算占满且没有排队名额时，flush 后的新表打开与 compaction 输入读取都走维护通道：
+    /// 请求过载不能让后台维护失败并把引擎置为 faulted（只读）。
+    /// </summary>
+    [Fact]
+    public void CompactAll_WhileRequestReadBudgetSaturated_UsesMaintenanceLane()
+    {
+        using var budget = new KvDiskReadBudget(maxConcurrentReads: 1, maxQueuedReads: 0, readWaitTimeout: TimeSpan.Zero);
+        using KvLsmEngine engine = KvLsmEngine.Open(_root, SmallOptions(background: false) with { ReadBudget = budget });
+        for (int round = 0; round < 3; round++)
+        {
+            for (int i = 0; i < 500; i++)
+                engine.Apply([Put($"k{i:D4}", $"r{round}")]);
+            engine.Flush();
+        }
+
+        using (budget.Acquire(CancellationToken.None))
+        {
+            Assert.Throws<SonnetDB.Exceptions.KvReadOverloadedException>(() => budget.Acquire(CancellationToken.None).Dispose());
+            for (int i = 0; i < 500; i++)
+                engine.Apply([Put($"k{i:D4}", "r3")]);
+            engine.Flush();
+            engine.CompactAll();
+            Assert.Null(engine.Fault);
+            Assert.Equal(0, budget.MaintenanceActiveReads);
+        }
+
+        Assert.Equal(0, engine.GetStats().FileCountByLevel.Take(KvVersion.LevelCount - 1).Sum());
+        Assert.Equal("r3", Text(engine.Get(Bytes("k0499"))!.Value));
+    }
+
     [Fact]
     public void CompactAll_KeepsOnlyNewestLiveVersions_AndDropsTombstones()
     {

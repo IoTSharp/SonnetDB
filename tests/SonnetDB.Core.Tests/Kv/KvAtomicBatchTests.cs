@@ -15,6 +15,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     public KvAtomicBatchTests() => Directory.CreateDirectory(_root);
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_MixedPutDelete_SyncsOnceAndRecoversAllMutations()
     {
         var options = Options();
@@ -48,6 +49,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_OverlayBudget_UsesFinalCanonicalKeySet()
     {
         using var keyspace = KvKeyspace.Open("overlay-final-set", _root, OverlayBudgetOptions(4));
@@ -78,6 +80,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_OverlayBudget_CountsOnlyDeletesThatRequireTombstones()
     {
         using (var preparation = KvKeyspace.Open("overlay-deletes", _root, Options()))
@@ -107,6 +110,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_FinalOverlayAboveBudget_IsRejectedBeforeWalAppend()
     {
         var options = OverlayBudgetOptions(2);
@@ -142,6 +146,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_OverlayBudget_CurrentOverlayCanBeCheckpointedAndRetried()
     {
         using var keyspace = KvKeyspace.Open("overlay-retry", _root, OverlayBudgetOptions(2));
@@ -165,6 +170,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_WalBudget_RecordAboveFreshBudget_IsRejectedWithoutCheckpoint()
     {
         IReadOnlyList<KvBatchMutation> batch =
@@ -193,6 +199,7 @@ public sealed class KvAtomicBatchTests : IDisposable
 
     /// <summary>关系表批次自动等待旧覆盖层检查点，整批仍使用同一提交序号且可恢复。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RelationalBatch_CurrentOverlayPressure_WaitsAndCommitsAtomically()
     {
         long committed;
@@ -219,6 +226,7 @@ public sealed class KvAtomicBatchTests : IDisposable
 
     /// <summary>等待预算时取消不能发布行或索引，保留此前已提交的数据。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RelationalBatch_CancelWhileWaiting_DoesNotAppendBatch()
     {
         using var keyspace = KvKeyspace.Open("relational-cancel", _root, OverlayBudgetOptions(2));
@@ -241,6 +249,7 @@ public sealed class KvAtomicBatchTests : IDisposable
 
     /// <summary>批次自身超过空白预算时仍立即拒绝，不拆分原子批次或放宽资源上限。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RelationalBatch_ExceedsFreshBudget_RejectsWithoutCheckpoint()
     {
         using var keyspace = KvKeyspace.Open("relational-too-large", _root, OverlayBudgetOptions(1));
@@ -281,6 +290,7 @@ public sealed class KvAtomicBatchTests : IDisposable
 
     /// <summary>检查点未能在配置预算内释放余量时有界失败，不能追加或部分发布本批数据。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RelationalBatch_CheckpointBlocked_TimesOutWithoutAppendingBatch()
     {
         using var keyspace = KvKeyspace.Open("relational-timeout", _root,
@@ -317,6 +327,7 @@ public sealed class KvAtomicBatchTests : IDisposable
 
     /// <summary>等待重新获得锁时已过期限，即使检查点释放了预算也不得提交。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void RelationalBatch_DeadlineExpiresBeforeReadmission_DoesNotAppend()
     {
         using var keyspace = KvKeyspace.Open("relational-late-admission", _root,
@@ -338,6 +349,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_WalBudget_CurrentWalCanBeCheckpointedAndRetried()
     {
         IReadOnlyList<KvBatchMutation> batch =
@@ -363,6 +375,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ApplyBatch_WalBudget_HeaderOnlyLimitIsRejectedWithoutBackpressureWait()
     {
         using var keyspace = KvKeyspace.Open(
@@ -384,6 +397,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void DeleteMany_OverlayBudget_CurrentOverlayCanBeCheckpointedAndRetried()
     {
         using (var preparation = KvKeyspace.Open("delete-overlay-retry", _root, Options()))
@@ -426,6 +440,7 @@ public sealed class KvAtomicBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void DeletePublishPlans_DoNotReadBaseAfterWalSync()
     {
         using (var preparation = KvKeyspace.Open("delete-publish-plan", _root, Options()))

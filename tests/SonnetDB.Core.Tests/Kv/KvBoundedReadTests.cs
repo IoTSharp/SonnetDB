@@ -15,6 +15,7 @@ public sealed class KvBoundedReadTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("KvEngine", "LegacyOnly")]
     public void GetEntryBounded_OversizedStoredValue_RejectsBeforeCopyOrPhysicalRead(bool cold)
     {
         using var space = KvKeyspace.Open("test", _root, KvOptions.Default);
@@ -34,6 +35,7 @@ public sealed class KvBoundedReadTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ScanPrefixBounded_ColdLargePage_ReadsOnlyValuesThatFit()
     {
         using var space = KvKeyspace.Open("test", _root, KvOptions.Default);
@@ -54,6 +56,7 @@ public sealed class KvBoundedReadTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void ScanPrefixBounded_OversizedNextValue_ReturnsCursorThenExplicitFailure()
     {
         using var space = KvKeyspace.Open("test", _root, KvOptions.Default);

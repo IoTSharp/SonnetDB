@@ -27,6 +27,9 @@ public sealed class SqlExecutorDocumentTests : IDisposable
 
     private TsdbOptions Options() => new() { RootDirectory = _root };
 
+    private static long WalBytes(string walDirectory)
+        => Directory.EnumerateFiles(walDirectory).Sum(static path => new FileInfo(path).Length);
+
     [Fact]
     public void Insert_ColumnRoleHint_RejectsForDocumentCollectionDirectly()
     {
@@ -232,7 +235,8 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             "documents",
             "collections",
             Convert.ToHexString("budget_docs"u8).ToLowerInvariant());
-        string walPath = KvKeyspace.ActiveWalPath(collectionDirectory);
+        // legacy 写 active WAL，LSM 写编号 WAL；两种引擎都以 wal 目录总字节不变证明拒绝发生在追加之前。
+        string walDirectory = Path.Combine(collectionDirectory, "wal");
         var constrainedOptions = Options() with
         {
             Kv = KvOptions.Default with
@@ -251,12 +255,12 @@ public sealed class SqlExecutorDocumentTests : IDisposable
                 .ToArray();
             Assert.Equal(["doc-1", "doc-2"], before.Select(static row => row.Id).ToArray());
             long versionBefore = store.LastVersion;
-            long walLengthBefore = new FileInfo(walPath).Length;
+            long walLengthBefore = WalBytes(walDirectory);
 
             IOException exception = Assert.Throws<IOException>(() => SqlExecutor.Execute(db, statement));
 
             Assert.Contains("rejected before WAL append", exception.Message, StringComparison.Ordinal);
-            Assert.Equal(walLengthBefore, new FileInfo(walPath).Length);
+            Assert.Equal(walLengthBefore, WalBytes(walDirectory));
             Assert.Equal(versionBefore, store.LastVersion);
             Assert.Equal(
                 before,

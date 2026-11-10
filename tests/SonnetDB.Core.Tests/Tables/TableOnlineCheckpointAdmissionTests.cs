@@ -45,6 +45,7 @@ public sealed class TableOnlineCheckpointAdmissionTests : IDisposable
 
     /// <summary>真实十万行以上覆盖层仅调度一次；排队和冻结重试不增加 worker，写入仍可推进。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task LargeOverlay_QueuedAndFrozenRetriesDoNotReschedule_ThenIndexPublishes()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
@@ -132,6 +133,7 @@ public sealed class TableOnlineCheckpointAdmissionTests : IDisposable
 
     /// <summary>关闭自动检查点时真实大覆盖层持续返回等待，显式检查点后才能完成索引发布。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task LargeOverlay_AutomaticCheckpointDisabled_WaitsForExplicitCheckpoint()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
@@ -159,6 +161,7 @@ public sealed class TableOnlineCheckpointAdmissionTests : IDisposable
 
     /// <summary>小 KV 故障旅程验证 ONLINE 准入不跳过既有一秒失败退避，也不重复调度排队重试。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task OrderedAdmission_CheckpointFailurePreservesRetryBackoff()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));

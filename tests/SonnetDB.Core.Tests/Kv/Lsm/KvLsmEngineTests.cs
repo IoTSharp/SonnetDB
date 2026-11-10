@@ -16,6 +16,32 @@ public sealed class KvLsmEngineTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
+    /// <summary>
+    /// 关闭后不再持有任何文件句柄：没有存活快照时立即关闭全部 SST 读取器与 manifest，目录可以改名
+    /// （表 RENAME、DDL 发布与备份恢复都依赖这一点）；关闭时仍存活的快照可以读完，释放后句柄随之关闭。
+    /// </summary>
+    [Fact]
+    public void Dispose_ClosesAllFileHandles_ExceptThosePinnedByLiveSnapshots()
+    {
+        KvLsmEngine engine = KvLsmEngine.Open(_root, Options(backgroundFlush: false));
+        engine.Apply([Put("a", "1"), Put("b", "2")]);
+        engine.Flush();
+        engine.Apply([Put("c", "3")]);
+        engine.Flush();
+        Assert.Equal("1", Text(engine.Get(Bytes("a"))!.Value));
+        KvLsmSnapshot pinned = engine.AcquireSnapshot();
+        engine.Dispose();
+
+        Assert.Equal("3", Text(pinned.Get(Bytes("c"))!.Value));
+        pinned.Dispose();
+
+        string moved = _root + "-moved";
+        Directory.Move(_root, moved);
+        Directory.Move(moved, _root);
+        using KvLsmEngine reopened = KvLsmEngine.Open(_root, Options());
+        Assert.Equal("2", Text(reopened.Get(Bytes("b"))!.Value));
+    }
+
     [Fact]
     public void PutGetDeleteAndTtl_FollowSnapshotRules()
     {

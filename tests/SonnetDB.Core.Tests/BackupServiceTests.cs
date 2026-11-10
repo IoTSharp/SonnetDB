@@ -287,10 +287,14 @@ public sealed class BackupServiceTests : IDisposable
             });
 
             Assert.True(File.Exists(TsdbPaths.LifecycleLockPath(dbRoot)));
-            Assert.Contains(manifest.Files, static file =>
+            // legacy checkpoint 产出有序段文件；LSM 的 CreateSnapshot 刷出有序 SST（新建目录按默认引擎选择布局）。
+            string orderedKvExtension = SonnetDB.Kv.KvOptions.Default.StorageEngine == SonnetDB.Kv.KvStorageEngine.Lsm
+                ? SonnetDB.Kv.Lsm.KvSstFormat.FileExtension
+                : ".SDBKVSEG";
+            Assert.Contains(manifest.Files, file =>
                 file.Kind == BackupFileKind.Document &&
                 file.Path.Contains("documents/collections/", StringComparison.Ordinal) &&
-                file.Path.EndsWith(".SDBKVSEG", StringComparison.OrdinalIgnoreCase));
+                file.Path.EndsWith(orderedKvExtension, StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(manifest.Files, static file =>
                 Path.GetFileName(file.Path) == "keyspace.lock");
             Assert.DoesNotContain(manifest.Files, static file =>

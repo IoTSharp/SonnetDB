@@ -17,6 +17,7 @@ public sealed class KvExpirationMaintenanceTests : IDisposable
 
     /// <summary>大量无 TTL 磁盘条目不能把一次后台清理变为全表扫描，后续页仍能清除尾部和回绕项。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void MaintenanceBoundsScanAndEventuallyReachesExpiredTailAndWraparound()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
@@ -54,6 +55,7 @@ public sealed class KvExpirationMaintenanceTests : IDisposable
 
     /// <summary>清理一个库时其它已打开库可立即取得，管理器不会覆盖整个维护周期持锁。</summary>
     [Fact(Timeout = 15000)]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task MaintenanceDoesNotHoldManagerLockAcrossKeyspaceScan()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));

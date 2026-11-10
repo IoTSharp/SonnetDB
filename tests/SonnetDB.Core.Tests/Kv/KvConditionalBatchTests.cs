@@ -89,6 +89,7 @@ public sealed class KvConditionalBatchTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task ApplyConditionalBatch_CanceledDuringCheckpointBackpressure_DoesNotWaitOrAppend()
     {
         using var keyspace = KvKeyspace.Open(

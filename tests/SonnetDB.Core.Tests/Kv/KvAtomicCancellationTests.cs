@@ -54,6 +54,7 @@ public sealed class KvAtomicCancellationTests : IDisposable
     [InlineData("cas")]
     [InlineData("expire")]
     [InlineData("persist")]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task AtomicWrite_CanceledDuringBackpressure_DoesNotAppendAndAllowsNextWrite(string operation)
     {
         using var keyspace = Open("backpressure", TestOptions() with
@@ -210,6 +211,7 @@ public sealed class KvAtomicCancellationTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void CompareAndSet_CanceledAfterExpiredCleanup_CompletesTheReplacement()
     {
         KvOptions options = TestOptions() with { SyncWalOnEveryWrite = true };

@@ -1,3 +1,13 @@
+## 2026-11-10（Asia/Shanghai）KV-LSM K4b `KvKeyspace` 接线与 K5c 共享后台资源
+
+- 分支 `feat/kv-lsm-k1-k3`，基于本分支 `2c9cc6b8`（K5b）。用户质疑先撤销 K5c 再单独提交 K4b 的做法后，K4b 与 K5c 在同一构建上完成全量验证并合为一次提交。提交范围：`src/SonnetDB.Core/Kv/`（新增 `KvStorageEngine.cs`、`KvLsmKeyspaceBackend.cs`、`KvKeyspace.Lsm.cs`；修改 `KvKeyspace*.cs`、`KvOptions.cs`、`KvReadSnapshot.cs`、`KvDiagnostics.cs`）、`src/SonnetDB.Core/Kv/Lsm/`（新增 `KvLsmBackgroundScheduler.cs`、`KvWriteBufferManager.cs`）、`tests/SonnetDB.Core.Tests/`（新增 `KvEngineMatrix.cs`、`Kv/KvLsmKeyspaceTests.cs`、`Kv/Lsm/KvLsmSchedulingTests.cs`；KV 与上层测试的 LegacyOnly 标记和引擎无关化修改）、`docs/design/kv-lsm-storage-engine.md`（§6.9、§7.5、§10、§11），以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件、`.vscode/settings.json` 及 CHANGELOG/HANDOFF 其余修改保持原样，未暂存。
+- 完成：`KvOptions.StorageEngine`（默认 legacy）与全部 KV 入口路由；四项用户决定（读取不写入、WAL 失败统一只读、legacy 目录 K7 前不迁移、环境变量 + LegacyOnly 测试矩阵）；K5c 进程共享调度器、写缓冲预算与共享块缓存。接线中修复：关闭后句柄不释放、compaction 占用请求读取通道、SST 块与索引/过滤器二次复制、memtable 固定占用过大、大 value 与小 key 共块、LSM 读取与 Clear 未计入指标、Count 全量复制。合同差异见设计 §7.5。
+- 验证：Core 构建（TreatWarningsAsErrors）PASS；`SONNETDB_KV_ENGINE=Lsm` 全量 Core（排除 LegacyOnly）8206/8206 PASS；legacy 全量 Core 8315/8315 PASS；此前两轮 legacy 全量中 `TsdbMaintenanceConcurrencyTests.DropMeasurement_ConcurrentWithCompaction_NoThrow` 各失败一次（时序 WAL checkpoint 改名被 Windows 拒绝，代码未改动，单独 3/3 通过），记为 UNKNOWN 偶发；提交前对最终工作树执行完整 restore 与规定 format 门禁。NOT_RUN：G7 内存与性能基准、真实进程强杀、NativeAOT 发布、固定硬件、CI。
+- 风险边界：LSM 模式备份仍是 flush 后复制目录，可能与后台 compaction 竞争（K7 pin Version）；3MB 级大行表恢复约 4 倍分配；Server 配置未暴露 `StorageEngine`（K8）；`Count` 为 O(n) 遍历；compaction 调度尚未接入 CPU/内存负载阈值。
+- 授权边界：用户授权提交、完成会话初定的 KV-LSM 各阶段、推送并合并其他分支；`parity-results` 保持独立，不合并。
+- 下一顺序：K6（共享实例与逻辑 keyspace）、K7（表接入、自动迁移、回滚、降级拒绝、备份暂停维护）、K8（默认切换），随后推送并合入 main。
+- 临时资源：测试只在 `%TEMP%` 下创建临时目录并在结束时删除；`.publishing/tmp/k4b/` 下的辅助脚本与草稿在全部阶段完成后清理；未留下常驻进程。
+
 ## 2026-11-09（Asia/Shanghai）KV-LSM K5b range tombstone
 
 - 分支 `feat/kv-lsm-k1-k3`，基于本分支 `2f80e351`（K4a/K5a）。提交范围只含 `src/SonnetDB.Core/Kv/KvWalFile.cs`、`KvWalRecord.cs`（新增记录类型 7，这两个文件此前没有他人修改）、`src/SonnetDB.Core/Kv/Lsm/`、`tests/SonnetDB.Core.Tests/Kv/Lsm/KvLsmRangeDeletionTests.cs`、`docs/design/kv-lsm-storage-engine.md`，以及 CHANGELOG/HANDOFF 的本节段落。其他人未提交的 ROADMAP/docs 路线图、两份未跟踪审计文件以及 CHANGELOG/HANDOFF 其余修改保持原样，未暂存。

@@ -49,7 +49,7 @@ public sealed class TableStoreAtomicBatchTests : IDisposable
         Assert.Equal(previousSequence + 1, keyspace.LastSequence);
         Assert.Equal(1, syncCount);
         Assert.Equal(previousUniqueScans, store.UniqueIndexValidationScanCount);
-        KvWalRecord record = KvWalFile.Replay(KvKeyspace.ActiveWalPath(_root)).Last();
+        KvWalRecord record = KvWalFile.Replay(keyspace.CurrentWalPath).Last();
         Assert.Equal(KvWalRecordKind.MutationBatch, record.Kind);
         IReadOnlyList<KvBatchMutation> mutations = KvWalFile.DecodeMutationBatch(record);
         Assert.Equal(2, mutations.Count);

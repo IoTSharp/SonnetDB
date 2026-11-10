@@ -40,7 +40,7 @@ public sealed class TableStorePrimaryKeyUpdateTests : IDisposable
             Assert.Equal(1, store.ApplyBatch([new TableRowMutation([1L], [101L, "a", 9L])]));
             Assert.Equal(beforeSequence + 1, keyspace.LastSequence);
             Assert.Equal(1, syncs);
-            KvWalRecord record = KvWalFile.Replay(KvKeyspace.ActiveWalPath(_root)).Last();
+            KvWalRecord record = KvWalFile.Replay(keyspace.CurrentWalPath).Last();
             Assert.Equal(KvWalRecordKind.MutationBatch, record.Kind);
             Assert.Equal(5, KvWalFile.DecodeMutationBatch(record).Count);
             release.Set();

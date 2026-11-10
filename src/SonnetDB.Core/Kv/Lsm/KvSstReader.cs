@@ -101,7 +101,8 @@ internal sealed class KvSstReader : IDisposable
         string path,
         KvDiskReadBudget? readBudget = null,
         CancellationToken cancellationToken = default,
-        KvBlockCache? blockCache = null)
+        KvBlockCache? blockCache = null,
+        bool maintenanceRead = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         string fullPath = Path.GetFullPath(path);
@@ -114,7 +115,7 @@ internal sealed class KvSstReader : IDisposable
                 throw Corrupt(fullPath, "file is shorter than its footer");
 
             byte[] footerBytes = new byte[KvSstFooter.Size];
-            ReadExact(handle, footerBytes, fileLength - KvSstFooter.Size, fullPath, readBudget, cancellationToken);
+            ReadExact(handle, footerBytes, fileLength - KvSstFooter.Size, fullPath, readBudget, maintenanceRead, cancellationToken);
             KvSstFooter footer;
             try
             {
@@ -149,19 +150,20 @@ internal sealed class KvSstReader : IDisposable
             KvRangeTombstone[] rangeTombstones;
             try
             {
-                properties = KvSstProperties.Decode(ReadBlockCore(
+                properties = KvSstProperties.Decode(ReadMetadataBlock(
                     handle, new KvSstBlockHandle(footer.PropertiesOffset, footer.PropertiesLength),
-                    fullPath, readBudget, cancellationToken));
+                    fullPath, readBudget, maintenanceRead, cancellationToken));
+                // 索引与过滤器常驻读取器：直接持有 payload|trailer 缓冲区，避免打开时再复制一份。
                 index = new KvSstBlock(ReadBlockCore(
                     handle, new KvSstBlockHandle(footer.IndexOffset, footer.IndexLength),
-                    fullPath, readBudget, cancellationToken));
+                    fullPath, readBudget, maintenanceRead, cancellationToken), footer.IndexLength);
                 filter = KvBloomFilter.Parse(ReadBlockCore(
                     handle, new KvSstBlockHandle(footer.FilterOffset, footer.FilterLength),
-                    fullPath, readBudget, cancellationToken));
+                    fullPath, readBudget, maintenanceRead, cancellationToken), footer.FilterLength);
                 rangeTombstones = footer.FormatVersion == KvSstFormat.RangeDeletionVersion
-                    ? KvSstWriter.DecodeRangeTombstones(ReadBlockCore(
+                    ? KvSstWriter.DecodeRangeTombstones(ReadMetadataBlock(
                         handle, new KvSstBlockHandle(footer.RangeDelOffset, footer.RangeDelLength),
-                        fullPath, readBudget, cancellationToken))
+                        fullPath, readBudget, maintenanceRead, cancellationToken))
                     : [];
                 if (rangeTombstones.Length != properties.RangeDeletionCount)
                     throw new InvalidDataException("range tombstone count does not match properties");
@@ -212,10 +214,12 @@ internal sealed class KvSstReader : IDisposable
     }
 
     /// <summary>创建正向迭代器（创建后需定位）。</summary>
-    internal KvSstIterator CreateIterator(CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">块读取的取消令牌。</param>
+    /// <param name="maintenanceRead">true 时块读取走读取预算的维护通道（compaction），不占用也不受限于请求队列。</param>
+    internal KvSstIterator CreateIterator(CancellationToken cancellationToken = default, bool maintenanceRead = false)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        return new KvSstIterator(this, _index.CreateIterator(), cancellationToken);
+        return new KvSstIterator(this, _index.CreateIterator(), cancellationToken, maintenanceRead);
     }
 
     /// <summary>
@@ -279,7 +283,7 @@ internal sealed class KvSstReader : IDisposable
             _handle.Dispose();
     }
 
-    internal KvSstBlock ReadDataBlock(KvSstBlockHandle handle, CancellationToken cancellationToken)
+    internal KvSstBlock ReadDataBlock(KvSstBlockHandle handle, CancellationToken cancellationToken, bool maintenanceRead = false)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (handle.Offset < 0 || handle.Length <= 0
@@ -292,7 +296,7 @@ internal sealed class KvSstReader : IDisposable
             return cached;
         try
         {
-            var block = new KvSstBlock(ReadBlockCore(_handle, handle, FilePath, _readBudget, cancellationToken));
+            var block = new KvSstBlock(ReadBlockCore(_handle, handle, FilePath, _readBudget, maintenanceRead, cancellationToken), handle.Length);
             _blockCache?.Insert(_readerId, handle.Offset, block);
             return block;
         }
@@ -310,19 +314,25 @@ internal sealed class KvSstReader : IDisposable
         KvSstBlockIterator iterator = index.CreateIterator();
         long expectedOffset = 0;
         int blocks = 0;
-        byte[]? previousKey = null;
+        // 复用同一缓冲区保存上一个索引 key，避免按数据块数量分配。
+        byte[] previousBuffer = [];
+        int previousLength = -1;
         try
         {
             for (iterator.SeekToFirst(); iterator.Valid; iterator.MoveNext())
             {
-                KvInternalKey.Validate(iterator.Key);
-                if (previousKey is not null && KvInternalKey.Compare(previousKey, iterator.Key) >= 0)
+                ReadOnlySpan<byte> key = iterator.Key;
+                KvInternalKey.Validate(key);
+                if (previousLength >= 0 && KvInternalKey.Compare(previousBuffer.AsSpan(0, previousLength), key) >= 0)
                     throw Corrupt(path, "index keys are not strictly increasing");
                 KvSstBlockHandle handle = KvSstBlockHandle.Decode(iterator.Value);
                 if (handle.Offset != expectedOffset || handle.Length <= 0)
                     throw Corrupt(path, "index block handles are not contiguous");
                 expectedOffset = handle.Offset + handle.Length + KvSstFormat.BlockTrailerSize;
-                previousKey = iterator.Key.ToArray();
+                if (previousBuffer.Length < key.Length)
+                    previousBuffer = new byte[Math.Max(key.Length, previousBuffer.Length * 2)];
+                key.CopyTo(previousBuffer);
+                previousLength = key.Length;
                 blocks++;
             }
         }
@@ -333,31 +343,45 @@ internal sealed class KvSstReader : IDisposable
 
         if (expectedOffset != dataEnd || blocks != properties.DataBlockCount)
             throw Corrupt(path, "index does not cover the data region");
+        ReadOnlySpan<byte> previousKey = previousLength >= 0 ? previousBuffer.AsSpan(0, previousLength) : default;
         bool lastKeyValid = properties.RangeDeletionCount > 0
-            ? previousKey is null || KvInternalKey.Compare(previousKey, properties.LargestKey) <= 0
-            : previousKey is not null && previousKey.AsSpan().SequenceEqual(properties.LargestKey);
+            ? previousLength < 0 || KvInternalKey.Compare(previousKey, properties.LargestKey) <= 0
+            : previousLength >= 0 && previousKey.SequenceEqual(properties.LargestKey);
         if (!lastKeyValid)
             throw Corrupt(path, "last index key does not match properties");
     }
 
+    /// <summary>读取并校验元数据块，返回独立的 payload 数组（元数据块小且只在打开时读取一次）。</summary>
+    private static byte[] ReadMetadataBlock(
+        SafeFileHandle handle,
+        KvSstBlockHandle blockHandle,
+        string path,
+        KvDiskReadBudget? readBudget,
+        bool maintenanceRead,
+        CancellationToken cancellationToken)
+        => ReadBlockCore(handle, blockHandle, path, readBudget, maintenanceRead, cancellationToken).AsSpan(0, blockHandle.Length).ToArray();
+
+    /// <summary>
+    /// 读取并校验一个块，返回 <c>payload | trailer</c> 缓冲区（payload 位于前 <see cref="KvSstBlockHandle.Length"/> 字节）。
+    /// </summary>
     private static byte[] ReadBlockCore(
         SafeFileHandle handle,
         KvSstBlockHandle blockHandle,
         string path,
         KvDiskReadBudget? readBudget,
+        bool maintenanceRead,
         CancellationToken cancellationToken)
     {
+        // 一次物理读取 payload + 5 字节 trailer（读取预算按次计费）；块对象直接持有该缓冲区的 payload 部分，不再复制。
         byte[] buffer = new byte[checked(blockHandle.Length + KvSstFormat.BlockTrailerSize)];
-        ReadExact(handle, buffer, blockHandle.Offset, path, readBudget, cancellationToken);
+        ReadExact(handle, buffer, blockHandle.Offset, path, readBudget, maintenanceRead, cancellationToken);
         byte compression = buffer[blockHandle.Length];
-        uint expectedCrc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(
-            buffer.AsSpan(blockHandle.Length + 1));
-        ReadOnlySpan<byte> payload = buffer.AsSpan(0, blockHandle.Length);
-        if (KvSstFormat.ComputeBlockCrc(payload, compression) != expectedCrc)
+        uint expectedCrc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(blockHandle.Length + 1));
+        if (KvSstFormat.ComputeBlockCrc(buffer.AsSpan(0, blockHandle.Length), compression) != expectedCrc)
             throw Corrupt(path, $"block CRC mismatch at offset {blockHandle.Offset}");
         if (compression != KvSstFormat.CompressionNone)
             throw Corrupt(path, $"block compression type {compression} is not supported");
-        return payload.ToArray();
+        return buffer;
     }
 
     private static void ReadExact(
@@ -366,9 +390,11 @@ internal sealed class KvSstReader : IDisposable
         long offset,
         string path,
         KvDiskReadBudget? readBudget,
+        bool maintenanceRead,
         CancellationToken cancellationToken)
     {
-        using KvDiskReadBudget.ReadLease? lease = readBudget?.Acquire(cancellationToken);
+        using KvDiskReadBudget.ReadLease? lease = readBudget?.Acquire(cancellationToken, maintenanceRead);
+        long readStarted = SonnetDB.Diagnostics.SonnetDbMeter.StartKvStateReadTiming();
         int total = 0;
         while (total < destination.Length)
         {
@@ -379,6 +405,8 @@ internal sealed class KvSstReader : IDisposable
             total += read;
         }
         lease?.RecordRead(total);
+        // 与 legacy state 读取相同：计入 KV state 读取指标，并归属到当前 SQL 执行的物理读统计。
+        SonnetDB.Diagnostics.SonnetDbMeter.RecordKvStateRead(readStarted, total);
     }
 }
 
@@ -390,13 +418,15 @@ internal sealed class KvSstIterator : IKvInternalIterator
     private readonly KvSstReader _reader;
     private readonly KvSstBlockIterator _indexIterator;
     private readonly CancellationToken _cancellationToken;
+    private readonly bool _maintenanceRead;
     private KvSstBlockIterator? _dataIterator;
 
-    internal KvSstIterator(KvSstReader reader, KvSstBlockIterator indexIterator, CancellationToken cancellationToken)
+    internal KvSstIterator(KvSstReader reader, KvSstBlockIterator indexIterator, CancellationToken cancellationToken, bool maintenanceRead = false)
     {
         _reader = reader;
         _indexIterator = indexIterator;
         _cancellationToken = cancellationToken;
+        _maintenanceRead = maintenanceRead;
     }
 
     /// <inheritdoc />
@@ -589,7 +619,7 @@ internal sealed class KvSstIterator : IKvInternalIterator
 
         _cancellationToken.ThrowIfCancellationRequested();
         KvSstBlockHandle handle = KvSstBlockHandle.Decode(_indexIterator.Value);
-        _dataIterator = _reader.ReadDataBlock(handle, _cancellationToken).CreateIterator();
+        _dataIterator = _reader.ReadDataBlock(handle, _cancellationToken, _maintenanceRead).CreateIterator();
     }
 
     private static InvalidOperationException InvalidPosition()

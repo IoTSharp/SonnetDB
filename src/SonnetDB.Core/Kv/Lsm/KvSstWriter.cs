@@ -133,8 +133,13 @@ internal sealed class KvSstWriter : IDisposable
                 _minExpiresAtUtcTicks = expiresAtUtcTicks;
         }
 
-        if (!_dataBlock.IsEmpty && _dataBlock.EstimatedSize >= _options.BlockSize)
+        // 大条目（单条 ≥ 块大小）独占数据块：小 key 所在的块不会夹带大 value，
+        // 只读小条目（索引、元数据）的扫描不必读入相邻的大行，块缓存也不会被大块挤占。
+        if (!_dataBlock.IsEmpty
+            && (_dataBlock.EstimatedSize >= _options.BlockSize || internalKey.Length + encodedValue.Length >= _options.BlockSize))
+        {
             FlushDataBlock();
+        }
 
         ReadOnlySpan<byte> userKey = KvInternalKey.UserKey(internalKey);
         if (_entryCount == 0 || !KvInternalKey.UserKey(_lastKey.AsSpan(0, _lastKeyLength)).SequenceEqual(userKey))

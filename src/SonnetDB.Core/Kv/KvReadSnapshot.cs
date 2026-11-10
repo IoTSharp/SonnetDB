@@ -88,6 +88,7 @@ internal sealed class KvReadSnapshotState
     private readonly KeyValuePair<byte[], KvValueEntry>[] _mutableValues;
     private readonly KeyValuePair<byte[], KvValueEntry>[] _frozenValues;
     private KvDiskStateLease? _diskLease;
+    private Lsm.KvLsmSnapshot? _lsmSnapshot;
     private int _referenceCount = 1;
     private bool _released;
 
@@ -104,6 +105,20 @@ internal sealed class KvReadSnapshotState
         Sequence = sequence;
         ReadTimestampUtc = readTimestampUtc;
     }
+
+    /// <summary>以 KV-LSM 快照作为读视图；状态释放时释放该快照并调用 <paramref name="onReleased"/>。</summary>
+    internal KvReadSnapshotState(Lsm.KvLsmSnapshot lsmSnapshot, Action? onReleased = null)
+    {
+        ArgumentNullException.ThrowIfNull(lsmSnapshot);
+        _mutableValues = [];
+        _frozenValues = [];
+        _lsmSnapshot = lsmSnapshot;
+        _onLsmReleased = onReleased;
+        Sequence = lsmSnapshot.Sequence;
+        ReadTimestampUtc = new DateTimeOffset(lsmSnapshot.ReadTimestampUtcTicks, TimeSpan.Zero);
+    }
+
+    private Action? _onLsmReleased;
 
     public long Sequence { get; }
 
@@ -135,6 +150,14 @@ internal sealed class KvReadSnapshotState
         byte[]? startInclusive = ToOptionalArray(options.StartInclusive);
         byte[]? endExclusive = ToOptionalArray(options.EndExclusive);
         byte[]? afterKey = ToOptionalArray(options.AfterKey);
+        if (_lsmSnapshot is { } lsm)
+        {
+            return KvLsmKeyspaceBackend.EnumerateSnapshot(
+                    lsm, prefix, startInclusive, endExclusive, afterKey, options.Descending,
+                    cancellationTokenProvider ?? (() => CancellationToken.None))
+                .GetEnumerator();
+        }
+
         KvDiskState? diskState = _diskLease?.State;
 
         return EnumerateVisibleEntries(
@@ -159,6 +182,12 @@ internal sealed class KvReadSnapshotState
     {
         cancellationToken.ThrowIfCancellationRequested();
         byte[] lookup = key.ToArray();
+        if (_lsmSnapshot is { } lsm)
+        {
+            KvEntry? found = lsm.Get(lookup, cancellationToken);
+            return found is null ? null : new KvEntry(lookup, found.Value, found.Version, found.ExpiresAtUtc);
+        }
+
         KvValueEntry? entry;
         int mutableIndex = FindIndex(_mutableValues, lookup);
         if (mutableIndex >= 0)
@@ -514,6 +543,8 @@ internal sealed class KvReadSnapshotState
     public void Release()
     {
         KvDiskStateLease? diskLease = null;
+        Lsm.KvLsmSnapshot? lsmSnapshot = null;
+        Action? onLsmReleased = null;
         lock (_sync)
         {
             if (_referenceCount <= 0)
@@ -526,9 +557,21 @@ internal sealed class KvReadSnapshotState
             _released = true;
             diskLease = _diskLease;
             _diskLease = null;
+            lsmSnapshot = _lsmSnapshot;
+            _lsmSnapshot = null;
+            onLsmReleased = _onLsmReleased;
+            _onLsmReleased = null;
         }
 
         diskLease?.Dispose();
+        try
+        {
+            lsmSnapshot?.Dispose();
+        }
+        finally
+        {
+            onLsmReleased?.Invoke();
+        }
     }
 
     internal void AddReference()

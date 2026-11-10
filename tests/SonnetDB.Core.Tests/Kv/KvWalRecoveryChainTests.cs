@@ -49,6 +49,7 @@ public sealed class KvWalRecoveryChainTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_CorruptSealedWalAfterStateLoad_ReleasesStateHandleOnFailure()
     {
         string statePath;

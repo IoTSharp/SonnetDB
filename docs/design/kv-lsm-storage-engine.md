@@ -341,10 +341,18 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 - **选择**：L0 文件数 / `Level0CompactionTrigger`（默认 4）与 L1～L5 的“实际字节 / 目标字节”比较，取最高且 ≥1 的一层。L0 一次取全部文件，再加上 L1 中与之重叠的文件，保证留在 L0 的文件一定比 L1 新。L1+ 按轮转指针选一个文件；下层没有重叠时只做 trivial move（只在 manifest 里改层号，不重写数据）。
 - **输出**：按 `TargetFileSizeBytes` 切分输出，但只在 user key 边界切。这样 L1+ 按 user key 严格不重叠，点查在每层二分到唯一文件即可。
 - **背压**：L0 文件数达到 `Level0StopWritesTrigger`（默认 20）时写入等待，与不可变 memtable 上限共用同一个超时和可重试异常分类。
-- **调度**：每个引擎一个后台 compaction 线程，flush 完成后触发；同一时间只运行一个 compaction。compaction 失败时引擎进入 faulted。跨实例的全局调度在 K5b 实现。
+- **调度**：每个引擎同一时间只运行一个 compaction，flush 完成后触发；compaction 失败时引擎进入 faulted。（K5a 时每个引擎一条后台线程；K5c 起改为进程共享调度器，见 6.9。）
 - **块缓存**：16 分片 LRU，按块字节计费，缓存键为 `(读取器唯一 ID, 块偏移)`，可在多个引擎间共享；未指定时每个引擎创建一个私有的 32 MiB 缓存。索引块和过滤器块常驻在读取器里，暂不计入缓存。
 - **读路径**：L1+ 每层只建一个 `KvLevelIterator`，按需打开文件，合并迭代器的子迭代器数量与层数相关，而不是与文件数相关。
 - **崩溃注入**：在“输出已写、manifest 未提交”和“manifest 已提交、输入未清理”两个点注入崩溃，重开后数据完整，磁盘上只剩版本引用的 SST。
+
+### 6.9 K5c 实现说明（`KvLsmBackgroundScheduler.cs`、`KvWriteBufferManager.cs`）
+
+- **后台调度**：不再为每个引擎启动 flush 与 compaction 两条专用线程。进程共享的 `KvLsmBackgroundScheduler` 有两条独立通道：flush 通道 `max(2, CPU/4)` 线程，compaction 通道 `max(1, CPU/4)` 线程；compaction 再长也不会阻塞 memtable 落盘。同一引擎在每条通道内最多排队一次；一次 compaction 作业最多执行 4 个 compaction 后重新排队，让其他引擎轮到执行。
+- **关闭**：引擎关闭时先停止接收新作业，再等待本引擎正在执行的作业观察到取消后退出（上限为 `ShutdownTimeout`）；已排队的作业出队后发现引擎已关闭，直接返回。
+- **写缓冲预算**：进程共享的 `KvWriteBufferManager`（默认 256 MiB）。引擎在 memtable 占用（按 arena 分块粒度）或刷盘请求状态变化时上报；超限时，扣除正在刷盘的不可变 memtable 与已有待处理请求的活跃 memtable 后仍超限，才请求活跃 memtable 最大且不小于 64 KiB 的引擎轮转刷盘。请求只设置标志并排队 flush 作业，不获取其他引擎的锁；同步模式下由下一次写入兑现。
+- **块缓存**：`KvKeyspace` 的 LSM 引擎改用进程共享的 64 MiB 块缓存（每分片 4 MiB）。独立使用 `KvLsmEngine` 且未指定缓存时，仍创建私有缓存。
+- **与设计差异**：`CleanupPauseWhenQueriesActive`、CPU/内存负载阈值尚未接入 compaction 调度（仍只作用于 legacy 清理任务）；预算是软上限，不对写入做全局停顿。
 
 ## 7. 恢复、兼容与公开 API
 
@@ -420,6 +428,59 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 
 迁移耗时与数据量线性相关（顺序读写，估计受磁盘带宽约束）。打开流程按 keyspace 输出进度日志与 `SonnetDbMeter` 指标；Server 健康检查在迁移期间返回 `starting` 而不是失败。基准（§9.1 `migrate-open`）给出每 GiB 耗时。
 
+### 7.5 K4b 实现说明（`KvKeyspace` 接线，与上文设计的差异以本节为准）
+
+K4b 把 `KvKeyspace` 的全部公开与内部入口接到单个 keyspace 独占的 `KvLsmEngine`（`KvLsmKeyspaceBackend` + `KvKeyspace.Lsm.cs`）。默认引擎仍是 legacy，K4b 不改变任何未显式选择 `Lsm` 的数据库。
+
+#### 7.5.1 引擎选择与布局
+
+- `KvOptions.StorageEngine = Legacy | Lsm`，默认 `Legacy`。
+- 打开规则：目录已有 `CURRENT` 时一律按 LSM 打开；选择 `Lsm` 且目录中没有 legacy 数据（`generation.meta`、`wal/active.SDBKVWAL`、`sealed-*` WAL、非空 `snapshots/` 或 `segments/`）时新建 LSM 布局；其余情况按 legacy 打开。
+- K7 之前**不迁移**：已有 legacy 数据的目录即使选择 `Lsm` 也继续用 legacy 打开（2026-11-09 用户确认）。§7.4.1 的 `FORMAT` 标记与 `LegacyMigration` 选项推迟到 K7；K4b 以 `CURRENT` 判定布局。
+
+#### 7.5.2 合同差异
+
+| 行为 | legacy | LSM（K4b） |
+|---|---|---|
+| 读到已过期 key | 读取时惰性删除（会写 WAL） | **读取不写入**：已过期 key 视为不存在，由 `CleanExpired`、后台清理或 compaction 回收（2026-11-09 用户确认） |
+| WAL 写入失败 | 批量、条件、CAS 等 fail-closed 路径置只读；`Put`/`Increment` 只抛出本次异常，不记录写故障 | **所有写入（含 Put/Increment）统一进入只读**：`IOException`（内层为原始故障），需重新打开；`IsWriteCommitOutcomeUnknown` 按故障对象引用判定（2026-11-09 用户确认） |
+| `Clear()` | 删除状态文件并递增 generation | 引擎 `Clear` 消耗一个 sequence（`LastSequence + 1`，写入 VersionEdit），generation + 1，新 WAL 从下一个 sequence 开始；旧文件随过期文件清理立即删除，`GetCleanupStatus` 恒为 `(generation, 0, 0)` |
+| `Count` | 含已过期未回收的 key | 相同合同；实现为零复制全量遍历（O(n)），K6 持久化计数后改为 O(1) |
+| 候选页物理预算（`ScanCandidatePage`、对象列表） | 删除标记计入物理候选数，超预算拒绝 | 快照迭代器在引擎内跳过墓碑，墓碑**不计入**候选预算；跳过成本由 compaction 回收墓碑来限制 |
+| `MaxSnapshotOverlayEntries` | 限制快照复制的 overlay 条目 | 只校验 > 0；LSM 快照 O(1)，不复制 overlay |
+| `CreateSnapshot()` / `Compact()` | checkpoint / 段文件 | 见 §7.3：`Flush` / `CompactAll` |
+| `ReadStablePrefixPages` | 持锁读取稳定视图 | 基于引擎快照，回调期间不阻塞写入 |
+| 有界读取 | 磁盘读取前可按长度拒绝 | memtable 先检查长度再复制；冷 SST 只能在读入数据块后才知道 value 长度（块已读，value 不复制） |
+| 超大批次 | 按 overlay/WAL 预算拒绝 | WAL 记录超过 `MaxWalBytes - HeaderSize`（索引重建作用域内用 `IndexRebuildMaxWalBytes`）返回 TooLarge；索引重建批次遇 TooLarge 二分重试 |
+| 快照生命周期 | 磁盘租约保护在途读取 | 快照持有读取预算的 state 引用与 SST 读取器，keyspace 释放后仍可读完 |
+| 打开 | 无待恢复数据时不改写文件 | 每次打开都会轮换 WAL、把重放内容刷入 L0 并滚动 MANIFEST（逻辑内容不变）；因此被拒绝的打开（例如主键迁移日志 generation 错配）不保证文件逐字节不变 |
+| 诊断 | overlay/检查点计数 | overlay 条目映射为 memtable/不可变 memtable 条目数，`ActiveWalLength` 为活跃 LSM WAL 字节数，checkpoint 专属计数为 0 |
+| 物理读取指标 | 每次行 payload 读取计一次 KV state 读取，并归属到 SQL `PhysicalReads` | 每次 SST 块读取（块缓存未命中，含打开文件时的元数据读取）计一次；粒度为块，同一块内多行只计一次 |
+| `Clear` 与回收指标 | 记录 generation/clear 指标，旧文件由后台回收并记录回收指标 | 记录相同的 generation/clear 指标；旧文件立即删除，不产生待回收文件与回收任务指标 |
+
+#### 7.5.3 读取预算通道与内存
+
+- 用户读取（点查、扫描、快照、游标）占用 `KvDiskReadBudget` 的请求通道；flush/compaction 产出的新表在提交 manifest 前以**维护通道**打开并校验（footer、索引、过滤器），compaction 输入块也走维护通道。请求过载（队列满或等待超时）因此不会让后台维护失败、把 keyspace 置为只读。
+- 引擎关闭时版本集释放自己持有的当前版本，没有被快照固定的 SST 读取器与 manifest 句柄立即关闭；关闭时仍存活的快照可以读完，释放后句柄随之关闭。表 RENAME、DDL 发布与备份恢复需要在关闭后立即移动目录（Windows 下打开的句柄会阻止目录改名）。
+- SST 块读取一次物理读入 `payload | trailer` 并直接持有，不再二次复制；索引与过滤器常驻读取器，同样不复制。
+- SST 写入时单条 ≥ 块大小的条目独占数据块（文件格式不变，只是块边界不同）：只读小条目的扫描（例如覆盖索引）不会因为相邻大行而读入整个大块，块缓存也不会被大块挤出小块。
+- memtable 分块保持在 LOH 阈值以下：节点块 256 条（约 10KB）、next 槽位块 8KB、数据块从 4KB 按 2 倍增长到 64KB，超过 16KB 的条目独占精确大小的分块。空 memtable 固定占用约 18KB（原约 224KB，首次写入再加 1MB）。
+- 单块大于块缓存分片容量（默认 32MB / 16 = 2MB）时不缓存。3MB 级大行在表恢复中约为原始行的 4 倍分配（主行扫描与索引核对各一次块读取加一次值复制），需 K7 的 span 读取或后续 value 分离解决。
+
+#### 7.5.4 双引擎测试矩阵
+
+- 测试程序集的模块初始化器读取环境变量 `SONNETDB_KV_ENGINE`（`Legacy`/`Lsm`），作为 `KvOptions.StorageEngine` 的默认值（只影响测试程序集；产品默认值不变）。
+- 观察 legacy 内部状态的测试（检查点钩子与调度、overlay 预算、legacy WAL 路径、legacy 磁盘状态钩子、legacy 内存画像、删除标记物理预算）标记 `[Trait("KvEngine", "LegacyOnly")]`；其余测试两轮都运行。读取 WAL 记录的测试改用 `KvKeyspace.CurrentWalPath`，双引擎都校验“一次批量写只发布一条 WAL 记录”。
+- 运行方式：
+
+~~~powershell
+# legacy 轮（默认）
+dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj
+# LSM 轮
+$env:SONNETDB_KV_ENGINE = 'Lsm'
+dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "(FullyQualifiedName~SonnetDB.Core.Tests.Kv|FullyQualifiedName~SonnetDB.Core.Tests.Tables|FullyQualifiedName~SonnetDB.Core.Tests.Documents|FullyQualifiedName~SonnetDB.Core.Tests.Graphs|FullyQualifiedName~SonnetDB.Core.Tests.ObjectStorage|FullyQualifiedName~SonnetDB.Core.Tests.Generations)&KvEngine!=LegacyOnly"
+~~~
+
 ## 8. 影响面
 
 | 调用方 | 影响 |
@@ -484,10 +545,10 @@ value > 64 KiB（默认上限 16 MiB）时，第二阶段引入 value 分离（b
 | K2 ✅ 源码 | Manifest / VersionEdit / Version 引用计数 / 孤儿清理（2026-11-08：`Kv/Lsm` 共 70 项测试本机 PASS，含追加、滚动、打开重写三类流程共 9 个故障注入点；未接入引擎） | 故障注入测试 |
 | K3 ✅ 源码 | 并发跳表 memtable + 基于 sequence 的快照 + `MergingIterator`（正/反向）（2026-11-08：`Kv/Lsm` 共 83 项测试本机 PASS，含 5 个数据源 × 4 个种子 × 60 次快照试验的差分对拍，以及 1 写 4 读的并发测试；未接入引擎） | 差分测试 |
 | K4a ✅ 源码 | 独立 `KvLsmEngine`：WAL（复用 v3）、原子批量写、memtable 轮转、后台/同步 flush 到 L0、O(1) 快照、点查、双向范围迭代、背压、WAL 重放恢复（2026-11-08：引擎 15 项测试 + `Kv/Lsm` 共 98 项本机 PASS；尚未接入 `KvKeyspace`） | G4 前置 |
-| K4b | `KvKeyspace` 接线：`StorageEngine` 选项，CAS/NX/XX/TTL/Increment/条件批/有界读/游标/命名空间/Clear/清理等全部 API 路由到引擎；KV 测试矩阵双引擎运行 | G1、G4 |
+| K4b ✅ 源码 | `KvKeyspace` 接线：`StorageEngine` 选项，CAS/NX/XX/TTL/Increment/条件批/有界读/游标/命名空间/Clear/清理等全部 API 路由到引擎；双引擎测试矩阵（2026-11-10：`SONNETDB_KV_ENGINE=Lsm` 全量 Core 8206/8206、legacy 全量 8315/8315 本机 PASS；合同差异见 §7.5） | G1、G4 |
 | K5a ✅ 源码 | Leveled compaction（L0 按文件数、L1+ 按字节评分、轮转指针、trivial move、L0 停写背压）、版本/墓碑/TTL 回收、手动全量 `CompactAll`、`KvBlockCache`、层内拼接迭代器（2026-11-08：compaction 10 项测试 + `Kv/Lsm` 共 108 项本机 PASS；随机负载测试单个由 6～10 s 降至约 1 s） | G3、G5 前置 |
 | K5b ✅ 源码 | **range tombstone（WAL 记录类型 7、SST v2 `RangeDelBlock`、`DeleteRange`、引擎 `Clear`）**（2026-11-09：范围删除 11 项测试 + `Kv/Lsm` 共 119 项本机 PASS；尚未接入 `KvKeyspace`） | G11 前置 |
-| K5c | 跨实例全局 compaction 调度器、`KvWriteBufferManager` | G7 |
+| K5c ✅ 源码 | 进程共享后台调度器（flush/compaction 两条通道）、`KvWriteBufferManager`、共享块缓存（2026-11-10：调度与预算 6 项测试本机 PASS，全量结果同 K4b；G7 内存基准 NOT_RUN；见 §6.9） | G7 |
 | K6 | `KvLsmStore` 多逻辑 keyspace：`StorageId` 前缀句柄、`0\|*` 元数据、前缀布隆、按 keyspace 的 `LastSequence`；`TableSchema.StorageId` 与 codec 升版本；旧 schema 拒绝行为核验 | G1（表测试全集双引擎）、G10 |
 | K7 | 关系表接入共享实例：DDL 改写、多表事务改为单 batch、`TableStoreMaintenanceFile` 迁入元数据、持久化行数；**打开时自动迁移**（独立 keyspace + 表并入共享实例）、回滚命令、`KvGenerationFile` v3 降级拒绝、备份 pin Version、generation 清理 | G2、G8、G12 |
 | K8 | 新建数据库默认 `Lsm`（D1：G1～G8、G10～G12 本机 PASS 即可）；CHANGELOG 写明自动迁移与降级流程；文档与 ROADMAP 更新 | 本机门禁全部 PASS |
@@ -504,3 +565,5 @@ K1～K3 互不依赖格式决策，可先行；K6 依赖 K4 的引擎接线，K7
 | 共享 WAL 的单写锁 | 所有表写入共用一把 store 写锁；锁内只做 sequence 分配 + WAL 追加 + 跳表插入，需用 many-tables 基准确认它不是新瓶颈；若是，再考虑按 `StorageId` 分片 memtable | K6/K7 基准 |
 | legacy 保留期占用磁盘 | 迁移后 7 天内同时保留新旧两份数据 | 发布说明；保留期可配置 |
 | 文档/图是否并入共享实例 | 本设计只覆盖关系表（D4 的范围） | K8 之后单独设计 |
+| LSM 模式备份一致性 | K4b 的备份仍是“checkpoint（LSM 为 flush）后复制目录”，后台 compaction 可能在复制期间删除 SST，复制可能失败或缺文件；默认引擎为 legacy，不影响现有数据库 | K7（备份 pin Version，§7.3） |
+| 大行恢复分配 | 3MB 级大行在表恢复中约为原始行 4 倍分配（§7.5.3） | K7 span 读取或后续 value 分离 |

@@ -20,11 +20,14 @@ internal sealed class KvMemTable
     /// <summary>跳表最大高度。</summary>
     internal const int MaxHeight = 12;
 
-    private const int NodeChunkShift = 12;
+    // 分块均保持在 LOH 阈值（85KB）以下，空 memtable 的固定占用约 18KB，
+    // 使大量小 keyspace 的空闲内存不随 memtable 数量线性放大（每个 memtable 首次写入前后均如此）。
+    private const int NodeChunkShift = 8;
     private const int NodeChunkSize = 1 << NodeChunkShift;
-    private const int NextChunkSize = 16 * 1024;
-    private const int DataChunkSize = 1024 * 1024;
-    private const int LargeEntryThreshold = 256 * 1024;
+    private const int NextChunkSize = 2 * 1024;
+    private const int MinDataChunkSize = 4 * 1024;
+    private const int MaxDataChunkSize = 64 * 1024;
+    private const int DedicatedEntryThreshold = 16 * 1024;
     private const int NodeRecordBytes = 40;
 
     private readonly object _writeSync = new();
@@ -35,6 +38,8 @@ internal sealed class KvMemTable
     private int _nextChunkCount;
     private int _nextPosition;
     private int _dataChunkCount;
+    private int _sharedDataChunk = -1;
+    private int _nextDataChunkSize = MinDataChunkSize;
     private int _dataPosition;
     private int _maxHeight = 1;
     private uint _random = 0x9E3779B9;
@@ -185,13 +190,20 @@ internal sealed class KvMemTable
 
         ReadOnlySpan<byte> key = NodeKey(node);
         ref NodeRecord record = ref Node(node);
+        // 值区段写入后不再修改（arena 只追加），返回切片而不复制，调用方可先检查长度再决定是否复制。
         entry = new KvSstEntry(
             key.ToArray(),
             KvInternalKey.Kind(key),
             KvInternalKey.Sequence(key),
             record.ExpiresAtUtcTicks,
-            NodeValue(node).ToArray());
+            NodeValueMemory(node));
         return true;
+    }
+
+    internal ReadOnlyMemory<byte> NodeValueMemory(int node)
+    {
+        ref NodeRecord record = ref Node(node);
+        return Volatile.Read(ref _data)[record.DataChunk].AsMemory(record.DataOffset + record.KeyLength, record.ValueLength);
     }
 
     /// <summary>创建双向迭代器（创建后需定位）。</summary>
@@ -341,16 +353,20 @@ internal sealed class KvMemTable
 
     private (int Chunk, int Offset) AllocateData(int length)
     {
-        if (length >= LargeEntryThreshold)
+        // 大条目独占精确大小的分块，不打断共享分块的追加位置。
+        if (length > DedicatedEntryThreshold)
             return (AddDataChunk(new byte[length]), 0);
-        if (_dataChunkCount == 0 || _dataPosition + length > _data[_dataChunkCount - 1].Length || _data[_dataChunkCount - 1].Length != DataChunkSize)
+        if (_sharedDataChunk < 0 || _dataPosition + length > _data[_sharedDataChunk].Length)
         {
-            AddDataChunk(new byte[DataChunkSize]);
+            // 共享分块从 4KB 起按 2 倍增长到 64KB：小 keyspace 首次写入不再一次性分配 1MB。
+            int size = Math.Max(_nextDataChunkSize, length);
+            _sharedDataChunk = AddDataChunk(new byte[size]);
+            _nextDataChunkSize = Math.Min(MaxDataChunkSize, size * 2);
             _dataPosition = 0;
         }
         int offset = _dataPosition;
         _dataPosition += length;
-        return (_dataChunkCount - 1, offset);
+        return (_sharedDataChunk, offset);
     }
 
     private int AddDataChunk(byte[] chunk)

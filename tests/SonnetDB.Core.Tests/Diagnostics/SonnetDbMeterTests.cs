@@ -268,13 +268,17 @@ public sealed class SonnetDbMeterTests : IDisposable
 
         Assert.Equal(1, collector.LongSum("sonnetdb.kv.generation.changes"));
         Assert.Equal(1, collector.LongSum("sonnetdb.kv.clear.keys"));
+        Assert.Single(collector.Doubles("sonnetdb.kv.clear.duration"));
+        // LSM 的 Clear 直接删除旧文件，没有待回收文件，也就没有回收任务指标（设计 §7.5）。
+        if (kv.StorageEngine != KvStorageEngine.Legacy)
+            return;
         Assert.Equal(1, collector.LongSum("sonnetdb.kv.cleanup.files"));
         Assert.True(collector.LongSum("sonnetdb.kv.cleanup.bytes") > 0);
-        Assert.Single(collector.Doubles("sonnetdb.kv.clear.duration"));
         Assert.Single(collector.Doubles("sonnetdb.kv.cleanup.duration"));
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void KvCleanupWorker_RecordsThrottlePendingAndRateMetrics()
     {
         using var collector = new MetricCollector();

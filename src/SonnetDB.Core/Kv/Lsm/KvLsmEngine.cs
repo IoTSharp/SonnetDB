@@ -45,6 +45,9 @@ internal sealed record KvLsmEngineOptions
     /// <summary>为 false 时不启动后台 flush 线程，由 <see cref="KvLsmEngine.Flush"/> 同步刷盘（测试用）。</summary>
     internal bool BackgroundFlush { get; init; } = true;
 
+    /// <summary>关闭时等待后台 flush/compaction 线程结束的最长时间。</summary>
+    internal TimeSpan ShutdownTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>新建实例时的 generation。</summary>
     internal long Generation { get; init; }
 
@@ -68,6 +71,15 @@ internal sealed record KvLsmEngineOptions
 
     /// <summary>共享块缓存；为 null 时引擎创建私有的 32 MiB 缓存。</summary>
     internal KvBlockCache? BlockCache { get; init; }
+
+    /// <summary>后台 flush/compaction 调度器；为 null 时使用进程共享的 <see cref="KvLsmBackgroundScheduler.Shared"/>。</summary>
+    internal KvLsmBackgroundScheduler? Scheduler { get; init; }
+
+    /// <summary>跨引擎的 memtable 内存预算；为 null 时不参与全局预算（只受本引擎的轮转与背压约束）。</summary>
+    internal KvWriteBufferManager? WriteBufferManager { get; init; }
+
+    /// <summary>后台调度时每轮最多执行的 compaction 作业数，之后重新排队，让其他引擎有机会执行。</summary>
+    internal int MaxCompactionJobsPerTurn { get; init; } = 4;
 
     /// <summary>
     /// compaction 判断 TTL 到期所用的时钟（UTC ticks）；默认 <see cref="DateTimeOffset.UtcNow"/>。
@@ -112,7 +124,7 @@ internal sealed record KvLsmEngineStats(
 
 /// <summary>
 /// 单个 KV-LSM 实例：WAL + 活跃/不可变 memtable + 版本集管理的 SST，提供原子批量写、O(1) 快照、
-/// 点查、双向范围迭代、后台 flush、leveled compaction 与崩溃恢复。尚未接入 <see cref="KvKeyspace"/>（K4b）。
+/// 点查、双向范围迭代、后台 flush、leveled compaction 与崩溃恢复。由 <see cref="KvKeyspace"/> 在 LSM 模式下使用（K4b）。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -129,7 +141,7 @@ internal sealed record KvLsmEngineStats(
 /// 任何不晚于该 sequence 的提交都必然包含在所取得的状态中。
 /// </para>
 /// </remarks>
-internal sealed class KvLsmEngine : IDisposable
+internal sealed class KvLsmEngine : IDisposable, IKvWriteBufferClient
 {
     private readonly string _root;
     private readonly KvLsmEngineOptions _options;
@@ -138,14 +150,23 @@ internal sealed class KvLsmEngine : IDisposable
     private readonly object _stateLock = new();
     private readonly object _tableCacheLock = new();
     private readonly SemaphoreSlim _flushGate = new(1, 1);
-    private readonly SemaphoreSlim _flushSignal = new(0, int.MaxValue);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Dictionary<long, KvSstReader> _tableCache = [];
     private readonly List<(KvMemTable Table, long WalNumber)> _immutables = [];
-    private readonly Task? _flushWorker;
-    private readonly Task? _compactionWorker;
     private readonly SemaphoreSlim _compactionGate = new(1, 1);
-    private readonly SemaphoreSlim _compactionSignal = new(0, int.MaxValue);
+    private readonly KvLsmBackgroundScheduler? _scheduler;
+    private readonly KvWriteBufferManager? _writeBufferManager;
+    private readonly Action _flushJob;
+    private readonly Action _compactionJob;
+    private readonly object _backgroundSync = new();
+    private int _backgroundJobs;
+    private bool _shuttingDown;
+    private int _flushQueued;
+    private int _compactionQueued;
+    private int _bufferFlushRequested;
+    private long _immutableBytes;
+    private long _reportedWriteBufferBytes = -1;
+    private bool _reportedFlushPending;
     private readonly byte[]?[] _compactPointers = new byte[KvVersion.LevelCount][];
     private readonly KvBlockCache _blockCache;
     private long _compactionCount;
@@ -169,12 +190,148 @@ internal sealed class KvLsmEngine : IDisposable
         _mutable = new KvMemTable();
         _state = new ReadState(_mutable, [], versions.AcquireCurrent());
         _blockCache = options.BlockCache ?? new KvBlockCache(32L * 1024 * 1024);
+        _flushJob = RunScheduledFlush;
+        _compactionJob = RunScheduledCompaction;
+        _writeBufferManager = options.WriteBufferManager;
+        _writeBufferManager?.Register(this);
         if (options.BackgroundFlush)
         {
-            _flushWorker = Task.Factory.StartNew(FlushLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            _compactionWorker = Task.Factory.StartNew(CompactionLoop, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            _compactionSignal.Release();
+            // 不再为每个引擎启动专用线程：flush/compaction 作为作业排入进程共享调度器。
+            _scheduler = options.Scheduler ?? KvLsmBackgroundScheduler.Shared;
+            ScheduleCompaction();
         }
+    }
+
+    /// <summary>
+    /// 全局写缓冲预算请求本引擎尽快轮转并刷盘：只设置标志并排队 flush 作业，不获取任何锁。
+    /// 同步模式（无后台调度）下由下一次写入在写锁内完成轮转。
+    /// </summary>
+    void IKvWriteBufferClient.RequestFlushForWriteBuffer()
+    {
+        Interlocked.Exchange(ref _bufferFlushRequested, 1);
+        ScheduleFlush();
+    }
+
+    private void ScheduleFlush()
+    {
+        if (_scheduler is null || Volatile.Read(ref _shuttingDown) || Interlocked.Exchange(ref _flushQueued, 1) != 0)
+            return;
+        try
+        {
+            _scheduler.ScheduleFlush(_flushJob);
+        }
+        catch (ObjectDisposedException)
+        {
+            Interlocked.Exchange(ref _flushQueued, 0);
+        }
+    }
+
+    private void ScheduleCompaction()
+    {
+        if (_scheduler is null || Volatile.Read(ref _shuttingDown) || Interlocked.Exchange(ref _compactionQueued, 1) != 0)
+            return;
+        try
+        {
+            _scheduler.ScheduleCompaction(_compactionJob);
+        }
+        catch (ObjectDisposedException)
+        {
+            Interlocked.Exchange(ref _compactionQueued, 0);
+        }
+    }
+
+    private bool TryEnterBackgroundJob()
+    {
+        lock (_backgroundSync)
+        {
+            if (_shuttingDown)
+                return false;
+            _backgroundJobs++;
+            return true;
+        }
+    }
+
+    private void ExitBackgroundJob()
+    {
+        lock (_backgroundSync)
+        {
+            _backgroundJobs--;
+            if (_backgroundJobs == 0)
+                Monitor.PulseAll(_backgroundSync);
+        }
+    }
+
+    private void RunScheduledFlush()
+    {
+        // 先清除排队标志：执行期间产生的新请求会重新排队，不会丢失。
+        Interlocked.Exchange(ref _flushQueued, 0);
+        if (!TryEnterBackgroundJob())
+            return;
+        try
+        {
+            if (Interlocked.Exchange(ref _bufferFlushRequested, 0) == 1)
+            {
+                lock (_writeLock)
+                {
+                    if (!_disposed && _fault is null && !_mutable.IsEmpty)
+                        RotateLocked();
+                    else
+                        ReportWriteBufferLocked(); // 请求已作废（例如写入路径已轮转）：同步告知预算管理器
+                }
+            }
+            FlushPending(_shutdown.Token);
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            // FlushPending/RotateLocked 已记录 _fault 并唤醒等待者；写入随后 fail closed，需要重新打开实例。
+        }
+        finally
+        {
+            ExitBackgroundJob();
+        }
+    }
+
+    private void RunScheduledCompaction()
+    {
+        Interlocked.Exchange(ref _compactionQueued, 0);
+        if (!TryEnterBackgroundJob())
+            return;
+        bool more = false;
+        try
+        {
+            more = MaybeCompact(_shutdown.Token, Math.Max(1, _options.MaxCompactionJobsPerTurn));
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            // RunCompactionJob 已记录 _fault 并唤醒等待者。
+        }
+        finally
+        {
+            ExitBackgroundJob();
+        }
+        if (more)
+            ScheduleCompaction();
+    }
+
+    /// <summary>在写锁内向全局写缓冲预算上报 memtable 占用与刷盘请求状态（只在变化时上报）。</summary>
+    private void ReportWriteBufferLocked()
+    {
+        if (_writeBufferManager is null)
+            return;
+        long mutableBytes = _mutable.ApproximateMemoryUsage;
+        long total = mutableBytes + _immutableBytes;
+        bool pending = Volatile.Read(ref _bufferFlushRequested) == 1;
+        if (total == _reportedWriteBufferBytes && pending == _reportedFlushPending)
+            return;
+        _reportedWriteBufferBytes = total;
+        _reportedFlushPending = pending;
+        _writeBufferManager.Report(this, total, mutableBytes, pending);
     }
 
     /// <summary>块缓存（诊断与测试用）。</summary>
@@ -194,6 +351,164 @@ internal sealed class KvLsmEngine : IDisposable
 
     /// <summary>引擎是否因写入或后台 flush 失败而拒绝写入。</summary>
     internal bool IsFaulted { get { lock (_writeLock) return _fault is not null; } }
+
+    /// <summary>首个导致引擎拒绝写入的异常；未故障时为 null。调用方用引用相等判断“提交结果未知”。</summary>
+    internal Exception? Fault { get { lock (_writeLock) return _fault; } }
+
+    private Action? _walSyncTestHook;
+    private Action? _walDisposeFlushTestHook;
+
+    /// <summary>测试钩子：在每次 WAL fsync 前调用（随 WAL 轮转转移到新文件）。</summary>
+    internal Action? WalSyncTestHook
+    {
+        set
+        {
+            lock (_writeLock)
+            {
+                _walSyncTestHook = value;
+                if (!_disposed)
+                    _wal.SyncTestHook = value;
+            }
+        }
+    }
+
+    /// <summary>测试钩子：在 WAL 关闭刷盘前调用（随 WAL 轮转转移到新文件）。</summary>
+    internal Action? WalDisposeFlushTestHook
+    {
+        set
+        {
+            lock (_writeLock)
+            {
+                _walDisposeFlushTestHook = value;
+                if (!_disposed)
+                    _wal.DisposeFlushTestHook = value;
+            }
+        }
+    }
+
+    private void InstallWalTestHooks(KvWalFile wal)
+    {
+        wal.SyncTestHook = _walSyncTestHook;
+        wal.DisposeFlushTestHook = _walDisposeFlushTestHook;
+    }
+
+    /// <summary>下一次提交将分配的 sequence（不保留；仅供在同一写锁外乐观构造批次）。</summary>
+    internal long NextSequence => Volatile.Read(ref _lastSequence) + 1;
+
+    /// <summary>活跃 WAL 的字节数；已释放时为 0。</summary>
+    internal long ActiveWalLength
+    {
+        get
+        {
+            lock (_writeLock)
+                return _disposed ? 0 : _wal.Length;
+        }
+    }
+
+    /// <summary>活跃 WAL 文件的完整路径（随 memtable 轮换和 Clear 变化；诊断与测试用）。</summary>
+    internal string ActiveWalPath => KvLsmPaths.WalPath(_root, Volatile.Read(ref _walNumber));
+
+    /// <summary>活跃 memtable 的条目数与全部不可变 memtable 的条目数之和（不含 range tombstone）。</summary>
+    internal (long Mutable, long Immutable) MemTableEntryCounts
+    {
+        get
+        {
+            lock (_stateLock)
+                return (_state.Mutable.EntryCount, _state.Immutables.Sum(static table => table.EntryCount));
+        }
+    }
+
+    /// <summary>
+    /// 在写锁内执行 <paramref name="action"/>，期间不会有其他提交插入；用于读取-判断-提交的原子操作。
+    /// 回调可调用 <see cref="ApplyUnderWriteLock"/>；写锁为可重入的 <see cref="Monitor"/>。
+    /// </summary>
+    /// <param name="cancellationToken">取消令牌，仅在等待写锁时生效。</param>
+    /// <param name="lockTimeout">等待写锁的上限；超时抛出 <see cref="TimeoutException"/>。null 表示无限等待。</param>
+    internal T ExecuteUnderWriteLock<T>(Func<T> action, CancellationToken cancellationToken, TimeSpan? lockTimeout)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (lockTimeout is null && !cancellationToken.CanBeCanceled)
+        {
+            lock (_writeLock)
+            {
+                ThrowIfUnwritableLocked();
+                return action();
+            }
+        }
+
+        TimeSpan timeout = lockTimeout ?? Timeout.InfiniteTimeSpan;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool taken = false;
+        try
+        {
+            while (!taken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TimeSpan slice = TimeSpan.FromMilliseconds(50);
+                if (timeout != Timeout.InfiniteTimeSpan)
+                {
+                    TimeSpan remaining = timeout - System.Diagnostics.Stopwatch.GetElapsedTime(started);
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        throw new TimeoutException("KV write timed out while waiting for the keyspace lock.");
+                    }
+                    if (remaining < slice)
+                        slice = remaining;
+                }
+                Monitor.TryEnter(_writeLock, slice, ref taken);
+            }
+
+            ThrowIfUnwritableLocked();
+            return action();
+        }
+        finally
+        {
+            if (taken)
+                Monitor.Exit(_writeLock);
+        }
+    }
+
+    /// <summary>
+    /// 在调用方已持有写锁（<see cref="ExecuteUnderWriteLock"/> 回调内）时提交一批变更；
+    /// <paramref name="expectedSequence"/> 非空时校验本次提交恰好使用该 sequence。
+    /// </summary>
+    /// <exception cref="InvalidOperationException">调用方未持有写锁，或 sequence 已被其他提交占用。</exception>
+    internal long ApplyUnderWriteLock(
+        IReadOnlyList<KvBatchMutation> mutations,
+        IReadOnlyList<KvRangeDeletion> rangeDeletions,
+        long? expectedSequence,
+        CancellationToken cancellationToken)
+    {
+        if (!Monitor.IsEntered(_writeLock))
+            throw new InvalidOperationException("KV-LSM ApplyUnderWriteLock requires the engine write lock.");
+        if (expectedSequence is long expected && expected != Volatile.Read(ref _lastSequence) + 1)
+            throw new InvalidOperationException("KV-LSM commit sequence changed while the batch was being prepared.");
+        return Apply(mutations, rangeDeletions, cancellationToken);
+    }
+
+    /// <summary>
+    /// 在调用方已持有写锁时等待写入预算（不可变 memtable 与 L0 背压）。等待期间会暂时释放写锁，
+    /// 因此“读取-判断-提交”操作必须先调用本方法，再读取状态并提交，保证读取与提交之间没有其他提交。
+    /// </summary>
+    internal void WaitForWriteBudgetUnderLock(CancellationToken cancellationToken)
+    {
+        if (!Monitor.IsEntered(_writeLock))
+            throw new InvalidOperationException("KV-LSM WaitForWriteBudgetUnderLock requires the engine write lock.");
+        ThrowIfUnwritableLocked();
+        WaitForWriteBudgetLocked(cancellationToken);
+    }
+
+    /// <summary>调用方持有写锁时，判断写入当前是否会因背压而等待。</summary>
+    internal bool IsWriteStalledUnderLock
+    {
+        get
+        {
+            if (!Monitor.IsEntered(_writeLock))
+                throw new InvalidOperationException("KV-LSM IsWriteStalledUnderLock requires the engine write lock.");
+            return IsWriteStalledLocked();
+        }
+    }
 
     /// <summary>打开（或在空目录创建）实例，并重放 LogNumber 之后的 WAL。</summary>
     /// <exception cref="InvalidDataException">manifest、SST 或 WAL 损坏，或 WAL 含 LSM 不支持的记录类型。</exception>
@@ -336,8 +651,16 @@ internal sealed class KvLsmEngine : IDisposable
             }
 
             Volatile.Write(ref _lastSequence, sequence);
-            if (_mutable.UsedBytes >= _options.WriteBufferBytes)
+            // 达到本引擎写缓冲上限，或全局预算请求本引擎刷盘（同步模式下只能在这里兑现）时轮转。
+            if (_mutable.UsedBytes >= _options.WriteBufferBytes
+                || (Volatile.Read(ref _bufferFlushRequested) == 1 && Interlocked.Exchange(ref _bufferFlushRequested, 0) == 1))
+            {
                 RotateLocked();
+            }
+            else
+            {
+                ReportWriteBufferLocked();
+            }
             return sequence;
         }
     }
@@ -363,12 +686,14 @@ internal sealed class KvLsmEngine : IDisposable
                 lock (_writeLock)
                 {
                     ThrowIfUnwritableLocked();
+                    // 与 legacy 一致：一次清空消耗一个 sequence；新 WAL 从该 sequence 之后开始，重开后不会回退。
+                    long clearSequence = checked(_lastSequence + 1);
                     walNumber = _versions.NewFileNumber();
                     _versions.ReleasePendingOutput(walNumber);
                     KvWalFile next;
                     try
                     {
-                        next = KvWalFile.Open(KvLsmPaths.WalPath(_root, walNumber), _lastSequence + 1, _options.WalBufferSize);
+                        next = KvWalFile.Open(KvLsmPaths.WalPath(_root, walNumber), clearSequence + 1, _options.WalBufferSize);
                         DirectoryFsync.FlushRequired(KvLsmPaths.WalDirectory(_root));
                     }
                     catch (Exception exception)
@@ -381,7 +706,7 @@ internal sealed class KvLsmEngine : IDisposable
                     {
                         Generation = _versions.Generation + 1,
                         LogNumber = walNumber,
-                        LastSequence = _lastSequence,
+                        LastSequence = clearSequence,
                     };
                     KvVersion current = _versions.AcquireCurrent();
                     try
@@ -414,9 +739,13 @@ internal sealed class KvLsmEngine : IDisposable
                         // 旧 WAL 已低于新的 LogNumber，内容不再需要。
                     }
                     _wal = next;
+                    InstallWalTestHooks(next);
                     Volatile.Write(ref _walNumber, walNumber);
                     _immutables.Clear();
+                    _immutableBytes = 0;
                     _mutable = new KvMemTable();
+                    ReportWriteBufferLocked();
+                    Volatile.Write(ref _lastSequence, clearSequence);
                     PublishState(_versions.AcquireCurrent());
                     Monitor.PulseAll(_writeLock);
                 }
@@ -528,7 +857,11 @@ internal sealed class KvLsmEngine : IDisposable
         }
     }
 
-    /// <summary>停止后台 flush 并关闭 WAL、SST 与 manifest；未刷盘数据由下次打开时重放 WAL 恢复。</summary>
+    /// <summary>
+    /// 停止后台 flush/compaction 并关闭 WAL 与 manifest；未刷盘数据由下次打开时重放 WAL 恢复。
+    /// 仍被快照或迭代器引用的 SST 读取器保留到最后一个版本引用释放后才关闭（与 legacy 磁盘租约合同一致）。
+    /// WAL 关闭失败按原类型重新抛出。
+    /// </summary>
     public void Dispose()
     {
         lock (_writeLock)
@@ -540,53 +873,83 @@ internal sealed class KvLsmEngine : IDisposable
         }
 
         _shutdown.Cancel();
-        _flushSignal.Release();
-        _compactionSignal.Release();
-        try
+        // 停止接收新的后台作业，并等待本引擎正在执行的 flush/compaction 观察到取消后退出。
+        lock (_backgroundSync)
         {
-            _flushWorker?.Wait(TimeSpan.FromSeconds(30));
-            _compactionWorker?.Wait(TimeSpan.FromSeconds(30));
+            _shuttingDown = true;
+            DateTime deadline = DateTime.UtcNow + _options.ShutdownTimeout;
+            while (_backgroundJobs > 0)
+            {
+                TimeSpan remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                    break;
+                Monitor.Wait(_backgroundSync, remaining);
+            }
         }
-        catch (AggregateException)
-        {
-            // 后台错误已记录在 _fault；关闭流程继续释放资源。
-        }
+        _writeBufferManager?.Unregister(this);
 
+        Exception? walFailure = null;
         lock (_writeLock)
         {
             try
             {
                 _wal.Dispose();
             }
-            catch (IOException)
+            catch (Exception exception)
             {
-                // 未 fsync 的尾部由 WAL 撕裂规则处理。
+                walFailure = exception;
             }
         }
 
         lock (_stateLock)
             _state.Version.Release();
-        lock (_tableCacheLock)
-        {
-            foreach (KvSstReader reader in _tableCache.Values)
-                reader.Dispose();
-            _tableCache.Clear();
-        }
         _versions.Dispose();
         _shutdown.Dispose();
+        ReleaseUnreferencedReaders();
+        if (walFailure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(walFailure).Throw();
     }
 
-    internal KvSstReader GetReader(long fileNumber, CancellationToken cancellationToken)
+    /// <summary>
+    /// 引擎已关闭时，关闭不再被任何存活版本引用的 SST 读取器；由快照释放时调用，最后一个快照释放后全部关闭。
+    /// </summary>
+    internal void ReleaseUnreferencedReaders()
     {
         lock (_tableCacheLock)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_disposed || _tableCache.Count == 0)
+                return;
+            HashSet<long> live = _versions.LiveFileNumbers();
+            foreach (long number in _tableCache.Keys.Where(number => !live.Contains(number)).ToList())
+            {
+                _tableCache[number].Dispose();
+                _tableCache.Remove(number);
+            }
+        }
+    }
+
+    internal KvSstReader GetReader(long fileNumber, CancellationToken cancellationToken, bool maintenanceRead = false)
+    {
+        lock (_tableCacheLock)
+        {
             if (_tableCache.TryGetValue(fileNumber, out KvSstReader? reader))
                 return reader;
-            reader = KvSstReader.Open(KvLsmPaths.SstPath(_root, fileNumber), _options.ReadBudget, cancellationToken, _blockCache);
+            // 关闭后仍允许已固定版本的快照按需打开其文件；版本引用保证文件尚未被删除。
+            // maintenanceRead 只决定打开时元数据读取走哪个预算通道；之后的块读取由各迭代器自行指定。
+            reader = KvSstReader.Open(KvLsmPaths.SstPath(_root, fileNumber), _options.ReadBudget, cancellationToken, _blockCache, maintenanceRead);
             _tableCache[fileNumber] = reader;
             return reader;
         }
+    }
+
+    /// <summary>
+    /// 在提交 manifest 前以维护通道打开新写出的 SST：既校验文件可读（footer、索引、过滤器），
+    /// 也把索引/过滤器的加载从后续第一个请求读取挪到后台维护路径。
+    /// </summary>
+    private void OpenNewTables(IEnumerable<KvLsmFileMetadata> files, CancellationToken cancellationToken)
+    {
+        foreach (KvLsmFileMetadata file in files)
+            GetReader(file.FileNumber, cancellationToken, maintenanceRead: true);
     }
 
     private void RotateLocked()
@@ -607,11 +970,14 @@ internal sealed class KvLsmEngine : IDisposable
         }
 
         _immutables.Insert(0, (_mutable, _walNumber));
+        _immutableBytes += _mutable.ApproximateMemoryUsage;
         _mutable = new KvMemTable();
         _wal = next;
+        InstallWalTestHooks(next);
         Volatile.Write(ref _walNumber, walNumber);
         PublishState(version: null);
-        _flushSignal.Release();
+        ReportWriteBufferLocked();
+        ScheduleFlush();
     }
 
     private void PublishState(KvVersion? version)
@@ -654,34 +1020,6 @@ internal sealed class KvLsmEngine : IDisposable
         }
     }
 
-    private void FlushLoop()
-    {
-        while (!_shutdown.IsCancellationRequested)
-        {
-            try
-            {
-                _flushSignal.Wait(_shutdown.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-
-            try
-            {
-                FlushPending(_shutdown.Token);
-            }
-            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception)
-            {
-                // FlushPending 已记录 _fault 并唤醒等待者；后台线程退出，需重新打开实例。
-                return;
-            }
-        }
-    }
 
     private void FlushPending(CancellationToken cancellationToken)
     {
@@ -724,6 +1062,7 @@ internal sealed class KvLsmEngine : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         KvLsmFileMetadata file = WriteLevel0(_versions, table, _options);
         _options.TestHook?.Invoke(KvLsmEnginePhase.FlushAfterSstWritten);
+        OpenNewTables([file], cancellationToken);
 
         long nextLogNumber;
         lock (_writeLock)
@@ -745,12 +1084,13 @@ internal sealed class KvLsmEngine : IDisposable
         {
             int index = _immutables.FindIndex(item => ReferenceEquals(item.Table, table));
             _immutables.RemoveAt(index);
+            _immutableBytes -= table.ApproximateMemoryUsage;
             PublishState(_versions.AcquireCurrent());
             Interlocked.Increment(ref _flushCount);
+            ReportWriteBufferLocked();
             Monitor.PulseAll(_writeLock);
         }
-        if (_options.BackgroundFlush)
-            _compactionSignal.Release();
+        ScheduleCompaction();
 
         string walDirectory = KvLsmPaths.WalDirectory(_root);
         foreach ((long number, string path) in EnumerateWalFiles(walDirectory))
@@ -801,38 +1141,18 @@ internal sealed class KvLsmEngine : IDisposable
         }
     }
 
-    private void CompactionLoop()
-    {
-        while (!_shutdown.IsCancellationRequested)
-        {
-            try
-            {
-                _compactionSignal.Wait(_shutdown.Token);
-                MaybeCompact(_shutdown.Token);
-            }
-            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception)
-            {
-                // RunCompactionJob 已记录 _fault 并唤醒等待者。
-                return;
-            }
-        }
-    }
-
-    private void MaybeCompact(CancellationToken cancellationToken)
+    /// <summary>执行最多 <paramref name="maxJobs"/> 个 compaction 作业；返回 true 表示仍有待执行的作业。</summary>
+    private bool MaybeCompact(CancellationToken cancellationToken, int maxJobs = int.MaxValue)
     {
         _compactionGate.Wait(cancellationToken);
         try
         {
-            while (true)
+            for (int executed = 0; ; executed++)
             {
                 lock (_writeLock)
                 {
                     if (_fault is not null || _disposed)
-                        return;
+                        return false;
                 }
 
                 KvVersion version = _versions.AcquireCurrent();
@@ -840,7 +1160,9 @@ internal sealed class KvLsmEngine : IDisposable
                 {
                     KvCompactionJob? job = KvCompactionPicker.Pick(version, _options.Compaction, _compactPointers);
                     if (job is null)
-                        return;
+                        return false;
+                    if (executed >= maxJobs)
+                        return true;
                     RunCompactionJob(job, version, cancellationToken);
                 }
                 finally
@@ -859,17 +1181,19 @@ internal sealed class KvLsmEngine : IDisposable
     {
         try
         {
+            // compaction 是后台维护：输入块读取走读取预算的维护通道，请求过载不会让 compaction 失败并使 keyspace 只读。
             KvVersionEdit edit = KvCompactionExecutor.Run(
                 job,
                 version,
                 _versions,
-                file => GetReader(file.FileNumber, cancellationToken).CreateIterator(cancellationToken),
-                file => GetReader(file.FileNumber, cancellationToken).RangeTombstones,
+                file => GetReader(file.FileNumber, cancellationToken, maintenanceRead: true).CreateIterator(cancellationToken, maintenanceRead: true),
+                file => GetReader(file.FileNumber, cancellationToken, maintenanceRead: true).RangeTombstones,
                 _options.SstWriterOptions,
                 _options.Compaction,
                 _options.UtcNowTicks(),
                 cancellationToken);
             _options.TestHook?.Invoke(KvLsmEnginePhase.CompactionAfterOutputsWritten);
+            OpenNewTables(edit.AddedFiles, cancellationToken);
             _versions.LogAndApply(edit);
             _options.TestHook?.Invoke(KvLsmEnginePhase.CompactionAfterManifestCommit);
         }
@@ -1043,6 +1367,16 @@ internal sealed class KvLsmSnapshot : IDisposable
     /// <summary>点查：按 memtable（新→旧）、L0（新→旧）、L1+ 的顺序取第一个可见版本。</summary>
     internal KvEntry? Get(ReadOnlySpan<byte> key, CancellationToken cancellationToken = default)
     {
+        KvSstEntry? raw = GetRaw(key, cancellationToken);
+        return raw is { } entry ? ToEntry(entry) : null;
+    }
+
+    /// <summary>
+    /// 点查快照中 <paramref name="key"/> 的最新版本，不按 TTL 过滤：未找到或被墓碑/range tombstone 遮蔽时返回 null，
+    /// 否则返回该 Put 条目（可能已到期，由调用方按自己的时刻判断）。
+    /// </summary>
+    internal KvSstEntry? GetRaw(ReadOnlySpan<byte> key, CancellationToken cancellationToken = default)
+    {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
         // 从新到旧检查数据源；每个数据源先累计覆盖该 key 的 range tombstone 最大 sequence，
         // 首个找到的点版本若早于该 sequence 则视为已删除（较旧数据源的 tombstone 不会比较新数据源的条目更新）。
@@ -1089,8 +1423,8 @@ internal sealed class KvLsmSnapshot : IDisposable
         return null;
     }
 
-    private KvEntry? Resolve(KvSstEntry entry, long coveringSequence)
-        => entry.Sequence < coveringSequence ? null : ToEntry(entry);
+    private static KvSstEntry? Resolve(KvSstEntry entry, long coveringSequence)
+        => entry.Sequence < coveringSequence || entry.Kind != KvEntryKind.Put ? null : entry;
 
     /// <summary>创建 <c>[lowerBound, upperBound)</c> 的双向用户视图迭代器（创建后需定位）。</summary>
     internal KvSnapshotIterator CreateIterator(byte[]? lowerBound = null, byte[]? upperBound = null, CancellationToken cancellationToken = default)
@@ -1127,16 +1461,19 @@ internal sealed class KvLsmSnapshot : IDisposable
             throw;
         }
         return new KvSnapshotIterator(
-            new VersionPinnedIterator(new KvMergingIterator(children), pinned),
+            new VersionPinnedIterator(new KvMergingIterator(children), pinned, _engine),
             Sequence, ReadTimestampUtcTicks, lowerBound, upperBound,
             KvRangeTombstoneSet.Build(tombstones, Sequence));
     }
 
-    /// <summary>释放版本引用（幂等）。</summary>
+    /// <summary>释放版本引用（幂等）；引擎已关闭时随之关闭不再需要的 SST 读取器。</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _released, 1) == 0)
+        {
             _version.Release();
+            _engine.ReleaseUnreferencedReaders();
+        }
     }
 
     private KvEntry? ToEntry(KvSstEntry entry)
@@ -1157,7 +1494,7 @@ internal sealed class KvLsmSnapshot : IDisposable
         => key.SequenceCompareTo(KvInternalKey.UserKey(file.SmallestKey)) >= 0
             && key.SequenceCompareTo(KvInternalKey.UserKey(file.LargestKey)) <= 0;
 
-    private sealed class VersionPinnedIterator(IKvInternalIterator inner, KvVersion version) : IKvInternalIterator
+    private sealed class VersionPinnedIterator(IKvInternalIterator inner, KvVersion version, KvLsmEngine engine) : IKvInternalIterator
     {
         private int _released;
 
@@ -1185,7 +1522,10 @@ internal sealed class KvLsmSnapshot : IDisposable
         {
             inner.Dispose();
             if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
                 version.Release();
+                engine.ReleaseUnreferencedReaders();
+            }
         }
     }
 }

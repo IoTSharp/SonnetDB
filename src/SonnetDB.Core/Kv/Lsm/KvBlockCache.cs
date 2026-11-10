@@ -11,6 +11,14 @@ namespace SonnetDB.Kv.Lsm;
 internal sealed class KvBlockCache
 {
     private const int ShardCount = 16;
+
+    /// <summary>进程共享缓存的默认容量：64 MiB（每分片 4 MiB）。</summary>
+    internal const long DefaultSharedCapacityBytes = 64L * 1024 * 1024;
+
+    private static readonly Lazy<KvBlockCache> SharedInstance = new(
+        static () => new KvBlockCache(DefaultSharedCapacityBytes),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     private readonly Shard[] _shards;
     private long _hits;
     private long _misses;
@@ -28,6 +36,9 @@ internal sealed class KvBlockCache
 
     /// <summary>总容量（字节）。</summary>
     internal long CapacityBytes { get; }
+
+    /// <summary>进程共享实例：所有 keyspace 的 LSM 引擎共用，内存不随 keyspace 数量线性增长。</summary>
+    internal static KvBlockCache Shared => SharedInstance.Value;
 
     /// <summary>命中次数。</summary>
     internal long Hits => Interlocked.Read(ref _hits);

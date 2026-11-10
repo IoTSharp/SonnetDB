@@ -55,6 +55,7 @@ public sealed class DocumentVectorGraphRebuildTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task StartGraphRebuild_SnapshotBudgetFailure_PreservesOldGraphAndPropagatesException()
     {
         using var store = Open(new() { MaxSnapshotOverlayEntries = 1, AutoCheckpointEnabled = false });

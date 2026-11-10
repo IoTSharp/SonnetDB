@@ -13,6 +13,8 @@ public sealed partial class KvKeyspace
         ArgumentOutOfRangeException.ThrowIfLessThan(resultLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(candidateLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeBudget, TimeSpan.Zero);
+        if (_lsm is not null)
+            return LsmScanCandidatePage(prefix, endExclusive, afterKey, resultLimit, candidateLimit, timeBudget, cancellationToken);
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();

@@ -55,6 +55,8 @@ public sealed partial class KvKeyspace
     {
         ArgumentOutOfRangeException.ThrowIfNegative(topHotKeys);
         KvExpirationStats expiration = GetExpirationStats(utcNow);
+        if (_lsm is not null)
+            return LsmGetDiagnostics(topHotKeys, expiration);
         lock (_sync)
         {
             ThrowIfDisposed();

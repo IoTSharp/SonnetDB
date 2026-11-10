@@ -164,6 +164,7 @@ public sealed class TableStoreMaintenanceTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void LegacyMigration_WithBufferedWal_PublishesDurableMarkerOnce()
     {
         string path = Path.Combine(_root, "legacy-table");
@@ -588,7 +589,9 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         var recoveryStore = new TableStore(schema, recoveryKeyspace);
 
         Assert.Equal(5, recoveryStore.RowCount);
-        Assert.True(recoveryKeyspace.AutoCheckpointScheduleCount > 0);
+        // 自动检查点调度只存在于 legacy overlay；LSM 由 memtable 轮换承接同一预算，仍需完成重建。
+        if (recoveryKeyspace.StorageEngine == KvStorageEngine.Legacy)
+            Assert.True(recoveryKeyspace.AutoCheckpointScheduleCount > 0);
         Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-0000"]));
         Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-0004"]));
         recoveryStore.Dispose();
@@ -748,7 +751,9 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         var recoveryStore = new TableStore(schema, recoveryKeyspace);
 
         Assert.Equal(2_300, recoveryStore.RowCount);
-        Assert.True(Volatile.Read(ref checkpointCount) > 0);
+        // CheckpointTestHook 只观察 legacy 检查点；LSM 下同一重建跨越 memtable 轮换完成即可。
+        if (recoveryKeyspace.StorageEngine == KvStorageEngine.Legacy)
+            Assert.True(Volatile.Read(ref checkpointCount) > 0);
         Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-0000"]));
         Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-2299"]));
         recoveryStore.Dispose();
@@ -756,6 +761,7 @@ public sealed class TableStoreMaintenanceTests : IDisposable
 
     /// <summary>验证索引维护遇到真实检查点写盘失败时保留原异常并终止打开。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void MissingCleanToken_CheckpointIoFailure_PropagatesWithoutRetryLoop()
     {
         string path = Path.Combine(_root, "failed-index-checkpoint");

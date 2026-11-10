@@ -164,7 +164,8 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
         int diskVisits = 0;
         store.ListCandidateTestHook = () => candidates++;
         store.ListRebuildEntryTestHook = () => throw new InvalidOperationException("A ready index must not rebuild per page.");
-        if (checkpoint)
+        // 磁盘访问计数钩子观察 legacy 快照段；LSM 下 checkpoint 表示已刷入 SST，仍校验候选数与分配上限。
+        if (checkpoint && metadata.StorageEngine == KvStorageEngine.Legacy)
             metadata.ConfigureSnapshotDiskScanTestHooks(null, _ => diskVisits++);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -421,6 +422,7 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task RebuildBatch_CheckpointPressure_CancelsBeforeAppend()
     {
         using var db = Tsdb.Open(new TsdbOptions
@@ -484,6 +486,8 @@ public sealed class ObjectPaginationTests(ITestOutputHelper output) : IDisposabl
     }
 
     [Fact]
+    // LSM 候选页由快照迭代器跳过 tombstone，不计入物理候选预算（设计 §7.5），因此不会在删除标记处拒绝。
+    [Trait("KvEngine", "LegacyOnly")]
     public void ListObjects_UncompactedDeleteMarkers_RejectsAtPhysicalBudgetAndRecoversAfterCompaction()
     {
         using var db = Open();

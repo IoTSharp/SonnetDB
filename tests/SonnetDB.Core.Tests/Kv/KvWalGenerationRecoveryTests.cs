@@ -19,6 +19,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_ClearCommittedOnlyInActiveWal_PersistsRecoveredGenerationBeforeWalCleanup()
     {
         var db = Open();
@@ -60,6 +61,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_DurableGenerationAheadOfWalBoundary_FailsClosed()
     {
         var db = Open();
@@ -85,6 +87,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_DurableGenerationWhoseActiveClearTailIsCorrupt_FailsClosed()
     {
         var db = Open();
@@ -112,6 +115,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_LegacyResetAfterClearLayout_UsesPostMetadataWalHeaderAsBoundary(bool writeAfterClear)
     {
         var db = Open();
@@ -142,6 +146,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_LegacyResetWalWhoseRecordsRestartedAtOne_RemainsCompatible()
     {
         var db = Open();
@@ -201,6 +206,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_V2ResetSequenceDoesNotDependOnWallClockOrdering()
     {
         string keyspaceRoot;
@@ -235,6 +241,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_LegacyResetBoundary_IsUpgradedToV2BeforeSubsequentClockRollback()
     {
         string keyspaceRoot;
@@ -282,6 +289,7 @@ public sealed class KvWalGenerationRecoveryTests : IDisposable
     }
 
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void Open_PreMetadataWalWithoutDurableClearBoundary_IsNotMistakenForLegacyReset()
     {
         var db = Open();

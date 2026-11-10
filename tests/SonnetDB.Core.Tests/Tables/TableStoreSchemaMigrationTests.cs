@@ -86,6 +86,7 @@ public sealed class TableStoreSchemaMigrationTests : IDisposable
 
     /// <summary>剩余预算不足时，预检在大行磁盘读取和复制之前拒绝。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public void SchemaMigration_ExhaustedBudget_RejectsBeforeReadingDiskValues()
     {
         using var db = Open();

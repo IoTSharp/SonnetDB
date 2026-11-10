@@ -7,6 +7,11 @@ public sealed partial class KvKeyspace
     internal void ReadSchemaMigrationPrefix(byte prefix, Action<int, int> reserve,
         Action<byte[], byte[]> consume, CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+        {
+            LsmReadSchemaMigrationPrefix(prefix, reserve, consume, cancellationToken);
+            return;
+        }
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -23,6 +28,8 @@ public sealed partial class KvKeyspace
 
     internal byte[]? ReadSchemaMigrationValue(byte[] key, Action<int> reserve, CancellationToken cancellationToken)
     {
+        if (_lsm is not null)
+            return LsmReadSchemaMigrationValue(key, reserve, cancellationToken);
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();

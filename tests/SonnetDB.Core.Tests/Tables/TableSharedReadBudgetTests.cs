@@ -19,6 +19,7 @@ public sealed class TableSharedReadBudgetTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task SnapshotRead_AcrossTables_SharesConcurrencyQueueAndRejection(bool restart)
     {
         using var manager = CreatePreparedManager(maxQueuedReads: 1, restart: restart);
@@ -75,6 +76,7 @@ public sealed class TableSharedReadBudgetTests : IDisposable
 
     /// <summary>验证两表 checkpoint 共用独立维护单槽，请求槽占满时维护仍能完成。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Checkpoint_AcrossTables_SharesOneMaintenanceLaneIndependentOfRequests()
     {
         using var manager = CreatePreparedManager(maxQueuedReads: 0);
@@ -170,6 +172,7 @@ public sealed class TableSharedReadBudgetTests : IDisposable
 
     /// <summary>验证超时关闭后仍在压实的表保留预算租约，允许验证临时 state 并丢弃未发布结果。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task Dispose_WithDelayedCompactionAndSnapshot_AllowsCheckpointToFinish()
     {
         using var manager = CreatePreparedManager(

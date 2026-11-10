@@ -21,6 +21,8 @@ public sealed partial class KvKeyspace
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
         byte[] lookup = key.ToArray();
+        if (_lsm is not null)
+            return LsmGetEntryBounded(lookup, maxValueBytes, deadline.Token);
         using (EnterAtomicWriteLock(deadline.Token))
         {
             ThrowIfDisposed();
@@ -49,6 +51,8 @@ public sealed partial class KvKeyspace
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
         byte[] prefixBytes = prefix.ToArray();
         byte[]? afterBytes = afterKey.IsEmpty ? null : afterKey.ToArray();
+        if (_lsm is not null)
+            return LsmScanPrefixBounded(prefixBytes, afterBytes, maxEntries, maxValueBytes, maxPageBytes, maxCandidates, deadline.Token);
         using (EnterAtomicWriteLock(deadline.Token))
         {
             ThrowIfDisposed();

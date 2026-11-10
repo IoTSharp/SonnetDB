@@ -212,6 +212,7 @@ public sealed class KvDiskReadBudgetTests : IDisposable
 
     /// <summary>验证维护超时不损坏旧快照、WAL 或永久写状态，释放后可重试恢复。</summary>
     [Fact]
+    [Trait("KvEngine", "LegacyOnly")]
     public async Task CreateSnapshot_WhenMaintenanceWaitTimesOut_PreservesDataAndRecovers()
     {
         using var budget = new KvDiskReadBudget(1, maxQueuedReads: 0,

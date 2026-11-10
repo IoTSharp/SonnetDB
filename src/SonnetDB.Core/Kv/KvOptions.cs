@@ -5,6 +5,12 @@ namespace SonnetDB.Kv;
 /// </summary>
 public sealed record KvOptions
 {
+    /// <summary>
+    /// 新建 keyspace 使用的存储引擎，默认 <see cref="KvStorageEngine.Legacy"/>。
+    /// 已有 legacy 数据的目录总是继续以 legacy 打开（K7 前不自动迁移）；已是 LSM 布局的目录总是以 LSM 打开。
+    /// </summary>
+    public KvStorageEngine StorageEngine { get; init; } = KvStorageEngineTestDefaults.Override ?? KvStorageEngine.Legacy;
+
     /// <summary>KV WAL 写缓冲区大小（字节），默认 64 KB。</summary>
     public int WalBufferSize { get; init; } = 64 * 1024;
 

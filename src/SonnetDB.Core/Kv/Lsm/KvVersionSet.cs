@@ -88,7 +88,8 @@ internal sealed class KvVersionSet : IDisposable
     {
         _root = root;
         _options = options;
-        _current = KvVersion.Empty(this);
+        // 占位版本同样由版本集持有一个引用，使 Dispose 在任何阶段都只释放自己持有的那一个。
+        _current = KvVersion.Empty(this).AddReference();
     }
 
     /// <summary>实例根目录。</summary>
@@ -374,6 +375,7 @@ internal sealed class KvVersionSet : IDisposable
     /// <summary>关闭 manifest；不删除任何文件。</summary>
     public void Dispose()
     {
+        KvVersion current;
         lock (_sync)
         {
             if (_disposed)
@@ -381,7 +383,12 @@ internal sealed class KvVersionSet : IDisposable
             _disposed = true;
             _manifest?.Dispose();
             _manifest = null;
+            current = _current;
         }
+
+        // 释放版本集自身持有的当前版本引用：之后只有被快照固定的版本仍然存活，
+        // 引擎据此关闭其余 SST 读取器，关闭后的目录可以立即移动或删除（Windows 打开句柄会阻止目录改名）。
+        current.Release();
     }
 
     internal void OnVersionReleased(KvVersion version)
@@ -390,12 +397,21 @@ internal sealed class KvVersionSet : IDisposable
             _liveVersions.Remove(version);
     }
 
+    /// <summary>当前仍被任何存活版本引用的 SST 文件号（关闭后仍可调用）。</summary>
+    internal HashSet<long> LiveFileNumbers()
+    {
+        lock (_sync)
+            return [.. _liveVersions.SelectMany(static v => v.AllFiles).Select(static f => f.FileNumber)];
+    }
+
     private void InstallInitial(KvVersion version)
     {
         lock (_sync)
         {
+            KvVersion placeholder = _current;
             _current = version.AddReference();
             _liveVersions.Add(version);
+            placeholder.Release();
         }
     }
 

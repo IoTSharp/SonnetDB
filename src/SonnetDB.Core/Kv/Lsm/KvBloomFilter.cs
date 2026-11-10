@@ -64,12 +64,22 @@ internal sealed class KvBloomFilter
     internal static KvBloomFilter Parse(byte[] filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        if (filter.Length < 9)
+        return Parse(filter, filter.Length);
+    }
+
+    /// <summary>以 <paramref name="filter"/> 的前 <paramref name="length"/> 字节解析过滤器（其后可附带块 trailer），不复制位数组。</summary>
+    /// <exception cref="InvalidDataException">过滤器截断或探测次数无效。</exception>
+    internal static KvBloomFilter Parse(byte[] filter, int length)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(length, filter.Length);
+        if (length < 9)
             throw new InvalidDataException("KV-LSM bloom filter is truncated.");
-        int probes = filter[^1];
+        int probes = filter[length - 1];
         if (probes is < 1 or > MaxProbes)
             throw new InvalidDataException("KV-LSM bloom filter probe count is invalid.");
-        return new KvBloomFilter(filter, (long)(filter.Length - 1) * 8, probes);
+        return new KvBloomFilter(filter, (long)(length - 1) * 8, probes);
     }
 
     /// <summary>计算 user key 的过滤器哈希。</summary>
