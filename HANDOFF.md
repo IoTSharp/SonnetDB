@@ -1,3 +1,13 @@
+## 2026-11-11 18:45（Asia/Shanghai）全路线事实核查与推进重排
+
+- 基线：main @ 92d760077ce0e38525e41e8cfd2a8694e786f029，起点工作树干净。用户授权全面调查、多个智能体正常/反驳分析和路线整理；本轮拥有根ROADMAP/CHANGELOG/HANDOFF、总索引、相关专题/子路线、能力索引及docs/audits/roadmap-audit-20261111/，没有产品源码修改、暂存、提交、推送、发行或部署。
+- 交付：[总报告](docs/audits/roadmap-audit-20261111/README.md)、核心/生态/反驳三份报告、GitHub只读快照、全量清单与校验回执；M0～M51共52编号、M44～M51及V45-X共150工作包/基线项保留。旧当前队列入历史快照；根路线成为唯一全仓推进顺序。
+- 已纠偏：K7共享批次/持久计数/维护已实现，M44/M45/M46局部交付，M47 candidate12限定R1 Web完成且七个专用工作台延期，M49原生.NET多帧/typed KV与多语言codec边界，M51主线43工具/0.2.0，以及CoAP/MQTT旧摘要；未将Graph Beta、原规模/掉电/长稳门禁改为完成。
+- 下一顺序：确认写/迁移与组合恢复；现存typed全文过滤分页；端到端读取/并发资源；同耐久计量与热点；时序语义/M50合同；.NET/C可靠SDK及生态；通用增量计算；有业务收益的应用/宿主。三线可并行，不将普通代码小修统一堵在168小时之后。全文缺口经两位审查独立核对，本轮运行复现NOT_RUN。
+- 远端核查：6 OPEN issue、0 OPEN PR；#230/#392/#394/#395/#403/#404为CLOSED/COMPLETED。远端9d022d86的CI/CodeQL/Connectors和一次scheduled Parity success，与本地仅HANDOFF差异；latest元信息v5.0.0/52资产。没有重跑产品测试，不将单次Parity替代七天或元信息读取替代包消费。
+- 验证与风险：静态清单/编号/链接/UTF-8/JSON/EOL/原交接后缀/产品源码不变的结果见docs/audits/roadmap-audit-20261111/validation.json；本轮产品restore/build/format/test、benchmark、真实强杀/AOT/固定硬件/物理掉电/安装/生产均NOT_RUN。历史测量的收益与退化保留原source；无新增证据支持已发生数据损失或越权事故。
+- 资源：只读与校验进程通过Cordonix有界执行并清理所属子树；未启动常驻进程或服务。临时辅助文件仅位于.publishing/tmp/roadmap-audit-20261111/，最终检查后精确回收；正式报告/清单/快照留存。本段以下原HANDOFF字节完整保留，不改既有历史。
+
 ## 2026-11-11（Asia/Shanghai）Windows Core CI 超时回归
 
 - 分支 `copilot/fix-github-actions-build-test`，起始 HEAD `d10244b3bc934170ea7c4f54324d33276762b6d3`，工作树起始干净。本轮检查 Actions run `42840082302` / job `129912634284`：Core 构建成功，8375/8376 测试通过；唯一失败为 `FileStreamingSubscriptionDispatcherTests.RunAsync_WithNonCooperativeHandlerTimeout_HoldsSharedLeaseAndNeverAcknowledgesLateSuccess` 在 2 秒等待 handler 进入信号处超时。
@@ -8012,3 +8022,9 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 ## 2026-11-11 发布存储缺失：抖音恢复入口
 
 本轮只读发布MCP返回ENOENT，.publishing/blogs/douyin原账本、正文、批准人物素材与channels/douyin原回执缺失；已知外部归档为指向缺失archive目录的junction，未找到可恢复原资料。缺失原因UNKNOWN。未初始化账本、重建历史或执行浏览器写入。故障证据与恢复步骤见.publishing/channels/douyin/HANDOFF.md和storage-recovery-20261111.json；这两个新文件仅记录故障，不是原发布状态。持续实际发布授权保持，恢复原材料后先对账再续发；现存CSDN与其它任务内容不覆盖。本轮无Git提交/推送/部署。
+## 2026-11-11（Asia/Shanghai）环境与现场资格路线拆分
+
+- 用户最新决策：固定硬件、线上 Demo、现场生产、物理掉电/介质恢复和 168 小时/7 天长稳集中到 `docs/roadmap-environment-validation.md` 的 ENV-00～ENV-06。后续用户提供 Demo/现场运行日志后，再按候选、目标机器、时间窗、负载、故障、恢复和证据完整性分析。
+- 本轮修改范围：根 ROADMAP 的当前顺序与环境映射、总里程碑索引、M48 L20A/L20B、M50 T30A/T30B、M40/M41/M19/KV 专题链接，以及新增环境路线。能力代码、确定性进程强杀、损坏/满盘、旧格式拒绝、迁移/取消/未知提交仍由能力路线验证；环境资格缺失不阻断普通代码切片。
+- 当前环境状态：未连接线上 Demo、现场生产或电源控制设备，未运行固定硬件、物理掉电或长稳；环境路线保持 `PLANNED/NOT_RUN`。日志若缺少电源、介质刷新或完整性链路，不能证明物理掉电零丢失。
+- 验证：本轮尚未执行产品构建/测试；文档静态检查、根路线/总索引/环境路线链接和工作树回读已完成，回执见 `docs/audits/roadmap-audit-20261111/validation.json`。没有提交、推送、部署、重启或外部写入。

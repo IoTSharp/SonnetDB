@@ -291,6 +291,7 @@ Scan the QR code to join the SonnetDB WeCom (Enterprise WeChat) group for releas
 
 - File an issue / PR: [GitHub Issues](https://github.com/IoTSharp/SonnetDB/issues)
 - Roadmap: [ROADMAP.md](ROADMAP.md)
+- Environment qualification route: [roadmap-environment-validation.md](docs/roadmap-environment-validation.md)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 - AI collaboration guide: [AGENTS.md](AGENTS.md)
 - AI / Agent quick index: [llms.txt](llms.txt)

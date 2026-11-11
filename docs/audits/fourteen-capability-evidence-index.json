@@ -18,8 +18,10 @@
       "maturity": "partial",
       "roadmap": ["M0-M13", "M19 #125", "M36 #314", "M36 #315", "M42"],
       "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB.Data/TimeSeries", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "tests/SonnetDB.Core.Tests/Sql/KnnMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
-      "boundary": "High-cardinality, long-run, fixed-hardware and full recovery evidence remains open."
+      "evidence": [
+        "docs/audits/roadmap-audit-20261111/core.md",
+        "docs/design/time-series-write-partition-duplicates-decisions.md","docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "tests/SonnetDB.Core.Tests/Sql/KnnMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
+      "boundary": "The existing millisecond engine, WAL and group commit are implemented. Current default acknowledgments flush to the operating system rather than requesting per-write fsync; process crash and physical power-loss guarantees are separate. Point atomicity, partition/TTL and duplicate semantics require the existing explicit decisions. M50 per-database ms/us/ns is not implemented. High-cardinality, full recovery, fixed-hardware and long-run evidence remains open."
     },
     {
       "id": "relational",
@@ -28,8 +30,11 @@
       "maturity": "partial",
       "roadmap": ["M6", "M37-M39", "M41 #375", "M42", "M43 GH-Issue #171", "M43 GH-Issue #172", "M43 GH-Issue #173", "M43 GH-Issue #174", "M43 GH-Issue #175", "M43 GH-Issue #176", "M43 GH-Issue #177", "M43 GH-Issue #196", "M43 GH-Issue #178", "M43 GH-Issue #179", "M43 GH-Issue #181", "M43 GH-Issue #182", "M43 GH-Issue #183", "M36 #311", "M36 #313"],
       "entryPoints": ["src/SonnetDB.Core/Sql", "src/SonnetDB.Data", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/design/kv-lsm-storage-engine.md", "docs/operations/kv-lsm-migration.md", "tests/SonnetDB.CrashTests/KvLsmMigrationCrashTests.cs", "docs/sql-reference.md", "docs/standard-join-contract.md", "docs/audits/measurement-join-196-closure-20260923.md", "tests/SonnetDB.Tests/RemoteMeasurementJoinContractTests.cs", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Core.Tests/Sql/RelationalStandardJoinTests.cs", "tests/SonnetDB.Tests/RemoteStandardJoinTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlExpressionExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlCastTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDecimalTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs", "tests/SonnetDB.Core.Tests/Ado/SndbAdoApiTests.cs", "tests/SonnetDB.Core.Tests/Query/Functions/FunctionRegistryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlStringFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDateFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlAggregateDistinctTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlBetweenIlikeTests.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "docs/audits/nine-model-local-journey-evidence-20260920.md"],
-      "boundary": "Relational tables use a shared LSM store in current source; single-batch multi-table transactions, persisted counts and maintenance metadata consolidation remain unfinished. The SQL surface is a practical subset; GH-Issue #171 non-recursive CTE, #172 bounded ANSI OVER/row_number, #173 CAST across supported scalar/date/blob/json targets, #174 bounded common string functions, #175 bounded date difference/formatting, #176 single-field aggregate DISTINCT, #178 UNION ALL/INTERSECT/EXCEPT, #179 inclusive BETWEEN/ILIKE, #181 exact DECIMAL/NUMERIC relation values with bounded precision/scale and embedded/remote ADO.NET schema precision/scale projection, #182 bounded TIME/TimeOnly relation semantics, and #183 integer bitwise SELECT/WHERE/UPDATE semantics are locally covered. unbounded recursive CTEs, VECTOR/GEOPOINT CAST targets, compound operator precedence, multi-expression/ordered-set/window DISTINCT, symmetric BETWEEN, locale-specific ILIKE collations, window PARTITION BY/frame semantics, TRIM dialect forms/collation and byte-length string semantics, locale/timezone calendar semantics, cross-day/24:00 TIME semantics, remote typed TIME/Frame parity, overflow/scale enforcement beyond System.Decimal, end-to-end large-result streaming and field tail-latency evidence remain open."
+      "evidence": [
+        "docs/audits/roadmap-audit-20261111/core.md",
+        "docs/benchmarks/kv-lsm-followup-20261110.md",
+        "tests/SonnetDB.Core.Tests/Tables/SharedLsmTableTransactionTests.cs","docs/design/kv-lsm-storage-engine.md", "docs/operations/kv-lsm-migration.md", "tests/SonnetDB.CrashTests/KvLsmMigrationCrashTests.cs", "docs/sql-reference.md", "docs/standard-join-contract.md", "docs/audits/measurement-join-196-closure-20260923.md", "tests/SonnetDB.Tests/RemoteMeasurementJoinContractTests.cs", "docs/audits/sql-provider-closure-20260923.md", "tests/SonnetDB.Core.Tests/Sql/RelationalStandardJoinTests.cs", "tests/SonnetDB.Tests/RemoteStandardJoinTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlExpressionExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlCastTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDecimalTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlTimeTests.cs", "tests/SonnetDB.Core.Tests/Ado/SndbAdoApiTests.cs", "tests/SonnetDB.Core.Tests/Query/Functions/FunctionRegistryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlStringFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlDateFunctionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlAggregateDistinctTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlBetweenIlikeTests.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "docs/audits/nine-model-local-journey-evidence-20260920.md"],
+      "boundary": "Current shared-LSM tables implement one atomic WAL batch for rows, indexes, per-table sequences and persisted row counts, plus consolidated maintenance metadata. Only transactions within the same shared store use this path; mixed legacy/standalone/shared layouts retain the recovery journal. The practical SQL subset, migrations, JSON updates and OwnsMany have implemented slices with scoped historical consumer evidence. Consult the current SQL contract for exact syntax and type support rather than stale individual issue lists. Full query working-set bounds, mixed-layout fault coverage, original-scale concurrency/performance and field recovery remain separate gates; EF application NativeAOT is not established by Server AOT."
     },
     {
       "id": "kv",
@@ -38,8 +43,10 @@
       "maturity": "partial",
       "roadmap": ["M28", "M36 #316", "M36 #317", "KV-LSM (K7 partial)"],
       "entryPoints": ["src/SonnetDB.Core/Kv", "src/SonnetDB.Data/Kv", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/design/kv-lsm-storage-engine.md", "docs/operations/kv-lsm-migration.md", "docs/benchmarks/kv-lsm-capacity-20261110.md", "tests/SonnetDB.Core.Tests/Kv/KvLegacyMigrationTests.cs", "tests/SonnetDB.CrashTests/KvLsmMigrationCrashTests.cs", "docs/kv-atomic-contract.md", "docs/audits/kv-remote-closure-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
-      "boundary": "Current source defaults to LSM with automatic legacy migration and v3 downgrade rejection; K1-K8 stage source is merged, while K7 is partial. Commit ca495cae has successful CI including Linux and Windows Core LSM tests. Bounded local measurements and deterministic migration process kills are separately recorded; large-keyspace remote parity, full capacity, randomized crash, fixed-hardware and long-run gates remain open."
+      "evidence": [
+        "docs/audits/roadmap-audit-20261111/core.md",
+        "docs/benchmarks/kv-lsm-followup-20261110.md","docs/design/kv-lsm-storage-engine.md", "docs/operations/kv-lsm-migration.md", "docs/benchmarks/kv-lsm-capacity-20261110.md", "tests/SonnetDB.Core.Tests/Kv/KvLegacyMigrationTests.cs", "tests/SonnetDB.CrashTests/KvLsmMigrationCrashTests.cs", "docs/kv-atomic-contract.md", "docs/audits/kv-remote-closure-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Current source defaults to LSM with automatic legacy migration and explicit downgrade guards. K1-K6 and K8 are integrated; K7 shared-table batches/counts, maintenance metadata, offline rollback, SST v3 StorageId prefix filtering, Version-pinned backups and pressure scheduling are implemented. KvWriteBufferManager is a soft budget, not a process heap limit. Remaining work includes measurement/load tools for write amplification, true cold I/O, multi-table fsync and TTL/TRUNCATE workloads, plus original-scale capacity, randomized crashes, real old binaries, fixed hardware and long runs. Historical local performance includes both snapshot gains and buffered-write/allocation regressions."
     },
     {
       "id": "document",
@@ -58,15 +65,17 @@
       "maturity": "partial",
       "roadmap": ["M23", "M24", "M35", "M36 #318", "M36 #319"],
       "entryPoints": ["src/SonnetDB.Core/FullText", "src/SonnetDB.Data/FullText", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
-      "boundary": "Typed search and index diagnostics exist; remote parity, fixed corpus quality and capacity evidence remain open."
+      "evidence": [
+        "docs/audits/roadmap-audit-20261111/adversarial.md",
+        "docs/audits/roadmap-audit-20261111/ecosystem.md","docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Persistent indexes, analyzers, typed search and diagnostics are implemented. The current embedded and Server typed search paths filter after a capped Top-K candidate window; pagination, TotalHits and facets do not represent the full filtered set, and later valid hits can be unreachable. This existing gap was independently confirmed by static review, not reproduced at runtime in this audit. Core filtered search exists but is not connected to these typed paths. Full quality, merge working-set, remote parity and fixed-corpus capacity gates remain open."
     },
     {
       "id": "vector",
       "name": "Vector search",
       "category": "native_model",
       "maturity": "partial",
-      "roadmap": ["M12", "M23", "M27", "M35 #298", "M36 #320", "M36 #321", "M42", "M43 GH-Issue #186"],
+      "roadmap": ["M13", "M23", "M27", "M35 #298", "M36 #320", "M36 #321", "M42", "M43 GH-Issue #186"],
       "entryPoints": ["src/SonnetDB.Core/Vector", "src/SonnetDB.Data/VectorData", "src/SonnetDB/Endpoints"],
       "evidence": ["docs/vector-lifecycle-preflight.md", "docs/m35-filtered-search-budgets.md", "docs/benchmarks/m42-measurement-knn-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "samples/SonnetDB.CdcStreamingJourney/SqlBudgetJourney.cs", "docs/audits/nine-model-gap-catalog-20260905.json", "tests/SonnetDB.Core.Tests/Query/KnnBoundedExecutionTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlKnnBoundedQueryTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlVectorParameterTests.cs", "tests/SonnetDB.Tests/RemoteVectorParameterTests.cs"],
       "boundary": "Exact fallback, bounded Top-K, VECTOR parameter binding and REST/NDJSON float[] transport are locally implemented; Core 3/3 and Kestrel REST 2/2 pass. Remote Frame E2E, generic filtered ANN, Recall@K, quality and fixed-hardware evidence remain open."
@@ -88,8 +97,10 @@
       "maturity": "partial",
       "roadmap": ["M28", "M30", "M36 #324", "M36 #325", "M36 #326"],
       "entryPoints": ["src/SonnetDB.Core/Mq", "src/SonnetDB.Data/Mq", "src/SonnetDB/Endpoints"],
-      "evidence": ["docs/mq-high-level-client.md", "docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
-      "boundary": "Local replay, delivery governance and instance snapshots exist; distributed semantics, field recovery and exactly-once are not claimed."
+      "evidence": [
+        "docs/sonnetmq-instance-recovery.md",
+        "docs/audits/roadmap-audit-20261111/core.md","docs/mq-high-level-client.md", "docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
+      "boundary": "Publish/batch/pull/ACK, replay, delivery governance, instance snapshots and offline snapshot/inspect/restore CLI are implemented. Defaults flush to the operating system without per-publish fsync. Database backup does not include instance MQ; coordinated recovery with database data, identities/configuration, external objects and derived state remains a separate gate. At-least-once delivery does not promise distributed transactions, arbitrary business exactly-once or physical power-loss acceptance."
     },
     {
       "id": "graph",
@@ -148,8 +159,10 @@
       "maturity": "partial",
       "roadmap": ["M8", "M17", "M19", "M20", "M27", "M29", "M39", "MM9", "M41", "M42", "M43 #397"],
       "entryPoints": ["src/SonnetDB/Endpoints", "src/SonnetDB.Core", "src/SonnetDB.Cli"],
-      "evidence": ["docs/backup-restore.md", "docs/audits/2026-09-05_project-SonnetDB-report.md", "docs/audits/changelog-verification-20260905.md", "docs/m43-release-evidence.md", "eng/verify-m43-release-evidence.ps1", "eng/test-m43-release-evidence.ps1", "docs/ecosystem-directory-dossier.md", "docs/ecosystem-reproduction-index.md"],
-      "boundary": "Authorization, audit, health, metrics and database backup exist; full-model recovery, cross-architecture release and long-run evidence remain open."
+      "evidence": [
+        "docs/audits/roadmap-audit-20261111/README.md",
+        "docs/audits/roadmap-audit-20261111/remote-snapshot.json","docs/backup-restore.md", "docs/audits/2026-09-05_project-SonnetDB-report.md", "docs/audits/changelog-verification-20260905.md", "docs/m43-release-evidence.md", "eng/verify-m43-release-evidence.ps1", "eng/test-m43-release-evidence.ps1", "docs/ecosystem-directory-dossier.md", "docs/ecosystem-reproduction-index.md"],
+      "boundary": "Authentication, per-database authorization, audit, health, metrics, local budgets and database backup are implemented. SQL admission, Frame/MCP response budgets and KV soft write-buffer limits have separate scopes and do not establish a hard process-wide resource ceiling. Full instance recovery must explicitly include database data, instance MQ, identity/configuration, external objects and applicable derived state. Cross-architecture release, clean installation, physical power loss and long-run acceptance remain separate from source and CI evidence."
     }
   ]
 }

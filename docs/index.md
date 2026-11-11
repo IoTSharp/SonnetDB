@@ -68,7 +68,7 @@ SonnetDB 可以嵌入 .NET 进程，也可以作为独立 Server 运行。SQL、
 | 定位慢查询、内存、ThreadPool、Flush 或 Compaction | [故障排查]({{ site.docs_baseurl | default: '/help' }}/troubleshooting/) |
 | 查看发布物、Docker 和安装边界 | [发布与打包]({{ site.docs_baseurl | default: '/help' }}/releases/) |
 | 查看性能、恢复和长稳证据 | [基准说明]({{ site.docs_baseurl | default: '/help' }}/benchmarks/ecosystem-soak/) · [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
-| 查看路线、能力成熟度和证据索引 | [ROADMAP](https://github.com/IoTSharp/SonnetDB/blob/main/ROADMAP.md) · [能力成熟度]({{ site.docs_baseurl | default: '/help' }}/capability-maturity/) · [十四项能力索引](https://github.com/IoTSharp/SonnetDB/blob/main/docs/audits/fourteen-capability-evidence-index.json) |
+| 查看路线、能力成熟度和证据索引 | [ROADMAP](https://github.com/IoTSharp/SonnetDB/blob/main/ROADMAP.md) · [环境与现场资格路线](roadmap-environment-validation.md) · [能力成熟度]({{ site.docs_baseurl | default: '/help' }}/capability-maturity/) · [十四项能力索引](https://github.com/IoTSharp/SonnetDB/blob/main/docs/audits/fourteen-capability-evidence-index.json) |
 
 ## 产品边界
 

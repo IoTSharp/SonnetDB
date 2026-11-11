@@ -1,22 +1,28 @@
-# M49 实施矩阵与首个切片
+# M49 实施矩阵与当前证据
 
-日期：2026-10-16（Asia/Shanghai）；基线 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`。
-本表记录实施状态，需求以[确认记录](connector-embedded-split-requirements-20261016.md)为准。
+2026-11-11（Asia/Shanghai）核查基线`92d76007`。需求仍以[确认记录](connector-embedded-split-requirements-20261016.md)为准；当前优先级见[根路线](../../ROADMAP.md#当前推进顺序)，逐包判定见[生态审计](../audits/roadmap-audit-20261111/ecosystem.md)。C01范围冻结完成，其他14包各有部分实现或明确未交付增量；不沿用“15包全部未开始/未完成”的概括。
 
-首个工程切片为 C01/C02 的小基线和 R02/R03 的 native SQL reader 生命周期。
-只有移除 ABI 层的完整结果副本，不能关闭 R01、R02、R03 或 C03。
-后续依次拆分 D01、补齐 F01，并打通 Core pull 执行；不保留混合 local/remote 包门面。
+| 路径 | 当前源码与已有切片 | 明确残余 |
+| --- | --- | --- |
+| Protocol / .NET Client | 已脱离Core；SQL Execute自动提交、raw SendStreamingAsync、typed KV Get/GetAndDelete/Put/Scan | 九模型typed解码、适用事务/多结果、TLS/ALPN、全部预算/终态与按批公开消费者 |
+| Core→Server→客户端读取 | native reader生命周期、多帧与部分pull/预算已有 | 不以Frame分块或IAsyncEnumerable推导全链路不物化；R01～R03仍部分完成 |
+| C / embedded | 唯一AOT工程迁入embedded，旧C ABI生命周期及Windows消费者有历史证据 | 新纯远程C、完整目录/依赖拆分、ABI精确类型/取消与全平台新矩阵 |
+| Go/Rust/Python/Java | 已有Frame codec和测试切片；旧C ABI/ctypes/JNI主入口仍在 | 独立原生HTTP/2传输及embedded分包、实际Java8和平台/消费者验收 |
+| VB6/PureBasic | 旧入口保留其历史范围 | 新原生远程合同未交付；工具链运行NOT_RUN，禁止回退为32位嵌入式桥接 |
+| 验证/发行 | 已有多次真实h2c、typed KV与候选消费者；当前同产品源码CI成功 | 不把旧候选/codec/CI升级为TLS、九模型、各语言新包或当前公开消费 |
 
-## 九模型操作与当前 Frame 缺口
+2026-11-07的typed GetAndDelete及矛盾回执拒绝见[该切片](../audits/issue397-get-and-delete-20261107.md)。未知写入继续不盲重放。下面各日期段和“首片账本”保留原source/平台/测试，不是本轮重新执行；历史单帧/NOT_STARTED状态只适用于当时。
 
-2026-11-06 / GH-Issue #397：M49-C03 新增 .NET typed KV Get/Put/单页 Scan 切片，复用既有 Frame v1 字节合同和独立 Protocol codec；Client 不依赖 Core。原始二进制、Int64 版本、UTC ticks 过期时间、单页条数/编码预算、取消及未知写入无重试按实际测试记账。该增量不关闭九模型或各语言矩阵；原子 KV 操作、资源/schema 生命周期、TLS/ALPN、其它平台与公开包仍是后续范围。当前测试及真实 HTTP/2 产品 Server 证据见[本片审计](../audits/issue397-typed-kv-20261106.md)。
+## 九模型操作与Frame缺口
+
+2026-11-06 / GH-Issue #397：M49-C03 新增 .NET typed KV Get/Put/单页 Scan 切片，复用既有 Frame v1 字节合同和独立 Protocol codec；Client 不依赖 Core。原始二进制、Int64 版本、UTC ticks 过期时间、单页条数/编码预算、取消及未知写入无重试按实际测试记账。该增量不关闭九模型或各语言矩阵；该时点其余原子KV、资源/schema生命周期、TLS/ALPN、其它平台与公开包另行验收；GetAndDelete已由11-07切片接续，见页首当前矩阵。当前测试及真实 HTTP/2 产品 Server 证据见[本片审计](../audits/issue397-typed-kv-20261106.md)。
 
 以下为源码核对，不是运行验收。已有 operation 编号不复用为不同含义。
 
 | 模型 | 基线 Frame | 当前待补齐的数据访问 |
 |---|---|---|
 | 时序 | `Tsdb/WriteColumnar`；`Sql/Query` | schema、必要索引和其它写操作；端到端有界范围读取 |
-| 关系 | `Sql/Query` 只读 | DDL/DML、精确参数、适用事务与多结果；pull 读取 |
+| 关系 | Sql/Query及Execute=2/payload v1自动提交写入 | 适用事务/多结果、完整DDL/DML矩阵与端到端pull；已支持的精确参数/单条写入不重做 |
 | KV | Get/Put/Scan、条件写、GetAndSet/Delete、CAS、Expire/Persist/TTL | 资源/schema、独立删除、计数及有界分页的完整合同 |
 | 文档 | Find/Insert | collection/schema/索引、复杂过滤/投影/排序、修改/删除/聚合 |
 | 全文 | 无专用 service | 索引/analyzer、检索/评分/高亮、适用组合查询 |
@@ -39,7 +45,7 @@
 ABI 新版本、精确类型、参数、每批/累计预算、取消、未知提交与 Frame end 的黄金语料仍按后续切片推进。
 对于没有可信确认的写入，继续保留未知提交，不自动重放。
 
-## 平台与语言验收账本
+## 2026-10-16首片平台与语言账本（历史）
 
 目标为 Windows x64/ARM64、Linux glibc/musl x64/ARM64、macOS x64/ARM64；当前不承诺全部可运行。
 首个纵向候选以 Windows/Linux x64 的 .NET/C 为起点，各语言/模型/操作逐项扩展。
@@ -73,7 +79,7 @@ Ubuntu 的有界 `command -v` 已核得 `/usr/bin/gcc`、`/usr/bin/clang`、`/us
 | macOS ARM64 | NOT_RUN | NOT_STARTED |
 | Windows x86 VB6 客户端 | 不适用：不构建 VB6 嵌入式/32位 AOT 桥接 | NOT_RUN；仅远程客户端例外 |
 
-## 首片真实证据与限制
+## 2026-10-16首片真实证据与限制（历史）
 
 本地回执根为 `artifacts/m49-implementation-20261016`。原实现 4 个确定性基线全部 FAIL，修复后的前 3 轮各 8 PASS/1 FAIL（测试 SQL 夹具不符合本库类型/主键/列清单语法），第 4 轮 9/9 PASS；迁移后新增真实命令取消，10/10 PASS。旧失败没有改写。
 

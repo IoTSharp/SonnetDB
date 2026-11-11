@@ -6,6 +6,8 @@
 
 状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。
 
+2026-11-11复核：harness/适配器/可靠性测试入口与候选实跑是不同证据。最新只读回查见[快照](audits/roadmap-audit-20261111/remote-snapshot.json)：9d022d86一次scheduled运行success，不足以关闭七天观察或证明所有真实backend/原始artifact已复验。全仓优先级见[根路线](../ROADMAP.md#当前推进顺序)；parity-results继续独立保留。
+
 ## 设计前提
 
 1. **不做协议兼容**。SonnetDB 不实现 SigV4 / MQTT 3.1.1 / RESP / Postgres wire / MongoDB wire / Kafka wire。我们走自己的 `SndbConnection` / `SndbDocumentClient` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider / HTTP API。竞品也走它们各自的官方 .NET 客户端（`Npgsql` / `MongoDB.Driver` / `StackExchange.Redis` / `InfluxDB.Client` / `Minio` / `NATS.Client.Core` / `Meilisearch.Net` / `Qdrant.Client` / `ClickHouse.Client`）；MongoDB Driver 只连接参考 MongoDB 容器。
@@ -224,7 +226,7 @@ assertions:
 6. ✅ **#132**：MQ 套件（vs NATS）+ replay 语义对齐
 7. ✅ **#133**：全文套件（vs Meilisearch）+ BM25 排序对齐
 8. ✅ **#134**：分析套件（vs ClickHouse）+ 聚合精度对齐
-9. ✅ **#135**：可靠性套件（kill -9 / disk-full / oom / power-loss）
+9. ✅ **#135**：可靠性测试入口/子进程强杀套件；disk-full/oom/物理掉电按实际运行证据分别判定，套件存在不等于硬件掉电通过
 10. 🚧 **#136**：CI gating + nightly + parity-results 分支 + README badge；scheduled 观察和发布级证据仍待修复/补齐
 
 ## 推进期间的连带产出
@@ -246,7 +248,7 @@ assertions:
 
 ## 验收标准
 
-- 八大支柱 × 至少 3 个场景 = 24+ 场景全部 pass（含 SKIPPED 但有 gap_reason）。
+- 保留原八支柱×至少3个场景＝24+的最小要求，后来加入的模型另按当前必选矩阵逐项列PASS/FAIL/SKIPPED。SKIPPED必须有gap_reason且不计PASS；必选场景未运行不能关闭该验收。
 - `docker compose --profile full up` 在干净 ubuntu-latest 5 分钟内健康。
 - nightly 连续 7 天通过率 ≥ 95%（剩下 5% 留给容器抖动）。
 - README 新增 "[Parity vs Open-Source Stack](../README.md#parity)" 段落，链接到最新报告。

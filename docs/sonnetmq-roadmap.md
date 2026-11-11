@@ -4,6 +4,8 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是在单�
 
 状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。
 
+2026-11-11核查：本地队列、批量/组提交、实例快照及离线CLI已有实现；下一步优先明确ACK与OS flush/fsync边界，并完成实例MQ、数据库、身份配置和外部对象的组合恢复。默认OS flush不能被写成物理掉电已验，至少一次也不等于任意业务副作用exactly-once。全仓顺序见[根路线](../ROADMAP.md#当前推进顺序)，证据见[核心核查](audits/roadmap-audit-20261111/core.md)。
+
 ## 设计原则
 
 - **Kafka 的顺序日志**：Topic 以 append-only log 为核心，offset 单调递增，写路径优先顺序 I/O 与批量 flush。
@@ -40,7 +42,7 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是在单�
 
 - ✅ Topic 级保留策略：按大小、时间、已确认 offset 清理。
 - ✅ 死信队列：消费者多次失败后转入 `<topic>.dlq`。
-- 🟡 `message-id` 有界去重窗口，实例级日志/consumer offset 一致快照与校验恢复；跨进程和长期恢复证据仍待补。
+- 🟡 `message-id`有界去重、实例级日志/consumer offset快照与离线snapshot/inspect/restore已有实现；完整实例组合、跨进程/长期与物理掉电验收仍分项待补。
 - 🚧 管理端展示 topic、lag、consumer group、磁盘占用与最近错误。
 - ✅ 单库备份继续保持与 Server 实例 MQ 分离；实例快照恢复由 SonnetMQ 合同独立维护，完整实例门禁仍单列。
 

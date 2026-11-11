@@ -4,12 +4,14 @@
 
 目标是在现有九模型底座上形成一致的批量分析、增量聚合、可恢复持续计算和 AI 特征计算能力。设备分析是重要负载，同时覆盖业务指标、文档分类、状态统计及应用事件；参考其它产品的机制后，按 SonnetDB 的类型、事务、存储和嵌入式边界独立实现。TsFile 不纳入本版适配或格式方案。
 
+2026-11-11核查：C01/C06/C08局部完成；C02复用现有Add/Merge与状态守卫，但数学合同纠偏、统一版本化state仍待做。C03/C04/C05/C07/C09的通用增量合同尚未交付；C10为条件项。全仓顺序见[根路线](../../ROADMAP.md#当前推进顺序)。
+
 ## 1. 当前事实与复用边界
 
 | 已有范围 | 源码或合同 | 本版增量与仍需保留的边界 |
 |---|---|---|
 | 关系 GROUP BY、HAVING、标准聚合、单字段 DISTINCT、精确 Int64/Decimal 及关系窗口 | [关系执行器](../../src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs)、[关系窗口](../../src/SonnetDB.Core/Sql/Execution/RelationalWindowExecutor.cs)、[SQL 合同](../sql-reference.md) | 不重新建设基础分组。关系窗口已有默认 RANGE/peer 语义，但仍有物化与前缀复算成本；JOIN 与聚合/窗口同层组合存在限制。 |
-| measurement 标准、分类、扩展聚合和 `GROUP BY time(duration)` | [measurement 执行器](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs)、[函数注册](../../src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs) | TAG/普通列分组尚未成为当前合同。C01 优先补 TAG＋时间分组，复用原名、类型和稀疏行规则。 |
+| measurement 标准、分类、扩展聚合和 `GROUP BY time(duration)` | [measurement 执行器](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs)、[函数注册](../../src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs) | TAG＋time首片及后续HAVING、复合投影、多键排序/分页已经交付，见[分组证据](../benchmarks/m45-measurement-tag-grouping.md)与[#224续作](../audits/implementation-batch-01-20261015.md)。C01保留完整类型/NULL/空集、FIELD/表达式矩阵与高基数预算，基础分组不重做。 |
 | 可合并累加器、Welford、TDigest、HLL、段聚合 sketch 与下推 | [累加器接口](../../src/SonnetDB.Core/Query/Functions/IAggregateAccumulator.cs)、[扩展聚合](../../src/SonnetDB.Core/Query/Functions/Aggregates/ExtendedAggregateFunctions.cs)、[QueryEngine](../../src/SonnetDB.Core/Query/QueryEngine.cs) | 当前接口有 Add/Merge/Finalize，没有统一 retract。接口 XML 将 `A+B == B+A` 称为结合律，并要求 merge 幂等；COUNT/SUM 的累加合并不能按这一要求解释。C02 分开数学合同和输入去重。 |
 | 差分、increase/rate/irate、积分、累计、平滑、LOCF/interpolate/fill、状态/轨迹函数 | [窗口函数注册](../../src/SonnetDB.Core/Query/Functions/FunctionRegistry.cs) | 已有函数不再包装为新增；C07 补时间边界、批流 state、counter reset、缺失跨度及对拍。 |
 | 逻辑视图、显式全量刷新物化视图、代际发布与中断恢复 | [物化视图管理器](../../src/SonnetDB.Core/Views/MaterializedViewManager.cs)、[物化合同](../sql-reference.md) | 当前 REFRESH 是全量路线；C04 在有限 SQL 子集上增加增量维护与 rollup，不自动把任意 SELECT 改成增量执行。 |
@@ -58,7 +60,7 @@
 
 初始增量模式拒绝 JOIN、递归 CTE、任意子查询、外部/UDF、非确定性 now/random/模型调用、无界排序分页和跨数据库事务。逻辑视图展开、物化视图链、DISTINCT、FIRST/LAST、sketch 与复杂窗口只能在各工作包明确开放后使用，不能因为批 SELECT 接受它们而自动进入增量模式。GROUPING SETS/ROLLUP/CUBE、计数/状态/变化窗口及 ASOF 不默认进入必选。
 
-示意目标查询，当前 measurement 执行器尚不支持这一分组组合：
+以下查询展示已经有切片支持的TAG/time/HAVING批查询组合；增量维护尚未因此成立，精确支持矩阵以当前SQL合同及上述回归为准：
 
 ```sql
 SELECT "Plant", "DeviceType", time AS bucket,

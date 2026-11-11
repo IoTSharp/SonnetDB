@@ -1,8 +1,29 @@
-# GitHub Issues Roadmap Snapshot
+# GitHub Issues 路线快照
 
-状态图例：`✅` 已完成，`🟡` 局部完成/外部证据待补，`🚧` 进行中，`📋` 未开始，`⏳` 待验证，`❌` 失败/阻断，`⏸️` 暂停，`❓` 未知。当前队列中的开放事项统一保留为 `🚧`，直到实现、验证和外部收口全部完成。
+核查日期：2026-11-11（Asia/Shanghai）。本页只保存外部事项状态与内部路线映射，全仓排序见[根路线](../ROADMAP.md#当前推进顺序)。[API回执](audits/roadmap-audit-20261111/remote-snapshot.json)记录查询、返回状态和源码身份，本轮没有评论、关闭、重开、创建issue/PR。
 
-## Current queue — 2026-10-15
+## 当前外部队列
+
+实时读取：**6个OPEN issue、0个OPEN PR**。这些状态是该次读取的事实，不用2026-09/10旧快照替代。
+
+| GitHub issue | 类型/路线 | 当前剩余交付 |
+| --- | --- | --- |
+| [#397](https://github.com/IoTSharp/SonnetDB/issues/397) | M49 / 功能实现 | .NET/C纵向typed Frame与按批语言矩阵；已有SQL Execute/raw多帧/typed KV切片不重做。 |
+| [#401](https://github.com/IoTSharp/SonnetDB/issues/401) | M50 / 功能实现 | 库级ms/us/ns持久合同、完整链路/迁移恢复；先冻结T01，现measurement仍ms。 |
+| [#396](https://github.com/IoTSharp/SonnetDB/issues/396) | EF应用NativeAOT / 兼容 | 固定最小应用、compiled model/预编译查询与实际publish/运行；不能由Server AOT代验。 |
+| [#402](https://github.com/IoTSharp/SonnetDB/issues/402) | 发行恢复增强 | 可信attempt/双verifier、写前tag身份、资产白名单及未知结果对账接线与受控恢复；离线合同不是实际恢复。 |
+| [#398](https://github.com/IoTSharp/SonnetDB/issues/398) | 安装验收 | 实际公开安装器的干净OS安装/升级/卸载、数据配置保留与Studio/WebView2矩阵。 |
+| [#399](https://github.com/IoTSharp/SonnetDB/issues/399) | 固定硬件验收 | 先冻结机器/语料/版本/持久性/阈值，再执行原容量/恢复/长稳；hosted quick不能替代。 |
+
+同时复核#230/#392/#394/#395/#403/#404为CLOSED、stateReason=COMPLETED（关闭时间均2026-11-07）。它们的代码完成口径保持；公开包、上游或宿主仍缺的证据按独立项跟踪，不因这些门未验就重新列为开放代码任务。
+
+关闭规则以当前AGENTS为准：普通代码issue完整实现且完成必要代码验证即可关闭；功能不全必须保留具体缺口并保持开放。安装/发行/环境issue则满足它自己的合同。下面历史文本中“实现、验证和外部收口全部完成才关闭”不再是当前通用规则。
+
+## 历史记录边界
+
+以下2026-10-15与2026-09记录保留原数量、实现/包状态和当时执行顺序，供追溯，不作为当前队列；历史“当前/latest/next”均只指当时。完整当前事实见本页上表和2026-11-11审计。
+
+## 历史队列 — 2026-10-15
 
 The initial GitHub API read found **46 open issues and no open pull requests**, with the oldest requests created on 2026-10-08. A second read found **48 open issues**, adding #312 (explicit relation primary-key updates) and #313 (bounded measurement FIELD updates). The final snapshot still has **48 open issues**: #314 (exact Decimal ROUND) is newly recorded and #273 is now closed/completed after [public-package verification](audits/issue-273-public-package-20261015.md). The ordered [machine-readable snapshot](audits/github-open-issues-20261015.json) preserves its capture time; the initial counts remain historical facts. The [first ten implementation tasks](audits/implementation-batch-01-20261015.md) distinguish new implementation from release and downstream-provider acceptance.
 
@@ -14,7 +35,7 @@ The [2026-09-25 GitHub read-back](audits/github-pr-queue-20260925.md) initially 
 
 `GH-Issue #N` always means the external GitHub issue. Internal roadmap work items keep their existing `#N` notation. The numbers overlap (for example, GH-Issue #174 is a string-function request while internal M25 #174 is Document capacity), so the prefix is required in roadmap and changelog text.
 
-## Execution Order
+## 历史执行顺序 — 已被当前主路线替代
 
 1. **SQL foundation:** GH-Issue #171 -> #178 -> #172 -> #173 -> #174 -> #175 -> #176 -> #179 -> #181 -> #182 -> #183 -> #192. GH-Issue #189 (`WITH RECURSIVE`) follows #171 and #178.
 2. **SQL DML, concurrency and DDL:** GH-Issue #177 -> #191/#184 -> #190; then #187 -> #188 after catalog and metadata contracts are fixed.

@@ -198,7 +198,7 @@ sndb remote --url http://127.0.0.1:5080 --database metrics --token your-token --
 - [帧协议](docs/frame-protocol.md)、[设备接入](docs/protocol-ingest.md)、[Sparkplug B](docs/sparkplug-b.md)、[可观测性](docs/observability.md)。
 - [Web Admin 与管理工具](docs/web-workbench.md)、[三面能力矩阵](docs/management-tools.md)、[发布与打包](docs/releases/README.md)。
 - [AI / Agent 指南](docs/ai-agent-guide.md)、[MCP Typed Contract](docs/mcp-contract.md)、[llms.txt](llms.txt)、[llms-full.txt](llms-full.txt)。
-- [路线图](ROADMAP.md)、[变更日志](CHANGELOG.md)、[AI 协作规范](AGENTS.md)。
+- [路线图](ROADMAP.md)、[环境与现场资格路线](docs/roadmap-environment-validation.md)、[变更日志](CHANGELOG.md)、[AI 协作规范](AGENTS.md)。
 
 ## 适用范围
 

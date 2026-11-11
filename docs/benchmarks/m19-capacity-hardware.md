@@ -7,6 +7,8 @@ permalink: /benchmarks/m19-capacity-hardware/
 
 # M19 #125 固定目标硬件容量证据
 
+本页是[环境与现场资格路线](../roadmap-environment-validation.md)的 M19/ENV-CAPACITY 专题证据。这里的固定目标机报告不属于普通能力 PR 的代码退出条件；GitHub-hosted、Demo 和现场生产结果必须分层记录。
+
 ## 当前状态
 
 `研发完成，固定硬件容量待验证`。仓库包含可复现的 `high-cardinality`、`small-segments`、`maintenance-chaos` 和 `many-measurements` runner、报告 schema 与 verifier。`M19 Capacity Evidence` 默认在 GitHub 托管 runner 上完成缩规模行为验证，软件发布门禁检查该托管 job 是否成功；当前没有四个 profile 在 ROADMAP 指定固定规格目标硬件上的归档 PASS artifact，该固定硬件容量验收仍为 `NOT_READY`。

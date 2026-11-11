@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "baseline": "92d760077ce0e38525e41e8cfd2a8694e786f029",
+  "checkedAt": "2026-11-11T18:51:29+08:00",
+  "status": "PASS",
+  "checks": {
+    "utf8AndJson": {
+      "status": "PASS",
+      "fileCount": 28
+    },
+    "milestonesM0ThroughM51": "PASS",
+    "workItemCoverage": "PASS",
+    "rootIdPreservation": "PASS",
+    "canonicalPriorityLinks": "PASS",
+    "mqttCrlf": "PASS",
+    "handoffOriginalSuffix": "PASS",
+    "productSourceUnchanged": "PASS"
+    ,"environmentRoute": "PASS"
+  },
+  "errors": {
+    "missingWorkItems": [],
+    "removedRootIds": [],
+    "newBrokenLocalLinks": [],
+    "trailingWhitespace": [],
+    "milestoneCoverageIncorrect": false,
+    "mqttCrlfChanged": false,
+    "handoffHistoryChanged": false,
+    "productFilesChanged": "",
+      "capabilityMaturityDrift": false,
+      "environmentRouteMissing": false,
+    "missingCapabilityEvidence": []
+  },
+  "inheritedBrokenLocalLinks": [
+    {
+      "source": "HANDOFF.md",
+      "line": 4763,
+      "target": "docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md"
+    },
+    {
+      "source": "HANDOFF.md",
+      "line": 4773,
+      "target": "docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md"
+    },
+    {
+      "source": "HANDOFF.md",
+      "line": 4821,
+      "target": "docs/design/m47-unified-management-workbench/wb97-helper-observation-integration.md"
+    },
+    {
+      "source": "HANDOFF.md",
+      "line": 7994,
+      "target": ".publishing/blogs/178-views-materialized-views-and-sql-routines.md"
+    },
+    {
+      "source": "HANDOFF.md",
+      "line": 7994,
+      "target": ".publishing/blogs/179-explain-spill-parallel-and-result-budgets.md"
+    }
+  ],
+  "submodules": [
+    {
+      "path": "extensions/IoTSharp.CoAP.NET",
+      "head": "797a85992ad33be02c4aa4f4ea9c849ed382c2cc",
+      "parentPinnedHeadUnchanged": true,
+      "changedFiles": [
+        "ROADMAP.md"
+      ],
+      "diffCheck": "PASS"
+    },
+    {
+      "path": "extensions/MQTTnet.AspNetCore.Routing",
+      "head": "9e0c8202fc93737b2bbde013ed488d37948ad5c7",
+      "parentPinnedHeadUnchanged": true,
+      "changedFiles": [
+        "ROADMAP.md"
+      ],
+      "diffCheck": "PASS"
+    }
+  ],
+  "priorAttempts": [
+    {
+      "status": "PASS",
+      "scope": "two-file trial"
+    },
+    {
+      "status": "FAIL",
+      "scope": "first full documentation check",
+      "reason": "CoAP roadmap lacked canonical priority link; corrected before final validation"
+    }
+  ],
+  "notRun": [
+    "local product restore/build/format/test",
+    "runtime reproduction of full-text gap",
+    "benchmark",
+    "fault injection",
+    "NativeAOT publish/run",
+    "clean install",
+    "fixed hardware",
+    "physical power loss",
+    "168-hour soak",
+    "package download/consumer",
+    "commit/push/release/deploy"
+  ],
+  "boundedExecution": {
+    "maxDocuments": 70,
+    "maxTrackedPaths": 30000,
+    "maxLinesPerFile": 20000,
+    "deadlineSeconds": 50,
+    "gitTimeoutSeconds": 10,
+    "elapsedSeconds": 4.245
+  },
+  "inventory": {
+    "status": "PASS",
+    "sha256": "df2ea455bd0cda1a9723efcd64515ea5f4869f8e51b4b909f34c8aff311dc95a",
+    "counts": {
+      "activeRoadmaps": 10,
+      "documents": 37,
+      "namedMilestones": 52,
+      "currentWorkItems": 150,
+      "taskBearingTableRows": 275
+    }
+  },
+  "resourceCleanup": {
+    "status": "PASS",
+    "temporaryDirectory": "D:/source/SonnetDB/.publishing/tmp/roadmap-audit-20261111",
+    "directoryAbsent": true,
+    "scriptAndPrefixRemoved": true,
+    "processPid": 48800,
+    "processCleanupComplete": true,
+    "persistentProcessesStarted": 0,
+    "subagentReports": "No persistent processes or temporary files were created by the three audit agents."
+  },
+  "gitDiffChecks": {
+    "main": "PASS",
+    "CoAP": "PASS",
+    "MQTT": "PASS",
+    "indexStaged": false,
+    "commitOrPush": false
+  },
+  "environmentRoute": {
+    "status": "PASS",
+    "path": "docs/roadmap-environment-validation.md",
+    "sha256": "c34ef2e8be059eb78b8e4d2574600a58b0db2ae1b5edaad6cd7b8e07c30a5e68",
+    "lines": 121,
+    "scope": "ENV-00..ENV-06; Demo, fixed hardware, physical power-loss/media, 168-hour/7-day soak, field logs and qualification readback",
+    "runtimeExecutedThisTurn": false
+  },
+  "environmentRouteUpdate": {
+    "status": "PASS",
+    "path": "docs/audits/roadmap-audit-20261111/environment-route-update.md",
+    "sha256": "7226bb7949c7749ae7ec8509e1b649314e36c3d5d7ec411ed147c5b519ab400d",
+    "scope": "User-requested separation of environment qualification from ability completion",
+    "runtimeExecutedThisTurn": false
+  },
+  "postAuditEnvironmentRouteChecks": {
+    "status": "PASS",
+    "checkedFiles": [
+      "ROADMAP.md",
+      "docs/roadmap-environment-validation.md",
+      "docs/design/m48-single-node-log-event-analytics.md",
+      "docs/design/m50-timeseries-timestamp-precision.md",
+      "docs/design/m42-relational-hot-write-concurrency.md",
+      "docs/m40-graph-367-production-gate.md",
+      "docs/benchmarks/m19-capacity-hardware.md",
+      "docs/benchmarks/m41-production-closeout.md",
+      "docs/benchmarks/document-store-capacity.md",
+      "docs/benchmarks/ecosystem-soak.md",
+      "docs/roadmap-total-milestone.md",
+      "README.md",
+      "README.en.md",
+      "docs/index.md"
+    ],
+    "productSourceChanged": false,
+    "runtimeExecuted": false
+  },
+  "currentRootRoadmap": {
+    "sha256": "cd8e59201da222d42ae889660967855d7975eee1cd562a5b2bd1c420bf0af933",
+    "canonicalEnvironmentRouteLink": "PASS"
+  }
+}

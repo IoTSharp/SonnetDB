@@ -7,6 +7,8 @@ permalink: /benchmarks/m41-production-closeout/
 
 # M41 #381 生产收口
 
+固定 x64/ARM64、线上 Demo/现场生产、物理掉电和 168 小时混合负载不在本地收口报告内，统一由[环境与现场资格路线](../roadmap-environment-validation.md)管理。M41 的代码、差分、预算和本地报告可以先交付；环境资格缺失时保持 `DEFERRED/NOT_RUN`，不回退本地实现状态。
+
 M41 的查询规划与执行优化已经在本地完成实现、差分和自动化门禁。#381 本次交付的是可重复的本地收口报告；现场运行相关的验证明确后置，不把开发机或合成数据结果当作生产发布结论。
 
 ## 运行
@@ -33,8 +35,8 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m41-production-cl
 | `process_crash_replay` | 目标节点真进程 kill/reopen | WAL replay、checkpoint、恢复时间和逐模型不变量 |
 | `backup_restore_deployment` | 现场备份介质与权限 | backup/restore 后逐模型数据对拍 |
 | `native_aot_target_rids` | 实际 x64/ARM64 RID 部署 | CLI/Server 启动、原生依赖和首查 smoke |
-| `fixed_hardware_x64_arm64` | 固定目标硬件 | P50/P95/P99、RSS、分配、GC、锁/队列等待和 I/O |
-| `seven_day_mixed_workload` | 连续 168 小时运行 | 吞吐、尾延迟、内存上界、WAL/checkpoint 和异常重启 |
+| `fixed_hardware_x64_arm64` | 固定目标硬件 | 转入环境路线 ENV-02：P50/P95/P99、RSS、分配、GC、锁/队列等待和 I/O |
+| `seven_day_mixed_workload` | 连续 168 小时运行 | 转入环境路线 ENV-04：吞吐、尾延迟、内存上界、WAL/checkpoint 和异常重启 |
 | `mulei_same_corpus` | 木垒现场同语料分析 | examined/returned amplification 与现网查询 fingerprint 对账 |
 
 完成这些验证后，应更新同一报告 schema 的后置项并重新经过发布评审；在此之前，优化仍依赖现有正确性回退、资源预算和 feature gate 保护。

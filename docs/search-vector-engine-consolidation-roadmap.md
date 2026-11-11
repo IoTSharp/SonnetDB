@@ -4,6 +4,8 @@
 
 > 2026-06-26 决策：DotSearch / DotVector 不再作为 SonnetDB 之外的独立产品线继续扩张。两者的算法、索引和分词能力已收编为 `SonnetDB.Core` 内部引擎；面向 `Microsoft.Extensions.VectorData` 的 SonnetDB 适配已迁移到 `SonnetDB.Data`。
 
+2026-11-11核查定位：本路线是搜索/向量源码合并与依赖收敛的已完成工程归档，不重开为新引擎开发。这里的✅不表示相关性/Recall、容量、端到端预算或生产门禁完成；这些剩余分别归M35/M36/M40/M42和[当前主路线](../ROADMAP.md#当前推进顺序)，见[审计](audits/roadmap-audit-20261111/README.md)。
+
 ## 1. 目标
 
 SonnetDB 对外只保留一套数据库体验：

@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-11-11T17:43:48+08:00",
+  "timezone": "Asia/Shanghai",
+  "localHead": "92d760077ce0e38525e41e8cfd2a8694e786f029",
+  "repository": "IoTSharp/SonnetDB",
+  "readOnly": true,
+  "queries": {
+    "issues": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 63544,
+      "cleanupComplete": true,
+      "data": [
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/402",
+          "number": 402,
+          "state": "open",
+          "title": "[发行恢复] 补齐 tag 写前复核、外部结果对账与已验证资产白名单",
+          "updated_at": "2026-11-07T00:49:08Z"
+        },
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/401",
+          "number": 401,
+          "state": "open",
+          "title": "[M50/时序] 按库实现 ms/us/ns 精度及无损全链路迁移合同",
+          "updated_at": "2026-11-07T00:49:02Z"
+        },
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/399",
+          "number": 399,
+          "state": "open",
+          "title": "[固定硬件验收] 补齐版本绑定的容量查询性能与恢复报告",
+          "updated_at": "2026-11-07T00:48:58Z"
+        },
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/398",
+          "number": 398,
+          "state": "open",
+          "title": "[发行验收] 完成公开安装包的干净系统安装升级卸载与数据保留矩阵",
+          "updated_at": "2026-11-07T00:48:53Z"
+        },
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/397",
+          "number": 397,
+          "state": "open",
+          "title": "[M49/SDK] 补齐九模型 typed Client 与真实 HTTP/2 语言消费者",
+          "updated_at": "2026-11-07T00:48:47Z"
+        },
+        {
+          "html_url": "https://github.com/IoTSharp/SonnetDB/issues/396",
+          "number": 396,
+          "state": "open",
+          "title": "[EF Core/AOT] 明确并交付最小受支持的 NativeAOT Provider 路径",
+          "updated_at": "2026-11-07T00:48:42Z"
+        }
+      ]
+    },
+    "head": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 3352,
+      "cleanupComplete": true,
+      "data": {
+        "date": "2026-11-11T03:45:55Z",
+        "html_url": "https://github.com/IoTSharp/SonnetDB/commit/9d022d866d643e6a19990bf7f320267d7a2675dc",
+        "message": "Merge pull request #424 from IoTSharp/copilot/fix-github-actions-build-test\n\nStabilize Windows Core timeout test under runner load",
+        "sha": "9d022d866d643e6a19990bf7f320267d7a2675dc"
+      }
+    },
+    "runs": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 47116,
+      "cleanupComplete": true,
+      "data": [
+        {
+          "conclusion": "success",
+          "created_at": "2026-11-11T08:58:30Z",
+          "event": "schedule",
+          "head_sha": "9d022d866d643e6a19990bf7f320267d7a2675dc",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42991267342",
+          "id": 42991267342,
+          "name": "Parity",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "created_at": "2026-11-11T03:46:00Z",
+          "event": "dynamic",
+          "head_sha": "9d022d866d643e6a19990bf7f320267d7a2675dc",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42954883624",
+          "id": 42954883624,
+          "name": "Running Copilot Code Review",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "created_at": "2026-11-11T03:45:58Z",
+          "event": "push",
+          "head_sha": "9d022d866d643e6a19990bf7f320267d7a2675dc",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42954879045",
+          "id": 42954879045,
+          "name": "CI",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "created_at": "2026-11-11T03:45:58Z",
+          "event": "push",
+          "head_sha": "9d022d866d643e6a19990bf7f320267d7a2675dc",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42954878806",
+          "id": 42954878806,
+          "name": "CodeQL",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "created_at": "2026-11-11T03:45:58Z",
+          "event": "push",
+          "head_sha": "9d022d866d643e6a19990bf7f320267d7a2675dc",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42954878803",
+          "id": 42954878803,
+          "name": "Connectors Release",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:53:54Z",
+          "event": "pull_request",
+          "head_sha": "3d15c5f2a26d86596f946cf95b83a61188536712",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42949104371",
+          "id": 42949104371,
+          "name": "CodeQL",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:53:54Z",
+          "event": "pull_request",
+          "head_sha": "3d15c5f2a26d86596f946cf95b83a61188536712",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42949104369",
+          "id": 42949104369,
+          "name": "CI",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:53:54Z",
+          "event": "pull_request",
+          "head_sha": "3d15c5f2a26d86596f946cf95b83a61188536712",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42949104358",
+          "id": 42949104358,
+          "name": "Connectors Release",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:52:51Z",
+          "event": "pull_request",
+          "head_sha": "546907a6a74827cd644b74a93488ee8e77f21dde",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42948988512",
+          "id": 42948988512,
+          "name": "CI",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:52:51Z",
+          "event": "pull_request",
+          "head_sha": "546907a6a74827cd644b74a93488ee8e77f21dde",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42948988495",
+          "id": 42948988495,
+          "name": "CodeQL",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:52:51Z",
+          "event": "pull_request",
+          "head_sha": "546907a6a74827cd644b74a93488ee8e77f21dde",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42948988471",
+          "id": 42948988471,
+          "name": "Connectors Release",
+          "run_attempt": 1,
+          "status": "completed"
+        },
+        {
+          "conclusion": "failure",
+          "created_at": "2026-11-11T02:45:57Z",
+          "event": "pull_request",
+          "head_sha": "d10244b3bc934170ea7c4f54324d33276762b6d3",
+          "html_url": "https://github.com/IoTSharp/SonnetDB/actions/runs/42948231197",
+          "id": 42948231197,
+          "name": "CI",
+          "run_attempt": 1,
+          "status": "completed"
+        }
+      ]
+    },
+    "prs": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 35876,
+      "cleanupComplete": true,
+      "data": []
+    },
+    "closed-issues": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 67668,
+      "cleanupComplete": true,
+      "data": {
+        "data": {
+          "repository": {
+            "i230": {
+              "number": 230,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:48:12Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/230"
+            },
+            "i392": {
+              "number": 392,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:48:21Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/392"
+            },
+            "i394": {
+              "number": 394,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:48:29Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/394"
+            },
+            "i395": {
+              "number": 395,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:48:37Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/395"
+            },
+            "i403": {
+              "number": 403,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:49:17Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/403"
+            },
+            "i404": {
+              "number": 404,
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-11-07T00:49:25Z",
+              "url": "https://github.com/IoTSharp/SonnetDB/issues/404"
+            }
+          }
+        }
+      }
+    },
+    "latest-release": {
+      "status": "failed",
+      "exitCode": 1,
+      "pid": 46924,
+      "cleanupComplete": true,
+      "data": null,
+      "error": "Get \"https://api.github.com/repos/IoTSharp/SonnetDB/releases/latest\": EOF\n"
+    },
+    "latest-release-retry": {
+      "status": "completed",
+      "exitCode": 0,
+      "pid": 57752,
+      "cleanupComplete": true,
+      "data": {
+        "asset_count": 52,
+        "html_url": "https://github.com/IoTSharp/SonnetDB/releases/tag/v5.0.0",
+        "name": "SonnetDB 5.0.0",
+        "published_at": "2026-11-04T07:50:50Z",
+        "tag_name": "v5.0.0",
+        "target_commitish": "main"
+      }
+    }
+  },
+  "scope": "Public GitHub readback only. No issue/PR mutation, publication or deployment. Latest 12 workflow runs are not a complete release-readiness or seven-day parity verification. Latest release lookup verifies metadata and asset count only, not downloads, payload hashes or consumers.",
+  "sourceComparison": {
+    "command": "git diff --stat 9d022d866d643e6a19990bf7f320267d7a2675dc HEAD",
+    "exitCode": 0,
+    "result": "HANDOFF.md | 12 insertions; no product source or CI configuration difference"
+  },
+  "network": {
+    "direct": "failed: connect timeout",
+    "fallback": "per-process HTTP_PROXY/HTTPS_PROXY http://127.0.0.1:7890",
+    "retriesPerQuery": 1
+  },
+  "additionalQueriesRecordedAt": "2026-11-11T18:40:44+08:00"
+}

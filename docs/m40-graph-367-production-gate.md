@@ -1,5 +1,7 @@
 # M40 #367 Graph Production 发布门禁
 
+本文件的代码/evaluator/本地回归部分属于能力路线；固定目标机上的 1m vertex/10m edge、现场/性能对比、NativeAOT 实际运行和原规模恢复资格进入[环境与现场资格路线](roadmap-environment-validation.md)。AOT 编译、可重复软件消费者、确定性 backup/restore/invariant 和软件语义对拍仍由能力路线完成。环境门禁只阻断 Graph Preview/Beta/Production 的对应级别发布，不阻断已完成的 Graph API、存储、恢复和本地回归代码切片。
+
 ## 状态与边界
 
 #367 strict evaluator 已完成：`m40-graph-production-input-v2` 只接受带 schema 的 dataset、environment、soak、journey 和 check/closed-gap 原始 artifact，独立重算 manifest 摘要，并校验 artifact SHA-256、真实 commit/HEAD、clean worktree 及结构化复现命令退出码。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、一次独立子进程 kill/reopen、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、每日 kill matrix 或 168 小时运行，因此输出必须保持：
@@ -12,7 +14,7 @@ release_decision: NOT_RUN
 
 这里的 `NOT_RUN` 是当前 evaluator 报告字段；路线状态使用 `DEFERRED` 表示这些正式样本已移入真机/外部环境验证，不表示编码或本地门禁缺失。
 
-截至当前提交，evaluator 自身加固和防误报回归、M40 修复顺序步骤 1~7 的编码与本地门禁均已完成。LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact、跨进程 kill/reopen、backup/restore 和 7 天固定硬件报告属于真机/外部环境路线，当前标记为 `DEFERRED`，不回退 M40 研发完成状态。原生属性图已以 Graph Beta 计入九模型产品定位；正式 Production 门禁仍须真实证据通过。
+截至当前提交，evaluator 自身加固和防误报回归、M40 修复顺序步骤 1~7 的编码与本地门禁均已完成。LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact、跨进程 kill/reopen、backup/restore 和 7 天固定硬件报告属于环境路线，当前标记为 `DEFERRED`，不回退 M40 研发完成状态。原生属性图已以 Graph Beta 计入九模型产品定位；Preview/Beta/Production 发布资格仍须按实际环境证据分别判定。
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 
@@ -77,7 +79,7 @@ dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Rel
 
 ## 严格判定
 
-本节是 evaluator 已实现的判定合同；各项真实 Production artifact 仍为 `NOT_RUN`，不表示实际发布门禁已经通过。
+本节是 evaluator 已实现的判定合同；各项真实环境 artifact 仍为 `NOT_RUN`，不表示实际 Preview/Beta/Production 资格已经通过。
 
 Gate A `correctness_recovery` 要求以下检查全部 PASS：
 

@@ -1,6 +1,6 @@
 # SonnetDB VS Code Extension Roadmap
 
-This roadmap is the implementation plan for the official SonnetDB VS Code extension.
+This roadmap tracks the existing extension and its remaining work. Audit on 2026-11-11: #99–#107 describe delivered implementation slices; #108 retains its package/host evidence boundary. The M47 extension candidate is a separate delivery from the historical 0.4.x Marketplace baseline. Current repository priorities are in [ROADMAP](../../ROADMAP.md#当前推进顺序); per-host findings are in the [ecosystem audit](../../docs/audits/roadmap-audit-20261111/ecosystem.md). No current Marketplace installation or browser run was repeated in this audit.
 
 Status legend: `✅` complete, `🟡` partial or external evidence pending, `🚧` in progress, `📋` planned, `⏳` awaiting verification, `❌` blocked or failed, `⏸️` paused, `❓` unknown.
 

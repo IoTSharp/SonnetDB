@@ -1,5 +1,7 @@
 # Capability Maturity
 
+Audit on 2026-11-11: roadmap coverage and source/contract review are recorded in the [audit report](audits/roadmap-audit-20261111/README.md). The current index retains 13 `partial` capabilities and Graph `beta`; these describe remaining aggregate scope, not missing implementations. Source completion, candidate evidence and production qualification are tracked separately. No product runtime tests were repeated by this documentation audit.
+
 SonnetDB publicly describes fourteen capabilities: nine native data models and five cross-cutting platform capabilities. The machine-readable source of the current mapping is [`fourteen-capability-evidence-index.json`](audits/fourteen-capability-evidence-index.json).
 
 The public status vocabulary is deliberately narrow:
@@ -12,7 +14,7 @@ The public status vocabulary is deliberately narrow:
 | `not_planned` | The capability is explicitly outside the current SonnetDB contract. |
 | `beta` | A bounded preview contract is available; production gates are not passed. |
 
-The status applies to the named slice, not to every possible workload. A local test, fixture, mock, or quick profile does not replace fixed-hardware, cross-process recovery, external semantic comparison, real-provider, or long-running evidence. Graph remains `beta` until its production gates pass. Single-database backup does not include the instance-scoped SonnetMQ directory.
+The status applies to the named slice, not to every possible workload. A local test, fixture, mock, or quick profile does not replace the fixed-hardware, Demo/field, cross-process recovery, external semantic comparison, real-provider, or long-running evidence tracked in the [environment qualification route](roadmap-environment-validation.md). Graph remains `beta` until its production gates pass. Single-database backup does not include the instance-scoped SonnetMQ directory.
 
 ## Maturity / 成熟度
 
@@ -28,4 +30,4 @@ SonnetDB 对外公开十四项能力：九种原生数据模型和五项跨模�
 | `not_planned` | 明确不属于当前 SonnetDB 合同。 |
 | `beta` | 有限预览合同可用，但生产门禁尚未通过。 |
 
-状态只适用于索引中注明的切片，不代表所有规模和部署方式都已完成。单元测试、fixture、mock 或 quick profile 不能替代固定硬件、跨进程恢复、外部语义对拍、真实 provider 或长期运行证据。Graph 在生产门禁通过前始终标为 `beta`；单库备份不包含实例级 SonnetMQ 目录。
+状态只适用于索引中注明的切片，不代表所有规模和部署方式都已完成。单元测试、fixture、mock 或 quick profile 不能替代[环境资格路线](roadmap-environment-validation.md)中的固定硬件、Demo/现场、跨进程恢复、物理掉电、外部语义对拍、真实 provider 或长期运行证据。Graph 在生产门禁通过前始终标为 `beta`；单库备份不包含实例级 SonnetMQ 目录。

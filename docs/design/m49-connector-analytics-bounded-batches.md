@@ -1,10 +1,10 @@
 # M49：连接器/嵌入式拆分、九模型访问与有界批处理
 
-日期：2026-10-16（Asia/Shanghai）。状态：**实施已开始。C01/C02/D01/R02/R03 首片进行中，其余 planned；15 包均未整体完成。** 当前结果见[实施矩阵](m49-implementation-matrix.md)。
+日期：2026-11-11（Asia/Shanghai）核查；原规划2026-10-16。状态：**C01范围冻结完成，C02/D01/F01/C03～C06/R01～R03部分实现，其余新合同尚待交付；整体M49未完成。** 当前结果见[实施矩阵](m49-implementation-matrix.md)。
 
 本轮按用户直接答复修订此前批量分析路线：`connectors/` 是每语言原生 HTTP/2 二进制 Frame 远程 SDK，平行 `embedded/` 是托管 .NET 与统一 Native AOT C ABI 绑定。**首批只完成九模型数据访问，允许分批正式发行，剩余语言/平台/能力后续完成。** 不保留旧 SDK/API/ABI 兼容层，直接重构。此前有界批处理、类型、资源与终态工作继续复用。
 
-基线仍为已获取源码 `67a5c8c8d64c36002aee5ebcfcb40634e7d5f482`。现有源码尚未按新架构重构，不能将本文当作已交付能力。用户决定、源码证据、平台与非目标详见[确认需求](connector-embedded-split-requirements-20261016.md)。[根路线 M49](../../ROADMAP.md#milestone-49)保存执行索引。
+原设计基线为`67a5c8c8`，当前已交付独立Protocol/.NET Client、SQL Execute、raw streaming、typed KV四操作及若干语言codec切片。其它语言主入口仍有旧C ABI/JNI/ctypes绑定，完整新架构与九模型矩阵未交付；逐包事实见[生态核查](../audits/roadmap-audit-20261111/ecosystem.md)。用户决定、源码证据、平台与非目标详见[确认需求](connector-embedded-split-requirements-20261016.md)。[根路线 M49](../../ROADMAP.md#milestone-49)保存执行索引。
 
 ## 1. 产品与语言矩阵
 

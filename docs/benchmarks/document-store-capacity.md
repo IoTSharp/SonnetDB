@@ -7,6 +7,8 @@ permalink: /benchmarks/document-store-capacity/
 
 # Document Store 容量与长稳报告
 
+本页是[环境与现场资格路线](../roadmap-environment-validation.md)的 M25/ENV-CAPACITY 专题。quick/hosted 结果只证明对应 runner 行为；million/ten-million、固定硬件、Demo/现场恢复和长稳资格单独登记。
+
 本页是 Milestone 25 / #174 的发布治理入口。性能数字只用于容量判断和版本间回归，不进入主 CI 红绿门槛，也不构成跨硬件性能承诺。
 
 ## 可复现入口

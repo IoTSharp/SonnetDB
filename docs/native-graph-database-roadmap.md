@@ -6,6 +6,8 @@
 
 > 本文定义 SonnetDB Milestone 40 的工程路线。2026-09-08 收口结论：Phase 0（#341～#346）、Phase 1（#347～#352）、Phase 2（#353～#359）和 Phase 3 功能切片（#360～#367）的编码、合同、文档、Server/SDK/CLI/Studio parity、恢复边界、strict evaluator 与本地自动化回归均已完成。步骤 6~7 的路径/离线 spill 分配、维护审计尾部恢复、quick kill/reopen、typed point read 的 `graph_not_found` parity 与 exact-revision lease 已落地；Couplet C0 及可在本仓库完成的 source-lane 接线也已归档。固定 workload、外部 Neo4j/PostgreSQL、LDBC/Graphalytics、固定硬件、Native AOT 部署、跨进程 kill/reopen、Couplet C2~C4 和 7 天发布证据属于部署后真机/外部环境路线，统一标记为 `DEFERRED` 并回填主路线的[真机验证待办](../ROADMAP.md#真机验证待办)。M40 研发状态为 ✅（待真机验证）；在 #352/#367 正式 gate 通过前仍不得宣称 Preview/Production 发布门禁通过。
 
+2026-11-11复核：各Phase的✅只适用于其标注的源码/本地合同；**整体仍为Graph Beta**。旧Phase3标题不能解释为生产资格已通过。M40 #352/#367的真实规模、外部语义/算法、匹配AOT、Couplet联合与168小时证据独立保留，见[反驳审查](audits/roadmap-audit-20261111/adversarial.md)。当前优先级由[根路线](../ROADMAP.md#当前推进顺序)统一，已有图存储/查询/恢复底座不重做。
+
 ## 1. 决策与目标
 
 SonnetDB 的图能力采用两种数据来源、一个图计划和一套执行算子：
@@ -290,7 +292,7 @@ Couplet C1 后续审计补充：#343 的 lease/cursor 只冻结一个 KV keyspac
 
 ✅ Phase 2 已满足进入外部 Beta 语义/容量 gate 的功能前置条件；该 gate 尚未在外部环境运行，状态为 `DEFERRED` 并纳入真机验证路线。功能代码、文档和本地门禁已闭环；在外部证据通过前不得宣称 Beta 发布 gate 已通过。
 
-### Phase 3：生产级单机图数据库（✅ 编码与文档完成；#367 真机发布门禁待验证）
+### Phase 3：生产资格准备（✅ 代码与文档切片；⏳ #367生产门禁，整体仍Beta）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|

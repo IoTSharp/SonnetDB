@@ -1,95 +1,65 @@
-# ROADMAP — SonnetDB 4.5 与后续里程碑
+# ROADMAP — SonnetDB 产品路线图
 
-## 2026-11-10 KV-LSM 接续
+核查日期：2026-11-11（Asia/Shanghai）；本地基线 `main@92d760077ce0e38525e41e8cfd2a8694e786f029`。本轮完成路线盘点、源码/测试/历史收据交叉审查和独立反驳，并按可靠性、查询正确性、并发资源与真实成本重新排序。完整发现、覆盖清单和证据见 [审计总报告](docs/audits/roadmap-audit-20261111/README.md)、[核心核查](docs/audits/roadmap-audit-20261111/core.md)、[生态核查](docs/audits/roadmap-audit-20261111/ecosystem.md)和[反驳审查](docs/audits/roadmap-audit-20261111/adversarial.md)。
 
-K1～K8 的阶段源码已随 `ca495cae` 进入 main；K7 为部分完成。该提交的 [CI](https://github.com/IoTSharp/SonnetDB/actions/runs/42754412252)（含 Ubuntu/Windows Core LSM 轮次及三个 AOT Publish 作业）、CodeQL、Docker Publish、Connectors Release、Docs Pages 已成功。该证据只绑定 `ca495cae`，不代替后续提交、公开包、生产或固定硬件验收。默认 LSM、打开时自动迁移、旧版本拒绝 v3 布局的合同见 [设计 §7.6](docs/design/kv-lsm-storage-engine.md#76-k6k8-实现说明与上文设计的差异以本节为准)及[迁移运维](docs/operations/kv-lsm-migration.md)。
+本轮 GitHub 只读回查为 **6 个开放 issue、0 个开放 PR**，见[实时快照](docs/audits/roadmap-audit-20261111/remote-snapshot.json)。远端 `9d022d86` 的 CI、CodeQL、Connectors 和一次 scheduled Parity success；本地与它只有 HANDOFF 差异，产品源码及 CI 配置一致。这证明实际作业覆盖的代码范围，不能替代旧二进制、完整容量、七天 Parity、物理掉电或 168 小时验收。本轮未重新运行产品构建、测试、基准或现场实验。
 
-`f71e8a80` 已提交 10 万／100 万条有界本机基线、基准入口和 13 阶段迁移真实强杀，原始证据见 [KV-LSM 基准与恢复证据](docs/benchmarks/kv-lsm-capacity-20261110.md)。本轮接续已实现 K7 同实例多表原子批次、维护元数据、共享表持久行数、离线回滚 CLI 及回滚中断恢复；并增加共享 SST v3 StorageId 区间／前缀布隆、Version 备份、后台压力暂停和大行恢复 Span 投影。分层验证与重复测量见[本轮接续证据](docs/benchmarks/kv-lsm-followup-20261110.md)；本批提交和双端推送的精确状态见根 HANDOFF 及对应 Git 读回，不由本段推断发行或生产验收。
+## 状态与证据口径
 
-K7 的完整性能／容量门禁仍分别验收：千万条、1000 表 × 1 万行、随机强杀 200 轮、真实旧版二进制、一亿条／168 小时固定硬件不由局部代码或本机基线自动通过。时序 P0-3～P0-5 的[独立设计与具体决策问题](docs/design/time-series-write-partition-duplicates-decisions.md)等待用户决定，本轮未改变时序行为。
+| 标记 | 实现/交付状态 |
+| --- | --- |
+| ✅ | 指定范围已实现且有匹配的适用证据；须注明范围，不能由局部扩大为整个产品。 |
+| 🟡 | 部分实现或部分验收；必须列出已完成切片和具体残余。 |
+| 🚧 | 正在实施/验收，有明确下一交付。 |
+| 📋 | 对应增量尚未实施；已有底座另列，不把底座重新派单。 |
+| ⏳ | 实现/工具已有，指定验收仍待执行。 |
+| ❌ | 该次执行失败，保留版本、输入和原因。 |
+| ⏸️ / ❓ | 明确暂停 / 证据不足，不能推断完成。 |
 
-## 2026-11-07 分支整合后的执行顺序
+实现状态与验证结果分开：验证使用 PASS / FAIL / UNKNOWN / NOT_RUN / BLOCKED，均绑定来源、时间、源码或实际产物。旧报告是历史证据，不通过更新日期变成本轮 PASS。普通代码 issue 以完整实现和必要代码验证关闭；发布、上游合入、安装、固定硬件及现场问题按各自合同验收。**不给出把不同证据层相加的整体完成百分比。**
 
-2026-11-07 上午状态更新：用户明确普通代码 issue 以代码完整实现及必要代码层验证为关闭依据，公开包、上游维护者合入、部署与外部宿主验收分别跟踪；本身属于发布、部署或环境验收的问题仍按其实际合同处理。#230/#392/#394/#395/#403/#404 已回复并关闭为 completed，公开/上游/宿主事项继续保留原始 NOT_RUN 或未完成状态。#396/#397/#398/#399/#401/#402 仍 OPEN，具体缺口已逐条回复。下方较早记录中的“母 issue 继续 OPEN”是当时的关闭口径，不作为当前状态。GetAndDelete 后续修复 cdaebfa5 已拒绝缺失旧记录却带变更版本的确认，保留未知结果且不重试；完整 Client 274/274 通过，准确推送与回读见根 HANDOFF。
+固定硬件、线上 Demo、现场生产、物理掉电、介质耐久和 168 小时/7 天长稳统一归入[环境与现场资格路线](docs/roadmap-environment-validation.md)。这些环境资格只阻断对应的 Demo/Preview/Beta/Production 或环境 issue，不阻断普通代码切片、协议合同、确定性进程强杀、损坏/满盘、旧格式拒绝和本地恢复回归。没有目标机、运行窗口或原始日志时保持 `NOT_RUN`/`UNKNOWN`；Demo 或生产日志只能证明其中实际记录的版本、时间窗、负载、故障和恢复结果。
 
-PR #413 已修复审查发现的超时后提交、Windows 挂载卷及只读容量查询重建目录问题，并在最终精确源码验证后合入 main；已合入切片不重新立项。下一阶段由新监督会话按[共同 Provider 三线并行合同](docs/handoffs/provider-next-phase-20261107.md)接续第一顺序，逐项状态及后续见 [PR #413 审查与 issue 矩阵](docs/audits/pr413-integration-20261107.md)。
+<a id="当前推进顺序"></a>
 
-2026-11-07：三位独立worker完成共同候选`5.1.0-rc.20261107.1`/source`eb5c0e5f`的消费者增强和独立复核；本地四包/JIT与实际CI四包/NativeAOT Server各69步骤PASS，三协议、after-ACK强杀/Down/Up及Server重开齐全，12类发行readiness READY。证据见[发行评审/机器清单](docs/releases/provider-candidate-20261107.md)及[迁移](docs/audits/provider-candidate-20261107-migrations.md)、[JSON](docs/audits/provider-candidate-20261107-json-update.md)、[集合](docs/audits/provider-candidate-20261107-ownsmany.md)专题；正式发行延期及公开门保持，母issue不提前关闭。下一独立SDK切片冻结为typed GetAndDelete。
+## 当前推进顺序
 
-| 顺序 | 接续范围 | 下一份可验收交付 |
+下表是全仓唯一的当前优先级入口；专题里的局部依赖继续有效。排序反映风险与收益，不改变已批准的 K8 默认 LSM、时序语义或既有版本范围。已完成的 Windows R1 Web 预览、Provider 切片、MCP 工具与 K7 功能退出重复实施队列。
+
+| 顺序 | 路线归属 | 下一份可验收交付 | 退出条件与并行边界 |
+| --- | --- | --- | --- |
+| 1 | KV-LSM K7、M36/M43、V45-X04；确认写与升级恢复 | 列清时序/KV/MQ 的 ACK、OS flush、fsync 和故障模型；复用现有迁移/回滚/快照实现，补真实旧二进制拒绝、迁移/回滚中断、磁盘不足与未知提交对账；形成数据库＋实例 MQ＋身份配置＋外部对象的恢复清单 | 同候选、原目录无非预期修改、源离线后恢复对账、恢复可再次中断。现有阶段强杀和共享批次不重做；物理掉电/完整规模另验，不擅改默认耐久配置。 |
+| 2 | M36 全文、V45-X05、M48-L08/L10/L11；现有查询正确性 | 修复 typed 全文 `/fulltext/search` 与 embedded 的候选窗口过滤/分页/总数合同；先补“首窗口全被过滤而后续有命中”的真实入口回归，复用已有 Core 过滤能力 | embedded/Server/SDK 对同语料一致，空页不能伪装完整结束；总数/facet 的 exact/lower-bound/truncated 语义明确。可与第1项独立并行；这不是磁盘数据丢失复现。 |
+| 3 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03；高并发与资源 | 沿执行器→Server→typed Client 核对 pull/物化/预取；按数据库与进程归属统一现有预算，补高基数分组、全文 merge、缓存与后台任务竞争的准入/取消/释放 | 固定客户端数与读写混合负载，记录 P95/P99、RSS/heap、排队、锁/租约等待和错误终态。H07B固定硬件/168小时转环境路线；单帧限制、256 MiB 软写缓冲预算均不能当进程硬上限。 |
+| 4 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | 先补累计写入/compaction 字节、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；目录存量字节不冒充写放大。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
+| 5 | 时序 P0-3～P0-5、M50-T01～T03；时序基础合同 | 联合冻结 Point 原子单元、分区/TTL、重复点与每库 ms/us/ns 的兼容/迁移矩阵，然后按独立切片实施 | 具体决策见[待决草案](docs/design/time-series-write-partition-duplicates-decisions.md)。当前保持 ms 与现有重复语义；已有 group commit 不重写，未批准的行为选择不能靠排序自动生效。 |
+| 6 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396；可靠生态消费 | 优先完成 .NET/C 一个模型/操作批次的原生 HTTP/2/TLS、精确类型、终态、取消/未知写入、重开与独立消费者，再扩语言；EF NativeAOT 用最小固定应用单独界定 | codec、旧 C ABI 绑定、raw streaming 与九模型 typed SDK 分开验；已有 ORM/缓存/CAP 不返工。CAP 同组多活动实例须先有 lease/fencing/ACK 合同，不直接调高线程数。 |
+| 7 | M45-C02～C09、M43、V45-X03；持续计算 | 先澄清 Merge 数学合同和输入去重，再做版本化 state、before/after/retract、有限增量物化及批流对拍 | 对同事件日志验证 update/delete/重投/迟到/重开；不支持输入拒绝或有界重算。本地窗口、DLQ、outbox/receipt 与全量 REFRESH 继续复用。 |
+| 8 | M44/M48、M47 后续宿主、M51；应用与产品闭环 | 在上述真实入口上交付一条可衡量的业务旅程；M47 补已开放页面正确性和 Studio/VS Code 实物门禁；M51 复用主线43工具完成0.2.0宿主/HTTPS/凭据闭环 | 真实质量/成本、权限/删除/恢复和适用宿主逐项验收。M48 日志 R1、自动运维、Buddy应用、额外 codec/算法按明确用户收益推进，不扩大无证据承诺。 |
+
+执行分三条可并行工作线：**可靠性与恢复、查询/并发正确性、消费者与环境验收**。每条线交付小而完整的切片；生产或公开发布时汇合其适用门禁。GH-Issue #398 干净系统安装、#399 固定硬件、#402 发行恢复增强独立接续，不能用“等环境”拖住普通代码修复，也不能用小修 PASS 关闭这些环境问题。
+
+## 已完成切片与必须保留的缺口
+
+| 范围 | 已核实且不重做 | 尚未完成 |
 | --- | --- | --- |
-| 1 | #392 / #395 / #394：共同 Provider 候选 | 从全部整合后的最终 source 冻结包与匹配 Server，重验库存迁移/回退、补货 JSON 更新及 OwnsMany 生命周期。正式发布已延期；恢复发行后以公开新包及独占空缓存复验，满足后关闭。 |
-| 2 | #397：M49 SDK | 在 typed KV Get/Put/Scan 基础上冻结下一操作/模型/语言包，补真实原生 HTTP/2、TLS/ALPN、取消/未知写入、ABI、重开及公开消费者。 |
-| 3 | #230 / #404：上游 Provider | 接续 FreeSql #2291、XCode #104→#105 的实际审查/合入，公开 Core/Provider 后验证全公开组合；候选与上游发行分别记账。 |
-| 4 | #396 / #402：AOT 与发行恢复 | EF 固定静态查询应用取得预编译/NativeAOT 的首个具体缺口；恢复流程先补可信 attempt 来源与双 verifier，再做受控预发布失败恢复。 |
-| 5 | #398 / #399 / #403：独立环境验收 | 先落实干净 OS、固定硬件/阈值、正式 HTTPS/WorkBuddy 宿主与平台入口，再分别执行安装生命周期、原规模容量/长稳、九模型及送审公开闭环。 |
-| 6 | #401：M50 高精度时序 | T01 冻结独立版本/API/矩阵→T02 精确换算→T03–T06 持久元数据/格式/WAL/恢复→T07–T11 查询/分桶/retention，再接协议、语言、迁移与固定硬件。 |
+| KV-LSM K1～K8 | K1～K6/K8 已接产品；K7 同实例多表单批次、持久行数、维护元数据、回滚 CLI、SST v3前缀布隆、Version备份与压力暂停已有实现 | K7 剩余代码侧计量/负载工具、原规模回归、随机200轮、真实旧二进制和迁移恢复；固定硬件、物理掉电、168小时转入[环境路线](docs/roadmap-environment-validation.md)。混合布局继续 journal，通用 KV Count/TTL 仍有扫描。 |
+| 性能现状 | 历史10万条/1KiB匹配测量中写后快照 P99 从4627.6降至2.5 µs | 同测量缓冲随机写吞吐63917→46825 ops/s，分配1241→3537 B；不能声称全面变快。这些数字绑定原测量源码，非本轮 HEAD 新测。 |
+| Provider / MCP | 迁移、JSON、OwnsMany 的历史共同候选各69步；主线43个 MCP 工具与权限/预算测试；普通已关闭代码事项不重开 | EF 应用 AOT、最新公开包消费、上游发布和 WorkBuddy 宿主各自验收。 |
+| M47 Preview 1 | candidate12 / 4.5.0-preview.1.12 的限定 Windows R1 Web 放行、发布与独立回读已归档 | Studio、VS Code、三面正式版、完整九模型专用动作未由该预览完成。 |
+| M44 / M45 / M46 | RAG/任务底座、TAG/time分组及后续HAVING、sketch守卫、Int64 RLE/raw与v7拒绝已有切片 | 真实AI质量、通用增量SQL/撤回、完整自适应编码与原规模成本仍未完成。 |
+| M48 / M50 | 规划、复用入口与验收合同存在 | 日志R1与时序每库ms/us/ns尚未交付；关系日期100ns不是时序ns。M48-L20B、M50-T30B的固定硬件/现场/168小时转入[环境路线](docs/roadmap-environment-validation.md)。 |
+| 九模型与五项平台能力 | 每域有真实实现与入口，详见[能力索引](docs/audits/fourteen-capability-evidence-index.json) | 整体仍 partial，Graph保持Beta；没有新增证据支持“全部生产就绪”或“默认物理掉电绝不丢数据”。 |
 
-2026-11-07下一独立切片：typed GetAndDeleteKvAsync复用既有op6并保留旧记录及变更版本，新增codec44例、完整Client272例及真实产品Server7例本地通过；source336f9aa8的Client/Protocol两包候选及仓库外独占缓存应用、两代同目录Server重开均PASS。TLS/ALPN、公开消费和其余M49范围不外推，#397继续OPEN。详见[#397专题及机器收据](docs/audits/issue397-get-and-delete-20261107.md)，不修改已冻结的Provider候选。
-
-这 12 个母 issue 仍有未完成的公开、上游或实机门禁；#367/#393/#400/#407 已关闭。原 `0d687bd9` 5.1 候选的 PASS 不外推到新源码。Mulei 后续仍保留 FIFO 长尾、中心超时/积压、统计刷新取消、历史缺图及完整长稳；本次不执行生产操作。
-
-## 路线图状态图例
-
-| 标记 | 含义 |
-|---|---|
-| ✅ | 已完成：该任务声明范围的实现与适用证据齐全。 |
-| 🟡 | 局部完成：已有本地/单片证据，外部、发布、硬件或长期证据仍待补。 |
-| 🚧 | 进行中：已开始实施或验收，仍有明确剩余工作。 |
-| 📋 | 未开始：已规划，尚未实施。 |
-| ⏳ | 待验证：已有实现或材料，但关键验证尚未运行。 |
-| ❌ | 失败/阻断：最近执行失败，需修复后重试。 |
-| ⏸️ | 暂停：明确暂停，保持现状等待恢复条件。 |
-| ❓ | 未知：证据不足，不能推断完成情况。 |
-
-状态只描述对应任务声明的范围；局部代码、mock、fixture、单机短跑或历史回执不自动升级为远程、固定硬件、生产、长期运行或正式发布完成。
-2026-11-07上游接续：XCode #105新增两条late review已实际复现并由source9fc590a78最小修复，两个原测试从2 FAIL到2 PASS；六目标构建、source-linked及新两包66/66、三协议9进程/6次Server生命周期均通过，review已回复并读回resolved。新head CI为13 SUCCESS/3 FAILURE（OIDC/iOS工具链/s390x NovaDb），保留FAIL；#104→#105合入/公开Core-Provider/全公开新缓存链尚未完成，#404不关闭。FreeSql#2291仍OPEN、Provider索引404，#230不关闭。详见[上游review收据](docs/audits/issue404-review-20261107.md)。
-
-2026-11-04：**[M51：WorkBuddy生态集成](#milestone-51)**当前连接器/Skill合同更新为0.2.0，面向SonnetDB 5.0的43工具发现、默认Read和用户明确授权的Write。生产切片49731955保持冻结，不重复开发；历史Docker/r2九工具证据保留source。平台解析、HTTPS、宿主验收与正式送审仍未完成，由统一发布流程逐项整合。
-
-2026-11-02：新增 **[M50：时序时间戳精度与无损时间链路](#milestone-50)**，按库真正保存 `ms/us/ns`、默认 `ms`，规划 30 项必选与 2 项条件任务；全部 `📋 planned`。完整实现思路、源码归属、依赖/验收、迁移/旧端拒绝与初步工作量见 [M50 专题](docs/design/m50-timeseries-timestamp-precision.md)。M50 独立冻结版本与批次，本次仅更新规划，不启动源码改造或变更现有 4.5/预览/连接器批次范围。
-
-2026-10-16：按用户确认修订 **[M49：连接器/嵌入式拆分、九模型访问与有界批处理](#milestone-49)**。远程各语言原生 HTTP/2 二进制 Frame，嵌入式 .NET 托管与非 .NET 共用 AOT；VB6/PureBasic 仅远程。首批只做九模型数据访问、先64位、Java8兼容、直接重构不留旧兼容层，允许分批正式发行。D01/F01/C01～C08/R01～R05 共15包，首片已实施、均未整体完成；详见 [M49 专题](docs/design/m49-connector-analytics-bounded-batches.md)与[确认需求](docs/design/connector-embedded-split-requirements-20261016.md)。
-
-2026-10-17：F01 关系 SQL 写入首片已接通新 Client→真实 HTTP/2→Server：Execute=2/payload v1、精确参数、类型化 NULL、单条自动提交、完整终态与未知提交无重试。旧 ADO 迁移等待多结果/事务合同；九模型 F01 与 R01～R03 仍未关闭。见[协议](docs/sql-execute-frame.md)和[换机入口](docs/handoffs/m49-next-computer.md)。
-
-M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程序集脱离 Core，Client 只依赖 Protocol；真实 h2c、取消、关闭、预算和干净包消费者证据见 [D01 审计](docs/audits/m49/d01-20261016/README.md)。D01/F01/R01～R03 仍未整体完成，换机接续见 [M49 交接](docs/handoffs/m49-next-computer.md)。
-
-2026-10-16：新增 **[M48：单机日志与事件分析](#milestone-48)**，将 ELK 核心日志场景落实为可靠摄取、联合检索/统计、磁盘访问、生命周期、日志探索和规则告警的增量规划。`M48-L01`～`L20` 为 R1 必选，`L21`～`L24` 为条件候选，当前全部 `📋 planned`；完整字段/确认/查询/恢复合同、24 个工作包、阶段退出与验收矩阵见 [M48 详细设计](docs/design/m48-single-node-log-event-analytics.md)。R1 的目标版本与日期在 L01 冻结，不将全部 M48 自动追加为既有 4.5 正式版或已发布 Workbench 预览的门槛。
-
-2026-10-16：第二批 [十项产品切片](docs/audits/implementation-batch-02-20261016.md)已完成本地实现：GH-Issue #226 存量主键列重命名，#231 持久序列/原子取号/逐行插入，#237 表列注释，#240 字符串长度声明/演进/元数据，以及 #243 有主键和复合主键有界删除。扩大 Core 3157 项、Server SQL/ADO/Frame 412 项（含真实 REST/h2c，本批新增 18 项中 17 项为真实网络）及实际强制终止恢复 2 项回归通过，最终冻结复核与本地提交见根 HANDOFF。表目录含新属性时写 v12，旧引擎拒绝；未改行或键编码。#226 主键类型/定义、#227 DDL 事务、#232/#233/#236 及无主键依赖继续排队；正式发布及 ORM 消费者验收另计，不能由这些切片关闭整个 Issue。
-
-2026-10-15：接收最新 main `c7b307f6`，首次核对 46 条开放 Issue，最终快照 48 条（新增 #312/#313/#314，关闭 #273），清理两个已合并本地分支。本批 [十项实现任务](docs/audits/implementation-batch-01-20261015.md)已完成本地实现：GH-Issue #224 的 HAVING/复合投影/排序分页，#229 多结果 ADO，#257 全表关系 UPDATE，以及 M45/M46 的 Int64 众数/近似去重和三项聚合状态校验。最终 Core 2938 项、真实 REST/h2c 167 项回归通过；实际提交和远端 Issue 闭环见根 HANDOFF，不重做已合入的 #219～#223/#225/#228，不把局部任务提升为整个里程碑、正式发布或下游 ORM 完成。
-
-更新日期：2026-11-03（Asia/Shanghai）。**Workbench 继续按 Web 预览后续、Studio 与 VS Code 各自门禁推进；M48 单独冻结日志 R1 范围。** 首版预览不代表 SonnetDB 4.5 正式版或 M47 三面整体完成，候选12的 P07/P08 已完成；[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12) 已公开，匿名下载与Chrome/Edge本机首跑通过。
-
-根路线图只保留剩余交付、依赖和验收顺序。已完成实现、受限真实旅程以及旧窗口记录已归入 [CHANGELOG：2026-10-10 完成范围归档](CHANGELOG.md#roadmap-completed-archive-2026-10-10-workbench)；详细原始证据仍在 [M47 验证记录](docs/design/m47-unified-management-workbench/validation-report.md)。后续不按 WB 编号重新实施已完成功能。
-
-## 当前执行顺序：Workbench Preview 1
-
-| 顺序 | 交付 ID | 状态 | 目标 | 依赖 / 当前状态 |
-|---|---|---|---|---|
-| 1 | M47-P01 | 🟡 | 冻结预览范围、已提交候选、版本与发布物白名单 | **范围冻结完成，产品仍 NOT_READY**。[范围/入口控制](docs/design/m47-unified-management-workbench/preview-1-scope.md)、[候选01](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)、[独立分发合同](docs/design/m47-unified-management-workbench/preview-1-distribution.md)已记录；入口与分发实现仍阻断。 |
-| 2 | M47-P02 | 🟡 | 定位 Web smoke 失败并取得候选通过证据 | **本地验收完成；远端门禁 NOT_RUN**。[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)、[候选02](docs/design/m47-unified-management-workbench/preview-1-candidate-02.json)：build、448合同、307fixture与12宿主回归通过，25默认skip分列；产品NOT_READY。 |
-| 3 | M47-P03 | 🟡 | 首版真实登录、授权、预算和终态 | **R1本地完成；完整模式四片307通过/25原skip**：[P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)、[范围修订](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)。七模型专用读取延期，原九模型承诺未全部验收；KV/measurement视口渲染与完整/选中导出回归通过；[候选04](docs/design/m47-unified-management-workbench/preview-1-candidate-04.json)固定`57222f57e4cc` / 4.5.0-preview.1.4，产品NOT_READY。 |
-| 4 | M47-P04 | 🟡 | 生成来源明确的 Web/Server 预览发行物 | **候选12 P04通过**：4.5.0-preview.1.12/source5bcd3b81、38145580702 attempt1 success，290项库存/hash/NativeAOT身份独立通过；旧失败保留。 |
-| 5 | M47-P05 | 🟡 | 用实际发行物验首次启动、部署与用户旅程 | **候选12本机R1实物通过**：四阶段37记录、五类拒绝、快照恢复/导出和17回执244身份非空审计通过；[冻结记录](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)。 |
-| 6 | M47-P06 | 🟡 | 完成预览说明、已知限制、升级/回退和反馈入口 | **候选12真实四附件prepare通过**：独立原archive digest、附件/ZIP核验PASS；[分发冻结](docs/design/m47-unified-management-workbench/preview-1-distribution-12.json)保持原P04包字节。 |
-| 7 | M47-P07 | ✅ | 按现有发布门禁核同一候选并作放行评审 | **完成：更新分发工具后P07 READY，12/12门禁、8/8验收**：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 |
-| 8 | M47-P08 | ✅ | 发布、独立回读下载结果并归档首版 | **已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过**：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 |
-
-具体范围、每步退出条件、宿主后续与失败处置见下方 [M47 首个预览版路线](#workbench-preview-1)。P01候选01来源固定为 `c40fa670e3a170c5fac8cefa181d618631862270`，保留版本 `4.5.0-preview.1.1`；仅为已提交实现起点，未构建/验收/打标签。后续代码、配置或打包变更须新增候选与版本，不覆盖该清单、不用 dirty 工作树发包。首版限定 win-x64 同源环回 Web＋Server；旧 `workbench` 定时保持 `PAUSED`。 后继候选02已绑定修复提交 `ed4f48242c5d5b4e7e16861504d03cc845146402` 与保留版本 4.5.0-preview.1.2；本地验收通过，未打包/推送/发布，P07须重核最终候选的全部门禁。
-
-4.5 后续仍推进 AI 应用、聚合/持续计算、存储编码及跨模型成本、恢复、容量与真实质量，按本文件 M44～M46 和 V45 工作包执行；这些增量不自动成为单独 Workbench Web 预览的先决任务。已撤回的系统性能原始报告不作为验收依据。完整背景见 [路线历史](docs/roadmap-history.md)、[4.5 规划核查](docs/audits/sonnetdb-45-roadmap-planning-20261003.md)、[九模型证据](docs/audits/nine-model-capability-evidence-20260905.md)和[十四能力索引](docs/audits/fourteen-capability-evidence-index.json)。
-
+历史候选/执行队列已移到[整理前快照](docs/audits/roadmap-audit-20261111/previous-active-queues.md)。M0～M51、子路线及工作包完整覆盖见[里程碑总索引](docs/roadmap-total-milestone.md)和[机器清单](docs/audits/roadmap-audit-20261111/inventory.json)；历史失败、原始收据和已批准范围保留。
 
 ## 完成判定
 
 1. 代码必须存在且由真实产品入口调用；原型、未调用类型和文档计划不算功能交付。
-2. 实现合同、本地回归、真实服务、固定硬件、真实模型、长期运行及远程发布分别记录；一个层级的 PASS 不升级其它层级。
+2. 实现合同、本地回归、真实服务、真实模型和远程发布分别记录；固定硬件、Demo/现场、物理掉电、长期运行和安装资格统一按[环境路线](docs/roadmap-environment-validation.md)记录，一个层级的 PASS 不升级其它层级。
 3. 新增工作统一为 `📋 planned`。`M44-Axx`、`M45-Cxx`、`M46-Sxx`、`M47-Pxx`、`M48-Lxx`、`M49-Cxx/Rxx/D01/F01`、`M50-Txx`、`M51-Wxx`、`V45-Xxx` 是规划 ID，不是已创建的 GitHub issue 或 PR。既有内部 `#N` 与外部 `GH-Issue #N` 保持区别。
 4. P0 为基础合同与优先交付，P1 为本版深化与验收，P2 为条件候选；只有明确必选范围参与 4.5 完成判定，条件项未经独立评审不成为版本承诺。
-5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；未校准保持 `NOT_READY`，不以自造数据或缩规模 PASS 代替真实效果。
+5. 质量、性能与资源阈值在实现前绑定语料、版本、机器及基线冻结；代码侧未校准保持 `NOT_READY`，环境侧缺目标机/日志保持 `NOT_RUN/UNKNOWN`，不以自造数据或缩规模 PASS 代替真实效果。
 6. Core 保持 Safe-only、零第三方运行时依赖、source-generated JSON、Native AOT/trim 零相关警告及 public API 中文 XML 文档。API/帧保持兼容；新落盘格式必须版本化、拒绝不兼容旧 writer，提供迁移或明确拒绝及恢复方案。SQL 名称遵守 GH-Issue #211。
 
 状态图例同上：`✅` 已完成 / `🟡` 局部完成、外部证据待补 / `🚧` 进行中 / `📋` 未开始 / `⏳` 待验证 / `❌` 失败或阻断 / `⏸️` 暂停 / `❓` 未知。历史完成范围在 CHANGELOG，主路线只列待办。
@@ -100,7 +70,7 @@ M49-D01 共享协议与原生 .NET Frame Client 首片已完成：Protocol 程�
 
 本版必选：M44-A01~A07、M45-C01~C09、M46-S01~S09、M47-U01~U09，以及 V45-X01~X06、X08 中注明的有界合同和适用验收。M44-A08/A09、M45-C10、M47-U10、V45-X07 是条件项；M44-A10 是后续候选。每包拆成单一职责 PR，不将完整研究集合塞入一个实现。
 
-M48 已纳入后续增量路线，R1 必选 L01～L20 与条件 L21～L24 分开验收；它复用本版底层合同，但不改变上述 4.5 必选集合。M48 的版本/平台/负载与发布时间须在其 L01/L20 独立冻结，不以“单机”降低可靠性、权限、预算或恢复要求。
+M48 已纳入后续增量路线，R1 代码候选为 L01～L20A，环境资格为 L20B，L21～L24 为条件项；它复用本版底层合同，但不改变上述 4.5 必选集合。M48 的版本/平台/负载由 L01 冻结，现场/固定硬件/长稳与发布时间按[环境路线](docs/roadmap-environment-validation.md)独立记录，不以“单机”降低可靠性、权限、预算或恢复要求。
 
 本版不纳入 TsFile 适配、导入导出或替换持久格式。参考其它产品机制后按 SonnetDB 当前存储、类型、事务和嵌入式边界独立改进，不以复制语法、算法数量或商业功能清单作为完成条件。完整分片集群、九模型分布式事务、任意外部副作用 exactly-once、完整 SQL/GQL/S3 兼容均不由本路线自动承诺。
 
@@ -132,22 +102,23 @@ M49 按用户确认拆为原生 Frame 远程与托管/AOT 嵌入式两条线；�
 | Milestone | 主题 | 状态 | 剩余工作 / 版本归属 |
 |---|---|---|---|
 | 14 / 27 | Copilot、AI/Agent 数据访问与治理 | 🚧 | 真实 provider 质量/成本、双网与 Studio 实机；Agent Framework 迁移单独评估，自研 CopilotAgent 不改称已基于该框架。 |
-| 19 / 25 | 时序与文档容量 | 🟡 | 四档时序、million/ten-million 文档固定硬件与恢复，复用 runner/verifier。 |
+| 19 / 25 | 时序与文档容量 | 🟡 | 代码/runner/verifier按能力路线推进；四档时序、million/ten-million 文档目标机、Demo/现场容量与恢复统一见[环境路线](docs/roadmap-environment-validation.md)。 |
 | 20 | 多模型 Parity | 🚧 / 候选待核 | 同一发行候选light/full原始证据与七天scheduled独立观察；历史失败不机械当最新结论。 |
-| 29 | Studio 安装与宿主 | 🟡 | 干净 Windows、升级/卸载、WebView2、端口冲突与生命周期。 |
+| 29 | Studio 安装与宿主 | 🟡 | 安装/生命周期代码与候选脚本按能力路线；干净 Windows、Demo/现场安装与运行资格转入[环境路线](docs/roadmap-environment-validation.md)。 |
 | 35 | 语义内容与多模态检索 | 🚧 | 真实质量、模型换代/回滚、删除同步、容量与硬件；持久摄取/provider 基础不重做。 |
 | 36 | 九模型易用性 | 🚧 | 完整真实旅程、远程 parity、取消/恢复、对象分页与 MQ 实例恢复。 |
 | 39 | SQL 触发器生产观察 | ⏳ | 已归档研发之外的混合 DML、deferred/outbox 尾延迟及长期 SLO。 |
-| 40 | 原生属性图 | 🟡 / Graph Beta | 外部对拍、容量、AOT、Couplet、hard-kill 及长期 gate；AI 图应用不替代底层门禁。 |
-| 41 / 42 | 规划器与九模型性能 | 🚧 | 全链路有界读取、总资源预算、页/I/O 成本、冷启动及固定架构/168 小时。 |
+| 40 | 原生属性图 | 🟡 / Graph Beta | Graph API/evaluator/本地恢复按能力路线；外部对拍、容量、AOT、Couplet、掉电和长期 gate 统一见[环境路线](docs/roadmap-environment-validation.md)。 |
+| 41 / 42 | 规划器与九模型性能 | 🚧 | 全链路有界读取、总资源预算、页/I/O 成本和本地冷启动按能力路线；固定架构、Demo/现场和168小时转环境路线。 |
 | 43 | 十四能力与生态发布收口 | 🚧 | 远程 CDC/schema/冲突、恢复、业务副作用边界、完整旅程及原始报告。 |
-| **44** | **AI 应用与可治理推理** | **📋** | 预测/异常、证据 RAG、模型治理、可恢复推理任务与真实效果门禁。 |
+| **44** | **AI 应用与可治理推理** | **🟡 / 🚧** | 预测/异常、证据 RAG、模型治理、可恢复推理任务与真实效果门禁。 |
 | **45** | **聚合与持续计算深化** | **🚧** | 扩展分组支持矩阵，补通用state、更新删除修正、增量物化/rollup与批流等价。 |
-| **46** | **存储编码与执行成本优化** | **📋** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
+| **46** | **存储编码与执行成本优化** | **🟡** | 编码策略、整数/高熵回退、范围解码、统计精度及存储成本。 |
 | **47** | **统一数据库管理工作台与三面发布** | **🚧 / Web Preview 1已发布** | P01～P08 Web预览已收尾，再补Studio/VS Code；正式版共享合同、九模型完整权限/预算/恢复、AI/MCP与逐页矩阵继续验收。已完成切片见CHANGELOG。 |
-| **48** | **单机日志与事件分析** | **📋 planned** | 独立增量 R1：L01～L20 覆盖接入、检索/统计、容量、生命周期、Web 排障与告警；L21～L24 为 OTLP/Trace/语义/生态条件项。版本与时间待冻结，功能未实施。 |
-| **49** | **连接器/嵌入式拆分、九模型访问与有界批处理** | **🟡 / 🚧** | 十个本地切片已闭环；整体 15 包仍进行中，真实 Server/HTTP2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布和性能/恢复证据待补。 |
-| **51** | **WorkBuddy 生态集成与 SonnetDB 全生命周期闭环** | **🚧 基线已有 / 后续 📋 planned** | 已有只读连接器/内置 Skill、三份公开资料及 Docker 分层证据；0.1.1 平台解析、真实宿主、九模型 MCP 缺口、可执行运维、独立 Skill/专家/Buddy 应用与分阶段审核发布待做，详见 [M51](#milestone-51)。 |
+| **48** | **单机日志与事件分析** | **📋 planned** | 独立增量 R1：L01～L20A 覆盖接入、检索/统计、容量、生命周期、Web 排障与告警候选；L20B固定硬件/现场/168小时转环境路线；L21～L24为条件项。 |
+| **49** | **连接器/嵌入式拆分、九模型访问与有界批处理** | **🟡 / 🚧** | C01 范围冻结完成；SQL Execute、raw多帧和typed KV四操作已有真实h2c/候选消费切片。其余14包有部分或未实施范围，九模型typed、TLS/ALPN、新语言传输及新包矩阵继续验收。 |
+| **50** | **时序时间戳精度与无损时间链路** | **📋** | T01～T27/T30A为能力候选；T28/T29/T30B/T32的固定硬件、长稳、现场授时和环境资格见[环境路线](docs/roadmap-environment-validation.md)，现有measurement仍ms。 |
+| **51** | **WorkBuddy 生态集成与 SonnetDB 全生命周期闭环** | **🚧 基线已有 / 后续 📋 planned** | 已有0.2.0连接器/Skill、主线43工具与历史资料/Docker分层证据；0.2.0平台解析、真实宿主、运维执行、独立Skill/专家/Buddy应用及按批审核发布待做，详见 [M51](#milestone-51)。 |
 
 M22 保持上层应用候选；样例验证通用合同，行业规则不直接内置引擎。M0~M13、M15~M18、M21、M23/M24/M26/M28/M30~M34/M37/M38 及其它完成代码范围只在 CHANGELOG 追溯。
 
@@ -212,14 +183,14 @@ M46 把现有可选 codec 收敛为可验证的自适应压缩路线：一级按
 | ID | 状态 | 优先级 / 范围 | 增量交付 | 依赖与退出条件 |
 |---|---|---|---|---|
 | M46-S01 | 📋 | P0 必选 | 冻结真实语料、Block 大小、raw/legacy V2/候选 Auto、持久性与收益门槛 | 同一 commit、硬件、配置下记录 payload、header、字典、checkpoint、index、CRC、HNSW/sketch、WAL 和临时文件；默认是否切 Auto 由完整证据决定。 |
-| M46-S02 | 📋 | P0 必选 | 完整 Int64 自适应编码：RLE、ZigZag/delta、delta-binary-packed/FOR、bit-pack 与 raw fallback | 覆盖完整 Int64 值域、差分溢出、counter reset、重复、乱序、随机高熵和 Block 边界；保留 v6 `DeltaValue` 的 raw Int64 含义，不偷改旧标志。 |
+| M46-S02 | 🟡 | P0 必选 | 完整 Int64 自适应编码：RLE、ZigZag/delta、delta-binary-packed/FOR、bit-pack 与 raw fallback | 覆盖完整 Int64 值域、差分溢出、counter reset、重复、乱序、随机高熵和 Block 边界；保留 v6 `DeltaValue` 的 raw Int64 含义，不偷改旧标志。 |
 | M46-S03 | 📋 | P0 必选 | Float64 canonical Gorilla window reuse 与 Boolean RLE/bit-packing hybrid | 保留 NaN 位模式、±0、Infinity；高熵浮点和交替/随机 Boolean 必须可回退；CHIMP/ALP 只作为有同语料证据的候选，不默认量化或有损压缩。 |
 | M46-S04 | 📋 | P1 必选 | 有界 String dictionary、bit-packed index、稀疏 presence 与大值回退 | 字典条目数、总字节和构建工作集有上限；Unicode、空串、NULL、缺失、false/零值分开；超预算回退或拒绝，不截断、不合并语义。 |
 | M46-S05 | 📋 | P1 必选 | Timestamp 自适应编码、restart checkpoint、分块与范围解码 | 在 delta-i、delta-d、RLE、Simple8b/bit-pack、varint、raw 之间按完整成本选择；窄读、跨 checkpoint、全扫描分别测实际 I/O、CPU、分配和读放大。 |
 | M46-S06 | 🟡 | P0 必选 | 统计跳读精度 guard | 2026-10-15 对 Int64 distinct_count 拒用旧 double 来源 HLL 并扫描原块；其它统计精度、剪枝差分及旧段回读继续逐项验收，必要时关闭不安全快路径。 |
 | M46-S07 | 📋 | P1 必选 | 解码分配、缓存、预算与读成本接线 | 接 V45-X01/X02；租约、取消、淘汰、mmap 复制、解码缓存和共享 HNSW 竞争可观测，不新造平行资源管理器。 |
 | M46-S08 | 📋 | P1 必选 | 二级 LZ4/Zstd 边界、WAL 批压缩、small-segment 与 compaction 成本 | 热路径与冷 compaction 分开测；Core 零第三方运行时依赖、AOT、许可和平台边界单列；写放大、fsync、临时空间、合并读尾延迟、WAL replay 和故障恢复共同验收。 |
-| M46-S09 | 📋 | P0 必选 | 统一语料、codec ID/版本、兼容/损坏/迁移及性能验收 | commit/硬件/配置/原始样本可复算；旧格式可读，新 codec 从持久 metadata 解码，不兼容旧 writer 明确拒绝；CRC、长度、截断、非法 run/varint、混合段、升级/回退、收益与代价分别留证。 |
+| M46-S09 | 🟡 | P0 必选 | 统一语料、codec ID/版本、兼容/损坏/迁移及性能验收 | commit/硬件/配置/原始样本可复算；旧格式可读，新 codec 从持久 metadata 解码，不兼容旧 writer 明确拒绝；CRC、长度、截断、非法 run/varint、混合段、升级/回退、收益与代价分别留证。 |
 
 指标包含磁盘字节、读写放大、解码 CPU、P95/P99、分配/GC 和恢复，不预设倍数。落盘改动先设计版本/CRC，遵守格式升级、CHANGELOG、迁移或显式拒绝规则。详见 [M46 专题](docs/design/sonnetdb-45-storage-performance.md)。
 
@@ -237,7 +208,7 @@ M47 继续采用一套共享核心和 Web Admin、Studio、VS Code 三个宿主�
 
 | 发布面 | Preview 1 范围 | 放行条件 / 延期规则 |
 |---|---|---|
-| **Web Admin + 匹配的 Server 宿主** | **必选**：连接/真实登录、七模块导航和九模型已验证的有界浏览/查询、当前结果导出；只纳入终态与权限已验收的写审批动作 | P01～P07 全通过后独立发布；未验收动作必须明确限制、禁用或延期，不能仅靠 release notes 遮住产品入口。 |
+| **Web Admin + 匹配的 Server 宿主** | **已交付限定R1**：真实登录、七模块导航、受限SQL/关系/measurement读取、单行关系插入审批和当前结果窗口操作 | candidate12/P07/P08已闭环；Document、KV、FullText、Vector、Object、MQ、Graph七个专用工作台延期，不把导航/资源身份当作已验全部模型操作。 |
 | Studio Windows | 后续独立桌面预览候选；已有 bridge/Managed Local/本机恢复证据复用 | 当前包的干净 Windows/WebView2、安装/升级卸载、承诺的文件对话框及生命周期未通过前，不纳入公开安装包清单。 |
 | VS Code | 后续独立扩展预览候选；已有资源树、深链接、基础 Host 和查询合同复用 | 完整 Query/history/退出与所承诺能力、新不可变版本 VSIX、安装/兼容/哈希通过后独立纳入。现有 Marketplace 0.4.1 不代表本次 M47 更新。 |
 | AI/MCP 入驻、完整治理、全部模型写/恢复矩阵、Notebook/高级分页等 | 首版未验收的增量先延期；已有公开入口逐项评估并写入 P01 范围表 | 延期不删除既有能力，也不放宽已有权限、预算、未知写结果及安全合同；正式版按后续 U02～U09 验收。 |
@@ -250,18 +221,18 @@ Graph 继续声明 **Beta**。MQ 在数据库资源树中以 `database + Topic` 
 
 | ID / 优先级 | 状态 | 具体交付 | 完成与验收证据 |
 |---|---|---|---|
-| **M47-P01 / P0** | 🟡 | 范围冻结完成：候选01完整SHA、版本/兼容、13组动作、入口限制及独立分发白名单 | [冻结合同](docs/design/m47-unified-management-workbench/preview-1-scope.md)与[机器清单](docs/design/m47-unified-management-workbench/preview-1-candidate-01.json)可供后续引用。九模型限定读取＋关系表单行审批插入；C01～C05/D01仍需P03～P06实施/验收，产品NOT_READY。Studio/VSIX延期，Publish默认含Studio而不含VSIX；独立渠道不得触发v*全套发布。 |
-| **M47-P02 / P0** | 🟡 | 本地完成：修复 Web smoke 夹具/环境/收集边界，冻结候选02 | 修复来源 `ed4f48242c5d5b4e7e16861504d03cc845146402`，保留版本 4.5.0-preview.1.2；build、448 Node合同、307 fixture与12 StudioHost通过，25默认skip和30 real suite分列，所有远端门禁NOT_RUN。原两次CI失败、旧Object flaky和执行器越界事件保留；详见[P02报告](docs/design/m47-unified-management-workbench/preview-1-p02-smoke.md)。 |
-| **M47-P03 / P0** | 🟡 | R1本地完成；完整模式四片307通过/25原skip：入口/动作拒绝、登录授权、SQL预算、一次单行审批及终态 | [P03报告](docs/design/m47-unified-management-workbench/preview-1-p03-controls.md)分列真实Server、浏览器故障注入、正常重开与完整模式回归。七个模型专用读取因服务端预算未证延期；KV及时序表格超时已关闭，[候选04](docs/design/m47-unified-management-workbench/preview-1-p03-scope-revision.md)固定`57222f57e4cc` / 4.5.0-preview.1.4。P04～P08未执行，NOT_READY。 |
-| **M47-P04 / P0** | 🟡 | 构建来源可追踪的 Web/Server 预览包及 manifest/hash | 资源、Server、配置模板、许可证、安装说明与版本/commit 对应；按所含程序集取得适用 trim/AOT/构建证据。旧 Release DLL、web/dist 存在和 analyzer PASS 不能替代当前发行物。 |
-| **M47-P05 / P0** | 🟡 | 用 P04 实物验证首次部署/启动、登录、导航、查询/导出和纳入的写审批 | 在公布的根路径/代理子路径及目标环境通过；资源/SSE/认证返回/深链接与真实 Server 一致。验证目录/权限、端口占用、停止重开与回退，所有文件/进程清理仅限核验归属。只测试实际承诺模式，不把 Vite 本地开发运行当发布部署通过。 |
-| **M47-P06 / P0** | 🟡 | 本地说明/四附件/限定手动分发合同完成：[报告](docs/design/m47-unified-management-workbench/preview-1-p06-distribution.md) | 候选10原ZIP/manifest/P04 checksum保持；外部notes与新checksum精确四附件，默认prepare只读。P07原完整policy及实际P08授权/环境审批仍必需；未公开发布，NOT_READY。 |
+| **M47-P01 / P0** | ✅ 限定R1 | candidate12沿用已冻结的Windows R1 Web范围与分发白名单 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
+| **M47-P02 / P0** | ✅ 限定R1 | Web smoke与候选12适用门禁已进入同候选放行清单 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
+| **M47-P03 / P0** | ✅ 限定R1 | 限定R1的真实登录、授权、预算、审批和终态已验收 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
+| **M47-P04 / P0** | ✅ 限定R1 | 4.5.0-preview.1.12/source5bcd3b81的Web/Server与290项库存/哈希已验证 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
+| **M47-P05 / P0** | ✅ 限定R1 | 原候选实物首次启动、拒绝/查询/导出/恢复等限定旅程已验收 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
+| **M47-P06 / P0** | ✅ 限定R1 | 四附件说明、独立archive digest和分发清单已冻结 | 完成依据[候选12](docs/design/m47-unified-management-workbench/preview-1-candidate-12.json)、[P07评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)和[P08回读](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。旧候选失败/延期保留；只限Windows R1 Web，不扩为全部九模型或三宿主。 |
 | **M47-P07 / P0** | ✅ | 完成：更新分发工具后P07 READY，12/12门禁、8/8验收：[候选12评审](docs/design/m47-unified-management-workbench/preview-1-p07-12.json)，原工具/审批策略历史保持。 | 原完整同source门禁和验收已通过，公开交付见P08。 |
 | **M47-P08 / 发布** | ✅ | 已发布，匿名四附件/290项库存及Chrome/Edge本机首跑通过：[4.5.0-preview.1.12](https://github.com/IoTSharp/SonnetDB/releases/tag/workbench-preview-1.12)、[P08记录](docs/design/m47-unified-management-workbench/preview-1-p08-12.json)。maikebing已实际自批，正常停止/独立进程审计通过；只限Windows R1 Web预览。 | 预览、源码、四附件及原审批/回读/首跑无损证据全部归档，M47三面正式验收继续。 |
 
 现有发布验证读取 [release-readiness policy](eng/release-readiness-policy.ps1)：Workbench 五个 job 及要求的 artifact，CI/Format/AOT、适用 CodeQL、Parity light/full、soak/容量合同和发布/连接器等检查按原 policy 执行。排除首版 Studio 或 VS Code 下载物，不等于可以跳过其既有基础 CI job。七天 scheduled Parity 保持独立非阻断观察，不将其误设为首个 Web 预览必须等待七天，也不把缩规模验证当固定硬件/生产证据。
 
-当前验收基线与剩余阻断见 [2026-10-10 发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)。最新 Studio WB80 已证明本机 A/B 选择、重启被动恢复 B/真实查询/正常关闭；WB61 旧失败只保留历史，不继续作为“恢复从未通过”的理由。VS Code WB83 未建立该次真实 Server/Code 旅程，完整发布验收仍需补证。WB85～WB98 pending 诊断集成不作为 Web 预览的默认先决任务。
+历史宿主审查入口为[2026-10-10发布审查](docs/design/m47-unified-management-workbench/release-readiness-2026-10-10.md)；Windows R1 Web的完成状态以candidate12/P07/P08为准。Studio WB80已证明本机A/B选择、重启被动恢复B/真实查询/正常关闭；WB61旧失败只保留历史，不继续作为“恢复从未通过”的理由。VS Code WB83未建立该次真实Server/Code旅程，完整发布验收仍需补证。WB85～WB98 pending诊断集成不作为已发布Web预览的默认先决任务。
 
 ### 首版之后：Studio、VS Code 与正式版
 
@@ -285,7 +256,7 @@ M47-U01 的设计基线及既有页面/合同切片已归档，后续不重新�
 
 ### 首版范围与工作包
 
-R1 必选 **L01～L20**：一个节点可以接收多主机日志；先支持 .NET 结构化日志与 Web 访问日志、真实 Logstash HTTP 批量适配、Web 日志探索及一个受控 Webhook 通道。L01 冻结目标版本、平台、硬件、真实语料、负载和门槛；不自动扩大既有 4.5 发布范围。P0/P1 均为 R1 必选，P2 为后续条件。
+R1 代码候选必选 **L01～L20A**（原 24 个工作包因 L20 拆分为 L20A/L20B 后形成 25 行）：一个节点可以接收多主机日志；先支持 .NET 结构化日志与 Web 访问日志、真实 Logstash HTTP 批量适配、Web 日志探索及一个受控 Webhook 通道。L01 冻结目标版本、软件平台、真实语料、负载和代码门槛；固定硬件、现场环境和长稳转入 L20B/环境路线，不自动扩大既有 4.5 发布范围。P0/P1 均为 R1 代码候选必选，P2 为后续条件。
 
 | ID / 优先级 | 状态 | 具体交付与主要依赖 | 完成与验收条件 |
 |---|---|---|---|
@@ -301,14 +272,15 @@ R1 必选 **L01～L20**：一个节点可以接收多主机日志；先支持 .N
 | M48-L10 / P0 | 📋 | 固定读取视图、稳定时间排序/游标、上下文/有界导出；依赖 L03/L08/L09 | 写入/滚动/删除/同时间戳/撤权/过期不静默漏读重复；资源租约与游标绑定明确，当前窗口导出与完整导出区分。 |
 | M48-L11 / P1 | 📋 | 全过滤集合 facet/时间桶/统计列/精确和近似聚合；依赖 L08～L10/M45 | UTC 半开桶、missing/NULL/多值/Top-N、Int64/误差与高基数验证；派生水位/代际可查，批流同一致性点对拍。 |
 | M48-L12 / P1 | 📋 | 保留、封存、回收和归档；依赖 L03/L07/L09/L10 | 迟到、未来时间、保留缩短、活跃视图与删除中崩溃；原事件/索引/派生引用一致，归档不冒称可直接查询。 |
-| M48-L13 / P0 | 📋 | 采集/读取/管理权限、隔离/审计/原文与 DLQ 脱敏；贯穿 | 两库及多身份真实拒绝，hits/facet/总数/上下文/导出/规则一致；现有权限不足时用数据库隔离，不靠 UI 隐藏。 |
-| M48-L14 / P0 | 📋 | 全链路预算、公平性、取消与观测；复用 M42/V45-X01/X02 | 解析/候选/posting/排序/聚合/响应/spool/合并费用归属，临时峰值计费；超限明确拒绝，取消释放，有限指标标签。 |
+| M48-L13 / P0 | 📋 | 采集/读取/管理权限、隔离/审计/原文与 DLQ 脱敏；贯穿 L03～L20A | 两库及多身份真实拒绝，hits/facet/总数/上下文/导出/规则一致；现有权限不足时用数据库隔离，不靠 UI 隐藏。 |
+| M48-L14 / P0 | 📋 | 全链路预算、公平性、取消与观测；复用 M42/V45-X01/X02，贯穿 L04～L20A | 解析/候选/posting/排序/聚合/响应/spool/合并费用归属，临时峰值计费；超限明确拒绝，取消释放，有限指标标签。 |
 | M48-L15 / P1 | 📋 | Web 日志探索/时间轴/筛选/详情/上下文；依赖 L08/L10/L11/L13/L14 | 真实 Server/浏览器完整旅程，迟返/撤权/资源错误/视图过期可理解；消费实际 typed 入口。 |
 | M48-L16 / P1 | 📋 | 保存查询、轻量看板、联动/共享/导出；依赖 L10/L11/L13/L15 | 定义版本/权限/恢复、流删除/schema 改变失效、多面板预算与下载；不保存 token 或静默跨库。 |
 | M48-L17 / P1 | 📋 | 阈值规则、持久状态/静默/恢复通知/Webhook outbox；依赖 L07/L11/L13/L14/M45 | 迟到/重复/零分母/规则换代/数据中断/发送回执丢失；Unknown 不当作零或恢复，外部通知至少一次。 |
 | M48-L18 / P0 | 📋 | 备份恢复、强杀/磁盘故障/版本迁移与回退；依赖已交付核心切片 | 目录/事件/源位点/幂等/派生/定义/规则逐项对账；外部 spool 或 `.system/mq` 单列，kill 不代替掉电。 |
 | M48-L19 / P1 | 📋 | typed SDK/CLI/能力发现、真实示例与迁移运维说明；依赖实际入口 | embedded/REST/适用 Frame 独立矩阵，字段转换与失败回执可重现；不承诺原 ES 客户端/Kibana 即插即用。 |
-| M48-L20 / P0 | 📋 | 固定 profile/168 小时/原生候选/发行收口；依赖 L01～L19 | 同候选真实采集器、权限、容量、恢复、AOT/原发布 policy、安装首跑齐全；未验项保持 NOT_READY。 |
+| M48-L20A / P0 | 📋 | 支持矩阵、候选清单、AOT/安装脚本、本地可复现证据与操作手册；依赖 L01～L19 | 功能、权限、预算、恢复和本地候选证据齐全；不等待现场长稳。 |
+| M48-L20B / 环境资格 | 📋 | 固定硬件、线上 Demo/现场生产、真实采集器、168 小时、安装首跑与发布资格；转入[环境路线](docs/roadmap-environment-validation.md) | 同一候选的环境日志、容量、恢复、长稳、AOT/安装和独立回读齐全；缺现场证据保持 `NOT_RUN/DEFERRED`。 |
 | M48-L21 / P2 | 📋 | OTLP Logs 接收与真实 Collector 适配；R1 后条件项 | 独立冻结 transport/encoding/partial success/字段/精度；Logs 不自动涵盖 Metrics/Traces。 |
 | M48-L22 / P2 | 📋 | Trace 接收/查询与日志关联视图；依赖 L21/独立 span 合同 | 真实 span/父子/采样/迟到/重复验证；相同 trace_id 日志聚合不称完整 APM。 |
 | M48-L23 / P2 | 📋 | 语义日志与设备/业务关联；复用 M27/M35/M44 | 真实相关性/误报/成本、ACL/删除/模型换代及有证据解释；hash/合成不计语义质量。 |
@@ -320,9 +292,9 @@ R1 必选 **L01～L20**：一个节点可以接收多主机日志；先支持 .N
 2. **G1 可靠接入与基础查询：** L03～L08 + 适用权限/预算；真实采集器、持久确认和过滤通过后只标受限 pilot。
 3. **G2 容量与生命周期：** L09～L12、完善 L13/L14 与 L18 基础恢复；大于内存工作集、固定视图、统计/保留及故障可对账。
 4. **G3 排障闭环：** L15～L19；两条真实日志旅程、保存查询/看板、规则通知、运维与完整恢复，按实际宿主分别验收。
-5. **G4 R1 发行：** L20 汇总 L01～L20；同候选适用发布门禁、固定 profile 168 小时、实际包/首跑核验；L21～L24 独立评审。
+5. **G4 R1 候选：** L20A 汇总 L01～L20A；同候选代码/权限/恢复/AOT/安装脚本和本地可复现证据齐全即可形成候选。固定硬件、Demo/现场、168 小时和发布资格由 L20B 转入[环境路线](docs/roadmap-environment-validation.md)；L21～L24 独立评审。
 
-L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选范围完成后收口；功能实现、本地测试、真实服务、固定硬件、恢复、长稳与发行分列。R1 不提供分片/复制/自动接管、任意外部副作用 exactly-once、完整 Elasticsearch API/Kibana 兼容或完整 SIEM/APM。近期首个实施切片为 L01，不因本规划提交自动启动采集或功能开发。
+L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 候选由 L01～L20A 的能力和代码证据收口；环境资格、现场运行和正式发布由 L20B 单独记录。R1 不提供分片/复制/自动接管、任意外部副作用 exactly-once、完整 Elasticsearch API/Kibana 兼容或完整 SIEM/APM。近期首个实施切片为 L01，不因本规划提交自动启动采集或功能开发。
 
 ## 4.5 跨模型能力与性能闭环
 
@@ -330,9 +302,9 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 <a id="milestone-49"></a>
 ## Milestone 49 — 连接器/嵌入式拆分、九模型访问与有界批处理
 
-2026-10-16 按用户确认修订，实施已开始：C01/C02/D01/R02/R03 首片进行中，其余 planned，15 包均未整体完成。[实施矩阵](docs/design/m49-implementation-matrix.md)跟踪实际边界。`connectors/` 为各语言原生 HTTP/2 二进制 Frame，平行 `embedded/` 为托管 .NET 与统一 AOT C ABI 绑定。远程八语言，嵌入式六语言；VB6/PureBasic 仅远程，VB6 固有 x86 不需要 32位 AOT 桥接。Linux/Windows/macOS、适用 x64/ARM64/glibc/musl 按每批矩阵验收，普通32位后续；Java8兼容，FFM按需。用户明确直接重构，不保留旧兼容层。
+2026-11-11核查：C01首次范围冻结完成；C02/D01/F01/C03～C06/R01～R03已有部分实现或codec切片，C07/C08/R04/R05的新合同仍待交付。[实施矩阵](docs/design/m49-implementation-matrix.md)跟踪实际边界。`connectors/` 为各语言原生 HTTP/2 二进制 Frame，平行 `embedded/` 为托管 .NET 与统一 AOT C ABI 绑定。远程八语言，嵌入式六语言；VB6/PureBasic 仅远程，VB6 固有 x86 不需要 32位 AOT 桥接。Linux/Windows/macOS、适用 x64/ARM64/glibc/musl 按每批矩阵验收，普通32位后续；Java8兼容，FFM按需。用户明确直接重构，不保留旧兼容层。
 
-当前状态（2026-10-26）：🟡 十个本地切片已闭环；🚧 M49 整体仍进行中。真实 Server HTTP/2/TLS、九模型 typed 解码、跨平台 SDK、正式包消费者、生产/远程发布、性能与恢复证据仍未验收，不能把局部 PASS 升级为整条路线完成。
+当前状态（2026-11-11）：🟡 / 🚧。SQL Execute、SendStreamingAsync和typed KV Get/Put/Scan/GetAndDelete已有产品入口及局部真实h2c/候选消费者证据；TLS/ALPN、九模型typed矩阵、C及其它语言原生远程、embedded拆分和新包矩阵尚未完成。逐包见[生态核查](docs/audits/roadmap-audit-20261111/ecosystem.md)，不能把旧codec或桥接当作新链路。
 
 **首批只做九模型数据访问，允许分批正式发行，剩余语言/平台/能力后续完成。** AI/RAG、通用流处理/CDC/备份治理API后续；现有鉴权授权、资源预算、持久性和恢复验证继续执行。当前Frame操作不完整，F01必须补齐，不能经REST绕过；仅确有语言限制才讨论有证据的例外。已存在的批量/参数/类型/多结果和 M41/M42/M46 实现继续复用，物化缺口仍需端到端修复。
 
@@ -364,7 +336,7 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 | V45-X01 / M41、M42 | 🚧 | P0 必选 | 执行器→REST/Frame→ADO/SDK 批/惰性读取、首行、取消/断连、行/字节准入及工作集；以 M49-R01/R02 接通托管/AOT嵌入式与各语言原生Frame连接器，明确阻塞/spill，不把切帧/预览当全链路有界。 |
 | V45-X02 / M42 | 🚧 | P0 必选 | 基于 SQL worker/内存、KV I/O 和缓存，增加数据库/进程总预算、分类归属及公平准入；接 M49-R03 的批次/编码/预取/客户端消费，治理 reader 缓存随段数放大、共享 HNSW 跨库配置、AI/后台与前台竞争，记录 CPU/I/O/heap/排队/释放。 |
 | V45-X03 / M43 | 📋 | P0 必选 | 已有本地 CDC/桥接/任务之外的有界远程合同：schema/version、历史增量、冲突/删除/TTL、续传/积压/offset；首批限定源和拓扑，不把副本称为 HA。 |
-| V45-X04 / M36、M43 | 📋 | P0 必选 | MQ 实例 snapshot/restore 与数据库恢复组合；对账 offset、任务/checkpoint、物化结果、派生 AI 索引/模型引用的一致性点与顺序，公开 RPO/RTO 和非原子边界，单库备份不含 `.system/mq`。 |
+| V45-X04 / M36、M43 | 🟡 | P0 必选 | MQ实例离线snapshot/inspect/restore已实现；剩余是与数据库/身份配置/外部对象恢复组合，对账 offset、任务/checkpoint、物化结果、派生 AI 索引/模型引用的一致性点与顺序，公开 RPO/RTO 和非原子边界，单库备份不含 `.system/mq`。 |
 | V45-X05 / M35、M36、M29 | 🚧 | P1 必选 | 全文相关性/重建、filtered ANN/Recall、KV continuation/TTL、对象高变更率分页与大文件校验、图有界结果、SDK/CLI/Workbench 对拍；按明确缺口实施，UI 不先于入口。 |
 | V45-X06 / 既有证据里程碑 | 🚧 | P0 必选 | 固定语料/机器/版本/持久性/客户端；分开功能、质量、容量、恢复及长期报告，九模型/AI/聚合/编码可复算，失败样本保留，冻结适用门槛。 |
 | V45-X07 / M43 架构决策 | 📋 | P2 条件 | 主备/复制先定义模型边界、fencing、单写者、日志缺口、未知提交、RPO/RTO 和 split-brain 矩阵；真实需求及一致性证据后单独实现，不承诺 4.5 自动 failover/完整分片。 |
@@ -386,14 +358,7 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 
 
 
-1. **基线与合同冻结：** M44-A01/A02/A06、M45-C01/C02/C09、M46-S01/S09、M49-C01/C02、V45-X06；冻结支持矩阵、语料与门槛，不重做归档实现。
-2. **基础实现与成本治理：** M45 分组/state、M46 编码/精度 guard、V45-X01/X02；读取按 M49-R01/R02/R03+C03 接通公共链路，再逐语言 C04～C07；每包有必要定向回归、Release 和适用 AOT。
-3. **持续计算与恢复：** M45-C03/C04/C05/C08 接既有 M43，V45-X03/X04/X08；不支持源/操作及未知结果明确拒绝或进入恢复。
-4. **AI 应用与九模型旅程：** M44-A03/A04/A05/A07、M45-C06/C07、M46 深化和 V45-X05；条件项独立证明收益后决定。
-5. **性能、质量与发布论证：** 执行既有目标机队列和新应用/聚合/编码 gate，绑定同一候选；本机合成数字不升级生产结论。
-6. **统一管理工作台与三面发布：** M47 先评审完整导航、五区壳、共享对话框/提示和一级/二级任务，再逐页细化；用户确认原型后推进共享合同、九模型工作台与生产迁移。Web Admin/Studio/VS Code 旅程、AI/MCP 入驻和版本兼容矩阵分别通过对应宿主证据；单端或原型 PASS 不升级为三面整体发布。
-
-独立切片可并行；共享源码、构建输出和资源验证按所有权协调。单 PR 只做一个可审查切片。
+全仓优先级只见[当前推进顺序](#当前推进顺序)。本节模型负载与各专题内部依赖继续适用；已发布预览和已完成切片不再排入基础实现。
 
 <a id="milestone-50"></a>
 
@@ -432,13 +397,14 @@ L13/L14 从 G0 贯穿，L18 的故障验证从 G1 累积。R1 只在全部必选
 | M50-T25 | 📋 | P0；T11/T24 | dry-run、目标库有界迁移/续传/余数与碰撞对账、切换/回退；保留源并处理切换后新写。 |
 | M50-T26 | 📋 | P0；T11/T13/T14/T15/T17 | 黄金整数/旧 ms 夹具、新旧矩阵及固定外部版本对拍；时间戳严格相等，light/full 分列。 |
 | M50-T27 | 📋 | P0；T06/T23/T24/T25 | WAL/维护/迁移/恢复的强杀/损坏/满盘/取消；确认等级可对账，拒绝打开无副作用。 |
-| M50-T28 | 📋 | P1；T26 | 固定 x64/ARM64、两类同物理/更高信息量语料，测尾延迟/CPU/RSS/I/O/压缩，不预填倍数。 |
-| M50-T29 | 📋 | P1；T27/T28；本批适用 T16～T23 | 同候选多库混合精度与维护/消费者 168 小时；资源/停止条件有界，M20 七天独立回读。 |
-| M50-T30 | 📋 | P0；T24～T29；本批声明矩阵 | 本批 AOT/原格式门禁、真实包/安装/版本/限制/回退及发行回读；整体完成须全部必选。 |
+| M50-T28 | 📋 / 环境资格 | P1；T26 | 固定 x64/ARM64、两类同物理/更高信息量语料，测尾延迟/CPU/RSS/I/O/压缩；转入[环境路线](docs/roadmap-environment-validation.md)，不预填倍数。 |
+| M50-T29 | 📋 / 环境资格 | P1；T27；本批适用 T16～T23 | 同候选多库混合精度与维护/消费者 168 小时；转入[环境路线](docs/roadmap-environment-validation.md)，不阻断 T01～T27 代码交付。 |
+| M50-T30A | 📋 | P0；T24～T27；本批声明矩阵 | 代码/协议/格式、旧端拒绝、AOT/包消费者、迁移/恢复和可复现门禁；不等待现场长稳。 |
+| M50-T30B | 📋 / 环境资格 | P0；T28～T29、T32 | 固定 x64/ARM64 成本、168 小时多库混合精度、现场生产消费者和真实授时；统一转入[环境路线](docs/roadmap-environment-validation.md)。 |
 | M50-T31 | 📋 | P2 条件；对应基础与外部接收能力已冻结 | 按 M48/实际消费者冻结 OTLP/Arrow 单位/NULL/时区和纳秒往返；不自动建设 APM/全部接收器。 |
 | M50-T32 | 📋 | P2 条件；有明确硬件/设备/现场授权与 profile | 获明确硬件/现场授权后验证打戳位置、时标/偏差/抖动；ns 存储不等于 1ns 授时准确度。 |
 
-推进顺序：**G0 T01～T03 → G1 T04～T11 → G2 T12～T18 → G3 T19～T23 按批 → G4 T24～T29 → G5 T30**；T26/T27 的正确性与恢复用例从对应切片累积。首个实施任务为 T01，先冻结 ms 兼容、精确换算、真实持久格式防护与首批 .NET/C 矩阵；存储/恢复和维护未闭环前不开公开高精度建库。
+推进顺序：**G0 T01～T03 → G1 T04～T11 → G2 T12～T18 → G3 T19～T23 按批 → G4 T24～T27 → G5 T30A**；T26/T27 的正确性与恢复用例从对应切片累积。T28/T29/T32和T30B转入[环境路线](docs/roadmap-environment-validation.md)。首个实施任务为 T01，先冻结 ms 兼容、精确换算、真实持久格式防护与首批 .NET/C 矩阵；存储/恢复和维护未闭环前不开公开高精度建库。
 
 M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不要求等待这些里程碑整体完成。目标版本与首批范围由 T01 独立冻结，不自动改变现有 4.5、已发布 Workbench 预览或 M49 批次门槛；分批正式发行只声明实际通过的矩阵。设置只影响时序 measurement time，不把关系日期、MQ、文档 TTL 或网络超时统一改成库单位。
 
@@ -453,7 +419,7 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 | 证据 ID | 状态 | 本次成果与验收边界 |
 |---|---|---|
-| M51-B01 | 🟢 本地草案完成 | 当前连接器/Skill为0.2.0，目标SonnetDB 5.0的43工具以tools/list和schema发现；默认目标库Read，用户已明确授权且有Write grant时使用独立写工具，query_sql仍只读。43生产切片49731955/PR391待统一整合；部署、升级和服务重启需另有授权，不能由工具存在推断授权。 |
+| M51-B01 | 🟢 本地草案完成 | 当前连接器/Skill为0.2.0，目标SonnetDB 5.0的43工具以tools/list和schema发现；默认目标库Read，用户已明确授权且有Write grant时使用独立写工具，query_sql仍只读。43工具生产切片49731955/PR391已进入主线；部署、升级和服务重启需另有授权，不能由工具存在推断授权。 |
 | M51-B02 | 🟢 公开资料初次归档 | 闭环指南、九模型手册、提交清单已建于 `docs/workbuddy-sonnetdb-*.md`，并归档至 [IoTSharp 公开空间](https://www.workbuddy.cn/space/s/dQLhaiG6IukkkFwHCd8Rzj)。后续本地纠偏与最新报告尚未同步在线，不能把初次上传视为内容持续一致。 |
 | M51-B03 | 🟢 历史 Docker 基线 | 2026-11-03官方 `iotsharp/sonnetdb` 5.0.0，revision `455bf3b53b1e56df0064d8f574b0595cbb0b609e`，digest `sha256:6c5974f4ba4e81fd12a82cb08a6265c959d3c63f589f325df7d02ff9a1d81597`；该镜像只公布九工具。两轮回环容器/独立卷正常停止并保留，未接生产库；不作为当前43工具的Docker/宿主验收。 |
 | M51-B04 | 🟢 历史协议分层通过 | 2026-11-03 r2报告仍为19通用检查、原生九模型、重启读回九模型、MCP六模型，KV/对象/MQ的MCP三项not_available；日期/source不改写。当前脚本改为43工具发现与Read凭据九模型读取/写拒绝，不把本次离线校验写成新版实调PASS。正常重启不等于升级、备份恢复或掉电恢复。 |
@@ -469,12 +435,12 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 | ID | 状态 / 范围 | 待交付工作 | 依赖与退出条件 |
 |---|---|---|---|
-| M51-W01 | 📋 P0 必选 | 冻结0.2.0的43工具、默认Read/授权Write和发布矩阵 | 当前用户已明确授权补齐写工具；按tools/list、schema与实际grant绑定能力，不能把发现等同授权或把数据面写权限当运维权限。 |
+| M51-W01 | 🟡 P0 必选 | 0.2.0的43工具及默认Read/授权Write文案已形成；下一批冻结精确source/package/schema与发布矩阵 | 当前用户已明确授权补齐写工具；按tools/list、schema与实际grant绑定能力，不能把发现等同授权或把数据面写权限当运维权限。 |
 | M51-W02 | 📋 P0 必选 | 0.2.0 平台解析与上传自测 | 使用新五文件包，保留0.1.0/0.1.1历史失败/未知状态；检查HTTPS模板和三字段映射，取得真实平台解析回执，解析成功不等于送审。 |
 | M51-W03 | 📋 P0 必选 | WorkBuddy 真实宿主安装、表单、连接、重连与卸载验收 | W02；有效 HTTPS/证书和审核网络可达；现场调用工具，验证 401/403、只读、截断及新旧 Token 轮换交互，不能复用脚本 PASS 代验。 |
 | M51-W04 | 📋 P0 必选 | Token 生命周期、隐私/外发与白名单安全合同 | 最小 Read、密钥脱敏、撤销/到期/轮换、重定向与日志边界；先明确请求白名单与回调白名单的配置对象、实际认证方案和通配支持。用户提出的 `https://*.tencent.com`、`https://*.workbuddy.cn`、`https://*.workbuddy.ai`、`https://*.codebuddy.cn` 仅记为待核需求；当前 Token 模式无 OAuth 回调，不盲目开放 CORS/回调。 |
 | M51-W05 | 📋 P0 必选 | 证据/文档收口与公开空间同步 | 将本地纠偏、分层矩阵和审核清单更新至指定 IoTSharp 空间；固定版本/来源及脱敏报告索引，检查框据实更新。仅上传公开内容，不上传 Token、客户数据和内部敏感日志。 |
-| M51-W06 | 🟡 源码切片已验 / 集成待验 | 九模型MCP43工具的统一整合与客户端验收 | 生产实现冻结49731955/PR391，权限/预算与NativeAOT43/36、118/89已验；不重复开发。当前0.2.0更新能力声明/规则，宿主/HTTPS/平台/发布门禁仍按实际渠道验，不把带副作用消费称为只读。 |
+| M51-W06 | 🟡 主线已整合 / 宿主待验 | 复用主线九模型MCP43工具，补客户端与平台验收 | 生产切片49731955/PR391已在当前主线，历史权限/预算与NativeAOT43/36、118/89证据保留；不重复开发。当前0.2.0更新能力声明/规则，宿主/HTTPS/平台/发布门禁仍按实际渠道验，不把带副作用消费称为只读。 |
 | M51-W07 | 📋 P1 全量模型批次 | 九模型 MCP 与真实宿主联合回归 | W06 及对应模型合同；原生 API、MCP、宿主分层测试，覆盖权限、预算、分页、取消/超时、删除/恢复和不支持路径。Graph Beta 及模型能力限制继续公开。 |
 | M51-W08 | 📋 P0 按批适用 | 知识 provider 与工具/schema 合同回归 | docs_search/skill_search/skill_load 的成功、不可用及不可信内容；错误码、超时/取消、契约版本与安全工具发现；CI 使用合成数据，输出脱敏可复算证据。 |
 | M51-W09 | 📋 P1 运维批次 | 管理执行能力与人工审批模型设计 | 管理面与只读面隔离；显式计划、作用域/目标、dry-run、二次确认、审计、取消和失败终态。禁止凭只读 Token 提权或开放任意 shell。 |
@@ -489,49 +455,38 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 ### 阶段与接续入口
 
-1. **G0：W01 冻结范围 → W02 新包解析 → W03/W04 宿主与安全 → W05/W08 资料及合同收口。** 首先处理 0.1.1 实际解析；若平台仍拒绝，保留错误并出新候选，不继续声称可安装。
+1. **G0：W01 冻结范围 → W02 新包解析 → W03/W04 宿主与安全 → W05/W08 资料及合同收口。** 首先处理0.2.0新候选的实际解析；若平台仍拒绝，保留错误并出新候选，不继续声称可安装。
 2. **G1：限定只读批次按 W16 送审 → W17 审核后发布。** 发布只声明已验证模型/工具；无需等待全部运维、专家或 Buddy 应用完成。
-3. **G2：W06/W07 九模型补齐与 W09～W11 管理运维分批实现。** 每批都重复适用宿主、安全、清洁包及审核门禁，不自动扩大旧包权限。
+3. **G2：W06/W07主线九模型工具的真实宿主验收，与W09～W11管理运维分批实现。** 每批都重复适用宿主、安全、清洁包及审核门禁，不自动扩大旧包权限。
 4. **G3：W12 独立 Skill 与 W13 专家统一入口分别验收/送审；G4：W14 决策后才做 W15 Buddy 应用。** 应用不先于所承诺完整场景闭环。
 
 完成判定：全部本里程碑必选工作及各批适用矩阵取得真实证据；条件项明确实施或延期。部署指导不算自动部署，原生九模型不算九模型 MCP，MCP 客户端成功不算宿主成功，静态包通过不算平台解析成功，上传不算送审，送审不算批准，批准不算已发布。仅在实际完成后更新状态，不重做 B01～B07 已保留的有效切片。
 
-## 真机验证待办
+## 环境与现场资格路线
 
-记录硬件/架构、commit、配置/版本/命令/时间、真实 P50/P95/P99、working set/heap/分配/GC、逻辑与物理 I/O 区别、正确性/恢复与原始样本。不可用项为 `NOT_RUN`/`NOT_READY`/`DEFERRED`。
+固定硬件、线上 Demo、现场生产、物理掉电/介质恢复和 168 小时/7 天长稳不再分散在每个能力任务中重复验收，统一进入[环境与现场资格路线](docs/roadmap-environment-validation.md)。该路线集中管理 M19/M25/M20、M39/M40/M41/M42、M48-L20B、M50-T28/T29/T30B/T32、KV-LSM G9 以及 GH-Issue #398/#399/#402 的环境证据。
 
-| 来源 | 状态 | 保留验收 | 当前边界 |
-|---|---|---|
-| M19 #125 | ⏳ | 百万 series、万 segment、20 次 kill/reopen、万 measurement | 固定 Linux x64 四档待证。 |
-| M25 #174 | ⏳ | million/ten-million 文档写查/TTL/重建/备份恢复/内存 | 固定目标及 attestation 待证。 |
-| M20 #136 | 🚧 | 同候选light/full真实backend/artifact、七天scheduled观察 | 2026-10-10审查核到远端5424b666的10月8/9日light/full成功，非本地预览候选证明；七天完整观察未核。 |
-| M27 #184/#185/#187/#340 | 🚧 | 真实模型/成本、IdP/broker、双网/续流及 Studio | 功能/本地已归档，现场独立验收。 |
-| M29 #258 | 🟡 | 干净 Windows、WebView2、升级/卸载、端口/生命周期 | 安装包/宿主已有，实机待验。 |
-| M35 / M36 | 🚧 | 真实语料、模型换代、九模型跨端/权限/取消/删除/恢复 | 本地不替代完整旅程、远程或容量。 |
-| M36 #323/#325/#326 | 🚧 | 对象大文件/分页/校验、MQ 实例/offset 恢复 | 不由单库备份推出实例一致性。 |
-| M39 | ⏳ | 混合 DML、触发器/deferred/outbox 长期尾延迟 | 研发之外的生产观察。 |
-| M40 #352/#367 / Couplet | 🚧 | 外部对拍、LDBC/Graphalytics、1m/10m、AOT、hard-kill/168 小时 | Beta 与联合环境 gate 独立。 |
-| M41 / M42 | 🚧 | 固定 x64/ARM64、同语料、冷启动/首行/heap/I/O、恢复/168 小时 | 本地预算/快路径不代替目标机。 |
-| M44 | 📋 | 三条旅程真实质量/成本、防泄漏、删除/回滚/任务恢复 | 新规划，fixture/hash 不计效果。 |
-| M45 | 📋 | batch↔stream、merge/retract、late/update/delete、rollup/spill/reopen | 新规划，冻结首批子集/误差。 |
-| M46 | 📋 | 编码/高熵回退、旧新格式、损坏/极值/放大/冷读 | 新规划，不预填提升倍数。 |
-| M48（独立 R1） | 📋 | 固定日志 profile、真实 Logstash、窗口外检索/全量统计、磁盘容量、保留/恢复、规则通知及 168 小时 | 全部 planned；版本/阈值待 L01 冻结，不由研究或已有模型局部 PASS 宣布日志平台完成。 |
-| M50（独立增量） | 📋 | 三精度同候选、真实协议/消费者、旧引擎拒绝、迁移/恢复、固定 x64/ARM64 与 168 小时 | T01 冻结范围/阈值，T26～T30 分别留证；T32 硬件授时条件项不由软件纳秒往返替代。 |
+能力路线只保留代码、协议、确定性恢复、旧格式拒绝、损坏/满盘、取消、未知提交和本地/CI可复现门禁。环境资格缺少目标机或日志时标记 `NOT_RUN/UNKNOWN/DEFERRED`，只阻断对应 Demo/Preview/Beta/Production 或环境 issue，不阻断已经满足代码合同的普通切片。用户后续提供 Demo/现场日志后，按环境路线的 ENV-00～ENV-06 分析版本、机器、时间窗、负载、故障、恢复、资源趋势和证据缺口。
 
+| 原路线来源 | 环境路线归属 | 能力路线保留 |
+| --- | --- | --- |
+| M19 #125、M25 #174 | ENV-CAPACITY / ENV-02 | profile 定义、runner/verifier、代码正确性和本地缩规模回归 |
+| M20 七天 scheduled | ENV-SOAK / ENV-04 | parity harness、场景合同和可复现本地门禁 |
+| M39、M41、M42 | ENV-SOAK / ENV-02/04 | 查询、事务、预算、取消、故障和本地性能计量 |
+| M40 #352/#367 | ENV-RELIABILITY / ENV-SOAK | Graph API、存储、evaluator、quick kill/reopen、代码回归 |
+| KV-LSM G9、M50 T28/T29/T32 | ENV-02/03/04 | G1～G8/G10～G12 的代码/本机门禁；M50 T01～T27/T30A |
+| M48-L20B、GH-Issue #398/#399/#402 | ENV-01～ENV-06 | M48-L20A候选、安装脚本、支持矩阵和发布合同 |
 
-2026-11-04按用户确认，本轮托管功能正确性以ARM64真机通过作为验收依据，不以同功能尚未重复执行x64阻塞收口；未执行的指定平台容量、NativeAOT或原生依赖专项不列为实测PASS。本轮6组功能子项、32条通过断言及1项对象分页超时见[木垒真机收口](docs/audits/mulei-field-gates-20261104/README.md)和[机器证据](docs/audits/mulei-field-gates-20261104/verification.json)。这些子项完成不扩大为整个M36/M41/M42或最新独立Client已发布。
-
-同日后续完成旧桶前缀索引回填修复、Core 566项和真实Server/SDK 43项回归；真实ARM64隔离元数据副本通过前三页对拍，生产仍运行原R1。旧FAIL_TIMEOUT保留为历史基线，冷打开约237秒、完整容量/高变更率/NativeAOT/168小时继续单独验收，详见[对象分页后续收口](docs/audits/object-pagination-20261104/README.md)。
-
+当前没有连接线上 Demo、现场生产或电源控制设备；本路线环境任务保持 `PLANNED/NOT_RUN`，不会以本机或 hosted 结果冒充现场资格。
 ## 待补验收证据
 
 ### M20 — Parity nightly
 
 沿用 [9/25 回读](docs/audits/m20-nightly-readback-20260925.md)与[9/26 候选 light/full](https://github.com/IoTSharp/SonnetDB/actions/runs/36211622630)的范围。候选 verifier 核对同提交/版本十二类 workflow、最新 attempt、真实 backend 与原始 artifact；七天 scheduled 自 9/27 起为独立非阻断观察，不因手动复验或规划标记完成。其它适用质量/恢复/容量发布证据不能由此省略。
 
-### M19 / M25 — 容量与发布
+### M19 / M25 — 容量与环境资格
 
-沿用[固定硬件容量合同](docs/benchmarks/m19-capacity-hardware.md)及 Document verifier；缩规模 hosted validation 仅证明对应行为。固定规模、硬件真实性/attestation、恢复及性能分别验收。
+沿用[环境与现场资格路线](docs/roadmap-environment-validation.md)、[固定硬件容量合同](docs/benchmarks/m19-capacity-hardware.md)及 Document verifier；缩规模 hosted validation 仅证明对应行为。固定规模、硬件真实性/attestation、恢复及性能分别验收，代码任务不等待这些环境资格。
 
 ### M27 / M35 / M36 / M40 / M41 / M42
 
@@ -542,8 +497,8 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 #382~#384、本地 CDC/窗口/任务/DLQ/自动投递/桥接及汇总工具移至 CHANGELOG；这里只保留剩余。M44 应用、M45 计算语义、M46 编码各自归属新里程碑。
 
 | 范围 | 状态 | 剩余交付 |
-| M49（两条产品线） | 🟡 / 🚧 | 首批九模型、真实托管/AOT嵌入式和原生HTTP2 Frame、精确类型/预算/取消/恢复及独立包消费者；十个本地切片已闭环，整体15包仍进行中。 |
 |---|---|---|
+| M49（两条产品线） | 🟡 / 🚧 | C01完成，剩余包按模型/操作/语言批次交付；复用已验h2c与typed KV，不扩大为九模型完成。 |
 | #385~#390 | 🚧 | 远程同步、schema/冲突、离线续传、客户端及现场故障/容量。 |
 | #391~#395 | 🚧 | 远程投递/接管、权限、业务副作用边界与现场恢复，已有本地底座不重做。 |
 | #396 | 🚧 | 十四能力完整入口/权限/失败/取消/重启/对账及远程组合。 |
@@ -552,7 +507,7 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 
 既有细分与退出见[总索引](docs/roadmap-total-milestone.md)，外部 issue 见[路线快照](docs/github-issues-roadmap.md)。
 
-CAP 生态适配新增统一 `SonnetDB.CAP` 项目（2026-10-09），按用户最新要求合并存储与传输，并通过 Data SDK 覆盖嵌入式与远程；Document 存储、MQ 传输、单 collection 业务+Outbox 事务、幂等索引和持久消费组登记已实现。真实本地/Server/CAP 定向验证及 NuGet 候选包见[集成合同](docs/design/cap-integration.md)；正式发布、Linux/强杀/掉电/固定硬件与长稳仍独立待验。EF Core/ADO SQL 存储、MongoDB wire、跨 collection 事务和跨进程消费者租约不在本片交付中。
+CAP 生态适配新增统一 `SonnetDB.CAP` 项目（2026-10-09），按用户最新要求合并存储与传输，并通过 Data SDK 覆盖嵌入式与远程；Document 存储、MQ 传输、单 collection 业务+Outbox 事务、幂等索引和持久消费组登记已实现。真实本地/Server/CAP 定向验证及 NuGet 候选包见[集成合同](docs/design/cap-integration.md)；代码/候选验证与 Linux/强杀留在能力路线，掉电、固定硬件与长稳统一见[环境路线](docs/roadmap-environment-validation.md)。EF Core/ADO SQL 存储、MongoDB wire、跨 collection 事务和跨进程消费者租约不在本片交付中。
 
 ## 性能观察项
 
@@ -571,7 +526,7 @@ CAP 生态适配新增统一 `SonnetDB.CAP` 项目（2026-10-09），按用户�
 2. 三条 AI 旅程有真实模型/数据的可复算质量与成本；九模型职责、ACL/删除/取消/恢复和显式写回可追踪。
 3. 支持子集的批流/增量/重算等价，迟到/更新/删除和不支持路径明确；至少一次与计算幂等分层，不承诺未知副作用 exactly-once。
 4. 编码无损、统计剪枝正确、旧新格式恢复及高熵回退通过；默认由基准决定，优化不牺牲确认写持久性。
-5. 适用固定硬件、远程、安装、容量、恢复、跨架构及长期证据绑定候选；保持 scheduled 独立观察与 Graph Beta gate。
+5. 适用远程、容量、恢复、跨架构及代码候选证据绑定候选；固定硬件、Demo/现场、物理掉电、安装和长期证据统一按[环境路线](docs/roadmap-environment-validation.md)登记，保持 scheduled 独立观察与 Graph Beta gate。
 6. 主路线、总索引、专题、能力索引及 CHANGELOG 状态一致；研究/规划只记录文档已变更，未来功能实际交付后才进 CHANGELOG。
 
 ## 已完成范围索引

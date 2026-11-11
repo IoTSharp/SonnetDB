@@ -5,6 +5,8 @@ description: "EF Core、批量 measurement、KV TTL、对象 multipart、迁移�
 permalink: /benchmarks/ecosystem-soak/
 ---
 
+本报告属于[环境与现场资格路线](../roadmap-environment-validation.md)的 ENV-01/ENV-04 证据。quick/CI/hosted 结果只证明对应 runner 行为；固定硬件、线上 Demo、现场生产、物理掉电和 168 小时资格必须按 ENV-02/ENV-03/ENV-04 单独记录。
+
 ## 验收范围
 
 `tests/SonnetDB.EcosystemSoak` 对 Milestone 19 / #121 的通用数据库能力做同一轮组合验收：

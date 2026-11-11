@@ -1,6 +1,6 @@
 # SonnetDB 4.5 — 存储编码与执行成本优化（M46）
 
-规划基线：2026-10-03；对应根 [ROADMAP](../../ROADMAP.md) 的 M46-S01~S09，状态均为 `📋 planned`。这些 ID 是规划工作包，不是已创建的 issue 或已完成的 PR。本文件是设计与验收计划，不包含本轮运行的性能结果，也不宣布格式、默认配置或包版本已变更。
+原规划基线：2026-10-03；2026-11-11按当前源码对账。M46-S02/S06/S09为局部完成，其余包的新增合同仍为计划；既有codec、cache、WAL与compaction继续复用。全仓顺序见[根路线](../../ROADMAP.md#当前推进顺序)。这些 ID 是规划工作包，不是已创建的 issue 或已完成的 PR。本文件是设计与验收计划，不包含本轮运行的性能结果，也不宣布格式、默认配置或包版本已变更。
 
 目标是改善 SonnetDB 自身的磁盘成本、CPU、读写放大、分配与尾延迟，同时保留九模型、嵌入式部署、Safe-only、Core 零第三方运行时依赖和 Native AOT 合同。参考其它产品的机制之后独立设计，交付以现有入口上的真实收益与正确性为准，不以编码算法数量为准。
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | `SegmentWriterOptions.TimestampEncoding`、`ValueEncoding` 默认均为 `None` | [SegmentWriterOptions](../../src/SonnetDB.Core/Storage/Segments/SegmentWriterOptions.cs) | 现有压缩实现不能写成默认已开启；首先同时测默认 raw 和显式编码，再决定是否推出或默认启用 auto。 |
 | 时间戳已有 delta-of-delta + zigzag varint | [TimestampCodec](../../src/SonnetDB.Core/Storage/Segments/TimestampCodec.cs) | 深化极值合同、适用性选择及窄范围读取，不重做已有算法。 |
-| V2 值编码已有简化 Gorilla XOR、Boolean RLE、String 字典；Int64 仍为 raw 8B LE | [ValuePayloadCodecV2](../../src/SonnetDB.Core/Storage/Segments/ValuePayloadCodecV2.cs) | Int64 是首个清晰增量；其余类型先处理高熵回退和成本，再选择必要改进。 |
+| V2 值编码已有简化 Gorilla XOR、Boolean RLE、String 字典；Int64 仍为 raw 8B LE | [ValuePayloadCodecV2](../../src/SonnetDB.Core/Storage/Segments/ValuePayloadCodecV2.cs) | Int64独立v7 RLE/raw回退已交付，旧V2 raw语义保持；完整自适应与其余类型仍先核高熵回退和成本，不重做已有RLE。 |
 | writer 按选项及类型选择 V1/V2，复合 VECTOR/GEOPOINT 保持相应 raw 路径 | [SegmentWriter](../../src/SonnetDB.Core/Storage/Segments/SegmentWriter.cs) | 不能把所有字段强制塞入同一编码；复合类型与索引有独立正确性、召回和空间语义。 |
 | v6 段已有内嵌 HNSW/sketch、mini-footer 和兼容读取逻辑 | [SegmentHeader](../../src/SonnetDB.Core/Storage/Format/SegmentHeader.cs)、[SegmentReader](../../src/SonnetDB.Core/Storage/Segments/SegmentReader.cs) | 新编码与块目录不得破坏已有扩展区、CRC、恢复和旧段读取；不能偷偷改变旧 `DeltaValue` 的 Int64 含义。 |
 | 解码缓存按 reader 分配，默认上限 16 MiB | [SegmentReaderOptions](../../src/SonnetDB.Core/Storage/Segments/SegmentReaderOptions.cs)、[SegmentReader](../../src/SonnetDB.Core/Storage/Segments/SegmentReader.cs) | 单 reader 上限不是数据库或进程总预算；reader 数量放大需要接 V45-X02。 |

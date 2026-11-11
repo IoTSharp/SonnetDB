@@ -1,6 +1,6 @@
 # SonnetDB 4.5 — AI 应用与可治理推理（M44）
 
-规划日期：2026-10-03；基线：`4b004946`。本文细化根 [ROADMAP](../../ROADMAP.md) 的 M44-A01~A10，所有工作包均为 `planned`，不是已实现能力、已创建 issue 或发布承诺。M44-A01~A07 为 4.5 必选；A08/A09 为条件项；A10 为后续候选。
+原规划日期：2026-10-03；原基线：`4b004946`。2026-11-11核查：M44-A01～A05已有可复用底座及部分切片，A06/A07的真实质量/旅程仍进行中，A08～A10保持条件或后续计划。本文细化根[路线](../../ROADMAP.md#当前推进顺序)，逐包状态见[独立反驳审查](../audits/roadmap-audit-20261111/adversarial.md)，不能将局部实现扩为完整应用。M44-A01~A07 为 4.5 必选；A08/A09 为条件项；A10 为后续候选。
 
 目标是让已有九模型、时序算法、检索与 Copilot 组成有真实效果、可审计成本、可恢复的应用。先完成工业诊断、业务分析、知识与资产助手三个旅程，再按证据引入新的模型和算法。参考外部产品的机制与取舍，按 SonnetDB 的嵌入式、Server、类型、事务、资源和 AOT 合同独立实现。
 
@@ -19,7 +19,7 @@
 | [FileStreamingTaskCatalog](../../src/SonnetDB.Core/Streaming/FileStreamingTaskCatalog.cs)、[FileStreamingTaskRunner](../../src/SonnetDB.Core/Streaming/FileStreamingTaskRunner.cs)、[FileStreamingDeadLetterOperations](../../src/SonnetDB.Core/Streaming/FileStreamingDeadLetterOperations.cs) | M43 已有持久任务、订阅、位点、窗口、DLQ/恢复底座 | A05 负责模型调用/结果提交合同；M43 继续负责运输与任务生命周期。至少一次投递不等于外部模型调用恰好一次。 |
 | [M27 模型证据](../benchmarks/m27-provider-model-profile.md)、[M27 eval/cost](../benchmarks/m27-copilot-eval-cost.md)、[M35 预算](../m35-filtered-search-budgets.md) | runner、verifier、fixture 回归和报告合同已有 | 复用报告结构，增加应用真实质量/成本。结构合法与内部汇总一致不能证明模型真实运行、硬件真实或效果通过。 |
 
-M44 不关闭 M27 的真实 provider、IdP/broker、双网与 Studio 门禁，不替代 M35 的真实模型/容量，不替代 M40 图生产 gate；M43 远程 CDC/接管与恢复仍按原归属推进。本轮仅规划文档，未执行上述功能或模型测试。
+M44 不关闭 M27 的真实 provider、IdP/broker、双网与 Studio 门禁，不替代 M35 的真实模型/容量，不替代 M40 图生产 gate；M43 远程 CDC/接管与恢复仍按原归属推进。本轮只核查并整理文档，未重新运行上述功能或模型测试；既有源码与历史验证保留各自身份。
 
 ## 2. 代表产品机制与选择理由
 
