@@ -7994,3 +7994,15 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 178/179 按公开 `main` `911ad1ff8aad8f8929ccaaa9208a76b6de85d782`、GitHub Release `v5.0.0`、NuGet `SonnetDB.Core 5.0.0`、本地标题/别名与博客园账户首页复核。项目识别、封面 `RequireUploadReady` 和离线 C# dry-run 均通过；两张远程封面 SHA、主题图、默认微信二维码和 QQ 群二维码均已复核。
 - 178 仅调用一次 C# 创建接口，明确返回 postId `23612806` 和 [原帖 URL](https://www.cnblogs.com/IoTSharp/p/23612806)。公开页面回读到标题、主题封面、微信二维码和 QQ 群号；官方 REST 原 ID 路径试读为 404，后续 MetaWeblog read 尝试因本地端点值无效未形成有效回读，未重试也未编辑/重发。状态及 `published` 事件已写入，原发布器进程 PID 70856 于 10:48:49 +08 正常退出。
 - 租约的 10:51 +08 本轮截止已到，未再发起任何外部请求。178 的伴随闪存保留为明确 `pending, attempts=0`；179 已核为 `queued, attempts=0`，没有发送创建请求，供下一轮先按现状重新核查后继续。本轮三份临时预览/状态脚本已删除，必要发布回执保留在 `.publishing/blogs/publishing-evidence/2026-11-10/run-1023/`。未暂存、提交、推送、部署、运行产品构建或测试；其它共享工作树修改保持不动。
+
+<!-- cnblogs-20261111-ledger-missing -->
+## 博客园 2026-11-11：发布台账缺失，未执行外部写入
+
+- 本轮按自动化规则以 PowerShell 7.6.9 读取 AGENTS、交接、博客园发布/伴随闪存技能及自动化上次运行记录；未使用 Graphify。10:49 +08 的再次核查确认 `D:\source\SonnetDB\.publishing\blogs` 只含其它渠道的 `csdn` 目录，缺少 `publishing-state.json`、`00-publishing-plan.md`、`series-backlog.md`、`publishing-events.jsonl` 和 `cover-image-policy.md`。历史 `docs\blogs` 入口也不存在。
+- 这与 2026-11-10 交接中已发布的 178、待发 179 及 178 `ing=pending, attempts=0` 的记录冲突。无法证明当天 2 篇额度、独占租约、文章内容 SHA、标题/别名去重、封面上传状态或闪存的唯一请求边界，因此没有恢复、重建或猜测任何台账，也没有运行图片上传、C# dry-run、文章创建、闪存 POST、公开读回或重试。
+- 需要先恢复同一时点的 `.publishing/blogs` 台账、稿件和必要证据，再由下一次有界运行重新完成状态、租约、源码/发行、账号/标题和封面门禁；不得仅依据本交接重新创建 179 或发送 178 的伴随闪存。本轮未暂存、提交、推送、部署、构建或测试，未终止任何进程；外来工作树内容保持不动。
+
+<!-- douyin-storage-missing-20261111 -->
+## 2026-11-11 发布存储缺失：抖音恢复入口
+
+本轮只读发布MCP返回ENOENT，.publishing/blogs/douyin原账本、正文、批准人物素材与channels/douyin原回执缺失；已知外部归档为指向缺失archive目录的junction，未找到可恢复原资料。缺失原因UNKNOWN。未初始化账本、重建历史或执行浏览器写入。故障证据与恢复步骤见.publishing/channels/douyin/HANDOFF.md和storage-recovery-20261111.json；这两个新文件仅记录故障，不是原发布状态。持续实际发布授权保持，恢复原材料后先对账再续发；现存CSDN与其它任务内容不覆盖。本轮无Git提交/推送/部署。
