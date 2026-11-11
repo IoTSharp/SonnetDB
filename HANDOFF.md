@@ -8028,3 +8028,11 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 本轮修改范围：根 ROADMAP 的当前顺序与环境映射、总里程碑索引、M48 L20A/L20B、M50 T30A/T30B、M40/M41/M19/KV 专题链接，以及新增环境路线。能力代码、确定性进程强杀、损坏/满盘、旧格式拒绝、迁移/取消/未知提交仍由能力路线验证；环境资格缺失不阻断普通代码切片。
 - 当前环境状态：未连接线上 Demo、现场生产或电源控制设备，未运行固定硬件、物理掉电或长稳；环境路线保持 `PLANNED/NOT_RUN`。日志若缺少电源、介质刷新或完整性链路，不能证明物理掉电零丢失。
 - 验证：本轮尚未执行产品构建/测试；文档静态检查、根路线/总索引/环境路线链接和工作树回读已完成，回执见 `docs/audits/roadmap-audit-20261111/validation.json`。没有提交、推送、部署、重启或外部写入。
+## 2026-11-12（Asia/Shanghai）路线文档提交与推送
+
+- 用户授权“现在提交代码并推送，然后在新会话使用多个智能体按顺序实现后续任务”。本轮提交范围是路线审计、环境与现场资格路线、能力/生态专题状态同步、README/CHANGELOG/HANDOFF 及两个子模块 ROADMAP；`src/tests/eng/web/embedded/.github` 无改动。
+- 提交前门禁：`dotnet restore SonnetDB.slnx` PASS；`dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 第二次有界执行 PASS（退出码0，耗时约145秒，输出仅有工作区加载 warning）。首次120秒超时保留为 NOT_RUN/超时历史，不当作 PASS；Cordonix确认本任务进程树已清理。
+- 子模块交付：`extensions/IoTSharp.CoAP.NET` 提交 `e6d3eee4c9ab5c7731e90f818c32e6e6a413d42e`，origin/master 独立读回相同 SHA；`extensions/MQTTnet.AspNetCore.Routing` 提交 `4cad2422e9e9f296a0174360308d1d4c4d4f84db`，origin/master 独立读回相同 SHA。
+- 主仓交付：`docs(roadmap): separate environment qualification gates` 提交 `f8c4c5f28f55baed1e1bf3d6ad2383cc0317e896`；GitHub `origin/main` 与 Gitee `gitee/main` 均独立读回相同 SHA。主仓和两个子模块工作树在推送后均干净。
+- 证据边界：本轮没有运行产品测试、现场 Demo、固定硬件、物理掉电或长稳；路线已将这些转入 `docs/roadmap-environment-validation.md` 的 ENV-00～ENV-06。下一能力顺序为确认写/迁移恢复、全文窗口正确性、并发资源、性能计量、时序合同、.NET/C 可靠消费者、持续计算和应用闭环。
+- 新会话安排：从当前已推送 `f8c4c5f2` 基线开始，多个智能体只能各自负责不重叠的能力切片；主智能体持有共享接口、集成、最终验证和状态决定。环境资格路线单独跟踪，不能阻塞普通代码切片。
