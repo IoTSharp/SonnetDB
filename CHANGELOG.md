@@ -45,6 +45,7 @@
 - GH-Issue #230：补充固定5.0.0的十二类门禁及公开消费者审计；保留旧NuGet过期403证据，修复凭据后完成十包、52个Release资产和DockerHub公开回读，分别记录FreeSql237、XCode50、Chloe三协议各101、SqlSugar各93、ABP22及真实Testcontainers结果。上游Provider公开分发与本次SonnetDB交付分别验收。
 
 ### Fixed
+- Relaxed coordination waits in the non-cooperative streaming dispatcher timeout test so Windows runner scheduling delays do not cause false failures.
 - 修复轻量 .NET Client 的 GetAndDeleteKvAsync 接受“旧值缺失但返回正变更版本”的矛盾回执；按操作合同拒绝并保留 OutcomeUnknown，不自动重试，共享 exchange 解码仍接受 GetAndSet 的合法响应。
 - PR #413 审查修复：关系批次在每次 WAL admission 前核对共同期限，防止超时重新取得锁后迟到提交；对象容量只读入口不再构造门面、创建目录或打开元数据，Windows 按完整正文目录查询实际挂载卷。新增超时、嵌入式/HTTP 目录丢失和目录链接回归，不改格式。
 - 关系表原子批次在当前检查点余量不足、但批次能装入空白预算时，在 WAL 追加前有界等待并支持取消；行与索引仍整批原子发布，不拆分事务、不放宽预算，WAL 开始提交后的 I/O 故障不重试。直接 KV 批次的原超限拒绝合同保留。
