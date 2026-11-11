@@ -2,7 +2,7 @@
 
 - 分支 `copilot/fix-github-actions-build-test`，起始 HEAD `d10244b3bc934170ea7c4f54324d33276762b6d3`，工作树起始干净。本轮检查 Actions run `42840082302` / job `129912634284`：Core 构建成功，8375/8376 测试通过；唯一失败为 `FileStreamingSubscriptionDispatcherTests.RunAsync_WithNonCooperativeHandlerTimeout_HoldsSharedLeaseAndNeverAcknowledgesLateSuccess` 在 2 秒等待 handler 进入信号处超时。
 - 将该测试的协调等待从 2 秒提高到 10 秒，不改变生产代码或测试的业务断言；补充 Unreleased Fixed 记录。聚焦测试 2/2 PASS，测试项目格式检查 PASS。完整 solution restore 因 checkout 中缺失 4 个 `SonnetDB.slnx` 引用项目 FAIL；测试项目单独 restore PASS。完整套件和 Windows runner 复跑未执行。
-- 最终待提交树仍需 secret scan；CodeQL 待提交后运行。没有授权发布、部署或生产改动。
+- 提交前 secret scan 未发现秘密；提交后调用 CodeQL，因仅调整测试等待和文档而判定所有变更 trivial 并跳过分析。没有授权发布、部署或生产改动。
 
 ## 2026-11-10（Asia/Shanghai）KV-LSM K7 提交与双端推送
 
