@@ -192,8 +192,8 @@ public sealed class FileStreamingSubscriptionDispatcherTests
         }).AsTask();
         try
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            FileStreamingDispatcherResult timedOut = await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            FileStreamingDispatcherResult timedOut = await run.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(useRunBudget ? FileStreamingDispatcherStopReason.TimeBudgetReached
                 : FileStreamingDispatcherStopReason.HandlerTimedOut, timedOut.StopReason);
             Assert.True(handlerToken.IsCancellationRequested);
@@ -202,7 +202,7 @@ public sealed class FileStreamingSubscriptionDispatcherTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => anotherDispatcher.RunAsync(Succeed).AsTask());
             Assert.Equal(1, (await subscription.GetStatusAsync()).InFlightAttempt);
             release.TrySetResult();
-            await dispatcher.HandlerCompletion.WaitAsync(TimeSpan.FromSeconds(2));
+            await dispatcher.HandlerCompletion.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(-1, subscription.Checkpoint.CommittedSequence);
             FileStreamingDispatcherResult recovered = await anotherDispatcher.RunAsync(Succeed);
             Assert.Equal(FileStreamingDispatcherStopReason.Completed, recovered.StopReason);
@@ -212,7 +212,7 @@ public sealed class FileStreamingSubscriptionDispatcherTests
         finally
         {
             release.TrySetResult();
-            await dispatcher.HandlerCompletion.WaitAsync(TimeSpan.FromSeconds(2));
+            await dispatcher.HandlerCompletion.WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
 

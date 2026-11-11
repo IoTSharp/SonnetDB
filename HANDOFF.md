@@ -1,3 +1,9 @@
+## 2026-11-11（Asia/Shanghai）Windows Core CI 超时回归
+
+- 分支 `copilot/fix-github-actions-build-test`，起始 HEAD `d10244b3bc934170ea7c4f54324d33276762b6d3`，工作树起始干净。本轮检查 Actions run `42840082302` / job `129912634284`：Core 构建成功，8375/8376 测试通过；唯一失败为 `FileStreamingSubscriptionDispatcherTests.RunAsync_WithNonCooperativeHandlerTimeout_HoldsSharedLeaseAndNeverAcknowledgesLateSuccess` 在 2 秒等待 handler 进入信号处超时。
+- 将该测试的协调等待从 2 秒提高到 10 秒，不改变生产代码或测试的业务断言；补充 Unreleased Fixed 记录。聚焦测试 2/2 PASS，测试项目格式检查 PASS。完整 solution restore 因 checkout 中缺失 4 个 `SonnetDB.slnx` 引用项目 FAIL；测试项目单独 restore PASS。完整套件和 Windows runner 复跑未执行。
+- 提交前 secret scan 未发现秘密；提交后调用 CodeQL，因仅调整测试等待和文档而判定所有变更 trivial 并跳过分析。没有授权发布、部署或生产改动。
+
 ## 2026-11-10（Asia/Shanghai）KV-LSM K7 提交与双端推送
 
 - 当前用户明确授权“现在提交代码并推送”。本次只提交上一轮拥有的 52 个文件并推送 main 到 GitHub／Gitee；源码基线 f71e8a80，C# 文件仍绑定 `6f8e1695af92`，先在最终待提交树重新执行完整 restore 和规定 format，未 PASS 不提交。提交、父提交、精确树及双端独立读回保存在 `artifacts/kv-lsm-followup-20261110/submission/`；本段随本批提交，不能仅凭本段推断推送已成功。
