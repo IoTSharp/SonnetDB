@@ -97,6 +97,7 @@ public static class KvLsmCapacityBenchmark
         context.Time("checkpoint", 1, store.CreateSnapshot);
         VerifyAll(store, context);
         context.SampleMemory(seconds: 10);
+        context.SampleLsmIo(store);
     }
 
     private static void RunKeyspace(string root, RunContext context)
@@ -173,6 +174,7 @@ public static class KvLsmCapacityBenchmark
         finally { held?.Dispose(); }
         context.Time("final-checkpoint", 1, store.CreateSnapshot);
         context.SampleMemory();
+        context.SampleLsmIo(store);
     }
 
     private static void RunMigration(string root, RunContext context)
@@ -453,6 +455,14 @@ public static class KvLsmCapacityBenchmark
                 if (report.RssStable.Value) report.ObservedStableRssBytes = (long)tail.Average();
             }
         }
+        internal void SampleLsmIo(KvKeyspace store)
+        {
+            if (store.LsmBackend is not { } backend) return;
+            var stats = backend.Engine.GetStats();
+            report.CompletedLsmIo = new KvLsmCompletedIoMeasurement(
+                stats.CompletedFlushOutputBytes, stats.CompletedCompactionInputBytes, stats.CompletedCompactionOutputBytes);
+        }
+
         internal void SampleStorage(string root)
         {
             int count = 0;
@@ -519,7 +529,7 @@ internal sealed record KvLsmCapacityOptions
 
 internal sealed class KvLsmCapacityReport
 {
-    public string SchemaVersion { get; init; } = "1.1";
+    public string SchemaVersion { get; init; } = "1.2";
     public string RunId { get; init; } = Guid.NewGuid().ToString("N");
     public string Status { get; set; } = "UNKNOWN";
     public string EvidenceScope { get; init; } = "Bounded local measurement; PASS means fixture and selected run completed, not G1-G12 acceptance.";
@@ -547,6 +557,7 @@ internal sealed class KvLsmCapacityReport
     public int LastObservedFileCount { get; set; }
     public long LastObservedDiskBytes { get; set; }
     public long MaxObservedDiskBytes { get; set; }
+    public KvLsmCompletedIoMeasurement? CompletedLsmIo { get; set; }
     public int InventoryFilesDisappeared { get; set; }
     public long MigrationSourceDiskBytes { get; set; }
     public int[] GcCollections { get; set; } = [];
@@ -565,6 +576,12 @@ internal sealed class KvLsmCapacityReport
 
 internal sealed record KvLsmCapacityMeasurement(string Name, long Operations, double ElapsedMilliseconds, double OperationsPerSecond,
     double? P50Microseconds, double? P99Microseconds, long AllocatedBytes);
+
+/// <summary>kv/memory 场景当前引擎会话成功发布的 SST 累计大小，区别于目录存量与设备 I/O。</summary>
+internal sealed record KvLsmCompletedIoMeasurement(long FlushOutputBytes, long CompactionInputBytes, long CompactionOutputBytes)
+{
+    public string Scope { get; init; } = "Current open session; completed published SST files only. Trivial moves add zero. Reopen resets counters. Excludes recovery-open work, failed jobs, WAL, manifest and device I/O; not total write amplification. Null for Legacy and scenarios without this measurement.";
+}
 
 [JsonSourceGenerationOptions(WriteIndented = true, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(KvLsmCapacityReport))]

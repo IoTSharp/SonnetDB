@@ -115,6 +115,10 @@ internal sealed record KvLsmEngineOptions
 /// <param name="WalNumber">活跃 WAL 文件号。</param>
 /// <param name="CompactionCount">已完成的 compaction 次数（含 trivial move）。</param>
 /// <param name="BytesByLevel">各层 SST 总字节数。</param>
+/// <param name="CompletedFlushOutputBytes">本次打开后成功发布的 flush SST 文件累计字节数；回收文件不扣减，重开归零。</param>
+/// <param name="CompletedCompactionInputBytes">本次打开后成功发布的非 trivial compaction 输入 SST 文件累计大小，不是实际设备读取字节。</param>
+/// <param name="CompletedCompactionOutputBytes">本次打开后成功发布的非 trivial compaction 输出 SST 文件累计字节数。</param>
+/// <remarks>累计值不包括恢复打开阶段、失败作业、WAL、manifest、目录元数据和设备内部写入，不能作为完整物理写放大。</remarks>
 internal sealed record KvLsmEngineStats(
     long LastSequence,
     int ImmutableMemTables,
@@ -123,7 +127,10 @@ internal sealed record KvLsmEngineStats(
     long FlushCount,
     long WalNumber,
     long CompactionCount,
-    IReadOnlyList<long> BytesByLevel);
+    IReadOnlyList<long> BytesByLevel,
+    long CompletedFlushOutputBytes,
+    long CompletedCompactionInputBytes,
+    long CompletedCompactionOutputBytes);
 
 /// <summary>
 /// 单个 KV-LSM 实例：WAL + 活跃/不可变 memtable + 版本集管理的 SST，提供原子批量写、O(1) 快照、
@@ -185,6 +192,9 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
     private ReadState _state;
     private long _lastSequence;
     private long _flushCount;
+    private long _completedFlushOutputBytes;
+    private long _completedCompactionInputBytes;
+    private long _completedCompactionOutputBytes;
     private Exception? _fault;
     private bool _disposed;
 
@@ -1014,7 +1024,10 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
                 Interlocked.Read(ref _flushCount),
                 Volatile.Read(ref _walNumber),
                 Interlocked.Read(ref _compactionCount),
-                Enumerable.Range(0, KvVersion.LevelCount).Select(level => state.Version.Files(level).Sum(static f => f.FileSize)).ToArray());
+                Enumerable.Range(0, KvVersion.LevelCount).Select(level => state.Version.Files(level).Sum(static f => f.FileSize)).ToArray(),
+                Interlocked.Read(ref _completedFlushOutputBytes),
+                Interlocked.Read(ref _completedCompactionInputBytes),
+                Interlocked.Read(ref _completedCompactionOutputBytes));
         }
     }
 
@@ -1256,6 +1269,7 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
             _immutableBytes -= table.ApproximateMemoryUsage;
             PublishState(_versions.AcquireCurrent());
             Interlocked.Increment(ref _flushCount);
+            Interlocked.Add(ref _completedFlushOutputBytes, file.FileSize);
             ReportWriteBufferLocked();
             Monitor.PulseAll(_writeLock);
         }
@@ -1303,6 +1317,10 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
             {
                 version.Release();
             }
+            // The acquired version keeps obsolete SST readers alive while the job runs;
+            // retry cleanup after releasing it so a successful compaction actually reaps
+            // inputs whose references are no longer visible.
+            CleanupObsoleteFiles();
         }
         finally
         {
@@ -1349,11 +1367,13 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
             {
                 version.Release();
             }
+            CleanupObsoleteFiles();
         }
     }
 
     private void RunCompactionJob(KvCompactionJob job, KvVersion version, CancellationToken cancellationToken)
     {
+        long completedOutputBytes;
         try
         {
             // compaction 是后台维护：输入块读取走读取预算的维护通道，请求过载不会让 compaction 失败并使 keyspace 只读。
@@ -1371,6 +1391,7 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
             OpenNewTables(edit.AddedFiles, cancellationToken);
             _versions.LogAndApply(edit);
             _options.TestHook?.Invoke(KvLsmEnginePhase.CompactionAfterManifestCommit);
+            completedOutputBytes = job.IsTrivialMove ? 0 : edit.AddedFiles.Sum(static file => file.FileSize);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -1386,9 +1407,13 @@ internal sealed partial class KvLsmEngine : IDisposable, IKvWriteBufferClient
         {
             PublishState(_versions.AcquireCurrent());
             Interlocked.Increment(ref _compactionCount);
+            if (!job.IsTrivialMove)
+            {
+                Interlocked.Add(ref _completedCompactionInputBytes, job.Inputs.Sum(static file => file.FileSize));
+                Interlocked.Add(ref _completedCompactionOutputBytes, completedOutputBytes);
+            }
             Monitor.PulseAll(_writeLock);
         }
-        CleanupObsoleteFiles();
     }
 
     private static KvLsmFileMetadata WriteLevel0(KvVersionSet versions, KvMemTable table, KvLsmEngineOptions options)

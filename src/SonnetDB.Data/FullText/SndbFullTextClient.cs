@@ -7,6 +7,7 @@ using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.FullText;
 using SonnetDB.FullText.Tokenization;
 using SonnetDB.FullText.Tokenizers.Cjk;
@@ -112,6 +113,11 @@ public sealed class SndbFullTextClient : IDisposable
         if (!response.IsSuccessStatusCode)
         {
             string detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.UnprocessableEntity
+                && detail.Contains("fulltext_search_budget_exceeded", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new FullTextSearchBudgetExceededException(detail);
+            }
             throw new HttpRequestException(
                 $"全文检索失败（HTTP {(int)response.StatusCode} {response.StatusCode}）：{detail}",
                 inner: null,
@@ -373,24 +379,14 @@ public sealed class SndbFullTextClient : IDisposable
         if (!string.IsNullOrWhiteSpace(request.ContinuationToken)
             && !int.TryParse(request.ContinuationToken, out offset))
             throw new ArgumentException("嵌入式全文 continuation token 无效。", nameof(request));
-        int take = Math.Min(10_000, checked(offset + pageSize + 1));
         var store = _embedded.Documents.Open(request.Collection);
-        var candidates = store.SearchFullText(definition, request.Field, request.Query, take, mode, queryKind);
-        var rows = new Dictionary<string, DocumentRow>(StringComparer.Ordinal);
-        foreach (DocumentFullTextSearchHit hit in candidates)
-        {
-            if (store.Get(hit.DocumentId) is { } row)
-                rows[hit.DocumentId] = row;
-        }
         DocumentFilter? filter = ToCoreFilter(request.Filter);
-        if (filter is not null)
-        {
-            rows = store.Scan(10_000).ToDictionary(static row => row.Id, StringComparer.Ordinal);
-            candidates = candidates.Where(hit => rows.TryGetValue(hit.DocumentId, out var row) && DocumentQueryPlanner.Matches(filter, row)).ToArray();
-        }
-        var ordered = ApplySort(candidates, request.Sort);
+        DocumentFullTextCompleteSearchResult complete = store.SearchFullTextComplete(
+            definition, request.Field, request.Query, filter, mode, queryKind, cancellationToken);
+        IReadOnlyDictionary<string, DocumentRow> rows = complete.Rows;
+        var ordered = ApplySort(complete.Hits, request.Sort);
         var page = ordered.Skip(offset).Take(pageSize).ToArray();
-        bool hasMore = ordered.Count > offset + page.Length || candidates.Count == take;
+        bool hasMore = ordered.Count > offset + page.Length;
         var hits = page.Select(hit => BuildHit(hit, request, rows)).ToArray();
         var facets = BuildFacets(request.Facets, ordered, rows);
         return new SndbFullTextSearchResult(

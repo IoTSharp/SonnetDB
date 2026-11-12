@@ -674,8 +674,8 @@ public sealed record FullTextHighlightRequest(int FragmentSize = 160, int MaxFra
 
 /// <summary>全文检索响应，包含稳定分页和 facet 元数据。</summary>
 /// <param name="Collection">文档集合名称。</param><param name="Hits">命中列表。</param>
-/// <param name="Facets">facet 分布。</param><param name="NextContinuationToken">下一页 token。</param>
-/// <param name="HasMore">是否还有下一页。</param><param name="PageSize">实际页大小。</param><param name="TotalHits">命中总数。</param>
+/// <param name="Facets">基于完整结构过滤命中集合计算的 facet 分布。</param><param name="NextContinuationToken">下一页 token。</param>
+/// <param name="HasMore">是否还有下一页。</param><param name="PageSize">实际页大小。</param><param name="TotalHits">完整结构过滤命中总数；预算不足时请求失败且不返回部分结果。</param>
 public sealed record FullTextSearchResponse(
     string Collection,
     IReadOnlyList<FullTextSearchHit> Hits,

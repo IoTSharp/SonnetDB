@@ -492,7 +492,7 @@ internal static partial class FrameEndpointHandler
                     header.Op,
                     header.StreamId,
                     "sql_overloaded",
-                    $"数据库 '{request.Db}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。");
+                    $"数据库 '{request.Db}' 的 SQL 请求已达到并发或等待期限，请稍后重试。");
                 return;
             }
 
@@ -739,7 +739,7 @@ internal static partial class FrameEndpointHandler
             {
                 metrics.RecordSqlError();
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId,
-                    "sql_overloaded", $"数据库 '{request.Db}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。");
+                    "sql_overloaded", $"数据库 '{request.Db}' 的 SQL 请求已达到并发或等待期限，请稍后重试。");
                 return;
             }
 

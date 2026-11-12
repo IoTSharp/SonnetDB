@@ -114,6 +114,7 @@ public sealed class ServerOptionsTests
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
+        Assert.Equal(30_000, options.SqlHttpAdmission.QueueTimeoutMilliseconds);
         Assert.Equal(SqlMemoryOptions.Default.QueryLimitBytes, options.SqlExecution.QueryLimitBytes);
         Assert.Equal(16L * 1024 * 1024, options.SqlExecution.MaxPreviewBytes);
         Assert.Equal(SqlMemoryOptions.Default.GlobalLimitBytes, options.SqlExecution.GlobalLimitBytes);
@@ -303,6 +304,7 @@ public sealed class ServerOptionsTests
             {
                 ["SonnetDBServer:SqlHttpAdmission:PermitLimit"] = "2",
                 ["SonnetDBServer:SqlHttpAdmission:QueueLimit"] = "12",
+                ["SonnetDBServer:SqlHttpAdmission:QueueTimeoutMilliseconds"] = "1234",
             })
             .Build();
 
@@ -310,12 +312,14 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(2, configuredOptions.PermitLimit);
         Assert.Equal(12, configuredOptions.QueueLimit);
+        Assert.Equal(1234, configuredOptions.QueueTimeoutMilliseconds);
 
         var outOfRange = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["SonnetDBServer:SqlHttpAdmission:PermitLimit"] = "0",
                 ["SonnetDBServer:SqlHttpAdmission:QueueLimit"] = "5000",
+                ["SonnetDBServer:SqlHttpAdmission:QueueTimeoutMilliseconds"] = "500000",
             })
             .Build();
 
@@ -323,6 +327,7 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(1, boundedOptions.PermitLimit);
         Assert.Equal(4096, boundedOptions.QueueLimit);
+        Assert.Equal(300_000, boundedOptions.QueueTimeoutMilliseconds);
     }
 
     /// <summary>验证每数据库 SQL 内部资源配置可绑定，并按处理器数量限制内部 worker。</summary>

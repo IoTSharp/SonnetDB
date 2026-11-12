@@ -10,6 +10,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.FullText;
 using SonnetDB.FullText.Tokenization;
 using SonnetDB.FullText.Tokenizers.Cjk;
@@ -749,30 +750,22 @@ internal static partial class SonnetDbEndpoints
             {
                 ctx.RequestAborted.ThrowIfCancellationRequested();
                 var store = tsdb.Documents.Open(req.Collection);
-                int searchTake = Math.Min(10_000, checked(offset + pageSize + 1));
-                var candidates = store.SearchFullText(indexDef, req.Field, req.Query, searchTake, mode, queryKind);
-                var rowsById = new Dictionary<string, DocumentRow>(StringComparer.Ordinal);
-                foreach (DocumentFullTextSearchHit hit in candidates)
-                {
-                    if (store.Get(hit.DocumentId) is { } row)
-                        rowsById[hit.DocumentId] = row;
-                }
                 DocumentFilter? filter = ToCoreFilter(req.Filter);
-                if (filter is not null)
-                {
-                    // 过滤候选受有界扫描上限约束；超过上限时继续保持完整请求有界。
-                    rowsById = store.Scan(10_000).ToDictionary(static row => row.Id, StringComparer.Ordinal);
-                    candidates = candidates.Where(hit => rowsById.TryGetValue(hit.DocumentId, out var row) && DocumentQueryPlanner.Matches(filter, row)).ToArray();
-                }
-
-                IReadOnlyList<DocumentFullTextSearchHit> ordered = ApplyFullTextSort(candidates, req.Sort);
+                DocumentFullTextCompleteSearchResult complete = store.SearchFullTextComplete(
+                    indexDef, req.Field, req.Query, filter, mode, queryKind, ctx.RequestAborted);
+                IReadOnlyDictionary<string, DocumentRow> rowsById = complete.Rows;
+                IReadOnlyList<DocumentFullTextSearchHit> ordered = ApplyFullTextSort(complete.Hits, req.Sort);
                 var page = ordered.Skip(offset).Take(pageSize).ToArray();
-                bool hasMore = ordered.Count > offset + page.Length || candidates.Count == searchTake;
+                bool hasMore = ordered.Count > offset + page.Length;
                 string? nextToken = hasMore ? CreateFullTextToken(fingerprint, offset + page.Length) : null;
                 var hits = page.Select(hit => BuildFullTextHit(hit, req, rowsById)).ToArray();
                 var facets = BuildFullTextFacets(req.Facets, ordered, rowsById);
                 var response = new FullTextSearchResponse(req.Collection, hits, facets, nextToken, hasMore, pageSize, ordered.Count);
                 await Results.Json(response, ServerJsonContext.Default.FullTextSearchResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (FullTextSearchBudgetExceededException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status422UnprocessableEntity, "fulltext_search_budget_exceeded", ex.Message).ConfigureAwait(false);
             }
             catch (ArgumentException ex)
             {

@@ -206,7 +206,9 @@ public sealed class DocumentFullTextIndexStore
         int topK,
         IReadOnlySet<string> allowedDocumentIds,
         long maxPostingVisits,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FullTextSearchMode mode = FullTextSearchMode.Exact,
+        FullTextQueryKind queryKind = FullTextQueryKind.All)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(field);
         ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
@@ -227,8 +229,8 @@ public sealed class DocumentFullTextIndexStore
             SonnetDB.FullText.Query.Query query = BuildQuery(
                 field,
                 queryText,
-                FullTextSearchMode.Exact,
-                FullTextQueryKind.All);
+                mode,
+                queryKind);
             PersistentFullTextFilteredSearchResult search = _index.SearchFiltered(
                 query,
                 topK,

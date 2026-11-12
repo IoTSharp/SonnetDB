@@ -28,6 +28,18 @@ public sealed class KvLsmCapacityBenchmarkTests : IDisposable
         Assert.Equal(report.RunId, saved.RunId);
         Assert.Equal(engine, saved.Options.Engine);
         Assert.Equal(entries, saved.Options.Entries);
+        Assert.Equal("1.2", saved.SchemaVersion);
+        if (engine == KvStorageEngine.Lsm)
+        {
+            Assert.NotNull(saved.CompletedLsmIo);
+            Assert.True(saved.CompletedLsmIo.FlushOutputBytes > 0);
+            Assert.Equal(report.CompletedLsmIo, saved.CompletedLsmIo);
+            Assert.Contains("not total write amplification", saved.CompletedLsmIo.Scope, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Null(saved.CompletedLsmIo);
+        }
         Assert.Throws<IOException>(() => KvLsmCapacityBenchmark.Run(report.Options));
     }
 
@@ -38,6 +50,7 @@ public sealed class KvLsmCapacityBenchmarkTests : IDisposable
         KvLsmCapacityReport report = KvLsmCapacityBenchmark.Run(Options() with { Scenario = "migration", Entries = 257 });
         Assert.Equal("PASS", report.Status);
         Assert.Equal(2, report.FullReadbacks);
+        Assert.Null(report.CompletedLsmIo);
         Assert.True(report.MigrationSecondsPerLogicalGiB > 0);
         Assert.True(report.CleanupComplete);
     }
@@ -64,6 +77,7 @@ public sealed class KvLsmCapacityBenchmarkTests : IDisposable
         KvLsmCapacityReport report = KvLsmCapacityBenchmark.Run(Options(), cancelled.Token);
         Assert.Equal("UNKNOWN", report.Status);
         Assert.Empty(report.Measurements);
+        Assert.Null(report.CompletedLsmIo);
         Assert.True(report.CleanupComplete);
     }
 

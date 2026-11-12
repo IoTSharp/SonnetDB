@@ -92,6 +92,10 @@ internal static class ServerOptionsBinder
             options.SqlHttpAdmission.QueueLimit,
             0,
             4096);
+        options.SqlHttpAdmission.QueueTimeoutMilliseconds = Math.Clamp(
+            options.SqlHttpAdmission.QueueTimeoutMilliseconds,
+            1,
+            300_000);
 
         // Rebirth 队列必须始终有固定上界，避免异常节点风暴持续占用内存。
         options.Mqtt.Sparkplug.RebirthQueueCapacity = Math.Clamp(

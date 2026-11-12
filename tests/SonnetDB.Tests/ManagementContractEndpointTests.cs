@@ -310,6 +310,35 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FullText_TypedSearch_FiltersBeforeCandidateWindowAndCountsExactFacets()
+    {
+        using var admin = CreateClient(_adminToken);
+        using var ro = CreateClient(_readOnlyToken);
+        const string db = "ftfilteredwindow";
+        await CreateDatabaseAsync(admin, db);
+        await ExecuteSqlAsync(admin, db, "CREATE DOCUMENT COLLECTION logs");
+        await ExecuteSqlAsync(admin, db, "INSERT INTO logs (id, document) VALUES ('a', '{\"message\":\"shared shared shared\",\"site\":\"south\"}'), ('b', '{\"message\":\"shared shared\",\"site\":\"south\"}'), ('c', '{\"message\":\"shared\",\"site\":\"north\"}')");
+        await ExecuteSqlAsync(admin, db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+        using JsonDocument expected = JsonDocument.Parse("\"north\"");
+        var request = new FullTextSearchRequest(
+            "logs", "ft_logs_message", "$.message", "shared", PageSize: 1,
+            Filter: new DocumentFilterContract("$.site", "eq", expected.RootElement.Clone()),
+            Facets: [new FullTextFacetRequest("$.site", 4)]);
+
+        using var response = await ro.PostAsync($"/v1/db/{db}/fulltext/search",
+            JsonContent.Create(request, ServerJsonContext.Default.FullTextSearchRequest));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextSearchResponse);
+        Assert.NotNull(result);
+        Assert.False(result!.HasMore);
+        Assert.Equal(1, result.TotalHits);
+        Assert.Equal("c", Assert.Single(result.Hits).DocumentId);
+        var bucket = Assert.Single(Assert.Single(result.Facets).Buckets);
+        Assert.Equal("north", bucket.Value);
+        Assert.Equal(1, bucket.Count);
+    }
+
+    [Fact]
     public async Task FullText_Settings_AnalyzerDiff_Explain_AndRebuildAreObservable()
     {
         using var admin = CreateClient(_adminToken);

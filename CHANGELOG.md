@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Capability correctness and bounded resources — 2026-11-12
+
+- 修复 typed 全文检索在候选 Top-K 后才过滤造成的窗口外命中不可达、`HasMore`/`TotalHits`/facet 不完整问题。embedded、Server `/fulltext/search` 和 remote .NET SDK 统一使用有界的完整过滤搜索；超过文档、文本、posting 或时间预算时返回明确错误且不返回部分结果。跨页继续读取当前视图，不声明跨页快照。
+- 为 KV-LSM 增加当前打开会话内已成功发布 SST 的 flush/compaction 累计字节计量，并将 benchmark report schema 更新为 1.2。该计量排除 WAL、manifest、失败/半写、恢复打开和设备内部写入，不代表完整物理写放大；补充成功 compaction 释放版本引用后的旧 SST 清理时序。
+- 为 SQL HTTP/Frame 数据库准入增加有界排队期限（默认 30 秒，1～300000 毫秒），区分调用方取消与排队超时，复用既有 overload 终态，并记录低基数准入结果。
+
 ### Roadmap audit — 2026-11-11
 
 - 完成全路线目录盘点及核心、生态、独立反驳交叉审查；统一当前推进顺序，补齐M0～M51总索引和150个当前工作包/基线项清单，保留旧候选与失败记录。

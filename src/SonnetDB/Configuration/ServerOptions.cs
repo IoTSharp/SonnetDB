@@ -352,6 +352,12 @@ public sealed class SqlHttpAdmissionOptions
     /// frame-http2 返回 <c>sql_overloaded</c> 错误帧。
     /// </summary>
     public int QueueLimit { get; set; } = 8;
+
+    /// <summary>
+    /// 数据库 SQL 准入最长等待时间（毫秒），默认 <c>30000</c>，有效范围为 1～300000。
+    /// 超时沿用 REST 503 / frame-http2 <c>sql_overloaded</c>；不限制已取得许可的执行时间。
+    /// </summary>
+    public int QueueTimeoutMilliseconds { get; set; } = 30_000;
 }
 
 /// <summary>

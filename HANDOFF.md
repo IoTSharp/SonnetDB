@@ -8036,3 +8036,20 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 主仓交付：`docs(roadmap): separate environment qualification gates` 提交 `f8c4c5f28f55baed1e1bf3d6ad2383cc0317e896`；GitHub `origin/main` 与 Gitee `gitee/main` 均独立读回相同 SHA。主仓和两个子模块工作树在推送后均干净。
 - 证据边界：本轮没有运行产品测试、现场 Demo、固定硬件、物理掉电或长稳；路线已将这些转入 `docs/roadmap-environment-validation.md` 的 ENV-00～ENV-06。下一能力顺序为确认写/迁移恢复、全文窗口正确性、并发资源、性能计量、时序合同、.NET/C 可靠消费者、持续计算和应用闭环。
 - 新会话安排：从当前已推送 `f8c4c5f2` 基线开始，多个智能体只能各自负责不重叠的能力切片；主智能体持有共享接口、集成、最终验证和状态决定。环境资格路线单独跟踪，不能阻塞普通代码切片。
+
+## 2026-11-12（Asia/Shanghai）第一阶段能力切片实现
+
+- 基线：从已推送 `main @ d7e3eddbd3e3eba6fcd434d5f66e08ebda512f9c` 开始，起始工作树干净；本轮启动三个有非重叠所有权的智能体，主线持有接口冻结、共享文档、串行验证和状态判定。未提交、未推送、未部署、未运行迁移或生产写入，`parity-results` 本地/远端引用未改。
+- 全文 typed：新增有界完整过滤搜索，embedded、Server `/fulltext/search` 和 remote .NET SDK 均先按结构过滤再评分/分页；窗口外命中可达，`TotalHits`/facet 基于完整过滤集合；超过文档、文本、posting 或 10 秒预算返回专用错误，不返回部分结果。跨页继续读取当前视图，不声明 snapshot。
+- KV-LSM G3 最小计量：`KvLsmEngineStats` 记录本次打开会话成功发布的 flush SST 输出及非 trivial compaction 输入/输出累计字节；失败/取消/半写/恢复打开、trivial move、WAL/manifest/设备内部写入不计入，重开归零。benchmark schema 升为 1.2；补充 compaction 成功发布后释放版本引用再清理旧 SST 的时序。
+- M42-H02 最小准入：SQL HTTP/Frame 数据库 partition 增加默认 30 秒、1～300000 毫秒的排队期限；调用方取消优先，活动 lease 不受排队期限影响；超时沿既有 overload 终态，并记录低基数 acquired/rejected/timeout/canceled 观测。
+- 验证：solution restore PASS；Core/Data/Server/Benchmarks 构建 PASS（0 警告/错误）；全文/KV 定向 Core 测试 10/10 PASS；Server 定向测试 45/45 PASS；KV Benchmark 定向测试 19/19 PASS；规定 solution format PASS；格式首轮发现的新测试 using 顺序问题已修复并复跑 Core 10/10。完整全仓测试、AOT 发布、真实消费者/公开包、Demo/现场、固定硬件、物理掉电和 168 小时长稳均 `NOT_RUN`。
+- 下一步：按当前路线继续审查 G12/旧格式拒绝/磁盘不足/未知提交与 H01/H03/H04/H05；时序 P0-3～P0-5/M50 T01～T03 仍需先冻结业务语义，当前未修改时序格式或默认行为。
+- 时序语义反驳复核：保守方案获得支持但不直接实施。若进入下一阶段，先限定有界单 Point 的 WAL begin/commit marker 与 replay/强杀/截断尾恢复，确认语义与物理耐久/unknown 结果分开；不把整个 WriteMany batch 原子化、不改变默认 fsync。继续保持全局 TTL/无 measurement 分区、KEEP_ALL 重复点和 ms 默认；分区/TTL、FIRST/LAST、us/ns 精度及旧格式拒绝分别冻结并独立迁移，直到 Core→Server→.NET/C 合同齐全。该审查未连接环境、未改代码、未改变本轮第一阶段状态。
+
+## 2026-11-12（Asia/Shanghai）第一阶段提交授权与下一阶段交接
+
+- 用户明确授权现在提交代码并推送，然后创建新会话、使用多个子智能体并行实施下一阶段。本轮仅精确提交上述能力切片及其共享文档；本文件的博客发布台账段属于外来修改，原字节保留且不暂存。实际提交号、门禁和双端远程读回见 `artifacts/capability-phase1-20261112/submission/`，不能仅凭本段推断推送已成功。
+- 状态纠偏：本片不是全文完整消费者矩阵、G3 完整写放大、G12 或 M42 整包完成。三次集成回归曾因旧 SST 库存未立即下降而 FAIL，最终移除即时回收断言后通过；及时回收效果仍未证实，不得称已修复验收。首次 IMPORTS 失败与后续格式 PASS 分别保留，详见 `docs/audits/capability-phase1-20261112.md`。
+- 新会话从本批已推送提交开始，先核对本地源码身份及外来 dirty 归属。主智能体冻结接口、串行集成/共享文档和重型验证；并行分工为有界单 Point 原子恢复、KV G12/回收与故障边界、全文同语料消费者/端到端预算收口。保留 KEEP_ALL、ms 默认和当前分区/TTL；Point 编码方案需正反审查，不能把 begin/commit marker 当作唯一已批准实现。每片做最小完整行为测试，独立反驳结论必须落实或解释。
+- 本轮授权仅包含当前已有切片的 Git 提交/推送和新会话后续实现，不授权新会话自动发布包、部署、生产迁移、连接 Demo/现场、固定硬件、物理掉电或 168 小时长稳。所有外部/环境层继续单独验收；进程通过 Cordonix 有界执行并清理所属树，收据保留，未启动常驻服务。

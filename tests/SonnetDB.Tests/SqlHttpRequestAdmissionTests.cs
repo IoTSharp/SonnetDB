@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
@@ -93,6 +95,49 @@ public sealed class SqlHttpRequestAdmissionTests
             active?.Dispose();
             replacement?.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task AcquireAsync_QueueTimeoutReturnsOverloadAndLeavesQueueReusable()
+    {
+        using var admission = CreateAdmission(permitLimit: 1, queueLimit: 1, queueTimeoutMilliseconds: 50);
+        RateLimitLease active = await admission.AcquireAsync("orders", CancellationToken.None);
+        using RateLimitLease timedOut = await admission.AcquireAsync("orders", CancellationToken.None)
+            .AsTask().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(timedOut.IsAcquired);
+        Assert.Equal(0, admission.GetStatistics("orders")?.CurrentQueuedCount);
+        active.Dispose();
+        using RateLimitLease replacement = await admission.AcquireAsync("orders", CancellationToken.None);
+        Assert.True(replacement.IsAcquired);
+    }
+
+    [Fact]
+    public async Task AcquireAsync_CancellationWinsOverQueueTimeout_AndRecordsBoundedOutcome()
+    {
+        using var admission = CreateAdmission(permitLimit: 1, queueLimit: 1, queueTimeoutMilliseconds: 500);
+        using RateLimitLease active = await admission.AcquireAsync("orders", CancellationToken.None);
+        var outcomes = new ConcurrentBag<string>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Name is "sonnetdb.sql.admission.outcomes")
+                meterListener.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            foreach (var tag in tags)
+                if (tag.Key == "outcome")
+                    outcomes.Add(tag.Value?.ToString() ?? string.Empty);
+        });
+        listener.Start();
+
+        using var cancellation = new CancellationTokenSource();
+        Task<RateLimitLease> waiting = admission.AcquireAsync("orders", cancellation.Token).AsTask();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waiting.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(0, admission.GetStatistics("orders")?.CurrentQueuedCount);
+        Assert.Contains("canceled", outcomes);
     }
 
     [Theory]
@@ -309,13 +354,17 @@ public sealed class SqlHttpRequestAdmissionTests
         }
     }
 
-    private static SqlHttpRequestAdmission CreateAdmission(int permitLimit, int queueLimit)
+    private static SqlHttpRequestAdmission CreateAdmission(
+        int permitLimit,
+        int queueLimit,
+        int queueTimeoutMilliseconds = 30_000)
         => new(Options.Create(new ServerOptions
         {
             SqlHttpAdmission = new SqlHttpAdmissionOptions
             {
                 PermitLimit = permitLimit,
                 QueueLimit = queueLimit,
+                QueueTimeoutMilliseconds = queueTimeoutMilliseconds,
             },
         }));
 

@@ -406,7 +406,7 @@ internal static partial class SonnetDbEndpoints
             ctx,
             StatusCodes.Status503ServiceUnavailable,
             "sql_overloaded",
-            $"数据库 '{database}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。").ConfigureAwait(false);
+            $"数据库 '{database}' 的 SQL 请求已达到并发或等待期限，请稍后重试。").ConfigureAwait(false);
         return new SqlAdmissionResult(null, Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
     }
 
