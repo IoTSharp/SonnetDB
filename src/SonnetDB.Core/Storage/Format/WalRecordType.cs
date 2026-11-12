@@ -22,4 +22,7 @@ public enum WalRecordType : byte
 
     /// <summary>删除记录（声明某 (SeriesId, FieldName) 在时间窗内的数据已被墓碑标记）。</summary>
     Delete = 5,
+
+    /// <summary>显式 WAL v2 中的单个多字段 Point；一个载荷 CRC 覆盖全部字段。</summary>
+    AtomicPoint = 6,
 }

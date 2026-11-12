@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Atomic Point WAL and consumer verification — 2026-11-12
+
+- 新增[当前能力代码阶段完成合同](docs/design/capability-code-stage-completion-20261112.md)，明确 T1 默认引擎接入、KV G12 和全文总预算的代码验收范围、三线并行归属及完整阶段退出条件；环境和发行门禁继续独立记录。
+- 新增显式选择的单 Point WAL v2 envelope，整点 CRC、1024 字段/8 MiB 预算、严格 UTF-8、LSN 上界及有界可取消恢复；v1/v2 reader/writer 双向拒绝，未知确认后封写并重开对账。默认 Tsdb/WalReplay、catalog、滚动与 checkpoint 尚未接入，原 ms、KEEP_ALL、全局 TTL 与 fsync 合同保持。格式和降级边界见 [T1 合同](docs/design/time-series-atomic-point-wal-v2.md)。
+- 增加旧 SST 无 pin 即时回收、snapshot pin 保留及释放后回收/冷重开的严格回归；保留 G3 会话局部计量及 G12 未完成边界。
+- 补齐 105 条同语料 embedded/loopback Server/源码 remote .NET SDK 的分页、排序、TotalHits、facet 和逐字段对拍，验证查询长度预算错误与既有响应字段上限；新增确定性 Point WAL 子进程强杀测试。真实远端/公开包及端到端响应总预算不由这些用例宣称完成，见[验证记录](docs/audits/capability-phase2-20261112.md)。
+
 ### Capability correctness and bounded resources — 2026-11-12
 
 - 修复 typed 全文检索在候选 Top-K 后才过滤造成的窗口外命中不可达、`HasMore`/`TotalHits`/facet 不完整问题。embedded、Server `/fulltext/search` 和 remote .NET SDK 统一使用有界的完整过滤搜索；超过文档、文本、posting 或时间预算时返回明确错误且不返回部分结果。跨页继续读取当前视图，不声明跨页快照。

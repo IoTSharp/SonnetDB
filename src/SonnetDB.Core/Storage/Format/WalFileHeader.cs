@@ -23,6 +23,8 @@ namespace SonnetDB.Storage.Format;
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct WalFileHeader
 {
+    internal const int AtomicPointFormatVersion = 2;
+
     /// <summary>WAL 文件 magic（"SDBWALv1"，8 字节）。</summary>
     public InlineBytes8 Magic;
 
@@ -57,6 +59,13 @@ public struct WalFileHeader
         return h;
     }
 
+    internal static WalFileHeader CreateNewVersion(long firstLsn, int formatVersion)
+    {
+        WalFileHeader h = CreateNew(firstLsn);
+        h.FormatVersion = formatVersion;
+        return h;
+    }
+
     /// <summary>
     /// 校验文件头是否有效（magic 一致、版本匹配、头部大小正确）。
     /// </summary>
@@ -65,4 +74,10 @@ public struct WalFileHeader
         Magic.AsReadOnlySpan().SequenceEqual(TsdbMagic.Wal) &&
         FormatVersion == TsdbMagic.FormatVersion &&
         HeaderSize == FormatSizes.WalFileHeaderSize;
+
+    internal readonly bool IsValidFor(int formatVersion) =>
+        Magic.AsReadOnlySpan().SequenceEqual(TsdbMagic.Wal) &&
+        FormatVersion == formatVersion &&
+        HeaderSize == FormatSizes.WalFileHeaderSize &&
+        (formatVersion != AtomicPointFormatVersion || (FirstLsn > 0 && FirstLsn < long.MaxValue));
 }

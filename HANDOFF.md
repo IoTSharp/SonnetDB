@@ -8053,3 +8053,23 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 状态纠偏：本片不是全文完整消费者矩阵、G3 完整写放大、G12 或 M42 整包完成。三次集成回归曾因旧 SST 库存未立即下降而 FAIL，最终移除即时回收断言后通过；及时回收效果仍未证实，不得称已修复验收。首次 IMPORTS 失败与后续格式 PASS 分别保留，详见 `docs/audits/capability-phase1-20261112.md`。
 - 新会话从本批已推送提交开始，先核对本地源码身份及外来 dirty 归属。主智能体冻结接口、串行集成/共享文档和重型验证；并行分工为有界单 Point 原子恢复、KV G12/回收与故障边界、全文同语料消费者/端到端预算收口。保留 KEEP_ALL、ms 默认和当前分区/TTL；Point 编码方案需正反审查，不能把 begin/commit marker 当作唯一已批准实现。每片做最小完整行为测试，独立反驳结论必须落实或解释。
 - 本轮授权仅包含当前已有切片的 Git 提交/推送和新会话后续实现，不授权新会话自动发布包、部署、生产迁移、连接 Demo/现场、固定硬件、物理掉电或 168 小时长稳。所有外部/环境层继续单独验收；进程通过 Cordonix 有界执行并清理所属树，收据保留，未启动常驻服务。
+
+## 2026-11-12（Asia/Shanghai）第二阶段能力切片本地交付
+
+- 时间 2026-11-12T13:46:20+08:00；main @ 93cd7807fd727c474ff119e1690b940e40f0ecda。开始时本地/两跟踪引用/双端实时 main 同 SHA，起始唯一 dirty 是上节博客园外来台账；原 2143383 字节前缀及 SHA 3ce2b4b632c86b18b6115dc74dda305c0577f9d7919c523a396ea9bfb2991613 完整保留。没有暂存、提交、推送、包发布、部署、生产迁移或连接 Demo/现场。
+- 三智能体拥有非重叠切片，主线冻结接口、独立反驳、串行验证及共享文档。T1 完成显式 WAL v2 单记录整点 CRC、预算/取消/LSN/UTF8/unknown 封写和恢复；默认 Tsdb/WalReplay/catalog/rotation/checkpoint 未接入，不能称时序整点原子完整交付。ms/KEEP_ALL/全局 TTL/无 measurement 分区及默认 fsync 保持，格式见 docs/design/time-series-atomic-point-wal-v2.md。
+- KV 仅增加严格无 pin 即时旧 SST 回收、有 snapshot pin 保留及释放后维护回收/冷重开对拍；本轮通过不倒改第一阶段三次 FAIL 根因 UNKNOWN。G3 仍为会话局部成功 SST 字节计量，G12 真实旧 reader/writer、迁移/回滚故障、磁盘不足和未知提交整体未完成。
+- 全文 105 条同语料、70 个过滤命中，对 embedded/loopback Server/源码 remote SDK 的分页、TotalHits、facet、四种排序及元数据逐字段对拍，验证查询长度预算 HTTP422/typed错误和既有投影上限。统一响应字节和端到端期限、真实远端/公开包仍未闭环。
+- 验证 PASS：solution restore；CrashTests/Child restore；Core 定向35/35（T1 26、KV 9）；既有 WAL/VersionSet/全文/TsdbWal回归193/193；全文三端4/4；确定性强杀2/2；最终规定 solution format 退出0，以及新增Crash/Child格式。35与193重叠，不相加成不同测试总数。保留初次缺using构建FAIL、imports与whitespace两轮format FAIL。原始JSON/TRX与最终源码哈希在 artifacts/capability-phase2-20261112/，入口 docs/audits/capability-phase2-20261112.md。
+- 全仓测试、NativeAOT发布/安装、真实旧二进制消费、物理满盘/半写/fsync故障、性能原规模、固定硬件、物理掉电、168小时及现场均 NOT_RUN。两个强杀边界只证明进程恢复；App成功/OS flush不等于物理耐久。
+- 资源：Cordonix所属Job树均回收，测试loopback host/child在fixture生命周期关闭，自有GUID目录精确清理；没有常驻服务。一次性finalize脚本在.publishing/tmp/capability-phase2-20261112/，写入交接/收据后按确切路径自清理；保留必要原始证据。下一顺序先评审默认Tsdb接入合同，再接G12和全文总预算；Git提交/推送须等用户明确授权。
+- 结束时发现extensions/IoTSharp.CoAP.NET另有四个项目文件及未跟踪测试/发行文档的外来dirty，只读记录shared-submodule-state.json并保留，未纳入本轮拥有文件。双端main再次读回仍为起点SHA；没有更改parity-results引用。
+
+
+## 2026-11-12（Asia/Shanghai）第二阶段提交授权与完整代码阶段接续
+
+- 用户明确授权现在提交代码并推送，再创建新会话分配多个智能体，并要求“把目前进行中的阶段彻底完成，代码任务，完成”。本轮只提交已有能力切片及共享文档/阶段完成合同，博客园外来段保持原字节且不暂存，CoAP 子模块外来工作不纳入；时间 2026-11-12T14:47:13+08:00。
+- 新会话必须遵守 docs/design/capability-code-stage-completion-20261112.md：三条并行工作线分别完成 T1 默认 Tsdb/catalog/WAL 滚动/checkpoint/flush/恢复接入、KV G12 真实旧二进制与确定性故障对账、全文执行及总响应预算和消费者矩阵。各线可内部拆片，但不得再以未闭环的最小切片宣布阶段结束；主线负责接口冻结、反驳、集成、共享文档与串行重型验证。
+- 此次提交前重新执行完整 solution restore 和规定 format；实际 PASS/FAIL 与提交SHA、精确树、双端独立读回保存在 artifacts/capability-phase2-20261112/submission/，不凭本段推断推送已成功。上一轮35/193/4/2项测试绑定的C#文件SHA本轮重新核对不变；本次不把旧测试当重跑。
+- 新会话从本批已推送提交开始，先读回源码与外来dirty；保留ms、KEEP_ALL、全局TTL/无measurement分区及fsync配置。代码工作持续至阶段完成清单逐项有证据关闭，真实阻塞明确记录但不得把可完成代码项挪到后续。环境/发行证据独立；不授权新会话自动Git提交/推送、发布包、部署、生产迁移或Demo/现场连接。
+- 本轮辅助文件只在.publishing/tmp/capability-phase2-submit-20261112/；结束按精确路径清理，必要收据保留。所有本轮进程由Cordonix有界执行并清理所属树，parity-results独立引用不改。

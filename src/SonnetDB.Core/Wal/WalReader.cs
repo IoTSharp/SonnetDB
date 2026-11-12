@@ -1,5 +1,7 @@
 ﻿using System.Buffers;
+using System.Diagnostics;
 using System.IO.Hashing;
+using SonnetDB.Buffers;
 using SonnetDB.IO;
 using SonnetDB.Storage.Format;
 
@@ -12,6 +14,10 @@ public sealed class WalReader : IDisposable
 {
     private FileStream? _fileStream;
     private bool _disposed;
+    private readonly int _formatVersion;
+    private readonly AtomicPointWalRecoveryOptions? _recoveryOptions;
+    private readonly CancellationToken _recoveryCancellation;
+    private readonly long _recoveryStarted;
 
     /// <summary>WAL 文件的完整路径。</summary>
     public string Path { get; }
@@ -32,7 +38,8 @@ public sealed class WalReader : IDisposable
     /// </summary>
     public long LastValidOffset { get; private set; }
 
-    private WalReader(string path, FileStream fileStream, long firstLsn)
+    private WalReader(string path, FileStream fileStream, long firstLsn, int formatVersion,
+        AtomicPointWalRecoveryOptions? recoveryOptions, CancellationToken recoveryCancellation, long recoveryStarted)
     {
         Path = path;
         _fileStream = fileStream;
@@ -40,6 +47,10 @@ public sealed class WalReader : IDisposable
         LastLsn = firstLsn - 1;
         BytesRead = FormatSizes.WalFileHeaderSize;
         LastValidOffset = FormatSizes.WalFileHeaderSize;
+        _formatVersion = formatVersion;
+        _recoveryOptions = recoveryOptions;
+        _recoveryCancellation = recoveryCancellation;
+        _recoveryStarted = recoveryStarted;
     }
 
     /// <summary>
@@ -50,12 +61,31 @@ public sealed class WalReader : IDisposable
     /// <exception cref="ArgumentNullException"><paramref name="path"/> 为 null。</exception>
     /// <exception cref="InvalidDataException">文件头 magic 或版本不合法时抛出。</exception>
     public static WalReader Open(string path)
+        => OpenCore(path, TsdbMagic.FormatVersion);
+
+    /// <summary>显式打开 WAL v2 单 Point 原子记录读取器；v1 文件被拒绝。</summary>
+    /// <param name="path">WAL v2 文件路径。</param>
+    /// <param name="recoveryOptions">记录数、总文件字节和墙钟预算；省略时使用有界默认值。</param>
+    /// <param name="cancellationToken">在读取和每个完整 Point 解码前后检查的取消令牌。</param>
+    /// <returns>每个完整 Point 返回一个 AtomicPointRecord，损坏或截断的尾记录不返回。</returns>
+    /// <remarks>单条不超过 8 MiB 的同步读取/解码不能在内部抢占；前后检查预算与取消。期限从 Open 开始，含调用方枚举间隔。</remarks>
+    public static WalReader OpenAtomicPoints(string path, AtomicPointWalRecoveryOptions? recoveryOptions = null,
+        CancellationToken cancellationToken = default)
+        => OpenCore(path, WalFileHeader.AtomicPointFormatVersion, recoveryOptions ?? new(), cancellationToken);
+
+    private static WalReader OpenCore(string path, int formatVersion,
+        AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(path);
+        recoveryOptions?.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+        long recoveryStarted = Stopwatch.GetTimestamp();
 
         var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         try
         {
+            if (recoveryOptions is not null && fs.Length > recoveryOptions.MaxReadBytes)
+                throw new InvalidDataException("WAL v2 recovery exceeds its total file byte budget.");
             byte[] headerBuf = ArrayPool<byte>.Shared.Rent(FormatSizes.WalFileHeaderSize);
             try
             {
@@ -66,10 +96,13 @@ public sealed class WalReader : IDisposable
                 var reader = new SpanReader(headerBuf.AsSpan(0, FormatSizes.WalFileHeaderSize));
                 var fileHeader = reader.ReadStruct<WalFileHeader>();
 
-                if (!fileHeader.IsValid())
+                if (!fileHeader.IsValidFor(formatVersion))
                     throw new InvalidDataException("WAL file header is invalid: magic or version mismatch.");
 
-                return new WalReader(path, fs, fileHeader.FirstLsn);
+                var result = new WalReader(path, fs, fileHeader.FirstLsn, formatVersion,
+                    recoveryOptions, cancellationToken, recoveryStarted);
+                result.CheckAtomicRecoveryBudget();
+                return result;
             }
             finally
             {
@@ -97,12 +130,18 @@ public sealed class WalReader : IDisposable
         BytesRead = FormatSizes.WalFileHeaderSize;
         LastValidOffset = FormatSizes.WalFileHeaderSize;
         LastLsn = FirstLsn - 1;
+        CheckAtomicRecoveryBudget();
+        long replayEnd = _fileStream.Length;
+        int records = 0;
 
         byte[] headerBuf = ArrayPool<byte>.Shared.Rent(FormatSizes.WalRecordHeaderSize);
         try
         {
             while (true)
             {
+                CheckAtomicRecoveryBudget();
+                if (_recoveryOptions is not null && _fileStream.Position >= replayEnd)
+                    yield break;
                 // Read record header
                 int headerRead = ReadExact(_fileStream, headerBuf, 0, FormatSizes.WalRecordHeaderSize);
                 if (headerRead < FormatSizes.WalRecordHeaderSize)
@@ -118,7 +157,16 @@ public sealed class WalReader : IDisposable
                 if (header.PayloadLength < 0)
                     yield break;
 
-                if (header.PayloadLength > _fileStream.Length - _fileStream.Position)
+                if (_formatVersion == WalFileHeader.AtomicPointFormatVersion &&
+                    (header.PayloadLength > AtomicPointWalCodec.MaxPayloadBytes ||
+                     header.Lsn == long.MaxValue || header.Lsn != LastLsn + 1 ||
+                     header.RecordType != WalRecordType.AtomicPoint))
+                    yield break;
+
+                if (_recoveryOptions is not null && records >= _recoveryOptions.MaxRecords)
+                    throw new InvalidDataException("WAL v2 recovery exceeds its record budget.");
+
+                if (header.PayloadLength > (_recoveryOptions is null ? _fileStream.Length : replayEnd) - _fileStream.Position)
                     yield break;
 
                 byte[] payloadBuf = ArrayPool<byte>.Shared.Rent(Math.Max(header.PayloadLength, 1));
@@ -135,6 +183,7 @@ public sealed class WalReader : IDisposable
                     uint actualCrc = Crc32.HashToUInt32(payloadBuf.AsSpan(0, header.PayloadLength));
                     if (actualCrc != header.PayloadCrc32)
                         yield break;
+                    CheckAtomicRecoveryBudget();
 
                     // Decode payload — catch InvalidDataException without a yield inside try/catch
                     WalRecord? record = null;
@@ -154,6 +203,8 @@ public sealed class WalReader : IDisposable
                                 new TruncateRecord(header.Lsn, header.Timestamp),
                             WalRecordType.Delete =>
                                 WalPayloadCodec.ReadDeletePayload(payloadReader, header.Lsn, header.Timestamp),
+                            WalRecordType.AtomicPoint when _formatVersion == WalFileHeader.AtomicPointFormatVersion =>
+                                AtomicPointWalCodec.Decode(payloadBuf.AsSpan(0, header.PayloadLength), header.Lsn, header.Timestamp),
                             _ => null,
                         };
                     }
@@ -161,6 +212,12 @@ public sealed class WalReader : IDisposable
                     {
                         shouldStop = true;
                     }
+                    catch (Exception ex) when (_formatVersion == WalFileHeader.AtomicPointFormatVersion &&
+                        ex is InvalidOperationException or ArgumentException or OverflowException)
+                    {
+                        shouldStop = true;
+                    }
+                    CheckAtomicRecoveryBudget();
 
                     // Update tracking — must happen outside the try/catch above
                     if (!shouldStop)
@@ -169,6 +226,7 @@ public sealed class WalReader : IDisposable
                         BytesRead += recordSize;
                         LastValidOffset += recordSize;
                         LastLsn = header.Lsn;
+                        records++;
                     }
 
                     if (shouldStop)
@@ -187,6 +245,17 @@ public sealed class WalReader : IDisposable
         {
             ArrayPool<byte>.Shared.Return(headerBuf);
         }
+    }
+
+    internal void CheckAtomicRecoveryBudget()
+    {
+        if (_recoveryOptions is null)
+            return;
+        _recoveryCancellation.ThrowIfCancellationRequested();
+        if (Stopwatch.GetElapsedTime(_recoveryStarted) >= _recoveryOptions.EffectiveTimeout)
+            throw new InvalidDataException("WAL v2 recovery exceeds its wall-clock budget.");
+        if (_fileStream!.Length > _recoveryOptions.MaxReadBytes)
+            throw new InvalidDataException("WAL v2 recovery exceeds its total file byte budget.");
     }
 
     /// <summary>

@@ -28,11 +28,11 @@
 
 | 顺序 | 路线归属 | 下一份可验收交付 | 退出条件与并行边界 |
 | --- | --- | --- | --- |
-| 1 | KV-LSM K7、M36/M43、V45-X04；确认写与升级恢复 | **已交付 G3 最小计量切片**：记录成功发布的 flush/compaction SST 累计字节并修正 compaction 版本释放后的旧 SST 清理时序；继续补真实旧二进制拒绝、迁移/回滚中断、磁盘不足与未知提交对账，形成数据库＋实例 MQ＋身份配置＋外部对象恢复清单 | G3 代码/定向回归已 PASS；G12 旧格式/磁盘不足/未知提交和物理掉电/完整规模仍另验，不擅改默认耐久配置。 |
-| 2 | M36 全文、V45-X05、M48-L08/L10/L11；现有查询正确性 | **已交付 typed 全文窗口修复**：embedded、Server `/fulltext/search` 与 remote .NET SDK 统一先过滤再评分/分页；有界预算超限明确失败且不返回部分结果 | Core 10/10 与 Server HTTP 过滤窗口回归 PASS；跨页读取当前视图，不声明 snapshot；完整全仓/公开消费者与环境门禁仍另验。 |
+| 1 | KV-LSM K7、M36/M43、V45-X04；确认写与升级恢复 | G3 会话计量已实现；本轮补无 pin 即时回收、有 snapshot pin 保留及释放后回收/冷重开的严格回归，见[第二阶段证据](docs/audits/capability-phase2-20261112.md)。继续补真实旧二进制拒绝、迁移/回滚中断、磁盘不足与未知提交对账 | 本轮 KV 9/9 PASS；第一阶段三次清理 FAIL 的准确历史根因 UNKNOWN。G12、完整写放大、物理掉电/完整规模仍另验，不擅改默认耐久配置。 |
+| 2 | M36 全文、V45-X05、M48-L08/L10/L11；现有查询正确性 | typed 有界完整过滤已实现；本轮新增 105 条同语料 embedded/loopback Server/源码 remote SDK 的逐字段分页、排序、TotalHits、facet 与查询长度预算错误/响应字段上限对拍 | 三端 4/4 PASS；统一响应总字节上限及排序/facet/投影/发送端到端期限仍待收口。跨页不声明 snapshot；真实远端、公开包和环境门禁仍另验。 |
 | 3 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03；高并发与资源 | **已交付 M42-H02 最小准入切片**：数据库 partition 排队期限、取消优先、释放和低基数结果观测；继续补 H01 基线、高基数全文 merge/缓存竞争、锁等待和混合负载预算 | Server 定向 45/45 PASS；本片约束排队年龄/数量，不是进程 heap 硬上限；H01/H03～H07A、固定硬件/168小时转环境路线仍未完成。 |
 | 4 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | G3 会话累计 SST 计量首片已交付；完整写放大、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量与原规模仍待完成，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；会话累计计量与目录存量仍不能冒充完整物理写放大，G3 门禁保持未完成。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
-| 5 | 时序 P0-3～P0-5、M50-T01～T03；时序基础合同 | **本轮暂不实施**；后续先联合冻结 Point 原子单元、分区/TTL、重复点与每库 ms/us/ns 的兼容/迁移矩阵，再按独立切片实施 | 具体决策见[待决草案](docs/design/time-series-write-partition-duplicates-decisions.md)。当前保持 ms 与现有重复语义；已有 group commit 不重写，未批准的行为选择不能靠排序自动生效。 |
+| 5 | 时序 P0-3～P0-5、M50-T01～T03；时序基础合同 | 本轮实现显式单 Point [WAL v2 底层切片](docs/design/time-series-atomic-point-wal-v2.md)及确定性强杀；下一步独立冻结 Tsdb/catalog/rotation/checkpoint/flush 接入、迁移及降级边界 | T1 底层 26 项/强杀 2 项 PASS；默认 Tsdb 未接入。保持 ms、KEEP_ALL、全局 TTL/无 measurement 分区和原 fsync；T2/T3 及 us/ns 继续[待决](docs/design/time-series-write-partition-duplicates-decisions.md)。 |
 | 6 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396；可靠生态消费 | 优先完成 .NET/C 一个模型/操作批次的原生 HTTP/2/TLS、精确类型、终态、取消/未知写入、重开与独立消费者，再扩语言；EF NativeAOT 用最小固定应用单独界定 | codec、旧 C ABI 绑定、raw streaming 与九模型 typed SDK 分开验；已有 ORM/缓存/CAP 不返工。CAP 同组多活动实例须先有 lease/fencing/ACK 合同，不直接调高线程数。 |
 | 7 | M45-C02～C09、M43、V45-X03；持续计算 | 先澄清 Merge 数学合同和输入去重，再做版本化 state、before/after/retract、有限增量物化及批流对拍 | 对同事件日志验证 update/delete/重投/迟到/重开；不支持输入拒绝或有界重算。本地窗口、DLQ、outbox/receipt 与全量 REFRESH 继续复用。 |
 | 8 | M44/M48、M47 后续宿主、M51；应用与产品闭环 | 在上述真实入口上交付一条可衡量的业务旅程；M47 补已开放页面正确性和 Studio/VS Code 实物门禁；M51 复用主线43工具完成0.2.0宿主/HTTPS/凭据闭环 | 真实质量/成本、权限/删除/恢复和适用宿主逐项验收。M48 日志 R1、自动运维、Buddy应用、额外 codec/算法按明确用户收益推进，不扩大无证据承诺。 |

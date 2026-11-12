@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.IO.Hashing;
+using SonnetDB.Buffers;
 using SonnetDB.IO;
 using SonnetDB.Model;
 using SonnetDB.Storage.Format;
@@ -23,6 +24,10 @@ public sealed class WalWriter : IDisposable
     private long _bytesWritten;
     private bool _footerDirty;
     private bool _disposed;
+    private int _formatVersion;
+    private Exception? _atomicAppendFault;
+
+    internal Action? AfterAtomicPointWriteTestHook { get; set; }
 
     /// <summary>WAL 文件的完整路径。</summary>
     public string Path { get; }
@@ -66,9 +71,28 @@ public sealed class WalWriter : IDisposable
     /// <exception cref="ArgumentNullException"><paramref name="path"/> 为 null。</exception>
     /// <exception cref="InvalidDataException">文件存在但 magic 或版本不合法时抛出。</exception>
     public static WalWriter Open(string path, long startLsn = 1, int bufferSize = 64 * 1024)
+        => OpenCore(path, startLsn, bufferSize, TsdbMagic.FormatVersion);
+
+    /// <summary>显式打开单 Point 原子记录 WAL v2；旧 v1 reader/writer 拒绝此格式。不会升级已有 v1 文件。</summary>
+    /// <param name="path">独立 WAL 文件路径。</param>
+    /// <param name="startLsn">新文件的起始序列号。</param>
+    /// <param name="bufferSize">写缓冲字节数。</param>
+    /// <param name="recoveryOptions">v2 现有文件恢复的记录数、总文件字节和墙钟预算。</param>
+    /// <param name="cancellationToken">恢复及截尾前检查的取消令牌，不改变后续追加取消语义。</param>
+    /// <returns>显式 v2 写入器；不改变 Tsdb 默认写入与 fsync 策略。</returns>
+    public static WalWriter OpenAtomicPoints(string path, long startLsn = 1, int bufferSize = 64 * 1024,
+        AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
+        => OpenCore(path, startLsn, bufferSize, WalFileHeader.AtomicPointFormatVersion, recoveryOptions ?? new(), cancellationToken);
+
+    private static WalWriter OpenCore(string path, long startLsn, int bufferSize, int formatVersion,
+        AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bufferSize);
+        recoveryOptions?.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (formatVersion == WalFileHeader.AtomicPointFormatVersion && (startLsn <= 0 || startLsn == long.MaxValue))
+            throw new ArgumentOutOfRangeException(nameof(startLsn), "WAL v2 first LSN must be within 1..Int64.MaxValue-1.");
 
         bool fileExists = File.Exists(path) && new FileInfo(path).Length > 0;
         long nextLsn = startLsn;
@@ -90,10 +114,20 @@ public sealed class WalWriter : IDisposable
                     var reader = new SpanReader(headerBuf.AsSpan(0, FormatSizes.WalFileHeaderSize));
                     var fileHeader = reader.ReadStruct<WalFileHeader>();
 
-                    if (!fileHeader.IsValid())
+                    if (!fileHeader.IsValidFor(formatVersion))
                         throw new InvalidDataException("WAL file header is invalid: magic or version mismatch.");
 
-                    if (TryReadLastLsnFooter(fs, fileHeader, out var footer))
+                    if (formatVersion == WalFileHeader.AtomicPointFormatVersion)
+                    {
+                        // v2 必须按完整 Point 校验恢复尾部；不能仅凭 footer 证明载荷有效。
+                        using var atomicReader = WalReader.OpenAtomicPoints(path, recoveryOptions, cancellationToken);
+                        foreach (WalRecord record in atomicReader.Replay())
+                            _ = record;
+                        bytesWritten = atomicReader.LastValidOffset;
+                        nextLsn = checked(atomicReader.LastLsn + 1);
+                        atomicReader.CheckAtomicRecoveryBudget();
+                    }
+                    else if (TryReadLastLsnFooter(fs, fileHeader, out var footer))
                     {
                         bytesWritten = footer.RecordsEndOffset;
                         nextLsn = footer.LastLsn + 1;
@@ -109,6 +143,7 @@ public sealed class WalWriter : IDisposable
                     }
 
                     // Open 进入 append 模式前移除旧 footer/坏尾部；关闭或 Sync 时会写入新的 footer。
+                    cancellationToken.ThrowIfCancellationRequested();
                     fs.SetLength(bytesWritten);
                     footerDirty = true;
                 }
@@ -121,7 +156,7 @@ public sealed class WalWriter : IDisposable
             {
                 // New file: write header
                 fs.Position = 0;
-                WriteFileHeader(fs, startLsn);
+                WriteFileHeader(fs, startLsn, formatVersion);
                 bytesWritten = FormatSizes.WalFileHeaderSize;
                 nextLsn = startLsn;
                 footerDirty = true;
@@ -134,7 +169,10 @@ public sealed class WalWriter : IDisposable
             // Seek to records end for appending. The optional footer is rewritten on Flush/Sync/Dispose.
             fs.Position = bytesWritten;
             var bs = new BufferedStream(fs, bufferSize);
-            return new WalWriter(path, fs, bs, nextLsn, bytesWritten, footerDirty, openedUsingLastLsnFooter);
+            return new WalWriter(path, fs, bs, nextLsn, bytesWritten, footerDirty, openedUsingLastLsnFooter)
+            {
+                _formatVersion = formatVersion,
+            };
         }
         catch
         {
@@ -155,11 +193,43 @@ public sealed class WalWriter : IDisposable
     public long AppendWritePoint(ulong seriesId, long pointTimestamp, string fieldName, FieldValue value)
     {
         ThrowIfDisposed();
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion)
+            throw new InvalidOperationException("WAL v2 requires AppendAtomicPoint for field writes.");
         ArgumentNullException.ThrowIfNull(fieldName);
 
         int payloadSize = WalPayloadCodec.MeasureWritePoint(fieldName, value);
         return AppendRecord(WalRecordType.WritePoint, payloadSize, (ref SpanWriter w) =>
             WalPayloadCodec.WriteWritePointPayload(ref w, seriesId, pointTimestamp, fieldName, value));
+    }
+
+    /// <summary>在显式 WAL v2 中追加单个完整 Point，最多 1024 字段和 8 MiB 载荷；不自动 fsync。</summary>
+    /// <param name="seriesId">序列标识。</param>
+    /// <param name="pointTimestamp">Unix 毫秒时间戳。</param>
+    /// <param name="fields">非空字段集合，编码及预算校验均在首次记录写入前完成。</param>
+    /// <param name="cancellationToken">仅在首次写入前接受取消；开始写入后不能撤回结果。</param>
+    /// <returns>单 Point 的 LSN。写入异常属于未知结果，写入器拒绝后续追加，须关闭重开对账。</returns>
+    public long AppendAtomicPoint(ulong seriesId, long pointTimestamp,
+        IReadOnlyDictionary<string, FieldValue> fields, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ThrowIfAtomicAppendFault();
+        if (_formatVersion != WalFileHeader.AtomicPointFormatVersion)
+            throw new InvalidOperationException("Atomic Point records require explicit WAL v2.");
+        if (_nextLsn == long.MaxValue)
+            throw new InvalidOperationException("WAL v2 LSN space is exhausted; no record was appended.");
+        cancellationToken.ThrowIfCancellationRequested();
+        byte[] payload = AtomicPointWalCodec.Encode(seriesId, pointTimestamp, fields);
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return AppendRecord(WalRecordType.AtomicPoint, payload.Length,
+                (ref SpanWriter writer) => writer.WriteBytes(payload));
+        }
+        catch (Exception ex)
+        {
+            _atomicAppendFault = ex;
+            throw;
+        }
     }
 
     /// <summary>
@@ -221,7 +291,7 @@ public sealed class WalWriter : IDisposable
     public void Flush()
     {
         ThrowIfDisposed();
-        FlushCore(flushToDisk: false);
+        FlushRequested(flushToDisk: false);
     }
 
     /// <summary>
@@ -231,7 +301,7 @@ public sealed class WalWriter : IDisposable
     public void Sync()
     {
         ThrowIfDisposed();
-        FlushCore(flushToDisk: true);
+        FlushRequested(flushToDisk: true);
     }
 
     /// <summary>
@@ -283,8 +353,17 @@ public sealed class WalWriter : IDisposable
 
     private delegate void PayloadWriter(ref SpanWriter writer);
 
+    private void ThrowIfAtomicAppendFault()
+    {
+        if (_atomicAppendFault is not null)
+            throw new InvalidOperationException("WAL append result is unknown; close, reopen and reconcile before writing.", _atomicAppendFault);
+    }
+
     private long AppendRecord(WalRecordType recordType, int payloadSize, PayloadWriter writePayload)
     {
+        ThrowIfAtomicAppendFault();
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && recordType != WalRecordType.AtomicPoint)
+            throw new InvalidOperationException("This explicit WAL v2 slice only supports complete Point records; checkpoint and catalog integration are not enabled.");
         long lsn = _nextLsn;
         long now = DateTime.UtcNow.Ticks;
         int recordSize = FormatSizes.WalRecordHeaderSize + payloadSize;
@@ -310,6 +389,8 @@ public sealed class WalWriter : IDisposable
             }
         }
 
+        if (recordType == WalRecordType.AtomicPoint)
+            AfterAtomicPointWriteTestHook?.Invoke();
         _bytesWritten += recordSize;
         Sql.Execution.SqlExecutionTelemetry.RecordPhysicalWrite(recordSize);
         _nextLsn++;
@@ -345,10 +426,26 @@ public sealed class WalWriter : IDisposable
     private void FlushCore(bool flushToDisk)
     {
         _stream!.Flush();
-        WriteLastLsnFooterIfDirty();
+        // 未知 append 可能已有完整记录；不能用旧计数截断它或写一个虚假的 footer。
+        if (_atomicAppendFault is null)
+            WriteLastLsnFooterIfDirty();
 
         if (flushToDisk)
             _fileStream!.Flush(true);
+    }
+
+    private void FlushRequested(bool flushToDisk)
+    {
+        ThrowIfAtomicAppendFault();
+        try
+        {
+            FlushCore(flushToDisk);
+        }
+        catch (Exception ex) when (_formatVersion == WalFileHeader.AtomicPointFormatVersion)
+        {
+            _atomicAppendFault = ex;
+            throw;
+        }
     }
 
     /// <summary>
@@ -388,12 +485,12 @@ public sealed class WalWriter : IDisposable
         _footerDirty = false;
     }
 
-    private static void WriteFileHeader(Stream stream, long firstLsn)
+    private static void WriteFileHeader(Stream stream, long firstLsn, int formatVersion)
     {
         byte[] buf = ArrayPool<byte>.Shared.Rent(FormatSizes.WalFileHeaderSize);
         try
         {
-            var header = WalFileHeader.CreateNew(firstLsn);
+            var header = WalFileHeader.CreateNewVersion(firstLsn, formatVersion);
             var writer = new SpanWriter(buf.AsSpan(0, FormatSizes.WalFileHeaderSize));
             writer.WriteStruct(in header);
             stream.Write(buf, 0, FormatSizes.WalFileHeaderSize);

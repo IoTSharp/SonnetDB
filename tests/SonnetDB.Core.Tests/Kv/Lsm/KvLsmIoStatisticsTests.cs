@@ -53,6 +53,73 @@ public sealed class KvLsmIoStatisticsTests : IDisposable
         Assert.Equal("value"u8.ToArray(), reopened.Get("retained"u8, deadline.Token)!.Value.ToArray());
     }
 
+    /// <summary>
+    /// 完整 compaction 释放其输入版本后立即回收旧 SST；重开时只保留当前版本引用的文件。
+    /// 此断言只覆盖文件生命周期，不把会话计量解释为完整写放大。
+    /// </summary>
+    [Fact]
+    public void CompactAll_ReleasesInputsAndReclaimsObsoleteSstImmediately()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        string[] obsolete;
+        using (KvLsmEngine engine = KvLsmEngine.Open(_root, Options()))
+        {
+            engine.Apply([KvBatchMutation.Put("key"u8.ToArray(), "first"u8.ToArray())], deadline.Token);
+            engine.Flush(deadline.Token);
+            engine.Apply([KvBatchMutation.Put("key"u8.ToArray(), "second"u8.ToArray())], deadline.Token);
+            engine.Flush(deadline.Token);
+            obsolete = Directory.GetFiles(Path.Combine(_root, "sst"), "*.SDBKVSST");
+            Assert.Equal(2, obsolete.Length);
+            engine.CompactAll(deadline.Token);
+
+            Assert.All(obsolete, file => Assert.False(File.Exists(file), file));
+            AssertOnlyActiveSstFiles(engine);
+            Assert.Equal("second"u8.ToArray(), engine.Get("key"u8, deadline.Token)!.Value.ToArray());
+        }
+
+        using KvLsmEngine reopened = KvLsmEngine.Open(_root, Options());
+        Assert.All(obsolete, file => Assert.False(File.Exists(file), file));
+        AssertOnlyActiveSstFiles(reopened);
+        Assert.Equal("second"u8.ToArray(), reopened.Get("key"u8, deadline.Token)!.Value.ToArray());
+    }
+
+    /// <summary>
+    /// 快照合法固定旧版本时旧 SST 必须保留；释放快照后下一次维护清理才回收它。
+    /// </summary>
+    [Fact]
+    public void CompactAll_RetainsPinnedInputsUntilSnapshotRelease()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        string[] pinnedFiles;
+        using (KvLsmEngine engine = KvLsmEngine.Open(_root, Options()))
+        {
+            engine.Apply([KvBatchMutation.Put("key"u8.ToArray(), "first"u8.ToArray())], deadline.Token);
+            engine.Flush(deadline.Token);
+            pinnedFiles = Directory.GetFiles(Path.Combine(_root, "sst"), "*.SDBKVSST");
+            Assert.NotEmpty(pinnedFiles);
+
+            using (KvLsmSnapshot snapshot = engine.AcquireSnapshot())
+            {
+                engine.Apply([KvBatchMutation.Put("key"u8.ToArray(), "second"u8.ToArray())], deadline.Token);
+                engine.Flush(deadline.Token);
+                engine.CompactAll(deadline.Token);
+
+                Assert.All(pinnedFiles, file => Assert.True(File.Exists(file), file));
+                Assert.Equal("first"u8.ToArray(), snapshot.Get("key"u8, deadline.Token)!.Value.ToArray());
+            }
+
+            engine.CompactAll(deadline.Token);
+            Assert.All(pinnedFiles, file => Assert.False(File.Exists(file), file));
+            AssertOnlyActiveSstFiles(engine);
+            Assert.Equal("second"u8.ToArray(), engine.Get("key"u8, deadline.Token)!.Value.ToArray());
+        }
+
+        using KvLsmEngine reopened = KvLsmEngine.Open(_root, Options());
+        Assert.All(pinnedFiles, file => Assert.False(File.Exists(file), file));
+        AssertOnlyActiveSstFiles(reopened);
+        Assert.Equal("second"u8.ToArray(), reopened.Get("key"u8, deadline.Token)!.Value.ToArray());
+    }
+
     /// <summary>仅修改层号的 trivial move 仍增加作业次数，但不能重复累计输入或输出字节。</summary>
     [Fact]
     public void TrivialMoves_DoNotCountFileBytesAgain()
@@ -134,6 +201,23 @@ public sealed class KvLsmIoStatisticsTests : IDisposable
         SyncWalOnEveryWrite = true,
         Compaction = new KvCompactionOptions { Level0CompactionTrigger = 20 },
     };
+
+    private void AssertOnlyActiveSstFiles(KvLsmEngine engine)
+    {
+        KvVersion version = engine.AcquireCurrentVersion();
+        try
+        {
+            string[] active = version.AllFiles
+                .Select(file => KvLsmPaths.SstPath(_root, file.FileNumber)).Order(StringComparer.Ordinal).ToArray();
+            string[] physical = Directory.GetFiles(Path.Combine(_root, "sst"), "*.SDBKVSST")
+                .Order(StringComparer.Ordinal).ToArray();
+            Assert.Equal(active, physical);
+        }
+        finally
+        {
+            version.Release();
+        }
+    }
 
     private static void AssertZero(KvLsmEngineStats stats)
     {
