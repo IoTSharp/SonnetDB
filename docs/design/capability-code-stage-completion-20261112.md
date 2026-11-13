@@ -4,6 +4,8 @@
 
 现有入口：[第二阶段证据](../audits/capability-phase2-20261112.md)、[T1 WAL v2](time-series-atomic-point-wal-v2.md)、[KV-LSM 设计](kv-lsm-storage-engine.md)、[迁移运维](../operations/kv-lsm-migration.md)。先重新读回新提交、本地 dirty 归属和远端状态。已有 PASS 只适用于原源码，不能直接变成本阶段验证。
 
+本轮实现、首次失败和实际门禁结果在[完整代码阶段验证](../audits/capability-code-stage-20261112.md)逐项登记；下述退出合同不因进度更新而缩减。
+
 ## 阶段代码完成清单
 
 | 工作线 | 必须完成的代码和行为 | 必须具备的代码层证据 |
@@ -23,6 +25,8 @@
 5. 所有搜索/批次/循环/重试/轮询同时设置项目或迭代上限与墙钟上限，支持取消和退避；生成循环先人工核对比较与退出条件、带超时小输入预检。使用 PowerShell 7/Cordonix typed argv，记录 PID、启动时间、命令行、父链和任务归属，始终清理本任务创建的进程树及不再需要的临时文件。禁止广域工具扫描及 Graphify。
 
 ## 阶段退出与授权边界
+
+2026-11-13（Asia/Shanghai）验收：**当前能力代码阶段完成**。完整 Core Legacy 8525/8525、Core LSM 8415/8415、Server 1630/1630、Crash 132/132，最终全文/管理合同 29/29、历史兼容 18 次操作，以及适用 AOT/trim 和格式门禁均 PASS；重叠集合不相加。源码/程序集、失败历史、UNKNOWN 与 NOT_RUN 明细见[最终验收表](../audits/capability-code-stage-20261112.md)。
 
 只有上表三条工作线的代码实现和必要代码层验证全部完成，才能标记“当前阶段代码完成”。若出现真实外部阻塞，应明确 BLOCKED 项、实际进展和所需前置条件，保持阶段未完成；不能用环境边界为可完成代码项免责。
 

@@ -1,5 +1,7 @@
 # ROADMAP — SonnetDB 产品路线图
 
+2026-11-13（Asia/Shanghai）阶段结项：**当前能力代码阶段完成**，包括 T1 默认 Tsdb 整点恢复、KV G12 代码/故障与真实旧端拒绝、全文完整消费者和统一预算。最终验收与未执行发行/环境项见[代码阶段审计](docs/audits/capability-code-stage-20261112.md)；交付是 main 基线上的本地未提交候选。下列 2026-11-11 核查记录保留原时间和证据边界。
+
 核查日期：2026-11-11（Asia/Shanghai）；本地基线 `main@92d760077ce0e38525e41e8cfd2a8694e786f029`。本轮完成路线盘点、源码/测试/历史收据交叉审查和独立反驳，并按可靠性、查询正确性、并发资源与真实成本重新排序。完整发现、覆盖清单和证据见 [审计总报告](docs/audits/roadmap-audit-20261111/README.md)、[核心核查](docs/audits/roadmap-audit-20261111/core.md)、[生态核查](docs/audits/roadmap-audit-20261111/ecosystem.md)和[反驳审查](docs/audits/roadmap-audit-20261111/adversarial.md)。
 
 本轮 GitHub 只读回查为 **6 个开放 issue、0 个开放 PR**，见[实时快照](docs/audits/roadmap-audit-20261111/remote-snapshot.json)。远端 `9d022d86` 的 CI、CodeQL、Connectors 和一次 scheduled Parity success；本地与它只有 HANDOFF 差异，产品源码及 CI 配置一致。这证明实际作业覆盖的代码范围，不能替代旧二进制、完整容量、七天 Parity、物理掉电或 168 小时验收。本轮未重新运行产品构建、测试、基准或现场实验。
@@ -28,14 +30,12 @@
 
 | 顺序 | 路线归属 | 下一份可验收交付 | 退出条件与并行边界 |
 | --- | --- | --- | --- |
-| 1 | KV-LSM K7、M36/M43、V45-X04；确认写与升级恢复 | G3 会话计量已实现；本轮补无 pin 即时回收、有 snapshot pin 保留及释放后回收/冷重开的严格回归，见[第二阶段证据](docs/audits/capability-phase2-20261112.md)。继续补真实旧二进制拒绝、迁移/回滚中断、磁盘不足与未知提交对账 | 本轮 KV 9/9 PASS；第一阶段三次清理 FAIL 的准确历史根因 UNKNOWN。G12、完整写放大、物理掉电/完整规模仍另验，不擅改默认耐久配置。 |
-| 2 | M36 全文、V45-X05、M48-L08/L10/L11；现有查询正确性 | typed 有界完整过滤已实现；本轮新增 105 条同语料 embedded/loopback Server/源码 remote SDK 的逐字段分页、排序、TotalHits、facet 与查询长度预算错误/响应字段上限对拍 | 三端 4/4 PASS；统一响应总字节上限及排序/facet/投影/发送端到端期限仍待收口。跨页不声明 snapshot；真实远端、公开包和环境门禁仍另验。 |
-| 3 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03；高并发与资源 | **已交付 M42-H02 最小准入切片**：数据库 partition 排队期限、取消优先、释放和低基数结果观测；继续补 H01 基线、高基数全文 merge/缓存竞争、锁等待和混合负载预算 | Server 定向 45/45 PASS；本片约束排队年龄/数量，不是进程 heap 硬上限；H01/H03～H07A、固定硬件/168小时转环境路线仍未完成。 |
-| 4 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | G3 会话累计 SST 计量首片已交付；完整写放大、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量与原规模仍待完成，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；会话累计计量与目录存量仍不能冒充完整物理写放大，G3 门禁保持未完成。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
-| 5 | 时序 P0-3～P0-5、M50-T01～T03；时序基础合同 | 本轮实现显式单 Point [WAL v2 底层切片](docs/design/time-series-atomic-point-wal-v2.md)及确定性强杀；下一步独立冻结 Tsdb/catalog/rotation/checkpoint/flush 接入、迁移及降级边界 | T1 底层 26 项/强杀 2 项 PASS；默认 Tsdb 未接入。保持 ms、KEEP_ALL、全局 TTL/无 measurement 分区和原 fsync；T2/T3 及 us/ns 继续[待决](docs/design/time-series-write-partition-duplicates-decisions.md)。 |
-| 6 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396；可靠生态消费 | 优先完成 .NET/C 一个模型/操作批次的原生 HTTP/2/TLS、精确类型、终态、取消/未知写入、重开与独立消费者，再扩语言；EF NativeAOT 用最小固定应用单独界定 | codec、旧 C ABI 绑定、raw streaming 与九模型 typed SDK 分开验；已有 ORM/缓存/CAP 不返工。CAP 同组多活动实例须先有 lease/fencing/ACK 合同，不直接调高线程数。 |
-| 7 | M45-C02～C09、M43、V45-X03；持续计算 | 先澄清 Merge 数学合同和输入去重，再做版本化 state、before/after/retract、有限增量物化及批流对拍 | 对同事件日志验证 update/delete/重投/迟到/重开；不支持输入拒绝或有界重算。本地窗口、DLQ、outbox/receipt 与全量 REFRESH 继续复用。 |
-| 8 | M44/M48、M47 后续宿主、M51；应用与产品闭环 | 在上述真实入口上交付一条可衡量的业务旅程；M47 补已开放页面正确性和 Studio/VS Code 实物门禁；M51 复用主线43工具完成0.2.0宿主/HTTPS/凭据闭环 | 真实质量/成本、权限/删除/恢复和适用宿主逐项验收。M48 日志 R1、自动运维、Buddy应用、额外 codec/算法按明确用户收益推进，不扩大无证据承诺。 |
+| 1 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03；高并发与资源 | 已有 H02 准入和全文单请求完整预算；继续补 H01 基线、高基数 merge/缓存竞争、跨请求锁等待和混合负载预算 | 不把全文本次完成范围扩大为 M42 整包；H01/H03～H07A、固定硬件/168小时仍按原合同验收。 |
+| 2 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | G3 会话累计 SST 计量已交付；完整写放大、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量与原规模仍待完成，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；会话累计计量与目录存量不能冒充完整物理写放大，G3 门禁未完成。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
+| 3 | 时序 T2/T3、M50-T01～T03；分区、重复点和精度 | T1 默认单 Point 原子恢复及升级/降级边界已完成；T2 分区/TTL、T3 FIRST/LAST 与 us/ns 继续独立[待决](docs/design/time-series-write-partition-duplicates-decisions.md) | 当前仍为 ms、KEEP_ALL、全局 TTL/无 measurement 分区和原 fsync。 |
+| 4 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396；可靠生态消费 | 优先完成 .NET/C 一个模型/操作批次的原生 HTTP/2/TLS、精确类型、终态、取消/未知写入、重开与独立消费者，再扩语言；EF NativeAOT 用最小固定应用单独界定 | 本阶段全文源码消费者已闭合；公开新版包、外部远端、其它模型/语言和旧 C ABI 分别验收。CAP 同组多活动实例须先有 lease/fencing/ACK 合同。 |
+| 5 | M45-C02～C09、M43、V45-X03；持续计算 | 先澄清 Merge 数学合同和输入去重，再做版本化 state、before/after/retract、有限增量物化及批流对拍 | 对同事件日志验证 update/delete/重投/迟到/重开；不支持输入拒绝或有界重算。本地窗口、DLQ、outbox/receipt 与全量 REFRESH 继续复用。 |
+| 6 | M44/M48、M47 后续宿主、M51；应用与产品闭环 | 在上述真实入口上交付一条可衡量的业务旅程；M47 补已开放页面正确性和 Studio/VS Code 实物门禁；M51 复用主线43工具完成0.2.0宿主/HTTPS/凭据闭环 | 真实质量/成本、权限/删除/恢复和适用宿主逐项验收。M48 日志 R1、自动运维、Buddy应用、额外 codec/算法按明确用户收益推进。 |
 
 执行分三条可并行工作线：**可靠性与恢复、查询/并发正确性、消费者与环境验收**。每条线交付小而完整的切片；生产或公开发布时汇合其适用门禁。GH-Issue #398 干净系统安装、#399 固定硬件、#402 发行恢复增强独立接续，不能用“等环境”拖住普通代码修复，也不能用小修 PASS 关闭这些环境问题。
 
@@ -43,7 +43,9 @@
 
 | 范围 | 已核实且不重做 | 尚未完成 |
 | --- | --- | --- |
-| KV-LSM K1～K8 | K1～K6/K8 已接产品；K7 同实例多表单批次、持久行数、维护元数据、回滚 CLI、SST v3前缀布隆、Version备份与压力暂停已有实现 | K7 剩余代码侧计量/负载工具、原规模回归、随机200轮、真实旧二进制和迁移恢复；固定硬件、物理掉电、168小时转入[环境路线](docs/roadmap-environment-validation.md)。混合布局继续 journal，通用 KV Count/TTL 仍有扫描。 |
+| KV-LSM K1～K8 | 原 K7 功能及本阶段真实旧二进制拒绝、43 项迁移 I/O 故障、迁移/回滚持久阶段恢复、严格 pin 回收代码验证完成；新增 MANIFEST v2 写者屏障 | 代码侧完整计量/负载工具、原规模与随机200轮仍按原路线；固定硬件、物理掉电、168小时转入[环境路线](docs/roadmap-environment-validation.md)。混合布局继续 journal，通用 KV Count/TTL 仍扫描。 |
+| T1 默认整点恢复 | 公共 Tsdb/catalog/WAL 滚动/回放/checkpoint/flush/备份/升级和降级拒绝、取消/unknown、多字段及公共进程强杀已完成 | T2/T3、us/ns 与物理耐久/环境资格独立；旧 v1 历史部分提交不补造为原子提交。 |
+| 全文完整消费者与预算 | 10003 同语料跨端逐字段/独立排序对拍；扫描/posting/排序/facet/投影/序列化/发送统一预算、取消、总响应字节及独立本机 Server/消费者完成 | 真实外部远端与公开新版 NuGet 消费 NOT_RUN，跨页不声明快照；跨请求高并发成本继续归 M42。 |
 | 性能现状 | 历史10万条/1KiB匹配测量中写后快照 P99 从4627.6降至2.5 µs | 同测量缓冲随机写吞吐63917→46825 ops/s，分配1241→3537 B；不能声称全面变快。这些数字绑定原测量源码，非本轮 HEAD 新测。 |
 | Provider / MCP | 迁移、JSON、OwnsMany 的历史共同候选各69步；主线43个 MCP 工具与权限/预算测试；普通已关闭代码事项不重开 | EF 应用 AOT、最新公开包消费、上游发布和 WorkBuddy 宿主各自验收。 |
 | M47 Preview 1 | candidate12 / 4.5.0-preview.1.12 的限定 Windows R1 Web 放行、发布与独立回读已归档 | Studio、VS Code、三面正式版、完整九模型专用动作未由该预览完成。 |

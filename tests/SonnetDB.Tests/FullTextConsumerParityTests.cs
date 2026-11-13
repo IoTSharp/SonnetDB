@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -14,6 +15,7 @@ using SonnetDB.Data.FullText;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
+using SonnetDB.FullText;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using Xunit;
@@ -27,7 +29,7 @@ public sealed class FullTextConsumerParityTests : IAsyncLifetime
     private const string Token = "fulltext-parity-admin";
     private const int DocumentCount = 105;
     private readonly string _root = Path.Combine(Path.GetTempPath(), "sonnetdb-fulltext-consumers-" + Guid.NewGuid().ToString("N"));
-    private readonly CancellationTokenSource _deadline = new(TimeSpan.FromSeconds(90));
+    private readonly CancellationTokenSource _deadline = new(TimeSpan.FromSeconds(180));
     private WebApplication? _app;
     private string? _serverContentRoot;
     private HttpClient? _http;
@@ -193,6 +195,146 @@ public sealed class FullTextConsumerParityTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EveryBudgetFailsAtomicallyAndAnOrdinaryQueryRecovers()
+    {
+        var limits = new[]
+        {
+            new FullTextSearchBudgetOptions { MaxDocuments = 2 },
+            new FullTextSearchBudgetOptions { MaxDocumentBytes = 1 },
+            new FullTextSearchBudgetOptions { MaxPostingVisits = 1 },
+            new FullTextSearchBudgetOptions { MaxQueryLength = 2 },
+            new FullTextSearchBudgetOptions { MaxWorkUnits = 1 },
+            new FullTextSearchBudgetOptions { MaxResponseBytes = 128 },
+        };
+        foreach (FullTextSearchBudgetOptions limit in limits)
+        {
+            _deadline.Token.ThrowIfCancellationRequested();
+            var options = new SndbFullTextSearchOptions(PageSize: 1) { Budget = limit };
+            await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() => SearchEmbeddedAsync(options));
+            using HttpResponseMessage response = await PostAsync(ToRequest(options));
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+            using JsonDocument error = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(_deadline.Token), cancellationToken: _deadline.Token);
+            Assert.Contains("fulltext_search_budget_exceeded", error.RootElement.GetRawText(), StringComparison.Ordinal);
+            Assert.False(error.RootElement.TryGetProperty("hits", out _));
+            Assert.False(error.RootElement.TryGetProperty("totalHits", out _));
+            await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() => SearchRemoteAsync(options));
+
+            var normal = new SndbFullTextSearchOptions(PageSize: 1);
+            SndbFullTextSearchResult embedded = await SearchEmbeddedAsync(normal);
+            SndbFullTextSearchResult remote = await SearchRemoteAsync(normal);
+            AssertEquivalent(embedded, remote);
+            Assert.Equal(DocumentCount, remote.TotalHits);
+        }
+    }
+
+    [Fact]
+    public async Task SortFacetProjectionAndSerializationShareTheRemainingWorkBudget()
+    {
+        // 基准查询只投影一个命中且不计算 facet。相同较低预算必须在后续响应工作耗尽。
+        var small = new SndbFullTextSearchOptions(PageSize: 1)
+        {
+            Budget = new FullTextSearchBudgetOptions { MaxWorkUnits = 10_000 },
+        };
+        Assert.Equal(DocumentCount, (await SearchEmbeddedAsync(small)).TotalHits);
+        Assert.Equal(DocumentCount, (await SearchRemoteAsync(small)).TotalHits);
+        var large = small with
+        {
+            PageSize = 100,
+            Facets = [new SndbFullTextFacetRequest("$.category", 100)],
+            Highlight = new SndbFullTextHighlightRequest(1_024, 8),
+        };
+        await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() => SearchEmbeddedAsync(large));
+        using HttpResponseMessage response = await PostAsync(ToRequest(large));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() => SearchRemoteAsync(large));
+        Assert.Equal(DocumentCount, (await SearchRemoteAsync(new SndbFullTextSearchOptions(PageSize: 1))).TotalHits);
+    }
+
+    [Fact]
+    public async Task BeyondOldWindow_HighCardinalityAndIndependentSortOracleMatchEveryConsumer()
+    {
+        const int count = 10_003;
+        _embedded!.Dispose();
+        _embedded = null;
+        using (Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = Path.Combine(_root, "embedded") }))
+            SeedLarge(database, count);
+        _embedded = new SndbFullTextClient($"Data Source={Path.Combine(_root, "embedded")}");
+        Assert.True(_app!.Services.GetRequiredService<TsdbRegistry>().TryGet(Database, out Tsdb? serverDatabase));
+        SeedLarge(serverDatabase!, count);
+
+        using JsonDocument target = JsonDocument.Parse("\"target\"");
+        foreach (SndbDocumentSort sort in new[]
+        {
+            new SndbDocumentSort("id"), new SndbDocumentSort("id", true),
+            new SndbDocumentSort("score"), new SndbDocumentSort("score", true),
+        })
+        {
+            var options = new SndbFullTextSearchOptions(PageSize: 1,
+                Filter: new SndbDocumentFilter("$.site", "eq", target.RootElement.Clone()),
+                Sort: [sort], Facets: [new SndbFullTextFacetRequest("$.category", 100)],
+                Highlight: new SndbFullTextHighlightRequest(80, 2));
+            string? embeddedToken = null;
+            string? wireToken = null;
+            string? remoteToken = null;
+            var actualIds = new List<string>();
+            for (int page = 0; page < 2; page++)
+            {
+                var embedded = await _embedded!.SearchAsync("large", "by_message", "$.message", "shared", options with { ContinuationToken = embeddedToken }, _deadline.Token);
+                var remote = await _remote!.SearchAsync("large", "by_message", "$.message", "shared", options with { ContinuationToken = remoteToken }, _deadline.Token);
+                FullTextSearchRequest request = ToRequest(options with { ContinuationToken = wireToken }) with { Collection = "large" };
+                FullTextSearchResponse wire = await SearchHttpAsync(request);
+                AssertEquivalent(embedded, remote);
+                AssertEquivalent(remote, wire);
+                Assert.Equal(2, remote.TotalHits);
+                Assert.Equal(2, Assert.Single(remote.Facets).Buckets.Sum(static bucket => bucket.Count));
+                SndbFullTextHit hit = Assert.Single(remote.Hits);
+                int number = int.Parse(hit.DocumentId, CultureInfo.InvariantCulture);
+                Assert.Equal(IndependentScore(number, count), hit.Score, precision: 12);
+                actualIds.Add(hit.DocumentId);
+                embeddedToken = embedded.NextContinuationToken;
+                wireToken = wire.NextContinuationToken;
+                remoteToken = remote.NextContinuationToken;
+            }
+            IEnumerable<int> oracle = new[] { 10_000, 10_002 };
+            oracle = sort.Path == "id"
+                ? sort.Descending ? oracle.OrderDescending() : oracle.Order()
+                : sort.Descending ? oracle.OrderByDescending(number => IndependentScore(number, count)).ThenBy(static number => number)
+                    : oracle.OrderBy(number => IndependentScore(number, count)).ThenBy(static number => number);
+            Assert.Equal(oracle.Select(static number => number.ToString("D5", CultureInfo.InvariantCulture)), actualIds);
+        }
+
+        var full = new SndbFullTextSearchOptions(PageSize: 100, Skip: 9_990,
+            Sort: [new SndbDocumentSort("id")], Facets: [new SndbFullTextFacetRequest("$.category", 100), new SndbFullTextFacetRequest("$.site", 100)]);
+        SndbFullTextSearchResult completeEmbedded = await _embedded!.SearchAsync("large", "by_message", "$.message", "shared", full, _deadline.Token);
+        SndbFullTextSearchResult completeRemote = await _remote!.SearchAsync("large", "by_message", "$.message", "shared", full, _deadline.Token);
+        FullTextSearchResponse completeWire = await SearchHttpAsync(ToRequest(full) with { Collection = "large" });
+        AssertEquivalent(completeEmbedded, completeRemote);
+        AssertEquivalent(completeRemote, completeWire);
+        Assert.Equal(count, completeRemote.TotalHits);
+        Assert.Equal(Enumerable.Range(9_990, 13).Select(static number => number.ToString("D5", CultureInfo.InvariantCulture)),
+            completeRemote.Hits.Select(static hit => hit.DocumentId));
+        Assert.Equal(100, completeRemote.Facets[0].Buckets.Count);
+        Assert.Equal(Enumerable.Range(0, 100).Select(static number => $"category-{number:D5}"), completeRemote.Facets[0].Buckets.Select(static bucket => bucket.Value));
+        Assert.All(completeRemote.Facets[0].Buckets, static bucket => Assert.Equal(1, bucket.Count));
+        Assert.Equal(new[] { new SndbFullTextFacetBucket("other", 10_001), new SndbFullTextFacetBucket("target", 2) }, completeRemote.Facets[1].Buckets);
+
+        var scoreOptions = full with { Skip = 0, Sort = [new SndbDocumentSort("score", true)] };
+        SndbFullTextSearchResult scoreResult = await _remote.SearchAsync("large", "by_message", "$.message", "shared", scoreOptions, _deadline.Token);
+        Assert.Equal(Enumerable.Range(0, count).OrderByDescending(number => IndependentScore(number, count)).ThenBy(static number => number)
+            .Take(100).Select(static number => number.ToString("D5", CultureInfo.InvariantCulture)), scoreResult.Hits.Select(static hit => hit.DocumentId));
+
+        var timed = full with { Budget = new FullTextSearchBudgetOptions { TimeoutMilliseconds = 1 } };
+        await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() =>
+            _embedded!.SearchAsync("large", "by_message", "$.message", "shared", timed, _deadline.Token));
+        using HttpResponseMessage timeout = await PostAsync(ToRequest(timed) with { Collection = "large" });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, timeout.StatusCode);
+        await Assert.ThrowsAsync<FullTextSearchBudgetExceededException>(() =>
+            _remote!.SearchAsync("large", "by_message", "$.message", "shared", timed, _deadline.Token));
+        Assert.Equal(count, (await _remote!.SearchAsync("large", "by_message", "$.message", "shared",
+            new SndbFullTextSearchOptions(PageSize: 1), _deadline.Token)).TotalHits);
+    }
+
+    [Fact]
     public async Task EmptyWindowInvalidInputAndCancellationKeepTheirContracts()
     {
         var options = new SndbFullTextSearchOptions(PageSize: 1, Skip: DocumentCount);
@@ -221,6 +363,21 @@ public sealed class FullTextConsumerParityTests : IAsyncLifetime
         HttpRequestException exception = await Assert.ThrowsAsync<HttpRequestException>(() => SearchRemoteAsync(mismatched));
         Assert.Equal(HttpStatusCode.BadRequest, exception.StatusCode);
         Assert.Contains("invalid_continuation_token", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OversizedRequestBodyIsRejectedBeforeJsonMaterialization()
+    {
+        string oversizedQuery = new('x', 4 * 1024 * 1024);
+        using var content = new StringContent(
+            $"{{\"collection\":\"logs\",\"index\":\"by_message\",\"field\":\"$.message\",\"query\":\"{oversizedQuery}\"}}",
+            Encoding.UTF8,
+            "application/json");
+        using HttpResponseMessage response = await _http!.PostAsync($"/v1/db/{Database}/fulltext/search", content, _deadline.Token);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        using JsonDocument error = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(_deadline.Token), cancellationToken: _deadline.Token);
+        Assert.Contains("fulltext_search_budget_exceeded", error.RootElement.GetRawText(), StringComparison.Ordinal);
+        Assert.False(error.RootElement.TryGetProperty("hits", out _));
     }
 
     public async Task DisposeAsync()
@@ -297,6 +454,27 @@ public sealed class FullTextConsumerParityTests : IAsyncLifetime
         Assert.True(database.Documents.Open("logs").InsertMany(writes).Committed);
     }
 
+    private static void SeedLarge(Tsdb database, int count)
+    {
+        database.Documents.Create(DocumentCollectionSchema.Create("large", fullTextIndexes:
+            [new DocumentFullTextIndexDefinition("by_message", ["$.message"], "unicode")]));
+        DocumentWriteRequest[] writes = Enumerable.Range(0, count).Select(number => new DocumentWriteRequest(
+            number.ToString("D5", CultureInfo.InvariantCulture),
+            $"{{\"message\":\"{(number % 3 == 0 ? "shared shared" : "shared")}\",\"site\":\"{(number is 10_000 or 10_002 ? "target" : "other")}\",\"category\":\"category-{number:D5}\"}}"))
+            .ToArray();
+        Assert.True(database.Documents.Open("large").InsertMany(writes).Committed);
+    }
+
+    private static double IndependentScore(int number, int count)
+    {
+        // 独立的标量 BM25 oracle：本语料只含一个查询词，所有文档都命中，词频为 1 或 2。
+        int frequency = number % 3 == 0 ? 2 : 1;
+        double averageLength = (count + (count + 2) / 3d) / count;
+        double inverseFrequency = Math.Log(1d + 0.5d / (count + 0.5d));
+        return inverseFrequency * (frequency * 2.2d)
+            / (frequency + 1.2d * (0.25d + 0.75d * frequency / averageLength));
+    }
+
     private Task<SndbFullTextSearchResult> SearchEmbeddedAsync(SndbFullTextSearchOptions options)
         => _embedded!.SearchAsync("logs", "by_message", "$.message", "shared", options, _deadline.Token);
 
@@ -321,7 +499,8 @@ public sealed class FullTextConsumerParityTests : IAsyncLifetime
             options.Sort?.Select(static sort => new DocumentSortContract(sort.Path, sort.Descending)).ToArray(),
             options.Facets?.Select(static facet => new FullTextFacetRequest(facet.Field, facet.Limit)).ToArray(),
             options.Highlight is { } highlight ? new FullTextHighlightRequest(highlight.FragmentSize, highlight.MaxFragments) : null,
-            options.ContinuationToken);
+            options.ContinuationToken)
+        { Budget = options.Budget };
 
     private static void AssertEquivalent(SndbFullTextSearchResult expected, FullTextSearchResponse actual)
     {

@@ -23,6 +23,9 @@ public sealed class SeriesCatalog
 {
     private readonly object _sync = new();
 
+    // 保留已加载目录的最低写入者版本，避免后续 checkpoint 把整点 WAL 降级屏障写回 v1。
+    internal int PersistenceFormatVersion { get; set; } = 1;
+
     private readonly ConcurrentDictionary<string, SeriesEntry> _byCanonical = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<ulong, SeriesEntry> _byId = new();
     private readonly TagInvertedIndex _tagIndex = new();

@@ -10,14 +10,13 @@ namespace SonnetDB.Memory;
 /// <para>
 /// 并发契约（C10）：<see cref="Append"/> / <see cref="Reset"/> / <see cref="RemoveSeries"/> 三个写侧操作
 /// 由调用方的 <c>_writeSync</c> 串行化（measurement 写、DropMeasurement 均在该锁内；WAL 回放在 Open
-/// 期间单线程执行），彼此互斥，故不再需要内部的 <see cref="ReaderWriterLockSlim"/> 冗余门。
-/// 读侧（Snapshot/TryGet/GetBySeries/PointCount 等）无锁并发安全，依赖三处机制：
-/// <see cref="ConcurrentDictionary{TKey,TValue}"/>（桶集合枚举 / GetOrAdd）、每桶 <c>_sync</c>（桶内点与
-/// 聚合）、以及统计量的 <see cref="Interlocked"/> 读写——这三者服务 lock-free 读者，必须保留。
+/// 期间单线程执行），彼此互斥。整点发布另持有短暂的共享发布门，桶快照、聚合与元数据读取
+/// 遵守同一门，避免单次读取落在一个 Point 的字段发布前缀中；多个独立查询之间不提供事务快照。
 /// </para>
 /// </summary>
 public sealed class MemTable
 {
+    private readonly object _publicationSync = new();
     private readonly ConcurrentDictionary<SeriesFieldKey, MemTableSeries> _series = new();
     private long _pointCount;
     private long _estimatedBytes;
@@ -28,25 +27,25 @@ public sealed class MemTable
     private long _createdAtUtcTicks = DateTime.UtcNow.Ticks;
 
     /// <summary>当前 MemTable 包含的不同 (SeriesId, FieldName) 桶数量。</summary>
-    public int SeriesCount => _series.Count;
+    public int SeriesCount { get { lock (_publicationSync) return _series.Count; } }
 
     /// <summary>当前 MemTable 的总数据点数量。</summary>
-    public long PointCount => Interlocked.Read(ref _pointCount);
+    public long PointCount { get { lock (_publicationSync) return Interlocked.Read(ref _pointCount); } }
 
     /// <summary>所有桶的估算总内存占用（字节）。</summary>
-    public long EstimatedBytes => Interlocked.Read(ref _estimatedBytes);
+    public long EstimatedBytes { get { lock (_publicationSync) return Interlocked.Read(ref _estimatedBytes); } }
 
     /// <summary>所有桶中最小时间戳；MemTable 为空时返回 <see cref="long.MaxValue"/>。</summary>
-    public long MinTimestamp => Interlocked.Read(ref _minTimestamp);
+    public long MinTimestamp { get { lock (_publicationSync) return Interlocked.Read(ref _minTimestamp); } }
 
     /// <summary>所有桶中最大时间戳；MemTable 为空时返回 <see cref="long.MinValue"/>。</summary>
-    public long MaxTimestamp => Interlocked.Read(ref _maxTimestamp);
+    public long MaxTimestamp { get { lock (_publicationSync) return Interlocked.Read(ref _maxTimestamp); } }
 
     /// <summary>自上次 Flush 后接收的第一条 WAL LSN；未写入任何记录时为 <see cref="long.MinValue"/>。</summary>
-    public long FirstLsn => Interlocked.Read(ref _firstLsn);
+    public long FirstLsn { get { lock (_publicationSync) return Interlocked.Read(ref _firstLsn); } }
 
     /// <summary>最近写入的 WAL LSN；未写入任何记录时为 <see cref="long.MinValue"/>。</summary>
-    public long LastLsn => Interlocked.Read(ref _lastLsn);
+    public long LastLsn { get { lock (_publicationSync) return Interlocked.Read(ref _lastLsn); } }
 
     /// <summary>MemTable 创建（或上次 Reset）的 UTC 时间，用于 MaxAge 阈值判断。</summary>
     public DateTime CreatedAtUtc => new(Interlocked.Read(ref _createdAtUtcTicks), DateTimeKind.Utc);
@@ -63,13 +62,21 @@ public sealed class MemTable
     /// <exception cref="InvalidOperationException">同 key 下 FieldType 不一致时抛出。</exception>
     public void Append(ulong seriesId, long pointTimestamp, string fieldName, FieldValue value, long lsn)
     {
+        lock (_publicationSync)
+            AppendCore(seriesId, pointTimestamp, fieldName, value, lsn);
+    }
+
+    private void AppendCore(ulong seriesId, long pointTimestamp, string fieldName, FieldValue value, long lsn)
+    {
         ArgumentNullException.ThrowIfNull(fieldName);
 
-        // 写侧由调用方 _writeSync 串行化（见类型注释）；此处不再取内部生命周期锁。
+        // 调用方已持发布门；Tsdb 写侧另由 _writeSync 串行化。
         var key = new SeriesFieldKey(seriesId, fieldName);
         var fieldType = value.Type;
 
-        var bucket = _series.GetOrAdd(key, static (k, ft) => new MemTableSeries(k, ft), fieldType);
+        var bucket = _series.GetOrAdd(key,
+            static (k, state) => new MemTableSeries(k, state.Type, state.Sync),
+            (Type: fieldType, Sync: _publicationSync));
 
         if (bucket.FieldType != fieldType)
             throw new InvalidOperationException(
@@ -85,6 +92,37 @@ public sealed class MemTable
         Interlocked.CompareExchange(ref _firstLsn, lsn, long.MinValue);
         // LastLsn: 单调推进
         Interlocked.Exchange(ref _lastLsn, lsn);
+    }
+
+    /// <summary>以一个 WAL LSN 原子发布一个 Point 的全部字段。</summary>
+    /// <param name="seriesId">序列标识。</param>
+    /// <param name="pointTimestamp">Unix 毫秒时间戳。</param>
+    /// <param name="fields">完整字段集合；必须至少包含一个字段。</param>
+    /// <param name="lsn">共享 WAL LSN。</param>
+    /// <exception cref="ArgumentNullException">字段集合或字段名为 null。</exception>
+    /// <exception cref="InvalidOperationException">已有字段类型与 Point 不一致。</exception>
+    public void AppendAtomicPoint(ulong seriesId, long pointTimestamp,
+        IReadOnlyDictionary<string, FieldValue> fields, long lsn)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        if (fields.Count == 0)
+            throw new ArgumentException("A Point must contain at least one field.", nameof(fields));
+
+        lock (_publicationSync)
+        {
+            // 预检全部已有桶类型，确保正常失败不会先发布前置字段。
+            foreach (var (fieldName, value) in fields)
+            {
+                ArgumentNullException.ThrowIfNull(fieldName);
+                var existing = TryGet(new SeriesFieldKey(seriesId, fieldName));
+                if (existing is not null && existing.FieldType != value.Type)
+                    throw new InvalidOperationException(
+                        $"FieldType mismatch for key '{seriesId}:{fieldName}': existing={existing.FieldType}, new={value.Type}.");
+            }
+
+            foreach (var (fieldName, value) in fields)
+                AppendCore(seriesId, pointTimestamp, fieldName, value, lsn);
+        }
     }
 
     /// <summary>
@@ -112,7 +150,10 @@ public sealed class MemTable
     /// <param name="key">要查找的 (SeriesId, FieldName) 复合键。</param>
     /// <returns>对应的 <see cref="MemTableSeries"/>，未命中返回 null。</returns>
     public MemTableSeries? TryGet(in SeriesFieldKey key)
-        => _series.TryGetValue(key, out var bucket) ? bucket : null;
+    {
+        lock (_publicationSync)
+            return _series.TryGetValue(key, out var bucket) ? bucket : null;
+    }
 
     /// <summary>
     /// 按 SeriesId 返回该 series 下的所有桶（按 FieldName Ordinal 排序）。
@@ -121,14 +162,17 @@ public sealed class MemTable
     /// <returns>按字段名升序排列的桶列表（可能为空列表）。</returns>
     public IReadOnlyList<MemTableSeries> GetBySeries(ulong seriesId)
     {
-        var result = new List<MemTableSeries>();
-        foreach (var kvp in _series)
+        lock (_publicationSync)
         {
-            if (kvp.Key.SeriesId == seriesId)
-                result.Add(kvp.Value);
+            var result = new List<MemTableSeries>();
+            foreach (var kvp in _series)
+            {
+                if (kvp.Key.SeriesId == seriesId)
+                    result.Add(kvp.Value);
+            }
+            result.Sort(static (a, b) => string.Compare(a.Key.FieldName, b.Key.FieldName, StringComparison.Ordinal));
+            return result;
         }
-        result.Sort(static (a, b) => string.Compare(a.Key.FieldName, b.Key.FieldName, StringComparison.Ordinal));
-        return result;
     }
 
     /// <summary>
@@ -136,7 +180,10 @@ public sealed class MemTable
     /// </summary>
     /// <returns>所有桶的只读列表快照。</returns>
     public IReadOnlyList<MemTableSeries> SnapshotAll()
-        => [.. _series.Values];
+    {
+        lock (_publicationSync)
+            return [.. _series.Values];
+    }
 
     /// <summary>
     /// 移除指定 SeriesId 集合对应的全部内存桶。
@@ -150,24 +197,27 @@ public sealed class MemTable
             return 0;
 
         // 写侧由调用方 _writeSync 串行化（DropMeasurement 在 _maintenanceSync→_writeSync 内）。
-        var keysToRemove = new List<SeriesFieldKey>();
-        foreach (var key in _series.Keys)
+        lock (_publicationSync)
         {
-            if (seriesIds.Contains(key.SeriesId))
-                keysToRemove.Add(key);
+            var keysToRemove = new List<SeriesFieldKey>();
+            foreach (var key in _series.Keys)
+            {
+                if (seriesIds.Contains(key.SeriesId))
+                    keysToRemove.Add(key);
+            }
+
+            var removed = 0;
+            foreach (var key in keysToRemove)
+            {
+                if (_series.TryRemove(key, out _))
+                    removed++;
+            }
+
+            if (removed > 0)
+                RecomputeStats();
+
+            return removed;
         }
-
-        var removed = 0;
-        foreach (var key in keysToRemove)
-        {
-            if (_series.TryRemove(key, out _))
-                removed++;
-        }
-
-        if (removed > 0)
-            RecomputeStats();
-
-        return removed;
     }
 
     /// <summary>
@@ -177,14 +227,17 @@ public sealed class MemTable
     /// </summary>
     public void Reset()
     {
-        _series.Clear();
-        Interlocked.Exchange(ref _pointCount, 0L);
-        Interlocked.Exchange(ref _estimatedBytes, 0L);
-        Interlocked.Exchange(ref _minTimestamp, long.MaxValue);
-        Interlocked.Exchange(ref _maxTimestamp, long.MinValue);
-        Interlocked.Exchange(ref _firstLsn, long.MinValue);
-        Interlocked.Exchange(ref _lastLsn, long.MinValue);
-        Interlocked.Exchange(ref _createdAtUtcTicks, DateTime.UtcNow.Ticks);
+        lock (_publicationSync)
+        {
+            _series.Clear();
+            Interlocked.Exchange(ref _pointCount, 0L);
+            Interlocked.Exchange(ref _estimatedBytes, 0L);
+            Interlocked.Exchange(ref _minTimestamp, long.MaxValue);
+            Interlocked.Exchange(ref _maxTimestamp, long.MinValue);
+            Interlocked.Exchange(ref _firstLsn, long.MinValue);
+            Interlocked.Exchange(ref _lastLsn, long.MinValue);
+            Interlocked.Exchange(ref _createdAtUtcTicks, DateTime.UtcNow.Ticks);
+        }
     }
 
     private void RecomputeStats()

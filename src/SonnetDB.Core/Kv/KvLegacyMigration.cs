@@ -120,7 +120,11 @@ internal static class KvLegacyMigration
         Directory.CreateDirectory(staging);
         using KvVersionSet versions = KvVersionSet.Create(staging, info.Generation);
         var edit = new KvVersionEdit { LastSequence = info.Sequence };
-        KvSstWriterOptions writerOptions = KvSstWriterOptions.Default with { Generation = info.Generation };
+        KvSstWriterOptions writerOptions = KvSstWriterOptions.Default with
+        {
+            Generation = info.Generation,
+            IoTestHook = KvMigrationFileIo.TestHook,
+        };
         KvSstWriter? writer = null;
         long fileNumber = 0;
         string? path = null;
@@ -499,7 +503,8 @@ internal static class KvLegacyMigration
         long available;
         try
         {
-            available = new DriveInfo(Path.GetFullPath(directory)).AvailableFreeSpace;
+            available = KvMigrationFileIo.AvailableSpaceTestHook?.Invoke(Path.GetFullPath(directory))
+                ?? new DriveInfo(Path.GetFullPath(directory)).AvailableFreeSpace;
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
         {
@@ -528,13 +533,7 @@ internal static class KvLegacyMigration
                 "storageId=" + StorageId.ToString(CultureInfo.InvariantCulture),
                 "committedUtcTicks=" + CommittedUtcTicks.ToString(CultureInfo.InvariantCulture),
                 "importedSequence=" + ImportedSequence.ToString(CultureInfo.InvariantCulture)) + "\n";
-            string temp = path + ".tmp";
-            using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                stream.Write(System.Text.Encoding.UTF8.GetBytes(content));
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(temp, path, overwrite: true);
+            KvMigrationFileIo.WriteAtomic(path, System.Text.Encoding.UTF8.GetBytes(content));
         }
 
         internal static MigrationInfo Read(string path)

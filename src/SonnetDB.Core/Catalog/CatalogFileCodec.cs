@@ -37,7 +37,22 @@ public static class CatalogFileCodec
     /// <summary>目录文件扩展名。</summary>
     public const string FileExtension = ".SDBCAT";
 
+    // 条目布局与 v1 相同；v2 额外声明默认写入使用整点 WAL，旧版本必须在回收 WAL 后仍拒绝。
+    internal const int AtomicPointWalFormatVersion = 2;
+
     private static readonly Encoding _utf8 = Encoding.UTF8;
+
+    internal static void RequireAtomicPointWal(SeriesCatalog catalog, string path)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(path);
+        if (catalog.PersistenceFormatVersion >= AtomicPointWalFormatVersion)
+            return;
+
+        catalog.PersistenceFormatVersion = AtomicPointWalFormatVersion;
+        // 即使保存发生 unknown，内存也不能降回旧格式；打开失败后由新读取器重新对账。
+        Save(catalog, path);
+    }
 
     // ── 路径重载 ──────────────────────────────────────────────────────────────
 
@@ -102,7 +117,7 @@ public static class CatalogFileCodec
         var entries = catalog.Snapshot();
 
         // 写入文件头
-        WriteHeader(destination, entries.Count);
+        WriteHeader(destination, entries.Count, catalog.PersistenceFormatVersion);
 
         // 写入每条 entry
         foreach (var entry in entries)
@@ -138,9 +153,9 @@ public static class CatalogFileCodec
                     $"Catalog file magic mismatch: expected \"SDBCATv1\".");
 
             // 校验版本
-            if (header.FormatVersion != TsdbMagic.FormatVersion)
+            if (header.FormatVersion is not (1 or AtomicPointWalFormatVersion))
                 throw new InvalidDataException(
-                    $"Catalog file format version mismatch: expected {TsdbMagic.FormatVersion}, got {header.FormatVersion}.");
+                    $"Catalog file format version mismatch: expected 1 or {AtomicPointWalFormatVersion}, got {header.FormatVersion}.");
 
             // 校验头部大小
             if (header.HeaderSize != FormatSizes.CatalogFileHeaderSize)
@@ -148,7 +163,7 @@ public static class CatalogFileCodec
                     $"Catalog file header size mismatch: expected {FormatSizes.CatalogFileHeaderSize}, got {header.HeaderSize}.");
 
             int entryCount = header.EntryCount;
-            var catalog = new SeriesCatalog();
+            var catalog = new SeriesCatalog { PersistenceFormatVersion = header.FormatVersion };
             var entries = new List<SeriesEntry>(entryCount);
 
             for (int i = 0; i < entryCount; i++)
@@ -166,13 +181,14 @@ public static class CatalogFileCodec
 
     // ── 私有写入辅助 ──────────────────────────────────────────────────────────
 
-    private static void WriteHeader(Stream stream, int entryCount)
+    private static void WriteHeader(Stream stream, int entryCount, int formatVersion)
     {
         int headerSize = FormatSizes.CatalogFileHeaderSize;
         byte[] buf = ArrayPool<byte>.Shared.Rent(headerSize);
         try
         {
             var header = CatalogFileHeader.CreateNew(entryCount);
+            header.FormatVersion = formatVersion;
             var writer = new SpanWriter(buf.AsSpan(0, headerSize));
             writer.WriteStruct(in header);
             stream.Write(buf, 0, headerSize);

@@ -36,7 +36,12 @@ internal static class WalCheckpointFile
             fs.Flush(true);
         }
 
-        File.Move(tempPath, path, overwrite: true);
+        // Windows 的 Move(overwrite) 即使读者允许 Delete 共享也会拒绝覆盖打开的目标。
+        // 已有 checkpoint 使用支持该共享合同的原子 Replace；首次发布仍是单次 rename。
+        if (File.Exists(path))
+            File.Replace(tempPath, path, destinationBackupFileName: null);
+        else
+            File.Move(tempPath, path);
         // checkpoint 一旦返回即会允许 WAL replay 跳过对应记录；目录项必须同步落盘，
         // 否则掉电后可能保留新段却丢失该承诺，或反过来留下错误的可见性边界。
         DirectoryFsync.FlushRequired(directory);
@@ -52,8 +57,14 @@ internal static class WalCheckpointFile
         byte[] buffer = ArrayPool<byte>.Shared.Rent(FileSize);
         try
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            int read = ReadExact(fs, buffer, 0, FileSize);
+            // 只在复制固定 64B 时持有文件句柄。Delete 共享允许并发 Replace，
+            // 本句柄仍读取打开时的旧完整文件；解析与回调不延长磁盘读租约。
+            int read;
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                read = ReadExact(fs, buffer, 0, FileSize);
+            }
             if (read < FileSize)
                 return null;
 

@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Documents;
+using SonnetDB.Exceptions;
 using SonnetDB.FullText.Index;
 using SonnetDB.FullText.Query;
 using SonnetDB.FullText.Storage;
@@ -209,6 +210,18 @@ public sealed class DocumentFullTextIndexStore
         CancellationToken cancellationToken,
         FullTextSearchMode mode = FullTextSearchMode.Exact,
         FullTextQueryKind queryKind = FullTextQueryKind.All)
+        => SearchFiltered(field, queryText, topK, allowedDocumentIds, maxPostingVisits, cancellationToken, mode, queryKind, null);
+
+    internal DocumentFullTextFilteredSearchResult SearchFiltered(
+        string field,
+        string queryText,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        long maxPostingVisits,
+        CancellationToken cancellationToken,
+        FullTextSearchMode mode,
+        FullTextQueryKind queryKind,
+        FullTextSearchBudget? budget)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(field);
         ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
@@ -224,19 +237,30 @@ public sealed class DocumentFullTextIndexStore
                 false);
         }
 
-        lock (_sync)
+        bool entered = false;
+        try
         {
+            for (int attempt = 0; attempt < 200 && !entered; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                budget?.Check();
+                entered = Monitor.TryEnter(_sync, 50);
+            }
+            if (!entered)
+                throw new FullTextSearchBudgetExceededException("全文查询等待索引锁超过预算。");
             SonnetDB.FullText.Query.Query query = BuildQuery(
                 field,
                 queryText,
                 mode,
-                queryKind);
+                queryKind,
+                budget);
             PersistentFullTextFilteredSearchResult search = _index.SearchFiltered(
                 query,
                 topK,
                 allowedDocumentIds,
                 maxPostingVisits,
-                cancellationToken);
+                cancellationToken,
+                budget);
             var hits = new DocumentFullTextSearchHit[search.Hits.Count];
             for (int i = 0; i < search.Hits.Count; i++)
             {
@@ -249,6 +273,11 @@ public sealed class DocumentFullTextIndexStore
                 allowedDocumentIds.Count,
                 search.PostingVisits,
                 search.PostingBudgetExceeded);
+        }
+        finally
+        {
+            if (entered)
+                Monitor.Exit(_sync);
         }
     }
 
@@ -360,9 +389,12 @@ public sealed class DocumentFullTextIndexStore
         string field,
         string queryText,
         FullTextSearchMode mode,
-        FullTextQueryKind queryKind)
+        FullTextQueryKind queryKind,
+        FullTextSearchBudget? budget = null)
     {
+        budget?.Check();
         string[] tokens = Tokenize(queryText).ToArray();
+        budget?.ChargeWork(Math.Max(1, queryText.Length / 64));
         if (tokens.Length == 0)
             tokens = [queryText.ToLowerInvariant()];
 
@@ -370,19 +402,21 @@ public sealed class DocumentFullTextIndexStore
         {
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? activeTerms =
                 mode == FullTextSearchMode.Fuzzy
-                    ? _index.SnapshotActiveTerms(_definition.Fields)
+                    ? _index.SnapshotActiveTerms(_definition.Fields, budget)
                     : null;
             IReadOnlyList<string> searchableFields = _definition.Settings.SearchableFields ?? _definition.Fields;
             var fieldQueries = new SonnetDB.FullText.Query.Query[searchableFields.Count];
             for (int i = 0; i < searchableFields.Count; i++)
             {
+                budget?.ChargeWork();
                 string fieldName = searchableFields[i];
                 fieldQueries[i] = BuildFieldQuery(
                     fieldName,
                     tokens,
                     mode,
                     queryKind,
-                    activeTerms is null ? null : activeTerms[fieldName]);
+                    activeTerms is null ? null : activeTerms[fieldName],
+                    budget);
             }
             return fieldQueries.Length == 1 ? fieldQueries[0] : new OrQuery(fieldQueries);
         }
@@ -395,9 +429,9 @@ public sealed class DocumentFullTextIndexStore
         }
 
         IReadOnlyCollection<string>? fieldTerms = mode == FullTextSearchMode.Fuzzy
-            ? _index.SnapshotActiveTerms([normalizedField])[normalizedField]
+            ? _index.SnapshotActiveTerms([normalizedField], budget)[normalizedField]
             : null;
-        return BuildFieldQuery(normalizedField, tokens, mode, queryKind, fieldTerms);
+        return BuildFieldQuery(normalizedField, tokens, mode, queryKind, fieldTerms, budget);
     }
 
     private SonnetDB.FullText.Query.Query BuildFieldQuery(
@@ -405,7 +439,8 @@ public sealed class DocumentFullTextIndexStore
         IReadOnlyList<string> tokens,
         FullTextSearchMode mode,
         FullTextQueryKind queryKind,
-        IReadOnlyCollection<string>? activeTerms)
+        IReadOnlyCollection<string>? activeTerms,
+        FullTextSearchBudget? budget = null)
     {
         if (queryKind == FullTextQueryKind.Phrase)
             return tokens.Count == 1 ? new TermQuery(field, tokens[0]) : new PhraseQuery(field, tokens);
@@ -414,7 +449,7 @@ public sealed class DocumentFullTextIndexStore
         {
             var expanded = new SonnetDB.FullText.Query.Query[tokens.Count];
             for (int i = 0; i < tokens.Count; i++)
-                expanded[i] = ExpandFuzzyTermQuery(field, tokens[i], activeTerms!);
+                expanded[i] = ExpandFuzzyTermQuery(field, tokens[i], activeTerms!, budget);
             return tokens.Count == 1
                 ? expanded[0]
                 : queryKind == FullTextQueryKind.Any ? new OrQuery(expanded) : new AndQuery(expanded);
@@ -437,7 +472,8 @@ public sealed class DocumentFullTextIndexStore
     private SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(
         string field,
         string queryToken,
-        IReadOnlyCollection<string> activeTerms)
+        IReadOnlyCollection<string> activeTerms,
+        FullTextSearchBudget? budget = null)
     {
         int maxEdits = ComputeFuzzyMaxEdits(queryToken);
         if (maxEdits == 0)
@@ -446,6 +482,7 @@ public sealed class DocumentFullTextIndexStore
         var matches = new List<string>();
         foreach (string term in activeTerms)
         {
+            budget?.ChargeWork(Math.Max(1, ((long)term.Length * queryToken.Length) / 64));
             // 长度差超过 maxEdits 时编辑距离一定 > maxEdits，直接剪枝避免 O(N²) DP。
             if (Math.Abs(term.Length - queryToken.Length) > maxEdits)
                 continue;

@@ -29,6 +29,8 @@ public sealed class WalWriter : IDisposable
 
     internal Action? AfterAtomicPointWriteTestHook { get; set; }
 
+    internal void FlushUnacknowledgedPointBytesToOsForTest() => _stream!.Flush();
+
     /// <summary>WAL 文件的完整路径。</summary>
     public string Path { get; }
 
@@ -42,6 +44,10 @@ public sealed class WalWriter : IDisposable
     public bool IsOpen => !_disposed;
 
     internal bool OpenedUsingLastLsnFooter { get; }
+
+    internal bool HasAppendFault => _atomicAppendFault is not null;
+
+    internal int FormatVersion => _formatVersion;
 
     private WalWriter(
         string path,
@@ -79,7 +85,7 @@ public sealed class WalWriter : IDisposable
     /// <param name="bufferSize">写缓冲字节数。</param>
     /// <param name="recoveryOptions">v2 现有文件恢复的记录数、总文件字节和墙钟预算。</param>
     /// <param name="cancellationToken">恢复及截尾前检查的取消令牌，不改变后续追加取消语义。</param>
-    /// <returns>显式 v2 写入器；不改变 Tsdb 默认写入与 fsync 策略。</returns>
+    /// <returns>显式 v2 写入器；支持整点与目录、检查点、删除控制记录，不自动 fsync。</returns>
     public static WalWriter OpenAtomicPoints(string path, long startLsn = 1, int bufferSize = 64 * 1024,
         AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
         => OpenCore(path, startLsn, bufferSize, WalFileHeader.AtomicPointFormatVersion, recoveryOptions ?? new(), cancellationToken);
@@ -215,8 +221,6 @@ public sealed class WalWriter : IDisposable
         ThrowIfAtomicAppendFault();
         if (_formatVersion != WalFileHeader.AtomicPointFormatVersion)
             throw new InvalidOperationException("Atomic Point records require explicit WAL v2.");
-        if (_nextLsn == long.MaxValue)
-            throw new InvalidOperationException("WAL v2 LSN space is exhausted; no record was appended.");
         cancellationToken.ThrowIfCancellationRequested();
         byte[] payload = AtomicPointWalCodec.Encode(seriesId, pointTimestamp, fields);
         cancellationToken.ThrowIfCancellationRequested();
@@ -245,6 +249,15 @@ public sealed class WalWriter : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(measurement);
         ArgumentNullException.ThrowIfNull(tags);
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion)
+        {
+            AtomicPointWalCodec.ValidateStrictUtf8(measurement, nameof(measurement));
+            foreach (var tag in tags)
+            {
+                AtomicPointWalCodec.ValidateStrictUtf8(tag.Key, nameof(tags));
+                AtomicPointWalCodec.ValidateStrictUtf8(tag.Value, nameof(tags));
+            }
+        }
 
         int payloadSize = WalPayloadCodec.MeasureCreateSeries(measurement, tags);
         return AppendRecord(WalRecordType.CreateSeries, payloadSize, (ref SpanWriter w) =>
@@ -278,6 +291,12 @@ public sealed class WalWriter : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(fieldName);
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion)
+        {
+            AtomicPointWalCodec.ValidateStrictUtf8(fieldName, nameof(fieldName));
+            if (System.Text.Encoding.UTF8.GetByteCount(fieldName) > ushort.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(fieldName));
+        }
 
         int payloadSize = WalPayloadCodec.MeasureDelete(fieldName);
         return AppendRecord(WalRecordType.Delete, payloadSize, (ref SpanWriter w) =>
@@ -362,8 +381,10 @@ public sealed class WalWriter : IDisposable
     private long AppendRecord(WalRecordType recordType, int payloadSize, PayloadWriter writePayload)
     {
         ThrowIfAtomicAppendFault();
-        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && recordType != WalRecordType.AtomicPoint)
-            throw new InvalidOperationException("This explicit WAL v2 slice only supports complete Point records; checkpoint and catalog integration are not enabled.");
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && _nextLsn == long.MaxValue)
+            throw new InvalidOperationException("WAL v2 LSN space is exhausted; no record was appended.");
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && payloadSize > AtomicPointWalCodec.MaxPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(payloadSize), "WAL v2 record exceeds its payload budget.");
         long lsn = _nextLsn;
         long now = DateTime.UtcNow.Ticks;
         int recordSize = FormatSizes.WalRecordHeaderSize + payloadSize;
@@ -372,7 +393,7 @@ public sealed class WalWriter : IDisposable
         {
             Span<byte> recordBuffer = stackalloc byte[recordSize];
             WriteRecordToBuffer(recordBuffer, recordType, payloadSize, now, lsn, writePayload);
-            _stream!.Write(recordBuffer);
+            WriteEncodedRecord(recordBuffer, recordType);
         }
         else
         {
@@ -381,7 +402,7 @@ public sealed class WalWriter : IDisposable
             {
                 Span<byte> recordSpan = recordBuffer.AsSpan(0, recordSize);
                 WriteRecordToBuffer(recordSpan, recordType, payloadSize, now, lsn, writePayload);
-                _stream!.Write(recordSpan);
+                WriteEncodedRecord(recordSpan, recordType);
             }
             finally
             {
@@ -389,8 +410,6 @@ public sealed class WalWriter : IDisposable
             }
         }
 
-        if (recordType == WalRecordType.AtomicPoint)
-            AfterAtomicPointWriteTestHook?.Invoke();
         _bytesWritten += recordSize;
         Sql.Execution.SqlExecutionTelemetry.RecordPhysicalWrite(recordSize);
         _nextLsn++;
@@ -398,7 +417,22 @@ public sealed class WalWriter : IDisposable
         return lsn;
     }
 
-    private static void WriteRecordToBuffer(
+    private void WriteEncodedRecord(ReadOnlySpan<byte> recordBuffer, WalRecordType recordType)
+    {
+        try
+        {
+            _stream!.Write(recordBuffer);
+            if (recordType == WalRecordType.AtomicPoint)
+                AfterAtomicPointWriteTestHook?.Invoke();
+        }
+        catch (Exception ex) when (_formatVersion == WalFileHeader.AtomicPointFormatVersion)
+        {
+            _atomicAppendFault = ex;
+            throw;
+        }
+    }
+
+    private void WriteRecordToBuffer(
         Span<byte> recordBuffer,
         WalRecordType recordType,
         int payloadSize,
@@ -409,6 +443,8 @@ public sealed class WalWriter : IDisposable
         Span<byte> payloadBuffer = recordBuffer.Slice(FormatSizes.WalRecordHeaderSize, payloadSize);
         var payloadWriter = new SpanWriter(payloadBuffer);
         writePayload(ref payloadWriter);
+        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && recordType != WalRecordType.AtomicPoint)
+            AtomicPointWalCodec.ValidateControlPayload(payloadBuffer, recordType, lsn);
 
         uint crc32 = Crc32.HashToUInt32(payloadBuffer);
 

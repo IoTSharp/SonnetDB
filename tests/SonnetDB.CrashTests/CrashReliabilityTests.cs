@@ -543,16 +543,17 @@ public sealed partial class CrashReliabilityTests : IDisposable
     public void power_loss_torn_record_ReopenIgnoresTornWalTail()
     {
         string root = NewScenarioRoot();
-        using (var db = Tsdb.Open(MakeOptions(root)))
-            db.Write(MakePoint("torn", 1_000L, "h", 1.0));
+        var db = Tsdb.Open(MakeOptions(root));
+        db.Write(MakePoint("torn", 1_000L, "h", 1.0));
+        db.CrashSimulationCloseWal();
 
-        // direct flush/dispose may retain a checkpoint carrier segment. Locate the
-        // segment containing the actual write record before appending a torn tail.
+        // 保留未 checkpoint 的真实默认 v2 整点，再在其后追加撕裂尾；不把正常 Dispose
+        // 已回收的 WAL 当作仍含数据的载体，也不把该文件夹具称作物理掉电证据。
         WalSegmentInfo? writeSegment = null;
         foreach (WalSegmentInfo segment in WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root)))
         {
-            using var reader = WalReader.Open(segment.Path);
-            if (reader.Replay().OfType<WritePointRecord>().Any())
+            using var reader = WalReader.OpenAtomicPoints(segment.Path);
+            if (reader.Replay().OfType<AtomicPointRecord>().Any())
             {
                 writeSegment = segment;
                 break;

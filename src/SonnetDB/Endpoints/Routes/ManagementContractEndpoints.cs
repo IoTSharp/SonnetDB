@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -699,73 +701,97 @@ internal static partial class SonnetDbEndpoints
 
         app.MapPost("/v1/db/{db}/fulltext/search", async (HttpContext ctx, string db) =>
         {
+            long requestStarted = Stopwatch.GetTimestamp();
             if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
                 return;
 
-            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.FullTextSearchRequest).ConfigureAwait(false);
-            if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
-                || string.IsNullOrWhiteSpace(req.Field) || string.IsNullOrWhiteSpace(req.Query))
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index、field 与 query。").ConfigureAwait(false);
-                return;
-            }
-
-            if (req.Skip < 0 || req.Skip > 10_000)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "skip 必须在 0 到 10000 之间。").ConfigureAwait(false);
-                return;
-            }
-
-            int pageSize = req.PageSize is null or <= 0 ? 20 : Math.Min(req.PageSize.Value, 100);
-            var mode = string.Equals(req.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
-                ? FullTextSearchMode.Fuzzy
-                : FullTextSearchMode.Exact;
-            if (!TryNormalizeFullTextQueryKind(req.QueryKind, mode, out var queryKind, out var queryKindError))
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", queryKindError).ConfigureAwait(false);
-                return;
-            }
-
-            string fingerprint = BuildFullTextFingerprint(req, mode, queryKind);
-            int offset = req.Skip;
-            if (!string.IsNullOrWhiteSpace(req.ContinuationToken))
-            {
-                if (!TryReadFullTextToken(req.ContinuationToken, fingerprint, out offset))
-                {
-                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_continuation_token", "continuation token 与当前查询不匹配或已损坏。").ConfigureAwait(false);
-                    return;
-                }
-            }
-
-            registry.TryGet(db, out var tsdb);
-            var schema = tsdb.Documents.Catalog.TryGet(req.Collection);
-            var indexDef = schema?.TryGetFullTextIndex(req.Index);
-            if (schema is null || indexDef is null)
-            {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", $"全文索引 '{req.Index}' 不存在于集合 '{req.Collection}'。").ConfigureAwait(false);
-                return;
-            }
-
             try
             {
+                var req = await ReadFullTextRequestBoundedAsync(ctx, requestStarted).ConfigureAwait(false);
+                if (req is null || !IsValidKeyspaceName(req.Collection) || string.IsNullOrWhiteSpace(req.Index)
+                    || string.IsNullOrWhiteSpace(req.Field) || string.IsNullOrWhiteSpace(req.Query))
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 collection、index、field 与 query。").ConfigureAwait(false);
+                    return;
+                }
+
+                if (req.Skip < 0 || req.Skip > 10_000)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "skip 必须在 0 到 10000 之间。").ConfigureAwait(false);
+                    return;
+                }
+
+                using var budget = CreateFullTextRemainingBudget(req, requestStarted, ctx.RequestAborted);
+                int pageSize = 20;
+                FullTextSearchMode mode = FullTextSearchMode.Exact;
+                FullTextQueryKind queryKind = FullTextQueryKind.All;
+                string fingerprint = string.Empty;
+                int offset = req.Skip;
+                ValidateFullTextRequestBudget(req, budget);
+
+                pageSize = req.PageSize is null or <= 0 ? 20 : Math.Min(req.PageSize.Value, 100);
+                mode = string.Equals(req.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
+                    ? FullTextSearchMode.Fuzzy
+                    : FullTextSearchMode.Exact;
+                if (!TryNormalizeFullTextQueryKind(req.QueryKind, mode, out queryKind, out var queryKindError))
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", queryKindError).ConfigureAwait(false);
+                    return;
+                }
+
+                budget.Check();
+                fingerprint = BuildFullTextFingerprint(req, mode, queryKind);
+                budget.ChargeWork(Math.Max(1, fingerprint.Length / 64));
+                offset = req.Skip;
+                if (!string.IsNullOrWhiteSpace(req.ContinuationToken))
+                {
+                    if (!TryReadFullTextToken(req.ContinuationToken, fingerprint, out offset))
+                    {
+                        await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_continuation_token", "continuation token 与当前查询不匹配或已损坏。").ConfigureAwait(false);
+                        return;
+                    }
+                }
+
+                registry.TryGet(db, out var tsdb);
+                var schema = tsdb.Documents.Catalog.TryGet(req.Collection);
+                var indexDef = schema?.TryGetFullTextIndex(req.Index);
+                if (schema is null || indexDef is null)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "fulltext_index_not_found", $"全文索引 '{req.Index}' 不存在于集合 '{req.Collection}'。").ConfigureAwait(false);
+                    return;
+                }
+
                 ctx.RequestAborted.ThrowIfCancellationRequested();
                 var store = tsdb.Documents.Open(req.Collection);
                 DocumentFilter? filter = ToCoreFilter(req.Filter);
                 DocumentFullTextCompleteSearchResult complete = store.SearchFullTextComplete(
-                    indexDef, req.Field, req.Query, filter, mode, queryKind, ctx.RequestAborted);
+                    budget, indexDef, req.Field, req.Query, filter, mode, queryKind, ctx.RequestAborted);
                 IReadOnlyDictionary<string, DocumentRow> rowsById = complete.Rows;
-                IReadOnlyList<DocumentFullTextSearchHit> ordered = ApplyFullTextSort(complete.Hits, req.Sort);
+                IReadOnlyList<DocumentFullTextSearchHit> ordered = ApplyFullTextSort(complete.Hits, req.Sort, budget);
                 var page = ordered.Skip(offset).Take(pageSize).ToArray();
                 bool hasMore = ordered.Count > offset + page.Length;
                 string? nextToken = hasMore ? CreateFullTextToken(fingerprint, offset + page.Length) : null;
-                var hits = page.Select(hit => BuildFullTextHit(hit, req, rowsById)).ToArray();
-                var facets = BuildFullTextFacets(req.Facets, ordered, rowsById);
+                var hits = page.Select(hit => BuildFullTextHit(hit, req, rowsById, budget)).ToArray();
+                var facets = BuildFullTextFacets(req.Facets, ordered, rowsById, budget);
                 var response = new FullTextSearchResponse(req.Collection, hits, facets, nextToken, hasMore, pageSize, ordered.Count);
-                await Results.Json(response, ServerJsonContext.Default.FullTextSearchResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                budget.CheckOutputString(response.Collection);
+                if (nextToken is not null)
+                    budget.CheckOutputString(nextToken);
+                byte[] payload = budget.Serialize(response, ServerJsonContext.Default.FullTextSearchResponse);
+                await WriteFullTextResponseAsync(ctx, payload, budget).ConfigureAwait(false);
             }
             catch (FullTextSearchBudgetExceededException ex)
             {
+                if (ctx.Response.HasStarted)
+                {
+                    ctx.Abort();
+                    return;
+                }
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status422UnprocessableEntity, "fulltext_search_budget_exceeded", ex.Message).ConfigureAwait(false);
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
             }
             catch (ArgumentException ex)
             {
@@ -1004,6 +1030,143 @@ internal static partial class SonnetDbEndpoints
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{request.Collection}\n{request.Index}\n{request.Field}\n{request.Query}\n{mode}\n{queryKind}\n{request.Filter}\n{string.Join(',', request.Sort?.Select(static item => item.Path + ":" + item.Descending) ?? [])}")));
 
+    internal static FullTextSearchBudget CreateFullTextRemainingBudget(
+        FullTextSearchRequest request,
+        long requestStarted,
+        CancellationToken cancellationToken)
+    {
+        int requested = request.Budget?.TimeoutMilliseconds ?? FullTextSearchBudgetOptions.DefaultTimeoutMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requested);
+        int effective = Math.Min(requested, FullTextSearchBudgetOptions.DefaultTimeoutMilliseconds);
+        double elapsedMilliseconds = Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds;
+        if (elapsedMilliseconds >= effective)
+            throw new FullTextSearchBudgetExceededException($"全文请求接收已超过 {effective} 毫秒执行预算。");
+        int remaining = effective - (int)Math.Ceiling(elapsedMilliseconds);
+        if (remaining <= 0)
+            throw new FullTextSearchBudgetExceededException($"全文请求接收已耗尽 {effective} 毫秒执行预算。");
+        FullTextSearchBudgetOptions options = (request.Budget ?? new FullTextSearchBudgetOptions())
+            with
+        { TimeoutMilliseconds = remaining };
+        return new FullTextSearchBudget(options, cancellationToken);
+    }
+
+    internal static async Task<FullTextSearchRequest?> ReadFullTextRequestBoundedAsync(HttpContext context, long requestStarted = 0)
+    {
+        const int maxRequestBytes = 4 * 1024 * 1024;
+        if (context.Request.ContentLength is > maxRequestBytes)
+            throw new FullTextSearchBudgetExceededException("全文请求体超过 4 MiB 预解析预算。");
+
+        if (requestStarted == 0)
+            requestStarted = Stopwatch.GetTimestamp();
+        double remaining = FullTextSearchBudgetOptions.DefaultTimeoutMilliseconds
+            - Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds;
+        if (remaining <= 0)
+            throw new FullTextSearchBudgetExceededException("全文请求体读取已耗尽 10 秒执行预算。");
+        using var readDeadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        readDeadline.CancelAfter(TimeSpan.FromMilliseconds(remaining));
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[16 * 1024];
+        try
+        {
+            for (int readIndex = 0; readIndex < maxRequestBytes + 1; readIndex++)
+            {
+                int read = await context.Request.Body.ReadAsync(chunk, readDeadline.Token).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    return JsonSerializer.Deserialize(
+                        buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length)),
+                        ServerJsonContext.Default.FullTextSearchRequest);
+                }
+                if (buffer.Length > maxRequestBytes - read)
+                    throw new FullTextSearchBudgetExceededException("全文请求体超过 4 MiB 预解析预算。");
+                buffer.Write(chunk, 0, read);
+            }
+            throw new FullTextSearchBudgetExceededException("全文请求体超过有界读取预算。");
+        }
+        catch (OperationCanceledException) when (!context.RequestAborted.IsCancellationRequested)
+        {
+            throw new FullTextSearchBudgetExceededException("全文请求体读取超过 10 秒预算。");
+        }
+    }
+
+    private static void ValidateFullTextRequestBudget(FullTextSearchRequest request, FullTextSearchBudget budget)
+    {
+        if (request.Query.Length > budget.MaxQueryLength)
+            throw new FullTextSearchBudgetExceededException($"全文查询超过 {budget.MaxQueryLength} 字符预算。");
+        budget.ChargeInputString(request.Collection);
+        budget.ChargeInputString(request.Index);
+        budget.ChargeInputString(request.Field);
+        budget.ChargeInputString(request.Query);
+        if (request.Sort is { Count: > 100_000 } || request.Facets is { Count: > 100_000 })
+            throw new FullTextSearchBudgetExceededException("全文排序或 facet 请求数量超过预算。");
+        long shapeUnits = (request.Sort?.Count ?? 0) + (request.Facets?.Count ?? 0);
+        if (shapeUnits > 0)
+            budget.ChargeWork(shapeUnits);
+        if (request.Sort is { } sorts)
+            foreach (DocumentSortContract sort in sorts)
+                budget.ChargeInputString(sort.Path);
+        if (request.Facets is { } facets)
+            foreach (FullTextFacetRequest facet in facets)
+                budget.ChargeInputString(facet.Field);
+        if (request.ContinuationToken is { } continuation)
+            budget.ChargeInputString(continuation);
+        var pending = new Stack<(DocumentFilterContract Filter, int Depth)>();
+        if (request.Filter is { } filter)
+            pending.Push((filter, 0));
+        for (int visited = 0; pending.Count > 0 && visited < 100_000; visited++)
+        {
+            budget.ChargeWork();
+            var (current, depth) = pending.Pop();
+            if (depth > 64)
+                throw new FullTextSearchBudgetExceededException("全文过滤结构超过 64 层预算。");
+            budget.ChargeInputString(current.Path);
+            budget.ChargeInputString(current.Op);
+            budget.ChargeInputString(current.RegexOptions);
+            if (current.Value is { } value)
+                budget.ChargeInputString(value.GetRawText());
+            if (current.Not is { } not)
+                pending.Push((not, depth + 1));
+            if (current.ElemMatch is { } element)
+                pending.Push((element, depth + 1));
+            foreach (IReadOnlyList<DocumentFilterContract>? children in new[] { current.And, current.Or })
+            {
+                if (children is null)
+                    continue;
+                if (children.Count > 100_000 - visited - pending.Count)
+                    throw new FullTextSearchBudgetExceededException("全文过滤节点超过 100000 个预算。");
+                foreach (DocumentFilterContract child in children)
+                    pending.Push((child, depth + 1));
+            }
+        }
+        if (pending.Count != 0)
+            throw new FullTextSearchBudgetExceededException("全文过滤节点超过 100000 个预算。");
+    }
+
+    internal static async Task WriteFullTextResponseAsync(
+        HttpContext context,
+        byte[] payload,
+        FullTextSearchBudget budget)
+    {
+        budget.Check();
+        context.Response.ContentType = "application/json; charset=utf-8";
+        context.Response.ContentLength = payload.Length;
+        try
+        {
+            await context.Response.Body.WriteAsync(payload, budget.Token).ConfigureAwait(false);
+            await context.Response.Body.FlushAsync(budget.Token).ConfigureAwait(false);
+            budget.Check();
+        }
+        catch (OperationCanceledException)
+        {
+            // 期限取消只能终止发送；响应已开始时不能追加 JSON 错误体。
+            context.Abort();
+        }
+        catch (FullTextSearchBudgetExceededException)
+        {
+            context.Abort();
+        }
+    }
+
     private static string CreateFullTextToken(string fingerprint, int offset)
         => $"{offset}:{fingerprint}";
 
@@ -1019,32 +1182,36 @@ internal static partial class SonnetDbEndpoints
 
     private static IReadOnlyList<DocumentFullTextSearchHit> ApplyFullTextSort(
         IReadOnlyList<DocumentFullTextSearchHit> hits,
-        IReadOnlyList<DocumentSortContract>? sort)
+        IReadOnlyList<DocumentSortContract>? sort,
+        FullTextSearchBudget budget)
     {
         bool descending = sort is not { Count: > 0 } || sort[0].Descending;
         string path = sort is { Count: > 0 } ? sort[0].Path : "score";
         if (string.Equals(path, "id", StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "_id", StringComparison.OrdinalIgnoreCase))
         {
-            return (descending
-                ? hits.OrderByDescending(static hit => hit.DocumentId, StringComparer.Ordinal)
-                : hits.OrderBy(static hit => hit.DocumentId, StringComparer.Ordinal))
-                .ThenByDescending(static hit => hit.Score)
-                .ToArray();
+            return budget.Sort(hits, (left, right) =>
+            {
+                int byId = descending ? string.CompareOrdinal(right.DocumentId, left.DocumentId) : string.CompareOrdinal(left.DocumentId, right.DocumentId);
+                return byId != 0 ? byId : right.Score.CompareTo(left.Score);
+            });
         }
 
-        return (descending
-            ? hits.OrderByDescending(static hit => hit.Score)
-            : hits.OrderBy(static hit => hit.Score))
-            .ThenBy(static hit => hit.DocumentId, StringComparer.Ordinal)
-            .ToArray();
+        return budget.Sort(hits, (left, right) =>
+        {
+            int byScore = descending ? right.Score.CompareTo(left.Score) : left.Score.CompareTo(right.Score);
+            return byScore != 0 ? byScore : string.CompareOrdinal(left.DocumentId, right.DocumentId);
+        });
     }
 
     private static FullTextSearchHit BuildFullTextHit(
         DocumentFullTextSearchHit hit,
         FullTextSearchRequest request,
-        IReadOnlyDictionary<string, DocumentRow> rows)
+        IReadOnlyDictionary<string, DocumentRow> rows,
+        FullTextSearchBudget budget)
     {
+        budget.ChargeWork();
+        budget.CheckOutputString(hit.DocumentId);
         string text = string.Empty;
         if (rows.TryGetValue(hit.DocumentId, out DocumentRow? row))
         {
@@ -1057,6 +1224,7 @@ internal static partial class SonnetDbEndpoints
             else
                 text = value?.ToString() ?? string.Empty;
         }
+        budget.ChargeWork(Math.Max(1, text.Length / 64));
 
         string[] terms = request.Query
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -1064,13 +1232,21 @@ internal static partial class SonnetDbEndpoints
             .Distinct(StringComparer.Ordinal)
             .Take(32)
             .ToArray();
+        budget.CheckOutputString("bm25");
+        foreach (string term in terms)
+            budget.CheckOutputString(term);
         var offsets = new List<FullTextMatchedOffset>();
         foreach (string term in terms)
         {
             int start = 0;
-            int found;
-            while (start < text.Length && (found = text.IndexOf(term, start, StringComparison.OrdinalIgnoreCase)) >= 0)
+            while (start < text.Length)
             {
+                budget.ChargeWork(Math.Max(1, (text.Length - start) / 64));
+                int found = text.IndexOf(term, start, StringComparison.OrdinalIgnoreCase);
+                if (found < 0)
+                    break;
+                budget.CheckOutputString(request.Field);
+                budget.CheckOutputString(term);
                 offsets.Add(new FullTextMatchedOffset(request.Field, term, found, checked(found + term.Length)));
                 start = found + term.Length;
                 if (offsets.Count >= 64)
@@ -1087,17 +1263,23 @@ internal static partial class SonnetDbEndpoints
             int maxFragments = Math.Clamp(highlight.MaxFragments, 1, 8);
             foreach (FullTextMatchedOffset match in offsets.Take(maxFragments))
             {
+                budget.ChargeWork();
                 int start = Math.Max(0, match.Start - fragmentSize / 3);
                 int length = Math.Min(fragmentSize, text.Length - start);
-                highlights.Add(text.Substring(start, length));
+                string fragment = text.Substring(start, length);
+                budget.CheckOutputString(fragment);
+                highlights.Add(fragment);
             }
         }
 
+        string[] matchedTerms = offsets.Select(static item => item.Term).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (string term in matchedTerms)
+            budget.CheckOutputString(term);
         return new FullTextSearchHit(
             hit.DocumentId,
             hit.Score,
             new FullTextScoreMetadata("bm25", 1, terms),
-            offsets.Select(static item => item.Term).Distinct(StringComparer.Ordinal).ToArray(),
+            matchedTerms,
             offsets,
             highlights);
     }
@@ -1105,7 +1287,8 @@ internal static partial class SonnetDbEndpoints
     private static IReadOnlyList<FullTextFacetResult> BuildFullTextFacets(
         IReadOnlyList<FullTextFacetRequest>? requests,
         IReadOnlyList<DocumentFullTextSearchHit> hits,
-        IReadOnlyDictionary<string, DocumentRow> rows)
+        IReadOnlyDictionary<string, DocumentRow> rows,
+        FullTextSearchBudget budget)
     {
         if (requests is not { Count: > 0 })
             return [];
@@ -1113,26 +1296,34 @@ internal static partial class SonnetDbEndpoints
         var results = new List<FullTextFacetResult>(Math.Min(requests.Count, 16));
         foreach (FullTextFacetRequest request in requests.Take(16))
         {
+            budget.ChargeWork();
             if (string.IsNullOrWhiteSpace(request.Field))
                 continue;
             int limit = Math.Clamp(request.Limit, 1, 100);
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (DocumentFullTextSearchHit hit in hits)
             {
+                budget.ChargeWork();
                 if (!rows.TryGetValue(hit.DocumentId, out DocumentRow? row)
                     || !JsonPathEvaluator.TryEvaluate(row.Json, request.Field, out object? value))
                     continue;
+                budget.ChargeWork(Math.Max(1, row.Json.Length / 64));
                 string? key = JsonPathEvaluator.ToIndexScalar(value);
                 if (key is not null)
                     counts[key] = counts.TryGetValue(key, out int count) ? count + 1 : 1;
             }
 
-            var buckets = counts
-                .OrderByDescending(static pair => pair.Value)
-                .ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+            var buckets = budget.Sort(counts.ToArray(), static (left, right) =>
+                {
+                    int byCount = right.Value.CompareTo(left.Value);
+                    return byCount != 0 ? byCount : string.CompareOrdinal(left.Key, right.Key);
+                })
                 .Take(limit)
                 .Select(static pair => new FullTextFacetBucket(pair.Key, pair.Value))
                 .ToArray();
+            budget.CheckOutputString(request.Field);
+            foreach (FullTextFacetBucket bucket in buckets)
+                budget.CheckOutputString(bucket.Value);
             results.Add(new FullTextFacetResult(request.Field, buckets));
         }
 

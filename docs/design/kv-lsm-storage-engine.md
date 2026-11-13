@@ -1,6 +1,6 @@
 # KV 存储内核 LSM 化设计（KV-LSM）
 
-> 状态：**设计草案**（2026-11-08，Asia/Shanghai）。未实现、未评审。
+> 当前状态：功能已接产品，按分项合同验收；2026-11-13 的 G12 代码/故障与旧二进制拒绝已完成，见 §7.7 和[阶段审计](../audits/capability-code-stage-20261112.md)。下文保留 2026-11-08 初始设计与各阶段历史，性能/容量/固定硬件不由源码完成推导。
 > 来源：[竞品对照代码审查 P0-1 / P0-2](../audits/competitive-code-review-20261108.md)。
 > 证据层级：现状分析 = 源码阅读 PASS；本文所有性能目标 = NOT_RUN，需由第 9 节基准给出收据。
 
@@ -522,6 +522,8 @@ dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --filter "KvEng
 - 用户确认“代码实现即可”：§9 的性能、容量与固定硬件门禁未执行（NOT_RUN），默认切换只基于本机功能回归。
 
 ### 7.7 K7 后续实现（2026-11-10，本地源码）
+
+2026-11-13 代码阶段补充：真实历史 `f94a162e` 的 LSM 在见到 CURRENT 后绕过 generation 标记，因此独立迁移目录仅写 v3 标记不足以阻止旧公共 writer。当前新写 MANIFEST 升为 v2（16 字节头和记录布局保持，版本及头 CRC 变化），读取兼容 v1/v2，打开旧 v1 后在返回前写出 v2。新建、滚动和固定 Version 备份均使用 v2；旧 LSM 在恢复/写入前明确拒绝。共享 SST 仍为 v3，独立 SST 仍可为 v1/v2；它们不代替 MANIFEST 的写者屏障。legacy 回滚恢复原保留文件。真实旧端身份、初次 FAIL、修复后拒绝/无字节变/新端全值读回见[代码阶段审计](../audits/capability-code-stage-20261112.md)。
 
 - **共享事务**：所有参与表属于同一个 `KvLsmStore` 时，先完成约束、版本和行锁校验及编码，再把主行、索引、各表 `sq|id` 和计数放进一个 WAL mutation batch。校验、取消、超大批次在 WAL 前失败；追加或同步失败置共享实例只读，结果未知时不写反向补偿。多表事务保留原日志路径的确认语义：即使普通写为缓冲 WAL，事务也强制一次同步。自增号的提前保留与允许缺号合同不变。混合 legacy／独立 LSM／共享表继续走原撤销日志。
 - **维护状态**：共享表把 `legacy-rows-v1.complete`、`indexes.clean` 放在 `0|maint|StorageId|name`；旧文件在打开时导入或消费，独立 LSM 与 legacy 保留文件路径。维护写入、干净令牌消费强制同步；不推进本表数据 sequence，因而不会把初始化计数或索引令牌误认为迁移后的业务写入。统计正文仍沿用原有 `ms` key。

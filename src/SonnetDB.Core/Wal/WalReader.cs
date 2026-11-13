@@ -73,6 +73,31 @@ public sealed class WalReader : IDisposable
         CancellationToken cancellationToken = default)
         => OpenCore(path, WalFileHeader.AtomicPointFormatVersion, recoveryOptions ?? new(), cancellationToken);
 
+    internal static WalReader OpenForRecovery(string path, AtomicPointWalRecoveryOptions? recoveryOptions = null,
+        CancellationToken cancellationToken = default)
+    {
+        int formatVersion = ReadFormatVersion(path);
+        return OpenCore(path, formatVersion,
+            formatVersion == WalFileHeader.AtomicPointFormatVersion
+                ? recoveryOptions ?? new()
+                : null,
+            cancellationToken);
+    }
+
+    internal static int ReadFormatVersion(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        byte[] bytes = new byte[FormatSizes.WalFileHeaderSize];
+        if (ReadExact(stream, bytes, 0, bytes.Length) != bytes.Length)
+            throw new InvalidDataException("WAL file is truncated: file header incomplete.");
+        var reader = new SpanReader(bytes);
+        WalFileHeader header = reader.ReadStruct<WalFileHeader>();
+        if (!header.IsValidFor(TsdbMagic.FormatVersion) && !header.IsValidFor(WalFileHeader.AtomicPointFormatVersion))
+            throw new InvalidDataException("WAL file header is invalid: magic or version mismatch.");
+        return header.FormatVersion;
+    }
+
     private static WalReader OpenCore(string path, int formatVersion,
         AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
     {
@@ -137,7 +162,7 @@ public sealed class WalReader : IDisposable
         byte[] headerBuf = ArrayPool<byte>.Shared.Rent(FormatSizes.WalRecordHeaderSize);
         try
         {
-            while (true)
+            while (_fileStream.Position < replayEnd)
             {
                 CheckAtomicRecoveryBudget();
                 if (_recoveryOptions is not null && _fileStream.Position >= replayEnd)
@@ -160,7 +185,7 @@ public sealed class WalReader : IDisposable
                 if (_formatVersion == WalFileHeader.AtomicPointFormatVersion &&
                     (header.PayloadLength > AtomicPointWalCodec.MaxPayloadBytes ||
                      header.Lsn == long.MaxValue || header.Lsn != LastLsn + 1 ||
-                     header.RecordType != WalRecordType.AtomicPoint))
+                     !IsAtomicPointV2RecordType(header.RecordType)))
                     yield break;
 
                 if (_recoveryOptions is not null && records >= _recoveryOptions.MaxRecords)
@@ -190,6 +215,8 @@ public sealed class WalReader : IDisposable
                     bool shouldStop = false;
                     try
                     {
+                        if (_formatVersion == WalFileHeader.AtomicPointFormatVersion && header.RecordType != WalRecordType.AtomicPoint)
+                            AtomicPointWalCodec.ValidateControlPayload(payloadBuf.AsSpan(0, header.PayloadLength), header.RecordType, header.Lsn);
                         var payloadReader = new SpanReader(payloadBuf.AsSpan(0, header.PayloadLength));
                         record = header.RecordType switch
                         {
@@ -213,7 +240,7 @@ public sealed class WalReader : IDisposable
                         shouldStop = true;
                     }
                     catch (Exception ex) when (_formatVersion == WalFileHeader.AtomicPointFormatVersion &&
-                        ex is InvalidOperationException or ArgumentException or OverflowException)
+                        ex is InvalidOperationException or ArgumentException or OverflowException or IndexOutOfRangeException)
                     {
                         shouldStop = true;
                     }
@@ -246,6 +273,13 @@ public sealed class WalReader : IDisposable
             ArrayPool<byte>.Shared.Return(headerBuf);
         }
     }
+
+    private static bool IsAtomicPointV2RecordType(WalRecordType recordType)
+        => recordType is WalRecordType.AtomicPoint
+            or WalRecordType.CreateSeries
+            or WalRecordType.Checkpoint
+            or WalRecordType.Delete
+            or WalRecordType.Truncate;
 
     internal void CheckAtomicRecoveryBudget()
     {

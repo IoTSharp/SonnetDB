@@ -23,7 +23,7 @@ public static class WalReplay
         ArgumentNullException.ThrowIfNull(walPath);
         ArgumentNullException.ThrowIfNull(catalog);
 
-        using var reader = WalReader.Open(walPath);
+        using var reader = WalReader.OpenForRecovery(walPath, new());
         foreach (var record in reader.Replay())
         {
             switch (record)
@@ -38,6 +38,12 @@ public static class WalReplay
 
                 case WritePointRecord wpRecord:
                     yield return wpRecord;
+                    break;
+
+                case AtomicPointRecord point:
+                    foreach (var field in point.Fields)
+                        yield return new WritePointRecord(point.Lsn, point.TimestampUtcTicks,
+                            point.SeriesId, point.PointTimestamp, field.Key, field.Value);
                     break;
 
                 case CheckpointRecord cpRecord:
@@ -72,7 +78,7 @@ public static class WalReplay
         long checkpointLsn = 0;
         long lastLsn = 0;
 
-        using (var reader1 = WalReader.Open(walPath))
+        using (var reader1 = WalReader.OpenForRecovery(walPath, new()))
         {
             foreach (var record in reader1.Replay())
             {
@@ -84,9 +90,10 @@ public static class WalReplay
 
         // 第二遍：应用 catalog + 按 checkpointLsn 过滤 WritePoint
         var writePoints = new List<WritePointRecord>();
+        var atomicPoints = new List<AtomicPointRecord>();
         var deleteRecords = new List<DeleteRecord>();
 
-        using (var reader2 = WalReader.Open(walPath))
+        using (var reader2 = WalReader.OpenForRecovery(walPath, new()))
         {
             foreach (var record in reader2.Replay())
             {
@@ -106,6 +113,11 @@ public static class WalReplay
                             writePoints.Add(wpRecord);
                         break;
 
+                    case AtomicPointRecord point:
+                        if (point.Lsn > checkpointLsn)
+                            atomicPoints.Add(point);
+                        break;
+
                     case DeleteRecord delRecord:
                         if (delRecord.Lsn > checkpointLsn)
                             deleteRecords.Add(delRecord);
@@ -114,7 +126,10 @@ public static class WalReplay
             }
         }
 
-        return new WalReplayResult(checkpointLsn, lastLsn, writePoints, deleteRecords);
+        return new WalReplayResult(checkpointLsn, lastLsn, writePoints, deleteRecords)
+        {
+            AtomicPoints = atomicPoints,
+        };
     }
 }
 
@@ -129,4 +144,8 @@ public sealed record WalReplayResult(
     long CheckpointLsn,
     long LastLsn,
     IReadOnlyList<WritePointRecord> WritePoints,
-    IReadOnlyList<DeleteRecord> DeleteRecords);
+    IReadOnlyList<DeleteRecord> DeleteRecords)
+{
+    /// <summary>整点 WAL v2 的回放记录；v1 回放始终为空。</summary>
+    public IReadOnlyList<AtomicPointRecord> AtomicPoints { get; init; } = [];
+}

@@ -28,6 +28,9 @@ Directory.CreateDirectory(root);
 
 switch (scenario)
 {
+    case var atomicTsdb when atomicTsdb.StartsWith("atomic_point_tsdb_", StringComparison.Ordinal):
+        AtomicPointTsdbCrashScenario.Run(root, readyFile, scenario["atomic_point_tsdb_".Length..]);
+        return 0;
     case var atomicPoint when atomicPoint.StartsWith("atomic_point_wal_", StringComparison.Ordinal):
         AtomicPointWalCrashScenario.Run(root, readyFile, scenario["atomic_point_wal_".Length..]);
         return 0;

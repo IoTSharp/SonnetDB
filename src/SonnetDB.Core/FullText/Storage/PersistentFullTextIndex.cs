@@ -1,3 +1,4 @@
+using SonnetDB.Exceptions;
 using SonnetDB.FullText.Index;
 using SonnetDB.FullText.Scoring;
 using SonnetDB.FullText.Tokenization;
@@ -229,6 +230,15 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         IReadOnlySet<string> allowedDocumentIds,
         long maxPostingVisits,
         CancellationToken cancellationToken)
+        => SearchFiltered(query, topK, allowedDocumentIds, maxPostingVisits, cancellationToken, null);
+
+    internal PersistentFullTextFilteredSearchResult SearchFiltered(
+        Query.Query query,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        long maxPostingVisits,
+        CancellationToken cancellationToken,
+        FullTextSearchBudget? budget)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(allowedDocumentIds);
@@ -239,12 +249,22 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             return new PersistentFullTextFilteredSearchResult([], 0, false);
         }
 
-        lock (_lock)
+        bool entered = false;
+        try
         {
+            for (int attempt = 0; attempt < 200 && !entered; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                budget?.Check();
+                entered = _lock.TryEnter(50);
+            }
+            if (!entered)
+                throw new FullTextSearchBudgetExceededException("全文查询等待倒排索引锁超过预算。");
             var state = new FilteredSearchState(
                 allowedDocumentIds,
                 maxPostingVisits,
-                cancellationToken);
+                cancellationToken,
+                budget);
             Dictionary<string, double> scores = new(StringComparer.Ordinal);
             try
             {
@@ -263,19 +283,24 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             foreach (KeyValuePair<string, double> kv in scores)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                budget?.ChargeWork();
                 if (_liveDocuments.ContainsKey(kv.Key))
                 {
                     hits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
                 }
             }
 
-            hits.Sort(static (a, b) =>
+            Comparison<SearchHit> comparison = static (a, b) =>
             {
                 int scoreCompare = b.Score.CompareTo(a.Score);
                 return scoreCompare != 0
                     ? scoreCompare
                     : string.CompareOrdinal(a.DocumentId.Value, b.DocumentId.Value);
-            });
+            };
+            if (budget is null)
+                hits.Sort(comparison);
+            else
+                hits = new List<SearchHit>(budget.Sort(hits, comparison));
             if (hits.Count > topK)
             {
                 hits.RemoveRange(topK, hits.Count - topK);
@@ -285,6 +310,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 hits,
                 state.PostingVisits,
                 false);
+        }
+        finally
+        {
+            if (entered)
+                _lock.Exit();
         }
     }
 
@@ -310,19 +340,49 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     /// <returns>按字段名索引的活跃 term 快照。</returns>
     internal IReadOnlyDictionary<string, IReadOnlyCollection<string>> SnapshotActiveTerms(
         IReadOnlyList<string> fields)
+        => SnapshotActiveTerms(fields, null);
+
+    internal IReadOnlyDictionary<string, IReadOnlyCollection<string>> SnapshotActiveTerms(
+        IReadOnlyList<string> fields,
+        FullTextSearchBudget? budget)
     {
         ArgumentNullException.ThrowIfNull(fields);
-        lock (_lock)
+        if (budget is null)
         {
-            var result = new Dictionary<string, IReadOnlyCollection<string>>(fields.Count, StringComparer.Ordinal);
-            foreach (string field in fields)
-            {
-                ArgumentException.ThrowIfNullOrWhiteSpace(field);
-                if (!result.ContainsKey(field))
-                    result.Add(field, GetActiveTermsLocked(field));
-            }
-            return result;
+            lock (_lock)
+                return SnapshotActiveTermsLocked(fields, null);
         }
+        bool entered = false;
+        try
+        {
+            for (int attempt = 0; attempt < 200 && !entered; attempt++)
+            {
+                budget.Check();
+                entered = _lock.TryEnter(50);
+            }
+            if (!entered)
+                throw new FullTextSearchBudgetExceededException("全文查询等待词项快照超过预算。");
+            return SnapshotActiveTermsLocked(fields, budget);
+        }
+        finally
+        {
+            if (entered)
+                _lock.Exit();
+        }
+    }
+
+    private IReadOnlyDictionary<string, IReadOnlyCollection<string>> SnapshotActiveTermsLocked(
+        IReadOnlyList<string> fields, FullTextSearchBudget? budget)
+    {
+        var result = new Dictionary<string, IReadOnlyCollection<string>>(fields.Count, StringComparer.Ordinal);
+        foreach (string field in fields)
+        {
+            budget?.ChargeWork();
+            ArgumentException.ThrowIfNullOrWhiteSpace(field);
+            if (!result.ContainsKey(field))
+                result.Add(field, GetActiveTermsLocked(field, budget));
+        }
+        return result;
     }
 
     /// <summary>活跃 term 快照实际重建次数，供性能回归测试和基准校验。</summary>
@@ -452,7 +512,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         return true;
     }
 
-    private IReadOnlyCollection<string> GetActiveTermsLocked(string field)
+    private IReadOnlyCollection<string> GetActiveTermsLocked(string field, FullTextSearchBudget? budget = null)
     {
         if (_activeTermSnapshots.TryGetValue(field, out var cached)
             && cached.Generation == _termGeneration)
@@ -463,9 +523,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         var terms = new HashSet<string>(StringComparer.Ordinal);
         foreach (SegmentReader segment in _segments.Values)
         {
+            budget?.ChargeWork();
             HashSet<int> tombstones = _tombstones[segment.Id];
             foreach (string term in segment.EnumerateTerms(field))
             {
+                budget?.ChargeWork();
                 if (terms.Contains(term)
                     || !segment.TryGetPostings(field, term, out Dictionary<int, int>? postings))
                 {
@@ -474,6 +536,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
                 foreach (int localId in postings.Keys)
                 {
+                    budget?.ChargeWork();
+                    budget?.ChargePostingVisit();
                     if (!tombstones.Contains(localId))
                     {
                         terms.Add(term);
@@ -1023,15 +1087,18 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     {
         private readonly CancellationToken _cancellationToken;
         private readonly long _maxPostingVisits;
+        private readonly FullTextSearchBudget? _budget;
 
         public FilteredSearchState(
             IReadOnlySet<string> allowedDocumentIds,
             long maxPostingVisits,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            FullTextSearchBudget? budget)
         {
             AllowedDocumentIds = allowedDocumentIds;
             _maxPostingVisits = maxPostingVisits;
             _cancellationToken = cancellationToken;
+            _budget = budget;
         }
 
         public IReadOnlySet<string> AllowedDocumentIds { get; }
@@ -1044,11 +1111,15 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         public void VisitPosting()
         {
             ThrowIfCancellationRequested();
+            _budget?.ChargeWork();
+            if (PostingVisits == long.MaxValue)
+                throw new FullTextPostingBudgetExceededException();
             PostingVisits++;
             if (PostingVisits > _maxPostingVisits)
             {
                 throw new FullTextPostingBudgetExceededException();
             }
+            _budget?.ChargePostingVisit();
         }
     }
 

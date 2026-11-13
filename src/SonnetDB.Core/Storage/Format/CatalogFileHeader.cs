@@ -11,7 +11,7 @@ namespace SonnetDB.Storage.Format;
 /// <code>
 /// Offset  Size  Field
 /// 0       8     Magic              ("SDBCATv1")
-/// 8       4     FormatVersion      (当前 = 1)
+/// 8       4     FormatVersion      (1 = legacy, 2 = 整点 WAL 目录)
 /// 12      4     HeaderSize         (= 64)
 /// 16      8     CreatedAtUtcTicks
 /// 24      8     LastModifiedUtcTicks
@@ -29,7 +29,7 @@ public struct CatalogFileHeader
     /// <summary>目录文件 magic（"SDBCATv1"，8 字节）。</summary>
     public InlineBytes8 Magic;
 
-    /// <summary>文件格式版本号（当前 = <see cref="TsdbMagic.FormatVersion"/>）。</summary>
+    /// <summary>文件格式版本号；1 为 legacy，2 声明默认整点 WAL 的目录降级屏障。</summary>
     public int FormatVersion;
 
     /// <summary>本头部的字节大小（= <see cref="FormatSizes.CatalogFileHeaderSize"/>）。</summary>
@@ -74,6 +74,6 @@ public struct CatalogFileHeader
     /// <returns>有效返回 <c>true</c>，否则返回 <c>false</c>。</returns>
     public readonly bool IsValid() =>
         Magic.AsReadOnlySpan().SequenceEqual(TsdbMagic.Catalog) &&
-        FormatVersion == TsdbMagic.FormatVersion &&
+        FormatVersion is TsdbMagic.FormatVersion or 2 &&
         HeaderSize == FormatSizes.CatalogFileHeaderSize;
 }

@@ -30,6 +30,9 @@ internal sealed record KvSstWriterOptions
     /// <summary>共享 store 的 key 使用 8 字节 StorageId 前缀；启用 SST v3 属性和前缀布隆。</summary>
     internal bool SharedPrefixes { get; init; }
 
+    /// <summary>迁移暂存 SST 专用的隔离 I/O 故障接点；普通 flush/compaction 不安装。</summary>
+    internal KvMigrationIoTestHook? IoTestHook { get; init; }
+
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(BlockSize, 256);
@@ -264,12 +267,15 @@ internal sealed class KvSstWriter : IDisposable
         footer.PropertiesLength = propertiesHandle.Length;
         Span<byte> footerBytes = stackalloc byte[KvSstFooter.Size];
         footer.WriteTo(footerBytes);
-        _stream!.Write(footerBytes);
-        _stream.Flush(flushToDisk: true);
+        WriteBytes(footerBytes);
+        _options.IoTestHook?.Invoke(KvMigrationIoPhase.BeforeSync, _tempPath, _stream, ReadOnlySpan<byte>.Empty);
+        _stream!.Flush(flushToDisk: true);
+        _options.IoTestHook?.Invoke(KvMigrationIoPhase.AfterSync, _tempPath, _stream, ReadOnlySpan<byte>.Empty);
         _stream.Dispose();
         _stream = null;
 
         File.Move(_tempPath, _path, overwrite: false);
+        _options.IoTestHook?.Invoke(KvMigrationIoPhase.AfterReplace, _path, null, ReadOnlySpan<byte>.Empty);
         if (_options.SyncDirectory)
             DirectoryFsync.FlushRequired(Path.GetDirectoryName(_path)!);
         _finished = true;
@@ -375,15 +381,21 @@ internal sealed class KvSstWriter : IDisposable
     private KvSstBlockHandle WriteBlock(ReadOnlySpan<byte> payload)
     {
         long offset = _offset;
-        _stream!.Write(payload);
+        WriteBytes(payload);
         Span<byte> trailer = stackalloc byte[KvSstFormat.BlockTrailerSize];
         trailer[0] = KvSstFormat.CompressionNone;
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
             trailer[1..],
             KvSstFormat.ComputeBlockCrc(payload, KvSstFormat.CompressionNone));
-        _stream.Write(trailer);
+        WriteBytes(trailer);
         _offset = checked(_offset + payload.Length + KvSstFormat.BlockTrailerSize);
         return new KvSstBlockHandle(offset, payload.Length);
+    }
+
+    private void WriteBytes(ReadOnlySpan<byte> content)
+    {
+        _options.IoTestHook?.Invoke(KvMigrationIoPhase.BeforeWrite, _tempPath, _stream, content);
+        _stream!.Write(content);
     }
 
     private void ThrowIfUnusable()

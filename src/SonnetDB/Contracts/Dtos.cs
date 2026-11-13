@@ -662,7 +662,11 @@ public sealed record FullTextSearchRequest(
     IReadOnlyList<DocumentSortContract>? Sort = null,
     IReadOnlyList<FullTextFacetRequest>? Facets = null,
     FullTextHighlightRequest? Highlight = null,
-    string? ContinuationToken = null);
+    string? ContinuationToken = null)
+{
+    /// <summary>可选执行预算；仅允许降低服务端硬上限。</summary>
+    public SonnetDB.FullText.FullTextSearchBudgetOptions? Budget { get; init; }
+}
 
 /// <summary>全文 facet 请求。</summary>
 /// <param name="Field">用于聚合的 JSON path。</param><param name="Limit">最多返回的桶数量。</param>

@@ -33,8 +33,11 @@ internal static class KvManifestFile
     /// <summary>单条记录载荷上限。</summary>
     internal const int MaxRecordBytes = 64 * 1024 * 1024;
 
-    /// <summary>当前格式版本。</summary>
-    internal const int CurrentVersion = 1;
+    /// <summary>早期 LSM manifest 格式；当前读取器继续接受，成功打开时重写为 v2。</summary>
+    internal const int LegacyVersion = 1;
+
+    /// <summary>当前格式版本；v2 声明 generation v3 布局与恢复合同，阻止忽略布局标记的旧 LSM 写者。</summary>
+    internal const int CurrentVersion = 2;
 
     private static ReadOnlySpan<byte> Magic => "SDBKVMAN"u8;
 
@@ -50,7 +53,7 @@ internal static class KvManifestFile
             throw Corrupt(path, "header is invalid");
         }
         int version = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8));
-        if (version != CurrentVersion)
+        if (version is not (LegacyVersion or CurrentVersion))
             throw Corrupt(path, $"format version {version} is not supported");
 
         var edits = new List<KvVersionEdit>();

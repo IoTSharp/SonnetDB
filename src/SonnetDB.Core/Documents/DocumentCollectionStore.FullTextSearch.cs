@@ -33,21 +33,54 @@ public sealed partial class DocumentCollectionStore
         long maxDocumentBytes = 64L * 1024 * 1024,
         long maxPostingVisits = 1_000_000)
     {
+        using var budget = new FullTextSearchBudget(cancellationToken: cancellationToken);
+        return SearchFullTextComplete(budget, index, field, queryText, filter, mode, queryKind,
+            cancellationToken, maxDocuments, maxDocumentBytes, maxPostingVisits);
+    }
+
+    /// <summary>使用调用方提供的统一预算执行完整全文查询；预算继续供后续投影和序列化使用。</summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <param name="field">索引字段或星号。</param>
+    /// <param name="queryText">非空查询文本。</param>
+    /// <param name="budget">覆盖查询及后续响应阶段的共享预算。</param>
+    /// <param name="filter">可选结构过滤条件。</param>
+    /// <param name="mode">精确或模糊模式。</param>
+    /// <param name="queryKind">全部、任意或短语组合。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <param name="maxDocuments">最多扫描文档数，与共享预算取较小值。</param>
+    /// <param name="maxDocumentBytes">文档字节上限，与共享预算取较小值。</param>
+    /// <param name="maxPostingVisits">posting 上限，与共享预算取较小值。</param>
+    /// <returns>全部命中及同次读取的过滤文档。</returns>
+    public DocumentFullTextCompleteSearchResult SearchFullTextComplete(
+        FullTextSearchBudget budget,
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        DocumentFilter? filter = null,
+        FullTextSearchMode mode = FullTextSearchMode.Exact,
+        FullTextQueryKind queryKind = FullTextQueryKind.All,
+        CancellationToken cancellationToken = default,
+        int maxDocuments = 100_000,
+        long maxDocumentBytes = 64L * 1024 * 1024,
+        long maxPostingVisits = 1_000_000)
+    {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentException.ThrowIfNullOrWhiteSpace(field);
         ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDocuments);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDocumentBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPostingVisits);
-        if (queryText.Length > 4096)
-            throw new FullTextSearchBudgetExceededException("全文查询超过 4096 字符预算。");
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+        ArgumentNullException.ThrowIfNull(budget);
+        maxDocuments = Math.Min(maxDocuments, budget.MaxDocuments);
+        maxDocumentBytes = Math.Min(maxDocumentBytes, budget.MaxDocumentBytes);
+        maxPostingVisits = Math.Min(maxPostingVisits, budget.MaxPostingVisits);
+        if (queryText.Length > budget.MaxQueryLength)
+            throw new FullTextSearchBudgetExceededException($"全文查询超过 {budget.MaxQueryLength} 字符预算。");
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
         void CheckBudget()
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (deadline.IsCancellationRequested)
-                throw new FullTextSearchBudgetExceededException("全文查询超过 10 秒执行预算。");
+            budget.Check();
         }
 
         bool entered = false;
@@ -78,6 +111,7 @@ public sealed partial class DocumentCollectionStore
                 foreach (DocumentRow row in page)
                 {
                     CheckBudget();
+                    budget.ChargeWork();
                     if (++scanned > maxDocuments)
                         throw new FullTextSearchBudgetExceededException($"全文查询超过 {maxDocuments} 文档扫描预算。");
                     bytes += ((long)row.Id.Length + row.Json.Length) * sizeof(char);
@@ -96,15 +130,16 @@ public sealed partial class DocumentCollectionStore
             DocumentFullTextIndexStore store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
             DocumentFullTextFilteredSearchResult search = store.SearchFiltered(
                 field, queryText, rows.Count, rows.Keys.ToHashSet(StringComparer.Ordinal),
-                maxPostingVisits, linked.Token, mode, queryKind);
+                maxPostingVisits, linked.Token, mode, queryKind, budget);
             CheckBudget();
             if (search.PostingBudgetExceeded)
                 throw new FullTextSearchBudgetExceededException($"全文查询超过 {maxPostingVisits} posting 检查预算。");
             return new DocumentFullTextCompleteSearchResult(search.Hits, rows);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new FullTextSearchBudgetExceededException("全文查询超过 10 秒执行预算。");
+            budget.Check();
+            throw;
         }
         finally
         {

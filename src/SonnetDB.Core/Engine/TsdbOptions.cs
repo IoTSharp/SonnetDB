@@ -70,6 +70,12 @@ public sealed record TsdbOptions
     /// <summary>WAL 滚动策略（默认启用，64MB / 百万条双阈值）。</summary>
     public WalRollingPolicy WalRolling { get; init; } = WalRollingPolicy.Default;
 
+    /// <summary>时序 WAL 恢复总预算：默认最多一千万条记录、4 GiB 文件字节和一分钟；不改变写入 fsync 策略。</summary>
+    public AtomicPointWalRecoveryOptions WalRecovery { get; init; } = new(
+        MaxRecords: 10_000_000,
+        MaxReadBytes: 4L * 1024 * 1024 * 1024,
+        Timeout: TimeSpan.FromMinutes(1));
+
     /// <summary>Retention TTL 策略（默认禁用，保持向后兼容）。</summary>
     public RetentionPolicy Retention { get; init; } = RetentionPolicy.Default;
 

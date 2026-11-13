@@ -137,13 +137,26 @@ public static class WalSegmentLayout
     /// <param name="walDir">WAL 子目录路径。</param>
     /// <returns>按 <see cref="WalSegmentInfo.StartLsn"/> 升序排列的 segment 信息列表。</returns>
     public static IReadOnlyList<WalSegmentInfo> Enumerate(string walDir)
+        => EnumerateCore(walDir, null, default, default);
+
+    internal static IReadOnlyList<WalSegmentInfo> EnumerateForAtomicRecovery(string walDir,
+        AtomicPointWalRecoveryOptions options, long started, CancellationToken cancellationToken)
+        => EnumerateCore(walDir, options, started, cancellationToken);
+
+    private static IReadOnlyList<WalSegmentInfo> EnumerateCore(string walDir,
+        AtomicPointWalRecoveryOptions? options, long started, CancellationToken cancellationToken)
     {
+        CheckDiscoveryBudget(options, started, cancellationToken);
         if (!Directory.Exists(walDir))
             return Array.Empty<WalSegmentInfo>();
 
         var list = new List<WalSegmentInfo>();
-        foreach (string file in Directory.EnumerateFiles(walDir, $"*{Extension}"))
+        int files = 0;
+        foreach (string file in Directory.EnumerateFiles(walDir, options is null ? $"*{Extension}" : "*"))
         {
+            CheckDiscoveryBudget(options, started, cancellationToken);
+            if (options is not null && ++files > Math.Min(options.MaxRecords, 100_000))
+                throw new InvalidDataException("Atomic Point WAL discovery exceeds its directory file count budget.");
             string name = Path.GetFileName(file);
             if (TryParseStartLsn(name, out long lsn))
             {
@@ -169,8 +182,18 @@ public static class WalSegmentLayout
             }
         }
 
+        CheckDiscoveryBudget(options, started, cancellationToken);
         list.Sort(static (a, b) => a.StartLsn.CompareTo(b.StartLsn));
+        CheckDiscoveryBudget(options, started, cancellationToken);
         return list.AsReadOnly();
+    }
+
+    private static void CheckDiscoveryBudget(AtomicPointWalRecoveryOptions? options, long started,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (options is not null && System.Diagnostics.Stopwatch.GetElapsedTime(started) >= options.EffectiveTimeout)
+            throw new InvalidDataException("Atomic Point WAL discovery exceeds its wall-clock budget.");
     }
 
     /// <summary>
@@ -180,7 +203,11 @@ public static class WalSegmentLayout
     /// </summary>
     /// <param name="walDir">WAL 子目录路径。</param>
     public static void UpgradeLegacyIfPresent(string walDir)
+        => UpgradeLegacyIfPresent(walDir, CancellationToken.None);
+
+    internal static void UpgradeLegacyIfPresent(string walDir, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string legacyPath = Path.Combine(walDir, LegacyActiveFileName);
         if (!File.Exists(legacyPath))
             return;
@@ -188,9 +215,18 @@ public static class WalSegmentLayout
         long firstLsn = ReadFirstLsnFromWalFile(legacyPath);
         string newPath = SegmentPath(walDir, firstLsn);
 
-        // 若目标名已存在（重复升级），直接删除 legacy 文件
+        // 只有完全相同的重复名称才允许删除旧项。不同/半写目标不能取代唯一完整旧日志。
         if (File.Exists(newPath))
         {
+            using var legacyLease = new FileStream(legacyPath, FileMode.Open, FileAccess.Read,
+                FileShare.Read | FileShare.Delete);
+            using var targetLease = new FileStream(newPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (!AreDuplicateLegacyFiles(legacyLease, targetLease, cancellationToken))
+            {
+                throw new InvalidDataException(
+                    "Legacy WAL and its upgrade destination contain different bytes. Both files were preserved; reconcile them before opening the database.");
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             File.Delete(legacyPath);
             // 旧文件消失同样是恢复边界的一部分；目录项落盘后才能让后续 Open
             // 将升级完成视为持久状态，避免掉电时新旧名称都不可见。
@@ -198,6 +234,7 @@ public static class WalSegmentLayout
             return;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         File.Move(legacyPath, newPath);
         // legacy -> segmented 名称迁移会改变 WAL 枚举集合。没有目录 fsync 时，掉电可能
         // 留下目录项未持久化的 rename，下一次启动会把已有记录误判为空 WAL。
@@ -205,6 +242,36 @@ public static class WalSegmentLayout
     }
 
     // ── 私有辅助 ─────────────────────────────────────────────────────────────
+
+    private static bool AreDuplicateLegacyFiles(FileStream legacy, FileStream target,
+        CancellationToken cancellationToken)
+    {
+        const int blockSize = 64 * 1024;
+        const long maximumBytes = 4L * 1024 * 1024 * 1024;
+        long length = legacy.Length;
+        if (length != target.Length)
+            return false;
+        if (length > maximumBytes)
+            throw new InvalidDataException("Legacy WAL duplicate comparison exceeds its 4 GiB byte budget; both files were preserved.");
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        byte[] oldBytes = new byte[blockSize];
+        byte[] newBytes = new byte[blockSize];
+        for (long offset = 0; offset < length; offset += blockSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= TimeSpan.FromSeconds(30))
+                throw new InvalidDataException("Legacy WAL duplicate comparison exceeded its wall-clock budget; both files were preserved.");
+            int count = (int)Math.Min(blockSize, length - offset);
+            legacy.ReadExactly(oldBytes.AsSpan(0, count));
+            target.ReadExactly(newBytes.AsSpan(0, count));
+            if (!oldBytes.AsSpan(0, count).SequenceEqual(newBytes.AsSpan(0, count)))
+                return false;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (legacy.Length != length || target.Length != length)
+            throw new InvalidDataException("Legacy WAL changed during duplicate comparison; both files were preserved.");
+        return true;
+    }
 
     private static long ReadFirstLsnFromWalFile(string path)
     {
@@ -221,11 +288,14 @@ public static class WalSegmentLayout
             }
 
             if (read < FormatSizes.WalFileHeaderSize)
-                return 1L; // 文件头不完整，回退到 LSN=1
+                throw new InvalidDataException("Legacy WAL header is incomplete; the file was preserved.");
 
             var reader = new SpanReader(buf.AsSpan(0, FormatSizes.WalFileHeaderSize));
             var header = reader.ReadStruct<WalFileHeader>();
-            return header.IsValid() ? header.FirstLsn : 1L;
+            if (!header.IsValidFor(SonnetDB.Buffers.TsdbMagic.FormatVersion)
+                && !header.IsValidFor(WalFileHeader.AtomicPointFormatVersion))
+                throw new InvalidDataException("Legacy WAL header has an unsupported magic or version; the file was preserved.");
+            return header.FirstLsn;
         }
         finally
         {
@@ -249,7 +319,8 @@ public static class WalSegmentLayout
 
             var fileHeaderReader = new SpanReader(fileHeaderBuffer);
             var fileHeader = fileHeaderReader.ReadStruct<WalFileHeader>();
-            if (!fileHeader.IsValid())
+            if (!fileHeader.IsValidFor(SonnetDB.Buffers.TsdbMagic.FormatVersion)
+                && !fileHeader.IsValidFor(WalFileHeader.AtomicPointFormatVersion))
                 return false;
 
             Span<byte> footerBuffer = stackalloc byte[FormatSizes.WalLastLsnFooterSize];

@@ -167,7 +167,7 @@ internal static class AtomicPointWalCodec
         return payload;
     }
 
-    private static void ValidateStrictUtf8(string value, string parameterName)
+    internal static void ValidateStrictUtf8(string value, string parameterName)
     {
         try
         {
@@ -177,6 +177,60 @@ internal static class AtomicPointWalCodec
         {
             throw new ArgumentException("WAL v2 field names and string values must contain valid UTF-16.", parameterName, ex);
         }
+    }
+
+    internal static void ValidateControlPayload(ReadOnlySpan<byte> payload, WalRecordType type, long lsn)
+    {
+        var reader = new SpanReader(payload);
+        switch (type)
+        {
+            case WalRecordType.CreateSeries:
+                _ = reader.ReadUInt64();
+                string measurement = ReadStrictString(ref reader);
+                PointValidation.ValidateMeasurement(measurement);
+                int tags = reader.ReadInt32();
+                if (tags < 0 || tags > reader.Remaining / (2 * sizeof(int)))
+                    throw new InvalidDataException("Invalid WAL v2 tag count.");
+                var keys = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < tags; i++)
+                {
+                    string key = ReadStrictString(ref reader);
+                    string value = ReadStrictString(ref reader);
+                    PointValidation.ValidateName(key, "tag key");
+                    PointValidation.ValidateName(value, "tag value");
+                    if (!keys.Add(key))
+                        throw new InvalidDataException("Duplicate WAL v2 tag key.");
+                }
+                break;
+            case WalRecordType.Checkpoint:
+                long checkpoint = reader.ReadInt64();
+                if (checkpoint < 0 || checkpoint >= lsn)
+                    throw new InvalidDataException("Invalid WAL v2 checkpoint boundary.");
+                break;
+            case WalRecordType.Delete:
+                _ = reader.ReadUInt64();
+                long from = reader.ReadInt64();
+                long to = reader.ReadInt64();
+                int length = reader.ReadUInt16();
+                string field = StrictUtf8.GetString(reader.ReadBytes(length));
+                if (field.Length == 0 || from > to)
+                    throw new InvalidDataException("Invalid WAL v2 delete range.");
+                break;
+            case WalRecordType.Truncate:
+                break;
+            default:
+                throw new InvalidDataException("Invalid WAL v2 control record type.");
+        }
+        if (reader.Remaining != 0)
+            throw new InvalidDataException("Unexpected WAL v2 control payload suffix.");
+    }
+
+    private static string ReadStrictString(ref SpanReader reader)
+    {
+        int length = reader.ReadInt32();
+        if (length < 0 || length > reader.Remaining)
+            throw new InvalidDataException("Invalid WAL v2 UTF-8 string length.");
+        return StrictUtf8.GetString(reader.ReadBytes(length));
     }
 
     internal static AtomicPointRecord Decode(ReadOnlySpan<byte> payload, long lsn, long ticks)

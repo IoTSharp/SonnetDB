@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Capability code stage — 2026-11-13
+
+- 默认 Tsdb 写入接入单 Point WAL v2，完整多字段共享一条记录与 LSN；CreateSeries、回放、MemTable 发布、滚动、checkpoint/flush 与重开遵守整点边界。新增公共取消入口，未知写结果封住后续写和 checkpoint，关闭重开后对账；WriteMany 不升级为整个批次原子提交，默认 ms、KEEP_ALL、TTL 和 fsync 配置保持。
+- catalog 增加 v2 持久降级屏障，当前读取器兼容 v1/v2，旧 WAL 只读恢复后转入新 v2 段；旧记录不重编码，checkpoint/备份保存升级标记，旧端在 WAL 回收后仍拒绝打开。
+- 修复 Windows checkpoint 目标存在读取句柄时的发布边界：已有文件使用原子 Replace，首次发布使用 Move，读取固定 64 字节后释放句柄并允许 Delete 共享；保留完整旧读视图和新路径状态，不添加重试。升级目标不同字节、v2 checkpoint 证据缺失或持久段存在但 catalog 丢失时均拒绝破坏性恢复。
+- KV-LSM 新写 MANIFEST v2、兼容读取 v1/v2，旧 v1 打开时在返回前升级；固定 Version 备份也输出 v2。修复真实历史 LSM 可绕过 generation v3 标记继续读写独立迁移目录的问题；保留 legacy 回滚合同，并增加隔离空间不足、半写、同步故障、unknown、迁移/回滚阶段及全值/版本/TTL/索引恢复验证。
+- 全文完整过滤到排序、facet、投影及 source-generated JSON 序列化使用统一时间、工作量和总响应字节预算；超限明确失败，发送取消中止传输。embedded 与 remote .NET SDK 保留原 public 构造器/方法签名，追加可降低上限的预算选项；增加超过旧 10000 窗口、高基数及独立 Server/源码消费者的验证入口。实际门禁、失败历史和未执行发行/环境项见[本阶段审计](docs/audits/capability-code-stage-20261112.md)。
+
 ### Atomic Point WAL and consumer verification — 2026-11-12
 
 - 新增[当前能力代码阶段完成合同](docs/design/capability-code-stage-completion-20261112.md)，明确 T1 默认引擎接入、KV G12 和全文总预算的代码验收范围、三线并行归属及完整阶段退出条件；环境和发行门禁继续独立记录。

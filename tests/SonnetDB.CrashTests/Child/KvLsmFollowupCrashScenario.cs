@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Kv;
@@ -50,15 +51,39 @@ internal static class KvLsmFollowupCrashScenario
             {
                 if (shared)
                 {
-                    SqlExecutor.Execute(legacy, "CREATE TABLE a(id INT,PRIMARY KEY(id))");
-                    SqlExecutor.Execute(legacy, "INSERT INTO a(id) VALUES(1)");
+                    SqlExecutor.Execute(legacy, "CREATE TABLE a(id INT,code STRING,payload STRING,PRIMARY KEY(id))");
+                    SqlExecutor.Execute(legacy, "CREATE INDEX ix_code ON a(code)");
+                    SqlExecutor.Execute(legacy, "TRUNCATE TABLE a");
+                    var rows = new IReadOnlyList<object?>[65];
+                    for (int index = 0; index < rows.Length; index++)
+                        rows[index] = new object?[] { (long)index, "group-" + index % 7, new string((char)('a' + index % 20), 33 + index) };
+                    legacy.Tables.Open("a").InsertMany(rows);
+                    legacy.Tables.CheckpointAll();
                     target = Directory.GetDirectories(Path.Combine(data, "tables", "rowstore")).Single();
                 }
                 else
                 {
                     target = Path.Combine(data, "kv", "standalone");
                     using KvKeyspace keyspace = KvKeyspace.Open("k", target, KvOptions.Default with { StorageEngine = KvStorageEngine.Legacy });
-                    keyspace.Put("key", [42]);
+                    keyspace.Put("removed", [9]);
+                    keyspace.Clear();
+                    var expected = new List<string>();
+                    DateTimeOffset expires = DateTimeOffset.UtcNow.AddHours(1);
+                    var deadline = Stopwatch.StartNew();
+                    for (int index = 0; index < 65 && deadline.Elapsed < TimeSpan.FromSeconds(15); index++)
+                    {
+                        string key = $"key-{index:D4}";
+                        byte[] value = Enumerable.Range(0, 33 + index).Select(value => (byte)(value ^ index)).ToArray();
+                        keyspace.Put(key, value, index % 3 == 0 ? expires : null);
+                        var entry = keyspace.GetEntry(key)!;
+                        expected.Add(key + "|" + entry.Version.ToString(CultureInfo.InvariantCulture) + "|"
+                            + (entry.ExpiresAtUtc?.UtcTicks ?? 0).ToString(CultureInfo.InvariantCulture));
+                    }
+                    if (expected.Count != 65)
+                        throw new TimeoutException("Rollback seed exceeded its deadline.");
+                    File.WriteAllLines(Path.Combine(root, "rollback-expected.txt"), expected);
+                    File.WriteAllText(Path.Combine(root, "rollback-sequence.txt"), keyspace.LastSequence.ToString(CultureInfo.InvariantCulture));
+                    keyspace.CreateSnapshot();
                 }
             }
             using (Tsdb migrated = Tsdb.Open(Options(data)))
@@ -94,6 +119,7 @@ internal static class KvLsmFollowupCrashScenario
     {
         RootDirectory = data,
         Kv = KvOptions.Default with { StorageEngine = engine, SyncWalOnEveryWrite = true, ExpirerEnabled = false, AutoCheckpointEnabled = false },
-        BackgroundFlush = new BackgroundFlushOptions { Enabled = false }, Compaction = new CompactionPolicy { Enabled = false },
+        BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+        Compaction = new CompactionPolicy { Enabled = false },
     };
 }

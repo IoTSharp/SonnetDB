@@ -1,4 +1,5 @@
 using SonnetDB.Data.Documents;
+using SonnetDB.FullText;
 
 namespace SonnetDB.Data.FullText;
 
@@ -21,7 +22,11 @@ public sealed record SndbFullTextSearchOptions(
     IReadOnlyList<SndbDocumentSort>? Sort = null,
     IReadOnlyList<SndbFullTextFacetRequest>? Facets = null,
     SndbFullTextHighlightRequest? Highlight = null,
-    string? ContinuationToken = null);
+    string? ContinuationToken = null)
+{
+    /// <summary>可选的较低全文预算；未设置时使用服务端默认硬上限。</summary>
+    public FullTextSearchBudgetOptions? Budget { get; init; }
+}
 
 /// <summary>全文检索请求的 JSON DTO。</summary>
 internal sealed record SndbFullTextSearchRequest(
@@ -37,7 +42,8 @@ internal sealed record SndbFullTextSearchRequest(
     IReadOnlyList<SndbDocumentSort>? Sort,
     IReadOnlyList<SndbFullTextFacetRequest>? Facets,
     SndbFullTextHighlightRequest? Highlight,
-    string? ContinuationToken);
+    string? ContinuationToken,
+    FullTextSearchBudgetOptions? Budget);
 
 internal sealed record SndbFullTextSettingsRequest(string Collection, string Index);
 internal sealed record SndbFullTextAnalyzerDiffRequest(string Collection, string Index, string Text, string? Tokenizer);

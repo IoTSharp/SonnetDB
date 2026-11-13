@@ -105,15 +105,22 @@ public sealed class WalAtomicPointTests : IDisposable
     }
 
     [Fact]
-    public void V2_RefusesLegacyFieldsCatalogCheckpointAndDelete()
+    public void V2_RefusesLegacyFields_AndAcceptsCatalogCheckpointAndDelete()
     {
         using var writer = WalWriter.OpenAtomicPoints(FilePath);
         Assert.Throws<InvalidOperationException>(() => writer.AppendWritePoint(1, 0, "v", FieldValue.FromLong(1)));
-        Assert.Throws<InvalidOperationException>(() => writer.AppendCreateSeries(1, "cpu", new Dictionary<string, string>()));
-        Assert.Throws<InvalidOperationException>(() => writer.AppendCheckpoint(1));
-        Assert.Throws<InvalidOperationException>(() => writer.AppendDelete(1, "v", 0, 1));
-        Assert.Equal(1, writer.NextLsn);
-        Assert.Equal(FormatSizes.WalFileHeaderSize, writer.BytesWritten);
+        Assert.Equal(1, writer.AppendCreateSeries(1, "cpu", new Dictionary<string, string>()));
+        Assert.Equal(2, writer.AppendAtomicPoint(1, 0, Fields()));
+        Assert.Equal(3, writer.AppendCheckpoint(2));
+        Assert.Equal(4, writer.AppendDelete(1, "v", 0, 1));
+        writer.Flush();
+        using var reader = WalReader.OpenAtomicPoints(FilePath);
+        WalRecord[] records = reader.Replay().ToArray();
+        Assert.Equal(4, records.Length);
+        Assert.IsType<CreateSeriesRecord>(records[0]);
+        Assert.IsType<AtomicPointRecord>(records[1]);
+        Assert.IsType<CheckpointRecord>(records[2]);
+        Assert.IsType<DeleteRecord>(records[3]);
     }
 
     [Fact]

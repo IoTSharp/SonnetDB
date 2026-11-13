@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using SonnetDB.Data.Documents;
@@ -85,6 +86,9 @@ public sealed class SndbFullTextClient : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options), "skip 不能为负数。");
         cancellationToken.ThrowIfCancellationRequested();
 
+        using var budget = new FullTextSearchBudget(options.Budget, cancellationToken);
+        ValidateRequestBudget(collection, index, field, query, options, budget);
+
         var request = new SndbFullTextSearchRequest(
             collection,
             index,
@@ -98,38 +102,67 @@ public sealed class SndbFullTextClient : IDisposable
             options.Sort,
             options.Facets,
             options.Highlight,
-            options.ContinuationToken);
+            options.ContinuationToken,
+            options.Budget);
 
         if (_embedded is not null)
-            return SearchEmbedded(request, cancellationToken);
+            return SearchEmbedded(request, budget, cancellationToken);
 
         using var content = JsonContent.Create(
             request,
             SndbFullTextClientJsonContext.Default.SndbFullTextSearchRequest);
-        using HttpResponseMessage response = await _http!.PostAsync(
-            $"v1/db/{Uri.EscapeDataString(_database)}/fulltext/search",
-            content,
-            cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        using var message = new HttpRequestMessage(HttpMethod.Post,
+            $"v1/db/{Uri.EscapeDataString(_database)}/fulltext/search")
+        { Content = content };
+        try
         {
-            string detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.UnprocessableEntity
-                && detail.Contains("fulltext_search_budget_exceeded", StringComparison.OrdinalIgnoreCase))
+            using HttpResponseMessage response = await _http!.SendAsync(message,
+                HttpCompletionOption.ResponseHeadersRead, budget.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
             {
-                throw new FullTextSearchBudgetExceededException(detail);
+                string detail = await ReadErrorBodyBoundedAsync(response, budget).ConfigureAwait(false);
+                if (response.StatusCode == HttpStatusCode.UnprocessableEntity
+                    && detail.Contains("fulltext_search_budget_exceeded", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new FullTextSearchBudgetExceededException(detail);
+                }
+                throw new HttpRequestException(
+                    $"全文检索失败（HTTP {(int)response.StatusCode} {response.StatusCode}）：{detail}",
+                    inner: null,
+                    response.StatusCode);
             }
-            throw new HttpRequestException(
-                $"全文检索失败（HTTP {(int)response.StatusCode} {response.StatusCode}）：{detail}",
-                inner: null,
-                response.StatusCode);
-        }
 
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        return await JsonSerializer.DeserializeAsync(
-            stream,
-            SndbFullTextClientJsonContext.Default.SndbFullTextSearchResult,
-            cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidDataException("全文检索响应为空。");
+            await using Stream stream = await response.Content.ReadAsStreamAsync(budget.Token).ConfigureAwait(false);
+            using var buffer = new MemoryStream();
+            byte[] chunk = new byte[16 * 1024];
+            int maxReads = checked((int)budget.MaxResponseBytes + 1);
+            bool complete = false;
+            for (int readIndex = 0; readIndex < maxReads; readIndex++)
+            {
+                budget.Check();
+                int read = await stream.ReadAsync(chunk, budget.Token).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    complete = true;
+                    break;
+                }
+                budget.ChargeWork(Math.Max(1, read / 64));
+                budget.ChargeResponseBytes(read);
+                buffer.Write(chunk, 0, read);
+            }
+            if (!complete)
+                throw new FullTextSearchBudgetExceededException("全文响应超过有界读取预算。");
+            var result = JsonSerializer.Deserialize(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length)),
+                SndbFullTextClientJsonContext.Default.SndbFullTextSearchResult)
+                ?? throw new InvalidDataException("全文检索响应为空。");
+            budget.Check();
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            budget.Check();
+            throw;
+        }
     }
 
     /// <summary>读取全文索引字段与分析器设置。</summary>
@@ -317,6 +350,86 @@ public sealed class SndbFullTextClient : IDisposable
             ?? throw new InvalidDataException("全文响应为空。");
     }
 
+    private static async Task<string> ReadErrorBodyBoundedAsync(
+        HttpResponseMessage response,
+        FullTextSearchBudget budget)
+    {
+        await using Stream stream = await response.Content.ReadAsStreamAsync(budget.Token).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        byte[] chunk = new byte[16 * 1024];
+        int maxReads = checked((int)budget.MaxResponseBytes + 1);
+        for (int readIndex = 0; readIndex < maxReads; readIndex++)
+        {
+            budget.Check();
+            int read = await stream.ReadAsync(chunk, budget.Token).ConfigureAwait(false);
+            if (read == 0)
+                return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, checked((int)buffer.Length));
+            budget.ChargeWork(Math.Max(1, read / 64));
+            budget.ChargeResponseBytes(read);
+            buffer.Write(chunk, 0, read);
+        }
+        throw new FullTextSearchBudgetExceededException("全文错误响应超过有界读取预算。");
+    }
+
+    private static void ValidateRequestBudget(
+        string collection,
+        string index,
+        string field,
+        string query,
+        SndbFullTextSearchOptions options,
+        FullTextSearchBudget budget)
+    {
+        if (query.Length > budget.MaxQueryLength)
+            throw new FullTextSearchBudgetExceededException($"全文查询超过 {budget.MaxQueryLength} 字符预算。");
+        budget.ChargeInputString(collection);
+        budget.ChargeInputString(index);
+        budget.ChargeInputString(field);
+        budget.ChargeInputString(query);
+        if (options.Sort is { Count: > 100_000 } || options.Facets is { Count: > 100_000 })
+            throw new FullTextSearchBudgetExceededException("全文排序或 facet 请求数量超过预算。");
+        long shapeUnits = (options.Sort?.Count ?? 0) + (options.Facets?.Count ?? 0);
+        if (shapeUnits > 0)
+            budget.ChargeWork(shapeUnits);
+        if (options.Sort is { } sorts)
+            foreach (SndbDocumentSort sort in sorts)
+                budget.ChargeInputString(sort.Path);
+        if (options.Facets is { } facets)
+            foreach (SndbFullTextFacetRequest facet in facets)
+                budget.ChargeInputString(facet.Field);
+        if (options.ContinuationToken is { } continuation)
+            budget.ChargeInputString(continuation);
+        var pending = new Stack<(SndbDocumentFilter Filter, int Depth)>();
+        if (options.Filter is { } filter)
+            pending.Push((filter, 0));
+        for (int visited = 0; pending.Count > 0 && visited < 100_000; visited++)
+        {
+            budget.ChargeWork();
+            var (current, depth) = pending.Pop();
+            if (depth > 64)
+                throw new FullTextSearchBudgetExceededException("全文过滤结构超过 64 层预算。");
+            budget.ChargeInputString(current.Path);
+            budget.ChargeInputString(current.Op);
+            budget.ChargeInputString(current.RegexOptions);
+            if (current.Value is { } value)
+                budget.ChargeInputString(value.GetRawText());
+            if (current.Not is { } not)
+                pending.Push((not, depth + 1));
+            if (current.ElemMatch is { } element)
+                pending.Push((element, depth + 1));
+            foreach (IReadOnlyList<SndbDocumentFilter>? children in new[] { current.And, current.Or })
+            {
+                if (children is null)
+                    continue;
+                if (children.Count > 100_000 - visited - pending.Count)
+                    throw new FullTextSearchBudgetExceededException("全文过滤节点超过 100000 个预算。");
+                foreach (SndbDocumentFilter child in children)
+                    pending.Push((child, depth + 1));
+            }
+        }
+        if (pending.Count != 0)
+            throw new FullTextSearchBudgetExceededException("全文过滤节点超过 100000 个预算。");
+    }
+
     private static SndbFullTextIndexSettings MapSettings(DocumentFullTextIndexSettings settings)
         => new(
             settings.SearchableFields ?? [],
@@ -358,6 +471,7 @@ public sealed class SndbFullTextClient : IDisposable
 
     private SndbFullTextSearchResult SearchEmbedded(
         SndbFullTextSearchRequest request,
+        FullTextSearchBudget budget,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -382,14 +496,14 @@ public sealed class SndbFullTextClient : IDisposable
         var store = _embedded.Documents.Open(request.Collection);
         DocumentFilter? filter = ToCoreFilter(request.Filter);
         DocumentFullTextCompleteSearchResult complete = store.SearchFullTextComplete(
-            definition, request.Field, request.Query, filter, mode, queryKind, cancellationToken);
+            budget, definition, request.Field, request.Query, filter, mode, queryKind, cancellationToken);
         IReadOnlyDictionary<string, DocumentRow> rows = complete.Rows;
-        var ordered = ApplySort(complete.Hits, request.Sort);
+        var ordered = ApplySort(complete.Hits, request.Sort, budget);
         var page = ordered.Skip(offset).Take(pageSize).ToArray();
         bool hasMore = ordered.Count > offset + page.Length;
-        var hits = page.Select(hit => BuildHit(hit, request, rows)).ToArray();
-        var facets = BuildFacets(request.Facets, ordered, rows);
-        return new SndbFullTextSearchResult(
+        var hits = page.Select(hit => BuildHit(hit, request, rows, budget)).ToArray();
+        var facets = BuildFacets(request.Facets, ordered, rows, budget);
+        var result = new SndbFullTextSearchResult(
             request.Collection,
             hits,
             facets,
@@ -397,6 +511,11 @@ public sealed class SndbFullTextClient : IDisposable
             hasMore,
             pageSize,
             ordered.Count);
+        budget.CheckOutputString(result.Collection);
+        if (result.NextContinuationToken is { } nextToken)
+            budget.CheckOutputString(nextToken);
+        _ = budget.Serialize(result, SndbFullTextClientJsonContext.Default.SndbFullTextSearchResult);
+        return result;
     }
 
     private void Open()
@@ -425,37 +544,54 @@ public sealed class SndbFullTextClient : IDisposable
 
     private static IReadOnlyList<DocumentFullTextSearchHit> ApplySort(
         IReadOnlyList<DocumentFullTextSearchHit> hits,
-        IReadOnlyList<SndbDocumentSort>? sort)
+        IReadOnlyList<SndbDocumentSort>? sort,
+        FullTextSearchBudget budget)
     {
         string path = sort is { Count: > 0 } ? sort[0].Path : "score";
         bool descending = sort is not { Count: > 0 } || sort[0].Descending;
         if (string.Equals(path, "id", StringComparison.OrdinalIgnoreCase)
             || string.Equals(path, "_id", StringComparison.OrdinalIgnoreCase))
-            return (descending ? hits.OrderByDescending(static hit => hit.DocumentId, StringComparer.Ordinal) : hits.OrderBy(static hit => hit.DocumentId, StringComparer.Ordinal))
-                .ThenByDescending(static hit => hit.Score).ToArray();
-        return (descending ? hits.OrderByDescending(static hit => hit.Score) : hits.OrderBy(static hit => hit.Score))
-            .ThenBy(static hit => hit.DocumentId, StringComparer.Ordinal).ToArray();
+            return budget.Sort(hits, (left, right) =>
+            {
+                int byId = descending ? string.CompareOrdinal(right.DocumentId, left.DocumentId) : string.CompareOrdinal(left.DocumentId, right.DocumentId);
+                return byId != 0 ? byId : right.Score.CompareTo(left.Score);
+            });
+        return budget.Sort(hits, (left, right) =>
+        {
+            int byScore = descending ? right.Score.CompareTo(left.Score) : left.Score.CompareTo(right.Score);
+            return byScore != 0 ? byScore : string.CompareOrdinal(left.DocumentId, right.DocumentId);
+        });
     }
 
     private static SndbFullTextHit BuildHit(
         DocumentFullTextSearchHit hit,
         SndbFullTextSearchRequest request,
-        IReadOnlyDictionary<string, DocumentRow> rows)
+        IReadOnlyDictionary<string, DocumentRow> rows,
+        FullTextSearchBudget budget)
     {
+        budget.ChargeWork();
+        budget.CheckOutputString(hit.DocumentId);
         string text = rows.TryGetValue(hit.DocumentId, out DocumentRow? row)
             ? (request.Field == "*" || request.Field.Equals("document", StringComparison.OrdinalIgnoreCase) || request.Field.Equals("json", StringComparison.OrdinalIgnoreCase)
                 ? row.Json : JsonPathEvaluator.TryEvaluate(row.Json, request.Field, out object? value) ? value?.ToString() ?? string.Empty : row.Json)
             : string.Empty;
+        budget.ChargeWork(Math.Max(1, text.Length / 64));
         string[] terms = request.Query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(static term => term.ToLowerInvariant()).Distinct(StringComparer.Ordinal).Take(32).ToArray();
+        budget.CheckOutputString("bm25");
+        foreach (string term in terms)
+            budget.CheckOutputString(term);
         var offsets = new List<SndbFullTextMatchedOffset>();
         foreach (string term in terms)
         {
             int start = 0;
             while (start < text.Length)
             {
+                budget.ChargeWork(Math.Max(1, (text.Length - start) / 64));
                 int found = text.IndexOf(term, start, StringComparison.OrdinalIgnoreCase);
                 if (found < 0) break;
+                budget.CheckOutputString(request.Field);
+                budget.CheckOutputString(term);
                 offsets.Add(new SndbFullTextMatchedOffset(request.Field, term, found, found + term.Length));
                 start = found + term.Length;
                 if (offsets.Count >= 64) break;
@@ -468,33 +604,52 @@ public sealed class SndbFullTextClient : IDisposable
             int fragmentSize = Math.Clamp(highlight.FragmentSize, 32, 1_024);
             foreach (var match in offsets.Take(Math.Clamp(highlight.MaxFragments, 1, 8)))
             {
+                budget.ChargeWork();
                 int start = Math.Max(0, match.Start - fragmentSize / 3);
-                highlights.Add(text.Substring(start, Math.Min(fragmentSize, text.Length - start)));
+                string fragment = text.Substring(start, Math.Min(fragmentSize, text.Length - start));
+                budget.CheckOutputString(fragment);
+                highlights.Add(fragment);
             }
         }
+        string[] matchedTerms = offsets.Select(static item => item.Term).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (string term in matchedTerms)
+            budget.CheckOutputString(term);
         return new SndbFullTextHit(hit.DocumentId, hit.Score,
             new SndbFullTextScoreMetadata("bm25", 1, terms),
-            offsets.Select(static item => item.Term).Distinct(StringComparer.Ordinal).ToArray(), offsets, highlights);
+            matchedTerms, offsets, highlights);
     }
 
-    private static IReadOnlyList<SndbFullTextFacetResult> BuildFacets(
+    internal static IReadOnlyList<SndbFullTextFacetResult> BuildFacets(
         IReadOnlyList<SndbFullTextFacetRequest>? requests,
         IReadOnlyList<DocumentFullTextSearchHit> hits,
-        IReadOnlyDictionary<string, DocumentRow> rows)
+        IReadOnlyDictionary<string, DocumentRow> rows,
+        FullTextSearchBudget budget)
     {
         if (requests is not { Count: > 0 }) return [];
         var results = new List<SndbFullTextFacetResult>();
         foreach (var request in requests.Take(16))
         {
+            budget.ChargeWork();
+            if (string.IsNullOrWhiteSpace(request.Field))
+                continue;
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var hit in hits)
             {
+                budget.ChargeWork();
                 if (!rows.TryGetValue(hit.DocumentId, out var row) || !JsonPathEvaluator.TryEvaluate(row.Json, request.Field, out object? value)) continue;
+                budget.ChargeWork(Math.Max(1, row.Json.Length / 64));
                 string? key = JsonPathEvaluator.ToIndexScalar(value);
                 if (key is not null) counts[key] = counts.TryGetValue(key, out int count) ? count + 1 : 1;
             }
-            var buckets = counts.OrderByDescending(static pair => pair.Value).ThenBy(static pair => pair.Key, StringComparer.Ordinal)
+            var buckets = budget.Sort(counts.ToArray(), static (left, right) =>
+                {
+                    int byCount = right.Value.CompareTo(left.Value);
+                    return byCount != 0 ? byCount : string.CompareOrdinal(left.Key, right.Key);
+                })
                 .Take(Math.Clamp(request.Limit, 1, 100)).Select(static pair => new SndbFullTextFacetBucket(pair.Key, pair.Value)).ToArray();
+            budget.CheckOutputString(request.Field);
+            foreach (SndbFullTextFacetBucket bucket in buckets)
+                budget.CheckOutputString(bucket.Value);
             results.Add(new SndbFullTextFacetResult(request.Field, buckets));
         }
         return results;

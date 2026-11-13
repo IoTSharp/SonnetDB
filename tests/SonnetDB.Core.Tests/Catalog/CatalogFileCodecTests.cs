@@ -213,4 +213,48 @@ public sealed class CatalogFileCodecTests : IDisposable
         var loaded = CatalogFileCodec.Load(path);
         Assert.Equal(5, loaded.Count);
     }
+
+    [Fact]
+    public void AtomicPointUpgrade_PreservesSeriesAndCannotBeDowngradedByLaterCheckpoints()
+    {
+        string path = GetPath("atomic-points.SDBCAT");
+        var original = BuildCatalog(5);
+        CatalogFileCodec.Save(original, path);
+        byte[] legacy = File.ReadAllBytes(path);
+        Assert.Equal(1, BinaryPrimitives.ReadInt32LittleEndian(legacy.AsSpan(8, 4)));
+
+        CatalogFileCodec.RequireAtomicPointWal(original, path);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
+        SeriesCatalog loaded = CatalogFileCodec.Load(path);
+        foreach (SeriesEntry expected in original.Snapshot())
+        {
+            SeriesEntry actual = Assert.IsType<SeriesEntry>(loaded.TryGet(expected.Id));
+            Assert.Equal(expected.Key.Canonical, actual.Key.Canonical);
+            Assert.Equal(expected.CreatedAtUtcTicks, actual.CreatedAtUtcTicks);
+        }
+
+        loaded.GetOrAdd("after-upgrade", new Dictionary<string, string> { ["host"] = "new" });
+        CatalogFileCodec.Save(loaded, path);
+        using var copy = new MemoryStream();
+        CatalogFileCodec.Save(CatalogFileCodec.Load(path), copy);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(copy.ToArray().AsSpan(8, 4)));
+        Assert.Equal(6, CatalogFileCodec.Load(path).Count);
+    }
+
+    [Fact]
+    public void AtomicPointUpgrade_FailedTemporaryWriteDoesNotPublishAPartialCatalog()
+    {
+        string path = GetPath("blocked.SDBCAT");
+        var original = BuildCatalog(2);
+        CatalogFileCodec.Save(original, path);
+        byte[] legacy = File.ReadAllBytes(path);
+        using (var lease = new FileStream(path + ".tmp", FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+            Assert.ThrowsAny<IOException>(() => CatalogFileCodec.RequireAtomicPointWal(original, path));
+
+        Assert.Equal(legacy, File.ReadAllBytes(path));
+        Assert.Equal(2, CatalogFileCodec.Load(path).Count);
+        // The failed instance stays at the safer version: a subsequent checkpoint cannot erase the intent.
+        CatalogFileCodec.Save(original, path);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32LittleEndian(File.ReadAllBytes(path).AsSpan(8, 4)));
+    }
 }

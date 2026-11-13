@@ -14,6 +14,7 @@ using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Storage.Format;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
 using SonnetDB.Views;
@@ -501,8 +502,21 @@ public sealed partial class Tsdb : IDisposable
     /// 同一进程或另一个进程中的实例已打开同一数据库根目录，或前一实例仍在完成关闭时抛出。
     /// </exception>
     public static Tsdb Open(TsdbOptions? options = null)
+        => Open(options, CancellationToken.None);
+
+    /// <summary>打开数据库并在 WAL 恢复与格式升级提交前响应取消；取消不删除原有数据。</summary>
+    /// <param name="options">引擎选项。</param>
+    /// <param name="cancellationToken">打开和恢复取消令牌。</param>
+    /// <returns>已完成恢复的数据库实例。</returns>
+    public static Tsdb Open(TsdbOptions? options, CancellationToken cancellationToken)
     {
         options ??= TsdbOptions.Default;
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(options.WalRecovery);
+        options.WalRecovery.Validate();
+        using var recoveryDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        recoveryDeadline.CancelAfter(options.WalRecovery.EffectiveTimeout);
+        cancellationToken = recoveryDeadline.Token;
         ArgumentNullException.ThrowIfNull(options.SqlMemory);
         options.SqlMemory.Validate();
 
@@ -531,7 +545,9 @@ public sealed partial class Tsdb : IDisposable
             foreach (var schema in MeasurementSchemaCodec.Load(TsdbPaths.MeasurementSchemaPath(root)))
                 measurements.LoadOrReplace(schema);
             // 加载 catalog（文件不存在时返回空目录）
-            var catalog = CatalogFileCodec.Load(TsdbPaths.CatalogPath(root));
+            string catalogPath = TsdbPaths.CatalogPath(root);
+            EnsureCatalogAvailableForPublishedTimeSeries(root, catalogPath, cancellationToken);
+            var catalog = CatalogFileCodec.Load(catalogPath);
 
             // 所有目录读取、WAL 打开与 spill 清理都必须在进程内根目录所有权之后进行。
             // 部分平台不会通过 FileShare 拒绝同进程重复打开。
@@ -539,12 +555,15 @@ public sealed partial class Tsdb : IDisposable
             // 先打开 WAL 并持有 active segment 的独占写句柄，再执行任何 marker/临时段清理。
             // 这样另一个进程不能在当前实例进行发布时进入破坏性恢复路径；WalSegmentSet.Open
             // 同时负责 legacy active.SDBWAL 升级。
-            walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
+            walSet = WalSegmentSet.OpenAtomicPoints(walDir, options.WalRolling, options.WalBufferSize,
+                initialStartLsn: 1, recoveryOptions: options.WalRecovery, cancellationToken: cancellationToken);
             ReconcileInterruptedFlushPublications(
                 root,
                 walDir,
                 options.SegmentWriterOptions.TempFileSuffix,
-                options.SegmentReaderOptions);
+                options.SegmentReaderOptions,
+                options.WalRecovery,
+                cancellationToken);
 
             // Flush/Compaction 可能在写入最终 .SDBSEG 前崩溃，且尚未留下可识别的 marker；
             // 在计算 nextSegmentId 和打开 SegmentManager 前清理严格匹配的临时段文件，
@@ -591,11 +610,14 @@ public sealed partial class Tsdb : IDisposable
             string checkpointPath = WalSegmentLayout.CheckpointPath(walDir);
             bool hasPublicationMarkers =
                 WalSegmentLayout.EnumerateFlushPublicationPaths(walDir).Count != 0;
+            bool legacyCheckpointFallback = false;
             if (durableCheckpointLsn == 0
                 && !File.Exists(checkpointPath)
-                && !hasPublicationMarkers)
+                && !hasPublicationMarkers
+                && catalog.PersistenceFormatVersion == 1)
             {
                 highestVerifiedCheckpointLsn = long.MaxValue;
+                legacyCheckpointFallback = true;
             }
 
             // 回放全部 WAL segment。新格式的 checkpoint 只能推进到已验证的独立边界；
@@ -611,8 +633,15 @@ public sealed partial class Tsdb : IDisposable
                 catalog,
                 durableCheckpointLsn,
                 durableTombstoneCheckpointLsn,
-                highestVerifiedCheckpointLsn);
+                highestVerifiedCheckpointLsn,
+                cancellationToken);
             memTable.ReplayFrom(result.WritePoints);
+            foreach (AtomicPointRecord point in result.AtomicPoints)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                foreach (var field in point.Fields)
+                    memTable.Append(point.SeriesId, point.PointTimestamp, field.Key, field.Value, point.Lsn);
+            }
             long checkpointLsn = result.CheckpointLsn;
             bool catalogDirty = catalog.Count != catalogCountBeforeReplay;
 
@@ -646,6 +675,26 @@ public sealed partial class Tsdb : IDisposable
 
             // 重写一遍 manifest（合并 manifest + WAL replay 的结果）
             TombstoneManifestCodec.Save(tombstoneManifestPath, tsdb.Tombstones.All);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (legacyCheckpointFallback && checkpointLsn > 0)
+            {
+                // 升级 v1 的 WAL-only checkpoint 前，把已加载的真实段绑定为独立边界。
+                // 这样 catalog v2 的下一次冷打开不必再依赖旧兼容猜测；无可验证段时拒绝。
+                using var snapshot = segmentManager.AcquireSnapshot();
+                SegmentReader? anchor = null;
+                foreach (SegmentReader reader in snapshot.Readers)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (anchor is null || reader.Header.SegmentId > anchor.Header.SegmentId)
+                        anchor = reader;
+                }
+                if (anchor is null)
+                    throw new InvalidDataException("Legacy WAL checkpoint has no verified published Segment; atomic Point format upgrade was not committed.");
+                WalCheckpointFile.Save(checkpointPath, new WalCheckpointState(checkpointLsn,
+                    anchor.Header.SegmentId, anchor.FileLength, DateTime.UtcNow.Ticks));
+            }
+            CatalogFileCodec.RequireAtomicPointWal(catalog, TsdbPaths.CatalogPath(root));
 
             // 所有持久化目录校验完成后再启动 flush 泵，避免构造失败遗留永久后台线程。
             tsdb._flushPump = new FlushPump(tsdb);
@@ -764,6 +813,37 @@ public sealed partial class Tsdb : IDisposable
             lock (RootDirectoryOwnersSync)
                 _ = RootDirectoryOwners.Remove(normalizedRoot);
             throw;
+        }
+    }
+
+    private static void EnsureCatalogAvailableForPublishedTimeSeries(string root, string catalogPath,
+        CancellationToken cancellationToken)
+    {
+        if (File.Exists(catalogPath))
+            return;
+        if (File.Exists(WalSegmentLayout.CheckpointPath(TsdbPaths.WalDir(root))))
+            throw new InvalidDataException("Series catalog is missing while a durable time-series checkpoint exists; database open is rejected before WAL mutation.");
+        string directory = TsdbPaths.SegmentsDir(root);
+        if (!Directory.Exists(directory))
+            return;
+        long started = Stopwatch.GetTimestamp();
+        int inspected = 0;
+        var enumeration = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            MaxRecursionDepth = 4,
+            IgnoreInaccessible = false,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
+        foreach (string path in Directory.EnumerateFileSystemEntries(directory, "*", enumeration))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (++inspected > 100_000 || Stopwatch.GetElapsedTime(started) >= TimeSpan.FromSeconds(30))
+                throw new InvalidDataException("Missing-catalog recovery exceeded its directory inspection budget before WAL mutation.");
+            if (Path.GetExtension(path).Equals(TsdbPaths.SegmentFileExtension, StringComparison.OrdinalIgnoreCase)
+                && TsdbPaths.TryParseSegmentId(Path.GetFileName(path), out _)
+                && File.Exists(path))
+                throw new InvalidDataException("Series catalog is missing while a published time-series Segment exists; database open is rejected before WAL mutation.");
         }
     }
 
@@ -899,13 +979,21 @@ public sealed partial class Tsdb : IDisposable
     public void Write(Point point)
         => WriteCore(point, exactNames: false);
 
+    /// <summary>写入一个 Point，并在 WAL 首字节前响应取消。</summary>
+    /// <param name="point">要写入的数据点。</param>
+    /// <param name="cancellationToken">取消令牌；整点 WAL 开始后不会撤回已追加结果。</param>
+    public void Write(Point point, CancellationToken cancellationToken)
+        => WriteCore(point, exactNames: false, cancellationToken);
+
     // SQL 绑定器已经按引号合同解析到目录中的精确名称，不能再次进行普通引用解析。
     internal void WriteSqlPoint(Point point)
         => WriteCore(point, exactNames: true);
 
-    private void WriteCore(Point point, bool exactNames)
+    private void WriteCore(Point point, bool exactNames, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(point);
+        cancellationToken.ThrowIfCancellationRequested();
+        point = SnapshotAtomicPointInput(point, cancellationToken);
 
         long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -917,8 +1005,9 @@ public sealed partial class Tsdb : IDisposable
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
+                cancellationToken.ThrowIfCancellationRequested();
                 var normalized = EnsureMeasurementSchemaLocked(point, exactNames);
-                WritePointLocked(normalized);
+                WritePointLocked(normalized, cancellationToken);
                 hardCapFlush = FlushForHardCapIfNeededLocked();
 
                 if (_options.SyncWalOnEveryWrite)
@@ -971,6 +1060,25 @@ public sealed partial class Tsdb : IDisposable
         foreach (var point in points)
         {
             Write(point);
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>枚举并写入多个 Point；在每个 Point 的 WAL 首字节前响应取消。</summary>
+    /// <param name="points">要写入的数据点序列。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>成功写入的点数量。</returns>
+    public int WriteMany(IEnumerable<Point> points, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (points is Point[] array)
+            return WriteMany((ReadOnlySpan<Point>)array, cancellationToken);
+        int count = 0;
+        foreach (Point point in points)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WriteCore(point, exactNames: false, cancellationToken);
             count++;
         }
         return count;
@@ -1083,6 +1191,13 @@ public sealed partial class Tsdb : IDisposable
     public int WriteMany(ReadOnlySpan<Point> points)
         => WriteManyCore(points, hasBatchWriteAdmission: false, exactNames: false);
 
+    /// <summary>批量写入多个 Point，并在每个块/整点 WAL 首字节前响应取消。</summary>
+    /// <param name="points">连续的数据点切片。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>成功写入的点数量。</returns>
+    public int WriteMany(ReadOnlySpan<Point> points, CancellationToken cancellationToken)
+        => WriteManyCore(points, hasBatchWriteAdmission: false, exactNames: false, cancellationToken);
+
     // 仅接收 SQL 绑定器已经解析为目录精确名称的点。
     internal int WriteSqlPoints(ReadOnlySpan<Point> points)
         => WriteManyCore(points, hasBatchWriteAdmission: false, exactNames: true);
@@ -1096,8 +1211,10 @@ public sealed partial class Tsdb : IDisposable
     private int WriteManyFromBatchAdmission(ReadOnlySpan<Point> points)
         => WriteManyCore(points, hasBatchWriteAdmission: true, exactNames: false);
 
-    private int WriteManyCore(ReadOnlySpan<Point> points, bool hasBatchWriteAdmission, bool exactNames)
+    private int WriteManyCore(ReadOnlySpan<Point> points, bool hasBatchWriteAdmission, bool exactNames,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (points.IsEmpty)
             return 0;
 
@@ -1107,11 +1224,12 @@ public sealed partial class Tsdb : IDisposable
         int offset = 0;
         while (offset < points.Length)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             int chunkLength = Math.Min(WriteManyChunkSize, points.Length - offset);
             // batch admission 只跨越第一个实际写入块。它的作用是让 Prepare 与首次 WAL/MemTable
             // 变更按同一线性化点发生；后续块恢复正常 fault 检查，避免失败后无界继续写入。
             bool isFirstAdmittedBatchChunk = hasBatchWriteAdmission && offset == 0;
-            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk, exactNames);
+            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk, exactNames, cancellationToken);
             offset += chunkLength;
         }
 
@@ -1122,7 +1240,8 @@ public sealed partial class Tsdb : IDisposable
     /// 单块批量写入：与整批写入语义一致，但只处理 <paramref name="chunk"/> 一段，
     /// 便于 <see cref="WriteMany(ReadOnlySpan{Point})"/> 在块间释放锁并施加硬上限背压。
     /// </summary>
-    private int WriteManyChunk(ReadOnlySpan<Point> chunk, bool hasBatchWriteAdmission, bool exactNames)
+    private int WriteManyChunk(ReadOnlySpan<Point> chunk, bool hasBatchWriteAdmission, bool exactNames,
+        CancellationToken cancellationToken = default)
     {
         long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
 
@@ -1139,7 +1258,13 @@ public sealed partial class Tsdb : IDisposable
                     ThrowIfFlushRecoveryFault();
                 }
 
-                MeasurementSchemaWritePlan schemaPlan = PlanMeasurementSchemasLocked(chunk, exactNames);
+                Point[] captured = new Point[chunk.Length];
+                for (int i = 0; i < chunk.Length; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    captured[i] = chunk[i] is null ? null! : SnapshotAtomicPointInput(chunk[i], cancellationToken);
+                }
+                MeasurementSchemaWritePlan schemaPlan = PlanMeasurementSchemasLocked(captured, exactNames);
                 Point?[] normalizedPoints = schemaPlan.NormalizedPoints;
                 written = schemaPlan.PointCount;
 
@@ -1157,7 +1282,7 @@ public sealed partial class Tsdb : IDisposable
                     {
                         var normalized = normalizedPoints[i];
                         if (normalized is not null)
-                            WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
+                            WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized), cancellationToken);
                     }
 
                     hardCapFlush = FlushForHardCapIfNeededLocked(
@@ -2021,6 +2146,7 @@ public sealed partial class Tsdb : IDisposable
 
     private void ThrowIfFlushRecoveryFault()
     {
+        _walSet?.ThrowIfWriteFaulted();
         Exception? fault = Volatile.Read(ref _flushRecoveryFault);
         if (fault is not null)
         {
@@ -2281,41 +2407,113 @@ public sealed partial class Tsdb : IDisposable
     /// <summary>仅供测试注入 KV 过期清理故障；生产恒为 null。</summary>
     internal Action? _kvExpirerFaultHook;
 
+    /// <summary>仅供 T1 故障测试在单 Point WAL 首字节前暂停；生产恒为 null。</summary>
+    internal Action? BeforeAtomicPointAppendTestHook { get; set; }
+
+    /// <summary>仅供恢复测试在整点字节写完、内存发布与确认前注入故障。</summary>
+    internal Action? AfterAtomicPointWalWriteTestHook
+    {
+        set
+        {
+            lock (_writeSync)
+                _walSet!.AfterAtomicPointWriteTestHook = value;
+        }
+    }
+
+    /// <summary>仅供进程强杀测试把未确认整点交给 OS，不写未确认 footer。</summary>
+    internal void FlushUnacknowledgedPointBytesToOsForTest()
+        => _walSet!.FlushUnacknowledgedPointBytesToOsForTest();
+
     /// <summary>仅供测试注入 generation cleanup 节流原因；生产恒为 null。</summary>
     internal Func<KvCleanupThrottleReason>? _kvCleanupThrottleHook;
 
     /// <summary>仅供测试注入 generation cleanup 故障；生产恒为 null。</summary>
     internal Action? _kvCleanupFaultHook;
 
-    private void WritePointLocked(Point point)
+    private void WritePointLocked(Point point, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var entry = Catalog.GetOrAdd(point);
         EnsureNoFieldReplacementConflict(point, entry.Id);
+        ValidateAtomicPointMemoryTypes(point, entry.Id);
 
         // 若是本进程首次写入该 series，向 WAL 追加 CreateSeries 记录
-        if (_seriesWithWalRecord.Add(entry.Id))
+        if (!_seriesWithWalRecord.Contains(entry.Id))
         {
             _walSet!.AppendCreateSeries(entry.Id, entry.Measurement, entry.Tags);
+            _seriesWithWalRecord.Add(entry.Id);
             _catalogDirty = true;
         }
 
-        // 每个字段写入 WAL 和 MemTable。热路径：绝大多数 Point 的 Fields 实为 Dictionary，
-        // 直接用其 struct 枚举器遍历，避免 IReadOnlyDictionary foreach 装箱枚举器（C3）。
-        if (point.Fields is Dictionary<string, FieldValue> concreteFields)
+        BeforeAtomicPointAppendTestHook?.Invoke();
+        long pointLsn = _walSet!.AppendAtomicPoint(entry.Id, point.Timestamp, point.Fields, cancellationToken);
+        // WAL 首字节之后不再观察取消；该 Point 以同一 LSN 发布全部字段。
+        // 所有常规输入和类型检查已完成，追加故障不会发布其中任何字段。
+        try
         {
-            foreach (var (fieldName, value) in concreteFields)
-            {
-                long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
-                MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
-            }
+            MemTable.AppendAtomicPoint(entry.Id, point.Timestamp, point.Fields, pointLsn);
         }
-        else
+        catch (Exception ex)
         {
-            foreach (var (fieldName, value) in point.Fields)
-            {
-                long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
-                MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
-            }
+            _flushRecoveryFault = ex;
+            throw new InvalidOperationException("Point WAL 已追加但内存发布失败；禁止继续写入或 checkpoint，请关闭并重开对账。", ex);
+        }
+    }
+
+    private static Point SnapshotAtomicPointInput(Point point, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(point);
+        if (point.Tags is null)
+            throw new ArgumentNullException(nameof(point.Tags));
+        if (point.Tags.Count > AtomicPointWalCodec.MaxPayloadBytes / (2 * sizeof(int)))
+            throw new ArgumentOutOfRangeException(nameof(point.Tags));
+        var tags = new Dictionary<string, string>(point.Tags.Count, StringComparer.Ordinal);
+        long started = Stopwatch.GetTimestamp();
+        long tagBytes = 0;
+        AtomicPointWalCodec.ValidateStrictUtf8(point.Measurement, nameof(point.Measurement));
+        foreach (var (name, value) in point.Tags)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMinutes(1))
+                throw new TimeoutException("Point input validation exceeded its wall-clock budget.");
+            AtomicPointWalCodec.ValidateStrictUtf8(name, nameof(point.Tags));
+            AtomicPointWalCodec.ValidateStrictUtf8(value, nameof(point.Tags));
+            tagBytes += 2 * sizeof(int) + System.Text.Encoding.UTF8.GetByteCount(name) + System.Text.Encoding.UTF8.GetByteCount(value);
+            if (tagBytes > AtomicPointWalCodec.MaxPayloadBytes)
+                throw new ArgumentOutOfRangeException(nameof(point.Tags));
+            tags.Add(name, value);
+        }
+        if (WalPayloadCodec.MeasureCreateSeries(point.Measurement, tags) > AtomicPointWalCodec.MaxPayloadBytes)
+            throw new ArgumentOutOfRangeException(nameof(point.Tags));
+
+        if (point.Fields is null)
+            throw new ArgumentNullException(nameof(point.Fields));
+        if (point.Fields.Count is < 1 or > AtomicPointWalCodec.MaxFields)
+            throw new ArgumentOutOfRangeException(nameof(point.Fields), "Point fields must be within 1..1024.");
+        var fields = new Dictionary<string, FieldValue>(point.Fields.Count, StringComparer.Ordinal);
+        foreach (var (name, value) in point.Fields)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (fields.Count >= AtomicPointWalCodec.MaxFields)
+                throw new ArgumentOutOfRangeException(nameof(point.Fields));
+            fields.Add(name, value.Type == FieldType.Vector
+                ? FieldValue.FromVector(value.AsVector().ToArray())
+                : value);
+        }
+
+        _ = AtomicPointWalCodec.Encode(0, point.Timestamp, fields);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Point.Create(point.Measurement, point.Timestamp, tags, fields);
+    }
+
+    private void ValidateAtomicPointMemoryTypes(Point point, ulong seriesId)
+    {
+        foreach (var (fieldName, value) in point.Fields)
+        {
+            var existing = MemTable.TryGet(new SeriesFieldKey(seriesId, fieldName));
+            if (existing is not null && existing.FieldType != value.Type)
+                throw new InvalidOperationException(
+                    $"FieldType mismatch for key '{seriesId}:{fieldName}': existing={existing.FieldType}, new={value.Type}.");
         }
     }
 
@@ -3004,7 +3202,9 @@ public sealed partial class Tsdb : IDisposable
         string root,
         string walDirectory,
         string segmentTemporarySuffix,
-        SegmentReaderOptions? readerOptions)
+        SegmentReaderOptions? readerOptions,
+        AtomicPointWalRecoveryOptions recoveryOptions,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(walDirectory);
@@ -3020,10 +3220,11 @@ public sealed partial class Tsdb : IDisposable
         WalCheckpointState? durableCheckpoint = WalCheckpointFile.TryLoad(
             WalSegmentLayout.CheckpointPath(walDirectory));
         SegmentReplacementManifest replacementManifest = SegmentReplacementManifest.LoadForRoot(root);
-        long maxWalCheckpointLsn = GetMaximumWalCheckpointLsn(walDirectory);
+        long maxWalCheckpointLsn = GetMaximumWalCheckpointLsn(walDirectory, recoveryOptions, cancellationToken);
 
         foreach (var (segmentIdFromPath, publicationPath) in publicationPaths)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             FlushPublicationState publication = FlushPublicationFile.Load(publicationPath);
             if (publication.SegmentId != segmentIdFromPath)
             {
@@ -3073,7 +3274,9 @@ public sealed partial class Tsdb : IDisposable
                 publication,
                 durableCheckpoint,
                 readerOptions,
-                replacementManifest);
+                replacementManifest,
+                recoveryOptions,
+                cancellationToken);
             DeleteUncommittedFlushSegmentRequired(
                 root,
                 publication.SegmentId,
@@ -3092,7 +3295,9 @@ public sealed partial class Tsdb : IDisposable
         FlushPublicationState publication,
         WalCheckpointState? durableCheckpoint,
         SegmentReaderOptions? readerOptions,
-        SegmentReplacementManifest replacementManifest)
+        SegmentReplacementManifest replacementManifest,
+        AtomicPointWalRecoveryOptions recoveryOptions,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(walDirectory);
@@ -3141,7 +3346,8 @@ public sealed partial class Tsdb : IDisposable
         long expectedLsn = expectedFirstReplayLsn;
         foreach (WalSegmentInfo segment in segments)
         {
-            using var reader = WalReader.Open(segment.Path);
+            cancellationToken.ThrowIfCancellationRequested();
+            using var reader = WalReader.OpenForRecovery(segment.Path, recoveryOptions, cancellationToken);
             if (reader.FirstLsn != segment.StartLsn)
             {
                 throw CreateIncompletePendingFlushWalException(
@@ -3168,7 +3374,7 @@ public sealed partial class Tsdb : IDisposable
 
                 if (record.Lsn == publication.CheckpointLsn)
                 {
-                    if (record is not WritePointRecord)
+                    if (record is not WritePointRecord and not AtomicPointRecord)
                     {
                         throw CreateIncompletePendingFlushWalException(
                             publication,
@@ -3202,12 +3408,14 @@ public sealed partial class Tsdb : IDisposable
             + $"does not have complete WAL coverage: {reason}. Database open is rejected before removing "
             + "the pending segment.");
 
-    private static long GetMaximumWalCheckpointLsn(string walDirectory)
+    private static long GetMaximumWalCheckpointLsn(string walDirectory,
+        AtomicPointWalRecoveryOptions recoveryOptions, CancellationToken cancellationToken)
     {
         long maximum = 0;
         foreach (var segment in WalSegmentLayout.Enumerate(walDirectory))
         {
-            using var reader = WalReader.Open(segment.Path);
+            cancellationToken.ThrowIfCancellationRequested();
+            using var reader = WalReader.OpenForRecovery(segment.Path, recoveryOptions, cancellationToken);
             foreach (WalRecord record in reader.Replay())
             {
                 if (record is CheckpointRecord checkpoint

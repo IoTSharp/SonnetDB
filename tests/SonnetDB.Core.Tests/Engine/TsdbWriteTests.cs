@@ -654,15 +654,25 @@ public sealed class TsdbWriteTests : IDisposable
     [Fact]
     public void Open_WithExistingSegments_NextSegmentIdIsMaxPlusOne()
     {
-        // Create fake segment files to simulate existing segments
+        // 已发布段依赖真实 series catalog，使用可查询段而非缺 catalog 的空文件。
         Directory.CreateDirectory(TsdbPaths.SegmentsDir(_tempDir));
         Directory.CreateDirectory(Path.GetDirectoryName(TsdbPaths.SegmentPath(_tempDir, 3L))!);
         Directory.CreateDirectory(Path.GetDirectoryName(TsdbPaths.SegmentPath(_tempDir, 7L))!);
-        File.WriteAllBytes(TsdbPaths.SegmentPath(_tempDir, 3L), []);
-        File.WriteAllBytes(TsdbPaths.SegmentPath(_tempDir, 7L), []);
+        var catalog = new SeriesCatalog();
+        SeriesEntry series = catalog.GetOrAdd("existing", new Dictionary<string, string>());
+        CatalogFileCodec.Save(catalog, TsdbPaths.CatalogPath(_tempDir));
+        var writer = new SegmentWriter(new SegmentWriterOptions { FsyncOnCommit = false });
+        foreach (long id in new[] { 3L, 7L })
+        {
+            var memory = new MemTable();
+            memory.Append(series.Id, id, "value", FieldValue.FromLong(id), id);
+            writer.WriteFrom(memory, id, TsdbPaths.SegmentPath(_tempDir, id));
+        }
 
         using var db = Tsdb.Open(MakeOptions());
         Assert.Equal(8L, db.NextSegmentId);
+        Assert.Equal(new[] { 3L, 7L }, db.Query.Execute(new PointQuery(series.Id, "value", TimeRange.All))
+            .Select(point => point.Value.AsLong()));
     }
 
     [Fact]

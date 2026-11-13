@@ -151,7 +151,7 @@ public sealed class WalSegmentLayoutTests : IDisposable
     }
 
     [Fact]
-    public void UpgradeLegacyIfPresent_AlreadyUpgraded_DeletesLegacy()
+    public void UpgradeLegacyIfPresent_EmptyConflictingTarget_PreservesBoth()
     {
         // 模拟：legacy 文件与目标文件同时存在（重复升级）
         string legacyPath = Path.Combine(_tempDir, "active.SDBWAL");
@@ -165,11 +165,99 @@ public sealed class WalSegmentLayoutTests : IDisposable
         // 再创建目标文件
         File.WriteAllBytes(targetPath, []);
 
-        WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir);
+        byte[] before = File.ReadAllBytes(legacyPath);
+        Assert.Throws<InvalidDataException>(() => WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir));
+        Assert.Equal(before, File.ReadAllBytes(legacyPath));
+        Assert.Empty(File.ReadAllBytes(targetPath));
+    }
 
-        // legacy 文件应已被删除
+    [Fact]
+    public void UpgradeLegacyIfPresent_IdenticalResidue_RemovesOnlyTheDuplicateLegacyName()
+    {
+        string legacyPath = Path.Combine(_tempDir, WalSegmentLayout.LegacyActiveFileName);
+        string targetPath = WalSegmentLayout.SegmentPath(_tempDir, 1);
+        using (var writer = WalWriter.Open(legacyPath))
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromString(new string('x', 2 * 64 * 1024 + 5)));
+        byte[] before = File.ReadAllBytes(legacyPath);
+        File.Copy(legacyPath, targetPath);
+        WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir);
+        WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir);
         Assert.False(File.Exists(legacyPath));
-        // 目标文件仍存在（内容不变）
-        Assert.True(File.Exists(targetPath));
+        Assert.Equal(before, File.ReadAllBytes(targetPath));
+        using var reader = WalReader.Open(targetPath);
+        Assert.Equal(2 * 64 * 1024 + 5, Assert.IsType<WritePointRecord>(Assert.Single(reader.Replay())).Value.AsString().Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UpgradeLegacyIfPresent_DifferentOrCorruptTarget_PreservesEveryByte(bool corrupt)
+    {
+        string legacyPath = Path.Combine(_tempDir, WalSegmentLayout.LegacyActiveFileName);
+        string targetPath = WalSegmentLayout.SegmentPath(_tempDir, 1);
+        using (var writer = WalWriter.Open(legacyPath))
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromLong(1));
+        if (corrupt)
+        {
+            byte[] target = File.ReadAllBytes(legacyPath);
+            target[80] ^= 0x40;
+            File.WriteAllBytes(targetPath, target);
+        }
+        else
+        {
+            using var writer = WalWriter.Open(targetPath);
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromLong(2));
+        }
+        byte[] oldBefore = File.ReadAllBytes(legacyPath);
+        byte[] targetBefore = File.ReadAllBytes(targetPath);
+        Assert.Throws<InvalidDataException>(() => WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir));
+        Assert.Equal(oldBefore, File.ReadAllBytes(legacyPath));
+        Assert.Equal(targetBefore, File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void UpgradeLegacyIfPresent_CancelledBeforeComparison_DoesNotDeleteEitherName()
+    {
+        string legacyPath = Path.Combine(_tempDir, WalSegmentLayout.LegacyActiveFileName);
+        string targetPath = WalSegmentLayout.SegmentPath(_tempDir, 1);
+        using (var writer = WalWriter.Open(legacyPath))
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromLong(1));
+        byte[] before = File.ReadAllBytes(legacyPath);
+        File.Copy(legacyPath, targetPath);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => WalSegmentLayout.UpgradeLegacyIfPresent(_tempDir, cancellation.Token));
+        Assert.Equal(before, File.ReadAllBytes(legacyPath));
+        Assert.Equal(before, File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void AtomicRecoveryDiscovery_LimitsFilesBeforeAnyLegacyUpgradeOrRepair()
+    {
+        string legacyPath = Path.Combine(_tempDir, WalSegmentLayout.LegacyActiveFileName);
+        using (var writer = WalWriter.Open(legacyPath))
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromLong(1));
+        byte[] original = File.ReadAllBytes(legacyPath);
+        File.WriteAllText(Path.Combine(_tempDir, "one.tmp"), "owned");
+        File.WriteAllText(Path.Combine(_tempDir, "two.tmp"), "owned");
+        Assert.Throws<InvalidDataException>(() => WalSegmentSet.OpenAtomicPoints(_tempDir,
+            recoveryOptions: new AtomicPointWalRecoveryOptions(MaxRecords: 2)));
+        Assert.Equal(original, File.ReadAllBytes(legacyPath));
+        Assert.False(File.Exists(WalSegmentLayout.SegmentPath(_tempDir, 1)));
+    }
+
+    [Fact]
+    public void AtomicRecoveryDiscovery_ExpiredBudgetDoesNotUpgradeLegacyName()
+    {
+        string legacyPath = Path.Combine(_tempDir, WalSegmentLayout.LegacyActiveFileName);
+        using (var writer = WalWriter.Open(legacyPath))
+            writer.AppendWritePoint(1, 1, "value", SonnetDB.Model.FieldValue.FromLong(1));
+        byte[] original = File.ReadAllBytes(legacyPath);
+        Exception? failure = Record.Exception(() => WalSegmentSet.OpenAtomicPoints(_tempDir,
+            recoveryOptions: new AtomicPointWalRecoveryOptions(Timeout: TimeSpan.FromTicks(1))));
+        Assert.True(failure is InvalidDataException or OperationCanceledException,
+            "The discovery deadline must reject recovery before mutation.");
+        Assert.Equal(original, File.ReadAllBytes(legacyPath));
+        Assert.False(File.Exists(WalSegmentLayout.SegmentPath(_tempDir, 1)));
     }
 }

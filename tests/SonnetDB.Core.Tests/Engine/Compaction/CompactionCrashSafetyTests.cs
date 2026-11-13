@@ -120,7 +120,10 @@ public sealed class CompactionCrashSafetyTests : IDisposable
     [Fact]
     public void PendingReplacementWithoutSegment_AdvancesNextSegmentIdOnReopen()
     {
-        WriteSegment(1, 20, tsBase: 1000);
+        var catalog = new SonnetDB.Catalog.SeriesCatalog();
+        var series = catalog.GetOrAdd("existing", new Dictionary<string, string>());
+        SonnetDB.Catalog.CatalogFileCodec.Save(catalog, TsdbPaths.CatalogPath(_tempDir));
+        using (WriteSegment(1, 20, tsBase: 1000, seriesId: series.Id)) { }
         SegmentReplacementManifest.RecordPendingReplacement(_tempDir, 100, new long[] { 1 });
 
         using var db = Tsdb.Open(new TsdbOptions
@@ -131,6 +134,7 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         });
 
         Assert.True(db.NextSegmentId > 100);
+        Assert.Equal(20, db.Query.Execute(new PointQuery(series.Id, "v", TimeRange.All)).Count());
     }
 
     // ── 临时文件不影响合法段扫描 ─────────────────────────────────────────────

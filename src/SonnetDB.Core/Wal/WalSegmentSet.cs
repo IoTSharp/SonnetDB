@@ -1,5 +1,6 @@
 ﻿using SonnetDB.Catalog;
 using SonnetDB.Model;
+using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Wal;
 
@@ -13,11 +14,30 @@ public sealed class WalSegmentSet : IDisposable
     private readonly object _sync = new();
     private readonly List<WalSegmentInfo> _segments;
     private readonly int _bufferSize;
+    private readonly bool _atomicPoints;
+    private readonly AtomicPointWalRecoveryOptions? _recoveryOptions;
 
     private WalWriter? _activeWriter;
     private long _activeRecordCount;
     private long _syncCount;
     private bool _disposed;
+    private Exception? _writeFault;
+
+    internal Action? AfterAtomicPointWriteTestHook { get; set; }
+
+    internal void FlushUnacknowledgedPointBytesToOsForTest()
+    {
+        lock (_sync)
+            _activeWriter!.FlushUnacknowledgedPointBytesToOsForTest();
+    }
+
+    internal bool IsWriteFaulted => _writeFault is not null || _activeWriter?.HasAppendFault == true;
+
+    internal void ThrowIfWriteFaulted()
+    {
+        if (IsWriteFaulted)
+            throw new InvalidOperationException("WAL write result is unknown; close, reopen and reconcile before writing or checkpointing.", _writeFault);
+    }
 
     /// <summary>WAL 子目录路径。</summary>
     public string WalDirectory { get; }
@@ -74,14 +94,17 @@ public sealed class WalSegmentSet : IDisposable
         }
     }
 
-    private WalSegmentSet(string walDirectory, WalRollingPolicy policy, int bufferSize, List<WalSegmentInfo> segments, WalWriter activeWriter)
+    private WalSegmentSet(string walDirectory, WalRollingPolicy policy, int bufferSize, List<WalSegmentInfo> segments, WalWriter activeWriter,
+        bool atomicPoints = false, AtomicPointWalRecoveryOptions? recoveryOptions = null)
     {
         WalDirectory = walDirectory;
         Policy = policy;
         _bufferSize = bufferSize;
         _segments = segments;
         _activeWriter = activeWriter;
-        _activeRecordCount = 0;
+        _activeRecordCount = activeWriter.NextLsn - segments[^1].StartLsn;
+        _atomicPoints = atomicPoints;
+        _recoveryOptions = recoveryOptions;
     }
 
     /// <summary>
@@ -104,18 +127,58 @@ public sealed class WalSegmentSet : IDisposable
         WalRollingPolicy? policy = null,
         int bufferSize = 64 * 1024,
         long initialStartLsn = 1)
+        => OpenCore(walDirectory, policy, bufferSize, initialStartLsn, atomicPoints: false, null, default);
+
+    /// <summary>打开默认时序整点 WAL 集合；旧 v1 段只读恢复，新记录写入独立 v2 段。</summary>
+    /// <param name="walDirectory">WAL 子目录。</param>
+    /// <param name="policy">整点间滚动策略。</param>
+    /// <param name="bufferSize">写缓冲字节数。</param>
+    /// <param name="initialStartLsn">空目录的首条序列号。</param>
+    /// <param name="recoveryOptions">恢复记录、字节与墙钟预算。</param>
+    /// <param name="cancellationToken">打开、校验和截尾前的取消令牌。</param>
+    /// <returns>仅使用整点写入的集合。</returns>
+    public static WalSegmentSet OpenAtomicPoints(string walDirectory, WalRollingPolicy? policy = null,
+        int bufferSize = 64 * 1024, long initialStartLsn = 1,
+        AtomicPointWalRecoveryOptions? recoveryOptions = null, CancellationToken cancellationToken = default)
+        => OpenCore(walDirectory, policy, bufferSize, initialStartLsn, atomicPoints: true,
+            recoveryOptions ?? new(), cancellationToken);
+
+    private static WalSegmentSet OpenCore(string walDirectory, WalRollingPolicy? policy, int bufferSize,
+        long initialStartLsn, bool atomicPoints, AtomicPointWalRecoveryOptions? recoveryOptions,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(walDirectory);
+        recoveryOptions?.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+        long recoveryStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        using var recoveryDeadline = atomicPoints
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : null;
+        if (recoveryDeadline is not null)
+        {
+            recoveryDeadline.CancelAfter(recoveryOptions!.EffectiveTimeout);
+            cancellationToken = recoveryDeadline.Token;
+        }
 
         policy ??= WalRollingPolicy.Default;
         Directory.CreateDirectory(walDirectory);
 
-        // 1. 升级 legacy active.SDBWAL（若存在）
-        WalSegmentLayout.UpgradeLegacyIfPresent(walDirectory);
+        // 1. v2 发现阶段先校验数量/期限，再允许 legacy 名称升级或 active 修尾。
+        IReadOnlyList<WalSegmentInfo>? discovered = atomicPoints
+            ? WalSegmentLayout.EnumerateForAtomicRecovery(walDirectory, recoveryOptions!, recoveryStarted, cancellationToken)
+            : null;
+        bool hadLegacy = File.Exists(System.IO.Path.Combine(walDirectory, WalSegmentLayout.LegacyActiveFileName));
+        WalSegmentLayout.UpgradeLegacyIfPresent(walDirectory, cancellationToken);
 
         // 2. 枚举目录中全部合法 segment
-        var infos = WalSegmentLayout.Enumerate(walDirectory);
+        var infos = atomicPoints
+            ? hadLegacy
+                ? WalSegmentLayout.EnumerateForAtomicRecovery(walDirectory, recoveryOptions!, recoveryStarted, cancellationToken)
+                : discovered!
+            : WalSegmentLayout.Enumerate(walDirectory);
         var segments = new List<WalSegmentInfo>(infos);
+        if (atomicPoints)
+            ValidateRecoveryBudgetBeforeMutation(segments, recoveryOptions!, recoveryStarted, cancellationToken);
 
         WalWriter activeWriter;
 
@@ -123,7 +186,7 @@ public sealed class WalSegmentSet : IDisposable
         {
             // 3. 空目录：创建第一个 segment
             string path = WalSegmentLayout.SegmentPath(walDirectory, initialStartLsn);
-            activeWriter = WalWriter.Open(path, startLsn: initialStartLsn, bufferSize: bufferSize);
+            activeWriter = OpenWriter(path, initialStartLsn, bufferSize, atomicPoints, recoveryOptions, cancellationToken);
             segments.Add(new WalSegmentInfo(initialStartLsn, path, 0)
             {
                 HasLastLsn = true,
@@ -137,7 +200,42 @@ public sealed class WalSegmentSet : IDisposable
             // 4. 选 startLsn 最大的 segment 为 active，续写
             var activeInfo = segments[^1];
             // WalWriter.Open 会扫描已有记录并续写，起始 LSN 由文件内容决定
-            activeWriter = WalWriter.Open(activeInfo.Path, startLsn: activeInfo.StartLsn, bufferSize: bufferSize);
+            if (atomicPoints && WalReader.ReadFormatVersion(activeInfo.Path) != WalFileHeader.AtomicPointFormatVersion)
+            {
+                // 保持旧记录字节，不把历史逐字段写入重编码成整点。持独占写租约后校验旧尾，
+                // 仅在合法记录末端建立新 v2 段；不越过无法证明的旧 torn suffix。
+                using var legacyLease = new FileStream(activeInfo.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+                using var legacy = WalReader.OpenForRecovery(activeInfo.Path, recoveryOptions, cancellationToken);
+                foreach (WalRecord record in legacy.Replay())
+                    _ = record;
+                long suffixBytes = legacyLease.Length - legacy.LastValidOffset;
+                if (suffixBytes != 0 && !(suffixBytes == FormatSizes.WalLastLsnFooterSize
+                    && activeInfo.HasLastLsn && activeInfo.LastLsn == legacy.LastLsn))
+                    throw new InvalidDataException("Legacy WAL has an unverified suffix; preserve and repair it before upgrading to atomic Point writes.");
+                long newStart = checked(legacy.LastLsn + 1);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (newStart == activeInfo.StartLsn)
+                {
+                    // 空旧段与新段同名；保留其原字节为非活动格式档案，再发布 v2 同名头。
+                    legacy.Dispose();
+                    legacyLease.Dispose();
+                    File.Move(activeInfo.Path, activeInfo.Path + ".legacy-empty-v1");
+                    DirectoryFsync.FlushRequired(walDirectory);
+                    segments.RemoveAt(segments.Count - 1);
+                }
+                activeWriter = OpenWriter(WalSegmentLayout.SegmentPath(walDirectory, newStart), newStart,
+                    bufferSize, atomicPoints, recoveryOptions, cancellationToken);
+                segments.Add(new WalSegmentInfo(newStart, activeWriter.Path, activeWriter.BytesWritten)
+                {
+                    HasLastLsn = true,
+                    LastLsn = newStart - 1,
+                });
+                activeInfo = segments[^1];
+            }
+            else
+            {
+                activeWriter = OpenWriter(activeInfo.Path, activeInfo.StartLsn, bufferSize, atomicPoints, recoveryOptions, cancellationToken);
+            }
             // 更新最后一条（active）的文件长度
             segments[^1] = activeInfo with
             {
@@ -147,7 +245,79 @@ public sealed class WalSegmentSet : IDisposable
             };
         }
 
-        return new WalSegmentSet(walDirectory, policy, bufferSize, segments, activeWriter);
+        return new WalSegmentSet(walDirectory, policy, bufferSize, segments, activeWriter, atomicPoints, recoveryOptions);
+    }
+
+    private static WalWriter OpenWriter(string path, long startLsn, int bufferSize, bool atomicPoints,
+        AtomicPointWalRecoveryOptions? recoveryOptions, CancellationToken cancellationToken)
+        => atomicPoints
+            ? WalWriter.OpenAtomicPoints(path, startLsn, bufferSize, recoveryOptions, cancellationToken)
+            : WalWriter.Open(path, startLsn, bufferSize);
+
+    private static void ValidateRecoveryBudgetBeforeMutation(IReadOnlyList<WalSegmentInfo> segments,
+        AtomicPointWalRecoveryOptions options, long started, CancellationToken cancellationToken)
+    {
+        long bytes = 0;
+        int records = 0;
+        if (segments.Count > options.MaxRecords)
+            throw new InvalidDataException("WAL recovery exceeds its segment count budget.");
+        foreach (WalSegmentInfo segment in segments)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= options.EffectiveTimeout)
+                throw new InvalidDataException("WAL recovery exceeds its wall-clock budget.");
+            bytes = checked(bytes + segment.FileLength);
+            if (bytes > options.MaxReadBytes)
+                throw new InvalidDataException("WAL recovery exceeds its total file byte budget.");
+            using var reader = WalReader.OpenForRecovery(segment.Path, options, cancellationToken);
+            foreach (WalRecord record in reader.Replay())
+            {
+                _ = record;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (++records > options.MaxRecords)
+                    throw new InvalidDataException("WAL recovery exceeds its total record budget.");
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= options.EffectiveTimeout)
+                    throw new InvalidDataException("WAL recovery exceeds its wall-clock budget.");
+            }
+        }
+    }
+
+    /// <summary>追加单个完整 Point，滚动只发生在该 Point 完整写入之后。</summary>
+    /// <param name="seriesId">序列标识。</param>
+    /// <param name="pointTimestamp">Unix 毫秒时间戳。</param>
+    /// <param name="fields">完整字段集合。</param>
+    /// <param name="cancellationToken">首次写入前的取消令牌。</param>
+    /// <returns>整点共享 LSN。</returns>
+    public long AppendAtomicPoint(ulong seriesId, long pointTimestamp, IReadOnlyDictionary<string, FieldValue> fields,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            ThrowIfWriteFaulted();
+            bool appended = false;
+            try
+            {
+                int payloadBytes = sizeof(int);
+                foreach (var field in fields)
+                    payloadBytes = checked(payloadBytes + sizeof(int) + WalPayloadCodec.MeasureWritePoint(field.Key, field.Value));
+                EnsureRecordCapacityLocked(payloadBytes);
+                _activeWriter!.AfterAtomicPointWriteTestHook = AfterAtomicPointWriteTestHook;
+                long lsn = _activeWriter.AppendAtomicPoint(seriesId, pointTimestamp, fields, cancellationToken);
+                appended = true;
+                _activeRecordCount++;
+                UpdateActiveSegmentInfoLocked();
+                RollIfNeeded();
+                return lsn;
+            }
+            catch (Exception ex) when (appended || _activeWriter?.HasAppendFault == true)
+            {
+                _writeFault = ex;
+                throw;
+            }
+        }
     }
 
     /// <summary>
@@ -164,6 +334,7 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
             long lsn = _activeWriter!.AppendWritePoint(seriesId, pointTimestamp, fieldName, value);
             _activeRecordCount++;
             UpdateActiveSegmentInfoLocked();
@@ -185,6 +356,8 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
+            EnsureRecordCapacityLocked(WalPayloadCodec.MeasureCreateSeries(measurement, tags));
             long lsn = _activeWriter!.AppendCreateSeries(seriesId, measurement, tags);
             _activeRecordCount++;
             UpdateActiveSegmentInfoLocked();
@@ -204,6 +377,8 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
+            EnsureRecordCapacityLocked(sizeof(long));
             long lsn = _activeWriter!.AppendCheckpoint(checkpointLsn);
             _activeRecordCount++;
             UpdateActiveSegmentInfoLocked();
@@ -225,6 +400,8 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
+            EnsureRecordCapacityLocked(WalPayloadCodec.MeasureDelete(fieldName));
             long lsn = _activeWriter!.AppendDelete(seriesId, fieldName, fromTimestamp, toTimestamp);
             _activeRecordCount++;
             UpdateActiveSegmentInfoLocked();
@@ -242,6 +419,7 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
             SyncActiveWriterLocked();
         }
     }
@@ -256,6 +434,7 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
             _activeWriter!.Flush();
         }
     }
@@ -270,6 +449,7 @@ public sealed class WalSegmentSet : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaulted();
             RollLocked();
         }
     }
@@ -343,7 +523,8 @@ public sealed class WalSegmentSet : IDisposable
             catalog,
             durableCheckpointLsn,
             durableTombstoneCheckpointLsn,
-            highestVerifiedCheckpointLsn: long.MaxValue);
+            highestVerifiedCheckpointLsn: long.MaxValue,
+            cancellationToken: default);
 
     /// <summary>
     /// 顺序回放 WAL，并限制可由 WAL CheckpointRecord 推进的最大已验证边界。
@@ -357,7 +538,8 @@ public sealed class WalSegmentSet : IDisposable
         SeriesCatalog catalog,
         long durableCheckpointLsn,
         long durableTombstoneCheckpointLsn,
-        long highestVerifiedCheckpointLsn)
+        long highestVerifiedCheckpointLsn,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentOutOfRangeException.ThrowIfNegative(durableCheckpointLsn);
@@ -380,11 +562,23 @@ public sealed class WalSegmentSet : IDisposable
         long checkpointLsn = durableCheckpointLsn;
         long lastLsn = 0;
         var writePoints = new List<WritePointRecord>();
+        var atomicPoints = new List<AtomicPointRecord>();
         var deleteRecords = new List<DeleteRecord>();
         long deleteCheckpointLsn = Math.Max(checkpointLsn, durableTombstoneCheckpointLsn);
 
-        foreach (var seg in snapshot)
+        long recoveryStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        long recoveredBytes = 0;
+        int recoveredRecords = 0;
+        for (int segmentIndex = 0; segmentIndex < snapshot.Count; segmentIndex++)
         {
+            WalSegmentInfo seg = snapshot[segmentIndex];
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_recoveryOptions is not null)
+            {
+                recoveredBytes = checked(recoveredBytes + seg.FileLength);
+                if (recoveredBytes > _recoveryOptions.MaxReadBytes)
+                    throw new InvalidDataException("WAL recovery exceeds its total file byte budget.");
+            }
             if (!File.Exists(seg.Path))
                 continue;
 
@@ -395,9 +589,18 @@ public sealed class WalSegmentSet : IDisposable
                 continue;
             }
 
-            using var reader = WalReader.Open(seg.Path);
+            int formatVersion = WalReader.ReadFormatVersion(seg.Path);
+            using var reader = formatVersion == WalFileHeader.AtomicPointFormatVersion
+                ? WalReader.OpenAtomicPoints(seg.Path, _recoveryOptions, cancellationToken)
+                : WalReader.Open(seg.Path);
+            if (reader.FirstLsn != seg.StartLsn)
+                throw new InvalidDataException("WAL file name and header first LSN disagree.");
             foreach (var record in reader.Replay())
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_recoveryOptions is not null && (++recoveredRecords > _recoveryOptions.MaxRecords
+                    || System.Diagnostics.Stopwatch.GetElapsedTime(recoveryStarted) >= _recoveryOptions.EffectiveTimeout))
+                    throw new InvalidDataException("WAL recovery exceeds its total record or wall-clock budget.");
                 lastLsn = record.Lsn;
                 switch (record)
                 {
@@ -423,6 +626,7 @@ public sealed class WalSegmentSet : IDisposable
                             checkpointLsn = cp.CheckpointLsn;
                             deleteCheckpointLsn = Math.Max(checkpointLsn, durableTombstoneCheckpointLsn);
                             RemoveCheckpointedWritePoints(writePoints, checkpointLsn);
+                            RemoveCheckpointedAtomicPoints(atomicPoints, checkpointLsn);
                             RemoveCheckpointedDeleteRecords(deleteRecords, deleteCheckpointLsn);
                         }
                         break;
@@ -432,15 +636,26 @@ public sealed class WalSegmentSet : IDisposable
                             writePoints.Add(wp);
                         break;
 
+                    case AtomicPointRecord point:
+                        if (point.Lsn > checkpointLsn)
+                            atomicPoints.Add(point);
+                        break;
+
                     case DeleteRecord del:
                         if (del.Lsn > deleteCheckpointLsn)
                             deleteRecords.Add(del);
                         break;
                 }
             }
+            if (_atomicPoints && segmentIndex + 1 < snapshot.Count
+                && reader.LastLsn != snapshot[segmentIndex + 1].StartLsn - 1)
+                throw new InvalidDataException("WAL recovery cannot cross a damaged or missing record before a later segment.");
         }
 
-        return new WalReplayResult(checkpointLsn, lastLsn, writePoints, deleteRecords);
+        return new WalReplayResult(checkpointLsn, lastLsn, writePoints, deleteRecords)
+        {
+            AtomicPoints = atomicPoints,
+        };
     }
 
     /// <summary>
@@ -513,6 +728,16 @@ public sealed class WalSegmentSet : IDisposable
             records.RemoveRange(0, removeCount);
     }
 
+    private static void RemoveCheckpointedAtomicPoints(List<AtomicPointRecord> records, long checkpointLsn)
+    {
+        int removeCount = 0;
+        while (removeCount < records.Count && records[removeCount].Lsn <= checkpointLsn)
+            removeCount++;
+
+        if (removeCount > 0)
+            records.RemoveRange(0, removeCount);
+    }
+
     private static void RemoveCheckpointedDeleteRecords(List<DeleteRecord> records, long checkpointLsn)
     {
         int removeCount = 0;
@@ -529,13 +754,24 @@ public sealed class WalSegmentSet : IDisposable
     /// </summary>
     private void RollIfNeeded()
     {
-        if (!Policy.Enabled)
-            return;
-
-        bool bytesExceeded = _activeWriter!.BytesWritten >= Policy.MaxBytesPerSegment;
-        bool recordsExceeded = _activeRecordCount >= Policy.MaxRecordsPerSegment;
+        bool bytesExceeded = Policy.Enabled && _activeWriter!.BytesWritten >= Policy.MaxBytesPerSegment;
+        bool recordsExceeded = Policy.Enabled && _activeRecordCount >= Policy.MaxRecordsPerSegment;
+        recordsExceeded |= _atomicPoints && _recoveryOptions is not null && _activeRecordCount >= _recoveryOptions.MaxRecords;
 
         if (bytesExceeded || recordsExceeded)
+            RollLocked();
+    }
+
+    private void EnsureRecordCapacityLocked(int payloadBytes)
+    {
+        if (!_atomicPoints || _recoveryOptions is null)
+            return;
+        long recordBytes = (long)FormatSizes.WalRecordHeaderSize + payloadBytes;
+        long minimumFileBytes = FormatSizes.WalFileHeaderSize + recordBytes + FormatSizes.WalLastLsnFooterSize;
+        if (minimumFileBytes > _recoveryOptions.MaxReadBytes)
+            throw new ArgumentOutOfRangeException(nameof(payloadBytes), "A WAL record exceeds the configured recovery byte budget.");
+        if (_activeWriter!.BytesWritten + recordBytes + FormatSizes.WalLastLsnFooterSize > _recoveryOptions.MaxReadBytes
+            || _activeRecordCount >= _recoveryOptions.MaxRecords)
             RollLocked();
     }
 
@@ -553,19 +789,27 @@ public sealed class WalSegmentSet : IDisposable
         if (_activeWriter.BytesWritten <= Storage.Format.FormatSizes.WalFileHeaderSize)
             return;
 
-        long newStartLsn = _activeWriter.NextLsn;
-        SyncActiveWriterLocked();
-        _activeWriter.Dispose();
-        _activeWriter = null;
-
-        string newPath = WalSegmentLayout.SegmentPath(WalDirectory, newStartLsn);
-        _activeWriter = WalWriter.Open(newPath, startLsn: newStartLsn, bufferSize: _bufferSize);
-        _segments.Add(new WalSegmentInfo(newStartLsn, newPath, 0)
+        try
         {
-            HasLastLsn = true,
-            LastLsn = newStartLsn - 1,
-        });
-        _activeRecordCount = 0;
+            long newStartLsn = _activeWriter.NextLsn;
+            SyncActiveWriterLocked();
+            _activeWriter.Dispose();
+            _activeWriter = null;
+
+            string newPath = WalSegmentLayout.SegmentPath(WalDirectory, newStartLsn);
+            _activeWriter = OpenWriter(newPath, newStartLsn, _bufferSize, _atomicPoints, _recoveryOptions, default);
+            _segments.Add(new WalSegmentInfo(newStartLsn, newPath, 0)
+            {
+                HasLastLsn = true,
+                LastLsn = newStartLsn - 1,
+            });
+            _activeRecordCount = 0;
+        }
+        catch (Exception ex)
+        {
+            _writeFault = ex;
+            throw;
+        }
     }
 
     private void SyncActiveWriterLocked()

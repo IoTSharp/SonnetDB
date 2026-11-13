@@ -1,3 +1,17 @@
+## 2026-11-13（Asia/Shanghai）现有源码整体提交与双端推送
+
+- 用户已明确授权提交并推送所有相关仓库，并确认包含本仓现有全部 71 项改动：时序单 Point WAL v2 默认接入与恢复、KV 历史兼容与故障边界、全文完整查询预算及独立进程回归、阶段审计与路线记录，以及 CoAP 子模块指针。当前起点为 `main @ aa5e28fdfbcd71775562973686ee3cdf2e9af815`，不改动 parity-results。
+- IoTSharp 的配置租约正式包验收已在另仓提交为 `18bc85dbb8081d4f5412710f29a2c295e98ea3f8`；GitHub/Gitee master 独立回读一致。SonnetDB 配置租约白名单仍安全拒绝，14 PASS/2 FAIL 的合同切片和 17 PASS/1 FAIL 的应用升级回归不由本仓其他能力交付覆盖。
+- 本仓实现阶段的完整 Core Legacy/LSM、Server、Crash、历史二进制、AOT/trim 等证据继续以 `docs/audits/capability-code-stage-20261112.md` 和 `artifacts/capability-code-stage-20261112/` 为准；本次 Git 交付不将既有结果改称重新执行。提交前重新执行完整 solution restore 与规定 format；首次 format 的 180 秒超时及最终检查分别保留，未取得 PASS 不提交。
+- 本次最终文件清单、检查命令、源码身份、提交 SHA 和双端远程读回保存于 `artifacts/submission-20261113-iotsharp-session/`，以真实执行收据为准。没有创建 tag、再次发布 NuGet 包、部署、重启、生产迁移或推进环境资格。
+- 任务使用有界原生命令并回收所属进程树；不启动常驻服务，不清理其他工作的证据、临时文件或浏览器。后续继续上游配置租约取消/未知提交合同和 IoTSharp 存量主键升级路径，不将当前代码阶段或 Git 推送代替正式发布与现场验收。
+
+## 2026-11-13（Asia/Shanghai）本地发布资产与生图配置重建
+
+- 分支 main @ aa5e28fdfbcd71775562973686ee3cdf2e9af815；用户授权重建人物与本轮稿件、配置生图凭据/模型策略、完成两渠道发布。本轮产品源码无修改、无提交/推送/tag/部署；原有共享 dirty 与暂存归属保留。
+- 当前人物档案入口 `.publishing/blogs/character-profile.md`，用户选定参考与新清单在 `.publishing/blogs/assets/character/`；渠道状态、公开读回边界及回执统一见 `.publishing/channels/oschina/HANDOFF.md`、`.publishing/channels/cnblogs/HANDOFF.md` 和 `publication-summary-20261113.json`，不在根交接复制逐篇操作流水。
+- 用户级 gpt-image-design 保存凭据复用与每轮最新 full image/high 质量策略，publish-cnblogs 保存显式配图引用支持；技能校验和 12 项离线助手测试 PASS。产品 build/test NOT_RUN。临时文件按清单回收，任务浏览器正常关闭，进程子树由 Cordonix Job 清理；必要收据留存，无常驻任务资源。
+
 ## 2026-11-11 18:45（Asia/Shanghai）全路线事实核查与推进重排
 
 - 基线：main @ 92d760077ce0e38525e41e8cfd2a8694e786f029，起点工作树干净。用户授权全面调查、多个智能体正常/反驳分析和路线整理；本轮拥有根ROADMAP/CHANGELOG/HANDOFF、总索引、相关专题/子路线、能力索引及docs/audits/roadmap-audit-20261111/，没有产品源码修改、暂存、提交、推送、发行或部署。
@@ -8054,6 +8068,14 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 新会话从本批已推送提交开始，先核对本地源码身份及外来 dirty 归属。主智能体冻结接口、串行集成/共享文档和重型验证；并行分工为有界单 Point 原子恢复、KV G12/回收与故障边界、全文同语料消费者/端到端预算收口。保留 KEEP_ALL、ms 默认和当前分区/TTL；Point 编码方案需正反审查，不能把 begin/commit marker 当作唯一已批准实现。每片做最小完整行为测试，独立反驳结论必须落实或解释。
 - 本轮授权仅包含当前已有切片的 Git 提交/推送和新会话后续实现，不授权新会话自动发布包、部署、生产迁移、连接 Demo/现场、固定硬件、物理掉电或 168 小时长稳。所有外部/环境层继续单独验收；进程通过 Cordonix 有界执行并清理所属树，收据保留，未启动常驻服务。
 
+## 2026-11-12（Asia/Shanghai）博客园自动发布台账仍缺失
+
+- 本轮于 2026-11-12T02:04:09+08:00 使用 PowerShell 7.6.10 完成只读预检：`D:\source\SonnetDB\.publishing\blogs` 仍只包含无关的 `csdn` 目录；博客园所需的 `publishing-state.json`、计划、积压选题、事件、租约、封面策略、正文和历史 `docs\blogs` 入口都不存在。
+- 这与最后一次可用交接相冲突：178 已发布至 `https://www.cnblogs.com/IoTSharp/p/23612806`，其伴随闪存登记为 `pending, attempts=0`，179 为尚未创建的 queued 稿。该摘要不能安全恢复每日额度、exact-once 意图、内容哈希、标题别名、封面回执或租约。
+- 状态为 `BLOCKED`：没有重建台账、上传资源、C# dry-run、排队、创建/编辑文章、发送闪存、公开回读或重试。先恢复同一时点的 `.publishing\blogs` 台账、稿件和证据，下一次有界运行才能重新执行当前源码/发行、账户/标题别名、封面、项目身份、dry-run 和 exact-once 门禁。
+- 工作树为 `main @ d7e3eddbd3e3eba6fcd434d5f66e08ebda512f9c`；既有共享 dirty 文件保持原样。未暂存、提交、推送、部署、运行产品构建/测试或终止任何进程。
+
+
 ## 2026-11-12（Asia/Shanghai）第二阶段能力切片本地交付
 
 - 时间 2026-11-12T13:46:20+08:00；main @ 93cd7807fd727c474ff119e1690b940e40f0ecda。开始时本地/两跟踪引用/双端实时 main 同 SHA，起始唯一 dirty 是上节博客园外来台账；原 2143383 字节前缀及 SHA 3ce2b4b632c86b18b6115dc74dda305c0577f9d7919c523a396ea9bfb2991613 完整保留。没有暂存、提交、推送、包发布、部署、生产迁移或连接 Demo/现场。
@@ -8073,3 +8095,41 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 此次提交前重新执行完整 solution restore 和规定 format；实际 PASS/FAIL 与提交SHA、精确树、双端独立读回保存在 artifacts/capability-phase2-20261112/submission/，不凭本段推断推送已成功。上一轮35/193/4/2项测试绑定的C#文件SHA本轮重新核对不变；本次不把旧测试当重跑。
 - 新会话从本批已推送提交开始，先读回源码与外来dirty；保留ms、KEEP_ALL、全局TTL/无measurement分区及fsync配置。代码工作持续至阶段完成清单逐项有证据关闭，真实阻塞明确记录但不得把可完成代码项挪到后续。环境/发行证据独立；不授权新会话自动Git提交/推送、发布包、部署、生产迁移或Demo/现场连接。
 - 本轮辅助文件只在.publishing/tmp/capability-phase2-submit-20261112/；结束按精确路径清理，必要收据保留。所有本轮进程由Cordonix有界执行并清理所属树，parity-results独立引用不改。
+
+## 2026-11-13（Asia/Shanghai）博客园自动发布因原始台账缺失而暂停
+
+- 时间 2026-11-13T02:08:12+08:00；本轮使用 PowerShell 7.6.10 读取 AGENTS、根 HANDOFF、博客园发布技能和自动化记忆，并在 `main@aa5e28fd` 上只读核对发布目录与共享工作树。
+- `.publishing/blogs` 当前仅见 `assets/`、`csdn/`、`2026-11-12-recent-capabilities-v5.md` 与 `character-profile.md`；`publishing-state.json`、`00-publishing-plan.md`、`series-backlog.md`、`publishing-events.jsonl`、`publishing-lease.json`、封面策略和编号稿均不存在。`.publishing/recovery` 仅含微博恢复目录，不能作为博客园账本来源。
+- 未重建、恢复、排队、上传、dry-run、创建、编辑文章或发送闪存，也没有向博客园发出请求。缺少原始账本时，无法安全确认当日配额、租约、标题别名、内容/封面哈希、第178篇的待发闪存及第179篇的一次创建边界。
+- 下一次运行必须先恢复同一时点的博客园台账、稿件和必要证据，再从当前状态完整复核；本轮未暂存、提交、推送、部署或终止进程，既有共享脏改保持不变。
+
+## 2026-11-13（Asia/Shanghai）博客园台账与编号稿重建
+
+- 用户明确要求在原目录无法恢复时重新生成博客园文件。本轮从可核 Git 基线 `911ad1ff^` 恢复 218 个缺失的博客正文、计划、选题、旧状态、事件、封面策略、封面证据和门禁脚本到 `.publishing/blogs/`；未覆盖已有 `assets/`、`csdn/` 或 `.publishing/channels/cnblogs/` 渠道材料。
+- 重建状态见 `.publishing/blogs/reconstruction-20261113.json`。`publishing-state.json` 现含历史 001–159、按交接/回执接回的 160–179，以及由选题库恢复的 180–202 planned 行；已知文章 URL、postId 和伴随闪存 ID 保留。178 保持 `published`，原远端正文 SHA `b1f4de77216abe1ae15f00a45948326e71224d25b0686e4cba533c33f7c58a69` 单独保留；本地 178 文件是重建稿，不能用于原帖编辑或重发。179 已生成本地重建稿，但缺少原始封面/旧证据，保持 `needs-update`，等待新封面、事实复核、RequireUploadReady 和 C# dry-run。
+- 当前渠道收据中独立完成的 [SonnetDB：5.0 公开交付与近期能力更新](https://www.cnblogs.com/IoTSharp/p/23647190) 与闪存 `3606654` 已加入 `externalPublishedArticles` 和事件流，用于标题/主题去重；该篇当前日计数为一篇。其匿名闪存网页可见性仍保留 `NOT_VERIFIED`。
+- `publishing-lease.json` 已重建为 `active=false` 的 released 状态，没有本轮远程请求；`resolve-path.ps1`、`verify-project-identity.ps1` 和 `verify-cover-image.ps1` 已适配旧 `docs/blogs/...` 路径到 `.publishing/blogs`。JSON/JSONL、计划、选题、租约和重建回执均通过 UTF-8 无 BOM/LF 校验。
+- 本轮没有创建/编辑博客、上传媒体、发送闪存、提交、推送、部署、产品构建或产品测试；本轮临时重建脚本已删除。下一次运行须从重建状态重新核对当前账户、当日额度、租约、标题别名、178 原帖/闪存和 179 的全部封面及事实门禁。
+
+
+## 2026-11-13（Asia/Shanghai）当前能力代码阶段完整交付
+
+- 时间 2026-11-13T04:50:27.1571133+08:00；main 基线/当前 HEAD 均 aa5e28fdfbcd71775562973686ee3cdf2e9af815，父93cd7807。三条真实子智能体线与主线集成已完成阶段合同，验收入口 docs/audits/capability-code-stage-20261112.md；没有 stage/commit/push、发行、部署、重启、生产迁移或 Demo/现场连接。
+- T1：默认公共 Tsdb 单 Point WAL v2、全字段共享LSN与MemTable发布门、CreateSeries/控制记录、滚动/回放/checkpoint/flush/旧目录/备份/降级拒绝、取消/unknown及4公共强杀边界完成。catalog v2永久屏障；缺catalog/未验证checkpoint/旧名冲突failclosed。保持ms、KEEP_ALL、全局TTL/无measurement分区和原fsync。
+- KV：真实f94a162e旧reader/writer曾绕过generation标记的失败已保留，MANIFEST v2修复；43项空间/元数据/WAL/SST故障、13迁移+8回滚持久阶段、严格pin回收及全值/version/TTL/计数/索引完成。最终历史兼容18操作全部PASS，旧拒绝后文件SHA不变；G3仍仅成功SST局部计量，原规模/物理掉电/长稳不外推。
+- 全文：完整过滤到排序/facet/投影/source-gen编码与发送统一time/work/总字节/取消；请求读取计入有效期限，成功/错误体均有界短读；10003同语料逐字段及独立排序oracle、独立真实本机Server和源码消费者完成，无可消费partial，跨页非snapshot。
+- 最终PASS：完整Core Legacy8525/8525、LSM8415/8415、Server1630/1630、Crash132/132，最终全文/管理29/29；均0失败/跳过。历史矩阵18操作（不是18单元测试）；重叠集合不相加。Core/Protocol/Data、Server、CLI AOT/trim分析0warning/error；规定solution及外部新项目格式PASS。当前Core SHA c8decbbd3d57f1e9595582c31093dca0728cf64cba2010baa8ac1cf2cdd8123c，源码/程序集/命令身份在 artifacts/capability-code-stage-20261112/delivery-source.json/zip、delivery-final.json。
+- 失败历史保留：首轮using/签名/fixture/posting/format、旧writer实际可写、SST与checkpoint负控及LSM压力失败。Windows checkpoint确定性实验后使用Replace+Delete共享及64B短读租约，最终全量通过；原压力精确holder与第一阶段三次旧SST准确历史原因仍UNKNOWN。无skip/降低断言/盲重试。
+- NOT_RUN：其它solution测试项目、NativeAOT实际发布/安装、公开新包/外部远端、生产/现场/固定硬件、物理掉电、原规模性能/完整写放大与168小时。阶段代码完成不提升这些独立资格；下一顺序为审阅diff，Git/发行等待用户另行授权，其余路线按更新后的ROADMAP。
+- 共享归属：本任务追加前HANDOFF全部字节原样保留，起始前缀核验见cleanup-final.json；未暂存原博客园段。CoAP外来任务已推进至8da9eda76817c18f322ca654f71f435ce87d702a且子模块干净，本任务未改其源码/暂存或主仓gitlink。main双端读回仍aa5e28；parity-results本地/两端各自引用独立保留。
+- 资源：所有重型命令/应用与probe所属Cordonix Job树结束均after=0；未创建常驻服务。必要f94 tar、Core/Protocol源码/bin、原始失败及最终收据保留；其它归属明确的历史展开目录、过渡快照和本任务临时脚本已回收，见cleanup-final.json。进程查询partial不冒称全系统无进程。
+
+- 共享交接偏移读回：会话中其它交接段被置顶/追加，原始 2148281 字节完整连续位于当前字节偏移 1067，SHA-256 c64fd6c701451cb7ffbba5aad6e7e118d66a0ef741bcbdddba34a4fc206917de 与起点完全一致；cleanup-final 的 initialPrefixPreserved=false 仅表示不再位于字节0。原博客园段及全部起始内容仍原字节保留，详见 handoff-readback.json。
+
+
+## 2026-11-13（Asia/Shanghai）能力代码阶段提交与双端推送授权
+
+- 用户本轮明确要求“现在提交代码并推送”。本次仅提交已完成的能力阶段源码、测试、专题/路线/能力索引和本任务工程交接；其它发布交接、原博客园段与 CoAP 外来 gitlink 不纳入，不改其工作树字节或暂存归属。
+- 基线 main @ aa5e28fdfbcd71775562973686ee3cdf2e9af815。源码 SHA 与上一轮 delivery-source.json 的69文件逐项相同；完整测试、失败历史和 UNKNOWN/NOT_RUN 仍绑定原收据，本次不冒称重新运行。
+- 提交前在最终待提交树执行完整 solution restore 与规定 format；实际提交SHA、父提交、精确暂存树、GitHub/Gitee独立读回和清理见 artifacts/capability-code-stage-20261112/submission-20261113/。本段随本次提交纳入，不仅凭文字推断推送成功。
+- 本次 Git 授权不包含 tag、公开包、部署、重启或生产迁移。parity-results 本地与两端独立引用保留。必要证据保留于忽略目录，本任务临时脚本在交付后按确切路径回收；后续工程顺序按 ROADMAP，发行/环境资格继续分别验收。

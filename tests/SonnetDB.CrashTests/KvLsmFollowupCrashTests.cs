@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using SonnetDB.Engine;
 using SonnetDB.Kv;
 using SonnetDB.Sql.Execution;
@@ -74,11 +75,45 @@ public sealed partial class CrashReliabilityTests
             var kv = KvOptions.Default with { StorageEngine = KvStorageEngine.Legacy, LegacyMigration = KvLegacyMigrationMode.Disabled };
             using Tsdb db = Tsdb.Open(MakeOptions(Path.Combine(root, "data")) with { Kv = kv });
             if (phase.StartsWith("shared-", StringComparison.Ordinal))
-                Assert.Equal(1, db.Tables.Open("a").RowCount);
+            {
+                var table = db.Tables.Open("a");
+                Assert.Equal(65, table.RowCount);
+                Assert.Equal(1, table.Generation);
+                var deadline = Stopwatch.StartNew();
+                for (int index = 0; index < 65; index++)
+                {
+                    Assert.True(deadline.Elapsed < TimeSpan.FromSeconds(15), "Rollback full-table verification timed out.");
+                    var row = table.GetByPrimaryKey(new object?[] { (long)index });
+                    Assert.NotNull(row);
+                    Assert.Equal((long)index, row.Values[0]);
+                    Assert.Equal("group-" + index % 7, row.Values[1]);
+                    Assert.Equal(new string((char)('a' + index % 20), 33 + index), row.Values[2]);
+                }
+                var indexed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                    "SELECT id,code FROM a WHERE code='group-3' ORDER BY id"));
+                Assert.Equal(Enumerable.Range(0, 65).Where(index => index % 7 == 3).Select(index => (long)index),
+                    indexed.Rows.Select(row => (long)row[0]!));
+                Assert.All(indexed.Rows, row => Assert.Equal("group-3", row[1]));
+            }
             else
             {
                 using KvKeyspace keyspace = KvKeyspace.Open("k", target, kv);
-                Assert.Equal([42], keyspace.Get("key"));
+                Assert.Equal(65, keyspace.Count);
+                Assert.Equal(1, keyspace.Generation);
+                Assert.Null(keyspace.Get("removed"));
+                Assert.Equal(long.Parse(File.ReadAllText(Path.Combine(root, "rollback-sequence.txt")), CultureInfo.InvariantCulture), keyspace.LastSequence);
+                string[] expected = File.ReadAllLines(Path.Combine(root, "rollback-expected.txt"));
+                Assert.Equal(65, expected.Length);
+                var deadline = Stopwatch.StartNew();
+                for (int index = 0; index < 65; index++)
+                {
+                    Assert.True(deadline.Elapsed < TimeSpan.FromSeconds(15), "Rollback full-KV verification timed out.");
+                    string[] fields = expected[index].Split('|');
+                    var entry = Assert.IsType<KvEntry>(keyspace.GetEntry(fields[0]));
+                    Assert.Equal(long.Parse(fields[1], CultureInfo.InvariantCulture), entry.Version);
+                    Assert.Equal(long.Parse(fields[2], CultureInfo.InvariantCulture), entry.ExpiresAtUtc?.UtcTicks ?? 0);
+                    Assert.Equal(Enumerable.Range(0, 33 + index).Select(value => (byte)(value ^ index)), entry.Value.ToArray());
+                }
             }
         }
         Assert.False(File.Exists(Path.Combine(target, KvLegacyMigration.RollbackPendingFileName)));

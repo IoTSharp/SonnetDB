@@ -38,7 +38,10 @@ public sealed partial class CrashReliabilityTests
             {
                 Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(30), "Recovery verification timed out.");
                 KvEntry entry = Assert.IsType<KvEntry>(store.GetEntry($"k{index:D8}"));
+                Assert.Equal(System.Text.Encoding.UTF8.GetBytes($"k{index:D8}"), entry.Key.ToArray());
+                Assert.Equal(8, entry.Value.Length);
                 Assert.Equal(index, BinaryPrimitives.ReadInt64LittleEndian(entry.Value.Span));
+                Assert.Equal(expected[3] + index, entry.Version);
                 if (index == 0) Assert.Equal(expected[3], entry.Version);
                 if (index == 2049)
                 {

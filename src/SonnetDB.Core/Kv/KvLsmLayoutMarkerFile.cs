@@ -92,7 +92,6 @@ internal static class KvLsmLayoutMarkerFile
 
         Directory.CreateDirectory(rootDirectory);
         string path = Path.Combine(rootDirectory, KvGenerationFile.FileName);
-        string tempPath = path + ".tmp";
         Span<byte> content = stackalloc byte[FileSize];
         content.Clear();
         Magic.CopyTo(content[..8]);
@@ -102,13 +101,7 @@ internal static class KvLsmLayoutMarkerFile
         BinaryPrimitives.WriteInt64LittleEndian(content.Slice(24, 8), DateTime.UtcNow.Ticks);
         BinaryPrimitives.WriteUInt32LittleEndian(content.Slice(60, 4), Crc32.HashToUInt32(content[..60]));
 
-        using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            stream.Write(content);
-            stream.Flush(flushToDisk: true);
-        }
-
-        File.Move(tempPath, path, overwrite: true);
+        KvMigrationFileIo.WriteAtomic(path, content);
         SonnetDB.Wal.DirectoryFsync.FlushRequired(rootDirectory);
     }
 }

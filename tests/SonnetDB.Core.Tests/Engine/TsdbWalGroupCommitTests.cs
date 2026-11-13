@@ -188,13 +188,13 @@ public sealed class TsdbWalGroupCommitTests : IDisposable
             new Dictionary<string, string> { ["host"] = host },
             new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromDouble(index) });
 
-    private static List<WritePointRecord> ReplayWritePoints(string walDir)
+    private static List<AtomicPointRecord> ReplayWritePoints(string walDir)
     {
-        var records = new List<WritePointRecord>();
+        var records = new List<AtomicPointRecord>();
         foreach (var segment in WalSegmentLayout.Enumerate(walDir))
         {
-            using var reader = WalReader.Open(segment.Path);
-            records.AddRange(reader.Replay().OfType<WritePointRecord>());
+            using var reader = WalReader.OpenForRecovery(segment.Path);
+            records.AddRange(reader.Replay().OfType<AtomicPointRecord>());
         }
 
         return records;

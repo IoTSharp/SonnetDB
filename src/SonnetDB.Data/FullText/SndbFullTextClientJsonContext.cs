@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Data.Documents;
+using SonnetDB.FullText;
 
 namespace SonnetDB.Data.FullText;
 
@@ -9,6 +10,7 @@ namespace SonnetDB.Data.FullText;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false)]
 [JsonSerializable(typeof(SndbFullTextSearchRequest))]
+[JsonSerializable(typeof(FullTextSearchBudgetOptions))]
 [JsonSerializable(typeof(SndbDocumentFilter))]
 [JsonSerializable(typeof(SndbDocumentSort))]
 [JsonSerializable(typeof(List<SndbDocumentFilter>))]

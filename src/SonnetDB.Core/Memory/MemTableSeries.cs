@@ -13,7 +13,7 @@ namespace SonnetDB.Memory;
 /// </summary>
 public sealed class MemTableSeries
 {
-    private readonly object _sync = new();
+    private readonly object _sync;
     private readonly List<DataPoint> _points = [];
     private bool _isSorted = true;
     private long _lastTimestamp = long.MinValue;
@@ -86,8 +86,9 @@ public sealed class MemTableSeries
     /// </summary>
     /// <param name="key">桶的 (SeriesId, FieldName) 复合键。</param>
     /// <param name="fieldType">该桶的字段类型。</param>
-    internal MemTableSeries(SeriesFieldKey key, FieldType fieldType)
+    internal MemTableSeries(SeriesFieldKey key, FieldType fieldType, object? publicationSync = null)
     {
+        _sync = publicationSync ?? new();
         Key = key;
         FieldType = fieldType;
         _hasNumericAggregates = fieldType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
@@ -226,10 +227,7 @@ public sealed class MemTableSeries
     /// <returns>按时间戳升序排列的数据点只读内存。</returns>
     public ReadOnlyMemory<DataPoint> Snapshot()
     {
-        var cached = Volatile.Read(ref _snapshotCache);
-        if (cached != null && cached.Version == Volatile.Read(ref _version))
-            return cached.Memory;
-
+        SnapshotCache? cached;
         long version;
         DataPoint[] snapshot;
         bool requiresSort;
@@ -262,10 +260,7 @@ public sealed class MemTableSeries
     /// <returns>在指定时间范围内的按时间戳升序排列的数据点只读内存。</returns>
     public ReadOnlyMemory<DataPoint> SnapshotRange(long fromInclusive, long toInclusive)
     {
-        var cached = Volatile.Read(ref _snapshotCache);
-        if (cached != null && cached.Version == Volatile.Read(ref _version))
-            return CopyRange(cached.Memory.Span, fromInclusive, toInclusive);
-
+        SnapshotCache? cached;
         long version;
         DataPoint[] snapshot;
         lock (_sync)

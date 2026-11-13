@@ -64,7 +64,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
             if (!File.Exists(segment.Path))
                 continue;
 
-            using var reader = WalReader.Open(segment.Path);
+            using var reader = WalReader.OpenForRecovery(segment.Path);
             records.AddRange(reader.Replay());
         }
 
@@ -123,7 +123,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         var markerWalSegments = new List<WalSegmentInfo>();
         foreach (WalSegmentInfo candidate in WalSegmentLayout.Enumerate(walDirectory))
         {
-            using var reader = WalReader.Open(candidate.Path);
+            using var reader = WalReader.OpenForRecovery(candidate.Path);
             if (reader.Replay().Any(record => record.Lsn == checkpointLsn))
                 markerWalSegments.Add(candidate);
         }
@@ -203,8 +203,10 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         }
         db.CrashSimulationCloseWal(); // 崩溃：不保存 catalog，不 Flush
 
-        // 验证：catalog 文件未保存
-        Assert.False(File.Exists(TsdbPaths.CatalogPath(_tempDir)));
+        // v2 永久降级屏障已在 Open 发布，但未 checkpoint 的 series 仍仅存在于 WAL。
+        SeriesCatalog persisted = CatalogFileCodec.Load(TsdbPaths.CatalogPath(_tempDir));
+        Assert.Equal(2, persisted.PersistenceFormatVersion);
+        Assert.Equal(0, persisted.Count);
 
         // 会话 2：重新打开，应通过 WAL replay 恢复
         using var db2 = Tsdb.Open(MakeOptions());
@@ -266,11 +268,10 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
     }
 
     /// <summary>
-    /// 兼容独立 checkpoint 文件之前创建的数据库：删除新格式的 checkpoint 元数据后，
-    /// 只要 WAL 中仍保留旧 checkpoint 记录，重开仍应加载已发布段而不拒绝数据库。
+    /// v2 catalog 已承诺独立 checkpoint 边界；缺失 sidecar 不能冒充早期 v1 目录。
     /// </summary>
     [Fact]
-    public void Reopen_LegacyWalCheckpointWithoutSidecar_RemainsCompatible()
+    public void Reopen_V2WalCheckpointWithoutSidecar_FailsClosed()
     {
         var db = Tsdb.Open(MakeOptions());
         db.Write(MakePoint("cpu", 1000L, "srv1", 1.0));
@@ -282,9 +283,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         Assert.True(File.Exists(checkpointPath));
         File.Delete(checkpointPath);
 
-        using var reopened = Tsdb.Open(MakeOptions());
-        Assert.Single(reopened.ListSegments());
-        Assert.Equal(1, QueryPointCount(reopened, "cpu", "srv1"));
+        Assert.Throws<InvalidDataException>(() => Tsdb.Open(MakeOptions()));
     }
 
     /// <summary>
@@ -340,7 +339,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         var allCheckpoints = new List<CheckpointRecord>();
         foreach (var seg in walSegments)
         {
-            using var walReader = WalReader.Open(seg.Path);
+            using var walReader = WalReader.OpenForRecovery(seg.Path);
             allCheckpoints.AddRange(walReader.Replay().OfType<CheckpointRecord>());
         }
         Assert.Empty(allCheckpoints);
@@ -406,7 +405,22 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
     public void Reopen_PendingPublicationWithWalLsnGap_FailsClosedBeforeDeletingSegment()
     {
         var state = CreatePendingFlushPublicationForWalCoverage();
-        RewriteWalRecordLsn(state.WalPath, recordIndex: 1, expectedOriginalLsn: 2L, replacementLsn: 3L);
+        WalRecord[] original;
+        using (var reader = WalReader.OpenAtomicPoints(state.WalPath))
+            original = reader.Replay().ToArray();
+        CreateSeriesRecord series = Assert.IsType<CreateSeriesRecord>(original[0]);
+        AtomicPointRecord point = Assert.IsType<AtomicPointRecord>(original[1]);
+        Assert.Equal(2, point.Lsn);
+        Assert.Equal(2, state.CheckpointLsn);
+        // 每个 v2 文件内部均连续且 CRC 正确，在文件间留下缺失 LSN 2，
+        // 避免把单文件结构损坏误当作合法 record 流中的 gap。
+        File.Delete(state.WalPath);
+        using (var first = WalWriter.OpenAtomicPoints(state.WalPath, startLsn: 1))
+            Assert.Equal(1, first.AppendCreateSeries(series.SeriesId, series.Measurement, series.Tags));
+        string laterPath = WalSegmentLayout.SegmentPath(TsdbPaths.WalDir(_tempDir), 3);
+        Assert.True(File.Exists(laterPath));
+        using (var later = WalWriter.OpenAtomicPoints(laterPath, startLsn: 3))
+            Assert.Equal(3, later.AppendAtomicPoint(point.SeriesId, point.PointTimestamp, point.Fields));
 
         InvalidDataException exception = Assert.Throws<InvalidDataException>(() => Tsdb.Open(MakeOptions()));
         Assert.Contains("LSN gap", exception.Message, StringComparison.Ordinal);
@@ -972,6 +986,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         db.CrashSimulationCloseWal();
 
         Assert.Empty(ReadAllWalRecords(_tempDir).OfType<WritePointRecord>());
+        Assert.Empty(ReadAllWalRecords(_tempDir).OfType<AtomicPointRecord>());
         byte[] bytes = File.ReadAllBytes(firstSegment.Path);
         var footer = MemoryMarshal.Read<SegmentFooter>(
             bytes.AsSpan(bytes.Length - FormatSizes.SegmentFooterSize));
@@ -1048,7 +1063,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         string publicationPath = WalSegmentLayout.FlushPublicationPath(walDirectory, 1L);
         _ = FlushPublicationFile.SavePending(publicationPath, 1L, pendingLsn);
 
-        using (var walSet = WalSegmentSet.Open(
+        using (var walSet = WalSegmentSet.OpenAtomicPoints(
             walDirectory,
             new WalRollingPolicy { Enabled = false },
             bufferSize: 64 * 1024))
@@ -1070,7 +1085,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         db.CrashSimulationCloseWal();
 
         string walDirectory = TsdbPaths.WalDir(_tempDir);
-        using (var walSet = WalSegmentSet.Open(
+        using (var walSet = WalSegmentSet.OpenAtomicPoints(
             walDirectory,
             new WalRollingPolicy { Enabled = false },
             bufferSize: 64 * 1024))
@@ -1195,6 +1210,7 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
         var walRecords = ReadAllWalRecords(_tempDir);
         Assert.Empty(walRecords.OfType<CreateSeriesRecord>());
         Assert.Empty(walRecords.OfType<WritePointRecord>());
+        Assert.Empty(walRecords.OfType<AtomicPointRecord>());
         Assert.Equal(seriesCount, CatalogFileCodec.Load(TsdbPaths.CatalogPath(_tempDir)).Count);
 
         db.CrashSimulationCloseWal();

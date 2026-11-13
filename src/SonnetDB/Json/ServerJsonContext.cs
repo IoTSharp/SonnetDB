@@ -272,6 +272,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(FullTextSearchPreviewHit))]
 [JsonSerializable(typeof(List<FullTextSearchPreviewHit>))]
 [JsonSerializable(typeof(FullTextSearchRequest))]
+[JsonSerializable(typeof(FullTextSearchBudgetOptions))]
 [JsonSerializable(typeof(FullTextFacetRequest))]
 [JsonSerializable(typeof(List<FullTextFacetRequest>))]
 [JsonSerializable(typeof(FullTextHighlightRequest))]

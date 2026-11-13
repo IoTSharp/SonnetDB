@@ -19,9 +19,11 @@
       "roadmap": ["M0-M13", "M19 #125", "M36 #314", "M36 #315", "M42"],
       "entryPoints": ["src/SonnetDB.Core", "src/SonnetDB.Data/TimeSeries", "src/SonnetDB/Endpoints"],
       "evidence": [
+        "docs/audits/capability-code-stage-20261112.md",
+        "docs/design/time-series-atomic-point-wal-v2.md",
         "docs/audits/roadmap-audit-20261111/core.md",
         "docs/design/time-series-write-partition-duplicates-decisions.md","docs/audits/nine-model-capability-evidence-20260905.md", "docs/timeseries-write-admission.md", "docs/timeseries-query-preflight.md", "docs/benchmarks/m42-measurement-result-bounds.md", "docs/benchmarks/m42-table-function-result-bounds.md", "docs/audits/roadmap-parallel-next-20261003.md", "tests/SonnetDB.Core.Tests/Sql/KnnMaterializationBudgetTests.cs", "tests/SonnetDB.Core.Tests/Sql/SqlMeasurementMaterializationBudgetTests.cs"],
-      "boundary": "The existing millisecond engine, WAL and group commit are implemented. Current default acknowledgments flush to the operating system rather than requesting per-write fsync; process crash and physical power-loss guarantees are separate. Point atomicity, partition/TTL and duplicate semantics require the existing explicit decisions. M50 per-database ms/us/ns is not implemented. High-cardinality, full recovery, fixed-hardware and long-run evidence remains open."
+      "boundary": "The default millisecond engine uses single-Point WAL v2 atomic recovery, catalog v2 downgrade barriers, bounded recovery, rotation/checkpoint/flush, cancellation and unknown-result reconciliation. Public API multi-field recovery and deterministic process-kill boundaries are verified locally; WriteMany is not a whole-batch atomic unit. Default operating-system flush/per-write-fsync settings, KEEP_ALL and global TTL are unchanged. T2/T3 partition/duplicate decisions and M50 per-database us/ns remain separate. Original-scale, physical power-loss, fixed-hardware and long-run gates remain open."
     },
     {
       "id": "relational",
@@ -44,9 +46,12 @@
       "roadmap": ["M28", "M36 #316", "M36 #317", "KV-LSM (K7 partial)"],
       "entryPoints": ["src/SonnetDB.Core/Kv", "src/SonnetDB.Data/Kv", "src/SonnetDB/Endpoints"],
       "evidence": [
+        "docs/audits/capability-code-stage-20261112.md",
+        "tests/SonnetDB.Core.Tests/Kv/KvMigrationFaultTests.cs",
+        "tests/SonnetDB.Core.Tests/Kv/Lsm/KvManifestCompatibilityTests.cs",
         "docs/audits/roadmap-audit-20261111/core.md",
         "docs/benchmarks/kv-lsm-followup-20261110.md","docs/design/kv-lsm-storage-engine.md", "docs/operations/kv-lsm-migration.md", "docs/benchmarks/kv-lsm-capacity-20261110.md", "tests/SonnetDB.Core.Tests/Kv/KvLegacyMigrationTests.cs", "tests/SonnetDB.CrashTests/KvLsmMigrationCrashTests.cs", "docs/kv-atomic-contract.md", "docs/audits/kv-remote-closure-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
-      "boundary": "Current source defaults to LSM with automatic legacy migration and explicit downgrade guards. K1-K6 and K8 are integrated; K7 shared-table batches/counts, maintenance metadata, offline rollback, SST v3 StorageId prefix filtering, Version-pinned backups and pressure scheduling are implemented. KvWriteBufferManager is a soft budget, not a process heap limit. Remaining work includes measurement/load tools for write amplification, true cold I/O, multi-table fsync and TTL/TRUNCATE workloads, plus original-scale capacity, randomized crashes, real old binaries, fixed hardware and long runs. Historical local performance includes both snapshot gains and buffered-write/allocation regressions."
+      "boundary": "Current source defaults to LSM with automatic legacy migration. K7 functional integration is implemented; MANIFEST v2 now prevents a real pre-K6 LSM reader/writer from bypassing generation v3 guards. Migration/rollback persistence boundaries, isolated space/partial-write/sync/unknown faults, complete values/versions/TTL/counts/indexes, pinned SST reclamation and real historical binary rejection are locally verified. KvWriteBufferManager remains a soft budget. Original-scale capacity, randomized crash scale, full physical write-amplification/cold-I/O/fsync/TTL/TRUNCATE measurements, fixed hardware and long runs remain separate gates. Historical performance gains, regressions and unknown failure causes are retained."
     },
     {
       "id": "document",
@@ -66,9 +71,13 @@
       "roadmap": ["M23", "M24", "M35", "M36 #318", "M36 #319"],
       "entryPoints": ["src/SonnetDB.Core/FullText", "src/SonnetDB.Data/FullText", "src/SonnetDB/Endpoints"],
       "evidence": [
+        "docs/audits/capability-code-stage-20261112.md",
+        "docs/design/fulltext-complete-search-budgets.md",
+        "tests/SonnetDB.Tests/FullTextConsumerParityTests.cs",
+        "tests/SonnetDB.Tests/FullTextIndependentProcessTests.cs",
         "docs/audits/roadmap-audit-20261111/adversarial.md",
         "docs/audits/roadmap-audit-20261111/ecosystem.md","docs/audits/nine-model-capability-evidence-20260905.md", "docs/audits/nine-model-journey-matrix-20260919.json"],
-      "boundary": "Persistent indexes, analyzers, typed search and diagnostics are implemented. The current embedded and Server typed search paths filter after a capped Top-K candidate window; pagination, TotalHits and facets do not represent the full filtered set, and later valid hits can be unreachable. This existing gap was independently confirmed by static review, not reproduced at runtime in this audit. Core filtered search exists but is not connected to these typed paths. Full quality, merge working-set, remote parity and fixed-corpus capacity gates remain open."
+      "boundary": "Embedded, Server and source remote SDK typed paths perform complete bounded filtering before scoring/sort/pagination, preserving exact TotalHits and full filtered-set facets. Shared time/work/total-response-byte budgets cover scanning/postings, sorting, facets, projection, source-generated JSON and transport; failures return no consumable partial result. Local 10003-document field parity, independent sort oracles and separate real Server/consumer processes are verified. Continuations read the current view rather than a cross-page snapshot. External remote hosts, a new public NuGet consumer, relevance quality, cross-request merge working sets and original-scale capacity remain separate gates."
     },
     {
       "id": "vector",
