@@ -1,0 +1,24 @@
+pid=4307 parent=4299 started=2026-11-14T08:46:07Z timeout=30s command=docker buildx inspect sonnetdb-parity-43577122659-1-full-sonnetdb 
+pid=4333 parent=4299 started=2026-11-14T08:46:12Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=4335 parent=4299 started=2026-11-14T08:46:12Z timeout=15s command=docker system df 
+pid=4344 parent=4299 started=2026-11-14T08:46:13Z timeout=60s command=docker buildx create --name sonnetdb-parity-43577122659-1-full-sonnetdb --driver docker-container --driver-opt cpu-period=100000 --driver-opt cpu-quota=200000 --driver-opt restart-policy=no --buildkitd-config /home/runner/work/_temp/sonnetdb-parity-build-43577122659-1-full.n0ShC0/buildkitd.toml 
+pid=4369 parent=4299 started=2026-11-14T08:46:13Z timeout=900s command=docker buildx bake --allow=fs.read=/home/runner/work/SonnetDB/SonnetDB --builder sonnetdb-parity-43577122659-1-full-sonnetdb --file docker-compose.parity.yml --load sonnetdb 
+pid=6101 parent=4299 started=2026-11-14T08:51:51Z timeout=30s command=docker compose -f docker-compose.parity.yml --profile full config --images sonnetdb 
+pid=6132 parent=4299 started=2026-11-14T08:51:55Z timeout=30s command=docker image inspect --format \{\{.Id\}\} iotsharp/sonnetdb:parity 
+pid=6142 parent=4299 started=2026-11-14T08:51:55Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=6144 parent=4299 started=2026-11-14T08:51:55Z timeout=15s command=docker system df 
+cleanup pid=6153 parent=4299 started=2026-11-14T08:51:56Z builder=sonnetdb-parity-43577122659-1-full-sonnetdb
+pid=6222 parent=4299 started=2026-11-14T08:52:04Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=6224 parent=4299 started=2026-11-14T08:52:04Z timeout=15s command=docker system df 
+pid=6233 parent=4299 started=2026-11-14T08:52:04Z timeout=30s command=docker buildx inspect sonnetdb-parity-43577122659-1-full-minio 
+pid=6257 parent=4299 started=2026-11-14T08:52:04Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=6259 parent=4299 started=2026-11-14T08:52:04Z timeout=15s command=docker system df 
+pid=6269 parent=4299 started=2026-11-14T08:52:04Z timeout=60s command=docker buildx create --name sonnetdb-parity-43577122659-1-full-minio --driver docker-container --driver-opt cpu-period=100000 --driver-opt cpu-quota=200000 --driver-opt restart-policy=no --buildkitd-config /home/runner/work/_temp/sonnetdb-parity-build-43577122659-1-full.n0ShC0/buildkitd.toml 
+pid=6293 parent=4299 started=2026-11-14T08:52:05Z timeout=842s command=docker buildx bake --allow=fs.read=/home/runner/work/SonnetDB/SonnetDB --builder sonnetdb-parity-43577122659-1-full-minio --file docker-compose.parity.yml --load minio 
+pid=16206 parent=4299 started=2026-11-14T08:55:23Z timeout=30s command=docker compose -f docker-compose.parity.yml --profile full config --images minio 
+pid=16231 parent=4299 started=2026-11-14T08:55:23Z timeout=30s command=docker image inspect --format \{\{.Id\}\} sonnetdb-parity-minio:RELEASE.2024-09-22T00-33-43Z 
+pid=16241 parent=4299 started=2026-11-14T08:55:23Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=16243 parent=4299 started=2026-11-14T08:55:23Z timeout=15s command=docker system df 
+cleanup pid=16253 parent=4299 started=2026-11-14T08:55:24Z builder=sonnetdb-parity-43577122659-1-full-minio
+pid=16326 parent=4299 started=2026-11-14T08:55:30Z timeout=10s command=df -h /home/runner/work/SonnetDB/SonnetDB /home/runner/work/_temp 
+pid=16328 parent=4299 started=2026-11-14T08:55:30Z timeout=15s command=docker system df 
