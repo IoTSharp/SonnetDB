@@ -12,6 +12,7 @@
 | parity-results | 保持独立分支；不合并到 `main`，本轮不改写其证据。 |
 | 本轮修复 | WAL checkpoint 负值拒绝；Frame 畸形错误终态；tag 恢复有界轮询及文档合同。 |
 | 稳定性修复提交 | `af9ee131`（完整 SHA 以 Git 回读为准）。 |
+| Tag 后 CI 复核 | `v5.1.0` 的 Ubuntu/Windows REST 失败均为缺少 Release probe 输出；修复已在后续工作树中验证，尚未移动既有 tag。 |
 
 ## 本轮改动与证据
 
@@ -45,5 +46,7 @@
 ## 放行与回滚
 
 候选放行前必须在同一最终 commit 上取得适用 CI、format、AOT、Parity 和发布资产证据；七天 scheduled Parity 是非阻断观察。tag、GitHub/Gitee、NuGet、安装和现场读回分别记账，任何未知外部写入先读回再决定后续动作。
+
+`v5.1.0` tag 触发的 CI 失败已独立回读：Ubuntu 和 Windows REST 的失败测试都是 `FullTextIndependentProcessTests.IndependentServerAndCandidateConsumerCommunicateAndRecoverFromEveryBudget`，错误为 Release probe DLL 缺失。根因是 probe 仅以 `ReferenceOutputAssembly=false` 的项目引用存在，未列入主 solution，solution/shard 构建没有生成它。修复是将 `tests/SonnetDB.FullTextProcessProbe/SonnetDB.FullTextProcessProbe.csproj` 纳入 `SonnetDB.slnx`；本地主 solution Release build、CI REST shard Release build 和聚焦测试均已通过。既有 `v5.1.0` tag 不移动，后续候选必须使用包含修复的新提交。
 
 回滚沿用 5.0 合同：停止写入，保留并核验升级前备份和旧程序；若候选已写入新目录/新段，恢复匹配旧 reader 的升级前副本，不能只替换二进制。Server 实例级 MQ、身份配置和外部对象不由单库备份自动覆盖。

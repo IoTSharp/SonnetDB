@@ -9,6 +9,10 @@
 
 暂无已归入下一版本的变更。
 
+### CI reliability
+
+- 将 `SonnetDB.FullTextProcessProbe` 纳入主 solution，确保 Ubuntu 与 Windows REST 测试分片在 Release 构建时生成独立全文消费者进程；独立进程回归不再依赖本机残留的 probe 输出。
+
 ## [5.1.0] - 2026-11-15
 
 ### Dependencies — .NET 10 baseline
