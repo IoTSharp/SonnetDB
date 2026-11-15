@@ -11,6 +11,7 @@
 | 子模块 | CoAP `1d6fa2c58777140af39e2c5101a76f1e32b5d0ed`；MQTT routing `1f1ec475ff3a364ab75f669467c1e2720fdcc73a`。 |
 | parity-results | 保持独立分支；不合并到 `main`，本轮不改写其证据。 |
 | 本轮修复 | WAL checkpoint 负值拒绝；Frame 畸形错误终态；tag 恢复有界轮询及文档合同。 |
+| 稳定性修复提交 | `af9ee131`（完整 SHA 以 Git 回读为准）。 |
 
 ## 本轮改动与证据
 

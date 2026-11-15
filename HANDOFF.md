@@ -8189,3 +8189,11 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 提交前验证：solution restore PASS；Release build PASS（0 warning/0 error）；规定 `dotnet format` PASS；#397 Client 7/7、Server 1/1、Core Frame 60/60；#402 recovery/policy/reconciliation 82/82；#396 强制 analyzer build PASS 但 Provider `NOT_SUPPORTED`，保留 IL2026/IL3050 和其它未运行门禁。
 - 最终本地 `c8d5931c`（含 `e14ddb54`、`86275a2c`、`1ef55256` 和远端 #426）已推送并独立读回：GitHub `origin/main` 与 Gitee `gitee/main` 均为同一 SHA；不创建 tag、不发布 NuGet/Release、不部署、不关闭业务 issue。#432/#436 已按 .NET 10 规则关闭，#426 已合并但 Linux native 门禁仍开放。
 - 本轮所属进程与临时资源已回收：21 个本轮 MSBuild node 按 PID/父链精确终止，issue396 probe 的 `bin/obj` 和 evidence 临时目录不存在；共享工作树干净，`parity-results` 未触碰。
+## 2026-11-15（Asia/Shanghai）5.1.0 稳定版候选稳定性收口
+
+- 用户明确授权以 5.0.0 为基线全面复核、使用多个互不重叠智能体修复确认缺口，并在完整验证后通过 tag 发布新稳定版。起始现场为 `main`/`origin/main`/`gitee/main @ 743fc29ab5bdfef0e9b3466898de07f47e8febac`，工作树干净；CoAP `1d6fa2c58777140af39e2c5101a76f1e32b5d0ed`、MQTT routing `1f1ec475ff3a364ab75f669467c1e2720fdcc73a`，`parity-results` 保持独立。
+- 并行代码线完成三项最小修复：WAL checkpoint 负 LSN 在写入/回放均拒绝；Frame 单响应畸形错误载荷映射为 `frame_terminal`/unknown，禁止误重试；tag 恢复 workflow 等待改为时间与最大轮询次数双重有界。恢复文档同步 `-RecoveryEvidencePath`、`-Offline` 和 fail-closed 合同。稳定性提交为 `af9ee131`，包含 `docs/releases/5.1.0.md` 与 `docs/audits/release-5.1.0-20261115.md`。
+- 验证：restore、Release build 0 warning/0 error、format PASS；完整 solution 测试 Core 8527/8527、EF 438/438、Server 1631/1631、Client 283/283 及其它项目 PASS；LSM 默认 Core 8417/8417；WAL 377/377；Frame 定向 2/2；恢复策略 13/13、对账 69/69、资产 20/20；Windows CLI/Server NativeAOT 与 image codec smoke PASS。七天 scheduled Parity 当前仅 1/7 或不可用，按政策非阻断。
+- 分层边界：#396 EF Provider AOT=`NOT_SUPPORTED`；#397 仅 TTL/局部 typed Frame；#398/#399 干净安装、固定硬件容量/恢复和长稳 `NOT_RUN`；#401 时序仍为 ms；#402 真实 GitHub/NuGet 恢复与公开读回 `NOT_RUN`；#425 IoTSharp 真实消费者 `UNKNOWN/NOT_RUN`；CoAP C12、MQTT R6 的性能、trim/AOT、互操作和现场门禁仍未闭环。不得把上述边界写成稳定发布 PASS。
+- 当前授权边界：本轮已授权提交、推送、tag 及按门禁执行公开发布流程；未授权部署、重启、生产迁移、现场电源操作。下一步必须在提交后重新核对工作树/远端，确定最终版本/tag（候选方向 `5.1.0`），再执行一次明确的 tag 写入并独立回读 GitHub/Gitee/Release/NuGet 状态；未知外部结果先对账，不盲重试。
+- 任务创建的构建/测试进程均已退出，无常驻服务或未清理临时交付物；构建产物位于忽略路径。完整矩阵与回滚合同见 [5.1.0 发布审计](docs/audits/release-5.1.0-20261115.md)。
