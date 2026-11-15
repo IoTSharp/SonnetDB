@@ -8182,3 +8182,9 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 最终根仓 restore、Release build（0 warning/0 error）和规定 format PASS；CoAP/MQTT 子模块及依赖证据仍按上一节边界。当前尚未运行 NativeAOT 实际发布、公开包消费、固定硬件、现场、长稳或远端新提交 CI。
 - GitHub PR 读回后，#427～#431、#433～#435 的 10.0.15 PR 因重复变更自动关闭；#432/#436 的 11.0.0 PR 各一次关闭请求并独立读回 `closed/merged=false`；#426 SkiaSharp 4.156 保持 OPEN 未合并。没有关闭 SonnetDB 业务 issue，也没有评论或真实发布写入。
 - 待提交文件只包括本节三条代码线、相应审计/CHANGELOG，以及先前已提交的依赖集成不再重复暂存；提交前再次检查所有新增文件、忽略产物和精确暂存列表。授权范围为本地实现、提交、推送和 PR/分支对账，未授权生产部署、tag、NuGet、Release 或真实外部消费者操作。
+
+## 2026-11-15（Asia/Shanghai）三条 issue 切片提交交接
+
+- 代码提交为 `86275a2c`（父提交 `fa96b1a3`）：#396 EF/AOT 探针、#397 KV TTL Frame op=10、#402 离线发布恢复接线及各自审计/测试。提交前工作树无其他未暂存文件，忽略的 probe `bin/obj` 与证据目录已清理。
+- 提交前验证：solution restore PASS；Release build PASS（0 warning/0 error）；规定 `dotnet format` PASS；#397 Client 7/7、Server 1/1、Core Frame 60/60；#402 recovery/policy/reconciliation 82/82；#396 强制 analyzer build PASS 但 Provider `NOT_SUPPORTED`，保留 IL2026/IL3050 和其它未运行门禁。
+- 下一步只需把 `86275a2c` 与本地后续交接提交推送到 GitHub/Gitee 并独立读回；不创建 tag、不发布 NuGet/Release、不部署、不关闭业务 issue。#426 保持 OPEN，#432/#436 已按 .NET 10 规则关闭。
