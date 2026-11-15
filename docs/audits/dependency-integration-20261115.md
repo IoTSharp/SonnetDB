@@ -40,3 +40,10 @@ GitHub 当前 7 个开放 issue 按创建时间为 #396、#397、#398、#399、#
 - MQTT 子库：PASS，57/57；保留 6 条 MSTEST0017 警告。
 - CoAP 完整 solution：FAIL/边界明确，旧 net40/net45 `CoAP.Proxy` 与 net10 CoAP.NET 的目标框架引用不兼容（根仓 CPM 路径先报 NU1008，关闭 CPM 后报 NU1201）；目标项目与 481/481 测试的 PASS 不替代该失败，也不把它归因于本批协议修复。
 - NativeAOT 实际发布/运行、公开 NuGet 消费、固定硬件、现场、长稳和远端新提交 CI：本批 NOT_RUN/UNKNOWN。
+
+## PR 读回与代码切片
+
+- #427～#431、#433～#435 的 .NET 10.0.15 Dependabot PR 在 `main` 推送后因重复变更自动关闭；对应文件已进入 `fa96b1a3` 之前的提交 `c9fe5052`。
+- #432（Microsoft.Data.Sqlite 11.0.0）和 #436（EF Tools 11.0.0）在读回仍为 OPEN 后按用户的 .NET 10 约束各发出一次关闭请求，随后独立读回为 `closed`, `merged=false`；没有将 11.0.0 带入主线。
+- #426（SkiaSharp 4.156）仍 OPEN，未合并；Linux native 资产和图片探针尚无本批证据。
+- #396/#397/#402 的代码切片由不重叠智能体完成并在主线复核；它们分别保持 `NOT_SUPPORTED`、部分完成和离线-only 边界，不能把代码切片写成线上 issue 全部关闭。

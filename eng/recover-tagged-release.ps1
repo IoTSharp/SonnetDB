@@ -10,18 +10,159 @@ param(
     [ValidateRange(1, 180)]
     [int]$DiscoveryTimeoutMinutes = 10,
     [switch]$Resume,
-    [switch]$ReuseSuccessfulPreflight
+    [switch]$ReuseSuccessfulPreflight,
+    [Alias('OfflineEvidencePath', 'PublicationEvidencePath')]
+    [string]$RecoveryEvidencePath,
+    [Alias('NoExternalWrites', 'DryRun')]
+    [switch]$Offline
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $script:GitHubCliPath = $null
+. (Join-Path $PSScriptRoot 'tag-publication-reconciliation.ps1')
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = $Tag.Substring(1)
 }
 if ($Tag -cne "v$Version") {
     throw "Tag '$Tag' and version '$Version' do not identify the same release."
+}
+
+function Read-RecoveryEvidence {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    $file = Get-Item -LiteralPath $Path -Force
+    if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        $file.Length -le 0 -or $file.Length -gt 2097152) {
+        throw 'Recovery evidence must be a regular UTF-8 JSON file no larger than 2 MiB.'
+    }
+
+    try {
+        $bytes = [IO.File]::ReadAllBytes($file.FullName)
+        $text = [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
+        return ($text.TrimStart([char]0xfeff) | ConvertFrom-Json -AsHashtable -Depth 32)
+    }
+    catch {
+        throw "Recovery evidence is not valid strict UTF-8 JSON: $($_.Exception.Message)"
+    }
+}
+
+function Resolve-RecoveryEvidencePath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$EvidenceFile,
+        [Parameter(Mandatory)][string]$Path,
+        [switch]$Directory
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { throw 'Recovery evidence path is empty.' }
+    $base = (Get-Item -LiteralPath $EvidenceFile -Force).Directory.FullName
+    $candidate = if ([IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path $base $Path }
+    $full = [IO.Path]::GetFullPath($candidate)
+    $item = Get-Item -LiteralPath $full -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        ($Directory -and -not $item.PSIsContainer) -or (-not $Directory -and $item.PSIsContainer)) {
+        throw "Recovery evidence path has an invalid type or reparse point: $Path"
+    }
+    return $item.FullName
+}
+
+function Assert-RecoveryOfflineEvidence {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$ExpectedRepository,
+        [Parameter(Mandatory)][string]$ExpectedTag,
+        [Parameter(Mandatory)][string]$ExpectedVersion,
+        [Parameter(Mandatory)][ValidatePattern('\A[0-9a-f]{40}\z')][string]$ExpectedCommitSha
+    )
+
+    $evidenceFile = (Get-Item -LiteralPath $Path -Force).FullName
+    $evidence = Read-RecoveryEvidence -Path $evidenceFile
+    if ((Get-PublicationProperty $evidence 'schemaVersion') -ne 1) { throw 'Recovery evidence schemaVersion must be 1.' }
+    if ((Get-PublicationProperty $evidence 'repository') -cne $ExpectedRepository -or
+        (Get-PublicationProperty $evidence 'tag') -cne $ExpectedTag -or
+        (Get-PublicationProperty $evidence 'version') -cne $ExpectedVersion -or
+        (Get-PublicationProperty $evidence 'commitSha') -cne $ExpectedCommitSha) {
+        throw 'Recovery evidence identity does not match the resolved repository, tag, version and commit.'
+    }
+
+    $manifestSpec = Get-PublicationProperty $evidence 'manifest'
+    $manifestPath = Resolve-RecoveryEvidencePath -EvidenceFile $evidenceFile -Path ([string](Get-PublicationProperty $manifestSpec 'path'))
+    $manifestSha256 = [string](Get-PublicationProperty $manifestSpec 'sha256')
+    if ($manifestSha256 -cnotmatch '\A[0-9a-f]{64}\z') { throw 'Recovery evidence manifest SHA-256 is invalid.' }
+    $manifest = Read-TaggedPublicationManifest -Path $manifestPath -ExpectedSha256 $manifestSha256
+    if ($manifest.repository -cne $ExpectedRepository -or $manifest.tag -cne $ExpectedTag -or
+        $manifest.commitSha -cne $ExpectedCommitSha) { throw 'Approved manifest identity does not match the recovery target.' }
+
+    $artifactRoot = Resolve-RecoveryEvidencePath -EvidenceFile $evidenceFile -Path ([string](Get-PublicationProperty $evidence 'artifactRoot')) -Directory
+    $downloads = @((Get-PublicationProperty $evidence 'downloads'))
+    foreach ($download in $downloads) {
+        $download.archivePath = Resolve-RecoveryEvidencePath -EvidenceFile $evidenceFile -Path ([string](Get-PublicationProperty $download 'archivePath'))
+    }
+    $artifactPlan = Assert-TaggedPublicationArtifactSet -Manifest $manifest `
+        -Sources @((Get-PublicationProperty $evidence 'sources')) `
+        -Artifacts @((Get-PublicationProperty $evidence 'artifacts')) `
+        -Downloads $downloads `
+        -ArtifactRoot $artifactRoot
+    if ($artifactPlan.externalWriteAuthorized) { throw 'Offline artifact reconciliation unexpectedly authorized an external write.' }
+
+    $currentMainCommit = [string](Get-PublicationProperty $evidence 'currentMainCommit')
+    if ($currentMainCommit -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Current main commit identity is invalid.' }
+    $policyState = Assert-TaggedPublicationPolicyBoundary `
+        -Current (Get-PublicationProperty $evidence 'currentReadiness') `
+        -Frozen (Get-PublicationProperty $evidence 'frozenReadiness') `
+        -Repository $ExpectedRepository `
+        -CommitSha $ExpectedCommitSha `
+        -Version $ExpectedVersion `
+        -CurrentMainCommit $currentMainCommit
+
+    $nugetPlans = [Collections.Generic.List[object]]::new()
+    $nugetEvidence = @((Get-PublicationProperty $evidence 'nuget'))
+    if ($nugetEvidence.Count -lt 1 -or $nugetEvidence.Count -gt 32) { throw 'Recovery evidence must contain between one and 32 NuGet reconciliation records.' }
+    foreach ($record in $nugetEvidence) {
+        $state = [string](Get-PublicationProperty $record 'readState')
+        $candidate = Get-PublicationProperty $record 'candidate'
+        $published = Get-PublicationProperty $record 'published' -Optional
+        $previousWriteUnknown = [bool](Get-PublicationProperty $record 'previousWriteUnknown' -Optional)
+        $decision = Compare-TaggedNuGetPublication -Candidate $candidate -ReadState $state -Published $published `
+            -PreviousWriteUnknown:$previousWriteUnknown
+        if ($decision -notin @('ALREADY_PRESENT_SAME_PAYLOAD', 'MISSING_CONFIRMED')) {
+            throw "NuGet reconciliation is not safe to resume: $decision"
+        }
+        $nugetPlans.Add([pscustomobject]@{ state = $decision; id = $candidate.id; version = $candidate.version })
+    }
+
+    $releaseEvidence = Get-PublicationProperty $evidence 'release'
+    $releaseState = [string](Get-PublicationProperty $releaseEvidence 'readState')
+    $releasePlan = Compare-TaggedReleaseAssets `
+        -ReadState $releaseState `
+        -Tag $ExpectedTag `
+        -ExpectedReleaseId ([long](Get-PublicationProperty $releaseEvidence 'releaseId')) `
+        -ExpectedAssets @((Get-PublicationProperty $releaseEvidence 'expectedAssets')) `
+        -Release (Get-PublicationProperty $releaseEvidence 'release') `
+        -ExistingAssets @((Get-PublicationProperty $releaseEvidence 'existingAssets')) `
+        -PreviousWriteUnknown:([bool](Get-PublicationProperty $releaseEvidence 'previousWriteUnknown' -Optional))
+    if ($releasePlan.state -notin @('MISSING_CONFIRMED', 'RECONCILED_REQUIRES_WRITE_FENCE')) {
+        throw "Release reconciliation is not safe to resume: $($releasePlan.state)"
+    }
+
+    return [pscustomobject]@{
+        state = 'OFFLINE_ADMISSION_VERIFIED'
+        repository = $ExpectedRepository
+        tag = $ExpectedTag
+        version = $ExpectedVersion
+        commitSha = $ExpectedCommitSha
+        currentMainCommit = $currentMainCommit
+        policy = $policyState
+        artifact = $artifactPlan.state
+        nuget = $nugetPlans.ToArray()
+        release = $releasePlan
+        externalWriteAuthorized = $false
+        retryAllowed = $false
+    }
 }
 
 function Get-RemoteTagCommit {
@@ -146,6 +287,46 @@ function Get-WorkflowRunCreatedAt {
     }
 }
 
+function Invoke-RecoveryWriteFence {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Description,
+        [Parameter(Mandatory)][scriptblock]$Action
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RecoveryEvidencePath)) {
+        throw "$Description requires an approved offline evidence bundle. No external action was attempted."
+    }
+    $result = Invoke-TaggedPublicationWriteFence `
+        -Repository $Repository `
+        -Tag $Tag `
+        -CommitSha $commitSha `
+        -VerifyContent {
+            $null = Assert-RecoveryOfflineEvidence `
+                -Path $RecoveryEvidencePath `
+                -ExpectedRepository $Repository `
+                -ExpectedTag $Tag `
+                -ExpectedVersion $Version `
+                -ExpectedCommitSha $commitSha
+            return $true
+        } `
+        -ResolveRemoteTag {
+            param($targetRepository, $targetTag)
+            try {
+                $observedCommit = Get-RemoteTagCommit -TargetRepository $targetRepository -TargetTag $targetTag
+                return @{ readState = 'FOUND'; repository = $targetRepository; tag = $targetTag; commitSha = $observedCommit }
+            }
+            catch {
+                return @{ readState = 'TRANSPORT_ERROR'; repository = $targetRepository; tag = $targetTag; commitSha = '' }
+            }
+        } `
+        -Action $Action -TimeoutSeconds 90
+    if ($result.state -cne 'WRITE_RETURNED_REQUIRES_READBACK' -or $result.retryAllowed) {
+        throw "$Description did not reach a reconciliable write state: $($result.state)"
+    }
+    return $result
+}
+
 function Start-Preflight {
     param(
         [Parameter(Mandatory)]
@@ -162,9 +343,9 @@ function Start-Preflight {
     foreach ($field in $Fields) {
         $arguments += @('--field', $field)
     }
-    & $script:GitHubCliPath @arguments | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to dispatch '$Workflow' preflight."
+    $null = Invoke-RecoveryWriteFence -Description "Dispatch '$Workflow' preflight" -Action {
+        & $script:GitHubCliPath @arguments | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Unable to dispatch '$Workflow' preflight." }
     }
 
     $deadline = [DateTimeOffset]::UtcNow.AddMinutes($DiscoveryTimeoutMinutes)
@@ -243,9 +424,9 @@ function Resume-TaggedRun {
         return
     }
 
-    & $script:GitHubCliPath run rerun $run.databaseId --repo $Repository
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to rerun '$Workflow': $($run.url)"
+    $null = Invoke-RecoveryWriteFence -Description "Rerun '$Workflow'" -Action {
+        & $script:GitHubCliPath run rerun $run.databaseId --repo $Repository
+        if ($LASTEXITCODE -ne 0) { throw "Unable to rerun '$Workflow': $($run.url)" }
     }
     & $script:GitHubCliPath run watch $run.databaseId --repo $Repository --exit-status
     if ($LASTEXITCODE -ne 0) {
@@ -353,13 +534,37 @@ $plan = [pscustomobject]@{
     PreflightWorkflows = @('publish.yml', 'connectors-release.yml', 'docker-publish.yml')
     TaggedWorkflowOrder = @('publish.yml', 'docker-publish.yml', 'connectors-release.yml')
     MutatesTag = $false
+    ExternalWriteAuthorized = $false
+    OfflineOnly = [bool]$Offline
 }
 
 Write-Host "Resolved $Tag to $commitSha."
 Write-Host 'Recovery always reuses this exact tag and commit; it never creates, deletes, or moves tags.'
+
+if (($Resume -or $Offline) -and [string]::IsNullOrWhiteSpace($RecoveryEvidencePath)) {
+    throw 'Resume and offline recovery require an approved -RecoveryEvidencePath. No external action was attempted.'
+}
+
+$offlineAdmission = $null
+if (-not [string]::IsNullOrWhiteSpace($RecoveryEvidencePath)) {
+    $offlineAdmission = Assert-RecoveryOfflineEvidence `
+        -Path $RecoveryEvidencePath `
+        -ExpectedRepository $Repository `
+        -ExpectedTag $Tag `
+        -ExpectedVersion $Version `
+        -ExpectedCommitSha $commitSha
+    $plan | Add-Member -NotePropertyName OfflineAdmission -NotePropertyValue $offlineAdmission
+}
+
 if (-not $Resume) {
-    Write-Host 'Plan only. Re-run with -Resume after authenticating gh to dispatch preflights and recover the tagged workflows.'
+    Write-Host 'Plan only. Re-run with -Resume, an approved offline evidence bundle and authenticated gh to dispatch preflights and recover the tagged workflows.'
     $plan
+    return
+}
+
+if ($Offline) {
+    Write-Host 'Offline recovery admission verified. No GitHub CLI, workflow dispatch, rerun, release or NuGet write was attempted.'
+    $offlineAdmission
     return
 }
 

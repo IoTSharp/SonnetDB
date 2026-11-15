@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IoTSharp/SonnetDB/blob/main/eng/probes/issue396-ef-aot/receipt.schema.json",
+  "title": "Issue 396 EF Provider AOT boundary receipt",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAtUtc", "source", "consumer", "stages", "status", "boundaries"],
+  "properties": {
+    "schemaVersion": { "const": "issue-396-ef-aot-v1" },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "source": { "type": "object", "required": ["providerProject", "probeProject", "files"] },
+    "consumer": { "type": "object", "required": ["mode", "projectReference", "packageReference", "abpReference"] },
+    "stages": { "type": "array", "items": { "type": "object", "required": ["label", "passed", "exitCode", "timedOut"] } },
+    "status": {
+      "type": "object",
+      "required": ["providerContract", "forcedAnalyzerBuild", "nativeAotPublish", "nativeAotRun", "nugetOnlyConsumer", "abpConsumer", "overall"],
+      "properties": {
+        "providerContract": { "enum": ["NOT_SUPPORTED", "UNKNOWN", "PASS", "FAIL"] },
+        "forcedAnalyzerBuild": { "enum": ["PASS", "FAIL", "NOT_RUN"] },
+        "nativeAotPublish": { "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"] },
+        "nativeAotRun": { "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"] },
+        "nugetOnlyConsumer": { "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"] },
+        "abpConsumer": { "enum": ["PASS", "FAIL", "NOT_RUN", "UNKNOWN"] },
+        "overall": { "enum": ["PASS", "FAIL", "NOT_SUPPORTED", "UNKNOWN", "NOT_RUN"] }
+      }
+    },
+    "boundaries": { "type": "array", "items": { "type": "string" } }
+  }
+}
