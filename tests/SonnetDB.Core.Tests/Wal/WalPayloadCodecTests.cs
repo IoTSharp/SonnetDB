@@ -145,6 +145,17 @@ public sealed class WalPayloadCodecTests
         Assert.Equal(999L, record.CheckpointLsn);
     }
 
+    [Fact]
+    public void Checkpoint_NegativeLsn_IsRejectedAsCorruptPayload()
+    {
+        byte[] payload = new byte[8];
+        var writer = new SpanWriter(payload);
+        writer.WriteInt64(-1);
+
+        Assert.Throws<InvalidDataException>(() =>
+            WalPayloadCodec.ReadCheckpointPayload(new SpanReader(payload), lsn: 1L, timestampUtcTicks: 0L));
+    }
+
     // ── Vector round-trip（PR #58 a） ────────────────────────────────────────
 
     [Theory]

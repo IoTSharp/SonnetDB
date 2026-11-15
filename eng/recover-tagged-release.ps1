@@ -393,10 +393,30 @@ function Wait-ForSuccessfulRun {
         [string]$Description
     )
 
-    & $script:GitHubCliPath run watch $Run.databaseId --repo $Repository --exit-status
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Description failed: $($Run.url)"
+    $deadline = [DateTimeOffset]::UtcNow.AddMinutes($DiscoveryTimeoutMinutes)
+    $maxPolls = [Math]::Max(1, [Math]::Min(2160, $DiscoveryTimeoutMinutes * 12))
+    for ($attempt = 1; $attempt -le $maxPolls -and [DateTimeOffset]::UtcNow -lt $deadline; $attempt++) {
+        $jsonLines = @(& $script:GitHubCliPath run view $Run.databaseId --repo $Repository --json status,conclusion,url)
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to read $Description status: $($Run.url)"
+        }
+        try {
+            $view = ([string]::Join("`n", [string[]]$jsonLines) | ConvertFrom-Json)
+        }
+        catch {
+            throw "GitHub returned invalid $Description status JSON: $($_.Exception.Message)"
+        }
+        if ($view -is [Array] -or $null -eq $view -or [string]::IsNullOrWhiteSpace([string]$view.status)) {
+            throw "GitHub returned an invalid $Description status response."
+        }
+        if ([string]$view.status -ceq 'completed') {
+            if ([string]$view.conclusion -ceq 'success') { return }
+            throw "$Description failed: $($view.url)"
+        }
+        $remainingSeconds = [int][Math]::Floor(($deadline - [DateTimeOffset]::UtcNow).TotalSeconds)
+        if ($remainingSeconds -gt 0) { Start-Sleep -Seconds ([Math]::Min(5, $remainingSeconds)) }
     }
+    throw "$Description timed out after $DiscoveryTimeoutMinutes minute(s): $($Run.url)"
 }
 
 function Get-TaggedRunToResume {
@@ -428,10 +448,7 @@ function Resume-TaggedRun {
         & $script:GitHubCliPath run rerun $run.databaseId --repo $Repository
         if ($LASTEXITCODE -ne 0) { throw "Unable to rerun '$Workflow': $($run.url)" }
     }
-    & $script:GitHubCliPath run watch $run.databaseId --repo $Repository --exit-status
-    if ($LASTEXITCODE -ne 0) {
-        throw "Tag-triggered '$Workflow' did not succeed after recovery: $($run.url)"
-    }
+    Wait-ForSuccessfulRun -Run $run -Description "Tag-triggered '$Workflow' recovery"
 }
 
 function Assert-ReleaseReadiness {

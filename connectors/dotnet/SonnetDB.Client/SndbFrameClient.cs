@@ -117,8 +117,20 @@ public sealed partial class SndbFrameClient : IDisposable
                 throw new SndbFrameException("frame_trailing_data", "单响应操作包含额外帧或尾部数据。");
             if (reply.IsError)
             {
-                var error = FrameCodec.ReadErrorPayload(result);
-                throw new SndbFrameException(error.Code, error.Message);
+                try
+                {
+                    var error = FrameCodec.ReadErrorPayload(result);
+                    throw new SndbFrameException(error.Code, error.Message);
+                }
+                catch (FrameFormatException exception)
+                {
+                    // The frame envelope and response identity were valid, but the
+                    // terminal error payload was not. Preserve that distinction so
+                    // callers do not mistake a committed/unknown operation for a
+                    // transport failure and retry it blindly.
+                    throw new SndbFrameException(
+                        "frame_terminal", "错误帧体不完整；结果可能未知。", exception);
+                }
             }
             return result;
         }

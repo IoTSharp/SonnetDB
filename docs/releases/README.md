@@ -32,8 +32,9 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
-5.0 的变更、包清单与已知限制见 [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)，升级前阅读 [5.0 迁移合同]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-migration/)。公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
+5.1.0 的变更、包清单与已知限制见 [SonnetDB 5.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-0/)。5.0 迁移合同仍适用于从 4.x 升级的应用；公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
 
+- [SonnetDB 5.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-0/)
 - [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)
 - [SonnetDB 4.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
 - [SonnetDB 3.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/3-1-0/)
@@ -54,15 +55,17 @@ http://127.0.0.1:5080
 
 ### 已有 tag 的恢复
 
-若 tag 已经推送，但发布门禁报告缺少该 tag 提交的候选预检，不要删除、重建或移动 tag。先在已认证 GitHub CLI 的工作站执行：
+若 tag 已经推送，但发布门禁报告缺少该 tag 提交的候选预检，不要删除、重建或移动 tag。先准备由可信来源生成并独立核验的恢复证据 JSON，再在已认证 GitHub CLI 的工作站执行：
 
 ```powershell
-.\eng\recover-tagged-release.ps1 -Tag v4.0.0 -Resume
+.\eng\recover-tagged-release.ps1 -Tag v4.0.0 -Resume -RecoveryEvidencePath <approved-evidence.json>
 ```
+
+恢复证据绑定 repository、tag、版本、精确 commit、批准 manifest、候选制品和当前/冻结 readiness。`-Resume` 没有 `-RecoveryEvidencePath` 会 fail-closed；如只需在本地核验证据而不调用 GitHub CLI，可追加 `-Offline`，该模式不会执行任何外部写入。
 
 如果候选预检已经成功而只需重新验证 readiness，可追加 `-ReuseSuccessfulPreflight`；脚本会校验并复用最新成功的同 commit 预检，不会再次 dispatch。
 
-脚本先从远端解析 tag 的精确 commit，再在该 tag 上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的非发布预检，拒绝不唯一或失败的 run。三个预检成功后，它会先用同一 commit/version 运行完整发布就绪核验；未满足的 CI、Parity 或 artifact 证据会写入 `artifacts/tagged-release-recovery/` 并停止，不会进入发布。通过后才按 `Publish`、`Docker Publish`、`Connectors Release` 的顺序重跑原 tag workflow，最后核对 GitHub Release 不是 draft、对应版本的 NuGet 库存可下载（4.0 七包，5.0 十包），以及全部 bundle、installer、校验和和连接器资产已经上传。它不会创建、删除或移动 tag；默认不带 `-Resume` 时只显示解析出的 commit 和执行计划。
+脚本先从远端解析 tag 的精确 commit，再在该 tag 上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的非发布预检，拒绝不唯一或失败的 run。每个 workflow 状态查询都受 `DiscoveryTimeoutMinutes` 和最大轮询次数限制，超时会停止恢复。三个预检成功后，它会先用同一 commit/version 运行完整发布就绪核验；未满足的 CI、Parity 或 artifact 证据会写入 `artifacts/tagged-release-recovery/` 并停止，不会进入发布。通过后才按 `Publish`、`Docker Publish`、`Connectors Release` 的顺序重跑原 tag workflow，最后核对 GitHub Release 不是 draft、对应版本的 NuGet 库存可下载（4.0 七包，5.0 十包），以及全部 bundle、installer、校验和和连接器资产已经上传。它不会创建、删除或移动 tag；默认不带 `-Resume` 时只显示解析出的 commit 和执行计划。
 
 ## 本地 Windows 打包
 

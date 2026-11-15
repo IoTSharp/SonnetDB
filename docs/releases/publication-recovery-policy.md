@@ -1,6 +1,6 @@
-# 发行恢复策略库（#402，尚未接入发布）
+# 发行恢复策略库（#402，已接入恢复入口）
 
-本库位于 `eng/tag-publication-policy.ps1` 与 `eng/tag-publication-reconciliation.ps1`。它提供来源合同、本地字节对账、状态分类及写前fence；没有新增恢复workflow，既有 `recover-tagged-release.ps1 -Resume` 不会自动调用它。实际恢复和公开回读仍未运行，#402保持开放。证据见[2026-11-05审计](../audits/issue-402-publication-recovery-policy-20261105.md)。
+本库位于 `eng/tag-publication-policy.ps1` 与 `eng/tag-publication-reconciliation.ps1`，并由 `eng/recover-tagged-release.ps1` 在 `-Resume` 和 `-Offline` 路径调用。它提供来源合同、本地字节对账、状态分类及写前 fence；恢复必须携带经过批准的 `-RecoveryEvidencePath`，未知写入状态不会被当成缺失而重试。没有新增恢复 workflow，脚本仍只复用已存在的不可变 tag。真实 GitHub/NuGet 恢复和公开读回在本轮仍未运行，#402 保持开放。证据见[2026-11-05审计](../audits/issue-402-publication-recovery-policy-20261105.md)。
 
 - `Assert-TaggedPublicationSource`：原tag-push的repo/tag/SHA/workflow及唯一成功平台合同；本函数不把workflow_dispatch当成发布来源。
 - `Get-TaggedNuGetPayloadIdentity`、`Compare-TaggedNuGetPublication`：核对唯一nuspec的id/version/commit及全部有效文件，排除根`.signature.p7s`后比较内容，保留不同整包hash。不提供签名证书信任或发布权限验证。
@@ -12,4 +12,4 @@
 
 调用离线测试：`pwsh -NoProfile -NonInteractive -File eng/test-tag-publication-policy.ps1` 和 `pwsh -NoProfile -NonInteractive -File eng/test-tag-publication-reconciliation.ps1`。测试有90秒总预算、固定case/文件/字节上限、取消和标记目录finally清理；外层仍使用有界进程执行器。
 
-未来接线必须由可信原始来源固定批准manifest。GitHub artifact列表没有独立可信的attempt字段，不能只用时间猜测或把制品自声明当证明。正常5.0.0已公开交付；禁止为验证本库重打正式tag、重推既有包或恢复旧候选。
+恢复接线必须由可信原始来源固定批准 manifest。GitHub artifact 列表没有独立可信的 attempt 字段，不能只用时间猜测或把制品自声明当证明。`-Offline` 只验证证据并返回不授权写入的 admission；`-Resume` 在每次外部写入前重新解析 tag 并执行 fence，写入后仍需独立读回。正常 5.0.0 已公开交付；禁止为验证本库重打正式 tag、重推既有包或恢复旧候选。

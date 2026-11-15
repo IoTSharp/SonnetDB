@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+暂无已归入下一版本的变更。
+
+## [5.1.0] - 2026-11-15
+
 ### Dependencies — .NET 10 baseline
 
 - 将 ASP.NET Core、Entity Framework Core、Microsoft.Data.Sqlite 和相关测试工具统一更新到 10.0.15；保留 .NET 10 SDK、source generator 与现有兼容性约束，不采用 11.0.0 包。

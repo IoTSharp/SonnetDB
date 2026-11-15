@@ -270,9 +270,11 @@ public sealed class WalWriter : IDisposable
     /// <param name="checkpointLsn">检查点 LSN（截止该 LSN 的数据已落盘）。</param>
     /// <returns>分配的 LSN。</returns>
     /// <exception cref="ObjectDisposedException">写入器已关闭时抛出。</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="checkpointLsn"/> 不能为负数。</exception>
     public long AppendCheckpoint(long checkpointLsn)
     {
         ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(checkpointLsn);
         return AppendRecord(WalRecordType.Checkpoint, 8, (ref SpanWriter w) =>
             WalPayloadCodec.WriteCheckpointPayload(ref w, checkpointLsn));
     }

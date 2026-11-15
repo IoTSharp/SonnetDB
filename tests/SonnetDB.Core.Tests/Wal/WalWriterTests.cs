@@ -267,6 +267,21 @@ public sealed class WalWriterTests : IDisposable
     }
 
     [Fact]
+    public void AppendCheckpoint_NegativeLsn_IsRejectedBeforeWriting()
+    {
+        string path = TempFile();
+        using var writer = WalWriter.Open(path);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => writer.AppendCheckpoint(-1));
+        writer.AppendWritePoint(9UL, 456L, "after-rejected-checkpoint", FieldValue.FromLong(1));
+        writer.Sync();
+
+        using var reader = WalReader.Open(path);
+        WritePointRecord record = Assert.IsType<WritePointRecord>(Assert.Single(reader.Replay()));
+        Assert.Equal("after-rejected-checkpoint", record.FieldName);
+    }
+
+    [Fact]
     public void AppendWritePoint_WithGeoPoint_RoundTrips()
     {
         string path = TempFile();

@@ -161,6 +161,32 @@ public sealed class FrameClientTests
         Assert.Equal(1, handler.Calls);
     }
 
+    [Theory]
+    [InlineData("truncated")]
+    [InlineData("trailing")]
+    public async Task SendUnary_MalformedErrorPayload_IsTerminalUnknownAndDoesNotRetry(string shape)
+    {
+        var handler = new Handler((_, _) =>
+        {
+            byte[] payload = shape == "truncated" ? [1] : [0, 0, 0];
+            var output = new ArrayBufferWriter<byte>();
+            FrameCodec.WriteFrame(output, new FrameHeader((uint)payload.Length,
+                FrameHeader.CurrentVersion, 5, 1,
+                (byte)(FrameFlags.Response | FrameFlags.Error), 42), payload);
+            return Task.FromResult(Response(output.WrittenMemory.ToArray()));
+        });
+        using var http = new HttpClient(handler);
+        using var client = new SndbFrameClient(http, Server);
+
+        var error = await Assert.ThrowsAsync<SndbFrameException>(() =>
+            client.SendUnaryAsync(5, 1, 42, new byte[1]));
+
+        Assert.Equal("frame_terminal", error.Code);
+        Assert.True(error.OutcomeUnknown);
+        Assert.IsType<FrameFormatException>(error.InnerException);
+        Assert.Equal(1, handler.Calls);
+    }
+
     [Fact]
     public async Task SendUnary_PreCancelledOversizeAndMultiFrameOperation_DoNotSend()
     {

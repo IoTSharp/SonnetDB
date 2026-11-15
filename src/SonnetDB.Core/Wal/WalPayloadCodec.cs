@@ -272,6 +272,8 @@ internal static class WalPayloadCodec
         long timestampUtcTicks)
     {
         long checkpointLsn = reader.ReadInt64();
+        if (checkpointLsn < 0)
+            throw new InvalidDataException("WAL checkpoint LSN cannot be negative.");
         return new CheckpointRecord(lsn, timestampUtcTicks, checkpointLsn);
     }
 

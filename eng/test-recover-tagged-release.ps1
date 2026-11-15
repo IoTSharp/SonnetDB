@@ -28,6 +28,10 @@ if ($scriptSource -notmatch '\[string\]::Join\("`n", \[string\[\]\]\$jsonLines\)
 if ($scriptSource -notmatch 'function Get-WorkflowRunCreatedAt') {
     throw 'Recovery must validate each workflow run timestamp before ordering.'
 }
+if ($scriptSource -match '\brun watch\b' -or $scriptSource -notmatch 'function Wait-ForSuccessfulRun' -or
+    $scriptSource -notmatch '\$maxPolls' -or $scriptSource -notmatch '\$DiscoveryTimeoutMinutes') {
+    throw 'Recovery workflow waits must use bounded status polling instead of an unbounded gh run watch.'
+}
 if ($scriptSource -notmatch 'Assert-ReleaseReadiness\s*\r?\n\s*# Publish owns GitHub Release creation') {
     throw 'Release readiness must run before the tagged workflow recovery sequence.'
 }
