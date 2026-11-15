@@ -8187,4 +8187,5 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 
 - 代码提交为 `86275a2c`（父提交 `fa96b1a3`）：#396 EF/AOT 探针、#397 KV TTL Frame op=10、#402 离线发布恢复接线及各自审计/测试。提交前工作树无其他未暂存文件，忽略的 probe `bin/obj` 与证据目录已清理。
 - 提交前验证：solution restore PASS；Release build PASS（0 warning/0 error）；规定 `dotnet format` PASS；#397 Client 7/7、Server 1/1、Core Frame 60/60；#402 recovery/policy/reconciliation 82/82；#396 强制 analyzer build PASS 但 Provider `NOT_SUPPORTED`，保留 IL2026/IL3050 和其它未运行门禁。
-- 下一步只需把本地 `e14ddb54`（含 `86275a2c`、`1ef55256` 和远端 #426）及本节后续交接提交推送到 GitHub/Gitee 并独立读回；不创建 tag、不发布 NuGet/Release、不部署、不关闭业务 issue。#432/#436 已按 .NET 10 规则关闭，#426 已合并但 Linux native 门禁仍开放。
+- 最终本地 `c8d5931c`（含 `e14ddb54`、`86275a2c`、`1ef55256` 和远端 #426）已推送并独立读回：GitHub `origin/main` 与 Gitee `gitee/main` 均为同一 SHA；不创建 tag、不发布 NuGet/Release、不部署、不关闭业务 issue。#432/#436 已按 .NET 10 规则关闭，#426 已合并但 Linux native 门禁仍开放。
+- 本轮所属进程与临时资源已回收：21 个本轮 MSBuild node 按 PID/父链精确终止，issue396 probe 的 `bin/obj` 和 evidence 临时目录不存在；共享工作树干净，`parity-results` 未触碰。
