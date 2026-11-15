@@ -49,4 +49,6 @@
 
 `v5.1.0` tag 触发的 CI 失败已独立回读：Ubuntu 和 Windows REST 的失败测试都是 `FullTextIndependentProcessTests.IndependentServerAndCandidateConsumerCommunicateAndRecoverFromEveryBudget`，错误为 Release probe DLL 缺失。根因是 probe 仅以 `ReferenceOutputAssembly=false` 的项目引用存在，未列入主 solution，solution/shard 构建没有生成它。修复是将 `tests/SonnetDB.FullTextProcessProbe/SonnetDB.FullTextProcessProbe.csproj` 纳入 `SonnetDB.slnx`；本地主 solution Release build、CI REST shard Release build 和聚焦测试均已通过。既有 `v5.1.0` tag 不移动，后续候选必须使用包含修复的新提交。
 
+后续 main 验证中，Windows Core 的 Legacy 测试通过，LSM 测试因原 Build & Test job 的 60 分钟总上限在执行中被取消；该取消没有失败测试断言。工作流修复将总上限调到 90 分钟，保留单项步骤限制，后续候选需重新取得完整 CI 结果。
+
 回滚沿用 5.0 合同：停止写入，保留并核验升级前备份和旧程序；若候选已写入新目录/新段，恢复匹配旧 reader 的升级前副本，不能只替换二进制。Server 实例级 MQ、身份配置和外部对象不由单库备份自动覆盖。
