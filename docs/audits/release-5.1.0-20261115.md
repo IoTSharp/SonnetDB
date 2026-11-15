@@ -53,4 +53,6 @@
 
 5.1.1 预检中，Management、Parity、Document soak、M19、M39、Publish、Connectors 和 Docker 均通过；Ecosystem Soak `ci` 唯一失败，根因是测试夹具使用 `WalReader.Open`/`WritePointRecord` 读取原子 Point WAL v2。修复改用 `WalReader.OpenAtomicPoints`/`AtomicPointRecord`，这是测试接线修复，不改变生产 WAL 格式；修复提交后必须重新生成所有同提交候选预检证据。
 
+随后 exact-head Parity full 仅有 reliability gate 失败：`AtomicPointTsdb_HardKill_ReconcilesEveryFieldOnce(before-append)` 读到空 ready 内容。根因是 CrashTests 父进程以文件存在作为握手完成条件，竞态窗口可早于 `File.WriteAllText` 写入阶段名；修复为等待 ready 文件长度大于零。该修复同样只作用于测试夹具，需在下一提交上重新取得 Parity 和全量候选证据。
+
 回滚沿用 5.0 合同：停止写入，保留并核验升级前备份和旧程序；若候选已写入新目录/新段，恢复匹配旧 reader 的升级前副本，不能只替换二进制。Server 实例级 MQ、身份配置和外部对象不由单库备份自动覆盖。

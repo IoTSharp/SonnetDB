@@ -728,7 +728,7 @@ public sealed partial class CrashReliabilityTests : IDisposable
         int maxPolls = checked((int)Math.Ceiling(timeout.TotalMilliseconds / 25) + 1);
         for (int poll = 0; poll < maxPolls && sw.Elapsed < timeout; poll++)
         {
-            if (File.Exists(readyFile))
+            if (File.Exists(readyFile) && new FileInfo(readyFile).Length > 0)
                 return;
 
             if (process.HasExited)
