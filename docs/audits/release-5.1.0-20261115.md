@@ -55,4 +55,6 @@
 
 随后 exact-head Parity full 仅有 reliability gate 失败：`AtomicPointTsdb_HardKill_ReconcilesEveryFieldOnce(before-append)` 读到空 ready 内容。根因是 CrashTests 父进程以文件存在作为握手完成条件，竞态窗口可早于 `File.WriteAllText` 写入阶段名；修复为等待 ready 文件长度大于零。该修复同样只作用于测试夹具，需在下一提交上重新取得 Parity 和全量候选证据。
 
+最终发布结论：提交 `a7bd7c9581aa3a3e65a26c3ffe512ef1f1ce0329` 的 CI 与全部 exact-head 预检通过，`v5.1.1` 已在 GitHub/Gitee 推送。GitHub Release 为公开稳定版，52 个资产已读回；NuGet 十个包与 Docker Hub tag 均已公开读回。Gitee tag 已读回，Gitee Release API 返回空，Gitee Release 渠道保持未创建。`v5.1.0` 保留为历史未发布 tag，不移动、不覆盖。
+
 回滚沿用 5.0 合同：停止写入，保留并核验升级前备份和旧程序；若候选已写入新目录/新段，恢复匹配旧 reader 的升级前副本，不能只替换二进制。Server 实例级 MQ、身份配置和外部对象不由单库备份自动覆盖。

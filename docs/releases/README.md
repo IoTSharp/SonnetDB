@@ -32,8 +32,9 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
-5.1.0 的变更、包清单与已知限制见 [SonnetDB 5.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-0/)。5.0 迁移合同仍适用于从 4.x 升级的应用；公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
+5.1.1 的变更、包清单与已知限制见 [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)。5.0 迁移合同仍适用于从 4.x 升级的应用；公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
 
+- [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)
 - [SonnetDB 5.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-0/)
 - [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)
 - [SonnetDB 4.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/4-0-0/)
