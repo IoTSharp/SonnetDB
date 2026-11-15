@@ -10,6 +10,7 @@
 ### Dependencies — .NET 10 baseline
 
 - 将 ASP.NET Core、Entity Framework Core、Microsoft.Data.Sqlite 和相关测试工具统一更新到 10.0.15；保留 .NET 10 SDK、source generator 与现有兼容性约束，不采用 11.0.0 包。
+- Dependabot #426 的 SkiaSharp 与 Linux native assets 已在远端以 4.156.0 合并；本地 Release build 通过，Linux native 探针和现场图片消费仍独立验收。
 
 ### Protocol submodules — 2026-11-15
 

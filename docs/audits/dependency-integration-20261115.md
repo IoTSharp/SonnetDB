@@ -6,7 +6,7 @@
 
 | 来源 | 结果 | 归属 | 依据 |
 | --- | --- | --- | --- |
-| Dependabot #426 | 保留为当前 `Directory.Packages.props` 的 SkiaSharp 候选，未在本批采用 | 依赖维护 | 4.156 需要独立 Linux native/图片探针，当前批次没有对应证据 |
+| Dependabot #426 | 已由远端 PR 合并并纳入当前主线，SkiaSharp 与 Linux native assets 为 4.156.0 | 依赖维护 | `c73ce78e` / 本地 merge `e14ddb54`；本地 Release build 通过，Linux native/图片探针仍独立验收 |
 | #427～#431、#434～#435 | 已合并为统一 10.0.15 基线 | .NET 10 依赖维护 | `restore`、Release build 和格式门禁绑定同一工作树 |
 | #432、#436 | 不合并 11.0.0；改为 10.0.15 | .NET 10 依赖维护 | 用户明确要求只使用 .NET 10；#436 的 EF Tools 11.0.0 已由 10.0.15 取代 |
 
@@ -45,5 +45,5 @@ GitHub 当前 7 个开放 issue 按创建时间为 #396、#397、#398、#399、#
 
 - #427～#431、#433～#435 的 .NET 10.0.15 Dependabot PR 在 `main` 推送后因重复变更自动关闭；对应文件已进入 `fa96b1a3` 之前的提交 `c9fe5052`。
 - #432（Microsoft.Data.Sqlite 11.0.0）和 #436（EF Tools 11.0.0）在读回仍为 OPEN 后按用户的 .NET 10 约束各发出一次关闭请求，随后独立读回为 `closed`, `merged=false`；没有将 11.0.0 带入主线。
-- #426（SkiaSharp 4.156）仍 OPEN，未合并；Linux native 资产和图片探针尚无本批证据。
+- #426（SkiaSharp 4.156）已由 GitHub merge commit `c73ce78e` 合并，随后以 `e14ddb54` 纳入本地历史；Linux native 资产和图片探针仍无本批运行证据。
 - #396/#397/#402 的代码切片由不重叠智能体完成并在主线复核；它们分别保持 `NOT_SUPPORTED`、部分完成和离线-only 边界，不能把代码切片写成线上 issue 全部关闭。
