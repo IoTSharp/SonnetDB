@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Dependencies — .NET 10 baseline
+
+- 将 ASP.NET Core、Entity Framework Core、Microsoft.Data.Sqlite 和相关测试工具统一更新到 10.0.15；保留 .NET 10 SDK、source generator 与现有兼容性约束，不采用 11.0.0 包。
+
+### Protocol submodules — 2026-11-15
+
+- CoAP 子模块更新到 `1d6fa2c`，接入最新的 Token 随机化、无符号 option 保真和 Observe 长期限修复；根仓 CoAP focused tests 通过，完整子库 solution 仍受旧 net40/net45 Proxy 目标框架冲突限制。
+- MQTT routing 子模块更新到 `1f1ec47`，接入 5.3.1 发布工作流和 NuGet symbols 单次上传修复；运行时路由不变，子库全量测试通过，保留 6 条 MSTEST0017 警告边界。
+
 ### Capability code stage — 2026-11-13
 
 - 默认 Tsdb 写入接入单 Point WAL v2，完整多字段共享一条记录与 LSN；CreateSeries、回放、MemTable 发布、滚动、checkpoint/flush 与重开遵守整点边界。新增公共取消入口，未知写结果封住后续写和 checkpoint，关闭重开后对账；WriteMany 不升级为整个批次原子提交，默认 ms、KEEP_ALL、TTL 和 fsync 配置保持。
