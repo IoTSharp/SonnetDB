@@ -16,7 +16,7 @@
 
 | 组件 | 当前 gitlink | 路线/issue | 验证与边界 |
 | --- | --- | --- | --- |
-| IoTSharp.CoAP.NET | `1d6fa2c58777140af39e2c5101a76f1e32b5d0ed` | CoAP C0～C11/C13 已在子库；本批接入 #33/#34/#35 对应的 token、unsigned option、Observe 修复 | 根仓 CoAP focused 6/6；CoAP 核心/测试项目按目标框架验证。完整 solution 的旧 net40/net45 Proxy 项目仍报告 NU1201，C12 性能/AOT、peer interoperability 和 field/soak 继续 UNKNOWN/NOT_RUN |
+| IoTSharp.CoAP.NET | `1d6fa2c58777140af39e2c5101a76f1e32b5d0ed` | CoAP C0～C11/C13 已在子库；本批接入 #33/#34/#35 对应的 token、unsigned option、Observe 修复 | 根仓 CoAP focused 6/6；CoAP.NET、SourceGeneration、ResourceMvc 目标项目 restore/build PASS，CoAP.Test 481/481 PASS。完整 solution 的旧 net40/net45 Proxy 项目仍报告 NU1201，C12 性能/AOT、peer interoperability 和 field/soak 继续 UNKNOWN/NOT_RUN |
 | MQTTnet.AspNetCore.Routing | `1f1ec475ff3a364ab75f669467c1e2720fdcc73a` | MQTT R0～R5/R7；R6 性能/AOT 仍未闭合 | 子库 restore/build/test 57/57；6 条 MSTEST0017 警告，未修改运行时 routing |
 
 CoAP 当前公开 issue 仍有 #23、#24、#25、#26、#27、#30、#31、#33、#37，公开 PR 为 0；MQTT routing 当前公开 issue/PR 为 0。依赖 open issue 不因 gitlink 更新而自动关闭。
@@ -38,5 +38,5 @@ GitHub 当前 7 个开放 issue 按创建时间为 #396、#397、#398、#399、#
 - `dotnet build SonnetDB.slnx --no-restore -c Release /m:1`：PASS，0 warning/0 error。
 - `SonnetDB.Tests` CoAP focused filter：PASS，6/6。
 - MQTT 子库：PASS，57/57；保留 6 条 MSTEST0017 警告。
-- CoAP 完整 solution：FAIL/边界明确，旧 net40/net45 `CoAP.Proxy` 与 net10 CoAP.NET 的目标框架引用不兼容；不把该失败归因于本批协议修复，也不跳过它。
+- CoAP 完整 solution：FAIL/边界明确，旧 net40/net45 `CoAP.Proxy` 与 net10 CoAP.NET 的目标框架引用不兼容（根仓 CPM 路径先报 NU1008，关闭 CPM 后报 NU1201）；目标项目与 481/481 测试的 PASS 不替代该失败，也不把它归因于本批协议修复。
 - NativeAOT 实际发布/运行、公开 NuGet 消费、固定硬件、现场、长稳和远端新提交 CI：本批 NOT_RUN/UNKNOWN。

@@ -152,7 +152,7 @@ public struct FileHeader
 
 README 只写稳定产品入口、边界和导航。路线、候选包、验证矩阵、发布状态和历史修正写入 ROADMAP、CHANGELOG、release/audit 或专题文档。任何文档不能把源码存在、mock/fixture、真实服务、公开包、现场或生产证据混为一谈。
 
-博客、新闻投稿、社交平台文章及其配图、人物素材、提示词、JSON/JSONL 台账、审核和发布回执统一放在仓库根目录 `.publishing/`，由 Git 与 Docker 忽略。正文与共用素材放 `.publishing/blogs/`，渠道运行材料放 `.publishing/channels/<channel>/`，新闻投稿放 `.publishing/press-releases/` 或 `.publishing/releases/`；不得重新写入 `docs/blogs/`、`docs/press-releases/` 或其他源码/文档目录。`docs/` 只保留正常产品介绍、使用/开发/运维文档、发行说明、工程审计及这些文档实际需要的图片。
+博客、新闻投稿、社交平台文章及其配图、人物素材、提示词、JSON/JSONL 台账、审核和发布回执统一存入独立私有仓库 `IoTSharp/Publishing`，本机 SonnetDB 目录为 `D:/source/IoTSharp.Publishing/projects/sonnetdb/`。本仓根目录 `.publishing/` 仅为指向同一份资料的兼容目录联接，由本仓 Git 与 Docker 忽略；不得在旧路径重建第二份台账。发布库项目内正文与共用素材用 `blogs/`，渠道运行材料用 `channels/<channel>/`，新闻投稿用 `press-releases/` 或 `releases/`；不得重新写入本仓 `docs/blogs/`、`docs/press-releases/` 或其他源码/文档目录。`docs/` 只保留正常产品介绍、使用/开发/运维文档、发行说明、工程审计及这些文档实际需要的图片。事实校验仍使用本产品源码仓库，发布脚本的来源位置见发布项目配置。跨项目的配图、插图、封面和人物规则以 `D:/source/IoTSharp.Publishing/shared/editorial/standard/README.md` 为准；本仓只通过 `.publishing/` 兼容入口读取，不在产品仓库保存第二份资料。
 
 一次性脚本、预览、截图和调试输出只放 `.publishing/tmp/<task>/`，任务结束后清理本任务创建且不再需要的文件。长期只保留必要的定稿、配图、来源/哈希、发布 ID、去重台账及必要失败回执；不得为每一步堆积整页快照、日志或重复副本。迁移旧材料时保留原发布身份与未知结果，不覆盖活跃台账，不改写冻结素材来刷新哈希。浏览器登录档案与凭据仍由各平台原有生命周期管理。
 

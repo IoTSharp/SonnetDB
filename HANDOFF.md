@@ -8133,3 +8133,44 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 基线 main @ aa5e28fdfbcd71775562973686ee3cdf2e9af815。源码 SHA 与上一轮 delivery-source.json 的69文件逐项相同；完整测试、失败历史和 UNKNOWN/NOT_RUN 仍绑定原收据，本次不冒称重新运行。
 - 提交前在最终待提交树执行完整 solution restore 与规定 format；实际提交SHA、父提交、精确暂存树、GitHub/Gitee独立读回和清理见 artifacts/capability-code-stage-20261112/submission-20261113/。本段随本次提交纳入，不仅凭文字推断推送成功。
 - 本次 Git 授权不包含 tag、公开包、部署、重启或生产迁移。parity-results 本地与两端独立引用保留。必要证据保留于忽略目录，本任务临时脚本在交付后按确切路径回收；后续工程顺序按 ROADMAP，发行/环境资格继续分别验收。
+
+
+## 2026-11-13（Asia/Shanghai）唯一 AI 形象代言人面部重生成
+
+- 分支 `main @ d90fed9cd1d19d7b66fd7b5734ed762e5fd17ed9`；用户要求把配图任务角色切换到仓库唯一 AI 形象代言人，并重新生成脸部，保留用户配图的服装、发型、身材曲线、姿态和场景。
+- 生成结果：`.publishing/blogs/assets/character/platinum-20261113/spokesperson-platinum-face-v1.png`；模型面部渲染、提示词、输入/输出 SHA 和视觉复核见同目录 `generation-receipt.json`。清单已切换到 `SH-20261113-PLATINUM`，旧档案和旧参考保留为历史副本。
+- 验证 PASS：gpt-image-2.5-sunburst high 1024x1024 单次成功请求；首次 150 秒请求超时并保留 UNKNOWN 收据，读取本地状态后以更小参考图发起一次独立请求并成功。最终 PNG 1279x2133；逐像素复核脸部编辑区域外 0 个像素变化，服装、发型、身材/姿态、背景和水印沿用源图。
+- 未执行产品构建、测试、提交、推送、发布或部署；本轮临时目录在交接后精确清理。最终用户对生成结果的独立视觉确认仍为 NOT_RUN。
+
+
+## 2026-11-14（Asia/Shanghai）文章发布资料迁入 IoTSharp/Publishing
+
+- 用户要求评估并创建统一的私有文章仓库；GitHub IoTSharp 组织可创建 private，maikebing 为 active admin。新仓库 https://github.com/IoTSharp/Publishing 已建并完成推送，本机入口 `D:/source/IoTSharp.Publishing/README.md`。
+- 最终本地/远端 main 均为 `77bef9d2dc4e7b0b478d569d1c024e445262055e`，Private 读回通过；全部 8,416 个文件的路径、模式和 Git blob 与远端树一致。接续改动包括六项目资料、跨项目 OSChina 投稿/审批/去重记录和交流二维码，角色档案仍使用唯一 `SH-20261113-PLATINUM`。
+- 本仓 `.publishing` 已是指向新库 `projects/sonnetdb` 的目录联接；Cordonix、Sezika 旧发布路径及四个技能资料目录亦访问同一份数据。原始恢复点不作为发稿入口，不创建第二套台账。11 个发布/生图技能的保存约定已接续，本仓 AGENTS 5.2 已指向新位置。
+- 验证 PASS：8,388 项导入资料按 SHA 核对，七张补充配图另核；8,345 项旧/新路径文件身份一致；源码文档路径与发布稿件路径分开，六组正常/两组越界检查和第179篇身份/正文校验通过。原发布 ID、unknown、冻结 SHA 和缺失材料边界保持；本轮没有发文、上传媒体、改平台状态、产品构建/部署、提交/推送本产品仓库或技能仓库。
+- 新库交接、来源清单和集成检查见其 `HANDOFF.md` 与 `docs/migrations/20261113/`；最终读回和清理收据在其被忽略的 `.local/migration-20261114/`。本任务一次性脚本按精确目录回收，既有浏览器、凭据、源码镜像缓存与原恢复点保留；短命执行树由 Cordonix 回收，无新常驻服务。
+
+## 2026-11-14（Asia/Shanghai）博客园 178 伴随闪存完成
+
+- 本轮按 PowerShell 7.6.10 读取仓库交接、博客园发布技能（含 companion-ing）、封面策略、重建台账、计划和选题库。启动核对显示 2026-11-14 新文章事件 `0/2`、无活动共享租约、无 queued 文章；178 是唯一明确登记的 `ing=pending, attempts=0, writeRequests=0`，169/172/179 仍为 `needs-update`，180–202 仍为 `planned`。重建台账的原始正文/封面缺失边界未被覆盖。
+- 独立公开回读 178 原帖 `https://www.cnblogs.com/IoTSharp/p/23612806` HTTP 200，标题、主题封面、默认微信/QQ 二维码和 QQ 群号 `63631741` 通过；`cnblogs_ing.py --check-only` 核对账号 `IoTSharp` 与无重复闪存，dry-run 保留完整原文 URL。
+- 在共享租约与文章意图原子登记后，闪存实际只发送一次 Statuses POST，HTTP 200，官方原 ID `3607792`：账号、字面 `[SonnetDB]` 前缀、原文 URL、`IsPrivate=false` 和正文 SHA `b2e49baee8437a38f92c08a1741c319ec82e6b5cda18612a17c24d7d707b7840` 均通过原 ID回读；匿名闪存网页可见性仍为 `NOT_VERIFIED`。文章新发布计数不增加，178 保持原 postId/URL/正文和发布时间。
+- `publishing-state.json` 中 178.ing 已原子更新为 `published`、`attempts=1`、`writeRequests=1`、`ingId=3607792`；`publishing-events.jsonl` 去重追加一条 `ing-published`，计划与选题库无需改标题链接。证据：`.publishing/blogs/publishing-evidence/2026-11-14-178-ing-result.json`、`.publishing/blogs/publishing-evidence/2026-11-14/178-independent-readback.json`、`run-closeout.json` 及进程收据。
+- 本轮未创建、编辑、上传新文章或生成新封面；179 因重建稿缺原始封面/证据继续暂停，169/172 未触碰，未将 planned 选题伪装成 queued。闪存助手 PID `33816` 正常退出且已核对缺失，锁已由助手释放，共享租约为 `active=false`。JSON/JSONL 已重新核对 UTF-8 无 BOM/LF；本轮未暂存、提交、推送、部署、构建或运行产品测试，外来 dirty 状态保持。
+- 最终工作树边界：远端迁移提交为 77bef9d2；随后博客园现有自动任务 cnblogs-20261114-flash-0211 已通过同一目录联接写入新库台账/租约和 2026-11-14 回执。这些后续改动按自动化归属保留为未提交内容，未混入迁移提交；详见新库 .local/migration-20261114/post-migration-activity.json。
+
+## 2026-11-15（Asia/Shanghai）博客园日更因 IoTPaper 原文站授权边界暂停
+
+- 本轮在 `main@d90fed9cd1d19d7b66fd7b5734ed762e5fd17ed9` 只读核对博客园台账、事件、租约、计划、选题、封面规则、博客园公开首页和 IoTPaper 清单。2026-11-15 新文章为 `0/2`；没有 `queued` 稿件、活动文章/修订/共享租约，也没有 `pending, attempts=0` 的伴随闪存。178 及闪存 `3607792` 保持已确认状态；本轮 `--check-only` 仅作原 ID/账号/列表读取，没有 POST。
+- 180、181 均仍为 `planned`，没有正文、封面、来源元数据或排队时间；标题/别名未碰撞，但不在 IoTPaper 当前 233 条已批准原文清单。现行发布规则要求每篇新外部渠道稿先在 `iotpaper.net` 登记、构建、部署并公开读回。
+- 本自动任务明确禁止自动部署且仅授权博客文件与本任务交接，故未绕过该前置条件：没有起草/排队、生成或上传图片、创建/编辑博客园文章、发送闪存、改台账、暂存、提交、推送、产品构建/测试或部署。下一步须由用户明确授权 IoTPaper 原文站的登记/部署路径，或明确允许对此规则例外；在此之前保持 `planned`。
+
+## 2026-11-15（Asia/Shanghai）依赖分支审计与 .NET 10 集成
+
+- 起点为 `main@d90fed9cd1d19d7b66fd7b5734ed762e5fd17ed9`，先执行 `git fetch --all --prune`。GitHub 新增 10 个 Dependabot head；本地没有未纳入引用的开发分支。prunable worktree 的 HEAD 均已是 main 祖先；`.codex-temp` 的 issue227/232/233/236/242 旧提交与当前主线后续实现重复或会回退现状，保持 `KEEP_SEPARATE`。`parity-results`、WorkBuddy review zip 和未追踪旧 probe/审计材料未改动。
+- 用户明确只允许 .NET 10 NuGet。提交 `c9fe505` 将 ASP.NET Core、EF Core、Microsoft.Data.Sqlite、测试工具和 EF Tools 统一到 10.0.15；PR #432/#436 的 11.0.0 候选不合并。SkiaSharp #426 保留候选，等待独立 Linux native 探针。
+- 同一提交把 CoAP gitlink 更新到 `1d6fa2c58777140af39e2c5101a76f1e32b5d0ed`，把 MQTT routing gitlink 更新到 `1f1ec475ff3a364ab75f669467c1e2720fdcc73a`，并保存审计入口 `docs/audits/dependency-integration-20261115.md`。CoAP 目标项目和 `CoAP.Test` 481/481 通过，完整 solution 因旧 net40/net45 Proxy 目标框架冲突 FAIL；根仓 CoAP focused 6/6 通过。MQTT 子库 57/57 通过，保留 6 条 MSTEST0017 警告。
+- 根仓 `dotnet restore SonnetDB.slnx`、Release build（0 warning/0 error）和规定 `dotnet format ... --exclude extensions/` 均 PASS。当前未执行 NativeAOT 实际发布/运行、公开包消费、固定硬件、现场或长稳；CoAP peer/DTLS 互操作和远端新提交 CI 保持 UNKNOWN/NOT_RUN。
+- GitHub 当前开放 issue 为 #396、#397、#398、#399、#401、#402、#425；开放 Dependabot PR 为 #426～#432、#434～#436。#396/#397/#402 可做受限代码切片；#398/#399 依赖外部环境，#401 需先冻结时序精度合同，#425 需 IoTSharp 消费者模型。后续智能体只能领取不重叠文件范围，主智能体负责整合、验证、逐项远端回读和提交推送。
+- 本轮已授权提交与推送主线，但未授权关闭 issue、合并外部 PR、发布 NuGet、部署或生产/现场操作；这些动作需各自保留独立证据。
