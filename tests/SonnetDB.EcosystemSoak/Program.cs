@@ -433,8 +433,8 @@ internal static class Program
         string? walPath = null;
         foreach (WalSegmentInfo segment in WalSegmentLayout.Enumerate(walDirectory))
         {
-            using var reader = WalReader.Open(segment.Path);
-            if (reader.Replay().OfType<WritePointRecord>().Any())
+            using var reader = WalReader.OpenAtomicPoints(segment.Path);
+            if (reader.Replay().OfType<AtomicPointRecord>().Any())
             {
                 walPath = segment.Path;
                 break;

@@ -51,4 +51,6 @@
 
 后续 main 验证中，Windows Core 的 Legacy 测试通过，LSM 测试因原 Build & Test job 的 60 分钟总上限在执行中被取消；该取消没有失败测试断言。工作流修复将总上限调到 90 分钟，保留单项步骤限制，后续候选需重新取得完整 CI 结果。
 
+5.1.1 预检中，Management、Parity、Document soak、M19、M39、Publish、Connectors 和 Docker 均通过；Ecosystem Soak `ci` 唯一失败，根因是测试夹具使用 `WalReader.Open`/`WritePointRecord` 读取原子 Point WAL v2。修复改用 `WalReader.OpenAtomicPoints`/`AtomicPointRecord`，这是测试接线修复，不改变生产 WAL 格式；修复提交后必须重新生成所有同提交候选预检证据。
+
 回滚沿用 5.0 合同：停止写入，保留并核验升级前备份和旧程序；若候选已写入新目录/新段，恢复匹配旧 reader 的升级前副本，不能只替换二进制。Server 实例级 MQ、身份配置和外部对象不由单库备份自动覆盖。
