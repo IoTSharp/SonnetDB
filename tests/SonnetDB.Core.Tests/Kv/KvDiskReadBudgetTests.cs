@@ -218,7 +218,12 @@ public sealed class KvDiskReadBudgetTests : IDisposable
         using var budget = new KvDiskReadBudget(1, maxQueuedReads: 0,
             maintenanceReadWaitTimeout: TimeSpan.FromMilliseconds(30));
         using var keyspace = KvKeyspace.Open("maintenance-timeout", Path.Combine(_root, "maintenance-timeout"),
-            KvOptions.Default, budget);
+            KvOptions.Default with
+            {
+                AutoCheckpointEnabled = false,
+                ExpirerEnabled = false,
+                CleanupEnabled = false,
+            }, budget);
         keyspace.Set("old", new byte[] { 1 });
         keyspace.CreateSnapshot();
         keyspace.Set("new", new byte[] { 2 });

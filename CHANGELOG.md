@@ -15,6 +15,7 @@
 - 将 Build & Test 矩阵 job 的总超时提高到 90 分钟，保留各测试步骤自己的 50/40/10 分钟边界，避免 Windows Core 的 Legacy 与 LSM 顺序回归因总 job 时间耗尽而取消。
 - 修正 Ecosystem Soak 的 torn WAL 夹具，使其按原子 Point WAL v2 打开并识别 `AtomicPointRecord`；此前夹具用 legacy reader 读取 v2 段，导致候选 `ci` profile 在恢复前错误报告 header magic/version mismatch。
 - 修正 CrashTests 子进程 ready 握手只检查文件存在的竞态；父进程现在等待 ready 文件有内容，避免在 `File.WriteAllText` 创建与写入之间读到空阶段标记。
+- 隔离 KV disk-read budget 超时回归中的后台 checkpoint、过期清理和 generation cleanup，避免手动恢复断言与后台快照回收并发。
 
 ## [5.1.0] - 2026-11-15
 
