@@ -85,6 +85,32 @@ public sealed class SegmentWriterTests : IDisposable
     }
 
     [Fact]
+    public void SingleBucket_SplitsByMaxPoints_RoundTripsDuplicatesAndKeepsIndexesValid()
+    {
+        string path = TempPath();
+        var memTable = new MemTable();
+        var options = new SegmentWriterOptions
+        {
+            FsyncOnCommit = false,
+            MaxPointsPerBlock = 3,
+        };
+
+        for (int i = 0; i < 7; i++)
+            memTable.Append(1UL, i < 3 ? 1000L : 2000L + i, "usage", FieldValue.FromDouble(i), i + 1L);
+
+        var result = new SegmentWriter(options).WriteFrom(memTable, 1L, path);
+
+        Assert.Equal(3, result.BlockCount);
+        using var reader = SegmentReader.Open(path);
+        Assert.Equal(3, reader.BlockCount);
+        var decoded = reader.Blocks.SelectMany(block => reader.DecodeBlock(block)).ToArray();
+        Assert.Equal(7, decoded.Length);
+        Assert.Equal([0d, 1d, 2d, 3d, 4d, 5d, 6d], decoded.Select(static point => point.Value.AsDouble()));
+        Assert.Equal([1000L, 1000L, 1000L, 2003L, 2004L, 2005L, 2006L], decoded.Select(static point => point.Timestamp));
+        AssertSegmentInvariants(path);
+    }
+
+    [Fact]
     public void SingleBucket_1000DoublePoints_BlockHeaderFieldsCorrect()
     {
         string path = TempPath();

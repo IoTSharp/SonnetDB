@@ -1,10 +1,16 @@
 ﻿using System.Buffers;
 using System.Threading;
+using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Memory;
+
+internal readonly record struct MemTableAppendResult(
+    long EstimatedBytesDelta,
+    int PointCountDelta,
+    bool Applied);
 
 /// <summary>
 /// MemTable 的单桶：固定 (SeriesId, FieldName, FieldType) 下的有序 DataPoint 列表。
@@ -15,6 +21,8 @@ public sealed class MemTableSeries
 {
     private readonly object _sync;
     private readonly List<DataPoint> _points = [];
+    private readonly DuplicateTimestampPolicy _duplicateTimestampPolicy;
+    private readonly Dictionary<long, int>? _timestampIndexes;
     private bool _isSorted = true;
     private long _lastTimestamp = long.MinValue;
     private long _minTimestamp = long.MaxValue;
@@ -86,11 +94,22 @@ public sealed class MemTableSeries
     /// </summary>
     /// <param name="key">桶的 (SeriesId, FieldName) 复合键。</param>
     /// <param name="fieldType">该桶的字段类型。</param>
-    internal MemTableSeries(SeriesFieldKey key, FieldType fieldType, object? publicationSync = null)
+    internal MemTableSeries(
+        SeriesFieldKey key,
+        FieldType fieldType,
+        object? publicationSync = null,
+        DuplicateTimestampPolicy duplicateTimestampPolicy = DuplicateTimestampPolicy.KeepAll)
     {
+        if (!Enum.IsDefined(duplicateTimestampPolicy))
+            throw new ArgumentOutOfRangeException(nameof(duplicateTimestampPolicy));
+
         _sync = publicationSync ?? new();
         Key = key;
         FieldType = fieldType;
+        _duplicateTimestampPolicy = duplicateTimestampPolicy;
+        _timestampIndexes = duplicateTimestampPolicy == DuplicateTimestampPolicy.KeepAll
+            ? null
+            : new Dictionary<long, int>();
         _hasNumericAggregates = fieldType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
     }
 
@@ -162,6 +181,9 @@ public sealed class MemTableSeries
         => _ = AppendAndEstimateBytes(timestamp, value);
 
     internal long AppendAndEstimateBytes(long timestamp, FieldValue value)
+        => AppendWithPolicy(timestamp, value).EstimatedBytesDelta;
+
+    internal MemTableAppendResult AppendWithPolicy(long timestamp, FieldValue value)
     {
         if (value.Type != FieldType)
             throw new ArgumentException(
@@ -170,6 +192,22 @@ public sealed class MemTableSeries
         lock (_sync)
         {
             long addedBytes = EstimatePointBytes(FieldType, value);
+
+            if (_timestampIndexes is not null
+                && _timestampIndexes.TryGetValue(timestamp, out int existingIndex))
+            {
+                if (_duplicateTimestampPolicy == DuplicateTimestampPolicy.KeepFirst)
+                    return default;
+
+                DataPoint previous = _points[existingIndex];
+                long previousBytes = EstimatePointBytes(FieldType, previous.Value);
+                _points[existingIndex] = new DataPoint(timestamp, value);
+                _estimatedBytes += addedBytes - previousBytes;
+                UpdateNumericAggregateForReplacement(previous.Value, value);
+                _version++;
+                InvalidateSnapshotCache();
+                return new MemTableAppendResult(addedBytes - previousBytes, 0, true);
+            }
 
             if (timestamp < _lastTimestamp)
                 _isSorted = false;
@@ -198,11 +236,47 @@ public sealed class MemTableSeries
             }
 
             _points.Add(new DataPoint(timestamp, value));
+            _timestampIndexes?.Add(timestamp, _points.Count - 1);
             _version++;
             InvalidateSnapshotCache();
-            return addedBytes;
+            return new MemTableAppendResult(addedBytes, 1, true);
         }
     }
+
+    private void UpdateNumericAggregateForReplacement(FieldValue previous, FieldValue current)
+    {
+        if (!_hasNumericAggregates)
+            return;
+
+        double previousValue = ToNumeric(previous);
+        double currentValue = ToNumeric(current);
+        _numericSum += currentValue - previousValue;
+        if (previousValue == _numericMin || previousValue == _numericMax)
+        {
+            _numericMin = double.PositiveInfinity;
+            _numericMax = double.NegativeInfinity;
+            foreach (DataPoint point in _points)
+            {
+                double value = ToNumeric(point.Value);
+                if (value < _numericMin) _numericMin = value;
+                if (value > _numericMax) _numericMax = value;
+            }
+        }
+        else
+        {
+            if (currentValue < _numericMin) _numericMin = currentValue;
+            if (currentValue > _numericMax) _numericMax = currentValue;
+        }
+    }
+
+    private double ToNumeric(FieldValue value)
+        => FieldType switch
+        {
+            FieldType.Float64 => value.AsDouble(),
+            FieldType.Int64 => value.AsLong(),
+            FieldType.Boolean => value.AsBool() ? 1d : 0d,
+            _ => 0d,
+        };
 
     /// <summary>
     /// 估算单个数据点追加到当前桶后新增的内存占用。

@@ -116,6 +116,9 @@ public static class TsdbPaths
     /// <summary>待完成的 measurement 删除意图文件名（相对于根目录）。</summary>
     internal const string MeasurementDropIntentFileName = "measurement-drop.sdbintent";
 
+    /// <summary>已完成的 measurement 删除代际屏障文件名（相对于根目录）。</summary>
+    internal const string MeasurementDropFenceFileName = "measurement-drop.sdbfence";
+
     /// <summary>Measurement 批次幂等账本文件名（相对于根目录）。</summary>
     public const string MeasurementBatchLedgerFileName = "measurement-batches.sdbledger";
 
@@ -160,6 +163,10 @@ public static class TsdbPaths
     /// <summary>返回待完成的 measurement 删除意图文件路径。</summary>
     internal static string MeasurementDropIntentPath(string root) =>
         Path.Combine(root, MeasurementDropIntentFileName);
+
+    /// <summary>返回 measurement 删除代际屏障文件路径。</summary>
+    internal static string MeasurementDropFencePath(string root) =>
+        Path.Combine(root, MeasurementDropFenceFileName);
 
     /// <summary>返回 measurement 批次幂等账本路径。</summary>
     public static string MeasurementBatchLedgerPath(string root) =>

@@ -624,10 +624,17 @@ public sealed partial class Tsdb : IDisposable
             // 独立文件损坏或关联段不可读时，残留 checkpoint 不能单独作为丢弃旧写入的依据。
             // 对没有独立 sidecar、且没有 pending marker 的旧库，上方会保留旧版本仅依赖
             // WAL checkpoint 的行为，避免升级后无法打开已有数据库。
-            var memTable = new MemTable();
+            var memTable = new MemTable(options.DuplicateTimestampPolicy);
             int catalogCountBeforeReplay = catalog.Count;
             string tombstoneManifestPath = TsdbPaths.TombstoneManifestPath(root);
-            IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.LoadWithFallback(tombstoneManifestPath);
+            IReadOnlyDictionary<ulong, long> measurementDropFences =
+                MeasurementDropFenceFile.Load(TsdbPaths.MeasurementDropFencePath(root));
+            IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.LoadWithFallback(tombstoneManifestPath)
+                .Where(tombstone => !MeasurementDropFenceFile.Covers(
+                    measurementDropFences,
+                    tombstone.SeriesId,
+                    tombstone.CreatedLsn))
+                .ToArray();
             long durableTombstoneCheckpointLsn = GetMaxTombstoneLsn(manifestTombstones);
             var result = walSet.ReplayWithCheckpoint(
                 catalog,
@@ -665,7 +672,11 @@ public sealed partial class Tsdb : IDisposable
 
             // 追加 WAL replay 中 checkpoint 之后的 Delete 记录
             foreach (var del in result.DeleteRecords)
+            {
+                if (MeasurementDropFenceFile.Covers(measurementDropFences, del.SeriesId, del.Lsn))
+                    continue;
                 tsdb.Tombstones.Add(new Tombstone(del.SeriesId, del.FieldName, del.FromTimestamp, del.ToTimestamp, del.Lsn));
+            }
 
             tsdb._vectorReplacements = new MeasurementVectorReplacementStore(
                 tsdb._keyspaces, catalog, measurements);
@@ -1584,6 +1595,22 @@ public sealed partial class Tsdb : IDisposable
         MemTable.RemoveSeries(removedSeriesIds);
         RemoveMeasurementSegmentsLocked(removedSeriesIds);
         _vectorReplacements?.RemoveSeries(removedSeriesIds);
+        // A recreated measurement can reuse the deterministic SeriesId for the same
+        // tag set.  Its old tombstones must not cross that measurement lifecycle;
+        // otherwise DROP + CREATE + INSERT at the same timestamp remains invisible.
+        if (Tombstones.RemoveSeries(removedSeriesIds) > 0)
+        {
+            TombstoneManifestCodec.Save(
+                TsdbPaths.TombstoneManifestPath(RootDirectory),
+                Tombstones.All);
+        }
+        if (removedSeriesIds.Count > 0)
+        {
+            MeasurementDropFenceFile.SaveMerged(
+                TsdbPaths.MeasurementDropFencePath(RootDirectory),
+                removedSeriesIds,
+                checked(_walSet!.NextLsn - 1));
+        }
 
         // 段替换 manifest 必须先于 series catalog 的删除稳定落盘。
         DirectoryFsync.FlushRequired(RootDirectory);
@@ -1862,7 +1889,7 @@ public sealed partial class Tsdb : IDisposable
                                 {
                                     _checkpointLsn = lsnBeforeFlush;
                                     // 关闭路径不发布段索引（进程即将退出），换空表保持不变式一致。
-                                    _activeMemTable = new MemTable();
+                                    _activeMemTable = new MemTable(_options.DuplicateTimestampPolicy);
                                 }
                             }
                             catch (Exception ex)
@@ -2040,7 +2067,7 @@ public sealed partial class Tsdb : IDisposable
         _walSet.Roll();
 
         // 原子密封：换新空表 + 旧表进 sealing 列表（SegmentManager 一次 Volatile.Write 发布）。
-        var fresh = new MemTable();
+        var fresh = new MemTable(_options.DuplicateTimestampPolicy);
         var sealed_ = Segments.SealActiveAndSwap(fresh);
         _activeMemTable = fresh;
 

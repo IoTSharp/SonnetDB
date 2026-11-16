@@ -27,7 +27,7 @@ namespace SonnetDB.Storage.Segments;
 /// │    CreatedAtUtcTicks                                            │
 /// │    BlockCount（回填）                                            │
 /// ├─────────────────────────────────────────────────────────────────┤
-/// │  Block 1 ... Block N  （每个 (SeriesId, FieldName) 桶 = 1 Block） │
+/// │  Block 1 ... Block N  （每个 (SeriesId, FieldName) 桶 = 1..N Blocks） │
 /// │  ┌───────────────────────────────────────────────────────────┐  │
 /// │  │ BlockHeader (固定 80 字节)                                  │  │
 /// │  │   SeriesId / Min/MaxTimestamp / Count                      │  │
@@ -120,6 +120,7 @@ public sealed class SegmentWriter
     {
         ArgumentNullException.ThrowIfNull(series);
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxPointsPerBlock);
 
         // Sort by (SeriesId, FieldName Ordinal)，过滤空桶
         var sorted = new List<MemTableSeries>(series.Count);
@@ -166,10 +167,6 @@ public sealed class SegmentWriter
             // ─── 阶段 B：逐 Block 写入 ─────────────────────────────────────
             foreach (var bucket in sorted)
             {
-                // 崩溃注入钩子（仅测试使用）
-                _options.FailAt?.Invoke(currentOffset);
-
-                long blockOffset = currentOffset;
                 var points = bucket.Snapshot();
 
                 // 编码字段名 UTF-8
@@ -180,54 +177,65 @@ public sealed class SegmentWriter
                     int fieldNameLen = Encoding.UTF8.GetBytes(bucket.Key.FieldName, fieldNameBuf);
                     ReadOnlySpan<byte> fieldNameSpan = fieldNameBuf.AsSpan(0, fieldNameLen);
 
-                    // 编码时间戳载荷：根据 SegmentWriterOptions.TimestampEncoding 选择 V1 或 V2 编码
-                    bool useDeltaTs = (_options.TimestampEncoding & BlockEncoding.DeltaTimestamp) != 0
-                        && points.Length > 0;
-
-                    int tsPayloadLen;
-                    if (useDeltaTs)
+                    for (int start = 0; start < points.Length;)
                     {
-                        // 先把时间戳收集到临时 long[]，再调用 TimestampCodec
-                        long[] tsArr = ArrayPool<long>.Shared.Rent(points.Length);
-                        try
+                        int count = Math.Min(_options.MaxPointsPerBlock, points.Length - start);
+                        ReadOnlyMemory<DataPoint> blockPoints = points.Slice(start, count);
+                        start += count;
+
+                        // 崩溃注入钩子（仅测试使用）
+                        _options.FailAt?.Invoke(currentOffset);
+
+                        long blockOffset = currentOffset;
+                        // 编码时间戳载荷：根据 SegmentWriterOptions.TimestampEncoding 选择 V1 或 V2 编码
+                        bool useDeltaTs = (_options.TimestampEncoding & BlockEncoding.DeltaTimestamp) != 0
+                            && blockPoints.Length > 0;
+
+                        int tsPayloadLen;
+                        if (useDeltaTs)
                         {
-                            for (int i = 0; i < points.Length; i++)
-                                tsArr[i] = points.Span[i].Timestamp;
-                            tsPayloadLen = TimestampCodec.MeasureDeltaOfDelta(tsArr.AsSpan(0, points.Length));
-                            byte[] tsBuf = ArrayPool<byte>.Shared.Rent(Math.Max(tsPayloadLen, 1));
+                            // 先把时间戳收集到临时 long[]，再调用 TimestampCodec
+                            long[] tsArr = ArrayPool<long>.Shared.Rent(blockPoints.Length);
                             try
                             {
-                                if (tsPayloadLen > 0)
-                                    TimestampCodec.WriteDeltaOfDelta(tsArr.AsSpan(0, points.Length), tsBuf.AsSpan(0, tsPayloadLen));
-                                ReadOnlySpan<byte> tsSpan = tsBuf.AsSpan(0, tsPayloadLen);
-                                WriteOneBlock(bs, bucket, points, fieldNameSpan, tsSpan, BlockEncoding.DeltaTimestamp,
-                                    blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
-                                    ref segMinTs, ref segMaxTs, ref currentOffset);
+                                for (int i = 0; i < blockPoints.Length; i++)
+                                    tsArr[i] = blockPoints.Span[i].Timestamp;
+                                tsPayloadLen = TimestampCodec.MeasureDeltaOfDelta(tsArr.AsSpan(0, blockPoints.Length));
+                                byte[] tsBuf = ArrayPool<byte>.Shared.Rent(Math.Max(tsPayloadLen, 1));
+                                try
+                                {
+                                    if (tsPayloadLen > 0)
+                                        TimestampCodec.WriteDeltaOfDelta(tsArr.AsSpan(0, blockPoints.Length), tsBuf.AsSpan(0, tsPayloadLen));
+                                    ReadOnlySpan<byte> tsSpan = tsBuf.AsSpan(0, tsPayloadLen);
+                                    WriteOneBlock(bs, bucket, blockPoints, fieldNameSpan, tsSpan, BlockEncoding.DeltaTimestamp,
+                                        blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
+                                        ref segMinTs, ref segMaxTs, ref currentOffset);
+                                }
+                                finally { ArrayPool<byte>.Shared.Return(tsBuf); }
                             }
-                            finally { ArrayPool<byte>.Shared.Return(tsBuf); }
+                            finally { ArrayPool<long>.Shared.Return(tsArr); }
+                            continue;
                         }
-                        finally { ArrayPool<long>.Shared.Return(tsArr); }
-                        continue;
-                    }
 
-                    // V1：Count × 8B int64 LE
-                    tsPayloadLen = points.Length * 8;
-                    byte[] tsBufV1 = ArrayPool<byte>.Shared.Rent(Math.Max(tsPayloadLen, 1));
-                    try
-                    {
-                        if (tsPayloadLen > 0)
+                        // V1：Count × 8B int64 LE
+                        tsPayloadLen = blockPoints.Length * 8;
+                        byte[] tsBufV1 = ArrayPool<byte>.Shared.Rent(Math.Max(tsPayloadLen, 1));
+                        try
                         {
-                            var tsWriter = new IO.SpanWriter(tsBufV1.AsSpan(0, tsPayloadLen));
-                            foreach (var dp in points.Span)
-                                tsWriter.WriteInt64(dp.Timestamp);
-                        }
+                            if (tsPayloadLen > 0)
+                            {
+                                var tsWriter = new IO.SpanWriter(tsBufV1.AsSpan(0, tsPayloadLen));
+                                foreach (var dp in blockPoints.Span)
+                                    tsWriter.WriteInt64(dp.Timestamp);
+                            }
 
-                        ReadOnlySpan<byte> tsSpan = tsBufV1.AsSpan(0, tsPayloadLen);
-                        WriteOneBlock(bs, bucket, points, fieldNameSpan, tsSpan, BlockEncoding.None,
-                            blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
-                            ref segMinTs, ref segMaxTs, ref currentOffset);
+                            ReadOnlySpan<byte> tsSpan = tsBufV1.AsSpan(0, tsPayloadLen);
+                            WriteOneBlock(bs, bucket, blockPoints, fieldNameSpan, tsSpan, BlockEncoding.None,
+                                blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
+                                ref segMinTs, ref segMaxTs, ref currentOffset);
+                        }
+                        finally { ArrayPool<byte>.Shared.Return(tsBufV1); }
                     }
-                    finally { ArrayPool<byte>.Shared.Return(tsBufV1); }
                 }
                 finally { ArrayPool<byte>.Shared.Return(fieldNameBuf); }
             }

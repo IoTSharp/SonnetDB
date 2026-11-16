@@ -117,6 +117,37 @@ public sealed class TombstoneTable
         }
     }
 
+    /// <summary>
+    /// 移除指定序列的全部墓碑。
+    /// </summary>
+    /// <param name="seriesIds">要清理的序列 ID 集合。</param>
+    /// <returns>实际移除的墓碑数量。</returns>
+    internal int RemoveSeries(IReadOnlySet<ulong> seriesIds)
+    {
+        ArgumentNullException.ThrowIfNull(seriesIds);
+        if (seriesIds.Count == 0)
+            return 0;
+
+        lock (_lock)
+        {
+            var keys = _byKey.Keys
+                .Where(key => seriesIds.Contains(key.SeriesId))
+                .ToArray();
+            if (keys.Length == 0)
+                return 0;
+
+            int removed = 0;
+            foreach (var key in keys)
+            {
+                if (_byKey.Remove(key, out var list))
+                    removed += list.Count;
+            }
+
+            RebuildSnapshot();
+            return removed;
+        }
+    }
+
     // ── 私有辅助 ──────────────────────────────────────────────────────────────
 
     private bool AddLocked(in Tombstone tombstone)

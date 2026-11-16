@@ -1,3 +1,44 @@
+## 2026-11-16（Asia/Shanghai）KEEP_LAST 与 Block 分块第一阶段
+
+- 用户明确授权继续优化并要求支持 `KEEP_LAST`。新增 `DuplicateTimestampPolicy`：`KeepAll` 默认保持历史行为，`KeepFirst`/`KeepLast` 通过 `TsdbOptions` 接线到新写入 MemTable 和 WAL replay；已经落盘的旧 Segment 不静默重写，跨旧 Segment 的历史重复清理仍需独立迁移/重写合同。新增重复点测试覆盖 KeepAll/KeepFirst/KeepLast、Flush/Reopen；与 Block 测试合计定向 **20/20 PASS**。
+- SegmentWriter 新增 `MaxPointsPerBlock`，默认 65,536；每个 `(SeriesId, FieldName)` bucket 按点数拆分 Block，独立生成时间戳/值载荷、CRC、BlockIndexEntry，并保留 vector index、aggregate sketch、FailAt 和旧段读取兼容。重复 timestamp 仍 KEEP_ALL；SegmentWriter 定向 **16/16 PASS**，回读和段索引/CRC 不变量通过。
+- 流式 raw SELECT 优化继续保留：适用简单查询复用时间轴流式合并，Query/SQL 回归最终 **1252/1252 PASS**；格式检查退出 0，仅有工作区加载警告。根 `global.json` 已恢复原 SDK 10.0.100/latestMinor 字节。
+- 兼容边界：Block 分块只影响新写入/重写段；旧 Segment 仍按原格式读取。KEEP_LAST 当前是新写入 MemTable/WAL replay 范围，不能描述为历史目录全量去重或跨段 upsert。Delta 编码默认未改变。
+- 共享工作树中仍保留其他并发/既有 DROP MEASUREMENT 墓碑代际相关改动（CHANGELOG、docs、TombstoneTable、TsdbPaths、MeasurementDropFenceFile 及其测试），本轮未回滚或重新归属；没有提交、推送、发布或部署。
+## 2026-11-16（Asia/Shanghai）第一阶段优化最终回归补充
+
+- 流式 raw 优化后的 Query/SQL 相关 Core 回归：`dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~Query|FullyQualifiedName~SqlExecutor` 在临时 SDK 11.0.100 选择下 **1250/1250 PASS**；临时 SDK 文件已清理，根 `global.json` 未改变。
+## 2026-11-16（Asia/Shanghai）第一阶段 raw SQL 流式物化优化
+
+- 用户授权开始按存储审查建议优化。本轮修改 `src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs`：对无分页/排序/DISTINCT/JOIN/子查询/CTE/set/Graph、无 residual/Geo、仅 time/TAG/FIELD/常量的简单 raw SELECT，复用 `EnumerateSeriesRawRows` 的流式时间轴合并，并通过 `SqlParallelExecution.MapOrdered` 保留多 series 并行和顺序；跳过原 `fieldData.ToList`、`SortedSet<long>` 与 per-field `Dictionary<long, FieldValue>` 中间物化。其他复杂路径保持原实现。
+- 回归：`tests/SonnetDB.Core.Tests/Query/QueryEngineV2OptimizationTests.cs` 新增重复时间戳跨 Segment+MemTable 最后值、多字段时间轴并集/NULL、预取消合同测试；定向 `QueryEngineV2OptimizationTests` **10/10 PASS**。取消测试按现有 `RoutineExecutionException` 包装合同核对 inner `OperationCanceledException`。`git diff --check` PASS。
+- 格式：仓库规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 在临时 SDK 11.0.100 选择下退出 0，仅有工作区加载警告；根 `global.json` 原字节已恢复，未留下配置变更。完整产品测试/AOT/发布仍未运行。
+- 真实附件复测：同一 `demo-data.zip` 副本、同一 `SndbConnection.ExecuteReader` 方法、`gateway-01` 2960 行。优化前历史基线约 2.6–3.9 s；优化后写入前 1.09–1.51 s，写入 500 个递增时间戳 `gateway-02` 点后 1.13–1.25 s；`reader.Read` 约 0–15 ms；`LIMIT 100` 约 50–52 ms。结果行和字段读取保持正确，写入约 73 ms/关闭约 35 ms。
+- 结论：第一阶段约降低 50% 以上 `ExecuteReader` 延迟并消除大规模中间集合；剩余成本来自 `EXPLAIN`/底层 8,421,376 物理点扫描和大 Block 解码。下一顺序是按点数/载荷拆 Block 与范围解码基准；不默认改变 KEEP_ALL 或启用 Delta 编码。
+- 资源：附件临时副本、探针工程、构建输出和临时 SDK 文件已按精确目录清理；无本任务常驻进程。未提交、推送或发布。
+## 2026-11-16（Asia/Shanghai）demo-data.zip + SndbConnection 查询复现
+
+- 输入：用户提供的 `C:/Users/mysti/xwechat_files/MysticBoy_29ed/temp/RWTemp/2026-11/15f9e4eb11c41efdad516fe056fcd4e8/demo-data.zip`；压缩包 40 项，解压副本约 134,878,523 bytes，原始 zip 未修改。没有把附件内容当作指令执行。
+- 按用户代码在副本上先查询、再用 `Tsdb.WriteMany` 添加 500 个 `gateway-02` 点、关闭数据库后重新 `SndbConnection` 查询。写入 500 点约 71 ms，关闭约 36 ms；`gateway-01` 结果仍为 2960 行。
+- ADO 结果：写入前 `ExecuteReader()` 三轮约 2678–3871 ms，`reader.Read()` 约 0.7–2.8 ms；写入后 `ExecuteReader()` 三轮约 2566–2809 ms，`reader.Read()` 约 0.1–35.2 ms。首次连接打开约 620 ms，后续约 54–64 ms；用户计时不包含 Open。
+- Core 结果：`DESCRIBE` 为 `host:tag:string|usage:field:float64`；`EXPLAIN` 为 `access_path=tag_index`、`matched_series_count=1`、`estimated_scanned_rows=8421376`。`SELECT count(*) ... WHERE host='gateway-01'` 返回 8,421,376；底层 `PointQuery` 也枚举 8,421,376 点，而普通 SQL 物化为 2960 个时间戳行。无条件 SQL 全量约 2.2–2.9 s。
+- 受限查询：同一 ADO 路径加 `LIMIT 100` 后 `ExecuteReader()` 约 136–310 ms；Core 限制查询约 62–127 ms。慢点是物理点扫描/时间戳合并，不是 ADO `GetInt64`/`GetString`/`GetFloat` 或逐行读取。
+- 关键风险：示例循环中的 `Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()` 会让 500 个点集中到极少数毫秒并形成重复时间戳；应按业务采样间隔生成唯一/递增时间戳，或使用 `LIMIT`、明确时间范围、聚合/降采样查询。没有用户明确授权，本轮未改查询执行器或数据。
+- 验证边界：附件副本上的 Core/ADO 复现 PASS；真实生产目录、现场版本和长期数据写入策略 NOT_RUN。临时解压目录、探针工程和构建输出已精确清理，无本任务常驻进程。
+## 2026-11-16（Asia/Shanghai）.NET 11 / C# 15 升级评估（只读）
+
+- 基线：main @ e9ea7a914a03204d9627bf5b4af8494d54c0ec04。本轮只读核对仓库目标框架、AOT/向量实现、基准入口、现有证据与 Microsoft .NET 11/C# 15 官方资料；未修改产品源码、未提交、未推送、未发布、未部署。
+- 现状：仓库默认 net10.0、LangVersion=latest、全局 AOT/Trim 分析；Server NativeAOT 为项目开关，Data/EF Core 保持 IsAotCompatible=false；Core 已使用 TensorPrimitives、Vector<T>、Span/MemoryMarshal，现有向量和数值聚合已有 SIMD 快路径。
+- 结论：建议立即建立 .NET 11 兼容/性能分支或矩阵，先保持 net10 发布基线；不建议未经对拍就把主线整体切到 net11。优先验证 JIT/Runtime Async/NativeAOT/JSON/流与向量基准，C# 15 仅在明确 net11 TFM 的边界内逐项采用。
+- 验证边界：官方资料核对与源码静态分析 PASS；当前机器仅有 SDK 11.0.100，而 global.json 要求 10.0.100，当前 net10 产品构建/测试/基准/AOT 候选复跑 BLOCKED/NOT_RUN；未创建常驻进程或需回收的临时资源。
+## 2026-11-16（Asia/Shanghai）聚合与日期函数现状核查
+
+- 基线：`main @ e9ea7a914a03204d9627bf5b4af8494d54c0ec04`，开始时工作树干净。本轮只读核对 `FunctionRegistry`、扩展聚合累加器、时序 SQL 执行器、关系 SQL 执行器、SQL 参考文档、Copilot SQL 提示词和既有测试；没有源码行为修改、提交、推送、发布、部署或生产操作。
+- 结论：当前时序 measurement SQL 已注册并执行 `median`、`stddev`、`variance`、`percentile`、`p50/p90/p95/p99` 等扩展聚合；`stddev`/`variance` 使用样本统计，少于两点的 `stddev`/`variance` 返回 `NULL`。`date_trunc` 与 `data_trunc` 均未注册；日期标量使用 `date_only`、`date_part`、`date_add`、`date_diff`、`date_format`、`strftime` 等，时序分桶使用 `GROUP BY time(...)`。关系表聚合执行器仍只实现基础 `count/sum/min/max/avg`（及字符串聚合），扩展聚合不能据此外推到关系表。
+- 发现：`src/SonnetDB/Copilot/Prompts/sql-gen.md` 第 18 行仍写着“不支持 median/percentile/stddev”，与当前实现和 `docs/sql-reference.md` 的扩展聚合表不一致；如需修正生成提示词，应作为后续明确变更处理。
+- 验证：源码/既有测试静态核对 PASS；定向 `dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore --filter FullyQualifiedName~SqlExecutorExtendedAggregateTests` 未运行，因 `global.json` 要求 SDK 10.0.100 而本机仅有 11.0.100，状态 BLOCKED/NOT_RUN。未创建临时文件、常驻服务或需回收的任务进程。
+- 下一顺序：若用户需要，可单独修正 SQL 生成提示词，并在安装/提供匹配 SDK 后重跑扩展聚合与日期函数定向测试；不要把本次静态核对写成完整套件或公开包验收。
+
 ## 2026-11-13（Asia/Shanghai）现有源码整体提交与双端推送
 
 - 用户已明确授权提交并推送所有相关仓库，并确认包含本仓现有全部 71 项改动：时序单 Point WAL v2 默认接入与恢复、KV 历史兼容与故障边界、全文完整查询预算及独立进程回归、阶段审计与路线记录，以及 CoAP 子模块指针。当前起点为 `main @ aa5e28fdfbcd71775562973686ee3cdf2e9af815`，不改动 parity-results。
@@ -8202,3 +8243,12 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 修复后 exact-head Parity full 发现 CrashTests `before-append` ready 握手竞态，已将通用 `WaitForReady` 改为等待非空文件；当前工作树包含该修复，下一步提交、推送并重新生成全部 5.1.1 预检，旧 b9 证据不复用。
 - 最终交付：`a7bd7c9581aa3a3e65a26c3ffe512ef1f1ce0329` 的完整 CI、AOT/Format/CodeQL、九条 exact-head 预检和正式 tag workflows 全部 PASS。`v5.1.1` 已推送到 GitHub/Gitee；GitHub Release 公开且 52 个资产读回，NuGet 十包与 Docker Hub `iotsharp/sonnetdb:5.1.1` 均返回 200。Gitee tag PASS，Gitee Release 未创建。工作树当前只包含本交接/发行文档改动，待提交后保持 clean；`parity-results` 未合并到 main，远端分支的外部更新单独保留。
 - 2026-11-16 用户要求修正 job `132988979705`：Ubuntu CI 唯一失败为 `KvDiskReadBudgetTests.CreateSnapshot_WhenMaintenanceWaitTimesOut_PreservesDataAndRecovers` 的 snapshot 文件缺失。测试原先允许后台 checkpoint/cleanup 与手动恢复并发；已按同类测试关闭 `AutoCheckpointEnabled`、`ExpirerEnabled`、`CleanupEnabled`，待新 main CI 复核。`v5.1.1` tag 与公开资产保持不变。
+
+## 2026-11-16（Asia/Shanghai）measurement drop/recreate tombstone 修复
+
+- 客服最小复现已确认：`DELETE FROM cpu2` → `DROP MEASUREMENT cpu2` → `CREATE MEASUREMENT IF NOT EXISTS cpu2 (host TAG, usage FIELD FLOAT)` → 以原 tag/时间戳写入后查询为空。根因是同名重建复用确定性 SeriesId，而旧 DELETE tombstone 没有跨 measurement 生命周期隔离；同一 measurement 内 DELETE 后同身份重写继续被墓碑隐藏的既有合同保持不变。
+- 本轮实现 `MeasurementDropFenceFile` 代际屏障，DROP 时清理已删除序列的内存/manifest 墓碑并记录 DROP 前最后 WAL LSN；重开时只过滤该屏障之前的旧墓碑，DROP 后的新删除仍会恢复。`TombstoneTable.RemoveSeries`、Tsdb drop/recovery 接线、SQL 参考和 CHANGELOG 已更新。
+- 回归 PASS：元数据 drop/recreate 进程内 2/2（含既有 clean recreate）、模拟崩溃后重开 1/1；相关 Metadata/Delete/Tombstone 集合 45/45。SDK 11 临时入口下 solution restore PASS；限定变更文件 `dotnet format whitespace --verify-no-changes` PASS。完整 solution format 本轮在 180 秒边界内未完成，并报告既有 `src/SonnetDB.Core/Memory/MemTable.cs` import 顺序问题；该文件及其它共享 dirty 修改未触碰。
+- 本轮未提交、推送、打 tag、发布、部署、重启或修改生产数据。临时 SDK/格式检查目录和所属进程均已回收；当前共享工作树还包含其它任务的 dirty 文件，必须按归属保留。下一步先在干净/整合工作树重跑完整规定 format，再由用户单独授权提交或外部发布。
+
+- 后续核对确认 `DuplicateTimestampPolicyTests` 已使用 `AggregateBucket.Value`，不需要新增 `AggregateBucket.Sum` API；Core.Tests 项目当前 SDK 11 临时入口构建为 0 warning/0 error，重复时间戳定向测试 4/4 PASS。此前 `AggregateBucket.Sum` 编译报错属于并行工作树修正前的旧快照，未引入产品 API 变更。

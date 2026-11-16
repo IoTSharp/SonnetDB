@@ -95,6 +95,20 @@ internal static class SelectExecutor
             return pushedDownResult;
         }
 
+        if (!hasAggregate
+            && groupByTime is null
+            && TryExecuteSimpleRawStreaming(
+                tsdb,
+                schema,
+                statement,
+                classified,
+                matchedSeries,
+                where,
+                out var streamedResult))
+        {
+            return streamedResult;
+        }
+
         SelectExecutionResult result = hasAggregate
             ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
@@ -970,6 +984,75 @@ internal static class SelectExecutor
     };
 
     // ── 原始模式 ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 对没有分页、排序、残差谓词或计算投影的 raw 查询复用流式时间轴合并器。
+    /// 该路径保持同一 series/field/timestamp 的最后值语义，同时避免先物化全部物理点，
+    /// 再构造时间戳集合和字段字典。
+    /// </summary>
+    private static bool TryExecuteSimpleRawStreaming(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        SelectStatement statement,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        out SelectExecutionResult result)
+    {
+        result = null!;
+        if (statement.Pagination is not null
+            || statement.OrderByList.Count != 0
+            || statement.Distinct
+            || statement.Having is not null
+            || statement.JoinClauses.Count != 0
+            || statement.FromSubquery is not null
+            || statement.CommonTableExpressions.Count != 0
+            || statement.SetOperationList.Count != 0
+            || statement.TableValuedFunction is not null
+            || statement.GraphTable is not null
+            || where.Residual is not null
+            || where.GeoFilters.Count != 0
+            || projections.Any(static projection => projection.Kind is not (
+                ProjectionKind.Time
+                or ProjectionKind.Tag
+                or ProjectionKind.Field
+                or ProjectionKind.Constant)))
+        {
+            return false;
+        }
+
+        IReadOnlyList<IReadOnlyList<object?>> BuildSeriesRows(SeriesEntry series)
+        {
+            var seriesRows = new List<IReadOnlyList<object?>>();
+            foreach (var row in EnumerateSeriesRawRows(
+                tsdb, schema, projections, series, where.TimeRange, QueryDirection.Ascending))
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                seriesRows.Add(row.Values);
+            }
+
+            return seriesRows;
+        }
+
+        long estimatedRows = SqlQueryResources.Current?.EstimatedRows ?? matchedSeries.Count;
+        var perSeries = SqlParallelExecution.MapOrdered(
+            matchedSeries,
+            BuildSeriesRows,
+            "measurement_scan",
+            estimatedRows,
+            null);
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var seriesRows in perSeries)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            rows.AddRange(seriesRows);
+        }
+
+        result = new SelectExecutionResult(
+            projections.Select(static projection => projection.ColumnName).ToList(),
+            rows);
+        return true;
+    }
 
     /// <summary>
     /// 对简单 raw 查询把有界 LIMIT/OFFSET 下推到跨字段时间轴合并器。

@@ -15,6 +15,12 @@ public sealed record SegmentWriterOptions
     public string TempFileSuffix { get; init; } = ".tmp";
 
     /// <summary>
+    /// 单个 (SeriesId, FieldName) 桶写入一个 Block 的最大点数。
+    /// 默认 65,536，限制大 series 的单次解码工作集；旧段读取不受影响。
+    /// </summary>
+    public int MaxPointsPerBlock { get; init; } = 65_536;
+
+    /// <summary>
     /// 时间戳载荷编码方式：
     /// <list type="bullet">
     ///   <item><description><c>None</c>：每个时间戳 8 字节 LE（V1 默认，向后兼容）。</description></item>

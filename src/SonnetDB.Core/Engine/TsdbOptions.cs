@@ -92,6 +92,12 @@ public sealed record TsdbOptions
     public MeasurementSchemaPolicy MeasurementSchemaPolicy { get; init; } = MeasurementSchemaPolicy.Default;
 
     /// <summary>
+    /// 新写入在同一 (series, field, timestamp) 上发生重复时的 MemTable 策略。
+    /// 默认 <see cref="DuplicateTimestampPolicy.KeepAll"/> 保持历史行为；该选项不会静默重写已有 Segment。
+    /// </summary>
+    public DuplicateTimestampPolicy DuplicateTimestampPolicy { get; init; } = DuplicateTimestampPolicy.KeepAll;
+
+    /// <summary>
     /// 是否允许通过 <c>Tsdb.Functions</c> 注册用户自定义函数（UDF）。
     /// 默认 <c>true</c>（嵌入式场景启用）；SonnetDB 默认设为 <c>false</c> 以保证 AOT 兼容。
     /// </summary>

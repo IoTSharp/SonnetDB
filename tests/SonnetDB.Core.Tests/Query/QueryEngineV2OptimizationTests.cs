@@ -2,6 +2,7 @@
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 using Xunit;
 
@@ -255,5 +256,82 @@ public sealed class QueryEngineV2OptimizationTests : IDisposable
                 Assert.Equal(single[i].Value, many[i].Value, precision: 9);
             }
         }
+    }
+
+    [Fact]
+    public void RawSelectStreaming_DuplicateTimestampAcrossSegmentAndMemTable_UsesLastValue()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        db.Write(MakePoint("cpu", "h1", 1000L, "usage", FieldValue.FromDouble(1)));
+        db.FlushNow();
+        db.Write(MakePoint("cpu", "h1", 1000L, "usage", FieldValue.FromDouble(2)));
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            "SELECT time, host, usage FROM cpu WHERE host = 'h1'"));
+
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(1000L, row[0]);
+        Assert.Equal("h1", row[1]);
+        Assert.Equal(2d, row[2]);
+    }
+
+    [Fact]
+    public void RawSelectStreaming_MultipleFields_PreservesTimestampUnionAndNulls()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        db.Write(Point.Create(
+            "cpu",
+            1000L,
+            new Dictionary<string, string> { ["host"] = "h1" },
+            new Dictionary<string, FieldValue>
+            {
+                ["usage"] = FieldValue.FromDouble(1),
+                ["temperature"] = FieldValue.FromDouble(10),
+            }));
+        db.Write(Point.Create(
+            "cpu",
+            2000L,
+            new Dictionary<string, string> { ["host"] = "h1" },
+            new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromDouble(2) }));
+        db.Write(Point.Create(
+            "cpu",
+            3000L,
+            new Dictionary<string, string> { ["host"] = "h1" },
+            new Dictionary<string, FieldValue> { ["temperature"] = FieldValue.FromDouble(30) }));
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            "SELECT time, host, usage, temperature FROM cpu WHERE host = 'h1'"));
+
+        Assert.Equal(3, result.Rows.Count);
+        Assert.Equal([1000L, 2000L, 3000L], result.Rows.Select(static row => row[0]));
+        Assert.Equal(1d, result.Rows[0][2]);
+        Assert.Equal(10d, result.Rows[0][3]);
+        Assert.Equal(2d, result.Rows[1][2]);
+        Assert.Null(result.Rows[1][3]);
+        Assert.Null(result.Rows[2][2]);
+        Assert.Equal(30d, result.Rows[2][3]);
+    }
+
+    [Fact]
+    public void RawSelectStreaming_PreCancelledExecutionStopsBeforeReading()
+    {
+        using var db = Tsdb.Open(_opts);
+        db.Write(MakePoint("cpu", "h1", 1000L, "usage", FieldValue.FromDouble(1)));
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        var error = Assert.Throws<SonnetDB.Exceptions.RoutineExecutionException>(() => SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "SELECT time, host, usage FROM cpu WHERE host = 'h1'",
+            parameters: null,
+            controlPlane: null,
+            SqlExecutionOptions.Default with { CancellationToken = cancellation.Token }));
+        Assert.IsType<OperationCanceledException>(error.InnerException);
     }
 }

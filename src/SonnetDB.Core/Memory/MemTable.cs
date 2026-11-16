@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Storage.Format;
 using SonnetDB.Wal;
@@ -16,6 +17,7 @@ namespace SonnetDB.Memory;
 /// </summary>
 public sealed class MemTable
 {
+    private readonly DuplicateTimestampPolicy _duplicateTimestampPolicy;
     private readonly object _publicationSync = new();
     private readonly ConcurrentDictionary<SeriesFieldKey, MemTableSeries> _series = new();
     private long _pointCount;
@@ -25,6 +27,16 @@ public sealed class MemTable
     private long _firstLsn = long.MinValue;
     private long _lastLsn = long.MinValue;
     private long _createdAtUtcTicks = DateTime.UtcNow.Ticks;
+
+    /// <summary>创建写入内存层。</summary>
+    /// <param name="duplicateTimestampPolicy">新写入的重复时间戳策略。</param>
+    public MemTable(DuplicateTimestampPolicy duplicateTimestampPolicy = DuplicateTimestampPolicy.KeepAll)
+    {
+        if (!Enum.IsDefined(duplicateTimestampPolicy))
+            throw new ArgumentOutOfRangeException(nameof(duplicateTimestampPolicy));
+
+        _duplicateTimestampPolicy = duplicateTimestampPolicy;
+    }
 
     /// <summary>当前 MemTable 包含的不同 (SeriesId, FieldName) 桶数量。</summary>
     public int SeriesCount { get { lock (_publicationSync) return _series.Count; } }
@@ -75,18 +87,19 @@ public sealed class MemTable
         var fieldType = value.Type;
 
         var bucket = _series.GetOrAdd(key,
-            static (k, state) => new MemTableSeries(k, state.Type, state.Sync),
-            (Type: fieldType, Sync: _publicationSync));
+            static (k, state) => new MemTableSeries(k, state.Type, state.Sync, state.Policy),
+            (Type: fieldType, Sync: _publicationSync, Policy: _duplicateTimestampPolicy));
 
         if (bucket.FieldType != fieldType)
             throw new InvalidOperationException(
                 $"FieldType mismatch for key '{key}': existing={bucket.FieldType}, new={fieldType}.");
 
-        long addedBytes = bucket.AppendAndEstimateBytes(pointTimestamp, value);
-        Interlocked.Add(ref _estimatedBytes, addedBytes);
+        MemTableAppendResult append = bucket.AppendWithPolicy(pointTimestamp, value);
+        Interlocked.Add(ref _estimatedBytes, append.EstimatedBytesDelta);
         UpdateMin(ref _minTimestamp, pointTimestamp);
         UpdateMax(ref _maxTimestamp, pointTimestamp);
-        Interlocked.Increment(ref _pointCount);
+        if (append.PointCountDelta != 0)
+            Interlocked.Add(ref _pointCount, append.PointCountDelta);
 
         // FirstLsn: 仅首次 Append 时设置
         Interlocked.CompareExchange(ref _firstLsn, lsn, long.MinValue);

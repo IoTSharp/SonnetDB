@@ -156,6 +156,54 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
+    public void DropMeasurement_AfterDelete_AllowsCleanRecreate()
+    {
+        using var db = Tsdb.Open(Options() with
+        {
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new SonnetDB.Engine.Compaction.CompactionPolicy { Enabled = false },
+        });
+
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu1 (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu1 (time, host, usage) VALUES (1000, 'h1', 1.5)");
+        SqlExecutor.Execute(db, "DELETE FROM cpu1 WHERE host = 'h1' AND time = 1000");
+        SqlExecutor.Execute(db, "DROP MEASUREMENT cpu1");
+
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT IF NOT EXISTS cpu1 (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu1 (time, host, usage) VALUES (1000, 'h1', 2.5)");
+
+        var rows = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT time, usage FROM cpu1"));
+        Assert.Equal(new object?[] { 1000L, 2.5 }, rows.Rows.Single());
+    }
+
+    [Fact]
+    public void DropMeasurement_AfterDelete_RecreateSurvivesCrashBeforeFlush()
+    {
+        var options = Options() with
+        {
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new SonnetDB.Engine.Compaction.CompactionPolicy { Enabled = false },
+        };
+
+        using (var db = Tsdb.Open(options))
+        {
+            SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu1 (host TAG, usage FIELD FLOAT)");
+            SqlExecutor.Execute(db, "INSERT INTO cpu1 (time, host, usage) VALUES (1000, 'h1', 1.5)");
+            SqlExecutor.Execute(db, "DELETE FROM cpu1 WHERE host = 'h1' AND time = 1000");
+            SqlExecutor.Execute(db, "DROP MEASUREMENT cpu1");
+            SqlExecutor.Execute(db, "CREATE MEASUREMENT IF NOT EXISTS cpu1 (host TAG, usage FIELD FLOAT)");
+            SqlExecutor.Execute(db, "INSERT INTO cpu1 (time, host, usage) VALUES (1000, 'h1', 2.5)");
+            db.CrashSimulationCloseWal();
+        }
+
+        using var reopened = Tsdb.Open(options);
+        var rows = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(reopened, "SELECT time, usage FROM cpu1"));
+        Assert.Equal(new object?[] { 1000L, 2.5 }, rows.Rows.Single());
+    }
+
+    [Fact]
     public void DropMeasurement_RewritesSurvivingSegment_PreservesVectorIndex()
     {
         // I11 回归：DROP MEASUREMENT 触发段重写时，幸存 measurement 的向量索引必须一并重建，

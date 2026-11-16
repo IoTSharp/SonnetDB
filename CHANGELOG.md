@@ -9,6 +9,10 @@
 
 暂无已归入下一版本的变更。
 
+### Time-series lifecycle
+
+- 修复 `DELETE FROM` 后 `DROP MEASUREMENT` 再以相同名称和时间戳重建时，旧 tombstone 继续屏蔽新 measurement 数据的问题；删除 measurement 时清理旧序列墓碑，并持久化代际屏障以覆盖关闭重开后尚未 flush 的恢复路径。
+
 ### CI reliability
 
 - 将 `SonnetDB.FullTextProcessProbe` 纳入主 solution，确保 Ubuntu 与 Windows REST 测试分片在 Release 构建时生成独立全文消费者进程；独立进程回归不再依赖本机残留的 probe 输出。

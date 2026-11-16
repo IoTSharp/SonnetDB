@@ -1661,8 +1661,9 @@ DELETE FROM cpu WHERE time >= 1713676800000 AND time <= 1713677400000
 当前删除语义：
 
 - 删除底层通过 tombstone 实现，不会原地改写旧 segment。
-- 后续查询会过滤 tombstone 覆盖的点。
+- 后续查询会过滤 tombstone 覆盖的点；在同一 measurement 生命周期内，墓碑覆盖的 `series + field + 时间窗` 会持续屏蔽之后写入的同身份点。
 - compaction 会逐步消化已删除数据。
+- 如果要开始一个全新的同名 measurement 生命周期，请使用 `DROP MEASUREMENT` 后再 `CREATE MEASUREMENT`；DROP 会清理旧序列墓碑，关闭重开后也不会把旧墓碑带入新 measurement。
 
 常见保留策略也可以直接写成相对时间：
 
