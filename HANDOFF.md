@@ -1,3 +1,13 @@
+## 2026-11-17 23:15（Asia/Shanghai）全文 BM25 隔离 BDN 冷热读与有界容量/长稳设计
+
+- 基线为 `main@7f4ddb052ce8568b5e4b2f14126a94ab25a08c05`；开始前已阅读本文件、`AGENTS.md`、`CHANGELOG.md`，核对 `origin/main` 与 `gitee/main` 均指向该提交，工作树起点干净。本轮未提交、未推送、未发布、未部署、未迁移或改生产数据。
+- 唯一受跟踪的 BenchmarkDotNet 工程是 `tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj`。仓库 `.codex-temp` 下发现 6 个历史同名副本；本轮未读取其内容、未修改或删除。为避免 BDN 自动扫描冲突，在 `.codex-temp/fulltext-benchmark-20261117/bench` 创建本任务隔离副本，只把两个 `ProjectReference` 改为绝对路径，使用 SDK `11.0.100` 构建，0 warning/0 error。
+- 标准 BDN harness 生成阶段在内部 120 秒构建限制内未完成，执行 0 个样本；该结果记录为 `BLOCKED`，未当作性能数据。隔离副本随后以 InProcess toolchain 执行 `--filter *FullTextBlockReadBenchmark* --inProcess --launchCount 1 --warmupCount 1 --iterationCount 3`：冷读均值 **1,949.1 µs**、StdDev **158.71 µs**、分配 **1,165.11 KB**；热读均值 **333.0 µs**、StdDev **9.06 µs**、分配 **198.56 KB**。硬件/OS/runtime/SDK、语料和命令详见 `docs/benchmarks/fulltext-bm25-block-read-20261117.md`。
+- 独立统计探针以 1,024 文档和同一 `OR(alpha,beta)` 查询对账：冷读增量 **12 block / 6,154 bytes / 12 cache miss**；紧接热读增量 **0 block / 0 bytes / 12 cache hit**，缓存累计 12 block / 6,154 bytes。该收据证明当前单进程、单实例、4 MiB cache 小语料下的冷/热复用，不证明跨进程、百万文档、固定硬件、生产或长稳。
+- 已新增基准证据和后续设计文档；有界验证建议分为 1,024/10,000/100,000 文档、64 KiB/1 MiB/4 MiB/64 MiB cache 格、最多 200 查询或 8 并发、5 分钟 smoke、15 分钟 bounded soak、60 分钟 extended local soak，并在 1,000～5,000 次请求输出 checkpoint，逐格记录 block 读量、hit/miss/eviction、工作集、结果一致性、重开和异常。该方案暂未执行，长稳/容量为 `NOT_RUN`。
+- 本机仓库 `global.json` 仍要求 SDK `10.0.100`，该 SDK 未安装；默认 SDK 10 restore/build/test 保持 `BLOCKED`。任务临时目录 `.codex-temp/fulltext-benchmark-20261117` 的隔离源码、统计探针、BDN artifacts、SDK 覆盖 `global.json` 及归属日志已在收尾删除，未触碰历史 `.codex-temp` 副本，也无本任务常驻进程。
+- 下一顺序：先运行并验证有界 runner 的退出/取消/目录清理，再按容量矩阵执行小格；随后再决定是否需要扩大 BDN 迭代数或实现真实长稳报告。不能把本轮 InProcess 3 次迭代或统计探针写成固定硬件、百万文档、生产、发布或公开读回通过。
+
 ## 2026-11-17 20:47（Asia/Shanghai）全文 BM25 未完成项第四项：cache Clear 与 inflight 失败/代际合同
 
 - 基线为当前 `main`，保留上一项过滤/tombstone 对拍与并发 single-flight 的交付改动；代码提交 `d705e12d8305910d768993bb57af890f6cb15bde` 已推送并从 GitHub `origin/main`、Gitee `gitee/main` 独立读回同一 SHA。

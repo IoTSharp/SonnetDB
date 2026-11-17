@@ -20,6 +20,7 @@
 - 新增确定性随机多 segment 全文对拍：同时比较持久化索引与内存完整评分器的无过滤结果，再比较包含 live、tombstone/stale 和未知 ID 的 allowed 集合下的过滤 WAND/fallback 结果；覆盖 OR、Term、AND、topK 边界和关闭重开后的结果稳定性。
 - 全文 block cache 增加按 key 的有界 single-flight 加载：同一缓存实例下并发 miss 共享一次物理 loader，`SegmentReader` 的 lazy posting block 读取接入该路径；新增 cache 争用和多个索引实例并发 reopen/search 回归。该切片仍不代表长稳、百万文档容量或生产并发门禁。
 - 收紧全文 block cache 的清空与失败恢复合同：loader 异常会移除 faulted inflight 项，后续同 key 可重新读取；`Clear()` 递增缓存代际并隔离进行中的旧 loader，旧读取仍返回给原调用方但不会在清空后回填，新读取建立新的 single-flight。新增异常重试和清空竞态回归；仍未证明长稳、百万文档容量或生产并发门禁。
+- 新增 [BM25 持久化全文 block 读基线](docs/benchmarks/fulltext-bm25-block-read-20261117.md)：在隔离的唯一 BenchmarkDotNet 工程中以 InProcess toolchain 取得 1,024 文档冷读 1,949.1 µs、热读 333.0 µs（各 3 次迭代），并用独立统计探针对账冷读 12 block/6,154 bytes、热读零新增物理读取和 12 次 cache hit。标准 harness 的内部 120 秒构建超时及 SDK 10.0.100 缺失保持明确；后续容量/长稳方案仍不构成固定硬件、百万文档或生产门禁。
 
 ### Time-series lifecycle
 
