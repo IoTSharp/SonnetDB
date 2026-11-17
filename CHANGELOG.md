@@ -14,6 +14,8 @@
 - 增加同一字段纯 term `OR` 的过滤搜索 WAND 路径，保留全局 BM25 文档频率、允许文档集合、posting 预算、取消和稳定 Top-K 合同；新增 WAND 对拍、过滤预算失败闭合、tombstone 和预取消回归。
 - 新写入全文 segment 使用 `DSSEG004` posting block 目录：每 128 个 posting 记录文件偏移、长度、文档范围、posting count、term frequency 上界和 CRC32；`DSSEG001/002/003` 继续兼容读取，未知 magic 和损坏 block fail closed。新增按字节预算的 LRU block cache 与显式 `TryReadPostingBlock` 读取 API；PersistentFullTextIndex 现在以 lazy posting block 模式打开新格式，首次访问词项时按目录读取并缓存该词项的 blocks。
 - 对 DSSEG004、无 tombstone、参数可证明的同字段纯 term `OR` 查询增加 block-level WAND：先用 posting count 和 BM25 安全上界跳过不可能进入 Top-K 的 block，再读取候选 payload；DSSEG003、存在墓碑、过滤查询或不满足上界证明的参数回退已有 WAND/评分路径。
+- 收紧全文格式和评分安全边界：DSSEG004 lazy 读取现在核对每个 term 的 block `postingCount` 总和及跨 block 文档范围，DSSEG003/004 payload 解码拒绝重复或乱序 document ID；块目录无法证明上界时回退完整评分，BM25/BM25F 参数非法时不进入 WAND，合法零分命中仍保留，极大 Top-K 不再按用户输入预分配整块数组。
+- DSSEG004 `MaxTermFrequency` 不纳入 payload CRC 时，block-level WAND 使用 BM25 词频数学上界并在实际 payload 载入时核对目录，避免损坏目录造成低估上界和漏召回；本轮只证明小规模正确性，真实冷读/热读计数、缓存命中率、容量和生产性能仍未完成。
 
 ### Time-series lifecycle
 

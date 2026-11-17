@@ -212,6 +212,8 @@ internal static class SegmentFile
                 }
 
                 int decodedCount = 0;
+                int metadataPostingCount = 0;
+                int previousLastDocumentId = int.MinValue;
                 for (int block = 0; block < blockCount; block++)
                 {
                     int blockLength = VarInt.Read(stream);
@@ -235,11 +237,23 @@ internal static class SegmentFile
                         throw new FormatException($"Invalid posting block directory for term '{term}'.");
                     }
 
+                    if (block > 0 && firstDocumentId <= previousLastDocumentId)
+                    {
+                        throw new FormatException($"Posting block document ranges overlap or are out of order for term '{term}'.");
+                    }
+
                     if (hasPostingCounts
                         && (postingCount <= 0 || postingCount > PostingBlockSize))
                     {
                         throw new FormatException($"Invalid posting count for term '{term}'.");
                     }
+
+                    if (hasPostingCounts)
+                    {
+                        metadataPostingCount = checked(metadataPostingCount + postingCount);
+                    }
+
+                    previousLastDocumentId = lastDocumentId;
 
                     if (lazyPostingBlocks)
                     {
@@ -280,6 +294,11 @@ internal static class SegmentFile
                 if (!lazyPostingBlocks && decodedCount != count)
                 {
                     throw new FormatException($"Posting block count mismatch for term '{term}'.");
+                }
+
+                if (hasPostingCounts && metadataPostingCount != count)
+                {
+                    throw new FormatException($"Posting block metadata count mismatch for term '{term}'.");
                 }
             }
             else
@@ -402,6 +421,7 @@ internal static class SegmentFile
     {
         using var payloadStream = new MemoryStream(payload, writable: false);
         int previousDocId = 0;
+        bool hasPreviousDocId = false;
         int firstDecodedDocId = int.MaxValue;
         int lastDecodedDocId = int.MinValue;
         int actualMaxTermFrequency = 0;
@@ -409,6 +429,10 @@ internal static class SegmentFile
         while (payloadStream.Position < payloadStream.Length)
         {
             int docId = checked(previousDocId + VarInt.Read(payloadStream));
+            if (hasPreviousDocId && docId <= previousDocId)
+            {
+                throw new FormatException($"Posting block document IDs are not strictly increasing for term '{term}'.");
+            }
             int termFrequency = VarInt.Read(payloadStream);
             if (termFrequency <= 0)
             {
@@ -430,6 +454,7 @@ internal static class SegmentFile
             }
             positions[docId] = values;
             previousDocId = docId;
+            hasPreviousDocId = true;
             blockDecoded++;
             decodedCount++;
             firstDecodedDocId = Math.Min(firstDecodedDocId, docId);

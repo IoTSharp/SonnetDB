@@ -16,7 +16,10 @@ internal sealed class TopKSearchHitHeap
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _capacity = capacity;
-        _items = new List<SearchHit>(capacity);
+        // Avoid reserving an attacker-controlled int.MaxValue-sized array for
+        // a query that may ultimately return only a few hits. The list still
+        // grows on demand when a genuinely large result set is produced.
+        _items = new List<SearchHit>(Math.Min(capacity, 1024));
     }
 
     public int Count => _items.Count;

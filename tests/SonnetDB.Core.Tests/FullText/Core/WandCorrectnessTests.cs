@@ -2,6 +2,7 @@ using SonnetDB.Documents;
 using SonnetDB.FullText;
 using SonnetDB.FullText.Index;
 using SonnetDB.FullText.Query;
+using SonnetDB.FullText.Scoring;
 using SonnetDB.FullText.Storage;
 using SonnetDB.FullText.Tokenizers.Unicode;
 using Xunit;
@@ -156,6 +157,37 @@ public sealed class WandCorrectnessTests : IDisposable
             new HashSet<string>(StringComparer.Ordinal) { "doc-1" },
             maxPostingVisits: 100,
             cancellation.Token));
+    }
+
+    [Fact]
+    public void Invalid_bm25_parameters_fall_back_to_full_scoring_without_pruning()
+    {
+        Document[] documents =
+        [
+            new Document(new DocumentId("doc-a")).Set("body", "alpha beta"),
+            new Document(new DocumentId("doc-b")).Set("body", "alpha alpha"),
+            new Document(new DocumentId("doc-c")).Set("body", "beta"),
+        ];
+        OrQuery query = new([new TermQuery("body", "alpha"), new TermQuery("body", "beta")]);
+        Bm25Parameters invalid = new(1.2, 2.0);
+
+        PersistentFullTextIndex persistent = PersistentFullTextIndex.Open(
+            Path.Combine(_directory, "invalid-bm25"),
+            new UnicodeTokenizer(),
+            invalid,
+            new PersistentIndexOptions { EnableBackgroundMerge = false });
+        persistent.IndexMany(documents);
+
+        var reference = new InMemoryFullTextIndex(new UnicodeTokenizer(), invalid);
+        foreach (Document document in documents)
+            reference.Index(document);
+
+        IReadOnlyList<SearchHit> actual = persistent.Search(query, topK: 3);
+        IReadOnlyList<SearchHit> expected = reference.Search(query, topK: 3);
+
+        Assert.Equal(expected.Select(static hit => hit.DocumentId.Value), actual.Select(static hit => hit.DocumentId.Value));
+        for (int index = 0; index < expected.Count; index++)
+            Assert.Equal(expected[index].Score, actual[index].Score, precision: 12);
     }
 
     public void Dispose()

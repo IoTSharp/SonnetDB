@@ -74,6 +74,26 @@ public sealed class BlockWandCursorTests : IDisposable
     }
 
     [Fact]
+    public void Executor_keeps_valid_zero_score_hits()
+    {
+        var cursor = new BlockWandCursor(
+            [new BlockWandBlockMetadata(0, 1, 2, 0)],
+            _ =>
+            [
+                new BlockWandPosting(0, 0),
+                new BlockWandPosting(1, 0),
+            ]);
+
+        IReadOnlyList<BlockWandHit> hits = BlockWandExecutor.Search([cursor], topK: 2);
+
+        Assert.Equal(2, hits.Count);
+        Assert.Equal(0, hits[0].DocumentId);
+        Assert.Equal(0, hits[0].Score);
+        Assert.Equal(1, hits[1].DocumentId);
+        Assert.Equal(0, hits[1].Score);
+    }
+
+    [Fact]
     public void Executor_honors_pre_cancellation_without_reading_payloads()
     {
         int reads = 0;

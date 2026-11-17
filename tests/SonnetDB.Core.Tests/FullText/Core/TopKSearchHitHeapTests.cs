@@ -30,4 +30,14 @@ public sealed class TopKSearchHitHeapTests
                 Assert.Equal(2.0, second.Score);
             });
     }
+
+    [Fact]
+    public void Extreme_capacity_does_not_preallocate_the_entire_query_limit()
+    {
+        var heap = new TopKSearchHitHeap(int.MaxValue);
+
+        heap.Add(new SearchHit(new DocumentId("doc"), 1.0));
+
+        Assert.Single(heap.ToSortedList());
+    }
 }

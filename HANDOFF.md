@@ -1,3 +1,12 @@
+## 2026-11-17 18:43（Asia/Shanghai）全文 WAND 反驳整合与安全边界收口
+
+- 基线为 `main@eabeb930`，本轮由反方代码/算法、正方收益/基准和缺口实现三条线并行审查；只拥有全文核心、对应测试、CHANGELOG 与本交接文件。未修改或清理其他共享内容，未推送、发布、部署、迁移或改生产数据。
+- 反方确认并修复：DSSEG004 lazy 目录原先未核对 term 级 `postingCount` 总和和跨 block 文档范围，DSSEG003/004 payload 解码原先可能静默覆盖重复 document ID；Block WAND 还会丢弃 BM25F 零权重的合法零分命中，Disjunction WAND 对非法 BM25 参数缺少回退，极大 Top-K 会不必要地预分配数组。现已分别 fail-closed、保留零分、回退完整评分和限制初始容量；block cursor 创建失败也回退完整评分而不返回空集。
+- DSSEG004 目录的 `MaxTermFrequency` 不受 payload CRC 保护。本轮将 block WAND 上界改为合法 BM25 词频趋于无穷时的数学 supremum，并在候选 payload 实际载入时核对目录值；这保守消除了低估上界造成漏召回的风险，但会减少按 block 最大词频剪枝，性能收益必须另行测量。
+- 代码层验证：临时入口使用已核实 SDK `11.0.100`（根 `global.json` 要求但本机缺少 `10.0.100`，原文件字节已恢复）。`dotnet restore SonnetDB.slnx` PASS；Core.Tests Release build 0 warning/0 error PASS；全文过滤定向套件 **131/131 PASS**；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` PASS；`git diff --check` PASS。默认 SDK 10.0.100 构建/测试保持 `BLOCKED`，不能把 SDK11 兼容性证据扩大为 SDK10 或完整 solution 通过。
+- 证据边界：源码和小规模测试覆盖 DSSEG001/002/003/004 读取、CRC/目录损坏、lazy block cache、Top-K、WAND 对拍、过滤预算、取消、tombstone 和 merge/reopen；真实 PersistentFullTextIndex 冷读/热读 block 读取计数与基准、随机大规模过滤/tombstone 对拍、百万文档容量、并发 reopen/cache 争用、NativeAOT、固定硬件、长稳、生产和公开发布均为 `UNKNOWN`/`NOT_RUN`/`BLOCKED`。
+- 本轮最终提交：当前分支 `main`，提交 SHA 见本次会话最终回报；不推送远端。任务创建的 `.codex-temp/run-fulltext-*.ps1` 及其临时 SDK 目录在收尾删除；无本任务常驻进程。
+
 ## 2026-11-17 13:18（Asia/Shanghai）全文 Top-K 与受限 Block-Max WAND 第一切片
 
 - 用户要求评估并推进全文 WAND/Block-Max WAND 以及大规模磁盘块访问/缓存优化。本轮在共享 `main` 工作树中完成了不改变旧 segment 二进制格式的第一切片：新增有界 `TopKSearchHitHeap`，持久化/内存全文搜索最终结果不再全量排序；`SegmentReader` 增加按 local document ID 排序且可复用的 posting 视图；持久化索引对同一字段的纯 term `OR` 查询启用受限 Block-Max WAND，复杂查询、字段混合和模糊/短语路径回退既有评分器。

@@ -377,6 +377,7 @@ internal sealed class SegmentReader
     {
         using var payloadStream = new MemoryStream(payload, writable: false);
         int previousDocId = 0;
+        bool hasPreviousDocId = false;
         firstDocumentId = int.MaxValue;
         lastDocumentId = int.MinValue;
         maxTermFrequency = 0;
@@ -384,6 +385,10 @@ internal sealed class SegmentReader
         while (payloadStream.Position < payloadStream.Length)
         {
             int docId = checked(previousDocId + VarInt.Read(payloadStream));
+            if (hasPreviousDocId && docId <= previousDocId)
+            {
+                throw new FormatException("Posting block document IDs are not strictly increasing.");
+            }
             int termFrequency = VarInt.Read(payloadStream);
             if (termFrequency <= 0)
             {
@@ -407,6 +412,7 @@ internal sealed class SegmentReader
 
             positions[docId] = values;
             previousDocId = docId;
+            hasPreviousDocId = true;
             firstDocumentId = Math.Min(firstDocumentId, docId);
             lastDocumentId = Math.Max(lastDocumentId, docId);
             maxTermFrequency = Math.Max(maxTermFrequency, termFrequency);

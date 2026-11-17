@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Hashing;
 using System.Text;
 using SonnetDB.FullText.Index;
 using SonnetDB.FullText.Storage;
@@ -132,6 +133,26 @@ public sealed class SegmentFileBlockTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Dsseg004_lazy_reader_rejects_block_count_sum_mismatch()
+    {
+        Directory.CreateDirectory(_directory);
+        string path = SegmentFile.GetPath(_directory, 100);
+        WriteDsseg004(path, declaredPostingCount: 3, overlap: false);
+
+        Assert.Throws<FormatException>(() => SegmentFile.Read(path, lazyPostingBlocks: true));
+    }
+
+    [Fact]
+    public void Dsseg004_lazy_reader_rejects_overlapping_block_ranges()
+    {
+        Directory.CreateDirectory(_directory);
+        string path = SegmentFile.GetPath(_directory, 101);
+        WriteDsseg004(path, declaredPostingCount: 2, overlap: true);
+
+        Assert.Throws<FormatException>(() => SegmentFile.Read(path, lazyPostingBlocks: true));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -190,6 +211,61 @@ public sealed class SegmentFileBlockTests : IDisposable
         }
     }
 
+    private static void WriteDsseg004(string path, int declaredPostingCount, bool overlap)
+    {
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        stream.Write("DSSEG004"u8);
+        WriteInt64(stream, 100);
+
+        VarInt.Write(stream, 2);
+        WriteDocument(stream, 0, "doc-0");
+        WriteDocument(stream, 1, "doc-1");
+
+        VarInt.Write(stream, 1);
+        WriteString(stream, "body");
+        VarInt.Write(stream, 2);
+        VarInt.Write(stream, 0);
+        VarInt.Write(stream, 1);
+        VarInt.Write(stream, 1);
+        VarInt.Write(stream, 1);
+
+        VarInt.Write(stream, 1);
+        WriteString(stream, "body");
+        WriteString(stream, "alpha");
+        VarInt.Write(stream, declaredPostingCount);
+        VarInt.Write(stream, 2);
+
+        WritePostingBlock(stream, firstDocumentId: 0, lastDocumentId: 0, documentDelta: 0);
+        WritePostingBlock(stream, firstDocumentId: overlap ? 0 : 1, lastDocumentId: 1, documentDelta: overlap ? 0 : 1);
+    }
+
+    private static void WriteDocument(Stream stream, int localId, string id)
+    {
+        VarInt.Write(stream, localId);
+        WriteString(stream, id);
+        VarInt.Write(stream, 1);
+        WriteString(stream, "body");
+        WriteString(stream, "alpha");
+    }
+
+    private static void WritePostingBlock(Stream stream, int firstDocumentId, int lastDocumentId, int documentDelta)
+    {
+        using var payload = new MemoryStream();
+        VarInt.Write(payload, documentDelta);
+        VarInt.Write(payload, 1);
+        VarInt.Write(payload, 1);
+        VarInt.Write(payload, 0);
+        byte[] payloadBytes = payload.ToArray();
+
+        VarInt.Write(stream, payloadBytes.Length);
+        WriteInt32(stream, firstDocumentId);
+        WriteInt32(stream, lastDocumentId);
+        WriteInt32(stream, 1);
+        VarInt.Write(stream, 1);
+        WriteUInt32(stream, Crc32.HashToUInt32(payloadBytes));
+        stream.Write(payloadBytes);
+    }
+
     private static void WriteString(Stream stream, string value)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(value);
@@ -201,6 +277,20 @@ public sealed class SegmentFileBlockTests : IDisposable
     {
         Span<byte> buffer = stackalloc byte[sizeof(long)];
         BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
+        stream.Write(buffer);
+    }
+
+    private static void WriteInt32(Stream stream, int value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+        stream.Write(buffer);
+    }
+
+    private static void WriteUInt32(Stream stream, uint value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
         stream.Write(buffer);
     }
 }

@@ -301,7 +301,7 @@ internal static class BlockWandExecutor
                 score += cursor.CurrentScore;
             }
 
-            if (candidateExists && score > 0.0)
+            if (candidateExists && score >= 0.0)
             {
                 heap.Add(new BlockWandHit(candidate, score));
             }

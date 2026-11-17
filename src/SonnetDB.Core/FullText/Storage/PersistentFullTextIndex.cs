@@ -305,7 +305,10 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                         fieldWeight,
                         out BlockWandCursor? cursor))
                 {
-                    continue;
+                    // A block with an unprovable upper bound must use the
+                    // complete scorer; returning an empty result here would
+                    // turn a safety failure into silent false negatives.
+                    return false;
                 }
 
                 cursors.Add(cursor!);
@@ -380,7 +383,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                     documentFrequency,
                     averageLength,
                     documentCount,
-                    fieldWeight);
+                    fieldWeight,
+                    blocks[blockIndex].MaxTermFrequency);
                 if (postings.Count != blocks[blockIndex].PostingCount)
                 {
                     throw new InvalidDataException("Posting block count does not match DSSEG004 metadata.");
@@ -398,7 +402,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         int documentFrequency,
         double averageLength,
         int documentCount,
-        double fieldWeight)
+        double fieldWeight,
+        int expectedMaximumTermFrequency)
     {
         if (!segment.TryGetFieldLengths(field, out Dictionary<int, int>? lengths))
         {
@@ -408,6 +413,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         using var stream = new MemoryStream(payload, writable: false);
         var postings = new List<BlockWandPosting>();
         int previousDocumentId = 0;
+        int actualMaximumTermFrequency = 0;
         while (stream.Position < stream.Length)
         {
             int documentId = checked(previousDocumentId + VarInt.Read(stream));
@@ -417,6 +423,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             {
                 throw new InvalidDataException("Invalid DSSEG004 posting payload.");
             }
+
+            actualMaximumTermFrequency = Math.Max(actualMaximumTermFrequency, termFrequency);
 
             for (int index = 0; index < positionCount; index++)
             {
@@ -433,6 +441,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 _bm25) * fieldWeight;
             postings.Add(new BlockWandPosting(documentId, score));
             previousDocumentId = documentId;
+        }
+
+        if (actualMaximumTermFrequency > expectedMaximumTermFrequency)
+        {
+            throw new InvalidDataException("DSSEG004 posting block term-frequency metadata underestimates its payload.");
         }
 
         return postings;
@@ -470,16 +483,19 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         double idf = Math.Log(1.0 + ((documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5)));
-        double minimumLengthNorm = 1.0 - parameters.B;
-        double denominator = maximumTermFrequency + (parameters.K1 * minimumLengthNorm);
-        if (!double.IsFinite(idf) || !double.IsFinite(denominator) || denominator <= 0)
+        // The term-frequency component is monotonic and bounded by 1 for the
+        // valid BM25 parameter range. Directory MaxTermFrequency is not part
+        // of the DSSEG004 payload CRC, so trusting it before a block is read
+        // could under-estimate the bound after metadata corruption. Use the
+        // mathematical supremum here; payload decoding still checks the
+        // directory value once a block is loaded.
+        _ = maximumTermFrequency;
+        if (!double.IsFinite(idf))
         {
             return false;
         }
 
-        upperBound = idf * (parameters.K1 + 1.0)
-            * (maximumTermFrequency / denominator)
-            * fieldWeight;
+        upperBound = idf * (parameters.K1 + 1.0) * fieldWeight;
         return double.IsFinite(upperBound) && upperBound >= 0;
     }
 
@@ -504,6 +520,14 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         if (field is null)
         {
             return true;
+        }
+
+        // WAND block maxima are only meaningful for the finite, non-negative
+        // BM25/BM25F parameter range. Invalid parameters must use the existing
+        // full scorer instead of allowing NaN/negative maxima to prune hits.
+        if (!TryGetBm25BlockParameters(field, out _))
+        {
+            return false;
         }
 
         int liveDocumentCount = _liveDocuments.Count;
@@ -583,6 +607,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         hits = [];
         if (!TryGetSameFieldTermDisjunction(query, out string? field, out List<string> terms)
             || field is null)
+        {
+            return false;
+        }
+
+        if (!TryGetBm25BlockParameters(field, out _))
         {
             return false;
         }
