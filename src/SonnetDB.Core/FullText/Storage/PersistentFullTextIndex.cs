@@ -15,6 +15,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     private readonly Bm25Parameters _bm25;
     private readonly Bm25FOptions _bm25f;
     private readonly PersistentIndexOptions _options;
+    private readonly FullTextBlockCache _blockCache;
     private readonly string _segmentsDirectory;
     private readonly Dictionary<long, SegmentReader> _segments = new();
     private readonly Dictionary<long, HashSet<int>> _tombstones = new();
@@ -44,6 +45,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         _bm25 = bm25 ?? Bm25Parameters.Default;
         _bm25f = options?.Bm25F ?? Bm25FOptions.Default;
         _options = options ?? new PersistentIndexOptions();
+        _blockCache = new FullTextBlockCache(_options.FullTextBlockCacheMaxBytes);
 
         System.IO.Directory.CreateDirectory(Directory);
         System.IO.Directory.CreateDirectory(_segmentsDirectory);
@@ -111,7 +113,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
             long segmentId = _manifest.NextSegmentId++;
             SegmentData data = BuildSegment(segmentId, unique);
-            SegmentReader reader = SegmentFile.Write(_segmentsDirectory, data);
+            SegmentReader reader = SegmentFile.Write(_segmentsDirectory, data, _blockCache, lazyPostingBlocks: true);
 
             _segments[segmentId] = reader;
             _tombstones[segmentId] = new HashSet<int>();
@@ -192,6 +194,16 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
         lock (_lock)
         {
+            if (TrySearchBlockWand(query, topK, out IReadOnlyList<SearchHit> blockWandHits))
+            {
+                return blockWandHits;
+            }
+
+            if (TrySearchDisjunctionWand(query, topK, out IReadOnlyList<SearchHit> wandHits))
+            {
+                return wandHits;
+            }
+
             Dictionary<string, double> scores = new(StringComparer.Ordinal);
             Score(query, scores);
 
@@ -200,28 +212,650 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 return Array.Empty<SearchHit>();
             }
 
-            List<SearchHit> hits = new(scores.Count);
+            var topHits = new TopKSearchHitHeap(topK);
             foreach (KeyValuePair<string, double> kv in scores)
             {
                 if (_liveDocuments.ContainsKey(kv.Key))
                 {
-                    hits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
+                    topHits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
+                }
+            }
+            return topHits.ToSortedList();
+        }
+    }
+
+    private bool TrySearchBlockWand(
+        Query.Query query,
+        int topK,
+        out IReadOnlyList<SearchHit> hits)
+    {
+        hits = [];
+        if (!TryGetSameFieldTermDisjunction(query, out string? field, out List<string> terms)
+            || field is null
+            || _tombstones.Values.Any(static tombstones => tombstones.Count > 0)
+            || !TryGetBm25BlockParameters(field, out double fieldWeight))
+        {
+            return false;
+        }
+
+        int liveDocumentCount = _liveDocuments.Count;
+        FieldStats stats = GetFieldStats(field);
+        if (liveDocumentCount == 0 || stats.DocumentCount == 0)
+        {
+            return true;
+        }
+
+        double averageLength = (double)stats.TotalLength / stats.DocumentCount;
+        var termFrequencies = new List<(string Term, int DocumentFrequency)>(terms.Count);
+        foreach (string term in terms)
+        {
+            int documentFrequency = 0;
+            foreach (SegmentReader segment in _segments.Values)
+            {
+                if (!segment.TryGetPostingBlocks(field, term, out IReadOnlyList<PostingBlockInfo>? blocks))
+                {
+                    // A term absent from this segment is safe to skip. If an older
+                    // format contains it, materialization succeeds and forces fallback.
+                    if (segment.TryGetPostings(field, term, out _))
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                if (blocks.Count == 0 || blocks.Any(static block => block.PostingCount <= 0))
+                {
+                    return false;
+                }
+
+                foreach (PostingBlockInfo block in blocks)
+                {
+                    documentFrequency = checked(documentFrequency + block.PostingCount);
                 }
             }
 
-            hits.Sort(static (a, b) =>
+            if (documentFrequency <= 0 || documentFrequency > liveDocumentCount)
             {
-                int scoreCompare = b.Score.CompareTo(a.Score);
-                return scoreCompare != 0
-                    ? scoreCompare
-                    : string.CompareOrdinal(a.DocumentId.Value, b.DocumentId.Value);
-            });
-            if (hits.Count > topK)
-            {
-                hits.RemoveRange(topK, hits.Count - topK);
+                return false;
             }
-            return hits;
+
+            termFrequencies.Add((term, documentFrequency));
         }
+
+        var topHits = new TopKSearchHitHeap(topK);
+        foreach (SegmentReader segment in _segments.Values)
+        {
+            var cursors = new List<BlockWandCursor>(termFrequencies.Count);
+            foreach ((string term, int documentFrequency) in termFrequencies)
+            {
+                if (!segment.TryGetPostingBlocks(field, term, out IReadOnlyList<PostingBlockInfo>? blocks))
+                {
+                    continue;
+                }
+
+                if (!TryCreateBlockWandCursor(
+                        segment,
+                        field,
+                        term,
+                        blocks,
+                        documentFrequency,
+                        averageLength,
+                        liveDocumentCount,
+                        fieldWeight,
+                        out BlockWandCursor? cursor))
+                {
+                    continue;
+                }
+
+                cursors.Add(cursor!);
+            }
+
+            if (cursors.Count == 0)
+            {
+                continue;
+            }
+
+            IReadOnlyList<BlockWandHit> segmentHits = BlockWandExecutor.Search(cursors, topK);
+            foreach (BlockWandHit hit in segmentHits)
+            {
+                if (segment.Documents.TryGetValue(hit.DocumentId, out DocumentId documentId))
+                {
+                    topHits.Add(new SearchHit(documentId, hit.Score));
+                }
+            }
+        }
+
+        hits = topHits.ToSortedList();
+        return true;
+    }
+
+    private bool TryCreateBlockWandCursor(
+        SegmentReader segment,
+        string field,
+        string term,
+        IReadOnlyList<PostingBlockInfo> blocks,
+        int documentFrequency,
+        double averageLength,
+        int documentCount,
+        double fieldWeight,
+        out BlockWandCursor? cursor)
+    {
+        cursor = null;
+        var metadata = new BlockWandBlockMetadata[blocks.Count];
+        for (int index = 0; index < blocks.Count; index++)
+        {
+            PostingBlockInfo block = blocks[index];
+            if (!TryGetBm25BlockUpperBound(
+                    block.MaxTermFrequency,
+                    documentCount,
+                    documentFrequency,
+                    fieldWeight,
+                    _bm25,
+                    out double upperBound))
+            {
+                return false;
+            }
+
+            metadata[index] = new BlockWandBlockMetadata(
+                block.FirstDocumentId,
+                block.LastDocumentId,
+                block.PostingCount,
+                upperBound);
+        }
+
+        cursor = new BlockWandCursor(
+            metadata,
+            blockIndex =>
+            {
+                if (!segment.TryReadPostingBlock(field, term, blockIndex, _blockCache, out byte[] payload))
+                {
+                    throw new InvalidDataException("Posting block is unavailable for a DSSEG004 WAND cursor.");
+                }
+
+                IReadOnlyList<BlockWandPosting> postings = DecodeBlockWandPostings(
+                    payload,
+                    segment,
+                    field,
+                    documentFrequency,
+                    averageLength,
+                    documentCount,
+                    fieldWeight);
+                if (postings.Count != blocks[blockIndex].PostingCount)
+                {
+                    throw new InvalidDataException("Posting block count does not match DSSEG004 metadata.");
+                }
+
+                return postings;
+            });
+        return true;
+    }
+
+    private IReadOnlyList<BlockWandPosting> DecodeBlockWandPostings(
+        byte[] payload,
+        SegmentReader segment,
+        string field,
+        int documentFrequency,
+        double averageLength,
+        int documentCount,
+        double fieldWeight)
+    {
+        if (!segment.TryGetFieldLengths(field, out Dictionary<int, int>? lengths))
+        {
+            throw new InvalidDataException($"Missing field lengths for '{field}'.");
+        }
+
+        using var stream = new MemoryStream(payload, writable: false);
+        var postings = new List<BlockWandPosting>();
+        int previousDocumentId = 0;
+        while (stream.Position < stream.Length)
+        {
+            int documentId = checked(previousDocumentId + VarInt.Read(stream));
+            int termFrequency = VarInt.Read(stream);
+            int positionCount = VarInt.Read(stream);
+            if (termFrequency <= 0 || positionCount < 0)
+            {
+                throw new InvalidDataException("Invalid DSSEG004 posting payload.");
+            }
+
+            for (int index = 0; index < positionCount; index++)
+            {
+                _ = VarInt.Read(stream);
+            }
+
+            int documentLength = lengths.TryGetValue(documentId, out int length) ? length : 0;
+            double score = Bm25.Score(
+                termFrequency,
+                documentLength,
+                averageLength,
+                documentCount,
+                documentFrequency,
+                _bm25) * fieldWeight;
+            postings.Add(new BlockWandPosting(documentId, score));
+            previousDocumentId = documentId;
+        }
+
+        return postings;
+    }
+
+    private bool TryGetBm25BlockParameters(string field, out double fieldWeight)
+    {
+        fieldWeight = _bm25f.GetWeight(field);
+        return double.IsFinite(fieldWeight)
+            && fieldWeight >= 0
+            && double.IsFinite(_bm25.K1)
+            && double.IsFinite(_bm25.B)
+            && _bm25.K1 >= 0
+            && _bm25.B >= 0
+            && _bm25.B <= 1;
+    }
+
+    private static bool TryGetBm25BlockUpperBound(
+        int maximumTermFrequency,
+        int documentCount,
+        int documentFrequency,
+        double fieldWeight,
+        Bm25Parameters parameters,
+        out double upperBound)
+    {
+        upperBound = 0;
+        if (maximumTermFrequency <= 0
+            || documentCount <= 0
+            || documentFrequency <= 0
+            || documentFrequency > documentCount
+            || !double.IsFinite(fieldWeight)
+            || fieldWeight < 0)
+        {
+            return false;
+        }
+
+        double idf = Math.Log(1.0 + ((documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5)));
+        double minimumLengthNorm = 1.0 - parameters.B;
+        double denominator = maximumTermFrequency + (parameters.K1 * minimumLengthNorm);
+        if (!double.IsFinite(idf) || !double.IsFinite(denominator) || denominator <= 0)
+        {
+            return false;
+        }
+
+        upperBound = idf * (parameters.K1 + 1.0)
+            * (maximumTermFrequency / denominator)
+            * fieldWeight;
+        return double.IsFinite(upperBound) && upperBound >= 0;
+    }
+
+    /// <summary>
+    /// 对同一字段的纯 term OR 查询使用 Block-Max WAND。
+    /// </summary>
+    /// <remarks>
+    /// 该路径只处理可证明等价的 disjunction；短语、NEAR、AND、模糊展开和字段混合查询继续走通用评分器。
+    /// 块上界从当前已加载的 posting 视图计算，因此不会改变旧 segment 格式，后续可以独立替换为磁盘块目录。
+    /// </remarks>
+    private bool TrySearchDisjunctionWand(
+        Query.Query query,
+        int topK,
+        out IReadOnlyList<SearchHit> hits)
+    {
+        hits = [];
+        if (!TryGetSameFieldTermDisjunction(query, out string? field, out List<string> terms))
+        {
+            return false;
+        }
+
+        if (field is null)
+        {
+            return true;
+        }
+
+        int liveDocumentCount = _liveDocuments.Count;
+        FieldStats stats = GetFieldStats(field);
+        if (liveDocumentCount == 0 || stats.DocumentCount == 0)
+        {
+            hits = [];
+            return true;
+        }
+
+        var termFrequencies = new List<(string Term, int DocumentFrequency)>(terms.Count);
+        foreach (string term in terms)
+        {
+            int documentFrequency = 0;
+            foreach (SegmentReader segment in _segments.Values)
+            {
+                if (segment.TryGetPostingView(field, term, out PostingListView? postings))
+                {
+                    documentFrequency += CountLivePostings(postings, _tombstones[segment.Id]);
+                }
+            }
+
+            if (documentFrequency > 0)
+            {
+                termFrequencies.Add((term, documentFrequency));
+            }
+        }
+
+        if (termFrequencies.Count == 0)
+        {
+            hits = [];
+            return true;
+        }
+
+        double averageLength = (double)stats.TotalLength / stats.DocumentCount;
+        var topHits = new TopKSearchHitHeap(topK);
+        foreach (SegmentReader segment in _segments.Values)
+        {
+            if (!segment.TryGetFieldLengths(field, out Dictionary<int, int>? lengths))
+            {
+                continue;
+            }
+
+            HashSet<int> tombstones = _tombstones[segment.Id];
+            var cursors = new List<DisjunctionWandCursor>(termFrequencies.Count);
+            foreach ((string term, int documentFrequency) in termFrequencies)
+            {
+                if (segment.TryGetPostingView(field, term, out PostingListView? postings)
+                    && CountLivePostings(postings, tombstones) > 0)
+                {
+                    cursors.Add(new DisjunctionWandCursor(
+                        postings,
+                        lengths,
+                        tombstones,
+                        averageLength,
+                        liveDocumentCount,
+                        documentFrequency,
+                        _bm25,
+                        _bm25f.GetWeight(field)));
+                }
+            }
+
+            RunDisjunctionWand(segment, cursors, topHits);
+        }
+
+        hits = topHits.ToSortedList();
+        return true;
+    }
+
+    private bool TrySearchDisjunctionWandFiltered(
+        Query.Query query,
+        int topK,
+        IReadOnlySet<string> allowedDocumentIds,
+        FilteredSearchState filteredSearch,
+        out IReadOnlyList<SearchHit> hits)
+    {
+        hits = [];
+        if (!TryGetSameFieldTermDisjunction(query, out string? field, out List<string> terms)
+            || field is null)
+        {
+            return false;
+        }
+
+        int liveDocumentCount = _liveDocuments.Count;
+        FieldStats stats = GetFieldStats(field);
+        if (liveDocumentCount == 0 || stats.DocumentCount == 0)
+        {
+            return true;
+        }
+
+        var termFrequencies = new List<(string Term, int DocumentFrequency)>(terms.Count);
+        foreach (string term in terms)
+        {
+            int documentFrequency = 0;
+            foreach (SegmentReader segment in _segments.Values)
+            {
+                if (!segment.TryGetPostingView(field, term, out PostingListView? postings))
+                {
+                    continue;
+                }
+
+                HashSet<int> tombstones = _tombstones[segment.Id];
+                foreach (int localId in postings.DocumentIds)
+                {
+                    filteredSearch.VisitPosting();
+                    if (!tombstones.Contains(localId))
+                    {
+                        documentFrequency++;
+                    }
+                }
+            }
+
+            if (documentFrequency > 0)
+            {
+                termFrequencies.Add((term, documentFrequency));
+            }
+        }
+
+        if (termFrequencies.Count == 0)
+        {
+            return true;
+        }
+
+        double averageLength = (double)stats.TotalLength / stats.DocumentCount;
+        var topHits = new TopKSearchHitHeap(topK);
+        foreach (SegmentReader segment in _segments.Values)
+        {
+            filteredSearch.ThrowIfCancellationRequested();
+            if (!segment.TryGetFieldLengths(field, out Dictionary<int, int>? lengths))
+            {
+                continue;
+            }
+
+            HashSet<int> tombstones = _tombstones[segment.Id];
+            var cursors = new List<DisjunctionWandCursor>(termFrequencies.Count);
+            foreach ((string term, int documentFrequency) in termFrequencies)
+            {
+                if (segment.TryGetPostingView(field, term, out PostingListView? postings)
+                    && CountLivePostings(postings, tombstones) > 0)
+                {
+                    cursors.Add(new DisjunctionWandCursor(
+                        postings,
+                        lengths,
+                        tombstones,
+                        averageLength,
+                        liveDocumentCount,
+                        documentFrequency,
+                        _bm25,
+                        _bm25f.GetWeight(field)));
+                }
+            }
+
+            RunDisjunctionWandFiltered(segment, cursors, topHits, allowedDocumentIds, filteredSearch);
+        }
+
+        hits = SortTopHitsWithinBudget(topHits, filteredSearch.Budget);
+        return true;
+    }
+
+    private static bool TryGetSameFieldTermDisjunction(
+        Query.Query query,
+        out string? field,
+        out List<string> terms)
+    {
+        field = null;
+        terms = [];
+        if (query is not Query.OrQuery disjunction || disjunction.Clauses.Count < 2)
+        {
+            return false;
+        }
+
+        foreach (Query.Query clause in disjunction.Clauses)
+        {
+            if (clause is not Query.TermQuery term)
+            {
+                return false;
+            }
+
+            if (field is null)
+            {
+                field = term.Field;
+            }
+            else if (!string.Equals(field, term.Field, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            terms.Add(term.Term);
+        }
+
+        return field is not null;
+    }
+
+    private static void RunDisjunctionWand(
+        SegmentReader segment,
+        List<DisjunctionWandCursor> cursors,
+        TopKSearchHitHeap topHits)
+    {
+        while (true)
+        {
+            cursors.RemoveAll(static cursor => !cursor.HasCurrent);
+            if (cursors.Count == 0)
+            {
+                return;
+            }
+
+            cursors.Sort(static (left, right) => left.CurrentDocument.CompareTo(right.CurrentDocument));
+            double threshold = topHits.MinimumScore;
+            double upperBound = 0.0;
+            int pivotDocument = int.MaxValue;
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                upperBound += cursor.CurrentBlockMaxScore;
+                if (upperBound >= threshold)
+                {
+                    pivotDocument = cursor.CurrentDocument;
+                    break;
+                }
+            }
+
+            if (pivotDocument == int.MaxValue)
+            {
+                return;
+            }
+
+            if (cursors[0].CurrentDocument < pivotDocument)
+            {
+                foreach (DisjunctionWandCursor cursor in cursors)
+                {
+                    if (cursor.CurrentDocument < pivotDocument)
+                    {
+                        cursor.AdvanceTo(pivotDocument);
+                    }
+                }
+
+                continue;
+            }
+
+            int candidate = cursors[0].CurrentDocument;
+            double score = 0.0;
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                if (cursor.CurrentDocument == candidate)
+                {
+                    score += cursor.CurrentScore;
+                }
+            }
+
+            if (segment.Documents.TryGetValue(candidate, out DocumentId documentId))
+            {
+                topHits.Add(new SearchHit(documentId, score));
+            }
+
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                if (cursor.CurrentDocument == candidate)
+                {
+                    cursor.Advance();
+                }
+            }
+        }
+    }
+
+    private static void RunDisjunctionWandFiltered(
+        SegmentReader segment,
+        List<DisjunctionWandCursor> cursors,
+        TopKSearchHitHeap topHits,
+        IReadOnlySet<string> allowedDocumentIds,
+        FilteredSearchState filteredSearch)
+    {
+        while (true)
+        {
+            filteredSearch.ThrowIfCancellationRequested();
+            cursors.RemoveAll(static cursor => !cursor.HasCurrent);
+            if (cursors.Count == 0)
+            {
+                return;
+            }
+
+            cursors.Sort(static (left, right) => left.CurrentDocument.CompareTo(right.CurrentDocument));
+            double threshold = topHits.MinimumScore;
+            double upperBound = 0.0;
+            int pivotDocument = int.MaxValue;
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                upperBound += cursor.CurrentBlockMaxScore;
+                if (upperBound >= threshold)
+                {
+                    pivotDocument = cursor.CurrentDocument;
+                    break;
+                }
+            }
+
+            if (pivotDocument == int.MaxValue)
+            {
+                return;
+            }
+
+            if (cursors[0].CurrentDocument < pivotDocument)
+            {
+                foreach (DisjunctionWandCursor cursor in cursors)
+                {
+                    if (cursor.CurrentDocument < pivotDocument)
+                    {
+                        filteredSearch.VisitPosting();
+                        cursor.AdvanceTo(pivotDocument);
+                    }
+                }
+
+                continue;
+            }
+
+            int candidate = cursors[0].CurrentDocument;
+            double score = 0.0;
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                filteredSearch.VisitPosting();
+                if (cursor.CurrentDocument == candidate)
+                {
+                    score += cursor.CurrentScore;
+                }
+            }
+
+            if (segment.Documents.TryGetValue(candidate, out DocumentId documentId)
+                && allowedDocumentIds.Contains(documentId.Value))
+            {
+                topHits.Add(new SearchHit(documentId, score));
+            }
+
+            foreach (DisjunctionWandCursor cursor in cursors)
+            {
+                if (cursor.CurrentDocument == candidate)
+                {
+                    filteredSearch.VisitPosting();
+                    cursor.Advance();
+                }
+            }
+        }
+    }
+
+    private static int CountLivePostings(PostingListView postings, HashSet<int> tombstones)
+    {
+        int count = 0;
+        foreach (int documentId in postings.DocumentIds)
+        {
+            if (!tombstones.Contains(documentId))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     internal PersistentFullTextFilteredSearchResult SearchFiltered(
@@ -265,10 +899,40 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 maxPostingVisits,
                 cancellationToken,
                 budget);
-            Dictionary<string, double> scores = new(StringComparer.Ordinal);
             try
             {
+                if (TrySearchDisjunctionWandFiltered(
+                    query,
+                    topK,
+                    allowedDocumentIds,
+                    state,
+                    out IReadOnlyList<SearchHit> wandHits))
+                {
+                    return new PersistentFullTextFilteredSearchResult(
+                        wandHits,
+                        state.PostingVisits,
+                        false);
+                }
+
+                Dictionary<string, double> scores = new(StringComparer.Ordinal);
                 Score(query, scores, state);
+
+                cancellationToken.ThrowIfCancellationRequested();
+                var topHits = new TopKSearchHitHeap(topK);
+                foreach (KeyValuePair<string, double> kv in scores)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    budget?.ChargeWork();
+                    if (_liveDocuments.ContainsKey(kv.Key))
+                    {
+                        topHits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
+                    }
+                }
+
+                return new PersistentFullTextFilteredSearchResult(
+                    SortTopHitsWithinBudget(topHits, budget),
+                    state.PostingVisits,
+                    false);
             }
             catch (FullTextPostingBudgetExceededException)
             {
@@ -277,45 +941,26 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                     state.PostingVisits,
                     true);
             }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            List<SearchHit> hits = new(scores.Count);
-            foreach (KeyValuePair<string, double> kv in scores)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                budget?.ChargeWork();
-                if (_liveDocuments.ContainsKey(kv.Key))
-                {
-                    hits.Add(new SearchHit(new DocumentId(kv.Key), kv.Value));
-                }
-            }
-
-            Comparison<SearchHit> comparison = static (a, b) =>
-            {
-                int scoreCompare = b.Score.CompareTo(a.Score);
-                return scoreCompare != 0
-                    ? scoreCompare
-                    : string.CompareOrdinal(a.DocumentId.Value, b.DocumentId.Value);
-            };
-            if (budget is null)
-                hits.Sort(comparison);
-            else
-                hits = new List<SearchHit>(budget.Sort(hits, comparison));
-            if (hits.Count > topK)
-            {
-                hits.RemoveRange(topK, hits.Count - topK);
-            }
-
-            return new PersistentFullTextFilteredSearchResult(
-                hits,
-                state.PostingVisits,
-                false);
         }
         finally
         {
             if (entered)
                 _lock.Exit();
         }
+    }
+
+    private static IReadOnlyList<SearchHit> SortTopHitsWithinBudget(
+        TopKSearchHitHeap topHits,
+        FullTextSearchBudget? budget)
+    {
+        if (budget is null || topHits.Count < 2)
+        {
+            return topHits.ToSortedList();
+        }
+
+        // TopK 堆只保留 K 项；仍在共享预算内计入最终排序的有界工作。
+        budget.ChargeWork(Math.Max(1, (long)topHits.Count * 2));
+        return topHits.ToSortedList();
     }
 
     /// <summary>
@@ -425,7 +1070,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             {
                 long segmentId = _manifest.NextSegmentId++;
                 SegmentData data = BuildSegment(segmentId, liveDocuments);
-                SegmentReader reader = SegmentFile.Write(_segmentsDirectory, data);
+                SegmentReader reader = SegmentFile.Write(_segmentsDirectory, data, _blockCache, lazyPostingBlocks: true);
                 _segments[segmentId] = reader;
                 _tombstones[segmentId] = new HashSet<int>();
                 _manifest.ActiveSegments.Add(new SegmentManifestEntry
@@ -465,7 +1110,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         foreach (SegmentManifestEntry entry in _manifest.ActiveSegments)
         {
             string path = SegmentFile.GetPath(_segmentsDirectory, entry.Id);
-            SegmentReader reader = SegmentFile.Read(path);
+            SegmentReader reader = SegmentFile.Read(path, _blockCache, lazyPostingBlocks: true);
             _segments[entry.Id] = reader;
 
             if (_manifest.Tombstones.TryGetValue(entry.Id.ToString(), out List<int>? tombstones))
@@ -669,18 +1314,18 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             return;
         }
 
-        List<(SegmentReader Segment, Dictionary<int, int> Postings, HashSet<int> Tombstones)> matchingSegments = new();
+        List<(SegmentReader Segment, PostingListView Postings, HashSet<int> Tombstones)> matchingSegments = new();
         int documentFrequency = 0;
         foreach (SegmentReader segment in _segments.Values)
         {
-            if (!segment.TryGetPostings(term.Field, term.Term, out Dictionary<int, int>? postings))
+            if (!segment.TryGetPostingView(term.Field, term.Term, out PostingListView? postings))
             {
                 continue;
             }
 
             HashSet<int> tombstones = _tombstones[segment.Id];
             int livePostings = 0;
-            foreach (int localId in postings.Keys)
+            foreach (int localId in postings.DocumentIds)
             {
                 filteredSearch?.VisitPosting();
                 if (!tombstones.Contains(localId))
@@ -702,17 +1347,18 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         double averageLength = (double)stats.TotalLength / stats.DocumentCount;
-        foreach ((SegmentReader segment, Dictionary<int, int> postings, HashSet<int> tombstones) in matchingSegments)
+        foreach ((SegmentReader segment, PostingListView postings, HashSet<int> tombstones) in matchingSegments)
         {
             if (!segment.TryGetFieldLengths(term.Field, out Dictionary<int, int>? lengths))
             {
                 continue;
             }
 
-            foreach (KeyValuePair<int, int> posting in postings)
+            for (int index = 0; index < postings.DocumentIds.Length; index++)
             {
                 filteredSearch?.VisitPosting();
-                if (tombstones.Contains(posting.Key) || !segment.Documents.TryGetValue(posting.Key, out DocumentId documentId))
+                int localId = postings.DocumentIds[index];
+                if (tombstones.Contains(localId) || !segment.Documents.TryGetValue(localId, out DocumentId documentId))
                 {
                     continue;
                 }
@@ -722,8 +1368,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                     continue;
                 }
 
-                int documentLength = lengths.TryGetValue(posting.Key, out int len) ? len : 0;
-                double score = Bm25.Score(posting.Value, documentLength, averageLength, liveDocumentCount, documentFrequency, _bm25)
+                int documentLength = lengths.TryGetValue(localId, out int len) ? len : 0;
+                double score = Bm25.Score(postings.TermFrequencies[index], documentLength, averageLength, liveDocumentCount, documentFrequency, _bm25)
                     * _bm25f.GetWeight(term.Field);
                 scores[documentId.Value] = scores.TryGetValue(documentId.Value, out double existing) ? existing + score : score;
             }
@@ -1102,6 +1748,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         public IReadOnlySet<string> AllowedDocumentIds { get; }
+
+        public FullTextSearchBudget? Budget => _budget;
 
         public long PostingVisits { get; private set; }
 

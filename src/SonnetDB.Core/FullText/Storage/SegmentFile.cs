@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Hashing;
 using System.Text;
 using SonnetDB.FullText.Index;
 
@@ -8,8 +9,16 @@ internal static class SegmentFile
 {
     private static readonly byte[] _magicV1 = "DSSEG001"u8.ToArray();
     private static readonly byte[] _magicV2 = "DSSEG002"u8.ToArray();
+    private static readonly byte[] _magicV3 = "DSSEG003"u8.ToArray();
+    private static readonly byte[] _magicV4 = "DSSEG004"u8.ToArray();
+    private const int PostingBlockSize = 128;
+    private const int MaxPostingBlockBytes = 64 * 1024 * 1024;
 
-    public static SegmentReader Write(string segmentsDirectory, SegmentData data)
+    public static SegmentReader Write(
+        string segmentsDirectory,
+        SegmentData data,
+        FullTextBlockCache? blockCache = null,
+        bool lazyPostingBlocks = false)
     {
         Directory.CreateDirectory(segmentsDirectory);
         string path = GetPath(segmentsDirectory, data.Id);
@@ -17,7 +26,7 @@ internal static class SegmentFile
 
         using (FileStream stream = new(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            stream.Write(_magicV2);
+            stream.Write(_magicV4);
             WriteInt64(stream, data.Id);
             VarInt.Write(stream, data.Documents.Count);
 
@@ -54,26 +63,54 @@ internal static class SegmentFile
                 WriteString(stream, postingList.Term);
                 VarInt.Write(stream, postingList.Postings.Count);
 
-                int previousDocId = 0;
-                foreach (KeyValuePair<int, int> posting in postingList.Postings.OrderBy(static x => x.Key))
+                KeyValuePair<int, int>[] orderedPostings = postingList.Postings.OrderBy(static x => x.Key).ToArray();
+                int blockCount = orderedPostings.Length == 0
+                    ? 0
+                    : checked((orderedPostings.Length + PostingBlockSize - 1) / PostingBlockSize);
+                VarInt.Write(stream, blockCount);
+                for (int blockStart = 0; blockStart < orderedPostings.Length; blockStart += PostingBlockSize)
                 {
-                    VarInt.Write(stream, posting.Key - previousDocId);
-                    VarInt.Write(stream, posting.Value);
-                    if (postingList.Positions.TryGetValue(posting.Key, out List<int>? positions))
+                    int blockEnd = Math.Min(orderedPostings.Length, blockStart + PostingBlockSize);
+                    using var payload = new MemoryStream();
+                    int previousDocId = 0;
+                    int maxTermFrequency = 0;
+                    for (int index = blockStart; index < blockEnd; index++)
                     {
-                        VarInt.Write(stream, positions.Count);
-                        int previousPosition = 0;
-                        foreach (int position in positions.Order())
+                        KeyValuePair<int, int> posting = orderedPostings[index];
+                        VarInt.Write(payload, checked(posting.Key - previousDocId));
+                        VarInt.Write(payload, posting.Value);
+                        maxTermFrequency = Math.Max(maxTermFrequency, posting.Value);
+                        if (postingList.Positions.TryGetValue(posting.Key, out List<int>? positions))
                         {
-                            VarInt.Write(stream, position - previousPosition);
-                            previousPosition = position;
+                            VarInt.Write(payload, positions.Count);
+                            int previousPosition = 0;
+                            foreach (int position in positions.Order())
+                            {
+                                VarInt.Write(payload, checked(position - previousPosition));
+                                previousPosition = position;
+                            }
                         }
+                        else
+                        {
+                            VarInt.Write(payload, 0);
+                        }
+
+                        previousDocId = posting.Key;
                     }
-                    else
+
+                    if (payload.Length > MaxPostingBlockBytes)
                     {
-                        VarInt.Write(stream, 0);
+                        throw new InvalidDataException($"Posting block exceeds {MaxPostingBlockBytes} bytes.");
                     }
-                    previousDocId = posting.Key;
+
+                    byte[] payloadBytes = payload.ToArray();
+                    VarInt.Write(stream, payloadBytes.Length);
+                    WriteInt32(stream, orderedPostings[blockStart].Key);
+                    WriteInt32(stream, orderedPostings[blockEnd - 1].Key);
+                    WriteInt32(stream, maxTermFrequency);
+                    VarInt.Write(stream, blockEnd - blockStart);
+                    WriteUInt32(stream, Crc32.HashToUInt32(payloadBytes));
+                    stream.Write(payloadBytes);
                 }
             }
 
@@ -85,22 +122,43 @@ internal static class SegmentFile
         File.Move(tempPath, path, overwrite: true);
         SonnetDB.Wal.DirectoryFsync.FlushBestEffort(segmentsDirectory);
 
-        return Read(path);
+        return Read(path, blockCache, lazyPostingBlocks);
     }
 
-    public static SegmentReader Read(string path)
+    public static SegmentReader Read(
+        string path,
+        FullTextBlockCache? blockCache = null,
+        bool lazyPostingBlocks = false)
     {
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         Span<byte> magic = stackalloc byte[_magicV2.Length];
         ReadExactly(stream, magic);
         bool hasPositions;
+        bool hasPostingBlocks;
+        bool hasPostingCounts;
         if (magic.SequenceEqual(_magicV2))
         {
             hasPositions = true;
+            hasPostingBlocks = false;
+            hasPostingCounts = false;
+        }
+        else if (magic.SequenceEqual(_magicV3))
+        {
+            hasPositions = true;
+            hasPostingBlocks = true;
+            hasPostingCounts = false;
+        }
+        else if (magic.SequenceEqual(_magicV4))
+        {
+            hasPositions = true;
+            hasPostingBlocks = true;
+            hasPostingCounts = true;
         }
         else if (magic.SequenceEqual(_magicV1))
         {
             hasPositions = false;
+            hasPostingBlocks = false;
+            hasPostingCounts = false;
         }
         else
         {
@@ -144,39 +202,122 @@ internal static class SegmentFile
             int count = VarInt.Read(stream);
             Dictionary<int, int> postings = new();
             Dictionary<int, List<int>> positions = new();
-            int docId = 0;
-            for (int j = 0; j < count; j++)
+            var postingList = new SegmentPostingList(field, term, postings, positions);
+            if (hasPostingBlocks)
             {
-                docId += VarInt.Read(stream);
-                int termFrequency = VarInt.Read(stream);
-                postings[docId] = termFrequency;
-                if (hasPositions)
+                int blockCount = VarInt.Read(stream);
+                if (blockCount < 0 || blockCount > 1_000_000 || count == 0 && blockCount != 0 || count > 0 && (blockCount <= 0 || blockCount > count))
                 {
-                    int positionCount = VarInt.Read(stream);
-                    List<int> values = new(positionCount);
-                    int position = 0;
-                    for (int k = 0; k < positionCount; k++)
-                    {
-                        position += VarInt.Read(stream);
-                        values.Add(position);
-                    }
-                    positions[docId] = values;
+                    throw new FormatException($"Invalid posting block count for term '{term}'.");
                 }
-                else
+
+                int decodedCount = 0;
+                for (int block = 0; block < blockCount; block++)
                 {
-                    List<int> values = new(termFrequency);
-                    for (int k = 0; k < termFrequency; k++)
+                    int blockLength = VarInt.Read(stream);
+                    if (blockLength <= 0 || blockLength > MaxPostingBlockBytes)
                     {
-                        values.Add(k);
+                        throw new FormatException($"Invalid posting block length {blockLength} for term '{term}'.");
                     }
-                    positions[docId] = values;
+                    int firstDocumentId = ReadInt32(stream);
+                    int lastDocumentId = ReadInt32(stream);
+                    int maxTermFrequency = ReadInt32(stream);
+                    int postingCount = hasPostingCounts ? VarInt.Read(stream) : -1;
+                    uint expectedCrc = ReadUInt32(stream);
+                    long payloadOffset = stream.Position;
+                    if (payloadOffset > stream.Length - blockLength)
+                    {
+                        throw new InvalidDataException($"Posting block exceeds segment boundary for term '{term}'.");
+                    }
+
+                    if (firstDocumentId > lastDocumentId || maxTermFrequency <= 0)
+                    {
+                        throw new FormatException($"Invalid posting block directory for term '{term}'.");
+                    }
+
+                    if (hasPostingCounts
+                        && (postingCount <= 0 || postingCount > PostingBlockSize))
+                    {
+                        throw new FormatException($"Invalid posting count for term '{term}'.");
+                    }
+
+                    if (lazyPostingBlocks)
+                    {
+                        stream.Position += blockLength;
+                    }
+                    else
+                    {
+                        byte[] payload = new byte[blockLength];
+                        ReadExactly(stream, payload);
+                        uint actualCrc = Crc32.HashToUInt32(payload);
+                        if (actualCrc != expectedCrc)
+                        {
+                            throw new InvalidDataException($"Posting block CRC32 mismatch for term '{term}'.");
+                        }
+
+                        DecodePostingBlock(
+                            payload,
+                            term,
+                            firstDocumentId,
+                            lastDocumentId,
+                            maxTermFrequency,
+                            postingCount,
+                            postings,
+                            positions,
+                            ref decodedCount);
+                    }
+
+                    postingList.Blocks.Add(new PostingBlockInfo(
+                        payloadOffset,
+                        blockLength,
+                        firstDocumentId,
+                        lastDocumentId,
+                        maxTermFrequency,
+                        postingCount,
+                        expectedCrc));
+                }
+
+                if (!lazyPostingBlocks && decodedCount != count)
+                {
+                    throw new FormatException($"Posting block count mismatch for term '{term}'.");
                 }
             }
-            data.PostingLists.Add(new SegmentPostingList(field, term, postings, positions));
+            else
+            {
+                int docId = 0;
+                for (int j = 0; j < count; j++)
+                {
+                    docId += VarInt.Read(stream);
+                    int termFrequency = VarInt.Read(stream);
+                    postings[docId] = termFrequency;
+                    if (hasPositions)
+                    {
+                        int positionCount = VarInt.Read(stream);
+                        List<int> values = new(positionCount);
+                        int position = 0;
+                        for (int k = 0; k < positionCount; k++)
+                        {
+                            position += VarInt.Read(stream);
+                            values.Add(position);
+                        }
+                        positions[docId] = values;
+                    }
+                    else
+                    {
+                        List<int> values = new(termFrequency);
+                        for (int k = 0; k < termFrequency; k++)
+                        {
+                            values.Add(k);
+                        }
+                        positions[docId] = values;
+                    }
+                }
+            }
+            data.PostingLists.Add(postingList);
         }
 
         FileInfo file = new(path);
-        return new SegmentReader(data, path, file.Length);
+        return new SegmentReader(data, path, file.Length, blockCache, lazyPostingBlocks);
     }
 
     public static string GetPath(string segmentsDirectory, long segmentId)
@@ -225,6 +366,92 @@ internal static class SegmentFile
         Span<byte> buffer = stackalloc byte[sizeof(long)];
         ReadExactly(stream, buffer);
         return BinaryPrimitives.ReadInt64LittleEndian(buffer);
+    }
+
+    private static void WriteInt32(Stream stream, int value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+        stream.Write(buffer);
+    }
+
+    private static int ReadInt32(Stream stream)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        ReadExactly(stream, buffer);
+        return BinaryPrimitives.ReadInt32LittleEndian(buffer);
+    }
+
+    private static void WriteUInt32(Stream stream, uint value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
+        stream.Write(buffer);
+    }
+
+    private static void DecodePostingBlock(
+        byte[] payload,
+        string term,
+        int firstDocumentId,
+        int lastDocumentId,
+        int maxTermFrequency,
+        int postingCount,
+        Dictionary<int, int> postings,
+        Dictionary<int, List<int>> positions,
+        ref int decodedCount)
+    {
+        using var payloadStream = new MemoryStream(payload, writable: false);
+        int previousDocId = 0;
+        int firstDecodedDocId = int.MaxValue;
+        int lastDecodedDocId = int.MinValue;
+        int actualMaxTermFrequency = 0;
+        int blockDecoded = 0;
+        while (payloadStream.Position < payloadStream.Length)
+        {
+            int docId = checked(previousDocId + VarInt.Read(payloadStream));
+            int termFrequency = VarInt.Read(payloadStream);
+            if (termFrequency <= 0)
+            {
+                throw new FormatException($"Invalid term frequency for term '{term}'.");
+            }
+
+            postings[docId] = termFrequency;
+            int positionCount = VarInt.Read(payloadStream);
+            if (positionCount < 0 || positionCount > MaxPostingBlockBytes)
+            {
+                throw new FormatException($"Invalid position count for term '{term}'.");
+            }
+            List<int> values = new(positionCount);
+            int position = 0;
+            for (int k = 0; k < positionCount; k++)
+            {
+                position = checked(position + VarInt.Read(payloadStream));
+                values.Add(position);
+            }
+            positions[docId] = values;
+            previousDocId = docId;
+            blockDecoded++;
+            decodedCount++;
+            firstDecodedDocId = Math.Min(firstDecodedDocId, docId);
+            lastDecodedDocId = Math.Max(lastDecodedDocId, docId);
+            actualMaxTermFrequency = Math.Max(actualMaxTermFrequency, termFrequency);
+        }
+
+        if (blockDecoded == 0
+            || firstDocumentId != firstDecodedDocId
+            || lastDocumentId != lastDecodedDocId
+            || maxTermFrequency < actualMaxTermFrequency
+            || (postingCount > 0 && postingCount != blockDecoded))
+        {
+            throw new FormatException($"Invalid posting block payload for term '{term}'.");
+        }
+    }
+
+    private static uint ReadUInt32(Stream stream)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(uint)];
+        ReadExactly(stream, buffer);
+        return BinaryPrimitives.ReadUInt32LittleEndian(buffer);
     }
 
     private static void ReadExactly(Stream stream, Span<byte> buffer)

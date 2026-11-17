@@ -7,7 +7,13 @@
 
 ## [Unreleased]
 
-暂无已归入下一版本的变更。
+### Full-text search
+
+- 持久化和内存全文索引的最终 Top-K 结果改用有界命中堆，避免在候选远多于 K 时保留并全量排序完整命中集合；segment reader 增加可复用的按 local document ID 排序 posting 视图。
+- 对同一字段的纯 term `OR` 查询增加受限 Block-Max WAND 路径，块上界从当前 posting 视图计算；复杂查询继续走原有评分器，旧 segment 二进制格式与 BM25 分数合同保持不变。磁盘按块读取、持久化块目录和跨请求缓存仍需后续切片与基准验证。
+- 增加同一字段纯 term `OR` 的过滤搜索 WAND 路径，保留全局 BM25 文档频率、允许文档集合、posting 预算、取消和稳定 Top-K 合同；新增 WAND 对拍、过滤预算失败闭合、tombstone 和预取消回归。
+- 新写入全文 segment 使用 `DSSEG004` posting block 目录：每 128 个 posting 记录文件偏移、长度、文档范围、posting count、term frequency 上界和 CRC32；`DSSEG001/002/003` 继续兼容读取，未知 magic 和损坏 block fail closed。新增按字节预算的 LRU block cache 与显式 `TryReadPostingBlock` 读取 API；PersistentFullTextIndex 现在以 lazy posting block 模式打开新格式，首次访问词项时按目录读取并缓存该词项的 blocks。
+- 对 DSSEG004、无 tombstone、参数可证明的同字段纯 term `OR` 查询增加 block-level WAND：先用 posting count 和 BM25 安全上界跳过不可能进入 Top-K 的 block，再读取候选 payload；DSSEG003、存在墓碑、过滤查询或不满足上界证明的参数回退已有 WAND/评分路径。
 
 ### Time-series lifecycle
 

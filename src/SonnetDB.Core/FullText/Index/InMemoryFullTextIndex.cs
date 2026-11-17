@@ -162,28 +162,16 @@ public sealed class InMemoryFullTextIndex : IFullTextIndex
                 return Array.Empty<SearchHit>();
             }
 
-            List<SearchHit> hits = new(scores.Count);
+            var topHits = new TopKSearchHitHeap(topK);
             foreach (KeyValuePair<int, double> kv in scores)
             {
                 DocumentId? id = _documents[kv.Key];
                 if (id is { } docId)
                 {
-                    hits.Add(new SearchHit(docId, kv.Value));
+                    topHits.Add(new SearchHit(docId, kv.Value));
                 }
             }
-
-            hits.Sort(static (a, b) =>
-            {
-                int scoreCompare = b.Score.CompareTo(a.Score);
-                return scoreCompare != 0
-                    ? scoreCompare
-                    : string.CompareOrdinal(a.DocumentId.Value, b.DocumentId.Value);
-            });
-            if (hits.Count > topK)
-            {
-                hits.RemoveRange(topK, hits.Count - topK);
-            }
-            return hits;
+            return topHits.ToSortedList();
         }
     }
 

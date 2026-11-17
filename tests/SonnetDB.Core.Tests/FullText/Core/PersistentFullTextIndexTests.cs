@@ -127,6 +127,83 @@ public sealed class PersistentFullTextIndexTests : IDisposable
     }
 
     [Fact]
+    public void Disjunction_wand_matches_full_scoring_top_k_order()
+    {
+        Document[] documents =
+        [
+            new Document(new DocumentId("a")).Set("body", "alpha beta"),
+            new Document(new DocumentId("b")).Set("body", "alpha alpha beta"),
+            new Document(new DocumentId("c")).Set("body", "alpha"),
+            new Document(new DocumentId("d")).Set("body", "beta"),
+            new Document(new DocumentId("e")).Set("body", "gamma"),
+        ];
+        OrQuery query = new(
+        [
+            new TermQuery("body", "alpha"),
+            new TermQuery("body", "beta"),
+        ]);
+
+        PersistentFullTextIndex persistent = Open();
+        persistent.IndexMany(documents);
+        IReadOnlyList<SearchHit> persistentHits = persistent.Search(query, topK: 3);
+
+        var memory = new InMemoryFullTextIndex(new UnicodeTokenizer());
+        foreach (Document document in documents)
+            memory.Index(document);
+        IReadOnlyList<SearchHit> memoryHits = memory.Search(query, topK: 3);
+
+        Assert.Equal(memoryHits.Select(static hit => hit.DocumentId.Value), persistentHits.Select(static hit => hit.DocumentId.Value));
+        for (int i = 0; i < memoryHits.Count; i++)
+            Assert.Equal(memoryHits[i].Score, persistentHits[i].Score, precision: 12);
+    }
+
+    [Fact]
+    public void Disjunction_wand_skips_tombstones_across_segments()
+    {
+        PersistentFullTextIndex index = Open();
+        index.Index(new Document(new DocumentId("old")).Set("body", "alpha"));
+        index.Index(new Document(new DocumentId("live")).Set("body", "alpha beta"));
+        Assert.True(index.Delete(new DocumentId("old")));
+
+        IReadOnlyList<SearchHit> hits = index.Search(
+            new OrQuery([new TermQuery("body", "alpha"), new TermQuery("body", "beta")]),
+            topK: 10);
+
+        Assert.Single(hits);
+        Assert.Equal("live", hits[0].DocumentId.Value);
+    }
+
+    [Fact]
+    public void Block_wand_after_reopen_matches_reference_top_k()
+    {
+        var documents = new List<Document>(260);
+        for (int index = 0; index < 260; index++)
+        {
+            string body = index % 5 == 0
+                ? "alpha beta beta"
+                : index % 2 == 0
+                    ? "alpha"
+                    : "beta";
+            documents.Add(new Document(new DocumentId($"doc-{index:D4}")).Set("body", body));
+        }
+
+        OrQuery query = new([new TermQuery("body", "alpha"), new TermQuery("body", "beta")]);
+        PersistentFullTextIndex persistent = Open();
+        persistent.IndexMany(documents);
+        PersistentFullTextIndex reopened = Open();
+        IReadOnlyList<SearchHit> actual = reopened.Search(query, topK: 7);
+
+        var reference = new InMemoryFullTextIndex(new UnicodeTokenizer());
+        foreach (Document document in documents)
+            reference.Index(document);
+        IReadOnlyList<SearchHit> expected = reference.Search(query, topK: 7);
+
+        Assert.Equal(expected.Select(static hit => hit.DocumentId.Value), actual.Select(static hit => hit.DocumentId.Value));
+        for (int index = 0; index < expected.Count; index++)
+            Assert.Equal(expected[index].Score, actual[index].Score, precision: 12);
+    }
+
+    [Fact]
     public void Phrase_and_near_queries_survive_reopen()
     {
         PersistentFullTextIndex index = Open();

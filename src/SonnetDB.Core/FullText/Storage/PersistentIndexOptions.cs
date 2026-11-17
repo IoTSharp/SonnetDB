@@ -21,4 +21,9 @@ public sealed class PersistentIndexOptions
     /// BM25F 字段权重配置。
     /// </summary>
     public Bm25FOptions? Bm25F { get; init; }
+
+    /// <summary>
+    /// 每个持久化全文索引使用的 posting block 缓存字节上限；为 0 时禁用缓存。
+    /// </summary>
+    public long FullTextBlockCacheMaxBytes { get; init; } = 64L * 1024 * 1024;
 }

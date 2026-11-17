@@ -1,3 +1,18 @@
+## 2026-11-17 13:18（Asia/Shanghai）全文 Top-K 与受限 Block-Max WAND 第一切片
+
+- 用户要求评估并推进全文 WAND/Block-Max WAND 以及大规模磁盘块访问/缓存优化。本轮在共享 `main` 工作树中完成了不改变旧 segment 二进制格式的第一切片：新增有界 `TopKSearchHitHeap`，持久化/内存全文搜索最终结果不再全量排序；`SegmentReader` 增加按 local document ID 排序且可复用的 posting 视图；持久化索引对同一字段的纯 term `OR` 查询启用受限 Block-Max WAND，复杂查询、字段混合和模糊/短语路径回退既有评分器。
+- WAND 块上界当前由已加载 posting 视图按 128 项块计算，posting 视图缓存上限为每个 segment 1024 项；这只证明候选跳过和 Top-K 正确性，不等同于磁盘按块读取或持久化块目录。大规模磁盘块访问、磁盘块缓存、posting skip 和跨请求缓存仍是后续实现项，旧 segment 兼容继续保留。
+- 验证：临时使用已核实的 SDK 11.0.100 执行 `PersistentFullTextIndexTests`、`TopKSearchHitHeapTests` 过滤集 **20/20 PASS**；`git diff --check` 和规定 `dotnet format ... --verify-no-changes` PASS；根 `global.json` 原字节已恢复。完整 solution 测试、容量/冷读/缓存基准、NativeAOT、固定硬件和生产验证本轮 `NOT_RUN` 或受 SDK 10.0.100 缺失 `BLOCKED`。
+- 授权边界：仅修改全文核心实现、对应测试、本条 CHANGELOG 和交接；没有提交、推送、发布、部署、迁移或改写其他共享 dirty。下一顺序是为 WAND 增加过滤/预算合同与对拍基准，再设计带版本字段的磁盘块目录和有界缓存，完成旧格式回退/重建与冷读、并发、损坏、取消验证。
+
+## 2026-11-17 14:30（Asia/Shanghai）全文过滤 WAND 与 DSSEG003 block 基础
+
+- 继续按用户授权并行实现全文优化。PersistentFullTextIndex 增加同一字段纯 term `OR` 的过滤 WAND 路径，保留全局 BM25 文档频率、allowed document 集合、posting/时间/取消预算以及 Top-K 稳定排序；复杂查询仍回退原评分器。
+- 新写入全文段升级为 `DSSEG004`：posting 每 128 项形成 block，目录记录 payload offset/length、首尾 local document ID、posting count、term frequency 上界和 CRC32；读取器继续兼容 `DSSEG001/002/003`，未知 magic、长度越界、目录不一致和 CRC 错误 fail closed。新增 `SegmentReader.TryReadPostingBlock(...)`，按目录 seek 读取并可接入有界缓存。
+- 新增 `FullTextBlockCache`：按字节预算的短同步 LRU，提供命中/未命中/淘汰统计、清空、超大条目和禁用缓存 fail-closed；PersistentFullTextIndex 现在以 lazy posting block 模式打开 DSSEG004，首次访问词项时按目录读取并缓存该词项 blocks。DSSEG004、无 tombstone、BM25 参数满足安全上界证明的同字段纯 term `OR` 已接入 block-level WAND；其他路径回退既有 WAND/评分器。
+- 验证：block-level WAND 接线后的合并定向回归曾 **42/42 PASS**；最后放宽“缺词项 segment 可跳过、旧格式词项触发回退”的保守条件后，受影响的 `PersistentFullTextIndexTests`、`WandCorrectnessTests`、`BlockWandCursorTests` 子集 **30/30 PASS**。`dotnet format ... --verify-no-changes` 与 `git diff --check` 最终 **PASS**；临时使用已核实 SDK 11.0.100，根 `global.json` 已恢复 10.0.100 + latestMinor。完整 solution、百万文档容量、冷读热读、并发缓存、NativeAOT、固定硬件和生产验证仍 `NOT_RUN/BLOCKED`。
+- 本轮没有提交、推送、发布、部署、迁移或清理其他共享 dirty。下一顺序是补 block-level WAND 的冷读/热读计数、过滤/墓碑 fallback 对拍、并发/损坏/取消/重建和旧格式验证，不把现有代码测试写成容量或生产通过。
+
 ## 2026-11-16（Asia/Shanghai）KEEP_LAST 与 Block 分块第一阶段
 
 - 用户明确授权继续优化并要求支持 `KEEP_LAST`。新增 `DuplicateTimestampPolicy`：`KeepAll` 默认保持历史行为，`KeepFirst`/`KeepLast` 通过 `TsdbOptions` 接线到新写入 MemTable 和 WAL replay；已经落盘的旧 Segment 不静默重写，跨旧 Segment 的历史重复清理仍需独立迁移/重写合同。新增重复点测试覆盖 KeepAll/KeepFirst/KeepLast、Flush/Reopen；与 Block 测试合计定向 **20/20 PASS**。
@@ -8252,3 +8267,22 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 本轮未提交、推送、打 tag、发布、部署、重启或修改生产数据。临时 SDK/格式检查目录和所属进程均已回收；当前共享工作树还包含其它任务的 dirty 文件，必须按归属保留。下一步先在干净/整合工作树重跑完整规定 format，再由用户单独授权提交或外部发布。
 
 - 后续核对确认 `DuplicateTimestampPolicyTests` 已使用 `AggregateBucket.Value`，不需要新增 `AggregateBucket.Sum` API；Core.Tests 项目当前 SDK 11 临时入口构建为 0 warning/0 error，重复时间戳定向测试 4/4 PASS。此前 `AggregateBucket.Sum` 编译报错属于并行工作树修正前的旧快照，未引入产品 API 变更。
+
+## 2026-11-17（Asia/Shanghai）博客园日更因 IoTPaper canonical 前置条件暂停
+
+- Run `cnblogs-20261117-daily-0200` 在 02:00 后使用 PowerShell 7.6.10 重读 AGENTS、HANDOFF、博客园发布技能、封面策略、当前 CNBlogs 台账、计划、选题和 IoTPaper 操作手册/策略。2026-11-17 新文章事件为 `0/2`，没有 `queued` 稿、没有活动文章/修订/共享租约，也没有登记为 `pending, attempts=0` 的伴随闪存。
+- 只读账户与公开证据通过：博客园 `IoTSharp` 首页和 178 原帖 `https://www.cnblogs.com/IoTSharp/p/23612806` 均 HTTP 200；原帖标题、SonnetDB 内容、主题封面、默认二维码和群号 `63631741` 可读。共享 `publishing-lease.json` 为 `active=false`/released，助手文章锁没有活动写入；本轮没有发出 POST。
+- 179 保持 `needs-update`（重建稿缺原始封面/旧正文证据，尚未通过事实复核、`RequireUploadReady` 和 C# dry-run），180–202 仍为 `planned`。IoTPaper 当前公开 `release.json` 为 `20261116-sonnetdb-511-v2`、`239` 篇；本地公开清单没有 `sonnetdb:179`、`sonnetdb:180`、`sonnetdb:181`、`sonnetdb:182` 或 `sonnetdb:183`，对应 179 候选路径只读请求均 404。
+- 当前 `publishing-policy.json` 与技能要求新稿先登记固定 key、构建、部署并在 `iotpaper.net` 完成 canonical/定稿 SHA 公开回读，再生成博客园渠道稿。自动化授权仅限博客文件和本任务交接且明确禁止自动部署，因此未起草/排队、生成或上传封面、C# dry-run、创建/编辑文章、发送闪存或改动台账/计划/事件。
+- 决策：`BLOCKED`，等待用户明确授权 IoTPaper 原文登记/构建/部署/公开回读路径，或明确批准规则例外。未执行产品构建/测试、提交、推送、部署、临时文件创建或任务进程终止；下一轮仍先核对 canonical 前置条件和当前 CNBlogs 账本。
+- Run time: `2026-11-17T02:05:15.359+08:00`。
+
+## 2026-11-17（Asia/Shanghai）180 工业分析稿已更新并通过本地发布门禁
+
+- 用户要求把规划中的 180 更新到最新并确保可发布。本轮以 `main@abf888989e38c852a91c8311a8b1790abe218eb3`、公开 `v5.1.1` 和当前源码/专题文档重写了 `.publishing/blogs/180-industrial-analysis-boundaries.md`；标题、front matter、H1 和首段均以 SonnetDB 开头并保持一致，内容覆盖 GEOPOINT/轨迹、PID、forecast、anomaly/changepoint、工业诊断样例和逐项边界。
+- 180 已写入 `publishing-state.json`（`status=needs-update`、sourceDocs 10 项、content SHA `078d5fdb8ec154e8544a50b6392289c7693866d5789d9a0ee04f04e717139368`、sourceCommit `abf8889...`），`series-backlog.md` 同步为 `needs-update`，计划表新增 `180 | 🕒 待发布`。未伪造 scheduledAt、postId、URL 或发布事件。
+- 按当前人物档案生成并目视复核了独立横向封面 `assets/covers/180-cover-20261117.png`，实际 `1915x821`，SHA `7e5d311cee4863bd16bfcb7f811cdb703c432111d98a5a210e8b969e8c6cdd3a`；封面包含 SonnetDB、准确中文主题和关注提示，回执为 `cover-evidence/180-cover-20261117.json`。生成模型为当前技能探测后的 `gpt-image-2.5-sunburst`，没有重试或静默替换。
+- 本地门禁 PASS：`verify-project-identity.ps1 -ArticleId 180`、`verify-cover-image.ps1 -ArticleId 180`、`-RequireUploadReady`；C# 发布器 dry-run PASS，预览含封面和默认微信/QQ 双二维码。第一次 dry-run 仅因从仓库目录解析到不可用 SDK 10.0.100 而未启动发布器，随后在技能项目目录成功，未改 `global.json`，未发网络请求。证据：`publishing-evidence/2026-11-17-180-preflight.json`。
+- 外部发布仍未执行：IoTPaper 当前清单和公开版本 `20261116-sonnetdb-511-v2`（239 篇）仍没有 `sonnetdb:180`；政策要求先登记、构建、部署并公开回读 canonical。当前自动化原授权仍禁止部署，因此 180 保持 `needs-update` 而不是 `queued`，没有文章/媒体/闪存 POST。下一步需要单独授权 IoTPaper 原文路径或明确批准政策例外，然后重新跑 packet、RequireUploadReady、dry-run，再按一次性创建和回读规则发布。
+- 本轮没有提交、推送、产品构建/测试、生产部署或重启；任务临时脚本/预览已在收尾按确切路径清理，必要封面和回执保留。阶段时间：`2026-11-17T04:27:36.2528664+08:00`。
+- 最终收尾：临时目录已按确切路径删除；状态/证据 JSON 均 UTF-8 无 BOM/LF 且可解析，正文/封面 SHA 与状态一致，租约 released、今日新文章事件仍 `0/2`、queued 为 0。GitHub `v5.1.1` Release 通过只读代理 HTTP 200 回读；本轮仍无任何文章/媒体/闪存 POST。最终时间：`2026-11-17T04:39:45.8434604+08:00`。
