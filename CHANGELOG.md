@@ -17,6 +17,9 @@
 - 收紧全文格式和评分安全边界：DSSEG004 lazy 读取现在核对每个 term 的 block `postingCount` 总和及跨 block 文档范围，DSSEG003/004 payload 解码拒绝重复或乱序 document ID；块目录无法证明上界时回退完整评分，BM25/BM25F 参数非法时不进入 WAND，合法零分命中仍保留，极大 Top-K 不再按用户输入预分配整块数组。
 - DSSEG004 `MaxTermFrequency` 不纳入 payload CRC 时，block-level WAND 使用 BM25 词频数学上界并在实际 payload 载入时核对目录，避免损坏目录造成低估上界和漏召回；本轮只证明小规模正确性，真实冷读/热读计数、缓存命中率、容量和生产性能仍未完成。
 - 增加持久化全文索引的 block 读取诊断快照，累计记录实际 segment 文件读取的 block 数/字节数以及缓存命中、未命中、淘汰和当前占用；新增冷读后热读复用回归与 `FullTextBlockReadBenchmark`，用于验证缓存复用和比较端到端读路径。该基准仍不代表固定硬件、百万文档容量或生产延迟门禁。
+- 新增确定性随机多 segment 全文对拍：同时比较持久化索引与内存完整评分器的无过滤结果，再比较包含 live、tombstone/stale 和未知 ID 的 allowed 集合下的过滤 WAND/fallback 结果；覆盖 OR、Term、AND、topK 边界和关闭重开后的结果稳定性。
+- 全文 block cache 增加按 key 的有界 single-flight 加载：同一缓存实例下并发 miss 共享一次物理 loader，`SegmentReader` 的 lazy posting block 读取接入该路径；新增 cache 争用和多个索引实例并发 reopen/search 回归。该切片仍不代表长稳、百万文档容量或生产并发门禁。
+- 收紧全文 block cache 的清空与失败恢复合同：loader 异常会移除 faulted inflight 项，后续同 key 可重新读取；`Clear()` 递增缓存代际并隔离进行中的旧 loader，旧读取仍返回给原调用方但不会在清空后回填，新读取建立新的 single-flight。新增异常重试和清空竞态回归；仍未证明长稳、百万文档容量或生产并发门禁。
 
 ### Time-series lifecycle
 

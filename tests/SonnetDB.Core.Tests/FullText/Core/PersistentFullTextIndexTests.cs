@@ -235,6 +235,34 @@ public sealed class PersistentFullTextIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Concurrent_reopen_and_search_returns_consistent_results()
+    {
+        PersistentFullTextIndex seed = Open();
+        var documents = new List<Document>(260);
+        for (int ordinal = 0; ordinal < 260; ordinal++)
+        {
+            documents.Add(new Document(new DocumentId($"doc-{ordinal:D4}"))
+                .Set("body", ordinal % 3 == 0 ? "alpha beta" : "alpha"));
+        }
+
+        seed.IndexMany(documents);
+        OrQuery query = new([new TermQuery("body", "alpha"), new TermQuery("body", "beta")]);
+        var expected = seed.Search(query, topK: 11).ToArray();
+
+        Task[] tasks = Enumerable.Range(0, 8)
+            .Select(_ => Task.Run(() =>
+            {
+                PersistentFullTextIndex reopened = Open();
+                IReadOnlyList<SearchHit> actual = reopened.Search(query, topK: 11);
+                Assert.Equal(expected.Select(static hit => hit.DocumentId.Value), actual.Select(static hit => hit.DocumentId.Value));
+                Assert.Equal(expected.Select(static hit => hit.Score), actual.Select(static hit => hit.Score));
+            }))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+    }
+
+    [Fact]
     public void Phrase_and_near_queries_survive_reopen()
     {
         PersistentFullTextIndex index = Open();

@@ -6,6 +6,7 @@ using SonnetDB.FullText.Scoring;
 using SonnetDB.FullText.Storage;
 using SonnetDB.FullText.Tokenizers.Unicode;
 using Xunit;
+using FullTextQuery = SonnetDB.FullText.Query.Query;
 
 namespace SonnetDB.Core.Tests.FullText;
 
@@ -190,6 +191,132 @@ public sealed class WandCorrectnessTests : IDisposable
             Assert.Equal(expected[index].Score, actual[index].Score, precision: 12);
     }
 
+    [Fact]
+    public void Filtered_wand_and_fallback_match_oracle_after_random_multi_segment_updates_and_tombstones()
+    {
+        const int documentCount = 48;
+        string[] vocabulary = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"];
+        var random = new Random(0x5EED_2026);
+        var persistent = OpenPersistent();
+        var reference = new InMemoryFullTextIndex(new UnicodeTokenizer());
+        var liveDocuments = new Dictionary<string, Document>(StringComparer.Ordinal);
+        var allDocumentIds = new HashSet<string>(StringComparer.Ordinal);
+        var staleDocumentIds = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int batchStart = 0; batchStart < documentCount; batchStart += 8)
+        {
+            var batch = new List<Document>(8);
+            for (int ordinal = batchStart; ordinal < batchStart + 8; ordinal++)
+            {
+                Document document = CreateRandomDocument($"doc-{ordinal:D2}", vocabulary, random);
+                batch.Add(document);
+                liveDocuments[document.Id.Value] = document;
+                allDocumentIds.Add(document.Id.Value);
+                reference.Index(document);
+            }
+
+            persistent.IndexMany(batch);
+        }
+
+        for (int operation = 0; operation < 18; operation++)
+        {
+            string id = $"doc-{random.Next(documentCount):D2}";
+            if (operation % 3 == 0)
+            {
+                persistent.Delete(new DocumentId(id));
+                reference.Delete(new DocumentId(id));
+                if (liveDocuments.Remove(id))
+                {
+                    staleDocumentIds.Add(id);
+                }
+            }
+            else
+            {
+                Document replacement = CreateRandomDocument(id, vocabulary, random);
+                persistent.Index(replacement);
+                reference.Index(replacement);
+                liveDocuments[id] = replacement;
+                allDocumentIds.Add(id);
+                staleDocumentIds.Remove(id);
+            }
+        }
+
+        PersistentFullTextIndex reopened = PersistentFullTextIndex.Open(
+            Path.Combine(_directory, "persistent"),
+            new UnicodeTokenizer(),
+            options: new PersistentIndexOptions { EnableBackgroundMerge = false });
+
+        for (int queryIndex = 0; queryIndex < 36; queryIndex++)
+        {
+            int firstTermIndex = random.Next(vocabulary.Length);
+            int secondTermIndex = random.Next(vocabulary.Length - 1);
+            if (secondTermIndex >= firstTermIndex)
+            {
+                secondTermIndex++;
+            }
+
+            string firstTerm = vocabulary[firstTermIndex];
+            string secondTerm = vocabulary[secondTermIndex];
+
+            FullTextQuery query = (queryIndex % 3) switch
+            {
+                0 => new OrQuery([new TermQuery("body", firstTerm), new TermQuery("body", secondTerm)]),
+                1 => new TermQuery("body", firstTerm),
+                _ => new AndQuery([new TermQuery("body", firstTerm), new TermQuery("body", secondTerm)]),
+            };
+            var allowed = new HashSet<string>(StringComparer.Ordinal);
+            switch (queryIndex % 4)
+            {
+                case 0:
+                    allowed.UnionWith(allDocumentIds);
+                    break;
+                case 1:
+                    foreach (string id in liveDocuments.Keys)
+                    {
+                        if (random.Next(3) != 0)
+                        {
+                            allowed.Add(id);
+                        }
+                    }
+                    allowed.Add($"unknown-{queryIndex:D2}");
+                    break;
+                case 2:
+                    allowed.UnionWith(staleDocumentIds);
+                    allowed.Add($"unknown-{queryIndex:D2}");
+                    break;
+            }
+
+            int topK = (queryIndex % 5) switch
+            {
+                0 => 0,
+                1 => 1,
+                2 => 2,
+                3 => 7,
+                _ => 100,
+            };
+
+            IReadOnlyList<SearchHit> expectedAll = reference.Search(query, topK: documentCount);
+            IReadOnlyList<SearchHit> actualAll = reopened.Search(query, topK: documentCount);
+            Assert.Equal(expectedAll.Select(static hit => hit.DocumentId.Value), actualAll.Select(static hit => hit.DocumentId.Value));
+            Assert.Equal(expectedAll.Select(static hit => hit.Score), actualAll.Select(static hit => hit.Score));
+
+            IReadOnlyList<SearchHit> expected = expectedAll
+                .Where(hit => allowed.Contains(hit.DocumentId.Value))
+                .Take(topK)
+                .ToArray();
+            PersistentFullTextFilteredSearchResult actual = reopened.SearchFiltered(
+                query,
+                topK,
+                allowed,
+                maxPostingVisits: 20_000,
+                CancellationToken.None);
+
+            Assert.False(actual.PostingBudgetExceeded);
+            Assert.Equal(expected.Select(static hit => hit.DocumentId.Value), actual.Hits.Select(static hit => hit.DocumentId.Value));
+            Assert.Equal(expected.Select(static hit => hit.Score), actual.Hits.Select(static hit => hit.Score));
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -201,6 +328,18 @@ public sealed class WandCorrectnessTests : IDisposable
             Path.Combine(_directory, "persistent"),
             new UnicodeTokenizer(),
             options: new PersistentIndexOptions { EnableBackgroundMerge = false });
+
+    private static Document CreateRandomDocument(string id, IReadOnlyList<string> vocabulary, Random random)
+    {
+        int length = random.Next(1, 9);
+        var terms = new string[length];
+        for (int index = 0; index < terms.Length; index++)
+        {
+            terms[index] = vocabulary[random.Next(vocabulary.Count)];
+        }
+
+        return new Document(new DocumentId(id)).Set("body", string.Join(' ', terms));
+    }
 
     private DocumentFullTextIndexStore OpenDocumentStore()
         => DocumentFullTextIndexStore.Open(

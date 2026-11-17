@@ -1,3 +1,30 @@
+## 2026-11-17 20:47（Asia/Shanghai）全文 BM25 未完成项第四项：cache Clear 与 inflight 失败/代际合同
+
+- 基线为当前 `main`，保留上一项过滤/tombstone 对拍与并发 single-flight 的交付改动；本轮已创建提交 `d62be494`，推送读回待完成。
+- 修复 `FullTextBlockCache.GetOrLoad` 的 faulted `Lazy` 残留：无论 loader 成功还是抛异常，都按 key + Lazy 实例条件移除 inflight 条目，避免一次 I/O/CRC 失败永久污染同 key 的后续读取。
+- 为 `Clear()` 增加缓存代际：清空已完成条目和 inflight 表并递增代际；旧 loader 仍把结果交给已经等待的调用方，但只允许同代结果回填缓存，清空后新读取可建立新的 single-flight。
+- 新增 bounded 回归：失败 loader 可重试；8 路并发 loader 仍只执行一次；清空期间旧 loader 不回填且后续读取重新缓存。使用临时 SDK `11.0.100` 的 Core.Tests Release 定向套件 **37/37 PASS**，`git diff --check` PASS；根 `global.json` 已恢复 SDK `10.0.100` 原字节。
+- 证据边界：当前证明单进程、有限并发和单次 Clear 竞态下的缓存一致性与失败恢复；容量、长时间压力、跨进程共享、固定硬件、NativeAOT、生产和公开发布仍为 `NOT_RUN`/`UNKNOWN`/`BLOCKED`。SDK `10.0.100` 默认完整验证仍 `BLOCKED`。
+- 下一顺序是隔离唯一 BenchmarkDotNet 工程取得真实冷读/热读延迟与读量报告，再设计有界容量/长稳负载；不得把本轮测试写成长期稳定性或生产门禁通过。
+
+## 2026-11-17 20:27（Asia/Shanghai）全文 BM25 未完成项第三项：并发 reopen/cache 争用与 inflight I/O
+
+- 基线为已推送提交 `90213737`；本轮保留第二项随机过滤对拍的未提交改动，并继续加入并发资源边界，没有提交或推送。
+- `FullTextBlockCache.GetOrLoad` 现在对同一 `FullTextBlockCacheKey` 使用 `ConcurrentDictionary` + `Lazy<byte[]>` single-flight；并发 cache miss 共享一个 loader，loader 完成后再按原字节预算尝试缓存，异常会传播给等待者并清理 inflight 条目。`SegmentReader.TryReadPostingBlock` 已接入该路径，物理读取计数只在实际完成文件读取后增加。
+- 新增回归：cache 8 个固定并发 loader 只能执行一次物理 loader；`PersistentFullTextIndex` 8 个并发 reopen/search 返回相同 ID 顺序和 BM25 分数。此前随机多 segment/tombstone 对拍仍保留。
+- 验证：临时 SDK `11.0.100` 下 Core.Tests Release build **0 warning/0 error**；全文定向套件 **135/135 PASS**；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` **PASS**；`git diff --check` **PASS**；根 `global.json` 已恢复 SDK `10.0.100` 原内容。
+- 证据边界：当前证明固定 8 路并发和有限 reopen/cache 争用下的结果一致性与同 key single-flight；没有证明跨进程/跨索引实例共享 cache、长时间压力、I/O 饥饿、百万文档容量、固定硬件、NativeAOT、生产或公开发布。SDK `10.0.100` 默认完整验证仍 `BLOCKED`。
+- 当前工作树只包含本轮全文核心 cache/reader、全文测试、CHANGELOG 和 HANDOFF 的未提交改动；临时脚本已清理。下一顺序是设计容量/长稳和实际 BDN 冷热读报告，或先补 cache `Clear` 与 inflight loader 并发交互合同；不能把本轮 bounded tests 写成长期稳定性通过。
+
+## 2026-11-17 19:56（Asia/Shanghai）全文 BM25 未完成项第二项：过滤/tombstone 随机对拍
+
+- 上一项已在提交 `90213737` 完成并推送到 GitHub `origin/main` 与 Gitee `gitee/main`；本轮继续在其 exact head 上实现下一项，没有改动已推送提交。
+- 在 `WandCorrectnessTests` 新增有界确定性随机对拍：48 个文档按 6 批写入形成多 segment，最多 18 次删除/重写造成 tombstone 和 stale ID，重开持久化索引后执行 36 个固定 seed 查询；OR 查询覆盖过滤 WAND，Term/AND、topK=0、空 allowed 和 mixed allowed 路径覆盖完整评分 fallback。
+- 每个查询同时对比 `PersistentFullTextIndex.Search` 与 `InMemoryFullTextIndex` 的完整结果，再将独立 oracle 按 allowed 集合过滤并与 `SearchFiltered` 对比 document ID 和 BM25 分数；allowed 集合包含全部历史 ID、当前 live 子集、tombstone/stale ID、unknown ID 和空集合。
+- 当前验证：新增单测在临时 SDK `11.0.100` 下 **PASS**，Core.Tests Release build **0 warning/0 error**；全文定向套件 **133/133 PASS**，规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` **PASS**，`git diff --check` **PASS**；测试中的随机选择、批次、操作和查询循环均有明确上限。
+- 证据边界：该切片证明当前语料规模内过滤 WAND 与 fallback 的结果对拍通过，不代表大规模随机覆盖、百万文档容量、并发 reopen/cache 争用、固定硬件或生产性能通过。SDK `10.0.100` 仍未安装，默认配置下完整验证保持 `BLOCKED`。
+- 本轮当前只修改测试、CHANGELOG 和本交接，尚未提交或推送；下一项仍是并发 reopen/cache 争用和 inflight I/O 去重合同，需另行设计，不应把本轮随机对拍写成并发安全证明。
+
 ## 2026-11-17 19:29（Asia/Shanghai）全文 BM25 未完成项第一项：冷读/热读 block 计量
 
 - 基线为当前 `main`，相对 `origin/main` ahead 2，工作树起点干净；本轮只拥有全文 block 读取诊断、对应 Core 测试、BenchmarkDotNet 基准入口、CHANGELOG、基准 README 和本交接，不触碰 `.codex-temp` 下其他历史副本。

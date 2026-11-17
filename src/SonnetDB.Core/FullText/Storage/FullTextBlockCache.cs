@@ -45,11 +45,15 @@ internal sealed class FullTextBlockCache
     private readonly object _sync = new();
     private readonly long _maxBytes;
     private readonly Dictionary<FullTextBlockCacheKey, LinkedListNode<Entry>> _entries = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        FullTextBlockCacheKey,
+        Lazy<byte[]>> _inflightLoads = new();
     private readonly LinkedList<Entry> _lru = new();
     private long _currentBytes;
     private long _hitCount;
     private long _missCount;
     private long _evictionCount;
+    private long _generation;
 
     /// <summary>
     /// 创建全文 block 缓存。
@@ -154,6 +158,46 @@ internal sealed class FullTextBlockCache
     }
 
     /// <summary>
+    /// 读取或以单 flight 方式加载一个 block。
+    /// </summary>
+    /// <param name="key">block 缓存键。</param>
+    /// <param name="loader">缓存未命中时执行的同步物理读取；同一键的并发调用只执行一次。</param>
+    /// <returns>已校验的不可变 block 字节快照。</returns>
+    public byte[] GetOrLoad(FullTextBlockCacheKey key, Func<byte[]> loader)
+    {
+        ArgumentNullException.ThrowIfNull(loader);
+        if (TryGet(key, out byte[]? cached))
+        {
+            return cached;
+        }
+
+        Lazy<byte[]> active;
+        lock (_sync)
+        {
+            long generation = _generation;
+            var candidate = new Lazy<byte[]>(
+                () =>
+                {
+                    byte[] bytes = loader();
+                    TryAddForGeneration(key, bytes, generation);
+                    return bytes;
+                },
+                System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+            active = _inflightLoads.GetOrAdd(key, candidate);
+        }
+
+        try
+        {
+            return active.Value;
+        }
+        finally
+        {
+            ((ICollection<KeyValuePair<FullTextBlockCacheKey, Lazy<byte[]>>>)_inflightLoads)
+                .Remove(new KeyValuePair<FullTextBlockCacheKey, Lazy<byte[]>>(key, active));
+        }
+    }
+
+    /// <summary>
     /// 尝试加入一个已经完成读取和校验的 block。
     /// </summary>
     /// <param name="key">block 键。</param>
@@ -170,33 +214,59 @@ internal sealed class FullTextBlockCache
 
         lock (_sync)
         {
-            if (_entries.TryGetValue(key, out LinkedListNode<Entry>? existing))
-            {
-                _lru.Remove(existing);
-                _entries.Remove(key);
-                _currentBytes -= existing.Value.EstimatedBytes;
-            }
-
-            Entry entry = new(key, bytes, size);
-            LinkedListNode<Entry> node = new(entry);
-            _lru.AddFirst(node);
-            _entries.Add(key, node);
-            _currentBytes = checked(_currentBytes + size);
-            EvictOverBudget();
-            return _entries.ContainsKey(key);
+            return TryAddCoreLocked(key, bytes, size);
         }
+    }
+
+    private bool TryAddForGeneration(FullTextBlockCacheKey key, byte[] bytes, long generation)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        long size = bytes.LongLength;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+        if (!CanStore(size))
+            return false;
+
+        lock (_sync)
+        {
+            if (generation != _generation)
+                return false;
+
+            return TryAddCoreLocked(key, bytes, size);
+        }
+    }
+
+    private bool TryAddCoreLocked(FullTextBlockCacheKey key, byte[] bytes, long size)
+    {
+        if (_entries.TryGetValue(key, out LinkedListNode<Entry>? existing))
+        {
+            _lru.Remove(existing);
+            _entries.Remove(key);
+            _currentBytes -= existing.Value.EstimatedBytes;
+        }
+
+        Entry entry = new(key, bytes, size);
+        LinkedListNode<Entry> node = new(entry);
+        _lru.AddFirst(node);
+        _entries.Add(key, node);
+        _currentBytes = checked(_currentBytes + size);
+        EvictOverBudget();
+        return _entries.ContainsKey(key);
     }
 
     /// <summary>
     /// 清空缓存条目；累计命中、未命中和淘汰统计保持不变。
+    /// 已经开始的 inflight loader 仍向其当前调用方返回结果，但不会在清空后重新填充缓存；
+    /// 清空后开始的新读取会建立新的 single-flight。
     /// </summary>
     public void Clear()
     {
         lock (_sync)
         {
+            _generation++;
             _entries.Clear();
             _lru.Clear();
             _currentBytes = 0;
+            _inflightLoads.Clear();
         }
     }
 

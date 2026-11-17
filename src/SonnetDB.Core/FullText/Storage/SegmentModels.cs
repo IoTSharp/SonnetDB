@@ -215,17 +215,24 @@ internal sealed class SegmentReader
         PostingBlockInfo block = blocks[blockIndex];
         var key = new FullTextBlockCacheKey(Id, block.FileOffset, block.Length, block.Crc32);
         FullTextBlockCache? activeCache = cache ?? _blockCache;
-        if (activeCache is not null && activeCache.TryGet(key, out byte[]? cached))
+        if (activeCache is not null)
         {
-            payload = cached;
+            payload = activeCache.GetOrLoad(key, () => ReadPostingBlockPayload(block));
             return true;
         }
 
+        payload = ReadPostingBlockPayload(block);
+        return true;
+    }
+
+    private byte[] ReadPostingBlockPayload(PostingBlockInfo block)
+    {
         if (block.FileOffset < 0 || block.Length <= 0)
         {
             throw new InvalidDataException("Posting block directory contains an invalid offset or length.");
         }
 
+        byte[] payload;
         using (FileStream stream = new(Path, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             if (block.FileOffset > stream.Length - block.Length)
@@ -244,12 +251,10 @@ internal sealed class SegmentReader
         uint actualCrc = Crc32.HashToUInt32(payload);
         if (actualCrc != block.Crc32)
         {
-            payload = [];
             throw new InvalidDataException("Posting block CRC32 mismatch.");
         }
 
-        activeCache?.TryAdd(key, payload);
-        return true;
+        return payload;
     }
 
     /// <summary>
