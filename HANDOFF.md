@@ -1,6 +1,6 @@
 ## 2026-11-17 20:47（Asia/Shanghai）全文 BM25 未完成项第四项：cache Clear 与 inflight 失败/代际合同
 
-- 基线为当前 `main`，保留上一项过滤/tombstone 对拍与并发 single-flight 的交付改动；本轮已创建提交 `d62be494`，推送读回待完成。
+- 基线为当前 `main`，保留上一项过滤/tombstone 对拍与并发 single-flight 的交付改动；代码提交 `d705e12d8305910d768993bb57af890f6cb15bde` 已推送并从 GitHub `origin/main`、Gitee `gitee/main` 独立读回同一 SHA。
 - 修复 `FullTextBlockCache.GetOrLoad` 的 faulted `Lazy` 残留：无论 loader 成功还是抛异常，都按 key + Lazy 实例条件移除 inflight 条目，避免一次 I/O/CRC 失败永久污染同 key 的后续读取。
 - 为 `Clear()` 增加缓存代际：清空已完成条目和 inflight 表并递增代际；旧 loader 仍把结果交给已经等待的调用方，但只允许同代结果回填缓存，清空后新读取可建立新的 single-flight。
 - 新增 bounded 回归：失败 loader 可重试；8 路并发 loader 仍只执行一次；清空期间旧 loader 不回填且后续读取重新缓存。使用临时 SDK `11.0.100` 的 Core.Tests Release 定向套件 **37/37 PASS**，`git diff --check` PASS；根 `global.json` 已恢复 SDK `10.0.100` 原字节。
