@@ -1,3 +1,12 @@
+## 2026-11-17 19:29（Asia/Shanghai）全文 BM25 未完成项第一项：冷读/热读 block 计量
+
+- 基线为当前 `main`，相对 `origin/main` ahead 2，工作树起点干净；本轮只拥有全文 block 读取诊断、对应 Core 测试、BenchmarkDotNet 基准入口、CHANGELOG、基准 README 和本交接，不触碰 `.codex-temp` 下其他历史副本。
+- 根据线程 `评估引入 BM25 索引` 的未完成清单，先实现“真实 `PersistentFullTextIndex` 冷读/热读 block 读取计数与基准入口”：`FullTextBlockReadStatistics` 现在累计实际 segment 文件读取 block 数/字节数、缓存命中/未命中/淘汰和当前占用；`PersistentFullTextIndex.GetBlockReadStatistics()` 聚合各 segment 读取计量；新增冷读后热读缓存复用回归和 `FullTextBlockReadBenchmark`，README 增加筛选命令。
+- 代码验证：临时使用已核实 SDK `11.0.100`，`dotnet restore SonnetDB.slnx`、Core.Tests Release build、Benchmarks Release build 均 PASS（0 warning/0 error）；全文定向套件 **132/132 PASS**，包含新增冷/热读诊断回归；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` PASS；`git diff --check` PASS；根 `global.json` 原字节已恢复。
+- BenchmarkDotNet 入口发现和生成 PASS，但 Dry 实际执行为 `UNKNOWN/BLOCKED`：`CsProjGenerator` 在仓库根目录发现主目录及 `.codex-temp/issue227/232/233/236/242` 共 7 个同名 `SonnetDB.Benchmarks.csproj`，无法选择唯一工程。未删除或修改这些非本任务副本；本轮创建的脚本和 BDN 产物已精确清理。
+- 证据边界：新增回归证明同一 `PersistentFullTextIndex` 首次查询产生物理 block 读取、第二次查询复用缓存且不增加物理读取；尚未取得固定硬件/百万文档/长稳/生产性能结论。SDK `10.0.100` 当前未安装，默认 global.json 路径的完整验证仍 `BLOCKED`。
+- 未提交、未推送、未发布、未部署、未迁移、未改生产数据。下一顺序：补过滤/tombstone fallback 与完整评分器的随机多 segment 对拍；随后处理并发 reopen/cache 争用和 inflight I/O 去重；再做容量与真实冷读/热读报告。若要运行 BDN，需在不改动历史副本的隔离工作目录中调用唯一 benchmark project。
+
 ## 2026-11-17 18:43（Asia/Shanghai）全文 WAND 反驳整合与安全边界收口
 
 - 基线为 `main@eabeb930`，本轮由反方代码/算法、正方收益/基准和缺口实现三条线并行审查；只拥有全文核心、对应测试、CHANGELOG 与本交接文件。未修改或清理其他共享内容，未推送、发布、部署、迁移或改生产数据。

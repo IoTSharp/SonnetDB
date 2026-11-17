@@ -14,6 +14,25 @@ internal readonly record struct FullTextBlockCacheKey(
     uint Crc32);
 
 /// <summary>
+/// 全文 block 缓存及物理读取的累计诊断快照。
+/// </summary>
+/// <param name="PhysicalReadCount">成功完成文件读取的 posting block 数量。</param>
+/// <param name="PhysicalReadBytes">成功完成文件读取的 posting block 字节数。</param>
+/// <param name="CacheHitCount">缓存命中次数。</param>
+/// <param name="CacheMissCount">缓存未命中次数。</param>
+/// <param name="CacheEvictionCount">因字节预算淘汰的条目数。</param>
+/// <param name="CachedBytes">当前缓存占用字节数。</param>
+/// <param name="CachedBlockCount">当前缓存条目数。</param>
+internal readonly record struct FullTextBlockReadStatistics(
+    long PhysicalReadCount,
+    long PhysicalReadBytes,
+    long CacheHitCount,
+    long CacheMissCount,
+    long CacheEvictionCount,
+    long CachedBytes,
+    int CachedBlockCount);
+
+/// <summary>
 /// 按字节预算的全文 block LRU 缓存。
 /// </summary>
 /// <remarks>
@@ -92,6 +111,17 @@ internal sealed class FullTextBlockCache
         {
             lock (_sync)
                 return _evictionCount;
+        }
+    }
+
+    /// <summary>
+    /// 原子读取当前缓存统计，供端到端全文读路径基准使用。
+    /// </summary>
+    public (long HitCount, long MissCount, long EvictionCount, long CurrentBytes, int Count) GetStatistics()
+    {
+        lock (_sync)
+        {
+            return (_hitCount, _missCount, _evictionCount, _currentBytes, _entries.Count);
         }
     }
 

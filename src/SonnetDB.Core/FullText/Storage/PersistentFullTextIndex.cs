@@ -1070,6 +1070,37 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     }
 
     /// <summary>
+    /// 读取当前持久化索引的全文 block 冷/热读累计统计。
+    /// </summary>
+    /// <remarks>
+    /// 该快照用于验证实际 segment 文件读取和缓存复用，不代表固定硬件或生产延迟门禁。
+    /// </remarks>
+    internal FullTextBlockReadStatistics GetBlockReadStatistics()
+    {
+        lock (_lock)
+        {
+            long physicalReadCount = 0;
+            long physicalReadBytes = 0;
+            foreach (SegmentReader segment in _segments.Values)
+            {
+                physicalReadCount = checked(physicalReadCount + segment.PhysicalPostingBlockReadCount);
+                physicalReadBytes = checked(physicalReadBytes + segment.PhysicalPostingBlockReadBytes);
+            }
+
+            (long hitCount, long missCount, long evictionCount, long currentBytes, int count) =
+                _blockCache.GetStatistics();
+            return new FullTextBlockReadStatistics(
+                physicalReadCount,
+                physicalReadBytes,
+                hitCount,
+                missCount,
+                evictionCount,
+                currentBytes,
+                count);
+        }
+    }
+
+    /// <summary>
     /// 同步执行一次段合并，将当前可见文档重写为单个不可变段。
     /// </summary>
     /// <returns>实际是否发生合并。</returns>

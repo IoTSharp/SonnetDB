@@ -204,6 +204,37 @@ public sealed class PersistentFullTextIndexTests : IDisposable
     }
 
     [Fact]
+    public void Block_wand_cold_read_then_hot_read_reuses_persistent_block_cache()
+    {
+        var documents = new List<Document>(260);
+        for (int index = 0; index < 260; index++)
+        {
+            documents.Add(new Document(new DocumentId($"doc-{index:D4}"))
+                .Set("body", index % 2 == 0 ? "alpha beta" : "alpha"));
+        }
+
+        PersistentFullTextIndex persistent = Open();
+        persistent.IndexMany(documents);
+        PersistentFullTextIndex reopened = Open();
+        OrQuery query = new([new TermQuery("body", "alpha"), new TermQuery("body", "beta")]);
+
+        FullTextBlockReadStatistics before = reopened.GetBlockReadStatistics();
+        IReadOnlyList<SearchHit> coldHits = reopened.Search(query, topK: 7);
+        FullTextBlockReadStatistics afterCold = reopened.GetBlockReadStatistics();
+        IReadOnlyList<SearchHit> hotHits = reopened.Search(query, topK: 7);
+        FullTextBlockReadStatistics afterHot = reopened.GetBlockReadStatistics();
+
+        Assert.Equal(coldHits.Select(static hit => hit.DocumentId.Value), hotHits.Select(static hit => hit.DocumentId.Value));
+        Assert.Equal(coldHits.Select(static hit => hit.Score), hotHits.Select(static hit => hit.Score));
+        Assert.True(afterCold.PhysicalReadCount > before.PhysicalReadCount);
+        Assert.True(afterCold.PhysicalReadBytes > before.PhysicalReadBytes);
+        Assert.Equal(afterCold.PhysicalReadCount - before.PhysicalReadCount, afterCold.CacheMissCount - before.CacheMissCount);
+        Assert.Equal(0, afterHot.PhysicalReadBytes - afterCold.PhysicalReadBytes);
+        Assert.Equal(afterCold.PhysicalReadCount, afterHot.PhysicalReadCount);
+        Assert.True(afterHot.CacheHitCount > afterCold.CacheHitCount);
+    }
+
+    [Fact]
     public void Phrase_and_near_queries_survive_reopen()
     {
         PersistentFullTextIndex index = Open();

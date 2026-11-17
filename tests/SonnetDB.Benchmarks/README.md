@@ -78,6 +78,9 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --model-read-latenc
 
 # 仅运行 PID 控制函数基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Pid*
+
+# 持久化全文索引 block 冷读/热读对照（不需要外部数据库）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*FullTextBlockReadBenchmark*'
 ```
 
 ### 2. 单独管理 Docker 环境

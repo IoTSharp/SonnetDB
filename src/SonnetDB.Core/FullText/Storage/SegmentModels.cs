@@ -101,6 +101,8 @@ internal sealed class SegmentReader
     private readonly Dictionary<(string Field, string Term), IReadOnlyList<PostingBlockInfo>> _postingBlocks = new();
     private readonly FullTextBlockCache? _blockCache;
     private readonly bool _lazyPostingBlocks;
+    private long _physicalPostingBlockReadCount;
+    private long _physicalPostingBlockReadBytes;
 
     public SegmentReader(
         SegmentData data,
@@ -157,6 +159,12 @@ internal sealed class SegmentReader
     public IReadOnlyDictionary<string, SegmentDocument> DocumentSnapshots => _documentSnapshots;
 
     public IReadOnlyDictionary<string, Dictionary<int, int>> FieldLengths => _fieldLengths;
+
+    /// <summary>成功完成的 posting block 文件读取次数。</summary>
+    internal long PhysicalPostingBlockReadCount => Interlocked.Read(ref _physicalPostingBlockReadCount);
+
+    /// <summary>成功完成的 posting block 文件读取字节数。</summary>
+    internal long PhysicalPostingBlockReadBytes => Interlocked.Read(ref _physicalPostingBlockReadBytes);
 
     public bool TryGetPostings(string field, string term, out Dictionary<int, int> postings)
     {
@@ -229,6 +237,9 @@ internal sealed class SegmentReader
             payload = new byte[block.Length];
             ReadExactly(stream, payload);
         }
+
+        Interlocked.Increment(ref _physicalPostingBlockReadCount);
+        Interlocked.Add(ref _physicalPostingBlockReadBytes, payload.LongLength);
 
         uint actualCrc = Crc32.HashToUInt32(payload);
         if (actualCrc != block.Crc32)
