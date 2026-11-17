@@ -1,3 +1,9 @@
+## 2026-11-18 00:04（Asia/Shanghai）全文 BM25 基准文档复核、提交与双远端推送
+
+- 复核确认本轮范围只有 `CHANGELOG.md`、`HANDOFF.md` 和 `docs/benchmarks/fulltext-bm25-block-read-20261117.md`；两条独立只读审查均确认数字、证据边界和容量/长稳设计一致，`git diff --check` 与 staged diff 检查通过。
+- 基准文档及 CHANGELOG/HANDOFF 前一版变更已提交为 `aa05988f33016a8ffaa910a13a13cc1e7b2520bb`（`docs(benchmarks): record fulltext block read baseline`），并推送到 GitHub `origin/main` 与 Gitee `gitee/main`；两端独立读回同一 SHA。
+- 本条交接修正只记录提交/推送状态；不新增产品代码、性能结论或环境资格。当前工作树在本条修改前干净，后续需将本条记录单独提交并再次推送双远端。
+
 ## 2026-11-17 23:15（Asia/Shanghai）全文 BM25 隔离 BDN 冷热读与有界容量/长稳设计
 
 - 基线为 `main@7f4ddb052ce8568b5e4b2f14126a94ab25a08c05`；开始前已阅读本文件、`AGENTS.md`、`CHANGELOG.md`，核对 `origin/main` 与 `gitee/main` 均指向该提交，工作树起点干净。本轮未提交、未推送、未发布、未部署、未迁移或改生产数据。
