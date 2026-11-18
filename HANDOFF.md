@@ -8372,3 +8372,8 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 两条只读反驳审查完成：EF11 binder/预算没有发现具体逻辑缺陷；合同审查发现并修复了本文件换行污染和过宽异常断言。`HANDOFF.md` 已恢复为仓库原有 LF 形式，普通 `git diff --check` PASS；`AssertNotSupported` 在 net11 先验证外层 `InvalidOperationException`，再验证内部 `NotSupportedException`，避免任意异常被误收口。
 - 修复后重新执行：EF11 JSON/collection **236/236 PASS**；EF11 Provider 全量 **438/438 PASS**；EF10 net10 MVC/Identity consumer **18/18 PASS**；solution restore/build **0 warning/0 error**；规定 format 和 `git diff --check` **PASS**。
 - 本轮已获用户明确授权提交并推送；提交只包含 CHANGELOG、HANDOFF、EF11 JSON binder/预算实现、兼容断言 helper 和对应 JSON 测试。提交前未运行公开 NuGet consumer、安装、生产或现场验证；Chloe/XCode probes 继续 BLOCKED。
+
+## 2026-11-19（Asia/Shanghai）提交与双远端读回
+
+- 本轮修复提交为 `29c1aef30bfad6ae1ddc261b5c9267719dc63133`（`fix(ef): close net11 json collection regressions`），已推送到 GitHub `origin/main` 与 Gitee `gitee/main`。
+- 推送后独立读回：本地 `HEAD`、GitHub `origin/main`、Gitee `gitee/main` 三者均为 `29c1aef30bfad6ae1ddc261b5c9267719dc63133`；工作树干净。未创建 tag、Release、NuGet 发布或部署。
