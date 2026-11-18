@@ -24,7 +24,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         {
             var initial = (await ReadRawAsync(context, 1, token))!;
             var withUnknown = initial[..^1] + ",\"Unknown\":{\"large\":9007199254740993,\"lexical\":1.2300e+04}}";
-            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={withUnknown} WHERE \"Id\"=1", token));
 
             var commandCount = capture.Commands.Count;
@@ -197,7 +197,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         context.Add(new CollectionRow { Id = 2, Stamp = "first", Data = new CollectionData { Items = [] } });
         Assert.Equal(1, await context.SaveChangesAsync(token));
         var invalidJson = "{\"Title\":\"invalid\",\"" + CollectionName + "\":" + invalidItems + "}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={invalidJson} WHERE \"Id\"=2", token));
         var before = await ReadRawAsync(context, 1, token);
         await Assert.ThrowsAnyAsync<Exception>(() => context.Set<CollectionRow>().Where(row => row.Id <= 2)

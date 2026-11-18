@@ -1,7 +1,10 @@
 ﻿<Project>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
+    <!-- Keep language selection deterministic.  net11 projects opt into C# 15
+         locally; the repository baseline remains C# 14 for net10 and older
+         target frameworks. -->
+    <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

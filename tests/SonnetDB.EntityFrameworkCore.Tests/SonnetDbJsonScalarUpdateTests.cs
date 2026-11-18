@@ -85,7 +85,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 Assert.False(missing.RootElement.TryGetProperty("Optional", out _));
             }
             before = raw[..^1] + ",\"Unknown\":{\"large\":9007199254740993,\"lexical\":1.2300e+04}}";
-            Assert.Equal(1, await setup.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await setup.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={before} WHERE \"Id\"=1", token));
         }
 
@@ -323,7 +323,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             "duplicate" => "{\"Counter\":1,\"Counter\":2}",
             _ => throw new InvalidOperationException("Unexpected invalid stored shape."),
         };
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={raw} WHERE \"Id\"=1", token));
         row.Data.Counter = 99;
         await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(token));

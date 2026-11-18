@@ -1,29 +1,40 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Framework-coupled packages follow the active TFM.  The default is
+         net10.0 so projects that do not opt into net11 keep their existing
+         dependency graph. -->
+    <SonnetDbAspNetVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbAspNetVersion>
+    <SonnetDbAspNetVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbAspNetVersion>
+    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbExtensionsVersion>
+    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.14</SonnetDbExtensionsVersion>
+    <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbEfCoreVersion>
+    <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbEfCoreVersion>
+    <SonnetDbVectorDataVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbVectorDataVersion>
+    <SonnetDbVectorDataVersion Condition="'$(TargetFramework)' != 'net11.0'">10.11.0</SonnetDbVectorDataVersion>
   </PropertyGroup>
   <ItemGroup Label="Core">
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="$(SonnetDbAspNetVersion)" />
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.14" />
     <PackageVersion Include="System.Numerics.Tensors" Version="10.0.14" />
     <PackageVersion Include="ModelContextProtocol" Version="2.4.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="$(SonnetDbExtensionsVersion)" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
     <PackageVersion Include="NativeWebHost.Windows" Version="2.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="$(SonnetDbExtensionsVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="$(SonnetDbVectorDataVersion)" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.1" />
     <!-- 图片处理不需要许可证激活或构建密钥；Linux 原生资产不依赖 Fontconfig。 -->
@@ -55,13 +66,13 @@
       MQTTnet.AspNetCore.Routing 不再走 NuGet 包引用：改为 extensions/MQTTnet.AspNetCore.Routing
       git 子模块的源码 ProjectReference（已修复 NativeAOT 的 IL2104/IL3053）。
     -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.UI" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(SonnetDbEfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="$(SonnetDbEfCoreVersion)" />
     <!--
       Keep source generators compatible with the Roslyn compiler shipped by the pinned
       .NET 10 SDK (5.3). Newer analyzer assemblies are rejected with CS9057.
@@ -77,7 +88,7 @@
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(SonnetDbAspNetVersion)" />
     <PackageVersion Include="Qdrant.Client" Version="1.20.0" />
     <PackageVersion Include="StackExchange.Redis" Version="3.4.29" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />

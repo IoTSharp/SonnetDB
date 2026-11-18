@@ -64,7 +64,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
             using var document = JsonDocument.Parse(original);
             var child = document.RootElement.GetProperty("Child").GetRawText();
             before = original.Replace(child, child[..^1] + ",\"Unknown\":{\"exact\":9007199254740993,\"lexical\":1.2300e+04}}", StringComparison.Ordinal);
-            Assert.Equal(1, await setup.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await setup.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={before} WHERE \"Id\"=1", token));
         }
 
@@ -122,7 +122,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await using var context = fixture.CreateContext(true, capture);
         var row = await context.Set<AggregateRow>().SingleAsync(row => row.Id == 1, token);
         const string before = "{\"Child\":null,\"Unknown\":9007199254740993}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={before} WHERE \"Id\"=1", token));
         row.Data.Child.Label = "no parent";
         await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(token));

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <!-- xUnit、BenchmarkDotNet 与覆盖率采集依赖反射，不参与 AOT 分析。 -->
     <IsAotCompatible>false</IsAotCompatible>

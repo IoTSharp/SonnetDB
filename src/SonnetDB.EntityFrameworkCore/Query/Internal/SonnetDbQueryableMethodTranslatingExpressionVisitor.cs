@@ -41,7 +41,11 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
         => new SonnetDbQueryableMethodTranslatingExpressionVisitor(this);
 
     /// <inheritdoc />
+#if NET11_0_OR_GREATER
+    protected override UpdateExpression TranslateExecuteUpdate(
+#else
     protected override UpdateExpression? TranslateExecuteUpdate(
+#endif
         ShapedQueryExpression source,
         IReadOnlyList<ExecuteUpdateSetter> setters)
     {
@@ -250,7 +254,7 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
             if (target.Type is { } type && !target.Collection)
             {
                 if (type.FindProperty(name) is { } property)
-                    return (property, null, false);
+                    return (property, null, property.IsPrimitiveCollection);
                 if (type.FindComplexProperty(name) is { } complex)
                     return (null, complex.ComplexType, complex.IsCollection);
                 if (type is IEntityType entity && entity.FindNavigation(name) is { } navigation

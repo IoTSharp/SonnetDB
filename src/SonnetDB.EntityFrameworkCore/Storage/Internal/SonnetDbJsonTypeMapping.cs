@@ -9,7 +9,11 @@ namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 /// <summary>
 /// 为 ToJson 聚合提供整容器、固定标量查询及 OwnsOne 属性和子树更新映射。
 /// </summary>
+#if NET11_0_OR_GREATER
+public sealed class SonnetDbJsonTypeMapping : StructuralJsonTypeMapping
+#else
 public sealed class SonnetDbJsonTypeMapping : JsonTypeMapping
+#endif
 {
     internal const string UnsupportedOperationMessage =
         "SonnetDB ToJson supports whole-container operations, supported fixed scalar queries and parameterized fixed-path scalar or subtree updates with model JSON codecs. This JSON operation is not supported.";

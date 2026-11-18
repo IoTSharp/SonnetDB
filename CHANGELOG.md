@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### .NET 11 target split
+
+- Server 现在目标为 `net11.0`，显式使用 C# 15，并仅在该目标启用 .NET 11 Runtime Async；Core/Protocol 和未参与本次宿主升级的项目继续使用仓库的 net10 基线。
+- `SonnetDB.Data` 与 `SonnetDB.EntityFrameworkCore` 增加 `net10.0;net11.0` 资产；EF Core、ASP.NET Core/Extensions、VectorData 和 MVC testing 包按当前 TFM 分别解析 10.x 或 11.0.0，避免 net10/net11 资产交叉引用。
+- 引用 Server 的测试、基准和 parity 宿主切换到 `net11.0`；EF Core 测试宿主使用 net11 验证 EF11，net10 EF10 资产由 net10 sample/consumer 项目验证；Testcontainers.SonnetDB 增加 net11 资产。当前只完成工程和依赖矩阵调整，Server/EF 双目标完整 restore、测试、AOT、真实消费者和性能对拍仍需独立验证。
+
 ### Full-text search
 
 - 持久化和内存全文索引的最终 Top-K 结果改用有界命中堆，避免在候选远多于 K 时保留并全量排序完整命中集合；segment reader 增加可复用的按 local document ID 排序 posting 视图。

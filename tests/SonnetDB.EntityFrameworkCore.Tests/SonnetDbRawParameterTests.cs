@@ -27,7 +27,7 @@ public sealed class SonnetDbRawParameterTests : IDisposable
         await context.Database.EnsureCreatedAsync(timeout.Token);
         var expected = new DateTime(2026, 11, 4, 12, 13, 14, 123, DateTimeKind.Utc);
         var parameter = new SndbParameter(parameterName, expected) { DbType = DbType.DateTime };
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"""INSERT INTO "RawParameterRows" ("Id","Stamp") VALUES ({1},{parameter})""", timeout.Token));
         var stored = await context.Rows.AsNoTracking().SingleAsync(timeout.Token);
         Assert.Equal(expected, stored.Stamp);

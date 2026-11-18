@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- The live EF test host boots the net11 Server.  The net10 provider
+         asset is validated by the net10 sample/consumer projects instead. -->
+    <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>

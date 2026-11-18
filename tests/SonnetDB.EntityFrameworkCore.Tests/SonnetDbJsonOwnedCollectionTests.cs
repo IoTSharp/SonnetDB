@@ -42,7 +42,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         {
             var before = (await ReadRawAsync(context, 1, token))!;
             var withUnknown = before[..^1] + ",\"Unknown\":9007199254740993}";
-            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={withUnknown} WHERE \"Id\"=1", token));
             var row = await context.Set<CollectionRow>().SingleAsync(row => row.Id == 1, token);
             Assert.Equal(2, row.Data!.Items.Count);
@@ -229,7 +229,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await using var context = fixture.CreateCollectionContext(capture);
         var row = await context.Set<CollectionRow>().SingleAsync(row => row.Id == 1, token);
         var shortened = "{\"Title\":\"集合\",\"" + CollectionName + "\":[]}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={shortened} WHERE \"Id\"=1", token));
         row.Data!.Items[1].Name = "not appended";
         await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(token));
@@ -259,7 +259,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
                 new CollectionRow { Id = 4, Data = new CollectionData { Items = [] } });
             Assert.Equal(4, await setup.SaveChangesAsync(token));
             var missingMembers = "{}";
-            Assert.Equal(1, await setup.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await setup.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={missingMembers} WHERE \"Id\"=4", token));
             using var empty = JsonDocument.Parse((await ReadRawAsync(setup, 1, token))!);
             using var absent = JsonDocument.Parse((await ReadRawAsync(setup, 2, token))!);

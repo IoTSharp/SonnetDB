@@ -74,7 +74,11 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         Assert.IsType<StringTypeMapping>(mappings.FindMapping(typeof(string)));
         Assert.IsType<StringTypeMapping>(mappings.FindMapping("TEXT"));
         Assert.IsType<StringTypeMapping>(mappings.FindMapping("JSON"));
+#if NET11_0_OR_GREATER
+        Assert.IsAssignableFrom<StructuralJsonTypeMapping>(mappings.FindMapping(typeof(JsonTypePlaceholder)));
+#else
         Assert.IsAssignableFrom<JsonTypeMapping>(mappings.FindMapping(typeof(JsonTypePlaceholder)));
+#endif
         var querySql = context.Set<ScalarRecord>().Select(record => new { record.Name, record.RawJson }).ToQueryString();
         Assert.Contains("\"Name\"", querySql);
         Assert.Contains("\"RawJson\"", querySql);
@@ -295,7 +299,11 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         var table = Assert.Single(model.GetRelationalModel().Tables);
         var container = Assert.Single(table.Columns, column => column.Name == "Data");
         Assert.Equal("JSON", container.StoreType);
+#if NET11_0_OR_GREATER
+        Assert.IsAssignableFrom<StructuralJsonTypeMapping>(container.StoreTypeMapping);
+#else
         Assert.IsAssignableFrom<JsonTypeMapping>(container.StoreTypeMapping);
+#endif
         Assert.DoesNotContain(table.Columns, column => column.Name == "DisplayName");
     }
 

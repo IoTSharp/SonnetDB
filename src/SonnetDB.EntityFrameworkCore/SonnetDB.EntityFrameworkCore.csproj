@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <LangVersion Condition="'$(TargetFramework)' == 'net11.0'">15.0</LangVersion>
+    <LangVersion Condition="'$(TargetFramework)' == 'net10.0'">14.0</LangVersion>
     <OutputType>Library</OutputType>
     <RootNamespace>SonnetDB.EntityFrameworkCore</RootNamespace>
     <AssemblyName>SonnetDB.EntityFrameworkCore</AssemblyName>

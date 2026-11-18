@@ -6,6 +6,12 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Update;
 using SonnetDB.EntityFrameworkCore.Storage.Internal;
 
+#if NET11_0_OR_GREATER
+using EfJsonPath = Microsoft.EntityFrameworkCore.Infrastructure.StructuredJsonPath;
+#else
+using EfJsonPath = System.String;
+#endif
+
 namespace SonnetDB.EntityFrameworkCore.Update.Internal;
 
 /// <summary>
@@ -52,7 +58,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         for (var index = 0; index < writes.Count; index++)
         {
             var operation = writes[index];
-            if (operation.Property is null && operation.JsonPath is not null and not "$"
+            if (operation.Property is null && JsonPathText(operation) is not null and not "$"
                 && operation.TypeMapping is SonnetDbJsonTypeMapping && operation.Value is null or string
                 && TryGetContainerUpdatePath(command, operation, out var path))
                 writes[index] = new JsonFragmentModification(operation, path);
@@ -98,7 +104,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         string name,
         string? schema)
     {
-        if (columnModification.JsonPath is not null and not "$")
+        if (JsonPathText(columnModification) is not null and not "$")
         {
             if (!TryGetJsonUpdatePath(columnModification, out var path))
                 throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
@@ -153,7 +159,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         if (string.IsNullOrWhiteSpace(jsonName) || jsonName.Length > 1019)
             return false;
 
-        return TryGetOwnedPath(entityType, jsonName, operation.JsonPath, operation.ColumnName, out path);
+        return TryGetOwnedPath(entityType, jsonName, JsonPathText(operation), operation.ColumnName, out path);
     }
 
     private static bool TryGetOwnedPath(IEntityType entityType, string? leafName, string? jsonPath, string columnName, out string path)
@@ -240,7 +246,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
             {
                 if (visited.Count > 1024)
                     return false;
-                if (TryGetOwnedPath(entityType, null, operation.JsonPath, operation.ColumnName, out var candidate))
+                if (TryGetOwnedPath(entityType, null, JsonPathText(operation), operation.ColumnName, out var candidate))
                 {
                     if (path.Length != 0 && !string.Equals(path, candidate, StringComparison.Ordinal))
                         return false;
@@ -257,7 +263,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
     private sealed class JsonFragmentModification(IColumnModification source, string path)
         : ColumnModification(new ColumnModificationParameters(source.ColumnName, source.Value, property: null,
             source.TypeMapping!.StoreType, source.TypeMapping,
-            source.JsonPath ?? throw new InvalidOperationException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage),
+            (EfJsonPath)(source.JsonPath ?? throw new InvalidOperationException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage)),
             read: false, write: true, key: false, condition: false, sensitiveLoggingEnabled: false)
         {
             GenerateParameterName = source.UseCurrentValueParameter ? () => source.ParameterName! : null,
@@ -269,13 +275,22 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
     private static void RejectJsonAggregateWrites(IReadOnlyList<IColumnModification> operations, bool allowPartialUpdate)
     {
         if (operations.Any(operation => operation.IsWrite
-            && (operation.JsonPath is not null || operation.TypeMapping is SonnetDbJsonTypeMapping)
-            && (operation.JsonPath != "$"
+            && (JsonPathText(operation) is not null || operation.TypeMapping is SonnetDbJsonTypeMapping)
+            && (JsonPathText(operation) != "$"
                 || operation.TypeMapping is not SonnetDbJsonTypeMapping
                 || operation.Value is not null and not string)
             && !(allowPartialUpdate && TryGetJsonUpdatePath(operation, out _))))
         {
             throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
         }
+    }
+
+    private static string? JsonPathText(IColumnModification operation)
+    {
+#if NET11_0_OR_GREATER
+        return operation.JsonPath?.ToString();
+#else
+        return operation.JsonPath;
+#endif
     }
 }

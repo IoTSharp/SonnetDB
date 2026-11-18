@@ -87,7 +87,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         {
             var original = (await ReadRawAsync(context, 1, token))!;
             before = original[..^1] + ",\"Unknown\":9007199254740993}";
-            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={before} WHERE \"Id\"=1", token));
             var row = await context.Set<AggregateRow>().SingleAsync(row => row.Id == 1, token);
             row.Data.Child.Label = "subtree 中文";
@@ -131,7 +131,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         {
             var original = (await ReadRawAsync(setup, 1, token))!;
             before = original[..^1] + ",\"Unknown\":{\"large\":9007199254740993,\"lexical\":1.2300e+04}}";
-            Assert.Equal(1, await setup.Database.ExecuteSqlInterpolatedAsync(
+            Assert.Equal(1, await setup.Database.ExecuteSqlCompatAsync(
                 $"UPDATE \"AggregateRows\" SET \"Data\"={before} WHERE \"Id\"=1", token));
         }
         await using (var context = fixture.CreateContext(true, capture))

@@ -97,7 +97,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         Assert.Equal(1, await context.SaveChangesAsync(token));
         var original = (await ReadRawAsync(context, 1, token))!;
         var withUnknown = original[..^1] + ",\"Unknown\":{\"large\":9007199254740993,\"lexical\":1.2300e+04}}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={withUnknown} WHERE \"Id\"=1", token));
         var child = new AggregateChild { Label = "subtree O'Reilly 中文😃", Counter = 41 };
         var tags = new List<string> { "one", "quote'\\\"", "中文😃" };

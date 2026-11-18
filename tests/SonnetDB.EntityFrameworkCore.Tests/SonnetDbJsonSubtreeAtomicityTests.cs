@@ -115,7 +115,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         context.Add(new CollectionRow { Id = 2, Stamp = "second", Data = new CollectionData { Items = [NewItem("old")] } });
         Assert.Equal(1, await context.SaveChangesAsync(token));
         var invalidJson = "{\"" + CollectionName + "\":" + invalid + "}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={invalidJson} WHERE \"Id\"=2", token));
         var firstBefore = await ReadRawAsync(context, 1, token);
         var replacement = NewItem("must-not-write");
@@ -144,7 +144,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await using var context = fixture.CreateContext(true, capture);
         var before = await ReadRawAsync(context, 1, token);
         const string invalid = "{\"Tags\":[]}";
-        Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await context.Database.ExecuteSqlCompatAsync(
             $"UPDATE \"AggregateRows\" SET \"Data\"={invalid} WHERE \"Id\"=2", token));
         await Assert.ThrowsAnyAsync<Exception>(() => context.Set<AggregateRow>().ExecuteUpdateAsync(setters => setters
             .SetProperty(row => row.Stamp, "must-not-write")
