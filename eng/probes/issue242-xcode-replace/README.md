@@ -24,6 +24,6 @@ Validated matrix:
 
 REST captured 53 SQL requests over HTTP/1.1. frame-http2 captured 53 SQL requests, all over HTTP/2, including 10 native `/v1/frame` requests. Transaction and unsupported Frame operations use the current HTTP/2 REST endpoints; no HTTP/1 fallback occurred.
 
-The public `SonnetDB 4.0.0` package SHA256 is `6343C5740BA26CE95AAD8AAE8F897B79D7199FC2D26A67E9102F08F625BE0C33`. The original provider still stops at its #242 guard; the candidate reaches the engine and receives `SqlParseException` at position 0. Therefore package acceptance remains failed. XCode upstream submission of this follow-up patch and package publication are `NOT_RUN`; Issue #242 remains open.
+The public `SonnetDB 4.0.0` package SHA256 is `6343C5740BA26CE95AAD8AAE8F897B79D7199FC2D26A67E9102F08F625BE0C33`. The original provider still stops at its #242 guard; the candidate reaches the engine and receives `SqlParseException` at position 0. Therefore package acceptance remains failed. The provider change is now upstream in NewLife.XCode PR [#101](https://github.com/NewLifeX/NewLife.XCode/pull/101), merged as `2d90912c299da72b1e1990b4577680eadb1d112e` with source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`. New package publication and a fresh public-package consumer run are still `NOT_RUN`; Issue #242 closure remains a separate status to verify.
 
 Full logs, source receipts and hashes are stored outside Git at `D:/source/SonnetDB/.codex-temp/sync-20261019/issue242-consumer-evidence/`.

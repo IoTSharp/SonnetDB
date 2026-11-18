@@ -8364,16 +8364,22 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - EF11 EntityFrameworkCore Provider 全量项目 **438/438 PASS**，无 skipped；EF10 net10 MVC/Identity sample consumer **18/18 PASS**。这些是代码/测试层证据，不等同外部上游 ORM 全生态、公开包消费或生产验收。
 - Server NativeAOT `win-x64` publish **PASS**。对本轮发布物执行一次有界实际运行：`/healthz` 200；首次 `/v1/setup/initialize` 201；Bearer 鉴权创建数据库 201；Bearer SQL HTTP `SELECT 1` 返回 200；畸形 Frame 请求返回 400。一次重复 setup 读回 409，符合已初始化冲突。该收据证明本机发布物启动和基础 HTTP/Frame 路由可达，不证明安装、固定硬件、长稳、真实外部 consumer、生产或公开发布。
 - 完整 `dotnet restore SonnetDB.slnx`、Release solution build（0 warning/0 error）、规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、`git diff --check` 均 **PASS**。原始测试 TRX 保存在本轮执行目录后已清理；无本轮常驻进程或临时交付物。
-- Chloe issue233 与 XCode issue242 probes 仍因缺少明确外部程序集保持 **BLOCKED**，没有广域扫描、猜测或安装依赖。公开 NuGet/真实 package consumer、安装、生产和现场证据仍 `NOT_RUN`。
+- Chloe issue233 probe 仍因缺少明确外部程序集保持 **BLOCKED**，没有广域扫描、猜测或安装依赖。XCode issue242 不再属于该 BLOCKED 分类：GitHub `NewLifeX/NewLife.XCode` PR #101 已回读为 `closed/merged=true`，官方 merge `2d90912c299da72b1e1990b4577680eadb1d112e`，合并 source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`；本地候选矩阵已有 embedded/REST/frame-http2 各 7/7。公开 SonnetDB 4.0.0 包仍是旧 provider guard，包验收保持 FAIL；新包发布和公开 consumer 重跑仍 `NOT_RUN`，Issue #242 是否关闭另行核实。安装、生产和现场证据仍 `NOT_RUN`。
 - 当前工作树包含上述未提交代码/测试/文档改动；下一顺序是先由用户决定是否审阅并授权提交/推送，再另行处理公开包 consumer 或安装验证。
 
 ## 2026-11-19（Asia/Shanghai）反驳审查与提交前收口
 
 - 两条只读反驳审查完成：EF11 binder/预算没有发现具体逻辑缺陷；合同审查发现并修复了本文件换行污染和过宽异常断言。`HANDOFF.md` 已恢复为仓库原有 LF 形式，普通 `git diff --check` PASS；`AssertNotSupported` 在 net11 先验证外层 `InvalidOperationException`，再验证内部 `NotSupportedException`，避免任意异常被误收口。
 - 修复后重新执行：EF11 JSON/collection **236/236 PASS**；EF11 Provider 全量 **438/438 PASS**；EF10 net10 MVC/Identity consumer **18/18 PASS**；solution restore/build **0 warning/0 error**；规定 format 和 `git diff --check` **PASS**。
-- 本轮已获用户明确授权提交并推送；提交只包含 CHANGELOG、HANDOFF、EF11 JSON binder/预算实现、兼容断言 helper 和对应 JSON 测试。提交前未运行公开 NuGet consumer、安装、生产或现场验证；Chloe/XCode probes 继续 BLOCKED。
+- 本轮已获用户明确授权提交并推送；提交只包含 CHANGELOG、HANDOFF、EF11 JSON binder/预算实现、兼容断言 helper 和对应 JSON 测试。提交前未运行公开 NuGet consumer、安装、生产或现场验证；Chloe probe 继续 BLOCKED，XCode #242 已有上游 PR 合并证据但公开包验收仍独立未完成。
 
 ## 2026-11-19（Asia/Shanghai）提交与双远端读回
 
 - 本轮修复提交为 `29c1aef30bfad6ae1ddc261b5c9267719dc63133`（`fix(ef): close net11 json collection regressions`），已推送到 GitHub `origin/main` 与 Gitee `gitee/main`。
 - 推送后独立读回：本地 `HEAD`、GitHub `origin/main`、Gitee `gitee/main` 三者均为 `29c1aef30bfad6ae1ddc261b5c9267719dc63133`；工作树干净。未创建 tag、Release、NuGet 发布或部署。
+
+## 2026-11-19（Asia/Shanghai）XCode issue242 上游合并状态修正
+
+- 通过 GitHub API 代理实时读回 `NewLifeX/NewLife.XCode` PR [#101](https://github.com/NewLifeX/NewLife.XCode/pull/101)：`state=closed`、`merged=true`、`merged_at=2026-10-16T13:59:21Z`，标题为 `feat: 添加 SonnetDB 驱动适配与能力差距跟踪`，merge commit 为 `2d90912c299da72b1e1990b4577680eadb1d112e`；对应合并 source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`。
+- 已修正 [CHANGELOG.md](CHANGELOG.md)、[#242 audit](docs/audits/issue-242-xcode-batch-replace-20261019.md) 和 [probe README](eng/probes/issue242-xcode-replace/README.md)：XCode #242 不再标记为外部程序集 BLOCKED，上游 provider 合并与本地候选 embedded/REST/frame-http2 各 7/7 单独记录；公开 SonnetDB 4.0.0 包仍为旧 provider guard，正式包验收保持 FAIL，新包发布/公开 consumer 重跑保持 NOT_RUN，Issue closure 另行核实。
+- 本轮只有状态文档变更；未运行产品测试、未发布/部署，提交前执行 `git diff --check`。
