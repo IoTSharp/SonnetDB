@@ -9,6 +9,9 @@
 
 ### .NET 11 target split
 
+- EF11 JSON/collection 定向回归已从此前 212/239（27 项失败）收口为 **236/236 PASS**：兼容 EF11 翻译失败的 `InvalidOperationException` 外层包装断言，并适配 `List<T>` primitive collection 的固定 `ElementAt`/`ElementAtOrDefault` JSON path 绑定与集合预算检查；EF10 net10 MVC/Identity consumer 测试 **18/18 PASS**，EF11 Provider 全量 **438/438 PASS**。
+- Server net11 NativeAOT `win-x64` 实际启动收据：发布物启动成功，`/healthz` 返回 200；首次安装 201、Bearer 鉴权创建数据库 201、SQL HTTP 返回 200；畸形 Frame 请求按协议返回 400。AOT 启动/HTTP/Frame 证据仍限于本机一次有界运行，不代表安装、固定硬件、长稳、生产或公开发布。
+- 本轮完整 solution restore/build（0 warning/0 error）、规定 `dotnet format --verify-no-changes` 和 `git diff --check` PASS。Chloe issue233 与 XCode issue242 probes 因外部程序集缺失继续 BLOCKED；未提交、未推送、未发布、未部署。
 - Server 现在目标为 `net11.0`，显式使用 C# 15，并仅在该目标启用 .NET 11 Runtime Async；Core/Protocol 和未参与本次宿主升级的项目继续使用仓库的 net10 基线。
 - `SonnetDB.Data` 与 `SonnetDB.EntityFrameworkCore` 增加 `net10.0;net11.0` 资产；EF Core、ASP.NET Core/Extensions、VectorData 和 MVC testing 包按当前 TFM 分别解析 10.x 或 11.0.0，避免 net10/net11 资产交叉引用。
 - 引用 Server 的测试、基准和 parity 宿主切换到 `net11.0`；EF Core 测试宿主使用 net11 验证 EF11，net10 EF10 资产由 net10 sample/consumer 项目验证；Testcontainers.SonnetDB 增加 net11 资产。当前只完成工程和依赖矩阵调整，Server/EF 双目标完整 restore、测试、AOT、真实消费者和性能对拍仍需独立验证。

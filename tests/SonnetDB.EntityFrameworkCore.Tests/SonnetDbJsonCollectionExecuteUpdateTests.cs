@@ -133,7 +133,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await fixture.StartAsync(timeout.Token);
         var capture = new JsonCommandCapture();
         await using var context = fixture.CreateRootCollectionContext(capture);
-        var exception = await Assert.ThrowsAsync<NotSupportedException>(() => context.Set<RootCollectionRow>()
+        var exception = await EfCompatibilityExtensions.AssertNotSupportedAsync(() => context.Set<RootCollectionRow>()
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(row => row.Items[1].Name, "changed")
                 .SetProperty(row => row.Items.ElementAtOrDefault(1)!.Parts.ElementAtOrDefault(0)!.Count, 7), timeout.Token));
@@ -171,7 +171,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         Assert.Equal("changed", raw.RootElement.GetProperty("Tags")[0].GetString());
         Assert.Equal(initial.Tags[0], raw.RootElement.GetProperty("Optional").GetString());
         var after = capture.Commands.Count;
-        await Assert.ThrowsAsync<NotSupportedException>(() => context.Set<AggregateRow>().ExecuteUpdateAsync(setters => setters
+        await EfCompatibilityExtensions.AssertNotSupportedAsync(() => context.Set<AggregateRow>().ExecuteUpdateAsync(setters => setters
             .SetProperty(row => row.Data.Optional, row => row.Data.Tags[-1]), token));
         Assert.Equal(after, capture.Commands.Count);
         fixture.AssertTransport();
@@ -228,7 +228,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         await using var context = fixture.CreateCollectionContext(capture);
         var index = 0;
         var rows = context.Set<CollectionRow>();
-        var exception = Assert.Throws<NotSupportedException>(() =>
+        var exception = EfCompatibilityExtensions.AssertNotSupported(() =>
         {
             _ = shape switch
             {

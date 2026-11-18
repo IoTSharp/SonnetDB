@@ -8356,3 +8356,19 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 验证 PASS：solution restore；完整 `dotnet build SonnetDB.slnx -c Release --no-restore --disable-build-servers -m:1` 0 warning/0 error；Server、Data 双 TFM、EF Provider 双 TFM、EF11 test host、net10 Identity sample、Accuracy/Benchmarks/BenchmarkTests/CAP/Parity/IoTSharpCompat 构建均 PASS；变更项目 `dotnet format --verify-no-changes --no-restore --severity warn` PASS；`git diff --check` PASS；Server Frame 定向测试 `11/11 PASS`；EF11 基础 JSON/type mapping 与 raw parameter 切片 `6/6 PASS`。
 - 保留 FAIL/UNKNOWN：EF11 JSON/collection 定向套件 `212/239 PASS, 27 FAIL`。失败集中在 EF11 将 Provider `NotSupportedException` 包装为 `InvalidOperationException` 的断言差异，以及 primitive collection `ElementAt`/JSON path 表达式仍有 6 个功能场景未适配；不能把 EF11 全量 Provider 回归写成通过。Chloe/XCode 历史 probes 仍因缺少外部程序集失败，未归因于本次 TFM 改动。Server net11 `win-x64` NativeAOT publish 已 PASS（0 warning/error）；AOT 启动/HTTP、长稳、固定硬件、真实包消费者、安装和生产验证仍 NOT_RUN。
 - 下一顺序：先单独处理 EF11 27 项（先调整兼容断言，再完成 primitive collection JSON path binder），每项用 EF10/EF11 对拍；随后重跑 EF11 全量、EF10 net10 sample/consumer、Server AOT 与真实消费者矩阵。不要在 27 项未收口前提交或发布本批升级。
+
+## 2026-11-19（Asia/Shanghai）EF11 JSON/Provider 与 Server NativeAOT 实际启动收口
+
+- 基线为 `main@82d3f5cf80a496e677f265606c69f956cba6410d`；开始前已重读本交接，核对 `main/origin/main/gitee/main`，工作树初始干净。本轮仅修改 EF Provider JSON binder/预算、EF11 兼容断言、CHANGELOG 和本交接；未提交、未推送、未发布、未部署、未迁移生产数据。
+- EF11 JSON/collection 定向套件此前记录为 212/239、27 FAIL；本轮实测当前过滤资产共 236 项，修复后 **236/236 PASS**。根因分为两类：EF11 将 provider `NotSupportedException` 包装在翻译 `InvalidOperationException` 中；EF11 将 `List<T>` JSON 集合表现为带 `CollectionToJsonStringConverter` 的标量属性，固定 `ElementAt` 需按 CLR 可枚举元素类型补 JSON 数组路径，集合预算也需覆盖该形状。EF10 原生 `IsPrimitiveCollection` 路径保留。
+- EF11 EntityFrameworkCore Provider 全量项目 **438/438 PASS**，无 skipped；EF10 net10 MVC/Identity sample consumer **18/18 PASS**。这些是代码/测试层证据，不等同外部上游 ORM 全生态、公开包消费或生产验收。
+- Server NativeAOT `win-x64` publish **PASS**。对本轮发布物执行一次有界实际运行：`/healthz` 200；首次 `/v1/setup/initialize` 201；Bearer 鉴权创建数据库 201；Bearer SQL HTTP `SELECT 1` 返回 200；畸形 Frame 请求返回 400。一次重复 setup 读回 409，符合已初始化冲突。该收据证明本机发布物启动和基础 HTTP/Frame 路由可达，不证明安装、固定硬件、长稳、真实外部 consumer、生产或公开发布。
+- 完整 `dotnet restore SonnetDB.slnx`、Release solution build（0 warning/0 error）、规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/`、`git diff --check` 均 **PASS**。原始测试 TRX 保存在本轮执行目录后已清理；无本轮常驻进程或临时交付物。
+- Chloe issue233 与 XCode issue242 probes 仍因缺少明确外部程序集保持 **BLOCKED**，没有广域扫描、猜测或安装依赖。公开 NuGet/真实 package consumer、安装、生产和现场证据仍 `NOT_RUN`。
+- 当前工作树包含上述未提交代码/测试/文档改动；下一顺序是先由用户决定是否审阅并授权提交/推送，再另行处理公开包 consumer 或安装验证。
+
+## 2026-11-19（Asia/Shanghai）反驳审查与提交前收口
+
+- 两条只读反驳审查完成：EF11 binder/预算没有发现具体逻辑缺陷；合同审查发现并修复了本文件换行污染和过宽异常断言。`HANDOFF.md` 已恢复为仓库原有 LF 形式，普通 `git diff --check` PASS；`AssertNotSupported` 在 net11 先验证外层 `InvalidOperationException`，再验证内部 `NotSupportedException`，避免任意异常被误收口。
+- 修复后重新执行：EF11 JSON/collection **236/236 PASS**；EF11 Provider 全量 **438/438 PASS**；EF10 net10 MVC/Identity consumer **18/18 PASS**；solution restore/build **0 warning/0 error**；规定 format 和 `git diff --check` **PASS**。
+- 本轮已获用户明确授权提交并推送；提交只包含 CHANGELOG、HANDOFF、EF11 JSON binder/预算实现、兼容断言 helper 和对应 JSON 测试。提交前未运行公开 NuGet consumer、安装、生产或现场验证；Chloe/XCode probes 继续 BLOCKED。

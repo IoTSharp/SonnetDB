@@ -154,15 +154,16 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
         if (TryGetFixedIndex(selector.Body, out var collectionExpression, out var arrayIndex))
         {
             var collection = BindTarget(source, Expression.Lambda(collectionExpression, selector.Parameters));
-            if (collection is { Json: { } array, Property: { IsPrimitiveCollection: true } primitive }
-                && primitive.GetElementType() is { } element && IsSupportedScalar(element.ClrType)
-                && element.GetTypeMapping().Converter is null)
+            if (collection is { Json: { } array, Property: { } primitive }
+                && GetPrimitiveCollectionElementType(primitive) is { } elementType
+                && IsSupportedScalar(elementType)
+                && (!primitive.IsPrimitiveCollection || primitive.GetElementType()?.GetTypeMapping().Converter is null))
             {
-                var mapping = RelationalDependencies.TypeMappingSource.FindMapping(element.ClrType);
+                var mapping = RelationalDependencies.TypeMappingSource.FindMapping(elementType);
                 var indexed = new JsonScalarExpression(array.Json,
                     [.. array.Path, new PathSegment(RelationalDependencies.SqlExpressionFactory.ApplyDefaultTypeMapping(
                         RelationalDependencies.SqlExpressionFactory.Constant(arrayIndex)))],
-                    element.ClrType, mapping, true);
+                    elementType, mapping, true);
                 return new Target(indexed, indexed);
             }
         }
@@ -254,7 +255,7 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
             if (target.Type is { } type && !target.Collection)
             {
                 if (type.FindProperty(name) is { } property)
-                    return (property, null, property.IsPrimitiveCollection);
+                    return (property, null, GetPrimitiveCollectionElementType(property) is not null);
                 if (type.FindComplexProperty(name) is { } complex)
                     return (null, complex.ComplexType, complex.IsCollection);
                 if (type is IEntityType entity && entity.FindNavigation(name) is { } navigation
@@ -346,6 +347,32 @@ public sealed class SonnetDbQueryableMethodTranslatingExpressionVisitor : Relati
         return type == typeof(string) || type == typeof(bool) || type == typeof(byte)
             || type == typeof(short) || type == typeof(int) || type == typeof(long)
             || type == typeof(float) || type == typeof(double);
+    }
+
+    private static Type? GetPrimitiveCollectionElementType(IProperty property)
+    {
+        if (property.IsPrimitiveCollection)
+            return property.GetElementType()?.ClrType;
+
+#if NET11_0_OR_GREATER
+        // EF11 keeps a JSON List<T> configured through Property(...) as a
+        // scalar JSON property in the relational model.  The provider still
+        // needs to bind fixed ElementAt paths, so recover the CLR element type
+        // only for enumerable properties and let IsSupportedScalar reject
+        // object/owned collections.
+        var clrType = property.ClrType;
+        if (clrType == typeof(string) || clrType == typeof(byte[]))
+            return null;
+        if (clrType.IsArray)
+            return clrType.GetElementType();
+        return clrType.GetInterfaces()
+            .Append(clrType)
+            .Where(static type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            .Select(static type => type.GetGenericArguments()[0])
+            .FirstOrDefault();
+#else
+        return null;
+#endif
     }
 
     internal static string BuildPath(JsonScalarExpression json)

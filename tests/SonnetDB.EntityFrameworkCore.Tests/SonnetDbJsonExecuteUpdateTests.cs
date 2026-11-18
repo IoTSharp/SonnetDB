@@ -107,7 +107,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         var capture = new JsonCommandCapture();
         await using var context = fixture.CreateContext(owned, capture);
         var rows = context.Set<AggregateRow>();
-        var exception = Assert.Throws<NotSupportedException>(() =>
+        var exception = EfCompatibilityExtensions.AssertNotSupported(() =>
         {
             _ = shape switch
             {

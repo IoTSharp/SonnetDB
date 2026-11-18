@@ -81,7 +81,7 @@ public sealed partial class SonnetDbJsonAggregateModelTests
         }, token);
         if (count == 65)
         {
-            await Assert.ThrowsAsync<NotSupportedException>(UpdateAsync);
+            await EfCompatibilityExtensions.AssertNotSupportedAsync(UpdateAsync);
             Assert.Equal(before, capture.Commands.Count);
         }
         else

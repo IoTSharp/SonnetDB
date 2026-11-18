@@ -107,13 +107,42 @@ internal static class SonnetDbJsonUpdateValue
             Check(depth);
             if (scalarValue is string text && text.Length > MaxBytes
                 || scalarValue is byte[] bytes && bytes.Length > MaxBytes
-                || scalarValue is ICollection items && scalar.IsPrimitiveCollection && items.Count > MaxNodes)
+                || scalarValue is ICollection items && IsPrimitiveCollection(scalar) && items.Count > MaxNodes)
                 throw new InvalidOperationException("JSON update value exceeds its collection or byte budget.");
             var scalarCodec = scalar.GetJsonValueReaderWriter() ?? scalar.GetTypeMapping().JsonValueReaderWriter
                 ?? throw new NotSupportedException(SonnetDbJsonTypeMapping.UnsupportedOperationMessage);
             scalarCodec.ToJson(writer, scalarValue);
             Check(depth);
         }
+
+        static bool IsPrimitiveCollection(IProperty property)
+        {
+            if (property.IsPrimitiveCollection)
+                return true;
+#if NET11_0_OR_GREATER
+            var clrType = property.ClrType;
+            if (clrType == typeof(string) || clrType == typeof(byte[]))
+                return false;
+            if (clrType.IsArray)
+                return clrType.GetElementType() is { } element && IsSupportedScalar(element);
+            return clrType.GetInterfaces().Append(clrType)
+                .Where(static type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                .Select(static type => type.GetGenericArguments()[0])
+                .Any(IsSupportedScalar);
+#else
+            return false;
+#endif
+        }
+
+#if NET11_0_OR_GREATER
+        static bool IsSupportedScalar(Type type)
+        {
+            type = Nullable.GetUnderlyingType(type) ?? type;
+            return type == typeof(string) || type == typeof(bool) || type == typeof(byte)
+                || type == typeof(short) || type == typeof(int) || type == typeof(long)
+                || type == typeof(float) || type == typeof(double);
+        }
+#endif
     }
 
     private sealed class Budget
