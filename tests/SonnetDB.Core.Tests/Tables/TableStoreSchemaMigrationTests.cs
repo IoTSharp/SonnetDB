@@ -1,4 +1,5 @@
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
 using Xunit;
@@ -110,6 +111,64 @@ public sealed class TableStoreSchemaMigrationTests : IDisposable
         Assert.Equal("one", store.GetByPrimaryKey([1L])!.Values[2]);
     }
 
+    /// <summary>Legacy 和 LSM 在工作集预算拒绝时都不得改写关系表目录。</summary>
+    [Theory]
+    [InlineData(KvStorageEngine.Legacy)]
+    [InlineData(KvStorageEngine.Lsm)]
+    public void SchemaMigration_WorkingBytesBudgetRejection_LeavesDirectoryUnchanged(KvStorageEngine engine)
+    {
+        using (var setup = Open(engine))
+        {
+            Setup(setup);
+            setup.Tables.CheckpointAll();
+        }
+        using (var warm = Open(engine))
+        {
+            warm.Tables.CheckpointAll();
+        }
+        var before = SnapshotFiles();
+        TableConstraintException error;
+        using (var db = Open(engine))
+        {
+            TableStore store = db.Tables.Open("items");
+            var budget = new TableSchemaMigrationBudget();
+            budget.Reserve(TableSchemaMigrationBudget.MaxWorkingBytes);
+            error = Assert.Throws<TableConstraintException>(() => store.PrepareSchemaMigration(
+                store.Schema.WithPrimaryKey(["code"]), (_, row) => row.Values, (_, _) => { },
+                TableRowIdentity.Create, budget));
+        }
+
+        Assert.Equal(TableConstraintException.SchemaEvolutionUnsupported, error.ErrorCode);
+        Assert.Equal(TableSchemaMigrationBudget.WorkingBytesKind, error.BudgetKind);
+        Assert.Equal(0L, error.BudgetRows);
+        Assert.Equal(TableSchemaMigrationBudget.MaxWorkingBytes, error.BudgetWorkingBytes);
+        Assert.Equal(1, error.BudgetParticipatingTables);
+        Assert.Contains("rows=0", error.Message, StringComparison.Ordinal);
+        Assert.Contains("working_bytes=", error.Message, StringComparison.Ordinal);
+        var after = SnapshotFiles();
+        Assert.Equal(before.Keys.Order(), after.Keys.Order());
+        foreach (string path in before.Keys)
+            Assert.True(before[path].AsSpan().SequenceEqual(after[path]), path);
+    }
+
+    /// <summary>行数预算达到固定边界时报告 rows 类别和下一次预留信息。</summary>
+    [Fact]
+    public void SchemaMigration_RowBudgetRejection_ReportsRowsAndNextReservation()
+    {
+        var budget = new TableSchemaMigrationBudget();
+        for (int index = 0; index < TableSchemaMigrationBudget.MaxRows; index++)
+            budget.Reserve(0, row: true);
+
+        TableConstraintException error = Assert.Throws<TableConstraintException>(() => budget.Reserve(64, row: true));
+
+        Assert.Equal(TableSchemaMigrationBudget.RowsKind, error.BudgetKind);
+        Assert.Equal(TableSchemaMigrationBudget.MaxRows, error.BudgetRows);
+        Assert.Equal(0L, error.BudgetWorkingBytes);
+        Assert.Equal(64L, error.BudgetNextReservationBytes);
+        Assert.Equal(TableSchemaMigrationBudget.MaxRows, error.BudgetLimit);
+        Assert.Contains("next_rows=100001", error.Message, StringComparison.Ordinal);
+    }
+
     private static TableStore.SchemaMigrationPlan Prepare(TableStore store, TableSchema schema)
         => store.PrepareSchemaMigration(schema, (_, row) => row.Values, (_, _) => { },
             () => throw new InvalidOperationException("本测试不分配无主键行身份。"), new TableSchemaMigrationBudget());
@@ -121,7 +180,21 @@ public sealed class TableStoreSchemaMigrationTests : IDisposable
         SqlExecutor.Execute(db, "INSERT INTO items(id,code,label) VALUES(1,2,'one'),(2,1,'two')");
     }
 
-    private Tsdb Open() => Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+    private Tsdb Open(KvStorageEngine? engine = null) => Tsdb.Open(new TsdbOptions
+    {
+        RootDirectory = _root,
+        Kv = (engine is { } selected ? KvOptions.Default with { StorageEngine = selected } : KvOptions.Default) with
+        {
+            AutoCheckpointEnabled = false,
+            ExpirerEnabled = false,
+            CleanupEnabled = false,
+        },
+    });
+
+    private Dictionary<string, byte[]> SnapshotFiles()
+        => Directory.EnumerateFiles(Path.Combine(_root, "tables", "rowstore", "6974656d73"), "*", SearchOption.AllDirectories)
+            .Where(static path => !path.EndsWith(".lock", StringComparison.Ordinal))
+            .ToDictionary(static path => path, File.ReadAllBytes, StringComparer.Ordinal);
 
     /// <summary>回收本测试的独占目录。</summary>
     public void Dispose()

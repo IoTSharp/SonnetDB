@@ -8383,3 +8383,11 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 通过 GitHub API 代理实时读回 `NewLifeX/NewLife.XCode` PR [#101](https://github.com/NewLifeX/NewLife.XCode/pull/101)：`state=closed`、`merged=true`、`merged_at=2026-10-16T13:59:21Z`，标题为 `feat: 添加 SonnetDB 驱动适配与能力差距跟踪`，merge commit 为 `2d90912c299da72b1e1990b4577680eadb1d112e`；对应合并 source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`。
 - 已修正 [CHANGELOG.md](CHANGELOG.md)、[#242 audit](docs/audits/issue-242-xcode-batch-replace-20261019.md) 和 [probe README](eng/probes/issue242-xcode-replace/README.md)：XCode #242 不再标记为外部程序集 BLOCKED，上游 provider 合并与本地候选 embedded/REST/frame-http2 各 7/7 单独记录；公开 SonnetDB 4.0.0 包仍为旧 provider guard，正式包验收保持 FAIL，新包发布/公开 consumer 重跑保持 NOT_RUN，Issue closure 另行核实。
 - 本轮只有状态文档变更；未运行产品测试、未发布/部署，提交前执行 `git diff --check`。
+## 2026-11-20（Asia/Shanghai）GH-Issue #439 schema migration budget diagnostics
+
+- 基线为共享 `main` 工作树。开始时 `git status` 干净，随后发现另一条并行 Ingest/Endpoint 改动线，已保留其文件、字节和归属，没有 reset、stash、提交或推送。
+- 本轮只修改关系表 schema 迁移预算相关源码、Core 表迁移回归、`CHANGELOG.md` 和本交接。`TableConstraintException` 增加预算类别、累计 rows/working bytes、journal 已用量、下一次预留、上限和参与表数量字段。`TableSchemaMigrationBudget` 现在区分 `rows` 与 `working_bytes`，journal 目录/表数/条目数/payload 超限统一映射到既有 `table_schema_evolution_unsupported` 错误码并保留可行动消息。
+- 预算拒绝仍发生在 v13 schema barrier、`schema-migration.sdbddl` 和 raw mutation 之前。Legacy/LSM 工作集超限回归均通过 rowstore 目录文件名与字节快照，行数达到 100,000 的回归报告 `next_rows=100001`。超过 100,000 行的 checkpoint、before-image、取消、强杀、重开、并发写隔离和最终切换仍仅完成设计边界记录，没有提高固定常量或宣称已支持。
+- 验证：Core 定向 Release build 在共享并行文件锁未影响的情况下 **PASS，0 warning/0 error**；Core.Tests 定向编译 **PASS，0 warning/0 error**；`TableStoreSchemaMigrationTests` **8/8 PASS**（Legacy/LSM 双引擎、目录未变化、预算诊断）；限定文件 `git diff --check` **PASS**。
+- 完整 solution Release build **PASS，0 warning/0 error，6 分钟 07 秒**；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 返回退出码 0（工作区加载有警告）。完整 Core/Server 测试本轮 `NOT_RUN`。共享工作树的 `src/SonnetDB.Core/Ingest/BulkIngestor.cs` 另有并行改动曾触发未使用异常变量告警，后续构建已由并行线修正；本轮未修改该文件。没有运行发布、部署、生产迁移或真实大表长稳/现场恢复。
+- 下一顺序：先在不含并行 dirty 的整合工作树运行规定 format 和更完整迁移回归，再单独设计并验证超过 100,000 行的持久 checkpoint/before-image 合同；不得把当前切片解释为可恢复超大表迁移已交付。

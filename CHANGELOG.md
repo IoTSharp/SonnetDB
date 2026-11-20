@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### SQL schema migration budget diagnostics — issue #439
+
+- 关系表主键/schema 迁移的预检预算拒绝现在携带稳定诊断字段，区分 `rows`、`working_bytes`、恢复日志目录/表数/条目数和 payload 字节预算，并报告表名、参与表数量、已累计值、下一次预留值和固定上限。既有 `table_schema_evolution_unsupported` 错误码保持不变。
+- Legacy 与 LSM 的工作集预算拒绝回归确认发生在持久屏障、恢复 journal 和 raw mutation 之前，关系表 rowstore 目录字节保持不变；行数达到 100,000 的边界也报告 `next_rows=100001`，不会通过单纯提高常量放大准备阶段堆积。
+- 超过 100,000 行的可恢复分批迁移仍是长期设计项。进入实现前必须定义稳定主键 checkpoint、每批 before-image、取消和强杀后的 journal 恢复、重开幂等、并发写隔离以及最终 schema 切换，当前单 journal 全量 before-image 路径没有宣称支持该规模。
+
 ### .NET 11 target split
 
 - EF11 JSON/collection 定向回归已从此前 212/239（27 项失败）收口为 **236/236 PASS**：兼容 EF11 翻译失败的 `InvalidOperationException` 外层包装断言，并适配 `List<T>` primitive collection 的固定 `ElementAt`/`ElementAtOrDefault` JSON path 绑定与集合预算检查；EF10 net10 MVC/Identity consumer 测试 **18/18 PASS**，EF11 Provider 全量 **438/438 PASS**。

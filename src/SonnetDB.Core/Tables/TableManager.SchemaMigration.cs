@@ -58,6 +58,9 @@ public sealed partial class TableManager
         if (lockNames.Count > TableSchemaMigrationJournal.MaxTables)
             throw SchemaMigrationUnsupported(current.Name, "迁移和外键校验涉及的关系表超过 32 张上限。");
 
+        var budget = new TableSchemaMigrationBudget();
+        budget.SetContext(current.Name, lockNames.Count);
+
         var lockedStores = new List<TableStore>(lockNames.Count);
         try
         {
@@ -70,7 +73,6 @@ public sealed partial class TableManager
                 lockedStores.Add(store);
                 store.EnsureNoOnlineIndexBuild();
             }
-            var budget = new TableSchemaMigrationBudget();
             var plans = new Dictionary<string, (TableStore Store, TableStore.SchemaMigrationPlan Plan)>(StringComparer.Ordinal);
             TableStore principalStore = _stores[current.ObjectName];
             TableStore.SchemaMigrationPlan principalPlan = principalStore.PrepareSchemaMigration(updated, transform,
@@ -116,12 +118,23 @@ public sealed partial class TableManager
             }
             ValidateSchemaMigrationForeignKeys(plans, updatedByName);
             var catalogInfo = new FileInfo(SchemaPath);
-            if (!catalogInfo.Exists || catalogInfo.Length is < 1 or > TableSchemaMigrationJournal.MaxCatalogBytes)
+            if (!catalogInfo.Exists || catalogInfo.Length < 1)
                 throw SchemaMigrationUnsupported(current.Name, "原关系目录不存在或超过迁移恢复日志上限。");
+            if (catalogInfo.Length > TableSchemaMigrationJournal.MaxCatalogBytes)
+                throw budget.CreateJournalExceeded(TableSchemaMigrationBudget.JournalCatalogBytesKind,
+                    catalogInfo.Length, catalogInfo.Length, TableSchemaMigrationJournal.MaxCatalogBytes);
             budget.Reserve(catalogInfo.Length * 2L);
             byte[] originalCatalog = File.ReadAllBytes(SchemaPath);
             TableSchemaMigrationUndo[] undoTables = plans.Values.Select(static entry => entry.Plan.Undo).ToArray();
-            int payloadBytes = TableSchemaMigrationJournal.ValidatePlan(originalCatalog, undoTables);
+            int payloadBytes;
+            try
+            {
+                payloadBytes = TableSchemaMigrationJournal.ValidatePlan(originalCatalog, undoTables);
+            }
+            catch (TableSchemaMigrationJournalLimitException failure)
+            {
+                throw budget.CreateJournalExceeded(failure.Kind, failure.Used, failure.Requested, failure.Limit);
+            }
             budget.Reserve(payloadBytes);
             SqlExecutor.ThrowIfCancellationRequested();
             CommitSchemaMigration(previousSchemas, candidateSchemas, originalCatalog, plans, undoTables, publishCatalog);
