@@ -56,6 +56,23 @@ public sealed class ServerOptionsTests
         Assert.Equal(Path.GetFullPath(path), ServerOptionsBinder.Bind(configuration).Copilot.ServerRelayJournalPath);
     }
 
+    /// <summary>验证对象卷根目录绑定后固定为绝对路径，并保留空值的默认语义。</summary>
+    [Fact]
+    public void Bind_ObjectStorageRootDirectory_NormalizesConfiguredVolumeRoot()
+    {
+        string configuredPath = Path.Combine("relative-object-volume", Guid.NewGuid().ToString("N"));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SonnetDBServer:ObjectStorage:RootDirectory"] = configuredPath,
+        }).Build();
+
+        ServerOptions options = ServerOptionsBinder.Bind(configuration);
+
+        Assert.Equal(Path.GetFullPath(configuredPath), options.ObjectStorage.RootDirectory);
+        Assert.Null(ServerOptionsBinder.Bind(
+            new ConfigurationBuilder().Build()).ObjectStorage.RootDirectory);
+    }
+
     [Fact]
     public void Bind_RelativeRelayJournalPath_RejectsAmbiguousInstancePaths()
     {

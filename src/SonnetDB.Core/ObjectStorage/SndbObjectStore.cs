@@ -37,6 +37,7 @@ public sealed partial class SndbObjectStore
 
     private readonly KvKeyspace _metadata;
     private readonly string _contentRoot;
+    private readonly string _legacyContentRoot;
     private readonly ObjectMutationState _objectMutationState;
 
     /// <summary>
@@ -48,7 +49,9 @@ public sealed partial class SndbObjectStore
         _metadata = tsdb.Keyspaces.Open(MetadataKeyspace);
         // 同一 keyspace 的多个存储门面共享 bucket gate，避免不同 bucket 的生命周期互相阻塞。
         _objectMutationState = ObjectMutationStates.GetValue(_metadata, static _ => new ObjectMutationState());
-        _contentRoot = Path.Combine(tsdb.RootDirectory, "objects");
+        // 对象正文目录可独立挂载到容量更大的卷，桶 KV 元数据仍由数据库管理。
+        _contentRoot = tsdb.ObjectStorageRootDirectory;
+        _legacyContentRoot = tsdb.LegacyObjectStorageRootDirectory;
         Directory.CreateDirectory(_contentRoot);
     }
 
@@ -1905,8 +1908,25 @@ public sealed partial class SndbObjectStore
 
     private string ResolveStoragePath(string relativePath)
     {
-        string path = Path.GetFullPath(Path.Combine(_contentRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_contentRoot));
+        string path = ResolveStoragePathUnderRoot(_contentRoot, relativePath);
+        if (File.Exists(path) || PathsEqual(_contentRoot, _legacyContentRoot))
+            return path;
+
+        string legacyPath = ResolveStoragePathUnderRoot(_legacyContentRoot, relativePath);
+        if (!File.Exists(legacyPath))
+            return path;
+
+        // 旧默认目录中的对象仍可读，首次访问时尝试迁移到新卷；迁移失败继续使用旧文件。
+        return TryMigrateLegacyStorageFile(legacyPath, path);
+    }
+
+    /// <summary>
+    /// 将相对对象路径限制在指定正文根目录内，拒绝目录穿越和绝对路径。
+    /// </summary>
+    private static string ResolveStoragePathUnderRoot(string contentRoot, string relativePath)
+    {
+        string path = Path.GetFullPath(Path.Combine(contentRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(contentRoot));
         string rootWithSeparator = root + Path.DirectorySeparatorChar;
         StringComparison comparison = OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
@@ -1918,6 +1938,82 @@ public sealed partial class SndbObjectStore
         }
 
         return path;
+    }
+
+    /// <summary>
+    /// 把旧卷正文复制到新卷的同目录临时文件，刷新后原子发布并尽力删除旧文件。
+    /// </summary>
+    private string TryMigrateLegacyStorageFile(string legacyPath, string targetPath)
+    {
+        string targetDirectory = Path.GetDirectoryName(targetPath)!;
+        string temporaryPath = Path.Combine(
+            targetDirectory,
+            $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.migration.tmp");
+        bool published = false;
+        try
+        {
+            Directory.CreateDirectory(targetDirectory);
+            using (var source = new FileStream(
+                legacyPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read | FileShare.Delete,
+                ObjectIoBufferSize,
+                FileOptions.SequentialScan))
+            using (var destination = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                ObjectIoBufferSize,
+                FileOptions.SequentialScan))
+            {
+                source.CopyTo(destination, ObjectIoBufferSize);
+                destination.Flush(flushToDisk: true);
+            }
+
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(targetDirectory);
+            try
+            {
+                File.Move(temporaryPath, targetPath, overwrite: false);
+                published = true;
+            }
+            catch (IOException) when (File.Exists(targetPath))
+            {
+                // 同一进程的另一对象门面可能已经完成发布，复用已经存在的目标文件。
+                published = true;
+            }
+
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(targetDirectory);
+            TryDeleteFile(legacyPath);
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(legacyPath)!);
+            return targetPath;
+        }
+        catch (IOException)
+        {
+            return published && File.Exists(targetPath) ? targetPath : legacyPath;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return published && File.Exists(targetPath) ? targetPath : legacyPath;
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    /// <summary>
+    /// 比较两个已规范化正文根目录，兼容 Windows 路径大小写和根目录分隔符。
+    /// </summary>
+    private static bool PathsEqual(string left, string right)
+    {
+        string normalizedLeft = Path.TrimEndingDirectorySeparator(Path.GetFullPath(left));
+        string normalizedRight = Path.TrimEndingDirectorySeparator(Path.GetFullPath(right));
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return string.Equals(normalizedLeft, normalizedRight, comparison);
     }
 
     private static string BucketKey(string bucket) => BucketPrefix + bucket;

@@ -88,6 +88,11 @@ public sealed class ServerOptions
     public KvStorageOptions Kv { get; set; } = new();
 
     /// <summary>
+    /// 对象正文存储卷配置。设置后，每个数据库的对象正文写入该卷根目录下的独立数据库目录。
+    /// </summary>
+    public ObjectStorageOptions ObjectStorage { get; set; } = new();
+
+    /// <summary>
     /// Measurement 自动 schema 增长上限与默认/按名称策略。绑定路径：<c>SonnetDBServer:MeasurementSchema</c>。
     /// </summary>
     public MeasurementSchemaServerOptions MeasurementSchema { get; set; } = new();
@@ -189,6 +194,18 @@ public sealed class KvStorageOptions
     /// 服务端绑定会把非正数修正为 1，避免部署配置意外取消恢复上限。
     /// </summary>
     public int IndexRebuildMaxOverlayEntries { get; set; } = 100_000;
+}
+
+/// <summary>
+/// Server 级对象正文存储卷配置。
+/// </summary>
+public sealed class ObjectStorageOptions
+{
+    /// <summary>
+    /// 对象卷根目录。设置后数据库 <c>name</c> 的对象正文位于
+    /// <c>&lt;RootDirectory&gt;/name/objects</c>。为空时沿用数据库目录下的 <c>objects</c>。
+    /// </summary>
+    public string? RootDirectory { get; set; }
 }
 
 /// <summary>可由服务器配置系统绑定的 measurement schema 策略。</summary>

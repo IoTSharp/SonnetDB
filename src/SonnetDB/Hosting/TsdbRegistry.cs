@@ -28,6 +28,7 @@ public sealed partial class TsdbRegistry : IDisposable
     private readonly KvOptions _kvOptions;
     private readonly SqlMemoryOptions _sqlMemoryOptions;
     private readonly MeasurementSchemaPolicy _measurementSchemaPolicy;
+    private readonly string? _objectStorageRootDirectory;
     private bool _disposed;
 
     /// <summary>
@@ -70,18 +71,22 @@ public sealed partial class TsdbRegistry : IDisposable
     {
     }
 
-    /// <summary>使用指定的 KV、SQL 内部资源与 measurement schema 策略构造注册表。</summary>
+    /// <summary>使用指定的 KV、SQL 内部资源、measurement schema 与对象卷策略构造注册表。</summary>
     /// <param name="dataRoot">数据库根目录。</param>
     /// <param name="broadcaster">可选事件广播器。</param>
     /// <param name="kvOptions">所有数据库共用的 KV 选项。</param>
     /// <param name="sqlMemoryOptions">所有数据库共用的 SQL 内部资源选项。</param>
     /// <param name="measurementSchemaPolicy">所有数据库共用的 measurement schema 策略。</param>
+    /// <param name="objectStorageRootDirectory">
+    /// 对象卷根目录。设置后数据库对象正文位于其下的数据库名/objects 子目录；为空时使用数据库目录下的 objects。
+    /// </param>
     public TsdbRegistry(
         string dataRoot,
         EventBroadcaster? broadcaster,
         KvOptions? kvOptions,
         SqlMemoryOptions? sqlMemoryOptions,
-        MeasurementSchemaPolicy? measurementSchemaPolicy)
+        MeasurementSchemaPolicy? measurementSchemaPolicy,
+        string? objectStorageRootDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
         _dataRoot = Path.GetFullPath(dataRoot);
@@ -89,6 +94,9 @@ public sealed partial class TsdbRegistry : IDisposable
         _kvOptions = kvOptions ?? KvOptions.Default;
         _sqlMemoryOptions = sqlMemoryOptions ?? SqlMemoryOptions.Default;
         _measurementSchemaPolicy = (measurementSchemaPolicy ?? MeasurementSchemaPolicy.Default).ValidateAndCopy();
+        _objectStorageRootDirectory = string.IsNullOrWhiteSpace(objectStorageRootDirectory)
+            ? null
+            : Path.GetFullPath(objectStorageRootDirectory);
         _sqlMemoryOptions.Validate();
         Directory.CreateDirectory(_dataRoot);
     }
@@ -97,6 +105,9 @@ public sealed partial class TsdbRegistry : IDisposable
     /// 数据库根目录。
     /// </summary>
     public string DataRoot => _dataRoot;
+
+    /// <summary>当前注册表使用的对象卷根目录；未配置时返回 null。</summary>
+    public string? ObjectStorageRootDirectory => _objectStorageRootDirectory;
 
     /// <summary>
     /// 当前已注册的数据库数量。
@@ -161,7 +172,7 @@ public sealed partial class TsdbRegistry : IDisposable
 
             var path = Path.Combine(_dataRoot, name);
             Directory.CreateDirectory(path);
-            var instance = OpenDatabase(path);
+            var instance = OpenDatabase(path, name);
             _databases[name] = instance;
             tsdb = instance;
             _broadcaster?.Publish(ServerEventFactory.Database(
@@ -180,10 +191,14 @@ public sealed partial class TsdbRegistry : IDisposable
         {
             foreach (var dir in Directory.EnumerateDirectories(_dataRoot))
             {
+                // 外置对象卷可能位于 DataRoot 下，但它不是数据库目录，不能被自动加载为数据库。
+                if (_objectStorageRootDirectory is not null
+                    && PathsEqual(dir, _objectStorageRootDirectory))
+                    continue;
                 var name = Path.GetFileName(dir);
                 if (!IsValidName(name) || _databases.ContainsKey(name))
                     continue;
-                var instance = OpenDatabase(dir);
+                var instance = OpenDatabase(dir, name);
                 _databases[name] = instance;
             }
         }
@@ -210,15 +225,16 @@ public sealed partial class TsdbRegistry : IDisposable
         {
             if (_databases.ContainsKey(name))
                 throw new InvalidOperationException($"数据库名称已存在：{name}");
-            _databases[name] = OpenDatabase(fullPath);
+            _databases[name] = OpenDatabase(fullPath, name);
             _mountedDatabaseNames.Add(name);
         }
     }
 
-    /// <summary>使用注册表冻结的存储与 SQL 资源配置打开一个数据库实例。</summary>
+    /// <summary>使用注册表冻结的存储、SQL 与对象卷配置打开一个数据库实例。</summary>
     /// <param name="path">数据库目录绝对路径。</param>
+    /// <param name="databaseName">数据库显示名，用于隔离对象卷目录。</param>
     /// <returns>已打开的数据库实例。</returns>
-    private Tsdb OpenDatabase(string path)
+    private Tsdb OpenDatabase(string path, string databaseName)
         => Tsdb.Open(new TsdbOptions
         {
             RootDirectory = path,
@@ -226,7 +242,31 @@ public sealed partial class TsdbRegistry : IDisposable
             Kv = _kvOptions,
             SqlMemory = _sqlMemoryOptions,
             MeasurementSchemaPolicy = _measurementSchemaPolicy,
+            ObjectStorageRootDirectory = ResolveObjectStorageRoot(databaseName),
         });
+
+    /// <summary>为数据库计算对象卷路径，保持不同数据库的对象正文相互隔离。</summary>
+    /// <param name="databaseName">数据库显示名。</param>
+    /// <returns>该数据库的对象正文根目录，未配置外置卷时返回 null。</returns>
+    private string? ResolveObjectStorageRoot(string databaseName)
+        => _objectStorageRootDirectory is null
+            ? null
+            : Path.Combine(_objectStorageRootDirectory, databaseName, "objects");
+
+    /// <summary>比较目录规范路径，兼容 Windows 大小写和末尾分隔符差异。</summary>
+    /// <param name="left">左侧目录。</param>
+    /// <param name="right">右侧目录。</param>
+    /// <returns>两条路径指向同一规范目录时返回 true。</returns>
+    private static bool PathsEqual(string left, string right)
+    {
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+            comparison);
+    }
 
     /// <summary>
     /// 删除数据库：从注册表移除、Dispose 实例，并把磁盘目录尝试删除（best-effort）。
@@ -246,6 +286,10 @@ public sealed partial class TsdbRegistry : IDisposable
                 var path = Path.Combine(_dataRoot, name);
                 if (Directory.Exists(path))
                     Directory.Delete(path, recursive: true);
+
+                string? objectStorageRoot = ResolveObjectStorageRoot(name);
+                if (objectStorageRoot is not null && Directory.Exists(objectStorageRoot))
+                    Directory.Delete(objectStorageRoot, recursive: true);
             }
             catch (IOException)
             {

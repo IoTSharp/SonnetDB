@@ -8439,3 +8439,11 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 远程读取期间 9 个 `origin/dependabot/*` 分支已先行从 GitHub 消失，因此没有重复发送删除请求；本地对应的陈旧远程跟踪引用已按已核对 SHA 删除。`origin/codex/issue-439-budget` 在核对 tip 后已删除，本地同名分支也已删除。合并主体提交为 `85b7448f9a0c6d5a4425dba3354f9435d74b93e4`，随后交接提交链记录了本次清理，`main` 相对 `origin/main` 本地领先 16 个提交，未推送 main。
 - 验证状态：PowerShell 7.6.9，规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` PASS，`git diff --check` PASS。未运行完整 solution build/test，未发布、部署、重启或修改生产数据。
 - 下一顺序是复核本地 `main` 的 14 个待推送提交并由用户单独授权推送。此次任务没有留下常驻进程或临时交付物。
+
+## 2026-11-21（Asia/Shanghai）同步主线并增加对象正文外置卷
+
+- 已从上游同步 SonnetDB，main 快进到 99ada9e914bd6bcd48bbe17e975b099c91286f46。此前本地 codex/mulei-* 分支与三个历史工作树均无未提交改动；已将已被主线吸收的分支删除。codex/mulei-server-20261104 的单独旧提交未合并，因后续主线对象生命周期/KV 分页实现已覆盖其内容而按用户确认清理。
+- 新增 TsdbOptions.ObjectStorageRootDirectory 与 SonnetDBServer:ObjectStorage:RootDirectory。Server 配置值表示卷根目录，数据库 name 使用 <卷根>/<name>/objects，默认继续使用 <RootDirectory>/objects。对象容量查询、对象正文、multipart 临时文件和数据库删除路径均使用实际对象根。
+- 配置外置卷后，旧默认目录中的对象首次访问时复制到新卷临时文件并刷新、原子发布，成功后尽力删除旧文件；复制或权限失败时继续读取旧文件。数据库 KV 元数据仍在数据库目录，外置对象卷不由数据库目录备份自动覆盖。
+- 新增对象外置写入、容量、旧根迁移、重开读回、Server 配置绑定、注册表数据库隔离及外置卷目录跳过测试。定向验证：SndbObjectStoreTests 33/33，ServerOptionsTests 与 TsdbRegistryObjectStorageTests 36/36；dotnet restore SonnetDB.slnx、规定 dotnet format 和 git diff --check 通过。
+- 本轮尚未推送、发布或部署。外置对象卷的生产迁移、独立备份恢复和现场读回仍需按部署流程单独验证。

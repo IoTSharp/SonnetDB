@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### 对象存储卷
+
+- 新增 `SonnetDBServer:ObjectStorage:RootDirectory` 与 `TsdbOptions.ObjectStorageRootDirectory`，对象桶正文和 multipart 临时文件可以写入独立卷，并按数据库名隔离目录。未配置时保持 `<数据库根>/objects` 的兼容路径。
+- 外置卷启用后，旧默认目录中的对象在首次访问时按需迁移到新卷，复制失败时继续读取旧正文。对象正文卷仍属于独立备份范围，需要单独备份与恢复。
+
 ### SQL savepoints, ADO.NET DataAdapter and embedded deployment contract
 
 - SQL 轻事务增加用户可见的 `SAVEPOINT`、`ROLLBACK TO [SAVEPOINT]` 和 `RELEASE [SAVEPOINT]`。保存点按 SQL 标识符大小写规则解析，回滚保留目标保存点并撤销其后的关系表 DML、延迟触发器事件和序列预留，释放目标及其后的保存点；保存点之后发生关系表 DDL workspace 变更时，`ROLLBACK TO` 明确拒绝并要求完整回滚，避免静默部分恢复。行锁继续保留到事务结束。嵌入式 Core、ADO.NET 绑定事务和远程 SQL 批次复用同一语义，事务外使用会明确拒绝。

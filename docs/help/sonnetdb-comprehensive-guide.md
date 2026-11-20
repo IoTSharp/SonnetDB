@@ -255,6 +255,22 @@ SonnetDB 的 field 采用稀疏模型：同一个 measurement 的不同数据点
 └── grants.json        # 数据库授权
 ```
 
+### 5.2.1 对象正文存储卷
+
+对象桶的元数据仍保存在数据库 KV 中，图片、视频和 multipart 临时正文可以配置到独立磁盘卷。Server 配置使用卷根目录，数据库 `name` 的正文目录为 `<RootDirectory>/name/objects`：
+
+```json
+{
+  "SonnetDBServer": {
+    "ObjectStorage": {
+      "RootDirectory": "/mnt/sonnetdb-objects"
+    }
+  }
+}
+```
+
+未配置时继续使用 `<DataRoot>/<name>/objects`。切换到外置卷后，旧目录中的正文仍可读取，首次访问时按需迁移到新卷。外置对象卷属于独立恢复范围，数据库目录备份不会自动包含该卷，备份与回滚时需要单独处理。
+
 ### 5.3 Segment 格式（当前 v6）
 
 | 版本 | 引入 PR | 变更内容 |
@@ -1598,7 +1614,9 @@ db.WriteMany(seriesId, points);
 docker run -d --name sonnetdb \
   -p 127.0.0.1:5080:5080 \
   -v /data/sonnetdb:/data \
+  -v /data/sonnetdb-objects:/object-volume \
   -e SONNETDB_SonnetDBServer__DataRoot=/data \
+  -e SONNETDB_SonnetDBServer__ObjectStorage__RootDirectory=/object-volume \
   iotsharp/sonnetdb:latest
 ```
 
@@ -1612,8 +1630,10 @@ services:
       - "127.0.0.1:5080:5080"
     volumes:
       - ./data:/data
+      - ./data/sonnetdb-objects:/object-volume
     environment:
       - SONNETDB_SonnetDBServer__DataRoot=/data
+      - SONNETDB_SonnetDBServer__ObjectStorage__RootDirectory=/object-volume
 ```
 
 远程部署先通过 `SONNETDB_USER` / `SONNETDB_PASSWORD` 完成引导，并在本机验证 `needsSetup=false` 与管理员认证；随后按需开放目标接口。完整步骤见 [Docker 镜像部署](../releases/docker-image.md#首次初始化与远程部署)。

@@ -81,6 +81,107 @@ public sealed class SndbObjectStoreTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// 外置对象根目录承载正文，数据库默认 objects 目录不产生正文，重开后仍按相对路径读回。
+    /// </summary>
+    [Fact]
+    public async Task ObjectStorageRootDirectory_UsesExternalDirectoryAcrossReopen()
+    {
+        string externalRoot = Path.Combine(_rootDirectory, "external-objects");
+        string defaultRoot = Path.Combine(_rootDirectory, "objects");
+        byte[] expected = Encoding.UTF8.GetBytes("external object payload");
+        string objectKey = "videos/clip.mp4";
+
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _rootDirectory,
+            ObjectStorageRootDirectory = externalRoot,
+        }))
+        {
+            var store = new SndbObjectStore(db);
+            var capacity = store.GetStorageCapacity();
+            Assert.Equal(new DriveInfo(externalRoot).TotalSize, capacity.TotalBytes);
+            Assert.Equal(capacity.TotalBytes, SndbObjectStore.GetStorageCapacity(db).TotalBytes);
+            store.CreateBucket("media");
+            await store.PutObjectAsync(
+                "media",
+                objectKey,
+                new MemoryStream(expected, writable: false));
+        }
+
+        Assert.Empty(GetFilesIfDirectoryExists(defaultRoot));
+        Assert.Single(GetFilesIfDirectoryExists(externalRoot));
+
+        using (var reopened = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _rootDirectory,
+            ObjectStorageRootDirectory = externalRoot,
+        }))
+        {
+            var store = new SndbObjectStore(reopened);
+            var info = store.HeadObject("media", objectKey);
+            Assert.NotNull(info);
+            var read = Assert.IsType<SndbObjectReadResult>(store.OpenRead("media", objectKey));
+            await using var content = read.Content;
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer);
+            Assert.Equal(expected, buffer.ToArray());
+        }
+    }
+
+    /// <summary>
+    /// 切换到外置对象卷后，首次读取旧默认目录中的正文会迁移并在新卷重开读回。
+    /// </summary>
+    [Fact]
+    public async Task ObjectStorageRootDirectory_MigratesLegacyObjectOnRead()
+    {
+        string externalRoot = Path.Combine(_rootDirectory, "external-objects");
+        string legacyRoot = Path.Combine(_rootDirectory, "objects");
+        byte[] expected = Encoding.UTF8.GetBytes("legacy object payload");
+        string objectKey = "images/legacy.png";
+
+        using (var legacyDb = Tsdb.Open(new TsdbOptions { RootDirectory = _rootDirectory }))
+        {
+            var legacyStore = new SndbObjectStore(legacyDb);
+            legacyStore.CreateBucket("media");
+            await legacyStore.PutObjectAsync(
+                "media",
+                objectKey,
+                new MemoryStream(expected, writable: false));
+        }
+
+        Assert.Single(GetFilesIfDirectoryExists(legacyRoot));
+        Assert.Empty(GetFilesIfDirectoryExists(externalRoot));
+
+        using (var migratedDb = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _rootDirectory,
+            ObjectStorageRootDirectory = externalRoot,
+        }))
+        {
+            var migratedStore = new SndbObjectStore(migratedDb);
+            var info = migratedStore.HeadObject("media", objectKey);
+            Assert.NotNull(info);
+            var read = Assert.IsType<SndbObjectReadResult>(migratedStore.OpenRead("media", objectKey));
+            await using var content = read.Content;
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer);
+            Assert.Equal(expected, buffer.ToArray());
+        }
+
+        Assert.Single(GetFilesIfDirectoryExists(externalRoot));
+        Assert.Empty(GetFilesIfDirectoryExists(legacyRoot));
+
+        using (var reopened = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _rootDirectory,
+            ObjectStorageRootDirectory = externalRoot,
+        }))
+        {
+            Assert.NotNull(new SndbObjectStore(reopened).HeadObject("media", objectKey));
+        }
+    }
+
     private readonly string _rootDirectory = Path.Combine(
         Path.GetTempPath(),
         $"SonnetDB.ObjectStorage.Tests.{Guid.NewGuid():N}");
@@ -1058,10 +1159,16 @@ public sealed class SndbObjectStoreTests : IDisposable
     private string[] GetObjectFiles()
     {
         string objectRoot = Path.Combine(_rootDirectory, "objects");
-        return Directory.Exists(objectRoot)
-            ? Directory.GetFiles(objectRoot, "*", SearchOption.AllDirectories)
-            : [];
+        return GetFilesIfDirectoryExists(objectRoot);
     }
+
+    /// <summary>
+    /// 在测试指定的对象目录存在时读取其文件清单。
+    /// </summary>
+    private static string[] GetFilesIfDirectoryExists(string directory)
+        => Directory.Exists(directory)
+            ? Directory.GetFiles(directory, "*", SearchOption.AllDirectories)
+            : [];
 
     /// <summary>
     /// 构造测试中用于模拟 latest 指针的元数据键。

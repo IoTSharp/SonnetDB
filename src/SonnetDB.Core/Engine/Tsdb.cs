@@ -133,6 +133,21 @@ public sealed partial class Tsdb : IDisposable
     /// <summary>数据库根目录路径。</summary>
     public string RootDirectory => _options.RootDirectory;
 
+    /// <summary>
+    /// 当前数据库对象桶正文的规范化物理根目录。
+    /// 未配置外置目录时回退到数据库根目录下的 <c>objects</c> 子目录。
+    /// </summary>
+    public string ObjectStorageRootDirectory => Path.GetFullPath(
+        string.IsNullOrWhiteSpace(_options.ObjectStorageRootDirectory)
+            ? Path.Combine(_options.RootDirectory, "objects")
+            : _options.ObjectStorageRootDirectory);
+
+    /// <summary>
+    /// 旧版对象正文默认目录，用于配置外置卷后的按需兼容迁移。
+    /// </summary>
+    internal string LegacyObjectStorageRootDirectory => Path.GetFullPath(
+        Path.Combine(_options.RootDirectory, "objects"));
+
     /// <summary>供受授权的管理接口读取本实例实际打开时采用的配置，不提供修改入口。</summary>
     internal TsdbOptions RuntimeOptions => _options;
 

@@ -16,7 +16,7 @@ public sealed partial class SndbObjectStore
     public static SndbStorageCapacityInfo GetStorageCapacity(Tsdb tsdb)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
-        return ReadStorageCapacity(Path.Combine(tsdb.RootDirectory, "objects"));
+        return ReadStorageCapacity(tsdb.ObjectStorageRootDirectory);
     }
 
     private static SndbStorageCapacityInfo ReadStorageCapacity(string contentRoot)

@@ -101,6 +101,12 @@ internal static class ConfigurationSnapshotBuilder
     {
         var entries = new List<ConfigurationEntry>();
         Add("Engine:RootDirectory", serverAdmin ? options.RootDirectory : "已配置（已隐藏）", !serverAdmin);
+        Add(
+            "Engine:ObjectStorageRootDirectory",
+            serverAdmin
+                ? options.ObjectStorageRootDirectory ?? Path.Combine(options.RootDirectory, "objects")
+                : "已配置（已隐藏）",
+            !serverAdmin);
         Add("Engine:WalBufferSize", options.WalBufferSize);
         Add("Engine:SyncWalOnEveryWrite", options.SyncWalOnEveryWrite);
         Add("Engine:FlushWalToOsOnWrite", options.FlushWalToOsOnWrite);

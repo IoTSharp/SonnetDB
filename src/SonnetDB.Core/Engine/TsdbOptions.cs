@@ -15,6 +15,12 @@ public sealed record TsdbOptions
     /// <summary>数据库根目录路径（默认为当前工作目录 "."）。</summary>
     public string RootDirectory { get; init; } = ".";
 
+    /// <summary>
+    /// 对象桶正文的物理存储根目录。为空时使用数据库根目录下的 <c>objects</c> 目录。
+    /// 该目录只承载对象正文与 multipart 临时文件，桶元数据仍保存在数据库 KV 中。
+    /// </summary>
+    public string? ObjectStorageRootDirectory { get; init; }
+
     /// <summary>MemTable Flush 阈值策略（默认 16 MB / 100 万点 / 5 分钟）。</summary>
     public MemTableFlushPolicy FlushPolicy { get; init; } = MemTableFlushPolicy.Default;
 

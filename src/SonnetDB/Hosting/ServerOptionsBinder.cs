@@ -56,6 +56,20 @@ internal static class ServerOptionsBinder
     /// <param name="options">待补齐的服务器选项。</param>
     public static void ApplyDefaults(ServerOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.ObjectStorage ??= new ObjectStorageOptions();
+
+        // 对象卷路径在启动时固定为绝对路径，避免进程工作目录变化导致对象正文落到不同磁盘。
+        if (string.IsNullOrWhiteSpace(options.ObjectStorage.RootDirectory))
+        {
+            options.ObjectStorage.RootDirectory = null;
+        }
+        else
+        {
+            options.ObjectStorage.RootDirectory = Path.GetFullPath(options.ObjectStorage.RootDirectory);
+        }
+
         if (!string.IsNullOrWhiteSpace(options.Copilot.ServerRelayJournalPath))
         {
             if (!Path.IsPathFullyQualified(options.Copilot.ServerRelayJournalPath))
