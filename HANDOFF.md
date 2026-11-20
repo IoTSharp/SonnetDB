@@ -6,6 +6,15 @@
 - 验证 PASS：PowerShell 7.6.10；Core Release 定向 Ingest 测试 **50/50**；Server Release 定向 Bulk/Workbench 测试 **15/15**；相关构建 0 warning/0 error；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和 `git diff --check` PASS。完整 solution restore/build、完整 Core/Server 测试和真实现场/生产验证本轮 `NOT_RUN`。格式检查报告了工作区加载警告但没有格式违规。期间一次旧 testhost 文件锁在后续构建前已退出，未留下本任务常驻进程。
 - 现场仍缺少容器 memory limit、`OOMKilled`、GC/RSS、实际 SQL 和请求 headers、慢查询 fingerprint 及 RestartCount 时间线。长期全量流式排序、外部归并和跨请求快照设计未完成，下一顺序是由用户在整合工作树上复核并决定是否提交，另行设计有界/流式查询方案。
 
+## 2026-11-20（Asia/Shanghai）GH-Issue #439 schema migration budget diagnostics
+
+- 基线为共享 `main` 工作树。开始时 `git status` 干净，随后发现另一条并行 Ingest/Endpoint 改动线，已保留其文件、字节和归属，没有 reset、stash、提交或推送。
+- 本轮只修改关系表 schema 迁移预算相关源码、Core 表迁移回归、`CHANGELOG.md` 和本交接。`TableConstraintException` 增加预算类别、累计 rows/working bytes、journal 已用量、下一次预留、上限和参与表数量字段。`TableSchemaMigrationBudget` 现在区分 `rows` 与 `working_bytes`，journal 目录/表数/条目数/payload 超限统一映射到既有 `table_schema_evolution_unsupported` 错误码并保留可行动消息。
+- 预算拒绝仍发生在 v13 schema barrier、`schema-migration.sdbddl` 和 raw mutation 之前。Legacy/LSM 工作集超限回归均通过 rowstore 目录文件名与字节快照，行数达到 100,000 的回归报告 `next_rows=100001`。超过 100,000 行的 checkpoint、before-image、取消、强杀、重开、并发写隔离和最终切换仍仅完成设计边界记录，没有提高固定常量或宣称已支持。
+- 验证：Core 定向 Release build 在共享并行文件锁未影响的情况下 **PASS，0 warning/0 error**；Core.Tests 定向编译 **PASS，0 warning/0 error**；`TableStoreSchemaMigrationTests` **8/8 PASS**（Legacy/LSM 双引擎、目录未变化、预算诊断）；限定文件 `git diff --check` **PASS**。
+- 完整 solution Release build **PASS，0 warning/0 error，6 分钟 07 秒**；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 返回退出码 0（工作区加载有警告）。完整 Core/Server 测试本轮 `NOT_RUN`。共享工作树的 `src/SonnetDB.Core/Ingest/BulkIngestor.cs` 另有并行改动曾触发未使用异常变量告警，后续构建已由并行线修正；本轮未修改该文件。没有运行发布、部署、生产迁移或真实大表长稳/现场恢复。
+- 下一顺序：先在不含并行 dirty 的整合工作树运行规定 format 和更完整迁移回归，再单独设计并验证超过 100,000 行的持久 checkpoint/before-image 合同；不得把当前切片解释为可恢复超大表迁移已交付。
+
 ## 2026-11-18 00:04（Asia/Shanghai）全文 BM25 基准文档复核、提交与双远端推送
 
 - 复核确认本轮范围只有 `CHANGELOG.md`、`HANDOFF.md` 和 `docs/benchmarks/fulltext-bm25-block-read-20261117.md`；两条独立只读审查均确认数字、证据边界和容量/长稳设计一致，`git diff --check` 与 staged diff 检查通过。

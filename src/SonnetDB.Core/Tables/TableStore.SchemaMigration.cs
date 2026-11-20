@@ -6,20 +6,78 @@ namespace SonnetDB.Tables;
 
 internal sealed class TableSchemaMigrationBudget
 {
+    internal const string RowsKind = "rows";
+    internal const string WorkingBytesKind = "working_bytes";
+    internal const string JournalEntriesKind = "journal_entries";
+    internal const string JournalTablesKind = "journal_tables";
+    internal const string JournalBytesKind = "journal_bytes";
+    internal const string JournalCatalogBytesKind = "journal_catalog_bytes";
     internal const int MaxRows = 100_000;
     internal const long MaxWorkingBytes = 256L * 1024 * 1024;
     private int _rows;
     private long _bytes;
+    private string _tableName = "schema_migration";
+    private int _participatingTables;
+
+    internal int Rows => _rows;
+    internal long WorkingBytes => _bytes;
+    internal string TableName => _tableName;
+    internal int ParticipatingTables => _participatingTables;
+
+    internal void SetContext(string tableName, int participatingTables)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentOutOfRangeException.ThrowIfNegative(participatingTables);
+        _tableName = tableName;
+        _participatingTables = participatingTables;
+    }
 
     internal void Reserve(long bytes, bool row = false)
     {
         SqlExecutor.ThrowIfCancellationRequested();
-        if (bytes < 0 || bytes > MaxWorkingBytes - _bytes || row && _rows == MaxRows)
-            throw new TableConstraintException(TableConstraintException.SchemaEvolutionUnsupported,
-                "schema_migration", null,
-                $"主键迁移最多支持 {MaxRows} 行、{MaxWorkingBytes} 字节工作集，请先缩小迁移范围。");
+        if (bytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(bytes));
+        if (row && _rows >= MaxRows)
+            throw CreateExceeded(RowsKind, bytes, MaxRows);
+        if (bytes > MaxWorkingBytes - _bytes)
+            throw CreateExceeded(WorkingBytesKind, bytes, MaxWorkingBytes);
         _bytes += bytes;
         if (row) _rows++;
+    }
+
+    internal TableConstraintException CreateExceeded(
+        string kind, long nextReservationBytes, long limit,
+        long? rows = null, long? workingBytes = null)
+    {
+        long actualRows = rows ?? _rows;
+        long actualBytes = workingBytes ?? _bytes;
+        string message = kind switch
+        {
+            RowsKind => $"主键迁移预算拒绝: budget=rows, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, next_rows={actualRows + 1}, limit={limit}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}。请先缩小迁移范围。",
+            WorkingBytesKind => $"主键迁移预算拒绝: budget=working_bytes, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}, limit={limit}。请先缩小迁移范围。",
+            JournalEntriesKind => $"主键迁移恢复日志预算拒绝: budget=journal_entries, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}, limit={limit}。请先缩小迁移范围。",
+            JournalTablesKind => $"主键迁移恢复日志预算拒绝: budget=journal_tables, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}, limit={limit}。请先缩小迁移范围。",
+            JournalCatalogBytesKind => $"主键迁移恢复日志预算拒绝: budget=journal_catalog_bytes, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}, limit={limit}。请先缩小迁移范围。",
+            _ => $"主键迁移恢复日志预算拒绝: budget=journal_bytes, table='{_tableName}', participating_tables={_participatingTables}, rows={actualRows}, working_bytes={actualBytes}, next_reservation_bytes={nextReservationBytes}, limit={limit}。请先缩小迁移范围。",
+        };
+        return new TableConstraintException(TableConstraintException.SchemaEvolutionUnsupported,
+            _tableName, "PRIMARY KEY", message, operation: "schema_migration_prepare",
+            hint: "缩小迁移范围，或使用后续可恢复分批迁移路径。", budgetKind: kind,
+            budgetRows: actualRows, budgetWorkingBytes: actualBytes,
+            budgetNextReservationBytes: nextReservationBytes, budgetLimit: limit,
+            budgetParticipatingTables: _participatingTables);
+    }
+
+    internal TableConstraintException CreateJournalExceeded(
+        string kind, long used, long requested, long limit)
+    {
+        string message = $"主键迁移恢复日志预算拒绝: budget={kind}, table='{_tableName}', participating_tables={_participatingTables}, rows={_rows}, working_bytes={_bytes}, journal_used={used}, next_reservation_bytes={requested}, limit={limit}。请先缩小迁移范围。";
+        return new TableConstraintException(TableConstraintException.SchemaEvolutionUnsupported,
+            _tableName, "PRIMARY KEY", message, operation: "schema_migration_prepare",
+            hint: "缩小迁移范围，或使用后续可恢复分批迁移路径。", budgetKind: kind,
+            budgetRows: _rows, budgetWorkingBytes: _bytes,
+            budgetNextReservationBytes: requested, budgetJournalUsed: used, budgetLimit: limit,
+            budgetParticipatingTables: _participatingTables);
     }
 }
 
@@ -53,6 +111,7 @@ public sealed partial class TableStore
         {
             ThrowIfDisposedLocked();
             EnsureNoOnlineIndexBuild();
+            budget.SetContext(updated.Name, Math.Max(1, budget.ParticipatingTables));
             var before = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
             var after = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
             var rows = new List<SchemaMigrationRow>();

@@ -14,6 +14,24 @@ internal sealed record TableSchemaMigrationUndo(
 internal sealed record TableSchemaMigrationRecord(
     byte[] OriginalCatalog, IReadOnlyList<TableSchemaMigrationUndo> Tables, bool IsComplete);
 
+internal sealed class TableSchemaMigrationJournalLimitException : InvalidOperationException
+{
+    internal string Kind { get; }
+    internal long Used { get; }
+    internal long Requested { get; }
+    internal long Limit { get; }
+
+    internal TableSchemaMigrationJournalLimitException(
+        string kind, long used, long requested, long limit, string message)
+        : base(message)
+    {
+        Kind = kind;
+        Used = used;
+        Requested = requested;
+        Limit = limit;
+    }
+}
+
 // 专用于一条受约束主键 schema 迁移，不复用轻事务日志格式。
 // 先持久化旧 schema 语义的 v13 屏障，再 fsync 原目录和 raw before-images，最后才可改 rowstore。
 // 恢复仅还原旧 schema 语义，目录格式永久保持 v13，不能在 pending 日志期间给旧引擎写入窗口。
@@ -44,8 +62,18 @@ internal static class TableSchemaMigrationJournal
     {
         ArgumentNullException.ThrowIfNull(originalCatalog);
         ArgumentNullException.ThrowIfNull(tables);
-        if (originalCatalog.Length is < 1 or > MaxCatalogBytes || tables.Count is < 1 or > MaxTables)
+        if (originalCatalog.Length < 1 || tables.Count < 1)
             throw new InvalidOperationException("主键迁移恢复日志的目录或表数量超过上限。");
+        if (originalCatalog.Length > MaxCatalogBytes)
+            throw new TableSchemaMigrationJournalLimitException(
+                TableSchemaMigrationBudget.JournalCatalogBytesKind,
+                originalCatalog.Length, originalCatalog.Length, MaxCatalogBytes,
+                $"主键迁移恢复日志原目录为 {originalCatalog.Length} 字节，超过 {MaxCatalogBytes} 字节上限。");
+        if (tables.Count > MaxTables)
+            throw new TableSchemaMigrationJournalLimitException(
+                TableSchemaMigrationBudget.JournalTablesKind,
+                tables.Count, tables.Count, MaxTables,
+                $"主键迁移恢复日志涉及 {tables.Count} 张表，超过 {MaxTables} 张上限。");
         long size = 8L + originalCatalog.Length;
         int totalEntries = 0;
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -53,23 +81,40 @@ internal static class TableSchemaMigrationJournal
         {
             int nameBytes = Utf8.GetByteCount(table.TableName);
             if (nameBytes is < 1 or > 1024 || string.IsNullOrWhiteSpace(table.TableName)
-                || !names.Add(table.TableName) || table.Generation < 0 || table.SchemaFingerprint.Length != 32
-                || table.Entries.Count > MaxEntries - totalEntries)
+                || !names.Add(table.TableName) || table.Generation < 0 || table.SchemaFingerprint.Length != 32)
                 throw new InvalidOperationException("主键迁移恢复日志的表标识、generation 或条目数量无效。");
+            if (table.Entries.Count > MaxEntries - totalEntries)
+                throw new TableSchemaMigrationJournalLimitException(
+                    TableSchemaMigrationBudget.JournalEntriesKind,
+                    totalEntries, table.Entries.Count, MaxEntries,
+                    $"主键迁移恢复日志累计条目将达到 {totalEntries + (long)table.Entries.Count}，超过 {MaxEntries} 条上限。");
             totalEntries += table.Entries.Count;
-            size += 4L + nameBytes + 8 + 32 + 4;
+            long tableHeaderBytes = 4L + nameBytes + 8 + 32 + 4;
+            if (size > MaxPayloadBytes - tableHeaderBytes)
+                throw new TableSchemaMigrationJournalLimitException(
+                    TableSchemaMigrationBudget.JournalBytesKind,
+                    size, tableHeaderBytes, MaxPayloadBytes,
+                    $"主键迁移恢复日志 payload 将超过 {MaxPayloadBytes} 字节上限。");
+            size += tableHeaderBytes;
             var keys = new HashSet<byte[]>(JournalKeyComparer.Instance);
             foreach (var entry in table.Entries)
             {
                 if (!IsValidKey(entry.Key) || !keys.Add(entry.Key))
                     throw new InvalidOperationException("主键迁移恢复日志仅接受关系行、索引和内部元数据键。");
-                size += 8L + entry.Key.Length + (entry.PreviousValue?.Length ?? 0);
-                if (size > MaxPayloadBytes)
-                    throw new InvalidOperationException($"主键迁移恢复日志超过 {MaxPayloadBytes} 字节上限。");
+                long entryBytes = 8L + entry.Key.Length + (entry.PreviousValue?.Length ?? 0);
+                if (size > MaxPayloadBytes - entryBytes)
+                    throw new TableSchemaMigrationJournalLimitException(
+                        TableSchemaMigrationBudget.JournalBytesKind,
+                        size, entryBytes, MaxPayloadBytes,
+                        $"主键迁移恢复日志 payload 将超过 {MaxPayloadBytes} 字节上限。");
+                size += entryBytes;
             }
         }
         if (size > MaxPayloadBytes)
-            throw new InvalidOperationException($"主键迁移恢复日志超过 {MaxPayloadBytes} 字节上限。");
+            throw new TableSchemaMigrationJournalLimitException(
+                TableSchemaMigrationBudget.JournalBytesKind,
+                size, 0, MaxPayloadBytes,
+                $"主键迁移恢复日志超过 {MaxPayloadBytes} 字节上限。");
         return (int)size;
     }
 

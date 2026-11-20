@@ -41,6 +41,27 @@ public sealed class TableConstraintException : InvalidOperationException
     /// <summary>不包含行内容的可行动提示。</summary>
     public string? Hint { get; }
 
+    /// <summary>schema 迁移预算拒绝的预算类别；普通约束错误为 <c>null</c>。</summary>
+    public string? BudgetKind { get; }
+
+    /// <summary>预算拒绝时已经累计的行数；普通约束错误为 <c>null</c>。</summary>
+    public long? BudgetRows { get; }
+
+    /// <summary>预算拒绝时已经累计的工作集字节数；普通约束错误为 <c>null</c>。</summary>
+    public long? BudgetWorkingBytes { get; }
+
+    /// <summary>预算拒绝时本次尝试继续预留的字节数；普通约束错误为 <c>null</c>。</summary>
+    public long? BudgetNextReservationBytes { get; }
+
+    /// <summary>恢复日志预算拒绝时已经累计的日志字节或条目数；其他预算和普通约束错误为 <c>null</c>。</summary>
+    public long? BudgetJournalUsed { get; }
+
+    /// <summary>预算拒绝时对应预算的固定上限；普通约束错误为 <c>null</c>。</summary>
+    public long? BudgetLimit { get; }
+
+    /// <summary>预算拒绝时迁移涉及的表数量；普通约束错误为 <c>null</c>。</summary>
+    public int? BudgetParticipatingTables { get; }
+
     /// <summary>创建关系表约束异常。</summary>
     public TableConstraintException(string errorCode, string tableName, string? constraintName, string message)
         : this(errorCode, tableName, constraintName, message, operation: "write", hint: null)
@@ -56,13 +77,27 @@ public sealed class TableConstraintException : InvalidOperationException
     /// <param name="message">错误消息。</param>
     /// <param name="operation">失败的 SQL 操作阶段或操作名。</param>
     /// <param name="hint">不包含行内容的可行动提示。</param>
+    /// <param name="budgetKind">schema 迁移预算类别。</param>
+    /// <param name="budgetRows">预算拒绝时已累计的行数。</param>
+    /// <param name="budgetWorkingBytes">预算拒绝时已累计的工作集字节数。</param>
+    /// <param name="budgetNextReservationBytes">本次尝试继续预留的字节数。</param>
+    /// <param name="budgetJournalUsed">恢复日志预算拒绝时已累计的日志字节或条目数。</param>
+    /// <param name="budgetLimit">对应预算的固定上限。</param>
+    /// <param name="budgetParticipatingTables">迁移涉及的表数量。</param>
     public TableConstraintException(
         string errorCode,
         string tableName,
         string? constraintName,
         string message,
         string operation,
-        string? hint)
+        string? hint,
+        string? budgetKind = null,
+        long? budgetRows = null,
+        long? budgetWorkingBytes = null,
+        long? budgetNextReservationBytes = null,
+        long? budgetJournalUsed = null,
+        long? budgetLimit = null,
+        int? budgetParticipatingTables = null)
         : base(message)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
@@ -75,6 +110,13 @@ public sealed class TableConstraintException : InvalidOperationException
         Hint = string.IsNullOrWhiteSpace(hint)
             ? DefaultHint(errorCode)
             : hint;
+        BudgetKind = budgetKind;
+        BudgetRows = budgetRows;
+        BudgetWorkingBytes = budgetWorkingBytes;
+        BudgetNextReservationBytes = budgetNextReservationBytes;
+        BudgetJournalUsed = budgetJournalUsed;
+        BudgetLimit = budgetLimit;
+        BudgetParticipatingTables = budgetParticipatingTables;
     }
 
     private static string DefaultHint(string errorCode)
