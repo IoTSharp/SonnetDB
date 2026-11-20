@@ -1,7 +1,7 @@
 ## 2026-11-20（Asia/Shanghai）GH-Issue #438 推送与完整代码验证
 
 - #438 修复提交为 `c3e25a668a264f7b54cb10463e91bb66bf0aad2c`，GitHub `origin/main` 和 Gitee `gitee/main` 均已独立读回同一 SHA。长期有界/流式 `ORDER BY` 设计已创建 GitHub Issue [#440](https://github.com/IoTSharp/SonnetDB/issues/440)，本轮没有把未完成设计伪装成已交付能力。
-- 当前工作树仍保留并行 GH-Issue #439 的关系表 schema migration 修改，本段只记录 #438 的提交、验证和长期设计分流。
+- 并行 GH-Issue #439 的关系表 schema migration 修改随后由并行线合并为 `fdc2f5cc7f5773660458a67c22fd1a273409c728`，当前 `main` 已包含该祖先提交。本段只记录 #438 的提交、验证和长期设计分流。
 - 完整 `dotnet restore SonnetDB.slnx` PASS；完整 Release solution build PASS，0 warning/0 error，用时 4 分 47 秒。Core.Tests 全量 **8580/8581 PASS**，失败项为 `TsdbMaintenanceConcurrencyTests.DropMeasurement_ConcurrentWithCompaction_NoThrow` 的 Windows `MoveFile` `UnauthorizedAccessException`，单独重跑 **1/1 PASS**。Server.Tests 全量 **1633/1634 PASS**，唯一失败为 `ModbusSlaveRuntimeTests.Runtime_WithFourAreas_ReadsFixedRowAndPublishesMetrics` 收到设备异常码 `0x04`，单独重跑仍 FAIL，与 #438 无关。
 - #438 定向 Ingest **50/50 PASS**，Bulk/Workbench 端到端 **15/15 PASS**，相关构建 0 warning/0 error，规定 format 和 `git diff --check` 已通过。Modbus 设备异常、现场 OOM/重启因果链和长期流式排序实现仍保持独立边界。
 
