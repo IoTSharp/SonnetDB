@@ -8430,3 +8430,12 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 构建和检查 PASS：完整 dotnet build SonnetDB.slnx -c Release --no-restore 0 warning/0 error；SonnetDB.Data net10/net11 目标构建 0 warning/0 error；Server net11 目标构建 0 warning/0 error；规定 dotnet format verify 通过；git diff --check 通过。
 - 文档已明确多语句脚本不能与 SndbTransaction 混用，远程 Update 的逐行部分结果和 UNKNOWN 边界，DataSet.Load 属于 DbDataReader 直接消费入口。Web Workbench 允许保存点脚本并继续拒绝 USE/控制面语句。
 - Web npm build 因 web/node_modules 和 vue-tsc 缺失保持 BLOCKED/NOT_RUN，未安装依赖。完整 solution 测试、公开包消费者、NativeAOT、跨进程、固定硬件、长稳和生产验证仍为 NOT_RUN/UNKNOWN。未提交、未推送、未发布、未部署。
+
+## 2026-11-20（Asia/Shanghai）本地与远程分支合并及清理
+
+- 基线为干净的 `main@05c725a902369c690fb6dc8bd76366673f587d57`。用户授权以 `main` 为目标，逐一处理 9 个 `origin/dependabot/*` 分支，并在合并后清理分支。仓库规则继续保护 `parity-results`，没有合并、删除或改写其本地、GitHub 远程和 Gitee 远程引用。
+- 7 个 10.0.15 依赖补丁分支已逐一合并到本地 `main`，对应合并提交为 `cc43a6ce`、`7db431de`、`91e5e194`、`1036f00e`、`66d1f62f`、`48d39ab1` 和 `85b7448f`。这些旧分支只修改过时的单版本行，合并时保留主线现有的 net10/net11 条件版本，最终树内容没有引入额外依赖变更。
+- `origin/dependabot/nuget/skiasharp-c034edee15` 已经是 `main` 的祖先。`Microsoft.Data.Sqlite-11.0.0` 与 `Microsoft.EntityFrameworkCore.Tools-11.0.0` 是旧基线上的直接大版本升级，与当前按 TFM 管理的依赖合同不一致，按用户授权作为不合理内容直接清理，没有把它们的旧版本行写回主线。
+- 远程读取期间 9 个 `origin/dependabot/*` 分支已先行从 GitHub 消失，因此没有重复发送删除请求；本地对应的陈旧远程跟踪引用已按已核对 SHA 删除。`origin/codex/issue-439-budget` 在核对 tip 后已删除，本地同名分支也已删除。`main` 当前为 `85b7448f9a0c6d5a4425dba3354f9435d74b93e4`，相对 `origin/main` 本地领先 14 个提交，未推送 main。
+- 验证状态：PowerShell 7.6.9，`git diff --check` PASS，工作树在交接编辑前干净。规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 将在本交接提交前重跑。未运行完整 solution build/test，未发布、部署、重启或修改生产数据。
+- 下一顺序是复核本地 `main` 的 14 个待推送提交并由用户单独授权推送。此次任务没有留下常驻进程或临时交付物。
