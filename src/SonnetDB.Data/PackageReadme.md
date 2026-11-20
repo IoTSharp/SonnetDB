@@ -27,6 +27,27 @@ var count = (long)(command.ExecuteScalar() ?? 0L);
 Console.WriteLine(count);
 ```
 
+## ADO.NET DataAdapter
+
+`SndbDataAdapter` 通过标准 `DbDataAdapter` 入口支持 `Fill`、`FillSchema` 和 `Update` 常用的数据集流程。`DataSet.Load` 由调用方直接消费 `DbDataReader` 时使用。适配器可以通过 `SndbProviderFactory.Instance.CreateDataAdapter()` 创建，也可以直接使用查询文本和 `SndbConnection` 构造。
+
+```csharp
+using System.Data;
+using SonnetDB.Data;
+
+using var connection = new SndbConnection("Data Source=./demo-data");
+connection.Open();
+using var adapter = new SndbDataAdapter(
+    "SELECT id, name FROM devices ORDER BY id",
+    connection);
+using var table = new DataTable("devices");
+adapter.Fill(table);
+```
+
+`SndbDataAdapter` 不自动生成 DML 命令。调用 `Update` 前需要显式设置 `UpdateCommand`、`InsertCommand` 和 `DeleteCommand`，并为每个参数设置 `SourceColumn`。需要按原始值匹配并发更新条件时，同时设置 `SourceVersion=DataRowVersion.Original`。适配器复用 BCL 的行状态、映射和 `AcceptChangesDuringUpdate` 语义，数据库事务仍由显式配置的命令负责。远程未绑定同一 `SndbTransaction` 时，Update 按行执行，网络断开或超时后的提交状态可能为 UNKNOWN，适配器不会自动重试或补偿，调用方应按原始键和版本条件重新对账。
+
+ADO.NET 数据集 API 属于托管兼容层，`SonnetDB.Data` 包继续保持 `IsAotCompatible=false`。需要 Native AOT 的嵌入式应用应使用 Core 的 `Tsdb` 门面，嵌入式目录的进程边界、并发访问和恢复范围见 [嵌入式部署合同](../../docs/embedded-deployment-contract.md)。
+
 ## 远程服务器连接
 
 ```csharp

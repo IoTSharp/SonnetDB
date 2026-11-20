@@ -40,8 +40,8 @@ SonnetDB 可以嵌入 .NET 进程，也可以作为独立 Server 运行。SQL、
 | 了解 measurement、tag、field、time 和 series | [数据模型]({{ site.docs_baseurl | default: '/help' }}/data-model/) |
 | 编写 CREATE、INSERT、SELECT、DELETE 或控制面 SQL | [SQL 参考]({{ site.docs_baseurl | default: '/help' }}/sql-reference/) |
 | 复制常用查询和写入模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
-| 通过 ADO.NET 或 EF Core 接入应用 | [ADO.NET]({{ site.docs_baseurl | default: '/help' }}/ado-net/) · [EF Core]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
-| 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
+| 通过 ADO.NET 或 EF Core 接入应用 | [ADO.NET]({{ site.docs_baseurl | default: '/help' }}/ado-net/) · [ADO 多结果与 DataAdapter]({{ site.docs_baseurl | default: '/help' }}/ado-multiple-results/) · [EF Core]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
+| 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) · [嵌入式部署、AOT 与多进程合同]({{ site.docs_baseurl | default: '/help' }}/embedded-deployment-contract/) |
 | 使用 KV、JSON 文档、全文或向量 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) · [Document Store]({{ site.docs_baseurl | default: '/help' }}/document-store/) · [向量搜索]({{ site.docs_baseurl | default: '/help' }}/vector-search/) |
 | 使用对象存储、批量摄取或设备协议 | [对象传输]({{ site.docs_baseurl | default: '/help' }}/object-transfer-manager/) · [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/) · [设备接入]({{ site.docs_baseurl | default: '/help' }}/protocol-ingest/) |
 | 使用 Graph Beta、SQL/PGQ 或 GraphRAG | [Graph GQL 入口]({{ site.docs_baseurl | default: '/help' }}/graph-gql/) · [知识图谱合同]({{ site.docs_baseurl | default: '/help' }}/knowledge-graph-contract/) |
@@ -67,7 +67,7 @@ SonnetDB 可以嵌入 .NET 进程，也可以作为独立 Server 运行。SQL、
 | 接入 Prometheus、OTLP、Grafana 或 Aspire Dashboard | [可观测性]({{ site.docs_baseurl | default: '/help' }}/observability/) |
 | 定位慢查询、内存、ThreadPool、Flush 或 Compaction | [故障排查]({{ site.docs_baseurl | default: '/help' }}/troubleshooting/) |
 | 查看发布物、Docker 和安装边界 | [发布与打包]({{ site.docs_baseurl | default: '/help' }}/releases/) |
-| 查看性能、恢复和长稳证据 | [基准说明]({{ site.docs_baseurl | default: '/help' }}/benchmarks/ecosystem-soak/) · [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
+| 查看性能、恢复和长稳证据 | [嵌入式部署、AOT 与多进程合同]({{ site.docs_baseurl | default: '/help' }}/embedded-deployment-contract/) · [基准说明]({{ site.docs_baseurl | default: '/help' }}/benchmarks/ecosystem-soak/) · [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
 | 查看路线、能力成熟度和证据索引 | [ROADMAP](https://github.com/IoTSharp/SonnetDB/blob/main/ROADMAP.md) · [环境与现场资格路线](roadmap-environment-validation.md) · [能力成熟度]({{ site.docs_baseurl | default: '/help' }}/capability-maturity/) · [十四项能力索引](https://github.com/IoTSharp/SonnetDB/blob/main/docs/audits/fourteen-capability-evidence-index.json) |
 
 ## 产品边界

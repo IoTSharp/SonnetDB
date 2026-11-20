@@ -21,3 +21,24 @@ if (reader.NextResult())
 第二条的语义或远程错误在切换/消费该组时按原通道抛出，不能静默丢弃该组或重试失败步骤。`ExecuteNonQuery` 对只读批次消费全部行集并返回 -1；`ExecuteScalar` 返回首组首值并消费剩余结果，因此后续错误也能暴露。`CommandBehavior.SingleResult` 只执行第一组，但仍完整预检。Close/Dispose 释放当前流和命令租约，`CloseConnection` 沿原行为关闭连接。超时、调用方取消和 `Cancel()` 沿现有命令/Reader 合同处理。
 
 嵌入式、真实 REST 与 h2c Frame 复用已有单 SELECT 路径；每组是一次顺序查询，没有新增服务器批次协议。通过同一活动事务执行时复用既有事务会话；未显式开启事务的批次不承诺跨语句一致快照。当前验收范围是关系 SELECT，多模型原子批处理、DML 批次、存储过程和正式 FreeSql 包消费仍另行处理。正式可安装版本尚须随发布验证记录。
+
+## ADO.NET DataAdapter 入口
+
+`SndbDataAdapter` 是标准 `DbDataAdapter` 入口，复用 BCL 的 `Fill`、`FillSchema`、表映射、行状态和 `Update` 实现。`DataSet.Load` 属于调用方直接消费 `DbDataReader` 的入口，不是适配器自有方法。适配器可直接使用查询文本与 `SndbConnection` 构造，也可通过 `SndbProviderFactory.Instance.CreateDataAdapter()` 从工厂创建。包含多个 SELECT 的命令会按顺序填充多个 DataTable，默认源表名后续追加数字后缀；`Fill` 的返回值遵循 BCL 合同，表示首个源表新增或刷新的行数。
+
+```csharp
+using System.Data;
+using SonnetDB.Data;
+
+using var adapter = new SndbDataAdapter(
+    "SELECT id, name FROM devices ORDER BY id",
+    connection);
+using var table = new DataTable("devices");
+adapter.Fill(table);
+```
+
+适配器不会自动生成 DML 命令。调用 `Update` 前必须显式设置需要的 `InsertCommand`、`UpdateCommand` 和 `DeleteCommand`，并为每个命令参数设置 `SourceColumn`。并发条件需要匹配原始行值时，使用 `SourceVersion=DataRowVersion.Original`。命令参数按每次行更新绑定，数据库事务由调用方在命令上显式设置。
+
+未绑定同一个 `SndbTransaction` 时，远程 `Update` 按行执行，前面的行可能已经成功而后续行失败。网络断开、超时或进程终止后的提交状态可能是 `UNKNOWN`。DataAdapter 不自动重试、反向补偿或推断提交结果，调用方应按原始键、版本条件或事务状态重新对账。需要批量原子性时，应把写命令绑定到同一个显式事务。
+
+`SonnetDB.Data` 的 ADO.NET 数据集层保持 `IsAotCompatible=false`。Native AOT 嵌入式应用的入口选择、单进程目录所有权、多进程访问和恢复范围见[嵌入式部署合同](embedded-deployment-contract.md)。

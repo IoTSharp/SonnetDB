@@ -99,6 +99,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         var transaction = GetTransactionState(transactionState);
 
         byte[]? typedParameters = ParameterBinder.PrepareRemoteRequest(ref sql, parameters);
+        IReadOnlyList<string>? script = TrySplitSqlScript(sql);
 
         // 客户端拦截 SQL Console 风格元命令：USE <db> 切换当前库；SELECT current_database() / SHOW CURRENT_DATABASE 返回当前库。
         // 这两类命令不会发往服务端，避免命中 SqlParser 的"未知关键字"错误。
@@ -119,6 +120,14 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         }
 
         EnsureConnectionSessionForSqlAsync(sql, CancellationToken.None).GetAwaiter().GetResult();
+
+        if (script is not null)
+        {
+            if (transaction is not null)
+                throw new InvalidOperationException("多语句事务脚本不能与 SndbTransaction 混用；请移除脚本中的 BEGIN/COMMIT/ROLLBACK，或把每条语句绑定到同一个 SndbTransaction。");
+
+            return ExecuteBatchSqlRequestAsync(script, CancellationToken.None).GetAwaiter().GetResult();
+        }
 
         if (transaction is not null)
         {
@@ -182,6 +191,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         var transaction = GetTransactionState(transactionState);
 
         byte[]? typedParameters = ParameterBinder.PrepareRemoteRequest(ref sql, parameters);
+        IReadOnlyList<string>? script = TrySplitSqlScript(sql);
 
         var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
         if (meta == MetaKind.CurrentDatabase)
@@ -198,6 +208,14 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         }
 
         await EnsureConnectionSessionForSqlAsync(sql, cancellationToken).ConfigureAwait(false);
+
+        if (script is not null)
+        {
+            if (transaction is not null)
+                throw new InvalidOperationException("多语句事务脚本不能与 SndbTransaction 混用；请移除脚本中的 BEGIN/COMMIT/ROLLBACK，或把每条语句绑定到同一个 SndbTransaction。");
+
+            return await ExecuteBatchSqlRequestAsync(script, cancellationToken).ConfigureAwait(false);
+        }
 
         if (transaction is not null)
         {
@@ -307,6 +325,98 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             response?.Dispose();
             throw;
         }
+    }
+
+    private async Task<IExecutionResult> ExecuteBatchSqlRequestAsync(
+        IReadOnlyList<string> statements,
+        CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var body = new SqlBatchRequestBody
+        {
+            Statements = statements.Select(static sql => new SqlRequestBody { Sql = sql }).ToList(),
+        };
+        string json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlBatchRequestBody);
+        HttpResponseMessage? response = null;
+        try
+        {
+            response = await SendSqlRequestAsync(
+                    $"v1/db/{Uri.EscapeDataString(_database)}/sql/batch",
+                    json,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            return await RemoteExecutionResult.CreateAsync(response, stream, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception)
+        {
+            response?.Dispose();
+            throw new OperationCanceledException(
+                "远程多语句 SQL 请求被取消；事务提交状态可能未知，客户端不会自动重发。",
+                exception,
+                cancellationToken);
+        }
+        catch (Exception exception) when (response is not null
+            && exception is HttpRequestException or IOException or InvalidDataException or JsonException)
+        {
+            response.Dispose();
+            throw new SndbServerException(
+                "sql_outcome_unknown",
+                "远程多语句 SQL 请求已经发送但响应未完整验证；事务状态未知，客户端不会自动重发。",
+                HttpStatusCode.OK,
+                exception);
+        }
+        catch
+        {
+            response?.Dispose();
+            throw;
+        }
+    }
+
+    private static IReadOnlyList<string>? TrySplitSqlScript(string sql)
+    {
+        IReadOnlyList<SqlStatement> parsed;
+        try
+        {
+            parsed = SqlParser.ParseScript(sql);
+        }
+        catch (SqlParseException)
+        {
+            return null;
+        }
+
+        if (parsed.Count <= 1)
+            return null;
+        if (parsed.Count > 128)
+            throw new InvalidOperationException("远程多语句 SQL 脚本最多包含 128 条语句。");
+
+        var tokens = SqlLexer.Tokenize(sql);
+        var statements = new List<string>(parsed.Count);
+        int start = 0;
+        foreach (Token token in tokens)
+        {
+            if (token.Kind != TokenKind.Semicolon)
+                continue;
+
+            string statement = sql[start..token.Position].Trim();
+            if (statement.Length != 0)
+                statements.Add(statement);
+            start = token.Position + 1;
+        }
+
+        string tail = sql[start..].Trim();
+        if (tail.Length != 0)
+            statements.Add(tail);
+
+        if (statements.Count != parsed.Count)
+            throw new InvalidDataException("远程 SQL 脚本分割结果与解析语句数量不一致。");
+        return statements;
     }
 
     private static bool IsUnsupportedSqlResultVersion(IReadOnlyList<FrameMessage>? frames)

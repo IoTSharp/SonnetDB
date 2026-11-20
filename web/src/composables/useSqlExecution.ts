@@ -237,8 +237,8 @@ export function useSqlExecution(options: SqlExecutionOptions) {
     ));
     const transactionBatch = leadingSql.some((text) => /^(BEGIN|START\s+TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/i.test(text));
     if (transactionBatch && (executionDb.value === CONTROL_PLANE_KEY || statements.some((statement) => statement.meta)
-      || leadingSql.some((text) => /^(SAVEPOINT|RELEASE|ROLLBACK\s+TO|(?:CREATE|ALTER|DROP)\s+(?:DATABASE|USER)|GRANT|REVOKE|ISSUE)\b/i.test(text)))) {
-      const error = buildClientErrorResultSet('unsupported_transaction_batch', '事务脚本必须使用同一数据数据库，不能包含 USE、控制面或 SAVEPOINT 语句。');
+      || leadingSql.some((text) => /^(?:(?:CREATE|ALTER|DROP)\s+(?:DATABASE|USER)|GRANT|REVOKE|ISSUE)\b/i.test(text)))) {
+      const error = buildClientErrorResultSet('unsupported_transaction_batch', '事务脚本必须使用同一数据数据库，不能包含 USE 或控制面语句。');
       sqlConsole.setTabResults(tabId, [{ id: makeStatementId(), sql: statements.map((item) => item.sql).join(';\n'), result: error, createdAt: Date.now(), source: 'manual' }], '', error.error!.message, true);
       return;
     }

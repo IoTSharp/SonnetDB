@@ -90,6 +90,8 @@ using var r = q.ExecuteReader();
 - 远程 ADO.NET 的显式 `Serializable` 会创建事务会话并发送 `X-SonnetDB-Isolation-Level: serializable`，只有 Server 回执 `isolationLevel: serializable` 时才继续，旧 Server 不会静默降级；嵌入式模式在本地创建相同隔离级别上下文。
 - 轻事务可在同一数据库内提交多个关系表的 `INSERT` / `UPDATE` / `DELETE`，不支持 DDL、measurement / document 写入、嵌套事务或跨数据库事务
 
+远程 `SndbCommand` 的 `CommandText` 包含多条以分号分隔的 SQL 时，会按顺序发送到 `/v1/db/{db}/sql/batch`，结果由同一个 `DbDataReader` 通过 `NextResult` 消费。客户端脚本最多包含 128 条语句。脚本可以包含 `BEGIN`、`SAVEPOINT`、`ROLLBACK TO`、`RELEASE` 和 `COMMIT`，但不能再绑定 `SndbTransaction`，否则会与客户端事务状态重复。脚本发送后发生连接断开、超时或结果流损坏时，事务结果为 `UNKNOWN`，客户端不会自动重发，调用方应按业务键或事务状态对账。
+
 ## 远程模式示例
 
 ```csharp
@@ -170,6 +172,8 @@ catch (SndbServerException ex)
 - 聚合或单值查询用 `ExecuteScalar`
 - 普通查询用 `ExecuteReader`
 - DDL 和写入用 `ExecuteNonQuery`
+
+需要 `DataTable` / `DataSet` 工作流时使用 [ADO 多结果与 DataAdapter 合同](ado-multiple-results.md)。该入口的 `Fill`、`FillSchema` 和 `Update` 复用 BCL 语义，写命令必须显式配置。
 
 示例：
 

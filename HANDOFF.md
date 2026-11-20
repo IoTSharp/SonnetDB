@@ -8407,3 +8407,26 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 通过 GitHub API 代理实时读回 `NewLifeX/NewLife.XCode` PR [#101](https://github.com/NewLifeX/NewLife.XCode/pull/101)：`state=closed`、`merged=true`、`merged_at=2026-10-16T13:59:21Z`，标题为 `feat: 添加 SonnetDB 驱动适配与能力差距跟踪`，merge commit 为 `2d90912c299da72b1e1990b4577680eadb1d112e`；对应合并 source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`。
 - 已修正 [CHANGELOG.md](CHANGELOG.md)、[#242 audit](docs/audits/issue-242-xcode-batch-replace-20261019.md) 和 [probe README](eng/probes/issue242-xcode-replace/README.md)：XCode #242 不再标记为外部程序集 BLOCKED，上游 provider 合并与本地候选 embedded/REST/frame-http2 各 7/7 单独记录；公开 SonnetDB 4.0.0 包仍为旧 provider guard，正式包验收保持 FAIL，新包发布/公开 consumer 重跑保持 NOT_RUN，Issue closure 另行核实。
 - 本轮只有状态文档变更；未运行产品测试、未发布/部署，提交前执行 `git diff --check`。
+
+## 2026-11-20（Asia/Shanghai）SQL 保存点、ADO.NET DataAdapter 与嵌入式产品合同收口
+
+- 本轮在共享 main 工作树完成 SQL 用户可见保存点、ADO.NET DbDataAdapter 入口和嵌入式部署证据合同。保存点支持 SAVEPOINT、ROLLBACK TO [SAVEPOINT]、RELEASE [SAVEPOINT]，重复名称取最近项，回滚保留目标保存点并结算其后的例程审计。保存点之后发生关系表 DDL workspace 变更时明确拒绝部分回滚并要求完整 ROLLBACK。Serializable 源校验、嵌入式 ADO.NET、远程会话和无会话批次入口均已核对。
+- 新增 SndbDataAdapter、provider factory 入口和 Fill、FillSchema、显式 InsertCommand、UpdateCommand、DeleteCommand 回归。DataAdapter 复用 BCL 行状态与返回值边界，不自动生成 DML 命令。SonnetDB.Data 与 SonnetDB.EntityFrameworkCore 保持 IsAotCompatible=false。
+- 新增 docs/embedded-deployment-contract.md，并把多进程目录拥有者、Server/IPC 选型、Native AOT、关闭/崩溃/未知结果和性能/兼容性/恢复证据地图接入文档导航。直接多进程打开同一嵌入式目录、网络文件系统和 Native AOT 发布资格仍按合同分别验收。
+- 验证 PASS：保存点与 DataAdapter 定向测试 9/9；SonnetDB.Data net10/net11 Release build 0 warning/0 error；SonnetDB.EntityFrameworkCore net10/net11 Release build 0 warning/0 error；完整 dotnet build SonnetDB.slnx -c Release --no-restore 0 warning/0 error；规定 dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/ PASS；git diff --check PASS。
+- 本轮未提交、未推送、未发布、未部署、未重启、未迁移生产数据。完整 solution 测试、NativeAOT publish/run、公开包消费者、跨进程/固定硬件/长稳/现场/生产和公开读回保持 NOT_RUN 或独立资格状态。未留下本任务常驻进程或临时交付物。共享工作树的上述代码、测试和文档仍为未提交 dirty 修改，下一步由主线复核后决定是否提交。
+## 2026-11-20（Asia/Shanghai）远程多语句事务脚本与 DataAdapter 远程回归
+
+- 在保存点/DataAdapter 既有 dirty 基础上继续补全远程事务入口。远程可解析多语句 SQL 现在按原始语句边界发送到 /v1/db/{db}/sql/batch，服务端声明 batch 结果数量，RemoteExecutionResult 通过 NextResult 顺序消费每条语句。显式 SndbTransaction 与多语句脚本保持互斥，脚本内可包含 BEGIN、SAVEPOINT、ROLLBACK TO、RELEASE 和 COMMIT；发送后取消、断连或损坏响应保持 UNKNOWN，不自动重发。
+- SndbCommand.ExecuteNonQuery 现在无条件消费多结果，避免第一条 BEGIN/DML 的非负 RecordsAffected 让响应流提前 Dispose，导致脚本尚未执行 COMMIT。WorkBench 前置检查已允许保存点事务脚本，仍拒绝 USE 和控制面语句。
+- 新增真实 REST 远程 DataAdapter Fill/FillSchema/Update 回归，覆盖 SourceColumn、SourceVersion 和唯一约束冲突后的逐行部分结果。新增 HTTP/2 Frame 多语句保存点脚本回归，确认单次 /sql/batch、HTTP/2 和提交后 id=1/3 读回；已有远程事务会话保存点回归继续保留。
+- 验证 PASS：Core 保存点/DataAdapter 定向 9/9；远程 REST DataAdapter、远程事务保存点和 HTTP/2 多语句脚本 3/3；Data net10/net11 与 Server net11 Release 定向构建 0 warning/0 error；HTTP/2 事务影响数回归与保存点脚本合计 2/2；Workbench Node 合同测试 12/12；git diff --check PASS。
+- 本轮没有提交、推送、发布或部署。Web npm build 因 web/node_modules 和 vue-tsc 缺失保持 BLOCKED/NOT_RUN，未安装依赖。完整 solution 测试、公开包消费者、NativeAOT、跨进程、固定硬件、长稳和生产验证仍为 NOT_RUN/UNKNOWN。当前工作树包含上一轮和本轮未提交修改。
+
+## 2026-11-20（Asia/Shanghai）远程事务脚本终态消费修复与最终验证
+
+- 远程多语句脚本支持已闭合到 REST 和 HTTP/2。客户端用 SQL lexer token offset 保留原始语句边界，发送 /v1/db/{db}/sql/batch；服务端 batch 响应声明结果数量，RemoteExecutionResult 顺序消费每个结果。SndbCommand.ExecuteNonQuery 无条件消费多结果，修复首条 BEGIN/DML 非负 RecordsAffected 提前 Dispose 导致 COMMIT 未执行的问题。
+- 真实回归 PASS：远程 REST 保存点脚本 1/1；远程 HTTP/2 保存点脚本 1/1；远程事务会话保存点 1/1；远程 REST DataAdapter Fill/FillSchema/Update 和唯一约束冲突部分更新 1/1；HTTP/2 DML 影响数与脚本回归 2/2；Core 保存点/DataAdapter 9/9；Workbench Node 合同 12/12。
+- 构建和检查 PASS：完整 dotnet build SonnetDB.slnx -c Release --no-restore 0 warning/0 error；SonnetDB.Data net10/net11 目标构建 0 warning/0 error；Server net11 目标构建 0 warning/0 error；规定 dotnet format verify 通过；git diff --check 通过。
+- 文档已明确多语句脚本不能与 SndbTransaction 混用，远程 Update 的逐行部分结果和 UNKNOWN 边界，DataSet.Load 属于 DbDataReader 直接消费入口。Web Workbench 允许保存点脚本并继续拒绝 USE/控制面语句。
+- Web npm build 因 web/node_modules 和 vue-tsc 缺失保持 BLOCKED/NOT_RUN，未安装依赖。完整 solution 测试、公开包消费者、NativeAOT、跨进程、固定硬件、长稳和生产验证仍为 NOT_RUN/UNKNOWN。未提交、未推送、未发布、未部署。

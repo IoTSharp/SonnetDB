@@ -16,6 +16,8 @@ SonnetDB 的 .NET 生态入口统一消费 `SonnetDB.Data` 连接字符串：
 
 ADO.NET、EF Core、KV 客户端、缓存 Provider 和对象桶客户端都应使用公开连接字符串和客户端契约，不应直接解析 SonnetDB 数据目录中的 WAL、segment、KV 或对象文件。
 
+嵌入式目录由单一进程拥有。同一进程中的多个连接会复用引擎实例，多个进程不得同时打开同一目录。需要多进程访问时使用独立 Server 和远程连接，或由一个拥有进程封装业务 IPC。详细的进程拓扑、Native AOT、关闭/崩溃和证据分层见[嵌入式部署、Native AOT 与多进程合同](embedded-deployment-contract.md)。
+
 ## 可运行样例
 
 [`samples/SonnetDB.EcosystemSample`](../samples/SonnetDB.EcosystemSample/README.md) 是可编译的端到端样例，覆盖：

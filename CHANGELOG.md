@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### SQL savepoints, ADO.NET DataAdapter and embedded deployment contract
+
+- SQL 轻事务增加用户可见的 `SAVEPOINT`、`ROLLBACK TO [SAVEPOINT]` 和 `RELEASE [SAVEPOINT]`。保存点按 SQL 标识符大小写规则解析，回滚保留目标保存点并撤销其后的关系表 DML、延迟触发器事件和序列预留，释放目标及其后的保存点；保存点之后发生关系表 DDL workspace 变更时，`ROLLBACK TO` 明确拒绝并要求完整回滚，避免静默部分恢复。行锁继续保留到事务结束。嵌入式 Core、ADO.NET 绑定事务和远程 SQL 批次复用同一语义，事务外使用会明确拒绝。
+- `SonnetDB.Data` 增加 `SndbDataAdapter` 和 `SndbProviderFactory.CreateDataAdapter()`，提供 `Fill`、`FillSchema` 和显式配置 DML 命令后的 `Update` 入口。适配器不自动生成写命令，调用方仍需配置参数的 `SourceColumn` 与需要的 `SourceVersion`。
+- 远程 `SndbCommand` 现在将可解析的多语句文本按顺序发送到 `/v1/db/{db}/sql/batch`，并通过结果数量响应头让 `DbDataReader.NextResult` 消费每条语句的结果。脚本支持 `BEGIN`、保存点、`ROLLBACK TO`、`RELEASE` 和 `COMMIT`，不能再绑定 `SndbTransaction`。非查询脚本会完整消费所有结果，避免第一条 `BEGIN` 的零影响行数让后续提交被响应关闭中断；取消、传输断开或结果损坏后的状态保持 `UNKNOWN`，客户端不自动重发。
+- Workbench SQL 事务脚本允许保存点语句进入同一数据库的 `/sql/batch`，继续拒绝 `USE` 和控制面语句。新增 REST DataAdapter 的 `Fill`、`FillSchema`、显式 `Update` 和唯一约束冲突后的逐行部分结果回归，并补 HTTP/2 多语句保存点脚本提交读回。
+- 新增[嵌入式部署、Native AOT 与多进程合同](docs/embedded-deployment-contract.md)，集中说明 Core、ADO.NET、EF Core 和 Server 的入口选择、单进程目录拥有者、多进程访问、Native AOT 产品边界、关闭/崩溃/未知结果以及性能、兼容性和恢复证据层级。
+
 ### Bulk ingestion and preview resource guards — issue #438
 
 - Line Protocol、JSON points 和 `INSERT ... VALUES` reader 现在把 `Point.Create` 的空/空白 Tag value 校验错误转换为 `BulkIngestException`，FailFast HTTP 端点稳定返回 `bulk_ingest_error` 400，避免把 `ArgumentException` 泄漏到宿主进程。

@@ -19,6 +19,12 @@ public sealed class SndbProviderFactory : DbProviderFactory
     public override DbCommand CreateCommand() => new SndbCommand();
 
     /// <inheritdoc />
+    public override DbDataAdapter CreateDataAdapter() => new SndbDataAdapter();
+
+    /// <inheritdoc />
+    public override bool CanCreateDataAdapter => true;
+
+    /// <inheritdoc />
     public override DbParameter CreateParameter() => new SndbParameter();
 
     /// <inheritdoc />

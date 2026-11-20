@@ -1223,6 +1223,48 @@ public sealed partial class RemoteAdoHttp2TransportTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FrameHttp2_MultiStatementSavepointScript_CommitsAndReadsBack()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync(deadline.Token);
+        await using var command = connection.CreateCommand();
+        command.CommandTimeout = 10;
+        command.CommandText = "CREATE TABLE h2_savepoint_script (id INT, value STRING, PRIMARY KEY (id))";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+
+        _requests.Clear();
+        command.CommandText = "BEGIN; "
+            + "INSERT INTO h2_savepoint_script (id, value) VALUES (1, 'before'); "
+            + "SAVEPOINT first; "
+            + "INSERT INTO h2_savepoint_script (id, value) VALUES (2, 'rolled-back'); "
+            + "ROLLBACK TO SAVEPOINT first; "
+            + "RELEASE SAVEPOINT first; "
+            + "INSERT INTO h2_savepoint_script (id, value) VALUES (3, 'after'); "
+            + "COMMIT";
+        await command.ExecuteNonQueryAsync(deadline.Token);
+
+        command.CommandText = "SELECT id, value FROM h2_savepoint_script ORDER BY id";
+        await using (var reader = await command.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.Equal("before", reader.GetString(1));
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal(3L, reader.GetInt64(0));
+            Assert.Equal("after", reader.GetString(1));
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        ObservedRequest[] h2BatchRequests = _requests
+            .Where(request => request.LocalPort == h2Port && request.Path.EndsWith("/sql/batch", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Single(h2BatchRequests);
+        Assert.Equal("HTTP/2", h2BatchRequests[0].Protocol);
+    }
+
+    [Fact]
     public async Task FrameHttp2_InsertSelectAsync_BindsParametersAndReturnsGeneratedRows()
     {
         await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));

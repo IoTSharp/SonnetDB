@@ -80,6 +80,11 @@ internal static class SqlEndpointHandler
         double queueWaitMs,
         SqlSessionContext? sessionContext = null)
     {
+        if (request.Statements.Count is > 0 and <= 1024)
+        {
+            context.Response.Headers["X-SonnetDB-Sql-Result-Count"] =
+                request.Statements.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
         await ExecuteAsync(
             context,
             tsdb,

@@ -643,7 +643,11 @@ COMMIT;
 
 - 源 DML 按语句顺序、实际行顺序和组内持久化触发器顺序入队；空影响集不产生行事件。COMMIT 在持久化前按 FIFO 执行，body 新产生的事件追加到队尾。同一行被多次更新或最终删除也不会合并此前事件。
 - 每个事件捕获自己的 OLD/NEW，包括 BEFORE 改写及对应 ROWVERSION。`WHEN` 在 COMMIT 求值，但读取捕获图像；body 查询读取当时已提交基线、本事务最终缓冲和前面延迟动作的变更。已有 FK 级联先展开到缓冲，之后新增删除会再展开；自动级联动作仍不派发合成 SQL 行事件。延迟 body 随后重插父行不会恢复已执行 CASCADE/SET NULL 的子行变化。
-- 无显式事务的 DML 自动入队并提交。已有事务中的源语句或过程失败，其内部保存点同时撤销新增 mutation、事件和内存计费，保留更早成功语句；未增加 SQL `SAVEPOINT` 语法。COMMIT 期间的 body、预算、取消、依赖或约束失败回滚整笔事务；ROLLBACK 和被放弃的脚本清空队列。
+- 无显式事务的 DML 自动入队并提交。已有事务中的源语句或过程失败，其内部保存点同时撤销新增 mutation、事件和内存计费，保留更早成功语句。事务内支持用户可见保存点：`SAVEPOINT name` 创建保存点，`ROLLBACK TO [SAVEPOINT] name` 撤销该保存点之后的关系表 DML、延迟触发器事件和序列预留并保留保存点，`RELEASE [SAVEPOINT] name` 释放该保存点及其之后创建的保存点。关系表 DDL 使用独立 workspace，保存点可以在 DDL 前后创建，但不能撤销保存点之后的 DDL workspace 变更；这种情况返回明确错误，必须执行完整 `ROLLBACK`。保存点只存在于当前轻事务内，不能在事务外创建、回滚或释放；名称按现有 SQL 标识符规则匹配，未加引号时大小写不敏感，加双引号时按原文精确匹配。重复 `SAVEPOINT` 名称允许存在，回滚或释放解析最近的同名保存点；回滚会丢弃其后的保存点，释放会同时丢弃目标及其后的保存点。保存点不释放显式行锁，锁保持到 COMMIT 或完整 ROLLBACK；COMMIT 期间的 body、预算、取消、依赖或约束失败仍回滚整笔事务，ROLLBACK 和被放弃的脚本清空队列。
+
+SQL 保存点由嵌入式 Core、ADO.NET `SndbCommand`（绑定 `SndbTransaction` 时）和远程 SQL 会话执行。`SndbConnection.BeginTransaction()` 仍是 ADO.NET 建立事务的入口，SQL `BEGIN`、`COMMIT` 和完整 `ROLLBACK` 继续要求使用 `SndbTransaction` API。远程无会话事务会把保存点语句按原顺序加入提交批次，提交前的预览结果对保存点语句报告零影响行，最终语义由服务端批次执行；网络响应未知时不得自动重放。保存点不跨连接、连接关闭、事务提交或回滚，也不构成跨进程协调协议。
+
+远程 ADO.NET 的单个 `SndbCommand.CommandText` 可以包含以分号分隔的多条 SQL。客户端会把可解析脚本发送到 `/v1/db/{db}/sql/batch`，并通过 `DbDataReader.NextResult` 顺序消费每条语句的结果。脚本可以包含 `BEGIN`、保存点、`ROLLBACK TO`、`RELEASE` 和 `COMMIT`，不能同时绑定 `SndbTransaction`。脚本结果流在首条 `BEGIN` 或 DML 返回非负影响数时仍必须完整消费，否则后续提交可能尚未执行就被连接关闭。脚本发送后取消、连接断开或响应损坏时，提交状态为 `UNKNOWN`，客户端不自动重发。
 - 已入队事件保留定义、原 caller 和调用祖先链。随后启停、重命名、排序或删除定义只影响后续 DML；依赖表 schema 被替换、删除或重建时，提交以 `routine_dependency` 拒绝过期依赖。
 - body 只允许基础关系表 INSERT/UPDATE/DELETE 及受支持的纯 SQL 查询和内置函数；提交中间接执行的普通触发器也接受此校验。禁止 UDF、被用户覆盖的内置函数、应用表值回调、CALL、DDL、独立 SELECT、视图、文件/JSON_FILE/GRAPH_TABLE 及其他数据模型入口。
 

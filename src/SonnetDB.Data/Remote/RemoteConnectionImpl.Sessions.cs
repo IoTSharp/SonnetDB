@@ -112,8 +112,9 @@ internal sealed partial class RemoteConnectionImpl
     {
         try
         {
-            return SqlParser.Parse(sql) is CreateTableStatement { IsTemporary: true }
-                or CreateTableAsStatement { IsTemporary: true };
+            return SqlParser.ParseScript(sql).Any(static statement => statement is
+                CreateTableStatement { IsTemporary: true }
+                or CreateTableAsStatement { IsTemporary: true });
         }
         catch (SqlParseException)
         {

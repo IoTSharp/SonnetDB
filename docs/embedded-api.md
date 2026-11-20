@@ -14,6 +14,8 @@ permalink: /embedded-api/
 - 通过 SQL 或直接 `Point` API 写入
 - 通过 SQL 读取
 
+本页只覆盖单进程 Core API。多个进程不得直接打开同一数据库目录，Native AOT 与性能、兼容性和恢复的验证也需要按宿主和发行物分别执行。选型和验收请先阅读[嵌入式部署、Native AOT 与多进程合同](embedded-deployment-contract.md)。
+
 ## 安装
 
 ```bash

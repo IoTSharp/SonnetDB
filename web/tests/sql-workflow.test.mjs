@@ -216,14 +216,35 @@ test('A single-database transaction uses one batch HTTP request and maps each re
   assert.equal(f.tabs[0].errorMsg, '');
 });
 
-test('Mixed-database and savepoint transaction scripts are rejected before sending', { timeout: 5000 }, async () => {
-  for (const script of ['BEGIN; USE beta; COMMIT', 'BEGIN; SAVEPOINT first; COMMIT', 'BEGIN; CREATE DATABASE example; COMMIT']) {
+test('Mixed-database and control-plane transaction scripts are rejected before sending', { timeout: 5000 }, async () => {
+  for (const script of ['BEGIN; USE beta; COMMIT', 'BEGIN; CREATE DATABASE example; COMMIT']) {
     const f = await fixture(script);
     await f.execution.run();
     await f.execution.confirmPreview();
     assert.equal(f.calls.length, 0);
     assert.equal(f.tabs[0].results[0].result.error.code, 'unsupported_transaction_batch');
   }
+});
+
+test('A transaction batch forwards SQL savepoints to the data endpoint', { timeout: 5000 }, async () => {
+  const f = await fixture('BEGIN; SAVEPOINT first; INSERT INTO events VALUES (1); ROLLBACK TO SAVEPOINT first; RELEASE SAVEPOINT first; COMMIT');
+  await f.execution.run();
+  const running = f.execution.confirmPreview();
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].url, '/v1/db/alpha/sql/batch');
+  assert.equal(f.calls[0].body.statements.length, 6);
+  f.complete({ ...response(), data: ndjson(
+    { ...end, rowCount: 0, recordsAffected: 0 },
+    { ...end, rowCount: 0, recordsAffected: 0 },
+    { ...end, rowCount: 0, recordsAffected: 1 },
+    { ...end, rowCount: 0, recordsAffected: 0 },
+    { ...end, rowCount: 0, recordsAffected: 0 },
+    { ...end, rowCount: 0, recordsAffected: 0 },
+  ) });
+  await running;
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.tabs[0].results.length, 6);
+  assert.equal(f.tabs[0].errorMsg, '');
 });
 
 test('A transaction failure stops result mapping and preserves the server error', { timeout: 5000 }, async () => {

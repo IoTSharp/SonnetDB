@@ -1449,6 +1449,30 @@ public sealed record CommitTransactionStatement : SqlStatement;
 /// <summary><c>ROLLBACK</c>：回滚当前轻事务。</summary>
 public sealed record RollbackTransactionStatement : SqlStatement;
 
+/// <summary><c>SAVEPOINT name</c>：在当前轻事务中创建或替换一个用户可见保存点。</summary>
+/// <param name="Name">保存点名称。</param>
+public sealed record SavepointStatement(string Name) : SqlStatement
+{
+    /// <summary>名称是否使用双引号精确匹配。</summary>
+    public bool NameIsQuoted { get; init; }
+}
+
+/// <summary><c>ROLLBACK TO [SAVEPOINT] name</c>：撤销保存点之后的事务变更并保留该保存点。</summary>
+/// <param name="Name">保存点名称。</param>
+public sealed record RollbackToSavepointStatement(string Name) : SqlStatement
+{
+    /// <summary>名称是否使用双引号精确匹配。</summary>
+    public bool NameIsQuoted { get; init; }
+}
+
+/// <summary><c>RELEASE SAVEPOINT name</c>：释放保存点及其之后创建的保存点。</summary>
+/// <param name="Name">保存点名称。</param>
+public sealed record ReleaseSavepointStatement(string Name) : SqlStatement
+{
+    /// <summary>名称是否使用双引号精确匹配。</summary>
+    public bool NameIsQuoted { get; init; }
+}
+
 /// <summary>
 /// <c>SHOW MEASUREMENTS</c>：列出当前数据库中所有 measurement。
 /// 返回单列 <c>name</c>(string)，按字典序升序排列。

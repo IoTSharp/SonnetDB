@@ -484,7 +484,9 @@ public static partial class SqlExecutor
             ddlWorkspace ??= transaction.GetOrCreateDdlWorkspace(
                 tsdb,
                 cancellationToken: options.CancellationToken);
-            return ddlWorkspace.ExecuteDdl(statement, options);
+            object? ddlResult = ddlWorkspace.ExecuteDdl(statement, options);
+            transaction.RecordDdlWorkspaceMutation();
+            return ddlResult;
         }
 
         object? executionResult = statement switch
@@ -498,6 +500,15 @@ public static partial class SqlExecutor
                 new RowsAffectedExecutionResult(sequence.Name,
                     executionDatabase.Sequences.Drop(sequence.Name, sequence.NameIsQuoted, sequence.IfExists) ? 1 : 0, "drop_sequence")),
             BeginTransactionStatement => new SqlTransactionContext(),
+            SavepointStatement savepoint => transaction is null
+                ? throw new InvalidOperationException("SAVEPOINT 前没有活动轻事务。")
+                : ExecuteSavepoint(transaction, savepoint),
+            RollbackToSavepointStatement rollbackTo => transaction is null
+                ? throw new InvalidOperationException("ROLLBACK TO SAVEPOINT 前没有活动轻事务。")
+                : ExecuteRollbackToSavepoint(executionDatabase, transaction, rollbackTo),
+            ReleaseSavepointStatement release => transaction is null
+                ? throw new InvalidOperationException("RELEASE SAVEPOINT 前没有活动轻事务。")
+                : ExecuteReleaseSavepoint(transaction, release),
             CommitTransactionStatement => transaction is null
                 ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
                 : TableSqlExecutor.CommitTransaction(tsdb, transaction),
@@ -839,6 +850,34 @@ public static partial class SqlExecutor
             SonnetDB.Exceptions.RoutineErrorCodes.RolledBack);
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", 0, "rollback");
+    }
+
+    private static RowsAffectedExecutionResult ExecuteSavepoint(
+        SqlTransactionContext transaction,
+        SavepointStatement statement)
+    {
+        transaction.CreateNamedSavepoint(statement.Name, statement.NameIsQuoted);
+        return new RowsAffectedExecutionResult(statement.Name, 0, "savepoint");
+    }
+
+    private static RowsAffectedExecutionResult ExecuteRollbackToSavepoint(
+        Tsdb tsdb,
+        SqlTransactionContext transaction,
+        RollbackToSavepointStatement statement)
+    {
+        transaction.RollbackToNamedSavepoint(
+            statement.Name,
+            statement.NameIsQuoted,
+            tsdb.Routines.Diagnostics);
+        return new RowsAffectedExecutionResult(statement.Name, 0, "rollback_to_savepoint");
+    }
+
+    private static RowsAffectedExecutionResult ExecuteReleaseSavepoint(
+        SqlTransactionContext transaction,
+        ReleaseSavepointStatement statement)
+    {
+        transaction.ReleaseNamedSavepoint(statement.Name, statement.NameIsQuoted);
+        return new RowsAffectedExecutionResult(statement.Name, 0, "release_savepoint");
     }
 
     private static object ExecuteCreateIndex(Tsdb tsdb, CreateTableIndexStatement statement)

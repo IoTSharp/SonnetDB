@@ -30,6 +30,7 @@ public sealed partial class SqlTransactionContext
     private readonly Dictionary<TableObjectName, long> _autoIncrementReservationGenerations = new(TableObjectName.ExactComparer);
     private readonly List<(long Sequence, string Kind)> _routineInvocations = [];
     private readonly List<DeferredTriggerInvocation> _deferredTriggers = [];
+    private readonly List<NamedSavepoint> _namedSavepoints = [];
     private long _deferredBytes;
     private long _commitStarted;
     private int _commitTimeoutMilliseconds;
@@ -37,6 +38,7 @@ public sealed partial class SqlTransactionContext
     private CancellationTokenSource? _originCancellation;
     private long _cascadeRevision;
     private long _expandedCascadeRevision;
+    private int _ddlWorkspaceRevision;
     internal RoutineExecutionContext? CommitContext { get; private set; }
     internal bool IsExecutingDeferredTriggers { get; private set; }
     private bool _completed;
@@ -372,12 +374,71 @@ public sealed partial class SqlTransactionContext
         => new(_undo.Count,
             _autoIncrementReservationGenerations.ToDictionary(TableObjectName.ExactComparer),
             _routineInvocations.Count,
-            _deferredTriggers.Count);
+            _deferredTriggers.Count,
+            _ddlWorkspaceRevision);
+
+    internal void RecordDdlWorkspaceMutation()
+    {
+        ThrowIfCompleted();
+        checked { _ddlWorkspaceRevision++; }
+    }
+
+    internal void CreateNamedSavepoint(string name, bool nameIsQuoted)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ThrowIfCompleted();
+        _namedSavepoints.Add(new NamedSavepoint(name, nameIsQuoted, CreateSavepoint()));
+    }
+
+    internal void RollbackToNamedSavepoint(
+        string name,
+        bool nameIsQuoted,
+        RoutineDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ThrowIfCompleted();
+        int index = FindNamedSavepoint(name, nameIsQuoted);
+        if (index < 0)
+            throw new InvalidOperationException($"保存点 '{name}' 不存在。");
+
+        Savepoint savepoint = _namedSavepoints[index].Snapshot;
+        ValidateSavepointRollback(savepoint);
+        ResolveRoutineInvocations(diagnostics, committed: false, RoutineErrorCodes.RolledBack, savepoint);
+        RollbackTo(savepoint);
+        if (index + 1 < _namedSavepoints.Count)
+            _namedSavepoints.RemoveRange(index + 1, _namedSavepoints.Count - index - 1);
+    }
+
+    internal void ReleaseNamedSavepoint(string name, bool nameIsQuoted)
+    {
+        ThrowIfCompleted();
+        int index = FindNamedSavepoint(name, nameIsQuoted);
+        if (index < 0)
+            throw new InvalidOperationException($"保存点 '{name}' 不存在。");
+
+        _namedSavepoints.RemoveRange(index, _namedSavepoints.Count - index);
+    }
+
+    private int FindNamedSavepoint(string name, bool nameIsQuoted)
+    {
+        for (int index = _namedSavepoints.Count - 1; index >= 0; index--)
+        {
+            NamedSavepoint candidate = _namedSavepoints[index];
+            StringComparison comparison = candidate.NameIsQuoted || nameIsQuoted
+                ? StringComparison.Ordinal
+                : StringComparison.OrdinalIgnoreCase;
+            if (string.Equals(candidate.Name, name, comparison))
+                return index;
+        }
+
+        return -1;
+    }
 
     internal void RollbackTo(Savepoint savepoint)
     {
         ArgumentNullException.ThrowIfNull(savepoint);
         ThrowIfCompleted();
+        ValidateSavepointRollback(savepoint);
         for (int index = _undo.Count - 1; index >= savepoint.UndoCount; index--)
             _undo[index]();
         _undo.RemoveRange(savepoint.UndoCount, _undo.Count - savepoint.UndoCount);
@@ -391,11 +452,26 @@ public sealed partial class SqlTransactionContext
         RemoveDeferredTriggersFrom(savepoint.DeferredTriggerCount);
     }
 
+    private void ValidateSavepointRollback(Savepoint savepoint)
+    {
+        if (_ddlWorkspaceRevision != savepoint.DdlWorkspaceRevision)
+        {
+            throw new NotSupportedException("ROLLBACK TO SAVEPOINT 不能撤销保存点之后的关系表 DDL workspace 变更；请执行完整 ROLLBACK。");
+        }
+        if (savepoint.UndoCount > _undo.Count)
+        {
+            throw new NotSupportedException("ROLLBACK TO SAVEPOINT 不能恢复已提升到 DDL workspace 的事务写集；请执行完整 ROLLBACK。");
+        }
+    }
+
     internal sealed record Savepoint(
         int UndoCount,
         IReadOnlyDictionary<TableObjectName, long> AutoIncrementReservationGenerations,
         int RoutineInvocationCount,
-        int DeferredTriggerCount);
+        int DeferredTriggerCount,
+        int DdlWorkspaceRevision);
+
+    private sealed record NamedSavepoint(string Name, bool NameIsQuoted, Savepoint Snapshot);
 
     internal void MarkCompleted()
     {
@@ -411,6 +487,8 @@ public sealed partial class SqlTransactionContext
         _autoIncrementReservationGenerations.Clear();
         _routineInvocations.Clear();
         _deferredTriggers.Clear();
+        _namedSavepoints.Clear();
+        _ddlWorkspaceRevision = 0;
         _deferredBytes = 0;
         IsExecutingDeferredTriggers = false;
         _commitInProgress = false;

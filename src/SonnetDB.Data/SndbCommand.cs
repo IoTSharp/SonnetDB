@@ -178,13 +178,13 @@ public sealed class SndbCommand : DbCommand
         int affected;
         try
         {
-            if (result.RecordsAffected == -1 || result is ProcedureExecutionResultAdapter)
+            // 结果可能来自远程多语句 SQL batch。即使第一条语句是 BEGIN 或 DML，
+            // RecordsAffected 也是非负值，仍必须消费后续结果集，否则 Dispose 会关闭响应流，
+            // 服务端可能在 COMMIT 前收到取消，造成脚本部分执行。
+            do
             {
-                do
-                {
-                    while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
-                } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
-            }
+                while (await result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false)) { }
+            } while (await result.NextResultAsync(cancellationToken).ConfigureAwait(false));
             affected = result.RecordsAffected;
         }
         finally { result.Dispose(); }

@@ -4,7 +4,7 @@
 
 本地连接字符串中的 `Data Source=./demo-data` 指向 SonnetDB 数据库目录，不是单个数据库文件。Provider 复用 `SonnetDB` ADO.NET 包，因此本地 / 远程连接边界与 ADO.NET 包一致。
 
-本包未声明 Native AOT 兼容。EF Core 与 ADO.NET provider 都依赖运行时模型、表达式树和反射相关能力；需要 Native AOT 的嵌入式场景建议直接使用 `SonnetDB.Core` 的 `Tsdb` API。
+本包未声明 Native AOT 兼容，项目保持 `IsAotCompatible=false`。EF Core 与 ADO.NET provider 都依赖运行时模型、表达式树和反射相关能力；需要 Native AOT 的嵌入式场景建议直接使用 `SonnetDB.Core` 的 `Tsdb` API。进程拓扑、目录拥有者、恢复边界和证据层级见[嵌入式部署、Native AOT 与多进程合同](../../docs/embedded-deployment-contract.md)。
 
 ## 安装
 

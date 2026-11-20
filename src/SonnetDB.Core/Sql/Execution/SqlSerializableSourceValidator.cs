@@ -27,7 +27,9 @@ internal static class SqlSerializableSourceValidator
                 update.Assignments.Select(static assignment => new SelectItem(assignment.Value, null)).ToArray(),
                 update.TableName, update.Where, [], Joins: update.FromClauses),
             DeleteStatement delete => new SelectStatement([], delete.Measurement, delete.Where, []),
-            CommitTransactionStatement or RollbackTransactionStatement or CallProcedureStatement => null,
+            CommitTransactionStatement or RollbackTransactionStatement
+                or SavepointStatement or RollbackToSavepointStatement or ReleaseSavepointStatement
+                or CallProcedureStatement => null,
             _ => throw Unsupported("该语句的 catalog 或外部状态"),
         };
         if (query is null)

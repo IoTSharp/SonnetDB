@@ -1655,6 +1655,152 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(new long[] { 1L }, await ReadIdsAsync(c, "tx_b"));
     }
 
+    /// <summary>远程事务会话复用 SQL 保存点，并在提交后只保留回滚目标之前和之后的行。</summary>
+    [Fact]
+    public async Task RemoteTransaction_SavepointRollbackRelease_CommitsExpectedRows()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+
+        await using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE tx_savepoint (id INT, value STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await setup.ExecuteNonQueryAsync());
+        }
+
+        await using var transaction = Assert.IsType<SndbTransaction>(
+            await connection.BeginTransactionAsync());
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText = "INSERT INTO tx_savepoint (id, value) VALUES (1, 'before')";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "SAVEPOINT before_second";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO tx_savepoint (id, value) VALUES (2, 'removed')";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "ROLLBACK TO SAVEPOINT before_second";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "RELEASE SAVEPOINT before_second";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "INSERT INTO tx_savepoint (id, value) VALUES (3, 'after')";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        await transaction.CommitAsync();
+
+        command.Transaction = null;
+        Assert.Equal(new long[] { 1L, 3L }, await ReadIdsAsync(connection, "tx_savepoint"));
+    }
+
+    /// <summary>REST 远程多语句 SQL batch 执行保存点脚本并在提交后读回最终行。</summary>
+    [Fact]
+    public async Task RemoteBatch_Rest_SavepointScript_CommitsAndReadsBack()
+    {
+        await using var connection = new SndbConnection(RemoteConnString() + ";Protocol=rest");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE rest_savepoint_script (id INT, value STRING, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "BEGIN; "
+            + "INSERT INTO rest_savepoint_script (id, value) VALUES (1, 'before'); "
+            + "SAVEPOINT first; "
+            + "INSERT INTO rest_savepoint_script (id, value) VALUES (2, 'rolled-back'); "
+            + "ROLLBACK TO SAVEPOINT first; "
+            + "RELEASE SAVEPOINT first; "
+            + "INSERT INTO rest_savepoint_script (id, value) VALUES (3, 'after'); "
+            + "COMMIT";
+        await command.ExecuteNonQueryAsync();
+
+        Assert.Equal(new long[] { 1L, 3L }, await ReadIdsAsync(connection, "rest_savepoint_script"));
+    }
+
+    /// <summary>REST 远程连接通过 DataAdapter 完成填充、架构读取和显式更新。</summary>
+    [Fact]
+    public async Task RemoteDataAdapter_Rest_FillFillSchemaAndUpdate()
+    {
+        await using var connection = new SndbConnection(RemoteConnString() + ";Protocol=rest");
+        await connection.OpenAsync();
+
+        await using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE remote_adapter (id INT, code INT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await setup.ExecuteNonQueryAsync());
+            setup.CommandText = "CREATE UNIQUE INDEX ux_remote_adapter_code ON remote_adapter (code)";
+            Assert.Equal(0, await setup.ExecuteNonQueryAsync());
+            setup.CommandText = "INSERT INTO remote_adapter (id, code, name) VALUES (1, 10, 'first'), (2, 20, 'second')";
+            Assert.Equal(2, await setup.ExecuteNonQueryAsync());
+        }
+
+        using var adapter = new SndbDataAdapter(
+            "SELECT id, code, name FROM remote_adapter ORDER BY id",
+            connection);
+        using var table = new DataTable("remote_adapter");
+        Assert.Equal(2, adapter.Fill(table));
+        Assert.Equal([1L, 2L], table.Rows.Cast<DataRow>().Select(static row => (long)row["id"]).ToArray());
+
+        using var schema = new DataTable("remote_adapter_schema");
+        adapter.FillSchema(schema, SchemaType.Source);
+        Assert.Equal(typeof(long), schema.Columns["id"]!.DataType);
+        Assert.Equal(typeof(long), schema.Columns["code"]!.DataType);
+        Assert.Equal(typeof(string), schema.Columns["name"]!.DataType);
+
+        using var update = connection.CreateCommand();
+        update.CommandText = "UPDATE remote_adapter SET name = @name WHERE id = @id";
+        update.Parameters.Add(new SndbParameter("name", null)
+        {
+            DbType = DbType.String,
+            SourceColumn = "name",
+        });
+        update.Parameters.Add(new SndbParameter("id", null)
+        {
+            DbType = DbType.Int64,
+            SourceColumn = "id",
+            SourceVersion = DataRowVersion.Original,
+        });
+        adapter.UpdateCommand = update;
+
+        table.Rows[0]["name"] = "updated";
+        Assert.Equal(1, adapter.Update(table));
+
+        await using (var verify = connection.CreateCommand())
+        {
+            verify.CommandText = "SELECT name FROM remote_adapter WHERE id = 1";
+            Assert.Equal("updated", Assert.IsType<string>(await verify.ExecuteScalarAsync()));
+        }
+
+        update.CommandText = "UPDATE remote_adapter SET code = @code WHERE id = @id";
+        update.Parameters.Clear();
+        update.Parameters.Add(new SndbParameter("code", null)
+        {
+            DbType = DbType.Int64,
+            SourceColumn = "code",
+        });
+        update.Parameters.Add(new SndbParameter("id", null)
+        {
+            DbType = DbType.Int64,
+            SourceColumn = "id",
+            SourceVersion = DataRowVersion.Original,
+        });
+        table.Rows[0]["code"] = 30L;
+        table.Rows[1]["code"] = 30L;
+
+        Assert.Throws<SndbServerException>(() => adapter.Update(table));
+
+        await using (var verify = connection.CreateCommand())
+        {
+            verify.CommandText = "SELECT id, code FROM remote_adapter ORDER BY id";
+            await using var reader = await verify.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([1L, 30L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal([2L, 20L], Enumerable.Range(0, reader.FieldCount).Select(reader.GetInt64));
+            Assert.False(await reader.ReadAsync());
+        }
+    }
+
     [Fact]
     public async Task Remote_Transaction_WithSerializableReads_ReturnsTransactionViewAndCommits()
     {

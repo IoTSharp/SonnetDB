@@ -230,6 +230,10 @@ public sealed class SqlParser
             return ParseAnalyzeTable();
         if (IsIdentifier("upsert"))
             return ParseGraphUpsert();
+        if (IsIdentifier("savepoint"))
+            return ParseSavepoint();
+        if (IsIdentifier("release"))
+            return ParseReleaseSavepoint();
 
         return Current.Kind switch
         {
@@ -254,7 +258,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / WRITE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / WRITE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK / SAVEPOINT / RELEASE 关键字"),
         };
     }
 
@@ -5591,10 +5595,34 @@ public sealed class SqlParser
         return new CommitTransactionStatement();
     }
 
-    private RollbackTransactionStatement ParseRollback()
+    private SqlStatement ParseRollback()
     {
         Expect(TokenKind.KeywordRollback);
+        if (Current.Kind == TokenKind.KeywordTo || IsIdentifier("to"))
+        {
+            Advance();
+            if (IsIdentifier("savepoint"))
+                Advance();
+            string name = ExpectIdentifierName(out bool nameIsQuoted);
+            return new RollbackToSavepointStatement(name) { NameIsQuoted = nameIsQuoted };
+        }
         return new RollbackTransactionStatement();
+    }
+
+    private SavepointStatement ParseSavepoint()
+    {
+        Advance();
+        string name = ExpectIdentifierName(out bool nameIsQuoted);
+        return new SavepointStatement(name) { NameIsQuoted = nameIsQuoted };
+    }
+
+    private ReleaseSavepointStatement ParseReleaseSavepoint()
+    {
+        Advance();
+        if (IsIdentifier("savepoint"))
+            Advance();
+        string name = ExpectIdentifierName(out bool nameIsQuoted);
+        return new ReleaseSavepointStatement(name) { NameIsQuoted = nameIsQuoted };
     }
 
     // ── 控制面 DDL（PR #34a）─────────────────────────────────────────────
