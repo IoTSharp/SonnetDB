@@ -151,6 +151,38 @@ public sealed class BulkIngestEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task JsonEndpoint_OnErrorSkip_SkipsWhitespaceTagAndContinues()
+    {
+        using var c = CreateClient(_readWriteToken);
+        const string body = "{\"m\":\"cpu\",\"points\":["
+            + "{\"t\":1,\"tags\":{\"host\":\"   \"},\"fields\":{\"value\":1}},"
+            + "{\"t\":2,\"tags\":{\"host\":\"json-ok\"},\"fields\":{\"value\":2}}]}";
+
+        var resp = await c.PostAsync($"/v1/db/{_dbName}/measurements/cpu/json?onerror=skip",
+            Text(body, "application/json"));
+
+        string responseBody = await resp.Content.ReadAsStringAsync();
+        Assert.True(resp.IsSuccessStatusCode, $"{(int)resp.StatusCode} {responseBody}");
+        var parsed = await ParseAsync(resp);
+        Assert.Equal(1, parsed.WrittenRows);
+        Assert.Equal(1, parsed.SkippedRows);
+    }
+
+    [Fact]
+    public async Task JsonEndpoint_FailFastOnWhitespaceTag_Returns400()
+    {
+        using var c = CreateClient(_readWriteToken);
+        const string body = "{\"m\":\"cpu\",\"points\":["
+            + "{\"t\":1,\"tags\":{\"host\":\"\"},\"fields\":{\"value\":1}}]}";
+
+        using var resp = await c.PostAsync($"/v1/db/{_dbName}/measurements/cpu/json",
+            Text(body, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        Assert.Contains("bulk_ingest_error", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task LineProtocolEndpoint_FlushTrue_Succeeds()
     {
         using var c = CreateClient(_readWriteToken);

@@ -84,11 +84,26 @@ public sealed class JsonPointsReader : IPointReader, IDisposable
             switch (reader.TokenType)
             {
                 case JsonTokenType.StartObject:
-                    point = ReadPoint(ref reader);
-                    _readerState = reader.CurrentState;
-                    _readerPosition += (int)reader.BytesConsumed;
-                    _arrayElementCursor++;
-                    return true;
+                    try
+                    {
+                        point = ReadPoint(ref reader);
+                        _readerState = reader.CurrentState;
+                        _readerPosition += checked((int)reader.BytesConsumed);
+                        _arrayElementCursor++;
+                        return true;
+                    }
+                    catch (BulkIngestException)
+                    {
+                        AdvancePastFailedObject(ref reader);
+                        throw;
+                    }
+                    catch (Exception exception) when (exception is ArgumentException
+                        or JsonException or FormatException or InvalidOperationException or OverflowException)
+                    {
+                        AdvancePastFailedObject(ref reader);
+                        throw new BulkIngestException(
+                            $"JSON point: {exception.Message}", exception);
+                    }
 
                 case JsonTokenType.EndArray:
                     _readerState = reader.CurrentState;
@@ -107,6 +122,31 @@ public sealed class JsonPointsReader : IPointReader, IDisposable
 
         point = null!;
         return false;
+    }
+
+    private void AdvancePastFailedObject(ref Utf8JsonReader reader)
+    {
+        // Point.Create 校验失败时 ReadPoint 可能已经读到 EndObject，也可能停在对象内部。
+        // 从对象起点单独跳过整个 JSON value，确保 onerror=skip 的下一次读取从下一个元素开始。
+        var remaining = _utf8Memory.Span.Slice(_readerPosition);
+        var skipper = new Utf8JsonReader(remaining, isFinalBlock: true, _readerState);
+        try
+        {
+            if (skipper.Read() && skipper.TokenType == JsonTokenType.StartObject)
+            {
+                skipper.Skip();
+                _readerState = skipper.CurrentState;
+                _readerPosition += checked((int)skipper.BytesConsumed);
+                return;
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            // 语法本身损坏时无法安全跳到下一个对象，保留当前 parser 已消费的位置。
+        }
+
+        _readerState = reader.CurrentState;
+        _readerPosition += checked((int)reader.BytesConsumed);
     }
 
     private void InitializeAndSeekIntoPoints()

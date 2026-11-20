@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -185,6 +186,37 @@ public sealed class WorkbenchPreviewEndpointTests : IAsyncLifetime
         var response = await SqlAsync("SELECT * FROM \"DeviceID_Main\"", "sql.read");
         Assert.Contains("\"error\":\"sql_error\"", response);
         Assert.True(response.Length < 10000);
+    }
+
+    [Fact]
+    public async Task PreviewRead_UnboundedMeasurementOrderBy_StopsAtMaterializationBudget()
+    {
+        Assert.DoesNotContain("\"type\":\"error\"",
+            await SqlAsync("CREATE MEASUREMENT PreviewSamples (host TAG, value FIELD FLOAT)"));
+
+        var payload = new StringBuilder(10_001 * 32);
+        for (int i = 0; i < 10_001; i++)
+            payload.Append("PreviewSamples,host=preview value=").Append(i).Append(' ').Append(i).Append('\n');
+
+        using (var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/v1/db/PreviewDb/measurements/PreviewSamples/lp"))
+        {
+            request.Content = new StringContent(payload.ToString(), Encoding.UTF8, "text/plain");
+            using var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            string body = await response.Content.ReadAsStringAsync();
+            Assert.Contains("\"writtenRows\":10001", body);
+        }
+
+        string responseText = await SqlAsync(
+            "SELECT * FROM PreviewSamples ORDER BY time DESC",
+            "sql.read");
+
+        using var error = JsonDocument.Parse(responseText);
+        Assert.Equal("sql_error", error.RootElement.GetProperty("error").GetString());
+        Assert.Contains("累计物化", error.RootElement.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("\"type\":\"end\"", responseText);
     }
 
     private static Dictionary<string, JsonElementValue> Parameters(long id) => new()

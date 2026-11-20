@@ -119,4 +119,15 @@ public sealed class BulkValuesReaderTests
         Assert.True(r.TryRead(out _));
         Assert.False(r.TryRead(out _));
     }
+
+    [Fact]
+    public void TryRead_WhitespaceTagValue_UsesBulkErrorContract()
+    {
+        const string sql = "INSERT INTO cpu(host, value, time) VALUES ('   ', 1, 1)";
+        var reader = new BulkValuesReader(sql, Resolver);
+
+        var error = Assert.Throws<BulkIngestException>(() => reader.TryRead(out _));
+
+        Assert.Contains("tag value", error.Message, StringComparison.Ordinal);
+    }
 }

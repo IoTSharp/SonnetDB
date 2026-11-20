@@ -88,6 +88,22 @@ public sealed class BulkIngestorTests : IDisposable
     }
 
     [Fact]
+    public void Ingest_JsonSkipPolicy_SkipsInvalidTagAndContinues()
+    {
+        using var db = Tsdb.Open(Opts());
+        const string json = "{\"m\":\"cpu\",\"points\":["
+            + "{\"t\":1,\"tags\":{\"host\":\"\"},\"fields\":{\"value\":1}},"
+            + "{\"t\":2,\"tags\":{\"host\":\"ok\"},\"fields\":{\"value\":2}}]}";
+        using var reader = new JsonPointsReader(json.AsMemory());
+
+        var result = BulkIngestor.Ingest(db, reader, BulkErrorPolicy.Skip);
+
+        Assert.Equal(1, result.Written);
+        Assert.Equal(1, result.Skipped);
+        Assert.Equal(1L, db.MemTable.PointCount);
+    }
+
+    [Fact]
     public void Ingest_FlushOnComplete_ClearsMemTable()
     {
         using var db = Tsdb.Open(Opts());

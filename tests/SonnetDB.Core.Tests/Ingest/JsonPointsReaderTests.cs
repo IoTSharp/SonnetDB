@@ -102,4 +102,29 @@ public sealed class JsonPointsReaderTests
         var p = Assert.Single(ReadAll(r));
         Assert.Equal(42L, p.Fields["v"].AsLong());
     }
+
+    [Fact]
+    public void TryRead_WhitespaceTagValue_UsesBulkErrorContract()
+    {
+        const string json = "{\"m\":\"cpu\",\"points\":[{\"t\":1,\"tags\":{\"host\":\"   \"},\"fields\":{\"v\":1}}]}";
+        using var reader = new JsonPointsReader(json.AsMemory());
+
+        var error = Assert.Throws<BulkIngestException>(() => reader.TryRead(out _));
+
+        Assert.Contains("tag value", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryRead_AfterBadObject_ContinuesAtNextObject()
+    {
+        const string json = "{\"m\":\"cpu\",\"points\":["
+            + "{\"t\":1,\"tags\":{\"host\":\"\"},\"fields\":{\"v\":1}},"
+            + "{\"t\":2,\"tags\":{\"host\":\"ok\"},\"fields\":{\"v\":2}}]}";
+        using var reader = new JsonPointsReader(json.AsMemory());
+
+        Assert.Throws<BulkIngestException>(() => reader.TryRead(out _));
+        Assert.True(reader.TryRead(out var point));
+        Assert.Equal(2L, point.Timestamp);
+        Assert.False(reader.TryRead(out _));
+    }
 }

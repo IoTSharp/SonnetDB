@@ -97,4 +97,14 @@ public sealed class LineProtocolReaderTests
         foreach (var p in ReadAll(r))
             Assert.Equal("forced", p.Measurement);
     }
+
+    [Fact]
+    public void TryRead_WhitespaceTagValue_UsesBulkErrorContract()
+    {
+        var reader = new LineProtocolReader("cpu,host=\\ \\ \\  value=1 1".AsMemory());
+
+        var error = Assert.Throws<BulkIngestException>(() => reader.TryRead(out _));
+
+        Assert.Contains("tag value", error.Message, StringComparison.Ordinal);
+    }
 }

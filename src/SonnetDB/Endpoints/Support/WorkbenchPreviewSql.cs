@@ -9,6 +9,7 @@ namespace SonnetDB.Endpoints;
 internal static class WorkbenchPreviewSql
 {
     internal const int MaximumInputBytes = 64 * 1024;
+    internal const int MaximumMaterializedRows = 10_000;
     internal const int MaximumResultBytes = 4 * 1024 * 1024;
     internal static bool IsRequested(HttpContext context)
         => context.Request.Headers.ContainsKey("X-SonnetDB-Workbench-Profile");

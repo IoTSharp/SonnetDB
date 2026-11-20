@@ -175,8 +175,15 @@ public sealed class BulkValuesReader : IPointReader
         if (fields is null || fields.Count == 0)
             throw new BulkIngestException("Bulk INSERT: 行至少需要一个 field 列值。");
 
-        point = Point.Create(_measurement, timestampMs, tags, fields);
-        return true;
+        try
+        {
+            point = Point.Create(_measurement, timestampMs, tags, fields);
+            return true;
+        }
+        catch (ArgumentException exception)
+        {
+            throw new BulkIngestException($"Bulk INSERT: {exception.Message}", exception);
+        }
     }
 
     // ── 表头解析 ──────────────────────────────────────────────────────────

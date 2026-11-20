@@ -78,8 +78,19 @@ public sealed class LineProtocolReader : IPointReader
             if (s >= realEnd) continue;
             if (span[s] == '#') continue;
 
-            point = ParseLine(span.Slice(s, realEnd - s));
-            return true;
+            try
+            {
+                point = ParseLine(span.Slice(s, realEnd - s));
+                return true;
+            }
+            catch (BulkIngestException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is ArgumentException or OverflowException)
+            {
+                throw new BulkIngestException($"Line Protocol: {exception.Message}", exception);
+            }
         }
 
         point = null!;
@@ -124,7 +135,14 @@ public sealed class LineProtocolReader : IPointReader
         }
 
         var fields = ParseFields(fieldsSeg);
-        return Point.Create(measurement, timestampMs, tags, fields);
+        try
+        {
+            return Point.Create(measurement, timestampMs, tags, fields);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new BulkIngestException($"Line Protocol: {exception.Message}", exception);
+        }
     }
 
     private static int FindUnescapedSpace(ReadOnlySpan<char> span, int start)

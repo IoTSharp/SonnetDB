@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Bulk ingestion and preview resource guards — issue #438
+
+- Line Protocol、JSON points 和 `INSERT ... VALUES` reader 现在把 `Point.Create` 的空/空白 Tag value 校验错误转换为 `BulkIngestException`，FailFast HTTP 端点稳定返回 `bulk_ingest_error` 400，避免把 `ArgumentException` 泄漏到宿主进程。
+- JSON `onerror=skip` 在坏 point 对象后先推进整个对象游标，再继续读取后续对象；Core、JSON HTTP 端到端回归覆盖 FailFast、Skip、写入计数和跳过计数。
+- Workbench Preview 的 measurement 无界 `ORDER BY` 继续使用独立的 10,000 行物化预算、4 MiB 结果预算和 30 秒截止时间；该预算现在由命名常量统一配置，并新增超过预算的回归。普通 SQL 入口仍保留完整结果语义。
+- 现场 RestartCount、OOMKilled、4.8M 行排序与进程退出之间的因果链仍缺少容器内存、GC/RSS、实际 SQL/header、慢查询 fingerprint 和退出时间线证据；长期流式排序/外部归并设计未在本轮实现。
+
 ### .NET 11 target split
 
 - EF11 JSON/collection 定向回归已从此前 212/239（27 项失败）收口为 **236/236 PASS**：兼容 EF11 翻译失败的 `InvalidOperationException` 外层包装断言，并适配 `List<T>` primitive collection 的固定 `ElementAt`/`ElementAtOrDefault` JSON path 绑定与集合预算检查；EF10 net10 MVC/Identity consumer 测试 **18/18 PASS**，EF11 Provider 全量 **438/438 PASS**。

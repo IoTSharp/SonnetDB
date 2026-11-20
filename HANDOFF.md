@@ -1,3 +1,11 @@
+## 2026-11-20（Asia/Shanghai）GH-Issue #438 批量 Tag 边界、JSON skip 与工作台排序预算
+
+- 基线为共享 `main` 工作树。开始时已有 `cc0f43c4 docs(xcode): record merged issue242 provider` 以及另一条 GH-Issue #439 schema migration budget 修改，均保留其文件、字节、暂存状态和归属。本轮没有 reset、stash、提交、推送、发布、部署、重启或生产数据修改。
+- 本轮只拥有批量入库 reader、BulkIngestor 相关回归、SQL Workbench Preview 预算常量、`CHANGELOG.md` 和本交接。JSON、Line Protocol、Bulk Values reader 将 `Point.Create` 的 `ArgumentException` 转换为 `BulkIngestException`；JSON reader 在坏对象后用保留数组解析状态跳过完整对象，避免 `onerror=skip` 重复读取。BulkIngestor 保持只消费 reader 合同，不对可能不推进游标的任意自定义 reader 追加无限重试式捕获。
+- Workbench Preview 原有的 measurement 物化保护已固定为命名的 `MaximumMaterializedRows=10_000`，并继续组合 `MaximumResultBytes=4 MiB` 与 30 秒截止时间。新增 10,001 行 measurement 无界 `ORDER BY time DESC` 端到端回归，确认返回可解释 `sql_error` 物化预算错误；普通 SQL 无预览请求的完整结果路径未改动。前端当前生成的 measurement SQL 已带 `LIMIT`，本轮未把现场 4.8M 行排序写成已证实 OOM 因果。
+- 验证 PASS：PowerShell 7.6.10；Core Release 定向 Ingest 测试 **50/50**；Server Release 定向 Bulk/Workbench 测试 **15/15**；相关构建 0 warning/0 error；规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 和 `git diff --check` PASS。完整 solution restore/build、完整 Core/Server 测试和真实现场/生产验证本轮 `NOT_RUN`。格式检查报告了工作区加载警告但没有格式违规。期间一次旧 testhost 文件锁在后续构建前已退出，未留下本任务常驻进程。
+- 现场仍缺少容器 memory limit、`OOMKilled`、GC/RSS、实际 SQL 和请求 headers、慢查询 fingerprint 及 RestartCount 时间线。长期全量流式排序、外部归并和跨请求快照设计未完成，下一顺序是由用户在整合工作树上复核并决定是否提交，另行设计有界/流式查询方案。
+
 ## 2026-11-18 00:04（Asia/Shanghai）全文 BM25 基准文档复核、提交与双远端推送
 
 - 复核确认本轮范围只有 `CHANGELOG.md`、`HANDOFF.md` 和 `docs/benchmarks/fulltext-bm25-block-read-20261117.md`；两条独立只读审查均确认数字、证据边界和容量/长稳设计一致，`git diff --check` 与 staged diff 检查通过。

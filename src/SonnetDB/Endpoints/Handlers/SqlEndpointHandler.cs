@@ -386,7 +386,8 @@ internal static class SqlEndpointHandler
                                 SessionContext = sessionContext,
                                 CaptureProcedureResults = true,
                                 DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
-                                MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? 10_000 : null,
+                                MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement
+                                    ? WorkbenchPreviewSql.MaximumMaterializedRows : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
                                 Caller = caller,
                                 AllowDurationResults = context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
