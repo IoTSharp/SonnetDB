@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using SonnetDB.Backup;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
 using SonnetDB.Engine;
@@ -178,6 +179,120 @@ public sealed partial class TsdbRegistry : IDisposable
             _broadcaster?.Publish(ServerEventFactory.Database(
                 new DatabaseEvent(name, DatabaseEvent.ActionCreated)));
             return true;
+        }
+    }
+
+    /// <summary>
+    /// 将已校验的备份恢复为一个新的数据库实例，拒绝覆盖现有数据库目录。
+    /// </summary>
+    /// <param name="backupDirectory">已校验的备份目录。</param>
+    /// <param name="namePrefix">自动生成名称的前缀。</param>
+    /// <param name="databaseName">输出的新数据库名称。</param>
+    /// <returns>新实例。</returns>
+    public Tsdb RestoreAsNew(string backupDirectory, string namePrefix, out string databaseName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(backupDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(namePrefix);
+        string source = Path.GetFullPath(backupDirectory);
+        if (!Directory.Exists(source))
+            throw new DirectoryNotFoundException($"备份目录不存在：{source}");
+
+        lock (_sync)
+        {
+            EnsureNotDisposed();
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                string suffix = DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture);
+                string candidate = $"{namePrefix}-{suffix}-{attempt + 1}";
+                if (!IsValidName(candidate) || _databases.ContainsKey(candidate))
+                    continue;
+
+                string target = Path.Combine(_dataRoot, candidate);
+                if (Directory.Exists(target))
+                    continue;
+
+                try
+                {
+                    new BackupService().Restore(new BackupRestoreOptions
+                    {
+                        BackupDirectory = source,
+                        TargetDirectory = target,
+                    });
+                    Tsdb instance = OpenDatabase(target, candidate);
+                    _databases[candidate] = instance;
+                    databaseName = candidate;
+                    _broadcaster?.Publish(ServerEventFactory.Database(
+                        new DatabaseEvent(candidate, DatabaseEvent.ActionCreated)));
+                    return instance;
+                }
+                catch
+                {
+                    if (Directory.Exists(target))
+                        Directory.Delete(target, recursive: true);
+                    throw;
+                }
+            }
+        }
+
+        throw new IOException("无法为恢复生成不冲突的数据库名称。");
+    }
+
+    /// <summary>重命名已加载数据库并同步外置对象卷目录。</summary>
+    /// <param name="currentName">当前数据库名称。</param>
+    /// <param name="newName">新数据库名称。</param>
+    /// <returns>重命名成功时返回 true。</returns>
+    public bool TryRename(string currentName, string newName)
+    {
+        if (!IsValidName(currentName) || !IsValidName(newName)
+            || string.Equals(currentName, newName, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        lock (_sync)
+        {
+            EnsureNotDisposed();
+            if (_mountedDatabaseNames.Contains(currentName)
+                || _databases.ContainsKey(newName)
+                || !_databases.TryGetValue(currentName, out Tsdb? instance))
+                return false;
+
+            string oldPath = Path.Combine(_dataRoot, currentName);
+            string newPath = Path.Combine(_dataRoot, newName);
+            string? oldObjectParent = _objectStorageRootDirectory is null
+                ? null
+                : Path.Combine(_objectStorageRootDirectory, currentName);
+            string? newObjectParent = _objectStorageRootDirectory is null
+                ? null
+                : Path.Combine(_objectStorageRootDirectory, newName);
+            bool movedObjectParent = false;
+
+            instance.Dispose();
+            try
+            {
+                Directory.Move(oldPath, newPath);
+                if (oldObjectParent is not null && Directory.Exists(oldObjectParent))
+                {
+                    if (newObjectParent is not null && Directory.Exists(newObjectParent))
+                        throw new IOException($"对象卷目标目录已存在：{newObjectParent}");
+                    Directory.Move(oldObjectParent, newObjectParent!);
+                    movedObjectParent = true;
+                }
+
+                Tsdb renamed = OpenDatabase(newPath, newName);
+                _databases.TryRemove(currentName, out _);
+                _databases[newName] = renamed;
+                _broadcaster?.Publish(ServerEventFactory.Database(
+                    new DatabaseEvent(newName, DatabaseEvent.ActionCreated)));
+                return true;
+            }
+            catch
+            {
+                if (movedObjectParent && newObjectParent is not null && oldObjectParent is not null)
+                    Directory.Move(newObjectParent, oldObjectParent);
+                if (Directory.Exists(newPath))
+                    Directory.Move(newPath, oldPath);
+                _databases[currentName] = OpenDatabase(oldPath, currentName);
+                throw;
+            }
         }
     }
 

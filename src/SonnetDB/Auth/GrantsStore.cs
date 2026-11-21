@@ -158,6 +158,48 @@ public sealed class GrantsStore
         }
     }
 
+    /// <summary>把数据库重命名同步到已有授权记录。</summary>
+    /// <param name="oldDatabase">旧数据库名称。</param>
+    /// <param name="newDatabase">新数据库名称。</param>
+    /// <returns>被修改的授权记录数量。</returns>
+    public int RenameDatabaseGrants(string oldDatabase, string newDatabase)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(oldDatabase);
+        ArgumentException.ThrowIfNullOrEmpty(newDatabase);
+        string oldName = oldDatabase.ToLowerInvariant();
+        string newName = newDatabase.ToLowerInvariant();
+        if (string.Equals(oldName, newName, StringComparison.Ordinal))
+            return 0;
+
+        lock (_lock)
+        {
+            int changed = 0;
+            foreach (GrantRecord grant in _state.Grants.Where(grant => grant.Database == oldName).ToArray())
+            {
+                GrantRecord? existing = _state.Grants.FirstOrDefault(candidate =>
+                    candidate.User == grant.User && candidate.Database == newName);
+                if (existing is not null)
+                {
+                    existing.Permission = MaxPermission(existing.Permission, grant.Permission);
+                    _state.Grants.Remove(grant);
+                }
+                else
+                {
+                    grant.Database = newName;
+                }
+                changed++;
+            }
+
+            if (changed != 0)
+                Persist();
+            return changed;
+        }
+    }
+
+    /// <summary>返回两个授权记录中更高的权限。</summary>
+    private static DatabasePermission MaxPermission(DatabasePermission left, DatabasePermission right)
+        => (DatabasePermission)Math.Max((int)left, (int)right);
+
     private void Persist()
     {
         AtomicJsonFile.Write(_filePath, _state, AuthJsonContext.Default.GrantsFile);

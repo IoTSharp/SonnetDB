@@ -6,6 +6,9 @@
     <OutputType>Exe</OutputType>
     <!-- xUnit / Mvc.Testing 大量反射，AOT 分析不适用。 -->
     <IsAotCompatible>false</IsAotCompatible>
+    <!-- API tests do not host the static web asset pipeline. Disabling it avoids
+         .NET 11 HotReload scoped-CSS endpoint generation during test builds. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
     <!--
       Microsoft.ML.OnnxRuntime ships platform-native assets.  A RID-less test
       build can otherwise omit the host library and resolve an unrelated

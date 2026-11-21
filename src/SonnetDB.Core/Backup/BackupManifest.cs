@@ -16,7 +16,7 @@ public sealed record BackupManifest(
     IReadOnlyList<BackupIndexEntry> Indexes)
 {
     /// <summary>当前 manifest 格式版本。</summary>
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
 
     /// <summary>当前 reader 可读取的最早 manifest 格式版本。</summary>
     public const int MinimumSupportedFormatVersion = 1;
@@ -26,6 +26,72 @@ public sealed record BackupManifest(
 
     /// <summary>备份 manifest 文件名。</summary>
     public const string FileName = "sonnetdb.backup.json";
+
+    /// <summary>本次备份实际包含的数据范围。</summary>
+    public BackupScopeInfo Scope { get; init; } = BackupScopeInfo.Full;
+}
+
+/// <summary>可纳入备份的数据模型类别。</summary>
+[Flags]
+[JsonConverter(typeof(JsonStringEnumConverter<BackupModelScope>))]
+public enum BackupModelScope
+{
+    /// <summary>不选择任何模型类别。共享目录元数据仍按备份规则处理。</summary>
+    None = 0,
+
+    /// <summary>时序 measurement 与其 segment/WAL 数据。</summary>
+    Measurements = 1,
+
+    /// <summary>关系表及其索引数据。</summary>
+    Tables = 2,
+
+    /// <summary>文档集合及其索引数据。</summary>
+    Documents = 4,
+
+    /// <summary>原生属性图和 SQL/PGQ 图数据。</summary>
+    Graphs = 8,
+
+    /// <summary>KV keyspace 数据。</summary>
+    KeyValue = 16,
+
+    /// <summary>对象桶正文和 multipart 临时正文。</summary>
+    ObjectContent = 32,
+
+    /// <summary>全部可选择的数据模型类别。</summary>
+    All = Measurements | Tables | Documents | Graphs | KeyValue | ObjectContent,
+}
+
+/// <summary>备份 manifest 记录的有效范围。</summary>
+public sealed record BackupScopeInfo(
+    BackupModelScope Models,
+    bool IncludeFullTextIndexes)
+{
+    /// <summary>默认全量备份范围。</summary>
+    public static BackupScopeInfo Full { get; } = new(BackupModelScope.All, IncludeFullTextIndexes: true);
+
+    /// <summary>判断指定模型类别是否包含在备份中。</summary>
+    /// <param name="model">待判断的模型类别。</param>
+    /// <returns>包含完整类别标志时返回 true。</returns>
+    public bool Includes(BackupModelScope model)
+        => (Models & model) == model;
+
+    /// <summary>按名称选择的关系表，空集合表示全部。</summary>
+    public IReadOnlyList<string> Tables { get; init; } = [];
+
+    /// <summary>按名称选择的文档集合，空集合表示全部。</summary>
+    public IReadOnlyList<string> DocumentCollections { get; init; } = [];
+
+    /// <summary>按名称选择的 KV keyspace，空集合表示全部。</summary>
+    public IReadOnlyList<string> Keyspaces { get; init; } = [];
+
+    /// <summary>按名称选择的对象 bucket，空集合表示全部。</summary>
+    public IReadOnlyList<string> Buckets { get; init; } = [];
+
+    /// <summary>按名称选择的原生属性图，空集合表示全部。</summary>
+    public IReadOnlyList<string> Graphs { get; init; } = [];
+
+    /// <summary>按名称选择的 measurement，空集合表示全部。</summary>
+    public IReadOnlyList<string> Measurements { get; init; } = [];
 }
 
 /// <summary>备份一致性点信息。</summary>
@@ -198,6 +264,33 @@ public sealed record BackupCreateOptions
 
     /// <summary>是否把派生全文索引目录也纳入备份。默认 true。</summary>
     public bool IncludeFullTextIndexes { get; init; } = true;
+
+    /// <summary>是否备份 KV keyspace。默认 true 以保持现有全量行为。</summary>
+    public bool IncludeKeyValue { get; init; } = true;
+
+    /// <summary>是否备份对象桶正文和 multipart 临时正文。默认 true 以保持现有全量行为。</summary>
+    public bool IncludeObjectContent { get; init; } = true;
+
+    /// <summary>选择备份中的模型类别。默认包含全部类别。</summary>
+    public BackupModelScope ModelScope { get; init; } = BackupModelScope.All;
+
+    /// <summary>按名称选择的关系表，空集合表示全部。</summary>
+    public IReadOnlyList<string> Tables { get; init; } = [];
+
+    /// <summary>按名称选择的文档集合，空集合表示全部。</summary>
+    public IReadOnlyList<string> DocumentCollections { get; init; } = [];
+
+    /// <summary>按名称选择的 KV keyspace，空集合表示全部。</summary>
+    public IReadOnlyList<string> Keyspaces { get; init; } = [];
+
+    /// <summary>按名称选择的对象 bucket，空集合表示全部。</summary>
+    public IReadOnlyList<string> Buckets { get; init; } = [];
+
+    /// <summary>按名称选择的原生属性图，空集合表示全部。</summary>
+    public IReadOnlyList<string> Graphs { get; init; } = [];
+
+    /// <summary>按名称选择的 measurement，空集合表示全部。</summary>
+    public IReadOnlyList<string> Measurements { get; init; } = [];
 }
 
 /// <summary>恢复选项。</summary>

@@ -59,6 +59,7 @@ internal static class ServerOptionsBinder
         ArgumentNullException.ThrowIfNull(options);
 
         options.ObjectStorage ??= new ObjectStorageOptions();
+        options.Backup ??= new BackupRuntimeOptions();
 
         // 对象卷路径在启动时固定为绝对路径，避免进程工作目录变化导致对象正文落到不同磁盘。
         if (string.IsNullOrWhiteSpace(options.ObjectStorage.RootDirectory))
@@ -69,6 +70,31 @@ internal static class ServerOptionsBinder
         {
             options.ObjectStorage.RootDirectory = Path.GetFullPath(options.ObjectStorage.RootDirectory);
         }
+
+        if (string.IsNullOrWhiteSpace(options.Backup.DestinationRoot))
+        {
+            options.Backup.DestinationRoot = Path.GetFullPath(
+                Path.Combine(options.DataRoot, ".system", "backups"));
+        }
+        else
+        {
+            if (!Path.IsPathFullyQualified(options.Backup.DestinationRoot))
+                throw new InvalidOperationException("SonnetDBServer:Backup:DestinationRoot 必须是绝对路径。");
+            options.Backup.DestinationRoot = Path.GetFullPath(options.Backup.DestinationRoot);
+        }
+
+        options.Backup.SchedulerTickSeconds = Math.Clamp(
+            options.Backup.SchedulerTickSeconds,
+            10,
+            3600);
+        options.Backup.MaxTransferBytes = Math.Clamp(
+            options.Backup.MaxTransferBytes,
+            1L * 1024 * 1024,
+            20L * 1024 * 1024 * 1024);
+        options.Backup.TransferTimeoutSeconds = Math.Clamp(
+            options.Backup.TransferTimeoutSeconds,
+            30,
+            2 * 60 * 60);
 
         if (!string.IsNullOrWhiteSpace(options.Copilot.ServerRelayJournalPath))
         {

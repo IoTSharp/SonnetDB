@@ -1,7 +1,15 @@
 import { computed, ref, type ComputedRef, type WritableComputedRef } from 'vue';
 import type { MessageApi } from 'naive-ui';
 import {
+  createBackupTask,
+  listBackupTasks,
+  renameDatabase,
+  restoreBackup,
+  runBackupTask,
+  uploadBackup,
   runMaintenance,
+  type BackupTaskDefinition,
+  type BackupTaskResponse,
   type IndexLifecycleInfo,
   type MaintenanceResponse,
 } from '@/api/schema';
@@ -40,6 +48,9 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
   const maintenanceRestoreTargetDirectory = ref('');
   const maintenanceBusy = ref('');
   const maintenanceLastResult = ref<MaintenanceResponse | null>(null);
+  const backupTasks = ref<BackupTaskResponse[]>([]);
+  const backupTaskBusy = ref(false);
+  const backupRestoreBusy = ref(false);
 
   const maintenanceStatus = computed(() =>
     maintenanceLastResult.value
@@ -108,6 +119,118 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
     );
   }
 
+  async function loadBackupTasks(): Promise<void> {
+    try {
+      backupTasks.value = (await listBackupTasks(auth.api)).items;
+    } catch {
+      backupTasks.value = [];
+    }
+  }
+
+  async function createDailyBackupTask(selections?: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }): Promise<void> {
+    backupTaskBusy.value = true;
+    try {
+      const task: BackupTaskDefinition = {
+        id: `daily-${Date.now().toString(36)}`,
+        name: '每日备份',
+        enabled: true,
+        localTime: '02:00',
+        timeZoneId: 'Asia/Shanghai',
+        destinationRoot: '',
+        databaseNames: [],
+        scope: {
+          includeMeasurements: true,
+          includeTables: true,
+          includeKeyValue: false,
+          includeDocuments: true,
+          includeObjects: false,
+          includeMessageQueue: false,
+          includeGraphs: true,
+          includeFullTextIndexes: true,
+          measurements: splitSelection(selections?.measurements),
+          tables: splitSelection(selections?.tables),
+          keyspaces: splitSelection(selections?.keyspaces),
+          documentCollections: splitSelection(selections?.documentCollections),
+          buckets: splitSelection(selections?.buckets),
+          graphs: splitSelection(selections?.graphs),
+        },
+        retentionDays: 15,
+        retentionCount: 15,
+        verifyAfterCreate: true,
+      };
+      const created = await createBackupTask(auth.api, task);
+      backupTasks.value = [created, ...backupTasks.value.filter(item => item.definition.id !== created.definition.id)];
+      message.success('每日备份任务已创建。');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '创建备份任务失败');
+    } finally {
+      backupTaskBusy.value = false;
+    }
+  }
+
+  function splitSelection(value?: string): string[] {
+    return value
+      ? value.split(',').map(item => item.trim()).filter(Boolean)
+      : [];
+  }
+
+  async function runDailyBackupTask(id: string): Promise<void> {
+    backupTaskBusy.value = true;
+    try {
+      const result = await runBackupTask(auth.api, id);
+      backupTasks.value = backupTasks.value.map(item => item.definition.id === id ? result : item);
+      message.success(`备份任务已执行，状态 ${result.state.status}。`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '执行备份任务失败');
+    } finally {
+      backupTaskBusy.value = false;
+    }
+  }
+
+  async function restoreFromPathOrUrl(path: string, url: string): Promise<void> {
+    backupRestoreBusy.value = true;
+    try {
+      const result = await restoreBackup(auth.api, path.trim() ? { path: path.trim() } : { url: url.trim() });
+      message.success(`已恢复为新数据库 ${result.databaseName}。`);
+      await loadSchema(result.databaseName, true);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '在线恢复失败');
+    } finally {
+      backupRestoreBusy.value = false;
+    }
+  }
+
+  async function restoreFromUpload(file: File): Promise<void> {
+    backupRestoreBusy.value = true;
+    try {
+      const result = await uploadBackup(auth.api, file);
+      message.success(`已恢复为新数据库 ${result.databaseName}。`);
+      await loadSchema(result.databaseName, true);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '上传恢复失败');
+    } finally {
+      backupRestoreBusy.value = false;
+    }
+  }
+
+  async function renameDatabaseNow(name: string): Promise<void> {
+    const current = targetDb.value;
+    if (!current || current === CONTROL_PLANE_KEY || !name.trim()) {
+      message.error('请输入新的数据库名称。');
+      return;
+    }
+    backupTaskBusy.value = true;
+    try {
+      await renameDatabase(auth.api, current, name.trim());
+      message.success(`数据库已重命名为 ${name.trim()}。`);
+      await loadSchema(name.trim(), true);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '数据库重命名失败');
+    } finally {
+      backupTaskBusy.value = false;
+    }
+  }
+
   async function runMaintenanceAction(
     busyKey: string,
     requestFactory: () => MaintenanceRequest,
@@ -171,5 +294,14 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
     rebuildSelectedIndex,
     verifyBackup,
     restoreDryRun,
+    backupTasks,
+    backupTaskBusy,
+    backupRestoreBusy,
+    loadBackupTasks,
+    createDailyBackupTask,
+    runDailyBackupTask,
+    restoreFromPathOrUrl,
+    restoreFromUpload,
+    renameDatabaseNow,
   };
 }

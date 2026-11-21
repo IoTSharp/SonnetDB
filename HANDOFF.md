@@ -8447,3 +8447,12 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 配置外置卷后，旧默认目录中的对象首次访问时复制到新卷临时文件并刷新、原子发布，成功后尽力删除旧文件；复制或权限失败时继续读取旧文件。数据库 KV 元数据仍在数据库目录，外置对象卷不由数据库目录备份自动覆盖。
 - 新增对象外置写入、容量、旧根迁移、重开读回、Server 配置绑定、注册表数据库隔离及外置卷目录跳过测试。定向验证：SndbObjectStoreTests 33/33，ServerOptionsTests 与 TsdbRegistryObjectStorageTests 36/36；dotnet restore SonnetDB.slnx、规定 dotnet format 和 git diff --check 通过。
 - 本轮尚未推送、发布或部署。外置对象卷的生产迁移、独立备份恢复和现场读回仍需按部署流程单独验证。
+
+## 2026-11-21（Asia/Shanghai）运行时备份、在线新库恢复与管理入口
+
+- 在 SonnetDB 当前 main 工作树上实现运行时备份能力。新增 `SonnetDBServer:Backup` 全局边界、`.system/backup-tasks.json` 任务存储、每日时区调度、单任务互斥、取消/失败状态、任务目标根约束和按天数/批次数滚动清理。默认北京时间 02:00、15 天、15 批，运行时任务默认不选 KV 与对象正文。
+- Core 备份 manifest 升级为范围版本，`BackupCreateOptions` 支持模型类别、KV、对象正文、全文索引和关系表/文档/KV/对象资源名称选择。显式范围会写入 manifest，Verify 会拒绝清单与范围矛盾。关系表、文档集合、KV keyspace 和对象 bucket 的名称过滤已接入物理目录/目录清单，measurement 名称通过 schema catalog 筛选，segments 仍是数据库共享文件；原生图名称同时筛选 graph catalog、property-graph catalog 和 graph storage。
+- 新增 server-admin 管理 API。包括备份任务列表、创建、更新、删除、立即运行，以及目录、HTTP(S) 和 multipart 上传恢复。恢复先校验 manifest/SHA-256，再自动生成不冲突的新库名称，拒绝覆盖现有数据库。新增管理维护抽屉可创建/执行每日任务、填写资源名称选择、输入目录或 URL、上传 zip/tar 包。
+- CLI `backup create` 增加 `--no-kv`、`--no-objects` 和 `--models`。文档与 CHANGELOG 已记录配置、路径、传输上限和恢复边界。
+- 验证 PASS：Server build 0/0；CLI build 0/0；Core `BackupServiceTests` 30/30；Web `vue-tsc --noEmit` 通过；规定 `dotnet format ... --verify-no-changes` 通过；`git diff --check` 通过。Server 端 `SchemaAndMaintenanceEndpointTests` 未进入测试阶段，因既有 StaticWebAssets HotReload endpoint 错误阻断。Vite 完整打包仍因既有 MapLibre worker 模块解析错误阻断。
+- 本轮未提交、未推送、未发布、未部署或重启。现场未创建独立任务。外置对象卷、实例级 SonnetMQ、身份/授权和固定硬件长期恢复仍是独立恢复范围，完整 Server/网页端端到端运行验收保持 NOT_RUN。

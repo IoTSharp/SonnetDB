@@ -93,6 +93,12 @@ public sealed class ServerOptions
     public ObjectStorageOptions ObjectStorage { get; set; } = new();
 
     /// <summary>
+    /// 运行时备份任务配置。任务定义保存于 <c>&lt;DataRoot&gt;/.system/backup-tasks.json</c>，
+    /// 这里仅配置任务调度的安全根目录和下载/解包预算。
+    /// </summary>
+    public BackupRuntimeOptions Backup { get; set; } = new();
+
+    /// <summary>
     /// Measurement 自动 schema 增长上限与默认/按名称策略。绑定路径：<c>SonnetDBServer:MeasurementSchema</c>。
     /// </summary>
     public MeasurementSchemaServerOptions MeasurementSchema { get; set; } = new();
@@ -206,6 +212,140 @@ public sealed class ObjectStorageOptions
     /// <c>&lt;RootDirectory&gt;/name/objects</c>。为空时沿用数据库目录下的 <c>objects</c>。
     /// </summary>
     public string? RootDirectory { get; set; }
+}
+
+/// <summary>SonnetDB 运行时备份调度的全局边界。</summary>
+public sealed class BackupRuntimeOptions
+{
+    /// <summary>是否启用已保存的备份任务调度。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>所有任务输出的安全根目录。为空时使用 <c>&lt;DataRoot&gt;/.system/backups</c>。</summary>
+    public string? DestinationRoot { get; set; }
+
+    /// <summary>调度器检查任务的周期，默认一分钟。</summary>
+    public int SchedulerTickSeconds { get; set; } = 60;
+
+    /// <summary>上传或 HTTP 下载的单个备份包最大字节数，默认 20 GiB。</summary>
+    public long MaxTransferBytes { get; set; } = 20L * 1024 * 1024 * 1024;
+
+    /// <summary>下载、解包和校验的单次最长秒数，默认 30 分钟。</summary>
+    public int TransferTimeoutSeconds { get; set; } = 30 * 60;
+}
+
+/// <summary>任务级备份范围。名称集合为空表示选择该模型的全部资源。</summary>
+public sealed class BackupScopeOptions
+{
+    /// <summary>是否包含时序 measurement。</summary>
+    public bool IncludeMeasurements { get; set; } = true;
+
+    /// <summary>是否包含关系表。</summary>
+    public bool IncludeTables { get; set; } = true;
+
+    /// <summary>是否包含 KV keyspace。默认关闭以避免把缓存和状态纳入备份。</summary>
+    public bool IncludeKeyValue { get; set; }
+
+    /// <summary>是否包含 JSON 文档集合。</summary>
+    public bool IncludeDocuments { get; set; } = true;
+
+    /// <summary>是否包含对象桶正文。默认关闭，对象正文应由独立卷策略负责。</summary>
+    public bool IncludeObjects { get; set; }
+
+    /// <summary>是否包含 SonnetDB 实例级消息队列快照。</summary>
+    public bool IncludeMessageQueue { get; set; }
+
+    /// <summary>是否包含原生属性图。</summary>
+    public bool IncludeGraphs { get; set; } = true;
+
+    /// <summary>是否包含文档全文索引。关闭后恢复时可由主数据重建。</summary>
+    public bool IncludeFullTextIndexes { get; set; } = true;
+
+    /// <summary>选择的 measurement 名称。为空表示全部。</summary>
+    public List<string> Measurements { get; set; } = [];
+
+    /// <summary>选择的关系表名称。为空表示全部。</summary>
+    public List<string> Tables { get; set; } = [];
+
+    /// <summary>选择的 KV keyspace 名称。为空表示全部。</summary>
+    public List<string> Keyspaces { get; set; } = [];
+
+    /// <summary>选择的文档集合名称。为空表示全部。</summary>
+    public List<string> DocumentCollections { get; set; } = [];
+
+    /// <summary>选择的对象 bucket 名称。为空表示全部。</summary>
+    public List<string> Buckets { get; set; } = [];
+
+    /// <summary>选择的原生属性图名称。为空表示全部。</summary>
+    public List<string> Graphs { get; set; } = [];
+}
+
+/// <summary>一个持久化备份任务的定义。</summary>
+public sealed class BackupTaskDefinition
+{
+    /// <summary>任务唯一标识。</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>任务显示名称。</summary>
+    public string Name { get; set; } = "daily";
+
+    /// <summary>是否执行该任务。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>每日执行时间，格式为 HH:mm。</summary>
+    public string LocalTime { get; set; } = "02:00";
+
+    /// <summary>执行时间的 IANA 或系统时区标识。</summary>
+    public string TimeZoneId { get; set; } = "Asia/Shanghai";
+
+    /// <summary>任务输出目录，必须位于全局 DestinationRoot 下。</summary>
+    public string DestinationRoot { get; set; } = string.Empty;
+
+    /// <summary>数据库名称集合。为空表示全部已加载数据库。</summary>
+    public List<string> DatabaseNames { get; set; } = [];
+
+    /// <summary>备份范围。</summary>
+    public BackupScopeOptions Scope { get; set; } = new();
+
+    /// <summary>按创建时间保留的最长天数。</summary>
+    public int RetentionDays { get; set; } = 15;
+
+    /// <summary>最多保留的备份批次数。</summary>
+    public int RetentionCount { get; set; } = 15;
+
+    /// <summary>创建后是否立即校验 manifest 和文件摘要。</summary>
+    public bool VerifyAfterCreate { get; set; } = true;
+}
+
+/// <summary>持久化任务最近一次运行结果。</summary>
+public sealed class BackupTaskState
+{
+    /// <summary>任务 ID。</summary>
+    public string TaskId { get; set; } = string.Empty;
+
+    /// <summary>最近一次启动时间。</summary>
+    public DateTimeOffset? LastStartedUtc { get; set; }
+
+    /// <summary>最近一次完成时间。</summary>
+    public DateTimeOffset? LastCompletedUtc { get; set; }
+
+    /// <summary>最近一次运行结果。</summary>
+    public string Status { get; set; } = "never";
+
+    /// <summary>最近一次输出目录。</summary>
+    public string? LastOutputDirectory { get; set; }
+
+    /// <summary>最近一次错误消息。</summary>
+    public string? LastError { get; set; }
+}
+
+/// <summary>备份任务持久化文件。</summary>
+public sealed class BackupTaskFile
+{
+    /// <summary>任务定义集合。</summary>
+    public List<BackupTaskDefinition> Tasks { get; set; } = [];
+
+    /// <summary>任务运行状态集合。</summary>
+    public List<BackupTaskState> States { get; set; } = [];
 }
 
 /// <summary>可由服务器配置系统绑定的 measurement schema 策略。</summary>

@@ -202,3 +202,94 @@ export async function runMaintenance(
   const resp = await api.post<MaintenanceResponse>(`/v1/db/${encodeURIComponent(db)}/maintenance`, request);
   return resp.data;
 }
+
+export interface BackupScopeOptions {
+  includeMeasurements: boolean;
+  includeTables: boolean;
+  includeKeyValue: boolean;
+  includeDocuments: boolean;
+  includeObjects: boolean;
+  includeMessageQueue: boolean;
+  includeGraphs: boolean;
+  includeFullTextIndexes: boolean;
+  measurements: string[];
+  tables: string[];
+  keyspaces: string[];
+  documentCollections: string[];
+  buckets: string[];
+  graphs: string[];
+}
+
+export interface BackupTaskDefinition {
+  id: string;
+  name: string;
+  enabled: boolean;
+  localTime: string;
+  timeZoneId: string;
+  destinationRoot: string;
+  databaseNames: string[];
+  scope: BackupScopeOptions;
+  retentionDays: number;
+  retentionCount: number;
+  verifyAfterCreate: boolean;
+}
+
+export interface BackupTaskState {
+  taskId: string;
+  lastStartedUtc?: string | null;
+  lastCompletedUtc?: string | null;
+  status: string;
+  lastOutputDirectory?: string | null;
+  lastError?: string | null;
+}
+
+export interface BackupTaskResponse {
+  definition: BackupTaskDefinition;
+  state: BackupTaskState;
+}
+
+export interface BackupTaskListResponse {
+  items: BackupTaskResponse[];
+}
+
+export async function listBackupTasks(api: AxiosInstance): Promise<BackupTaskListResponse> {
+  const resp = await api.get<BackupTaskListResponse>('/v1/system/backup-tasks');
+  return resp.data;
+}
+
+export async function createBackupTask(api: AxiosInstance, task: BackupTaskDefinition): Promise<BackupTaskResponse> {
+  const resp = await api.post<BackupTaskResponse>('/v1/system/backup-tasks', task);
+  return resp.data;
+}
+
+export async function runBackupTask(api: AxiosInstance, id: string): Promise<BackupTaskResponse> {
+  const resp = await api.post<BackupTaskResponse>(`/v1/system/backup-tasks/${encodeURIComponent(id)}/run`);
+  return resp.data;
+}
+
+export async function restoreBackup(api: AxiosInstance, request: { path?: string; url?: string }): Promise<BackupRestoreResponse> {
+  const resp = await api.post<BackupRestoreResponse>('/v1/system/backup-restore', request);
+  return resp.data;
+}
+
+export async function uploadBackup(api: AxiosInstance, file: File): Promise<BackupRestoreResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const resp = await api.post<BackupRestoreResponse>('/v1/system/backup-restore/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return resp.data;
+}
+
+export async function renameDatabase(api: AxiosInstance, database: string, name: string): Promise<void> {
+  await api.put(`/v1/system/databases/${encodeURIComponent(database)}/name`, { name });
+}
+
+export interface BackupRestoreResponse {
+  databaseName: string;
+  source: string;
+  verified: boolean;
+  checkedFiles: number;
+  totalBytes: number;
+  completedUtc: string;
+}

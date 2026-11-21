@@ -13,7 +13,7 @@ permalink: /backup-restore/
 - 生成 `sonnetdb.backup.json` manifest，记录一致性点、模型摘要、索引生命周期和逐文件 SHA-256。
 - 支持备份校验、manifest 查看，以及恢复到新的数据库目录。
 
-第一批定位为离线 / 维护窗口工具。定时策略、增量备份、远端对象存储、审计审批、在线恢复和 UI 编排留给企业版管理能力继续演进。
+`sndb backup` 保持本地离线管理边界。运行时定时任务、在线恢复和管理界面由 Server 的备份任务 API 提供，增量备份、远端对象存储和审计审批仍不属于当前合同。
 
 ## 创建备份
 
@@ -106,7 +106,42 @@ SonnetDB 备份 manifest 区分主数据和派生数据：
 | `POST /v1/db/{db}/maintenance` | `backup_verify` | 复用 manifest SHA-256 校验备份目录，仅 server admin 可调用 |
 | `POST /v1/db/{db}/maintenance` | `restore_dry_run` | 校验备份和目标目录策略但不复制文件，仅 server admin 可调用 |
 
-后台重建队列、定时策略、增量备份、远端对象存储、在线恢复和企业审计审批仍留给后续批次。
+后台重建队列、增量备份、远端对象存储和企业审计审批仍留给后续批次。
+
+## 运行时备份任务
+
+Server 现在可以在进程内执行每日备份任务。任务定义持久化在
+`<DataRoot>/.system/backup-tasks.json`，调度器按任务的 `localTime` 和
+`timeZoneId` 每天只运行一次。默认配置使用北京时间 `02:00`、15 天和 15 批滚动保留，
+任务可以通过管理 API 修改数据库范围、模型范围、目标目录、校验开关和保留策略。
+
+全局配置位于 `SonnetDBServer:Backup`。
+
+```json
+{
+  "SonnetDBServer": {
+    "Backup": {
+      "Enabled": true,
+      "DestinationRoot": "/backup-volume/sonnetdb",
+      "SchedulerTickSeconds": 60,
+      "MaxTransferBytes": 21474836480,
+      "TransferTimeoutSeconds": 1800
+    }
+  }
+}
+```
+
+任务输出按 `<DestinationRoot>/<task-id>/<yyyyMMdd-HHmmss>/<database>` 分层，目标目录必须位于全局备份根目录内。任务默认不选择 KV 和对象桶正文，manifest 会记录实际模型范围。外置对象卷、实例级 `.system/mq`、身份和授权仍属于独立恢复边界。
+
+资源名称选择会写入任务和 manifest。关系表、文档集合、KV keyspace 和对象 bucket 已按目录及目录清单执行筛选。measurement 共用 segment/WAL 文件，原生图共用 catalog，名称选择会保留在范围记录中并按模型整体复制，以保证恢复目录可重开。
+
+管理入口包括 `/v1/system/backup-tasks` 的任务列表、创建、更新、删除和立即执行，以及 `/v1/system/backup-restore` 的目录或 HTTP(S) 恢复。所有这些入口都要求 server admin。
+
+## 在线恢复
+
+在线恢复支持服务器本机目录、zip/tar 上传和 HTTP(S) 地址。服务先把压缩包放入受控临时目录，限制传输大小和 30 分钟处理时间，校验 manifest 与逐文件 SHA-256 后才恢复。恢复总是生成不冲突的新数据库名称，例如 `restored-20261121153000-1`，不会覆盖现有数据库。恢复失败时会删除本次临时目录和未完成的新目录。
+
+CLI 仍支持本地目录备份、校验和恢复。`backup create` 增加了 `--no-kv`、`--no-objects` 和 `--models measurements,tables,documents,graphs,kv,objects`，默认保持完整备份兼容行为。
 
 ## 应用内通用迁移原语
 

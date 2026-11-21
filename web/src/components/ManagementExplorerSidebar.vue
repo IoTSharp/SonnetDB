@@ -197,6 +197,49 @@
             </n-button>
           </div>
 
+          <div v-if="isSuperuser" class="maintenance-task-block">
+            <strong>数据库名称</strong>
+            <n-input v-model:value="newDatabaseName" placeholder="恢复后可修改名称" clearable />
+            <n-button :loading="backupTaskBusy" :disabled="!newDatabaseName.trim() || !targetDb || targetDb === CONTROL_PLANE_KEY" @click="$emit('rename-database', newDatabaseName)">
+              重命名当前数据库
+            </n-button>
+          </div>
+
+          <div v-if="isSuperuser" class="maintenance-task-block">
+            <strong>自动备份</strong>
+            <span class="maintenance-help">默认每天 02:00，保留 15 天和 15 批。对象桶默认不选。</span>
+            <n-input v-model:value="backupSelections.measurements" placeholder="measurement 名称，逗号分隔，空=全部" clearable />
+            <n-input v-model:value="backupSelections.tables" placeholder="表名称，逗号分隔，空=全部" clearable />
+            <n-input v-model:value="backupSelections.keyspaces" placeholder="KV keyspace，逗号分隔，空=全部" clearable />
+            <n-input v-model:value="backupSelections.documentCollections" placeholder="文档集合，逗号分隔，空=全部" clearable />
+            <n-input v-model:value="backupSelections.buckets" placeholder="对象 bucket，逗号分隔，空=全部" clearable />
+            <n-input v-model:value="backupSelections.graphs" placeholder="图名称，逗号分隔，空=全部" clearable />
+            <div class="maintenance-actions">
+              <n-button :loading="backupTaskBusy" @click="$emit('create-backup-task', backupSelections)">创建每日任务</n-button>
+              <n-button v-for="task in backupTasks" :key="task.definition.id" :loading="backupTaskBusy" @click="$emit('run-backup-task', task.definition.id)">
+                执行 {{ task.definition.name }}
+              </n-button>
+            </div>
+            <div v-for="task in backupTasks" :key="`${task.definition.id}-state`" class="maintenance-help">
+              {{ task.definition.localTime }} · {{ task.state.status }}<span v-if="task.state.lastError"> · {{ task.state.lastError }}</span>
+            </div>
+          </div>
+
+          <div v-if="isSuperuser" class="maintenance-task-block">
+            <strong>在线恢复为新数据库</strong>
+            <n-input v-model:value="restoreSourcePath" placeholder="服务器上的备份目录或 zip/tar 路径" clearable />
+            <n-input v-model:value="restoreSourceUrl" placeholder="HTTP(S) 备份地址" clearable />
+            <div class="maintenance-actions">
+              <n-button :loading="backupRestoreBusy" :disabled="!restoreSourcePath.trim() && !restoreSourceUrl.trim()" @click="$emit('restore-source', restoreSourcePath, restoreSourceUrl)">
+                校验并恢复
+              </n-button>
+              <label class="maintenance-upload-button">
+                <span>{{ backupRestoreBusy ? '正在上传…' : '上传备份包' }}</span>
+                <input type="file" accept=".zip,.tar,.tgz,.gz" :disabled="backupRestoreBusy" @change="onUploadChange" />
+              </label>
+            </div>
+          </div>
+
           <label class="maintenance-field">
             <span>备份目录</span>
             <div class="maintenance-path-row">
@@ -306,12 +349,15 @@ const props = defineProps<{
   restoreTargetDirectory: string;
   maintenanceBusy: string;
   maintenanceStatus: string;
+  backupTasks: { definition: { id: string; name: string; localTime: string }; state: { status: string; lastError?: string | null } }[];
+  backupTaskBusy: boolean;
+  backupRestoreBusy: boolean;
   selectedIndex: IndexLifecycleInfo | null;
   studioBridgeAvailable: boolean;
   explorerGroups: (dbNode: DatabaseTreeNode) => ExplorerGroup[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'toggle-collapse': [];
   'open-create-database': [];
   'drop-database': [];
@@ -329,6 +375,11 @@ defineEmits<{
   'update:restoreTargetDirectory': [value: string];
   'verify-backup': [];
   'restore-dry-run': [];
+  'create-backup-task': [selections: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }];
+  'rename-database': [name: string];
+  'run-backup-task': [id: string];
+  'restore-source': [path: string, url: string];
+  'upload-backup': [file: File];
   'pick-backup-directory': [];
   'pick-restore-directory': [];
 }>();
@@ -337,6 +388,24 @@ type ViewMode = 'simple' | 'detailed';
 const viewMode = ref<ViewMode>('simple');
 const showMaintenance = ref(false);
 const modelGroups = ref<Record<string, boolean>>({});
+const restoreSourcePath = ref('');
+const restoreSourceUrl = ref('');
+const newDatabaseName = ref('');
+const backupSelections = ref({
+  measurements: '',
+  tables: '',
+  keyspaces: '',
+  documentCollections: '',
+  buckets: '',
+  graphs: '',
+});
+
+function onUploadChange(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) emit('upload-backup', file);
+  input.value = '';
+}
 
 function activeGroup(): string {
   const key = props.activeExplorerKey;

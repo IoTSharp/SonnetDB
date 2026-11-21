@@ -23,6 +23,7 @@ internal static partial class SonnetDbEndpoints
         app.MapModbusEndpoints();
         app.MapIngestionEndpoints();
         app.MapControlPlaneEndpoints();
+        app.MapBackupEndpoints();
         app.MapDiagnosticsEndpoints();
         app.MapSystemAboutEndpoints();
         app.MapConfigurationEndpoints(serverOptions);

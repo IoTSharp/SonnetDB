@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -36,6 +37,8 @@ internal static class SonnetDbServiceRegistration
     public static void Configure(WebApplicationBuilder builder, ServerOptions serverOptions)
     {
         OpenTelemetryBootstrap.Configure(builder, serverOptions);
+        builder.Services.Configure<FormOptions>(form =>
+            form.MultipartBodyLengthLimit = serverOptions.Backup.MaxTransferBytes);
 
         builder.Services.Configure<JsonOptions>(o =>
         {
@@ -81,6 +84,13 @@ internal static class SonnetDbServiceRegistration
                 registry.LoadExisting();
             return registry;
         });
+
+        // 备份任务定义与调度器必须在 Registry 创建后注册，确保任务只访问已完成恢复的数据库实例。
+        builder.Services.AddSingleton(sp => new BackupTaskStore(
+            sp.GetRequiredService<IOptions<ServerOptions>>().Value.DataRoot));
+        builder.Services.AddSingleton<BackupSchedulerService>();
+        builder.Services.AddSingleton<BackupRestoreService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<BackupSchedulerService>());
 
         // 在 Kestrel 和 Frame 服务接入流量前完成关系表冷开，避免首个业务查询触发全局锁排队。
         builder.Services.AddSingleton<RelationalTableWarmupState>();

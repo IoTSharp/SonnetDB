@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Documents;
@@ -414,6 +415,17 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(BackupStatusInfo))]
 [JsonSerializable(typeof(MaintenanceRequest))]
 [JsonSerializable(typeof(MaintenanceResponse))]
+[JsonSerializable(typeof(BackupTaskFile))]
+[JsonSerializable(typeof(BackupTaskDefinition))]
+[JsonSerializable(typeof(BackupTaskState))]
+[JsonSerializable(typeof(BackupScopeOptions))]
+[JsonSerializable(typeof(BackupTaskResponse))]
+[JsonSerializable(typeof(BackupTaskListResponse))]
+[JsonSerializable(typeof(BackupRestoreRequest))]
+[JsonSerializable(typeof(BackupRestoreResponse))]
+[JsonSerializable(typeof(RenameDatabaseRequest))]
+[JsonSerializable(typeof(List<BackupTaskDefinition>))]
+[JsonSerializable(typeof(List<BackupTaskState>))]
 [JsonSerializable(typeof(MaintenanceCheckInfo))]
 [JsonSerializable(typeof(BackupVerificationInfo))]
 [JsonSerializable(typeof(RestoreDryRunInfo))]

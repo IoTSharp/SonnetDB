@@ -370,6 +370,9 @@ internal sealed partial class CliApplication
             DestinationDirectory = options.BackupPath!,
             Overwrite = options.Overwrite,
             IncludeFullTextIndexes = options.IncludeFullTextIndexes,
+            IncludeKeyValue = options.IncludeKeyValue,
+            IncludeObjectContent = options.IncludeObjectContent,
+            ModelScope = options.ModelScope,
         });
 
         _output.WriteLine("备份已创建。");
@@ -900,6 +903,9 @@ internal sealed partial class CliApplication
         string? targetPath = null;
         var overwrite = false;
         var includeFullTextIndexes = true;
+        var includeKeyValue = true;
+        var includeObjectContent = true;
+        var modelScope = BackupModelScope.All;
         var verifyBeforeRestore = true;
         var dryRun = false;
         var rebuildIndexes = false;
@@ -926,6 +932,12 @@ internal sealed partial class CliApplication
                     overwrite = true; break;
                 case "--no-fulltext-indexes":
                     includeFullTextIndexes = false; break;
+                case "--no-kv":
+                    includeKeyValue = false; break;
+                case "--no-objects":
+                    includeObjectContent = false; break;
+                case "--models":
+                    modelScope = ParseModelScope(ReadRequiredValue(args, ref i, "模型范围")); break;
                 case "--no-verify":
                     verifyBeforeRestore = false; break;
                 case "--dry-run":
@@ -953,8 +965,32 @@ internal sealed partial class CliApplication
             targetPath,
             overwrite,
             includeFullTextIndexes,
+            includeKeyValue,
+            includeObjectContent,
+            modelScope,
             verifyBeforeRestore,
             rebuildIndexes));
+    }
+
+    /// <summary>解析 CLI 的模型范围列表。</summary>
+    private static BackupModelScope ParseModelScope(string value)
+    {
+        BackupModelScope scope = BackupModelScope.None;
+        foreach (string item in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            scope |= item.ToLowerInvariant() switch
+            {
+                "measurement" or "measurements" or "timeseries" => BackupModelScope.Measurements,
+                "table" or "tables" or "relational" => BackupModelScope.Tables,
+                "document" or "documents" => BackupModelScope.Documents,
+                "graph" or "graphs" => BackupModelScope.Graphs,
+                "kv" or "keyvalue" => BackupModelScope.KeyValue,
+                "object" or "objects" or "bucket" => BackupModelScope.ObjectContent,
+                "all" => BackupModelScope.All,
+                _ => throw new CliUsageException($"未知备份模型范围 '{item}'。"),
+            };
+        }
+        return scope;
     }
 
     private static BackupCommandOptions ValidateBackupOptions(BackupCommandOptions options)
@@ -1109,7 +1145,7 @@ SonnetDB CLI __VERSION__
         => "用法: sndb connect <profile-name> [--command \"<sql>\" | --file ./q.sql | --repl]  或  sndb connect --default [...]";
 
     private static string BuildBackupHelp()
-        => "用法: sndb backup create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes] | inspect --path ./backup | verify --path ./backup | dry-run --path ./backup --target ./restored [--overwrite] [--no-verify] | restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes] | rebuild-indexes --path ./restored";
+        => "用法: sndb backup create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes] [--no-kv] [--no-objects] [--models measurements,tables,...] | inspect --path ./backup | verify --path ./backup | dry-run --path ./backup --target ./restored [--overwrite] [--no-verify] | restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes] | rebuild-indexes --path ./restored";
 }
 
 // ── Option records ────────────────────────────────────────────────────────────
@@ -1154,6 +1190,9 @@ internal readonly record struct BackupCommandOptions(
     string? TargetPath,
     bool Overwrite,
     bool IncludeFullTextIndexes,
+    bool IncludeKeyValue,
+    bool IncludeObjectContent,
+    BackupModelScope ModelScope,
     bool VerifyBeforeRestore,
     bool RebuildIndexes);
 

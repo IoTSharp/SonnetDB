@@ -49,6 +49,9 @@
         :can-drop-database="canDropDatabase"
         :maintenance-busy="maintenanceBusy"
         :maintenance-status="maintenanceStatus"
+        :backup-tasks="backupTasks"
+        :backup-task-busy="backupTaskBusy"
+        :backup-restore-busy="backupRestoreBusy"
         :selected-index="selectedIndex"
         :studio-bridge-available="studioBridgeAvailable"
         :explorer-groups="explorerGroups"
@@ -68,6 +71,11 @@
         @restore-dry-run="restoreDryRun"
         @pick-backup-directory="pickMaintenanceBackupDirectory"
         @pick-restore-directory="pickMaintenanceRestoreDirectory"
+        @create-backup-task="onCreateBackupTask"
+        @rename-database="renameDatabaseNow"
+        @run-backup-task="runDailyBackupTask"
+        @restore-source="restoreFromPathOrUrl"
+        @upload-backup="restoreFromUpload"
       />
 
       <section class="workspace-shell">
@@ -720,6 +728,15 @@ const {
   rebuildSelectedIndex,
   verifyBackup,
   restoreDryRun,
+  backupTasks,
+  backupTaskBusy,
+  backupRestoreBusy,
+  loadBackupTasks,
+  createDailyBackupTask,
+  runDailyBackupTask,
+  restoreFromPathOrUrl,
+  restoreFromUpload,
+  renameDatabaseNow,
 } = useSqlMaintenance({
   auth,
   connections,
@@ -729,6 +746,12 @@ const {
   message,
   loadSchema,
 });
+
+void loadBackupTasks();
+
+async function onCreateBackupTask(selections: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }): Promise<void> {
+  await createDailyBackupTask(selections);
+}
 
 async function pickMaintenanceBackupDirectory(): Promise<void> {
   const selected = await connections.selectStudioDirectory('选择备份目录', maintenanceBackupDirectory.value);

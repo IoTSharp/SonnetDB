@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
@@ -368,15 +369,18 @@ public sealed class BackupService
     {
         string destination = Path.GetFullPath(options.DestinationDirectory);
         EnsureDirectoryIsOutsideSource(tsdb.RootDirectory, destination);
+        BackupScopeInfo scope = CreateScope(options);
         PrepareBackupDirectory(destination, options.Overwrite);
 
         var graphStorageIds = tsdb.Graphs.Catalog.Snapshot()
+            .Where(graph => scope.Graphs.Count == 0 || scope.Graphs.Contains(graph.Name, StringComparer.Ordinal))
             .Select(static graph => graph.StorageId)
             .ToHashSet();
         var includePredicate = CreateIncludePredicate(
-            options.IncludeFullTextIndexes,
+            scope,
             graphStorageIds);
         var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includePredicate, lsmBackup);
+        RewriteSelectedCatalogs(destination, scope);
         var entries = new List<BackupFileEntry>(copied.Count);
         foreach (string relativePath in copied.Order(StringComparer.Ordinal))
         {
@@ -392,7 +396,7 @@ public sealed class BackupService
 
         var manifest = BuildManifest(
             tsdb,
-            options,
+            scope,
             entries.AsReadOnly(),
             new BackupCheckpointInfo(new HashSet<string>(checkpointedKeyspaces, StringComparer.Ordinal)));
 
@@ -400,9 +404,64 @@ public sealed class BackupService
         return manifest;
     }
 
+    /// <summary>把按资源名称选择的关系表和文档集合目录清单收窄到恢复可见集合。</summary>
+    private static void RewriteSelectedCatalogs(string destination, BackupScopeInfo scope)
+    {
+        if (scope.Measurements.Count != 0)
+        {
+            string path = TsdbPaths.MeasurementSchemaPath(destination);
+            IReadOnlyList<MeasurementSchema> schemas = MeasurementSchemaCodec.Load(path)
+                .Where(schema => scope.Measurements.Contains(schema.Name, StringComparer.Ordinal))
+                .ToArray();
+            MeasurementSchemaCodec.Save(path, schemas);
+        }
+
+        if (scope.Tables.Count != 0)
+        {
+            string path = Path.Combine(destination, TsdbPaths.TablesDirName, TableSchemaCodec.FileName);
+            IReadOnlyList<TableSchema> schemas = TableSchemaCodec.Load(path)
+                .Where(schema => scope.Tables.Contains((string)schema.ObjectName, StringComparer.Ordinal)
+                    || scope.Tables.Contains(schema.Name, StringComparer.Ordinal))
+                .ToArray();
+            TableSchemaCodec.Save(path, schemas);
+        }
+
+        if (scope.DocumentCollections.Count != 0)
+        {
+            string path = Path.Combine(destination, TsdbPaths.DocumentsDirName, DocumentCollectionSchemaCodec.FileName);
+            IReadOnlyList<DocumentCollectionSchema> schemas = DocumentCollectionSchemaCodec.Load(path)
+                .Where(schema => scope.DocumentCollections.Contains(schema.Name, StringComparer.Ordinal))
+                .ToArray();
+            DocumentCollectionSchemaCodec.Save(path, schemas);
+        }
+
+        if (scope.Graphs.Count != 0)
+        {
+            string graphPath = Path.Combine(destination, TsdbPaths.GraphsDirName, TsdbPaths.GraphCatalogFileName);
+            GraphCatalogState graphState = GraphCatalogCodec.Load(graphPath);
+            GraphCatalogCodec.Save(
+                graphPath,
+                new GraphCatalogState(
+                    graphState.Revision,
+                    graphState.Definitions
+                        .Where(graph => scope.Graphs.Contains(graph.Name, StringComparer.Ordinal))
+                        .ToArray()));
+
+            string propertyPath = Path.Combine(destination, TsdbPaths.GraphsDirName, TsdbPaths.PropertyGraphCatalogFileName);
+            PropertyGraphCatalogState propertyState = PropertyGraphCatalogCodec.Load(propertyPath);
+            PropertyGraphCatalogCodec.Save(
+                propertyPath,
+                new PropertyGraphCatalogState(
+                    propertyState.Revision,
+                    propertyState.Definitions
+                        .Where(graph => scope.Graphs.Contains(graph.Name, StringComparer.Ordinal))
+                        .ToArray()));
+        }
+    }
+
     private static BackupManifest BuildManifest(
         Tsdb tsdb,
-        BackupCreateOptions options,
+        BackupScopeInfo scope,
         IReadOnlyList<BackupFileEntry> entries,
         BackupCheckpointInfo checkpointInfo)
     {
@@ -416,13 +475,52 @@ public sealed class BackupService
                 tsdb.NextSegmentId,
                 tsdb.ListSegments().Count,
                 entries.Sum(static e => e.SizeBytes)),
-            BuildModelSummary(tsdb, options.IncludeFullTextIndexes, checkpointInfo),
+            BuildModelSummary(tsdb, scope, checkpointInfo),
             entries,
-            BuildIndexEntries(tsdb, options.IncludeFullTextIndexes));
+            BuildIndexEntries(tsdb, scope))
+        {
+            Scope = scope,
+        };
     }
 
+    /// <summary>把创建选项归一化为 manifest 中的有效范围。</summary>
+    /// <param name="options">备份创建选项。</param>
+    /// <returns>移除显式排除类别后的规范范围。</returns>
+    private static BackupScopeInfo CreateScope(BackupCreateOptions options)
+    {
+        BackupModelScope models = options.ModelScope;
+        if (!options.IncludeKeyValue)
+            models &= ~BackupModelScope.KeyValue;
+        if (!options.IncludeObjectContent)
+            models &= ~BackupModelScope.ObjectContent;
+
+        const BackupModelScope supported = BackupModelScope.All;
+        if ((models & ~supported) != 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "备份模型范围包含未知类别。");
+
+        return new BackupScopeInfo(models, options.IncludeFullTextIndexes)
+        {
+            Tables = NormalizeNames(options.Tables),
+            DocumentCollections = NormalizeNames(options.DocumentCollections),
+            Keyspaces = NormalizeNames(options.Keyspaces),
+            Buckets = NormalizeNames(options.Buckets),
+            Graphs = NormalizeNames(options.Graphs),
+            Measurements = NormalizeNames(options.Measurements),
+        };
+    }
+
+    /// <summary>规范化名称选择集合并保持稳定顺序。</summary>
+    private static IReadOnlyList<string> NormalizeNames(IReadOnlyList<string> names)
+        => names.Count == 0
+            ? []
+            : names.Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Select(static name => name.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+
     private static Predicate<string> CreateIncludePredicate(
-        bool includeFullTextIndexes,
+        BackupScopeInfo scope,
         IReadOnlySet<Guid> graphStorageIds)
     {
         ArgumentNullException.ThrowIfNull(graphStorageIds);
@@ -430,6 +528,20 @@ public sealed class BackupService
         {
             string normalized = NormalizeRelativePath(relativePath);
             if (normalized == BackupManifest.FileName)
+                return false;
+
+            if (!scope.Includes(BackupModelScope.KeyValue)
+                && IsUnderDirectory(normalized, TsdbPaths.KvDirName))
+                return false;
+
+            if (!scope.Includes(BackupModelScope.ObjectContent)
+                && IsUnderDirectory(normalized, "objects"))
+                return false;
+
+            if (!IncludesModelPath(normalized, scope.Models))
+                return false;
+
+            if (!MatchesSelectedResource(normalized, scope))
                 return false;
 
             string fileName = Path.GetFileName(normalized);
@@ -450,13 +562,118 @@ public sealed class BackupService
                 return false;
             }
 
-            if (includeFullTextIndexes)
+            if (scope.IncludeFullTextIndexes)
                 return true;
 
             return !normalized.StartsWith(
                 TsdbPaths.DocumentsDirName + "/fulltext/",
                 StringComparison.OrdinalIgnoreCase);
         };
+    }
+
+    /// <summary>判断相对路径是否位于指定目录下。</summary>
+    /// <param name="relativePath">数据库根目录下的相对路径。</param>
+    /// <param name="directoryName">目录名。</param>
+    /// <returns>路径位于目录本身或其子目录时返回 true。</returns>
+    private static bool IsUnderDirectory(string relativePath, string directoryName)
+        => relativePath.Equals(directoryName, StringComparison.OrdinalIgnoreCase)
+            || relativePath.StartsWith(directoryName + "/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>按文件路径判断模型类别范围。</summary>
+    /// <param name="relativePath">数据库根目录下的相对路径。</param>
+    /// <param name="models">有效模型范围。</param>
+    /// <returns>共享元数据或选中模型文件返回 true。</returns>
+    private static bool IncludesModelPath(string relativePath, BackupModelScope models)
+    {
+        BackupModelScope? category = relativePath switch
+        {
+            _ when IsUnderDirectory(relativePath, TsdbPaths.SegmentsDirName)
+                || IsUnderDirectory(relativePath, TsdbPaths.WalDirName)
+                || IsUnderDirectory(relativePath, TsdbPaths.GenerationsDirName)
+                || Path.GetFileName(relativePath).Equals(TsdbPaths.MeasurementSchemaFileName, StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(relativePath).Equals(TsdbPaths.TombstoneManifestFileName, StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(relativePath).Equals(TsdbPaths.SegmentReplacementManifestFileName, StringComparison.OrdinalIgnoreCase)
+                => BackupModelScope.Measurements,
+            _ when IsUnderDirectory(relativePath, TsdbPaths.TablesDirName) => BackupModelScope.Tables,
+            _ when IsUnderDirectory(relativePath, TsdbPaths.DocumentsDirName) => BackupModelScope.Documents,
+            _ when IsUnderDirectory(relativePath, TsdbPaths.GraphsDirName) => BackupModelScope.Graphs,
+            _ when IsUnderDirectory(relativePath, TsdbPaths.KvDirName) => BackupModelScope.KeyValue,
+            _ when IsUnderDirectory(relativePath, "objects") => BackupModelScope.ObjectContent,
+            _ => null,
+        };
+
+        return category is null || (models & category.Value) != 0;
+    }
+
+    /// <summary>按可识别的磁盘目录筛选关系表、文档、KV 和对象资源。</summary>
+    private static bool MatchesSelectedResource(string relativePath, BackupScopeInfo scope)
+    {
+        if (scope.Tables.Count != 0 && IsUnderDirectory(relativePath, TsdbPaths.TablesDirName + "/rowstore"))
+        {
+            string[] segments = relativePath[(TsdbPaths.TablesDirName.Length + "/rowstore/".Length)..]
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+                return false;
+            try
+            {
+                string table = TableObjectNameCodec.DecodeStoragePath(segments).ToString();
+                if (!scope.Tables.Contains(table, StringComparer.Ordinal)
+                    && !scope.Tables.Contains(TableObjectNameCodec.DecodeStoragePath(segments).Name, StringComparer.Ordinal))
+                    return false;
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+        }
+
+        if (scope.DocumentCollections.Count != 0
+            && IsUnderDirectory(relativePath, TsdbPaths.DocumentsDirName + "/collections"))
+        {
+            string[] segments = relativePath[(TsdbPaths.DocumentsDirName.Length + "/collections/".Length)..]
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+                return false;
+            string collection = DecodeHexName(segments[0]);
+            if (!scope.DocumentCollections.Contains(collection, StringComparer.Ordinal))
+                return false;
+        }
+
+        if (scope.Keyspaces.Count != 0 && IsUnderDirectory(relativePath, TsdbPaths.KvDirName + "/keyspaces"))
+        {
+            string[] segments = relativePath[(TsdbPaths.KvDirName.Length + "/keyspaces/".Length)..]
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0 || !scope.Keyspaces.Contains(segments[0], StringComparer.Ordinal))
+                return false;
+        }
+
+        if (scope.Buckets.Count != 0 && IsUnderDirectory(relativePath, "objects"))
+        {
+            string[] segments = relativePath["objects/".Length..]
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+                return false;
+            var hashes = scope.Buckets
+                .Select(static bucket => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bucket)))[..16].ToLowerInvariant())
+                .ToHashSet(StringComparer.Ordinal);
+            if (!hashes.Contains(segments[0]))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>解码文档集合目录中的 UTF-8 十六进制名称。</summary>
+    private static string DecodeHexName(string value)
+    {
+        try
+        {
+            return Encoding.UTF8.GetString(Convert.FromHexString(value));
+        }
+        catch (FormatException)
+        {
+            return string.Empty;
+        }
     }
 
     /// <summary>快照源文件清单并按稳定顺序复制，避免枚举期间新文件混入本次备份。</summary>
@@ -491,10 +708,12 @@ public sealed class BackupService
 
     private static BackupModelSummary BuildModelSummary(
         Tsdb tsdb,
-        bool includeFullTextIndexes,
+        BackupScopeInfo scope,
         BackupCheckpointInfo checkpointInfo)
     {
-        var measurements = tsdb.Measurements.Snapshot()
+        var measurements = scope.Includes(BackupModelScope.Measurements)
+            ? tsdb.Measurements.Snapshot()
+                .Where(schema => scope.Measurements.Count == 0 || scope.Measurements.Contains(schema.Name, StringComparer.Ordinal))
             .Select(static schema =>
             {
                 var vectorIndexes = schema.Columns
@@ -512,9 +731,14 @@ public sealed class BackupService
                     schema.Columns.Count(static c => c.Role == MeasurementColumnRole.Field),
                     vectorIndexes);
             })
-            .ToArray();
+            .ToArray()
+            : [];
 
-        var tables = tsdb.Tables.PersistentCatalog.Snapshot()
+        var tables = scope.Includes(BackupModelScope.Tables)
+            ? tsdb.Tables.PersistentCatalog.Snapshot()
+                .Where(schema => scope.Tables.Count == 0
+                    || scope.Tables.Contains((string)schema.ObjectName, StringComparer.Ordinal)
+                    || scope.Tables.Contains(schema.Name, StringComparer.Ordinal))
             .Select(static schema => new BackupTableEntry(
                 schema.Name,
                 schema.PrimaryKey.ToArray(),
@@ -525,13 +749,19 @@ public sealed class BackupService
                     index.IsUnique,
                     Rebuildable: true,
                     JsonPath: index.JsonPath)).ToArray()))
-            .ToArray();
+            .ToArray()
+            : [];
 
-        var openedKeyspaces = tsdb.Keyspaces.List()
+        var openedKeyspaces = scope.Includes(BackupModelScope.KeyValue)
+            ? tsdb.Keyspaces.List()
+                .Where(name => scope.Keyspaces.Count == 0 || scope.Keyspaces.Contains(name, StringComparer.Ordinal))
             .Select(name => new BackupKeyspaceEntry(name, checkpointInfo.CheckpointedKeyspaces.Contains(name)))
-            .ToArray();
+            .ToArray()
+            : [];
 
-        var documents = tsdb.Documents.Catalog.Snapshot()
+        var documents = scope.Includes(BackupModelScope.Documents)
+            ? tsdb.Documents.Catalog.Snapshot()
+                .Where(schema => scope.DocumentCollections.Count == 0 || scope.DocumentCollections.Contains(schema.Name, StringComparer.Ordinal))
             .Select(schema => new BackupDocumentCollectionEntry(
                 schema.Name,
                 schema.Indexes.Count,
@@ -539,12 +769,16 @@ public sealed class BackupService
                     index.Name,
                     index.Fields.ToArray(),
                     index.Tokenizer,
-                    Included: includeFullTextIndexes,
+                    Included: scope.IncludeFullTextIndexes,
                     Rebuildable: true)).ToArray()))
-            .ToArray();
+            .ToArray()
+            : [];
 
-        GraphCatalogState graphCatalogState = tsdb.Graphs.Catalog.CaptureState();
+        GraphCatalogState graphCatalogState = scope.Includes(BackupModelScope.Graphs)
+            ? tsdb.Graphs.Catalog.CaptureState()
+            : new GraphCatalogState(0, []);
         var graphs = graphCatalogState.Definitions
+            .Where(graph => scope.Graphs.Count == 0 || scope.Graphs.Contains(graph.Name, StringComparer.Ordinal))
             .OrderBy(static graph => graph.Name, StringComparer.Ordinal)
             .Select(static graph => new BackupGraphEntry(
                 graph.Name,
@@ -553,20 +787,24 @@ public sealed class BackupService
                 CheckpointedDuringBackup: true,
                 GraphIndexes()))
             .ToArray();
-        PropertyGraphCatalogState propertyGraphCatalogState = tsdb.Graphs.PropertyGraphs.CaptureState();
+        PropertyGraphCatalogState propertyGraphCatalogState = scope.Includes(BackupModelScope.Graphs)
+            ? tsdb.Graphs.PropertyGraphs.CaptureState()
+            : new PropertyGraphCatalogState(0, []);
 
         return new BackupModelSummary(measurements, tables, openedKeyspaces, documents)
         {
             GraphCatalog = new BackupGraphCatalogEntry(graphCatalogState.Revision, graphs),
-            PropertyGraphCatalog = BuildPropertyGraphCatalogEntry(propertyGraphCatalogState),
+            PropertyGraphCatalog = BuildPropertyGraphCatalogEntry(propertyGraphCatalogState, scope.Graphs),
         };
     }
 
     private static BackupPropertyGraphCatalogEntry BuildPropertyGraphCatalogEntry(
-        PropertyGraphCatalogState state)
+        PropertyGraphCatalogState state,
+        IReadOnlyList<string> selectedGraphs)
         => new(
             state.Revision,
             state.Definitions
+                .Where(graph => selectedGraphs.Count == 0 || selectedGraphs.Contains(graph.Name, StringComparer.Ordinal))
                 .OrderBy(static graph => graph.Name, StringComparer.Ordinal)
                 .Select(static graph => new BackupPropertyGraphEntry(
                     graph.Name,
@@ -589,85 +827,103 @@ public sealed class BackupService
                         edge.PropertyColumns.ToArray())).ToArray()))
                 .ToArray());
 
-    private static IReadOnlyList<BackupIndexEntry> BuildIndexEntries(Tsdb tsdb, bool includeFullTextIndexes)
+    private static IReadOnlyList<BackupIndexEntry> BuildIndexEntries(Tsdb tsdb, BackupScopeInfo scope)
     {
         var indexes = new List<BackupIndexEntry>();
 
-        foreach (var schema in tsdb.Tables.PersistentCatalog.Snapshot())
+        if (scope.Includes(BackupModelScope.Tables))
         {
-            foreach (var index in schema.Indexes)
+            foreach (var schema in tsdb.Tables.PersistentCatalog.Snapshot()
+                .Where(schema => scope.Tables.Count == 0
+                    || scope.Tables.Contains((string)schema.ObjectName, StringComparer.Ordinal)
+                    || scope.Tables.Contains(schema.Name, StringComparer.Ordinal)))
             {
-                indexes.Add(new BackupIndexEntry(
-                    "table",
-                    schema.Name,
-                    index.Name,
-                    TableIndexKind(index),
-                    Included: true,
-                    Rebuildable: true,
-                    RelativePath: null));
+                foreach (var index in schema.Indexes)
+                {
+                    indexes.Add(new BackupIndexEntry(
+                        "table",
+                        schema.Name,
+                        index.Name,
+                        TableIndexKind(index),
+                        Included: true,
+                        Rebuildable: true,
+                        RelativePath: null));
+                }
             }
         }
 
-        foreach (var schema in tsdb.Documents.Catalog.Snapshot())
+        if (scope.Includes(BackupModelScope.Documents))
         {
-            foreach (var index in schema.Indexes)
+            foreach (var schema in tsdb.Documents.Catalog.Snapshot()
+                .Where(schema => scope.DocumentCollections.Count == 0 || scope.DocumentCollections.Contains(schema.Name, StringComparer.Ordinal)))
             {
-                indexes.Add(new BackupIndexEntry(
-                    "document",
-                    schema.Name,
-                    index.Name,
-                    DocumentIndexKind(index),
-                    Included: true,
-                    Rebuildable: true,
-                    RelativePath: null));
-            }
+                foreach (var index in schema.Indexes)
+                {
+                    indexes.Add(new BackupIndexEntry(
+                        "document",
+                        schema.Name,
+                        index.Name,
+                        DocumentIndexKind(index),
+                        Included: true,
+                        Rebuildable: true,
+                        RelativePath: null));
+                }
 
-            foreach (var index in schema.FullTextIndexes)
-            {
-                indexes.Add(new BackupIndexEntry(
-                    "document",
-                    schema.Name,
-                    index.Name,
-                    "fulltext",
-                    Included: includeFullTextIndexes,
-                    Rebuildable: true,
-                    RelativePath: "documents/fulltext/" + EncodeName(schema.Name) + "/" + EncodeName(index.Name)));
-            }
-        }
-
-        foreach (var schema in tsdb.Measurements.Snapshot())
-        {
-            foreach (var column in schema.Columns)
-            {
-                if (column.DataType != FieldType.Vector || column.VectorIndex is null)
-                    continue;
-
-                indexes.Add(new BackupIndexEntry(
-                    "measurement",
-                    schema.Name,
-                    column.Name,
-                    "vector:" + column.VectorIndex.Kind.ToString(),
-                    Included: true,
-                    Rebuildable: true,
-                    RelativePath: null));
+                foreach (var index in schema.FullTextIndexes)
+                {
+                    indexes.Add(new BackupIndexEntry(
+                        "document",
+                        schema.Name,
+                        index.Name,
+                        "fulltext",
+                        Included: scope.IncludeFullTextIndexes,
+                        Rebuildable: true,
+                        RelativePath: "documents/fulltext/" + EncodeName(schema.Name) + "/" + EncodeName(index.Name)));
+                }
             }
         }
 
-        foreach (GraphDefinition graph in tsdb.Graphs.Catalog.Snapshot())
+        if (scope.Includes(BackupModelScope.Measurements))
         {
-            string relativePath = TsdbPaths.GraphsDirName
-                + "/" + TsdbPaths.GraphStoresDirName
-                + "/" + graph.StorageId.ToString("N");
-            foreach (BackupGraphIndexEntry index in GraphIndexes())
+            foreach (var schema in tsdb.Measurements.Snapshot()
+                .Where(schema => scope.Measurements.Count == 0 || scope.Measurements.Contains(schema.Name, StringComparer.Ordinal)))
             {
-                indexes.Add(new BackupIndexEntry(
-                    "graph",
-                    graph.Name,
-                    index.Kind,
-                    index.Kind,
-                    index.Included,
-                    index.Rebuildable,
-                    relativePath));
+                foreach (var column in schema.Columns)
+                {
+                    if (column.DataType != FieldType.Vector || column.VectorIndex is null)
+                        continue;
+
+                    indexes.Add(new BackupIndexEntry(
+                        "measurement",
+                        schema.Name,
+                        column.Name,
+                        "vector:" + column.VectorIndex.Kind.ToString(),
+                        Included: true,
+                        Rebuildable: true,
+                        RelativePath: null));
+                }
+            }
+        }
+
+        if (scope.Includes(BackupModelScope.Graphs))
+        {
+            foreach (GraphDefinition graph in tsdb.Graphs.Catalog.Snapshot()
+                .Where(graph => scope.Graphs.Count == 0 || scope.Graphs.Contains(graph.Name, StringComparer.Ordinal)))
+            {
+                string relativePath = TsdbPaths.GraphsDirName
+                    + "/" + TsdbPaths.GraphStoresDirName
+                    + "/" + graph.StorageId.ToString("N");
+                foreach (BackupGraphIndexEntry index in GraphIndexes())
+                {
+                    indexes.Add(new BackupIndexEntry(
+                        "graph",
+                        graph.Name,
+                        index.Kind,
+                        index.Kind,
+                        index.Included,
+                        index.Rebuildable,
+                        relativePath));
+                }
             }
         }
 
@@ -942,6 +1198,14 @@ public sealed class BackupService
         {
             errors.Add($"Unsupported database format '{manifest.DatabaseFormat}'.");
         }
+        if (manifest.Scope is null)
+        {
+            errors.Add("Backup manifest is missing its scope.");
+        }
+        else if ((manifest.Scope.Models & ~BackupModelScope.All) != 0)
+        {
+            errors.Add("Backup manifest scope contains unknown model categories.");
+        }
         if (manifest.Models.Measurements is null
             || manifest.Models.Tables is null
             || manifest.Models.Keyspaces is null
@@ -973,6 +1237,18 @@ public sealed class BackupService
                             {
                                 errors.Add(
                                     $"Backup manifest cannot contain lifecycle lock file '{entry.Path}'.");
+                            }
+                            if (manifest.Scope is not null
+                                && !manifest.Scope.Includes(BackupModelScope.KeyValue)
+                                && IsUnderDirectory(normalizedPath, TsdbPaths.KvDirName))
+                            {
+                                errors.Add($"Backup manifest scope excludes KV but contains '{entry.Path}'.");
+                            }
+                            if (manifest.Scope is not null
+                                && !manifest.Scope.Includes(BackupModelScope.ObjectContent)
+                                && IsUnderDirectory(normalizedPath, "objects"))
+                            {
+                                errors.Add($"Backup manifest scope excludes object content but contains '{entry.Path}'.");
                             }
                         }
                         catch (InvalidDataException exception)

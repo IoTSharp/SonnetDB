@@ -7,6 +7,8 @@ namespace SonnetDB.Backup;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = true)]
 [JsonSerializable(typeof(BackupManifest))]
+[JsonSerializable(typeof(BackupScopeInfo))]
+[JsonSerializable(typeof(BackupModelScope))]
 [JsonSerializable(typeof(BackupConsistency))]
 [JsonSerializable(typeof(BackupModelSummary))]
 [JsonSerializable(typeof(BackupMeasurementEntry))]

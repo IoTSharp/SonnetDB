@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using SonnetDB.Backup;
 using SonnetDB.Documents;
@@ -255,6 +256,54 @@ public sealed class BackupServiceTests : IDisposable
             Assert.StartsWith("segments/v2/", segment.Path, StringComparison.Ordinal);
             Assert.EndsWith(".SDBSEG", segment.Path, StringComparison.OrdinalIgnoreCase);
             Assert.True(File.Exists(Path.Combine(backupDirectory, segment.Path.Replace('/', Path.DirectorySeparatorChar))));
+        }
+    }
+
+    /// <summary>显式排除 KV 与对象正文时，manifest 范围和文件清单必须同时反映排除结果。</summary>
+    [Fact]
+    public async Task Create_WithExcludedKeyValueAndObjectContent_RecordsScopeAndOmitsFiles()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        string dbRoot = Path.Combine(_rootDirectory, "db-excluded-content");
+        string backupDirectory = Path.Combine(_rootDirectory, "backup-excluded-content");
+
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        }))
+        {
+            db.Keyspaces.Open("excluded").Put("key", Encoding.UTF8.GetBytes("value"));
+            var objects = new SndbObjectStore(db);
+            objects.CreateBucket("excluded-assets");
+            await objects.PutObjectAsync(
+                "excluded-assets",
+                "payload.bin",
+                new MemoryStream("object-content"u8.ToArray()),
+                cancellationToken: deadline.Token);
+
+            BackupManifest manifest = new BackupService().Create(db, new BackupCreateOptions
+            {
+                DestinationDirectory = backupDirectory,
+                IncludeKeyValue = false,
+                IncludeObjectContent = false,
+            });
+
+            Assert.Equal(
+                BackupModelScope.Measurements
+                | BackupModelScope.Tables
+                | BackupModelScope.Documents
+                | BackupModelScope.Graphs,
+                manifest.Scope.Models);
+            Assert.False(manifest.Scope.Includes(BackupModelScope.KeyValue));
+            Assert.False(manifest.Scope.Includes(BackupModelScope.ObjectContent));
+            Assert.Empty(manifest.Models.Keyspaces);
+            Assert.DoesNotContain(manifest.Files, static file =>
+                file.Path.StartsWith("kv/", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(manifest.Files, static file =>
+                file.Path.StartsWith("objects/", StringComparison.OrdinalIgnoreCase));
+            Assert.True(new BackupService().Verify(backupDirectory).IsValid);
         }
     }
 

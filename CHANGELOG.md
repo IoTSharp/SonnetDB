@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### 运行时备份、CLI 范围和在线新库恢复
+
+- Core 备份 manifest 升级到范围版本，支持通过 `IncludeKeyValue`、`IncludeObjectContent` 和模型范围排除 KV、对象正文及模型类别，并在校验时拒绝范围与文件清单不一致。
+- Server 增加持久化每日备份任务、北京时间默认 02:00、可配置目标根目录、校验、15 天/15 批滚动保留和 server-admin 任务管理 API。备份任务输出目录受全局备份根约束。
+- Server 增加目录、zip/tar、HTTP(S) 和 multipart 上传恢复入口。恢复先执行 manifest/SHA-256 校验，再生成不冲突的新数据库名称，拒绝覆盖现有数据库。
+- CLI `backup create` 增加 `--no-kv`、`--no-objects` 和 `--models` 范围参数。管理后台维护面增加每日任务创建/立即执行和目录、URL、压缩包恢复入口。
+- 这组代码级能力尚未部署到现场，也未证明外置对象卷、实例级 SonnetMQ、身份/授权和固定硬件长期恢复门禁已经闭合。
+
 ### 对象存储卷
 
 - 新增 `SonnetDBServer:ObjectStorage:RootDirectory` 与 `TsdbOptions.ObjectStorageRootDirectory`，对象桶正文和 multipart 临时文件可以写入独立卷，并按数据库名隔离目录。未配置时保持 `<数据库根>/objects` 的兼容路径。
