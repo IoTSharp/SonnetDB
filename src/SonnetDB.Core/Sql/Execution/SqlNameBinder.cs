@@ -580,6 +580,9 @@ internal static class SqlNameBinder
                 UpdateWhere = onConflict.UpdateWhere is null
                     ? null
                     : BindExpression(tsdb, onConflict.UpdateWhere, conflictScope),
+                SelectWhere = onConflict.SelectWhere is null
+                    ? null
+                    : BindExpression(tsdb, onConflict.SelectWhere, conflictScope),
             };
         }
 

@@ -19,6 +19,10 @@
 
 - 新增 `SonnetDBServer:ObjectStorage:RootDirectory` 与 `TsdbOptions.ObjectStorageRootDirectory`，对象桶正文和 multipart 临时文件可以写入独立卷，并按数据库名隔离目录。未配置时保持 `<数据库根>/objects` 的兼容路径。
 - 外置卷启用后，旧默认目录中的对象在首次访问时按需迁移到新卷，复制失败时继续读取旧正文。对象正文卷仍属于独立备份范围，需要单独备份与恢复。
+### SQL `ON CONFLICT DO SELECT`
+
+- 关系表 `INSERT` 新增 `ON CONFLICT (主键或唯一索引列) DO SELECT [FOR UPDATE] [WHERE predicate] RETURNING ...`。无冲突时插入并返回新行，冲突时返回已有行，不产生更新 mutation，不递增已有行的 `ROWVERSION`；条件为 FALSE 或 NULL 时不返回、不计数。`FOR UPDATE` 在显式轻事务中保留冲突行锁到事务结束，当前只实现该锁强度。
+- `DO SELECT` 要求显式冲突目标和 `RETURNING`，支持 `excluded.column` 与目标列条件、直接执行和关系表轻事务路径。没有服务端会话的远程 ADO 轻事务对此语句 fail-closed，避免把预览结果重放为重复 INSERT。
 
 ### SQL savepoints, ADO.NET DataAdapter and embedded deployment contract
 

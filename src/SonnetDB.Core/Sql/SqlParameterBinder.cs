@@ -185,6 +185,15 @@ public static class SqlParameterBinder
                     changed = true;
                 }
             }
+            if (conflict.SelectWhere is not null)
+            {
+                var boundWhere = BindExpr(conflict.SelectWhere, p);
+                if (!ReferenceEquals(boundWhere, conflict.SelectWhere))
+                {
+                    conflict = conflict with { SelectWhere = boundWhere };
+                    changed = true;
+                }
+            }
         }
 
         return changed || insert.Query is not null

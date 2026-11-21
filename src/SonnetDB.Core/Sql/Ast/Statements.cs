@@ -899,12 +899,16 @@ public enum SqlOnConflictAction
     DoNothing,
     /// <summary>冲突行按 <c>DO UPDATE SET</c> 赋值并原子替换。</summary>
     DoUpdate,
+    /// <summary>冲突行按可选条件返回，不修改其内容。</summary>
+    DoSelect,
 }
 
 /// <summary>
 /// SonnetDB 原生 <c>ON CONFLICT [(column, ...)] DO NOTHING</c> /
+/// <c>DO SELECT [FOR UPDATE] [WHERE condition]</c> /
 /// <c>DO UPDATE SET column = expression</c> 子集。
-/// 空目标列表示匹配任一主键或唯一索引。
+/// 空目标列表示 <c>DO NOTHING</c> 匹配任一主键或唯一索引；<c>DO SELECT</c> /
+/// <c>DO UPDATE</c> 要求显式目标列。
 /// </summary>
 /// <param name="TargetColumns">冲突目标列；为空时匹配任一唯一约束。</param>
 /// <param name="Action">冲突处理动作。</param>
@@ -923,6 +927,12 @@ public sealed record SqlOnConflictClause(
 
     /// <summary>冲突行更新前求值的可选谓词；仅真值会产生 UPDATE。</summary>
     public SqlExpression? UpdateWhere { get; init; }
+
+    /// <summary>冲突行选择前求值的可选谓词；仅真值会返回已有行。</summary>
+    public SqlExpression? SelectWhere { get; init; }
+
+    /// <summary>是否在选择冲突行时保留其排他行锁到事务结束。</summary>
+    public bool SelectForUpdate { get; init; }
 }
 
 /// <summary>

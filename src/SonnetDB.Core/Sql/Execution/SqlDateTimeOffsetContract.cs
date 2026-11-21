@@ -70,6 +70,8 @@ internal static class SqlDateTimeOffsetContract
                     {
                         if (conflict.UpdateWhere is not null)
                             _ = Expression(database, conflict.UpdateWhere, scope, 0);
+                        if (conflict.SelectWhere is not null)
+                            _ = Expression(database, conflict.SelectWhere, scope, 0);
                         foreach (var assignment in conflict.UpdateAssignments)
                             ValidateAssignment(columns.FirstOrDefault(column => column.Name == assignment.ColumnName)?.Type ?? default,
                                 Expression(database, assignment.Value, scope, 0), assignment.Value);
