@@ -68,6 +68,20 @@ public sealed class KvReadSnapshot : IDisposable
         }
     }
 
+    internal bool TryCountLsmPrefixKeys(byte[] prefix, int maximumKeys, CancellationToken cancellationToken,
+        Action checkCancellation, out long count)
+    {
+        KvReadSnapshotState state;
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_state is null, this);
+            state = _state;
+            state.AddReference();
+        }
+        try { return state.TryCountLsmPrefixKeys(prefix, maximumKeys, cancellationToken, checkCancellation, out count); }
+        finally { state.Release(); }
+    }
+
     /// <summary>释放快照自身持有的状态租约。</summary>
     public void Dispose()
     {
@@ -129,6 +143,35 @@ internal sealed class KvReadSnapshotState
     public long Sequence { get; }
 
     public DateTimeOffset ReadTimestampUtc { get; }
+
+    internal bool TryCountLsmPrefixKeys(byte[] prefix, int maximumKeys, CancellationToken cancellationToken,
+        Action checkCancellation, out long count)
+    {
+        count = 0;
+        if (_lsmSnapshot is not { } snapshot) return false;
+        cancellationToken.ThrowIfCancellationRequested();
+        checkCancellation();
+        byte[] physicalPrefix = [.. _lsmKeyPrefix, .. prefix];
+        using var iterator = snapshot.CreateIterator(physicalPrefix,
+            KvLsmKeyspaceBackend.PrefixUpperBound(physicalPrefix), cancellationToken);
+        iterator.SeekToFirst();
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        // The committed row count was captured with this snapshot under the table
+        // lock. Inspect one additional position only to detect a broken bound.
+        for (long visited = 0; visited <= maximumKeys; visited++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            checkCancellation();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(30))
+                throw new TimeoutException("精确主键前缀计数超过安全执行时限。");
+            if (!iterator.Valid) return true;
+            if (visited == maximumKeys || !iterator.Key.StartsWith(physicalPrefix))
+                throw new InvalidDataException("主行前缀计数超出稳定快照的行数或键范围。");
+            count++;
+            iterator.MoveNext();
+        }
+        throw new InvalidDataException("主行前缀计数超过操作预算。");
+    }
 
     public KvRangeCursor OpenRangeCursor(KvRangeScanOptions options)
     {

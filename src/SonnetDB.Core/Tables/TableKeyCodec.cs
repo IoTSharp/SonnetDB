@@ -53,6 +53,30 @@ internal static class TableKeyCodec
         return buffer;
     }
 
+    internal static byte[] EncodePrimaryKeyPrefix(TableSchema schema, IReadOnlyList<object?> values)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Count == 0 || values.Count > schema.PrimaryKey.Count)
+            throw new ArgumentException("主键前缀必须从首列连续提供非空值。", nameof(values));
+        int length = 0;
+        for (int index = 0; index < values.Count; index++)
+        {
+            TableColumn column = schema.TryGetColumn(schema.PrimaryKey[index])!;
+            if (values[index] is null) throw new ArgumentException("主键前缀不能包含 NULL。", nameof(values));
+            length = checked(length + GetEncodedSize(column, values[index]!));
+        }
+        var bytes = new byte[length];
+        int offset = 0;
+        for (int index = 0; index < values.Count; index++)
+        {
+            TableColumn column = schema.TryGetColumn(schema.PrimaryKey[index])!;
+            WriteEncoded(bytes.AsSpan(offset), column, values[index]!);
+            offset += GetEncodedSize(column, values[index]!);
+        }
+        return bytes;
+    }
+
     /// <summary>
     /// 仅按 schema 校验一段字节是否可能是完整的旧版主键编码，不解码或分配主键值。
     /// </summary>

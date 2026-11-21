@@ -1,3 +1,10 @@
+## 2026-11-21（Asia/Shanghai）状态名单精确单表 COUNT 独立切片
+
+- 基线 `main@5342122e7acf8377cccf23e767aeb4b60cce671d`，独立分支 `codex/status-list-exact-count`，仅在 `D:/XJETC/uixe-status-list/external/SonnetDB` 修改；不触碰 `D:/source/SonnetDB` 或服务 gitlink。当前切片不推送、不合入 main，先交独立源码审查及服务器小规模回归。
+- 无 WHERE 的单表 COUNT 读取已有精确行数；LSM 连续主键等值前缀使用稳定快照并仅数可见主行键，匹配键范围为线性复杂度，不读取 row value/解码行。Legacy 前缀、残余/重复/NULL/非前缀条件、复杂查询及同表缓冲事务写入保留旧执行路径。保留逻辑 keyspace Serializable token、快照生命周期、取消/截止时间以及行数/30 分钟安全边界。
+- 新增 `SqlExactCountTests` 供主流程服务器 harness 直接 Link：空表/元数据、删除重开、连续前缀与别名、不支持条件回退、未知别名、读己之写、并发同表冲突和取消。Core.Tests Release 第二轮编译 PASS，0 warning/0 error；首轮仅 xUnit1031 阻塞 Task 操作失败，已改 async/WaitAsync。完整 solution restore PASS；规定 format 结果由实际收尾报告记录。本机没有运行数据库或测试，服务器回归、AOT、实际业务大表性能和生产验证均 NOT_RUN。
+- 下一顺序：审查最终源码树、规定完整 format、提交本切片；主流程在专用测试服务器隔离运行旧四 case 与新 COUNT cases，验证后再决定推送/合并和同 SHA Server/provider 重建。此切片不声称已解决服务端超时或证明生产性能。命令均使用有界 Cordonix 执行并回收自有进程树；本轮未新增临时源码副本或常驻服务。
+
 ## 2026-11-21（Asia/Shanghai）状态名单修复分支合入 main
 
 - 用户授权将本任务 `codex/status-list-ef11-nativeaot` 合入 main；本轮只在新服务的 canonical SonnetDB 子模块操作，不使用 `D:/source/SonnetDB` 共享树。远端核对起点为 `main@41abaa23807ea103e74b985e13045dcdcb0e03ae` 与任务分支 `67a9e52ce86389b6fc6d6252aa4fef4d435a9b82`。

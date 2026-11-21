@@ -82,6 +82,9 @@ internal static partial class RelationalSelectExecutor
 
         SqlExecutor.EnsureMaterializationSourceSupported(tsdb, statement);
 
+        if (outerScope is null && TryExecuteExactCount(tsdb, statement, memo, out var exactCount))
+            return exactCount;
+
         if (statement.UnionStatements.Count != 0)
         {
             return SqlExecutor.ExecuteUnion(
