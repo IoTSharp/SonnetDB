@@ -35,7 +35,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="$(SonnetDbExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="$(SonnetDbExtensionsVersion)" />
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="$(SonnetDbVectorDataVersion)" />
-    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.32.0" />
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.1" />
     <!-- 图片处理不需要许可证激活或构建密钥；Linux 原生资产不依赖 Fontconfig。 -->
     <!-- 托管包与 Linux 原生资产必须成对升级，保持相同 Skia milestone 的 native API 范围。 -->
