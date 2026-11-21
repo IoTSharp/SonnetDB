@@ -1,0 +1,194 @@
+{
+  "runId": "kv-0aeb9100",
+  "startedAtUtc": "2026-11-21T09:29:44.961002+00:00",
+  "scenarios": [
+    {
+      "name": "set_get_scan_throughput",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "set_per_sec": 10634.739759942018,
+            "get_per_sec": 352094.07953805255,
+            "scan_ms": 1.8908
+          }
+        },
+        {
+          "backend": "redis",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "set_per_sec": 13426.621499511943,
+            "get_per_sec": 4730.5244898070205,
+            "scan_ms": 292.9272
+          }
+        }
+      ]
+    },
+    {
+      "name": "ttl_accuracy",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "ttl_before_ms": 350,
+            "ttl_after_ms": -2,
+            "persisted_ttl_ms": -1,
+            "expire_ttl_ms": 5000
+          }
+        },
+        {
+          "backend": "redis",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "ttl_before_ms": 347,
+            "ttl_after_ms": -2,
+            "persisted_ttl_ms": -1,
+            "expire_ttl_ms": 4999
+          }
+        }
+      ]
+    },
+    {
+      "name": "incr_concurrency_16_clients",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "redis",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "cas_optimistic_lock",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "initial_version": 18008,
+            "new_version": 18009
+          }
+        },
+        {
+          "backend": "redis",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "initial_version": 1,
+            "new_version": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "scan_cursor_10m_keys",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "configured_key_count": 10000,
+            "full_10m_enabled": false
+          }
+        },
+        {
+          "backend": "redis",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "configured_key_count": 10000,
+            "full_10m_enabled": false
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "set_get_scan_throughput",
+      "required": "Kv, KvRangeScan",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "redis": "pass"
+      }
+    },
+    {
+      "scenario": "ttl_accuracy",
+      "required": "Kv",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "redis": "pass"
+      }
+    },
+    {
+      "scenario": "incr_concurrency_16_clients",
+      "required": "Kv, KvIncr",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "redis": "pass"
+      }
+    },
+    {
+      "scenario": "cas_optimistic_lock",
+      "required": "Kv, KvCas",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "redis": "pass"
+      }
+    },
+    {
+      "scenario": "scan_cursor_10m_keys",
+      "required": "Kv, KvRangeScan",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "redis": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "redis"
+  ]
+}

@@ -1,0 +1,60 @@
+
+phase=before-sonnetdb-build time=2026-11-21T09:22:39Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   58G   87G  40% /
+/dev/mapper/cow-root  145G   58G   87G  40% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          6         0         3.686GB   3.685GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=after-sonnetdb-load time=2026-11-21T09:27:17Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   67G   78G  47% /
+/dev/mapper/cow-root  145G   67G   78G  47% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         1         5.749GB   5.382GB (93%)
+Containers      1         1         69.63kB   0B (0%)
+Local Volumes   1         1         7.431GB   0B (0%)
+Build Cache     0         0         0B        0B
+
+phase=after-sonnetdb-builder-cleanup time=2026-11-21T09:27:22Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   60G   85G  42% /
+/dev/mapper/cow-root  145G   60G   85G  42% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         5.749GB   5.747GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=before-minio-build time=2026-11-21T09:27:22Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   60G   85G  42% /
+/dev/mapper/cow-root  145G   60G   85G  42% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         5.749GB   5.747GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=after-minio-load time=2026-11-21T09:29:34Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   64G   82G  44% /
+/dev/mapper/cow-root  145G   64G   82G  44% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          9         1         6.146GB   5.779GB (94%)
+Containers      1         1         69.63kB   0B (0%)
+Local Volumes   1         1         3.497GB   0B (0%)
+Build Cache     0         0         0B        0B
+
+phase=after-minio-builder-cleanup time=2026-11-21T09:29:35Z
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/mapper/cow-root  145G   60G   85G  42% /
+/dev/mapper/cow-root  145G   60G   85G  42% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          9         0         6.146GB   6.144GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
