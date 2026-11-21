@@ -234,7 +234,7 @@ public sealed class SqlPrimaryPrefixGroupCountTests : IDisposable
     public void BooleanGroupKeyRetainsOriginalResults()
     {
         using Tsdb db = Open();
-        Run(db, "CREATE TABLE flags(prefix STRING,flag BOOLEAN,id INT,PRIMARY KEY(prefix,flag,id))");
+        Run(db, "CREATE TABLE flags(prefix STRING,flag BOOL,id INT,PRIMARY KEY(prefix,flag,id))");
         Run(db, "INSERT INTO flags(prefix,flag,id) VALUES('p',TRUE,1),('p',TRUE,2),('p',FALSE,1)");
         var groups = Query(db, "SELECT flag,COUNT(*) FROM flags WHERE prefix='p' GROUP BY flag").Rows
             .ToDictionary(x => Assert.IsType<bool>(x[0]), x => Assert.IsType<long>(x[1]));
