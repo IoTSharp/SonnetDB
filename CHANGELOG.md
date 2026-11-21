@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Shared LSM serializable snapshot version
+
+- 关系表扫描和复合快照的 Serializable 读凭据改为在表锁内捕获当前逻辑 keyspace 的 `LastSequence`。共享引擎快照的全局序号不再与单表提交序号比较，避免其他表已提交写入后发生无并发写者的假冲突；真实同表变更仍由原有提交校验拒绝。增加两种快照入口的成功提交与同表冲突回归，运行证据单独记录。
+
 ### EF compiled-model and query-precompilation infrastructure
 
 - EF provider 的普通查询与发布时预编译现在使用独立的 SonnetDB 查询上下文，`CreatePrecompiled` 显式启用预编译模式；实验 API 合同通过 `Experimental("EF9100")` 继续向调用方公开，不压制 IL/AOT 警告。

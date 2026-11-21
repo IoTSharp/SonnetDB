@@ -1,3 +1,8 @@
+## 2026-11-21（Asia/Shanghai）共享 LSM Serializable 快照修复
+
+- 继承 provider 提交 `769c5814d712029bd183d95c716565cb163f1d00`，同一独立分支只修改 TableStore 两处读凭据序列来源，并增加四个最小回归场景。捕获逻辑表序列与快照均位于已有表锁内，未放宽同表并发写入检测，未改变存储格式。
+- 用户已允许继续修复引擎。按用户要求，本机只编译，运行验证放在独立测试服务器；服务器控制台直接 Link 四个原始测试 case，不复制测试逻辑。提交前完整 restore/format 与实际服务器结果分别保留，不能用生成或编译代替运行。
+
 ## 2026-11-21（Asia/Shanghai）状态名单 EF11 provider 独立修复分支
 
 - 基线为 `99ada9e914bd6bcd48bbe17e975b099c91286f46`，任务使用新服务子模块 `D:/XJETC/uixe-status-list/external/SonnetDB` 的 `codex/status-list-ef11-nativeaot` 分支；未修改 `D:/source/SonnetDB` 共享工作树。用户授权独立修复 provider、验证后更新服务固定提交，本提交不执行推送、发布或部署。
