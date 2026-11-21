@@ -6,6 +6,9 @@ namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 /// <summary>提供保留 UTC ticks 的原生日期映射，以及显式旧 DATETIME 列的完整毫秒合同。</summary>
 public sealed class SonnetDbDateTimeTypeMapping : DateTimeTypeMapping
 {
+    /// <summary>供编译模型和预编译查询重建原生 DATETIME2 映射的默认实例。</summary>
+    public new static SonnetDbDateTimeTypeMapping Default { get; } = new();
+
     /// <summary>创建日期映射；显式旧列继续使用仅接受完整毫秒的参数类型。</summary>
     /// <param name="storeType">原生 DATETIME2 或显式旧 DATETIME 存储声明。</param>
     public SonnetDbDateTimeTypeMapping(string storeType = "DATETIME2")

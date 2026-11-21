@@ -14,13 +14,9 @@ public sealed class SonnetDbDesignTimeServices : IDesignTimeServices
     {
         serviceCollection.AddEntityFrameworkSonnetDB();
 
-        new EntityFrameworkDesignServicesBuilder(serviceCollection)
-            .TryAddProviderSpecificServices(
-                services =>
-                {
-                    services.TryAddSingleton<AnnotationCodeGeneratorDependencies, AnnotationCodeGeneratorDependencies>();
-                    services.TryAddSingleton<IAnnotationCodeGenerator, AnnotationCodeGenerator>();
-                })
+        // Compiled relational models need the relational runtime annotation
+        // generator and its dependencies, not only the base EF model generator.
+        new EntityFrameworkRelationalDesignServicesBuilder(serviceCollection)
             .TryAddCoreServices();
     }
 }
