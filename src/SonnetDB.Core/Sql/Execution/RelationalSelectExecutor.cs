@@ -82,6 +82,8 @@ internal static partial class RelationalSelectExecutor
 
         SqlExecutor.EnsureMaterializationSourceSupported(tsdb, statement);
 
+        if (outerScope is null && TryExecutePrefixGroupCount(tsdb, statement, memo, out var groupedCount))
+            return groupedCount;
         if (outerScope is null && TryExecuteExactCount(tsdb, statement, memo, out var exactCount))
             return exactCount;
 

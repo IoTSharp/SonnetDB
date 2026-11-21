@@ -1,5 +1,7 @@
 namespace SonnetDB.Kv;
 
+internal delegate bool KvPrefixKeyVisitor(ReadOnlySpan<byte> remainingKey);
+
 /// <summary>
 /// KV keyspace 的稳定只读快照租约。
 /// </summary>
@@ -69,7 +71,7 @@ public sealed class KvReadSnapshot : IDisposable
     }
 
     internal bool TryCountLsmPrefixKeys(byte[] prefix, int maximumKeys, CancellationToken cancellationToken,
-        Action checkCancellation, out long count)
+        Action checkCancellation, out long count, KvPrefixKeyVisitor? visitor = null)
     {
         KvReadSnapshotState state;
         lock (_sync)
@@ -78,7 +80,7 @@ public sealed class KvReadSnapshot : IDisposable
             state = _state;
             state.AddReference();
         }
-        try { return state.TryCountLsmPrefixKeys(prefix, maximumKeys, cancellationToken, checkCancellation, out count); }
+        try { return state.TryCountLsmPrefixKeys(prefix, maximumKeys, cancellationToken, checkCancellation, out count, visitor); }
         finally { state.Release(); }
     }
 
@@ -145,7 +147,7 @@ internal sealed class KvReadSnapshotState
     public DateTimeOffset ReadTimestampUtc { get; }
 
     internal bool TryCountLsmPrefixKeys(byte[] prefix, int maximumKeys, CancellationToken cancellationToken,
-        Action checkCancellation, out long count)
+        Action checkCancellation, out long count, KvPrefixKeyVisitor? visitor = null)
     {
         count = 0;
         if (_lsmSnapshot is not { } snapshot) return false;
@@ -167,6 +169,7 @@ internal sealed class KvReadSnapshotState
             if (!iterator.Valid) return true;
             if (visited == maximumKeys || !iterator.Key.StartsWith(physicalPrefix))
                 throw new InvalidDataException("主行前缀计数超出稳定快照的行数或键范围。");
+            if (visitor?.Invoke(iterator.Key[physicalPrefix.Length..]) == false) return false;
             count++;
             iterator.MoveNext();
         }

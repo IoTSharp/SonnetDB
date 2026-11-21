@@ -77,6 +77,22 @@ internal static class TableKeyCodec
         return bytes;
     }
 
+    internal static int PrefixGroupComponentLength(TableColumn column, ReadOnlySpan<byte> source)
+    {
+        if (column.DataType == TableColumnType.Int64 && source.Length >= sizeof(long)) return sizeof(long);
+        if (column.DataType == TableColumnType.String && source.Length >= sizeof(int))
+        {
+            int length = BinaryPrimitives.ReadInt32BigEndian(source);
+            if (length >= 0 && length <= source.Length - sizeof(int)) return sizeof(int) + length;
+        }
+        throw new InvalidDataException("主键分组列的类型或编码长度无效。");
+    }
+
+    internal static object DecodePrefixGroupComponent(TableColumn column, ReadOnlySpan<byte> encoded)
+        => column.DataType == TableColumnType.Int64
+            ? BinaryPrimitives.ReadInt64BigEndian(encoded)
+            : _utf8.GetString(encoded[sizeof(int)..]);
+
     /// <summary>
     /// 仅按 schema 校验一段字节是否可能是完整的旧版主键编码，不解码或分配主键值。
     /// </summary>

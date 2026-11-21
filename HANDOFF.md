@@ -1,3 +1,11 @@
+## 2026-11-21（Asia/Shanghai）状态名单主键前缀单列分组 COUNT 候选
+
+- 基线 `main@f6e0a16bf5c68413f22fa303b2a9c3d3698594d6`，候选分支 `codex/status-list-prefix-group-count`；仅修改 canonical 服务 SonnetDB 子模块，不触碰 `D:/source/SonnetDB`、服务代码或 gitlink。本轮不提交、推送或合并，交主流程独立源码审查和服务器 Link 原测试后决定后续动作。
+- 只接受连续 PK 等值前缀后的下一 PK 列 GROUP BY，以及“该列、COUNT(*)”两投影；分组类型限 String/Int64。String 的 SQL Equals/Ordinal 和整数精确相等与 PK 编码类一致，其他类型或复杂形状保守回退。复用 f6 stable keys-only snapshot、逻辑表读凭据、行数/时间/取消边界；只保留输出组，预算不足回原 spill，不读 row value 或解码完整行。
+- 新增 `SqlPrimaryPrefixGroupCountTests`，覆盖原聚合对照、别名/元数据、空分组、删除重开、大小写/数字串/Unicode/整数精度、事务 overlay、真并发冲突、其他表写入、稳定快照、取消、复杂条件、Legacy 和预算 spill 回退。本机测试运行 NOT_RUN；首次 Core.Tests Release 编译 PASS，0 warning/0 error，约 119 秒。最终 restore/format/编译和审查结果由实际收尾报告记录。
+- 触发证据分层：原真实 promotion 返回 HTTP500/CommandTimeout 约120.304秒；随后独立同形 GROUP BY 查询在120.083699秒客户端读超时，没有分组/总数，服务端终态 UNKNOWN。本候选不把两者合并为同一服务端失败，也不预先声称解决 affected IN(stage) 或整个增量性能。
+- 下一步固定候选源码树，独立审查，服务器回归原25项与新组计数 case，再在无其他重负载时测同5,886,642条数据的确切 GROUP BY。命令均有界并回收自有进程；本轮未创建新的临时源码副本或常驻服务。
+
 ## 2026-11-21（Asia/Shanghai）状态名单精确单表 COUNT 独立切片
 
 - 基线 `main@5342122e7acf8377cccf23e767aeb4b60cce671d`，独立分支 `codex/status-list-exact-count`，仅在 `D:/XJETC/uixe-status-list/external/SonnetDB` 修改；不触碰 `D:/source/SonnetDB` 或服务 gitlink。当前切片不推送、不合入 main，先交独立源码审查及服务器小规模回归。
