@@ -1691,11 +1691,11 @@ public sealed partial class Tsdb : IDisposable
     }
 
     /// <summary>
-    /// 在写锁内创建一致备份：先 checkpoint 时序、表、文档和 KV，再由调用方复制文件并生成 manifest。
+    /// 在写锁内固定一致备份：先 checkpoint 各模型，再由调用方捕获文件和目录摘要。
     /// </summary>
-    internal SonnetDB.Backup.BackupManifest CreateConsistentBackup(
+    internal TResult CreateConsistentBackup<TResult>(
         SonnetDB.Backup.BackupCreateOptions options,
-        Func<Tsdb, SonnetDB.Backup.BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Kv.Lsm.KvLsmBackupSet, SonnetDB.Backup.BackupManifest> afterCheckpoint)
+        Func<Tsdb, SonnetDB.Backup.BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Kv.Lsm.KvLsmBackupSet, TResult> afterCheckpoint)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(afterCheckpoint);

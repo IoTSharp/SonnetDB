@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SonnetDB.Backup;
 using SonnetDB.Configuration;
 using SonnetDB.Hosting;
+using SonnetMQ;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -31,7 +32,6 @@ public sealed class BackupSchedulerTests : IDisposable
         var store = new BackupTaskStore(_root);
         foreach (var scope in new BackupScopeOptions[]
         {
-            new() { IncludeMessageQueue = true },
             new() { Measurements = ["metrics"] },
             new() { Tables = ["roads"] },
             new() { DocumentCollections = ["logs"] },
@@ -52,7 +52,8 @@ public sealed class BackupSchedulerTests : IDisposable
         using var registry = new TsdbRegistry(Path.Combine(_root, "source"));
         Assert.True(registry.TryCreate("site", out _));
         var store = new BackupTaskStore(registry.DataRoot);
-        using var scheduler = new BackupSchedulerService(registry, store,
+        using var queue = OpenQueue("message-queue");
+        using var scheduler = new BackupSchedulerService(registry, store, queue,
             Options.Create(new ServerOptions { Backup = new BackupRuntimeOptions { DestinationRoot = backupRoot } }),
             NullLogger<BackupSchedulerService>.Instance, TimeProvider.System);
         var task = store.Upsert(new BackupTaskDefinition { Id = "daily-site", RetentionCount = 1, DatabaseNames = ["site"] });
@@ -92,6 +93,120 @@ public sealed class BackupSchedulerTests : IDisposable
         Assert.Equal(3, Directory.GetDirectories(taskRoot).Length);
     }
 
+    /// <summary>恢复同一批次的消息快照，核对正文及消费者组已确认的位置。</summary>
+    [Fact]
+    public async Task RunNow_PublishesRestorableQueueWithDatabase()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var registry = new TsdbRegistry(Path.Combine(_root, "source"));
+        Assert.True(registry.TryCreate("site", out _));
+        using var queue = OpenQueue("message-queue");
+        queue.Publish("events", "acknowledged"u8);
+        queue.Publish("events", "pending"u8);
+        queue.Ack("events", "workers", 0);
+
+        var store = new BackupTaskStore(registry.DataRoot);
+        var task = store.Upsert(new BackupTaskDefinition
+        {
+            Id = "daily-site",
+            Scope = new BackupScopeOptions { IncludeKeyValue = true, IncludeMessageQueue = true },
+            RetentionCount = 1,
+        });
+        using var scheduler = new BackupSchedulerService(registry, store, queue,
+            Options.Create(new ServerOptions { Backup = new BackupRuntimeOptions { DestinationRoot = Path.Combine(_root, "backups") } }),
+            NullLogger<BackupSchedulerService>.Instance, TimeProvider.System);
+
+        BackupTaskState first = await scheduler.RunNowAsync(task.Id, deadline.Token);
+        Assert.Equal("ok:2", first.Status);
+        string firstPath = Assert.IsType<string>(first.LastOutputDirectory);
+        Assert.True(new BackupService().Verify(Path.Combine(firstPath, "site")).IsValid);
+        SonnetMqStore.RestoreSnapshot(Path.Combine(firstPath, ".system-mq"), Path.Combine(_root, "restored-queue"));
+        using var restoredQueue = OpenQueue("restored-queue");
+        SonnetMqMessage pending = Assert.Single(restoredQueue.Pull("events", "workers", 10));
+        Assert.Equal(1, pending.Offset);
+        Assert.Equal("pending"u8.ToArray(), pending.Payload);
+
+        BackupTaskState second = await scheduler.RunNowAsync(task.Id, deadline.Token);
+        Assert.Equal("ok:2", second.Status);
+        Assert.False(Directory.Exists(firstPath));
+        Assert.True(Directory.Exists(second.LastOutputDirectory));
+    }
+
+    /// <summary>持久化首轮时间后，在北京时间每日 02:00 才开始首轮并避免当天重复执行。</summary>
+    [Fact]
+    public async Task RunDue_RespectsPersistedFirstRunAndRunsOncePerLocalDay()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string backupRoot = Path.Combine(_root, "backups");
+        using var registry = new TsdbRegistry(Path.Combine(_root, "source"));
+        Assert.True(registry.TryCreate("site", out _));
+        using var queue = OpenQueue("message-queue");
+        var firstRun = new DateTimeOffset(2026, 11, 21, 18, 0, 0, TimeSpan.Zero);
+        var originalStore = new BackupTaskStore(registry.DataRoot);
+        var task = originalStore.Upsert(new BackupTaskDefinition
+        {
+            Id = "daily-site",
+            FirstRunNotBeforeUtc = firstRun,
+            TimeZoneId = "Asia/Shanghai",
+            LocalTime = "02:00",
+        });
+        var reopenedStore = new BackupTaskStore(registry.DataRoot);
+        Assert.Equal(firstRun, reopenedStore.TryGetTask(task.Id)?.FirstRunNotBeforeUtc);
+        var time = new TestTimeProvider { UtcNow = firstRun.AddHours(-8) };
+        using var scheduler = new BackupSchedulerService(registry, reopenedStore, queue,
+            Options.Create(new ServerOptions { Backup = new BackupRuntimeOptions { DestinationRoot = backupRoot } }),
+            NullLogger<BackupSchedulerService>.Instance, time);
+
+        await scheduler.RunDueTasksAsync(deadline.Token);
+        Assert.Equal("never", reopenedStore.GetState(task.Id).Status);
+        Assert.False(Directory.Exists(backupRoot));
+
+        time.UtcNow = firstRun;
+        await scheduler.RunDueTasksAsync(deadline.Token);
+        BackupTaskState first = reopenedStore.GetState(task.Id);
+        Assert.Equal("ok:1", first.Status);
+        Assert.Equal(firstRun, first.LastStartedUtc);
+
+        time.UtcNow = firstRun.AddHours(1);
+        await scheduler.RunDueTasksAsync(deadline.Token);
+        Assert.Equal(first.LastOutputDirectory, reopenedStore.GetState(task.Id).LastOutputDirectory);
+    }
+
+    /// <summary>缺少要求的独立挂载时，禁止在普通目录写入任何批次。</summary>
+    [Fact]
+    public async Task RunNow_RequiredDestinationMountRejectsOrdinaryDirectory()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string backupRoot = Path.Combine(_root, "backups");
+        Directory.CreateDirectory(backupRoot);
+        using var registry = new TsdbRegistry(Path.Combine(_root, "source"));
+        Assert.True(registry.TryCreate("site", out _));
+        using var queue = OpenQueue("message-queue");
+        var store = new BackupTaskStore(registry.DataRoot);
+        var task = store.Upsert(new BackupTaskDefinition { Id = "daily-site" });
+        using var scheduler = new BackupSchedulerService(registry, store, queue,
+            Options.Create(new ServerOptions
+            {
+                Backup = new BackupRuntimeOptions { DestinationRoot = backupRoot, RequireDestinationMount = true },
+            }), NullLogger<BackupSchedulerService>.Instance, TimeProvider.System);
+
+        BackupTaskState state = await scheduler.RunNowAsync(task.Id, deadline.Token);
+        Assert.Equal("failed", state.Status);
+        Assert.Null(state.LastOutputDirectory);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(backupRoot));
+    }
+
+    /// <summary>挂载点查找正确处理空格和转义，目录前缀不算命中。</summary>
+    [Fact]
+    public void ContainsMount_RequiresExactEscapedMountPoint()
+    {
+        string[] entries = [@"31 23 8:3 /home/backup /backup\040daily rw,relatime - ext4 /dev/sda3 rw"];
+
+        Assert.True(BackupDestinationMount.ContainsMount(entries, "/backup daily", CancellationToken.None));
+        Assert.False(BackupDestinationMount.ContainsMount(entries, "/backup", CancellationToken.None));
+        Assert.False(BackupDestinationMount.ContainsMount(entries, "/backup daily/child", CancellationToken.None));
+    }
+
     /// <summary>任务不会将外置对象卷误报为数据库备份的一部分。</summary>
     [Fact]
     public void ValidateTaskDestination_RejectsExternalObjectVolume()
@@ -99,7 +214,8 @@ public sealed class BackupSchedulerTests : IDisposable
         using var registry = new TsdbRegistry(Path.Combine(_root, "source"), null, null, null, null,
             Path.Combine(_root, "objects"));
         Assert.True(registry.TryCreate("site", out _));
-        using var scheduler = new BackupSchedulerService(registry, new BackupTaskStore(registry.DataRoot),
+        using var queue = OpenQueue("message-queue");
+        using var scheduler = new BackupSchedulerService(registry, new BackupTaskStore(registry.DataRoot), queue,
             Options.Create(new ServerOptions
             {
                 Backup = new BackupRuntimeOptions { DestinationRoot = Path.Combine(_root, "backups") },
@@ -120,7 +236,8 @@ public sealed class BackupSchedulerTests : IDisposable
         using var registry = new TsdbRegistry(Path.Combine(_root, "source"));
         var store = new BackupTaskStore(registry.DataRoot);
         var first = store.Upsert(new BackupTaskDefinition { Id = "first" });
-        using var scheduler = new BackupSchedulerService(registry, store,
+        using var queue = OpenQueue("message-queue");
+        using var scheduler = new BackupSchedulerService(registry, store, queue,
             Options.Create(new ServerOptions { Backup = new BackupRuntimeOptions { DestinationRoot = backupRoot } }),
             NullLogger<BackupSchedulerService>.Instance, TimeProvider.System);
 
@@ -128,6 +245,19 @@ public sealed class BackupSchedulerTests : IDisposable
 
         Assert.Throws<InvalidOperationException>(() => scheduler.ValidateTaskDestination(second));
         Assert.False(Directory.Exists(backupRoot));
+    }
+
+    /// <summary>打开测试独有的消息队列目录。</summary>
+    private SonnetMqStore OpenQueue(string name)
+        => SonnetMqStore.Open(new SonnetMqOptions { Path = Path.Combine(_root, name), RetentionInterval = TimeSpan.Zero });
+
+    /// <summary>推进测试时钟，避免等待真实调度周期。</summary>
+    private sealed class TestTimeProvider : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; }
+
+        /// <summary>返回测试指定的 UTC 时间。</summary>
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     /// <summary>清理该测试独有的临时目录。</summary>

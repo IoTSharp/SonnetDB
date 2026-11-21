@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SonnetDB.Backup;
 using SonnetDB.Configuration;
+using SonnetMQ;
 
 namespace SonnetDB.Hosting;
 
@@ -14,11 +15,13 @@ namespace SonnetDB.Hosting;
 internal sealed class BackupSchedulerService : BackgroundService
 {
     private const string BatchMarkerName = ".sonnetdb-backup-complete";
+    private const string MessageQueueDirectoryName = ".system-mq";
     private const string BatchTimeFormat = "yyyyMMdd-HHmmss";
     private const int MaximumRetentionEntries = 20_000;
     private const int MaximumBatchEntries = 1_000_000;
     private readonly TsdbRegistry _registry;
     private readonly BackupTaskStore _store;
+    private readonly SonnetMqStore _messageQueue;
     private readonly ServerOptions _serverOptions;
     private readonly ILogger<BackupSchedulerService> _logger;
     private readonly TimeProvider _timeProvider;
@@ -28,12 +31,14 @@ internal sealed class BackupSchedulerService : BackgroundService
     public BackupSchedulerService(
         TsdbRegistry registry,
         BackupTaskStore store,
+        SonnetMqStore messageQueue,
         IOptions<ServerOptions> options,
         ILogger<BackupSchedulerService> logger,
         TimeProvider timeProvider)
     {
         _registry = registry;
         _store = store;
+        _messageQueue = messageQueue;
         _serverOptions = options.Value;
         _logger = logger;
         _timeProvider = timeProvider;
@@ -80,7 +85,7 @@ internal sealed class BackupSchedulerService : BackgroundService
     }
 
     /// <summary>枚举任务并执行当前本地日期尚未运行的任务。</summary>
-    private async Task RunDueTasksAsync(CancellationToken cancellationToken)
+    internal async Task RunDueTasksAsync(CancellationToken cancellationToken)
     {
         if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
             return;
@@ -105,6 +110,9 @@ internal sealed class BackupSchedulerService : BackgroundService
     /// <summary>判断任务是否到达指定时区的每日执行时间。</summary>
     private bool IsDue(BackupTaskDefinition task, DateTimeOffset utcNow)
     {
+        if (task.FirstRunNotBeforeUtc is { } notBefore && utcNow < notBefore)
+            return false;
+
         TimeZoneInfo zone;
         try
         {
@@ -145,12 +153,15 @@ internal sealed class BackupSchedulerService : BackgroundService
         string? stagingDirectory = null;
         try
         {
-            IReadOnlyList<string> databases = task.DatabaseNames.Count == 0
-                ? _registry.ListDatabases()
-                : task.DatabaseNames;
-            if (databases.Count is 0 or > BackupTaskStore.MaximumDatabases)
-                throw new InvalidOperationException("备份任务的数据库数量为空或超出上限。");
+            BackupModelScope databaseScope = ToModelScope(task.Scope);
             string taskRoot = ValidateTaskDestination(task);
+            IReadOnlyList<string> databases = [];
+            if (databaseScope != BackupModelScope.None)
+            {
+                databases = task.DatabaseNames.Count == 0 ? _registry.ListDatabases() : task.DatabaseNames;
+                if (databases.Count is 0 or > BackupTaskStore.MaximumDatabases)
+                    throw new InvalidOperationException("备份任务的数据库数量为空或超出上限。");
+            }
             var selected = databases.Select(name =>
             {
                 if (!TsdbRegistry.IsValidName(name) || BackupTaskStore.IsReservedDirectoryName(name)
@@ -159,6 +170,7 @@ internal sealed class BackupSchedulerService : BackgroundService
                 return (Name: name, Database: database);
             }).ToArray();
 
+            BackupDestinationMount.EnsureMounted(_serverOptions.Backup, cancellationToken);
             Directory.CreateDirectory(taskRoot);
             RejectLinkedPath(taskRoot);
             string batchName = state.LastStartedUtc.Value.UtcDateTime.ToString(BatchTimeFormat, CultureInfo.InvariantCulture)
@@ -181,7 +193,8 @@ internal sealed class BackupSchedulerService : BackgroundService
                     IncludeFullTextIndexes = task.Scope.IncludeFullTextIndexes,
                     IncludeKeyValue = task.Scope.IncludeKeyValue,
                     IncludeObjectContent = task.Scope.IncludeObjects,
-                    ModelScope = ToModelScope(task.Scope),
+                    ExcludeObjectMetadata = !task.Scope.IncludeObjects,
+                    ModelScope = databaseScope,
                 });
                 if (task.VerifyAfterCreate)
                 {
@@ -198,15 +211,30 @@ internal sealed class BackupSchedulerService : BackgroundService
                     manifest.Consistency.TotalBytes);
             }
 
+            // 消息队列按整个服务实例备份，快照及其校验结果随同本批数据库备份一起发布。
+            if (task.Scope.IncludeMessageQueue)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string queueOutput = Path.Combine(stagingDirectory, MessageQueueDirectoryName);
+                SonnetMqInstanceSnapshotResult queueSnapshot = _messageQueue.CreateSnapshot(queueOutput);
+                if (task.VerifyAfterCreate)
+                    _ = SonnetMqStore.ReadSnapshotManifest(queueOutput);
+
+                _logger.LogInformation(
+                    "备份任务 {TaskId} 已完成实例消息队列快照，文件 {FileCount}，字节 {Bytes}。",
+                    task.Id, queueSnapshot.FileCount, queueSnapshot.TotalBytes);
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
+            BackupDestinationMount.EnsureMounted(_serverOptions.Backup, cancellationToken);
             RejectLinkedPath(stagingDirectory);
             RejectLinkedPath(batchDirectory);
-            WriteBatchMarker(stagingDirectory, task.Id, batchName, databases);
+            WriteBatchMarker(stagingDirectory, task.Id, batchName, databases, task.Scope.IncludeMessageQueue);
             // 同一父目录内原子发布，任何部分完成的副本都留在暂存目录。
             Directory.Move(stagingDirectory, batchDirectory);
             stagingDirectory = null;
             state.LastCompletedUtc = _timeProvider.GetUtcNow();
-            state.Status = $"ok:{selected.Length}";
+            state.Status = $"ok:{selected.Length + (task.Scope.IncludeMessageQueue ? 1 : 0)}";
             state.LastOutputDirectory = batchDirectory;
             state.LastError = null;
             TryApplyRetention(task, taskRoot, batchDirectory, cancellationToken);
@@ -283,6 +311,7 @@ internal sealed class BackupSchedulerService : BackgroundService
     {
         try
         {
+            BackupDestinationMount.EnsureMounted(_serverOptions.Backup, cancellationToken);
             RejectLinkedPath(taskRoot);
             var cutoff = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-task.RetentionDays);
             var time = Stopwatch.StartNew();
@@ -316,8 +345,8 @@ internal sealed class BackupSchedulerService : BackgroundService
         }
     }
 
-    /// <summary>持久化任务 ID、批次 ID 和本次成功备份的数据库名称。</summary>
-    private static void WriteBatchMarker(string stage, string taskId, string batchName, IReadOnlyList<string> databases)
+    /// <summary>持久化任务 ID、批次 ID 和本次成功备份的目录名称。</summary>
+    private static void WriteBatchMarker(string stage, string taskId, string batchName, IReadOnlyList<string> databases, bool includesMessageQueue)
     {
         using var stream = new FileStream(Path.Combine(stage, BatchMarkerName), FileMode.CreateNew, FileAccess.Write);
         using (var writer = new StreamWriter(stream, leaveOpen: true))
@@ -326,11 +355,13 @@ internal sealed class BackupSchedulerService : BackgroundService
             writer.WriteLine(batchName);
             foreach (string name in databases)
                 writer.WriteLine(name);
+            if (includesMessageQueue)
+                writer.WriteLine(MessageQueueDirectoryName);
         }
         stream.Flush(flushToDisk: true);
     }
 
-    /// <summary>核对批次名、归属标记及每个已发布数据库的 manifest。</summary>
+    /// <summary>核对批次名、归属标记及已发布组件的 manifest。</summary>
     private static bool IsCompletedBatch(string path, string taskId, out DateTime started)
     {
         started = default;
@@ -344,18 +375,19 @@ internal sealed class BackupSchedulerService : BackgroundService
         if (!File.Exists(marker) || HasLink(marker) || new FileInfo(marker).Length > 32_768)
             return false;
         string[] lines = File.ReadAllLines(marker);
-        if (lines.Length is < 3 or > BackupTaskStore.MaximumDatabases + 2
+        if (lines.Length is < 3 or > BackupTaskStore.MaximumDatabases + 3
             || lines[0] != taskId || lines[1] != name)
             return false;
         var expected = new HashSet<string>(StringComparer.Ordinal) { BatchMarkerName };
-        foreach (string database in lines.AsSpan(2))
+        foreach (string component in lines.AsSpan(2))
         {
-            if (!TsdbRegistry.IsValidName(database) || BackupTaskStore.IsReservedDirectoryName(database)
-                || !expected.Add(database))
+            bool isMessageQueue = component == MessageQueueDirectoryName;
+            if ((!isMessageQueue && (!TsdbRegistry.IsValidName(component) || BackupTaskStore.IsReservedDirectoryName(component)))
+                || !expected.Add(component))
                 return false;
-            string databasePath = Path.Combine(path, database);
-            string manifest = Path.Combine(databasePath, BackupManifest.FileName);
-            if (!Directory.Exists(databasePath) || HasLink(databasePath)
+            string componentPath = Path.Combine(path, component);
+            string manifest = Path.Combine(componentPath, isMessageQueue ? SonnetMqInstanceSnapshotManifest.FileName : BackupManifest.FileName);
+            if (!Directory.Exists(componentPath) || HasLink(componentPath)
                 || !File.Exists(manifest) || HasLink(manifest))
                 return false;
         }

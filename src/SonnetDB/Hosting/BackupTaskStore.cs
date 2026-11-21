@@ -136,6 +136,8 @@ internal sealed class BackupTaskStore
         }
         ValidateScope(task.Scope ?? new BackupScopeOptions());
         task.Scope ??= new BackupScopeOptions();
+        if (!HasDatabaseModels(task.Scope) && task.DatabaseNames.Count != 0)
+            throw new ArgumentException("仅备份实例消息队列时无需指定数据库名称。", nameof(task));
     }
 
     /// <summary>跨平台拒绝不能用作普通目录的设备保留名。</summary>
@@ -157,18 +159,22 @@ internal sealed class BackupTaskStore
         scope.DocumentCollections ??= [];
         scope.Buckets ??= [];
         scope.Graphs ??= [];
-        if (scope.IncludeMessageQueue || scope.Measurements.Count != 0 || scope.Tables.Count != 0
+        if (scope.Measurements.Count != 0 || scope.Tables.Count != 0
             || scope.Buckets.Count != 0 || scope.Keyspaces.Count != 0
             || scope.DocumentCollections.Count != 0 || scope.Graphs.Count != 0)
         {
-            throw new ArgumentException("备份任务暂不支持实例消息队列和按资源名称选择；请按数据模型选择备份范围。", nameof(scope));
+            throw new ArgumentException("备份任务暂不支持按资源名称选择；请按数据模型选择备份范围。", nameof(scope));
         }
-        if (!scope.IncludeMeasurements && !scope.IncludeTables && !scope.IncludeDocuments
-            && !scope.IncludeGraphs && !scope.IncludeKeyValue && !scope.IncludeObjects)
+        if (!HasDatabaseModels(scope) && !scope.IncludeMessageQueue)
             throw new ArgumentException("备份任务必须包含至少一种数据模型。", nameof(scope));
         if (scope.IncludeObjects && !scope.IncludeKeyValue)
             throw new ArgumentException("备份对象正文时必须包含存有对象元数据的 KV 数据模型。", nameof(scope));
     }
+
+    /// <summary>识别是否选择数据库级模型，以区分仅备份实例消息队列的任务。</summary>
+    private static bool HasDatabaseModels(BackupScopeOptions scope)
+        => scope.IncludeMeasurements || scope.IncludeTables || scope.IncludeDocuments
+            || scope.IncludeGraphs || scope.IncludeKeyValue || scope.IncludeObjects;
 
     /// <summary>规范化旧任务文件中的空集合和状态。</summary>
     private static void NormalizeState(BackupTaskFile state)
@@ -200,6 +206,7 @@ internal sealed class BackupTaskStore
             Enabled = task.Enabled,
             LocalTime = task.LocalTime,
             TimeZoneId = task.TimeZoneId,
+            FirstRunNotBeforeUtc = task.FirstRunNotBeforeUtc,
             DestinationRoot = task.DestinationRoot,
             DatabaseNames = [.. task.DatabaseNames],
             Scope = new BackupScopeOptions

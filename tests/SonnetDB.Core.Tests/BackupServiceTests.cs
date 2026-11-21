@@ -307,6 +307,42 @@ public sealed class BackupServiceTests : IDisposable
         }
     }
 
+    /// <summary>排除对象桶时跳过正文和桶元数据，保留普通 KV 并能恢复使用。</summary>
+    [Fact]
+    public async Task CreateRestore_ExcludeObjectBuckets_PreservesOrdinaryKeyspaces()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string source = Path.Combine(_rootDirectory, "source-no-buckets");
+        string backup = Path.Combine(_rootDirectory, "backup-no-buckets");
+        string target = Path.Combine(_rootDirectory, "restored-no-buckets");
+        using (var database = Tsdb.Open(new TsdbOptions { RootDirectory = source }))
+        {
+            database.Keyspaces.Open("ordinary").Put("state"u8, "ready"u8);
+            var objects = new SndbObjectStore(database);
+            objects.CreateBucket("excluded");
+            await objects.PutObjectAsync("excluded", "demo.bin", new MemoryStream("contents"u8.ToArray()),
+                cancellationToken: deadline.Token);
+
+            BackupManifest manifest = new BackupService().Create(database, new BackupCreateOptions
+            {
+                DestinationDirectory = backup,
+                IncludeObjectContent = false,
+                ExcludeObjectMetadata = true,
+            });
+            Assert.Equal("ordinary", Assert.Single(manifest.Models.Keyspaces).Name);
+            Assert.DoesNotContain(manifest.Files, file => file.Path.StartsWith("objects/", StringComparison.Ordinal)
+                || file.Path.StartsWith("kv/keyspaces/__object_storage/", StringComparison.Ordinal));
+        }
+
+        var service = new BackupService();
+        Assert.True(service.Verify(backup).IsValid);
+        service.Restore(new BackupRestoreOptions { BackupDirectory = backup, TargetDirectory = target });
+        using var restored = Tsdb.Open(new TsdbOptions { RootDirectory = target });
+        Assert.True(restored.Keyspaces.Open("ordinary").TryGet("state"u8, out byte[]? value));
+        Assert.Equal("ready"u8.ToArray(), value);
+        Assert.Empty(new SndbObjectStore(restored).ListBuckets());
+    }
+
     [Fact]
     public void CreateRestore_WithDocumentCollection_UsesOrderedKvSegmentAndRestoresIndexes()
     {

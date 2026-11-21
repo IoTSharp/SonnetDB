@@ -14,7 +14,7 @@ namespace SonnetDB.ObjectStorage;
 /// </summary>
 public sealed partial class SndbObjectStore
 {
-    private const string MetadataKeyspace = "__object_storage";
+    internal const string MetadataKeyspace = "__object_storage";
     private const string BucketPrefix = "bucket:";
     private const string ObjectPrefix = "object:";
     private const string LatestPrefix = "latest:";

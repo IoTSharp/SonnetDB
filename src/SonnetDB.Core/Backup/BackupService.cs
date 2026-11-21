@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Enumeration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,6 +9,7 @@ using SonnetDB.Engine;
 using SonnetDB.Graphs;
 using SonnetDB.Kv;
 using SonnetDB.Modbus;
+using SonnetDB.ObjectStorage;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
 
@@ -40,7 +42,28 @@ public sealed class BackupService
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DestinationDirectory);
 
-        return tsdb.CreateBackup(options, CreateAfterCheckpoint);
+        var (captured, copied) = tsdb.CreateConsistentBackup(options, CaptureAfterCheckpoint);
+        string destination = Path.GetFullPath(options.DestinationDirectory);
+        // 文件已经固定在备份目录，逐文件校验无需继续持有源库写锁。
+        var entries = new List<BackupFileEntry>(copied.Count);
+        foreach (string relativePath in copied.Order(StringComparer.Ordinal))
+        {
+            string path = Path.Combine(destination, relativePath);
+            entries.Add(new BackupFileEntry(
+                NormalizeRelativePath(relativePath),
+                new FileInfo(path).Length,
+                ComputeSha256(path),
+                Classify(relativePath),
+                Required: IsRequired(relativePath)));
+        }
+
+        var manifest = captured with
+        {
+            Files = entries.AsReadOnly(),
+            Consistency = captured.Consistency with { TotalBytes = entries.Sum(static entry => entry.SizeBytes) },
+        };
+        WriteManifest(destination, manifest);
+        return manifest;
     }
 
     /// <summary>
@@ -361,7 +384,8 @@ public sealed class BackupService
             entries.AsReadOnly());
     }
 
-    internal BackupManifest CreateAfterCheckpoint(
+    /// <summary>在一致性锁内复制源文件并记录同一时点的数据库摘要。</summary>
+    private (BackupManifest Manifest, IReadOnlyList<string> Copied) CaptureAfterCheckpoint(
         Tsdb tsdb,
         BackupCreateOptions options,
         IReadOnlyList<string> checkpointedKeyspaces,
@@ -376,33 +400,21 @@ public sealed class BackupService
             .Where(graph => scope.Graphs.Count == 0 || scope.Graphs.Contains(graph.Name, StringComparer.Ordinal))
             .Select(static graph => graph.StorageId)
             .ToHashSet();
-        var includePredicate = CreateIncludePredicate(
-            scope,
-            graphStorageIds);
-        var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includePredicate, lsmBackup);
+        Predicate<string> includeFile = CreateIncludePredicate(scope, graphStorageIds);
+        Predicate<string> includeDirectory = path =>
+            (scope.Includes(BackupModelScope.ObjectContent) || !IsUnderDirectory(path, "objects"))
+            && (!options.ExcludeObjectMetadata || !IsUnderDirectory(path, ObjectMetadataRelativePath));
+        var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includeFile, includeDirectory, lsmBackup);
         RewriteSelectedCatalogs(destination, scope);
-        var entries = new List<BackupFileEntry>(copied.Count);
-        foreach (string relativePath in copied.Order(StringComparer.Ordinal))
-        {
-            string path = Path.Combine(destination, relativePath);
-            var info = new FileInfo(path);
-            entries.Add(new BackupFileEntry(
-                NormalizeRelativePath(relativePath),
-                info.Length,
-                ComputeSha256(path),
-                Classify(relativePath),
-                Required: IsRequired(relativePath)));
-        }
-
         var manifest = BuildManifest(
             tsdb,
             scope,
-            entries.AsReadOnly(),
-            new BackupCheckpointInfo(new HashSet<string>(checkpointedKeyspaces, StringComparer.Ordinal)));
-
-        WriteManifest(destination, manifest);
-        return manifest;
+            new BackupCheckpointInfo(new HashSet<string>(checkpointedKeyspaces, StringComparer.Ordinal)),
+            options.ExcludeObjectMetadata);
+        return (manifest, copied);
     }
+
+    private const string ObjectMetadataRelativePath = TsdbPaths.KvDirName + "/keyspaces/" + SndbObjectStore.MetadataKeyspace;
 
     /// <summary>把按资源名称选择的关系表和文档集合目录清单收窄到恢复可见集合。</summary>
     private static void RewriteSelectedCatalogs(string destination, BackupScopeInfo scope)
@@ -462,8 +474,8 @@ public sealed class BackupService
     private static BackupManifest BuildManifest(
         Tsdb tsdb,
         BackupScopeInfo scope,
-        IReadOnlyList<BackupFileEntry> entries,
-        BackupCheckpointInfo checkpointInfo)
+        BackupCheckpointInfo checkpointInfo,
+        bool excludeObjectMetadata)
     {
         return new BackupManifest(
             BackupManifest.CurrentFormatVersion,
@@ -474,9 +486,9 @@ public sealed class BackupService
                 tsdb.CheckpointLsn,
                 tsdb.NextSegmentId,
                 tsdb.ListSegments().Count,
-                entries.Sum(static e => e.SizeBytes)),
-            BuildModelSummary(tsdb, scope, checkpointInfo),
-            entries,
+                0),
+            BuildModelSummary(tsdb, scope, checkpointInfo, excludeObjectMetadata),
+            [],
             BuildIndexEntries(tsdb, scope))
         {
             Scope = scope,
@@ -680,18 +692,23 @@ public sealed class BackupService
     private IReadOnlyList<string> CopyDatabaseFiles(
         string sourceRoot,
         string destinationRoot,
-        Predicate<string> include,
+        Predicate<string> includeFile,
+        Predicate<string> includeDirectory,
         SonnetDB.Kv.Lsm.KvLsmBackupSet lsmBackup)
     {
         var copied = new List<string>();
-        string[] sourceFiles = Directory
-            .EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
+        var files = new FileSystemEnumerable<string>(sourceRoot, static (ref FileSystemEntry entry) => entry.ToFullPath(),
+            new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0, IgnoreInaccessible = false })
+        {
+            ShouldIncludePredicate = static (ref FileSystemEntry entry) => !entry.IsDirectory,
+            ShouldRecursePredicate = (ref FileSystemEntry entry) =>
+                includeDirectory(NormalizeRelativePath(Path.GetRelativePath(sourceRoot, entry.ToFullPath()))),
+        };
+        string[] sourceFiles = files.Order(StringComparer.Ordinal).ToArray();
         foreach (string source in sourceFiles)
         {
             string relative = Path.GetRelativePath(sourceRoot, source);
-            if (!include(relative) || lsmBackup.ContainsManagedFile(source))
+            if (!includeFile(relative) || lsmBackup.ContainsManagedFile(source))
                 continue;
 
             string target = Path.Combine(destinationRoot, relative);
@@ -701,7 +718,8 @@ public sealed class BackupService
             AfterFileCopiedTestHook?.Invoke(NormalizeRelativePath(relative));
         }
 
-        copied.AddRange(lsmBackup.CopyTo(sourceRoot, destinationRoot, AfterFileCopiedTestHook, include));
+        copied.AddRange(lsmBackup.CopyTo(sourceRoot, destinationRoot, AfterFileCopiedTestHook,
+            path => includeFile(path) && includeDirectory(NormalizeRelativePath(path))));
 
         return copied.AsReadOnly();
     }
@@ -709,7 +727,8 @@ public sealed class BackupService
     private static BackupModelSummary BuildModelSummary(
         Tsdb tsdb,
         BackupScopeInfo scope,
-        BackupCheckpointInfo checkpointInfo)
+        BackupCheckpointInfo checkpointInfo,
+        bool excludeObjectMetadata)
     {
         var measurements = scope.Includes(BackupModelScope.Measurements)
             ? tsdb.Measurements.Snapshot()
@@ -754,6 +773,7 @@ public sealed class BackupService
 
         var openedKeyspaces = scope.Includes(BackupModelScope.KeyValue)
             ? tsdb.Keyspaces.List()
+                .Where(name => !excludeObjectMetadata || !name.Equals(SndbObjectStore.MetadataKeyspace, StringComparison.Ordinal))
                 .Where(name => scope.Keyspaces.Count == 0 || scope.Keyspaces.Contains(name, StringComparer.Ordinal))
             .Select(name => new BackupKeyspaceEntry(name, checkpointInfo.CheckpointedKeyspaces.Contains(name)))
             .ToArray()
@@ -2151,15 +2171,4 @@ public sealed class BackupService
         => Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(name)).ToLowerInvariant();
 
     private readonly record struct RestoreTargetEvaluation(bool Exists, bool Empty, bool IsAllowed);
-}
-
-internal static class BackupTsdbExtensions
-{
-    public static BackupManifest CreateBackup(
-        this Tsdb tsdb,
-        BackupCreateOptions options,
-        Func<Tsdb, BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Kv.Lsm.KvLsmBackupSet, BackupManifest> afterCheckpoint)
-    {
-        return tsdb.CreateConsistentBackup(options, afterCheckpoint);
-    }
 }

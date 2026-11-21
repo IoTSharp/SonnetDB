@@ -229,6 +229,9 @@ public sealed class BackupRuntimeOptions
     /// <summary>所有任务输出的安全根目录。为空时使用 <c>&lt;DataRoot&gt;/.system/backups</c>。</summary>
     public string? DestinationRoot { get; set; }
 
+    /// <summary>要求 Linux 将备份根识别为单独的挂载点。启用后根缺失或挂载不可确认时停止备份。</summary>
+    public bool RequireDestinationMount { get; set; }
+
     /// <summary>调度器检查任务的周期，默认一分钟。</summary>
     public int SchedulerTickSeconds { get; set; } = 60;
 
@@ -257,7 +260,7 @@ public sealed class BackupScopeOptions
     /// <summary>是否包含对象桶正文。默认关闭，对象正文应由独立卷策略负责。</summary>
     public bool IncludeObjects { get; set; }
 
-    /// <summary>是否包含 SonnetDB 实例级消息队列快照。</summary>
+    /// <summary>是否在同一批次保存整个实例的独立 SonnetMQ 快照，数据库名称筛选不限制此范围。</summary>
     public bool IncludeMessageQueue { get; set; }
 
     /// <summary>是否包含原生属性图。</summary>
@@ -302,6 +305,9 @@ public sealed class BackupTaskDefinition
 
     /// <summary>执行时间的 IANA 或系统时区标识。</summary>
     public string TimeZoneId { get; set; } = "Asia/Shanghai";
+
+    /// <summary>可选的自动执行起始时间。手动执行可在此时间前触发。</summary>
+    public DateTimeOffset? FirstRunNotBeforeUtc { get; set; }
 
     /// <summary>任务输出目录，必须位于全局 DestinationRoot 下。</summary>
     public string DestinationRoot { get; set; } = string.Empty;

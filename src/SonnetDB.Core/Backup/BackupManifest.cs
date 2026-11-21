@@ -271,6 +271,9 @@ public sealed record BackupCreateOptions
     /// <summary>是否备份对象桶正文和 multipart 临时正文。默认 true 以保持现有全量行为。</summary>
     public bool IncludeObjectContent { get; init; } = true;
 
+    /// <summary>排除对象桶的专用 KV 元数据。用于同时排除对象正文和桶目录的任务。</summary>
+    public bool ExcludeObjectMetadata { get; init; }
+
     /// <summary>选择备份中的模型类别。默认包含全部类别。</summary>
     public BackupModelScope ModelScope { get; init; } = BackupModelScope.All;
 
