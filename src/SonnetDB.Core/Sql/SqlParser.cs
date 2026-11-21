@@ -2834,6 +2834,12 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordOn)
             statement = statement with { OnConflict = ParseOnConflictClause() };
 
+        if (statement.OnConflict?.Action == SqlOnConflictAction.DoSelect
+            && !IsIdentifier("returning"))
+        {
+            throw Error("ON CONFLICT DO SELECT 必须指定 RETURNING");
+        }
+
         if (!IsIdentifier("returning"))
             return statement;
 
@@ -2870,7 +2876,7 @@ public sealed class SqlParser
             Expect(TokenKind.RightParen);
         }
 
-        ExpectIdentifier("do", "ON CONFLICT 后面期望 DO NOTHING 或 DO UPDATE");
+        ExpectIdentifier("do", "ON CONFLICT 后面期望 DO NOTHING、DO SELECT 或 DO UPDATE");
         if (IsIdentifier("nothing"))
         {
             Advance();
@@ -2880,8 +2886,50 @@ public sealed class SqlParser
             };
         }
 
+        if (Current.Kind == TokenKind.KeywordSelect || IsIdentifier("select"))
+        {
+            if (targetColumns.Count == 0)
+                throw Error("ON CONFLICT DO SELECT 必须指定主键或唯一索引目标列");
+
+            Advance();
+            bool selectForUpdate = false;
+            SqlExpression? selectWhere = null;
+            while (true)
+            {
+                if (Current.Kind == TokenKind.KeywordFor)
+                {
+                    if (selectForUpdate)
+                        throw Error("ON CONFLICT DO SELECT 的 FOR UPDATE 不能重复");
+                    Advance();
+                    if (Current.Kind != TokenKind.KeywordUpdate)
+                        throw Error("ON CONFLICT DO SELECT 当前仅支持 FOR UPDATE");
+                    Advance();
+                    selectForUpdate = true;
+                    continue;
+                }
+
+                if (Current.Kind == TokenKind.KeywordWhere)
+                {
+                    if (selectWhere is not null)
+                        throw Error("ON CONFLICT DO SELECT 的 WHERE 不能重复");
+                    Advance();
+                    selectWhere = ParseExpression();
+                    continue;
+                }
+
+                break;
+            }
+
+            return new SqlOnConflictClause(targetColumns, SqlOnConflictAction.DoSelect)
+            {
+                TargetColumnIsQuoted = targetColumnIsQuoted,
+                SelectWhere = selectWhere,
+                SelectForUpdate = selectForUpdate,
+            };
+        }
+
         if (Current.Kind != TokenKind.KeywordUpdate && !IsIdentifier("update"))
-            throw Error("ON CONFLICT DO 后面期望 NOTHING 或 UPDATE");
+            throw Error("ON CONFLICT DO 后面期望 NOTHING、SELECT 或 UPDATE");
 
         if (targetColumns.Count == 0)
             throw Error("ON CONFLICT DO UPDATE 必须指定主键或唯一索引目标列");

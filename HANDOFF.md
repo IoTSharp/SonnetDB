@@ -8456,3 +8456,10 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - CLI `backup create` 增加 `--no-kv`、`--no-objects` 和 `--models`。文档与 CHANGELOG 已记录配置、路径、传输上限和恢复边界。
 - 验证 PASS：Server build 0/0；CLI build 0/0；Core `BackupServiceTests` 30/30；Web `vue-tsc --noEmit` 通过；规定 `dotnet format ... --verify-no-changes` 通过；`git diff --check` 通过。Server 端 `SchemaAndMaintenanceEndpointTests` 未进入测试阶段，因既有 StaticWebAssets HotReload endpoint 错误阻断。Vite 完整打包仍因既有 MapLibre worker 模块解析错误阻断。
 - 本轮未提交、未推送、未发布、未部署或重启。现场未创建独立任务。外置对象卷、实例级 SonnetMQ、身份/授权和固定硬件长期恢复仍是独立恢复范围，完整 Server/网页端端到端运行验收保持 NOT_RUN。
+## 2026-11-21（Asia/Shanghai）关系表 `INSERT ... ON CONFLICT DO SELECT`
+
+- 本轮在共享 `main` 工作树实现 PostgreSQL 19 风格的关系表 `ON CONFLICT (主键或唯一索引列) DO SELECT [FOR UPDATE] [WHERE predicate] RETURNING ...`。AST、解析、参数/名称绑定、例程行绑定、直接执行和轻事务队列均已接入。
+- `DO SELECT` 无冲突时插入并返回新行，冲突时返回已有行，不生成更新 mutation，也不递增已有行 `ROWVERSION`。条件为 FALSE 或 NULL 时不返回、不计数。`FOR UPDATE` 锁定冲突行，显式轻事务成功后保留到 COMMIT/ROLLBACK；当前只实现该锁强度，其他 PostgreSQL 锁强度保持 fail-closed。缺失冲突目标或 `RETURNING` 在解析/执行前拒绝。
+- 远程 ADO 无服务端会话的轻事务对 `DO UPDATE/DO SELECT ... RETURNING` 保持 fail-closed，避免预览结果被错误重放为 INSERT；有会话时沿用服务端真实执行路径。Frame/MCP/文档模型未扩大能力边界。
+- 新增 `tests/SonnetDB.Core.Tests/Sql/SqlOnConflictDoSelectTests.cs` 6 项回归，覆盖解析、混合 get-or-create、ROWVERSION、WHERE、物化预算整句拒绝、事务读己写和 FOR UPDATE 锁释放。最近定向组合回归 **74/74 PASS**，Core Release build **0 warning/0 error**。规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 `git diff --check` PASS。完整 solution restore/build、远程真实服务、公开包、部署和现场验收本轮未运行。
+- 未提交、未推送、未发布、未部署、未迁移生产数据。共享工作树仍包含本轮源码、测试、CHANGELOG、`docs/sql-reference.md` 和本交接的未提交修改；提交前需在最终待提交工作树重新执行规定 format 门禁。没有留下本轮常驻进程或任务专属临时资源。

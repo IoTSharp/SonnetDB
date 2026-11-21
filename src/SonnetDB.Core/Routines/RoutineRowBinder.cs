@@ -38,6 +38,9 @@ internal static class RoutineRowBinder
                                 Value = BindExpression(assignment.Value, context),
                             })
                             .ToArray(),
+                        SelectWhere = insert.OnConflict.SelectWhere is null
+                            ? null
+                            : BindExpression(insert.OnConflict.SelectWhere, context),
                     },
             },
             UpdateStatement update => update with

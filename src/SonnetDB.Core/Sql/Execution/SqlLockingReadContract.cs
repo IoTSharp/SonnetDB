@@ -46,7 +46,7 @@ internal static class SqlLockingReadContract
             || select.GraphTable is { } graph && (Contains(graph.Predicate) || graph.Columns.Any(column => Contains(column.Expression)))
             || select.Pagination is { } page && (Contains(page.OffsetExpression) || Contains(page.FetchExpression)),
         InsertStatement insert => insert.Rows.Any(row => row.Any(Contains)) || insert.Query is { } query && Contains(query)
-            || insert.OnConflict is { } conflict && (conflict.UpdateAssignments.Any(assignment => Contains(assignment.Value)) || Contains(conflict.UpdateWhere)),
+            || insert.OnConflict is { } conflict && (conflict.UpdateAssignments.Any(assignment => Contains(assignment.Value)) || Contains(conflict.UpdateWhere) || Contains(conflict.SelectWhere)),
         UpdateStatement update => update.Assignments.Any(assignment => Contains(assignment.Value)) || Contains(update.Where)
             || update.FromClauses.Any(Contains),
         DeleteStatement delete => Contains(delete.Where) || Contains(delete.RowLimit),

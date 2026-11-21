@@ -582,6 +582,12 @@ internal static partial class TableSqlExecutor
             if (statement.Query is not null || statement.IsDefaultValues && statement.Rows.Count == 0)
                 throw new InvalidOperationException("ON CONFLICT 当前仅支持 VALUES 形式的关系表 INSERT。");
 
+            if (statement.OnConflict.Action == SqlOnConflictAction.DoSelect && returningColumns.Length == 0)
+                throw new InvalidOperationException("ON CONFLICT DO SELECT 必须指定 RETURNING。");
+            if (statement.OnConflict.Action == SqlOnConflictAction.DoSelect
+                && statement.OnConflict.TargetColumns.Count == 0)
+                throw new InvalidOperationException("ON CONFLICT DO SELECT 必须指定主键或唯一索引目标列。");
+
             ValidateConflictTarget(schema, statement.OnConflict.TargetColumns);
 
             // 冲突检测前先分配数据库生成键；即使跳过冲突行，序列也保持单调递增。
@@ -632,6 +638,8 @@ internal static partial class TableSqlExecutor
             ? BindConflictAssignments(clause, schema)
             : [];
         ValidateConflictUpdateWhere(clause, schema);
+        ValidateConflictSelectWhere(clause, schema);
+        _ = AcquireDoSelectLocks(tsdb, store, schema, clause, valuesRows, visibleRows, transaction: null);
         var seenDoUpdatePrimaryKeys = clause.Action == SqlOnConflictAction.DoUpdate
             ? new HashSet<string>(StringComparer.Ordinal)
             : null;
@@ -663,6 +671,16 @@ internal static partial class TableSqlExecutor
             if (clause.Action == SqlOnConflictAction.DoNothing)
                 continue;
 
+            if (clause.Action == SqlOnConflictAction.DoSelect)
+            {
+                if (ConflictSelectWhereMatches(clause, schema, conflict, values))
+                {
+                    SqlRowRetentionBudget.RetainForExecution(conflict.Values);
+                    returningRows.Add(conflict.Values.ToArray());
+                }
+                continue;
+            }
+
             if (!ConflictUpdateWhereMatches(clause, schema, conflict, values))
                 continue;
 
@@ -689,7 +707,11 @@ internal static partial class TableSqlExecutor
         }
 
         if (mutations.Count == 0)
-            return CreateInsertResult(schema.Name, 0, returningColumns, Array.Empty<object?[]>());
+            return CreateInsertResult(
+                schema.Name,
+                clause.Action == SqlOnConflictAction.DoSelect ? returningRows.Count : 0,
+                returningColumns,
+                returningRows);
 
         int inserted = tsdb.Tables.ApplyTransaction(
             new Dictionary<TableObjectName, IReadOnlyList<TableRowMutation>>(TableObjectName.ExactComparer)
@@ -698,7 +720,7 @@ internal static partial class TableSqlExecutor
             });
         return CreateInsertResult(
             schema.Name,
-            inserted,
+            clause.Action == SqlOnConflictAction.DoSelect ? returningRows.Count : inserted,
             returningColumns,
             returningRows);
     }
@@ -739,7 +761,7 @@ internal static partial class TableSqlExecutor
 
             if (assignment.Value is not DefaultValueExpression)
             {
-                ValidateConflictExpressionQualifiers(assignment.Value, schema);
+                ValidateConflictExpressionQualifiers(assignment.Value, schema, "ON CONFLICT DO UPDATE SET");
                 ValidateTableValueExpression(assignment.Value, schema, "ON CONFLICT DO UPDATE SET");
             }
 
@@ -758,8 +780,23 @@ internal static partial class TableSqlExecutor
             return;
         if (clause.Action != SqlOnConflictAction.DoUpdate)
             throw new InvalidOperationException("ON CONFLICT DO NOTHING 不允许 WHERE 条件。");
-        ValidateConflictExpressionQualifiers(where, schema);
+        ValidateConflictExpressionQualifiers(where, schema, "ON CONFLICT DO UPDATE");
         ValidateTablePredicate(where, schema, "ON CONFLICT DO UPDATE WHERE");
+    }
+
+    private static void ValidateConflictSelectWhere(SqlOnConflictClause clause, TableSchema schema)
+    {
+        if (clause.Action != SqlOnConflictAction.DoSelect)
+        {
+            if (clause.SelectWhere is not null || clause.SelectForUpdate)
+                throw new InvalidOperationException("ON CONFLICT DO NOTHING/DO UPDATE 不允许 DO SELECT 修饰词。");
+            return;
+        }
+
+        if (clause.SelectWhere is not { } where)
+            return;
+        ValidateConflictExpressionQualifiers(where, schema, "ON CONFLICT DO SELECT");
+        ValidateTablePredicate(where, schema, "ON CONFLICT DO SELECT WHERE");
     }
 
     private static bool ConflictUpdateWhereMatches(
@@ -772,6 +809,77 @@ internal static partial class TableSqlExecutor
                 BindExcludedReferences(clause.UpdateWhere, schema, excludedValues),
                 schema,
                 conflict.Values);
+
+    private static bool ConflictSelectWhereMatches(
+        SqlOnConflictClause clause,
+        TableSchema schema,
+        TableRow conflict,
+        object?[] excludedValues)
+        => clause.SelectWhere is null
+            || EvaluateWhere(
+                BindExcludedReferences(clause.SelectWhere, schema, excludedValues),
+                schema,
+                conflict.Values);
+
+    private static TableRowLockManager.Lease? AcquireDoSelectLocks(
+        Tsdb tsdb,
+        TableStore store,
+        TableSchema schema,
+        SqlOnConflictClause clause,
+        IReadOnlyList<object?[]> valuesRows,
+        IReadOnlyList<TableRow> visibleRows,
+        SqlTransactionContext? transaction)
+    {
+        if (!clause.SelectForUpdate)
+            return null;
+
+        var options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
+        if (!options.CanWrite)
+            throw new SqlRowLockException("forbidden", "ON CONFLICT DO SELECT FOR UPDATE 需要数据库写权限。");
+
+        var initialKeys = visibleRows
+            .Select(static row => Convert.ToHexString(row.PrimaryKey.Span))
+            .ToHashSet(StringComparer.Ordinal);
+        var simulatedRows = visibleRows.ToList();
+        var conflictRows = new List<TableRow>();
+        var conflictKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var values in valuesRows)
+        {
+            TableRow? conflict = FindConflictRow(schema, clause.TargetColumns, values, simulatedRows);
+            if (conflict is null)
+            {
+                simulatedRows.Add(new TableRow(
+                    values,
+                    TableKeyCodec.EncodePrimaryKey(schema, values)));
+                continue;
+            }
+
+            string key = Convert.ToHexString(conflict.PrimaryKey.Span);
+            if (initialKeys.Contains(key) && conflictKeys.Add(key))
+                conflictRows.Add(conflict);
+        }
+
+        if (conflictRows.Count == 0)
+            return null;
+
+        var resources = conflictRows
+            .Select(row => TableRowLockManager.Resource.Row(store.RowLockIdentity, row.PrimaryKey.Span))
+            .ToArray();
+        if (transaction is null)
+        {
+            TableLockOperation.Require(tsdb.Tables.RowLocks, resources, retain: true);
+            return null;
+        }
+
+        var owner = transaction.GetRowLockOwner(tsdb.Tables.RowLocks);
+        TimeSpan timeout = TimeSpan.FromMilliseconds(options.TransactionCommitTimeoutMilliseconds);
+        return tsdb.Tables.RowLocks.Acquire(
+            owner,
+            resources,
+            noWait: false,
+            timeout,
+            options.CancellationToken);
+    }
 
     private static object?[] BuildConflictUpdateValues(
         TableSchema schema,
@@ -857,7 +965,8 @@ internal static partial class TableSqlExecutor
 
     private static void ValidateConflictExpressionQualifiers(
         SqlExpression expression,
-        TableSchema schema)
+        TableSchema schema,
+        string operation)
     {
         foreach (var identifier in EnumerateConflictIdentifiers(expression))
         {
@@ -865,12 +974,12 @@ internal static partial class TableSqlExecutor
                 && !string.Equals(identifier.Qualifier, "excluded", StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    $"ON CONFLICT DO UPDATE 只允许无限定目标列或 excluded.column，实际为 '{identifier.Qualifier}.{identifier.Name}'。");
+                    $"{operation} 只允许无限定目标列或 excluded.column，实际为 '{identifier.Qualifier}.{identifier.Name}'。");
             }
 
             _ = schema.TryGetColumn(identifier.Name)
                 ?? throw new InvalidOperationException(
-                    $"ON CONFLICT DO UPDATE 引用了未知列 '{identifier.Name}'。");
+                    $"{operation} 引用了未知列 '{identifier.Name}'。");
         }
     }
 
@@ -1125,6 +1234,8 @@ internal static partial class TableSqlExecutor
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
         var returningColumns = BindReturningColumns(statement, schema);
+        if (statement.OnConflict?.Action == SqlOnConflictAction.DoSelect && returningColumns.Length == 0)
+            throw new InvalidOperationException("ON CONFLICT DO SELECT 必须指定 RETURNING。");
         var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
@@ -1148,9 +1259,13 @@ internal static partial class TableSqlExecutor
         BoundAssignment[] conflictAssignments = [];
         if (statement.OnConflict is { } conflictClause)
         {
+            if (conflictClause.Action == SqlOnConflictAction.DoSelect
+                && conflictClause.TargetColumns.Count == 0)
+                throw new InvalidOperationException("ON CONFLICT DO SELECT 必须指定主键或唯一索引目标列。");
             ValidateConflictTarget(schema, conflictClause.TargetColumns);
             conflictAssignments = BindConflictAssignments(conflictClause, schema);
             ValidateConflictUpdateWhere(conflictClause, schema);
+            ValidateConflictSelectWhere(conflictClause, schema);
         }
 
         if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
@@ -1170,6 +1285,9 @@ internal static partial class TableSqlExecutor
             : transaction.TryGetBufferedMutations(schema, out var buffered)
                 ? ApplyMutationOverlay(schema, store!.Scan(), buffered).ToList()
                 : store!.Scan().ToList();
+        using var doSelectLease = statement.OnConflict is { } doSelectClause
+            ? AcquireDoSelectLocks(tsdb!, store!, schema, doSelectClause, valuesRows, visibleRows, transaction)
+            : null;
         var mutations = new List<TableRowMutation>(valuesRows.Count);
         var rowChanges = new List<TableRowChange>(valuesRows.Count);
         var returningRows = new List<object?[]>(valuesRows.Count);
@@ -1212,6 +1330,16 @@ internal static partial class TableSqlExecutor
             if (statement.OnConflict!.Action == SqlOnConflictAction.DoNothing)
                 continue;
 
+            if (statement.OnConflict.Action == SqlOnConflictAction.DoSelect)
+            {
+                if (ConflictSelectWhereMatches(statement.OnConflict, schema, conflict, values))
+                {
+                    SqlRowRetentionBudget.RetainForExecution(conflict.Values);
+                    returningRows.Add(conflict.Values.ToArray());
+                }
+                continue;
+            }
+
             if (!ConflictUpdateWhereMatches(statement.OnConflict, schema, conflict, values))
                 continue;
 
@@ -1247,7 +1375,12 @@ internal static partial class TableSqlExecutor
             transaction.AddOrMergeTableMutation(schema, mutation);
 
         changes = rowChanges;
-        return CreateInsertResult(schema.Name, mutations.Count, returningColumns, returningRows);
+        doSelectLease?.Retain();
+        return CreateInsertResult(
+            schema.Name,
+            statement.OnConflict?.Action == SqlOnConflictAction.DoSelect ? returningRows.Count : mutations.Count,
+            returningColumns,
+            returningRows);
     }
 
     private static void EnsureUniqueDoUpdateTarget(

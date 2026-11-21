@@ -47,6 +47,7 @@ internal static class SqlMaterializationContract
                 foreach (UpdateAssignment assignment in conflict.UpdateAssignments)
                     ValidateDmlExpression(assignment.Value, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 ValidateDmlExpression(conflict.UpdateWhere, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                ValidateDmlExpression(conflict.SelectWhere, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
             }
             if (insert.Query is { } query)
                 ValidateQuery(query, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
