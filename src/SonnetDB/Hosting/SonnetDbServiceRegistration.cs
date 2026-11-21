@@ -90,7 +90,6 @@ internal static class SonnetDbServiceRegistration
             sp.GetRequiredService<IOptions<ServerOptions>>().Value.DataRoot));
         builder.Services.AddSingleton<BackupSchedulerService>();
         builder.Services.AddSingleton<BackupRestoreService>();
-        builder.Services.AddHostedService(sp => sp.GetRequiredService<BackupSchedulerService>());
 
         // 在 Kestrel 和 Frame 服务接入流量前完成关系表冷开，避免首个业务查询触发全局锁排队。
         builder.Services.AddSingleton<RelationalTableWarmupState>();
@@ -256,6 +255,8 @@ internal static class SonnetDbServiceRegistration
 
         // 在应用关闭时优雅释放所有 Tsdb 实例。
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
+        // 关闭时先等待备份调度停止，再释放数据库注册表。
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<BackupSchedulerService>());
         builder.Services.AddSingleton<ModbusSourceOperationCoordinator>();
         builder.Services.AddSingleton(sp => new ModbusEndpointWriteService(
             sp.GetRequiredService<IModbusEndpointWriteStore>(),

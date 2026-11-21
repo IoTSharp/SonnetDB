@@ -12,6 +12,8 @@ internal sealed class BackupTaskStore
     private readonly object _sync = new();
     private readonly string _path;
     private BackupTaskFile _state;
+    internal const int MaximumTasks = 256;
+    internal const int MaximumDatabases = 256;
 
     /// <summary>初始化任务存储并读取已有定义。</summary>
     /// <param name="dataRoot">服务器数据根目录。</param>
@@ -46,7 +48,11 @@ internal sealed class BackupTaskStore
         ValidateTask(task);
         lock (_sync)
         {
-            int index = _state.Tasks.FindIndex(candidate => string.Equals(candidate.Id, task.Id, StringComparison.Ordinal));
+            int index = _state.Tasks.FindIndex(candidate => string.Equals(candidate.Id, task.Id, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0 && !string.Equals(_state.Tasks[index].Id, task.Id, StringComparison.Ordinal))
+                throw new ArgumentException("备份任务 ID 不得仅有大小写差异。", nameof(task));
+            if (index < 0 && _state.Tasks.Count >= MaximumTasks)
+                throw new ArgumentException("备份任务数量已达到上限。", nameof(task));
             if (index < 0)
                 _state.Tasks.Add(CloneTask(task));
             else
@@ -86,6 +92,8 @@ internal sealed class BackupTaskStore
         ArgumentNullException.ThrowIfNull(state);
         lock (_sync)
         {
+            if (!_state.Tasks.Exists(task => string.Equals(task.Id, state.TaskId, StringComparison.Ordinal)))
+                return;
             int index = _state.States.FindIndex(candidate => string.Equals(candidate.TaskId, state.TaskId, StringComparison.Ordinal));
             if (index < 0)
                 _state.States.Add(CloneState(state));
@@ -96,20 +104,70 @@ internal sealed class BackupTaskStore
     }
 
     /// <summary>验证任务中会影响文件系统的字段。</summary>
-    private static void ValidateTask(BackupTaskDefinition task)
+    internal static void ValidateTask(BackupTaskDefinition task)
     {
-        if (string.IsNullOrWhiteSpace(task.Id) || task.Id.Length > 96)
-            throw new ArgumentException("备份任务 Id 不能为空且长度不能超过 96。", nameof(task));
+        if (task.Id is not { Length: >= 1 and <= 96 }
+            || !task.Id.All(static ch => char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_')
+            || IsReservedDirectoryName(task.Id))
+            throw new ArgumentException("备份任务 ID 必须为 1 至 96 个字母、数字、短横线或下划线，且不能使用设备保留名。", nameof(task));
         if (string.IsNullOrWhiteSpace(task.Name) || task.Name.Length > 160)
             throw new ArgumentException("备份任务名称不能为空且长度不能超过 160。", nameof(task));
         if (!TimeOnly.TryParseExact(task.LocalTime, "HH:mm", out _))
             throw new ArgumentException("备份任务 LocalTime 必须使用 HH:mm 格式。", nameof(task));
         if (task.RetentionDays is < 1 or > 3650 || task.RetentionCount is < 1 or > 10_000)
             throw new ArgumentOutOfRangeException(nameof(task), "备份保留策略超出允许范围。");
-        if (task.DatabaseNames.Any(name => !TsdbRegistry.IsValidName(name)))
-            throw new ArgumentException("备份任务包含非法数据库名称。", nameof(task));
-        if (task.Scope is null)
-            task.Scope = new BackupScopeOptions();
+        if (task.DatabaseNames is null || task.DatabaseNames.Count > MaximumDatabases
+            || task.DatabaseNames.Any(name => !TsdbRegistry.IsValidName(name) || IsReservedDirectoryName(name))
+            || task.DatabaseNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != task.DatabaseNames.Count)
+            throw new ArgumentException("备份任务包含非法、重复或超出数量上限的数据库名称。", nameof(task));
+        if (task.DestinationRoot is { Length: > 0 }
+            && !string.IsNullOrWhiteSpace(task.DestinationRoot)
+            && !Path.IsPathFullyQualified(task.DestinationRoot))
+            throw new ArgumentException("备份任务目标必须为绝对路径。", nameof(task));
+        if (string.IsNullOrWhiteSpace(task.TimeZoneId) || task.TimeZoneId.Length > 128)
+            throw new ArgumentException("备份任务时区无效。", nameof(task));
+        try
+        {
+            _ = TimeZoneInfo.FindSystemTimeZoneById(task.TimeZoneId);
+        }
+        catch (Exception exception) when (exception is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            throw new ArgumentException("备份任务时区无效。", nameof(task), exception);
+        }
+        ValidateScope(task.Scope ?? new BackupScopeOptions());
+        task.Scope ??= new BackupScopeOptions();
+    }
+
+    /// <summary>跨平台拒绝不能用作普通目录的设备保留名。</summary>
+    internal static bool IsReservedDirectoryName(string name)
+    {
+        string upper = name.ToUpperInvariant();
+        return upper is "CON" or "PRN" or "AUX" or "NUL"
+            || (upper.Length == 4
+                && (upper.StartsWith("COM", StringComparison.Ordinal) || upper.StartsWith("LPT", StringComparison.Ordinal))
+                && char.IsAsciiDigit(upper[3]));
+    }
+
+    /// <summary>拒绝暂时无法一致备份的资源选择，并保留可准确执行的范围。</summary>
+    private static void ValidateScope(BackupScopeOptions scope)
+    {
+        scope.Measurements ??= [];
+        scope.Tables ??= [];
+        scope.Keyspaces ??= [];
+        scope.DocumentCollections ??= [];
+        scope.Buckets ??= [];
+        scope.Graphs ??= [];
+        if (scope.IncludeMessageQueue || scope.Measurements.Count != 0 || scope.Tables.Count != 0
+            || scope.Buckets.Count != 0 || scope.Keyspaces.Count != 0
+            || scope.DocumentCollections.Count != 0 || scope.Graphs.Count != 0)
+        {
+            throw new ArgumentException("备份任务暂不支持实例消息队列和按资源名称选择；请按数据模型选择备份范围。", nameof(scope));
+        }
+        if (!scope.IncludeMeasurements && !scope.IncludeTables && !scope.IncludeDocuments
+            && !scope.IncludeGraphs && !scope.IncludeKeyValue && !scope.IncludeObjects)
+            throw new ArgumentException("备份任务必须包含至少一种数据模型。", nameof(scope));
+        if (scope.IncludeObjects && !scope.IncludeKeyValue)
+            throw new ArgumentException("备份对象正文时必须包含存有对象元数据的 KV 数据模型。", nameof(scope));
     }
 
     /// <summary>规范化旧任务文件中的空集合和状态。</summary>

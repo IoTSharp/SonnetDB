@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +13,10 @@ namespace SonnetDB.Hosting;
 /// </summary>
 internal sealed class BackupSchedulerService : BackgroundService
 {
+    private const string BatchMarkerName = ".sonnetdb-backup-complete";
+    private const string BatchTimeFormat = "yyyyMMdd-HHmmss";
+    private const int MaximumRetentionEntries = 20_000;
+    private const int MaximumBatchEntries = 1_000_000;
     private readonly TsdbRegistry _registry;
     private readonly BackupTaskStore _store;
     private readonly ServerOptions _serverOptions;
@@ -36,12 +42,12 @@ internal sealed class BackupSchedulerService : BackgroundService
     /// <summary>执行一个任务并返回任务状态。</summary>
     public async Task<BackupTaskState> RunNowAsync(string taskId, CancellationToken cancellationToken)
     {
-        BackupTaskDefinition task = _store.TryGetTask(taskId)
-            ?? throw new KeyNotFoundException($"备份任务 '{taskId}' 不存在。");
         await _runGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await RunTaskAsync(task, cancellationToken).ConfigureAwait(false);
+            BackupTaskDefinition task = _store.TryGetTask(taskId)
+                ?? throw new KeyNotFoundException($"备份任务 '{taskId}' 不存在。");
+            return RunTask(task, cancellationToken);
         }
         finally
         {
@@ -82,12 +88,12 @@ internal sealed class BackupSchedulerService : BackgroundService
         try
         {
             DateTimeOffset now = _timeProvider.GetUtcNow();
-            foreach (BackupTaskDefinition task in _store.ListTasks().Where(static task => task.Enabled).Take(256))
+            foreach (BackupTaskDefinition snapshot in _store.ListTasks().Take(BackupTaskStore.MaximumTasks))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!IsDue(task, now))
+                if (_store.TryGetTask(snapshot.Id) is not { Enabled: true } task || !IsDue(task, now))
                     continue;
-                _ = await RunTaskAsync(task, cancellationToken).ConfigureAwait(false);
+                _ = RunTask(task, cancellationToken);
             }
         }
         finally
@@ -128,7 +134,7 @@ internal sealed class BackupSchedulerService : BackgroundService
     }
 
     /// <summary>执行单个任务的数据库备份、校验和滚动清理。</summary>
-    private async Task<BackupTaskState> RunTaskAsync(BackupTaskDefinition task, CancellationToken cancellationToken)
+    private BackupTaskState RunTask(BackupTaskDefinition task, CancellationToken cancellationToken)
     {
         var state = _store.GetState(task.Id);
         state.LastStartedUtc = _timeProvider.GetUtcNow();
@@ -136,130 +142,334 @@ internal sealed class BackupSchedulerService : BackgroundService
         state.LastError = null;
         _store.SetState(state);
 
-        string batchDirectory = BuildBatchDirectory(task, state.LastStartedUtc.Value);
+        string? stagingDirectory = null;
         try
         {
-            Directory.CreateDirectory(batchDirectory);
             IReadOnlyList<string> databases = task.DatabaseNames.Count == 0
                 ? _registry.ListDatabases()
                 : task.DatabaseNames;
-            int completed = 0;
-            foreach (string databaseName in databases.Take(256))
+            if (databases.Count is 0 or > BackupTaskStore.MaximumDatabases)
+                throw new InvalidOperationException("备份任务的数据库数量为空或超出上限。");
+            string taskRoot = ValidateTaskDestination(task);
+            var selected = databases.Select(name =>
+            {
+                if (!TsdbRegistry.IsValidName(name) || BackupTaskStore.IsReservedDirectoryName(name)
+                    || !_registry.TryGet(name, out var database))
+                    throw new InvalidOperationException($"备份任务引用的数据库 '{name}' 未加载或名称无法用作目录。");
+                return (Name: name, Database: database);
+            }).ToArray();
+
+            Directory.CreateDirectory(taskRoot);
+            RejectLinkedPath(taskRoot);
+            string batchName = state.LastStartedUtc.Value.UtcDateTime.ToString(BatchTimeFormat, CultureInfo.InvariantCulture)
+                + "-" + Guid.NewGuid().ToString("N");
+            string batchDirectory = Path.Combine(taskRoot, batchName);
+            string candidate = Path.Combine(taskRoot, ".staging-" + batchName);
+            if (Path.Exists(candidate))
+                throw new IOException("备份暂存目录已存在。");
+            RejectLinkedPath(candidate);
+            Directory.CreateDirectory(candidate);
+            stagingDirectory = candidate;
+            var backupService = new BackupService();
+            foreach (var entry in selected)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!_registry.TryGet(databaseName, out var database))
-                    throw new InvalidOperationException($"备份任务引用的数据库 '{databaseName}' 未加载。");
-
-                string output = Path.Combine(batchDirectory, databaseName);
-                var manifest = new BackupService().Create(database, new BackupCreateOptions
+                string output = Path.Combine(stagingDirectory, entry.Name);
+                var manifest = backupService.Create(entry.Database, new BackupCreateOptions
                 {
                     DestinationDirectory = output,
                     IncludeFullTextIndexes = task.Scope.IncludeFullTextIndexes,
                     IncludeKeyValue = task.Scope.IncludeKeyValue,
                     IncludeObjectContent = task.Scope.IncludeObjects,
                     ModelScope = ToModelScope(task.Scope),
-                    Tables = task.Scope.Tables,
-                    DocumentCollections = task.Scope.DocumentCollections,
-                    Keyspaces = task.Scope.Keyspaces,
-                    Buckets = task.Scope.Buckets,
-                    Graphs = task.Scope.Graphs,
-                    Measurements = task.Scope.Measurements,
                 });
                 if (task.VerifyAfterCreate)
                 {
-                    BackupVerificationResult verification = new BackupService().Verify(output);
+                    BackupVerificationResult verification = backupService.Verify(output);
                     if (!verification.IsValid)
-                        throw new InvalidDataException($"数据库 '{databaseName}' 的备份校验失败：{string.Join("; ", verification.Errors.Take(4))}");
+                        throw new InvalidDataException($"数据库 '{entry.Name}' 的备份校验失败：{string.Join("; ", verification.Errors.Take(4))}");
                 }
 
-                completed++;
                 _logger.LogInformation(
                     "备份任务 {TaskId} 已完成数据库 {Database}，文件 {FileCount}，字节 {Bytes}。",
                     task.Id,
-                    databaseName,
+                    entry.Name,
                     manifest.Files.Count,
                     manifest.Consistency.TotalBytes);
             }
 
-            ApplyRetention(task);
+            cancellationToken.ThrowIfCancellationRequested();
+            RejectLinkedPath(stagingDirectory);
+            RejectLinkedPath(batchDirectory);
+            WriteBatchMarker(stagingDirectory, task.Id, batchName, databases);
+            // 同一父目录内原子发布，任何部分完成的副本都留在暂存目录。
+            Directory.Move(stagingDirectory, batchDirectory);
+            stagingDirectory = null;
             state.LastCompletedUtc = _timeProvider.GetUtcNow();
-            state.Status = $"ok:{completed}";
+            state.Status = $"ok:{selected.Length}";
             state.LastOutputDirectory = batchDirectory;
             state.LastError = null;
+            TryApplyRetention(task, taskRoot, batchDirectory, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             state.LastCompletedUtc = _timeProvider.GetUtcNow();
             state.Status = "cancelled";
-            state.LastOutputDirectory = batchDirectory;
             state.LastError = "备份任务已取消。";
-            _store.SetState(state);
             throw;
         }
         catch (Exception exception)
         {
             state.LastCompletedUtc = _timeProvider.GetUtcNow();
             state.Status = "failed";
-            state.LastOutputDirectory = batchDirectory;
             state.LastError = exception.Message;
             _logger.LogError(exception, "备份任务 {TaskId} 执行失败。", task.Id);
         }
-
-        _store.SetState(state);
+        finally
+        {
+            if (stagingDirectory is not null)
+                TryRemoveStagingDirectory(stagingDirectory);
+            _store.SetState(state);
+        }
         return state;
     }
 
-    /// <summary>构造任务批次目录并保证它位于全局备份根内。</summary>
-    private string BuildBatchDirectory(BackupTaskDefinition task, DateTimeOffset startedUtc)
+    /// <summary>校验目录归属、链接和数据库源路径，返回任务的专属根目录。</summary>
+    internal string ValidateTaskDestination(BackupTaskDefinition task)
     {
+        BackupTaskStore.ValidateTask(task);
+        string globalRoot = _serverOptions.Backup.DestinationRoot!;
         string root = string.IsNullOrWhiteSpace(task.DestinationRoot)
-            ? _serverOptions.Backup.DestinationRoot!
+            ? globalRoot
             : Path.GetFullPath(task.DestinationRoot);
-        EnsureUnderRoot(root, _serverOptions.Backup.DestinationRoot!);
+        EnsureUnderRoot(root, globalRoot);
         string taskRoot = Path.Combine(root, task.Id);
-        return Path.Combine(taskRoot, startedUtc.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
+        RejectLinkedPath(taskRoot);
+        string defaultBackupRoot = Path.Combine(_registry.DataRoot, ".system", "backups");
+        if (PathsOverlap(taskRoot, _registry.DataRoot) && !IsSameOrDescendant(taskRoot, defaultBackupRoot))
+            throw new InvalidOperationException("数据根目录中仅 .system/backups 可存放备份任务。");
+        if (_registry.ObjectStorageRootDirectory is { } objectRoot && PathsOverlap(taskRoot, objectRoot))
+            throw new InvalidOperationException("备份任务目录不能覆盖外置对象存储卷。");
+        foreach (BackupTaskDefinition existing in _store.ListTasks().Take(BackupTaskStore.MaximumTasks))
+        {
+            if (string.Equals(task.Id, existing.Id, StringComparison.OrdinalIgnoreCase))
+                continue;
+            string existingRoot = string.IsNullOrWhiteSpace(existing.DestinationRoot)
+                ? globalRoot
+                : existing.DestinationRoot;
+            if (Path.IsPathFullyQualified(existingRoot) && TsdbRegistry.IsValidName(existing.Id)
+                && PathsOverlap(taskRoot, Path.Combine(existingRoot, existing.Id)))
+                throw new InvalidOperationException("备份任务目录不能与其他任务目录重叠。");
+        }
+        IReadOnlyList<string> registered = _registry.ListDatabases();
+        if (registered.Count > BackupTaskStore.MaximumDatabases)
+            throw new InvalidOperationException("已加载数据库数量超出任务路径核验上限。");
+        var requested = new HashSet<string>(task.DatabaseNames, StringComparer.OrdinalIgnoreCase);
+        foreach (string name in registered)
+        {
+            if (!_registry.TryGet(name, out var database))
+                continue;
+            if (PathsOverlap(taskRoot, database.RootDirectory))
+                throw new InvalidOperationException("备份任务目录不能覆盖活动数据库目录。");
+            if (task.Scope.IncludeObjects && (requested.Count == 0 || requested.Contains(name))
+                && !PathsEqual(database.ObjectStorageRootDirectory, Path.Combine(database.RootDirectory, "objects")))
+                throw new InvalidOperationException($"数据库 '{name}' 使用外置对象卷，备份任务暂不支持备份该对象卷。");
+        }
+        return taskRoot;
     }
 
-    /// <summary>删除超出时间或数量上限的批次目录。</summary>
-    private void ApplyRetention(BackupTaskDefinition task)
+    /// <summary>仅回收有本任务完成标记且超出保留策略的已发布批次。</summary>
+    private void TryApplyRetention(BackupTaskDefinition task, string taskRoot, string currentBatch, CancellationToken cancellationToken)
     {
-        string root = string.IsNullOrWhiteSpace(task.DestinationRoot)
-            ? _serverOptions.Backup.DestinationRoot!
-            : Path.GetFullPath(task.DestinationRoot);
-        string taskRoot = Path.Combine(root, task.Id);
-        if (!Directory.Exists(taskRoot))
-            return;
-
-        DateTimeOffset cutoff = _timeProvider.GetUtcNow().AddDays(-task.RetentionDays);
-        var directories = Directory.EnumerateDirectories(taskRoot)
-            .Select(path => new DirectoryInfo(path))
-            .OrderByDescending(static info => info.CreationTimeUtc)
-            .Take(10_000)
-            .ToArray();
-        for (int index = 0; index < directories.Length; index++)
+        try
         {
-            DirectoryInfo directory = directories[index];
-            bool expired = directory.CreationTimeUtc < cutoff.UtcDateTime;
-            bool overCount = index >= task.RetentionCount;
-            if (!expired && !overCount)
-                continue;
-            directory.Delete(recursive: true);
+            RejectLinkedPath(taskRoot);
+            var cutoff = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-task.RetentionDays);
+            var time = Stopwatch.StartNew();
+            string[] entries = Directory.EnumerateFileSystemEntries(taskRoot)
+                .Take(MaximumRetentionEntries + 1).ToArray();
+            if (entries.Length > MaximumRetentionEntries)
+                throw new IOException("备份保留策略目录数量超过上限。");
+            var candidates = new List<(string Path, DateTime Started)>();
+            foreach (string entry in entries)
+            {
+                CheckRetentionBudget(time, cancellationToken);
+                if (PathsEqual(entry, currentBatch) || !IsCompletedBatch(entry, task.Id, out DateTime started))
+                    continue;
+                candidates.Add((entry, started));
+            }
+            int keepOlder = task.RetentionCount - 1;
+            foreach (var candidate in candidates.OrderByDescending(static item => item.Started)
+                .ThenByDescending(static item => item.Path, StringComparer.Ordinal))
+            {
+                CheckRetentionBudget(time, cancellationToken);
+                if (keepOlder-- > 0 && candidate.Started >= cutoff)
+                    continue;
+                if (IsCompletedBatch(candidate.Path, task.Id, out _))
+                    DeleteOwnedTree(candidate.Path, time, cancellationToken);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+            or OperationCanceledException or InvalidOperationException)
+        {
+            _logger.LogWarning(exception, "备份任务 {TaskId} 已发布，新批次保留，旧批次清理提前结束。", task.Id);
         }
     }
+
+    /// <summary>持久化任务 ID、批次 ID 和本次成功备份的数据库名称。</summary>
+    private static void WriteBatchMarker(string stage, string taskId, string batchName, IReadOnlyList<string> databases)
+    {
+        using var stream = new FileStream(Path.Combine(stage, BatchMarkerName), FileMode.CreateNew, FileAccess.Write);
+        using (var writer = new StreamWriter(stream, leaveOpen: true))
+        {
+            writer.WriteLine(taskId);
+            writer.WriteLine(batchName);
+            foreach (string name in databases)
+                writer.WriteLine(name);
+        }
+        stream.Flush(flushToDisk: true);
+    }
+
+    /// <summary>核对批次名、归属标记及每个已发布数据库的 manifest。</summary>
+    private static bool IsCompletedBatch(string path, string taskId, out DateTime started)
+    {
+        started = default;
+        string name = Path.GetFileName(path);
+        if (name.Length != 48 || name[15] != '-' || !Guid.TryParseExact(name.AsSpan(16), "N", out _)
+            || !DateTime.TryParseExact(name.AsSpan(0, 15), BatchTimeFormat, CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out started)
+            || !Directory.Exists(path) || HasLink(path))
+            return false;
+        string marker = Path.Combine(path, BatchMarkerName);
+        if (!File.Exists(marker) || HasLink(marker) || new FileInfo(marker).Length > 32_768)
+            return false;
+        string[] lines = File.ReadAllLines(marker);
+        if (lines.Length is < 3 or > BackupTaskStore.MaximumDatabases + 2
+            || lines[0] != taskId || lines[1] != name)
+            return false;
+        var expected = new HashSet<string>(StringComparer.Ordinal) { BatchMarkerName };
+        foreach (string database in lines.AsSpan(2))
+        {
+            if (!TsdbRegistry.IsValidName(database) || BackupTaskStore.IsReservedDirectoryName(database)
+                || !expected.Add(database))
+                return false;
+            string databasePath = Path.Combine(path, database);
+            string manifest = Path.Combine(databasePath, BackupManifest.FileName);
+            if (!Directory.Exists(databasePath) || HasLink(databasePath)
+                || !File.Exists(manifest) || HasLink(manifest))
+                return false;
+        }
+        foreach (string entry in Directory.EnumerateFileSystemEntries(path).Take(expected.Count + 1))
+            if (!expected.Remove(Path.GetFileName(entry)))
+                return false;
+        return expected.Count == 0;
+    }
+
+    /// <summary>仅清理本次运行新建的暂存目录，并在无法确认时保留现场。</summary>
+    private void TryRemoveStagingDirectory(string path)
+    {
+        try
+        {
+            DeleteOwnedTree(path, Stopwatch.StartNew(), CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _logger.LogWarning(exception, "备份暂存目录未能清理，保留目录 {Path}。", path);
+        }
+    }
+
+    /// <summary>先在时限和数量限制内确认待清理树没有链接，再删除已确认归属的目录。</summary>
+    private static void DeleteOwnedTree(string path, Stopwatch time, CancellationToken cancellationToken)
+    {
+        RejectLinkedPath(path);
+        var files = new List<string>();
+        var directories = new List<string> { path };
+        for (int index = 0; index < directories.Count; index++)
+        {
+            RejectLinkedPath(directories[index]);
+            foreach (string child in Directory.EnumerateFileSystemEntries(directories[index]))
+            {
+                CheckRetentionBudget(time, cancellationToken);
+                if (directories.Count + files.Count >= MaximumBatchEntries)
+                    throw new IOException("备份批次文件数量超出清理上限。");
+                FileAttributes attributes = File.GetAttributes(child);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("备份批次含有链接，保留目录。");
+                if ((attributes & FileAttributes.Directory) != 0)
+                    directories.Add(child);
+                else
+                    files.Add(child);
+            }
+        }
+        foreach (string file in files)
+        {
+            CheckRetentionBudget(time, cancellationToken);
+            RejectLinkedPath(file);
+            File.Delete(file);
+        }
+        for (int index = directories.Count - 1; index >= 0; index--)
+        {
+            CheckRetentionBudget(time, cancellationToken);
+            RejectLinkedPath(directories[index]);
+            Directory.Delete(directories[index]);
+        }
+    }
+
+    /// <summary>限制一次保留策略扫描的墙钟预算。</summary>
+    private static void CheckRetentionBudget(Stopwatch time, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (time.Elapsed > TimeSpan.FromSeconds(30))
+            throw new IOException("备份保留策略超过扫描时限。");
+    }
+
+    /// <summary>逐级核对目标路径，拒绝现存的符号链接和 Windows 重解析点。</summary>
+    internal static void RejectLinkedPath(string path)
+    {
+        string? current = Path.GetFullPath(path);
+        for (int depth = 0; current is not null && depth < 256; depth++, current = Path.GetDirectoryName(current))
+            if (HasLink(current))
+                throw new InvalidOperationException("备份目标路径不能包含符号链接或重解析点。");
+        if (current is not null)
+            throw new InvalidOperationException("备份目标路径深度超出上限。");
+    }
+
+    /// <summary>查验实际目录项，支持识别悬空链接。</summary>
+    private static bool HasLink(string path)
+    {
+        try
+        {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return new FileInfo(path).LinkTarget is not null;
+        }
+    }
+
+    /// <summary>判断两个规范化目录是否相等。</summary>
+    private static bool PathsEqual(string left, string right)
+        => string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    /// <summary>判断两个路径是否重叠。</summary>
+    private static bool PathsOverlap(string first, string second)
+        => IsSameOrDescendant(first, second) || IsSameOrDescendant(second, first);
 
     /// <summary>拒绝备份目录逃逸到全局安全根之外。</summary>
     private static void EnsureUnderRoot(string path, string root)
     {
-        string fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        string fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        StringComparison comparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
-        if (!string.Equals(fullPath, fullRoot, comparison)
-            && !fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, comparison))
-        {
-            throw new InvalidOperationException("备份任务目标目录必须位于 Backup.DestinationRoot 下。 ");
-        }
+        if (!IsSameOrDescendant(path, root))
+            throw new InvalidOperationException("备份任务目标目录必须位于 Backup.DestinationRoot 下。");
+    }
+
+    /// <summary>使用完整路径片段判断目录的包含关系。</summary>
+    private static bool IsSameOrDescendant(string path, string root)
+    {
+        string relative = Path.GetRelativePath(root, path);
+        return !Path.IsPathRooted(relative) && relative != ".."
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     /// <summary>把服务器任务范围映射为 Core 备份模型范围。</summary>

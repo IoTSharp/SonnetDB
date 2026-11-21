@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+- 容器运行层对齐 SonnetDB Server 的 .NET 11 目标。运行时备份只回收有归属及完成标记的旧批次，并按完整模型验证任务范围。在线恢复默认关闭，启用后限制本地源、归档传输和显式配置的下载来源。
+
 ### 运行时备份、CLI 范围和在线新库恢复
 
 - Core 备份 manifest 升级到范围版本，支持通过 `IncludeKeyValue`、`IncludeObjectContent` 和模型范围排除 KV、对象正文及模型类别，并在校验时拒绝范围与文件清单不一致。

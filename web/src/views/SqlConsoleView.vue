@@ -71,7 +71,7 @@
         @restore-dry-run="restoreDryRun"
         @pick-backup-directory="pickMaintenanceBackupDirectory"
         @pick-restore-directory="pickMaintenanceRestoreDirectory"
-        @create-backup-task="onCreateBackupTask"
+        @create-backup-task="createDailyBackupTask"
         @rename-database="renameDatabaseNow"
         @run-backup-task="runDailyBackupTask"
         @restore-source="restoreFromPathOrUrl"
@@ -749,9 +749,6 @@ const {
 
 void loadBackupTasks();
 
-async function onCreateBackupTask(selections: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }): Promise<void> {
-  await createDailyBackupTask(selections);
-}
 
 async function pickMaintenanceBackupDirectory(): Promise<void> {
   const selected = await connections.selectStudioDirectory('选择备份目录', maintenanceBackupDirectory.value);

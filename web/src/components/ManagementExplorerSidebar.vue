@@ -208,12 +208,11 @@
           <div v-if="isSuperuser" class="maintenance-task-block">
             <strong>自动备份</strong>
             <span class="maintenance-help">默认每天 02:00，保留 15 天和 15 批。对象桶默认不选。</span>
-            <n-input v-model:value="backupSelections.measurements" placeholder="measurement 名称，逗号分隔，空=全部" clearable />
-            <n-input v-model:value="backupSelections.tables" placeholder="表名称，逗号分隔，空=全部" clearable />
-            <n-input v-model:value="backupSelections.keyspaces" placeholder="KV keyspace，逗号分隔，空=全部" clearable />
-            <n-input v-model:value="backupSelections.documentCollections" placeholder="文档集合，逗号分隔，空=全部" clearable />
-            <n-input v-model:value="backupSelections.buckets" placeholder="对象 bucket，逗号分隔，空=全部" clearable />
-            <n-input v-model:value="backupSelections.graphs" placeholder="图名称，逗号分隔，空=全部" clearable />
+            <label><input type="checkbox" v-model="backupSelections.includeMeasurements" /> 时序</label>
+            <label><input type="checkbox" v-model="backupSelections.includeTables" /> 关系表</label>
+            <label><input type="checkbox" v-model="backupSelections.includeKeyValue" /> KV</label>
+            <label><input type="checkbox" v-model="backupSelections.includeDocuments" /> 文档</label>
+            <label><input type="checkbox" v-model="backupSelections.includeGraphs" /> 原生属性图</label>
             <div class="maintenance-actions">
               <n-button :loading="backupTaskBusy" @click="$emit('create-backup-task', backupSelections)">创建每日任务</n-button>
               <n-button v-for="task in backupTasks" :key="task.definition.id" :loading="backupTaskBusy" @click="$emit('run-backup-task', task.definition.id)">
@@ -375,7 +374,7 @@ const emit = defineEmits<{
   'update:restoreTargetDirectory': [value: string];
   'verify-backup': [];
   'restore-dry-run': [];
-  'create-backup-task': [selections: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }];
+  'create-backup-task': [selections: typeof backupSelections.value];
   'rename-database': [name: string];
   'run-backup-task': [id: string];
   'restore-source': [path: string, url: string];
@@ -392,12 +391,11 @@ const restoreSourcePath = ref('');
 const restoreSourceUrl = ref('');
 const newDatabaseName = ref('');
 const backupSelections = ref({
-  measurements: '',
-  tables: '',
-  keyspaces: '',
-  documentCollections: '',
-  buckets: '',
-  graphs: '',
+  includeMeasurements: true,
+  includeTables: true,
+  includeKeyValue: false,
+  includeDocuments: true,
+  includeGraphs: true,
 });
 
 function onUploadChange(event: Event): void {

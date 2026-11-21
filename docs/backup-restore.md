@@ -133,13 +133,13 @@ Server 现在可以在进程内执行每日备份任务。任务定义持久化�
 
 任务输出按 `<DestinationRoot>/<task-id>/<yyyyMMdd-HHmmss>/<database>` 分层，目标目录必须位于全局备份根目录内。任务默认不选择 KV 和对象桶正文，manifest 会记录实际模型范围。外置对象卷、实例级 `.system/mq`、身份和授权仍属于独立恢复边界。
 
-资源名称选择会写入任务和 manifest。关系表、文档集合、KV keyspace 和对象 bucket 已按目录及目录清单执行筛选。measurement 共用 segment/WAL 文件，原生图共用 catalog，名称选择会保留在范围记录中并按模型整体复制，以保证恢复目录可重开。
+运行时任务按完整模型选择范围。任务会拒绝按资源名称筛选、实例级 MQ 和外置对象正文。内置对象正文需要与对应 KV 元数据一起备份。批次完成后原子发布，滚动清理只回收带任务归属及完成标记的旧批次。
 
 管理入口包括 `/v1/system/backup-tasks` 的任务列表、创建、更新、删除和立即执行，以及 `/v1/system/backup-restore` 的目录或 HTTP(S) 恢复。所有这些入口都要求 server admin。
 
 ## 在线恢复
 
-在线恢复支持服务器本机目录、zip/tar 上传和 HTTP(S) 地址。服务先把压缩包放入受控临时目录，限制传输大小和 30 分钟处理时间，校验 manifest 与逐文件 SHA-256 后才恢复。恢复总是生成不冲突的新数据库名称，例如 `restored-20261121153000-1`，不会覆盖现有数据库。恢复失败时会删除本次临时目录和未完成的新目录。
+在线恢复默认关闭。管理员可通过 `SonnetDBServer:Backup:EnableRestore` 启用备份根内的服务器目录、ZIP/TAR/TAR.GZ 上传和 HTTP(S) 恢复。下载源按 `AllowedRestoreUrlOrigins` 精确配置协议、主机及端口，服务拒绝重定向。传输和解包受默认 20 GiB 与 30 分钟的预算约束。恢复前校验 manifest 和逐文件 SHA-256，随后在独立目录生成唯一的新数据库名称。Core 的同步恢复提交阶段会继续执行到返回。恢复库改名目前要求单一数据根，且该名称没有已关联的备份任务或数据库授权。
 
 CLI 仍支持本地目录备份、校验和恢复。`backup create` 增加了 `--no-kv`、`--no-objects` 和 `--models measurements,tables,documents,graphs,kv,objects`，默认保持完整备份兼容行为。
 

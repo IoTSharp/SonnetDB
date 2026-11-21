@@ -2,7 +2,8 @@
 
 ARG NODE_IMAGE=node:24-bookworm-slim
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:11.0
-ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0
+# Server 以 net11.0 发布，运行层也必须提供对应的共享框架。
+ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:11.0
 
 # SonnetDB 多阶段 Docker 构建。基础镜像可由构建参数替换，目标 CPU 架构由 Compose 的 platform 传入。
 # Build from the repository root:

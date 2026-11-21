@@ -127,7 +127,9 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
     }
   }
 
-  async function createDailyBackupTask(selections?: { measurements: string; tables: string; keyspaces: string; documentCollections: string; buckets: string; graphs: string }): Promise<void> {
+  /** 按用户选定的完整模型创建每日备份任务。 */
+  async function createDailyBackupTask(selections: Pick<BackupTaskDefinition['scope'],
+    'includeMeasurements' | 'includeTables' | 'includeKeyValue' | 'includeDocuments' | 'includeGraphs'>): Promise<void> {
     backupTaskBusy.value = true;
     try {
       const task: BackupTaskDefinition = {
@@ -139,20 +141,16 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
         destinationRoot: '',
         databaseNames: [],
         scope: {
-          includeMeasurements: true,
-          includeTables: true,
-          includeKeyValue: false,
-          includeDocuments: true,
+          ...selections,
           includeObjects: false,
           includeMessageQueue: false,
-          includeGraphs: true,
           includeFullTextIndexes: true,
-          measurements: splitSelection(selections?.measurements),
-          tables: splitSelection(selections?.tables),
-          keyspaces: splitSelection(selections?.keyspaces),
-          documentCollections: splitSelection(selections?.documentCollections),
-          buckets: splitSelection(selections?.buckets),
-          graphs: splitSelection(selections?.graphs),
+          measurements: [],
+          tables: [],
+          keyspaces: [],
+          documentCollections: [],
+          buckets: [],
+          graphs: [],
         },
         retentionDays: 15,
         retentionCount: 15,
@@ -168,11 +166,6 @@ export function useSqlMaintenance(options: SqlMaintenanceOptions) {
     }
   }
 
-  function splitSelection(value?: string): string[] {
-    return value
-      ? value.split(',').map(item => item.trim()).filter(Boolean)
-      : [];
-  }
 
   async function runDailyBackupTask(id: string): Promise<void> {
     backupTaskBusy.value = true;

@@ -220,6 +220,12 @@ public sealed class BackupRuntimeOptions
     /// <summary>是否启用已保存的备份任务调度。</summary>
     public bool Enabled { get; set; } = true;
 
+    /// <summary>是否开放服务端目录、上传与 URL 在线恢复。默认为关闭。</summary>
+    public bool EnableRestore { get; set; }
+
+    /// <summary>允许下载备份包的 HTTP(S) 来源，精确匹配协议、主机及端口。默认禁止 URL 恢复。</summary>
+    public List<string> AllowedRestoreUrlOrigins { get; set; } = [];
+
     /// <summary>所有任务输出的安全根目录。为空时使用 <c>&lt;DataRoot&gt;/.system/backups</c>。</summary>
     public string? DestinationRoot { get; set; }
 
