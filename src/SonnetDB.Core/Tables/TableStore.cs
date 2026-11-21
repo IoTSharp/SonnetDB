@@ -227,7 +227,10 @@ public sealed partial class TableStore : IDisposable
             SonnetDbMeter.RecordTableStoreLockWait(lockWait);
             ThrowIfDisposedLocked();
             snapshot = _keyspace.AcquireReadSnapshot();
-            RecordSerializableReadLocked(snapshot.Sequence);
+            // Shared LSM snapshots carry the engine-wide sequence, while
+            // serializable validation compares this logical keyspace's version.
+            // Capture that version under the same table lock as the snapshot.
+            RecordSerializableReadLocked(_keyspace.LastSequence);
         }
 
         try
@@ -260,7 +263,9 @@ public sealed partial class TableStore : IDisposable
             snapshot = _keyspace.AcquireReadSnapshot();
             rowCount = _rowCount;
             generation = _keyspace.Generation;
-            RecordSerializableReadLocked(snapshot.Sequence);
+            // The snapshot sequence is global for shared LSM storage; the read
+            // token and commit comparison must both use this table's sequence.
+            RecordSerializableReadLocked(_keyspace.LastSequence);
         }
 
         try

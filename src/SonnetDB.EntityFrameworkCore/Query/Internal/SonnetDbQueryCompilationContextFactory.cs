@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace SonnetDB.EntityFrameworkCore.Query.Internal;
@@ -25,9 +26,10 @@ public sealed class SonnetDbQueryCompilationContextFactory : IQueryCompilationCo
 
     /// <inheritdoc />
     public QueryCompilationContext Create(bool async)
-        => new RelationalQueryCompilationContext(_dependencies, _relationalDependencies, async);
+        => new SonnetDbQueryCompilationContext(_dependencies, _relationalDependencies, async);
 
     /// <inheritdoc />
+    [Experimental("EF9100")]
     public QueryCompilationContext CreatePrecompiled(bool async)
-        => new RelationalQueryCompilationContext(_dependencies, _relationalDependencies, async);
+        => new SonnetDbQueryCompilationContext(_dependencies, _relationalDependencies, async, precompiling: true);
 }

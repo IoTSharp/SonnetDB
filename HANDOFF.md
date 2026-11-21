@@ -1,3 +1,24 @@
+## 2026-11-21（Asia/Shanghai）状态名单修复分支合入 main
+
+- 用户授权将本任务 `codex/status-list-ef11-nativeaot` 合入 main；本轮只在新服务的 canonical SonnetDB 子模块操作，不使用 `D:/source/SonnetDB` 共享树。远端核对起点为 `main@41abaa23807ea103e74b985e13045dcdcb0e03ae` 与任务分支 `67a9e52ce86389b6fc6d6252aa4fef4d435a9b82`。
+- main 的备份、对象存储、`ON CONFLICT DO SELECT` 和容器 net11 改动均保留。合并使用 `--no-ff --no-commit`；唯一冲突是 CHANGELOG 的新增条目区，保留双方条目后解决，没有选择覆盖任一侧源码。Provider 五文件、TableStore 两处修复及四个回归场景作为本任务增量进入合并树。
+- 最终树必须完成完整 solution restore、规定 format 和相关 Core/provider 编译后才能生成合并提交；本机不运行业务/数据库测试。新 main 的四 case 服务器复跑、Server/provider 同 SHA 重建、服务 gitlink 更新均由主流程另行验证。此合并提交不自动证明旧 `67a9e52c` 服务运行收据适用于新 main。
+- 本轮不推送、不删除分支，也不更新服务暂存区的 gitlink；独立代码审查及主流程服务器回归后再执行用户已授权的后续动作。`parity-results` 与其他保留分支不变。本轮有界命令及临时资源的收尾结果由实际交接报告记录。
+
+## 2026-11-21（Asia/Shanghai）共享 LSM Serializable 快照修复
+
+- 继承 provider 提交 `769c5814d712029bd183d95c716565cb163f1d00`，同一独立分支只修改 TableStore 两处读凭据序列来源，并增加四个最小回归场景。捕获逻辑表序列与快照均位于已有表锁内，未放宽同表并发写入检测，未改变存储格式。
+- 用户已允许继续修复引擎。按用户要求，本机只编译，运行验证放在独立测试服务器；服务器控制台直接 Link 四个原始测试 case，不复制测试逻辑。提交前完整 restore/format 与实际服务器结果分别保留，不能用生成或编译代替运行。
+
+## 2026-11-21（Asia/Shanghai）状态名单 EF11 provider 独立修复分支
+
+- 基线为 `99ada9e914bd6bcd48bbe17e975b099c91286f46`，任务使用新服务子模块 `D:/XJETC/uixe-status-list/external/SonnetDB` 的 `codex/status-list-ef11-nativeaot` 分支；未修改 `D:/source/SonnetDB` 共享工作树。用户授权独立修复 provider、验证后更新服务固定提交，本提交不执行推送、发布或部署。
+- Provider 修改仅涉及查询预编译上下文/工厂、关系型设计时服务及 DateTime/DateTimeOffset `Default` 映射。编译过程暴露的 EF 实验 API 保持显式实验标记，未新增 IL 警告压制，未将 `IsAotCompatible` 改成 true。
+- 本轮 provider 已完成 net11 编译；隔离编译探针只链接状态名单模型和 DbContext，使用不打开的 `127.0.0.1:1` 设计时占位连接，未执行数据库、HTTP 服务或业务测试。EF11 已生成八类实体的 NativeAOT 编译模型和代表性通知读取/全量排序查询拦截器；编译模型曾实际编译通过。查询源码使用直接方法参数时先后遇到 EF11 QueryLocator / CSharpToLinqTranslator 的 ParameterSymbol 限制，改局部变量后生成通过；随后生成物编译发现 sealed 实体的 `IInjectableService` 转换错误和缺失 nullable 上下文，主智能体已负责调整应用并继续完整服务代码生成/原生编译，不能把本段生成收据解释为完整服务 AOT 运行通过。
+- 规定的完整 `dotnet restore SonnetDB.slnx` 已通过。首次缺少 CoAP/MQTT 构建子模块，外网直接克隆超时后已通过限定代理恢复到父库固定 SHA；两子模块没有源码修改。最后完整格式门禁和提交结果由本轮实际收尾记录报告，失效工具会话的历史 format 结果保持 UNKNOWN。
+- 并行引擎线拥有 `src/SonnetDB.Core/Tables/TableStore.cs` 两处修改及 `tests/SonnetDB.Core.Tests/Sql/SqlSharedLsmSerializableSnapshotTests.cs`；其目标是区分共享 LSM 全局快照序列与单表 LastSequence。该线由主智能体继续编译、服务器回归并单独提交，本 provider 提交不包含这些文件，也不宣称引擎测试通过。
+- 隔离探针/工具的任务目录为 `D:/XJETC/.agent-work/status-list/provider-aot-20261121-0646`，由本任务跟踪并在交接时清理；所有短命令使用有界 Cordonix 执行并回收自有进程树。未操作生产通知表，运行验证仅允许在专用测试服务器完成。
+
 ## 2026-11-20（Asia/Shanghai）GH-Issue #438 推送与完整代码验证
 
 - #438 修复提交为 `c3e25a668a264f7b54cb10463e91bb66bf0aad2c`，GitHub `origin/main` 和 Gitee `gitee/main` 均已独立读回同一 SHA。长期有界/流式 `ORDER BY` 设计已创建 GitHub Issue [#440](https://github.com/IoTSharp/SonnetDB/issues/440)，本轮没有把未完成设计伪装成已交付能力。

@@ -6,6 +6,9 @@ namespace SonnetDB.EntityFrameworkCore.Storage.Internal;
 /// <summary>提供原生 UTC ticks 日期偏移值，以及显式旧 DATETIME 列的兼容映射。</summary>
 public sealed class SonnetDbDateTimeOffsetTypeMapping : DateTimeOffsetTypeMapping
 {
+    /// <summary>供编译模型和预编译查询重建原生日期偏移映射的默认实例。</summary>
+    public new static SonnetDbDateTimeOffsetTypeMapping Default { get; } = new();
+
     /// <summary>创建日期偏移映射；旧存储声明仅影响列布局，不改变表达式的原生值类型。</summary>
     /// <param name="storeType">原生 DATETIMEOFFSET 或显式旧 DATETIME 存储声明。</param>
     public SonnetDbDateTimeOffsetTypeMapping(string storeType = "DATETIMEOFFSET")

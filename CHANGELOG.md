@@ -26,6 +26,15 @@
 - 关系表 `INSERT` 新增 `ON CONFLICT (主键或唯一索引列) DO SELECT [FOR UPDATE] [WHERE predicate] RETURNING ...`。无冲突时插入并返回新行，冲突时返回已有行，不产生更新 mutation，不递增已有行的 `ROWVERSION`；条件为 FALSE 或 NULL 时不返回、不计数。`FOR UPDATE` 在显式轻事务中保留冲突行锁到事务结束，当前只实现该锁强度。
 - `DO SELECT` 要求显式冲突目标和 `RETURNING`，支持 `excluded.column` 与目标列条件、直接执行和关系表轻事务路径。没有服务端会话的远程 ADO 轻事务对此语句 fail-closed，避免把预览结果重放为重复 INSERT。
 
+### Shared LSM serializable snapshot version
+
+- 关系表扫描和复合快照的 Serializable 读凭据改为在表锁内捕获当前逻辑 keyspace 的 `LastSequence`。共享引擎快照的全局序号不再与单表提交序号比较，避免其他表已提交写入后发生无并发写者的假冲突；真实同表变更仍由原有提交校验拒绝。增加两种快照入口的成功提交与同表冲突回归，运行证据单独记录。
+
+### EF compiled-model and query-precompilation infrastructure
+
+- EF provider 的普通查询与发布时预编译现在使用独立的 SonnetDB 查询上下文，`CreatePrecompiled` 显式启用预编译模式；实验 API 合同通过 `Experimental("EF9100")` 继续向调用方公开，不压制 IL/AOT 警告。
+- 设计时服务使用关系型生成器注册，日期与日期偏移映射提供类型匹配的 `Default` 入口，支持编译模型重建原生 `DATETIME2` / 日期偏移映射。实际状态名单的八类实体编译模型和代表性查询拦截器已完成 EF11 生成；完整服务的原生编译、服务器运行和业务回放仍须单独验证，provider 不因此声明完整 NativeAOT 兼容。
+
 ### SQL savepoints, ADO.NET DataAdapter and embedded deployment contract
 
 - SQL 轻事务增加用户可见的 `SAVEPOINT`、`ROLLBACK TO [SAVEPOINT]` 和 `RELEASE [SAVEPOINT]`。保存点按 SQL 标识符大小写规则解析，回滚保留目标保存点并撤销其后的关系表 DML、延迟触发器事件和序列预留，释放目标及其后的保存点；保存点之后发生关系表 DDL workspace 变更时，`ROLLBACK TO` 明确拒绝并要求完整回滚，避免静默部分恢复。行锁继续保留到事务结束。嵌入式 Core、ADO.NET 绑定事务和远程 SQL 批次复用同一语义，事务外使用会明确拒绝。
