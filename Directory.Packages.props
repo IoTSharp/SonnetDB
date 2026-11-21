@@ -105,6 +105,6 @@
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="InfluxDB.Client" Version="5.1.0" />
     <PackageVersion Include="LiteDB" Version="5.0.21" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="11.0.0" />
   </ItemGroup>
 </Project>
