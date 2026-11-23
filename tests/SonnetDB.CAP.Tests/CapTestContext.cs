@@ -20,6 +20,7 @@ internal sealed class CapTestContext : IAsyncDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "sonnetdb-cap-tests-" + Guid.NewGuid().ToString("N"));
     private WebApplication? _server;
     private IHost? _capHost;
+    private Exception? _expectedCapStartupFailure;
     public string ConnectionString { get; private set; } = string.Empty;
     public string MqConnectionString { get; private set; } = string.Empty;
     public string? BaseUrl { get; private set; }
@@ -141,31 +142,55 @@ internal sealed class CapTestContext : IAsyncDisposable
             [Headers.SentTime] = DateTime.Now.ToString(System.Globalization.CultureInfo.InvariantCulture)
         }, body);
 
+    public void ExpectStartupFailure(Exception error) => _expectedCapStartupFailure = error;
+
     public async ValueTask DisposeAsync()
     {
         try
         {
             if (_capHost is not null)
             {
-                await _capHost.StopAsync(TimeSpan.FromSeconds(10));
-                _capHost.Dispose();
+                try
+                {
+                    await _capHost.StopAsync(TimeSpan.FromSeconds(10));
+                }
+                catch (Exception error) when (ReferenceEquals(error, _expectedCapStartupFailure))
+                {
+                    // 此测试已断言同一故障会从事务提交传播。
+                }
+                finally
+                {
+                    _capHost.Dispose();
+                }
             }
             if (Services is not null)
                 await Services.DisposeAsync();
-            if (_server is not null)
-            {
-                await _server.StopAsync(TimeSpan.FromSeconds(10));
-                await _server.DisposeAsync();
-            }
         }
         finally
         {
-            string path = Path.GetFullPath(_root);
-            string prefix = Path.Combine(Path.GetFullPath(Path.GetTempPath()), "sonnetdb-cap-tests-");
-            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("CAP 测试目录归属校验失败。");
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
+            try
+            {
+                if (_server is not null)
+                {
+                    try
+                    {
+                        await _server.StopAsync(TimeSpan.FromSeconds(10));
+                    }
+                    finally
+                    {
+                        await _server.DisposeAsync();
+                    }
+                }
+            }
+            finally
+            {
+                string path = Path.GetFullPath(_root);
+                string prefix = Path.Combine(Path.GetFullPath(Path.GetTempPath()), "sonnetdb-cap-tests-");
+                if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("CAP 测试目录归属校验失败。");
+                if (Directory.Exists(path))
+                    Directory.Delete(path, recursive: true);
+            }
         }
     }
 }

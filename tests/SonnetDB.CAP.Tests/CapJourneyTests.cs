@@ -71,6 +71,7 @@ public sealed class CapJourneyTests
             Task commit = transaction.CommitAsync();
             Assert.False(commit.IsCompleted);
             var failure = new InvalidOperationException("CAP startup test failure.");
+            context.ExpectStartupFailure(failure);
             startup.Release.TrySetException(failure);
             Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => commit.WaitAsync(TimeSpan.FromSeconds(5))));
             await transaction.RollbackAsync();
