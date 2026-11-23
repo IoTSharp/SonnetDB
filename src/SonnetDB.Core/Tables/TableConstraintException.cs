@@ -77,6 +77,24 @@ public sealed class TableConstraintException : InvalidOperationException
     /// <param name="message">错误消息。</param>
     /// <param name="operation">失败的 SQL 操作阶段或操作名。</param>
     /// <param name="hint">不包含行内容的可行动提示。</param>
+    public TableConstraintException(
+        string errorCode,
+        string tableName,
+        string? constraintName,
+        string message,
+        string operation,
+        string? hint)
+        : this(errorCode, tableName, constraintName, message, operation, hint, budgetKind: null)
+    {
+    }
+
+    /// <summary>创建包含 SQL 诊断上下文和可选迁移预算详情的关系表约束异常。</summary>
+    /// <param name="errorCode">稳定约束错误码。</param>
+    /// <param name="tableName">目标表名。</param>
+    /// <param name="constraintName">约束名；没有命名约束时为 <c>null</c>。</param>
+    /// <param name="message">错误消息。</param>
+    /// <param name="operation">失败的 SQL 操作阶段或操作名。</param>
+    /// <param name="hint">不包含行内容的可行动提示。</param>
     /// <param name="budgetKind">schema 迁移预算类别。</param>
     /// <param name="budgetRows">预算拒绝时已累计的行数。</param>
     /// <param name="budgetWorkingBytes">预算拒绝时已累计的工作集字节数。</param>

@@ -28,9 +28,14 @@ public sealed class MemTable
     private long _lastLsn = long.MinValue;
     private long _createdAtUtcTicks = DateTime.UtcNow.Ticks;
 
+    /// <summary>创建保留重复时间戳数据的写入内存层。</summary>
+    public MemTable() : this(DuplicateTimestampPolicy.KeepAll)
+    {
+    }
+
     /// <summary>创建写入内存层。</summary>
     /// <param name="duplicateTimestampPolicy">新写入的重复时间戳策略。</param>
-    public MemTable(DuplicateTimestampPolicy duplicateTimestampPolicy = DuplicateTimestampPolicy.KeepAll)
+    public MemTable(DuplicateTimestampPolicy duplicateTimestampPolicy)
     {
         if (!Enum.IsDefined(duplicateTimestampPolicy))
             throw new ArgumentOutOfRangeException(nameof(duplicateTimestampPolicy));
