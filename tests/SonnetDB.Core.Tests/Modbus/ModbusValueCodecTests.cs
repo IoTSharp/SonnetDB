@@ -277,6 +277,23 @@ public sealed class ModbusValueCodecTests
         Assert.Equal(logicalValue, Assert.IsType<double>(decoded), 10);
     }
 
+    [Theory]
+    [InlineData(12.3f)]
+    [InlineData(12.3d)]
+    public void Encode_ScaledIntegerAcceptsRoundTripFloatingValue(object logicalValue)
+    {
+        var registers = new ushort[1];
+
+        ModbusValueCodec.Encode(
+            logicalValue,
+            registers,
+            ModbusRegisterArea.InputRegister,
+            ModbusValueType.Int16,
+            scale: 0.1m);
+
+        Assert.Equal((ushort)123, registers[0]);
+    }
+
     /// <summary>
     /// 验证整数逆缩放拒绝小数 raw 结果、目标范围溢出和零 scale。
     /// </summary>

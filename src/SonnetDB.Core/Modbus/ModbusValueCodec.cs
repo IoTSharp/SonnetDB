@@ -553,22 +553,22 @@ public static class ModbusValueCodec
     }
 
     /// <summary>
-    /// 把单精度值无损转换为 Decimal；转换回原类型不一致时拒绝隐式舍入。
+    /// 使用最短的往返十进制表示转换单精度值，避免依赖运行时对二进制浮点值的展开方式。
     /// </summary>
     private static decimal ConvertFloatingToDecimalExact(float value)
     {
-        decimal converted = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+        decimal converted = decimal.Parse(value.ToString("R", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture);
         if ((float)converted != value)
             throw new ArgumentException("浮点数不能无损转换为 Decimal，整数 wire type 不执行隐式舍入。", nameof(value));
         return converted;
     }
 
     /// <summary>
-    /// 把双精度值无损转换为 Decimal；转换回原类型不一致时拒绝隐式舍入。
+    /// 使用最短的往返十进制表示转换双精度值，避免依赖运行时对二进制浮点值的展开方式。
     /// </summary>
     private static decimal ConvertFloatingToDecimalExact(double value)
     {
-        decimal converted = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+        decimal converted = decimal.Parse(value.ToString("R", CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture);
         if ((double)converted != value)
             throw new ArgumentException("浮点数不能无损转换为 Decimal，整数 wire type 不执行隐式舍入。", nameof(value));
         return converted;
