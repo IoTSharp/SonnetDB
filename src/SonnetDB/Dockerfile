@@ -2,6 +2,7 @@
 
 ARG NODE_IMAGE=node:24-bookworm-slim
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:11.0
+ARG DOTNET_BUILD_TOOL_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/runtime:10.0
 # Server 以 net11.0 发布，运行层也必须提供对应的共享框架。
 ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:11.0
 
@@ -13,10 +14,14 @@ ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:11.0
 #   docker run -p 5080:5080 -v sonnetdb-data:/data iotsharp/sonnetdb
 
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS node-tooling
+FROM --platform=$BUILDPLATFORM ${DOTNET_BUILD_TOOL_RUNTIME_IMAGE} AS dotnet-build-tool-runtime
 
 # Web 和托管代码在构建机架构上生成，避免在 QEMU 中执行 Node 与 .NET SDK。
 FROM --platform=$BUILDPLATFORM ${DOTNET_SDK_IMAGE} AS build
 WORKDIR /repo
+
+# Core 的字典编译器运行在 net10.0，SDK 镜像同时保留 net11.0 编译工具链。
+COPY --from=dotnet-build-tool-runtime /usr/share/dotnet/shared/Microsoft.NETCore.App/ /usr/share/dotnet/shared/Microsoft.NETCore.App/
 
 COPY --from=node-tooling /usr/local/bin/ /usr/local/bin/
 COPY --from=node-tooling /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
