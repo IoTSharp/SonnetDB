@@ -54,6 +54,7 @@ function Assert-Archive {
 if ($Stage -eq 'nuget') {
     $packageIds = @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore',
         'SonnetDB.Caching.EasyCaching', 'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Testcontainers')
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $packageIds += 'SonnetDB.Quartz' }
     $packages = @(Get-ChildItem -LiteralPath $ArtifactRoot -Filter '*.nupkg' -File)
     if ($packages.Count -ne $packageIds.Count) { throw "Expected exactly $($packageIds.Count) NuGet packages; found $($packages.Count)." }
     foreach ($id in $packageIds) {
@@ -81,6 +82,7 @@ elseif ($Stage -eq 'bundles') {
     $installerRoot = Join-Path $ArtifactRoot "installers/$Rid"
     $packageEntries = @("packages/SonnetDB.Protocol.$Version.nupkg", "packages/SonnetDB.Client.$Version.nupkg",
         "packages/SonnetDB.Core.$Version.nupkg", "packages/SonnetDB.$Version.nupkg")
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $packageEntries += "packages/SonnetDB.Quartz.$Version.nupkg" }
     Assert-Archive -Path (Join-Path $bundleRoot "sndb-sdk-$Version-$Rid.$extension") `
         -RequiredEntries (@("cli/SonnetDB.Cli$executable", 'README.md', 'LICENSE') + $packageEntries) -Checksum
     Assert-Archive -Path (Join-Path $bundleRoot "sonnetdb-full-$Version-$Rid.$extension") `

@@ -12,6 +12,7 @@ $clock = [Diagnostics.Stopwatch]::StartNew()
 $root = [IO.Path]::GetFullPath($ArtifactRoot)
 if ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Artifact root cannot be a reparse point.' }
 $ids = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Protocol', 'SonnetDB.Testcontainers')
+if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $ids += 'SonnetDB.Quartz' }
 $packages = @(Get-ChildItem -LiteralPath $root -File -Filter '*.nupkg')
 if ($packages.Count -ne $ids.Count) { throw "The candidate must contain exactly $($ids.Count) NuGet packages." }
 $records = [Collections.Generic.List[object]]::new()

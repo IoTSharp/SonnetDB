@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $validator = Join-Path $PSScriptRoot 'verify-release-artifacts.ps1'
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('sonnetdb-release-artifacts-' + [Guid]::NewGuid().ToString('N'))
-$version = '4.0.0-test.1'
+$version = '5.2.0-test.1'
 $passed = 0
 
 function Write-Checksum {
@@ -44,7 +44,7 @@ function Assert-Rejected {
 try {
     $nugetRoot = Join-Path $testRoot 'nuget'
     $ids = @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Caching.EasyCaching',
-        'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Testcontainers')
+        'SonnetDB.Caching.Distributed', 'SonnetDB.CAP', 'SonnetDB.Cli', 'SonnetDB.Testcontainers', 'SonnetDB.Quartz')
     foreach ($id in $ids) {
         Write-Zip -Path (Join-Path $nugetRoot "$id.$version.nupkg") -Entries @{
             "$id.nuspec" = "<package><metadata><id>$id</id><version>$version</version></metadata></package>"
@@ -55,14 +55,14 @@ try {
 
     $capPath = Join-Path $nugetRoot "SonnetDB.CAP.$version.nupkg"
     Remove-Item -LiteralPath $capPath
-    Assert-Rejected 'CAP package missing' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 10'
+    Assert-Rejected 'CAP package missing' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 11'
     Write-Zip -Path $capPath -Entries @{ 'SonnetDB.CAP.nuspec' = "<package><metadata><id>SonnetDB.CAP</id><version>$version</version></metadata></package>" }
 
-    foreach ($id in @('SonnetDB.Protocol', 'SonnetDB.Client')) {
+    foreach ($id in @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Quartz')) {
         $path = Join-Path $nugetRoot "$id.$version.nupkg"
         $bytes = [IO.File]::ReadAllBytes($path)
         Remove-Item -LiteralPath $path
-        Assert-Rejected "$id package missing" { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 10'
+        Assert-Rejected "$id package missing" { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 11'
         [IO.File]::WriteAllBytes($path, $bytes)
     }
 
@@ -74,7 +74,7 @@ try {
     Write-Zip -Path $corePath -Entries @{ 'SonnetDB.Core.nuspec' = "<package><metadata><id>OtherPackage</id><version>$version</version></metadata></package>" }
     Assert-Rejected 'renamed unrelated package' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'identity/version mismatch'
     Remove-Item -LiteralPath $corePath
-    Assert-Rejected 'incomplete package inventory' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 10'
+    Assert-Rejected 'incomplete package inventory' { & $validator -Stage nuget -Version $version -ArtifactRoot $nugetRoot } 'Expected exactly 11'
 
     $bundleRoot = Join-Path $testRoot 'bundles/win-x64'
     $sdkEntries = @{ 'cli/SonnetDB.Cli.exe' = 'fixture'; 'README.md' = 'fixture'; 'LICENSE' = 'fixture' }
@@ -82,6 +82,7 @@ try {
     $sdkEntries["packages/SonnetDB.$version.nupkg"] = 'fixture'
     $sdkEntries["packages/SonnetDB.Protocol.$version.nupkg"] = 'fixture'
     $sdkEntries["packages/SonnetDB.Client.$version.nupkg"] = 'fixture'
+    $sdkEntries["packages/SonnetDB.Quartz.$version.nupkg"] = 'fixture'
     Write-Zip -Path (Join-Path $bundleRoot "sndb-sdk-$version-win-x64.zip") -Entries $sdkEntries
     $serverEntries = $sdkEntries.Clone()
     $serverEntries['SonnetDB.exe'] = 'fixture'
@@ -121,7 +122,7 @@ try {
         $archiveName = "$name-$version-linux-x64"
         $stagingRoot = Join-Path $testRoot "staging/$archiveName"
         $entries = @('cli/SonnetDB.Cli', 'README.md', 'LICENSE', "packages/SonnetDB.Core.$version.nupkg", "packages/SonnetDB.$version.nupkg",
-            "packages/SonnetDB.Protocol.$version.nupkg", "packages/SonnetDB.Client.$version.nupkg")
+            "packages/SonnetDB.Protocol.$version.nupkg", "packages/SonnetDB.Client.$version.nupkg", "packages/SonnetDB.Quartz.$version.nupkg")
         if ($name -eq 'sonnetdb-full') { $entries += @('SonnetDB', 'appsettings.json') }
         foreach ($entry in $entries) {
             $path = Join-Path $stagingRoot $entry

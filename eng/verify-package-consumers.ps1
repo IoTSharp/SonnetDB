@@ -19,7 +19,9 @@ $checks = [Collections.Generic.List[object]]::new()
 $report = [ordered]@{ version = $Version; status = 'RUNNING'; fixtureRoot = $fixtureRoot; checks = $checks }
 $utf8 = [Text.UTF8Encoding]::new($false)
 try {
-    foreach ($name in @('core', 'client', 'testcontainers')) {
+    $consumerNames = @('core', 'client', 'testcontainers')
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $consumerNames += 'quartz' }
+    foreach ($name in $consumerNames) {
         $directory = Join-Path $fixtureRoot $name
         $null = New-Item -ItemType Directory -Path $directory
         foreach ($file in @('Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props')) {
@@ -29,8 +31,9 @@ try {
             'core' { 'SonnetDB.Core' }
             'client' { 'SonnetDB.Client' }
             'testcontainers' { 'SonnetDB.Testcontainers' }
+            'quartz' { 'SonnetDB.Quartz' }
         }
-        $aotCompatible = if ($name -eq 'testcontainers') { 'false' } else { 'true' }
+        $aotCompatible = if ($name -in @('testcontainers', 'quartz')) { 'false' } else { 'true' }
         [IO.File]::WriteAllText((Join-Path $directory 'consumer.csproj'), @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -59,6 +62,54 @@ var builder = new SonnetDbBuilder("iotsharp/sonnetdb:5.0.0").WithDatabase("packa
 if (builder.GetType().Assembly.GetName().Name != "Testcontainers.SonnetDB")
     throw new InvalidOperationException("The renamed package changed its assembly identity.");
 Console.WriteLine("PASS SonnetDB.Testcontainers package with the existing Testcontainers.SonnetDB namespace and builder.");
+'@ } elseif ($name -eq 'quartz') { @'
+using Quartz;
+using SonnetDB.Quartz;
+
+using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+var connectionString = $"Data Source={args[1]};Timeout=5";
+var jobKey = new JobKey("package-job");
+var triggerKey = new TriggerKey("package-trigger");
+await SonnetDbQuartzSchema.EnsureCreatedAsync(connectionString, timeout.Token);
+var scheduler = await BuildScheduler();
+try
+{
+    await scheduler.ScheduleJob(JobBuilder.Create<ProbeJob>().WithIdentity(jobKey).UsingJobData("marker", "package").Build(),
+        TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey).StartAt(DateTimeOffset.UtcNow.AddHours(1)).Build(),
+        timeout.Token);
+    await scheduler.PauseTrigger(triggerKey, timeout.Token);
+}
+finally
+{
+    await scheduler.Shutdown(CancellationToken.None);
+}
+
+scheduler = await BuildScheduler();
+try
+{
+    var job = await scheduler.GetJobDetail(jobKey, timeout.Token);
+    if (job?.JobDataMap.GetString("marker") != "package"
+        || await scheduler.GetTriggerState(triggerKey, timeout.Token) != TriggerState.Paused
+        || (await scheduler.GetTriggersOfJob(jobKey, timeout.Token)).Count != 1)
+        throw new InvalidOperationException("Quartz persisted job or trigger state did not survive reopening.");
+}
+finally
+{
+    await scheduler.Shutdown(CancellationToken.None);
+}
+Console.WriteLine("PASS packaged Quartz JobStoreTX persisted and reopened a paused trigger and job data.");
+
+async Task<IScheduler> BuildScheduler()
+{
+    var builder = SchedulerBuilder.Create("package-consumer", "NON_CLUSTERED");
+    builder.UsePersistentStore(store => store.UseSonnetDB(connectionString));
+    return await builder.BuildScheduler();
+}
+
+public sealed class ProbeJob : IJob
+{
+    public Task Execute(IJobExecutionContext context) => Task.CompletedTask;
+}
 '@ } elseif ($name -eq 'client') { @'
 using System.Buffers;
 using SonnetDB.Client;
@@ -112,7 +163,11 @@ Console.WriteLine("PASS packaged Core create/reopen and nullable unique EXISTS."
         & dotnet restore $project --configfile (Join-Path $directory 'NuGet.config') --packages $cache *> (Join-Path $OutputRoot "$name-restore.log")
         if ($LASTEXITCODE -ne 0) { throw "$name consumer restore failed; see $OutputRoot." }
         $assets = Get-Content -LiteralPath (Join-Path $directory 'obj/project.assets.json') -Raw | ConvertFrom-Json -AsHashtable
-        $requiredPackages = if ($name -eq 'testcontainers') { @($id) } else { @($id, 'SonnetDB.Protocol') }
+        $requiredPackages = switch ($name) {
+            'testcontainers' { @($id) }
+            'quartz' { @($id, 'SonnetDB', 'SonnetDB.Core', 'SonnetDB.Protocol') }
+            default { @($id, 'SonnetDB.Protocol') }
+        }
         foreach ($packageId in $requiredPackages) {
             if (!$assets.libraries.ContainsKey("$packageId/$Version") -or $assets.libraries["$packageId/$Version"].type -cne 'package') {
                 throw "Missing installed candidate $packageId/$Version."
@@ -129,13 +184,14 @@ Console.WriteLine("PASS packaged Core create/reopen and nullable unique EXISTS."
         & dotnet build $project -c Release --no-restore -o (Join-Path $directory 'bin') *> (Join-Path $OutputRoot "$name-build.log")
         if ($LASTEXITCODE -ne 0) { throw "$name consumer build failed; see $OutputRoot." }
         foreach ($mode in $(if ($name -eq 'core') { @('create', 'reopen') } elseif ($name -eq 'testcontainers') { @('builder') } else { @('roundtrip') })) {
-            & dotnet (Join-Path $directory 'bin/consumer.dll') $mode (Join-Path $OutputRoot 'database') *> (Join-Path $OutputRoot "$name-$mode.log")
+            $databaseDir = if ($name -eq 'quartz') { 'quartz-database' } else { 'database' }
+            & dotnet (Join-Path $directory 'bin/consumer.dll') $mode (Join-Path $OutputRoot $databaseDir) *> (Join-Path $OutputRoot "$name-$mode.log")
             if ($LASTEXITCODE -ne 0) { throw "$name consumer $mode failed; see $OutputRoot." }
             $checks.Add([ordered]@{ consumer = $name; mode = $mode; status = 'PASS' })
         }
     }
     $report.status = 'PASS'
-    Write-Host 'Package consumers passed: independent caches, exact candidate bytes, Core reopen/NULL semantics, lightweight Client/Protocol round-trip and renamed Testcontainers package.'
+    Write-Host "Exact package consumer verification passed: $($consumerNames -join ', ')."
 }
 catch {
     $report.status = 'FAIL'

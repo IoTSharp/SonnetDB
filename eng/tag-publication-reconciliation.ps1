@@ -229,12 +229,13 @@ function Assert-TaggedPublicationPolicyBoundary {
         [version]($Version.Split('-')[0]) -lt [version]'5.0.0') { throw 'This recovery policy requires an explicit 5.x-or-later inventory contract.' }
     $required = @('SonnetDB', 'SonnetDB.Caching.Distributed', 'SonnetDB.Caching.EasyCaching', 'SonnetDB.CAP', 'SonnetDB.Cli',
         'SonnetDB.Client', 'SonnetDB.Core', 'SonnetDB.EntityFrameworkCore', 'SonnetDB.Protocol', 'SonnetDB.Testcontainers')
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $required += 'SonnetDB.Quartz' }
     foreach ($report in @($Current, $Frozen)) {
         if ($report.status -cne 'READY' -or $report.repository -cne $Repository -or $report.commitSha -cne $CommitSha -or
             $report.version -cne $Version -or $report.source -cne 'github' -or $report.policyRevision -cne 'tag-publication-v1') { throw 'Readiness identity or policy revision conflict.' }
         $ids = @($report.packageIds)
         if ($ids.Count -ne $required.Count -or @($ids | Sort-Object -Unique).Count -ne $required.Count -or
-            @($required | Where-Object { $_ -cnotin $ids }).Count -ne 0) { throw 'Current/frozen package inventory does not satisfy the ten-package policy.' }
+            @($required | Where-Object { $_ -cnotin $ids }).Count -ne 0) { throw "Current/frozen package inventory does not satisfy the release policy for $Version." }
     }
     if ($Current.policySource -cne 'current-main' -or $Frozen.policySource -cne 'frozen-tag' -or
         $Current.policyCommit -cne $CurrentMainCommit -or $Frozen.policyCommit -cne $CommitSha) { throw 'Current and frozen policy provenance is not explicit.' }

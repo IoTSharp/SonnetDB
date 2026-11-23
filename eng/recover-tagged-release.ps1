@@ -499,6 +499,7 @@ function Assert-PublishedRelease {
         $releasePackageIds = @($releasePackageIds | Where-Object { $_ -cne 'Testcontainers.SonnetDB' })
         $releasePackageIds += @('SonnetDB.Protocol', 'SonnetDB.Client', 'SonnetDB.Testcontainers')
     }
+    if ([version]($Version.Split('-')[0]) -ge [version]'5.2.0') { $releasePackageIds += 'SonnetDB.Quartz' }
     foreach ($package in $releasePackageIds) {
         $expectedAssets.Add("$package.$Version.nupkg")
     }

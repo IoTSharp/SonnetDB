@@ -11,6 +11,7 @@
     <Project Path="src/SonnetDB.Core/SonnetDB.Core.csproj" />
     <Project Path="src/SonnetDB.Data/SonnetDB.Data.csproj" />
     <Project Path="src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj" />
+    <Project Path="src/SonnetDB.Quartz/SonnetDB.Quartz.csproj" />
     <Project Path="src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj" />
     <Project Path="src/SonnetDB.Studio/SonnetDB.Studio.csproj" />
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
@@ -58,6 +59,7 @@
     <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Media.Tests/SonnetDB.Media.Tests.csproj" />
     <Project Path="tests/SonnetDB.Native.Tests/SonnetDB.Native.Tests.csproj" />
+    <Project Path="tests/SonnetDB.Quartz.Tests/SonnetDB.Quartz.Tests.csproj" />
     <Project Path="tests/SonnetDB.Studio.Tests/SonnetDB.Studio.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
     <Project Path="tests/SonnetDB.TriggerAdmission/SonnetDB.TriggerAdmission.csproj" />

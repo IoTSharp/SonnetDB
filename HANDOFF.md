@@ -1,3 +1,9 @@
+## 2026-11-23（Asia/Shanghai）Quartz.NET 持久化调度本地候选
+
+- `main` 基线 `bd34f29b`。新增 `src/SonnetDB.Quartz` 和定向测试项目，向 IoTSharp 提供独立的 Quartz 3.18.2 ADO.NET 作业存储。支持在指定 SonnetDB 数据库准备并重复验证调度表，单个活动调度器重启恢复已保存作业及触发器。
+- 定向测试在嵌入式、现有源代码构建的 Kestrel HTTP 服务和官方 5.1.1 Windows 服务的 REST 连接上通过，覆盖作业数据、暂停状态、下次触发时间、恢复、重新调度、实际执行和预取消。5.1.1 Docker 镜像未拉取成功，Docker daemon 配置的代理不可达。官方同版本 Windows 包经 Release SHA256 校验后用作真实服务器验证。
+- 本地候选使用经公开包哈希核验的 SonnetDB ADO.NET 5.0.0 构建。候选仅存 Git 忽略的 `artifacts/quartz-candidate/nuget`，未提交、发布、上线或修改生产库。完整解决方案回归和集群运行未执行。
+
 ## 2026-11-21（Asia/Shanghai）状态名单主键前缀单列分组 COUNT 候选
 
 - 基线 `main@f6e0a16bf5c68413f22fa303b2a9c3d3698594d6`，候选分支 `codex/status-list-prefix-group-count`；仅修改 canonical 服务 SonnetDB 子模块，不触碰 `D:/source/SonnetDB`、服务代码或 gitlink。本轮不提交、推送或合并，交主流程独立源码审查和服务器 Link 原测试后决定后续动作。

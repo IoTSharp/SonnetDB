@@ -34,6 +34,7 @@ http://127.0.0.1:5080
 
 5.1.1 的变更、包清单与已知限制见 [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)。5.0 迁移合同仍适用于从 4.x 升级的应用；公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
 
+- [SonnetDB 5.2.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-2-0/)
 - [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)
 - [SonnetDB 5.1.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-0/)
 - [SonnetDB 5.0.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-0-0/)
@@ -46,7 +47,7 @@ http://127.0.0.1:5080
 
 在准备打标签的同一提交上运行 `Publish`、`Connectors Release` 和 `Docker Publish` 的 `workflow_dispatch`。前两个流程使用实际候选版本（例如 `4.0.0`）；三个手动流程均不推送 NuGet、镜像或 GitHub Release，即使手动选择 tag 也只执行验证。
 
-`Publish` 检查完整的十包库存（含 `SonnetDB.Protocol`、`SonnetDB.Client`）、内部版本与 SHA-256，生成 Windows/Linux NativeAOT bundle 和安装包，并运行新旧客户端/Server 的包合同。连接器手动运行完整构建、打包和原生入口检查。Docker 先构建并启动候选镜像，检查 readiness 和内嵌 Admin UI；正式推送直接使用这个已经检查过的镜像。
+`Publish` 检查对应版本的完整包库存、内部版本与 SHA-256，从 5.2.0 起包括 `SonnetDB.Quartz`，并生成 Windows/Linux NativeAOT bundle 和安装包。连接器手动运行完整构建、打包和原生入口检查。Docker 先构建并启动候选镜像，检查 readiness 和内嵌 Admin UI。正式推送使用已检查的镜像。
 
 只有 `push` 标签事件可以正式发布。三个发布流程均通过 `eng/verify-release-readiness.ps1 -CommitSha <full-sha> -Version <version>` 验证同一提交、同一候选版本的十二类 Actions 工作流及当前候选 light/full Parity 的原始证据；这些必需结果缺少、未完成或失败时会阻断发布。Publish 的 NuGet、平台 bundle、包合同证据及连接器产物名称包含实际构建和校验的版本，其他版本或旧版无版本产物不能替代当前候选预检。主 Publish 流程先上传完整资产，再公开 Release；连接器等待该流程成功后附加资产。主线镜像仅更新 `edge` 和提交标签，稳定版本标签通过门禁后才更新 `latest`。
 

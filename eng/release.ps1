@@ -44,6 +44,7 @@ function Pack-NuGetPackages
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput
+    Invoke-DotNetPack 'src/SonnetDB.Quartz/SonnetDB.Quartz.csproj' $NuGetOutput
     Invoke-DotNetPack 'extensions/SonnetDB.Caching.EasyCaching/SonnetDB.Caching.EasyCaching.csproj' $NuGetOutput
     Invoke-DotNetPack 'extensions/SonnetDB.Caching.Distributed/SonnetDB.Caching.Distributed.csproj' $NuGetOutput
     Invoke-DotNetPack 'extensions/SonnetDB.CAP/SonnetDB.CAP.csproj' $NuGetOutput
@@ -489,6 +490,7 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.Core.__VERSION__.nupkg`
 - `packages/SonnetDB.__VERSION__.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
+- `packages/SonnetDB.Quartz.__VERSION__.nupkg`
 - `packages/SonnetDB.Caching.EasyCaching.__VERSION__.nupkg`
 - `packages/SonnetDB.Caching.Distributed.__VERSION__.nupkg`
 - `packages/SonnetDB.CAP.__VERSION__.nupkg`
