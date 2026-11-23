@@ -542,6 +542,7 @@ async function prepare(page: Page, options: Options = {}): Promise<Evidence> {
   }, { db: east });
   await page.route('**/*', async (route) => {
     const path = decodeURIComponent(new URL(route.request().url()).pathname);
+    if (path === '/v1/system/backup-tasks' && route.request().method() === 'GET') return json(route, { items: [] });
     if (!path.startsWith('/v1/') && !path.startsWith('/healthz')) return route.continue();
     if (path === '/v1/setup/status') return json(route, { needsSetup: false, serverId: 'wb30-fixture', organization: 'Fixture', userCount: 1, databaseCount: 2 });
     if (path.startsWith('/healthz')) return json(route, { status: 'ok', databases: 2, uptimeSeconds: 60 });

@@ -265,6 +265,7 @@ async function prepare(page: Page, authenticated = true): Promise<Evidence> {
       return json(route, { message: 'Wrong deployment base' }, 501);
     }
     const path = decodeURIComponent(url.pathname.slice(basePath.length - 1));
+    if (path === '/v1/system/backup-tasks' && route.request().method() === 'GET') return json(route, { items: [] });
     if (path === '/v1/setup/status') return json(route, { needsSetup: false, serverId: 'wb16-fixture', organization: 'Workbench fixture', userCount: 1, databaseCount: 3 });
     if (path === '/v1/auth/login') { evidence.loginCalls += 1; return json(route, { username: 'fixture-user', token: 'fixture-token', tokenId: 'fixture-id', isSuperuser: true }); }
     if (path.startsWith('/healthz')) return json(route, { status: 'ok', databases: 3, uptimeSeconds: 60 });

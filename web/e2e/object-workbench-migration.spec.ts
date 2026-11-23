@@ -444,6 +444,7 @@ async function prepare(page: Page, options: FixtureOptions = {}): Promise<Eviden
     if (url.origin !== origin) { evidence.unexpected.push(`external ${method} ${url.origin}${url.pathname}`); return route.abort('blockedbyclient'); }
     if (!url.pathname.startsWith('/v1/') && !url.pathname.startsWith('/healthz')) return route.continue();
     const path = decodeURIComponent(url.pathname);
+    if (path === '/v1/system/backup-tasks' && route.request().method() === 'GET') return json(route, { items: [] });
     if (path === '/v1/setup/status') return json(route, { needsSetup: false, serverId: 'wb24-fixture', userCount: 1, databaseCount: 2 });
     if (path.startsWith('/healthz')) return json(route, { status: 'ok', databases: 2, uptimeSeconds: 60 });
     if (path === '/v1/db') return json(route, { databases: [east, west] });
