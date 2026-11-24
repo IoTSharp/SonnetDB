@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using SonnetDB.Contracts;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Diagnostics;
 
@@ -9,7 +10,10 @@ namespace SonnetDB.Diagnostics;
 /// </summary>
 internal static class SqlQueryDiagnostics
 {
+    internal const string MeasurementInsertStageMetric = "sonnetdb.sql.measurement.insert.stage.duration";
     private static readonly Meter Meter = new("SonnetDB.Server", "1.0.0");
+    private static readonly Histogram<double> MeasurementInsertStage = Meter.CreateHistogram<double>(
+        MeasurementInsertStageMetric, unit: "ms", description: "Stage duration of a completed measurement INSERT statement.");
     private static readonly Counter<long> Queries = Meter.CreateCounter<long>(
         "sonnetdb.sql.query.count", unit: "{query}", description: "Completed SQL statements.");
     private static readonly Histogram<double> Duration = Meter.CreateHistogram<double>(
@@ -54,6 +58,42 @@ internal static class SqlQueryDiagnostics
         "sonnetdb.sql.gc.gen1.collections", unit: "{collection}", description: "Gen1 collections observed during a SQL statement.");
     private static readonly Histogram<long> Gen2Collections = Meter.CreateHistogram<long>(
         "sonnetdb.sql.gc.gen2.collections", unit: "{collection}", description: "Gen2 collections observed during a SQL statement.");
+
+    internal static bool MeasurementInsertStageEnabled => MeasurementInsertStage.Enabled;
+
+    /// <summary>在写入和回执已完成后记录阶段耗时，监听器故障不得改变 SQL 结果。</summary>
+    internal static void RecordMeasurementInsert(SqlMeasurementInsertTiming timing)
+    {
+        long engineOther = timing.EngineTicks - timing.SchemaLockTicks - timing.WriteLockTicks - timing.SchemaTicks
+            - timing.WalAppendTicks - timing.WalFlushToOsTicks - timing.WalFsyncWaitTicks - timing.BackpressureTicks;
+        try
+        {
+            RecordStage("parse", timing.ParseTicks);
+            RecordStage("bind_parameters", timing.ParameterBindTicks);
+            RecordStage("bind_names", timing.NameBindTicks);
+            RecordStage("execution_prepare", Math.Max(0, timing.ExecutionTicks - timing.NameBindTicks - timing.EngineTicks));
+            RecordStage("schema_lock_wait", timing.SchemaLockTicks);
+            RecordStage("write_lock_wait", timing.WriteLockTicks);
+            RecordStage("schema", timing.SchemaTicks);
+            RecordStage("wal_append", timing.WalAppendTicks);
+            RecordStage("engine_other", Math.Max(0, engineOther));
+            if (timing.WalFlushToOsTicks > 0)
+                RecordStage("wal_flush_to_os", timing.WalFlushToOsTicks);
+            if (timing.WalFsyncWaitTicks > 0)
+                RecordStage("wal_fsync_wait", timing.WalFsyncWaitTicks);
+            if (timing.BackpressureTicks > 0)
+                RecordStage("backpressure", timing.BackpressureTicks);
+            RecordStage("ndjson_receipt", timing.ReceiptTicks);
+            RecordStage("query_diagnostics", timing.QueryDiagnosticsTicks);
+        }
+        catch (Exception)
+        {
+            // MeterListener 的回调可以同步抛错，隔离监听器以保留成功回执。
+        }
+    }
+
+    private static void RecordStage(string stage, long ticks)
+        => MeasurementInsertStage.Record(ticks * (1000.0 / Stopwatch.Frequency), new KeyValuePair<string, object?>("stage", stage));
 
     /// <summary>记录一条完成语句；物理读快照降级时仅记录低基数降级计数，不写入误导性的零值直方图。</summary>
     internal static void Record(SlowQueryDiagnosticEntry entry)

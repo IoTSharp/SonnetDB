@@ -1,8 +1,13 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SonnetDB.Configuration;
+using SonnetDB.Contracts;
+using SonnetDB.Json;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -149,5 +154,46 @@ public sealed class PrometheusEndpointTests : IAsyncLifetime
         Assert.Contains("sonnetdb_write_points", body);
         // 旧最小指标集端点已被接管（不再出现 uptime 文本渲染器的指标名）。
         Assert.DoesNotContain("sonnetdb_uptime_seconds", body);
+    }
+
+    [Fact]
+    public async Task Metrics_MeasurementInsertStages_RecordOnlySuccessfulMeasurementReceipts()
+    {
+        var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
+        Assert.True(registry.TryCreate("insert_stage_probe", out _));
+        using var client = new HttpClient { BaseAddress = new Uri(_baseUrl!), Timeout = TimeSpan.FromSeconds(15) };
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "t");
+        using var response = await client.PostAsync("/v1/db/insert_stage_probe/sql/batch",
+            JsonContent.Create(new SqlBatchRequest([
+                new("CREATE TABLE unrelated_table (id INT, PRIMARY KEY (id))"),
+                new("INSERT INTO unrelated_table (id) VALUES (1)"),
+                new("INSERT INTO private_measurement (TIME, private_field) VALUES (1000, @value)",
+                    new Dictionary<string, JsonElementValue> { ["value"] = new(ScalarKind.String, StringValue: "private_payload") }),
+                new("INSERT INTO private_measurement (TIME, private_field) VALUES (2000, NULL)"),
+                new("INSERT INTO private_measurement (TIME, private_field) VALUES (3000, 'unwritten_suffix')"),
+            ]), ServerJsonContext.Default.SqlBatchRequest));
+        response.EnsureSuccessStatusCode();
+        string[] lines = (await response.Content.ReadAsStringAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(4, lines.Length);
+        using var insertEnd = JsonDocument.Parse(lines[2]);
+        Assert.Equal(1, insertEnd.RootElement.GetProperty("recordsAffected").GetInt32());
+        Assert.Contains("sql_error", lines[3]);
+
+        string metrics = await client.GetStringAsync("/metrics");
+        const string metric = "sonnetdb_sql_measurement_insert_stage_duration";
+        string[] counters = metrics.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.StartsWith(metric, StringComparison.Ordinal) && line.Contains("_count{", StringComparison.Ordinal))
+            .ToArray();
+        string[] stages = ["parse", "bind_parameters", "bind_names", "execution_prepare", "schema_lock_wait", "write_lock_wait",
+            "schema", "wal_append", "wal_flush_to_os", "engine_other", "ndjson_receipt", "query_diagnostics"];
+        Assert.Equal(stages.Length, counters.Length);
+        foreach (string stage in stages)
+        {
+            string counter = Assert.Single(counters, line => line.Contains($"stage=\"{stage}\"", StringComparison.Ordinal));
+            Assert.EndsWith("} 1", counter.TrimEnd());
+        }
+        Assert.DoesNotContain("private_measurement", metrics, StringComparison.Ordinal);
+        Assert.DoesNotContain("private_field", metrics, StringComparison.Ordinal);
+        Assert.DoesNotContain("private_payload", metrics, StringComparison.Ordinal);
     }
 }

@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
@@ -1100,13 +1101,13 @@ public sealed partial class SonnetMqStore : IDisposable
     private static IReadOnlyList<SonnetMqMessage> PullHot(TopicState state, long effectiveOffset, int maxCount)
     {
         int start = state.FindFirstIndexAtOrAfter(effectiveOffset);
-        if (start >= state.Messages.Count)
+        if (start >= state.HotMessageCount)
             return [];
 
-        int count = Math.Min(maxCount, state.Messages.Count - start);
+        int count = Math.Min(maxCount, state.HotMessageCount - start);
         var result = new SonnetMqMessage[count];
         for (int i = 0; i < count; i++)
-            result[i] = ToMessage(state.Messages[start + i]);
+            result[i] = ToMessage(state.GetHotMessage(i + start));
         return result;
     }
 
@@ -1163,8 +1164,9 @@ public sealed partial class SonnetMqStore : IDisposable
         long threshold = timestampUtc.UtcTicks;
         if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
         {
-            foreach (StoredMessage message in state.Messages)
+            for (int i = 0; i < state.HotMessageCount; i++)
             {
+                StoredMessage message = state.GetHotMessage(i);
                 if (message.TimestampUtc.UtcTicks >= threshold)
                     return message.Offset;
             }
@@ -1186,8 +1188,9 @@ public sealed partial class SonnetMqStore : IDisposable
             }
         }
 
-        foreach (StoredMessage message in state.Messages)
+        for (int i = 0; i < state.HotMessageCount; i++)
         {
+            StoredMessage message = state.GetHotMessage(i);
             if (message.TimestampUtc.UtcTicks >= threshold)
                 return message.Offset;
         }
@@ -1812,7 +1815,12 @@ public sealed partial class SonnetMqStore : IDisposable
         public string Topic { get; }
 
         /// <summary>常驻内存的「热尾部」——最近发布、尚未因超 <c>HotTailMaxBytes</c> 被驱逐的消息，按 offset 升序。</summary>
-        public List<StoredMessage> Messages { get; } = [];
+        private readonly List<StoredMessage?> _messages = [];
+        private int _messageHead;
+
+        public int HotMessageCount => _messages.Count - _messageHead;
+
+        public StoredMessage GetHotMessage(int index) => _messages[_messageHead + index]!;
 
         public Dictionary<string, long> ConsumerOffsets { get; } = new(StringComparer.Ordinal);
 
@@ -1868,10 +1876,10 @@ public sealed partial class SonnetMqStore : IDisposable
                 _offsetIndex.Add(new OffsetIndexEntry(message.Offset, location.SegmentBaseOffset, location.FilePosition));
             }
 
-            if (Messages.Count == 0)
+            if (HotMessageCount == 0)
                 HotTailStartOffset = message.Offset;
 
-            Messages.Add(message);
+            _messages.Add(message);
             RegisterMessageId(message.Headers, message.Offset, messageIdWindow);
             _residentPayloadBytes += message.Payload.Length;
             if (message.Offset >= NextOffset)
@@ -1937,19 +1945,35 @@ public sealed partial class SonnetMqStore : IDisposable
                 return;
 
             int evict = 0;
-            while (evict < Messages.Count - 1
+            while (evict < HotMessageCount - 1
                 && _residentPayloadBytes > hotTailMaxBytes
-                && Messages[evict].ColdReadable)
+                && GetHotMessage(evict).ColdReadable)
             {
-                _residentPayloadBytes -= Messages[evict].Payload.Length;
+                _residentPayloadBytes -= GetHotMessage(evict).Payload.Length;
                 evict++;
             }
 
             if (evict == 0)
                 return;
 
-            Messages.RemoveRange(0, evict);
-            HotTailStartOffset = Messages.Count > 0 ? Messages[0].Offset : NextOffset;
+            RemoveHotPrefix(evict);
+            HotTailStartOffset = GetHotMessage(0).Offset;
+        }
+
+        private void RemoveHotPrefix(int count)
+        {
+            int oldHead = _messageHead;
+            _messageHead += count;
+            // 先推进逻辑起点。空槽达到剩余消息数后再整体移动，将复制成本分摊到已移除的消息。
+            if (_messageHead >= HotMessageCount)
+            {
+                _messages.RemoveRange(0, _messageHead);
+                _messageHead = 0;
+            }
+            else
+            {
+                CollectionsMarshal.AsSpan(_messages).Slice(oldHead, count).Clear();
+            }
         }
 
         public void ApplyTombstone(long beforeOffset)
@@ -1958,24 +1982,25 @@ public sealed partial class SonnetMqStore : IDisposable
                 return;
 
             long removedBytes = 0;
-            int keptFrom = Messages.Count;
-            for (int i = 0; i < Messages.Count; i++)
+            int keptFrom = HotMessageCount;
+            for (int i = 0; i < HotMessageCount; i++)
             {
-                if (Messages[i].Offset >= beforeOffset)
+                StoredMessage message = GetHotMessage(i);
+                if (message.Offset >= beforeOffset)
                 {
                     keptFrom = i;
                     break;
                 }
-                removedBytes += Messages[i].Payload.Length;
+                removedBytes += message.Payload.Length;
             }
 
             TrimmedBeforeOffset = beforeOffset;
             if (keptFrom > 0)
             {
-                Messages.RemoveRange(0, keptFrom);
+                RemoveHotPrefix(keptFrom);
                 _residentPayloadBytes -= removedBytes;
             }
-            HotTailStartOffset = Messages.Count > 0 ? Messages[0].Offset : NextOffset;
+            HotTailStartOffset = HotMessageCount > 0 ? GetHotMessage(0).Offset : NextOffset;
 
             // Retention makes offsets below the cutoff permanently unreadable. A dedup hit
             // for one of those IDs would return a stale offset that can no longer be pulled.
@@ -1992,17 +2017,17 @@ public sealed partial class SonnetMqStore : IDisposable
             => _offsetIndex.RemoveAll(e => e.SegmentBaseOffset == segmentBaseOffset);
 
         /// <summary>目标 offset 是否命中常驻热尾（无需冷读）。</summary>
-        public bool IsHot(long offset) => Messages.Count > 0 && offset >= HotTailStartOffset;
+        public bool IsHot(long offset) => HotMessageCount > 0 && offset >= HotTailStartOffset;
 
         public int FindFirstIndexAtOrAfter(long offset)
         {
-            // Messages 按 offset 升序，直接二分（热尾窗口内不再依赖稀疏索引）。
+            // 热尾按 offset 升序，直接二分（热尾窗口内不再依赖稀疏索引）。
             int lo = 0;
-            int hi = Messages.Count;
+            int hi = HotMessageCount;
             while (lo < hi)
             {
                 int mid = lo + ((hi - lo) / 2);
-                if (Messages[mid].Offset < offset)
+                if (GetHotMessage(mid).Offset < offset)
                     lo = mid + 1;
                 else
                     hi = mid;

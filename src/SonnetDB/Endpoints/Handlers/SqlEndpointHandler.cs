@@ -267,7 +267,9 @@ internal static class SqlEndpointHandler
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
         SqlTransactionContext? transaction = existingTransaction;
-        var routineOptions = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
+        var serverOptions = context.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value;
+        var routineOptions = serverOptions.SqlExecution;
+        bool insertStageDiagnostics = serverOptions.Observability.Prometheus.Enabled && SqlQueryDiagnostics.MeasurementInsertStageEnabled;
         bool workbenchPreview = WorkbenchPreviewSql.IsRequested(context);
         using var previewCancellation = workbenchPreview
             ? CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted) : null;
@@ -284,6 +286,7 @@ internal static class SqlEndpointHandler
                 var sw = Stopwatch.StartNew();
 
                 SqlStatement parsed;
+                long parseStarted = insertStageDiagnostics ? Stopwatch.GetTimestamp() : 0;
                 try
                 {
                     parsed = SqlParser.Parse(stmt.Sql);
@@ -296,6 +299,10 @@ internal static class SqlEndpointHandler
                     await WriteSqlErrorAsync(context, "sql_error", ex, "parse").ConfigureAwait(false);
                     return;
                 }
+
+                SqlMeasurementInsertTiming? insertTiming = insertStageDiagnostics && parsed is InsertStatement
+                    ? new SqlMeasurementInsertTiming { ParseTicks = Stopwatch.GetTimestamp() - parseStarted }
+                    : null;
 
                 if (!WorkbenchPreviewSql.Allows(context, tsdb, parsed, statements.Count, executionCancellation))
                 {
@@ -353,7 +360,10 @@ internal static class SqlEndpointHandler
                     int? previewMaxRows = ResolvePreviewMaxRows(stmt, routineOptions);
                     if (workbenchPreview)
                         previewMaxRows = Math.Min(previewMaxRows ?? 1000, 1000);
+                    long bindStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                     executable = BindParameters(parsed, stmt);
+                    if (insertTiming is not null)
+                        SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.ParameterBindTicks, bindStarted);
 
                     if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
                         throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
@@ -364,6 +374,7 @@ internal static class SqlEndpointHandler
                     }
 
                     string caller = ResolveRoutineCaller(context, isServerAdmin);
+                    long executionStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                     object? result = executable switch
                     {
                         WriteModbusStatement writeModbus => await GetModbusWriteService(
@@ -415,8 +426,11 @@ internal static class SqlEndpointHandler
                                 PreviewMaxBytes = previewMaxRows is null ? null : workbenchPreview
                                     ? Math.Min(routineOptions.MaxPreviewBytes, WorkbenchPreviewSql.MaximumResultBytes) : routineOptions.MaxPreviewBytes,
                                 Metrics = executionMetrics,
+                                MeasurementInsertTiming = insertTiming,
                             }),
                     };
+                    if (insertTiming is not null)
+                        SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.ExecutionTicks, executionStarted);
                     result = SqlResultBounds.Apply(result, previewMaxRows);
                     executionSnapshot = executionMetrics?.Complete();
                     if (result is SqlTransactionContext started)
@@ -471,10 +485,19 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(rowCount);
                                 }
                                 var elapsed = sw.Elapsed.TotalMilliseconds;
+                                long receiptStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                                 await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed,
                                     ins.Returning?.Truncated ?? false).ConfigureAwait(false);
+                                if (insertTiming is not null)
+                                    SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.ReceiptTicks, receiptStarted);
+                                long diagnosticsStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                                 RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
                                     executionSnapshot, queueWaitMs);
+                                if (insertTiming is { IsMeasurement: true })
+                                {
+                                    SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.QueryDiagnosticsTicks, diagnosticsStarted);
+                                    SqlQueryDiagnostics.RecordMeasurementInsert(insertTiming);
+                                }
                                 break;
                             }
                         case DeleteExecutionResult del:
@@ -808,8 +831,10 @@ internal static class SqlEndpointHandler
         {
             JsonSerializer.Serialize(w, end, ServerJsonContext.Default.ResultEnd);
         }
-        await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
-        await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
+        // WriteAsync 已刷新完整的 NDJSON 行。若管道取消了该次刷新，保留原有的补刷。
+        var flush = await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
+        if (flush.IsCanceled)
+            await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
     private static Task WriteSqlErrorAsync(
@@ -873,8 +898,9 @@ internal static class SqlEndpointHandler
                 new ErrorResponse(code, message, sqlError?.Code, sqlError?.Position, sqlError?.Hint),
                 ServerJsonContext.Default.ErrorResponse);
         }
-        await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
-        await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
+        var flush = await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
+        if (flush.IsCanceled)
+            await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
     /// <summary>

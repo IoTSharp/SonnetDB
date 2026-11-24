@@ -100,7 +100,6 @@ public sealed class WalWriter : IDisposable
         if (formatVersion == WalFileHeader.AtomicPointFormatVersion && (startLsn <= 0 || startLsn == long.MaxValue))
             throw new ArgumentOutOfRangeException(nameof(startLsn), "WAL v2 first LSN must be within 1..Int64.MaxValue-1.");
 
-        bool fileExists = File.Exists(path) && new FileInfo(path).Length > 0;
         long nextLsn = startLsn;
         long bytesWritten = 0L;
         bool footerDirty = false;
@@ -109,7 +108,9 @@ public sealed class WalWriter : IDisposable
         var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         try
         {
-            if (fileExists && fs.Length >= FormatSizes.WalFileHeaderSize)
+            // 以已取得独占写权限的句柄判断文件状态，避免打开前的长度在竞争中失效。
+            long fileLength = fs.Length;
+            if (fileLength >= FormatSizes.WalFileHeaderSize)
             {
                 // Read existing file header to validate
                 byte[] headerBuf = ArrayPool<byte>.Shared.Rent(FormatSizes.WalFileHeaderSize);
@@ -158,7 +159,7 @@ public sealed class WalWriter : IDisposable
                     ArrayPool<byte>.Shared.Return(headerBuf);
                 }
             }
-            else if (!fileExists || fs.Length == 0)
+            else if (fileLength == 0)
             {
                 // New file: write header
                 fs.Position = 0;
@@ -515,9 +516,16 @@ public sealed class WalWriter : IDisposable
 
         FileStream fs = _fileStream!;
         fs.Position = _bytesWritten;
-        fs.SetLength(_bytesWritten);
+        // v2 打开时已截到有效记录末尾。每条记录头至少与 footer 等长，刷出记录会
+        // 覆盖旧 footer，由新 footer 延长文件。追加故障由 FlushCore 拒绝发布 footer。
+        // v1 允许在写入异常后再次刷写，仍显式收敛可能超出逻辑长度的尾部。
+        bool legacyFormat = _formatVersion != WalFileHeader.AtomicPointFormatVersion;
+        if (legacyFormat)
+            fs.SetLength(_bytesWritten);
         fs.Write(footerBuffer);
-        fs.SetLength(_bytesWritten + FormatSizes.WalLastLsnFooterSize);
+        if (legacyFormat)
+            fs.SetLength(_bytesWritten + FormatSizes.WalLastLsnFooterSize);
+        // 底层 FileStream 可能缓冲 footer，重新定位先清空其缓冲，再回到下条记录起点。
         fs.Position = _bytesWritten;
 
         _footerDirty = false;

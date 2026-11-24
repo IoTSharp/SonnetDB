@@ -46,7 +46,9 @@ public static partial class SqlExecutor
         object? result = statement switch
         {
             CreateTableStatement create => TableSqlExecutor.ExecuteCreateTemporaryTable(database, create),
-            InsertStatement insert => ExecuteInsert(database, databaseName: null, insert, controlPlane: null, transaction: null),
+            // 临时表写入工作区在 BeginTemporaryMutation 后才可见，需在该工作区重新绑定。
+            InsertStatement insert => ExecuteBoundInsert(database, databaseName: null,
+                (InsertStatement)BindNames(database, insert), controlPlane: null, transaction: null),
             UpdateStatement update => ExecuteUpdate(database, databaseName: null, update, controlPlane: null, transaction: null),
             DeleteStatement delete => ExecuteDelete(database, databaseName: null, delete, controlPlane: null, transaction: null),
             DropTableStatement drop => new RowsAffectedExecutionResult(drop.Name,

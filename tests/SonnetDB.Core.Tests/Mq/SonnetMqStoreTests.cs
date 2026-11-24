@@ -807,6 +807,84 @@ public sealed class SonnetMqStoreTests : IDisposable
     }
 
     [Fact]
+    public void HotTailCompaction_PreservesAckBoundaryAndRestartsAfterEmptying()
+    {
+        const string topic = "iot.telemetry";
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 4 * sizeof(int),
+            SegmentMaxBytes = 256,
+            OffsetIndexStride = 3,
+            AckRetentionMinOffsetDelta = 1,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.PublishMany(topic, Enumerable.Range(0, 24)
+                .Select(i => new SonnetMqPublishEntry(BitConverter.GetBytes(i))).ToArray());
+            store.Ack(topic, "iotsharp", 21);
+            store.PublishMany(topic, Enumerable.Range(24, 7)
+                .Select(i => new SonnetMqPublishEntry(BitConverter.GetBytes(i))).ToArray());
+            var retained = store.Pull(topic, "iotsharp", 20);
+            Assert.Equal(Enumerable.Range(22, 9), retained.Select(message => BitConverter.ToInt32(message.Payload)));
+            Assert.True(store.ColdPayloadBytesRead > 0);
+        }
+
+        using var reopened = SonnetMqStore.Open(options);
+        var replayed = reopened.Pull(topic, "iotsharp", 20);
+        Assert.Equal(Enumerable.Range(22, 9).Select(i => (long)i), replayed.Select(message => message.Offset));
+        Assert.Equal(Enumerable.Range(22, 9), replayed.Select(message => BitConverter.ToInt32(message.Payload)));
+        Assert.True(reopened.ColdPayloadBytesRead > 0);
+        Assert.Equal(31L, reopened.TombstoneBefore(topic, 31));
+        Assert.Empty(reopened.Pull(topic, "iotsharp", 20));
+        Assert.Equal(31L, reopened.Publish(topic, BitConverter.GetBytes(31)));
+        var next = Assert.Single(reopened.Pull(topic, "iotsharp", 20));
+        Assert.Equal(31L, next.Offset);
+        Assert.Equal(31, BitConverter.ToInt32(next.Payload));
+    }
+
+    [Fact]
+    public void HotTailCompaction_RetainsLegacyPrefixUntilTombstoned()
+    {
+        const string topic = "iot.telemetry";
+        using (var legacy = SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = Path.Combine(_root, "sonnetmq.log"),
+            OpenMode = SonnetMqOpenMode.SingleFile,
+            RetentionInterval = TimeSpan.Zero,
+        }))
+        {
+            Assert.Equal(0L, legacy.Publish(topic, "legacy-payload"u8));
+        }
+
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = sizeof(int),
+            RetentionInterval = TimeSpan.Zero,
+        };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            for (int i = 1; i <= 3; i++)
+                Assert.Equal(i, store.Publish(topic, BitConverter.GetBytes(i)));
+        }
+
+        using var reopened = SonnetMqStore.Open(options);
+        var pinned = reopened.Pull(topic, 0, 10);
+        Assert.Equal([0L, 1L, 2L, 3L], pinned.Select(message => message.Offset));
+        Assert.Equal("legacy-payload"u8.ToArray(), pinned[0].Payload);
+        Assert.Equal(0L, reopened.ColdPayloadBytesRead);
+        Assert.Equal(1L, reopened.TombstoneBefore(topic, 1));
+        Assert.Equal(4L, reopened.Publish(topic, BitConverter.GetBytes(4)));
+        var retained = reopened.Pull(topic, 0, 10);
+        Assert.Equal([1L, 2L, 3L, 4L], retained.Select(message => message.Offset));
+        Assert.Equal([1, 2, 3, 4], retained.Select(message => BitConverter.ToInt32(message.Payload)));
+        Assert.True(reopened.ColdPayloadBytesRead > 0);
+    }
+
+    [Fact]
     public void TrimRetention_ByAge_DiscardsFullyExpiredSegmentsAndKeepsActive()
     {
         // 按段粒度：Sleep 使旧段整段超龄 → cutoff 推进至该段之后 baseOffset；活跃段永不裁剪。

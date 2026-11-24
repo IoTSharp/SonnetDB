@@ -1012,10 +1012,11 @@ public sealed partial class Tsdb : IDisposable
         => WriteCore(point, exactNames: false, cancellationToken);
 
     // SQL 绑定器已经按引号合同解析到目录中的精确名称，不能再次进行普通引用解析。
-    internal void WriteSqlPoint(Point point)
-        => WriteCore(point, exactNames: true);
+    internal void WriteSqlPoint(Point point, SqlMeasurementInsertTiming? insertTiming = null)
+        => WriteCore(point, exactNames: true, insertTiming: insertTiming);
 
-    private void WriteCore(Point point, bool exactNames, CancellationToken cancellationToken = default)
+    private void WriteCore(Point point, bool exactNames, CancellationToken cancellationToken = default,
+        SqlMeasurementInsertTiming? insertTiming = null)
     {
         ArgumentNullException.ThrowIfNull(point);
         cancellationToken.ThrowIfCancellationRequested();
@@ -1025,27 +1026,49 @@ public sealed partial class Tsdb : IDisposable
 
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush;
+        long schemaLockStarted = SqlMeasurementInsertTiming.Start(insertTiming);
         lock (_schemaSync)
+        {
+            if (insertTiming is not null)
+                SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.SchemaLockTicks, schemaLockStarted);
+            long writeLockStarted = SqlMeasurementInsertTiming.Start(insertTiming);
             lock (_writeSync)
             {
+                if (insertTiming is not null)
+                    SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.WriteLockTicks, writeLockStarted);
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 ThrowIfWriteLifecycleClosing();
                 ThrowIfFlushRecoveryFault();
                 cancellationToken.ThrowIfCancellationRequested();
+                long schemaStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                 var normalized = EnsureMeasurementSchemaLocked(point, exactNames);
-                WritePointLocked(normalized, cancellationToken);
+                if (insertTiming is not null)
+                    SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.SchemaTicks, schemaStarted);
+                WritePointLocked(normalized, cancellationToken, insertTiming);
                 hardCapFlush = FlushForHardCapIfNeededLocked();
 
                 if (_options.SyncWalOnEveryWrite)
                     walSync = _walGroupCommit.Prepare(_walSet!);
                 else
+                {
+                    long flushStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                     FlushWalToOsIfEnabledLocked();
+                    if (insertTiming is not null && _options.FlushWalToOsOnWrite)
+                        SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.WalFlushToOsTicks, flushStarted);
+                }
             }
+        }
 
+        long fsyncWaitStarted = SqlMeasurementInsertTiming.Start(insertTiming);
         walSync.Wait();
+        if (insertTiming is not null && _options.SyncWalOnEveryWrite)
+            SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.WalFsyncWaitTicks, fsyncWaitStarted);
 
         // 锁外应用硬上限背压：sealing 积压过多时等待，避免无界内存/磁盘增长。
+        long backpressureStarted = SqlMeasurementInsertTiming.Start(insertTiming);
         ApplyFlushBackpressure(hardCapFlush);
+        if (insertTiming is not null && hardCapFlush is not null)
+            SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.BackpressureTicks, backpressureStarted);
 
         // 锁外向后台线程发送非阻塞信号
         _flushWorker?.Signal();
@@ -2472,13 +2495,15 @@ public sealed partial class Tsdb : IDisposable
     /// <summary>仅供测试注入 generation cleanup 故障；生产恒为 null。</summary>
     internal Action? _kvCleanupFaultHook;
 
-    private void WritePointLocked(Point point, CancellationToken cancellationToken = default)
+    private void WritePointLocked(Point point, CancellationToken cancellationToken = default,
+        SqlMeasurementInsertTiming? insertTiming = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var entry = Catalog.GetOrAdd(point);
         EnsureNoFieldReplacementConflict(point, entry.Id);
         ValidateAtomicPointMemoryTypes(point, entry.Id);
 
+        long appendStarted = SqlMeasurementInsertTiming.Start(insertTiming);
         // 若是本进程首次写入该 series，向 WAL 追加 CreateSeries 记录
         if (!_seriesWithWalRecord.Contains(entry.Id))
         {
@@ -2489,6 +2514,8 @@ public sealed partial class Tsdb : IDisposable
 
         BeforeAtomicPointAppendTestHook?.Invoke();
         long pointLsn = _walSet!.AppendAtomicPoint(entry.Id, point.Timestamp, point.Fields, cancellationToken);
+        if (insertTiming is not null)
+            SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.WalAppendTicks, appendStarted);
         // WAL 首字节之后不再观察取消；该 Point 以同一 LSN 发布全部字段。
         // 所有常规输入和类型检查已完成，追加故障不会发布其中任何字段。
         try

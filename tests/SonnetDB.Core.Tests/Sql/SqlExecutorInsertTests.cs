@@ -80,6 +80,27 @@ public class SqlExecutorInsertTests : IDisposable
         Assert.Equal([1.0, 2.0, 3.0], points.Select(p => p.Value.AsDouble()));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Insert_BindsMeasurementAndColumnsInBothEntryPoints(bool directInsert)
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT \"Cpu\" (\"Host\" TAG, \"Usage\" FIELD FLOAT)");
+        const string sql = "INSERT INTO CPU (TIME, host, \"Usage\") VALUES (1000, 'h1', 1.5)";
+
+        var result = directInsert
+            ? SqlExecutor.ExecuteInsert(db, Assert.IsType<InsertStatement>(SqlParser.Parse(sql)))
+            : Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db, sql));
+
+        Assert.Equal("Cpu", result.Measurement);
+        Assert.Equal(1, result.RowsInserted);
+        var seriesId = SeriesId.Compute(new SeriesKey("Cpu", new Dictionary<string, string> { ["Host"] = "h1" }));
+        var point = Assert.Single(db.Query.Execute(new PointQuery(seriesId, "Usage", new TimeRange(0, long.MaxValue))));
+        Assert.Equal(1000L, point.Timestamp);
+        Assert.Equal(1.5, point.Value.AsDouble());
+    }
+
     [Fact]
     public void Insert_TimeOmitted_DefaultsToNow()
     {

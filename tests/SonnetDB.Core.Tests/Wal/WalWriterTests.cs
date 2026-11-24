@@ -1,4 +1,6 @@
-﻿using SonnetDB.Model;
+﻿using System.IO.Hashing;
+using System.Runtime.InteropServices;
+using SonnetDB.Model;
 using SonnetDB.Storage.Format;
 using SonnetDB.Wal;
 using Xunit;
@@ -59,6 +61,58 @@ public sealed class WalWriterTests : IDisposable
         long fileSize = new System.IO.FileInfo(path).Length;
         Assert.True(fileSize >= FormatSizes.WalFileHeaderSize);
         Assert.Equal(writer.BytesWritten + FormatSizes.WalLastLsnFooterSize, fileSize);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RepeatedFlushAndSync_PublishCompleteFooterAndKeepAppending(bool atomicPoints)
+    {
+        string path = TempFile();
+        using (var writer = atomicPoints ? WalWriter.OpenAtomicPoints(path) : WalWriter.Open(path))
+        {
+            writer.Flush();
+            AssertFooter(path, writer.BytesWritten, 0);
+
+            int[] lengths = [3, 6000, 17];
+            for (int i = 0; i < lengths.Length; i++)
+            {
+                var value = FieldValue.FromString(new string('x', lengths[i]));
+                long lsn = atomicPoints
+                    ? writer.AppendAtomicPoint(1, i, new Dictionary<string, FieldValue> { ["value"] = value })
+                    : writer.AppendWritePoint(1, i, "value", value);
+                Assert.Equal(i + 1, lsn);
+                if (i == 1)
+                    writer.Sync();
+                else
+                    writer.Flush();
+
+                // 在 writer 仍打开时核对 OS 可见的完整 footer 和连续记录。
+                AssertFooter(path, writer.BytesWritten, lsn);
+                using var reader = atomicPoints ? WalReader.OpenAtomicPoints(path) : WalReader.Open(path);
+                Assert.Equal(Enumerable.Range(1, i + 1).Select(value => (long)value), reader.Replay().Select(record => record.Lsn));
+            }
+        }
+
+        using var reopened = atomicPoints ? WalWriter.OpenAtomicPoints(path) : WalWriter.Open(path);
+        Assert.Equal(!atomicPoints, reopened.OpenedUsingLastLsnFooter);
+        Assert.Equal(4L, reopened.NextLsn);
+        reopened.Flush();
+        AssertFooter(path, reopened.BytesWritten, 3);
+    }
+
+    private static void AssertFooter(string path, long recordsEnd, long lastLsn)
+    {
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        Assert.Equal(recordsEnd + FormatSizes.WalLastLsnFooterSize, file.Length);
+        file.Position = recordsEnd;
+        Span<byte> bytes = stackalloc byte[FormatSizes.WalLastLsnFooterSize];
+        file.ReadExactly(bytes);
+        var footer = MemoryMarshal.Read<WalLastLsnFooter>(bytes);
+        Assert.True(footer.IsShapeValid());
+        Assert.Equal(recordsEnd, footer.RecordsEndOffset);
+        Assert.Equal(lastLsn, footer.LastLsn);
+        Assert.Equal(Crc32.HashToUInt32(bytes[..WalLastLsnFooter.CrcCoveredLength]), footer.Crc32);
     }
 
     [Fact]

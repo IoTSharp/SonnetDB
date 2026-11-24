@@ -428,7 +428,11 @@ public static partial class SqlExecutor
             options = options with { SessionContext = session };
             transaction?.AttachSession(session);
         }
+        SqlMeasurementInsertTiming? insertTiming = options.MeasurementInsertTiming;
+        long nameBindStarted = SqlMeasurementInsertTiming.Start(insertTiming);
         statement = BindNames(executionDatabase, statement);
+        if (insertTiming is not null)
+            SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.NameBindTicks, nameBindStarted);
         SqlLockingReadContract.Validate(statement);
         using var deadlineSource = options.CreateDeadlineSource();
         if (deadlineSource is not null)
@@ -550,7 +554,7 @@ public static partial class SqlExecutor
                 databaseName,
                 importJson,
                 controlPlane),
-            InsertStatement insert => ExecuteInsert(executionDatabase, databaseName, insert, controlPlane, transaction),
+            InsertStatement insert => ExecuteBoundInsert(executionDatabase, databaseName, insert, controlPlane, transaction, insertTiming),
             InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(executionDatabase, insertGraph),
             UpdateGraphStatement updateGraph => GraphSqlExecutor.UpdateGraph(executionDatabase, updateGraph),
             DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(executionDatabase, deleteGraph),
@@ -1788,25 +1792,25 @@ public static partial class SqlExecutor
         SqlExecutionOptions options = RoutineExecutionContext.Current?.Options ?? SqlExecutionOptions.Default;
         SqlSequenceRuntime.Validate(tsdb, statement, options);
         using var sequenceScope = SqlSequenceRuntime.Enter(tsdb, options);
-        return ExecuteInsert(
+        using var ragResourceScope = SqlRagResourceScope.Enter();
+        return ExecuteBoundInsert(
             tsdb,
             databaseName: null,
-            statement,
+            (InsertStatement)BindNames(tsdb, statement),
             controlPlane: null,
             transaction: null);
     }
 
-    private static InsertExecutionResult ExecuteInsert(
+    private static InsertExecutionResult ExecuteBoundInsert(
         Tsdb tsdb,
         string? databaseName,
         InsertStatement statement,
         IControlPlane? controlPlane,
-        SqlTransactionContext? transaction)
+        SqlTransactionContext? transaction,
+        SqlMeasurementInsertTiming? insertTiming = null)
     {
-        using var ragResourceScope = SqlRagResourceScope.Enter();
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
-        statement = (InsertStatement)BindNames(tsdb, statement);
         if (statement.ColumnRoleHints.Count != 0
             && statement.ColumnRoleHints.Count != statement.Columns.Count)
             throw new InvalidOperationException("INSERT 列角色提示数与列数不一致。");
@@ -1847,6 +1851,9 @@ public static partial class SqlExecutor
                 controlPlane,
                 transaction);
         }
+
+        if (insertTiming is not null)
+            insertTiming.IsMeasurement = true;
 
         if (statement.ReturningColumns.Count != 0)
             throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
@@ -1975,7 +1982,10 @@ public static partial class SqlExecutor
                     $"INSERT 行至少需要包含一个 FIELD 列值（measurement '{statement.Measurement}'）。");
 
             var point = Point.Create(statement.Measurement, timestamp, tags, fields);
-            tsdb.WriteSqlPoint(point);
+            long writeStarted = SqlMeasurementInsertTiming.Start(insertTiming);
+            tsdb.WriteSqlPoint(point, insertTiming);
+            if (insertTiming is not null)
+                SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.EngineTicks, writeStarted);
             written++;
         }
 
