@@ -4,6 +4,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Exceptions;
 using SonnetDB.Generations;
 using SonnetDB.Graphs;
 using SonnetDB.Kv;
@@ -91,6 +92,8 @@ public sealed partial class Tsdb : IDisposable
     private int _writeLifecycleClosing;
     private BackgroundFlushWorker? _flushWorker;
     private FlushPump? _flushPump;
+    // 仅在 _writeSync 内访问。后台触发和前台硬上限共用同一项密封额度。
+    private Task? _lastSealedFlush;
     private CompactionWorker? _compactionWorker;
     private RetentionWorker? _retentionWorker;
     private KvExpirerWorker? _kvExpirerWorker;
@@ -1066,7 +1069,7 @@ public sealed partial class Tsdb : IDisposable
 
         // 锁外应用硬上限背压：sealing 积压过多时等待，避免无界内存/磁盘增长。
         long backpressureStarted = SqlMeasurementInsertTiming.Start(insertTiming);
-        ApplyFlushBackpressure(hardCapFlush);
+        ApplyFlushBackpressure(hardCapFlush?.Completion.Task);
         if (insertTiming is not null && hardCapFlush is not null)
             SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.BackpressureTicks, backpressureStarted);
 
@@ -1105,13 +1108,7 @@ public sealed partial class Tsdb : IDisposable
                 return WriteMany(seg.AsSpan());
         }
 
-        int count = 0;
-        foreach (var point in points)
-        {
-            Write(point);
-            count++;
-        }
-        return count;
+        return WriteEnumeratedPoints(points, CancellationToken.None);
     }
 
     /// <summary>枚举并写入多个 Point；在每个 Point 的 WAL 首字节前响应取消。</summary>
@@ -1123,11 +1120,23 @@ public sealed partial class Tsdb : IDisposable
         ArgumentNullException.ThrowIfNull(points);
         if (points is Point[] array)
             return WriteMany((ReadOnlySpan<Point>)array, cancellationToken);
+        return WriteEnumeratedPoints(points, cancellationToken);
+    }
+
+    private int WriteEnumeratedPoints(IEnumerable<Point> points, CancellationToken cancellationToken)
+    {
         int count = 0;
         foreach (Point point in points)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            WriteCore(point, exactNames: false, cancellationToken);
+            try
+            {
+                WriteCore(point, exactNames: false, cancellationToken);
+            }
+            catch (TimeSeriesWriteRecoveryRequiredException exception) when (count > 0 && !exception.MayHaveWritten)
+            {
+                throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+            }
             count++;
         }
         return count;
@@ -1278,7 +1287,14 @@ public sealed partial class Tsdb : IDisposable
             // batch admission 只跨越第一个实际写入块。它的作用是让 Prepare 与首次 WAL/MemTable
             // 变更按同一线性化点发生；后续块恢复正常 fault 检查，避免失败后无界继续写入。
             bool isFirstAdmittedBatchChunk = hasBatchWriteAdmission && offset == 0;
-            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk, exactNames, cancellationToken);
+            try
+            {
+                totalWritten += WriteManyChunk(points.Slice(offset, chunkLength), isFirstAdmittedBatchChunk, exactNames, cancellationToken);
+            }
+            catch (TimeSeriesWriteRecoveryRequiredException exception) when (totalWritten > 0 && !exception.MayHaveWritten)
+            {
+                throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+            }
             offset += chunkLength;
         }
 
@@ -1321,10 +1337,17 @@ public sealed partial class Tsdb : IDisposable
                 {
                     // 整块 schema 必须先完整校验，再产生任何可见变更。否则后续点冲突时，
                     // 前面点推断出的新列或类型提升会留在内存，形成“数据未写入但 schema 部分发布”。
+                    bool sealForPromotion = schemaPlan.PromotedIntToFloat && MemTable.PointCount > 0;
+                    if (sealForPromotion)
+                    {
+                        WaitForPreviousSealedFlushLocked();
+                        ThrowIfFlushRecoveryFault();
+                    }
+
                     if (schemaPlan.ChangedSchemas.Count > 0)
                         PersistAndPublishMeasurementSchemasLocked(schemaPlan.ChangedSchemas);
 
-                    if (schemaPlan.PromotedIntToFloat && MemTable.PointCount > 0)
+                    if (sealForPromotion)
                         SealAndEnqueueLocked();
 
                     for (int i = 0; i < normalizedPoints.Length; i++)
@@ -1346,7 +1369,7 @@ public sealed partial class Tsdb : IDisposable
 
         walSync.Wait();
 
-        ApplyFlushBackpressure(hardCapFlush);
+        ApplyFlushBackpressure(hardCapFlush?.Completion.Task);
 
         if (written > 0)
         {
@@ -2080,6 +2103,11 @@ public sealed partial class Tsdb : IDisposable
         if (_walSet == null || _flushPump == null)
             return null;
 
+        WaitForPreviousSealedFlushLocked();
+        if (permitFaultedBatchAdmission && Volatile.Read(ref _flushRecoveryFault) is not null)
+            return null;
+        ThrowIfFlushRecoveryFault();
+
         _walGroupCommit.FlushPending(_walSet);
         PersistMeasurementSchemasLocked();
 
@@ -2112,7 +2140,16 @@ public sealed partial class Tsdb : IDisposable
         // 理论上 sealed_ 就是 sealing；防御式取真实密封表。
         var request = new FlushPump.FlushRequest(sealed_ ?? sealing, sealLsn, segId);
         _flushPump.Enqueue(request);
+        _lastSealedFlush = request.Completion.Task;
         return request;
+    }
+
+    private void WaitForPreviousSealedFlushLocked()
+    {
+        // 泵在完成请求前不取 _writeSync。前一次失败由调用方读取故障边界，
+        // 从而保留已完成 WAL 追加的写入结果和失败的密封表。
+        ApplyFlushBackpressure(_lastSealedFlush);
+        _lastSealedFlush = null;
     }
 
     /// <summary>
@@ -2214,11 +2251,7 @@ public sealed partial class Tsdb : IDisposable
         _walSet?.ThrowIfWriteFaulted();
         Exception? fault = Volatile.Read(ref _flushRecoveryFault);
         if (fault is not null)
-        {
-            throw new InvalidOperationException(
-                "此前的 Flush 发布失败，后续 Flush 和 checkpoint 已被停止；请关闭并重新打开数据库以从 WAL 恢复。",
-                fault);
-        }
+            throw new TimeSeriesWriteRecoveryRequiredException(fault);
     }
 
     private void ThrowIfWriteLifecycleClosing()
@@ -2380,6 +2413,8 @@ public sealed partial class Tsdb : IDisposable
         _ = Interlocked.CompareExchange(ref _flushRecoveryFault, ex, null);
         CloseBatchWriteAdmission();
         Volatile.Write(ref _lastError, ex);
+        // 诊断事件订阅者可能回读需要 _writeSync 的状态，先释放等待当前密封表的调用方。
+        request.Completion.TrySetException(ex);
         ReportDiagnostic(
             "FlushPump.Flush",
             TsdbDiagnosticSeverity.Error,
@@ -2413,14 +2448,14 @@ public sealed partial class Tsdb : IDisposable
     /// 硬上限触发的 flush：同步等待其落盘完成（内存红线，写入者必须停下抽干）。
     /// 调用方<b>不应</b>持有 <c>_writeSync</c>（在锁外调用）。
     /// </summary>
-    private static void ApplyFlushBackpressure(FlushPump.FlushRequest? hardCapFlush)
+    private static void ApplyFlushBackpressure(Task? flushCompletion)
     {
-        if (hardCapFlush == null)
+        if (flushCompletion is null)
             return;
 
         try
         {
-            hardCapFlush.Completion.Task.GetAwaiter().GetResult();
+            flushCompletion.GetAwaiter().GetResult();
         }
         catch
         {
@@ -2437,6 +2472,8 @@ public sealed partial class Tsdb : IDisposable
         lock (_writeSync)
         {
             if (_disposed || Volatile.Read(ref _writeLifecycleClosing) != 0)
+                return;
+            if (_lastSealedFlush is { IsCompleted: false })
                 return;
             SealAndEnqueueLocked();
         }
@@ -2647,9 +2684,10 @@ public sealed partial class Tsdb : IDisposable
         if (MemTable.EstimatedBytes < hardCapBytes)
             return null;
 
-        // 已在 flush 失败前获得 batch admission 的首块必须能够完成其账本提交。若失败
-        // 已可见，保留 active table 由 WAL 恢复，不再制造一个必然失败的第二个 sealing 请求。
-        if (permitFaultedBatchAdmission && Volatile.Read(ref _flushRecoveryFault) is not null)
+        // 已追加到 WAL 的点保持当前写入的确认路径；前一密封表失败时保留活跃数据，
+        // 随后的写入和 checkpoint 继续由已有故障门禁拒绝。
+        WaitForPreviousSealedFlushLocked();
+        if (Volatile.Read(ref _flushRecoveryFault) is not null)
             return null;
 
         return SealAndEnqueueLocked(permitFaultedBatchAdmission);
@@ -2772,13 +2810,20 @@ public sealed partial class Tsdb : IDisposable
 
         if (updated is not null)
         {
+            bool sealForPromotion = promotedIntToFloat && MemTable.PointCount > 0;
+            if (sealForPromotion)
+            {
+                WaitForPreviousSealedFlushLocked();
+                ThrowIfFlushRecoveryFault();
+            }
+
             PersistAndPublishMeasurementSchemasLocked([updated]);
 
             // int→float 提升：先密封当前含旧 Int64 数据的活跃表（换成新空表），使随后写入的
             // Float64 落到新表，同一 key 不会在单个 MemTable 内混型（避免 MemTable.Append 抛异常）。
             // 密封是 O(1)，旧表的落盘由 flush 泵异步完成；查询侧 IsIntFloatCompatible 容忍 MemTable↔段
             // 之间的 int/float 跨源混型，故无需在此同步等待落盘。
-            if (promotedIntToFloat && MemTable.PointCount > 0)
+            if (sealForPromotion)
                 SealAndEnqueueLocked();
         }
 

@@ -107,6 +107,8 @@ public sealed partial class TsdbRegistry : IDisposable
     /// </summary>
     public string DataRoot => _dataRoot;
 
+    internal ServerRuntimeMetrics? RuntimeMetrics { get; init; }
+
     /// <summary>当前注册表使用的对象卷根目录；未配置时返回 null。</summary>
     public string? ObjectStorageRootDirectory => _objectStorageRootDirectory;
 
@@ -343,7 +345,8 @@ public sealed partial class TsdbRegistry : IDisposable
     /// <param name="databaseName">数据库显示名，用于隔离对象卷目录。</param>
     /// <returns>已打开的数据库实例。</returns>
     private Tsdb OpenDatabase(string path, string databaseName)
-        => Tsdb.Open(new TsdbOptions
+    {
+        var database = Tsdb.Open(new TsdbOptions
         {
             RootDirectory = path,
             AllowUserFunctions = false,
@@ -352,6 +355,9 @@ public sealed partial class TsdbRegistry : IDisposable
             MeasurementSchemaPolicy = _measurementSchemaPolicy,
             ObjectStorageRootDirectory = ResolveObjectStorageRoot(databaseName),
         });
+        RuntimeMetrics?.Observe(database);
+        return database;
+    }
 
     /// <summary>为数据库计算对象卷路径，保持不同数据库的对象正文相互隔离。</summary>
     /// <param name="databaseName">数据库显示名。</param>

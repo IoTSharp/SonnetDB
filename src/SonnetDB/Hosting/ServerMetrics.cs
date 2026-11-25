@@ -262,6 +262,8 @@ public static class PrometheusFormatter
         sb.AppendLine("# TYPE sonnetdb_databases gauge");
         sb.Append("sonnetdb_databases ").Append(registry.Count).AppendLine();
 
+        registry.RuntimeMetrics?.AppendPrometheus(sb);
+
         sb.AppendLine("# HELP sonnetdb_sql_requests_total Total number of SQL requests handled.");
         sb.AppendLine("# TYPE sonnetdb_sql_requests_total counter");
         sb.Append("sonnetdb_sql_requests_total ").Append(metrics.SqlRequests).AppendLine();

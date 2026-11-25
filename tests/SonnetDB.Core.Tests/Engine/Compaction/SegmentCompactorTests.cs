@@ -203,6 +203,65 @@ public sealed class SegmentCompactorTests : IDisposable
         Assert.False(File.Exists(outPath));
     }
 
+    [Fact]
+    public void Execute_WithCancellationAfterEncodingStarts_DeletesPartialFileAndKeepsPreviousOutput()
+    {
+        using var first = WriteSegment(1, 1UL, "val", FieldType.Int64, startTs: 1000, count: 5);
+        using var second = WriteSegment(2, 2UL, "val", FieldType.Int64, startTs: 2000, count: 5);
+        var plan = new CompactionPlan(0, [2L, 1L]);
+        var readers = new Dictionary<long, SegmentReader> { [1] = first, [2] = second };
+        string outputPath = SegPath(50);
+        File.WriteAllBytes(outputPath, [45, 57]);
+        using var cancellation = new CancellationTokenSource();
+        var options = new SegmentWriterOptions
+        {
+            FsyncOnCommit = false,
+            FailAt = _ => cancellation.Cancel(),
+        };
+
+        Assert.Throws<OperationCanceledException>(() =>
+            new SegmentCompactor(options).Execute(plan, readers, 50, outputPath,
+                cancellationToken: cancellation.Token));
+
+        Assert.Equal(new byte[] { 45, 57 }, File.ReadAllBytes(outputPath));
+        Assert.False(File.Exists(outputPath + options.TempFileSuffix));
+    }
+
+    [Fact]
+    public void Execute_MultipleFieldsAndOverlappingSources_MatchesCanonicalWriterBytes()
+    {
+        var options = new SegmentWriterOptions { FsyncOnCommit = false, MaxPointsPerBlock = 2 };
+        var writer = new SegmentWriter(options);
+        var first = new MemTable();
+        first.Append(2UL, 3000, "z", FieldValue.FromLong(9), 1);
+        first.Append(1UL, 2000, "a", FieldValue.FromLong(1), 2);
+        first.Append(1UL, 2200, "a", FieldValue.FromLong(3), 3);
+        writer.WriteFrom(first, 1L, SegPath(1));
+        var second = new MemTable();
+        second.Append(1UL, 2000, "a", FieldValue.FromLong(2), 1);
+        second.Append(1UL, 2100, "b", FieldValue.FromLong(4), 2);
+        writer.WriteFrom(second, 2L, SegPath(2));
+        using var firstReader = SegmentReader.Open(SegPath(1), _readerOpts);
+        using var secondReader = SegmentReader.Open(SegPath(2), _readerOpts);
+
+        var expected = new MemTable();
+        expected.Append(1UL, 2000, "a", FieldValue.FromLong(2), 1);
+        expected.Append(1UL, 2000, "a", FieldValue.FromLong(1), 2);
+        expected.Append(1UL, 2200, "a", FieldValue.FromLong(3), 3);
+        expected.Append(1UL, 2100, "b", FieldValue.FromLong(4), 4);
+        expected.Append(2UL, 3000, "z", FieldValue.FromLong(9), 5);
+        string expectedPath = Path.Combine(_tempDir, "canonical.SDBSEG");
+        writer.WriteFrom(expected, 50L, expectedPath);
+
+        string actualPath = SegPath(50);
+        var plan = new CompactionPlan(0, [2L, 1L]);
+        var readers = new Dictionary<long, SegmentReader> { [1] = firstReader, [2] = secondReader };
+        var result = new SegmentCompactor(options).Execute(plan, readers, 50L, actualPath);
+        Assert.Equal(4, result.OutputBlockCount);
+        Assert.True(File.ReadAllBytes(expectedPath).AsSpan(FormatSizes.SegmentHeaderSize).SequenceEqual(
+            File.ReadAllBytes(actualPath).AsSpan(FormatSizes.SegmentHeaderSize)));
+    }
+
     // ── 4 种 FieldType round-trip ────────────────────────────────────────────
 
     [Theory]

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -71,5 +72,15 @@ internal static class OpenTelemetryBootstrap
                 if (builder.Environment.IsDevelopment())
                     tracing.AddConsoleExporter();
             });
+
+        builder.Services.ConfigureOpenTelemetryMeterProvider((services, metrics) =>
+        {
+            var currentHostMeter = services.GetRequiredService<ServerRuntimeMetrics>().Meter;
+            metrics.AddMeter(ServerRuntimeMetrics.MeterName);
+            metrics.AddView(instrument => instrument.Meter.Name == ServerRuntimeMetrics.MeterName
+                && !ReferenceEquals(instrument.Meter, currentHostMeter)
+                ? MetricStreamConfiguration.Drop
+                : null);
+        });
     }
 }

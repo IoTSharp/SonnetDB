@@ -111,6 +111,68 @@ public sealed class SegmentWriterTests : IDisposable
     }
 
     [Fact]
+    public void SealedWrite_PreservesStableOrderingWithoutPublishingBucketSnapshots()
+    {
+        var memTable = new MemTable();
+        memTable.Append(1, 3000, "usage", FieldValue.FromDouble(0), 1);
+        memTable.Append(1, 1000, "usage", FieldValue.FromDouble(1), 2);
+        memTable.Append(1, 3000, "usage", FieldValue.FromDouble(2), 3);
+
+        string sealedPath = TempPath("sealed.SDBSEG");
+        _writer.WriteFromSealed(memTable, 1L, sealedPath, vectorIndexes: null);
+        var series = Assert.Single(memTable.SnapshotAll());
+        Assert.False(series.SnapshotForSegmentWrite().Equals(series.SnapshotForSegmentWrite()));
+        var querySnapshot = series.Snapshot();
+        Assert.True(querySnapshot.Equals(series.SnapshotForSegmentWrite()));
+
+        string regularPath = TempPath("regular.SDBSEG");
+        _writer.WriteFrom(memTable, 1L, regularPath);
+        byte[] sealedBytes = File.ReadAllBytes(sealedPath);
+        byte[] regularBytes = File.ReadAllBytes(regularPath);
+        Assert.True(sealedBytes.AsSpan(FormatSizes.SegmentHeaderSize).SequenceEqual(
+            regularBytes.AsSpan(FormatSizes.SegmentHeaderSize)));
+        using var reader = SegmentReader.Open(sealedPath);
+        var points = reader.DecodeBlock(Assert.Single(reader.Blocks));
+        Assert.Equal([1000L, 3000L, 3000L], points.Select(static point => point.Timestamp));
+        Assert.Equal([1d, 0d, 2d], points.Select(static point => point.Value.AsDouble()));
+        AssertSegmentInvariants(sealedPath);
+    }
+
+    [Fact]
+    public void ManyNumericBuckets_EmbeddedSketchBytesMatchCanonicalFormat()
+    {
+        const int blockCount = 192;
+        var memTable = new MemTable();
+        for (int i = 0; i < blockCount; i++)
+            memTable.Append((ulong)i + 1, 1000 + i, "count", FieldValue.FromLong(i), i + 1);
+
+        string path = TempPath("numeric-buckets.SDBSEG");
+        var result = _writer.WriteFromSealed(memTable, 1, path, vectorIndexes: null);
+        using var reader = SegmentReader.Open(path);
+        Assert.Equal(blockCount, result.BlockCount);
+        Assert.Equal(blockCount, reader.Blocks.Count);
+        using var expected = new MemoryStream();
+        var sketches = new List<BlockAggregateSketch>(blockCount);
+        for (int i = 0; i < blockCount; i++)
+        {
+            var block = reader.Blocks[i];
+            Assert.True(BlockAggregateSketch.TryBuild(i, block.Crc32, block.FieldType,
+                reader.DecodeBlock(block), out var sketch));
+            sketches.Add(sketch);
+        }
+
+        SegmentAggregateSketchFile.WriteTo(expected, sketches);
+        using var file = File.OpenRead(path);
+        long extensionOffset = result.IndexOffset + (long)FormatSizes.BlockIndexEntrySize * blockCount;
+        Assert.Equal(expected.Length, result.FooterOffset - extensionOffset);
+        file.Position = extensionOffset;
+        byte[] actual = new byte[checked((int)expected.Length)];
+        file.ReadExactly(actual);
+        Assert.True(expected.GetBuffer().AsSpan(0, actual.Length).SequenceEqual(actual));
+        Assert.Empty(Directory.EnumerateFiles(_tempDir, "*.aidx.tmp", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public void SingleBucket_1000DoublePoints_BlockHeaderFieldsCorrect()
     {
         string path = TempPath();

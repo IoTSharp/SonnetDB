@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using SonnetDB.Data.Remote;
 
 namespace SonnetDB.Data;
 
@@ -36,6 +37,20 @@ public sealed class SndbTransaction : DbTransaction
     }
 
     internal bool IsCompleted => _completed || _disposed;
+
+    internal bool SupportsDmlBatch => !IsCompleted
+        && _transactionState is RemoteTransactionState { SupportsDmlBatch: true };
+
+    internal Task<IReadOnlyList<SndbDmlBatchResult>?> ExecuteDmlBatchAsync(
+        IReadOnlyList<SndbDmlBatchStatement> statements, CancellationToken cancellationToken,
+        Func<ValueTask>? onSending = null)
+    {
+        var state = _connection.GetTransactionStateForCommand(this);
+        if (!SupportsDmlBatch || _connection.GetOpenImpl() is not RemoteConnectionImpl remote)
+            throw new NotSupportedException("当前事务未协商有序 DML 批处理。");
+
+        return remote.ExecuteTransactionDmlBatchAsync((RemoteTransactionState)state!, statements, cancellationToken, onSending);
+    }
 
     /// <inheritdoc />
     public override void Commit()

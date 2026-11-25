@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Buffers.Binary;
+using System.IO.Compression;
 using SonnetDB.Query.Functions.Aggregates;
 
 namespace SonnetDB.Storage.Segments;
@@ -36,6 +38,85 @@ internal static class SegmentAggregateSketchFile
         WriteHeader(stream, sketches.Count);
         foreach (var sketch in sketches)
             WriteSketch(stream, sketch);
+    }
+
+    internal sealed class Spool(string segmentTempPath) : IDisposable
+    {
+        private const int CopyBufferSize = 64 * 1024;
+        private FileStream? _records;
+        private DeflateStream? _compressed;
+        private int _count;
+        private long _uncompressedLength;
+
+        internal void Append(BlockAggregateSketch sketch)
+        {
+            if (_records is null)
+            {
+                string path = segmentTempPath + "." + Guid.NewGuid().ToString("N") + ".aidx.tmp";
+                var records = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Delete,
+                    CopyBufferSize, FileOptions.DeleteOnClose | FileOptions.SequentialScan);
+                try
+                {
+                    // Unix 的 DeleteOnClose 由 .NET 在释放句柄时模拟。提前 unlink 使进程被终止时也能释放空间。
+                    if (!OperatingSystem.IsWindows())
+                        File.Delete(path);
+                    _compressed = new DeflateStream(records, CompressionLevel.Fastest, leaveOpen: true);
+                    _records = records;
+                }
+                catch
+                {
+                    records.Dispose();
+                    throw;
+                }
+            }
+
+            _uncompressedLength = checked(_uncompressedLength + WriteSketch(_compressed!, sketch));
+            _count = checked(_count + 1);
+        }
+
+        internal long WriteTo(Stream destination, CancellationToken cancellationToken)
+        {
+            if (_records is null)
+                return 0;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _compressed!.Dispose();
+            _compressed = null;
+            _records.Position = 0;
+            WriteHeader(destination, _count);
+            using var records = new DeflateStream(_records, CompressionMode.Decompress, leaveOpen: true);
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+            try
+            {
+                for (long remaining = _uncompressedLength; remaining > 0;)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    int chunkLength = (int)Math.Min(remaining, CopyBufferSize);
+                    records.ReadExactly(buffer.AsSpan(0, chunkLength));
+                    destination.Write(buffer.AsSpan(0, chunkLength));
+                    remaining -= chunkLength;
+                }
+                if (records.ReadByte() != -1)
+                    throw new InvalidDataException("临时聚合摘要记录超过已写入长度。");
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+            return checked(_uncompressedLength + HeaderSize);
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _compressed?.Dispose();
+            }
+            finally
+            {
+                _records?.Dispose();
+            }
+        }
     }
 
     public static IReadOnlyDictionary<int, long> TryLoadOffsets(
@@ -308,7 +389,7 @@ internal static class SegmentAggregateSketchFile
         return recordCount;
     }
 
-    private static void WriteSketch(Stream stream, BlockAggregateSketch sketch)
+    private static int WriteSketch(Stream stream, BlockAggregateSketch sketch)
     {
         byte[] tdigestBytes = sketch.TDigest?.Serialize() ?? [];
         byte[] hllBytes = sketch.HyperLogLog?.Serialize() ?? [];
@@ -327,6 +408,7 @@ internal static class SegmentAggregateSketchFile
         stream.Write(header);
         stream.Write(tdigestBytes);
         stream.Write(hllBytes);
+        return checked(RecordHeaderSize + tdigestBytes.Length + hllBytes.Length);
     }
 
     private static RecordHeader ReadRecordHeader(Stream stream)

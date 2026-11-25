@@ -113,7 +113,7 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
             byte[] body = Encoding.UTF8.GetBytes(response.Json);
             string redirect = response.Location is null ? string.Empty : $"Location: {response.Location}\r\n";
             byte[] responseHeaders = Encoding.ASCII.GetBytes(
-                $"HTTP/1.1 {response.Status} Test\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\n{redirect}Connection: close\r\n\r\n");
+                $"HTTP/1.1 {response.Status} Test\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\n{redirect}{response.AdditionalHeaders}Connection: close\r\n\r\n");
             await stream.WriteAsync(responseHeaders, cancellationToken);
             await stream.WriteAsync(body, cancellationToken);
             await stream.FlushAsync(cancellationToken);
@@ -155,7 +155,9 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
     {
         if (count is < 0 or > 64 * 1024)
             throw new InvalidDataException("Invalid loopback HTTP body length.");
-        char[] buffer = new char[Math.Min(count, 64 * 1024)];
+        if (count == 0)
+            return;
+        char[] buffer = new char[count];
         int read = await reader.ReadBlockAsync(buffer, cancellationToken);
         if (read != count)
             throw new InvalidDataException("Truncated loopback HTTP request body.");
@@ -164,4 +166,4 @@ internal sealed class KvLoopbackHttpServer : IAsyncDisposable
 
 internal sealed record KvLoopbackRequest(string Method, string Path, string? Authorization);
 
-internal sealed record KvLoopbackResponse(int Status, string Json, string? Location = null);
+internal sealed record KvLoopbackResponse(int Status, string Json, string? Location = null, string? AdditionalHeaders = null);

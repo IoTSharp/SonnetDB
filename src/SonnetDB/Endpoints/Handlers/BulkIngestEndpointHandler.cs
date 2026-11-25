@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 using SonnetDB.Json;
@@ -62,6 +63,14 @@ internal static class BulkIngestEndpointHandler
             catch (BulkIngestException ex)
             {
                 await WriteErrorAsync(context, StatusCodes.Status400BadRequest, "bulk_ingest_error", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (TimeSeriesWriteRecoveryRequiredException ex)
+            {
+                string code = ex.MayHaveWritten
+                    ? TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
+                    : TimeSeriesWriteRecoveryRequiredException.ErrorCode;
+                await WriteErrorAsync(context, StatusCodes.Status503ServiceUnavailable, code, ex.Message).ConfigureAwait(false);
                 return;
             }
 

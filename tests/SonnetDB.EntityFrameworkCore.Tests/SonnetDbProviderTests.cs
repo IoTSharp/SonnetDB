@@ -621,6 +621,7 @@ public sealed class SonnetDbProviderTests : IDisposable
         var database = "ef_remote_generated_keys_" + Guid.NewGuid().ToString("N");
         var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-keys-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dataRoot);
+        var requests = new ConcurrentQueue<string>();
 
         await using var app = EfTestServerHost.Build(new ServerOptions
         {
@@ -631,6 +632,11 @@ public sealed class SonnetDbProviderTests : IDisposable
             {
                 [token] = ServerRoles.Admin,
             },
+        });
+        app.Use(async (httpContext, next) =>
+        {
+            requests.Enqueue(httpContext.Request.Path.Value ?? string.Empty);
+            await next(httpContext);
         });
 
         try
@@ -654,8 +660,11 @@ public sealed class SonnetDbProviderTests : IDisposable
             Assert.True(context.Entry(first).Property(item => item.Id).IsTemporary);
             Assert.True(context.Entry(second).Property(item => item.Id).IsTemporary);
 
+            requests.Clear();
             await context.SaveChangesAsync();
 
+            Assert.Single(requests, path => path.Contains("/sql/transactions/", StringComparison.Ordinal)
+                && path.EndsWith("/sql/batch", StringComparison.Ordinal));
             Assert.Equal([1L, 2L], [first.Id, second.Id]);
             context.ChangeTracker.Clear();
             var storedIds = await context.GeneratedLongs

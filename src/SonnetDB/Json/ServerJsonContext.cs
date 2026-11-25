@@ -47,6 +47,8 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(RagManagementAuditEntry))]
 [JsonSerializable(typeof(RagManagementAuditPage))]
 [JsonSerializable(typeof(SqlBatchRequest))]
+[JsonSerializable(typeof(SqlTransactionDmlBatchRequest))]
+[JsonSerializable(typeof(SqlTransactionDmlBatchEnd))]
 [JsonSerializable(typeof(JsonElementValue))]
 [JsonSerializable(typeof(IReadOnlyDictionary<string, JsonElementValue>))]
 [JsonSerializable(typeof(ErrorResponse))]

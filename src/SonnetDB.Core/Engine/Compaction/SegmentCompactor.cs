@@ -15,7 +15,7 @@ namespace SonnetDB.Engine.Compaction;
 /// <list type="bullet">
 ///   <item><description>按 (SeriesId, FieldName) 分组；校验 FieldType 一致；</description></item>
 ///   <item><description>N 路堆合并按 timestamp 升序产出；同 timestamp 全部保留（不去重）；</description></item>
-///   <item><description>输出使用 <see cref="SegmentWriter.Write"/> 写入新段。</description></item>
+///   <item><description>按序逐桶合并及编码，使用 <see cref="SegmentWriter"/> 写入新段。</description></item>
 /// </list>
 /// </para>
 /// </summary>
@@ -68,26 +68,8 @@ public sealed class SegmentCompactor
 
         int inputBlockCount = groups.Values.Sum(static g => g.Blocks.Count);
 
-        // 2. 为每个 group 构建 MemTableSeries（N 路合并），并应用墓碑过滤
-        var seriesList = new List<MemTableSeries>(groups.Count);
-        foreach (var (key, group) in groups)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var mts = new MemTableSeries(key, group.FieldType);
-            MergeAndAppend(mts, group.Blocks, readers, tombstones, cancellationToken);
-            // 若该桶所有点均被墓碑覆盖，不生成空 Block（SegmentWriter 会跳过空 series）
-            if (mts.Count > 0)
-                seriesList.Add(mts);
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // 3. 写入新段
-        //    含 VECTOR 桶时，BuildForSegment 强制要求提供两个 catalog（否则该段向量块无索引落盘，
-        //    静默退化为暴力扫，I11）；无向量桶或缺 catalog 时返回 null。
-        var vectorIndexes = VectorIndexBuildMap.BuildForSegment(seriesList, seriesCatalog, measurementCatalog);
-        cancellationToken.ThrowIfCancellationRequested();
-        var buildResult = _writer.Write(seriesList, newSegmentId, newSegmentPath, vectorIndexes);
+        var buildResult = _writer.WriteSortedCompaction(MergeSortedGroups(),
+            newSegmentId, newSegmentPath, ResolveVectorIndex, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         sw.Stop();
@@ -101,6 +83,26 @@ public sealed class SegmentCompactor
             OutputBlockCount: buildResult.BlockCount,
             OutputBytes: buildResult.TotalBytes,
             DurationMicros: durationMicros);
+
+        IEnumerable<MemTableSeries> MergeSortedGroups()
+        {
+            foreach (var (key, group) in groups.OrderBy(static pair => pair.Key.SeriesId)
+                         .ThenBy(static pair => pair.Key.FieldName, StringComparer.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var bucket = new MemTableSeries(key, group.FieldType);
+                MergeAndAppend(bucket, group.Blocks, readers, tombstones, cancellationToken);
+                if (bucket.Count > 0)
+                    yield return bucket;
+            }
+        }
+
+        VectorIndexDefinition? ResolveVectorIndex(MemTableSeries bucket)
+        {
+            VectorIndexBuildMap.RequireCatalogsForVectorField(bucket, seriesCatalog, measurementCatalog);
+            return VectorIndexBuildMap.Resolve(bucket.Key.SeriesId, bucket.Key.FieldName,
+                seriesCatalog!, measurementCatalog!);
+        }
     }
 
     // ── 私有辅助 ──────────────────────────────────────────────────────────────
@@ -172,7 +174,7 @@ public sealed class SegmentCompactor
             var (segId, block) = blockRefs[0];
             if (readers.TryGetValue(segId, out var reader))
             {
-                var points = reader.DecodeBlock(block);
+                var points = reader.DecodeBlockUncached(block);
                 foreach (var dp in points)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -199,7 +201,7 @@ public sealed class SegmentCompactor
                 decoded[i] = [];
                 continue;
             }
-            decoded[i] = reader.DecodeBlock(block);
+            decoded[i] = reader.DecodeBlockUncached(block);
             if (decoded[i].Length > 0)
             {
                 pq.Enqueue(
@@ -223,6 +225,10 @@ public sealed class SegmentCompactor
                 pq.Enqueue(
                     new HeapEntry(entry.SourceIndex, nextIdx),
                     new HeapKey(decoded[entry.SourceIndex][nextIdx].Timestamp, entry.SourceIndex, nextIdx));
+            }
+            else
+            {
+                decoded[entry.SourceIndex] = [];
             }
         }
     }

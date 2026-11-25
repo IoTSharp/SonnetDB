@@ -341,6 +341,11 @@ internal static partial class FrameEndpointHandler
         {
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bulk_ingest_error", ex.Message);
         }
+        catch (TimeSeriesWriteRecoveryRequiredException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, RecoveryErrorCode(ex), ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             // SpanReader underflow 等结构性解码失败
@@ -628,6 +633,7 @@ internal static partial class FrameEndpointHandler
             string code = ex switch
             {
                 KvReadOverloadedException => KvReadOverloadedException.Code,
+                TimeSeriesWriteRecoveryRequiredException recovery => RecoveryErrorCode(recovery),
                 SequenceException sequence => sequence.Code,
                 RoutineExecutionException routine => routine.Code,
                 SqlParseException parse when parse.Code == SqlErrorCodes.RelationalTypeUnsupported => parse.Code,
@@ -857,6 +863,11 @@ internal static partial class FrameEndpointHandler
             metrics.RecordSqlError();
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.ErrorCode, ex.Message);
         }
+        catch (TimeSeriesWriteRecoveryRequiredException ex)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, RecoveryErrorCode(ex), ex.Message);
+        }
         catch (RoutineExecutionException ex)
         {
             metrics.RecordSqlError();
@@ -884,6 +895,11 @@ internal static partial class FrameEndpointHandler
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_error", ex.Message);
         }
     }
+
+    private static string RecoveryErrorCode(TimeSeriesWriteRecoveryRequiredException exception)
+        => exception.MayHaveWritten
+            ? TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
+            : TimeSeriesWriteRecoveryRequiredException.ErrorCode;
 
     private static long GetRecordsAffected(object? result)
         => result switch

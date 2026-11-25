@@ -49,6 +49,7 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ServerMetrics>();
+        builder.Services.AddSingleton<ServerRuntimeMetrics>();
         builder.Services.AddSingleton<EventBroadcaster>();
         builder.Services.AddSingleton<SqlHttpRequestAdmission>();
         builder.Services.AddSingleton<SqlConnectionSessions>();
@@ -77,7 +78,10 @@ internal static class SonnetDbServiceRegistration
                 kvOptions,
                 sqlMemoryOptions,
                 options.MeasurementSchema.ToPolicy(),
-                options.ObjectStorage.RootDirectory);
+                options.ObjectStorage.RootDirectory)
+            {
+                RuntimeMetrics = sp.GetRequiredService<ServerRuntimeMetrics>(),
+            };
             if (!string.IsNullOrWhiteSpace(options.MountedDatabasePath))
                 registry.MountExisting(options.MountedDatabaseName ?? "embedded", options.MountedDatabasePath);
             else if (options.AutoLoadExistingDatabases)

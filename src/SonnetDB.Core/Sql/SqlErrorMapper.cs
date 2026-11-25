@@ -25,6 +25,11 @@ public static class SqlErrorMapper
 
         return exception switch
         {
+            TimeSeriesWriteRecoveryRequiredException recovery => new SqlErrorInfo(
+                recovery.MayHaveWritten
+                    ? TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
+                    : TimeSeriesWriteRecoveryRequiredException.ErrorCode,
+                recovery.Message, operation, hint: fallbackHint),
             SqlRowLockException rowLock => new SqlErrorInfo(rowLock.Code, rowLock.Message, operation,
                 hint: "等待持有者结束事务，或回滚当前事务后重新执行。"),
             SequenceException sequence => new SqlErrorInfo(sequence.Code, sequence.Message, operation,

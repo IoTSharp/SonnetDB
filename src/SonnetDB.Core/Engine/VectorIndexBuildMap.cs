@@ -38,18 +38,22 @@ internal static class VectorIndexBuildMap
         // 缺失 catalog：只要有任一 VECTOR 桶，就是调用方漏传 catalog —— 该段的向量块将无索引落盘，
         // 查询时静默退化为暴力扫（I11）。转为显式失败，避免"慢但正确"掩盖调用契约违反。
         foreach (var series in seriesList)
-        {
-            if (series.FieldType == Storage.Format.FieldType.Vector)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot write a segment containing VECTOR field '{series.Key.FieldName}' " +
-                    "without a series/measurement catalog: the vector block would be persisted " +
-                    "without an index and silently degrade to brute-force scan (I11). " +
-                    "Provide both seriesCatalog and measurementCatalog.");
-            }
-        }
+            RequireCatalogsForVectorField(series, catalog, measurements);
 
         return null;
+    }
+
+    internal static void RequireCatalogsForVectorField(
+        MemTableSeries series, SeriesCatalog? catalog, MeasurementCatalog? measurements)
+    {
+        if (series.FieldType == Storage.Format.FieldType.Vector && (catalog is null || measurements is null))
+        {
+            throw new InvalidOperationException(
+                $"Cannot write a segment containing VECTOR field '{series.Key.FieldName}' " +
+                "without a series/measurement catalog: the vector block would be persisted " +
+                "without an index and silently degrade to brute-force scan (I11). " +
+                "Provide both seriesCatalog and measurementCatalog.");
+        }
     }
 
     /// <summary>

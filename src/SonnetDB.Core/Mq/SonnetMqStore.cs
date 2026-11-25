@@ -782,6 +782,7 @@ public sealed partial class SonnetMqStore : IDisposable
             ReplayStream(legacy, null);
         }
 
+        using var replayHeaders = new ReplayMessageHeaders();
         foreach (string topicDirectory in Directory.EnumerateDirectories(RootDirectory))
         {
             // 根目录可能包含其它模型或运维目录，仅恢复有效 Topic 名称对应的目录。
@@ -801,7 +802,7 @@ public sealed partial class SonnetMqStore : IDisposable
                     FileMode.Open,
                     isActiveSegment ? FileAccess.ReadWrite : FileAccess.Read,
                     FileShare.Read);
-                ReplayStream(stream, state, baseOffset, repairTornTail: isActiveSegment);
+                ReplayStream(stream, state, baseOffset, repairTornTail: isActiveSegment, replayHeaders: replayHeaders);
             }
         }
     }
@@ -811,7 +812,8 @@ public sealed partial class SonnetMqStore : IDisposable
         Stream stream,
         TopicState? knownTopicState,
         long segmentBaseOffset = -1,
-        bool repairTornTail = false)
+        bool repairTornTail = false,
+        ReplayMessageHeaders? replayHeaders = null)
     {
         stream.Seek(0, SeekOrigin.Begin);
         Span<byte> header = stackalloc byte[HeaderSize];
@@ -861,6 +863,22 @@ public sealed partial class SonnetMqStore : IDisposable
                     break;
                 }
                 throw new InvalidDataException("SonnetMQ log record is truncated.");
+            }
+
+            // 原生目录段可以按定位索引冷读。若旧共享日志仍有常驻记录，保留该主题既有的连续热尾。
+            if (type == RecordTypeMessage && replayHeaders is not null
+                && knownTopicState is { HotMessageCount: 0 })
+            {
+                stream.Seek(topicLength, SeekOrigin.Current);
+                string? messageId = replayHeaders.ReadMessageId(stream, metaLength,
+                    _options.MessageIdDeduplicationWindow > 0 && offsetOrNext >= knownTopicState.TrimmedBeforeOffset);
+                // DATETIME 的范围校验与旧重放一致。消息体根据已验证的记录长度跳过，拉取时再读取。
+                _ = new DateTimeOffset(ticks, TimeSpan.Zero);
+                stream.Seek(recordPosition + recordBytes, SeekOrigin.Begin);
+                knownTopicState.ReplayColdMessage(offsetOrNext, new RecordLocation(segmentBaseOffset, recordPosition),
+                    _offsetIndexStride, _options.MessageIdDeduplicationWindow, messageId);
+                recordPosition += recordBytes;
+                continue;
             }
 
             byte[] topicBytes = ArrayPool<byte>.Shared.Rent(topicLength);
@@ -1253,7 +1271,8 @@ public sealed partial class SonnetMqStore : IDisposable
                     continue;
                 if (state.IsHot(record.Offset))
                 {
-                    // 到达热尾边界：跳出内层，外层循环转内存续读。
+                    // 冷段结束和热尾开始之间可能有缺失段。只推进本次读取的位置。
+                    next = record.Offset;
                     advancedSegment = true;
                     break;
                 }
@@ -1701,6 +1720,64 @@ public sealed partial class SonnetMqStore : IDisposable
         return result;
     }
 
+    /// <summary>以可复用缓冲区校验已编码头部，只物化去重索引需要的有效消息 ID。</summary>
+    private sealed class ReplayMessageHeaders : IDisposable
+    {
+        private byte[]? _bytes;
+        private char[]? _chars;
+
+        public string? ReadMessageId(Stream stream, int length, bool takeMessageId)
+        {
+            if (length == 0)
+                return null;
+
+            var bytes = (_bytes ??= ArrayPool<byte>.Shared.Rent(MaxHeadersBytes)).AsSpan(0, length);
+            var chars = (_chars ??= ArrayPool<char>.Shared.Rent(MaxHeadersBytes)).AsSpan();
+            ReadExactOrThrow(stream, bytes);
+            ReadOnlySpan<char> text = chars[..Encoding.UTF8.GetChars(bytes, chars)];
+            int idLength = 0;
+            // 同名头部最后一次出现生效。单独保留 ID 字节，供后续头部共享解码缓冲。
+            Span<byte> idBuffer = stackalloc byte[MaxMessageIdBytes];
+            foreach (Range range in text.Split('\n'))
+            {
+                ReadOnlySpan<char> line = text[range];
+                if (line.IsEmpty)
+                    continue;
+                int separator = line.IndexOf('=');
+                if (separator <= 0)
+                    throw new InvalidDataException("SonnetMQ message headers are invalid.");
+                if (!Convert.TryFromBase64Chars(line[(separator + 1)..], bytes, out int valueLength))
+                    throw new FormatException("SonnetMQ message header value is not valid Base64.");
+
+                if (takeMessageId && line[..separator].SequenceEqual(MessageIdHeader))
+                {
+                    // 保留 UTF-8 解码的替换语义。截断、超限或空值仍会覆盖前一个同名头部。
+                    idLength = 0;
+                    if (valueLength <= MaxMessageIdBytes)
+                    {
+                        bytes[..valueLength].CopyTo(idBuffer);
+                        idLength = valueLength;
+                    }
+                }
+            }
+
+            if (idLength == 0)
+                return null;
+            string value = Encoding.UTF8.GetString(idBuffer[..idLength]);
+            return string.IsNullOrWhiteSpace(value) || Encoding.UTF8.GetByteCount(value) > MaxMessageIdBytes
+                ? null
+                : value;
+        }
+
+        public void Dispose()
+        {
+            if (_bytes is not null)
+                ArrayPool<byte>.Shared.Return(_bytes);
+            if (_chars is not null)
+                ArrayPool<char>.Shared.Return(_chars);
+        }
+    }
+
     private static bool TryReadExact(Stream stream, Span<byte> destination)
     {
         int read = 0;
@@ -1827,7 +1904,7 @@ public sealed partial class SonnetMqStore : IDisposable
         private readonly Dictionary<string, long> _messageIds = new(StringComparer.Ordinal);
         private readonly Queue<(string MessageId, long Offset)> _messageIdOrder = new();
 
-        private readonly Dictionary<string, Dictionary<long, DeliveryAttempt>> _deliveryAttempts = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, GroupDeliveryAttempts> _deliveryAttempts = new(StringComparer.Ordinal);
         private long _deadLetterCount;
         private string? _lastDiscardReason;
 
@@ -1866,21 +1943,14 @@ public sealed partial class SonnetMqStore : IDisposable
                 return;
             }
 
-            // 位置索引按 stride 采样（含每段首条），驱逐后仍可据此定位冷 offset → 从锚点顺序扫描。
-            // 无段来源（单文件模式 / legacy 日志）的记录不可冷读，不入位置索引（也不会被驱逐）。
-            if (location.SegmentBaseOffset >= 0
-                && (_offsetIndex.Count == 0
-                    || message.Offset % offsetIndexStride == 0
-                    || _offsetIndex[^1].SegmentBaseOffset != location.SegmentBaseOffset))
-            {
-                _offsetIndex.Add(new OffsetIndexEntry(message.Offset, location.SegmentBaseOffset, location.FilePosition));
-            }
+            AddOffsetAnchor(message.Offset, location, offsetIndexStride);
 
             if (HotMessageCount == 0)
                 HotTailStartOffset = message.Offset;
 
             _messages.Add(message);
-            RegisterMessageId(message.Headers, message.Offset, messageIdWindow);
+            if (messageIdWindow > 0 && SonnetMqStore.TryGetMessageId(message.Headers, out string? messageId))
+                RegisterMessageId(messageId!, message.Offset, messageIdWindow);
             _residentPayloadBytes += message.Payload.Length;
             if (message.Offset >= NextOffset)
                 NextOffset = message.Offset + 1;
@@ -1891,17 +1961,30 @@ public sealed partial class SonnetMqStore : IDisposable
         public bool TryGetMessageId(string messageId, out long offset)
             => _messageIds.TryGetValue(messageId, out offset);
 
-        private void RegisterMessageId(
-            IReadOnlyDictionary<string, string> headers,
-            long offset,
-            int messageIdWindow)
+        public void ReplayColdMessage(long offset, RecordLocation location, int stride, int messageIdWindow, string? messageId)
         {
-            if (messageIdWindow <= 0
-                || !headers.TryGetValue(MessageIdHeader, out string? messageId)
-                || string.IsNullOrWhiteSpace(messageId)
-                || Encoding.UTF8.GetByteCount(messageId) > MaxMessageIdBytes)
-                return;
+            if (offset >= TrimmedBeforeOffset)
+            {
+                AddOffsetAnchor(offset, location, stride);
+                if (messageId is not null)
+                    RegisterMessageId(messageId, offset, messageIdWindow);
+            }
+            if (offset >= NextOffset)
+                NextOffset = offset + 1;
+            HotTailStartOffset = NextOffset;
+        }
 
+        private void AddOffsetAnchor(long offset, RecordLocation location, int stride)
+        {
+            // 单文件与 legacy 记录没有段地址。目录段每个首条消息和固定间隔消息均可做冷读锚点。
+            if (location.SegmentBaseOffset >= 0
+                && (_offsetIndex.Count == 0 || offset % stride == 0
+                    || _offsetIndex[^1].SegmentBaseOffset != location.SegmentBaseOffset))
+                _offsetIndex.Add(new OffsetIndexEntry(offset, location.SegmentBaseOffset, location.FilePosition));
+        }
+
+        private void RegisterMessageId(string messageId, long offset, int messageIdWindow)
+        {
             _messageIds[messageId] = offset;
             _messageIdOrder.Enqueue((messageId, offset));
             while (_messageIdOrder.Count > messageIdWindow)
@@ -2036,7 +2119,7 @@ public sealed partial class SonnetMqStore : IDisposable
             return lo;
         }
 
-        /// <summary>二分位置索引，取 offset ≤ target 的最近锚点（段 baseOffset + 文件位置）作为冷读入口。</summary>
+        /// <summary>取不晚于目标的最近锚点。目标早于全部保留锚点时，从首个锚点开始。</summary>
         public bool TryGetColdAnchor(long targetOffset, out OffsetIndexEntry anchor)
         {
             anchor = default;
@@ -2057,10 +2140,10 @@ public sealed partial class SonnetMqStore : IDisposable
                 }
             }
 
-            if (found < 0)
+            if (_offsetIndex.Count == 0)
                 return false;
 
-            anchor = _offsetIndex[found];
+            anchor = _offsetIndex[Math.Max(0, found)];
             return true;
         }
 
@@ -2080,31 +2163,26 @@ public sealed partial class SonnetMqStore : IDisposable
         public int IncrementDeliveryAttempt(string consumerGroup, long offset, string? reason)
         {
             if (!_deliveryAttempts.TryGetValue(consumerGroup, out var attempts))
-                _deliveryAttempts[consumerGroup] = attempts = new Dictionary<long, DeliveryAttempt>();
-            if (!attempts.TryGetValue(offset, out var attempt))
-                attempt = new DeliveryAttempt(0, null);
-            attempt = attempt with { Count = checked(attempt.Count + 1), Reason = reason ?? attempt.Reason };
-            attempts[offset] = attempt;
-            return attempt.Count;
+                _deliveryAttempts[consumerGroup] = attempts = new GroupDeliveryAttempts();
+            return attempts.Increment(offset, reason);
         }
 
         public void ClearDeliveryAttempts(string consumerGroup, long nextOffset)
         {
             if (!_deliveryAttempts.TryGetValue(consumerGroup, out var attempts))
                 return;
-            foreach (long offset in attempts.Keys.Where(offset => offset < nextOffset).ToArray())
-                attempts.Remove(offset);
+            attempts.ClearBefore(nextOffset);
             if (attempts.Count == 0)
                 _deliveryAttempts.Remove(consumerGroup);
         }
 
         public int GetDeliveryAttempt(string consumerGroup, long offset)
             => _deliveryAttempts.TryGetValue(consumerGroup, out var attempts)
-                && attempts.TryGetValue(offset, out var attempt) ? attempt.Count : 0;
+                ? attempts.Get(offset).Count : 0;
 
         public string? GetDeliveryReason(string consumerGroup, long offset)
             => _deliveryAttempts.TryGetValue(consumerGroup, out var attempts)
-                && attempts.TryGetValue(offset, out var attempt) ? attempt.Reason : null;
+                ? attempts.Get(offset).Reason : null;
 
         public void MarkDeadLettered(string? reason)
         {
@@ -2153,6 +2231,93 @@ public sealed partial class SonnetMqStore : IDisposable
         byte[] Payload);
 
     private readonly record struct DeliveryAttempt(int Count, string? Reason);
+
+    // 通常每组只有一个失败位点。回退位点时仍可能同时保留多个重试记录，此时按 offset 清理前缀。
+    private sealed class GroupDeliveryAttempts
+    {
+        private long _singleOffset;
+        private DeliveryAttempt _singleAttempt;
+        private Dictionary<long, DeliveryAttempt>? _multiple;
+        private PriorityQueue<long, long>? _pendingOffsets;
+
+        public int Count => _multiple?.Count ?? (_singleAttempt.Count == 0 ? 0 : 1);
+
+        public DeliveryAttempt Get(long offset)
+            => _multiple is { } multiple
+                ? multiple.GetValueOrDefault(offset)
+                : offset == _singleOffset ? _singleAttempt : default;
+
+        public int Increment(long offset, string? reason)
+        {
+            if (_multiple is null)
+            {
+                if (_singleAttempt.Count == 0 || offset == _singleOffset)
+                {
+                    _singleOffset = offset;
+                    _singleAttempt = IncrementAttempt(_singleAttempt, reason);
+                    return _singleAttempt.Count;
+                }
+
+                DeliveryAttempt added = IncrementAttempt(default, reason);
+                var multiple = new Dictionary<long, DeliveryAttempt>(2)
+                {
+                    [_singleOffset] = _singleAttempt,
+                    [offset] = added,
+                };
+                var pending = new PriorityQueue<long, long>(2);
+                pending.Enqueue(_singleOffset, _singleOffset);
+                pending.Enqueue(offset, offset);
+
+                _multiple = multiple;
+                _pendingOffsets = pending;
+                _singleAttempt = default;
+                return added.Count;
+            }
+
+            DeliveryAttempt previous = _multiple.GetValueOrDefault(offset);
+            DeliveryAttempt current = IncrementAttempt(previous, reason);
+            if (previous.Count == 0)
+            {
+                // 两个容器都预留成功后再插入，分配失败时已有位点仍能查询和清理。
+                int capacity = checked(_multiple.Count + 1);
+                var pending = _pendingOffsets!;
+                _multiple.EnsureCapacity(capacity);
+                pending.EnsureCapacity(capacity);
+                pending.Enqueue(offset, offset);
+            }
+            _multiple[offset] = current;
+            return current.Count;
+        }
+
+        public void ClearBefore(long nextOffset)
+        {
+            if (_multiple is not { } multiple)
+            {
+                if (_singleOffset < nextOffset)
+                    _singleAttempt = default;
+                return;
+            }
+
+            var pending = _pendingOffsets!;
+            while (pending.TryPeek(out long offset, out _) && offset < nextOffset)
+            {
+                pending.Dequeue();
+                multiple.Remove(offset);
+            }
+
+            // 丢弃已经缩减的多位点容器，避免保留其历史容量。
+            if (multiple.Count <= 1)
+            {
+                if (pending.TryPeek(out _singleOffset, out _))
+                    _singleAttempt = multiple[_singleOffset];
+                _multiple = null;
+                _pendingOffsets = null;
+            }
+        }
+
+        private static DeliveryAttempt IncrementAttempt(DeliveryAttempt previous, string? reason)
+            => new(checked(previous.Count + 1), reason ?? previous.Reason);
+    }
 
     /// <summary>
     /// 有界只读段句柄 LRU，落地 <see cref="SonnetMqOptions.SegmentCacheSize"/>。冷读复用已打开句柄，

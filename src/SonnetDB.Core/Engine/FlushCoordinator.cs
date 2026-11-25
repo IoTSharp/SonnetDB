@@ -147,7 +147,8 @@ public sealed class FlushCoordinator
             sealedTable,
             segmentId,
             sealLsn,
-            vectorIndexes);
+            vectorIndexes,
+            sealedInput: true);
 
         return result;
     }
@@ -175,7 +176,8 @@ public sealed class FlushCoordinator
         MemTable memTable,
         long segmentId,
         long checkpointLsn,
-        IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes)
+        IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes,
+        bool sealedInput = false)
     {
         string walDirectory = TsdbPaths.WalDir(_options.RootDirectory);
         string publicationPath = WalSegmentLayout.FlushPublicationPath(walDirectory, segmentId);
@@ -194,7 +196,9 @@ public sealed class FlushCoordinator
         IReadOnlyList<string> publicationDirectories =
             PrepareSegmentPublicationDirectories(segmentPath);
         var writer = new SegmentWriter(_options.SegmentWriterOptions);
-        SegmentBuildResult result = writer.WriteFrom(memTable, segmentId, segmentPath, vectorIndexes);
+        SegmentBuildResult result = sealedInput
+            ? writer.WriteFromSealed(memTable, segmentId, segmentPath, vectorIndexes)
+            : writer.WriteFrom(memTable, segmentId, segmentPath, vectorIndexes);
         FlushSegmentPublicationDirectories(publicationDirectories);
 
         // checkpoint 是提交点：它同时绑定 segment id、长度和可跳过的 WAL LSN。

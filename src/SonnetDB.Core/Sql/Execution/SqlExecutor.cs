@@ -2,6 +2,7 @@ using System.Globalization;
 using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Modbus;
 using SonnetDB.Model;
 using SonnetDB.Routines;
@@ -1983,7 +1984,15 @@ public static partial class SqlExecutor
 
             var point = Point.Create(statement.Measurement, timestamp, tags, fields);
             long writeStarted = SqlMeasurementInsertTiming.Start(insertTiming);
-            tsdb.WriteSqlPoint(point, insertTiming);
+            try
+            {
+                tsdb.WriteSqlPoint(point, insertTiming);
+            }
+            catch (TimeSeriesWriteRecoveryRequiredException exception) when (written > 0 && !exception.MayHaveWritten)
+            {
+                // 已写入本语句的一部分，调用方必须保留消费位点并核对已写入的数据。
+                throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+            }
             if (insertTiming is not null)
                 SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.EngineTicks, writeStarted);
             written++;

@@ -117,6 +117,29 @@ public sealed class SegmentWriter
         long segmentId,
         string path,
         IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes = null)
+        => WriteCore(series, segmentId, path, vectorIndexes, sealedInput: false);
+
+    internal SegmentBuildResult WriteFromSealed(
+        MemTable memTable,
+        long segmentId,
+        string path,
+        IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes)
+        => WriteCore(memTable.SnapshotAll(), segmentId, path, vectorIndexes, sealedInput: true);
+
+    internal SegmentBuildResult WriteSortedCompaction(
+        IEnumerable<MemTableSeries> series,
+        long segmentId,
+        string path,
+        Func<MemTableSeries, SonnetDB.Catalog.VectorIndexDefinition?> resolveVectorIndex,
+        CancellationToken cancellationToken)
+        => WriteSortedCore(series, 0, segmentId, path, resolveVectorIndex, uncachedInput: true, cancellationToken);
+
+    private SegmentBuildResult WriteCore(
+        IReadOnlyList<MemTableSeries> series,
+        long segmentId,
+        string path,
+        IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes,
+        bool sealedInput)
     {
         ArgumentNullException.ThrowIfNull(series);
         ArgumentNullException.ThrowIfNull(path);
@@ -135,6 +158,22 @@ public sealed class SegmentWriter
             return cmp != 0 ? cmp : string.Compare(a.Key.FieldName, b.Key.FieldName, StringComparison.Ordinal);
         });
 
+        return WriteSortedCore(sorted, sorted.Count, segmentId, path,
+            vectorIndexes is null ? null : bucket => vectorIndexes.GetValueOrDefault(bucket.Key),
+            uncachedInput: sealedInput, CancellationToken.None);
+    }
+
+    private SegmentBuildResult WriteSortedCore(
+        IEnumerable<MemTableSeries> sorted,
+        int initialBlockCapacity,
+        long segmentId,
+        string path,
+        Func<MemTableSeries, SonnetDB.Catalog.VectorIndexDefinition?>? resolveVectorIndex,
+        bool uncachedInput,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxPointsPerBlock);
+        cancellationToken.ThrowIfCancellationRequested();
         string tempPath = path + _options.TempFileSuffix;
         var sw = Stopwatch.StartNew();
         string? directory = Path.GetDirectoryName(path);
@@ -146,15 +185,15 @@ public sealed class SegmentWriter
         long segMaxTs = long.MinValue;
         long indexOffset = 0L;
         long footerOffset = 0L;
-        var indexEntries = new List<BlockIndexEntry>(sorted.Count);
+        var indexEntries = new List<BlockIndexEntry>(initialBlockCapacity);
         var vectorIndexBlocks = new List<VectorIndexBlock>();
-        var aggregateSketchBlocks = new List<BlockAggregateSketch>();
         bool tempFileCreated = false;
         string vectorIndexPath = SonnetDB.Engine.TsdbPaths.VectorIndexPathForSegment(path);
         string aggregateIndexPath = SonnetDB.Engine.TsdbPaths.AggregateIndexPathForSegment(path);
 
         try
         {
+            using var aggregateSketchBlocks = new SegmentAggregateSketchFile.Spool(tempPath);
             using var fs = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             tempFileCreated = true;
             var bs = new BufferedStream(fs, _options.BufferSize);
@@ -167,7 +206,9 @@ public sealed class SegmentWriter
             // ─── 阶段 B：逐 Block 写入 ─────────────────────────────────────
             foreach (var bucket in sorted)
             {
-                var points = bucket.Snapshot();
+                cancellationToken.ThrowIfCancellationRequested();
+                var points = uncachedInput ? bucket.SnapshotForSegmentWrite() : bucket.Snapshot();
+                var vectorIndex = bucket.FieldType == FieldType.Vector ? resolveVectorIndex?.Invoke(bucket) : null;
 
                 // 编码字段名 UTF-8
                 int fieldNameMaxBytes = Encoding.UTF8.GetMaxByteCount(bucket.Key.FieldName.Length);
@@ -179,6 +220,7 @@ public sealed class SegmentWriter
 
                     for (int start = 0; start < points.Length;)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         int count = Math.Min(_options.MaxPointsPerBlock, points.Length - start);
                         ReadOnlyMemory<DataPoint> blockPoints = points.Slice(start, count);
                         start += count;
@@ -208,7 +250,7 @@ public sealed class SegmentWriter
                                         TimestampCodec.WriteDeltaOfDelta(tsArr.AsSpan(0, blockPoints.Length), tsBuf.AsSpan(0, tsPayloadLen));
                                     ReadOnlySpan<byte> tsSpan = tsBuf.AsSpan(0, tsPayloadLen);
                                     WriteOneBlock(bs, bucket, blockPoints, fieldNameSpan, tsSpan, BlockEncoding.DeltaTimestamp,
-                                        blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
+                                        blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndex,
                                         ref segMinTs, ref segMaxTs, ref currentOffset);
                                 }
                                 finally { ArrayPool<byte>.Shared.Return(tsBuf); }
@@ -231,7 +273,7 @@ public sealed class SegmentWriter
 
                             ReadOnlySpan<byte> tsSpan = tsBufV1.AsSpan(0, tsPayloadLen);
                             WriteOneBlock(bs, bucket, blockPoints, fieldNameSpan, tsSpan, BlockEncoding.None,
-                                blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndexes,
+                                blockOffset, indexEntries, vectorIndexBlocks, aggregateSketchBlocks, vectorIndex,
                                 ref segMinTs, ref segMaxTs, ref currentOffset);
                         }
                         finally { ArrayPool<byte>.Shared.Return(tsBufV1); }
@@ -257,12 +299,7 @@ public sealed class SegmentWriter
                 currentOffset += bs.Position - before;
             }
 
-            if (aggregateSketchBlocks.Count > 0)
-            {
-                long before = bs.Position;
-                SegmentAggregateSketchFile.WriteTo(bs, aggregateSketchBlocks);
-                currentOffset += bs.Position - before;
-            }
+            currentOffset = checked(currentOffset + aggregateSketchBlocks.WriteTo(bs, cancellationToken));
 
             // ─── 阶段 E：写 SegmentFooter ──────────────────────────────────
             footerOffset = currentOffset;
@@ -287,6 +324,7 @@ public sealed class SegmentWriter
                 fs.Flush(true);
 
             bs.Dispose();
+            cancellationToken.ThrowIfCancellationRequested();
             // using var fs ensures fs is disposed when the try block exits (idempotent if bs already closed it)
         }
         catch
@@ -335,8 +373,8 @@ public sealed class SegmentWriter
         long blockOffset,
         List<BlockIndexEntry> indexEntries,
         List<VectorIndexBlock> vectorIndexBlocks,
-        List<BlockAggregateSketch> aggregateSketchBlocks,
-        IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes,
+        SegmentAggregateSketchFile.Spool aggregateSketchBlocks,
+        SonnetDB.Catalog.VectorIndexDefinition? vectorIndex,
         ref long segMinTs,
         ref long segMaxTs,
         ref long currentOffset)
@@ -435,10 +473,7 @@ public sealed class SegmentWriter
                 FieldNameHash = fieldNameHash,
             });
 
-            if (isVector
-                && vectorIndexes is not null
-                && vectorIndexes.TryGetValue(bucket.Key, out var vectorIndex)
-                && IsPersistableVectorIndex(vectorIndex))
+            if (isVector && vectorIndex is not null && IsPersistableVectorIndex(vectorIndex))
             {
                 int dimension = points.Span[0].Value.VectorDimension;
                 var buildResult = new LocalVectorIndexBuilderAdapter().Build(new VectorIndexBuildInput(
@@ -483,7 +518,7 @@ public sealed class SegmentWriter
                     points.Span,
                     out var aggregateSketch))
             {
-                aggregateSketchBlocks.Add(aggregateSketch);
+                aggregateSketchBlocks.Append(aggregateSketch);
             }
 
             currentOffset += blockLength;

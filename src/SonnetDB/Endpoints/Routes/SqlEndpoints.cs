@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.AspNetCore;
 using SonnetDB.Auth;
@@ -15,6 +16,7 @@ using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.Mcp;
+using SonnetDB.Protocol;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -203,6 +205,8 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
             ctx.Response.ContentType = "application/json";
+            ctx.Response.Headers[SqlTransactionDmlBatchProtocol.CapabilityHeader] =
+                SqlTransactionDmlBatchProtocol.Version;
             await using (var writer = new Utf8JsonWriter(ctx.Response.BodyWriter))
             {
                 writer.WriteStartObject();
@@ -216,6 +220,8 @@ internal static partial class SonnetDbEndpoints
 
         app.MapPost("/v1/db/{db}/sql/transactions/{id}/sql",
             (HttpContext ctx, string db, string id) => HandleTransactionRequestAsync(ctx, db, id, "sql"));
+        app.MapPost("/v1/db/{db}/sql/transactions/{id}/sql/batch",
+            (HttpContext ctx, string db, string id) => HandleTransactionRequestAsync(ctx, db, id, "dml_batch"));
         app.MapPost("/v1/db/{db}/sql/transactions/{id}/commit",
             (HttpContext ctx, string db, string id) => HandleTransactionRequestAsync(ctx, db, id, "commit"));
         app.MapPost("/v1/db/{db}/sql/transactions/{id}/rollback",
@@ -247,6 +253,7 @@ internal static partial class SonnetDbEndpoints
 
         var sessions = services.GetRequiredService<SqlTransactionSessions>();
         SqlTransactionSessions.Session? session;
+        bool isStatementRequest = action is "sql" or "dml_batch";
         try
         {
             session = await sessions.AcquireAsync(
@@ -291,6 +298,22 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
 
+            var scopedControlPlane = CreateScopedControlPlane(ctx,
+                services.GetRequiredService<SonnetDB.Sql.Execution.IControlPlane>(),
+                services.GetRequiredService<UserStore>(), grants, registry);
+            if (action == "dml_batch")
+            {
+                var batch = await ReadTransactionDmlBatchAsync(ctx).ConfigureAwait(false);
+                if (batch is not null)
+                    await SqlEndpointHandler.HandleSessionDmlBatchAsync(
+                        ctx, tsdb, db, batch, services.GetRequiredService<ServerMetrics>(),
+                        DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Write),
+                        DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Admin),
+                        DatabaseAccessEvaluator.IsServerAdmin(ctx), scopedControlPlane, admission.QueueWaitMs,
+                        session.Transaction, connectionLease?.Context).ConfigureAwait(false);
+                return;
+            }
+
             SqlRequest request;
             if (action == "sql")
             {
@@ -323,24 +346,67 @@ internal static partial class SonnetDbEndpoints
                 request = new SqlRequest(action == "commit" ? "COMMIT" : "ROLLBACK");
             }
 
-            var controlPlane = services.GetRequiredService<SonnetDB.Sql.Execution.IControlPlane>();
             await SqlEndpointHandler.HandleSessionStatementAsync(
                 ctx, tsdb, db, request, services.GetRequiredService<ServerMetrics>(),
                 DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Write),
                 DatabaseAccessEvaluator.HasPermission(permission, DatabasePermission.Admin),
                 DatabaseAccessEvaluator.IsServerAdmin(ctx),
-                CreateScopedControlPlane(ctx, controlPlane,
-                    services.GetRequiredService<UserStore>(), grants, registry),
+                scopedControlPlane,
                 admission.QueueWaitMs, session.Transaction, connectionLease?.Context).ConfigureAwait(false);
-            if (action != "sql" && session.Transaction.IsCompleted)
+            if (!isStatementRequest && session.Transaction.IsCompleted)
                 sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
         }
         finally
         {
-            if (action != "sql" && session.Transaction.IsCompleted && session.Terminal is null)
+            if (!isStatementRequest && session.Transaction.IsCompleted && session.Terminal is null)
                 sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
             session.Gate.Release();
         }
+    }
+
+    private static async Task<IReadOnlyList<SqlTransactionDmlBatchStatement>?> ReadTransactionDmlBatchAsync(HttpContext ctx)
+    {
+        const int maxBytes = SqlTransactionDmlBatchProtocol.MaxRequestBytes;
+        if (ctx.Request.ContentLength > maxBytes)
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status413PayloadTooLarge, "transaction_batch_too_large",
+                $"事务 DML 批次请求体不可超过 {maxBytes} 字节。").ConfigureAwait(false);
+            return null;
+        }
+        if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } sizeLimit)
+            sizeLimit.MaxRequestBodySize = Math.Min(sizeLimit.MaxRequestBodySize ?? maxBytes, maxBytes);
+
+        SqlTransactionDmlBatchRequest? batch;
+        try
+        {
+            batch = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlTransactionDmlBatchRequest).ConfigureAwait(false);
+        }
+        catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge)
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status413PayloadTooLarge, "transaction_batch_too_large",
+                $"事务 DML 批次请求体不可超过 {maxBytes} 字节。").ConfigureAwait(false);
+            return null;
+        }
+        if (batch?.Statements is not { Count: > 0 and <= SqlTransactionDmlBatchProtocol.MaxStatements } statements)
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
+                $"事务 DML 批次必须包含 1 到 {SqlTransactionDmlBatchProtocol.MaxStatements} 条语句。").ConfigureAwait(false);
+            return null;
+        }
+
+        var validated = new SqlTransactionDmlBatchStatement[statements.Count];
+        for (int i = 0; i < statements.Count; i++)
+        {
+            if (statements[i] is not { } statement || string.IsNullOrWhiteSpace(statement.Sql)
+                || statement.ExpectedRecordsAffected is < 0)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
+                    "事务 DML 批次要求每条语句提供 SQL，预期受影响行数必须为空或非负。").ConfigureAwait(false);
+                return null;
+            }
+            validated[i] = statement;
+        }
+        return validated;
     }
 
     private static async Task<ConnectionSessionAcquisition> TryAcquireConnectionSessionAsync(

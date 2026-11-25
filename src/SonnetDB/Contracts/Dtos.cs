@@ -22,6 +22,16 @@ public sealed record SqlRequest(string Sql, IReadOnlyDictionary<string, JsonElem
 /// <param name="Statements">SQL 语句列表。</param>
 public sealed record SqlBatchRequest(IReadOnlyList<SqlRequest> Statements);
 
+internal sealed record SqlTransactionDmlBatchRequest(IReadOnlyList<SqlTransactionDmlBatchStatement?>? Statements);
+
+internal sealed record SqlTransactionDmlBatchStatement(
+    string Sql,
+    IReadOnlyDictionary<string, JsonElementValue>? Parameters = null,
+    byte[]? TypedParameters = null,
+    int? ExpectedRecordsAffected = null);
+
+internal sealed record SqlTransactionDmlBatchEnd(string Type, int StatementsExecuted, string StopReason);
+
 /// <summary>
 /// 简化的标量参数包装。仅支持时序场景常用的几个 JSON 类型，避免在 AOT 下处理任意 <c>JsonElement</c>。
 /// </summary>

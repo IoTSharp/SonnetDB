@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
@@ -590,19 +591,20 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
 
         // 发布失败后，不得再接受新的写、批量写、幂等批次账本或删除。调用方收到的异常
         // 必须发生在 WAL / MemTable / ledger 变更之前，避免重试时出现不可控的额外数据。
-        var writeFault = Assert.Throws<InvalidOperationException>(
+        var writeFault = Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(
             () => db.Write(MakePoint("cpu", 2000L, "srv1", 100.0)));
         Assert.IsType<IOException>(writeFault.InnerException);
+        Assert.False(writeFault.MayHaveWritten);
 
-        var writeManyFault = Assert.Throws<InvalidOperationException>(
+        var writeManyFault = Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(
             () => db.WriteMany([MakePoint("cpu", 2001L, "srv1", 101.0)]));
         Assert.IsType<IOException>(writeManyFault.InnerException);
 
-        var batchFault = Assert.Throws<InvalidOperationException>(
+        var batchFault = Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(
             () => db.WriteMany([MakePoint("cpu", 2002L, "srv1", 102.0)], "blocked-after-flush-failure"));
         Assert.IsType<IOException>(batchFault.InnerException);
 
-        var deleteFault = Assert.Throws<InvalidOperationException>(
+        var deleteFault = Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(
             () => db.Delete(seriesId, "v", 1000L, 1000L));
         Assert.IsType<IOException>(deleteFault.InnerException);
 
@@ -674,7 +676,8 @@ public sealed class TsdbCrashRecoveryTests : IDisposable
             releaseAdmission.Set();
         }
 
-        Exception exception = Assert.IsType<InvalidOperationException>(await batchTask);
+        var exception = Assert.IsType<TimeSeriesWriteRecoveryRequiredException>(await batchTask);
+        Assert.False(exception.MayHaveWritten);
         Assert.IsType<IOException>(exception.InnerException);
         Assert.False(File.Exists(TsdbPaths.MeasurementBatchLedgerPath(_tempDir)));
 

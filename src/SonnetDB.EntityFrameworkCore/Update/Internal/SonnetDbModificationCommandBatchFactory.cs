@@ -1,12 +1,17 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Update;
 
 namespace SonnetDB.EntityFrameworkCore.Update.Internal;
 
 /// <summary>
-/// 为 SonnetDB 创建单语句修改命令批处理，保持 MVP 阶段 SQL 简单可预测。
+/// 为 SonnetDB 创建保留 EF 命令顺序的有界修改命令批处理。
 /// </summary>
 public sealed class SonnetDbModificationCommandBatchFactory : IModificationCommandBatchFactory
 {
+    private const int DefaultBatchSize = 64;
+    private const int MaximumBatchSize = 256;
     private readonly ModificationCommandBatchFactoryDependencies _dependencies;
 
     /// <summary>
@@ -20,5 +25,15 @@ public sealed class SonnetDbModificationCommandBatchFactory : IModificationComma
 
     /// <inheritdoc />
     public ModificationCommandBatch Create()
-        => new SonnetDbModificationCommandBatch(_dependencies);
+    {
+        var context = _dependencies.CurrentContext.Context;
+        var options = context.GetService<IDbContextOptions>();
+        var batchSize = Math.Min(RelationalOptionsExtension.Extract(options).MaxBatchSize ?? DefaultBatchSize, MaximumBatchSize);
+        return batchSize == 1
+            || context.GetService<IInterceptors>().Aggregate<IDbCommandInterceptor>() is not null
+            || (context.Database.AutoTransactionBehavior == AutoTransactionBehavior.Never
+                && context.Database.CurrentTransaction is null)
+            ? new SonnetDbModificationCommandBatch(_dependencies)
+            : new SonnetDbDmlModificationCommandBatch(_dependencies, batchSize);
+    }
 }

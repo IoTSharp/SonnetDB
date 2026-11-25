@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SonnetDB.Core.Tests" />
+    <InternalsVisibleTo Include="SonnetDB.EntityFrameworkCore" />
   </ItemGroup>
 
   <ItemGroup>

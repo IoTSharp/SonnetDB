@@ -1,6 +1,7 @@
 ﻿using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Query;
 using SonnetDB.Storage.Segments;
 using Xunit;
 
@@ -153,6 +154,77 @@ public sealed class BackgroundFlushWorkerTests : IDisposable
             Thread.Sleep(50);
 
         Assert.True(db.Segments.SegmentCount >= 1, "后台线程应在 3s 内触发至少一次 Flush");
+    }
+
+    [Fact]
+    public async Task PendingSeal_BackgroundFlushDefersAndConcurrentWritersWaitAtActiveHardCap()
+    {
+        var timeout = TimeSpan.FromSeconds(5);
+        using var firstFlushStarted = new ManualResetEventSlim();
+        using var releaseFirstFlush = new ManualResetEventSlim();
+        var options = MakeOptions(
+            new MemTableFlushPolicy { MaxPoints = 1, HardCapBytes = 48 },
+            new BackgroundFlushOptions { Enabled = true, PollInterval = TimeSpan.FromMilliseconds(20) }) with
+        {
+            SegmentWriterOptions = new SegmentWriterOptions
+            {
+                FsyncOnCommit = false,
+                FailAt = _ =>
+                {
+                    if (!firstFlushStarted.IsSet)
+                    {
+                        firstFlushStarted.Set();
+                        if (!releaseFirstFlush.Wait(TimeSpan.FromSeconds(15)))
+                            throw new TimeoutException("Timed out waiting to release the first flush.");
+                    }
+                },
+            },
+        };
+        using (var db = Tsdb.Open(options))
+        {
+            Task? writers = null;
+            try
+            {
+                db.Write(MakePoint(1000, 1));
+                Assert.True(firstFlushStarted.Wait(timeout));
+
+                db.Write(MakePoint(1001, 2));
+                db.InternalFlushFromBackground();
+                Assert.Equal(1, db.MemTable.PointCount);
+                Assert.Equal(1, db.FlushPumpPendingCount);
+
+                var id = Assert.Single(db.Catalog.Find("cpu", new Dictionary<string, string> { ["host"] = "srv1" })).Id;
+                Assert.Equal(2, db.Query.Execute(new PointQuery(id, "val", new TimeRange(1000, 1100))).Count());
+
+                var capReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                int writesReachedWal = 0;
+                db.AfterAtomicPointWalWriteTestHook = () =>
+                {
+                    if (Interlocked.Increment(ref writesReachedWal) == 2)
+                        capReached.TrySetResult();
+                };
+                writers = Task.WhenAll(Enumerable.Range(2, 4).Select(offset =>
+                    Task.Run(() => db.Write(MakePoint(1000 + offset, offset + 1)))));
+                await capReached.Task.WaitAsync(timeout);
+                Assert.Equal(1, db.FlushPumpPendingCount);
+                Assert.False(writers.IsCompleted);
+                releaseFirstFlush.Set();
+                await writers.WaitAsync(timeout);
+                db.FlushNow();
+            }
+            finally
+            {
+                releaseFirstFlush.Set();
+                if (writers is not null)
+                    await writers.WaitAsync(timeout);
+            }
+        }
+
+        using var reopened = Tsdb.Open(options);
+        var seriesId = Assert.Single(reopened.Catalog.Find("cpu", new Dictionary<string, string> { ["host"] = "srv1" })).Id;
+        Assert.Equal(Enumerable.Range(0, 6).Select(static offset => 1000L + offset),
+            reopened.Query.Execute(new PointQuery(seriesId, "val", new TimeRange(1000, 1100)))
+                .Select(static point => point.Timestamp));
     }
 
     [Fact]

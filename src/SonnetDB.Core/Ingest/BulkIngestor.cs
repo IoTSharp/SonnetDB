@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Model;
 
 namespace SonnetDB.Ingest;
@@ -136,6 +137,10 @@ public static class BulkIngestor
             if (batchCount > 0)
                 written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken, batchId, batchOrdinal++);
         }
+        catch (TimeSeriesWriteRecoveryRequiredException exception) when (written > 0 && !exception.MayHaveWritten)
+        {
+            throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+        }
         finally
         {
             Array.Clear(buffer, 0, BatchSize);
@@ -148,7 +153,14 @@ public static class BulkIngestor
             switch (flushMode)
             {
                 case BulkFlushMode.Sync:
-                    tsdb.FlushNow();
+                    try
+                    {
+                        tsdb.FlushNow();
+                    }
+                    catch (TimeSeriesWriteRecoveryRequiredException exception) when (!exception.MayHaveWritten)
+                    {
+                        throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+                    }
                     break;
                 case BulkFlushMode.Async:
                     tsdb.SignalFlush();
@@ -178,7 +190,8 @@ public static class BulkIngestor
                     ? tsdb.WriteMany(buffer.AsSpan(0, count))
                     : tsdb.WriteMany(buffer.AsSpan(0, count), $"{batchId}:{batchOrdinal:D8}");
             }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            catch (Exception ex) when (ex is (InvalidOperationException and not TimeSeriesWriteRecoveryRequiredException)
+                or ArgumentException)
             {
                 throw new BulkIngestException(ex.Message, ex);
             }
@@ -194,7 +207,12 @@ public static class BulkIngestor
                 tsdb.Write(buffer[i]);
                 written++;
             }
-            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or BulkIngestException)
+            catch (TimeSeriesWriteRecoveryRequiredException exception) when (written > 0 && !exception.MayHaveWritten)
+            {
+                throw new TimeSeriesWriteRecoveryRequiredException(exception, mayHaveWritten: true);
+            }
+            catch (Exception ex) when (ex is (InvalidOperationException and not TimeSeriesWriteRecoveryRequiredException)
+                or ArgumentException or BulkIngestException)
             {
                 skipped++;
             }

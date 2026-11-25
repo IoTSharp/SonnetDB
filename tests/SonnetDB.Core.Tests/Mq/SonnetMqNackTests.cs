@@ -63,6 +63,43 @@ public sealed class SonnetMqNackTests : IDisposable
     }
 
     [Fact]
+    public void DeliveryAttempts_BackwardResetsAndCumulativeAckPreservePendingSuffixAcrossReopen()
+    {
+        const string topic = "reset-retries";
+        const string group = "workers";
+        var options = Options(maxAttempts: 0) with { TrimAcknowledgedMessages = false };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            for (int i = 0; i < 4; i++)
+                store.Publish(topic, "payload"u8);
+
+            store.Ack(topic, group, 2);
+            store.Nack(topic, group, 3, "latest");
+            store.ResetConsumerOffset(topic, group, SonnetMqOffsetResetMode.Explicit, 1);
+            store.Nack(topic, group, 1, "first retry");
+            store.Nack(topic, group, 1, "second retry");
+            store.ResetConsumerOffset(topic, group, SonnetMqOffsetResetMode.Earliest);
+            store.Nack(topic, group, 0, "oldest");
+            Assert.Equal(3, store.GetDiagnostics(topic).PendingRedeliveryCount);
+            Assert.Equal(1, store.Ack(topic, group, 0));
+        }
+
+        using (var reopened = SonnetMqStore.Open(options))
+        {
+            Assert.Equal(2, reopened.GetDiagnostics(topic).PendingRedeliveryCount);
+            var messages = reopened.Pull(topic, group, 4);
+            Assert.Equal([1L, 2L, 3L], messages.Select(message => message.Offset));
+            Assert.Equal("2", messages[0].Headers["x-delivery-attempt"]);
+            Assert.False(messages[1].Headers.ContainsKey("x-delivery-attempt"));
+            Assert.Equal("1", messages[2].Headers["x-delivery-attempt"]);
+            Assert.Equal(3, reopened.ResetConsumerOffset(topic, group, SonnetMqOffsetResetMode.Explicit, 3));
+            Assert.Equal(1, reopened.GetDiagnostics(topic).PendingRedeliveryCount);
+            Assert.Equal(4, reopened.Ack(topic, group, 3));
+            Assert.Equal(0, reopened.GetDiagnostics(topic).PendingRedeliveryCount);
+        }
+    }
+
+    [Fact]
     public void ResetConsumerOffset_SupportsEarliestLatestExplicitAndTime()
     {
         var options = Options(maxAttempts: 2);

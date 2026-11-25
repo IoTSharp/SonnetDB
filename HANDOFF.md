@@ -8505,3 +8505,10 @@ daily原稿续接预占传原ID与固定deadline，attempt70540bf5-ba40-4668-aa8
 - 远程 ADO 无服务端会话的轻事务对 `DO UPDATE/DO SELECT ... RETURNING` 保持 fail-closed，避免预览结果被错误重放为 INSERT；有会话时沿用服务端真实执行路径。Frame/MCP/文档模型未扩大能力边界。
 - 新增 `tests/SonnetDB.Core.Tests/Sql/SqlOnConflictDoSelectTests.cs` 6 项回归，覆盖解析、混合 get-or-create、ROWVERSION、WHERE、物化预算整句拒绝、事务读己写和 FOR UPDATE 锁释放。最近定向组合回归 **74/74 PASS**，Core Release build **0 warning/0 error**。规定 `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` 与 `git diff --check` PASS。完整 solution restore/build、远程真实服务、公开包、部署和现场验收本轮未运行。
 - 未提交、未推送、未发布、未部署、未迁移生产数据。共享工作树仍包含本轮源码、测试、CHANGELOG、`docs/sql-reference.md` 和本交接的未提交修改；提交前需在最终待提交工作树重新执行规定 format 门禁。没有留下本轮常驻进程或任务专属临时资源。
+
+## 2026-11-25（Asia/Shanghai）远程 DML 批处理与存储恢复
+
+- SonnetDB 从 `main@0412a9be` 接续。Server、ADO.NET 和 EF Core 在同一远程事务中协商并执行有序 DML 批次，逐条校验影响行数，保留 `RETURNING` 和 `DATETIME2` 精度。遇到错误或并发计数不符即停止，EF 并发拦截器抑制异常后可提交未执行的后缀。43 条带精确日期参数的 DML 实测合并为一个批请求，事务控制请求另计。
+- SonnetMQ 原生段启动时恢复可读索引、消费状态和去重信息，消息正文延后到投递时读取。冷读从首条可用记录定位，确认位点仍由正常 ACK 推进。时序每库限制在途密封表数量，段合并逐桶编码，聚合摘要使用压缩临时文件并按原格式写回。保留现有 WAL 恢复、队列和段文件格式。
+- Flush 故障保护通过稳定错误码区分未写入与可能写入部分数据。配套 IoTSharp 在未写入时保留消费位点并退避，可能已写入时暂停订阅等待对账。暂停状态随当前应用进程持有。指标记录 GC 堆和首次 Flush 故障类别。
+- 开发期间通过定向 EF Core、ADO.NET、Core、Server 和 IoTSharp 回归，以及 16 GiB Linux 同卷验证。相同合成合并负载的峰值工作集从 350.1 MiB 降至 143.3 MiB。11 月 25 日最后一轮现场采样观测到属性队列追平，实时遥测 ACK、积压和业务值回读仍待独立验证。镜像、采样、回退及临时资源记录存于 IoTSharp 的本地运行回执。

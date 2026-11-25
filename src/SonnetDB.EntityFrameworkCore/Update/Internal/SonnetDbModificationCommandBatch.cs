@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Update;
+using SonnetDB.Data;
 
 namespace SonnetDB.EntityFrameworkCore.Update.Internal;
 
@@ -15,6 +17,54 @@ public sealed class SonnetDbModificationCommandBatch : SingularModificationComma
     public SonnetDbModificationCommandBatch(ModificationCommandBatchFactoryDependencies dependencies)
         : base(dependencies)
     {
+    }
+
+    internal bool SupportsDmlBatch => ModificationCommands[0].StoreStoredProcedure is null
+        && ResultSetMappings is [ResultSetMapping.NoResults or ResultSetMapping.LastInResultSet];
+
+    internal SndbCommand CreateBatchCommand(IRelationalConnection connection, Guid commandId)
+    {
+        var storeCommand = StoreCommand!;
+        return (SndbCommand)storeCommand.RelationalCommand.CreateDbCommand(
+            new RelationalCommandParameterObject(connection, storeCommand.ParameterValues, null,
+                Dependencies.CurrentContext.Context, null, CommandSource.SaveChanges),
+            commandId,
+            DbCommandMethod.ExecuteReader);
+    }
+
+    internal async Task ConsumeBatchResultAsync(
+        IRelationalConnection connection,
+        SndbCommand command,
+        SndbDataReader result,
+        CancellationToken cancellationToken)
+    {
+        var reader = WrapBatchResult(connection, command, result);
+        if (result.RecordsAffected != 1)
+        {
+            await ThrowAggregateUpdateConcurrencyExceptionAsync(reader, commandIndex: 1,
+                expectedRowsAffected: 1, result.RecordsAffected, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await ConsumeAsync(reader, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal void ConsumeBatchResult(IRelationalConnection connection, SndbCommand command, SndbDataReader result)
+    {
+        var reader = WrapBatchResult(connection, command, result);
+        if (result.RecordsAffected != 1)
+            ThrowAggregateUpdateConcurrencyException(reader, commandIndex: 1, expectedRowsAffected: 1, result.RecordsAffected);
+        else
+            Consume(reader);
+    }
+
+    private static RelationalDataReader WrapBatchResult(
+        IRelationalConnection connection, SndbCommand command, SndbDataReader result)
+    {
+        // 批量传输独立拥有实体读取器和命令，不让结果包装器关闭共享关系连接。
+        var reader = new RelationalDataReader();
+        reader.Initialize(connection, command, result, Guid.NewGuid(), logger: null);
+        return reader;
     }
 
     /// <summary>

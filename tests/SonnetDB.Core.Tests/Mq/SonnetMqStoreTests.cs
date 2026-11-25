@@ -737,6 +737,87 @@ public sealed class SonnetMqStoreTests : IDisposable
     }
 
     [Fact]
+    public void ColdPull_AfterRestartWithMissingPrefix_ReadsFirstAvailableMessageWithoutMovingGroup()
+    {
+        const string topic = "recover.gap";
+        const string group = "group";
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 160,
+            RetentionInterval = TimeSpan.Zero,
+            TrimAcknowledgedMessages = false,
+        };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            byte[] payload = new byte[100];
+            for (int i = 0; i < 4; i++)
+                Assert.Equal(i, store.Publish(topic, payload));
+            Assert.Equal(0, store.EnsureConsumerGroup(topic, group));
+            Assert.Equal(1, store.TombstoneBefore(topic, 1));
+        }
+
+        RemoveFixtureSegment(topic, 1);
+
+        using var reopened = SonnetMqStore.Open(options);
+        Assert.Equal(1, reopened.GetDiagnostics(topic).EarliestOffset);
+        Assert.Equal(1, reopened.EnsureConsumerGroup(topic, group));
+        Assert.Equal([2L, 3L], reopened.Pull(topic, group, 10).Select(static item => item.Offset));
+        Assert.Equal([2L, 3L], reopened.Pull(topic, 0, 10).Select(static item => item.Offset));
+        Assert.Equal(1, reopened.GetStats(topic).ConsumerOffsets[group]);
+    }
+
+    [Fact]
+    public void ColdPull_AfterRestartWithGapBeforeHotTail_ReadsBothSidesWithoutMovingGroup()
+    {
+        const string topic = "recover.gap";
+        const string group = "group";
+        byte[] payload = new byte[100];
+        using (var legacy = SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = Path.Combine(_root, "sonnetmq.log"),
+            OpenMode = SonnetMqOpenMode.SingleFile,
+            RetentionInterval = TimeSpan.Zero,
+        }))
+        {
+            Assert.Equal(0, legacy.Publish(topic, payload));
+            Assert.Equal(0, legacy.EnsureConsumerGroup(topic, group));
+        }
+
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 160,
+            HotTailMaxBytes = 200,
+            RetentionInterval = TimeSpan.Zero,
+            TrimAcknowledgedMessages = false,
+        };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            for (int i = 1; i < 4; i++)
+                Assert.Equal(i, store.Publish(topic, payload));
+            Assert.Equal(1, store.TombstoneBefore(topic, 1));
+        }
+
+        RemoveFixtureSegment(topic, 2);
+
+        using var reopened = SonnetMqStore.Open(options);
+        Assert.Equal(4, reopened.Publish(topic, payload));
+        Assert.Equal([1L, 3L, 4L], reopened.Pull(topic, group, 10).Select(static item => item.Offset));
+        Assert.True(reopened.ColdPayloadBytesRead > 0);
+        Assert.Equal(1, reopened.GetStats(topic).ConsumerOffsets[group]);
+    }
+
+    private void RemoveFixtureSegment(string topic, long baseOffset)
+    {
+        string topicFolder = Convert.ToHexString(Encoding.UTF8.GetBytes(topic));
+        string segmentName = baseOffset.ToString("D20", System.Globalization.CultureInfo.InvariantCulture) + ".smqseg";
+        string path = Path.Combine(_root, topicFolder, segmentName);
+        Assert.True(File.Exists(path));
+        File.Delete(path);
+    }
+
+    [Fact]
     public void ColdPull_SpansManySegments_RespectsSegmentCacheBound()
     {
         // 段数 ≫ SegmentCacheSize 时冷读跨全部段仍然正确返回，句柄 LRU 按容量关闭最久未用。
@@ -797,13 +878,54 @@ public sealed class SonnetMqStoreTests : IDisposable
         }
 
         using var reopened = SonnetMqStore.Open(options);
+        Assert.Equal(24L, reopened.Publish("iot.telemetry", "published-after-restart"u8));
         var replayed = reopened.Pull("iot.telemetry", 0, 30);
-        Assert.Equal(24, replayed.Count);
+        Assert.Equal(25, replayed.Count);
         for (int i = 0; i < 24; i++)
         {
             Assert.Equal(i, replayed[i].Offset);
             Assert.Equal(payloads[i], replayed[i].Payload);
         }
+        Assert.Equal("published-after-restart"u8.ToArray(), replayed[^1].Payload);
+    }
+
+    [Fact]
+    public void Open_WithLargeNativeHistory_DefersPayloadsAndRestoresHeaderDeduplication()
+    {
+        const string topic = "bounded-replay";
+        const int recordCount = 128;
+        var payload = new byte[128 * 1024];
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            TrimAcknowledgedMessages = false,
+            RetentionInterval = TimeSpan.Zero,
+        };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            for (var i = 0; i < recordCount; i++)
+            {
+                payload[0] = (byte)i;
+                Assert.Equal(i, store.Publish(topic, payload, new SonnetMqPublishOptions(
+                    new Dictionary<string, string> { ["message-id"] = $"evt-{i}", ["label"] = "恢复😀" })));
+            }
+            Assert.Equal(64L, store.Ack(topic, "group", 63));
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        using var reopened = SonnetMqStore.Open(options);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 4L * 1024 * 1024);
+        Assert.Equal(64L, reopened.GetStats(topic).ConsumerOffsets["group"]);
+        Assert.Equal(100L, reopened.Publish(topic, "duplicate"u8, new SonnetMqPublishOptions(
+            new Dictionary<string, string> { ["message-id"] = "evt-100" })));
+        SonnetMqMessage message = Assert.Single(reopened.Pull(topic, "group", 1));
+        Assert.Equal(64L, message.Offset);
+        Assert.Equal(64, message.Payload[0]);
+        Assert.Equal(payload.Length, message.Payload.Length);
+        Assert.Equal("evt-64", message.Headers["message-id"]);
+        Assert.Equal("恢复😀", message.Headers["label"]);
+        Assert.Equal(payload.Length, reopened.ColdPayloadBytesRead);
     }
 
     [Fact]

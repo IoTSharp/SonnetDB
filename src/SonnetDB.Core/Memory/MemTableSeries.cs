@@ -300,6 +300,13 @@ public sealed class MemTableSeries
     /// </summary>
     /// <returns>按时间戳升序排列的数据点只读内存。</returns>
     public ReadOnlyMemory<DataPoint> Snapshot()
+        => CreateSnapshot(publish: true);
+
+    // 密封表编码逐桶消费快照。未被查询缓存的点数组只由当前写入持有。
+    internal ReadOnlyMemory<DataPoint> SnapshotForSegmentWrite()
+        => CreateSnapshot(publish: false);
+
+    private ReadOnlyMemory<DataPoint> CreateSnapshot(bool publish)
     {
         SnapshotCache? cached;
         long version;
@@ -314,7 +321,7 @@ public sealed class MemTableSeries
 
             int count = _points.Count;
             if (count == 0)
-                return PublishSnapshot(version, ReadOnlyMemory<DataPoint>.Empty);
+                return publish ? PublishSnapshot(version, ReadOnlyMemory<DataPoint>.Empty) : ReadOnlyMemory<DataPoint>.Empty;
 
             snapshot = _points.ToArray();
             requiresSort = !_isSorted;
@@ -323,7 +330,8 @@ public sealed class MemTableSeries
         if (requiresSort)
             snapshot = StableSorted(snapshot);
 
-        return TryPublishSnapshot(version, WrapSnapshot(snapshot));
+        var memory = WrapSnapshot(snapshot);
+        return publish ? TryPublishSnapshot(version, memory) : memory;
     }
 
     /// <summary>

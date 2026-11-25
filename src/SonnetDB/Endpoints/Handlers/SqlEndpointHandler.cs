@@ -108,6 +108,20 @@ internal static class SqlEndpointHandler
             canAdministerDatabase, isServerAdmin, controlPlane, queueWaitMs,
             transaction, retainTransaction: true, sessionContext: sessionContext);
 
+    internal static Task HandleSessionDmlBatchAsync(
+        HttpContext context, Tsdb tsdb, string databaseName,
+        IReadOnlyList<SqlTransactionDmlBatchStatement> batch,
+        ServerMetrics metrics, bool canWrite, bool canAdministerDatabase,
+        bool isServerAdmin, IControlPlane? controlPlane, double queueWaitMs,
+        SqlTransactionContext transaction, SqlSessionContext? sessionContext)
+        => ExecuteAsync(context, tsdb, databaseName,
+            batch.Select(static statement => new SqlRequest(statement.Sql, statement.Parameters)
+            {
+                TypedParameters = statement.TypedParameters,
+            }).ToArray(),
+            metrics, canWrite, canAdministerDatabase, isServerAdmin, controlPlane, queueWaitMs,
+            transaction, retainTransaction: true, sessionContext: sessionContext, dmlBatch: batch);
+
     /// <summary>
     /// 处理 <c>POST /v1/sql</c> 单条控制面 SQL 请求（无 db 路径）。
     /// 仅支持控制面语句（CREATE USER / GRANT / CREATE DATABASE / SHOW USERS 等）以及 <c>SHOW DATABASES</c>。
@@ -241,25 +255,25 @@ internal static class SqlEndpointHandler
         double queueWaitMs,
         SqlTransactionContext? existingTransaction = null,
         bool retainTransaction = false,
-        SqlSessionContext? sessionContext = null)
+        SqlSessionContext? sessionContext = null,
+        IReadOnlyList<SqlTransactionDmlBatchStatement>? dmlBatch = null)
     {
         if (!await NegotiateDateTimeResultAsync(context).ConfigureAwait(false))
             return;
-        try
+        if (dmlBatch is null)
         {
-            // 整批预检精确载荷；不允许较早语句先消耗序列或执行写入。
-            foreach (var statement in statements)
-                if (statement.TypedParameters is not null)
-                {
-                    if (context.Response.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion)
-                        throw new InvalidOperationException("精确 SQL 参数需要 v7 能力。");
-                    _ = BindParameters(SqlParser.Parse(statement.Sql), statement);
-                }
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FrameFormatException)
-        {
-            await WriteErrorAsync(context, "unsupported_parameter_contract", exception.Message).ConfigureAwait(false);
-            return;
+            try
+            {
+                // 普通批次整批预检精确载荷，保留既有无写入失败行为。
+                foreach (var statement in statements)
+                    if (statement.TypedParameters is not null)
+                        _ = BindPreciseParameters(context, SqlParser.Parse(statement.Sql), statement);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FrameFormatException)
+            {
+                await WriteErrorAsync(context, "unsupported_parameter_contract", exception.Message).ConfigureAwait(false);
+                return;
+            }
         }
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
@@ -276,10 +290,13 @@ internal static class SqlEndpointHandler
         previewCancellation?.CancelAfter(TimeSpan.FromSeconds(30));
         var executionCancellation = previewCancellation?.Token ?? context.RequestAborted;
 
+        bool precedingWrite = false;
         try
         {
             for (int s = 0; s < statements.Count; s++)
             {
+                if (dmlBatch is not null)
+                    executionCancellation.ThrowIfCancellationRequested();
                 var stmt = statements[s];
                 string diagnosticsSql = RedactSqlForDiagnostics(stmt.Sql);
                 metrics.RecordSqlRequest();
@@ -308,6 +325,14 @@ internal static class SqlEndpointHandler
                 {
                     await WriteErrorAsync(context, "preview_action_denied",
                         "本预览仅允许单条只读 SQL 或一次批准的关系表单行参数化插入。").ConfigureAwait(false);
+                    return;
+                }
+
+                if (dmlBatch is not null && parsed is not (InsertStatement or UpdateStatement or DeleteStatement))
+                {
+                    metrics.RecordSqlError();
+                    await WriteErrorAsync(context, "bad_request",
+                        "事务 DML 批次只接受 INSERT、UPDATE 和 DELETE。").ConfigureAwait(false);
                     return;
                 }
 
@@ -349,6 +374,23 @@ internal static class SqlEndpointHandler
                 }
 
                 SqlStatement executable;
+                bool bindPreciseInOrder = dmlBatch is not null && stmt.TypedParameters is not null;
+                SqlStatement? boundPrecise = null;
+                if (bindPreciseInOrder)
+                {
+                    try
+                    {
+                        boundPrecise = BindPreciseParameters(context, parsed, stmt);
+                    }
+                    catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or FrameFormatException)
+                    {
+                        metrics.RecordSqlError();
+                        await WriteErrorAsync(context, "unsupported_parameter_contract", exception.Message).ConfigureAwait(false);
+                        return;
+                    }
+                }
+
+                int recordsAffected = -1;
                 var executionMetrics = diagnostics is not null
                     && diagnostics.Options.Enabled
                     && diagnostics.Options.ThresholdMs >= 0
@@ -361,7 +403,7 @@ internal static class SqlEndpointHandler
                     if (workbenchPreview)
                         previewMaxRows = Math.Min(previewMaxRows ?? 1000, 1000);
                     long bindStarted = SqlMeasurementInsertTiming.Start(insertTiming);
-                    executable = BindParameters(parsed, stmt);
+                    executable = boundPrecise ?? BindParameters(parsed, stmt);
                     if (insertTiming is not null)
                         SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.ParameterBindTicks, bindStarted);
 
@@ -442,6 +484,7 @@ internal static class SqlEndpointHandler
                     {
                         case ProcedureExecutionResult procedure:
                             {
+                                recordsAffected = procedure.RecordsAffected;
                                 int count = Math.Max(1, procedure.Results.Count);
                                 if (!context.Response.HasStarted)
                                     context.Response.Headers["X-SonnetDB-Sql-Result-Count"] = count.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -478,6 +521,7 @@ internal static class SqlEndpointHandler
                                     return;
                                 }
                                 metrics.AddInsertedRows(ins.RowsInserted);
+                                recordsAffected = ins.RowsInserted;
                                 long rowCount = 0;
                                 if (ins.Returning is { } returning)
                                 {
@@ -510,6 +554,7 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                recordsAffected = del.TombstonesAdded;
                                 long rowCount = 0;
                                 if (del.Returning is { } returning)
                                 {
@@ -533,6 +578,7 @@ internal static class SqlEndpointHandler
                                     await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                     return;
                                 }
+                                recordsAffected = affected.RowsAffected;
                                 long rowCount = 0;
                                 if (affected.Returning is { } returning)
                                 {
@@ -598,6 +644,17 @@ internal static class SqlEndpointHandler
                     await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
                     return;
                 }
+                catch (TimeSeriesWriteRecoveryRequiredException ex)
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+                    var recovery = precedingWrite && !ex.MayHaveWritten
+                        ? new TimeSeriesWriteRecoveryRequiredException(ex, mayHaveWritten: true)
+                        : ex;
+                    await WriteSqlErrorAsync(context, "sql_error", recovery, "execute").ConfigureAwait(false);
+                    return;
+                }
                 catch (Exception ex)
                 {
                     metrics.RecordSqlError();
@@ -606,7 +663,19 @@ internal static class SqlEndpointHandler
                     await WriteSqlErrorAsync(context, "sql_error", ex, "execute").ConfigureAwait(false);
                     return;
                 }
+
+                precedingWrite |= recordsAffected > 0 || (recordsAffected == -1 && RequiresWritePermission(parsed));
+                if (dmlBatch?[s].ExpectedRecordsAffected is { } expected && recordsAffected != expected)
+                {
+                    await WriteDmlBatchEndAsync(context, writerOptions, s + 1,
+                        SqlTransactionDmlBatchProtocol.RecordsAffectedMismatch).ConfigureAwait(false);
+                    return;
+                }
             }
+
+            if (dmlBatch is not null)
+                await WriteDmlBatchEndAsync(context, writerOptions, statements.Count,
+                    SqlTransactionDmlBatchProtocol.Completed).ConfigureAwait(false);
 
             if (!retainTransaction && transaction is not null && !transaction.IsCompleted)
             {
@@ -619,6 +688,13 @@ internal static class SqlEndpointHandler
             if (!retainTransaction && transaction is { IsCompleted: false })
                 SqlExecutor.ExecuteStatement(tsdb, databaseName, new RollbackTransactionStatement(), null, transaction);
         }
+    }
+
+    private static SqlStatement BindPreciseParameters(HttpContext context, SqlStatement parsed, SqlRequest request)
+    {
+        if (context.Response.Headers[SqlFrameCodec.ResultVersionHeader] != SqlFrameCodec.NativeDateTime2ResultVersion)
+            throw new InvalidOperationException("精确 SQL 参数需要 v7 能力。");
+        return BindParameters(parsed, request);
     }
 
     private static int? ResolvePreviewMaxRows(SqlRequest request, SqlExecutionResourceOptions options)
@@ -837,6 +913,21 @@ internal static class SqlEndpointHandler
             await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
+    private static async Task WriteDmlBatchEndAsync(
+        HttpContext context, JsonWriterOptions options, int statementsExecuted, string stopReason)
+    {
+        var body = context.Response.BodyWriter;
+        var end = new SqlTransactionDmlBatchEnd(
+            SqlTransactionDmlBatchProtocol.EndRecordType, statementsExecuted, stopReason);
+        await using (var writer = new Utf8JsonWriter(body, options))
+        {
+            JsonSerializer.Serialize(writer, end, ServerJsonContext.Default.SqlTransactionDmlBatchEnd);
+        }
+        var flush = await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
+        if (flush.IsCanceled)
+            await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
+    }
+
     private static Task WriteSqlErrorAsync(
         HttpContext context,
         string transportCode,
@@ -850,6 +941,8 @@ internal static class SqlEndpointHandler
         // is still emitted in ErrorResponse.Code for clients that consume the envelope.
         if (detail.Code == SqlErrorCodes.RelationalTypeUnsupported
             || detail.Code == KvReadOverloadedException.Code
+            || detail.Code == TimeSeriesWriteRecoveryRequiredException.ErrorCode
+            || detail.Code == TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
             || exception is SequenceException or SqlRowLockException)
             transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
@@ -871,6 +964,8 @@ internal static class SqlEndpointHandler
                 "unauthorized" => StatusCodes.Status401Unauthorized,
                 SqlRowLockException.NotAvailable or SqlRowLockException.Deadlock => StatusCodes.Status409Conflict,
                 KvReadOverloadedException.Code => StatusCodes.Status503ServiceUnavailable,
+                TimeSeriesWriteRecoveryRequiredException.ErrorCode => StatusCodes.Status503ServiceUnavailable,
+                TimeSeriesWriteRecoveryRequiredException.PartialErrorCode => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,
                 "modbus_write_connection_error" => StatusCodes.Status502BadGateway,

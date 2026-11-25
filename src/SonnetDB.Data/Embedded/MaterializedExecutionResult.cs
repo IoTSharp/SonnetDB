@@ -124,6 +124,28 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
     public static MaterializedExecutionResult NonQuery(int recordsAffected)
         => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected, truncated: false);
 
+    private MaterializedExecutionResult(
+        string[] columns,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        int recordsAffected,
+        ExecutionFieldTypeKind[] columnTypes,
+        ExecutionColumnMetadata?[] columnMetadata)
+    {
+        Columns = columns;
+        _rows = rows;
+        RecordsAffected = recordsAffected;
+        _columnTypes = columnTypes;
+        _columnMetadata = columnMetadata;
+    }
+
+    internal static MaterializedExecutionResult FromRemote(
+        string[] columns,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        int recordsAffected,
+        ExecutionFieldTypeKind[] columnTypes,
+        ExecutionColumnMetadata?[] columnMetadata)
+        => new(columns, rows, recordsAffected, columnTypes, columnMetadata);
+
     private static ExecutionFieldTypeKind ResolveFromRows(
         IReadOnlyList<IReadOnlyList<object?>> rows, int column)
     {

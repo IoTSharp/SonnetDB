@@ -503,13 +503,17 @@ public sealed class SegmentReader : IDisposable
             if (_decodeCache.TryGet(key, out var cached))
                 return cached.ToArray();
 
-            var blockData = ReadBlock(descriptor);
-            var decoded = BlockDecoder.Decode(descriptor, blockData.TimestampPayload, blockData.ValuePayload);
+            var decoded = DecodeBlockUncached(descriptor);
             long estimatedBytes = EstimateDecodedBlockBytes(descriptor);
             bool cachedNow = _decodeCache.TryAdd(key, decoded, estimatedBytes);
             return cachedNow ? decoded.ToArray() : decoded;
         }
 
+        return DecodeBlockUncached(descriptor);
+    }
+
+    internal DataPoint[] DecodeBlockUncached(in BlockDescriptor descriptor)
+    {
         var data = ReadBlock(descriptor);
         return BlockDecoder.Decode(descriptor, data.TimestampPayload, data.ValuePayload);
     }

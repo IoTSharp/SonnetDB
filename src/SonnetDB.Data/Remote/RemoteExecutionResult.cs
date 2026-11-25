@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
+using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Model;
 using SonnetDB.Protocol;
@@ -35,6 +36,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     private readonly bool _nativeDuration;
     private readonly bool _nativeDateTimeOffset;
     private readonly bool _nativeDateTime2;
+    private readonly bool _sharedBatchStream;
     private object?[] _currentRow;
     private bool _ended;
     private long _rowsRead;
@@ -48,7 +50,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
 
     private RemoteExecutionResult(HttpResponseMessage response, Stream stream, StreamReader reader,
         string[] columns, ExecutionFieldTypeKind[] columnTypes,
-        ExecutionColumnMetadata[]? columnMetadata, bool inferMissingColumnTypes)
+        ExecutionColumnMetadata[]? columnMetadata, bool inferMissingColumnTypes, bool sharedBatchStream)
     {
         _response = response;
         _stream = stream;
@@ -57,6 +59,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _columnTypes = columnTypes;
         _columnMetadata = columnMetadata;
         _inferMissingColumnTypes = inferMissingColumnTypes;
+        _sharedBatchStream = sharedBatchStream;
         _nativeDateTime = HasNativeDateTimeResult(response);
         _nativeDuration = HasNativeDurationResult(response);
         _nativeDateTimeOffset = HasNativeDateTimeOffsetResult(response);
@@ -69,7 +72,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             throw new InvalidDataException("远程 DURATION 声明缺少 SQL v5 协商确认。");
         _currentRow = new object?[columns.Length];
         RecordsAffected = -1; // SELECT 默认；非 SELECT 在末行被覆盖
-        if (response.Headers.TryGetValues("X-SonnetDB-Sql-Result-Count", out var counts))
+        if (!sharedBatchStream && response.Headers.TryGetValues("X-SonnetDB-Sql-Result-Count", out var counts))
         {
             string[] values = counts.ToArray();
             if (values.Length != 1 || !int.TryParse(values[0], out int count) || count is < 1 or > 1024)
@@ -136,6 +139,8 @@ internal sealed class RemoteExecutionResult : IExecutionResult
 
     public void Dispose()
     {
+        if (_sharedBatchStream)
+            return;
         _reader.Dispose();
         _stream.Dispose();
         _response.Dispose();
@@ -202,11 +207,13 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                         throw new InvalidDataException("远程 SQL end 行数与实际结果不一致。");
                     if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
                         RecordsAffected = ra.GetInt32();
+                    else if (_sharedBatchStream)
+                        throw new InvalidDataException("远程 DML 批响应缺少影响行数。");
                     Truncated = ReadTruncated(root);
                     _ended = true;
                     return false;
                 }
-                if (type == "meta")
+                if (!_sharedBatchStream && type == "meta")
                     return false;
             }
 
@@ -221,7 +228,37 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             }
         }
 
-        return false;
+        return _sharedBatchStream
+            ? throw new InvalidDataException("远程 DML 批响应包含意外的结果行。")
+            : false;
+    }
+
+    internal static async Task<IExecutionResult> ReadBatchStatementAsync(
+        HttpResponseMessage response, Stream stream, StreamReader reader, string firstLine,
+        CancellationToken cancellationToken)
+    {
+        const int maxRowsPerStatement = 10_000;
+        using var result = await CreateCoreAsync(response, stream, reader, cancellationToken, firstLine,
+            sharedBatchStream: true).ConfigureAwait(false);
+        if (result._ended && result.Columns.Count == 0 && !result.Truncated && result.RecordsAffected >= 0)
+            return MaterializedExecutionResult.NonQuery(result.RecordsAffected);
+
+        var rows = new List<IReadOnlyList<object?>>();
+        for (int i = 0; i <= maxRowsPerStatement && !result._ended; i++)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidDataException("远程 DML 批响应缺少 end 记录。");
+            if (result.ProcessLine(line))
+                rows.Add((object?[])result._currentRow.Clone());
+        }
+        if (!result._ended || result.Truncated || result.RecordsAffected < 0)
+            throw new InvalidDataException("远程 DML 批响应的语句结果不完整。");
+
+        var metadata = new ExecutionColumnMetadata?[result.Columns.Count];
+        for (int column = 0; column < metadata.Length; column++)
+            metadata[column] = result.GetColumnMetadata(column);
+        return MaterializedExecutionResult.FromRemote(result._columns, rows, result.RecordsAffected,
+            result._columnTypes, metadata);
     }
 
     /// <summary>
@@ -237,7 +274,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     }
 
     private static async Task<RemoteExecutionResult> CreateCoreAsync(HttpResponseMessage response, Stream stream,
-        StreamReader reader, CancellationToken cancellationToken, string? firstLine = null)
+        StreamReader reader, CancellationToken cancellationToken, string? firstLine = null, bool sharedBatchStream = false)
     {
         try
         {
@@ -348,11 +385,24 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                         }
 
                         // 非 SELECT：columns 为空，紧接着应是 end；继续循环消费 end。
-                        if (columns.Length == 0) continue;
+                        if (columns.Length == 0)
+                        {
+                            if (sharedBatchStream)
+                                throw new InvalidDataException("远程 DML 批响应的 meta 缺少列定义。");
+                            continue;
+                        }
                         break; // SELECT：meta 之后就是行数据，交给 ReadNextRow 处理。
                     }
                     if (type == "end")
                     {
+                        if (sharedBatchStream)
+                        {
+                            if (!root.TryGetProperty("rowCount", out var rowCount) || rowCount.ValueKind != JsonValueKind.Number
+                                || !rowCount.TryGetInt64(out long reportedRows) || reportedRows != 0)
+                                throw new InvalidDataException("远程 DML 批响应的语句缺少结果行。");
+                            if (!root.TryGetProperty("recordsAffected", out var affected) || affected.ValueKind != JsonValueKind.Number)
+                                throw new InvalidDataException("远程 DML 批响应缺少影响行数。");
+                        }
                         if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
                             recordsAffected = ra.GetInt32();
                         bool truncated = ReadTruncated(root);
@@ -361,13 +411,15 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                         break;
                     }
                 }
+                if (sharedBatchStream)
+                    throw new InvalidDataException("远程 DML 批响应缺少语句起始记录。");
             }
 
             if (!sawMeta && !ended)
                 throw new InvalidDataException("远程响应缺少 meta 或 end 行。");
 
             var result = new RemoteExecutionResult(response, stream, reader,
-                columns, columnTypes, columnMetadata, inferMissingColumnTypes)
+                columns, columnTypes, columnMetadata, inferMissingColumnTypes, sharedBatchStream)
             {
                 Truncated = pendingTruncated,
                 _ended = ended,
@@ -379,8 +431,11 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         catch
         {
             // 创建失败时读取器尚未移交给结果对象，必须在这里释放整条 HTTP 响应链。
-            reader.Dispose();
-            response.Dispose();
+            if (!sharedBatchStream)
+            {
+                reader.Dispose();
+                response.Dispose();
+            }
             throw;
         }
     }

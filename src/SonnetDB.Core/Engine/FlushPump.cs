@@ -67,6 +67,7 @@ internal sealed class FlushPump : IDisposable
     private readonly Tsdb _owner;
     private readonly BlockingCollection<FlushRequest> _queue = new(new ConcurrentQueue<FlushRequest>());
     private readonly Thread _thread;
+    private int _pendingCount;
     private long _completedCount;
     private long _failureCount;
     private volatile bool _disposed;
@@ -90,13 +91,22 @@ internal sealed class FlushPump : IDisposable
     public long FailureCount => Interlocked.Read(ref _failureCount);
 
     /// <summary>当前排队中（含正在处理）的 flush 请求数。</summary>
-    public int PendingCount => _queue.Count;
+    public int PendingCount => Volatile.Read(ref _pendingCount);
 
     /// <summary>把一次已密封的 flush 请求入队；泵线程将按 FIFO 处理。</summary>
     public void Enqueue(FlushRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        _queue.Add(request);
+        Interlocked.Increment(ref _pendingCount);
+        try
+        {
+            _queue.Add(request);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref _pendingCount);
+            throw;
+        }
     }
 
     /// <summary>
@@ -142,13 +152,14 @@ internal sealed class FlushPump : IDisposable
             {
                 _owner.ExecutePumpFlush(request);
                 Interlocked.Increment(ref _completedCount);
+                Interlocked.Decrement(ref _pendingCount);
                 request.Completion.TrySetResult();
             }
             catch (Exception ex)
             {
                 Interlocked.Increment(ref _failureCount);
+                Interlocked.Decrement(ref _pendingCount);
                 _owner.OnPumpFlushFailed(request, ex);
-                request.Completion.TrySetException(ex);
             }
         }
     }

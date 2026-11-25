@@ -7,6 +7,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Json;
 using Xunit;
 
@@ -81,6 +83,18 @@ public sealed class ObservabilityBootstrapTests : IAsyncLifetime
             Assert.Contains(_exportedMetrics, m => m.Name == "sonnetdb.write.points");
             Assert.Contains(_exportedMetrics, m => m.Name == "sonnetdb.write.duration");
         }
+    }
+
+    [Fact]
+    public void BasicPrometheus_ReportsFirstFlushFaultAndProcessMemory()
+    {
+        var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
+        Assert.True(registry.TryCreate("basic_flush_probe", out var db));
+        FlushFaultFixture.FailFlush(db);
+        string exposition = Hosting.PrometheusFormatter.Render(
+            _app.Services.GetRequiredService<Hosting.ServerMetrics>(), registry);
+
+        FlushFaultFixture.AssertFlushMetrics(exposition);
     }
 }
 
@@ -157,6 +171,18 @@ public sealed class PrometheusEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Metrics_ExportFirstFlushFaultAndProcessMemory()
+    {
+        var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
+        Assert.True(registry.TryCreate("otel_flush_probe", out var db));
+        FlushFaultFixture.FailFlush(db);
+
+        using var client = new HttpClient { BaseAddress = new Uri(_baseUrl!), Timeout = TimeSpan.FromSeconds(10) };
+        string exposition = await client.GetStringAsync("/metrics");
+        FlushFaultFixture.AssertFlushMetrics(exposition);
+    }
+
+    [Fact]
     public async Task Metrics_MeasurementInsertStages_RecordOnlySuccessfulMeasurementReceipts()
     {
         var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
@@ -195,5 +221,38 @@ public sealed class PrometheusEndpointTests : IAsyncLifetime
         Assert.DoesNotContain("private_measurement", metrics, StringComparison.Ordinal);
         Assert.DoesNotContain("private_field", metrics, StringComparison.Ordinal);
         Assert.DoesNotContain("private_payload", metrics, StringComparison.Ordinal);
+    }
+}
+
+internal static class FlushFaultFixture
+{
+    internal static void FailFlush(Tsdb database)
+    {
+        database.Write(Model.Point.Create(
+            "metric", 1_700_000_000_000L, new Dictionary<string, string>(),
+            new Dictionary<string, Model.FieldValue> { ["value"] = Model.FieldValue.FromDouble(1) }));
+
+        string segmentPath = TsdbPaths.SegmentPath(database.RootDirectory, segmentId: 1);
+        Directory.CreateDirectory(Path.GetDirectoryName(segmentPath)!);
+        // 模拟写段时的文件冲突。Flush 读取实际引擎异常并锁存恢复故障。
+        File.WriteAllText(segmentPath + ".tmp", "private_flush_fixture");
+        Assert.ThrowsAny<IOException>(() => database.FlushNow());
+        Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(() => database.FlushNow());
+    }
+
+    internal static void AssertFlushMetrics(string exposition)
+    {
+        string[] lines = exposition.Split('\n');
+        var samples = lines.Where(static line => line.StartsWith("sonnetdb_timeseries_flush_recovery_faults_total{",
+            StringComparison.Ordinal)).ToArray();
+        Assert.Equal(7, samples.Length);
+        var recorded = Assert.Single(samples, line => line.Contains("exception_category=\"io\"", StringComparison.Ordinal));
+        Assert.EndsWith("} 1", recorded.TrimEnd());
+        Assert.All(samples.Except([recorded]), line => Assert.EndsWith("} 0", line.TrimEnd()));
+        Assert.Contains("sonnetdb_process_gc_heap_size_bytes ", exposition, StringComparison.Ordinal);
+        Assert.Contains("sonnetdb_process_gc_committed_bytes ", exposition, StringComparison.Ordinal);
+        Assert.Contains("sonnetdb_process_working_set_bytes ", exposition, StringComparison.Ordinal);
+        Assert.DoesNotContain("flush_probe", string.Join('\n', samples), StringComparison.Ordinal);
+        Assert.DoesNotContain("private_flush_fixture", exposition, StringComparison.Ordinal);
     }
 }
