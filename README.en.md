@@ -14,7 +14,7 @@
 [![CodeQL](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml)
 [![Parity](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10%20%7C%2011-512BD4)](https://dotnet.microsoft.com/)
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
@@ -28,13 +28,13 @@ Only the shared demo account has its username and password restored every 30 min
 
 ## 🧩 What Is SonnetDB
 
-**SonnetDB is a multi-model data engine.**
+**SonnetDB is a single-node, multi-model data engine built with C# and .NET.**
 
 It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, a message queue, and native property graphs — nine kinds of data capability that usually require several separate systems — in one engine accessed through SQL, standard APIs, and management tools.
 
 The core value is **unification**: all nine models retain their native semantics and access patterns while sharing a server process, authorization entry points, and an admin console. Persistence and recovery still have model boundaries: a database backup covers resources within that database directory, while Server SonnetMQ lives in the instance-level `.system/mq` directory and is currently excluded. Restoring one database therefore does not provide a consistent restore of all nine models.
 
-Deployment stays flexible: embed it as an in-process library or run it as a standalone server for local applications, devices and edge nodes, business systems, private environments, and other workloads.
+You can embed the engine or run it as a standalone server. The embedded Core supports `net10.0`, and the ADO.NET and EF Core providers target both `net10.0` and `net11.0`. Building Server from this repository requires the .NET 11 SDK. See [Getting Started](docs/getting-started.md).
 
 ## 🗂️ Nine Data Models, One Engine, Native Semantics for Each
 
@@ -77,6 +77,16 @@ Beyond the nine native data models, SonnetDB tracks spatial/trajectory, stream p
 ## 🚀 Quick Start
 
 ### 🧩 Embedded
+
+Create a .NET 10 application and install the Core package.
+
+```bash
+dotnet new console -f net10.0 -n SonnetDemo
+cd SonnetDemo
+dotnet add package SonnetDB.Core
+```
+
+Replace `Program.cs` with the example below.
 
 ```csharp
 using SonnetDB.Engine;

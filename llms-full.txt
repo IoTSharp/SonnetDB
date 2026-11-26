@@ -262,12 +262,15 @@ Current source includes:
 - Relational JOIN including standard join forms; measurement-to-relation dimension joins have their own restricted contract.
 - Nonrecursive WITH and bounded WITH RECURSIVE; UNION/UNION ALL/INTERSECT/EXCEPT.
 - GROUP BY/HAVING and aggregate compositions, including CAST around relational aggregates.
+- Relational `DATE_TRUNC(unit, value)` for calendar grouping and scalar expressions.
 - Relational `row_number`, `rank`, `dense_rank`, `ntile` and count/sum/avg/min/max windows.
 - Logical views, explicitly refreshed materialized views, SQL procedures, AFTER ROW triggers.
 - CREATE/ALTER/DROP, indexes, constraints, sequences, comments and information_schema within documented scopes.
 - EXPLAIN, EXPLAIN ANALYZE, statistics and cost-based access-path selection.
 
 SQL NULL is not the same as missing JSON, empty text or empty bytes. `COUNT(*)` counts rows; `COUNT(expr)` ignores NULL. Int64 sum remains Int64 and rejects overflow. Casting an already overflowing sum afterward cannot recover it; cast the input to DECIMAL when appropriate. Integer division produces Float64. `+` is numeric; use `concat` for strings.
+
+Relational `DATE_TRUNC('day', created_at)` works in SELECT, WHERE, GROUP BY and HAVING. A non-grouped query can sort by the expression directly. For grouped queries, project it as `bucket` and use `ORDER BY bucket`. Units are `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second` and `millisecond`, matched case-insensitively after trimming. Weeks start on Monday. DATETIME and DATETIME2 keep their respective types. DATETIMEOFFSET returns a zero-offset UTC value. An INT Unix-millisecond input returns INT Unix milliseconds at the UTC boundary. Either NULL argument returns NULL. Cast text to a supported date type before calling the function.
 
 Relational windows allow multi-expression PARTITION BY and ordering. Ordered aggregate windows use the documented default peer RANGE; explicit ROWS/RANGE frames, arbitrary nesting and mixing windows with same-level ordinary grouping are not supported. Some cumulative evaluation can be O(n²); keep partitions bounded. Measurement windows are per series and accept empty OVER or time-ascending specifications, not arbitrary relational window syntax.
 
@@ -352,7 +355,7 @@ Measurements consist of a time axis, TAG dimensions and typed FIELD values. A se
 
 Implemented paths include point APIs, raw range reads, typed query builders, bulk writers, retention, compaction, optional timestamp/value encoding, time buckets, per-series windows, percentile/approximate aggregates, geospatial values and SQL table-valued analysis.
 
-Current source supports grouping by one or more TAGs and an optional `time(duration)`, plus supported HAVING, aggregate expressions and sorting after aggregation:
+Measurement aggregates can group by TAGs, fixed-duration `time(duration)` buckets, or both. They support HAVING, aggregate expressions and sorting after aggregation.
 
 ```sql
 SELECT host, time AS bucket, avg(usage) AS mean, count(usage) AS samples

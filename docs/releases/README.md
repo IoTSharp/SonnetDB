@@ -32,7 +32,7 @@ http://127.0.0.1:5080
 
 ## 当前发布说明
 
-5.1.1 的变更、包清单与已知限制见 [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)。5.0 迁移合同仍适用于从 4.x 升级的应用；公开交付状态以对应 GitHub Release、NuGet 版本和镜像回读为准。
+[SonnetDB 5.2.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-2-0/) 记录 Quartz 持久调度、Server 备份与恢复、对象存储卷和关系 SQL 的公开版本变更。从 4.x 升级前请核对对应的 5.0 迁移合同。使用发布包时，以对应版本的 GitHub Release、NuGet 资产和镜像标签为准。
 
 - [SonnetDB 5.2.0]({{ site.docs_baseurl | default: '/help' }}/releases/5-2-0/)
 - [SonnetDB 5.1.1]({{ site.docs_baseurl | default: '/help' }}/releases/5-1-1/)

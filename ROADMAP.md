@@ -1,10 +1,8 @@
 # ROADMAP — SonnetDB 产品路线图
 
-2026-11-13（Asia/Shanghai）阶段结项：**当前能力代码阶段完成**，包括 T1 默认 Tsdb 整点恢复、KV G12 代码/故障与真实旧端拒绝、全文完整消费者和统一预算。最终验收与未执行发行/环境项见[代码阶段审计](docs/audits/capability-code-stage-20261112.md)；交付是 main 基线上的本地未提交候选。下列 2026-11-11 核查记录保留原时间和证据边界。
+2026-11-27（Asia/Shanghai）更新。以 [5.2.0 发行说明](docs/releases/5.2.0.md) 对应的公开交付为版本基线，并核对后续源码里的时序 Flush/Compaction、SonnetMQ 恢复和远程 EF Core DML 批处理。当前实施顺序见下表，代码增量见 [CHANGELOG](CHANGELOG.md#unreleased)。
 
-核查日期：2026-11-11（Asia/Shanghai）；本地基线 `main@92d760077ce0e38525e41e8cfd2a8694e786f029`。本轮完成路线盘点、源码/测试/历史收据交叉审查和独立反驳，并按可靠性、查询正确性、并发资源与真实成本重新排序。完整发现、覆盖清单和证据见 [审计总报告](docs/audits/roadmap-audit-20261111/README.md)、[核心核查](docs/audits/roadmap-audit-20261111/core.md)、[生态核查](docs/audits/roadmap-audit-20261111/ecosystem.md)和[反驳审查](docs/audits/roadmap-audit-20261111/adversarial.md)。
-
-本轮 GitHub 只读回查为 **6 个开放 issue、0 个开放 PR**，见[实时快照](docs/audits/roadmap-audit-20261111/remote-snapshot.json)。远端 `9d022d86` 的 CI、CodeQL、Connectors 和一次 scheduled Parity success；本地与它只有 HANDOFF 差异，产品源码及 CI 配置一致。这证明实际作业覆盖的代码范围，不能替代旧二进制、完整容量、七天 Parity、物理掉电或 168 小时验收。本轮未重新运行产品构建、测试、基准或现场实验。
+2026-11-13 阶段结项覆盖 T1 默认整点恢复、KV G12 故障与真实旧端拒绝、全文消费者及统一预算，原始验证和未执行事项见 [代码阶段审计](docs/audits/capability-code-stage-20261112.md)。2026-11-11 全量核查和 GitHub 当日快照见 [路线审计](docs/audits/roadmap-audit-20261111/README.md)。
 
 ## 状态与证据口径
 
@@ -26,28 +24,33 @@
 
 ## 当前推进顺序
 
-下表是全仓唯一的当前优先级入口；专题里的局部依赖继续有效。排序反映风险与收益，不改变已批准的 K8 默认 LSM、时序语义或既有版本范围。已完成的 Windows R1 Web 预览、Provider 切片、MCP 工具与 K7 功能退出重复实施队列。
+根路线统一维护全仓的当前顺序，专题文档维护各项依赖和验收条件。
 
 | 顺序 | 路线归属 | 下一份可验收交付 | 退出条件与并行边界 |
 | --- | --- | --- | --- |
-| 1 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03；高并发与资源 | 已有 H02 准入和全文单请求完整预算；继续补 H01 基线、高基数 merge/缓存竞争、跨请求锁等待和混合负载预算 | 不把全文本次完成范围扩大为 M42 整包；H01/H03～H07A、固定硬件/168小时仍按原合同验收。 |
+| 1 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03 | 补 H01 基线和前后台混合负载。复用现有 `TopN` 与 `SqlSpillSorter`，优先定位 measurement `ORDER BY time` 中排序前已物化的候选，推进完整结果流式消费并验证入口资源用量。[设计与验收](docs/design/sql-bounded-order-by.md) · [GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440) | 在相同语料下核对结果、首行与峰值、取消、断连和临时文件清理。普通 SQL 保持完整结果语义。H03～H07A、固定硬件和 168 小时验收各按原合同执行。 |
 | 2 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | G3 会话累计 SST 计量已交付；完整写放大、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量与原规模仍待完成，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；会话累计计量与目录存量不能冒充完整物理写放大，G3 门禁未完成。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
-| 3 | 时序 T2/T3、M50-T01～T03；分区、重复点和精度 | T1 默认单 Point 原子恢复及升级/降级边界已完成；T2 分区/TTL、T3 FIRST/LAST 与 us/ns 继续独立[待决](docs/design/time-series-write-partition-duplicates-decisions.md) | 当前仍为 ms、KEEP_ALL、全局 TTL/无 measurement 分区和原 fsync。 |
-| 4 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396；可靠生态消费 | 优先完成 .NET/C 一个模型/操作批次的原生 HTTP/2/TLS、精确类型、终态、取消/未知写入、重开与独立消费者，再扩语言；EF NativeAOT 用最小固定应用单独界定 | 本阶段全文源码消费者已闭合；公开新版包、外部远端、其它模型/语言和旧 C ABI 分别验收。CAP 同组多活动实例须先有 lease/fencing/ACK 合同。 |
+| 3 | 时序 T2/T3、M50-T01～T03；分区、重复点和精度 | T1 默认单 Point 原子恢复已实现，T3 支持当前 MemTable 及其 WAL 回放的显式 KeepFirst/KeepLast。推进 T2 分区/TTL、T3 跨段及历史重复点合同、M50 按库精度 | 默认仍是 ms、KeepAll 和全局 TTL。跨段匹配、提交顺序及历史改写须先定义恢复与兼容行为。见[写入、分区和重复点](docs/design/time-series-write-partition-duplicates-decisions.md)。 |
+| 4 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396/#425；可靠生态消费 | 完成 .NET/C 一个模型的原生 HTTP/2/TLS 批次，覆盖精确类型、终态、取消、未知写入、重开和独立消费者。EF NativeAOT 固定最小真实应用。IoTSharp 租约增加两个消费者进程竞争、回滚和提交未知对账 | 公开包和匹配镜像、其它模型与语言、旧 C ABI 分别验收。远程 DML 批处理覆盖受支持事务中的有序 SaveChanges。CAP 同组多活动实例仍须定义 lease/fencing/ACK。 |
 | 5 | M45-C02～C09、M43、V45-X03；持续计算 | 先澄清 Merge 数学合同和输入去重，再做版本化 state、before/after/retract、有限增量物化及批流对拍 | 对同事件日志验证 update/delete/重投/迟到/重开；不支持输入拒绝或有界重算。本地窗口、DLQ、outbox/receipt 与全量 REFRESH 继续复用。 |
 | 6 | M44/M48、M47 后续宿主、M51；应用与产品闭环 | 在上述真实入口上交付一条可衡量的业务旅程；M47 补已开放页面正确性和 Studio/VS Code 实物门禁；M51 复用主线43工具完成0.2.0宿主/HTTPS/凭据闭环 | 真实质量/成本、权限/删除/恢复和适用宿主逐项验收。M48 日志 R1、自动运维、Buddy应用、额外 codec/算法按明确用户收益推进。 |
 
-执行分三条可并行工作线：**可靠性与恢复、查询/并发正确性、消费者与环境验收**。每条线交付小而完整的切片；生产或公开发布时汇合其适用门禁。GH-Issue #398 干净系统安装、#399 固定硬件、#402 发行恢复增强独立接续，不能用“等环境”拖住普通代码修复，也不能用小修 PASS 关闭这些环境问题。
+可靠性与恢复、查询与并发正确性、消费者与环境验收可以并行推进。干净系统安装、固定硬件和发行恢复按各 issue 的完成条件验收。[GH-Issue #398](https://github.com/IoTSharp/SonnetDB/issues/398) · [GH-Issue #399](https://github.com/IoTSharp/SonnetDB/issues/399) · [GH-Issue #402](https://github.com/IoTSharp/SonnetDB/issues/402)
+
+关系 SQL 的 `DATE_TRUNC` 标量实现覆盖关系表日期投影和分组。Measurement 继续使用现有 `GROUP BY time(...)` 和 measurement 扩展聚合。关系表扩展聚合及其精度、NULL 和预算合同仍待交付。[GH-Issue #437](https://github.com/IoTSharp/SonnetDB/issues/437)
+
+空 TAG、JSON 跳过坏点和 Workbench Preview 预算通过定向回归，代码问题已结案。普通 SQL 大结果排序由 #440 跟踪，现场重启和 OOM 因果仍待运行证据。[GH-Issue #438](https://github.com/IoTSharp/SonnetDB/issues/438)
 
 ## 已完成切片与必须保留的缺口
 
 | 范围 | 已核实且不重做 | 尚未完成 |
 | --- | --- | --- |
 | KV-LSM K1～K8 | 原 K7 功能及本阶段真实旧二进制拒绝、43 项迁移 I/O 故障、迁移/回滚持久阶段恢复、严格 pin 回收代码验证完成；新增 MANIFEST v2 写者屏障 | 代码侧完整计量/负载工具、原规模与随机200轮仍按原路线；固定硬件、物理掉电、168小时转入[环境路线](docs/roadmap-environment-validation.md)。混合布局继续 journal，通用 KV Count/TTL 仍扫描。 |
-| T1 默认整点恢复 | 公共 Tsdb/catalog/WAL 滚动/回放/checkpoint/flush/备份/升级和降级拒绝、取消/unknown、多字段及公共进程强杀已完成 | T2/T3、us/ns 与物理耐久/环境资格独立；旧 v1 历史部分提交不补造为原子提交。 |
-| 全文完整消费者与预算 | 10003 同语料跨端逐字段/独立排序对拍；扫描/posting/排序/facet/投影/序列化/发送统一预算、取消、总响应字节及独立本机 Server/消费者完成 | 真实外部远端与公开新版 NuGet 消费 NOT_RUN，跨页不声明快照；跨请求高并发成本继续归 M42。 |
+| 时序 T1 / T3 | 默认整点恢复覆盖公共 Tsdb、catalog、WAL、checkpoint、Flush、备份、升级及降级拒绝。可选重复点策略覆盖当前 MemTable 和 WAL 回放 | T2 分区/TTL、跨段和历史重复点策略、按库精度和环境资格分别验收。旧 v1 部分提交保留原有重放语义。 |
+| 全文消费者、预算与块读取 | 10,003 条同语料跨端对拍、独立本机消费者、单请求完整预算、按块读取及有界缓存已有实现和对应测试 | 公开新版 NuGet 消费、真实外部远端、百万级语料和跨请求并发成本待验。跨页仍按既有查询合同工作。 |
+| 时序 Flush、Compaction 与 SonnetMQ 恢复 | 源码限制密封 MemTable 数量，逐桶编码合并段，并在 SonnetMQ 目录段回放时跳过正文，冷读时按索引载入 | 按同语料测量重启峰值和尾延迟，分别覆盖故障恢复、混合负载和固定硬件。证据入口见 [CHANGELOG](CHANGELOG.md#unreleased)。 |
 | 性能现状 | 历史10万条/1KiB匹配测量中写后快照 P99 从4627.6降至2.5 µs | 同测量缓冲随机写吞吐63917→46825 ops/s，分配1241→3537 B；不能声称全面变快。这些数字绑定原测量源码，非本轮 HEAD 新测。 |
-| Provider / MCP | 迁移、JSON、OwnsMany 的历史共同候选各69步；主线43个 MCP 工具与权限/预算测试；普通已关闭代码事项不重开 | EF 应用 AOT、最新公开包消费、上游发布和 WorkBuddy 宿主各自验收。 |
+| Provider / MCP | Provider 已有迁移、JSON、OwnsMany、编译模型与查询生成工作和受支持的远程 DML 批处理。主线 MCP 提供 43 个工具 | [GH-Issue #396](https://github.com/IoTSharp/SonnetDB/issues/396) 的最小真实 NativeAOT 应用，及 [GH-Issue #425](https://github.com/IoTSharp/SonnetDB/issues/425) 的跨实例事务租约消费者分别验收。公开新版包和 WorkBuddy 宿主各自保留完成条件。 |
 | M47 Preview 1 | candidate12 / 4.5.0-preview.1.12 的限定 Windows R1 Web 放行、发布与独立回读已归档 | Studio、VS Code、三面正式版、完整九模型专用动作未由该预览完成。 |
 | M44 / M45 / M46 | RAG/任务底座、TAG/time分组及后续HAVING、sketch守卫、Int64 RLE/raw与v7拒绝已有切片 | 真实AI质量、通用增量SQL/撤回、完整自适应编码与原规模成本仍未完成。 |
 | M48 / M50 | 规划、复用入口与验收合同存在 | 日志R1与时序每库ms/us/ns尚未交付；关系日期100ns不是时序ns。M48-L20B、M50-T30B的固定硬件/现场/168小时转入[环境路线](docs/roadmap-environment-validation.md)。 |

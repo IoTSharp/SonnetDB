@@ -14,15 +14,17 @@
 [![CodeQL](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml)
 [![Parity](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10%20%7C%2011-512BD4)](https://dotnet.microsoft.com/)
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
 ## SonnetDB 是什么
 
-SonnetDB 是一款面向 .NET 10 的单节点多模型数据引擎。它把时序、关系表、键值、JSON 文档、全文、向量、对象、消息队列和原生属性图放在同一个引擎中，同时保留每种模型自己的建模和查询语义。
+SonnetDB 是一款基于 C# 和 .NET 的单节点多模型数据引擎。它把时序、关系表、键值、JSON 文档、全文、向量、对象、消息队列和原生属性图放在同一个引擎中，同时保留每种模型自己的建模和查询语义。
 
 应用可以在进程内打开数据库目录，也可以连接独立 Server。SQL、ADO.NET、EF Core、CLI、HTTP REST/Frame、Web Admin、Studio、VS Code、MCP 和多语言连接器共享清晰的边界与权限模型。
+
+嵌入式 Core 支持 `net10.0`，ADO.NET 和 EF Core Provider 提供 `net10.0` 与 `net11.0` 目标。从当前仓库构建 Server 使用 .NET 11 SDK。具体启动方式见[开始使用](docs/getting-started.md)。
 
 数据库目录是持久化边界。Server 的身份、授权、Token 和实例级 SonnetMQ 位于不同范围；单库备份不等于整个 Server 实例的备份。版本、配置、恢复和外部依赖应按 [发布与打包](docs/releases/README.md) 及对应专题合同核对。
 

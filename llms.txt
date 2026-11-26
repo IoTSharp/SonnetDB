@@ -95,6 +95,7 @@ The original nine read-only tools remain: list_databases, list_measurements, des
 - Preserve original identifier spelling. Unquoted names use OrdinalIgnoreCase; double-quoted names use exact Ordinal.
 - Reject new case-only duplicates. Do not fold names independently in different entry points.
 - Measurements use time plus string TAGs and typed FIELDs. Match configured ingestion precision.
+- Group measurements by TAGs, fixed-duration `time(1m)` buckets, or both. Use `DATE_TRUNC('day', created_at)` for calendar grouping on a relational table.
 - VECTOR(N) and GEOPOINT are measurement field types; relational types have their own declaration rules.
 - Parameterize values. A parameter cannot replace an identifier.
 - A bounded row limit does not necessarily bound every scan, sort or executor allocation. Use explicit scan, memory, byte, time and concurrency budgets.

@@ -78,7 +78,7 @@ WAL 落盘强度由两个选项决定，从弱到强分三级：
 5. 应用 tombstone 过滤
 6. 输出原始点结果或聚合结果
 
-当前聚合按类型语义分为：
+Measurement 聚合按类型语义分为：
 
 - 数值统计：`sum`、`avg`、`stddev`、`variance`、`percentile`、`histogram` 等
 - 选择器：`first`、`last`，保留 String、Boolean、Vector、GeoPoint 等原始类型
@@ -87,9 +87,7 @@ WAL 落盘强度由两个选项决定，从弱到强分三级：
 
 类型能力由 `IAggregateFunction.AcceptedFieldTypes` 声明；数值 legacy 路径继续使用块聚合元数据，selector / categorical 路径按需保存原始 `FieldValue`，不会把字符串支持扩散到数学聚合。
 
-当前分组仅支持：
-
-- `GROUP BY time(...)`
+Measurement 的时间桶由 `GROUP BY time(...)` 处理，并可与 TAG 组合分组。关系表使用 `RelationalSelectExecutor`。关系聚合支持 `COUNT`、`SUM`、`MIN`、`MAX`、`AVG` 和字符串聚合。关系查询可以用标量 `DATE_TRUNC(unit, value)` 投影或分组。日期类型、单位和 UTC 语义见 [SQL 参考](sql-reference.md)。
 
 ## 嵌入式与远程的关系
 

@@ -635,6 +635,11 @@ internal static partial class RelationalSelectExecutor
             || statement.Having is not null
             || ContainsAggregate(statement.Projections)
             || ContainsWindow(statement.Projections)
+            || statement.OrderByList.Any(static order =>
+                order.Expression is FunctionCallExpression { IsStar: false, IsDistinct: false, Over: null } function
+                && function.Name.Equals("date_trunc", StringComparison.OrdinalIgnoreCase)
+                && FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Scalar
+                && UserFunctionRegistry.Current?.TryGetScalar(function.Name, out _) != true)
             || ContainsSubquery(statement);
     }
 
@@ -4270,6 +4275,11 @@ internal static partial class RelationalSelectExecutor
             // AST 没有 Decimal 字面量；复用已有显式转换，避免聚合结果先降为 Double。
             decimal m => new CastExpression(
                 LiteralExpression.String(m.ToString(CultureInfo.InvariantCulture)), SqlDataType.Decimal),
+            DateTime dateTime => new CastExpression(
+                LiteralExpression.Integer(dateTime.Kind == DateTimeKind.Local
+                    ? dateTime.ToUniversalTime().Ticks : dateTime.Ticks), SqlDataType.DateTime2),
+            DateTimeOffset dateTimeOffset => new CastExpression(
+                LiteralExpression.Integer(dateTimeOffset.UtcTicks), SqlDataType.DateTimeOffset),
             string str => LiteralExpression.String(str),
             _ => throw new InvalidOperationException(
                 $"HAVING 内联聚合结果类型 '{value.GetType().Name}' 暂不支持。"),
@@ -4465,6 +4475,19 @@ internal static partial class RelationalSelectExecutor
                 var input = InferSelectColumnInfo(temporal.Arguments[0], columns);
                 return new SelectColumnInfo(input.DataType == TableColumnType.DateTime2 ? TableColumnType.DateTime2 : TableColumnType.DateTime, input.IsNullable)
                 { RequiresRefresh = input.RequiresRefresh };
+            }
+            if (temporal.Arguments.Count == 2 && name == "date_trunc")
+            {
+                var unit = InferSelectColumnInfo(temporal.Arguments[0], columns);
+                var input = InferSelectColumnInfo(temporal.Arguments[1], columns);
+                if (input.DataType is TableColumnType.DateTime or TableColumnType.DateTime2
+                    or TableColumnType.DateTimeOffset or TableColumnType.Int64)
+                {
+                    return new SelectColumnInfo(input.DataType,
+                        unit.IsNullable == true || input.IsNullable == true ? true
+                            : unit.IsNullable == false && input.IsNullable == false ? false : null)
+                    { RequiresRefresh = unit.RequiresRefresh || input.RequiresRefresh };
+                }
             }
             if (temporal.Arguments.Count == 3 && name is "date_add_datetime" or "date_add_datetime_offset" or "date_add")
             {
@@ -6087,6 +6110,15 @@ internal static partial class RelationalSelectExecutor
                 && string.Equals(l.Qualifier, r.Qualifier,
                     (l.IsNameBound || l.QualifierIsQuoted) && (r.IsNameBound || r.QualifierIsQuoted)
                         ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase),
+            FunctionCallExpression { IsStar: false, IsDistinct: false, Over: null } l
+                when right is FunctionCallExpression { IsStar: false, IsDistinct: false, Over: null } r
+                    && l.Name.Equals("date_trunc", StringComparison.OrdinalIgnoreCase)
+                    && r.Name.Equals("date_trunc", StringComparison.OrdinalIgnoreCase)
+                    && FunctionRegistry.GetFunctionKind(l.Name) == FunctionKind.Scalar
+                    && UserFunctionRegistry.Current?.TryGetScalar(l.Name, out _) != true
+                    && l.Arguments.Count == 2 && r.Arguments.Count == 2 =>
+                ExpressionEquals(l.Arguments[0], r.Arguments[0])
+                && ExpressionEquals(l.Arguments[1], r.Arguments[1]),
             _ => Equals(left, right),
         };
 

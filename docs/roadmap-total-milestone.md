@@ -1,6 +1,6 @@
 # SonnetDB 路线与里程碑总索引
 
-2026-11-11（Asia/Shanghai）核查，基线`main@92d76007`。**[根ROADMAP当前推进顺序](../ROADMAP.md#当前推进顺序)是唯一全仓排序，本页负责全量归属和覆盖，不再保留第二份“当前顺序”。** 审查证据见[总报告](audits/roadmap-audit-20261111/README.md)、[核心](audits/roadmap-audit-20261111/core.md)、[生态](audits/roadmap-audit-20261111/ecosystem.md)与[独立反驳](audits/roadmap-audit-20261111/adversarial.md)。
+2026-11-27（Asia/Shanghai）按当前源码和 5.2.0 发行说明更新已实现切片及待验项。[根 ROADMAP](../ROADMAP.md#当前推进顺序) 维护全仓排序，本页维护里程碑归属和证据入口。历史核查见 [2026-11-11 路线审计](audits/roadmap-audit-20261111/README.md)。
 
 M0～M51共52个编号全部保留，另列KV-LSM、V45-X、MM9及子库路线。下表的“指定研发完成”只指原合同的代码和历史适用验证；本轮全量盘点不等于重跑所有历史测试或逐行证明每段源码。按域深查和只做历史/入口对账的范围在报告中分开记录。原始历史见[roadmap-history](roadmap-history.md)与[CHANGELOG归档](../CHANGELOG.md#roadmap-completed-archive-2026-09-21)。
 
@@ -49,15 +49,15 @@ M0～M51共52个编号全部保留，另列KV-LSM、V45-X、MM9及子库路线�
 | M38 | SQL存储过程与触发器 | ✅ 指定研发 | 存储过程与触发器首版 | 触发器v2归M39；完整外部方言未承诺 |
 | M39 | SQL触发器第二版 | 🟡 | 触发器v2及本地成本/恢复切片 | deferred/outbox混合DML长期尾延迟 |
 | M40 | 原生属性图 | 🟡 Beta | 原生图/SQL/PGQ/本地evaluator | 原规模/外部对拍/AOT/Couplet/168小时见[环境路线](roadmap-environment-validation.md) |
-| M41 | 查询规划器与成本 | 🟡 | planner/下推/spill本地优化 | 统一语料/I/O成本按能力路线；固定架构/生产尾延迟见[环境路线](roadmap-environment-validation.md) |
-| M42 | 九模型有界执行与性能 | 🟡 | 局部预算、Top-K、结果准入 | 端到端pull、进程预算、冷读/资源按能力路线；固定硬件/长稳见[环境路线](roadmap-environment-validation.md) |
+| M41 | 查询规划器与成本 | 🟡 | 规划器、下推、`TopN`、`SqlSpillSorter`、精确单表计数及主键前缀分组计数 | 定位 measurement 排序前物化和完整结果流式交付，按同语料核对结果与入口资源用量。[GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440) |
+| M42 | 九模型有界执行与性能 | 🟡 | 请求预算、Top-K、结果准入、单份密封 MemTable、按桶合并 | 端到端 pull、进程预算、冷读和前后台竞争待验。固定硬件和长稳见[环境路线](roadmap-environment-validation.md)。 |
 | M43 | 十四能力与生态总收口 | 🟡 | 本地CDC/窗口/订阅/DLQ/outbox/receipt | 远程/schema/冲突、组合恢复、完整旅程与发布证据 |
 | M44 | AI应用与可治理推理 | 🟡 / 🚧 | A01～A05底座/切片，A06/A07在验 | 真实应用质量/成本/治理；A08～A10条件/后续 |
 | M45 | 聚合与持续计算深化 | 🟡 | C01/C06/C08局部；既有Merge/窗口 | 版本化state、retract、增量物化与批流等价 |
 | M46 | 存储编码与执行成本 | 🟡 | S02/S06/S09局部：Int64Rle/guard/v7 | 自适应/范围解码/资源与统一成本证据 |
 | M47 | 统一管理工作台与三面发布 | 🟡 | P01～P08限定candidate12 R1 Web完成 | Studio/VSCode/三面正式版与完整模型动作 |
 | M48 | 单机日志与事件分析 | 📋 | 日志R1设计，已有基础可复用 | L01～L20A代码候选未交付；L20B环境资格转[环境路线](roadmap-environment-validation.md)；L21～L24条件项 |
-| M49 | 连接器/embedded与九模型访问 | 🟡 | C01完成；Protocol/.NET/SQL/raw多帧/typed KV及codec | 其余14包部分/未实施；真实新语言传输与按批消费者 |
+| M49 | 连接器、嵌入式与九模型访问 | 🟡 | C01 完成。已有 Protocol/.NET、SQL raw 多帧、typed KV 和受支持的远程 EF DML 批处理 | 真实新语言 HTTP/2/TLS、各模型 typed 覆盖、公开包和独立消费者按批验收。 |
 | M50 | 时序ms/us/ns无损精度 | 📋 | T01～T27/T30A能力候选规划，现measurement仍ms | 库级持久单位、无损链路、迁移与恢复；T28/T29/T30B/T32环境资格见[环境路线](roadmap-environment-validation.md) |
 | M51 | WorkBuddy生态与生命周期 | 🟡 | 0.2.0包文案与主线43工具；历史资料/脚本 | 平台/HTTPS/真实宿主、独立运维及各资产审核 |
 
@@ -69,7 +69,7 @@ M0～M51共52个编号全部保留，另列KV-LSM、V45-X、MM9及子库路线�
 | --- | --- | --- |
 | KV-LSM K1～K6、K8 | ✅ 源码已接线 | [设计](design/kv-lsm-storage-engine.md)；默认LSM/打开迁移已存在，旧阶段叙述不再代表当前实现。 |
 | KV-LSM K7与G1～G12 | 🟡 | 共享批次/计数/维护/回滚/Version备份已有；计量负载、原规模、旧二进制、随机故障按能力路线验，固定硬件/掉电/长稳转[环境路线](roadmap-environment-validation.md)。 |
-| 时序P0-3～P0-5 / T1～T3 | 待决策 | [写入/分区/重复决策](design/time-series-write-partition-duplicates-decisions.md)；先冻结合同，不自动变更默认或KEEP_ALL。 |
+| 时序 P0-3～P0-5 / T1～T3 | T1 ✅，T2 📋，T3 🟡 | 默认整点恢复和可选 MemTable/WAL 重复点策略已有。分区/TTL、跨段和历史重复点合同仍待确定。见[时序设计](design/time-series-write-partition-duplicates-decisions.md)。 |
 | V45-X01/X02 | 🟡 / 🚧 | M41/M42/M49的端到端读取、总预算、公平准入；已有opt-in/单请求限制不等于全进程硬上限。 |
 | V45-X03 | 📋 新远程增量 | 本地CDC/桥接已实现；远程/schema/冲突/离线合同待交付，不称HA。 |
 | V45-X04 | 🟡 | MQ实例快照/CLI已有；数据库、MQ、身份配置、外部对象/派生索引组合恢复待完成。 |
@@ -96,8 +96,8 @@ M0～M51共52个编号全部保留，另列KV-LSM、V45-X、MM9及子库路线�
 
 ## 外部事项与独立验收
 
-[实时issue快照](github-issues-roadmap.md)仅有GH-Issue #396/#397/#398/#399/#401/#402开放，0个开放PR。#230/#392/#394/#395/#403/#404已实时核为CLOSED/COMPLETED。内部路线#N不是GitHub #N；不得按数字碰撞关联。
+2026-11-11 的状态收录在[历史 issue 快照](github-issues-roadmap.md)。使用 [GitHub Issues](https://github.com/IoTSharp/SonnetDB/issues) 查看当前事项，使用 [根路线](../ROADMAP.md#当前推进顺序) 查对应交付与退出条件。
 
 代码实现、候选消费者、公开发布、干净系统安装与环境资格分层验收。固定硬件、Demo/现场、长稳及物理掉电统一进入[环境路线](roadmap-environment-validation.md)；M20七天scheduled为独立观察，不是所有普通代码修复的统一前置。Graph不因上层AI退出Beta，MQ不因单库备份宣称实例一致恢复，M49不因codec存在宣称全部原生HTTP/2可用。
 
-“4.5”与V45保留为历史规划命名空间和已批准范围，不是当前最新公开版本的声明；2026-11-11读取GitHub latest为v5.0.0，仅核元信息/52资产数，未重新下载或消费包。后续版本冻结须逐批明确旧必选/条件项的归属，不自行将所有新计划塞入同一次发行。
+“4.5”与 V45 是既定规划的标识。已发布版本以 [发行说明](releases/README.md) 和 [GitHub Releases](https://github.com/IoTSharp/SonnetDB/releases) 为准，新发行候选按批确定适用的必选和条件项。

@@ -36,7 +36,15 @@ docker run --rm -p 127.0.0.1:5080:5080 -v ./sonnetdb-data:/data sonnetdb
 - 数据根目录为 `/data`
 - 帮助文档会随镜像一起发布到 `/help`
 
-如果直接从源码运行服务端，也会默认监听 `5080`，并使用 `./sonnetdb-data` 作为数据根目录。
+直接从当前仓库运行服务端时，先安装 .NET 11 SDK，然后从仓库根目录启动本地实例。SDK 版本见 [global.json](https://github.com/IoTSharp/SonnetDB/blob/main/global.json)。
+
+```bash
+dotnet run --project src/SonnetDB --no-launch-profile -- \
+  --Kestrel:Endpoints:Http:Url=http://127.0.0.1:5080 \
+  --Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:5081
+```
+
+源码默认数据根目录为 `./sonnetdb-data`。嵌入式 .NET 10 应用可以独立使用 Core、ADO.NET 或 EF Core Provider 的 `net10.0` 目标。
 
 远程部署请先通过 `SONNETDB_USER` / `SONNETDB_PASSWORD` 引导并验证初始化，再显式开放所需接口，步骤见 [Docker 首次初始化与远程部署](releases/docker-image.md#首次初始化与远程部署)。
 

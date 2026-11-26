@@ -1,30 +1,30 @@
-# 时序 P0-3～P0-5：实现前的语义决策草案
+# 时序写入、分区和重复点合同
 
-状态：**T1 的显式单 Point WAL 底层切片已按 2026-11-12 用户授权推进；默认 Tsdb 接入及 T2/T3 仍待独立冻结**。T1 独立格式、接口、降级拒绝和验证边界见[单 Point WAL v2 合同](time-series-atomic-point-wal-v2.md)。下文保留原决策问题；不把独立 WAL 底座写为时序引擎整体完成。
+T1 的默认单 Point WAL 恢复已接入 Tsdb。各字段共享一条 WAL 记录和 LSN，批写入中的不同 Point 各自提交。参见[单 Point WAL v2 合同](time-series-atomic-point-wal-v2.md)和[代码阶段验收](../audits/capability-code-stage-20261112.md)。
 
 ## 当前合同与问题
 
-2026-11-10 按当前源码复核：[Tsdb.WritePointLocked](../../src/SonnetDB.Core/Engine/Tsdb.cs) 仍逐字段调用 `AppendWritePoint`；[CompactionPlanner](../../src/SonnetDB.Core/Engine/Compaction/CompactionPlanner.cs) 按文件大小分 tier；[RetentionPolicy](../../src/SonnetDB.Core/Engine/Retention/RetentionPolicy.cs) 只有全局 TTL；[MemTableSeries.StableSorted](../../src/SonnetDB.Core/Memory/MemTableSeries.cs) 和 `SegmentCompactorTests.Execute_SameTimestamp_AllPointsPreserved` 保留重复时间戳。历史审查入口见[竞品审查 §2](../audits/competitive-code-review-20261108.md#2-时序模型主场对标-influxdb-3--tdengine--iotdb--questdb--timescaledb)。
+时序默认使用 Unix 毫秒、KeepAll 和全局 TTL。调用方可通过 `TsdbOptions.DuplicateTimestampPolicy` 为打开的数据库指定 KeepFirst 或 KeepLast。该策略按 series、field、timestamp 作用于当前 MemTable 及其 WAL 回放。Flush 保存当前 MemTable 的结果，跨已落盘 Segment 的重复点仍可能存在。参见[策略实现](../../src/SonnetDB.Core/Engine/DuplicateTimestampPolicy.cs)与[回归用例](../../tests/SonnetDB.Core.Tests/Engine/DuplicateTimestampPolicyTests.cs)。
 
-这些现状有独立的兼容性含义：减少 WAL 记录会改变失败与重放的最小单元；时间分区与 TTL 会改变段发布和删除的范围；折叠重复点会改变 COUNT、SUM、MEAN 和 LAST 的结果。不能把任何一种新的默认行为当成普通性能优化直接合入。
+时间分区和 TTL 会改变段发布和删除范围。折叠重复点会改变 COUNT、SUM、MEAN 和 LAST 的结果。变更这些默认行为前需要明确查询、升级和恢复合同。
 
 ## 待决事项
 
 | 决策 | 具体问题 | 影响与候选边界 |
 |---|---|---|
-| T1 写入原子单元 | 新 WAL 以单个多字段 Point、一次调用的整个 batch，还是现有单字段作为最小原子恢复单元？ | Point 原子需要各字段同成同败；batch 原子需要明确大批次预算和失败结果；保留字段边界只能在编码／组提交上优化，不能宣称整点原子。旧 WAL 的既有部分提交事实不能被重放工具补造。 |
+| T1 批次扩展 | 上层是否需要多个 Point 同成同败？ | 当前合同的恢复单位为单个多字段 Point。整批原子性需要独立定义批次预算和失败结果。旧 WAL 保留历史部分提交结果。 |
 | T2 分区与保留范围 | 分区是否按 measurement 独立？首个可配置时间窗覆盖小时／天／周中的哪些值？TTL 是否允许 measurement 覆盖全局值？ | 必须先冻结时间边界、乱序／补录进入旧窗的规则、TTL 缩短／延长对已有数据的影响及旧段归属。草案没有选择默认窗，也不改变当前时间戳单位；应与 M50 精度合同协同。 |
-| T3 重复点 | 保持现有 KEEP_ALL，还是允许 measurement 显式选择 KEEP_ALL／FIRST／LAST？如果选 LAST，由服务器持久提交序号还是客户端显式版本决定先后？ | 重复键应明确为 series＋field＋timestamp。跨字段合并、同批重复、迟到写入及重开后的顺序都须有统一规则。旧段缺少新规则所需的全局序号时，不能推断真实的“最后一次写入”。 |
+| T3 跨段重复点 | 是否允许 measurement 单独指定策略？如何确定跨段、迟到写入和重新打开后的 FIRST/LAST 顺序？ | 需要确定持久提交序号或显式版本的来源。旧段缺少全局序号，历史顺序的推断能力有限。 |
 
-T3 还需明确是否追溯处理历史重复点。仅对启用策略后的写入生效与重写历史段是不同的迁移合同；两者对聚合结果、备份恢复和回滚都有不同影响。本草案没有替用户选择覆盖规则。
+T3 的历史段改写与新写入策略需要分别定义，对聚合结果、备份恢复和回滚的影响各自验收。
 
 ## 设计与交付顺序
 
-1. 用户确认 T1～T3 的具体语义；只把确认过的部分写成独立设计，未决项继续保持现状。
+1. 确定 T2 的分区与 TTL 规则，以及 T3 的跨段顺序、配置范围和历史处理。
 2. 冻结 schema／WAL／段元数据的新版本、旧端明确拒绝方式，以及旧目录迁移、备份与降级边界。分片写锁、字段编号与列式 MemTable 必须保持已选的提交及查询顺序合同。
-3. 分别实现写入、分区／TTL、重复策略，避免在一次变更中同时改三个语义层。每项以正常、非法输入、取消、未知提交、强杀重放、乱序、多版本目录与恢复回归为门禁。
+3. 按独立交付实现分区/TTL 与跨段重复点。回归覆盖边界、非法输入、取消、提交未知、强杀重放、乱序、旧目录和恢复。
 4. 只有新语义代码和恢复验证完成后，才运行有界吞吐／分配／空间放大基准。固定硬件与长稳另行记录，不由设计文档或单轮测量宣布通过。
 
-## 本轮状态
+## 验证记录
 
-原草案的设计入口与问题整理：PASS。2026-11-12 独立 WAL v2 底层和确定性强杀已实现并做定向验证，见[第二阶段记录](../audits/capability-phase2-20261112.md)；Tsdb 默认接入、目录迁移、T2/T3、性能、固定硬件和生产操作仍 NOT_RUN。此文件不授权提交、推送、发布或修改运行中的数据库。
+2026-11-12 至 2026-11-13 的确定性强杀覆盖独立 WAL v2 和公共 Tsdb 默认接入，命令和结果见[代码阶段审计](../audits/capability-code-stage-20261112.md)。重复点有定向回归覆盖默认与显式策略，并验证 Flush 后重开。T2、跨段和历史重写、固定硬件与生产验收仍待各自执行。

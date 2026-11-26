@@ -211,6 +211,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("current_utc_datetime_offset", 0, 0, SqlDateTimeFunctions.CurrentUtcDateTimeOffset),
         new BuiltInScalarFunction("date_only", 1, 1, SqlDateTimeFunctions.DateOnly),
         new BuiltInScalarFunction("date_part", 2, 2, SqlDateTimeFunctions.DatePart),
+        new BuiltInScalarFunction("date_trunc", 2, 2, SqlDateTimeFunctions.DateTrunc),
         new BuiltInScalarFunction("date_add", 3, 3, SqlDateTimeFunctions.DateAdd),
         new BuiltInScalarFunction("date_diff", 3, 3, SqlDateTimeFunctions.DateDiff),
         new BuiltInScalarFunction("datediff", 3, 3, SqlDateTimeFunctions.DateDiff),

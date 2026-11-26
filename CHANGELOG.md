@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+### 关系 SQL 日期截断
+
+- 新增 `DATE_TRUNC(unit, value)`，支持年、季度、月、周、日、小时、分钟、秒和毫秒。周从周一开始。`DATETIME` 和 `DATETIME2` 保留各自声明类型，`DATETIMEOFFSET` 按 UTC 截断并返回零偏移，Unix 毫秒以整数返回。参数为 NULL 时返回 NULL，无效参数返回 SQL 错误。
+- SQL 参考、Cookbook、Copilot 与 AI 上下文同步区分关系表的标量函数、measurement 时间桶和各自支持的聚合。
+
+### 路线和发行文档
+
+- 发行索引更新至 5.2.0。路线图补齐时序写入、SonnetMQ 恢复和远程 EF Core 批处理的源码状态与待验范围，并增加 measurement 大结果排序的调用链和验收合同。
+
+### 依赖更新
+
+- 更新成对的 SkiaSharp 托管与 Linux 原生资产至 4.157.0、ONNX Runtime 至 1.32.0、Microsoft.NET.Test.Sdk 至 18.12.0、coverlet.collector 至 10.1.1。
+- Dependabot 对 .NET 10 相关框架包保留 10.0.x 更新，对独立发版的 AI 和 VectorData 保留 10.x 更新。限制会引入 .NET 11 传递依赖的 OpenTelemetry 和 Npgsql 更新，并按相关性归组 NuGet 更新。
+- CodeQL 工作流的初始化和分析步骤同步更新至 4.39.4。
+
 ### SonnetMQ 目录段恢复
 
 - 打开原生目录段时顺序校验记录头和消息元数据，恢复偏移、稀疏索引、消费组及消息 ID 去重状态。回放跳过消息正文，拉取时按索引读取正文和消息头。新发布仍填充热尾缓存。记录格式及缺损尾部的处理规则沿用原合同。单文件模式与仍包含共享日志消息的混合主题保留原恢复路径。
@@ -28,6 +43,10 @@
 - SonnetDB Server 在远程 SQL 事务开始时声明有序 DML 批协议。支持的 EF Core `SaveChanges` 在原事务中按原顺序批量发送 `INSERT`、`UPDATE` 和 `DELETE`，默认每批最多 64 条。批结果逐条返回影响行数及 `RETURNING`。服务器在首条语句错误或影响行数不符处终止批次。EF 并发拦截器抑制异常后从该位置继续执行后续语句。
 - 协议支持 SQL v7 的 `DATETIME2` 精确参数和结果。无能力声明、无活动事务、已配置逐命令拦截器或请求体超过 4 MiB 时继续使用逐条执行路径。响应中断时报告执行前缀未知。提交和回滚继续由原事务所有者处理。
 
+## [5.2.0] - 2026-11-23
+
+[发行说明](docs/releases/5.2.0.md)
+
 ### Quartz.NET 作业存储
 
 - 新增独立 `SonnetDB.Quartz` 组件，通过 Quartz.NET 3.18.2 的 ADO.NET 作业存储持久化作业、触发器和调度状态。初始化创建缺失的 `QRTZ_` 表和索引，保留已有调度数据。已验证单个活动调度器重启后的触发器恢复和执行。
@@ -42,20 +61,20 @@
 - 无筛选的单表 `COUNT(*)` 复用表锁下的精确已提交行数；连续主键等值前缀在 LSM 稳定快照内仅遍历可见主行键，避免逐行解码和结果物化。前缀路径仍为匹配键数量的线性复杂度，并保留取消、截止时间、快照行数上界和 Serializable 读校验。
 - 同表事务缓冲写入、复杂筛选、分组、排序、分页及不支持的键类型继续使用原执行路径。新增空表、删除重开、前缀、别名、回退、读己之写、真实并发冲突和取消回归；本机仅完成编译，实际测试和大规模性能须在独立测试服务器另行验证。
 
-- 容器运行层对齐 SonnetDB Server 的 .NET 11 目标。运行时备份只回收有归属及完成标记的旧批次，并按完整模型验证任务范围。在线恢复默认关闭，启用后限制本地源、归档传输和显式配置的下载来源。
-
 ### 运行时备份、CLI 范围和在线新库恢复
 
 - Core 备份 manifest 升级到范围版本，支持通过 `IncludeKeyValue`、`IncludeObjectContent` 和模型范围排除 KV、对象正文及模型类别，并在校验时拒绝范围与文件清单不一致。
 - Server 增加持久化每日备份任务、北京时间默认 02:00、可配置目标根目录、校验、15 天/15 批滚动保留和 server-admin 任务管理 API。备份任务输出目录受全局备份根约束。
 - Server 增加目录、zip/tar、HTTP(S) 和 multipart 上传恢复入口。恢复先执行 manifest/SHA-256 校验，再生成不冲突的新数据库名称，拒绝覆盖现有数据库。
 - CLI `backup create` 增加 `--no-kv`、`--no-objects` 和 `--models` 范围参数。管理后台维护面增加每日任务创建/立即执行和目录、URL、压缩包恢复入口。
+- 运行时备份只回收有归属及完成标记的旧批次，并按完整模型验证任务范围。在线恢复默认关闭，启用后限制本地源、归档传输和显式配置的下载来源。
 - 这组代码级能力尚未部署到现场，也未证明外置对象卷、实例级 SonnetMQ、身份/授权和固定硬件长期恢复门禁已经闭合。
 
 ### 对象存储卷
 
 - 新增 `SonnetDBServer:ObjectStorage:RootDirectory` 与 `TsdbOptions.ObjectStorageRootDirectory`，对象桶正文和 multipart 临时文件可以写入独立卷，并按数据库名隔离目录。未配置时保持 `<数据库根>/objects` 的兼容路径。
 - 外置卷启用后，旧默认目录中的对象在首次访问时按需迁移到新卷，复制失败时继续读取旧正文。对象正文卷仍属于独立备份范围，需要单独备份与恢复。
+
 ### SQL `ON CONFLICT DO SELECT`
 
 - 关系表 `INSERT` 新增 `ON CONFLICT (主键或唯一索引列) DO SELECT [FOR UPDATE] [WHERE predicate] RETURNING ...`。无冲突时插入并返回新行，冲突时返回已有行，不产生更新 mutation，不递增已有行的 `ROWVERSION`；条件为 FALSE 或 NULL 时不返回、不计数。`FOR UPDATE` 在显式轻事务中保留冲突行锁到事务结束，当前只实现该锁强度。
@@ -98,7 +117,7 @@
 - 本轮完整 solution restore/build（0 warning/0 error）、规定 `dotnet format --verify-no-changes` 和 `git diff --check` PASS。Chloe issue233 probe 仍因缺少外部程序集 BLOCKED；XCode issue242 的上游 NewLife.XCode PR #101 已实际合并（merge `2d90912c299da72b1e1990b4577680eadb1d112e`，source head `9cc1e7e1214a1c3403bbb68d080d47554f18cb22`），不再归类为上游程序集 BLOCKED。公开 SonnetDB 4.0.0 包仍未包含该路径，正式包发布和新包消费者重跑仍独立 NOT_RUN/FAIL。
 - Server 现在目标为 `net11.0`，显式使用 C# 15，并仅在该目标启用 .NET 11 Runtime Async；Core/Protocol 和未参与本次宿主升级的项目继续使用仓库的 net10 基线。
 - `SonnetDB.Data` 与 `SonnetDB.EntityFrameworkCore` 增加 `net10.0;net11.0` 资产；EF Core、ASP.NET Core/Extensions、VectorData 和 MVC testing 包按当前 TFM 分别解析 10.x 或 11.0.0，避免 net10/net11 资产交叉引用。
-- 引用 Server 的测试、基准和 parity 宿主切换到 `net11.0`；EF Core 测试宿主使用 net11 验证 EF11，net10 EF10 资产由 net10 sample/consumer 项目验证；Testcontainers.SonnetDB 增加 net11 资产。当前只完成工程和依赖矩阵调整，Server/EF 双目标完整 restore、测试、AOT、真实消费者和性能对拍仍需独立验证。
+- 容器运行层和引用 Server 的测试、基准及 parity 宿主切换到 `net11.0`。EF Core 测试宿主使用 net11 验证 EF11，net10 EF10 资产由 net10 sample/consumer 项目验证。Testcontainers.SonnetDB 增加 net11 资产。性能对拍和完整消费者矩阵仍需独立验证。
 
 ### Full-text search
 
@@ -121,11 +140,18 @@
 
 ### CI reliability
 
+- 隔离 KV disk-read budget 超时回归中的后台 checkpoint、过期清理和 generation cleanup，避免手动恢复断言与后台快照回收并发。
+
+## [5.1.1] - 2026-11-16
+
+[发行说明](docs/releases/5.1.1.md)
+
+### CI reliability
+
 - 将 `SonnetDB.FullTextProcessProbe` 纳入主 solution，确保 Ubuntu 与 Windows REST 测试分片在 Release 构建时生成独立全文消费者进程；独立进程回归不再依赖本机残留的 probe 输出。
 - 将 Build & Test 矩阵 job 的总超时提高到 90 分钟，保留各测试步骤自己的 50/40/10 分钟边界，避免 Windows Core 的 Legacy 与 LSM 顺序回归因总 job 时间耗尽而取消。
 - 修正 Ecosystem Soak 的 torn WAL 夹具，使其按原子 Point WAL v2 打开并识别 `AtomicPointRecord`；此前夹具用 legacy reader 读取 v2 段，导致候选 `ci` profile 在恢复前错误报告 header magic/version mismatch。
 - 修正 CrashTests 子进程 ready 握手只检查文件存在的竞态；父进程现在等待 ready 文件有内容，避免在 `File.WriteAllText` 创建与写入之间读到空阶段标记。
-- 隔离 KV disk-read budget 超时回归中的后台 checkpoint、过期清理和 generation cleanup，避免手动恢复断言与后台快照回收并发。
 
 ## [5.1.0] - 2026-11-15
 

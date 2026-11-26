@@ -15,8 +15,8 @@ permalink: /sql-cookbook/
 
 - 时间列固定叫 `time`，表示 Unix 毫秒时间戳。
 - 时序数据建模用 `CREATE MEASUREMENT`；关系表元数据、小对象等可用 `CREATE TABLE ... PRIMARY KEY (...)`。
-- 时间桶聚合只支持 `GROUP BY time(...)`。
-- 当前不支持 `GROUP BY <tag列>`、多表/外连接 `JOIN`、`UNION`、`CTE`、`OVER (...)`。
+- Measurement 聚合可按 TAG 和 `time(...)` 分组。
+- 跨模型语法以 SQL 参考中的对应入口为准。例如 measurement 与关系表的混合 JOIN 支持内连接，连接键为 measurement 的 TAG。
 - 想查“这个库里有什么”，时序数据先 `SHOW MEASUREMENTS` / `DESCRIBE MEASUREMENT <name>`，关系表先 `SHOW TABLES` / `DESCRIBE TABLE <name>`。
 
 ## 1. 建库、建用户、授权
@@ -216,7 +216,7 @@ FROM cpu
 WHERE host = 'server-01';
 ```
 
-### 5.2 扩展聚合
+### 5.2 Measurement 扩展聚合
 
 ```sql
 SELECT
@@ -244,9 +244,21 @@ GROUP BY time(2m);
 
 说明：
 
-- 当前只支持 `GROUP BY time(...)`。
-- 当前结果只返回聚合列，不会自动带出桶起始时间列。
-- 如果你需要按 `host`、`device_id` 之类的 tag 分组，需要在应用层拆查询或分批执行。
+- Measurement 的时间桶语法为 `GROUP BY time(...)`，可以同时按 TAG 分组，例如 `GROUP BY host, time(2m)`。
+- 需要桶起始时间时，在投影中显式加入 `time AS bucket_start`。
+
+### 5.4 按关系表日期分组
+
+对于含有 `occurred_at DATETIME2` 的关系表 `events`，可以用 `DATE_TRUNC` 截出每个月的起点，再对该时间值分组。
+
+```sql
+SELECT DATE_TRUNC('month', occurred_at) AS month_start, COUNT(*) AS event_count
+FROM events
+GROUP BY DATE_TRUNC('month', occurred_at)
+ORDER BY month_start;
+```
+
+`DATE_TRUNC` 保留 `DATETIME2` 的结果类型。`DATETIMEOFFSET` 则统一按 UTC 截断并返回零偏移。关系表目前使用 `COUNT`、`SUM`、`MIN`、`MAX`、`AVG` 和受支持的字符串聚合。上面的 `median`、`stddev` 和 `percentile` 示例适用于 measurement。
 
 ## 6. 窗口分析
 
@@ -442,9 +454,8 @@ WHERE source = 's-1';
 
 ```sql
 CREATE TABLE cpu (...);                         -- 时序数据应改为 CREATE MEASUREMENT
-SELECT host, avg(usage) FROM cpu GROUP BY host; -- 当前不支持按 tag GROUP BY
-SELECT time_bucket(time, '1m'), avg(usage) ...; -- 当前公开语法不是这套
-SELECT LAG(usage) OVER (ORDER BY time) ...;     -- 当前不支持 OVER(...)
+SELECT usage, avg(usage) FROM cpu GROUP BY usage; -- measurement 的 FIELD 不可用作分组键
+SELECT time_bucket(time, '1m'), avg(usage) ...;   -- measurement 用 GROUP BY time(1m)
 UPDATE cpu SET usage = 1.0 WHERE ...;           -- measurement 普通数值 FIELD 不支持 UPDATE；已有 VECTOR FIELD 可按 TAG/time 条件更新
 ```
 

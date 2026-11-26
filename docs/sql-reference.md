@@ -297,6 +297,7 @@ RETURNING id, amount;
 ```sql
 SELECT DATE_ONLY(installed_at),
        DATE_PART('year', installed_at),
+       DATE_TRUNC('week', installed_at),
        DATE_ADD(installed_at, 7, 'day'),
        DATE_DIFF('day', installed_at, CURRENT_UTC_DATETIME()),
        DATE_FORMAT(installed_at, 'yyyy-MM-dd HH:mm:ss'),
@@ -312,7 +313,29 @@ WHERE installed_at <= CURRENT_UTC_DATETIME();
 - `DATE_DIFF(part, start, end)`（兼容 `DATE_DIFF(start, end, part)`）返回两个时间之间按指定分量截断的有符号整数；支持 `year`、`quarter`、`month`、`week`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`。`DATEDIFF` 为同义别名。
 - `DATE_FORMAT(value, format)` / `FORMAT_DATETIME(value, format)` / `TO_CHAR(value, format)` 使用 invariant .NET 日期格式；`STRFTIME(format, value)` 额外支持 `%Y`、`%m`、`%d`、`%H`、`%i`、`%s`、`%f` 等常用标记。格式字符串最多 128 个字符，未知 `%` 标记会拒绝。
 - `TO_UNIX_MILLISECONDS(value)` / `TO_UNIX_SECONDS(value)` 返回 Unix 时间。
-- 日期函数接受 `DATETIME` 或 Unix 毫秒；输入为 `NULL` 时结果为 `NULL`。时序分桶仍使用 `GROUP BY time(1m)` 等语法，不使用 `DATE_TRUNC`。
+- 时序分桶使用 `GROUP BY time(1m)` 等语法。
+
+#### `DATE_TRUNC(unit, value)`
+
+关系 SQL 可以在投影、`WHERE`、`GROUP BY`、`HAVING` 和普通查询的 `ORDER BY` 中调用 `DATE_TRUNC`。聚合查询可以按日期截断结果的投影别名排序。`unit` 为不区分大小写的字符串，支持 `year`、`quarter`、`month`、`week`、`day`、`hour`、`minute`、`second`、`millisecond`。函数将值向下截到对应边界。季度从 1、4、7、10 月首日开始，周从星期一零点开始。
+
+| 输入 | 返回值 |
+| --- | --- |
+| `DATETIME` | 返回 `DATETIME`，按日期表达式的现有时间表示截断。 |
+| `DATETIME2` | 返回 UTC `DATETIME2`，按指定单位截掉较低位，结果保留 `DATETIME2` 列类型。 |
+| `DATETIMEOFFSET` | 先按 UTC 取截断边界，再返回零偏移 `DATETIMEOFFSET`。 |
+| 表示 Unix 毫秒的 `INT` | 按 UTC 截断并返回 Unix 毫秒整数，支持纪元前的负值。 |
+
+任一参数为 `NULL` 时返回 `NULL`。参数个数错误、非法单位、无法表示的 Unix 毫秒和其他值类型均报执行错误。文本日期须先显式 `CAST` 为所需日期类型。函数名为 `DATE_TRUNC`，`DATA_TRUNC` 无对应内置函数。
+
+```sql
+SELECT DATE_TRUNC('week', installed_at) AS week_start, COUNT(*) AS devices_installed
+FROM devices
+WHERE installed_at IS NOT NULL
+GROUP BY DATE_TRUNC('week', installed_at)
+HAVING COUNT(*) > 0
+ORDER BY week_start;
+```
 
 ### `ALTER TABLE`
 

@@ -63,6 +63,52 @@ internal static class SqlDateTimeFunctions
         };
     }
 
+    internal static object? DateTrunc(IReadOnlyList<object?> arguments)
+    {
+        object? valueArgument = arguments[1];
+        if (arguments[0] is null || valueArgument is null)
+            return null;
+
+        string part = RequirePart(arguments[0], "date_trunc");
+        return valueArgument switch
+        {
+            DateTime value => Truncate(value, part),
+            DateTimeOffset value => new DateTimeOffset(Truncate(value.UtcDateTime, part)),
+            long unixMilliseconds => TruncateUnixMilliseconds(unixMilliseconds, part),
+            var value => throw new InvalidOperationException(
+                $"函数 date_trunc 需要 DATETIME、DATETIME2、DATETIMEOFFSET 或 Unix 毫秒整数，实际为 {value.GetType().Name}。"),
+        };
+    }
+
+    private static long TruncateUnixMilliseconds(long value, string part)
+    {
+        if (value < DateTimeOffset.MinValue.ToUnixTimeMilliseconds()
+            || value > DateTimeOffset.MaxValue.ToUnixTimeMilliseconds())
+            throw new InvalidOperationException("函数 date_trunc 的 Unix 毫秒超出可表示的日期范围。");
+
+        var truncated = Truncate(DateTimeOffset.FromUnixTimeMilliseconds(value).UtcDateTime, part);
+        return new DateTimeOffset(truncated).ToUnixTimeMilliseconds();
+    }
+
+    private static DateTime Truncate(DateTime value, string part)
+    {
+        return part switch
+        {
+            "year" => new DateTime(value.Year, 1, 1, 0, 0, 0, value.Kind),
+            "quarter" => new DateTime(value.Year, ((value.Month - 1) / 3 * 3) + 1, 1, 0, 0, 0, value.Kind),
+            "month" => new DateTime(value.Year, value.Month, 1, 0, 0, 0, value.Kind),
+            "week" => value.Date.AddDays(-(((int)value.DayOfWeek + 6) % 7)),
+            "day" => value.Date,
+            "hour" => Align(TimeSpan.TicksPerHour),
+            "minute" => Align(TimeSpan.TicksPerMinute),
+            "second" => Align(TimeSpan.TicksPerSecond),
+            "millisecond" => Align(TimeSpan.TicksPerMillisecond),
+            _ => throw new InvalidOperationException($"函数 date_trunc 不支持日期分量 '{part}'。"),
+        };
+
+        DateTime Align(long unitTicks) => new(value.Ticks - value.Ticks % unitTicks, value.Kind);
+    }
+
     internal static object? DateAdd(IReadOnlyList<object?> arguments)
     {
         var valueArgument = arguments[0];
