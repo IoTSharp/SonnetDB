@@ -32,8 +32,9 @@ public class SqlExecutorSelectTests : IDisposable
         return db;
     }
 
-    private static SelectExecutionResult Select(Tsdb db, string sql)
-        => Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
+    private static SelectExecutionResult Select(Tsdb db, string sql, SqlExecutionOptions? options = null)
+        => Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, null, sql, null, null,
+            options ?? SqlExecutionOptions.Default));
 
     private static void Seed(Tsdb db)
     {
@@ -180,6 +181,44 @@ public class SqlExecutorSelectTests : IDisposable
 
         Assert.Equal(2, r.Rows.Count);
         Assert.Equal([3000L, 2500L], r.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Theory]
+    [InlineData("ASC", 1000L, 3000L)]
+    [InlineData("DESC", 3000L, 1000L)]
+    public void Select_OrderByTimeWithoutLimit_SingleFieldPreservesFullResultAndBudgets(
+        string direction, long first, long last)
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        db.FlushNow();
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, region, usage) VALUES (2000, 'h1', 'cn', 22.0)");
+        string sql = $"SELECT time, host, usage FROM cpu WHERE host = 'h1' ORDER BY time {direction}";
+        var metrics = new SqlExecutionMetrics();
+        var result = Select(db, sql, new SqlExecutionOptions { Metrics = metrics });
+
+        Assert.Equal(["time", "host", "usage"], result.Columns);
+        Assert.Equal([first, 2000L, last], result.Rows.Select(static row => (long)row[0]!));
+        Assert.Equal(22.0, result.Rows[1][2]);
+        Assert.Equal(0, metrics.Complete().PeakMemoryBytes);
+
+        var spillMetrics = new SqlExecutionMetrics();
+        var spilled = Select(db, sql, new SqlExecutionOptions
+        {
+            BlockingOperatorMemoryLimitBytes = 96,
+            Metrics = spillMetrics,
+        });
+        Assert.True(spillMetrics.Complete().SpillCount > 0);
+        Assert.Equal(result.Columns, spilled.Columns);
+        Assert.Equal(result.Rows.Count, spilled.Rows.Count);
+        for (int index = 0; index < result.Rows.Count; index++)
+            Assert.Equal(result.Rows[index], spilled.Rows[index]);
+
+        var limited = new SqlExecutionOptions { MaxMaterializedRows = 1 };
+        var error = Assert.Throws<InvalidOperationException>(() => Select(db, sql, limited));
+        Assert.Contains("累计物化", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, db.SqlMemoryBudget.ReservedBytes);
     }
 
     [Fact]

@@ -2,6 +2,8 @@
 
 2026-11-27（Asia/Shanghai）核查 `8cea0680` 的排序调用链。首个实现范围为直接 measurement raw SELECT 的 `ORDER BY time [ASC|DESC]`，涵盖稳定排序、分页和完整结果交付。关系表、复杂聚合和连接各自保留原有执行入口。[GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440)
 
+首个代码切片针对无分页的单序列、单字段流直接查询，要求投影中第一个名为 `time` 的列确为时间列。查询复用升序点流，降序原地反转最终列表，整份结果仍通过 `Rows` 返回。显式排序预算、预览和复杂查询沿用原路径。源码回归覆盖重复点末值、升降序、强制外排结果和预览额度拒绝。[执行器](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs) · [定向回归](../../tests/SonnetDB.Core.Tests/Sql/SqlExecutorSelectTests.cs)
+
 ## 当前调用链
 
 | 路径 | 当前实现与边界 |
@@ -29,4 +31,4 @@
 | 再次打开与资源回收 | 覆盖短读、排序/归并/发送期间取消、临时盘额度耗尽、写入失败、进程异常退出，以及重开清理。断言临时文件、读租约、内存额度和并发准入可回收，控制目录和无归属文件仍存在。 | NOT_RUN |
 | 并发读视图 | 在受控屏障中交叉执行写入、flush/compaction 和慢读，验证所有返回行来自声明的读范围。比较并列键在单次查询内的稳定性，跨语句分页按单独合同记录。 | NOT_RUN |
 
-本阶段完成源码调用链与验收合同的静态核对。已有基础回归可作为对照入口，首次实现、性能容量和固定硬件验收按矩阵逐项记录。现场重启与 OOM 的因果需实际运行时间线、进程指标和错误日志。[强制 spill 回归](../../tests/SonnetDB.Core.Tests/Sql/SqlBlockingOperatorSpillTests.cs) · [measurement 排序预算回归](../../tests/SonnetDB.Core.Tests/Sql/MeasurementOrderMaterializationBudgetTests.cs) · [环境与现场资格路线](../roadmap-environment-validation.md)
+基础回归作为对照入口。多序列实现、完整结果传输、性能容量和固定硬件验收按矩阵逐项记录。现场重启与 OOM 的因果需实际运行时间线、进程指标和错误日志。[强制 spill 回归](../../tests/SonnetDB.Core.Tests/Sql/SqlBlockingOperatorSpillTests.cs) · [measurement 排序预算回归](../../tests/SonnetDB.Core.Tests/Sql/MeasurementOrderMaterializationBudgetTests.cs) · [环境与现场资格路线](../roadmap-environment-validation.md)

@@ -986,9 +986,8 @@ internal static class SelectExecutor
     // ── 原始模式 ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 对没有分页、排序、残差谓词或计算投影的 raw 查询复用流式时间轴合并器。
-    /// 该路径保持同一 series/field/timestamp 的最后值语义，同时避免先物化全部物理点，
-    /// 再构造时间戳集合和字段字典。
+    /// 对没有分页、残差谓词或计算投影的 raw 查询复用流式时间轴合并器。
+    /// 单个 series 和单个字段流可直接产生按 time 排序的完整结果，并保留重复点最后值语义。
     /// </summary>
     private static bool TryExecuteSimpleRawStreaming(
         Tsdb tsdb,
@@ -1001,7 +1000,7 @@ internal static class SelectExecutor
     {
         result = null!;
         if (statement.Pagination is not null
-            || statement.OrderByList.Count != 0
+            || statement.OrderByList.Count > 1
             || statement.Distinct
             || statement.Having is not null
             || statement.JoinClauses.Count != 0
@@ -1021,7 +1020,21 @@ internal static class SelectExecutor
             return false;
         }
 
-        IReadOnlyList<IReadOnlyList<object?>> BuildSeriesRows(SeriesEntry series)
+        OrderBySpec? orderBy = statement.OrderByList.Count == 0 ? null : statement.OrderByList[0];
+        if (orderBy is not null
+            && (matchedSeries.Count != 1
+                || orderBy.Expression is not IdentifierExpression identifier
+                || !IsTimePseudoColumn(identifier)
+                || projections.FirstOrDefault(static projection => projection.ColumnName == "time")?.Kind != ProjectionKind.Time
+                || projections.Where(static projection => projection.Kind == ProjectionKind.Field)
+                    .Select(static projection => projection.Column!.Name)
+                    .Distinct(StringComparer.Ordinal).Skip(1).Any()
+                || SqlQueryResources.Current?.Options.BlockingOperatorMemoryLimitBytes is not null))
+        {
+            return false;
+        }
+
+        List<IReadOnlyList<object?>> BuildSeriesRows(SeriesEntry series)
         {
             var seriesRows = new List<IReadOnlyList<object?>>();
             foreach (var row in EnumerateSeriesRawRows(
@@ -1032,6 +1045,19 @@ internal static class SelectExecutor
             }
 
             return seriesRows;
+        }
+
+        if (orderBy is not null)
+        {
+            // 使用相同的升序点流选择重复点的最后值。单序列中每个时间戳只有一行，可以原地反转结果。
+            var orderedRows = BuildSeriesRows(matchedSeries[0]);
+            if (orderBy.Direction == SortDirection.Descending)
+                orderedRows.Reverse();
+            SqlExecutor.ThrowIfCancellationRequested();
+            result = new SelectExecutionResult(
+                projections.Select(static projection => projection.ColumnName).ToList(),
+                orderedRows);
+            return true;
         }
 
         long estimatedRows = SqlQueryResources.Current?.EstimatedRows ?? matchedSeries.Count;
