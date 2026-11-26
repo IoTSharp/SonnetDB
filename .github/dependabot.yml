@@ -10,7 +10,61 @@ updates:
         patterns:
           - "SkiaSharp"
           - "SkiaSharp.NativeAssets.Linux.NoDependencies"
+      opentelemetry:
+        patterns:
+          - "OpenTelemetry"
+          - "OpenTelemetry.*"
+      test-tools:
+        patterns:
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.collector"
     ignore:
+      # Keep the default net10.0 graph on the .NET 10 servicing line.
+      # Update the separate net11.0 property values in Directory.Packages.props by hand.
+      - dependency-name: "Microsoft.AspNetCore.*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.Caching.*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.Configuration*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.DependencyInjection*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.Hosting*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.Logging*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.Options*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "Microsoft.Data.Sqlite*"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "System.Diagnostics.DiagnosticSource"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "System.IO.Hashing"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "System.Numerics.Tensors"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "System.Text.Json"
+        versions: ["[10.1.0-0,)"]
+      - dependency-name: "System.Threading.Channels"
+        versions: ["[10.1.0-0,)"]
+
+      # AI and VectorData use their own 10.x release cadence.
+      - dependency-name: "Microsoft.Extensions.AI*"
+        versions: ["[11.0.0-0,)"]
+      - dependency-name: "Microsoft.Extensions.VectorData*"
+        versions: ["[11.0.0-0,)"]
+      # Npgsql 11 uses the .NET 11 DI and logging abstractions on net10.0.
+      - dependency-name: "Npgsql"
+        versions: ["[10.1.0-0,)"]
+      # OpenTelemetry.Api 1.21 requires DiagnosticSource 11 on net10.0.
+      - dependency-name: "OpenTelemetry"
+        versions: ["[1.21.0-0,)"]
+      - dependency-name: "OpenTelemetry.*"
+        versions: ["[1.21.0-0,)"]
+      - dependency-name: "Microsoft.ML.Tokenizers"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "Cloud.Unum.USearch"
         versions: ["2.26.2"]
     labels:
