@@ -99,6 +99,52 @@ public sealed class RelationalCoveredIndexTests : IDisposable
         Assert.Equal(0, decoded);
     }
 
+    [Theory]
+    [InlineData("ASC", "ASC")]
+    [InlineData("ASC", "DESC")]
+    [InlineData("DESC", "ASC")]
+    [InlineData("DESC", "DESC")]
+    public void Execute_OrderedCoveringWindow_MatchesBaseRowsAndStopsAtLimit(string indexDirection, string queryDirection)
+    {
+        using var database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.ExecuteScript(database, $"""
+            CREATE TABLE cover_events (
+                id INT, tenant STRING NOT NULL, rank INT NOT NULL,
+                label STRING, details STRING, PRIMARY KEY (id)
+            );
+            CREATE INDEX ix_events_window ON cover_events (tenant, rank {indexDirection}) INCLUDE (label);
+            INSERT INTO cover_events (id, tenant, rank, label, details) VALUES
+                (1, 'north', -5, 'before', 'extra'), (2, 'north', -1, 'negative', 'extra'),
+                (3, 'north', 0, NULL, 'extra'), (4, 'north', 0, 'tied', 'extra'),
+                (5, 'north', 1, 'positive', 'extra'), (6, 'north', 9, 'after', 'extra'),
+                (7, 'south', 0, 'other', 'extra');
+            """);
+        TableStore store = database.Tables.Open("cover_events");
+        int decoded = 0;
+        store.RowDecodedTestHook = _ => decoded++;
+        string window = $"""
+            FROM cover_events WHERE tenant = 'north' AND rank >= -5 AND rank <= 9
+            ORDER BY rank {queryDirection} LIMIT 3 OFFSET 1
+            """;
+
+        var referenceMetrics = new SqlExecutionMetrics();
+        SelectExecutionResult reference = Execute(database, "SELECT rank, label, details " + window, referenceMetrics);
+        Assert.Equal("secondary_index_range", referenceMetrics.Complete().AccessPath);
+        Assert.Equal(4, decoded);
+        decoded = 0;
+
+        var metrics = new SqlExecutionMetrics();
+        SelectExecutionResult result = Execute(database, "SELECT rank, label " + window, metrics);
+        Assert.Equal(reference.Rows.Select(static row => (row[0], row[1])),
+            result.Rows.Select(static row => (row[0], row[1])));
+        Assert.Equal(0, decoded);
+        SqlExecutionMetricsSnapshot measured = metrics.Complete();
+        Assert.Equal("secondary_index_only", measured.AccessPath);
+        Assert.Equal(4, measured.ExaminedRows);
+        SelectExecutionResult explain = Execute(database, "EXPLAIN SELECT rank, label " + window);
+        Assert.Contains(explain.Rows, row => Equals(row[0], "access_path") && Equals(row[1], "secondary_index_only"));
+    }
+
     private Tsdb CreateDatabase()
     {
         Tsdb database = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

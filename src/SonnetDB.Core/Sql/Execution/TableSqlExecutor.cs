@@ -4083,6 +4083,23 @@ internal static partial class TableSqlExecutor
             out int candidateLimit,
             out bool descending))
         {
+            if (CanUseOrderedCoveringStatement(schema, statement, orderedPlan, projections))
+            {
+                return (
+                    ObserveCandidateRows(
+                        store.EnumerateCoveredIndex(
+                            orderedPlan.Index,
+                            orderedPlan.EqualityPrefixValues,
+                            orderedPlan.Range,
+                            candidateLimit,
+                            SqlQueryResources.Current?.CancellationToken ?? default,
+                            descending),
+                        "secondary_index_only",
+                        orderedPlan.Index.Name,
+                        fallbackReason: null),
+                    true);
+            }
+
             if (statement.OrderByList.Count > 1)
             {
                 return (
@@ -4242,6 +4259,16 @@ internal static partial class TableSqlExecutor
         }
         return CanUseCoveringIndexOnly(schema, statement.Where, plan, required);
     }
+
+    /// <summary>判断单列有序范围计划能否从同一索引读取分页所需的全部列，供 EXPLAIN 使用。</summary>
+    internal static bool CanUseOrderedCoveringStatement(TableSchema schema, SelectStatement statement,
+        TableIndexAccessPlan plan)
+        => CanUseOrderedCoveringStatement(schema, statement, plan, BuildProjections(statement.Projections, schema));
+
+    private static bool CanUseOrderedCoveringStatement(TableSchema schema, SelectStatement statement,
+        TableIndexAccessPlan plan, IReadOnlyList<Projection> projections)
+        => statement.OrderByList.Count == 1
+            && CanUseCoveringStatement(schema, statement, plan, projections);
 
     /// <summary>在不物化惰性候选的前提下记录实际访问路径，并在枚举结束时批量累计检查数量。</summary>
     private static IEnumerable<TableRow> ObserveCandidateRows(

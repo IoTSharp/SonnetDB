@@ -1140,12 +1140,19 @@ public sealed partial class TableStore : IDisposable
     /// 对普通索引等值前缀或范围执行 index-only scan。返回行只填充索引列，
     /// 调用方必须证明谓词和所需列均被该索引覆盖。
     /// </summary>
+    /// <param name="index">覆盖所需列的普通二级索引。</param>
+    /// <param name="indexColumnValues">索引连续等值前缀。</param>
+    /// <param name="range">等值前缀后的范围约束。</param>
+    /// <param name="limit">最多返回的索引行数。</param>
+    /// <param name="cancellationToken">取消查询的令牌。</param>
+    /// <param name="descending">范围列按逻辑降序扫描，独立于索引声明方向。</param>
     internal IEnumerable<TableRow> EnumerateCoveredIndex(
         TableIndex index,
         IReadOnlyList<object?> indexColumnValues,
         TableIndexRange? range = null,
         int? limit = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool descending = false)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(indexColumnValues);
@@ -1184,15 +1191,16 @@ public sealed partial class TableStore : IDisposable
             ? [new(prefix, TableIndexCodec.GetPrefixSuccessor(prefix))]
             : BuildSignedKeyRanges(index, indexColumnValues, range, tableSnapshot.Schema);
         int emitted = 0;
-        foreach (TableIndexKeyRange keyRange in keyRanges)
+        for (int rangeIndex = 0; rangeIndex < keyRanges.Count && (limit is null || emitted < limit.Value); rangeIndex++)
         {
+            TableIndexKeyRange keyRange = descending ? keyRanges[keyRanges.Count - 1 - rangeIndex] : keyRanges[rangeIndex];
             using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
             {
                 Prefix = prefix,
                 StartInclusive = keyRange.StartInclusive,
                 EndExclusive = keyRange.EndExclusive,
-                Descending = range is not null && index.IsDescending(indexColumnValues.Count),
-                PageSize = 256,
+                Descending = range is not null && (descending ^ index.IsDescending(indexColumnValues.Count)),
+                PageSize = limit is int take ? Math.Min(256, take - emitted) : 256,
             });
             while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
             {

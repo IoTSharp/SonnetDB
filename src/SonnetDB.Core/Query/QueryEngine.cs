@@ -324,7 +324,10 @@ public sealed class QueryEngine
             }
 
             var snapshot = snapshotLease.Snapshot;
-            var candidates = snapshot.Index.LookupCandidates(seriesId, fieldName, from, to);
+            // 只有时间戳严格领先时才能跳过磁盘候选，等时仍需保留原有的字段类型检查。
+            var candidates = hasBest && best.Timestamp > snapshot.Index.MaxTimestamp
+                ? Array.Empty<SegmentBlockRef>()
+                : snapshot.Index.LookupCandidates(seriesId, fieldName, from, to);
             if (candidates.Count > 0)
             {
                 var orderedCandidates = new List<SegmentBlockRef>(candidates.Count);

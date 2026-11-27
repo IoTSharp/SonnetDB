@@ -1521,8 +1521,7 @@ public static class SqlExplainPlanner
                 null, null);
         }
 
-        if ((estimate.IndexPlan is not null || where is null)
-            && statement is not null
+        if (statement is not null
             && TableSqlExecutor.TryChooseOrderedRangeAccessPlan(
                 store,
                 schema,
@@ -1534,8 +1533,11 @@ public static class SqlExplainPlanner
         {
             TableStatisticsState state = store.GetStatisticsState();
             long rows = Math.Min(orderedCandidateLimit, store.RowCount);
+            string accessPath = TableSqlExecutor.CanUseOrderedCoveringStatement(schema, statement, orderedPlan)
+                ? "secondary_index_only"
+                : "secondary_index_range";
             return new TableAccessCostEstimate(
-                "secondary_index_range",
+                accessPath,
                 orderedPlan.Index.Name,
                 rows,
                 rows,
@@ -1544,7 +1546,7 @@ public static class SqlExplainPlanner
                 state.EstimateSource,
                 state.Statistics?.SourceSequence,
                 state.FreshnessMilliseconds,
-                $"secondary_index_range:{orderedPlan.Index.Name} rows<={rows};ordered_window<={orderedCandidateLimit}",
+                $"{accessPath}:{orderedPlan.Index.Name} rows<={rows};ordered_window<={orderedCandidateLimit}",
                 null,
                 orderedPlan);
         }

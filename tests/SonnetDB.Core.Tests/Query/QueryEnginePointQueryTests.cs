@@ -256,6 +256,40 @@ public sealed class QueryEnginePointQueryTests : IDisposable
         Assert.Equal(149.0, latest.Value.AsDouble());
     }
 
+    [Theory]
+    [InlineData(1001L, 2.0)]
+    [InlineData(1002L, 2.0)]
+    [InlineData(1003L, 1.0)]
+    public void TryGetLatestPoint_ActiveAndFlushedTimestampCollision_PreservesLatestValue(
+        long persistedTimestamp, double expectedValue)
+    {
+        using var db = Tsdb.Open(_opts);
+        db.Write(MakePoint("m", persistedTimestamp, "f", FieldValue.FromDouble(1.0)));
+        db.FlushNow();
+        db.Write(MakePoint("m", 1002L, "f", FieldValue.FromDouble(2.0)));
+
+        var series = Assert.Single(db.Catalog.Snapshot());
+        Assert.True(db.Query.TryGetLatestPoint(series.Id, "f", TimeRange.All, out var latest));
+        Assert.Equal(Math.Max(persistedTimestamp, 1002L), latest.Timestamp);
+        Assert.Equal(expectedValue, latest.Value.AsDouble());
+    }
+
+    [Fact]
+    public void TryGetLatestPoint_ActiveValueTombstoned_FallsBackToFlushedValue()
+    {
+        using var db = Tsdb.Open(_opts);
+        db.Write(MakePoint("m", 1001L, "f", FieldValue.FromDouble(1.0)));
+        db.FlushNow();
+        db.Write(MakePoint("m", 1002L, "f", FieldValue.FromDouble(2.0)));
+
+        var series = Assert.Single(db.Catalog.Snapshot());
+        db.Delete(series.Id, "f", 1002L, 1002L);
+
+        Assert.True(db.Query.TryGetLatestPoint(series.Id, "f", TimeRange.All, out var latest));
+        Assert.Equal(1001L, latest.Timestamp);
+        Assert.Equal(1.0, latest.Value.AsDouble());
+    }
+
     [Fact]
     public void TryGetLatestPoint_WithTimeRange_ReturnsLatestPointInRange()
     {
