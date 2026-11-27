@@ -1,3 +1,22 @@
+## 2026-11-27（Asia/Shanghai）IoTSharp 时序最新值与关系索引分页
+
+- 2026-11-27 10:45（Asia/Shanghai）从本地 `main` 提交 `564aee6d686581f6cd8426451061d1ef5feae330`，GitHub `origin/main` 独立读回一致。提交范围为两项查询优化、对应回归和变更日志。最终工作树的全解决方案 restore、CI 格式命令、暂存差异及 Core 定向 145/145 通过。格式命令报告了工作区加载警告，退出码为 0。Cordonix 确认本次验证及推送进程树已回收。
+- SonnetDB 基于 `8cea0680` 隔离对照后，将两项验证通过的源码补丁及回归同步到本地 `main` 工作区。时序最新值只在内存点严格晚于同快照全部磁盘段时跳过磁盘候选。关系单列有序分页在谓词和输出均被同一个索引覆盖时直接读取索引，并让 EXPLAIN 报告这条路径。
+- 两项组合在隔离工作树和本地 `main` 工作区均通过 143 项定向测试。同机 .NET 10 基准的时序 32 段内存最新点分配从 133,320 降至 168 B/次，磁盘最新点对照量持平。关系 8,192 字符详情样本的分页分配约从 1,218,103 降至 134,533 B/次。基准设置、复测及可复核临时目录见 `C:/Users/mysti/.codex/worktrees/sonnet-ordered-index-covering/SonnetDB/HANDOFF.md`。生产峰值、完整解决方案验证和部署为独立验收。
+
+## 2026-11-27（Asia/Shanghai）主分支集成、依赖策略与 SQL 路线
+
+- GitHub `main` 从 `8cea0680` 合入 `f02225e2` 和 `1eda19f5`，已按完整 SHA 读回。GitHub 将 #441、#442、#444、#446、#451 标记为已合并。#443、#445、#447、#448–450 随策略变更关闭，11 个机器人分支均已清理。`parity-results` 按约定独立保留。
+- Dependabot 保留 .NET 10 框架包 `10.0.x`、AI/VectorData `10.x`。NuGet 元数据核实 AI 11、Npgsql 11 和 OpenTelemetry 1.21 在 `net10.0` 会引入相应的 11.x 依赖。选定的 `net10.0` 已还原依赖图未出现对应 11.x 依赖。版本范围忽略同样会过滤范围里的安全更新 PR，下一轮 NuGet bot 实际结果尚未确认。
+- #438 根据空 TAG、JSON 跳过及预览回归结案，现场重启与 OOM 因果仍待证据。#437 合入关系 SQL `DATE_TRUNC` 及 SQL 参考、Cookbook、Copilot 和 AI 上下文同步，关系扩展聚合保持开放。#440 已形成大结果 `ORDER BY` 的源码核查与验收设计。发行索引和变更日志按 5.1.1、5.2.0 公开标签归档。
+- `1eda19f5` 的 solution restore、规定的 Format Check、依赖许可证检查、`git diff --check` 均为 PASS。Core 定向 167/167、Server 定向 85/85 PASS，官方 Actions CI 截至初次读回 Format PASS，其他矩阵仍在运行。全量测试、NativeAOT、公开包、安装、现场和部署按各自门禁记录。已清理本任务的空测试回执目录，本机构建进程树已回收。
+- `e57afee9` 推进 #440 的首个代码切片，单序列、单字段流的完整 `ORDER BY time` 查询从现有有序点流生成唯一结果列表，倒序原地反转。新一轮 restore、Format Check、暂存 diff 校验及 Core 定向 155/155 PASS。本机复核在共享工作树执行，提交仅含排序代码、回归及三份相关文档。GitHub 已读回该 SHA，CI 运行 `45887712420` 初次读取为 queued。多序列、整条语句读视图、流式传输、容量及运行验收按 #440 矩阵继续记录。
+
+## 2026-11-23（Asia/Shanghai）5.2.0 正式发布资料核验
+
+- `main` 与公开标签 `v5.2.0` 同指 `cbbe5ed2e64879ea6fb7650d1d7b3ff4eee2909d`。正式发布页、同提交发布流水线中的 Quartz 重启回归、11 个 NuGet 包和 Docker Hub `linux/amd64` 镜像记录均已读回。产品源代码、部署和 Git 引用没有改动。
+- 定稿、图片、事实核对及六渠道发布状态由私有 Publishing 项目下 `press-releases/5.2.0/` 和对应渠道回执维护。若需续接，先核对平台原 ID 和最新回执。本文仅保留工程交接入口。本轮未提交 Git，临时生成进程已回收。
+
 ## 2026-11-23（Asia/Shanghai）Quartz.NET 持久化调度本地候选
 
 - `main` 基线 `bd34f29b`。新增 `src/SonnetDB.Quartz` 和定向测试项目，向 IoTSharp 提供独立的 Quartz 3.18.2 ADO.NET 作业存储。支持在指定 SonnetDB 数据库准备并重复验证调度表，单个活动调度器重启恢复已保存作业及触发器。
