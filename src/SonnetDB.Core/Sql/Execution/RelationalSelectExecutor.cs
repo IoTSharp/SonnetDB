@@ -71,6 +71,7 @@ internal static partial class RelationalSelectExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        FunctionCallExpression[] statisticsCalls = ValidateRelationalStatisticsShapes(statement);
         foreach (var item in statement.Projections)
             foreach (var call in EnumerateAggregateCalls(item.Expression))
                 if (StringAggregateFunction.IsBuiltIn(call.Name))
@@ -107,8 +108,10 @@ internal static partial class RelationalSelectExecutor
                     Rows = [],
                 };
             }
+            ValidateRelationalStatisticsTypes(statisticsCalls, declared.Columns);
             var projections = ContainsAggregate(statement.Projections)
                 || statement.GroupBy.Count != 0 || statement.Having is not null
+                || statisticsCalls.Length != 0
                 ? BuildAggregateProjections(statement.Projections, statement.GroupBy, declared)
                 : BuildRawProjections(statement.Projections, declared);
             return new SelectExecutionResult(projections.Select(static projection => projection.Name).ToArray(), [])
@@ -235,16 +238,24 @@ internal static partial class RelationalSelectExecutor
 
         bool hasWindow = ContainsWindow(statement.Projections);
         if (hasWindow && (ContainsAggregate(statement.Projections)
-            || statement.GroupBy.Count > 0 || statement.Having is not null))
+            || statement.GroupBy.Count > 0 || statement.Having is not null || statisticsCalls.Length != 0))
             throw new NotSupportedException("关系表窗口函数当前不能与普通聚合、GROUP BY 或 HAVING 混用。");
 
         if (ContainsAggregate(statement.Projections)
             || statement.GroupBy.Count > 0
-            || statement.Having is not null)
+            || statement.Having is not null
+            || statisticsCalls.Length != 0)
         {
-            relation = relation with { Rows = RetainBranchRows(relation.Rows).ToArray() };
-            var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope, memo);
-            return ApplyOrderByAndPagination(aggregateProjection, statement.OrderByList, statement.Pagination);
+            ValidateRelationalStatisticsTypes(statisticsCalls, relation.Columns);
+            var retainedRows = RetainBranchRows(relation.Rows);
+            if (statisticsCalls.Length == 0
+                || statement.Projections.Any(item => RequiresIntegralAggregateInput(item.Expression))
+                || statement.Having is not null && RequiresIntegralAggregateInput(statement.Having))
+            {
+                retainedRows = retainedRows.ToArray();
+            }
+            return ExecuteAggregateProjection(
+                tsdb, statement, relation with { Rows = retainedRows }, outerScope, memo, statisticsCalls);
         }
 
         bool canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
@@ -633,10 +644,12 @@ internal static partial class RelationalSelectExecutor
             || statement.JoinClauses.Count != 0
             || statement.GroupBy.Count != 0
             || statement.Having is not null
+            || statement.Where is not null && ContainsRelationalStatistics(statement.Where)
             || ContainsAggregate(statement.Projections)
             || ContainsWindow(statement.Projections)
             || statement.OrderByList.Any(static order =>
-                order.Expression is FunctionCallExpression { IsStar: false, IsDistinct: false, Over: null } function
+                ContainsRelationalStatistics(order.Expression)
+                || order.Expression is FunctionCallExpression { IsStar: false, IsDistinct: false, Over: null } function
                 && function.Name.Equals("date_trunc", StringComparison.OrdinalIgnoreCase)
                 && FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Scalar
                 && UserFunctionRegistry.Current?.TryGetScalar(function.Name, out _) != true)
@@ -647,7 +660,8 @@ internal static partial class RelationalSelectExecutor
     internal static bool ContainsAggregateForExplain(SelectStatement statement)
     {
         ArgumentNullException.ThrowIfNull(statement);
-        return ContainsAggregate(statement.Projections);
+        return ContainsAggregate(statement.Projections)
+            || statement.OrderByList.Any(order => ContainsRelationalStatistics(order.Expression));
     }
 
     /// <summary>为关系 JOIN 生成与运行时共用的物理算子和 Hash build side 计划。</summary>
@@ -3767,10 +3781,17 @@ internal static partial class RelationalSelectExecutor
         SelectStatement statement,
         Relation relation,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        IReadOnlyList<FunctionCallExpression>? statisticsCalls = null)
     {
         var projections = BuildAggregateProjections(statement.Projections, statement.GroupBy, relation);
+        string[] columnNames = projections.Select(static projection => projection.Name).ToArray();
+        bool sortByStatistics = statement.OrderByList.Any(order => ContainsRelationalStatistics(order.Expression));
+        int[]? sortColumns = sortByStatistics
+            ? statement.OrderByList.Select(order => ResolveAggregateOrderColumn(order, projections, columnNames)).ToArray()
+            : null;
         SqlQueryResources? resources = SqlQueryResources.Current;
+        using var statisticsReservation = ReserveStatisticsState(resources, statisticsCalls ?? []);
         using var reservation = resources?.CreateReservation();
         var groups = new Dictionary<GroupKey, List<object?[]>>();
         DiskGroupStore? diskGroups = null;
@@ -3818,8 +3839,6 @@ internal static partial class RelationalSelectExecutor
             ? groups.Values
             : diskGroups.EnumerateGroups();
 
-        var rows = new List<IReadOnlyList<object?>>(groups.Count);
-
         // 预先决定每个聚合 spec 的输入是不是"全行全空非空值都是整数类型"。
         // 这个判断必须跨所有组、整个结果集计算一次，否则不同组各自看自己的子集会得到
         // 不一致的结论：A 组返回 long 120、B 组返回 double 120.0，同一列异质类型。
@@ -3855,7 +3874,34 @@ internal static partial class RelationalSelectExecutor
             }
         }
 
+        var columnInfo = projections.Select(projection => InferSelectColumnInfo(
+            projection.Expression, relation.Columns)).ToArray();
+        if (sortColumns is not null)
+        {
+            var comparer = new RelationSortComparer(
+                statement.OrderByList.Select(static order => order.Direction).ToArray());
+            RelationSortRow[] sorted = TopN.OrderByThenPaginate(
+                SortCandidates(sortColumns), comparer, statement.Pagination?.Offset ?? 0, statement.Pagination?.Fetch,
+                RelationSortRowSpillCodec);
+            return new SelectExecutionResult(columnNames, sorted.Select(static item => item.Row).ToArray())
+            {
+                ColumnInfo = columnInfo,
+            };
+        }
+
+        var rows = new List<IReadOnlyList<object?>>(groups.Count);
         foreach (IReadOnlyList<object?[]> group in groupedRows)
+        {
+            if (ProjectGroup(group) is { } output)
+                rows.Add(output);
+        }
+        ReleaseGrouping();
+        return ApplyOrderByAndPagination(new SelectExecutionResult(columnNames, rows)
+        {
+            ColumnInfo = columnInfo,
+        }, statement.OrderByList, statement.Pagination);
+
+        object?[]? ProjectGroup(IReadOnlyList<object?[]> group)
         {
             SqlExecutor.ThrowIfCancellationRequested();
             var representative = group.Count == 0
@@ -3867,7 +3913,7 @@ internal static partial class RelationalSelectExecutor
                     tsdb, statement.Having, relation.Columns, representative, group,
                     allIntegralByNestedAggregate, outerScope, memo))
             {
-                continue;
+                return null;
             }
 
             var output = new object?[projections.Count];
@@ -3886,15 +3932,37 @@ internal static partial class RelationalSelectExecutor
                         memo);
             }
             SqlRowRetentionBudget.RetainForExecution(output);
-            rows.Add(output);
+            return output;
         }
 
-        var columnInfo = projections.Select(projection => InferSelectColumnInfo(
-            projection.Expression, relation.Columns)).ToArray();
-        return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows)
+        IEnumerable<RelationSortRow> SortCandidates(int[] columns)
         {
-            ColumnInfo = columnInfo,
-        };
+            foreach (IReadOnlyList<object?[]> group in groupedRows)
+            {
+                if (ProjectGroup(group) is not { } output)
+                    continue;
+
+                var sortValues = new object?[columns.Length];
+                for (int i = 0; i < sortValues.Length; ++i)
+                {
+                    int index = columns[i];
+                    sortValues[i] = index >= 0
+                        ? output[index]
+                        : EvaluateRelationalStatistics(tsdb, (FunctionCallExpression)statement.OrderByList[i].Expression,
+                            relation.Columns, group, outerScope, memo);
+                }
+                SqlRowRetentionBudget.RetainForExecution(sortValues);
+                yield return new RelationSortRow(output, sortValues);
+            }
+            ReleaseGrouping();
+        }
+
+        void ReleaseGrouping()
+        {
+            groups.Clear();
+            statisticsReservation?.ReleaseAll();
+            reservation?.ReleaseAll();
+        }
     }
 
     /// <summary>
@@ -3925,6 +3993,7 @@ internal static partial class RelationalSelectExecutor
         RelationalScope? outerScope,
         SubqueryMemo memo)
         => !StringAggregateFunction.IsBuiltIn(aggregate.Function.Name)
+            && !IsRelationalStatisticsFunction(aggregate.Function.Name)
             && (InferAggregateInputIntegral(aggregate, relation.Columns)
             ?? IsAggregateInputAllIntegral(
                 tsdb, aggregate, relation.Columns, relation.Rows, outerScope, memo));
@@ -4577,6 +4646,8 @@ internal static partial class RelationalSelectExecutor
             string name = function.Name.ToLowerInvariant();
             if (StringAggregateFunction.IsBuiltIn(name))
                 return new SelectColumnInfo(TableColumnType.String, true);
+            if (IsRelationalStatisticsFunction(name))
+                return new SelectColumnInfo(TableColumnType.Float64, true);
             if (name == "count")
                 return new SelectColumnInfo(TableColumnType.Int64, false);
             var input = function.Arguments.Count == 1
@@ -4662,6 +4733,8 @@ internal static partial class RelationalSelectExecutor
     {
         var fn = aggregate.Function;
         var name = fn.Name.ToLowerInvariant();
+        if (IsRelationalStatisticsFunction(name))
+            return EvaluateRelationalStatistics(tsdb, fn, columns, rows, outerScope, memo);
         if (StringAggregateFunction.IsBuiltIn(name))
             return StringAggregateFunction.Evaluate(fn, rows,
                 row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo),
@@ -5335,6 +5408,7 @@ internal static partial class RelationalSelectExecutor
         }
         if (subquery.GroupBy.Count != 0
             || subquery.Having is not null
+            || subquery.Where is not null && ContainsRelationalStatistics(subquery.Where)
             || subquery.Distinct)
         {
             fallbackReason = "aggregate_or_distinct";
@@ -6095,6 +6169,7 @@ internal static partial class RelationalSelectExecutor
             || string.Equals(name, "min", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "max", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "avg", StringComparison.OrdinalIgnoreCase)
+            || IsRelationalStatisticsFunction(name)
             || StringAggregateFunction.IsBuiltIn(name);
 
     private static bool MatchesGroupBy(SqlExpression expression, IReadOnlyList<SqlExpression> groupBy)

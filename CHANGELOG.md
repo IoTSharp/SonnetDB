@@ -17,6 +17,11 @@
 - 新增 `DATE_TRUNC(unit, value)`，支持年、季度、月、周、日、小时、分钟、秒和毫秒。周从周一开始。`DATETIME` 和 `DATETIME2` 保留各自声明类型，`DATETIMEOFFSET` 按 UTC 截断并返回零偏移，Unix 毫秒以整数返回。参数为 NULL 时返回 NULL，无效参数返回 SQL 错误。
 - SQL 参考、Cookbook、Copilot 与 AI 上下文同步区分关系表的标量函数、measurement 时间桶和各自支持的聚合。
 
+### 关系 SQL 统计聚合
+
+- 关系表新增 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95` 和 `p99`。输入支持 INT、FLOAT、DECIMAL，统计跳过 NULL 并返回 nullable FLOAT。分位数使用 TDigest，方差和标准差采用样本统计。查询支持分组、HAVING 和排序，统计状态计入关系查询资源预算。
+- SQL 参考、Cookbook、Copilot 与 AI 上下文同步两类聚合的能力矩阵，并提供其余 measurement 聚合的关系查询替代方式。
+
 ### 路线和发行文档
 
 - 发行索引更新至 5.2.0。路线图补齐时序写入、SonnetMQ 恢复和远程 EF Core 批处理的源码状态与待验范围，并增加 measurement 大结果排序的调用链和验收合同。

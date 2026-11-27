@@ -1,3 +1,24 @@
+## 2026-11-28（Asia/Shanghai）GH-Issue #437 关系 SQL 统计聚合
+
+- 专用工作树 `C:/Users/mysti/.codex/worktrees/issue-437-relational-aggregates/SonnetDB`，detached HEAD 为 `c42e7044b6661027a1570c91a23bc09ddf71344d`。启动时本地 GitHub/Gitee 跟踪引用同指基准。共享主目录中的 `HANDOFF.md` 为其他会话的本地改动。专用工作树保留未暂存的源码、测试和文档，两个子模块已检出基准所记录的 SHA。
+- 关系执行器增加 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95`、`p99`，覆盖投影、分组、HAVING、直接按单项统计排序及按投影别名排序。INT、FLOAT 和 DECIMAL 转 binary64，跳过 NULL，结果声明为 nullable FLOAT。分位数复用 TDigest，`percentile(x,100)` 取转换后的最大值。样本统计复用 Welford，关系路径单独做居中与二进制缩放，空集及少样本规则见 [SQL 参考](docs/sql-reference.md#关系表聚合)。
+- 统计工作状态预留 128 KiB（TDigest）或 128 字节（其余统计），TDigest 的质心和缓冲项合计至多 2,048。Core 回归在执行中取消、预算拒绝和落盘路径后检查资源释放及再次查询。Measurement 回归覆盖原有样本统计、TDigest 插值、HLL 及段摘要。真实 Kestrel 双协议用例检查带参数的 HAVING、统计结果排序、Double 元数据、NULL、无效输入 `sql_error` 和错误后的连接复用。
+- #437 完成定义逐条对照：
+  1. DATE_TRUNC 的关系 SQL 合同、精度、UTC 和错误回归 PASS。增加通过 SQL 执行器拒绝 `DATA_TRUNC` 的断言。
+  2. 第一批八个关系聚合 PASS。SQL 参考对 `spread`、`mode`、`histogram`、`distinct_count`、`tdigest_agg` 及其余注册项记录关系支持状态、替代查询和待定合同。GitHub 只读查询未找到这些条目的独立后续 issue。
+  3. Measurement 扩展聚合、函数注册、累加及 sketch/sidecar 回归 PASS。
+  4. SQL 参考、Cookbook、架构、两份 Copilot 模板和两份 LLM 上下文已同步。文档与实际加载模板的一致性回归 PASS。
+  5. 源码、测试、消费证据均在专用工作树。完整 CI 矩阵、公开包、NativeAOT、安装、部署、生产与现场验收为 NOT_RUN。GitHub issue 仍开放。提交、推送、GitHub 回复、独立后续 issue 创建和关闭均待用户明确授权。
+- 本机 SDK 11.0.100 按仓库 global.json 执行。Core 测试目标为 net10.0，Server 测试目标为 net11.0，ADO.NET 的双目标在 Server 验证中均构建成功。抽查 Core、Data、EF、Protocol、Client、Native 的 net10.0 还原图，Microsoft.AspNetCore、Microsoft.Extensions、Microsoft.EntityFrameworkCore、System.IO.Hashing 与 System.Numerics.Tensors 无 11.x 条目。项目和依赖配置无差异。
+- 最终验证命令与结果，筛选器用 `|` 拼接每个 `FullyQualifiedName~类名` 条件。共享机器以 `DOTNET_PROCESSOR_COUNT=2`、串行构建执行：
+  - `dotnet restore SonnetDB.slnx` PASS。
+  - `dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj -c Release --no-restore -m:1 -nodeReuse:false -p:UseSharedCompilation=false --filter "$core"`，net10.0 **314/314 PASS**。类名为 SqlRelationalExtendedAggregateTests、SqlDateFunctionTests、SqlExecutorExtendedAggregateTests、FunctionRegistryTests、ExtendedAggregateAccumulatorTests、AggregateStateValidationTests、SegmentAggregateSketchSidecarTests、SqlInt64CategoricalAggregateTests、SqlSelectColumnMetadataTests、SqlMaterializationBudgetTests。
+  - 同一 Core 筛选器用 `SONNETDB_KV_ENGINE=Lsm`、`--no-build --filter "($core)&KvEngine!=LegacyOnly"` 重跑，**314/314 PASS**。
+  - `dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj -c Release --no-restore -m:1 -nodeReuse:false -p:UseSharedCompilation=false --filter "$server"`，net11.0 **81/81 PASS**。类名为 SqlRelationalColumnMetadataTransportTests、PromptTemplatesTests、SqlExecuteFrameEndpointTests、SqlExecutionPreviewEndpointTests、SqlResultBoundsEndpointTests、SqlFrameEndpointTests。
+  - `dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/` PASS，退出码 0。工具报告工作区加载警告，未给出格式违规。
+- 基准 GitHub CI 的 Windows REST 分片只有 CAP 的 `CommitAsync_WithFaultedStartup_PropagatesErrorAndAllowsRollback(remote: False)` 超时，CAP 41/42。该用例本轮 NOT_RUN。[基准 CI 分片](https://github.com/IoTSharp/SonnetDB/actions/runs/45964776153/job/140390745612)
+- Cordonix 记录最终 restore/Core/Server/LSM/format 的根进程 PID 为 97716/70144/83000/63704/87388，均返回进程树回收完成。构建输出保留在专用工作树的忽略目录内，测试夹具清除独占临时数据库。首次 Core 构建捕获聚合调用点签名不匹配，Server 编译捕获一处 xUnit 分析器错误，两次消费者运行分别捕获夹具的主键声明和 INSERT 列清单错误。修正后取得表列结果。下一顺序为审查保留的补丁及验证证据。
+
 ## 2026-11-27（Asia/Shanghai）IoTSharp 时序最新值与关系索引分页
 
 - 2026-11-27 10:45（Asia/Shanghai）从本地 `main` 提交 `564aee6d686581f6cd8426451061d1ef5feae330`，GitHub `origin/main` 独立读回一致。提交范围为两项查询优化、对应回归和变更日志。最终工作树的全解决方案 restore、CI 格式命令、暂存差异及 Core 定向 145/145 通过。格式命令报告了工作区加载警告，退出码为 0。Cordonix 确认本次验证及推送进程树已回收。

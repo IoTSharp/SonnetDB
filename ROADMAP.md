@@ -37,7 +37,7 @@
 
 可靠性与恢复、查询与并发正确性、消费者与环境验收可以并行推进。干净系统安装、固定硬件和发行恢复按各 issue 的完成条件验收。[GH-Issue #398](https://github.com/IoTSharp/SonnetDB/issues/398) · [GH-Issue #399](https://github.com/IoTSharp/SonnetDB/issues/399) · [GH-Issue #402](https://github.com/IoTSharp/SonnetDB/issues/402)
 
-关系 SQL 的 `DATE_TRUNC` 标量实现覆盖关系表日期投影和分组。Measurement 继续使用现有 `GROUP BY time(...)` 和 measurement 扩展聚合。关系表扩展聚合及其精度、NULL 和预算合同仍待交付。[GH-Issue #437](https://github.com/IoTSharp/SonnetDB/issues/437)
+关系 SQL 的 `DATE_TRUNC` 用于日期投影和分组。关系表的首批统计包含 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95` 和 `p99`。Measurement 按 TAG、`GROUP BY time(...)` 或两者组合分组。各模型的输入类型、NULL、精度和预算规则见 SQL 参考，后续关系聚合按表中列出的合同决策推进。[SQL 聚合参考](docs/sql-reference.md#关系表聚合) · [GH-Issue #437](https://github.com/IoTSharp/SonnetDB/issues/437)
 
 空 TAG、JSON 跳过坏点和 Workbench Preview 预算通过定向回归，代码问题已结案。普通 SQL 大结果排序由 #440 跟踪，现场重启和 OOM 因果仍待运行证据。[GH-Issue #438](https://github.com/IoTSharp/SonnetDB/issues/438)
 
