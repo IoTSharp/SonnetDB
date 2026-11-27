@@ -34,7 +34,7 @@
 关系表 SQL：
 - 聚合包括 count、sum、min、max、avg、string_agg、group_concat，以及 `median`、`stddev`、`variance`、`percentile(value, q)`、`p50`、`p90`、`p95`、`p99`。
 - 关系统计使用 INT、FLOAT 或 DECIMAL 表达式。对于 percentile，q 写成范围 `(0, 100]` 内的数值字面量。统计忽略 NULL 并返回可为 NULL 的 FLOAT。方差和标准差为样本统计。按需生成 GROUP BY、HAVING、ORDER BY。扩展统计不接受 DISTINCT 或 OVER。
-- `spread`、`mode`、`histogram`、`distinct_count`、`tdigest_agg` 仅用于 measurement。关系表需要不同值个数时使用 COUNT(DISTINCT value)。
+- 关系表也可调用 `spread`、`mode`、`histogram(value, width)`、`distinct_count`、`tdigest_agg`。histogram 使用正有限数值桶宽。histogram 和 tdigest_agg 返回 JSON 文本。关系 distinct_count 精确计数。mode 和 distinct_count 接受组内类型一致的 INT、FLOAT、DECIMAL、BOOL 和 STRING。
 - 关系表使用各自的列名和类型。按日、周、月等单位聚合时使用 `DATE_TRUNC('day', created_at)` 等表达式。需要排序时，在 SELECT 中给分组表达式指定别名，如 `AS bucket`，再写 `ORDER BY bucket`。
 - 单位为 `year`、`quarter`、`month`、`week`、`day`、`hour`、`minute`、`second`、`millisecond`。周从星期一开始。DATETIME、DATETIME2、DATETIMEOFFSET 和 Unix 毫秒 INT 保持原类型，DATETIMEOFFSET 截断到 UTC 零偏移，文本日期先 CAST。
 

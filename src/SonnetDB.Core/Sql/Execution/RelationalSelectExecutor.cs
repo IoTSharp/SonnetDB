@@ -4647,7 +4647,7 @@ internal static partial class RelationalSelectExecutor
             if (StringAggregateFunction.IsBuiltIn(name))
                 return new SelectColumnInfo(TableColumnType.String, true);
             if (IsRelationalStatisticsFunction(name))
-                return new SelectColumnInfo(TableColumnType.Float64, true);
+                return GetRelationalStatisticsColumnInfo(function, columns);
             if (name == "count")
                 return new SelectColumnInfo(TableColumnType.Int64, false);
             var input = function.Arguments.Count == 1

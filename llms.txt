@@ -97,6 +97,7 @@ The original nine read-only tools remain: list_databases, list_measurements, des
 - Measurements use time plus string TAGs and typed FIELDs. Match configured ingestion precision.
 - Group measurements by TAGs, fixed-duration `time(1m)` buckets, or both. Use `DATE_TRUNC('day', created_at)` for calendar grouping on a relational table.
 - Measurements and relational tables both provide `median`, `stddev`, `variance`, `percentile`, `p50`, `p90`, `p95` and `p99`. For tables, use INT, FLOAT or DECIMAL values and a finite numeric literal or bound parameter in `(0, 100]` for `percentile`. These statistics skip NULL and return nullable FLOAT. See the model matrices for other aggregates.
+- Both models also provide `spread`, `mode`, `histogram`, `distinct_count` and `tdigest_agg`. Table `distinct_count` is exact and returns 0 for no non-NULL input. `histogram` and `tdigest_agg` return JSON text.
 - VECTOR(N) and GEOPOINT are measurement field types; relational types have their own declaration rules.
 - Parameterize values. A parameter cannot replace an identifier.
 - A bounded row limit does not necessarily bound every scan, sort or executor allocation. Use explicit scan, memory, byte, time and concurrency budgets.

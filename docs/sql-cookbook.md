@@ -276,7 +276,18 @@ HAVING COUNT(latency_ms) > 0
 ORDER BY p99_ms DESC;
 ```
 
-这些统计接受 INT、FLOAT 和 DECIMAL，返回可为 NULL 的 FLOAT。`percentile` 的第二个参数是 `(0, 100]` 内的数值字面量或绑定参数。TDigest 估算分位数，样本方差和标准差在少于两个有效值时返回 NULL。[SQL 聚合参考](sql-reference.md#关系表聚合)
+这些统计接受 INT、FLOAT 和 DECIMAL，返回可为 NULL 的 FLOAT。`percentile` 的第二个参数是 `(0, 100]` 内的数值字面量或绑定参数。TDigest 估算分位数，样本方差和标准差在少于两个有效值时返回 NULL。
+
+```sql
+SELECT site, spread(latency_ms) AS range_ms, mode(latency_ms) AS most_common_ms,
+       histogram(latency_ms, 10) AS buckets, distinct_count(latency_ms) AS distinct_values,
+       tdigest_agg(latency_ms) AS digest
+FROM request_samples
+GROUP BY site
+ORDER BY distinct_values DESC;
+```
+
+`distinct_count` 返回精确计数，`histogram` 和 `tdigest_agg` 返回 JSON 文本。[SQL 聚合参考](sql-reference.md#关系表聚合)
 
 ## 6. 窗口分析
 

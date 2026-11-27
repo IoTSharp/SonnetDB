@@ -20,7 +20,8 @@
 ### 关系 SQL 统计聚合
 
 - 关系表新增 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95` 和 `p99`。输入支持 INT、FLOAT、DECIMAL，统计跳过 NULL 并返回 nullable FLOAT。分位数使用 TDigest，方差和标准差采用样本统计。查询支持分组、HAVING 和排序，统计状态计入关系查询资源预算。
-- SQL 参考、Cookbook、Copilot 与 AI 上下文同步两类聚合的能力矩阵，并提供其余 measurement 聚合的关系查询替代方式。
+- 关系表新增 `spread`、`mode`、`histogram`、`distinct_count` 和 `tdigest_agg`。众数保留输入类型，关系 `distinct_count` 精确计数，直方图和 TDigest 输出 JSON 文本。
+- SQL 参考、Cookbook、Copilot 与 AI 上下文同步两类聚合的能力矩阵及 measurement 专用函数的替代方式。
 
 ### 路线和发行文档
 

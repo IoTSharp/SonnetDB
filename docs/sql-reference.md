@@ -1581,23 +1581,25 @@ LIMIT 10 OFFSET 20;
 | `median(value)`、`p50(value)`、`p90(value)`、`p95(value)`、`p99(value)` | 用 TDigest 估算相应分位数。`median` 和 `p50` 的定义相同。 |
 | `percentile(value, q)` | 用 TDigest 估算第 `q` 百分位。`q` 为有限数值字面量或绑定参数，范围为 `(0, 100]`。`100` 返回转换后的最大值。 |
 | `variance(value)`、`stddev(value)` | 用 Welford 累加器计算样本方差和标准差，方差除以 `N - 1`。两个函数在有效样本数少于 2 时返回 NULL。 |
+| `spread(value)` | 数值输入转为 FLOAT 后计算最大值减最小值。结果为可空 FLOAT，只有一个有效值时返回 0，溢出时报 SQL 错误。 |
+| `mode(value)` | 返回众数，结果保留输入类型并可为 NULL。并列时取最小值，布尔值按 `false < true`，字符串按 Ordinal 排序。 |
+| `distinct_count(value)` | 精确统计非 NULL 的不同值，返回 INT，空集和全 NULL 返回 0。 |
+| `histogram(value, width)` | 返回可为 NULL 的 STRING。内容为形如 `{"[0,10)":2}` 的 JSON 对象，键按桶索引排列。用 binary64 计算 `FLOOR(value / width)`，舍入按浮点除法发生。宽度为正有限数值字面量或绑定参数。 |
+| `tdigest_agg(value)` | 返回可为 NULL 的 STRING。内容为带 `compression`、`count` 和 `centroids` 的 JSON 对象。质心使用 `[均值, 权重]` 表示。 |
 | `string_agg`、`group_concat` | 字符串聚合，参数和预算规则见下文。 |
 
 上述八个统计聚合接受 `INT`、`FLOAT`、`DECIMAL` 以及结果为这些类型的表达式。计算前将非 NULL 输入转换为 IEEE 754 binary64，返回可为 NULL 的 `FLOAT`（ADO.NET `Double`）。高位整数和 DECIMAL 可能在转换时舍入。绝对值超过 2^53 的相邻整数可能折叠为同一浮点值。布尔值须显式转换为数值。非有限输入、非有限结果和不支持的参数形态返回 SQL 错误。样本方差和标准差在二进制缩放并移除共同偏移后计算，各自按 FLOAT 的可表示范围返回结果。
 
-统计会跳过 NULL。无 GROUP BY 的空输入和全 NULL 输入均返回一行 NULL。带 GROUP BY 的空输入返回零行，已存在的全 NULL 组保留 NULL 结果。只有一个有效值时，分位数返回该值。TDigest 是近似统计，精度随分布与输入顺序变化。
+分位数、方差和标准差跳过 NULL。无 GROUP BY 的空输入和全 NULL 输入均返回一行 NULL。带 GROUP BY 的空输入返回零行，已存在的全 NULL 组保留 NULL 结果。只有一个有效值时，分位数返回该值。TDigest 是近似统计，精度随分布与输入顺序变化。
 
 可以在 SELECT 和 HAVING 中使用统计聚合。分组后的 ORDER BY 支持直接按单个统计调用排序，例如 `ORDER BY percentile(value, 95) DESC`。包含统计聚合的复合排序表达式可放入 SELECT 并按别名排序。聚合内 DISTINCT、排序、星号、嵌套聚合与 OVER 会被拒绝。
 
-组数据使用关系查询的物化和临时落盘规则，落盘的大组仍可能按组读取。每个使用 TDigest 的关系 SELECT 为统计状态预留 128 KiB，质心及缓冲样本合计最多 2,048 个。仅计算样本方差、标准差或第 100 百分位的 SELECT 预留 128 字节。查询和数据库的内存预算按统计工作状态的保守估算收费。预算拒绝和取消会终止语句并清理资源。
+第二批统计同样跳过 NULL。除 `distinct_count` 外，无有效输入返回 NULL。`spread`、`histogram` 和 `tdigest_agg` 接受 INT、FLOAT 和 DECIMAL，使用 binary64，拒绝非有限值。直方图还拒绝超出 Int64 的桶索引和不能表示为有效区间的桶。`mode` 和 `distinct_count` 也接受 BOOL 和 STRING，保留大整数及 DECIMAL 的键值精度。每组非空输入的类型必须一致，动态类型表达式可先显式 CAST。两个 JSON 文本可按 STRING 排序。
+
+组数据使用关系查询的物化和临时落盘规则。每个关系 SELECT 按最重的统计状态预留工作空间。普通分位数预留 128 KiB，`tdigest_agg` 预留 640 KiB，`histogram` 预留 512 KiB，`mode` 和 `distinct_count` 预留 256 KiB，其余统计预留 128 字节。TDigest 的质心及缓冲样本合计最多 2,048 个，直方图每组最多 1,024 个桶，分类键按每键 160 字节加字符串 UTF-16 内容估算。每次生成的 JSON 文本累计计入根查询预算，包括后来被 HAVING 或分页丢弃的文本。预算拒绝和取消会终止语句并清理资源。
 
 | 仅 measurement 提供的聚合 | 关系表中的替代方式及后续合同 |
 | --- | --- |
-| `spread` | 使用 `MAX(x) - MIN(x)`，按列值范围选择运算类型。专用函数还需冻结溢出与 DECIMAL 精度规则。 |
-| `mode` | 用 `WHERE x IS NOT NULL GROUP BY x` 计数，再按计数降序和值升序取首行。专用函数还需冻结并列顺序和键基数预算。 |
-| `histogram` | 使用 `FLOOR(CAST(x AS FLOAT) / width)` 构造桶键，再分组计数。选用正有限桶宽并过滤 NULL。专用函数还需冻结桶边界、输出和高基数预算。 |
-| `distinct_count` | 用 `COUNT(DISTINCT x)` 得到精确计数。近似版本还需冻结关系类型的哈希与相等语义。 |
-| `tdigest_agg` | 直接查询 `percentile(x, q)` 或固定分位数。可交换的关系聚合状态需要独立的编码和合并合同。 |
 | `first`、`last` | 按明确的时间和并列键排序后取首行。专用函数还需指定顺序和 NULL 规则。 |
 | `centroid`、`trajectory_*` | 使用对应 measurement 或向量、轨迹入口。关系 SQL 列类型见类型声明。 |
 | `pid`、`pid_estimate` | 使用具备时间轴的 measurement 或控制器。关系表缺少相应的时间序列和状态合同。 |

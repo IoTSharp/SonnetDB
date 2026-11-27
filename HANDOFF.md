@@ -1,3 +1,11 @@
+## 2026-11-28（Asia/Shanghai）GH-Issue #437 第二批关系聚合
+
+- 专用工作树分支为 `codex/issue-437-relational-aggregates`，起点为 `c42e7044b6661027a1570c91a23bc09ddf71344d`。首批提交 `5574c00b5438f3cfa0a759dea3c4e99917774394` 已推送到 GitHub 任务分支并读回同一 SHA。共享主目录的本地交接改动属于另一会话。
+- 第二批交付 `spread`、`mode`、`histogram`、`distinct_count` 和 `tdigest_agg`。关系去重计数使用精确类型键，众数保留输入类型并以最小值处理并列。直方图与 TDigest 使用现有 JSON 格式，分组状态和累计 JSON 文本计入查询预算。SQL 参考、Cookbook、架构、Copilot、LLM 上下文和现有一致性断言已同步。
+- `first`、`last` 依赖 measurement 时间轴，关系查询可按确定的时间和并列键排序取首行。向量、轨迹和 PID 系列保留在具备对应字段或时间语义的入口。两个批次已覆盖 #437 点名的通用关系聚合。
+- 第二批 `dotnet build src/SonnetDB.Core/SonnetDB.Core.csproj -c Release --no-restore -m:1 -nodeReuse:false -p:UseSharedCompilation=false` PASS，net10.0，0 warning / 0 error。最终 solution restore、CI 格式检查及差异检查作为提交门禁。按用户要求，第二批测试执行、NativeAOT、发布、安装和生产验证均为 NOT_RUN。首批的 Core 314/314、LSM 314/314 和真实 REST/HTTP/2 Server 81/81 收据见下节。
+- 本轮获准提交、推送和按代码交付条件回复并关闭 GitHub #437。首批与第二批各用一个 Conventional Commit，远端分支、提交和 issue 状态以 GitHub 独立读回为准。Cordonix 的首批格式检查和第二批 Core 构建分别记录根 PID 83524 和 45488，均清理完成。
+
 ## 2026-11-28（Asia/Shanghai）GH-Issue #437 关系 SQL 统计聚合
 
 - 专用工作树 `C:/Users/mysti/.codex/worktrees/issue-437-relational-aggregates/SonnetDB`，detached HEAD 为 `c42e7044b6661027a1570c91a23bc09ddf71344d`。启动时本地 GitHub/Gitee 跟踪引用同指基准。共享主目录中的 `HANDOFF.md` 为其他会话的本地改动。专用工作树保留未暂存的源码、测试和文档，两个子模块已检出基准所记录的 SHA。

@@ -13,10 +13,14 @@ internal static partial class RelationalSelectExecutor
     private const int StatisticsMaximumCentroids = 2_048;
     private const long StatisticsDigestReservationBytes = 128 * 1024;
     private const long StatisticsScalarReservationBytes = 128;
+    private const int StatisticsHistogramMaximumBins = 1_024;
+    private const long StatisticsHistogramReservationBytes = 512 * 1024;
+    private const long StatisticsDigestJsonReservationBytes = StatisticsDigestReservationBytes + 512 * 1024;
 
     private static bool IsRelationalStatisticsFunction(string name)
-        => (name.ToLowerInvariant() is "median" or "stddev" or "variance" or "percentile"
-            or "p50" or "p90" or "p95" or "p99")
+        => (IsSecondaryRelationalStatisticsFunction(name)
+            || name.ToLowerInvariant() is "median" or "stddev" or "variance" or "percentile"
+                or "p50" or "p90" or "p95" or "p99" or "histogram" or "tdigest_agg")
             && UserFunctionRegistry.Current?.TryGetScalar(name, out _) != true
             && UserFunctionRegistry.Current?.TryGetWindow(name, out _) != true;
 
@@ -64,8 +68,12 @@ internal static partial class RelationalSelectExecutor
                 if (call.IsDistinct || call.Over is not null
                     || call.Arguments.Any(argument => argument is NamedArgumentExpression))
                     throw new InvalidOperationException($"关系表聚合 '{call.Name}' 不支持 DISTINCT、OVER 或命名参数。");
-                RequireArgumentCount(call, call.Name.Equals("percentile", StringComparison.OrdinalIgnoreCase) ? 2 : 1);
-                _ = RelationalStatisticsQuantile(call);
+                string name = call.Name.ToLowerInvariant();
+                RequireArgumentCount(call, name is "percentile" or "histogram" ? 2 : 1);
+                if (name == "histogram")
+                    _ = RelationalHistogramWidth(call);
+                else
+                    _ = RelationalStatisticsQuantile(call);
                 calls.Add(call);
             }
         }
@@ -78,9 +86,50 @@ internal static partial class RelationalSelectExecutor
         foreach (FunctionCallExpression call in calls)
         {
             TableColumnType? type = InferSelectColumnInfo(call.Arguments[0], columns).DataType;
-            if (type is not (null or TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.Decimal))
+            if (IsSecondaryRelationalStatisticsFunction(call.Name))
+                ValidateSecondaryStatisticsInput(call.Name, type);
+            else if (type is not (null or TableColumnType.Int64 or TableColumnType.Float64 or TableColumnType.Decimal))
                 throw new InvalidOperationException($"关系表聚合 '{call.Name}' 需要数值参数。");
         }
+    }
+
+    private static SelectColumnInfo GetRelationalStatisticsColumnInfo(
+        FunctionCallExpression call, IReadOnlyList<RelColumn> columns)
+    {
+        string name = call.Name.ToLowerInvariant();
+        if (IsSecondaryRelationalStatisticsFunction(name))
+        {
+            SelectColumnInfo input = call.Arguments.Count == 1
+                ? InferSelectColumnInfo(call.Arguments[0], columns)
+                : new SelectColumnInfo(null);
+            return GetSecondaryStatisticsColumnInfo(name, input);
+        }
+        return new SelectColumnInfo(name is "histogram" or "tdigest_agg"
+            ? TableColumnType.String : TableColumnType.Float64, true);
+    }
+
+    private static object? EvaluateStatisticsConstant(SqlExpression expression)
+        => expression switch
+        {
+            LiteralExpression literal => EvaluateLiteral(literal),
+            CastExpression
+            {
+                IsParameterValue: true,
+                Operand: LiteralExpression parameter,
+                TargetType: SqlDataType.Int64 or SqlDataType.Float64 or SqlDataType.Decimal,
+            } cast => SqlCastOperations.Convert(EvaluateLiteral(parameter), cast.TargetType),
+            _ => null,
+        };
+
+    private static double RelationalHistogramWidth(FunctionCallExpression call)
+    {
+        if (EvaluateStatisticsConstant(call.Arguments[1]) is { } value && IsNumeric(value))
+        {
+            double width = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            if (width > 0 && double.IsFinite(width))
+                return width;
+        }
+        throw new InvalidOperationException("关系表 histogram(value, width) 的 width 必须是正有限数值常量。");
     }
 
     private static double? RelationalStatisticsQuantile(FunctionCallExpression call)
@@ -97,17 +146,7 @@ internal static partial class RelationalSelectExecutor
             case "p99":
                 return 0.99;
             case "percentile":
-                object? rankValue = call.Arguments[1] switch
-                {
-                    LiteralExpression literal => EvaluateLiteral(literal),
-                    CastExpression
-                    {
-                        IsParameterValue: true,
-                        Operand: LiteralExpression parameter,
-                        TargetType: SqlDataType.Int64 or SqlDataType.Float64 or SqlDataType.Decimal,
-                    } cast => SqlCastOperations.Convert(EvaluateLiteral(parameter), cast.TargetType),
-                    _ => null,
-                };
+                object? rankValue = EvaluateStatisticsConstant(call.Arguments[1]);
                 if (rankValue is { } value && IsNumeric(value)
                     && (value is not decimal decimalRank || decimalRank <= 100m))
                 {
@@ -131,12 +170,19 @@ internal static partial class RelationalSelectExecutor
         RelationalScope? outerScope,
         SubqueryMemo? memo)
     {
+        string name = call.Name.ToLowerInvariant();
+        if (IsSecondaryRelationalStatisticsFunction(name))
+            return EvaluateSecondaryRelationalStatistics(tsdb, call, columns, rows, outerScope, memo);
+
         if (rows.Count == 0)
             return null;
 
+        bool digestJson = name == "tdigest_agg";
+        HistogramAccumulator? histogram = name == "histogram"
+            ? new HistogramAccumulator(RelationalHistogramWidth(call)) : null;
         double? quantile = RelationalStatisticsQuantile(call);
-        TDigest? digest = quantile is < 1 ? new TDigest(stableInterpolation: true) : null;
-        WelfordAccumulator? moments = quantile is null ? new WelfordAccumulator() : null;
+        TDigest? digest = digestJson || quantile is < 1 ? new TDigest(stableInterpolation: true) : null;
+        WelfordAccumulator? moments = name is "stddev" or "variance" ? new WelfordAccumulator() : null;
         int scaleExponent = int.MinValue;
         double origin = 0;
         double maximum = double.NegativeInfinity;
@@ -149,7 +195,11 @@ internal static partial class RelationalSelectExecutor
 
             double sample = RequireDouble(value, call.Name);
             EnsureFiniteStatisticsValue(sample, call.Name);
-            if (digest is not null)
+            if (histogram is not null)
+            {
+                histogram.Add(sample, StatisticsHistogramMaximumBins);
+            }
+            else if (digest is not null)
             {
                 if (digest.CentroidCount >= StatisticsMaximumCentroids)
                     throw new InvalidOperationException($"关系表聚合 '{call.Name}' 超出 TDigest 状态容量。");
@@ -178,6 +228,11 @@ internal static partial class RelationalSelectExecutor
         }
 
         SqlExecutor.ThrowIfCancellationRequested();
+        if (histogram is not null)
+            return RetainStatisticsText(call.Name, histogram.Finalize() as string);
+        if (digestJson && digest is { Count: > 0 })
+            return RetainStatisticsText(call.Name, digest.ToJson());
+
         double result;
         if (moments is not null)
         {
@@ -250,15 +305,36 @@ internal static partial class RelationalSelectExecutor
             throw new InvalidOperationException($"关系表聚合 '{functionName}' 的输入和结果必须为有限 Float64。");
     }
 
+    private static string? RetainStatisticsText(string name, string? result)
+    {
+        SqlExecutor.ThrowIfCancellationRequested();
+        if (result is null || SqlQueryResources.Current is not { } resources)
+            return result;
+
+        var reservation = resources.CreateReservation();
+        if (!reservation.TryReserve(24L + 2L * result.Length))
+        {
+            reservation.Dispose();
+            throw new InvalidOperationException($"关系表聚合 '{name}' 的结果超出 SQL 查询内存预算。");
+        }
+        // 成功结果保留在根查询预算中，和字符串聚合采用同一生命周期。
+        return result;
+    }
+
     private static SqlQueryResources.SqlOperatorMemoryReservation? ReserveStatisticsState(
         SqlQueryResources? resources, IReadOnlyList<FunctionCallExpression> calls)
     {
         if (resources is null || calls.Count == 0)
             return null;
 
-        long bytes = calls.Any(call => RelationalStatisticsQuantile(call) is < 1)
-            ? StatisticsDigestReservationBytes
-            : StatisticsScalarReservationBytes;
+        long bytes = calls.Max(call => call.Name.ToLowerInvariant() switch
+        {
+            "histogram" => StatisticsHistogramReservationBytes,
+            "tdigest_agg" => StatisticsDigestJsonReservationBytes,
+            string name when IsSecondaryRelationalStatisticsFunction(name) => SecondaryStatisticsReservationBytes(name),
+            _ => RelationalStatisticsQuantile(call) is < 1
+                ? StatisticsDigestReservationBytes : StatisticsScalarReservationBytes,
+        });
         var reservation = resources.CreateReservation();
         if (reservation.TryReserve(bytes))
             return reservation;

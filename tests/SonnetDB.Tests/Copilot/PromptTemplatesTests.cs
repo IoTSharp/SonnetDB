@@ -36,8 +36,11 @@ public sealed class PromptTemplatesTests
         string architecture = File.ReadAllText(Path.Combine(root, "docs", "architecture.md"));
         string llms = File.ReadAllText(Path.Combine(root, "llms.txt"));
         string llmsFull = File.ReadAllText(Path.Combine(root, "llms-full.txt"));
-        string[] statistics = ["median", "stddev", "variance", "percentile", "p50", "p90", "p95", "p99"];
-        string[] measurementOnly = ["spread", "mode", "histogram", "distinct_count", "tdigest_agg"];
+        string[] aggregates =
+        [
+            "median", "stddev", "variance", "percentile", "p50", "p90", "p95", "p99",
+            "spread", "mode", "histogram", "distinct_count", "tdigest_agg",
+        ];
 
         int relationalStart = reference.IndexOf("### 关系表聚合", StringComparison.Ordinal);
         int measurementStart = reference.IndexOf("### Measurement 聚合", StringComparison.Ordinal);
@@ -45,7 +48,7 @@ public sealed class PromptTemplatesTests
         string relational = reference[relationalStart..measurementStart];
         string measurement = reference[measurementStart..];
         string[] prompts = [PromptTemplates.Load("sql-gen"), PromptTemplates.Load("sql-gen-no-db")];
-        Assert.All(statistics, name =>
+        Assert.All(aggregates, name =>
         {
             Assert.True(FunctionRegistry.TryGetAggregate(name, out _), name);
             Assert.Contains("`" + name + "(", relational, StringComparison.Ordinal);
@@ -61,15 +64,6 @@ public sealed class PromptTemplatesTests
                 Assert.Contains("`" + name, models[0], StringComparison.Ordinal);
                 Assert.Contains("`" + name, models[1], StringComparison.Ordinal);
             });
-        });
-        Assert.All(measurementOnly, name =>
-        {
-            Assert.True(FunctionRegistry.TryGetAggregate(name, out _), name);
-            Assert.Contains("`" + name + "`", relational, StringComparison.Ordinal);
-            Assert.Contains("`" + name, measurement, StringComparison.Ordinal);
-            Assert.All(prompts, prompt =>
-                Assert.Contains("`" + name + "`", Assert.Single(prompt.Split('\n'),
-                    line => line.Contains("仅用于 measurement", StringComparison.Ordinal)), StringComparison.Ordinal));
         });
         Assert.True(FunctionRegistry.TryGetScalar("date_trunc", out _));
         Assert.False(FunctionRegistry.TryGetScalar("data_trunc", out _));

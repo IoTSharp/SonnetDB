@@ -315,17 +315,18 @@ public sealed class SqlRelationalExtendedAggregateTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => Select(db, sql));
     }
 
-    /// <summary>关系表对暂未支持的 measurement 扩展聚合给出错误。</summary>
+    /// <summary>关系表扩展聚合返回各自声明的结果类型。</summary>
     [Theory]
-    [InlineData("spread(reading)")]
-    [InlineData("mode(reading)")]
-    [InlineData("histogram(reading, 5, 0, 25)")]
-    [InlineData("distinct_count(reading)")]
-    [InlineData("tdigest_agg(reading)")]
-    public void Select_DeferredMeasurementAggregate_RejectsRelationalSource(string expression)
+    [InlineData("spread(reading)", typeof(double))]
+    [InlineData("mode(reading)", typeof(long))]
+    [InlineData("histogram(reading, 5)", typeof(string))]
+    [InlineData("distinct_count(reading)", typeof(long))]
+    [InlineData("tdigest_agg(reading)", typeof(string))]
+    public void Select_ExtendedAggregate_ReturnsDeclaredType(string expression, Type expectedType)
     {
         using Tsdb db = OpenReadings();
-        Assert.Throws<InvalidOperationException>(() => Select(db, $"SELECT {expression} FROM readings"));
+        var result = Select(db, $"SELECT {expression} FROM readings");
+        Assert.IsType(expectedType, Assert.Single(Assert.Single(result.Rows)));
     }
 
     /// <summary>布尔值及文本列即使可转换为数值也会报错。</summary>
