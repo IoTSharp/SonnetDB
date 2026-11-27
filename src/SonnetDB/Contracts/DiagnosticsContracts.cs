@@ -90,6 +90,21 @@ public sealed record SlowQueryDiagnosticEntry(
 
     /// <summary>执行窗口内观测到的 Gen2 GC 次数。</summary>
     public int Gen2Collections { get; init; }
+
+    /// <summary>SQL 算子的峰值内存预留字节数。</summary>
+    public long PeakOperatorMemoryBytes { get; init; }
+
+    /// <summary>单条查询中同时存活的排序临时字节峰值。</summary>
+    public long PeakSortSpillBytes { get; init; }
+
+    /// <summary>排序临时文件累计写入字节数，计入中间归并。</summary>
+    public long SortSpillBytesWritten { get; init; }
+
+    /// <summary>排序键比较总次数。</summary>
+    public long SortComparisons { get; init; }
+
+    /// <summary>同时打开的有序点流或排序 run 游标峰值。</summary>
+    public int PeakSortReaders { get; init; }
 }
 
 /// <summary>

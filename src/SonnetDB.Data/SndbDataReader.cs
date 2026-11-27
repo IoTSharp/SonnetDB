@@ -13,7 +13,7 @@ namespace SonnetDB.Data;
 
 /// <summary>
 /// SonnetDB ADO.NET 数据读取器。基于内部 <see cref="IExecutionResult"/> 抽象，
-/// 嵌入式模式下持有内存物化结果，远程模式下持有 ndjson 流式结果。
+/// 支持嵌入式结果、远程 NDJSON 和远程 Frame 行块。
 /// </summary>
 public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
 {
@@ -438,7 +438,8 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
         if (_closed) return false;
         if (_bufferedRow)
         {
-            _commandCancellationToken.ThrowIfCancellationRequested();
+            if (_commandCancellationToken.IsCancellationRequested)
+                return ReadWithTimeoutAsync(CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
             _bufferedRow = false;
             _hasRow = true;
             return true;
@@ -465,9 +466,17 @@ public sealed class SndbDataReader : DbDataReader, IDbColumnSchemaGenerator
     private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken, bool nextResult = false)
     {
         try { return await ReadWithTimeoutCoreAsync(callerCancellationToken, nextResult).ConfigureAwait(false); }
-        catch
+        catch (Exception exception)
         {
             if (_result is ProcedureExecutionResultAdapter procedure) procedure.Abort();
+            if (_result.DisposeOnReadFailure)
+            {
+                try { Close(); }
+                catch (Exception cleanupFailure)
+                {
+                    exception.Data["SonnetDB.ReadCleanupError"] = cleanupFailure;
+                }
+            }
             throw;
         }
     }

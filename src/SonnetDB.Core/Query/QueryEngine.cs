@@ -69,6 +69,131 @@ public sealed class QueryEngine
     internal void SetVectorReplacementStore(MeasurementVectorReplacementStore replacements)
         => _vectorReplacements = replacements;
 
+    /// <summary>在写入门内捕获同一条 measurement 语句使用的点流读视图。</summary>
+    internal MeasurementReadView CaptureMeasurementReadView(
+        IReadOnlySet<ulong> seriesIds,
+        IReadOnlySet<string> fieldNames,
+        TimeRange range,
+        CancellationToken cancellationToken,
+        Action throwIfCancellationRequested)
+    {
+        // Compaction publishes replacement segments before retiring the tombstones they consumed.
+        // Reading tombstones first also handles a compaction publish between these two reads.
+        var tombstones = _tombstones?.SnapshotByKey();
+        var replacements = _vectorReplacements?.Snapshot();
+        var lease = _segments.AcquireSnapshot(cancellationToken: cancellationToken);
+        try
+        {
+            var activeSlices = new Dictionary<SeriesFieldKey, (FieldType Type, ReadOnlyMemory<DataPoint> Points)>();
+            if (lease.ActiveMemTable is { } active)
+            {
+                if ((long)seriesIds.Count * fieldNames.Count <= active.SeriesCount)
+                {
+                    foreach (ulong seriesId in seriesIds)
+                    {
+                        foreach (string fieldName in fieldNames)
+                        {
+                            throwIfCancellationRequested();
+                            if (active.TryGet(new SeriesFieldKey(seriesId, fieldName)) is { } bucket)
+                                CaptureBucket(bucket);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var bucket in active.SnapshotAll())
+                    {
+                        throwIfCancellationRequested();
+                        if (seriesIds.Contains(bucket.Key.SeriesId) && fieldNames.Contains(bucket.Key.FieldName))
+                            CaptureBucket(bucket);
+                    }
+                }
+            }
+
+            return new MeasurementReadView(
+                this, lease, activeSlices, tombstones, replacements, throwIfCancellationRequested);
+
+            void CaptureBucket(MemTableSeries bucket)
+            {
+                var points = bucket.SnapshotRange(range.FromInclusive, range.ToInclusive);
+                activeSlices.Add(bucket.Key, (bucket.FieldType, points));
+            }
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    internal sealed class MeasurementReadView(
+        QueryEngine engine,
+        SegmentManagerSnapshotLease lease,
+        Dictionary<SeriesFieldKey, (FieldType Type, ReadOnlyMemory<DataPoint> Points)> activeSlices,
+        IReadOnlyDictionary<(ulong SeriesId, string FieldName), Tombstone[]>? tombstones,
+        (IReadOnlyDictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> Values,
+            IReadOnlySet<(ulong SeriesId, string FieldName)> SeriesFields)? replacements,
+        Action throwIfCancellationRequested) : IDisposable
+    {
+        private bool _disposed;
+        private int _openPointReaders;
+
+        internal int PeakPointReaders { get; private set; }
+
+        internal SegmentManagerSnapshotLease Lease => lease;
+
+        internal (IReadOnlyDictionary<(ulong SeriesId, string FieldName, long Timestamp), FieldValue> Values,
+            IReadOnlySet<(ulong SeriesId, string FieldName)> SeriesFields)? Replacements => replacements;
+
+        internal void CheckCancellation() => throwIfCancellationRequested();
+
+        internal void OpenPointReader()
+        {
+            PeakPointReaders = Math.Max(PeakPointReaders, ++_openPointReaders);
+        }
+
+        internal void ClosePointReader() => _openPointReaders--;
+
+        internal IEnumerable<DataPoint> Execute(PointQuery query)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return engine.ExecutePoints(query, budget: null, this);
+        }
+
+        internal IReadOnlyList<Tombstone> GetTombstones(in SeriesFieldKey key)
+            => tombstones?.TryGetValue((key.SeriesId, key.FieldName), out var entries) == true
+                ? entries
+                : [];
+
+        internal List<ReadOnlyMemory<DataPoint>> GetMemTableSlices(
+            in SeriesFieldKey key, long from, long to, out FieldType? type)
+        {
+            type = null;
+            var slices = new List<ReadOnlyMemory<DataPoint>>(lease.SealingMemTables.Count + 1);
+            foreach (var sealing in lease.SealingMemTables)
+            {
+                CheckCancellation();
+                AppendBucketSlice(sealing, in key, from, to, slices, ref type);
+            }
+            if (activeSlices.TryGetValue(key, out var active))
+            {
+                type ??= active.Type;
+                if (!active.Points.IsEmpty)
+                    slices.Add(active.Points);
+            }
+            return slices;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            activeSlices.Clear();
+            lease.Dispose();
+        }
+    }
+
     /// <summary>
     /// 从一次已获取的段快照租约中，收集指定 (series, field) 在所有 MemTable（active + sealing）
     /// 上的排序切片，并输出统一的字段类型（用于与段块做类型一致性校验）。
@@ -130,16 +255,19 @@ public sealed class QueryEngine
     internal IEnumerable<DataPoint> ExecuteDiagnosticSample(PointQuery query, TimeSeriesReadBudget budget)
         => ExecutePoints(query, budget);
 
-    private IEnumerable<DataPoint> ExecutePoints(PointQuery query, TimeSeriesReadBudget? budget)
+    private IEnumerable<DataPoint> ExecutePoints(
+        PointQuery query, TimeSeriesReadBudget? budget, MeasurementReadView? readView = null)
     {
         ArgumentNullException.ThrowIfNull(query);
         budget?.CancellationToken.ThrowIfCancellationRequested();
+        readView?.CheckCancellation();
 
         using var queryLoad = QueryActivityTracker.Enter();
         // 计量覆盖整个流式枚举周期（含提前 break：finally 在枚举器 Dispose 时运行）。
         // 未监听时 StartOperation 返回 null、Enabled=false 短路，近零开销（M17 #89）。
         using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.points", "points");
         long startTimestamp = SonnetDbMeter.QueryDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        readView?.OpenPointReader();
         try
         {
             if (query.Direction is not (QueryDirection.Ascending or QueryDirection.Descending))
@@ -150,7 +278,7 @@ public sealed class QueryEngine
             long from = query.Range.FromInclusive;
             long to = query.Range.ToInclusive;
 
-            var replacementSnapshot = _vectorReplacements?.Snapshot();
+            var replacementSnapshot = readView is null ? _vectorReplacements?.Snapshot() : readView.Replacements;
             var replacements = replacementSnapshot?.Values;
             HashSet<long>? emittedReplacements = replacementSnapshot?.SeriesFields.Contains(
                 (query.SeriesId, query.FieldName)) == true
@@ -161,9 +289,11 @@ public sealed class QueryEngine
 
             // 墓碑集合与查询范围无关，可在进入租约前一次取好。
             IReadOnlyList<Tombstone> tombstones = Array.Empty<Tombstone>();
-            if (_tombstones is not null)
+            if (_tombstones is not null || readView is not null)
             {
-                var tombstoneList = _tombstones.GetForSeriesField(query.SeriesId, query.FieldName);
+                var tombstoneList = readView is null
+                    ? _tombstones!.GetForSeriesField(query.SeriesId, query.FieldName)
+                    : readView.GetTombstones(in key);
                 budget?.CheckSources(tombstoneList.Count);
                 if (tombstoneList.Count > 0)
                     tombstones = FilterTombstonesForQueryRange(tombstoneList, from, to);
@@ -172,10 +302,15 @@ public sealed class QueryEngine
             // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
             // 关键：租约必须在整个流式合并期间保持——段 block 惰性解码发生在下方 foreach 内，
             // 依赖 reader 存活。iterator 被消费完 / 提前 break 时，using 释放租约（#220 C9）。
-            using var snapshotLease = _segments.AcquireSnapshot(
-                budget?.MaxSources ?? int.MaxValue, budget?.CancellationToken ?? default);
+            using SegmentManagerSnapshotLease? ownedLease = readView is null
+                ? _segments.AcquireSnapshot(
+                    budget?.MaxSources ?? int.MaxValue, budget?.CancellationToken ?? default)
+                : null;
+            var snapshotLease = readView?.Lease ?? ownedLease!.Value;
 
-            var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType, budget);
+            var memSlices = readView is null
+                ? CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType, budget)
+                : readView.GetMemTableSlices(in key, from, to, out memFieldType);
 
             var snapshot = snapshotLease.Snapshot;
             var candidates = budget is null
@@ -189,6 +324,7 @@ public sealed class QueryEngine
             foreach (var blockRef in candidates)
             {
                 budget?.CancellationToken.ThrowIfCancellationRequested();
+                readView?.CheckCancellation();
                 if (query.GeoFilter is not null
                     && blockRef.Descriptor.HasGeoHashRange
                     && !GeoHash32.Overlaps(
@@ -226,6 +362,7 @@ public sealed class QueryEngine
             while (!limit.HasValue || emitted < limit.Value)
             {
                 budget?.CancellationToken.ThrowIfCancellationRequested();
+                readView?.CheckCancellation();
                 if (!enumerator.MoveNext())
                     break;
 
@@ -247,6 +384,7 @@ public sealed class QueryEngine
         }
         finally
         {
+            readView?.ClosePointReader();
             if (startTimestamp != 0)
             {
                 SonnetDbMeter.QueryDuration.Record(

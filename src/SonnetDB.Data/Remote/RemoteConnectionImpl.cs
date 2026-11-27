@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Data;
 using System.Data.Common;
-using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -175,7 +174,8 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             return MaterializedExecutionResult.NonQuery(0);
         }
 
-        return ExecuteSqlRequest(sql, CancellationToken.None, typedParameters: typedParameters).GetAwaiter().GetResult();
+        return ExecuteSqlRequest(sql, CancellationToken.None, typedParameters: typedParameters,
+            sequentialAccess: (behavior & CommandBehavior.SequentialAccess) != 0).GetAwaiter().GetResult();
     }
 
     public async Task<IExecutionResult> ExecuteAsync(
@@ -240,11 +240,13 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             return MaterializedExecutionResult.NonQuery(0);
         }
 
-        return await ExecuteSqlRequest(sql, cancellationToken, typedParameters: typedParameters).ConfigureAwait(false);
+        return await ExecuteSqlRequest(sql, cancellationToken, typedParameters: typedParameters,
+            sequentialAccess: (behavior & CommandBehavior.SequentialAccess) != 0).ConfigureAwait(false);
     }
 
     private async Task<IExecutionResult> ExecuteSqlRequest(
-        string sql, CancellationToken cancellationToken, string? sessionUrl = null, byte[]? typedParameters = null)
+        string sql, CancellationToken cancellationToken, string? sessionUrl = null, byte[]? typedParameters = null,
+        bool sequentialAccess = false)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
@@ -262,13 +264,27 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             else
                 SqlFrameCodec.EncodeTypedQueryRequest(w, 1, _database, sql,
                     SqlExecuteFrameCodec.DecodeRequest(typedParameters).Parameters);
+            string[] versions = typedParameters is not null ? new[] { SqlFrameCodec.NativeDateTime2ResultVersion }
+                : new[] { SqlFrameCodec.NativeDateTime2ResultVersion, SqlFrameCodec.NativeDateTimeOffsetResultVersion,
+                    SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
+                    SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion };
+            if (sequentialAccess)
+            {
+                for (int i = 0; i < versions.Length; i++)
+                {
+                    string version = versions[i];
+                    var query = await FrameSqlExecutionResult.TryCreateAsync(fx, w.WrittenMemory, version,
+                        retryUnsupportedVersion: i + 1 < versions.Length, cancellationToken).ConfigureAwait(false);
+                    if (query is not null)
+                        return query;
+                }
+                throw new InvalidOperationException("未获得 SQL Frame 查询响应。");
+            }
+
             IReadOnlyList<FrameMessage>? frames = null;
             string requestedVersion = SqlFrameCodec.NativeDateTime2ResultVersion;
             // 只有服务端明确在执行前拒绝版本时，才继续旧版协商；旧版不承诺原生日期合同。
-            foreach (string version in typedParameters is not null ? new[] { SqlFrameCodec.NativeDateTime2ResultVersion }
-                : new[] { SqlFrameCodec.NativeDateTime2ResultVersion, SqlFrameCodec.NativeDateTimeOffsetResultVersion,
-                    SqlFrameCodec.NativeDurationResultVersion, SqlFrameCodec.NativeDateTimeResultVersion,
-                    SqlFrameCodec.DeclaredResultVersion, SqlFrameCodec.TypedResultVersion })
+            foreach (string version in versions)
             {
                 requestedVersion = version;
                 frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken,
@@ -590,20 +606,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                     {
                         if (row.Length != columns.Length)
                             throw new InvalidDataException("SQL Frame 行列数与声明不一致；结果状态未知。");
-                        if (columnInfo is not null)
-                        {
-                            for (int column = 0; column < row.Length; column++)
-                            {
-                                if (columnInfo[column].DataType == TableColumnType.DateTime2 && row[column] is not (null or DateTime))
-                                    throw new InvalidDataException("SQL Frame DATETIME2 声明与原生日期值不一致；结果状态未知。");
-                                if (columnInfo[column].DataType != TableColumnType.Time || row[column] is not string text)
-                                    continue;
-                                if (!TimeOnly.TryParseExact(text, "HH:mm:ss.fffffff", CultureInfo.InvariantCulture,
-                                        DateTimeStyles.None, out var time))
-                                    throw new InvalidDataException("SQL Frame TIME 值不是有效的时间值。");
-                                row[column] = time;
-                            }
-                        }
+                        FrameSqlExecutionResult.NormalizeDeclaredValues(row, columnInfo);
                         rows.Add(row);
                     }
                     break;

@@ -82,6 +82,9 @@ internal interface IExecutionResult : IDisposable
     /// <summary>结果是否因 Server/Frame 传输行数预算而被截断。</summary>
     bool Truncated => false;
 
+    /// <summary>实时读取发生不可重试错误时立即关闭结果与读取器租约。</summary>
+    bool DisposeOnReadFailure => false;
+
     /// <summary>列名（SELECT 才有；非 SELECT 返回空数组）。</summary>
     IReadOnlyList<string> Columns { get; }
 

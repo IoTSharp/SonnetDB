@@ -106,6 +106,11 @@ internal sealed partial class SlowQueryDiagnostics
             Gen0Collections = executionMetrics?.Gen0Collections ?? 0,
             Gen1Collections = executionMetrics?.Gen1Collections ?? 0,
             Gen2Collections = executionMetrics?.Gen2Collections ?? 0,
+            PeakOperatorMemoryBytes = executionMetrics?.PeakMemoryBytes ?? 0,
+            PeakSortSpillBytes = executionMetrics?.PeakSortSpillBytes ?? 0,
+            SortSpillBytesWritten = executionMetrics?.SortSpillBytesWritten ?? 0,
+            SortComparisons = executionMetrics?.SortComparisons ?? 0,
+            PeakSortReaders = executionMetrics?.PeakSortReaders ?? 0,
         };
 
         SqlQueryDiagnostics.Record(entry);

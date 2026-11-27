@@ -9,6 +9,12 @@ public sealed record SqlExecutionOptions
     /// <summary>取消令牌。</summary>
     public CancellationToken CancellationToken { get; init; }
 
+    /// <summary>
+    /// 允许直接有序查询返回需要释放的 <see cref="SqlStreamingSelectResult"/>。
+    /// 不适用的语句仍返回原先的执行结果。
+    /// </summary>
+    public bool StreamResults { get; init; }
+
     /// <summary>当前逻辑连接拥有的临时关系对象会话；内部过程调用沿用同一个实例。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public SqlSessionContext? SessionContext { get; init; }
@@ -63,6 +69,12 @@ public sealed record SqlExecutionOptions
     /// <see cref="SonnetDB.Engine.SqlMemoryOptions.QueryLimitBytes"/>。
     /// </summary>
     public long? BlockingOperatorMemoryLimitBytes { get; init; }
+
+    /// <summary>
+    /// 单条语句的有序临时文件 live 字节上限，涵盖归并时并存的输入和输出文件。
+    /// 未配置时，流式排序使用 8 GiB 上限。
+    /// </summary>
+    public long? SortSpillMaxBytes { get; init; }
 
     /// <summary>
     /// 可选的单条受支持查询或关系 DML 调用链累计物化行数上限。子查询、CTE、集合运算、阻塞算子
@@ -138,6 +150,8 @@ public sealed record SqlExecutionOptions
         ArgumentOutOfRangeException.ThrowIfGreaterThan(TransactionCommitTimeoutMilliseconds, 120_000);
         if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);
+        if (SortSpillMaxBytes is { } spillLimit)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(spillLimit);
         if (MaxMaterializedRows is { } materializedRows)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(materializedRows);
         if (MaxMaterializedBytes is { } materializedBytes)

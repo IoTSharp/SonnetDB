@@ -1564,6 +1564,84 @@ internal static partial class TableSqlExecutor
         };
     }
 
+    internal static OrderedSelectStream? TryExecuteOrderedTableStream(
+        Tsdb tsdb,
+        SelectStatement statement,
+        TableSchema schema,
+        SqlQueryResources resources)
+    {
+        if (statement.Pagination?.Fetch is not null
+            || statement.Projections.Any(item => item.Expression is not (IdentifierExpression or StarExpression))
+            || statement.OrderByList.Any(item => item.Expression is not IdentifierExpression)
+            || statement.Where is { } where && (schema.Indexes.Count != 0
+                || ContainsPreviewFunction(where)
+                || TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out _,
+                    allowNonEqualityExtraPredicates: true)
+                || TryChooseInAccessPlan(schema, where, out _)))
+        {
+            return null;
+        }
+
+        ValidateTableAliasReferences(statement);
+        var store = tsdb.Tables.Open(schema.ObjectName);
+        TableReadSnapshot snapshot = store.AcquireTableReadSnapshot();
+        bool transferred = false;
+        try
+        {
+            schema = snapshot.Schema;
+            var projections = BuildProjections(statement.Projections, schema);
+            var hiddenColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
+            string[] columns = projections.Select(static projection => projection.ColumnName).ToArray();
+            string[] sortColumns = [.. columns, .. hiddenColumns.Select(static column => column.Name)];
+            var comparer = new ResultRowSortComparer(ResolveSortItems(sortColumns, statement.OrderByList));
+            var columnInfo = projections.Select(projection => ResolveProjectionColumnInfo(projection, schema)).ToArray();
+            var result = new OrderedSelectStream(columns, columnInfo, ReadRows(), snapshot);
+            transferred = true;
+            return result;
+
+            IEnumerable<IReadOnlyList<object?>> ReadRows()
+            {
+                long skip = Math.Max(statement.Pagination?.Offset ?? 0, 0);
+                var orderedRows = SqlSpillSorter.Order(ProjectRows(), comparer, SqlSpillCodecs.ReadOnlyRows);
+                foreach (var row in orderedRows)
+                {
+                    resources.ThrowIfCancellationRequested();
+                    if (skip > 0)
+                    {
+                        skip--;
+                        continue;
+                    }
+
+                    yield return hiddenColumns.Length == 0 ? row : row.Take(projections.Length).ToArray();
+                }
+            }
+
+            IEnumerable<IReadOnlyList<object?>> ProjectRows()
+            {
+                var rows = ObserveCandidateRows(store.EnumerateScan(snapshot.Snapshot, schema),
+                    "table_scan", indexName: null, fallbackReason: null);
+                foreach (var row in rows)
+                {
+                    resources.ThrowIfCancellationRequested();
+                    if (!EvaluateWhere(statement.Where, schema, row.Values))
+                        continue;
+
+                    var output = new object?[sortColumns.Length];
+                    for (int i = 0; i < projections.Length; i++)
+                        output[i] = EvaluateProjection(projections[i], schema, row.Values);
+                    for (int i = 0; i < hiddenColumns.Length; i++)
+                        output[projections.Length + i] = row.Values[hiddenColumns[i].Ordinal];
+                    yield return output;
+                }
+            }
+        }
+        finally
+        {
+            if (!transferred)
+                snapshot.Dispose();
+        }
+    }
+
     /// <summary>
     /// 判断单表 DISTINCT 是否能在表扫描阶段安全完成去重并下推分页。
     /// </summary>

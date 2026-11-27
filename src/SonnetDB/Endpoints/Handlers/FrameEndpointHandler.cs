@@ -180,7 +180,8 @@ internal static partial class FrameEndpointHandler
                 }
             }
         }
-        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (ctx.RequestAborted.IsCancellationRequested
+            || ex.CancellationToken == ctx.RequestAborted && ex.CancellationToken.CanBeCanceled)
         {
             // 客户端断开，静默结束（同 SseEndpointHandler）
         }
@@ -402,6 +403,9 @@ internal static partial class FrameEndpointHandler
         double queueWaitMs = 0;
         SqlExecutionMetrics? executionMetrics = null;
         SqlExecutionMetricsSnapshot? executionSnapshot = null;
+        DateTimeOffset? streamingDeadline = null;
+        bool streamingStarted = false;
+        CancellationToken streamingCancellation = default;
 
         SqlQueryFrameRequest request;
         try
@@ -544,6 +548,9 @@ internal static partial class FrameEndpointHandler
                     ? new SqlExecutionMetrics()
                     : null;
             var routineOptions = ctx.RequestServices.GetRequiredService<IOptions<ServerOptions>>().Value.SqlExecution;
+            bool streamResults = parsed is SelectStatement { OrderByList.Count: > 0 }
+                && !sequenceWrite && !WorkbenchPreviewSql.IsRequested(ctx);
+            streamingDeadline = streamResults ? routineOptions.GetStreamingQueryDeadline() : null;
             object? result = SqlExecutor.ExecuteStatement(
                 tsdb,
                 request.Db,
@@ -553,6 +560,8 @@ internal static partial class FrameEndpointHandler
                 new SqlExecutionOptions
                 {
                     CancellationToken = ctx.RequestAborted,
+                    StreamResults = streamResults,
+                    DeadlineUtc = streamingDeadline,
                     SessionContext = connectionLease?.Context,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     AllowDurationResults = nativeDuration,
@@ -570,51 +579,89 @@ internal static partial class FrameEndpointHandler
                     TransactionCommitTimeoutMilliseconds = routineOptions.TransactionCommitTimeoutMilliseconds,
                     Metrics = executionMetrics,
                 });
-            executionSnapshot = executionMetrics?.Complete();
-            if (result is not SelectExecutionResult select)
+            long rowCount;
+            switch (result)
             {
-                metrics.RecordSqlError();
-                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_error",
-                    "语句未产生结果集。");
-                return;
+                case SqlStreamingSelectResult stream:
+                    using (stream)
+                    {
+                        streamingCancellation = stream.CancellationToken;
+                        streamingCancellation.ThrowIfCancellationRequested();
+                        if (!ctx.Response.HasStarted)
+                            ctx.Response.Headers[SqlFrameCodec.StreamingResultHeader] = "1";
+                        EncodeMeta(stream.Columns, stream.ColumnInfo);
+                        streamingStarted = true;
+                        var metadataFlush = await writer.FlushAsync(streamingCancellation).ConfigureAwait(false);
+                        SqlEndpointHandler.EnsureStreamingFlush(ctx, metadataFlush, streamingCancellation);
+                        rowCount = await WriteStreamingQueryRowsAsync(ctx, writer, header.StreamId, stream,
+                            typedResults, nativeDateTime, nativeDuration, nativeDateTimeOffset).ConfigureAwait(false);
+                        streamingCancellation.ThrowIfCancellationRequested();
+                        SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, rowCount, sw.Elapsed.TotalMilliseconds);
+                        var flush = await writer.FlushAsync(streamingCancellation).ConfigureAwait(false);
+                        SqlEndpointHandler.EnsureStreamingFlush(ctx, flush, streamingCancellation);
+                    }
+                    executionSnapshot = executionMetrics?.Complete();
+                    break;
+                case SelectExecutionResult select:
+                    executionSnapshot = executionMetrics?.Complete();
+                    EncodeMeta(select.Columns, select.ColumnInfo);
+                    int position = 0;
+                    while (position < select.Rows.Count)
+                    {
+                        int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
+                        SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows,
+                            select.Columns.Count, exactDecimal: typedResults, nativeDateTime, nativeDuration, nativeDateTimeOffset);
+                        position += chunkRows;
+                        if (position < select.Rows.Count)
+                            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+                    }
+                    rowCount = select.Rows.Count;
+                    SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, rowCount, sw.Elapsed.TotalMilliseconds);
+                    break;
+                default:
+                    metrics.RecordSqlError();
+                    FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_error",
+                        "语句未产生结果集。");
+                    return;
             }
 
-            // 流式回写：meta → rows × N → end。meta 与首块合并，最后一块与 end 合并；
-            // 仅在确认还有后续块时中途 flush，既保留大结果反压，也避免小结果多次微小刷新。
-            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns,
-                typedResults
-                    ? select.ColumnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
-                    { IsDeclared = false }, select.Columns.Count).ToArray()
-                    : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset, nativeDateTime2);
-
-            int position = 0;
-            while (position < select.Rows.Count)
-            {
-                int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
-                SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows,
-                    select.Columns.Count, exactDecimal: typedResults, nativeDateTime, nativeDuration, nativeDateTimeOffset);
-                position += chunkRows;
-                if (position < select.Rows.Count)
-                    await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-            }
-
-            double elapsed = sw.Elapsed.TotalMilliseconds;
-            SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, select.Rows.Count, elapsed);
-            metrics.AddReturnedRows(select.Rows.Count);
+            metrics.AddReturnedRows(rowCount);
             SqlEndpointHandler.RecordSlow(
                 diagnostics,
                 request.Db,
                 request.Sql,
-                elapsed,
-                select.Rows.Count,
+                sw.Elapsed.TotalMilliseconds,
+                rowCount,
                 -1,
                 failed: false,
                 executionSnapshot,
                 queueWaitMs);
+
+            void EncodeMeta(IReadOnlyList<string> columns, IReadOnlyList<SelectColumnInfo>? columnInfo)
+                => SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, columns,
+                    typedResults
+                        ? columnInfo ?? Enumerable.Repeat(new SelectColumnInfo(null)
+                        { IsDeclared = false }, columns.Count).ToArray()
+                        : null, fullDeclarations, nativeDateTime, nativeDuration, nativeDateTimeOffset, nativeDateTime2);
         }
-        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (ctx.RequestAborted.IsCancellationRequested
+            || ex.CancellationToken == ctx.RequestAborted && ex.CancellationToken.CanBeCanceled)
         {
             throw;
+        }
+        catch (OperationCanceledException) when (streamingDeadline is { } deadline
+            && (streamingCancellation.IsCancellationRequested || deadline <= DateTimeOffset.UtcNow))
+        {
+            metrics.RecordSqlError();
+            SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds,
+                0, 0, failed: true, executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
+            if (streamingStarted)
+            {
+                ctx.Abort();
+                throw new OperationCanceledException(ctx.RequestAborted);
+            }
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_timeout",
+                "SQL 查询超过语句总时限。");
         }
         catch (Exception ex)
         {
@@ -641,6 +688,40 @@ internal static partial class FrameEndpointHandler
                 _ => "sql_error",
             };
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
+        }
+    }
+
+    private static async Task<long> WriteStreamingQueryRowsAsync(
+        HttpContext context, PipeWriter writer, uint streamId, SqlStreamingSelectResult result,
+        bool typedResults, bool nativeDateTime, bool nativeDuration, bool nativeDateTimeOffset)
+    {
+        var cancellationToken = result.CancellationToken;
+        var rows = new List<IReadOnlyList<object?>>();
+        long rowCount = 0;
+        long chunkBytes = 0;
+        while (result.MoveNext())
+        {
+            var row = result.Current;
+            rows.Add(row);
+            chunkBytes += SqlFrameCodec.EstimateRowBytes(row);
+            if (rows.Count < SqlFrameCodec.DefaultMaxChunkRows && chunkBytes < SqlFrameCodec.DefaultTargetChunkBytes)
+                continue;
+
+            EncodeRows();
+            var flush = await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            SqlEndpointHandler.EnsureStreamingFlush(context, flush, cancellationToken);
+        }
+        if (rows.Count > 0)
+            EncodeRows();
+        return rowCount;
+
+        void EncodeRows()
+        {
+            SqlFrameCodec.EncodeQueryRowsFrame(writer, streamId, rows, 0, rows.Count,
+                result.Columns.Count, exactDecimal: typedResults, nativeDateTime, nativeDuration, nativeDateTimeOffset);
+            rowCount += rows.Count;
+            rows.Clear();
+            chunkBytes = 0;
         }
     }
 

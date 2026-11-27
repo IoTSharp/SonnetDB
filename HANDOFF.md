@@ -1,3 +1,44 @@
+## 2026-11-28（Asia/Shanghai）#440 大结果 ORDER BY 交付
+
+- 工作树 `C:/Users/mysti/.codex/worktrees/issue-440-streaming-order-by/SonnetDB`，交付分支 `codex/issue-440-streaming-order-by`，基准 `c42e7044b6661027a1570c91a23bc09ddf71344d`。主目录的本地 HANDOFF 修改属于其他会话。当前交付提交由此分支的 Git 记录定位。按授权推送 GitHub 后，逐项核对 #440 的代码验收并回填 issue。发布和部署均为 NOT_RUN。
+- 源码入口见[执行、资源、消费和故障合同](docs/design/sql-bounded-order-by.md)。时序归并按单语句固定 series、活跃点范围、墓碑和段租约；同时间戳按捕获的目录顺序输出，高扇入复用稳定 Top-N 或外排。直接关系表全量排序使用表快照和稳定外排。Core、REST、Frame、ADO.NET 在所声明的查询形状中逐步消费。Workbench Preview 保留显式预算。
+- 对照 #437 专用工作树相对于同一基准的提交 `5574c00b`，共有 `CHANGELOG.md`、`HANDOFF.md` 和 `ROADMAP.md` 三处相交。#437 的 `RelationalSelectExecutor.cs` 与本轮的 `TableSqlExecutor.cs`、`SelectExecutor.cs` 和 `SqlExecutor.cs` 是独立文件。合并时复核查询分派和关系元数据。基准 Windows REST CI 的已知失败是 `CapJourneyTests.CommitAsync_WithFaultedStartup_PropagatesErrorAndAllowsRollback(remote: False)` 中的 `System.TimeoutException`，与本轮定向用例独立。[基准 Job](https://github.com/IoTSharp/SonnetDB/actions/runs/45964776153/job/140390745612)
+- **Core PASS 153/153**。含小语料逐行对拍、并发写入/删除/flush/真实 compaction、强制外排、磁盘配额拒绝、不可用目录、短读、取消、绝对截止和标记目录重开。两个容量层级均使用 8 个序列、固定 seed 440 和 2,048 点写入批次。153 项运行中的 soak 为 12 次 smoke。独立 **512 轮 soak PASS**，用时 52.40 s，排序预留峰值 284 B，活跃 run 峰值 9,056 B，完成 run 累计 14,260,992 B。早期组合运行的 3 分钟上限触发取消，正式长轮次使用 8 分钟、最多 512 轮的有界验收。
+- **Server 与真实消费者 PASS 14/14**。Windows 本机 Kestrel 上核对 HTTP REST、HTTP/2 Frame、REST/Frame ADO.NET 和嵌入式 ADO.NET。10,002 行的普通结果完整交付，Workbench 预览报超限。受控慢写覆盖调用方取消、CommandTimeout、服务端绝对期限和中途断连。独立 Server 在 live spill 存续期间被强停，重开后读回 4,096 行，清除本库标记工作区并保留无标记控制目录。
+- **最终 solution restore、CI 格式与 `git diff --check` PASS**。格式复跑保持 CI 参数并增加 `--verbosity diagnostic`，退出码 0，2,839 个文件中 0 个需要格式化。诊断明确显示 `docker-compose.dcproj` 不属于 Roslyn 可加载项目。首轮 460 秒达到时限，复跑实际用时 358 秒。项目、依赖版本和目标框架配置均无本轮改动。Core 及 Server 编译未报 IL/AOT 警告，NativeAOT 发布和安装为 NOT_RUN。
+- **环境边界**。运维物理 ENOSPC、固定硬件、168 小时长稳、发布包、正式部署、现场重启及 OOM 因果为 NOT_RUN。本地用受控配额耗尽和不可用路径触发实际错误。复杂查询及独立下一页的读视图合同见设计页。
+
+### 容量测量
+
+DEVPER，Windows 10.0.26300，Core .NET 10.0.15，测试进程可见 CPU 2。进程峰值是同一测试进程的生命周期高水位。两层语料按生成公式逐行比对，无 spill。算子预留独立于活动 MemTable 切片和读缓存。
+
+| 输入与输出行数 | 首行 / 全量交付 | 进程峰值前 / 后 | 比较 / 点流读者峰值 |
+| ---: | ---: | ---: | ---: |
+| 100,000 | 4.73 ms / 241.93 ms | 369,692,672 B / 369,692,672 B | 599,977 / 8 |
+| 999,992 | 69.53 ms / 5,075.26 ms | 277,929,984 B / 369,692,672 B | 5,999,931 / 8 |
+
+### 复现命令
+
+```powershell
+dotnet restore SonnetDB.slnx
+dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/
+
+$env:SONNETDB_ORDER_BY_CAPACITY = '1'
+dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore -m:1 -nr:false --filter 'FullyQualifiedName~StreamingOrderByCapacityTests|FullyQualifiedName~MeasurementOrderedStreamingTests|FullyQualifiedName~MeasurementOrderMaterializationBudgetTests|FullyQualifiedName~SqlBlockingOperatorSpillTests|FullyQualifiedName~SqlExecutorSelectTests' --logger 'console;verbosity=detailed'
+Remove-Item Env:SONNETDB_ORDER_BY_CAPACITY
+
+$env:SONNETDB_ORDER_BY_SOAK = '1'
+dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj --no-restore -m:1 -nr:false --filter 'FullyQualifiedName~RelationalSpill_BoundedSoak_AlwaysReturnsResources' --logger 'console;verbosity=detailed'
+Remove-Item Env:SONNETDB_ORDER_BY_SOAK
+
+$env:SONNETDB_ORDER_BY_RECOVERY = '1'
+$env:Logging__LogLevel__Default = 'Warning'
+dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj --no-restore -m:1 -nr:false --filter 'FullyQualifiedName~StreamingOrderByTransportTests|FullyQualifiedName~StreamingOrderByProcessRecoveryTests|FullyQualifiedName~SqlRelationalColumnMetadataTransportTests|FullyQualifiedName~HasRows_BufferedRemoteRow_CallerCancellationDoesNotConsumeIt' --logger 'console;verbosity=minimal'
+Remove-Item Env:SONNETDB_ORDER_BY_RECOVERY, Env:Logging__LogLevel__Default
+```
+
+本轮重型验证串行执行。Cordonix 各命令在独占进程 Job 中运行，工具回执包含命令、开始时间、PID、退出和子孙进程清理结果。恢复用例另核对独立 Server PID、创建时刻、命令行和父进程后结束该树。定向 Core、Server、512 轮、最终 restore 和格式复跑的 PID 分别为 84396、88036、97000、83948、91148。首轮 Server 日志触及输出上限，进程树已回收，两处由日志定位并核对归属的测试临时目录已删除。
+
 ## 2026-11-27（Asia/Shanghai）IoTSharp 时序最新值与关系索引分页
 
 - 2026-11-27 10:45（Asia/Shanghai）从本地 `main` 提交 `564aee6d686581f6cd8426451061d1ef5feae330`，GitHub `origin/main` 独立读回一致。提交范围为两项查询优化、对应回归和变更日志。最终工作树的全解决方案 restore、CI 格式命令、暂存差异及 Core 定向 145/145 通过。格式命令报告了工作区加载警告，退出码为 0。Cordonix 确认本次验证及推送进程树已回收。

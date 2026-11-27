@@ -49,6 +49,8 @@ internal sealed class SqlQueryResources : IDisposable
     private readonly SqlExecutionOptions _options;
     private readonly string? _queryFingerprint;
     private readonly string? _parameterSensitiveQueryFingerprint;
+    private readonly CancellationToken _statementCancellationToken;
+    private CancellationToken? _pullCancellationToken;
     private long _reservedBytes;
     private long _peakReservedBytes;
     private long _rawEstimatedRows;
@@ -57,7 +59,7 @@ internal sealed class SqlQueryResources : IDisposable
     private SqlSpillWorkspace? _workspace;
     private bool _disposed;
 
-    private SqlQueryResources(Tsdb tsdb, SqlExecutionOptions options)
+    internal SqlQueryResources(Tsdb tsdb, SqlExecutionOptions options)
     {
         _tsdb = tsdb;
         _options = options;
@@ -67,12 +69,32 @@ internal sealed class SqlQueryResources : IDisposable
         _rootDirectory = tsdb.RootDirectory;
         _queryFingerprint = options.QueryFingerprint;
         _parameterSensitiveQueryFingerprint = options.ParameterSensitiveQueryFingerprint;
-        CancellationToken = options.CancellationToken;
+        _statementCancellationToken = options.CancellationToken;
     }
 
     internal static SqlQueryResources? Current => CurrentSlot.Value;
 
-    internal CancellationToken CancellationToken { get; }
+    internal CancellationToken CancellationToken => _pullCancellationToken ?? _statementCancellationToken;
+
+    internal Activation Activate(CancellationToken? pullCancellationToken = null)
+    {
+        var activation = new Activation(CurrentSlot.Value, this, _pullCancellationToken);
+        _pullCancellationToken = pullCancellationToken;
+        CurrentSlot.Value = this;
+        return activation;
+    }
+
+    internal readonly struct Activation(
+        SqlQueryResources? previous,
+        SqlQueryResources owner,
+        CancellationToken? previousPullCancellation) : IDisposable
+    {
+        public void Dispose()
+        {
+            owner._pullCancellationToken = previousPullCancellation;
+            CurrentSlot.Value = previous;
+        }
+    }
 
     internal SqlExecutionOptions Options => _options;
 
@@ -99,7 +121,7 @@ internal sealed class SqlQueryResources : IDisposable
     internal SqlSpillWorkspace GetWorkspace()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return _workspace ??= SqlSpillWorkspace.Create(_rootDirectory);
+        return _workspace ??= SqlSpillWorkspace.Create(_rootDirectory, _options.SortSpillMaxBytes ?? long.MaxValue);
     }
 
     internal void ThrowIfCancellationRequested()
@@ -325,21 +347,29 @@ internal sealed class SqlSpillWorkspace : IDisposable
     internal const string DirectoryName = "sql-spill";
     internal const string OwnerMarkerFileName = ".sonnetdb-sql-spill";
     private readonly string _directory;
+    private readonly long _sortLimitBytes;
+    private readonly Lock _sortBudgetGate = new();
+    private long _liveSortBytes;
+    private long _peakSortBytes;
     private int _nextFileId;
     private bool _disposed;
 
-    private SqlSpillWorkspace(string directory) => _directory = directory;
+    private SqlSpillWorkspace(string directory, long sortLimitBytes)
+    {
+        _directory = directory;
+        _sortLimitBytes = sortLimitBytes;
+    }
 
     internal string DirectoryPath => _directory;
 
-    internal static SqlSpillWorkspace Create(string rootDirectory)
+    internal static SqlSpillWorkspace Create(string rootDirectory, long sortLimitBytes = long.MaxValue)
     {
         string parent = Path.Combine(rootDirectory, DirectoryName);
         Directory.CreateDirectory(parent);
         string directory = Path.Combine(parent, $"query-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, OwnerMarkerFileName), "SonnetDB SQL spill v1");
-        return new SqlSpillWorkspace(directory);
+        return new SqlSpillWorkspace(directory, sortLimitBytes);
     }
 
     internal string CreateFilePath(string operatorName)
@@ -347,6 +377,28 @@ internal sealed class SqlSpillWorkspace : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         int id = Interlocked.Increment(ref _nextFileId);
         return Path.Combine(_directory, $"{operatorName}-{id:D6}.bin");
+    }
+
+    internal BinaryWriter CreateSortWriter(string path)
+        => new(new SqlSortSpillStream(path, this), System.Text.Encoding.UTF8, leaveOpen: false);
+
+    internal void ReserveSortBytes(long bytes)
+    {
+        lock (_sortBudgetGate)
+        {
+            if (bytes > _sortLimitBytes - _liveSortBytes)
+                throw new SonnetDB.Exceptions.SqlSortSpillBudgetExceededException(_sortLimitBytes);
+            _liveSortBytes += bytes;
+            _peakSortBytes = Math.Max(_peakSortBytes, _liveSortBytes);
+        }
+    }
+
+    internal void DeleteSortFile(string path)
+    {
+        long fileLength = new FileInfo(path).Length;
+        File.Delete(path);
+        lock (_sortBudgetGate)
+            _liveSortBytes -= fileLength;
     }
 
     internal static int CleanupStale(string rootDirectory)
@@ -382,6 +434,7 @@ internal sealed class SqlSpillWorkspace : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        SqlExecutionTelemetry.RecordSortSpillPeak(_peakSortBytes);
         try
         {
             if (File.Exists(Path.Combine(_directory, OwnerMarkerFileName)))
