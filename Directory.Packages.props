@@ -15,7 +15,7 @@
   </PropertyGroup>
   <ItemGroup Label="Core">
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.2" />
-    <PackageVersion Include="Quartz" Version="3.18.2" />
+    <PackageVersion Include="Quartz" Version="4.8.1" />
     <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="3.18.2" />
     <PackageVersion Include="SonnetDB" Version="$(SonnetDbQuartzProviderVersion)" Condition="'$(SonnetDbQuartzProviderVersion)' != ''" />
     <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="$(SonnetDbAspNetVersion)" />
