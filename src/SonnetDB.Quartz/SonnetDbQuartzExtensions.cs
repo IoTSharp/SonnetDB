@@ -18,28 +18,23 @@ public static class SonnetDbQuartzExtensions
     /// </summary>
     /// <param name="store">Quartz 持久化存储选项。</param>
     /// <param name="connectionString">指向已初始化调度数据库的 SonnetDB ADO.NET 连接字符串。</param>
-    public static void UseSonnetDB(this SchedulerBuilder.PersistentStoreOptions store, string connectionString)
+    public static void UseSonnetDB(this IPersistentStoreBuilder store, string connectionString)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        DbProvider.RegisterDbMetadata(ProviderName, new DbMetadata
+        var metadata = new DbMetadata
         {
             ProductName = ProviderName,
-            ConnectionType = typeof(SndbConnection),
-            CommandType = typeof(SndbCommand),
-            ParameterType = typeof(SndbParameter),
-            ParameterDbType = typeof(DbType),
-            ParameterDbTypePropertyName = nameof(SndbParameter.DbType),
             ParameterNamePrefix = "@",
             BindByName = true,
             ExceptionType = typeof(DbException),
-            DbBinaryTypeName = nameof(DbType.Binary),
-        });
-
-        store.UseGenericDatabase<SonnetDbQuartzDelegate>(ProviderName, options =>
+            ConfigureBinaryParameter = static parameter => parameter.DbType = DbType.Binary,
+        };
+        store.UseConnectionProvider(_ => new ProviderFactoryDbProvider(metadata, SndbProviderFactory.Instance, connectionString));
+        store.UseDriverDelegate<SonnetDbQuartzDelegate>();
+        store.ConfigureStore(options =>
         {
-            options.ConnectionString = connectionString;
             options.TablePrefix = "QRTZ_";
         });
         store.UseSystemTextJsonSerializer();

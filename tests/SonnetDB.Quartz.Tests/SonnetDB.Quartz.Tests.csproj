@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Quartz\SonnetDB.Quartz.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
     <Compile Include="..\SonnetDB.Tests\TestServerHost.cs" Link="TestServerHost.cs" />

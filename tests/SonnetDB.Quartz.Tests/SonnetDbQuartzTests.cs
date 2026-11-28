@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
-using Quartz.Listener;
 using SonnetDB.Configuration;
+using SonnetDB.Data;
 using SonnetDB.Tests;
 using Xunit;
 
@@ -52,14 +52,14 @@ public sealed class SonnetDbQuartzTests
             var scheduler = await CreateSchedulerAsync(schedulerName, connectionString);
             try
             {
-                var metadata = await scheduler.GetMetaData(cancellationToken);
-                Assert.True(metadata.JobStoreSupportsPersistence);
+                var metadata = await scheduler.GetMetadata(cancellationToken);
+                Assert.True(metadata.JobStorePersistent);
                 Assert.False(metadata.JobStoreClustered);
                 var job = JobBuilder.Create<NoOpJob>().WithIdentity(jobKey).UsingJobData("probe", "present").Build();
                 var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
-                    .StartAt(scheduled).WithSimpleSchedule(value => value.WithIntervalInMinutes(1).RepeatForever()).Build();
+                    .StartAt(scheduled).WithSimpleSchedule(value => value.WithInterval(TimeSpan.FromMinutes(1)).RepeatForever()).Build();
 
-                await scheduler.ScheduleJob(job, trigger, cancellationToken);
+                await scheduler.ScheduleJob(job, trigger, cancellationToken: cancellationToken);
                 await scheduler.PauseTrigger(triggerKey, cancellationToken);
                 await scheduler.Start(cancellationToken);
             }
@@ -77,7 +77,7 @@ public sealed class SonnetDbQuartzTests
                 Assert.NotNull(job);
                 Assert.Equal("present", job.JobDataMap.GetString("probe"));
                 var trigger = Assert.IsAssignableFrom<ISimpleTrigger>(await scheduler.GetTrigger(triggerKey, cancellationToken));
-                Assert.Equal(scheduled, trigger.GetNextFireTimeUtc());
+                Assert.Equal(scheduled, trigger.NextFireTimeUtc);
                 Assert.Equal(TimeSpan.FromMinutes(1), trigger.RepeatInterval);
                 Assert.Equal(TriggerState.Paused, await scheduler.GetTriggerState(triggerKey, cancellationToken));
                 Assert.Single(await scheduler.GetTriggersOfJob(jobKey, cancellationToken));
@@ -115,10 +115,65 @@ public sealed class SonnetDbQuartzTests
             SonnetDbQuartzSchema.EnsureCreatedAsync("Data Source=unused", new CancellationToken(canceled: true)));
     }
 
+    [Fact]
+    public async Task SchemaInitializationPreservesLegacyPauseRowsOnRetry()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        CancellationToken cancellationToken = timeout.Token;
+        string directory = Directory.CreateTempSubdirectory("sonnetdb-quartz-upgrade-").FullName;
+        string connectionString = $"Data Source={directory}";
+        try
+        {
+            await using (var legacy = new SndbConnection(connectionString))
+            {
+                await legacy.OpenAsync(cancellationToken);
+                await using var create = new SndbCommand("""
+                    CREATE TABLE QRTZ_PAUSED_TRIGGER_GRPS (
+                        SCHED_NAME STRING NOT NULL,
+                        TRIGGER_GROUP STRING NOT NULL,
+                        PAUSE_REASON STRING,
+                        PRIMARY KEY (SCHED_NAME, TRIGGER_GROUP)
+                    )
+                    """, legacy);
+                await create.ExecuteNonQueryAsync(cancellationToken);
+                await using var insert = new SndbCommand("""
+                    INSERT INTO QRTZ_PAUSED_TRIGGER_GRPS (SCHED_NAME, TRIGGER_GROUP, PAUSE_REASON)
+                    VALUES ('platform', 'devices', 'maintenance')
+                    """, legacy);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await SonnetDbQuartzSchema.EnsureCreatedAsync(connectionString, cancellationToken);
+            await SonnetDbQuartzSchema.EnsureCreatedAsync(connectionString, cancellationToken);
+
+            await using var reopened = new SndbConnection(connectionString);
+            await reopened.OpenAsync(cancellationToken);
+            await using var select = new SndbCommand("""
+                SELECT SCHED_NAME, TRIGGER_GROUP, PAUSE_REASON, PAUSED_BY, PAUSED_AT
+                FROM QRTZ_PAUSED_TRIGGER_GRPS
+                """, reopened);
+            await using var rows = await select.ExecuteReaderAsync(cancellationToken);
+            Assert.True(await rows.ReadAsync(cancellationToken));
+            Assert.Equal("platform", rows.GetString(0));
+            Assert.Equal("devices", rows.GetString(1));
+            Assert.Equal("maintenance", rows.GetString(2));
+            Assert.True(rows.IsDBNull(3));
+            Assert.True(rows.IsDBNull(4));
+            Assert.False(await rows.ReadAsync(cancellationToken));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static async Task<IScheduler> CreateSchedulerAsync(string schedulerName, string connectionString)
     {
-        var builder = SchedulerBuilder.Create(schedulerName, "NON_CLUSTERED");
-        builder.UsePersistentStore(store => store.UseSonnetDB(connectionString));
+        var builder = QuartzSchedulerBuilder.Create(quartz =>
+        {
+            quartz.ConfigureScheduler(options => options.InstanceName = schedulerName);
+            quartz.UsePersistentStore(store => store.UseSonnetDB(connectionString));
+        });
         return await builder.BuildScheduler();
     }
 
@@ -130,23 +185,22 @@ public sealed class SonnetDbQuartzTests
 
     public sealed class NoOpJob : IJob
     {
-        public Task Execute(IJobExecutionContext context) => Task.CompletedTask;
+        public ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
     }
 
-    private sealed class CompletionListener : JobListenerSupport
+    private sealed class CompletionListener : IJobListener
     {
         public TaskCompletionSource<JobExecutionException?> Completed { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public override string Name => nameof(CompletionListener);
-
-        public override Task JobWasExecuted(
+        public ValueTask JobWasExecuted(
             IJobExecutionContext context,
             JobExecutionException? jobException,
             CancellationToken cancellationToken = default)
         {
             Completed.TrySetResult(jobException);
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
     }
 }

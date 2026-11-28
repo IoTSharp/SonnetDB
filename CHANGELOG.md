@@ -9,6 +9,7 @@
 
 ### 依赖
 
+- `SonnetDB.Quartz` 升级至 Quartz.NET 4.8.1。`UseSonnetDB` 使用 Quartz 4 的 `IPersistentStoreBuilder`。升级现有作业库时先停机备份，再运行可重复调用的 `EnsureCreatedAsync`，补齐 Quartz 4 的表和列。
 - 更新 SkiaSharp 及配套 Linux 原生资产至 4.158.0、Microsoft.Extensions.AI 至 10.11.1、.NET 10 的 Microsoft.Extensions 公用版本至 10.0.15、Npgsql 至 10.0.4、Snappier 至 1.3.3。
 
 ### CI

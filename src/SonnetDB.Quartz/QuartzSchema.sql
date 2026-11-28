@@ -1,6 +1,6 @@
--- Quartz.NET 3.18.2 PostgreSQL 表合同，采用 SonnetDB 类型和幂等创建语法。
+-- Quartz.NET PostgreSQL 表合同，采用 SonnetDB 类型和幂等创建语法。
 -- Quartz.NET Copyright Marko Lahma, licensed under Apache-2.0.
--- https://github.com/quartznet/quartznet/blob/1d03bb00a95686bd4bc5d6d3987aaa6013d0d1ea/database/tables/tables_postgres.sql
+-- https://github.com/quartznet/quartznet/blob/v4.8.1/database/tables/tables_postgres.sql
 CREATE TABLE IF NOT EXISTS QRTZ_JOB_DETAILS (
     SCHED_NAME STRING NOT NULL,
     JOB_NAME STRING NOT NULL,
@@ -104,6 +104,15 @@ CREATE TABLE IF NOT EXISTS QRTZ_PAUSED_TRIGGER_GRPS (
     SCHED_NAME STRING NOT NULL,
     TRIGGER_GROUP STRING NOT NULL,
     PRIMARY KEY (SCHED_NAME, TRIGGER_GROUP)
+);
+
+CREATE TABLE IF NOT EXISTS QRTZ_PAUSED_JOB_GRPS (
+    SCHED_NAME STRING NOT NULL,
+    JOB_GROUP STRING NOT NULL,
+    PAUSE_REASON STRING,
+    PAUSED_BY STRING,
+    PAUSED_AT INT,
+    PRIMARY KEY (SCHED_NAME, JOB_GROUP)
 );
 
 CREATE TABLE IF NOT EXISTS QRTZ_FIRED_TRIGGERS (

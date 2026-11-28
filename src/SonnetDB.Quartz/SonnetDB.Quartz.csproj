@@ -5,7 +5,7 @@
     <TargetFrameworks Condition="'$(SonnetDbQuartzProviderVersion)' != ''">net10.0</TargetFrameworks>
     <LangVersion Condition="'$(TargetFramework)' == 'net11.0'">15.0</LangVersion>
     <Title>SonnetDB Quartz.NET Job Store</Title>
-    <Description>适用于 Quartz.NET 3.18 的 SonnetDB 持久化调度存储。</Description>
+    <Description>适用于 Quartz.NET 4.8 的 SonnetDB 持久化调度存储。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <!-- Quartz 根据程序集类型名装载作业、ADO.NET Provider 和序列化器。 -->
     <IsAotCompatible>false</IsAotCompatible>

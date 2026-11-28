@@ -76,7 +76,7 @@ try
 {
     await scheduler.ScheduleJob(JobBuilder.Create<ProbeJob>().WithIdentity(jobKey).UsingJobData("marker", "package").Build(),
         TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey).StartAt(DateTimeOffset.UtcNow.AddHours(1)).Build(),
-        timeout.Token);
+        cancellationToken: timeout.Token);
     await scheduler.PauseTrigger(triggerKey, timeout.Token);
 }
 finally
@@ -101,14 +101,18 @@ Console.WriteLine("PASS packaged Quartz JobStoreTX persisted and reopened a paus
 
 async Task<IScheduler> BuildScheduler()
 {
-    var builder = SchedulerBuilder.Create("package-consumer", "NON_CLUSTERED");
-    builder.UsePersistentStore(store => store.UseSonnetDB(connectionString));
-    return await builder.BuildScheduler();
+    var builder = QuartzSchedulerBuilder.Create(quartz =>
+    {
+        quartz.ConfigureScheduler(options => options.InstanceName = "package-consumer");
+        quartz.UsePersistentStore(store => store.UseSonnetDB(connectionString));
+    });
+    return await builder.BuildScheduler(timeout.Token);
 }
 
 public sealed class ProbeJob : IJob
 {
-    public Task Execute(IJobExecutionContext context) => Task.CompletedTask;
+    public ValueTask Execute(IJobExecutionContext context, CancellationToken cancellationToken = default) =>
+        ValueTask.CompletedTask;
 }
 '@ } elseif ($name -eq 'client') { @'
 using System.Buffers;
