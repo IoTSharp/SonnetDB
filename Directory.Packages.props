@@ -7,7 +7,7 @@
     <SonnetDbAspNetVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbAspNetVersion>
     <SonnetDbAspNetVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbAspNetVersion>
     <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbExtensionsVersion>
-    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.14</SonnetDbExtensionsVersion>
+    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbExtensionsVersion>
     <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbEfCoreVersion>
     <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbEfCoreVersion>
     <SonnetDbVectorDataVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbVectorDataVersion>
@@ -23,7 +23,7 @@
     <PackageVersion Include="System.IO.Hashing" Version="10.0.14" />
     <PackageVersion Include="System.Numerics.Tensors" Version="10.0.14" />
     <PackageVersion Include="ModelContextProtocol" Version="2.4.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.1" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="$(SonnetDbExtensionsVersion)" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
@@ -42,14 +42,14 @@
     <PackageVersion Include="Microsoft.ML.Tokenizers" Version="2.0.1" />
     <!-- 图片处理不需要许可证激活或构建密钥；Linux 原生资产不依赖 Fontconfig。 -->
     <!-- 托管包与 Linux 原生资产必须成对升级，保持相同 Skia milestone 的 native API 范围。 -->
-    <PackageVersion Include="SkiaSharp" Version="4.157.0" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.157.0" />
+    <PackageVersion Include="SkiaSharp" Version="4.158.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.158.0" />
     <PackageVersion Include="TiffLibrary" Version="0.6.65" />
     <!-- 2.26.2 在 linux-x64 原生初始化时触发 SIGILL；保留真实 native 探针通过的 2.26.0。 -->
     <PackageVersion Include="Cloud.Unum.USearch" Version="2.26.6" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
     <!-- Snappy block-format 解压（Prometheus Remote Write 入站端点用），纯托管、AOT 友好。 -->
-    <PackageVersion Include="Snappier" Version="1.3.1" />
+    <PackageVersion Include="Snappier" Version="1.3.3" />
     <!-- M30 #265/#266：IoTSharp.CoAP.NET 的 DTLS 传输层；纯托管、coaps 可选启用。 -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <!--
@@ -108,6 +108,6 @@
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="InfluxDB.Client" Version="5.1.0" />
     <PackageVersion Include="LiteDB" Version="5.0.21" />
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="10.0.4" />
   </ItemGroup>
 </Project>

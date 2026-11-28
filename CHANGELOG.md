@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### 依赖
+
+- 更新 SkiaSharp 及配套 Linux 原生资产至 4.158.0、Microsoft.Extensions.AI 至 10.11.1、.NET 10 的 Microsoft.Extensions 公用版本至 10.0.15、Npgsql 至 10.0.4、Snappier 至 1.3.3。
+
 ### CI
 
 - 自动 CI 执行 Linux 构建、默认引擎全量测试和格式检查。Windows 测试、Core LSM、EF 迁移进程恢复和三平台 NativeAOT 由手动 CI 执行，候选发布仍要求同一提交的完整手动 CI。
