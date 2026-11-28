@@ -7,7 +7,7 @@
     <SonnetDbAspNetVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbAspNetVersion>
     <SonnetDbAspNetVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbAspNetVersion>
     <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbExtensionsVersion>
-    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.14</SonnetDbExtensionsVersion>
+    <SonnetDbExtensionsVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbExtensionsVersion>
     <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbEfCoreVersion>
     <SonnetDbEfCoreVersion Condition="'$(TargetFramework)' != 'net11.0'">10.0.15</SonnetDbEfCoreVersion>
     <SonnetDbVectorDataVersion Condition="'$(TargetFramework)' == 'net11.0'">11.0.0</SonnetDbVectorDataVersion>
