@@ -10,6 +10,11 @@ internal static class PrimaryKeyMigrationCrashScenario
     {
         const string prefix = "crash_kill9_primary_key_migration_";
         string phase = scenario[prefix.Length..].Replace('_', '-');
+        if (phase.StartsWith("resumable-", StringComparison.Ordinal))
+        {
+            RunResumable();
+            return;
+        }
         if (phase.StartsWith("recovery-", StringComparison.Ordinal))
         {
             string recoveryPhase = phase["recovery-".Length..];
@@ -57,6 +62,45 @@ internal static class PrimaryKeyMigrationCrashScenario
             ? "ALTER TABLE parents ALTER COLUMN code TYPE DECIMAL(18,0)"
             : "ALTER TABLE parents ALTER PRIMARY KEY(code)");
         throw new InvalidOperationException("Migration crash boundary was not reached.");
+
+        void RunResumable()
+        {
+            string[] arguments = phase.Split('-', 3);
+            if (arguments.Length != 3 || !Enum.TryParse(arguments[1], ignoreCase: true, out KvStorageEngine engine))
+                throw new ArgumentException("Expected resumable-{engine}-{phase}.", nameof(scenario));
+
+            var options = Options(root) with
+            {
+                Kv = Options(root).Kv with
+                {
+                    StorageEngine = engine,
+                    LegacyMigration = KvLegacyMigrationMode.Disabled,
+                    CleanupEnabled = false,
+                },
+            };
+            string target = arguments[2];
+            if (target.StartsWith("recovery-", StringComparison.Ordinal))
+            {
+                string recoveryPhase = target["recovery-".Length..];
+                TableManager.SchemaMigrationRecoveryPhaseTestHook = (_, actual) =>
+                {
+                    if (actual == recoveryPhase) Pause();
+                };
+                using var recovering = Tsdb.Open(options);
+                throw new InvalidOperationException("Resumable migration recovery boundary was not reached.");
+            }
+
+            using var database = Tsdb.Open(options);
+            database.Tables.ForceResumableSchemaMigrationForTests = true;
+            int hit = 0;
+            int desiredHit = target.StartsWith("page-", StringComparison.Ordinal) ? 2 : 1;
+            database.Tables.ResumableSchemaMigrationPhaseTestHook = actual =>
+            {
+                if (actual == target && ++hit == desiredHit) Pause();
+            };
+            SqlExecutor.Execute(database, "ALTER TABLE parents ALTER PRIMARY KEY(new_tenant,code)");
+            throw new InvalidOperationException("Resumable migration crash boundary was not reached.");
+        }
 
         void Pause()
         {

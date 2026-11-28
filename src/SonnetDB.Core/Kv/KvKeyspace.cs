@@ -3205,6 +3205,54 @@ public sealed partial class KvKeyspace : IDisposable
             ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    // 目录切换不能与仍持有生命周期租约的后台 checkpoint 交错。
+    internal void EnsureMigrationDirectoryReleased()
+    {
+        lock (_sync)
+        {
+            if (!_disposed || _lifecycleLease is not null || _checkpointState?.IsRunning == true)
+                throw new IOException("关系表分批迁移仍在等待 rowstore 释放目录租约。");
+        }
+    }
+
+    internal void CheckpointMigrationTarget(CancellationToken cancellation)
+    {
+        if (!_checkpointGate.Wait(TimeSpan.FromSeconds(15), cancellation))
+            throw new TimeoutException("分批迁移等待暂存 rowstore 的检查点超时。");
+        try
+        {
+            RunCheckpointCore(isSegment: false, cancellation);
+        }
+        finally
+        {
+            _checkpointGate.Release();
+            CompleteDeferredDispose();
+        }
+    }
+
+    internal void CloseForMigrationMove()
+    {
+        if (_lsm is not null)
+        {
+            Dispose();
+            EnsureMigrationDirectoryReleased();
+            return;
+        }
+
+        // 等待后台 checkpoint 完成 WAL 回收后，持 gate 关闭，防止后台任务再次启动。
+        if (!_checkpointGate.Wait(TimeSpan.FromSeconds(15)))
+            throw new TimeoutException("分批迁移等待源 rowstore 释放检查点超时。");
+        try
+        {
+            Dispose();
+            EnsureMigrationDirectoryReleased();
+        }
+        finally
+        {
+            _checkpointGate.Release();
+        }
+    }
+
     private void CompleteDeferredDispose()
     {
         KvDiskState? checkpointDisk;
@@ -3545,8 +3593,9 @@ public sealed partial class KvKeyspace : IDisposable
         }
     }
 
-    private long RunCheckpointCore(bool isSegment)
+    private long RunCheckpointCore(bool isSegment, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         CheckpointTestHook?.Invoke(KvCheckpointPhase.BeforeFreeze);
         KvCheckpointState? checkpoint;
         lock (_sync)
@@ -3572,7 +3621,7 @@ public sealed partial class KvKeyspace : IDisposable
         {
             CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterFreeze);
 
-            int count = CountVisible(checkpoint.Values, secondary: null, checkpoint.DiskState);
+            int count = CountVisible(checkpoint.Values, secondary: null, checkpoint.DiskState, cancellationToken);
             var entries = EnumerateVisibleEntries(
                 checkpoint.Values,
                 secondary: null,
@@ -3580,7 +3629,7 @@ public sealed partial class KvKeyspace : IDisposable
                 prefix: [],
                 afterKey: null,
                 readDiskValues: true,
-                maintenanceRead: true);
+                maintenanceRead: true, cancellationToken: cancellationToken);
             if (checkpoint.IsSegment)
             {
                 KvStateFile.SaveSegment(
@@ -3604,7 +3653,7 @@ public sealed partial class KvKeyspace : IDisposable
                 Path.GetDirectoryName(statePath) ?? string.Empty);
             CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterStateSavedBeforePublish);
             openedState = KvStateFile.OpenDiskState(statePath, _diskReadBudget);
-            openedState.ValidateAllEntries();
+            openedState.ValidateAllEntries(cancellationToken);
 
             bool invalidated;
             bool checkpointOwnsOldDisk;
@@ -4600,17 +4649,22 @@ public sealed partial class KvKeyspace : IDisposable
     private static int CountVisible(
         IReadOnlyDictionary<byte[], KvValueEntry> primary,
         IReadOnlyDictionary<byte[], KvValueEntry>? secondary,
-        KvDiskState? diskState)
+        KvDiskState? diskState,
+        CancellationToken cancellationToken = default)
     {
         int count = diskState?.Count ?? 0;
         if (secondary is not null)
         {
             foreach (var pair in secondary)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 count = AdjustVisibleCount(count, pair.Value, diskState?.Contains(pair.Key) == true);
+            }
         }
 
         foreach (var pair in primary)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             bool existsInLowerLayer;
             if (secondary?.TryGetValue(pair.Key, out var secondaryEntry) == true)
                 existsInLowerLayer = !secondaryEntry.IsDeleted;

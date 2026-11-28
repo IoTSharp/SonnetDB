@@ -179,7 +179,8 @@ public sealed partial class TableStore
                 }
             }
             if (before.Count > TableSchemaMigrationJournal.MaxEntries)
-                throw new InvalidOperationException("主键迁移恢复条目超过固定上限。");
+                throw budget.CreateJournalExceeded(TableSchemaMigrationBudget.JournalEntriesKind,
+                    before.Count, before.Count, TableSchemaMigrationJournal.MaxEntries);
             var undo = new TableSchemaMigrationUndo(_schema.Name, Generation,
                 TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema),
                 before.Select(static item => new TableSchemaMigrationEntry(item.Key, item.Value)).ToArray());

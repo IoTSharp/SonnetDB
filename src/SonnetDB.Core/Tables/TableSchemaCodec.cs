@@ -18,7 +18,8 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 19;
+    internal const int ResumableMigrationVersion = 20;
+    private const int _formatVersion = ResumableMigrationVersion;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
     private const int _moveRetryCount = 7;
@@ -68,6 +69,13 @@ public static class TableSchemaCodec
     {
         SaveCore(path, schemas, ".tmp", minimumVersion: 19);
         SonnetDB.Wal.DirectoryFsync.FlushRequired(Path.GetDirectoryName(path)!);
+    }
+
+    internal static byte[] EncodeResumableMigrationCatalog(IReadOnlyList<TableSchema> schemas)
+    {
+        using var destination = new MemoryStream();
+        Save(schemas, destination, ResumableMigrationVersion);
+        return destination.ToArray();
     }
 
     /// <summary>读取已有目录的格式下限；目录保存不能悄悄退回旧引擎可读版本。</summary>
@@ -405,6 +413,7 @@ public static class TableSchemaCodec
             WriteTable(destination, schema, crc, version);
 
         Span<byte> footer = stackalloc byte[_footerSize];
+        footer.Clear();
         BinaryPrimitives.WriteUInt32LittleEndian(footer[..4], crc.GetCurrentHashAsUInt32());
         _magic.CopyTo(footer.Slice(4, 8));
         destination.Write(footer);

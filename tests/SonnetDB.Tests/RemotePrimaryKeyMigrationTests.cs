@@ -1,5 +1,9 @@
 using System.Data;
+using System.Globalization;
+using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Data;
+using SonnetDB.Hosting;
 using SonnetDB.Tables;
 using Xunit;
 
@@ -7,6 +11,104 @@ namespace SonnetDB.Tests;
 
 public sealed partial class RemoteAdoHttp2TransportTests
 {
+    /// <summary>在真实 ADO 连接上执行分批 DDL，核对发布后的外键和重开数据。</summary>
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task ResumablePrimaryKeyMigration_RealConsumerReadsPublishedSchemaAndRows(string protocol)
+    {
+        const int rowCount = 520;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        string embeddedRoot = Path.Combine(_dataRoot!, "resumable-primary-key-migration");
+        await using (var connection = new SndbConnection(IntegralConnectionString(protocol, embeddedRoot)))
+        {
+            await connection.OpenAsync(deadline.Token);
+            foreach (string sql in new[]
+            {
+                "CREATE TABLE resumable_parents(id INT,code INT,label STRING,PRIMARY KEY(id),CHECK(code>0))",
+                "CREATE UNIQUE INDEX ux_resumable_label ON resumable_parents(label)",
+                "CREATE TABLE resumable_children(id INT,parent_id INT,PRIMARY KEY(id),FOREIGN KEY(parent_id) REFERENCES resumable_parents(id))",
+                "CREATE INDEX ix_resumable_parent ON resumable_children(parent_id)",
+            })
+            {
+                await ExecutePrimaryKeyMigrationAsync(connection, sql, asynchronous: true, deadline.Token);
+            }
+
+            TableManager tables;
+            if (protocol == "embedded")
+            {
+                tables = connection.UnderlyingTsdb!.Tables;
+            }
+            else
+            {
+                var registry = _app!.Services.GetRequiredService<TsdbRegistry>();
+                Assert.True(registry.TryGet(DatabaseName, out var database));
+                tables = database.Tables;
+            }
+
+            var rows = new IReadOnlyList<object?>[rowCount];
+            for (int index = 0; index < rows.Length; index++)
+            {
+                deadline.Token.ThrowIfCancellationRequested();
+                long id = index + 1;
+                rows[index] = new object?[] { id, rowCount + 1L - id, "item-" + id.ToString(CultureInfo.InvariantCulture) };
+            }
+            Assert.Equal(rowCount, tables.Open("resumable_parents").InsertMany(rows));
+            await ExecutePrimaryKeyMigrationAsync(connection,
+                "INSERT INTO resumable_children(id,parent_id) VALUES(10,1),(11,520),(12,NULL)", asynchronous: true, deadline.Token);
+            tables.CheckpointAll();
+
+            int checkpoints = 0;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            PropertyInfo force = typeof(TableManager).GetProperty("ForceResumableSchemaMigrationForTests", flags)!;
+            PropertyInfo hook = typeof(TableManager).GetProperty("ResumableSchemaMigrationPhaseTestHook", flags)!;
+            force.SetValue(tables, true);
+            hook.SetValue(tables, (Action<string>)(phase =>
+            {
+                if (phase == "page-checkpointed") checkpoints++;
+            }));
+            try
+            {
+                await ExecutePrimaryKeyMigrationAsync(connection,
+                    "ALTER TABLE resumable_parents ALTER PRIMARY KEY(code)", asynchronous: true, deadline.Token);
+            }
+            finally
+            {
+                hook.SetValue(tables, null);
+                force.SetValue(tables, false);
+            }
+            Assert.True(checkpoints > 1, $"持久页数量为 {checkpoints}。");
+            await AssertPublishedAsync(connection);
+        }
+
+        if (protocol != "embedded")
+            await ReopenHostAsync(deadline.Token);
+        await using var reopened = new SndbConnection(IntegralConnectionString(protocol, embeddedRoot));
+        await reopened.OpenAsync(deadline.Token);
+        await AssertPublishedAsync(reopened);
+        await AssertPrimaryKeyMigrationRejectedAsync(reopened,
+            "INSERT INTO resumable_children(id,parent_id) VALUES(99,999)", protocol, asynchronous: true, deadline.Token,
+            TableConstraintException.ForeignKeyViolation);
+        AssertPrimaryKeyMigrationTransport(protocol);
+
+        async Task AssertPublishedAsync(SndbConnection connection)
+        {
+            var columns = connection.GetSchema("Columns", [null, null, "resumable_parents", null]);
+            Assert.Equal("code", Assert.Single(columns.Rows.Cast<DataRow>(), row => (bool)row["IS_PRIMARY_KEY"])["COLUMN_NAME"]);
+            var foreignKeys = connection.GetSchema("ForeignKeys", [null, null, "resumable_children", null]);
+            Assert.Equal("code", Assert.Single(foreignKeys.Rows.Cast<DataRow>())["PRINCIPAL_COLUMN_NAME"]);
+            await AssertPrimaryKeyMigrationRowsAsync(connection,
+                "SELECT id,parent_id FROM resumable_children ORDER BY id",
+                [typeof(long), typeof(long)], [[10L, 520L], [11L, 1L], [12L, null]], asynchronous: true, deadline.Token);
+            await AssertPrimaryKeyMigrationRowsAsync(connection,
+                "SELECT id,code FROM resumable_parents WHERE label='item-1'",
+                [typeof(long), typeof(long)], [[1L, 520L]], asynchronous: true, deadline.Token);
+            await AssertPrimaryKeyMigrationRowsAsync(connection, "SELECT COUNT(*) FROM resumable_parents",
+                [typeof(long)], [[(long)rowCount]], asynchronous: true, deadline.Token);
+        }
+    }
+
     /// <summary>原始主键定义和类型 DDL 在三种连接的同步、异步路径保持行身份、入站外键及重开合同。</summary>
     [Theory]
     [InlineData("embedded", false)]

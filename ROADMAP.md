@@ -480,6 +480,7 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 | M39、M41、M42 | ENV-SOAK / ENV-02/04 | 查询、事务、预算、取消、故障和本地性能计量 |
 | M40 #352/#367 | ENV-RELIABILITY / ENV-SOAK | Graph API、存储、evaluator、quick kill/reopen、代码回归 |
 | KV-LSM G9、M50 T28/T29/T32 | ENV-02/03/04 | G1～G8/G10～G12 的代码/本机门禁；M50 T01～T27/T30A |
+| 关系表分批迁移 #439 | [固定硬件容量、长稳与现场重开](docs/roadmap-environment-validation.md#439-关系表分批迁移环境验证) | Legacy/LSM 分批迁移、确定性强杀恢复和真实客户端回归 |
 | M48-L20B、GH-Issue #398/#399/#402 | ENV-01～ENV-06 | M48-L20A候选、安装脚本、支持矩阵和发布合同 |
 
 当前没有连接线上 Demo、现场生产或电源控制设备；本路线环境任务保持 `PLANNED/NOT_RUN`，不会以本机或 hosted 结果冒充现场资格。

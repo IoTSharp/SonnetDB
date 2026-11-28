@@ -403,7 +403,8 @@ public sealed class BackupService
         Predicate<string> includeFile = CreateIncludePredicate(scope, graphStorageIds);
         Predicate<string> includeDirectory = path =>
             (scope.Includes(BackupModelScope.ObjectContent) || !IsUnderDirectory(path, "objects"))
-            && (!options.ExcludeObjectMetadata || !IsUnderDirectory(path, ObjectMetadataRelativePath));
+            && (!options.ExcludeObjectMetadata || !IsUnderDirectory(path, ObjectMetadataRelativePath))
+            && !IsUnderDirectory(path, ResumableMigrationRelativePath);
         var copied = CopyDatabaseFiles(tsdb.RootDirectory, destination, includeFile, includeDirectory, lsmBackup);
         RewriteSelectedCatalogs(destination, scope);
         var manifest = BuildManifest(
@@ -415,6 +416,8 @@ public sealed class BackupService
     }
 
     private const string ObjectMetadataRelativePath = TsdbPaths.KvDirName + "/keyspaces/" + SndbObjectStore.MetadataKeyspace;
+    private const string ResumableMigrationRelativePath = TsdbPaths.TablesDirName + "/rowstore/"
+        + TableResumableSchemaMigrationJournal.DirectoryName;
 
     /// <summary>把按资源名称选择的关系表和文档集合目录清单收窄到恢复可见集合。</summary>
     private static void RewriteSelectedCatalogs(string destination, BackupScopeInfo scope)
@@ -539,7 +542,7 @@ public sealed class BackupService
         return relativePath =>
         {
             string normalized = NormalizeRelativePath(relativePath);
-            if (normalized == BackupManifest.FileName)
+            if (normalized == BackupManifest.FileName || IsUnderDirectory(normalized, ResumableMigrationRelativePath))
                 return false;
 
             if (!scope.Includes(BackupModelScope.KeyValue)

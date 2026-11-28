@@ -17,7 +17,9 @@ public sealed partial class TableManager
     private void ApplyPrimaryKeySchemaMigrationLocked(
         TableSchema current, TableSchema updated,
         Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
-        Action<TableSchema, IReadOnlyList<object?>>? validate = null)
+        Action<TableSchema, IReadOnlyList<object?>>? validate = null,
+        Func<TableRow, long, IReadOnlyList<object?>>? resumableBackfill = null,
+        object? backfillValue = null)
     {
         SqlExecutor.ThrowIfCancellationRequested();
         IReadOnlyList<TableSchema> previousSchemas = _catalog.Snapshot();
@@ -62,6 +64,7 @@ public sealed partial class TableManager
         budget.SetContext(current.Name, lockNames.Count);
 
         var lockedStores = new List<TableStore>(lockNames.Count);
+        bool preparingOneShot = false;
         try
         {
             foreach (string name in lockNames.Order(StringComparer.Ordinal))
@@ -73,6 +76,15 @@ public sealed partial class TableManager
                 lockedStores.Add(store);
                 store.EnsureNoOnlineIndexBuild();
             }
+            if (ForceResumableSchemaMigrationForTests || HasPendingResumableSchemaMigration()
+                || updatedByName.Values.Sum(schema => (long)_stores[schema.ObjectName].RowCount) > TableSchemaMigrationBudget.MaxRows)
+            {
+                ApplyResumableSchemaMigration(current, updated, principalTarget, children, selfReference,
+                    preservesPrimaryKey, previousSchemas, candidateSchemas, lockNames, transform, validate,
+                    resumableBackfill, backfillValue, publishCatalog);
+                return;
+            }
+            preparingOneShot = true;
             var plans = new Dictionary<string, (TableStore Store, TableStore.SchemaMigrationPlan Plan)>(StringComparer.Ordinal);
             TableStore principalStore = _stores[current.ObjectName];
             TableStore.SchemaMigrationPlan principalPlan = principalStore.PrepareSchemaMigration(updated, transform,
@@ -100,7 +112,7 @@ public sealed partial class TableManager
                 // 不依赖遍历顺序，循环引用也无需临时删除约束或写入半迁移状态。
                 principalPlan = principalStore.PrepareSchemaMigration(principalTarget,
                     (_, row) => TransformSchemaMigrationChildRow(current, updated, selfReference, row,
-                        principalByOriginalKey, principalByOriginalKey[row.PrimaryKey.ToArray()].Values),
+                        key => principalByOriginalKey.GetValueOrDefault(key), principalByOriginalKey[row.PrimaryKey.ToArray()].Values),
                     (schema, values) =>
                     {
                         ValidateSchemaMigrationRow(schema, values);
@@ -112,7 +124,8 @@ public sealed partial class TableManager
             {
                 TableStore store = _stores[child.Original.ObjectName];
                 var plan = store.PrepareSchemaMigration(child.Updated,
-                    (_, row) => TransformSchemaMigrationChildRow(current, updated, child, row, principalByOriginalKey),
+                    (_, row) => TransformSchemaMigrationChildRow(current, updated, child, row,
+                        key => principalByOriginalKey.GetValueOrDefault(key)),
                     ValidateSchemaMigrationRow, TableRowIdentity.Create, budget);
                 plans.Add(child.Original.Name, (store, plan));
             }
@@ -137,7 +150,15 @@ public sealed partial class TableManager
             }
             budget.Reserve(payloadBytes);
             SqlExecutor.ThrowIfCancellationRequested();
+            preparingOneShot = false;
             CommitSchemaMigration(previousSchemas, candidateSchemas, originalCatalog, plans, undoTables, publishCatalog);
+        }
+        catch (TableConstraintException failure) when (preparingOneShot
+            && IsResumableMigrationBudget(failure))
+        {
+            ApplyResumableSchemaMigration(current, updated, principalTarget, children, selfReference,
+                preservesPrimaryKey, previousSchemas, candidateSchemas, lockNames, transform, validate,
+                resumableBackfill, backfillValue, publishCatalog);
         }
         finally
         {
@@ -145,6 +166,10 @@ public sealed partial class TableManager
                 Monitor.Exit(lockedStores[index].SynchronizationRoot);
         }
     }
+
+    private static bool IsResumableMigrationBudget(TableConstraintException failure)
+        => failure.BudgetKind is TableSchemaMigrationBudget.RowsKind or TableSchemaMigrationBudget.WorkingBytesKind
+            or TableSchemaMigrationBudget.JournalEntriesKind or TableSchemaMigrationBudget.JournalBytesKind;
 
     private List<SchemaMigrationChild> PrepareSchemaMigrationChildren(
         TableSchema current, TableSchema updated, IReadOnlyList<TableSchema> schemas, bool preservesPrimaryKey)
@@ -229,7 +254,7 @@ public sealed partial class TableManager
 
     private static IReadOnlyList<object?> TransformSchemaMigrationChildRow(
         TableSchema current, TableSchema updated, SchemaMigrationChild child, TableRow row,
-        IReadOnlyDictionary<byte[], TableRow> principalByOriginalKey,
+        Func<byte[], TableRow?> findPrincipal,
         IReadOnlyList<object?>? transformedValues = null)
     {
         object?[] values = (transformedValues ?? row.Values).ToArray();
@@ -247,7 +272,8 @@ public sealed partial class TableManager
                 continue;
             }
             byte[] oldKey = TableKeyCodec.EncodePrimaryKeyValues(current, oldForeignKey);
-            if (!principalByOriginalKey.TryGetValue(oldKey, out TableRow? principal))
+            TableRow? principal = findPrincipal(oldKey);
+            if (principal is null)
                 throw new TableConstraintException(TableConstraintException.ForeignKeyViolation, child.Original.Name,
                     reference.Name, "主键迁移发现存量子行引用了不存在的父行。");
             for (int index = 0; index < reference.Columns.Count; index++)

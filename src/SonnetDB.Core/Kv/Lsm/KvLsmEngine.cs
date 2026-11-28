@@ -1630,6 +1630,7 @@ internal sealed class KvLsmSnapshot : IDisposable
     internal KvSnapshotIterator CreateIterator(byte[]? lowerBound = null, byte[]? upperBound = null, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _released) != 0, this);
+        cancellationToken.ThrowIfCancellationRequested();
         var children = new List<IKvInternalIterator> { _mutable.CreateIterator() };
         var tombstones = new List<KvRangeTombstone>(_mutable.RangeTombstones);
         foreach (KvMemTable table in _immutables)
@@ -1650,6 +1651,7 @@ internal sealed class KvLsmSnapshot : IDisposable
             }
             bool Include(KvLsmFileMetadata file)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (lowerBound is not null && KvInternalKey.UserKey(file.LargestKey).SequenceCompareTo(lowerBound) < 0
                     || upperBound is not null && KvInternalKey.UserKey(file.SmallestKey).SequenceCompareTo(upperBound) >= 0)
                     return false;
@@ -1683,7 +1685,7 @@ internal sealed class KvLsmSnapshot : IDisposable
         return new KvSnapshotIterator(
             new VersionPinnedIterator(new KvMergingIterator(children), pinned, _engine),
             Sequence, ReadTimestampUtcTicks, lowerBound, upperBound,
-            KvRangeTombstoneSet.Build(tombstones, Sequence));
+            KvRangeTombstoneSet.Build(tombstones, Sequence), cancellationToken);
     }
 
     /// <summary>释放版本引用（幂等）；引擎已关闭时随之关闭不再需要的 SST 读取器。</summary>
