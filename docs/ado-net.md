@@ -88,6 +88,9 @@ using var r = q.ExecuteReader();
 - `BeginTransaction()` / `BeginTransactionAsync()` 支持关系表轻事务；无参数或 `IsolationLevel.Unspecified` 默认映射为 `ReadCommitted`，也可显式请求 `ReadCommitted` 或关系基表专用的 `Serializable`。后者是表级首次读的乐观提交校验；冲突返回 `table_serialization_conflict` 并终止整笔事务，调用方必须从 BEGIN 重新读取并重试，不是 MVCC/可重复读快照或悲观行锁。
 - SQL 文本 `BEGIN`（`SqlExecutor.ExecuteScript(...)` 或服务端 `/v1/db/{db}/sql/batch`）没有隔离级别语法，始终使用默认 `ReadCommitted`，不能从该入口请求 `Serializable`；嵌入式 ADO 命令中的 `BEGIN`/`COMMIT`/`ROLLBACK` 也被拒绝，应使用 `SndbConnection.BeginTransaction` API。
 - 远程 ADO.NET 的显式 `Serializable` 会创建事务会话并发送 `X-SonnetDB-Isolation-Level: serializable`，只有 Server 回执 `isolationLevel: serializable` 时才继续，旧 Server 不会静默降级；嵌入式模式在本地创建相同隔离级别上下文。
+- 配置等跨进程操作应显式选择 `Serializable`，并把租约检查、条件更新及业务写入放在同一事务中。事务内的影响行数表示当前会话匹配并暂存的行数，成功提交后才可报告操作完成。涉及释放再恢复原值的行，`ReadCommitted` 的行值校验可能允许两个事务都提交。需要在事务执行期间排他时，使用受支持的键条件 `SELECT ... FOR UPDATE NOWAIT`，并将锁竞争与提交冲突分别处理。
+- 旧 Server 上的默认 `ReadCommitted` 可以采用预演后批量提交，预演影响行数不能用作当前事务的租约凭据。远程会话在 REST 与 `Protocol=frame-http2` 下都通过 `/v1/db/{db}/sql/transactions` 工作。后者使用 HTTP/2 承载该会话端点。
+- 提交响应不可用时，ADO 首先回读同一会话。只有服务端仍报告 `active`，且请求未被取消时，才允许对同一会话重试一次。存储恢复中或 Server 重启后，会话状态可能是 `unknown` 或不可查询。此时保留业务操作标识，在新连接中读回业务行及审计记录，再决定如何处理。进程内的事务终态有保留期限。
 - 轻事务可在同一数据库内提交多个关系表的 `INSERT` / `UPDATE` / `DELETE`，不支持 DDL、measurement / document 写入、嵌套事务或跨数据库事务
 
 远程 `SndbCommand` 的 `CommandText` 包含多条以分号分隔的 SQL 时，会按顺序发送到 `/v1/db/{db}/sql/batch`，结果由同一个 `DbDataReader` 通过 `NextResult` 消费。客户端脚本最多包含 128 条语句。脚本可以包含 `BEGIN`、`SAVEPOINT`、`ROLLBACK TO`、`RELEASE` 和 `COMMIT`，但不能再绑定 `SndbTransaction`，否则会与客户端事务状态重复。脚本发送后发生连接断开、超时或结果流损坏时，事务结果为 `UNKNOWN`，客户端不会自动重发，调用方应按业务键或事务状态对账。

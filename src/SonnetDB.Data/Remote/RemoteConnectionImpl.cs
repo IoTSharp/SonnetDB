@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
+using SonnetDB.Exceptions;
 using SonnetDB.Ingest;
 using SonnetDB.Model;
 using SonnetDB.Protocol;
@@ -841,6 +842,9 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
     }
 
     public object BeginTransaction(IsolationLevel isolationLevel)
+        => BeginTransactionAsync(isolationLevel, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
+    public async ValueTask<object> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
@@ -852,7 +856,7 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                 "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
         }
 
-        return CreateSessionAsync(isolationLevel, CancellationToken.None).GetAwaiter().GetResult();
+        return await CreateSessionAsync(isolationLevel, cancellationToken).ConfigureAwait(false);
     }
 
     public void CommitTransaction(object transactionState)
@@ -1054,11 +1058,15 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
             throw BuildCommitRolledBackException(id, errors);
 
         if (string.Equals(state, "active", StringComparison.Ordinal)
-            && !cancellationToken.IsCancellationRequested)
+            && !cancellationToken.IsCancellationRequested
+            && initialError is not SndbServerException { Error: RoutineErrorCodes.CommitUnknown })
         {
+            using var retryDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var retryCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, retryDeadline.Token);
             try
             {
-                await EndSessionAsync(id, "commit", CancellationToken.None).ConfigureAwait(false);
+                await EndSessionAsync(id, "commit", retryCancellation.Token).ConfigureAwait(false);
                 return;
             }
             catch (Exception ex) when (IsAmbiguousSessionOutcome(ex))
@@ -1083,7 +1091,8 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
     {
         try
         {
-            return await ReadSessionStateAsync(id, CancellationToken.None).ConfigureAwait(false);
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            return await ReadSessionStateAsync(id, deadline.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1118,19 +1127,21 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
         string? state = stateProperty.GetString();
         return state switch
         {
-            "active" or "commit" or "rollback" => state,
+            "active" or "commit" or "rollback" or "unknown" => state,
             _ => throw new InvalidDataException($"远程事务状态响应包含未知终态 '{state}'。"),
         };
     }
 
     private static bool IsAmbiguousSessionOutcome(Exception exception)
     {
-        if (exception is HttpRequestException or IOException or OperationCanceledException)
+        if (exception is HttpRequestException or IOException or OperationCanceledException
+            or InvalidDataException or JsonException)
             return true;
 
         return exception is SndbServerException serverError
             && (string.Equals(serverError.Error, "transaction_missing", StringComparison.Ordinal)
-                || string.Equals(serverError.Error, "transaction_completed", StringComparison.Ordinal));
+                || string.Equals(serverError.Error, "transaction_completed", StringComparison.Ordinal)
+                || string.Equals(serverError.Error, RoutineErrorCodes.CommitUnknown, StringComparison.Ordinal));
     }
 
     private static IOException BuildCommitRolledBackException(string id, IReadOnlyCollection<Exception> errors)
@@ -1158,13 +1169,18 @@ internal sealed partial class RemoteConnectionImpl : IConnectionImpl
                 continue;
             using var document = JsonDocument.Parse(line);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("远程事务结束响应必须是 JSON 对象。");
             if (root.TryGetProperty("error", out var error))
             {
-                string message = root.TryGetProperty("message", out var detail)
+                if (error.ValueKind != JsonValueKind.String)
+                    throw new InvalidDataException("远程事务结束响应缺少有效的 error 字段。");
+                string message = root.TryGetProperty("message", out var detail) && detail.ValueKind == JsonValueKind.String
                     ? detail.GetString() ?? string.Empty : string.Empty;
                 throw new SndbServerException(error.GetString() ?? "sql_error", message, HttpStatusCode.OK);
             }
             completed |= root.TryGetProperty("type", out var type)
+                && type.ValueKind == JsonValueKind.String
                 && type.GetString() == "end";
         }
         if (!completed)

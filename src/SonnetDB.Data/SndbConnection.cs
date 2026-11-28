@@ -38,6 +38,7 @@ public sealed class SndbConnection : DbConnection
     private SndbConnectionStringBuilder _builder = new();
     private IConnectionImpl? _impl;
     private SndbTransaction? _currentTransaction;
+    private int _transactionStarting;
     private bool _disposed;
 
     /// <summary>使用空连接字符串构造，必须随后赋值 <see cref="ConnectionString"/> 再 <see cref="Open"/>。</summary>
@@ -233,11 +234,25 @@ public sealed class SndbConnection : DbConnection
     /// <inheritdoc />
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
     {
-        var impl = GetOpenImpl();
-        if (_currentTransaction is { IsCompleted: false })
-            throw new InvalidOperationException("当前连接已有活动轻事务。");
+        EnterTransactionStart();
+        try
+        {
+            var impl = GetOpenImpl();
+            return SetCurrentTransaction(isolationLevel, impl.BeginTransaction(isolationLevel));
+        }
+        finally
+        {
+            Volatile.Write(ref _transactionStarting, 0);
+        }
+    }
 
-        var state = impl.BeginTransaction(isolationLevel);
+    /// <inheritdoc />
+    protected override async ValueTask<DbTransaction> BeginDbTransactionAsync(
+        IsolationLevel isolationLevel, CancellationToken cancellationToken)
+        => await BeginTransactionAsync(isolationLevel, cancellationToken).ConfigureAwait(false);
+
+    private SndbTransaction SetCurrentTransaction(IsolationLevel isolationLevel, object state)
+    {
         var effectiveIsolation = isolationLevel == IsolationLevel.Unspecified
             ? IsolationLevel.ReadCommitted
             : isolationLevel;
@@ -258,12 +273,33 @@ public sealed class SndbConnection : DbConnection
         => BeginTransactionAsync(IsolationLevel.Unspecified, cancellationToken);
 
     /// <summary>异步开始一段 SonnetDB 轻事务。</summary>
-    public new ValueTask<SndbTransaction> BeginTransactionAsync(
+    public new async ValueTask<SndbTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(BeginTransaction(isolationLevel));
+        EnterTransactionStart();
+        try
+        {
+            var impl = GetOpenImpl();
+            var state = await impl.BeginTransactionAsync(isolationLevel, cancellationToken).ConfigureAwait(false);
+            return SetCurrentTransaction(isolationLevel, state);
+        }
+        finally
+        {
+            Volatile.Write(ref _transactionStarting, 0);
+        }
+    }
+
+    private void EnterTransactionStart()
+    {
+        if (Interlocked.CompareExchange(ref _transactionStarting, 1, 0) != 0)
+            throw new InvalidOperationException("当前连接正在开始轻事务。");
+        if (_currentTransaction is not { IsCompleted: false })
+            return;
+
+        Volatile.Write(ref _transactionStarting, 0);
+        throw new InvalidOperationException("当前连接已有活动轻事务。");
     }
 
     /// <summary>使用强类型返回 <see cref="SndbCommand"/>。</summary>
@@ -320,6 +356,7 @@ public sealed class SndbConnection : DbConnection
     {
         var impl = GetOpenImpl();
         EnsureCurrentTransaction(transaction);
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             await impl.CommitTransactionAsync(transaction.TransactionState, cancellationToken).ConfigureAwait(false);

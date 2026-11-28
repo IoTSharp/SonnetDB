@@ -2259,9 +2259,10 @@ internal static partial class TableSqlExecutor
         }
         catch (Exception exception)
         {
+            string errorCode = SqlRoutineRuntime.GetErrorCode(exception);
             transaction.ResolveRoutineInvocations(tsdb.Routines.Diagnostics, committed: false,
-                SqlRoutineRuntime.GetErrorCode(exception));
-            transaction.MarkCompleted();
+                errorCode);
+            transaction.MarkCompleted(commitOutcomeUnknown: errorCode == RoutineErrorCodes.CommitUnknown);
             throw;
         }
 

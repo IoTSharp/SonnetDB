@@ -55,6 +55,13 @@ internal interface IConnectionImpl : IDisposable
     /// <summary>开始一段轻事务，返回具体实现持有的事务状态。</summary>
     object BeginTransaction(IsolationLevel isolationLevel);
 
+    /// <summary>异步开始一段轻事务，并允许取消远程会话创建请求。</summary>
+    ValueTask<object> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(BeginTransaction(isolationLevel));
+    }
+
     /// <summary>提交一段轻事务。</summary>
     void CommitTransaction(object transactionState);
 

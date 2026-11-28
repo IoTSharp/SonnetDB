@@ -943,6 +943,7 @@ internal static class SqlEndpointHandler
             || detail.Code == KvReadOverloadedException.Code
             || detail.Code == TimeSeriesWriteRecoveryRequiredException.ErrorCode
             || detail.Code == TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
+            || detail.Code == RoutineErrorCodes.CommitUnknown
             || exception is SequenceException or SqlRowLockException)
             transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
@@ -966,6 +967,7 @@ internal static class SqlEndpointHandler
                 KvReadOverloadedException.Code => StatusCodes.Status503ServiceUnavailable,
                 TimeSeriesWriteRecoveryRequiredException.ErrorCode => StatusCodes.Status503ServiceUnavailable,
                 TimeSeriesWriteRecoveryRequiredException.PartialErrorCode => StatusCodes.Status503ServiceUnavailable,
+                RoutineErrorCodes.CommitUnknown => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,
                 "modbus_write_connection_error" => StatusCodes.Status502BadGateway,

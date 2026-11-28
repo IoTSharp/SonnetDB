@@ -1,3 +1,13 @@
+## 2026-11-28（Asia/Shanghai）#425 配置操作租约
+
+- 用户授权提交两个专用工作树的 #425 改动、回复 GitHub issue，再将两仓的 `codex/issue-425-cross-instance-lease` 分支推送到 GitHub。发布修复版和完整双进程应用故障验收仍是关闭条件。
+
+- 专用工作树 `C:/Users/mysti/.codex/worktrees/issue-425-cross-instance-lease/SonnetDB`，分离 HEAD 基线 `c42e7044b6661027a1570c91a23bc09ddf71344d`。IoTSharp 专用工作树 `D:/GitHub/IoTSharp-issue-425-cross-instance-lease`，基线 `a8a26743a523405ca37d41df792931f37b11db26`。保留源码、测试和验证回执供复核。
+- ADO 事务开始传播异步取消，预取消提交保留会话供回滚，异常响应先读会话状态。Server 将持久化结果未知的事务终态标为 `unknown`。IoTSharp 测试宿主验证真实远程 Serializable、锁定 Gateway、条件更新后按本次 leaseId 精确释放。业务标识和对账边界见专题记录。
+- 最终 solution restore、CI 格式检查、真实远程 Server 29/29、EF 7/7 均通过。格式检查初次超时，诊断复跑以 0 退出，检查 2,828 个文件且需改动 0 个。Cordonix 任务进程树均已回收，保留定向 TRX、公开包校验和隔离消费者回执。
+- 正式 NuGet.org 5.2.0 与 Docker Hub 同源镜像完成双进程竞争、重启读回和后端业务回归，IoTSharp 最终串行 25/25 通过。独立故障矩阵保留两个失败，分别是 ReadCommitted 反例和公开版提交前取消缺陷。生产 provider 仍拒绝 SonnetDB，公开修复版及匹配镜像的复验是准入与关闭条件。
+- 文件归属、复现命令、测试结果、公开包哈希及未验项目见 [#425 验收记录](docs/audits/github-issue-425-configuration-operation-lease.md) 和[正式包探针](eng/probes/issue425-configuration-lease/README.md)。生产部署为 NOT_RUN。
+
 ## 2026-11-27（Asia/Shanghai）IoTSharp 时序最新值与关系索引分页
 
 - 2026-11-27 10:45（Asia/Shanghai）从本地 `main` 提交 `564aee6d686581f6cd8426451061d1ef5feae330`，GitHub `origin/main` 独立读回一致。提交范围为两项查询优化、对应回归和变更日志。最终工作树的全解决方案 restore、CI 格式命令、暂存差异及 Core 定向 145/145 通过。格式命令报告了工作区加载警告，退出码为 0。Cordonix 确认本次验证及推送进程树已回收。

@@ -301,6 +301,48 @@ public sealed partial class RemoteAdoHttp2TransportTests
         Assert.True(rollback.IsSuccessStatusCode);
     }
 
+    /// <summary>撤销远程连接会话会结束其配置事务、归还行锁并清除未提交的业务写入。</summary>
+    [Fact]
+    public async Task ConnectionSession_RevocationRollsBackConfigurationTransaction()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        CancellationToken cancellation = deadline.Token;
+        await using var observer = new SndbConnection(IntegralConnectionString("rest", ""));
+        await observer.OpenAsync(cancellation);
+        await ExecuteNonQueryAsync(observer, "CREATE TABLE revoke_lease (id INT, owner STRING, PRIMARY KEY(id))", null, cancellation);
+        await ExecuteNonQueryAsync(observer, "CREATE TABLE revoke_audit (id INT, PRIMARY KEY(id))", null, cancellation);
+        Assert.Equal(1, await ExecuteNonQueryAsync(observer, "INSERT INTO revoke_lease (id) VALUES (1)", null, cancellation));
+
+        string sessionId = await CreateRawConnectionSessionAsync(_http11Url, AdminToken, DatabaseName, cancellation);
+        string transactionId = await CreateRawTransactionAsync(_http11Url, AdminToken, DatabaseName, sessionId, cancellation);
+        const string lockSql = "SELECT id FROM revoke_lease WHERE id = 1 FOR UPDATE NOWAIT";
+        using var locked = await SendRawTransactionSqlAsync(_http11Url, AdminToken, DatabaseName,
+            transactionId, sessionId, lockSql, cancellation);
+        locked.EnsureSuccessStatusCode();
+        using var acquired = await SendRawTransactionSqlAsync(_http11Url, AdminToken, DatabaseName,
+            transactionId, sessionId, "UPDATE revoke_lease SET owner = 'first' WHERE id = 1 AND owner IS NULL", cancellation);
+        acquired.EnsureSuccessStatusCode();
+        using var inserted = await SendRawTransactionSqlAsync(_http11Url, AdminToken, DatabaseName,
+            transactionId, sessionId, "INSERT INTO revoke_audit (id) VALUES (1)", cancellation);
+        inserted.EnsureSuccessStatusCode();
+
+        await using var contender = await observer.BeginTransactionAsync(cancellation);
+        var lockError = await Assert.ThrowsAsync<SndbServerException>(() => ScalarInt64Async(observer, lockSql, contender, cancellation));
+        Assert.Equal("sql_lock_not_available", lockError.Error);
+
+        using var http = CreateRawHttpClient(_http11Url, AdminToken);
+        using var revoke = await http.DeleteAsync($"/v1/db/{DatabaseName}/sql/sessions/{sessionId}", cancellation);
+        Assert.Equal(HttpStatusCode.NoContent, revoke.StatusCode);
+        using var staleCommit = await SendRawTransactionActionAsync(_http11Url, AdminToken, DatabaseName,
+            transactionId, sessionId, "commit", cancellation);
+        Assert.Equal(HttpStatusCode.NotFound, staleCommit.StatusCode);
+
+        Assert.Equal(1L, await ScalarInt64Async(observer, lockSql, contender, cancellation));
+        Assert.Equal(1L, await ScalarInt64Async(observer, "SELECT COUNT(*) FROM revoke_lease WHERE owner IS NULL", contender, cancellation));
+        Assert.Equal(0L, await ScalarInt64Async(observer, "SELECT COUNT(*) FROM revoke_audit", contender, cancellation));
+        await contender.RollbackAsync(cancellation);
+    }
+
     private static async Task InsertBatchesAsync(
         SndbConnection connection,
         string table,
