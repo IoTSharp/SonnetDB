@@ -101,11 +101,15 @@ public sealed class SqlHttpRequestAdmissionTests
     public async Task AcquireAsync_QueueTimeoutReturnsOverloadAndLeavesQueueReusable()
     {
         using var admission = CreateAdmission(permitLimit: 1, queueLimit: 1, queueTimeoutMilliseconds: 50);
-        RateLimitLease active = await admission.AcquireAsync("orders", CancellationToken.None);
+        using RateLimitLease active = await admission.AcquireAsync("orders", CancellationToken.None);
         using RateLimitLease timedOut = await admission.AcquireAsync("orders", CancellationToken.None)
             .AsTask().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.False(timedOut.IsAcquired);
+        // 限流器先完成取消的等待任务，再扣减队列计数。
+        using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        for (int attempt = 0; attempt < 100 && admission.GetStatistics("orders")?.CurrentQueuedCount != 0; attempt++)
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cleanupDeadline.Token);
         Assert.Equal(0, admission.GetStatistics("orders")?.CurrentQueuedCount);
         active.Dispose();
         using RateLimitLease replacement = await admission.AcquireAsync("orders", CancellationToken.None);
