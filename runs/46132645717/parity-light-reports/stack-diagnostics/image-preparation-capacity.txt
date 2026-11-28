@@ -1,0 +1,60 @@
+
+phase=before-sonnetdb-build time=2026-11-28T09:57:57Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   62G   83G  43% /
+/dev/root       145G   62G   83G  43% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          6         0         3.677GB   3.676GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=after-sonnetdb-load time=2026-11-28T10:03:21Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   72G   74G  50% /
+/dev/root       145G   72G   74G  50% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         1         5.839GB   5.472GB (93%)
+Containers      1         1         69.63kB   0B (0%)
+Local Volumes   1         1         8.168GB   0B (0%)
+Build Cache     0         0         0B        0B
+
+phase=after-sonnetdb-builder-cleanup time=2026-11-28T10:03:38Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   64G   81G  44% /
+/dev/root       145G   64G   81G  44% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         5.839GB   5.838GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=before-minio-build time=2026-11-28T10:03:39Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   64G   81G  44% /
+/dev/root       145G   64G   81G  44% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         5.839GB   5.838GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B
+
+phase=after-minio-load time=2026-11-28T10:06:26Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   68G   78G  47% /
+/dev/root       145G   68G   78G  47% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          9         1         6.236GB   5.869GB (94%)
+Containers      1         1         69.63kB   0B (0%)
+Local Volumes   1         1         3.497GB   0B (0%)
+Build Cache     0         0         0B        0B
+
+phase=after-minio-builder-cleanup time=2026-11-28T10:06:38Z
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   64G   81G  45% /
+/dev/root       145G   64G   81G  45% /
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          9         0         6.236GB   6.235GB (99%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     0         0         0B        0B

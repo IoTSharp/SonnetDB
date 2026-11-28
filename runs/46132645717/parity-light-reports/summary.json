@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 2,
+  "label": "parity",
+  "message": "100%",
+  "color": "brightgreen",
+  "profile": "light",
+  "requiredReferenceBackends": [
+    "postgres",
+    "redis",
+    "minio",
+    "nats"
+  ],
+  "status": "passing",
+  "passRate": 100.0,
+  "totalScenarios": 51,
+  "passedScenarios": 24,
+  "skippedScenarios": 27,
+  "failedScenarios": 0,
+  "warningOnlyScenarios": 2,
+  "generatedAtUtc": "2026-11-28T10:09:40.8866650Z",
+  "repository": "IoTSharp/SonnetDB",
+  "runId": "46132645717",
+  "runNumber": "196",
+  "commitSha": "f9a6c17e604194fe5dbb596e130d589af8ec5b63",
+  "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+  "suites": [
+    {
+      "suite": "analytics-02e04607",
+      "total": 5,
+      "passed": 0,
+      "skipped": 5,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/analytics-02e04607/report.json"
+    },
+    {
+      "suite": "document-65bdd539",
+      "total": 5,
+      "passed": 0,
+      "skipped": 5,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/document-65bdd539/report.json"
+    },
+    {
+      "suite": "fulltext-8b981e87",
+      "total": 6,
+      "passed": 0,
+      "skipped": 6,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/fulltext-8b981e87/report.json"
+    },
+    {
+      "suite": "graph-93c6015c",
+      "total": 1,
+      "passed": 1,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/graph-93c6015c/report.json"
+    },
+    {
+      "suite": "kv-1a6563f3",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/kv-1a6563f3/report.json"
+    },
+    {
+      "suite": "mq-9606ea78",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/mq-9606ea78/report.json"
+    },
+    {
+      "suite": "object-1f0076d5",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/object-1f0076d5/report.json"
+    },
+    {
+      "suite": "relational-6f3ec146",
+      "total": 9,
+      "passed": 8,
+      "skipped": 1,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/relational-6f3ec146/report.json"
+    },
+    {
+      "suite": "tsdb-e738f1e7",
+      "total": 7,
+      "passed": 0,
+      "skipped": 7,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/tsdb-e738f1e7/report.json"
+    },
+    {
+      "suite": "vector-eb2f8546",
+      "total": 3,
+      "passed": 0,
+      "skipped": 3,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/vector-eb2f8546/report.json"
+    }
+  ],
+  "gateFailures": [],
+  "performanceWarnings": [
+    {
+      "suite": "analytics-02e04607",
+      "scenario": "groupby_time_1b_rows_wallclock",
+      "reason": "performance metrics are warning only"
+    },
+    {
+      "suite": "analytics-02e04607",
+      "scenario": "columnar_compression_ratio",
+      "reason": "performance metrics are warning only"
+    }
+  ]
+}
