@@ -87,7 +87,7 @@ Measurement 聚合按类型语义分为：
 
 类型能力由 `IAggregateFunction.AcceptedFieldTypes` 声明；数值 legacy 路径继续使用块聚合元数据，selector / categorical 路径按需保存原始 `FieldValue`，不会把字符串支持扩散到数学聚合。
 
-Measurement 的时间桶由 `GROUP BY time(...)` 处理，并可与 TAG 组合分组。关系表使用 `RelationalSelectExecutor`。关系聚合支持 `COUNT`、`SUM`、`MIN`、`MAX`、`AVG` 和字符串聚合。关系查询可以用标量 `DATE_TRUNC(unit, value)` 投影或分组。日期类型、单位和 UTC 语义见 [SQL 参考](sql-reference.md)。
+Measurement 的时间桶由 `GROUP BY time(...)` 处理，并可与 TAG 组合分组。关系表使用 `RelationalSelectExecutor`，提供 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95`、`p99`、`spread`、`mode`、`histogram`、`distinct_count` 和 `tdigest_agg`。关系执行器复用数值累加器，并在关系查询预算内维护类别键、桶和 TDigest。Measurement 的 TDigest/HLL 段摘要由时序路径读取。关系查询也可用标量 `DATE_TRUNC(unit, value)` 投影或分组。[SQL 参考](sql-reference.md)
 
 ## 嵌入式与远程的关系
 

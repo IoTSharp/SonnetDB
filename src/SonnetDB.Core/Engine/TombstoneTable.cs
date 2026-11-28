@@ -92,6 +92,9 @@ public sealed class TombstoneTable
         return byKey.TryGetValue((seriesId, fieldName), out var bucket) ? bucket : [];
     }
 
+    internal IReadOnlyDictionary<(ulong SeriesId, string FieldName), Tombstone[]> SnapshotByKey()
+        => Volatile.Read(ref _byKeySnapshot);
+
     /// <summary>
     /// 批量移除指定墓碑（仅供 Compaction 消化后调用）。
     /// </summary>

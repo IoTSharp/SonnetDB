@@ -238,6 +238,7 @@ internal sealed class KvSnapshotIterator : IDisposable
     private readonly byte[]? _lowerBound;
     private readonly byte[]? _upperBound;
     private readonly KvRangeTombstoneSet _rangeTombstones;
+    private readonly CancellationToken _cancellationToken;
     private bool _forward = true;
     private bool _valid;
     private byte[] _savedKey = new byte[64];
@@ -254,13 +255,15 @@ internal sealed class KvSnapshotIterator : IDisposable
     /// <param name="lowerBound">包含的 user key 下界；null 表示无下界。</param>
     /// <param name="upperBound">不包含的 user key 上界；null 表示无上界。</param>
     /// <param name="rangeTombstones">该快照可见的 range tombstone 分段视图；null 表示没有。</param>
+    /// <param name="cancellationToken">查找可见条目时检查的取消令牌。</param>
     internal KvSnapshotIterator(
         IKvInternalIterator source,
         long snapshotSequence,
         long readTimestampUtcTicks,
         byte[]? lowerBound = null,
         byte[]? upperBound = null,
-        KvRangeTombstoneSet? rangeTombstones = null)
+        KvRangeTombstoneSet? rangeTombstones = null,
+        CancellationToken cancellationToken = default)
     {
         _rangeTombstones = rangeTombstones ?? KvRangeTombstoneSet.Empty;
         ArgumentNullException.ThrowIfNull(source);
@@ -271,6 +274,7 @@ internal sealed class KvSnapshotIterator : IDisposable
         _readTimestampUtcTicks = readTimestampUtcTicks;
         _lowerBound = lowerBound;
         _upperBound = upperBound;
+        _cancellationToken = cancellationToken;
     }
 
     /// <summary>是否指向一个可见条目。</summary>
@@ -379,6 +383,7 @@ internal sealed class KvSnapshotIterator : IDisposable
             SaveKey(KvInternalKey.UserKey(_source.Key));
             while (true)
             {
+                _cancellationToken.ThrowIfCancellationRequested();
                 _source.MovePrev();
                 if (!_source.Valid)
                 {
@@ -405,6 +410,7 @@ internal sealed class KvSnapshotIterator : IDisposable
         // skipping 为 true 时，≤ SavedKey 的 user key 都已处理（可见或被墓碑/到期遮蔽），直接跳过。
         while (_source.Valid)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             ReadOnlySpan<byte> key = _source.Key;
             ReadOnlySpan<byte> userKey = KvInternalKey.UserKey(key);
             if (_upperBound is not null && userKey.SequenceCompareTo(_upperBound) >= 0)
@@ -435,6 +441,7 @@ internal sealed class KvSnapshotIterator : IDisposable
         bool found = false;
         while (_source.Valid)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             ReadOnlySpan<byte> key = _source.Key;
             ReadOnlySpan<byte> userKey = KvInternalKey.UserKey(key);
             if (_lowerBound is not null && userKey.SequenceCompareTo(_lowerBound) < 0)

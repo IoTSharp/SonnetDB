@@ -28,7 +28,7 @@
 
 | 顺序 | 路线归属 | 下一份可验收交付 | 退出条件与并行边界 |
 | --- | --- | --- | --- |
-| 1 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03 | 补 H01 基线和前后台混合负载。直接 measurement `ORDER BY time` 的单序列、单字段流已避免全量排序和额外结果副本。推进多序列、整条语句的读视图和完整结果流式消费。[设计与验收](docs/design/sql-bounded-order-by.md) · [GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440) | 在相同语料下核对结果、首行与峰值、取消、断连和临时文件清理。普通 SQL 保持完整结果语义。H03～H07A、固定硬件和 168 小时验收各按原合同执行。 |
+| 1 | V45-X01/X02、M42-H01～H07A、M49-R01/R02/R03 | 补 H01 基线和前后台混合负载。#440 的直接 measurement 多序列时间归并、语句读视图、直接关系表外排和完整结果流式消费见[设计与验收](docs/design/sql-bounded-order-by.md)。[GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440) | 按专题核对排序边界、容量和清理。普通 SQL 保持完整结果语义。H03～H07A、固定硬件和 168 小时验收各按原合同执行。 |
 | 2 | KV-LSM G3/G5/G10/G11、M41、M46-S01/S06/S09、V45-X06；代码侧性能与计量 | G3 会话累计 SST 计量已交付；完整写放大、真实冷读、多表 fsync、TTL churn、TRUNCATE/DROP 计量与原规模仍待完成，再定位缓冲随机写分配、共享写锁和冷热表竞争 | 同语料/持久性/源码及正确性 oracle；会话累计计量与目录存量不能冒充完整物理写放大，G3 门禁未完成。固定硬件、Demo、168小时和现场结果转入[环境路线](docs/roadmap-environment-validation.md)。 |
 | 3 | 时序 T2/T3、M50-T01～T03；分区、重复点和精度 | T1 默认单 Point 原子恢复已实现，T3 支持当前 MemTable 及其 WAL 回放的显式 KeepFirst/KeepLast。推进 T2 分区/TTL、T3 跨段及历史重复点合同、M50 按库精度 | 默认仍是 ms、KeepAll 和全局 TTL。跨段匹配、提交顺序及历史改写须先定义恢复与兼容行为。见[写入、分区和重复点](docs/design/time-series-write-partition-duplicates-decisions.md)。 |
 | 4 | M49-C02/D01/F01/C03/R05、GH-Issue #397/#396/#425；可靠生态消费 | 完成 .NET/C 一个模型的原生 HTTP/2/TLS 批次，覆盖精确类型、终态、取消、未知写入、重开和独立消费者。EF NativeAOT 固定最小真实应用。IoTSharp 租约增加两个消费者进程竞争、回滚和提交未知对账 | 公开包和匹配镜像、其它模型与语言、旧 C ABI 分别验收。远程 DML 批处理覆盖受支持事务中的有序 SaveChanges。CAP 同组多活动实例仍须定义 lease/fencing/ACK。 |
@@ -37,7 +37,7 @@
 
 可靠性与恢复、查询与并发正确性、消费者与环境验收可以并行推进。干净系统安装、固定硬件和发行恢复按各 issue 的完成条件验收。[GH-Issue #398](https://github.com/IoTSharp/SonnetDB/issues/398) · [GH-Issue #399](https://github.com/IoTSharp/SonnetDB/issues/399) · [GH-Issue #402](https://github.com/IoTSharp/SonnetDB/issues/402)
 
-关系 SQL 的 `DATE_TRUNC` 标量实现覆盖关系表日期投影和分组。Measurement 继续使用现有 `GROUP BY time(...)` 和 measurement 扩展聚合。关系表扩展聚合及其精度、NULL 和预算合同仍待交付。[GH-Issue #437](https://github.com/IoTSharp/SonnetDB/issues/437)
+关系 SQL 的 `DATE_TRUNC` 用于日期投影和分组。关系表提供分位数、样本方差和标准差、极差、众数、精确去重计数、直方图和 TDigest 摘要。Measurement 按 TAG、`GROUP BY time(...)` 或两者组合分组。各模型的输入类型、NULL、精度和预算规则见 SQL 参考。[SQL 聚合参考](docs/sql-reference.md#关系表聚合) · [GH-Issue #437](https://github.com/IoTSharp/SonnetDB/issues/437)
 
 空 TAG、JSON 跳过坏点和 Workbench Preview 预算通过定向回归，代码问题已结案。普通 SQL 大结果排序由 #440 跟踪，现场重启和 OOM 因果仍待运行证据。[GH-Issue #438](https://github.com/IoTSharp/SonnetDB/issues/438)
 
@@ -480,6 +480,7 @@ M50 复用 M36、M41/M42、M43/M45、M46、M47/M48 与 M49 的实际切片，不
 | M39、M41、M42 | ENV-SOAK / ENV-02/04 | 查询、事务、预算、取消、故障和本地性能计量 |
 | M40 #352/#367 | ENV-RELIABILITY / ENV-SOAK | Graph API、存储、evaluator、quick kill/reopen、代码回归 |
 | KV-LSM G9、M50 T28/T29/T32 | ENV-02/03/04 | G1～G8/G10～G12 的代码/本机门禁；M50 T01～T27/T30A |
+| 关系表分批迁移 #439 | [固定硬件容量、长稳与现场重开](docs/roadmap-environment-validation.md#439-关系表分批迁移环境验证) | Legacy/LSM 分批迁移、确定性强杀恢复和真实客户端回归 |
 | M48-L20B、GH-Issue #398/#399/#402 | ENV-01～ENV-06 | M48-L20A候选、安装脚本、支持矩阵和发布合同 |
 
 当前没有连接线上 Demo、现场生产或电源控制设备；本路线环境任务保持 `PLANNED/NOT_RUN`，不会以本机或 hosted 结果冒充现场资格。

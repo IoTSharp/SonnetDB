@@ -184,10 +184,11 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
         return ToValueEntry(snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken));
     }
 
-    internal T? ReadProjectedValue<T>(ReadOnlySpan<byte> key, KvValueProjection<T> project) where T : class
+    internal T? ReadProjectedValue<T>(ReadOnlySpan<byte> key, KvValueProjection<T> project,
+        CancellationToken cancellationToken = default) where T : class
     {
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.UtcNow);
-        KvSstEntry? raw = snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key));
+        KvSstEntry? raw = snapshot.GetRaw(_keyPrefix.Length == 0 ? key : Physical(key), cancellationToken);
         return raw is { } entry && (entry.ExpiresAtUtcTicks == 0 || entry.ExpiresAtUtcTicks > snapshot.ReadTimestampUtcTicks)
             ? project(entry.Value.Span) : null;
     }
@@ -222,23 +223,21 @@ internal sealed class KvLsmKeyspaceBackend : IDisposable
     /// </summary>
     internal void ScanForward(byte[] prefix, byte[]? afterKey, CancellationToken cancellationToken, Func<KvLsmCursor, bool> visit)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] physicalPrefix = Physical(prefix);
         byte[]? physicalAfter = PhysicalOptional(afterKey);
+        byte[]? upperBound = PrefixUpperBound(physicalPrefix);
+        if (physicalAfter is not null && upperBound is not null
+            && KvKeyComparer.Instance.Compare(physicalAfter, upperBound) >= 0)
+            return;
+        bool resumes = physicalAfter is not null && KvKeyComparer.Instance.Compare(physicalAfter, physicalPrefix) >= 0;
+        // 用续扫键作为下界，避免每页重新打开已经越过的 SST。
+        byte[]? lowerBound = resumes ? physicalAfter : physicalPrefix.Length == 0 ? null : physicalPrefix;
         using KvLsmSnapshot snapshot = _engine.AcquireSnapshot(DateTimeOffset.MinValue.ToUniversalTime());
-        using KvSnapshotIterator iterator = snapshot.CreateIterator(
-            physicalPrefix.Length == 0 ? null : physicalPrefix,
-            PrefixUpperBound(physicalPrefix),
-            cancellationToken);
-        if (physicalAfter is not null && KvKeyComparer.Instance.Compare(physicalAfter, physicalPrefix) >= 0)
-        {
-            iterator.Seek(physicalAfter);
-            if (iterator.Valid && iterator.Key.SequenceEqual(physicalAfter))
-                iterator.MoveNext();
-        }
-        else
-        {
-            iterator.SeekToFirst();
-        }
+        using KvSnapshotIterator iterator = snapshot.CreateIterator(lowerBound, upperBound, cancellationToken);
+        iterator.SeekToFirst();
+        if (resumes && iterator.Valid && iterator.Key.SequenceEqual(physicalAfter))
+            iterator.MoveNext();
 
         var cursor = new KvLsmCursor(iterator, _keyPrefix.Length);
         for (; iterator.Valid; iterator.MoveNext())

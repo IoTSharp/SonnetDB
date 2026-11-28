@@ -1,34 +1,42 @@
 # 大结果 ORDER BY 的资源和传输合同
 
-2026-11-27（Asia/Shanghai）核查 `8cea0680` 的排序调用链。首个实现范围为直接 measurement raw SELECT 的 `ORDER BY time [ASC|DESC]`，涵盖稳定排序、分页和完整结果交付。关系表、复杂聚合和连接各自保留原有执行入口。[GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440)
+本切片基于 `c42e7044`，沿用 `e57afee9` 的单序列单字段读取和已有稳定 Top-N、外部归并实现。[GH-Issue #440](https://github.com/IoTSharp/SonnetDB/issues/440)
 
-首个代码切片针对无分页的单序列、单字段流直接查询，要求投影中第一个名为 `time` 的列确为时间列。查询复用升序点流，降序原地反转最终列表，整份结果仍通过 `Rows` 返回。显式排序预算、预览和复杂查询沿用原路径。源码回归覆盖重复点末值、升降序、强制外排结果和预览额度拒绝。[执行器](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs) · [定向回归](../../tests/SonnetDB.Core.Tests/Sql/SqlExecutorSelectTests.cs)
+## 执行路径
 
-## 当前调用链
-
-| 路径 | 当前实现与边界 |
-| --- | --- |
-| 普通 measurement | 简单带 LIMIT 的查询已有分页下推。各 series 按时间生成行，优先队列归并后跳过 OFFSET，收集所需页。末位相同时间戳按 series 顺序；单 series 内同一字段和时间戳遵循现有 raw SQL 选值规则。其他适用路径先执行 raw 或聚合生成 `SelectExecutionResult.Rows`，再把候选传给 `TopN`。该调用返回数组，即使外排生效，排序前候选和最终输出仍可能整体驻留。[SelectExecutor](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.cs) |
-| 算子 | `TopN` 在可表示且预算允许的排序前缀使用稳定有界堆。SQL 根作用域启用预算并且提供 codec 时，它调用 `SqlSpillSorter`。后者按输入序号处理相同键，内存不足时写 run，最多 32 路归并，`Order` 支持逐行枚举，`OrderByThenPaginate` 返回数组。现有峰值指标统计算子 reservation。排序工作集、整库并发额度和用户结果的内存生命周期各有范围。[TopN](../../src/SonnetDB.Core/Sql/Execution/TopN.cs) · [SqlSpillSorter](../../src/SonnetDB.Core/Sql/Execution/SqlSpillSorter.cs) · [阻塞算子合同](../m41-blocking-operator-spill.md) |
-| 时序读取 | `QueryEngine` 为单个点流持有段快照租约，并读取对应 MemTable 范围。排序会组合多个字段与 series 的枚举器，每个流的已有租约只定义其自身范围。首个交付须确认整条语句的读视图及其释放点，并在慢客户端、flush/compaction 和并发写入下核对。跨请求继续分页需要单独定义快照身份。[QueryEngine](../../src/SonnetDB.Core/Query/QueryEngine.cs) |
-| Workbench Preview | `preview-1` 使用显式 10,000 个累计留存行、4 MiB SQL 值估算和 30 秒关联取消。直接 raw 查询按现有准入对排序候选、排序键和输出计费，再执行分页。超限走预算拒绝；显式预览截断须有结果状态。[WorkbenchPreviewSql](../../src/SonnetDB/Endpoints/Support/WorkbenchPreviewSql.cs) · [measurement 排序准入](../benchmarks/m42-measurement-order-bounds.md) |
-| REST、Frame、ADO.NET 和 embedded | REST SQL 在执行后按 NDJSON 写出，缺少列类型声明时会先从结果行推断 meta。Frame Query 从 `Rows` 进行分块编码和回压。远程 ADO.NET 可边接收边读，嵌入式 ADO.NET 使用物化适配器。入口传输具备各自的分块能力，排序仍要追踪执行器产出首行时的内存和所有权。[REST](../../src/SonnetDB/Endpoints/Handlers/SqlEndpointHandler.cs) · [Frame](../../src/SonnetDB/Endpoints/Handlers/FrameEndpointHandler.cs) · [远程 ADO.NET](../../src/SonnetDB.Data/Remote/RemoteExecutionResult.cs) · [嵌入式 ADO.NET](../../src/SonnetDB.Data/Embedded/EmbeddedConnectionImpl.cs) |
-
-## 首个实现切片
-
-1. 保留已支持的投影和过滤语义，将适用的 measurement 时间顺序候选按需交给排序或归并。对已可按时间遍历的输入复用现有归并，对其它已支持形状复用 `TopN` 或 `SqlSpillSorter`。限制同时打开的 series 和文件游标，记录候选数、堆中行数与内存峰值。用固定基线逐行验证相同时间戳的顺序、跨字段合并、NULL 和重复点。
-2. 建立可释放的结果读取生命周期。查询建立列元数据和读视图，然后逐批输出。对于必须消费全集才能确定顺序的输入，先完成排序准备，再逐批归并。REST、Frame 和 ADO.NET 分别核对首行、最后一行、成功终态与提前停止。兼容物化入口依原合同返回完整结果，流式入口的列类型以已绑定元数据或明确兼容的类型回退产生。
-3. 让同一语句的取消、截止时间和断连贯穿读取、比较、临时文件和发送。分别约束算子保留内存、同时打开游标、临时 live bytes、发送批次和并发准入。沿用工作区归属标记，按当前文件大小管理 live bytes，并独立累计 spill I/O。额度耗尽、磁盘写入失败或取消时终止对应请求。响应开始后，由协议向客户端传播失败或缺失成功终态，保留已发送前缀的可观测结果。
-4. 先核对仍处于请求作用域的快照、排序 run、配额和准入许可，再向上层交付完成。客户端提前关闭读者时释放这些资源，异常退出时由下次打开清理带归属标记的遗留目录。普通 SQL 交付完整结果，Workbench Preview 延续显式预算和预览状态。[SQL 查询资源作用域](../../src/SonnetDB.Core/Sql/Execution/SqlQueryResources.cs)
-
-## 验收矩阵
-
-| 范围 | 固定用例与退出条件 | 本轮 |
+| 路径 | 读视图和排序 | 交付 |
 | --- | --- | --- |
-| 结果与顺序 | 对同一固定 seed 小语料比较现有物化结果、新路径及强制 spill。覆盖空输入、并列时间、Unix 毫秒时间戳边界、不同宽度字段、ASC/DESC、OFFSET/LIMIT 越界及无 LIMIT 完整结果。 | NOT_RUN |
-| 有界执行 | 先用确定性小语料强制外排，再上升到 10 万和 100 万行分层语料。分别记录输入与输出行数、首行与完整交付时间、峰值算子内存、进程峰值、live/cumulative spill 字节及打开游标峰值。所有比较使用同一语义、版本、查询和数据。 | NOT_RUN |
-| 传输与超限 | embedded、REST、Frame、远程 ADO.NET 和 Workbench 分别验证列元数据、行数和终态。普通 SQL 对拍全结果，Preview 验证 10,000 行、4 MiB、30 秒和显式截断结果，独立覆盖慢读者、断连、取消与超时。 | NOT_RUN |
-| 再次打开与资源回收 | 覆盖短读、排序/归并/发送期间取消、临时盘额度耗尽、写入失败、进程异常退出，以及重开清理。断言临时文件、读租约、内存额度和并发准入可回收，控制目录和无归属文件仍存在。 | NOT_RUN |
-| 并发读视图 | 在受控屏障中交叉执行写入、flush/compaction 和慢读，验证所有返回行来自声明的读范围。比较并列键在单次查询内的稳定性，跨语句分页按单独合同记录。 | NOT_RUN |
+| 直接 measurement 的 `ORDER BY time` | 在同一写入边界内捕获 series、相关活跃点范围、墓碑、向量替换视图和段租约。低扇入使用时间堆归并，最多打开 32 个选定点流。高扇入逐序列读入稳定 Top-N 或外排，单序列的读者数量随选定字段数增长。时间并列时按该语句捕获的目录序列顺序，同字段同时间戳沿用原来的末值规则。 | Core 流式入口支持时间输出列未被别名遮蔽、投影可声明类型且 WHERE 可下推的直接查询。ASC、DESC、LIMIT、OFFSET 均可进入该路径。兼容 Core 调用可继续获得物化的 `Rows`。 |
+| 直接关系表全结果 | 在语句打开时取得 KV 表快照，扫描候选行、筛选、投影，按现有列排序比较器和候选行序执行外排。支持列名排序和普通列投影，OFFSET 在归并后执行。 | 流式路径目前覆盖无 FETCH 的直接表扫描。需要二级索引访问计划、复杂表达式、JOIN、CTE、聚合、DISTINCT 或活动事务的查询继续走现有执行器。已有分页 Top-N 和覆盖索引计划照常使用。 |
+| Workbench Preview | 直接查询继续使用现有物化准入，累计最多 10,000 个保留行、4 MiB 估算值和 30 秒截止。 | 显式请求结果上限可返回 `truncated`，候选或排序阶段超额返回预算错误。普通有序查询读至成功终态时提供完整结果。 |
 
-基础回归作为对照入口。多序列实现、完整结果传输、性能容量和固定硬件验收按矩阵逐项记录。现场重启与 OOM 的因果需实际运行时间线、进程指标和错误日志。[强制 spill 回归](../../tests/SonnetDB.Core.Tests/Sql/SqlBlockingOperatorSpillTests.cs) · [measurement 排序预算回归](../../tests/SonnetDB.Core.Tests/Sql/MeasurementOrderMaterializationBudgetTests.cs) · [环境与现场资格路线](../roadmap-environment-validation.md)
+`SqlExecutionOptions.StreamResults = true` 允许 `SqlExecutor.Execute` 或 `ExecuteStatement` 返回 `SqlStreamingSelectResult`。使用 `using` 管理结果，并反复调用 `MoveNext` 和读取 `Current`。适用查询在打开阶段声明列元数据并固定读视图。可合并的输入直接产出第一行，需要读取全部候选才能排序的输入先生成有序 run。读至末尾、单次读取失败或提前释放时关闭游标、归还内存额度并清理排序工作区。绝对期限继续覆盖最后一次网络刷新，直到结果释放。
+
+同一条语句的输入版本跨写入、flush、compaction 和慢读保持固定。再次执行 SQL 或单独执行下一页会获得新的读视图。受支持的语句内相同排序键保留原候选顺序。跨请求没有读视图续传凭证。
+
+## 资源与错误
+
+- 流式排序使用数据库和单查询的阻塞算子内存预留，临时 run 受 `SortSpillMaxBytes` 约束，默认 8 GiB。归并输入与输出暂时共存时一起计入，文件增长前按编码后字节预留。累计写出统计覆盖完成的初始和中间 run。归并同时最多打开 32 个 run 读者。超大单行仍按现有 oversized 归并合同处理。
+- 所选活跃 MemTable 切片、段租约、段块读缓存与单序列投影宽度属于输入读取开销。阻塞算子预留只计排序工作集。查询打开时复制所选活跃点并短时持有写入边界。默认 MemTable 写入策略给活跃内存设上限。
+- 请求取消、绝对截止或断连贯穿游标读取、比较、写出和响应刷新。空间额度耗尽和 I/O 错误立刻结束受影响的请求。客户端可能读到已发送的行前缀，此时没有成功终态。正常释放主动删除工作区。异常退出后的数据库重开只清理归属标记匹配的临时目录。
+- 慢查询条目和低基数指标记录候选行、返回行、耗时、峰值算子预留、峰值 live spill、完成 run 的累计写出字节、比较次数和排序读者峰值。按现有诊断配置启用，指标使用现有的 outcome、access path 和 fallback reason 标签。
+
+## 消费者和兼容
+
+REST 先发送 NDJSON 列元数据，然后每 64 行或约 64 KiB 刷新一批。Frame 使用现有 meta、rows、end 帧和分块策略。单条 REST 请求和开始输出前的 Frame 可通过 `X-SonnetDB-Sql-Streaming: 1` 识别 Core 游标。启用 `SqlExecution:StreamingQueryTimeoutMilliseconds` 时覆盖只读 `ORDER BY` 的执行和流式响应写出，默认 `0` 由请求取消控制。HTTP 请求准入保留至结果交付结束。
+
+远程 REST ADO.NET 继续逐行读 NDJSON。嵌入式和远程 Frame ADO.NET 通过 `CommandBehavior.SequentialAccess` 选择按行或按块读取。Frame 的逐块读取器验证帧身份、成功终态、结束行数和响应末尾。已有 .NET Frame 客户端可继续直接使用 `SendStreamingAsync`。工作台、执行脚本、GQL 和未选择逐步读取的 ADO.NET 路径保留原有结果形态。
+
+## 验收与复现
+
+验证命令、进程回收记录和未执行环境项见[工作树交接](../../HANDOFF.md)。
+
+| 验收 | 有界用例 |
+| --- | --- |
+| 结果与顺序 | 固定小语料对拍原始稳定排序、时间归并和强制外排。覆盖稀疏字段、重复点、时间并列、ASC/DESC、空页、长 OFFSET、Unix 时间戳边界。 |
+| 容量 | 固定种子 440、8 个序列，按 10 万和 999,992 行两层逐行核对。记录首行与全量时间、进程生命周期峰值、候选、比较次数、预留和 spill，使用生成公式校验大语料。 |
+| 真实消费者 | 本地 Kestrel HTTP/1.1 REST、HTTP/2 Frame、REST/Frame ADO.NET 和嵌入式 ADO.NET。验证列、首末行、完整行数、结果终态、预览截断或拒绝、发送期限和客户端断连。 |
+| 读视图与回收 | 固定屏障覆盖并发写入、删除、flush 和物理 compaction。计算或写出取消、短读、文件路径写失败和 live quota 耗尽均检查资源回收。独立本地 Server 进程持有运行中的 spill 时强停，重开验证原数据与控制目录。 |
+| 长稳与环境 | 512 轮混合完整、短读、取消和额度拒绝。物理磁盘 ENOSPC、固定硬件、168 小时和现场环境另行取证。 |
+
+核心入口见[时序归并](../../src/SonnetDB.Core/Sql/Execution/SelectExecutor.OrderedStream.cs)、[选择与游标](../../src/SonnetDB.Core/Sql/Execution/SqlExecutor.Streaming.cs)、[外部排序](../../src/SonnetDB.Core/Sql/Execution/SqlSpillSorter.cs)和[分层测试](../../tests/SonnetDB.Core.Tests/Sql/StreamingOrderByCapacityTests.cs)。

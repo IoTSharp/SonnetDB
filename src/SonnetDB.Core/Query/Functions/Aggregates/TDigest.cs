@@ -28,7 +28,9 @@ internal sealed class TDigest
     private readonly List<Centroid> _buffer;
     private readonly int _bufferLimit;
 
-    public TDigest(int compression = DefaultCompression)
+    private readonly bool _stableInterpolation;
+
+    public TDigest(int compression = DefaultCompression, bool stableInterpolation = false)
     {
         if (compression < 10)
             throw new ArgumentOutOfRangeException(nameof(compression), "压缩参数必须 ≥ 10。");
@@ -37,6 +39,7 @@ internal sealed class TDigest
         _centroids = new List<Centroid>(compression * 2);
         _buffer = new List<Centroid>(compression * BufferFactor);
         _bufferLimit = compression * BufferFactor;
+        _stableInterpolation = stableInterpolation;
     }
 
     /// <summary>已累加的样本数（等价于所有 centroid 权重之和）。</summary>
@@ -100,6 +103,14 @@ internal sealed class TDigest
                     return c.Mean;
 
                 var prev = _centroids[i - 1];
+                if (_stableInterpolation)
+                {
+                    double previousCenter = cumulative - prev.Weight / 2.0;
+                    double currentCenter = cumulative + half;
+                    double proportion = (targetWeight - previousCenter) / (currentCenter - previousCenter);
+                    return Interpolate(prev.Mean, c.Mean, proportion);
+                }
+
                 double prevHalf = prev.Weight / 2.0;
                 double leftEdge = cumulative - prevHalf + prev.Weight;
                 // 在 prev 与 c 之间线性插值：cumulative 是 prev 中心位置的权重位置，
@@ -240,7 +251,9 @@ internal sealed class TDigest
             if (current.Weight + c.Weight <= maxWeight)
             {
                 double newWeight = current.Weight + c.Weight;
-                double newMean = current.Mean + (c.Mean - current.Mean) * c.Weight / newWeight;
+                double newMean = _stableInterpolation
+                    ? Interpolate(current.Mean, c.Mean, c.Weight / newWeight)
+                    : current.Mean + (c.Mean - current.Mean) * c.Weight / newWeight;
                 current = new Centroid(newMean, newWeight);
                 cumulative += c.Weight;
             }
@@ -261,6 +274,11 @@ internal sealed class TDigest
         double q = (q1 + q2) / 2.0;
         return 4.0 * q * (1 - q) / _compression;
     }
+
+    private static double Interpolate(double left, double right, double proportion)
+        => (left < 0) != (right < 0)
+            ? left * (1 - proportion) + right * proportion
+            : left + (right - left) * proportion;
 
     private readonly record struct Centroid(double Mean, double Weight);
 }

@@ -17,7 +17,7 @@ public sealed partial class TableStore : IDisposable
     private const int IndexRebuildRowPageSize = 4;
     private const int IndexRepairMutationPageSize = 1024;
     private readonly object _sync = new();
-    private readonly KvKeyspace _keyspace;
+    private KvKeyspace _keyspace;
     private readonly TableStatisticsRefreshBudget _statisticsRefreshBudget;
     private TableSchema _schema;
     private int _rowCount;

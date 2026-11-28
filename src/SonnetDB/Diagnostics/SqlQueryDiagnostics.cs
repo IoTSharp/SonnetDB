@@ -58,6 +58,16 @@ internal static class SqlQueryDiagnostics
         "sonnetdb.sql.gc.gen1.collections", unit: "{collection}", description: "Gen1 collections observed during a SQL statement.");
     private static readonly Histogram<long> Gen2Collections = Meter.CreateHistogram<long>(
         "sonnetdb.sql.gc.gen2.collections", unit: "{collection}", description: "Gen2 collections observed during a SQL statement.");
+    private static readonly Histogram<long> PeakOperatorMemory = Meter.CreateHistogram<long>(
+        "sonnetdb.sql.operator.memory.peak", unit: "By", description: "Peak SQL operator memory reservation.");
+    private static readonly Histogram<long> PeakSortSpill = Meter.CreateHistogram<long>(
+        "sonnetdb.sql.sort.spill.live.peak", unit: "By", description: "Peak live sort spill bytes.");
+    private static readonly Histogram<long> SortSpillWritten = Meter.CreateHistogram<long>(
+        "sonnetdb.sql.sort.spill.written", unit: "By", description: "Bytes written to sort spill runs including intermediate runs.");
+    private static readonly Histogram<long> SortComparisons = Meter.CreateHistogram<long>(
+        "sonnetdb.sql.sort.comparisons", unit: "{comparison}", description: "Sort key comparisons.");
+    private static readonly Histogram<int> PeakSortReaders = Meter.CreateHistogram<int>(
+        "sonnetdb.sql.sort.readers.peak", unit: "{reader}", description: "Peak concurrent ordered inputs or spill run readers.");
 
     internal static bool MeasurementInsertStageEnabled => MeasurementInsertStage.Enabled;
 
@@ -132,5 +142,15 @@ internal static class SqlQueryDiagnostics
         Gen0Collections.Record(entry.Gen0Collections, tags);
         Gen1Collections.Record(entry.Gen1Collections, tags);
         Gen2Collections.Record(entry.Gen2Collections, tags);
+        if (entry.PeakOperatorMemoryBytes > 0)
+            PeakOperatorMemory.Record(entry.PeakOperatorMemoryBytes, tags);
+        if (entry.PeakSortSpillBytes > 0)
+            PeakSortSpill.Record(entry.PeakSortSpillBytes, tags);
+        if (entry.SortSpillBytesWritten > 0)
+            SortSpillWritten.Record(entry.SortSpillBytesWritten, tags);
+        if (entry.SortComparisons > 0)
+            SortComparisons.Record(entry.SortComparisons, tags);
+        if (entry.PeakSortReaders > 0)
+            PeakSortReaders.Record(entry.PeakSortReaders, tags);
     }
 }

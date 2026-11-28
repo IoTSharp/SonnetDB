@@ -97,6 +97,8 @@ internal static class SqlSpillSorter
     {
         SqlQueryResources resources = SqlQueryResources.Current
             ?? throw new InvalidOperationException("外部排序要求活动 SQL 查询资源作用域。");
+        using var counted = SqlExecutionTelemetry.IsEnabled ? new CountedSortComparer<T>(comparer) : null;
+        comparer = counted ?? comparer;
         using var reservation = resources.CreateReservation();
         var buffer = new List<StableItem<T>>();
         var runs = new IncrementalRunSet<T>(resources, comparer, codec);
@@ -150,6 +152,19 @@ internal static class SqlSpillSorter
         IReadOnlyList<RunInfo> consolidated = runs.Complete();
         foreach (T row in MergeOrdered(resources, consolidated, comparer, codec))
             yield return row;
+    }
+
+    private sealed class CountedSortComparer<T>(IComparer<T> inner) : IComparer<T>, IDisposable
+    {
+        private long _comparisons;
+
+        public int Compare(T? left, T? right)
+        {
+            _comparisons++;
+            return inner.Compare(left!, right!);
+        }
+
+        public void Dispose() => SqlExecutionTelemetry.RecordSortComparisons(_comparisons);
     }
 
     internal static T[] OrderByThenPaginate<T>(
@@ -443,7 +458,7 @@ internal static class SqlSpillSorter
             resources);
         string path = resources.GetWorkspace().CreateFilePath("sort-run");
         long maxResidentRowBytes = 0;
-        using (BinaryWriter writer = SqlSpillRowCodec.CreateWriter(path))
+        using (BinaryWriter writer = resources.GetWorkspace().CreateSortWriter(path))
         {
             writer.Write((long)items.Count);
             foreach (StableItem<T> item in items)
@@ -454,7 +469,7 @@ internal static class SqlSpillSorter
                 SqlSpillRowCodec.WriteRow(writer, codec.Encode(item.Row));
             }
         }
-        SqlExecutionTelemetry.RecordSpill(new FileInfo(path).Length);
+        SqlExecutionTelemetry.RecordSortSpill(new FileInfo(path).Length);
         return new RunInfo(path, maxResidentRowBytes);
     }
 
@@ -471,7 +486,7 @@ internal static class SqlSpillSorter
             resources);
         string path = resources.GetWorkspace().CreateFilePath("sort-run");
         long maxResidentRowBytes = 0;
-        using (BinaryWriter writer = SqlSpillRowCodec.CreateWriter(path))
+        using (BinaryWriter writer = resources.GetWorkspace().CreateSortWriter(path))
         {
             writer.Write((long)items.Count);
             foreach (BudgetedStableItem<T> item in items)
@@ -482,7 +497,7 @@ internal static class SqlSpillSorter
                 SqlSpillRowCodec.WriteRow(writer, codec.Encode(item.Row));
             }
         }
-        SqlExecutionTelemetry.RecordSpill(new FileInfo(path).Length);
+        SqlExecutionTelemetry.RecordSortSpill(new FileInfo(path).Length);
         return new RunInfo(path, maxResidentRowBytes);
     }
 
@@ -494,13 +509,13 @@ internal static class SqlSpillSorter
     {
         resources.ThrowIfCancellationRequested();
         string path = resources.GetWorkspace().CreateFilePath("sort-run");
-        using (BinaryWriter writer = SqlSpillRowCodec.CreateWriter(path))
+        using (BinaryWriter writer = resources.GetWorkspace().CreateSortWriter(path))
         {
             writer.Write(1L);
             writer.Write(item.Ordinal);
             SqlSpillRowCodec.WriteRow(writer, codec.Encode(item.Row));
         }
-        SqlExecutionTelemetry.RecordSpill(new FileInfo(path).Length);
+        SqlExecutionTelemetry.RecordSortSpill(new FileInfo(path).Length);
         return new RunInfo(path, item.Bytes);
     }
 
@@ -601,6 +616,7 @@ internal static class SqlSpillSorter
         var queue = new PriorityQueue<RunCursor<T>, StableItem<T>>(priorityComparer);
         var cursors = new List<RunCursor<T>>(count);
         long maxResidentRowBytes = 0;
+        SqlExecutionTelemetry.RecordSortReaderPeak(count);
         try
         {
             for (int index = 0; index < count; index++)
@@ -614,7 +630,7 @@ internal static class SqlSpillSorter
                     queue.Enqueue(cursor, cursor.Current);
             }
 
-            using BinaryWriter writer = SqlSpillRowCodec.CreateWriter(outputPath);
+            using BinaryWriter writer = resources.GetWorkspace().CreateSortWriter(outputPath);
             writer.Write(0L);
             long writtenCount = 0;
             while (queue.TryDequeue(out RunCursor<T>? cursor, out StableItem<T> item))
@@ -637,9 +653,9 @@ internal static class SqlSpillSorter
                 cursor.Dispose();
         }
 
-        SqlExecutionTelemetry.RecordSpill(new FileInfo(outputPath).Length);
+        SqlExecutionTelemetry.RecordSortSpill(new FileInfo(outputPath).Length);
         for (int index = 0; index < count; index++)
-            File.Delete(paths[start + index].Path);
+            resources.GetWorkspace().DeleteSortFile(paths[start + index].Path);
         return new RunInfo(outputPath, maxResidentRowBytes);
     }
 
@@ -831,6 +847,7 @@ internal static class SqlSpillSorter
             (left, right) => CompareStable(left, right, comparer));
         var queue = new PriorityQueue<RunCursor<T>, StableItem<T>>(priorityComparer);
         var cursors = new List<RunCursor<T>>(paths.Count);
+        SqlExecutionTelemetry.RecordSortReaderPeak(paths.Count);
         try
         {
             foreach (RunInfo run in paths)
@@ -873,7 +890,7 @@ internal static class SqlSpillSorter
             }
             finally
             {
-                DeleteRunsBestEffort(paths);
+                DeleteRunsBestEffort(resources.GetWorkspace(), paths);
             }
         }
     }
@@ -896,6 +913,7 @@ internal static class SqlSpillSorter
             (left, right) => CompareStable(left, right, comparer));
         var queue = new PriorityQueue<RunCursor<T>, StableItem<T>>(priorityComparer);
         var cursors = new List<RunCursor<T>>(paths.Count);
+        SqlExecutionTelemetry.RecordSortReaderPeak(paths.Count);
         try
         {
             foreach (RunInfo run in paths)
@@ -925,19 +943,19 @@ internal static class SqlSpillSorter
             }
             finally
             {
-                DeleteRunsBestEffort(paths);
+                DeleteRunsBestEffort(resources.GetWorkspace(), paths);
             }
         }
     }
 
     /// <summary>关闭归并游标后尽力删除最终 run；失败文件由查询根工作区释放时兜底清理。</summary>
-    private static void DeleteRunsBestEffort(IReadOnlyList<RunInfo> runs)
+    private static void DeleteRunsBestEffort(SqlSpillWorkspace workspace, IReadOnlyList<RunInfo> runs)
     {
         foreach (RunInfo run in runs)
         {
             try
             {
-                File.Delete(run.Path);
+                workspace.DeleteSortFile(run.Path);
             }
             catch (IOException)
             {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SonnetDB.Exceptions;
 
 namespace SonnetDB.Kv;
 
@@ -15,6 +16,14 @@ public sealed partial class KvKeyspace
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeBudget, TimeSpan.Zero);
         if (_lsm is not null)
             return LsmScanCandidatePage(prefix, endExclusive, afterKey, resultLimit, candidateLimit, timeBudget, cancellationToken);
+        return ScanLegacyCandidatePage(prefix, endExclusive, afterKey, resultLimit, candidateLimit, timeBudget, cancellationToken);
+    }
+
+    private KvCandidatePage ScanLegacyCandidatePage(
+        byte[] prefix, byte[]? endExclusive, byte[]? afterKey,
+        int resultLimit, int candidateLimit, TimeSpan timeBudget, CancellationToken cancellationToken,
+        int? maxPageBytes = null)
+    {
         using (EnterAtomicWriteLock(cancellationToken))
         {
             ThrowIfDisposed();
@@ -35,6 +44,7 @@ public sealed partial class KvKeyspace
             bool hasDisk = disk.MoveNext();
             byte[]? continuation = afterKey;
             int visited = 0;
+            long usedBytes = 0;
             DateTimeOffset now = DateTimeOffset.UtcNow;
             for (; visited < candidateLimit && (hasMutable || hasFrozen || hasDisk); visited++)
             {
@@ -49,12 +59,30 @@ public sealed partial class KvKeyspace
                 bool takeMutable = hasMutable && KvKeyComparer.Instance.Compare(mutable.Current.Key, key) == 0;
                 bool takeFrozen = hasFrozen && KvKeyComparer.Instance.Compare(frozen.Current.Key, key) == 0;
                 bool takeDisk = hasDisk && KvKeyComparer.Instance.Compare(disk.Current.Key, key) == 0;
-                KvValueEntry value = takeMutable ? mutable.Current.Value
-                    : takeFrozen ? frozen.Current.Value : _diskState!.Read(disk.Current, cancellationToken);
-                continuation = key.ToArray();
+                KvValueEntry? overlayEntry = takeMutable ? mutable.Current.Value : takeFrozen ? frozen.Current.Value : null;
+                KvDiskIndexEntry? diskEntry = overlayEntry is null ? disk.Current : null;
+                DateTimeOffset? expiry = overlayEntry is null ? diskEntry!.ExpiresAtUtc : overlayEntry.ExpiresAtUtc;
                 // 上层墓碑屏蔽同键的下层数据；不在只读调度中额外写入 TTL 清理 WAL。
-                if (!value.IsDeleted && !value.IsExpired(now))
-                    rows.Add(new KvEntry(continuation, value.Value.ToArray(), value.Version, value.ExpiresAtUtc));
+                if (overlayEntry is not { IsDeleted: true } && (expiry is null || expiry > now))
+                {
+                    int length = overlayEntry is null ? diskEntry!.ValueLength : overlayEntry.Value.Length;
+                    long entryBytes = (long)key.Length + length;
+                    if (maxPageBytes is int maximum && entryBytes > maximum - usedBytes)
+                    {
+                        if (rows.Count == 0)
+                            throw new PayloadLimitExceededException(maximum);
+                        break;
+                    }
+
+                    // 检查页预算后才读取磁盘 value；磁盘读取的数组由本页独占。
+                    byte[] value = overlayEntry is null
+                        ? _diskState!.Read(diskEntry!, cancellationToken, maintenanceRead: maxPageBytes.HasValue).Value
+                        : overlayEntry.Value.ToArray();
+                    long version = overlayEntry is null ? diskEntry!.Version : overlayEntry.Version;
+                    rows.Add(new KvEntry(key.ToArray(), value, version, expiry));
+                    usedBytes += entryBytes;
+                }
+                continuation = key;
                 if (takeMutable) hasMutable = mutable.MoveNext();
                 if (takeFrozen) hasFrozen = frozen.MoveNext();
                 if (takeDisk) hasDisk = disk.MoveNext();
@@ -64,7 +92,7 @@ public sealed partial class KvKeyspace
                     break;
                 }
             }
-            return new KvCandidatePage(rows, continuation, hasMutable || hasFrozen || hasDisk, visited);
+            return new KvCandidatePage(rows, continuation?.ToArray(), hasMutable || hasFrozen || hasDisk, visited);
         }
     }
 }

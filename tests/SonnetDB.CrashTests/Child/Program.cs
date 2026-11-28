@@ -101,6 +101,7 @@ switch (scenario)
     case "crash_kill9_primary_key_migration_self_after_parent":
     case "crash_kill9_primary_key_migration_self_after_catalog":
     case "crash_kill9_primary_key_migration_self_after_complete":
+    case var migration when migration.StartsWith("crash_kill9_primary_key_migration_resumable_", StringComparison.Ordinal):
         PrimaryKeyMigrationCrashScenario.Run(root, readyFile, scenario);
         return 0;
     case "crash_kill9_keyless_between_tables":

@@ -258,7 +258,36 @@ GROUP BY DATE_TRUNC('month', occurred_at)
 ORDER BY month_start;
 ```
 
-`DATE_TRUNC` 保留 `DATETIME2` 的结果类型。`DATETIMEOFFSET` 则统一按 UTC 截断并返回零偏移。关系表目前使用 `COUNT`、`SUM`、`MIN`、`MAX`、`AVG` 和受支持的字符串聚合。上面的 `median`、`stddev` 和 `percentile` 示例适用于 measurement。
+`DATE_TRUNC` 保留 `DATETIME2` 的结果类型。`DATETIMEOFFSET` 按 UTC 截断并返回零偏移。
+
+### 5.5 关系表扩展聚合
+
+```sql
+CREATE TABLE request_samples (id INT, site STRING, latency_ms DECIMAL(8,2), PRIMARY KEY (id));
+INSERT INTO request_samples (id, site, latency_ms) VALUES
+    (1, 'A', 13.25), (2, 'A', 20.50), (3, 'B', 10.00), (4, 'B', NULL);
+SELECT site, median(latency_ms) AS median_ms, p50(latency_ms) AS p50_ms,
+       p90(latency_ms) AS p90_ms, percentile(latency_ms, 95) AS p95_ms,
+       p95(latency_ms) AS fixed_p95_ms, p99(latency_ms) AS p99_ms,
+       stddev(latency_ms) AS sample_sd, variance(latency_ms) AS sample_variance
+FROM request_samples
+GROUP BY site
+HAVING COUNT(latency_ms) > 0
+ORDER BY p99_ms DESC;
+```
+
+这些统计接受 INT、FLOAT 和 DECIMAL，返回可为 NULL 的 FLOAT。`percentile` 的第二个参数是 `(0, 100]` 内的数值字面量或绑定参数。TDigest 估算分位数，样本方差和标准差在少于两个有效值时返回 NULL。
+
+```sql
+SELECT site, spread(latency_ms) AS range_ms, mode(latency_ms) AS most_common_ms,
+       histogram(latency_ms, 10) AS buckets, distinct_count(latency_ms) AS distinct_values,
+       tdigest_agg(latency_ms) AS digest
+FROM request_samples
+GROUP BY site
+ORDER BY distinct_values DESC;
+```
+
+`distinct_count` 返回精确计数，`histogram` 和 `tdigest_agg` 返回 JSON 文本。[SQL 聚合参考](sql-reference.md#关系表聚合)
 
 ## 6. 窗口分析
 

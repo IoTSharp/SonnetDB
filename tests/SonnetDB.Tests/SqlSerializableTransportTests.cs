@@ -17,7 +17,7 @@ using Xunit;
 
 namespace SonnetDB.Tests;
 
-public sealed class SqlSerializableTransportTests : IAsyncLifetime
+public sealed partial class SqlSerializableTransportTests : IAsyncLifetime
 {
     private const string Token = "serial225-test-admin";
     private const string Database = "serial225";
@@ -31,9 +31,20 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await StartServerAsync(deadline.Token);
+        using var http = Http();
+        using var created = await http.PostAsync("/v1/db", new StringContent($"{{\"name\":\"{Database}\"}}",
+            Encoding.UTF8, "application/json"), deadline.Token);
+        created.EnsureSuccessStatusCode();
+        _requests.Clear();
+    }
+
+    private async Task StartServerAsync(CancellationToken cancellationToken)
+    {
         _app = TestServerHost.Build(new ServerOptions
         {
             DataRoot = _root,
+            AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
             Tokens = new Dictionary<string, string> { [Token] = ServerRoles.Admin }
         }, extraArgs:
@@ -72,7 +83,7 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
             }
             finally { context.Response.Body = original; }
         });
-        await _app.StartAsync(deadline.Token);
+        await _app.StartAsync(cancellationToken);
         var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
         Assert.Equal(2, addresses.Addresses.Count);
         foreach (string address in addresses.Addresses.Take(2))
@@ -82,7 +93,7 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, "/healthz")
                 { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
-                using var response = await probe.SendAsync(request, deadline.Token);
+                using var response = await probe.SendAsync(request, cancellationToken);
                 if (response.IsSuccessStatusCode) _rest = address;
                 else _h2 = address;
             }
@@ -90,22 +101,30 @@ public sealed class SqlSerializableTransportTests : IAsyncLifetime
         }
         Assert.NotEmpty(_rest);
         Assert.NotEmpty(_h2);
-        using var http = Http();
-        using var created = await http.PostAsync("/v1/db", new StringContent($"{{\"name\":\"{Database}\"}}",
-            Encoding.UTF8, "application/json"), deadline.Token);
-        created.EnsureSuccessStatusCode();
-        _requests.Clear();
     }
 
     public async Task DisposeAsync()
     {
-        if (_app is not null)
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            await _app.StopAsync(deadline.Token);
-            await _app.DisposeAsync();
-        }
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await StopServerAsync(deadline.Token);
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+    }
+
+    private async Task StopServerAsync(CancellationToken cancellationToken)
+    {
+        if (_app is not { } application)
+            return;
+        try
+        {
+            await application.StopAsync(cancellationToken);
+        }
+        finally
+        {
+            _app = null;
+            _rest = string.Empty;
+            _h2 = string.Empty;
+            await application.DisposeAsync();
+        }
     }
 
     [Theory]

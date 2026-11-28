@@ -163,6 +163,9 @@ public sealed class SqlDateFunctionTests : IDisposable
         Assert.Equal(new object?[] { null, null }, Assert.Single(result.Rows));
         Assert.Equal(TableColumnType.Int64, result.ColumnInfo![0].DataType);
         Assert.Equal(FunctionKind.Unknown, FunctionRegistry.GetFunctionKind("data_trunc"));
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(database, "SELECT data_trunc('day', 0)"));
+        Assert.Contains("data_trunc", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -48,6 +48,10 @@ internal sealed class RemoteExecutionResult : IExecutionResult
 
     public IReadOnlyList<string> Columns => _columns;
 
+    public bool DisposeOnReadFailure => !_sharedBatchStream
+        && _response.Headers.TryGetValues(SqlFrameCodec.StreamingResultHeader, out var values)
+        && values.SequenceEqual(["1"]);
+
     private RemoteExecutionResult(HttpResponseMessage response, Stream stream, StreamReader reader,
         string[] columns, ExecutionFieldTypeKind[] columnTypes,
         ExecutionColumnMetadata[]? columnMetadata, bool inferMissingColumnTypes, bool sharedBatchStream)

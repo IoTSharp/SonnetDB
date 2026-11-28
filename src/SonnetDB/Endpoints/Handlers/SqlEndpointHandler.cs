@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Diagnostics;
+using System.IO.Pipelines;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -397,6 +399,8 @@ internal static class SqlEndpointHandler
                         ? new SqlExecutionMetrics()
                         : null;
                 SqlExecutionMetricsSnapshot? executionSnapshot = null;
+                DateTimeOffset? streamingDeadline = null;
+                CancellationToken streamingCancellation = default;
                 try
                 {
                     int? previewMaxRows = ResolvePreviewMaxRows(stmt, routineOptions);
@@ -416,6 +420,9 @@ internal static class SqlEndpointHandler
                     }
 
                     string caller = ResolveRoutineCaller(context, isServerAdmin);
+                    bool streamResults = previewMaxRows is null && transaction is null
+                        && executable is SelectStatement { OrderByList.Count: > 0 } && !RequiresWritePermission(executable);
+                    streamingDeadline = streamResults ? routineOptions.GetStreamingQueryDeadline() : null;
                     long executionStarted = SqlMeasurementInsertTiming.Start(insertTiming);
                     object? result = executable switch
                     {
@@ -441,9 +448,10 @@ internal static class SqlEndpointHandler
                             new SqlExecutionOptions
                             {
                                 CancellationToken = executionCancellation,
+                                StreamResults = streamResults,
                                 SessionContext = sessionContext,
                                 CaptureProcedureResults = true,
-                                DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : null,
+                                DeadlineUtc = workbenchPreview ? DateTimeOffset.UtcNow.AddSeconds(30) : streamingDeadline,
                                 MaxMaterializedRows = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement
                                     ? WorkbenchPreviewSql.MaximumMaterializedRows : null,
                                 MaxMaterializedBytes = workbenchPreview && executable is SelectStatement or ExplainStatement or InsertStatement ? WorkbenchPreviewSql.MaximumResultBytes : null,
@@ -474,7 +482,8 @@ internal static class SqlEndpointHandler
                     if (insertTiming is not null)
                         SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.ExecutionTicks, executionStarted);
                     result = SqlResultBounds.Apply(result, previewMaxRows);
-                    executionSnapshot = executionMetrics?.Complete();
+                    if (result is not SqlStreamingSelectResult)
+                        executionSnapshot = executionMetrics?.Complete();
                     if (result is SqlTransactionContext started)
                         transaction = started;
                     else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
@@ -497,6 +506,23 @@ internal static class SqlEndpointHandler
                                     metrics.AddReturnedRows(returned);
                                     await WriteEndAsync(context, writerOptions, returned, procedure.RecordsAffected,
                                         sw.Elapsed.TotalMilliseconds, selected.Truncated).ConfigureAwait(false);
+                                }
+                                break;
+                            }
+                        case SqlStreamingSelectResult stream:
+                            {
+                                using (stream)
+                                {
+                                    if (statements.Count == 1 && !context.Response.HasStarted)
+                                        context.Response.Headers[SqlFrameCodec.StreamingResultHeader] = "1";
+                                    streamingCancellation = stream.CancellationToken;
+                                    long rowCount = await WriteStreamingSelectAsync(context, stream, writerOptions).ConfigureAwait(false);
+                                    var elapsed = sw.Elapsed.TotalMilliseconds;
+                                    await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed,
+                                        cancellationToken: stream.CancellationToken).ConfigureAwait(false);
+                                    metrics.AddReturnedRows(rowCount);
+                                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
+                                        executionMetrics?.Complete(), queueWaitMs);
                                 }
                                 break;
                             }
@@ -611,6 +637,23 @@ internal static class SqlEndpointHandler
                                 break;
                             }
                     }
+                }
+                catch (OperationCanceledException ex) when (context.RequestAborted.IsCancellationRequested
+                    || ex.CancellationToken == context.RequestAborted && ex.CancellationToken.CanBeCanceled)
+                {
+                    return;
+                }
+                catch (OperationCanceledException) when (streamingDeadline is { } deadline
+                    && (streamingCancellation.IsCancellationRequested || deadline <= DateTimeOffset.UtcNow))
+                {
+                    metrics.RecordSqlError();
+                    RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                        executionMetrics?.Complete(), queueWaitMs);
+                    if (context.Response.HasStarted)
+                        context.Abort();
+                    else
+                        await WriteErrorAsync(context, "sql_timeout", "SQL 查询超过语句总时限。").ConfigureAwait(false);
+                    return;
                 }
                 catch (ControlPlaneAccessDeniedException ex)
                 {
@@ -745,16 +788,55 @@ internal static class SqlEndpointHandler
 
     private static async Task<long> WriteSelectAsync(HttpContext context, SelectExecutionResult result, JsonWriterOptions options)
     {
+        await WriteSelectMetaAsync(context, options, result.Columns, result.ColumnSchema, result.ColumnInfo,
+            result.Rows, context.RequestAborted).ConfigureAwait(false);
+        for (int row = 0; row < result.Rows.Count; row++)
+        {
+            context.RequestAborted.ThrowIfCancellationRequested();
+            _ = WriteSelectRow(context, options, result.Rows[row]);
+            await context.Response.BodyWriter.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
+        }
+        return result.Rows.Count;
+    }
+
+    private static async Task<long> WriteStreamingSelectAsync(HttpContext context, SqlStreamingSelectResult result, JsonWriterOptions options)
+    {
+        var cancellationToken = result.CancellationToken;
+        await WriteSelectMetaAsync(context, options, result.Columns, result.ColumnSchema, result.ColumnInfo,
+            rows: null, cancellationToken).ConfigureAwait(false);
+        var body = context.Response.BodyWriter;
+        long count = 0;
+        long bufferedBytes = 0;
+        while (result.MoveNext())
+        {
+            bufferedBytes += WriteSelectRow(context, options, result.Current) + 1;
+            body.Write(_newline);
+            count++;
+            if (count % 64 == 0 || bufferedBytes >= 64 * 1024)
+            {
+                var flush = await body.FlushAsync(cancellationToken).ConfigureAwait(false);
+                EnsureStreamingFlush(context, flush, cancellationToken);
+                bufferedBytes = 0;
+            }
+        }
+        return count;
+    }
+
+    private static async Task WriteSelectMetaAsync(
+        HttpContext context, JsonWriterOptions options, IReadOnlyList<string> columns,
+        IReadOnlyList<TableColumn>? columnSchema, IReadOnlyList<SelectColumnInfo>? columnInfo,
+        IReadOnlyList<IReadOnlyList<object?>>? rows, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var body = context.Response.BodyWriter;
 
-        // 1) meta 行
-        var columnTypes = new string[result.Columns.Count];
-        ResultColumnSchema[]? columnSchemas = result.ColumnSchema is not null || result.ColumnInfo is not null
-            ? new ResultColumnSchema[result.Columns.Count]
+        var columnTypes = new string[columns.Count];
+        ResultColumnSchema[]? columnSchemas = columnSchema is not null || columnInfo is not null
+            ? new ResultColumnSchema[columns.Count]
             : null;
         for (int column = 0; column < columnTypes.Length; column++)
         {
-            if (result.ColumnSchema is { } declaredColumns)
+            if (columnSchema is { } declaredColumns)
             {
                 var declared = declaredColumns[column];
                 columnTypes[column] = ToColumnTypeCode(declared.DataType);
@@ -772,7 +854,7 @@ internal static class SqlEndpointHandler
                 continue;
             }
 
-            var info = result.ColumnInfo?[column];
+            var info = columnInfo?[column];
             if (info is not null)
             {
                 columnTypes[column] = info.DataType is { } declaredType ? ToColumnTypeCode(declaredType) : "object";
@@ -793,9 +875,9 @@ internal static class SqlEndpointHandler
             }
 
             string? sampledType = null;
-            for (int row = 0; row < result.Rows.Count; row++)
+            for (int row = 0; rows is not null && row < rows.Count; row++)
             {
-                var value = result.Rows[row][column];
+                var value = rows[row][column];
                 if (value is null)
                     continue;
                 string currentType = ToRuntimeColumnTypeCode(value);
@@ -812,7 +894,7 @@ internal static class SqlEndpointHandler
                     columnTypes[column], true, false, false, false);
         }
 
-        var meta = new ResultMeta("meta", result.Columns)
+        var meta = new ResultMeta("meta", columns)
         {
             ColumnTypes = columnTypes,
             ColumnSchemas = columnSchemas,
@@ -821,27 +903,34 @@ internal static class SqlEndpointHandler
         {
             JsonSerializer.Serialize(metaWriter, meta, ServerJsonContext.Default.ResultMeta);
         }
-        await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
+        var flush = await body.WriteAsync(_newline, cancellationToken).ConfigureAwait(false);
+        if (rows is null)
+            EnsureStreamingFlush(context, flush, cancellationToken);
+    }
 
-        // 2) 行数据：每行一条 ndjson
-        long count = 0;
-        for (int r = 0; r < result.Rows.Count; r++)
+    private static long WriteSelectRow(HttpContext context, JsonWriterOptions options, IReadOnlyList<object?> row)
+    {
+        var body = context.Response.BodyWriter;
+        string resultVersion = context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString();
+        using var rowWriter = new Utf8JsonWriter(body, options);
+        NdjsonRowWriter.WriteRow(rowWriter, row,
+            resultVersion is SqlFrameCodec.NativeDateTimeResultVersion or SqlFrameCodec.NativeDurationResultVersion
+                or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
+            resultVersion is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion
+                or SqlFrameCodec.NativeDateTime2ResultVersion,
+            resultVersion is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion);
+        return rowWriter.BytesCommitted + rowWriter.BytesPending;
+    }
+
+    internal static void EnsureStreamingFlush(
+        HttpContext context, FlushResult flush, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (flush.IsCanceled || flush.IsCompleted)
         {
-            context.RequestAborted.ThrowIfCancellationRequested();
-            await using (var rowWriter = new Utf8JsonWriter(body, options))
-            {
-                NdjsonRowWriter.WriteRow(rowWriter, result.Rows[r],
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeResultVersion
-                        or SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString()
-                        is SqlFrameCodec.NativeDurationResultVersion or SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion,
-                    context.Response.Headers[SqlFrameCodec.ResultVersionHeader].ToString() is SqlFrameCodec.NativeDateTimeOffsetResultVersion or SqlFrameCodec.NativeDateTime2ResultVersion);
-            }
-            await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
-            count++;
+            context.Abort();
+            throw new OperationCanceledException(context.RequestAborted);
         }
-
-        return count;
     }
 
     private static string ToColumnTypeCode(TableColumnType type) => type switch
@@ -899,8 +988,11 @@ internal static class SqlEndpointHandler
         long rowCount,
         int recordsAffected,
         double elapsedMs,
-        bool truncated = false)
+        bool truncated = false,
+        CancellationToken? cancellationToken = null)
     {
+        var writeCancellation = cancellationToken ?? context.RequestAborted;
+        writeCancellation.ThrowIfCancellationRequested();
         var body = context.Response.BodyWriter;
         var end = new ResultEnd("end", rowCount, recordsAffected, elapsedMs) { Truncated = truncated };
         await using (var w = new Utf8JsonWriter(body, options))
@@ -908,8 +1000,10 @@ internal static class SqlEndpointHandler
             JsonSerializer.Serialize(w, end, ServerJsonContext.Default.ResultEnd);
         }
         // WriteAsync 已刷新完整的 NDJSON 行。若管道取消了该次刷新，保留原有的补刷。
-        var flush = await body.WriteAsync(_newline, context.RequestAborted).ConfigureAwait(false);
-        if (flush.IsCanceled)
+        var flush = await body.WriteAsync(_newline, writeCancellation).ConfigureAwait(false);
+        if (cancellationToken.HasValue)
+            EnsureStreamingFlush(context, flush, writeCancellation);
+        else if (flush.IsCanceled)
             await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
@@ -943,6 +1037,7 @@ internal static class SqlEndpointHandler
             || detail.Code == KvReadOverloadedException.Code
             || detail.Code == TimeSeriesWriteRecoveryRequiredException.ErrorCode
             || detail.Code == TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
+            || detail.Code == RoutineErrorCodes.CommitUnknown
             || exception is SequenceException or SqlRowLockException)
             transportCode = detail.Code;
         return WriteErrorAsync(context, transportCode, detail.Message, detail);
@@ -966,8 +1061,10 @@ internal static class SqlEndpointHandler
                 KvReadOverloadedException.Code => StatusCodes.Status503ServiceUnavailable,
                 TimeSeriesWriteRecoveryRequiredException.ErrorCode => StatusCodes.Status503ServiceUnavailable,
                 TimeSeriesWriteRecoveryRequiredException.PartialErrorCode => StatusCodes.Status503ServiceUnavailable,
+                RoutineErrorCodes.CommitUnknown => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
                 "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,
+                "sql_timeout" => StatusCodes.Status504GatewayTimeout,
                 "modbus_write_connection_error" => StatusCodes.Status502BadGateway,
                 _ => StatusCodes.Status400BadRequest,
             };

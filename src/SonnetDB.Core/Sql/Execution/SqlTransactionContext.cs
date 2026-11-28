@@ -49,6 +49,8 @@ public sealed partial class SqlTransactionContext
     /// <summary>事务是否已经成功持久提交；提交失败或回滚时为 false。</summary>
     public bool WasCommitted { get; internal set; }
 
+    internal bool CommitOutcomeUnknown { get; private set; }
+
     /// <summary>当前语句执行作用域内的活动轻事务（基于 <see cref="AsyncLocal{T}"/>）；无事务时为 <c>null</c>。</summary>
     public static SqlTransactionContext? Current => _current.Value;
 
@@ -473,9 +475,10 @@ public sealed partial class SqlTransactionContext
 
     private sealed record NamedSavepoint(string Name, bool NameIsQuoted, Savepoint Snapshot);
 
-    internal void MarkCompleted()
+    internal void MarkCompleted(bool commitOutcomeUnknown = false)
     {
         ThrowIfCompleted();
+        CommitOutcomeUnknown = commitOutcomeUnknown;
         _completed = true;
         CompleteSession();
         ReleaseRowLocks();

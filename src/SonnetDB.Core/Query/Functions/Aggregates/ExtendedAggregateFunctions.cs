@@ -518,7 +518,9 @@ internal sealed class HistogramAccumulator : IAggregateAccumulator
 
     public long Count { get; private set; }
 
-    public void Add(double value)
+    public void Add(double value) => Add(value, int.MaxValue);
+
+    internal void Add(double value, int maximumBins)
     {
         if (double.IsNaN(value) || double.IsInfinity(value)) return;
         double index = Math.Floor(value / _binWidth);
@@ -532,8 +534,10 @@ internal sealed class HistogramAccumulator : IAggregateAccumulator
             || lower >= upper)
             throw new InvalidOperationException("histogram 桶边界无法用有限 Double 准确表示。");
 
+        if (!_bins.TryGetValue(binIndex, out long existingCount) && _bins.Count >= maximumBins)
+            throw new InvalidOperationException($"histogram 桶数超过 {maximumBins}。");
         long count = checked(Count + 1);
-        long binCount = checked(_bins.GetValueOrDefault(binIndex) + 1);
+        long binCount = checked(existingCount + 1);
         _bins[binIndex] = binCount;
         Count = count;
     }

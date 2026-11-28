@@ -386,6 +386,37 @@ public sealed partial class Tsdb : IDisposable
     /// </summary>
     internal SegmentManagerSnapshotLease AcquireReadSnapshot() => Segments.AcquireSnapshot();
 
+    // Capture SQL measurement schema, series and the mutable MemTable under the same write gate.
+    // The returned view owns its segment lease and can be consumed without holding this lock.
+    internal T CaptureMeasurementReadView<T>(Func<T> capture, CancellationToken cancellationToken)
+    {
+        bool taken = false;
+        try
+        {
+            // The write gate can also be held by a flush or a synchronous WAL publication.
+            // Poll it cooperatively so a cancellation/deadline can stop before a view is allocated.
+            long started = Stopwatch.GetTimestamp();
+            for (int attempt = 0;
+                attempt < 6_000 && !taken && Stopwatch.GetElapsedTime(started) < TimeSpan.FromMinutes(5);
+                attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Monitor.TryEnter(_writeSync, 50, ref taken);
+            }
+            if (!taken)
+                throw new TimeoutException("等待 measurement 读视图超过五分钟。");
+
+            cancellationToken.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return capture();
+        }
+        finally
+        {
+            if (taken)
+                Monitor.Exit(_writeSync);
+        }
+    }
+
     /// <summary>
     /// 在维护串行锁（<c>_maintenanceSync</c>）内执行 <paramref name="action"/>。
     /// 序列化 Compaction / Retention / DropMeasurement，杜绝它们的段变更相互交错

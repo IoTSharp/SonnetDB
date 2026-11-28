@@ -16,6 +16,7 @@ internal sealed class BatchExecutionResult(
     public int RecordsAffected => -1;
     public bool Truncated => _current.Truncated;
     public IReadOnlyList<string> Columns => _current.Columns;
+    public bool DisposeOnReadFailure => _current.DisposeOnReadFailure;
     public bool ReadNextRow() => !_currentDisposed && _current.ReadNextRow();
     public ValueTask<bool> ReadNextRowAsync(CancellationToken cancellationToken)
         => _currentDisposed ? ValueTask.FromResult(false) : _current.ReadNextRowAsync(cancellationToken);

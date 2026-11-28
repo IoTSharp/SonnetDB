@@ -30,6 +30,9 @@ public static class SqlErrorMapper
                     ? TimeSeriesWriteRecoveryRequiredException.PartialErrorCode
                     : TimeSeriesWriteRecoveryRequiredException.ErrorCode,
                 recovery.Message, operation, hint: fallbackHint),
+            TableTransactionRecoveryException recovery => new SqlErrorInfo(
+                RoutineErrorCodes.CommitUnknown, recovery.Message, operation,
+                hint: "数据库恢复后按业务标识查询最终结果。"),
             SqlRowLockException rowLock => new SqlErrorInfo(rowLock.Code, rowLock.Message, operation,
                 hint: "等待持有者结束事务，或回滚当前事务后重新执行。"),
             SequenceException sequence => new SqlErrorInfo(sequence.Code, sequence.Message, operation,

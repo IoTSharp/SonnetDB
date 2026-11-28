@@ -74,19 +74,8 @@ internal sealed class FrameChannel
 
         try
         {
-            using var content = new ReadOnlyMemoryContent(requestFrames);
-            content.Headers.ContentType = new MediaTypeHeaderValue(FrameContentType);
-            using var request = new HttpRequestMessage(HttpMethod.Post, FrameUrl)
-            {
-                Content = content,
-                Version = requireHttp2 ? HttpVersion.Version20 : _http.DefaultRequestVersion,
-                VersionPolicy = requireHttp2 ? HttpVersionPolicy.RequestVersionExact : _http.DefaultVersionPolicy,
-            };
-            if (sqlResultVersion is not null || sqlResultV2)
-                request.Headers.Add(SqlFrameCodec.ResultVersionHeader, sqlResultVersion ?? SqlFrameCodec.TypedResultVersion);
-            string? connectionSessionId = ConnectionSessionIdProvider?.Invoke();
-            if (connectionSessionId is not null)
-                request.Headers.TryAddWithoutValidation("X-SonnetDB-Connection-Session", connectionSessionId);
+            using var request = CreateRequest(requestFrames, requireHttp2,
+                sqlResultVersion ?? (sqlResultV2 ? SqlFrameCodec.TypedResultVersion : null));
             using var response = await _http.SendAsync(request, maximumResponseBytes is null
                 ? HttpCompletionOption.ResponseContentRead : HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if (requireHttp2 && response.Version != HttpVersion.Version20)
@@ -135,6 +124,64 @@ internal sealed class FrameChannel
         {
             return HandleTransportFailure($"帧端点连接失败：{ex.Message}", allowFallback);
         }
+    }
+
+    internal async Task<HttpResponseMessage> SendSqlQueryStreamAsync(
+        ReadOnlyMemory<byte> requestFrame, string sqlResultVersion, CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(requestFrame, requireHttp2: false, sqlResultVersion);
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new SndbServerException("frame_transport_error", "SQL Frame 传输失败。", HttpStatusCode.OK, exception);
+        }
+
+        try
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                byte[] bytes = await BoundedContentReader.ReadAsync(stream, 64 * 1024, cancellationToken).ConfigureAwait(false);
+                ServerErrorBody? error = null;
+                try { error = JsonSerializer.Deserialize(bytes, RemoteJsonContext.Default.ServerErrorBody); }
+                catch (JsonException) { /* 非 JSON 响应没有可用的 SQL 错误代码。 */ }
+                throw new SndbServerException(error?.Error ?? "frame_transport_error",
+                    error?.Message ?? $"SQL Frame 端点返回 HTTP {(int)response.StatusCode}。", response.StatusCode);
+            }
+            if (!string.Equals(response.Content.Headers.ContentType?.MediaType, FrameContentType, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("SQL Frame 响应 Content-Type 无效。");
+            _state = CapabilityState.Frames;
+            return response;
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
+    }
+
+    private HttpRequestMessage CreateRequest(
+        ReadOnlyMemory<byte> requestFrames, bool requireHttp2, string? sqlResultVersion)
+    {
+        var content = new ReadOnlyMemoryContent(requestFrames);
+        content.Headers.ContentType = new MediaTypeHeaderValue(FrameContentType);
+        var request = new HttpRequestMessage(HttpMethod.Post, FrameUrl)
+        {
+            Content = content,
+            Version = requireHttp2 ? HttpVersion.Version20 : _http.DefaultRequestVersion,
+            VersionPolicy = requireHttp2 ? HttpVersionPolicy.RequestVersionExact : _http.DefaultVersionPolicy,
+        };
+        if (sqlResultVersion is not null)
+            request.Headers.Add(SqlFrameCodec.ResultVersionHeader, sqlResultVersion);
+        string? connectionSessionId = ConnectionSessionIdProvider?.Invoke();
+        if (connectionSessionId is not null)
+            request.Headers.TryAddWithoutValidation("X-SonnetDB-Connection-Session", connectionSessionId);
+        return request;
     }
 
     /// <summary>

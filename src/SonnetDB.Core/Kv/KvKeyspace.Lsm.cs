@@ -673,19 +673,11 @@ public sealed partial class KvKeyspace
     {
         ThrowIfDisposedForLsm();
         cancellationToken.ThrowIfCancellationRequested();
-        KvEntry? entry;
-        try
+        return _lsm!.ReadProjectedValue(key, value =>
         {
-            entry = _lsm!.GetVisibleBounded(key, int.MaxValue, DateTimeOffset.UtcNow, cancellationToken);
-        }
-        catch (PayloadLimitExceededException)
-        {
-            throw new System.Diagnostics.UnreachableException("int.MaxValue bound cannot be exceeded.");
-        }
-        if (entry is null)
-            return null;
-        reserve(entry.Value.Length);
-        return entry.Value.ToArray();
+            reserve(value.Length);
+            return value.ToArray();
+        }, cancellationToken);
     }
 
     private KvDiagnostics LsmGetDiagnostics(int topHotKeys, KvExpirationStats expiration)

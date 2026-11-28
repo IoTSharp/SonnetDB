@@ -55,6 +55,13 @@ internal interface IConnectionImpl : IDisposable
     /// <summary>开始一段轻事务，返回具体实现持有的事务状态。</summary>
     object BeginTransaction(IsolationLevel isolationLevel);
 
+    /// <summary>异步开始一段轻事务，并允许取消远程会话创建请求。</summary>
+    ValueTask<object> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(BeginTransaction(isolationLevel));
+    }
+
     /// <summary>提交一段轻事务。</summary>
     void CommitTransaction(object transactionState);
 
@@ -81,6 +88,9 @@ internal interface IExecutionResult : IDisposable
 
     /// <summary>结果是否因 Server/Frame 传输行数预算而被截断。</summary>
     bool Truncated => false;
+
+    /// <summary>实时读取发生不可重试错误时立即关闭结果与读取器租约。</summary>
+    bool DisposeOnReadFailure => false;
 
     /// <summary>列名（SELECT 才有；非 SELECT 返回空数组）。</summary>
     IReadOnlyList<string> Columns { get; }

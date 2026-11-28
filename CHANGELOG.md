@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+### 大结果 ORDER BY
+
+- 直接 measurement 的 `ORDER BY time` 在单条语句读视图中合并多个序列和字段，时间并列时按该视图的原序列顺序返回。高扇入时使用已有稳定 Top-N 或外部归并。
+- REST、Frame 与支持 `SequentialAccess` 的嵌入式和 Frame ADO.NET 入口逐批或逐行交付受支持的有序结果。直接关系表全量排序复用表快照和稳定外排。流式排序支持活跃临时字节额度，短读、取消和传输失败会释放读视图、排序文件及查询额度。
+
+### 可恢复的关系表分批迁移
+
+- 关系表 schema 迁移超过单次准备预算时，Legacy 和 LSM 可沿持久主键游标构建目标 rowstore。迁移前的行与索引保留到切换完成，重开可继续相同 ALTER 或补完已提交的切换。
+- 分批迁移在发布前验证主键、索引、CHECK 和外键约束，沿用现有事务冲突检查，并在切换后继续使用已打开的表句柄。首次建立分批迁移计划时，关系目录的兼容版本提升至 v20。
+
+### 远程事务
+
+- ADO.NET 异步开始事务会把取消令牌传给远程会话创建请求。同一连接会拒绝重叠的事务启动请求。
+- 提交前取消时保留原事务句柄以供回滚。
+- 远程提交响应缺少结尾标记或无法解析时，客户端按会话状态对账。单次状态查询和同一会话的提交重试各限五秒，状态无法确认时报告提交未知。
+- 多表提交遇到需要存储恢复的错误时，远程事务会话返回 `unknown` 终态和 `routine_commit_unknown` 错误。数据库恢复后可按业务键查验已持久化的操作。
+
 ### 时序最新值与关系索引分页
 
 - 内存中的可见点严格晚于查询快照中的所有落盘段时，时序最新值查询跳过磁盘候选枚举。相同时间戳的取值顺序和墓碑处理沿用原查询逻辑。
@@ -16,6 +33,12 @@
 
 - 新增 `DATE_TRUNC(unit, value)`，支持年、季度、月、周、日、小时、分钟、秒和毫秒。周从周一开始。`DATETIME` 和 `DATETIME2` 保留各自声明类型，`DATETIMEOFFSET` 按 UTC 截断并返回零偏移，Unix 毫秒以整数返回。参数为 NULL 时返回 NULL，无效参数返回 SQL 错误。
 - SQL 参考、Cookbook、Copilot 与 AI 上下文同步区分关系表的标量函数、measurement 时间桶和各自支持的聚合。
+
+### 关系 SQL 统计聚合
+
+- 关系表新增 `median`、`stddev`、`variance`、`percentile`、`p50`、`p90`、`p95` 和 `p99`。输入支持 INT、FLOAT、DECIMAL，统计跳过 NULL 并返回 nullable FLOAT。分位数使用 TDigest，方差和标准差采用样本统计。查询支持分组、HAVING 和排序，统计状态计入关系查询资源预算。
+- 关系表新增 `spread`、`mode`、`histogram`、`distinct_count` 和 `tdigest_agg`。众数保留输入类型，关系 `distinct_count` 精确计数，直方图和 TDigest 输出 JSON 文本。
+- SQL 参考、Cookbook、Copilot 与 AI 上下文同步两类聚合的能力矩阵及 measurement 专用函数的替代方式。
 
 ### 路线和发行文档
 

@@ -1573,7 +1573,36 @@ LIMIT 10 OFFSET 20;
 - 支持 `LIMIT n [OFFSET m]` 兼容语法。
 - `ORDER BY/OFFSET/FETCH/LIMIT` 作用在最终结果集（投影/聚合之后）。
 
-### 聚合查询
+### 关系表聚合
+
+| 聚合函数 | 关系表结果与规则 |
+| --- | --- |
+| `count`、`sum`、`min`、`max`、`avg` | 基础关系聚合。 |
+| `median(value)`、`p50(value)`、`p90(value)`、`p95(value)`、`p99(value)` | 用 TDigest 估算相应分位数。`median` 和 `p50` 的定义相同。 |
+| `percentile(value, q)` | 用 TDigest 估算第 `q` 百分位。`q` 为有限数值字面量或绑定参数，范围为 `(0, 100]`。`100` 返回转换后的最大值。 |
+| `variance(value)`、`stddev(value)` | 用 Welford 累加器计算样本方差和标准差，方差除以 `N - 1`。两个函数在有效样本数少于 2 时返回 NULL。 |
+| `spread(value)` | 数值输入转为 FLOAT 后计算最大值减最小值。结果为可空 FLOAT，只有一个有效值时返回 0，溢出时报 SQL 错误。 |
+| `mode(value)` | 返回众数，结果保留输入类型并可为 NULL。并列时取最小值，布尔值按 `false < true`，字符串按 Ordinal 排序。 |
+| `distinct_count(value)` | 精确统计非 NULL 的不同值，返回 INT，空集和全 NULL 返回 0。 |
+| `histogram(value, width)` | 返回可为 NULL 的 STRING。内容为形如 `{"[0,10)":2}` 的 JSON 对象，键按桶索引排列。用 binary64 计算 `FLOOR(value / width)`，舍入按浮点除法发生。宽度为正有限数值字面量或绑定参数。 |
+| `tdigest_agg(value)` | 返回可为 NULL 的 STRING。内容为带 `compression`、`count` 和 `centroids` 的 JSON 对象。质心使用 `[均值, 权重]` 表示。 |
+| `string_agg`、`group_concat` | 字符串聚合，参数和预算规则见下文。 |
+
+上述八个统计聚合接受 `INT`、`FLOAT`、`DECIMAL` 以及结果为这些类型的表达式。计算前将非 NULL 输入转换为 IEEE 754 binary64，返回可为 NULL 的 `FLOAT`（ADO.NET `Double`）。高位整数和 DECIMAL 可能在转换时舍入。绝对值超过 2^53 的相邻整数可能折叠为同一浮点值。布尔值须显式转换为数值。非有限输入、非有限结果和不支持的参数形态返回 SQL 错误。样本方差和标准差在二进制缩放并移除共同偏移后计算，各自按 FLOAT 的可表示范围返回结果。
+
+分位数、方差和标准差跳过 NULL。无 GROUP BY 的空输入和全 NULL 输入均返回一行 NULL。带 GROUP BY 的空输入返回零行，已存在的全 NULL 组保留 NULL 结果。只有一个有效值时，分位数返回该值。TDigest 是近似统计，精度随分布与输入顺序变化。
+
+可以在 SELECT 和 HAVING 中使用统计聚合。分组后的 ORDER BY 支持直接按单个统计调用排序，例如 `ORDER BY percentile(value, 95) DESC`。包含统计聚合的复合排序表达式可放入 SELECT 并按别名排序。聚合内 DISTINCT、排序、星号、嵌套聚合与 OVER 会被拒绝。
+
+第二批统计同样跳过 NULL。除 `distinct_count` 外，无有效输入返回 NULL。`spread`、`histogram` 和 `tdigest_agg` 接受 INT、FLOAT 和 DECIMAL，使用 binary64，拒绝非有限值。直方图还拒绝超出 Int64 的桶索引和不能表示为有效区间的桶。`mode` 和 `distinct_count` 也接受 BOOL 和 STRING，保留大整数及 DECIMAL 的键值精度。每组非空输入的类型必须一致，动态类型表达式可先显式 CAST。两个 JSON 文本可按 STRING 排序。
+
+组数据使用关系查询的物化和临时落盘规则。每个关系 SELECT 按最重的统计状态预留工作空间。普通分位数预留 128 KiB，`tdigest_agg` 预留 640 KiB，`histogram` 预留 512 KiB，`mode` 和 `distinct_count` 预留 256 KiB，其余统计预留 128 字节。TDigest 的质心及缓冲样本合计最多 2,048 个，直方图每组最多 1,024 个桶，分类键按每键 160 字节加字符串 UTF-16 内容估算。每次生成的 JSON 文本累计计入根查询预算，包括后来被 HAVING 或分页丢弃的文本。预算拒绝和取消会终止语句并清理资源。
+
+| 仅 measurement 提供的聚合 | 关系表中的替代方式及后续合同 |
+| --- | --- |
+| `first`、`last` | 按明确的时间和并列键排序后取首行。专用函数还需指定顺序和 NULL 规则。 |
+| `centroid`、`trajectory_*` | 使用对应 measurement 或向量、轨迹入口。关系 SQL 列类型见类型声明。 |
+| `pid`、`pid_estimate` | 使用具备时间轴的 measurement 或控制器。关系表缺少相应的时间序列和状态合同。 |
 
 关系表基础字符串聚合支持 `string_agg(value, delimiter)` 与同义的双参数 `group_concat(value, delimiter)`。输入为 STRING 或 NULL，NULL 输入跳过，空串、重复值与 Unicode 原样保留；空输入或全 NULL 返回 NULL，结果声明为 nullable String。分隔符须为 STRING/NULL 字面量或绑定参数，NULL 分隔符按空串处理；其它输入类型须显式 CAST。无输入排序保证，查询外层 ORDER BY 只排列结果行。此基础合同明确拒绝聚合 DISTINCT、聚合内 ORDER BY、OVER 和 measurement，不包含 MySQL GROUP_CONCAT 的完整方言。
 
@@ -1584,6 +1613,8 @@ SELECT t.id, (SELECT group_concat(l.name, ',') FROM labels l WHERE l.tenant = t.
 
 每个输入表达式只在聚合时逐行求值一次。片段列表及最终字符串分配前使用检查溢出的 UTF-16 长度和共享查询/数据库内存预算；结果保留字节计入根查询，不同组或子查询不能逐一释放来绕过上限。取消和预算拒绝不返回截断结果，查询预留与临时落盘工作区沿根调用清理；预算为保守估算，不是 CLR heap 精确硬上限。参数绑定、关系 GroupBy/JOIN 与单列关联聚合使用同一合同。正式 Core/Data/Server/SDK 发布和 FreeSql StringAgg/string.Join Provider 集成须另行验收。
 
+### Measurement 聚合
+
 聚合函数按自身语义声明可接受的 FIELD 类型：
 
 | 聚合函数 | 可接受类型 | 结果与规则 |
@@ -1593,8 +1624,9 @@ SELECT t.id, (SELECT group_concat(l.name, ',') FROM labels l WHERE l.tenant = t.
 | `min(field)` / `max(field)` | Float64、Int64、Boolean、String | 字符串固定使用 `StringComparison.Ordinal`；布尔按 `false < true`。 |
 | `mode(field)` | Float64、Int64、Boolean、String | 返回原字段类型；Int64 按完整整数身份计数，出现次数相同则选择最小值，字符串按 Ordinal。 |
 | `distinct_count(field)` | Float64、Int64、Boolean、String | 返回 HyperLogLog 基数估算（`long`）；Int64 按完整 64 位整数身份哈希，不先转 Double。 |
-| `sum` / `avg` / `stddev` / `variance` / `spread` | Float64、Int64、Boolean | Boolean 延续历史数值转换规则（`false=0`、`true=1`）。 |
-| `median` / `percentile` / `p50` / `p90` / `p95` / `p99` | Float64、Int64、Boolean | 数值分位统计。 |
+| `sum` / `avg` / `spread` | Float64、Int64、Boolean | Boolean 按 `false=0`、`true=1` 转换。 |
+| `stddev` / `variance` | Float64、Int64、Boolean | 样本统计，方差除以 `N - 1`。少于两个有效点返回 NULL。Boolean 按 `false=0`、`true=1` 转换。 |
+| `median` / `percentile` / `p50` / `p90` / `p95` / `p99` | Float64、Int64、Boolean | 时序 TDigest 分位估算，`median` 对应 `p50`。Boolean 按 `false=0`、`true=1` 转换。 |
 | `histogram` / `tdigest_agg` / `pid` / `pid_estimate` | Float64、Int64、Boolean | 数学统计或控制聚合，不接受字符串。 |
 | `centroid` | Vector | 返回各维均值向量。 |
 | `trajectory_*` | GeoPoint | 返回轨迹距离、中心、边界框或速度统计。 |

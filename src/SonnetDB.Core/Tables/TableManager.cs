@@ -105,6 +105,7 @@ public sealed partial class TableManager : IDisposable
         RecoverSchemaMigrationBeforeOpeningStores();
         _catalog = new TableCatalog();
         RecoverDdlTransactionBeforeOpeningCatalog();
+        RecoverResumableSchemaMigrationBeforeOpeningStores();
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             _catalog.LoadExisting(schema);
         _catalog.MutationGuard = EnsureManagedCatalogMutation;
@@ -603,16 +604,20 @@ public sealed partial class TableManager : IDisposable
                         decimalPrecision, decimalScale).WithColumnLength(columnName, stringLength);
                     var store = OpenStoreLocked(current);
                     long nextAutoIncrement = 0;
-                    ApplySchemaTransformLocked(current, updated, store, (_, row) =>
+                    IReadOnlyList<object?> Backfill(TableRow row, long rowNumber)
                     {
                         var values = new object?[updated.Columns.Count];
                         for (var i = 0; i < row.Values.Count; i++)
                             values[i] = row.Values[i];
                         values[^1] = isAutoIncrement
-                            ? checked(++nextAutoIncrement)
+                            ? rowNumber
                             : isRowVersion ? 1L : defaultValue;
                         return values;
-                    });
+                    }
+
+                    ApplySchemaTransformLocked(current, updated, store,
+                        (_, row) => Backfill(row, isAutoIncrement ? checked(++nextAutoIncrement) : 0),
+                        resumableBackfill: Backfill, backfillValue: defaultValue);
                 }
         });
     }
@@ -659,6 +664,7 @@ public sealed partial class TableManager : IDisposable
                         ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
                     var updated = current.WithPrimaryKey(columns);
                     if (constraintName is not null) updated = updated.WithPrimaryKeyConstraintName(constraintName);
+                    if (HasUnchangedSchemaMigrationPrimaryKeyDefinition(current, updated)) return;
                     ApplyPrimaryKeySchemaMigrationLocked(current, updated, static (_, row) => row.Values);
                 }
         });
@@ -2375,12 +2381,14 @@ public sealed partial class TableManager : IDisposable
         TableSchema updated,
         TableStore store,
         Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
-        Action<TableSchema, IReadOnlyList<object?>>? validate = null)
+        Action<TableSchema, IReadOnlyList<object?>>? validate = null,
+        Func<TableRow, long, IReadOnlyList<object?>>? resumableBackfill = null,
+        object? backfillValue = null)
     {
         if (current.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2)
             || updated.Columns.Any(static column => column.DataType is TableColumnType.Duration or TableColumnType.DateTimeOffset or TableColumnType.DateTime2))
         {
-            ApplyPrimaryKeySchemaMigrationLocked(current, updated, transform, validate);
+            ApplyPrimaryKeySchemaMigrationLocked(current, updated, transform, validate, resumableBackfill, backfillValue);
             return;
         }
         var rollback = store.ApplySchemaTransform(updated, transform, validate);

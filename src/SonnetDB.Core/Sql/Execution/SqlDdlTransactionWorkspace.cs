@@ -150,6 +150,7 @@ internal sealed class SqlDdlTransactionWorkspace : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_sealed)
             return;
+        Database.Tables.DiscardUncommittedMigrationInDdlWorkspace();
         TableSchemaCodec.SaveWithDdlTransactionBarrier(
             Database.Tables.SchemaPath,
             Database.Tables.Catalog.Snapshot());

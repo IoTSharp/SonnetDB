@@ -15,7 +15,7 @@ namespace SonnetDB.Sql.Execution;
 /// <c>SELECT</c> 语句执行的内部辅助：处理投影分类、原始模式行构建、聚合模式桶合并。
 /// 公共入口仍是 <see cref="SqlExecutor.ExecuteSelect"/>。
 /// </summary>
-internal static class SelectExecutor
+internal static partial class SelectExecutor
 {
     public static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
     {
@@ -78,6 +78,18 @@ internal static class SelectExecutor
                 out var latestResult))
         {
             return latestResult;
+        }
+
+        if (!hasAggregate
+            && groupByTime is null
+            && orderBy is not null
+            && SqlQueryResources.Current is { } resources
+            && (matchedSeries.Count != 1 || statement.Pagination is not null
+                || GetRawFields(schema, classified).Length > 1)
+            && TryCreateOrderedMeasurementStream(tsdb, schema, statement, classified, where, resources) is { } orderedStream)
+        {
+            using var readView = orderedStream.ReadView;
+            return new SelectExecutionResult(orderedStream.Columns, orderedStream.Rows.ToList());
         }
 
         if (!hasAggregate
@@ -1165,13 +1177,15 @@ internal static class SelectExecutor
         MeasurementSchema schema,
         IReadOnlyList<Projection> projections,
         IReadOnlyList<SeriesEntry> matchedSeries,
-        TimeRange range)
+        TimeRange range,
+        QueryEngine.MeasurementReadView? readView = null,
+        IReadOnlyList<string>? fieldNames = null)
     {
         foreach (var series in matchedSeries)
         {
             SqlExecutor.ThrowIfCancellationRequested();
             foreach (var row in EnumerateSeriesRawRows(
-                tsdb, schema, projections, series, range, QueryDirection.Ascending))
+                tsdb, schema, projections, series, range, QueryDirection.Ascending, readView, fieldNames))
             {
                 yield return row;
             }
@@ -1184,13 +1198,18 @@ internal static class SelectExecutor
         IReadOnlyList<Projection> projections,
         IReadOnlyList<SeriesEntry> matchedSeries,
         TimeRange range,
-        QueryDirection direction)
+        QueryDirection direction,
+        QueryEngine.MeasurementReadView? readView = null,
+        IReadOnlyList<string>? fieldNames = null)
     {
         var enumerators = matchedSeries
             .Select(series => EnumerateSeriesRawRows(
-                tsdb, schema, projections, series, range, direction).GetEnumerator())
+                tsdb, schema, projections, series, range, direction, readView, fieldNames).GetEnumerator())
             .ToArray();
-        var queue = new PriorityQueue<int, (long SortTimestamp, int SeriesIndex)>();
+        var comparer = readView is not null && SqlExecutionTelemetry.IsEnabled
+            ? new RawRowPriorityComparer()
+            : null;
+        var queue = new PriorityQueue<int, (long SortTimestamp, int SeriesIndex)>(comparer);
 
         try
         {
@@ -1198,6 +1217,8 @@ internal static class SelectExecutor
             {
                 if (enumerators[i].MoveNext())
                     queue.Enqueue(i, RawRowPriority(enumerators[i].Current.Timestamp, i, direction));
+                else
+                    enumerators[i].Dispose();
             }
 
             while (queue.TryDequeue(out int seriesIndex, out _))
@@ -1213,6 +1234,10 @@ internal static class SelectExecutor
                             seriesIndex,
                             direction));
                 }
+                else
+                {
+                    enumerators[seriesIndex].Dispose();
+                }
 
                 yield return row;
             }
@@ -1221,6 +1246,19 @@ internal static class SelectExecutor
         {
             foreach (var enumerator in enumerators)
                 enumerator.Dispose();
+            if (comparer is not null)
+                SqlExecutionTelemetry.RecordSortComparisons(comparer.Comparisons);
+        }
+    }
+
+    private sealed class RawRowPriorityComparer : IComparer<(long SortTimestamp, int SeriesIndex)>
+    {
+        internal long Comparisons { get; private set; }
+
+        public int Compare((long SortTimestamp, int SeriesIndex) left, (long SortTimestamp, int SeriesIndex) right)
+        {
+            Comparisons++;
+            return left.CompareTo(right);
         }
     }
 
@@ -1230,19 +1268,15 @@ internal static class SelectExecutor
         IReadOnlyList<Projection> projections,
         SeriesEntry series,
         TimeRange range,
-        QueryDirection direction)
+        QueryDirection direction,
+        QueryEngine.MeasurementReadView? readView = null,
+        IReadOnlyList<string>? fieldNames = null)
     {
-        var fieldNames = projections
-            .Where(static projection => projection.Kind == ProjectionKind.Field)
-            .Select(static projection => projection.Column!.Name)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        if (fieldNames.Count == 0)
-            fieldNames.Add(schema.FieldColumns.First().Name);
+        fieldNames ??= GetRawFields(schema, projections);
 
         var enumerators = fieldNames
             .Select(fieldName => QueryPointsStream(
-                tsdb, series.Id, fieldName, range, direction).GetEnumerator())
+                tsdb, series.Id, fieldName, range, direction, readView).GetEnumerator())
             .ToArray();
         var queue = new PriorityQueue<int, (long SortTimestamp, int FieldIndex)>();
         var values = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
@@ -2253,13 +2287,14 @@ internal static class SelectExecutor
         ulong seriesId,
         string fieldName,
         TimeRange range,
-        QueryDirection direction)
+        QueryDirection direction,
+        QueryEngine.MeasurementReadView? readView)
     {
         var query = new PointQuery(seriesId, fieldName, range)
         {
             Direction = direction,
         };
-        return TrackPointReads(tsdb.Query.Execute(query));
+        return TrackPointReads(readView is null ? tsdb.Query.Execute(query) : readView.Execute(query));
     }
 
     private static IEnumerable<DataPoint> QueryPointsStream(

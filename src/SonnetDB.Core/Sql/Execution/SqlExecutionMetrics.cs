@@ -39,6 +39,10 @@ internal sealed class SqlExecutionMetrics
     private long _spillCount;
     private long _spillBytes;
     private long _spillCleanupFailures;
+    private long _peakSortSpillBytes;
+    private long _sortSpillBytesWritten;
+    private long _sortComparisons;
+    private int _peakSortReaders;
     private string? _parallelOperator;
     private string? _parallelFallbackReason;
     private int _parallelWorkerCount = 1;
@@ -190,6 +194,31 @@ internal sealed class SqlExecutionMetrics
             _spillCleanupFailures++;
     }
 
+    internal void RecordSortSpillPeak(long bytes)
+    {
+        lock (_sync)
+            _peakSortSpillBytes = Math.Max(_peakSortSpillBytes, bytes);
+    }
+
+    internal void RecordSortSpill(long bytes)
+    {
+        lock (_sync)
+            _sortSpillBytesWritten = checked(_sortSpillBytesWritten + bytes);
+        RecordSpill(bytes);
+    }
+
+    internal void RecordSortComparisons(long count)
+    {
+        lock (_sync)
+            _sortComparisons = checked(_sortComparisons + count);
+    }
+
+    internal void RecordSortReaderPeak(int count)
+    {
+        lock (_sync)
+            _peakSortReaders = Math.Max(_peakSortReaders, count);
+    }
+
     /// <summary>记录计划估算的候选行数。</summary>
     internal void RecordEstimatedRows(long rows)
     {
@@ -263,7 +292,13 @@ internal sealed class SqlExecutionMetrics
                 _parallelWorkerCount,
                 _parallelCompletedItems,
                 _parallelFallbackReason,
-                physicalReadSnapshotComplete);
+                physicalReadSnapshotComplete)
+            {
+                PeakSortSpillBytes = _peakSortSpillBytes,
+                SortSpillBytesWritten = _sortSpillBytesWritten,
+                SortComparisons = _sortComparisons,
+                PeakSortReaders = _peakSortReaders,
+            };
             return _completed;
         }
     }
@@ -362,6 +397,11 @@ internal sealed record SqlExecutionMetricsSnapshot(
     string? ParallelFallbackReason = null,
     bool PhysicalReadSnapshotComplete = true)
 {
+    internal long PeakSortSpillBytes { get; init; }
+    internal long SortSpillBytesWritten { get; init; }
+    internal long SortComparisons { get; init; }
+    internal int PeakSortReaders { get; init; }
+
     /// <summary>实际/估算候选行数比率；估算为零时返回 1。</summary>
     public double ActualToEstimatedRowsRatio => EstimatedRows <= 0 ? 1 : (double)CandidateRows / EstimatedRows;
 }
@@ -418,6 +458,14 @@ internal static class SqlExecutionTelemetry
     internal static void RecordSpillBytes(long bytes) => Current?.RecordSpillBytes(bytes);
 
     internal static void RecordSpillCleanupFailure() => Current?.RecordSpillCleanupFailure();
+
+    internal static void RecordSortSpillPeak(long bytes) => Current?.RecordSortSpillPeak(bytes);
+
+    internal static void RecordSortSpill(long bytes) => Current?.RecordSortSpill(bytes);
+
+    internal static void RecordSortComparisons(long count) => Current?.RecordSortComparisons(count);
+
+    internal static void RecordSortReaderPeak(int count) => Current?.RecordSortReaderPeak(count);
 
     internal static void RecordEstimatedRows(long rows)
     {

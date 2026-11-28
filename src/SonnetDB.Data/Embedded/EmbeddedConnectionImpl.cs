@@ -16,6 +16,8 @@ namespace SonnetDB.Data.Embedded;
 internal sealed class EmbeddedConnectionImpl : IConnectionImpl
 {
     private readonly SndbConnectionStringBuilder _builder;
+    private readonly object _streamSync = new();
+    private readonly HashSet<StreamingExecutionResult> _streams = [];
     private Tsdb? _tsdb;
     private SqlSessionContext? _session;
     private ConnectionState _state = ConnectionState.Closed;
@@ -66,15 +68,36 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
 
     public void Close()
     {
-        if (_state == ConnectionState.Closed) return;
-        var t = _tsdb;
-        var session = _session;
-        session?.Dispose();
-        _tsdb = null;
-        _session = null;
-        _state = ConnectionState.Closed;
-        if (t != null)
-            SharedSndbRegistry.Release(t);
+        Tsdb? database;
+        SqlSessionContext? session;
+        StreamingExecutionResult[] streams;
+        lock (_streamSync)
+        {
+            if (_state == ConnectionState.Closed)
+                return;
+            database = _tsdb;
+            session = _session;
+            _tsdb = null;
+            _session = null;
+            _state = ConnectionState.Closed;
+            streams = _streams.ToArray();
+            _streams.Clear();
+        }
+
+        try
+        {
+            foreach (var stream in streams)
+                stream.Dispose();
+        }
+        finally
+        {
+            try { session?.Dispose(); }
+            finally
+            {
+                if (database is not null)
+                    SharedSndbRegistry.Release(database);
+            }
+        }
     }
 
     public void Dispose() => Close();
@@ -118,6 +141,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         // #213：把 ADO 参数值绑定进已解析 AST（值绑定而非字符串拼接，防注入 + 复用解析缓存）。
         statement = SqlParameterBinder.Bind(statement, ToSqlParameters(parameters));
 
+        var session = _session;
         var result = SqlExecutor.ExecuteStatement(
             _tsdb,
             databaseName: null,
@@ -127,13 +151,15 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             new SqlExecutionOptions
             {
                 CancellationToken = cancellationToken,
-                SessionContext = _session,
+                SessionContext = session,
                 CaptureProcedureResults = true,
+                StreamResults = transaction is null && (behavior & CommandBehavior.SequentialAccess) != 0,
             });
         return result switch
         {
             ProcedureExecutionResult procedure => new ProcedureExecutionResultAdapter(procedure.Results,
                 procedure.OutputParameters, procedure.ReturnValue, procedure.RecordsAffected, ProcedureCallSnapshot.ForLegacyCall()),
+            SqlStreamingSelectResult stream => TrackStreamingResult(stream, session),
             SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
             InsertExecutionResult { Returning: { } returning } insert =>
                 MaterializedExecutionResult.FromSelect(returning, insert.RowsInserted),
@@ -147,6 +173,32 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
             null => MaterializedExecutionResult.NonQuery(0),
             _ => MaterializedExecutionResult.NonQuery(0),
         };
+    }
+
+    private StreamingExecutionResult TrackStreamingResult(SqlStreamingSelectResult stream, SqlSessionContext? session)
+    {
+        try
+        {
+            lock (_streamSync)
+            {
+                if (_state != ConnectionState.Open || session is null || !ReferenceEquals(_session, session))
+                    throw new InvalidOperationException("连接已经关闭。");
+                var result = new StreamingExecutionResult(stream, ReleaseStreamingResult);
+                _streams.Add(result);
+                return result;
+            }
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    private void ReleaseStreamingResult(StreamingExecutionResult stream)
+    {
+        lock (_streamSync)
+            _streams.Remove(stream);
     }
 
     public Task<IExecutionResult> ExecuteAsync(

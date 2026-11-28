@@ -550,6 +550,14 @@ public sealed class SqlExecutionResourceOptions
     /// </summary>
     public int MaxResultRows { get; set; } = 10_000;
 
+    /// <summary>支持流式结果的只读 SQL 的语句总时限（毫秒），包含发送；0 表示依赖请求取消。</summary>
+    public int StreamingQueryTimeoutMilliseconds { get; set; }
+
+    internal DateTimeOffset? GetStreamingQueryDeadline()
+        => StreamingQueryTimeoutMilliseconds > 0
+            ? DateTimeOffset.UtcNow.AddMilliseconds(StreamingQueryTimeoutMilliseconds)
+            : null;
+
     /// <summary>
     /// REST SQL 显式预览中可早停单表 SELECT 的保留行估算字节上限，默认 16 MiB；
     /// 不约束阻塞查询、其它模型或 RETURNING，也不代表响应字节数或 CLR heap 硬上限。

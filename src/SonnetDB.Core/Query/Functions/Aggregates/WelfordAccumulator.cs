@@ -32,6 +32,13 @@ internal sealed class WelfordAccumulator
         M2 += delta * delta2;
     }
 
+    /// <summary>将所有已累加样本视为乘以同一个二的整数次幂，计数保持不变。</summary>
+    internal void RescalePowerOfTwo(int exponent)
+    {
+        Mean = Math.ScaleB(Mean, exponent);
+        M2 = Math.ScaleB(M2, 2 * exponent);
+    }
+
     /// <summary>合并另一个 Welford 累加器（并行算法）。</summary>
     public void Merge(WelfordAccumulator other)
     {

@@ -353,13 +353,17 @@ internal static partial class SonnetDbEndpoints
                 DatabaseAccessEvaluator.IsServerAdmin(ctx),
                 scopedControlPlane,
                 admission.QueueWaitMs, session.Transaction, connectionLease?.Context).ConfigureAwait(false);
-            if (!isStatementRequest && session.Transaction.IsCompleted)
-                sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
         }
         finally
         {
             if (!isStatementRequest && session.Transaction.IsCompleted && session.Terminal is null)
-                sessions.Complete(session, session.Transaction.WasCommitted ? "commit" : "rollback");
+            {
+                var transaction = session.Transaction;
+                string outcome = transaction.WasCommitted
+                    ? "commit"
+                    : transaction.CommitOutcomeUnknown ? "unknown" : "rollback";
+                sessions.Complete(session, outcome);
+            }
             session.Gate.Release();
         }
     }

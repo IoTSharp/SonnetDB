@@ -675,7 +675,9 @@ internal sealed class KvDiskState : IDisposable
     }
 
     /// <summary>通过独立文件偏移校验全部正文，不在状态锁内等待索引页或物理读取许可。</summary>
-    public void ValidateAllEntries()
+    public void ValidateAllEntries() => ValidateAllEntries(CancellationToken.None);
+
+    internal void ValidateAllEntries(CancellationToken cancellationToken)
     {
         AddReadReference();
         byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
@@ -685,6 +687,7 @@ internal sealed class KvDiskState : IDisposable
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
             foreach (KvDiskIndexEntry entry in _entries)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (System.Diagnostics.Stopwatch.GetElapsedTime(started) > TimeSpan.FromMinutes(15))
                     throw new TimeoutException("KV state validation exceeded its time budget.");
                 crc.Reset();
@@ -695,6 +698,7 @@ internal sealed class KvDiskState : IDisposable
                 {
                     for (int block = 0; remaining > 0 && block <= entry.ValueLength / buffer.Length; block++)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         int take = Math.Min(buffer.Length, remaining);
                         int read = ReadExactAt(buffer.AsSpan(0, take), offset);
                         if (read != take) throw new InvalidDataException("KV state entry value is truncated.");

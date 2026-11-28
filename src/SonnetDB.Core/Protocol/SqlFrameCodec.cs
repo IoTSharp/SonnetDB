@@ -22,6 +22,9 @@ public static class SqlFrameCodec
     /// <summary>HTTP Frame 查询的 SQL 结果格式协商请求头；缺失时使用旧格式。</summary>
     public const string ResultVersionHeader = "X-SonnetDB-Sql-Result-Version";
 
+    /// <summary>SQL 响应在发送列声明时仍持有 Core 行游标的标记头。</summary>
+    public const string StreamingResultHeader = "X-SonnetDB-Sql-Streaming";
+
     /// <summary>携带声明列信息和精确 DECIMAL 值标记的 SQL 结果格式版本。</summary>
     public const string TypedResultVersion = "2";
 
@@ -823,7 +826,7 @@ public static class SqlFrameCodec
         return Math.Max(count, 1);
     }
 
-    private static long EstimateRowBytes(IReadOnlyList<object?> row)
+    internal static long EstimateRowBytes(IReadOnlyList<object?> row)
     {
         long bytes = 2;
         for (int i = 0; i < row.Count; i++)

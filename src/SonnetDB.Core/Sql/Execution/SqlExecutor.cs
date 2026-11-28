@@ -221,6 +221,7 @@ public static partial class SqlExecutor
             transaction: null,
             options with
             {
+                StreamResults = false,
                 ParameterSensitiveQueryFingerprint = parameters is null
                     ? options.ParameterSensitiveQueryFingerprint
                     : SqlStatementFingerprint.CreateParameterSensitive(statement),
@@ -284,6 +285,7 @@ public static partial class SqlExecutor
         ArgumentNullException.ThrowIfNull(options);
 
         var statements = SqlParser.ParseScript(sql);
+        options = options with { StreamResults = false };
         var results = new List<object?>(statements.Count);
         SqlTransactionContext? transaction = null;
         try
@@ -435,6 +437,7 @@ public static partial class SqlExecutor
         if (insertTiming is not null)
             SqlMeasurementInsertTiming.AddElapsed(ref insertTiming.NameBindTicks, nameBindStarted);
         SqlLockingReadContract.Validate(statement);
+        CancellationToken callerCancellation = options.CancellationToken;
         using var deadlineSource = options.CreateDeadlineSource();
         if (deadlineSource is not null)
         {
@@ -472,6 +475,13 @@ public static partial class SqlExecutor
         RejectDirectModbusSourceWrites(executionDatabase, statement);
         if (statement is SelectStatement sequenceQuery)
             SqlDurationResultContract.ValidateBeforeSequence(tsdb, sequenceQuery);
+
+        if (isRootStatement && transaction is null && options.StreamResults
+            && statement is SelectStatement ordered
+            && TryExecuteOrderedSelectStream(executionDatabase, ordered, options, callerCancellation) is { } stream)
+        {
+            return stream;
+        }
 
         if (IsTemporaryMutation(tsdb, statement))
             return ExecuteTemporaryMutation(tsdb, statement, transaction, options);

@@ -13,7 +13,7 @@ using Xunit;
 
 namespace SonnetDB.Tests;
 
-/// <summary>通过真实 REST 与 h2c ADO 验证表列注释、字符串长度约束和声明元数据。</summary>
+/// <summary>通过真实 REST 与 h2c ADO 验证关系 SQL 数据与声明元数据。</summary>
 public sealed class SqlRelationalColumnMetadataTransportTests : IAsyncLifetime
 {
     private const string Token = "metadata-admin";
@@ -120,6 +120,67 @@ public sealed class SqlRelationalColumnMetadataTransportTests : IAsyncLifetime
             await Execute(reopened, "COMMENT ON COLUMN Items.Name IS NULL", deadline.Token);
             await AssertMetadata(reopened, null, 2, deadline.Token);
         }
+        Assert.NotEmpty(_protocols);
+        Assert.All(_protocols, observed => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", observed));
+    }
+
+    /// <summary>关系聚合通过真实传输返回 Double 元数据、NULL 和可恢复的查询错误。</summary>
+    [Theory]
+    [InlineData("rest")]
+    [InlineData("frame-http2")]
+    public async Task ExtendedAggregates_ExposeValuesMetadataAndErrors(string protocol)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var connection = Open(protocol);
+        await Execute(connection,
+            "CREATE TABLE samples (id INT, site STRING, value DECIMAL(8,2), enabled BOOL, PRIMARY KEY (id))", deadline.Token);
+        await Execute(connection, """
+            INSERT INTO samples (id, site, value, enabled) VALUES
+              (1,'a',2.25,TRUE),(2,'a',4.25,FALSE),(3,'a',NULL,TRUE),
+              (4,'b',8.25,TRUE),(5,'b',10.25,FALSE),(6,'c',NULL,TRUE)
+            """, deadline.Token);
+
+        await using var query = connection.CreateCommand();
+        query.CommandText = """
+            SELECT site, median(value) AS midpoint, variance(value) AS sample_variance
+            FROM samples GROUP BY site
+            HAVING percentile(value,@rank) >= 4
+            ORDER BY median(value) DESC
+            """;
+        var rank = query.CreateParameter();
+        rank.ParameterName = "rank";
+        rank.Value = 100d;
+        query.Parameters.Add(rank);
+        await using (var reader = await query.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Equal(typeof(double), reader.GetFieldType(1));
+            Assert.True(reader.GetColumnSchema()[1].AllowDBNull);
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal("b", reader.GetString(0));
+            Assert.Equal(9.25, reader.GetDouble(1), 10);
+            Assert.Equal(2d, reader.GetDouble(2), 10);
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.Equal("a", reader.GetString(0));
+            Assert.Equal(3.25, reader.GetDouble(1), 10);
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+
+        query.Parameters.Clear();
+        query.CommandText = "SELECT p99(value) AS upper_value, stddev(value) AS deviation FROM samples WHERE id=0";
+        await using (var reader = await query.ExecuteReaderAsync(deadline.Token))
+        {
+            Assert.Equal(typeof(double), reader.GetFieldType(0));
+            Assert.Equal(typeof(double), reader.GetFieldType(1));
+            Assert.True(await reader.ReadAsync(deadline.Token));
+            Assert.True(reader.IsDBNull(0));
+            Assert.True(reader.IsDBNull(1));
+            Assert.False(await reader.ReadAsync(deadline.Token));
+        }
+
+        var error = await Assert.ThrowsAsync<SndbServerException>(() =>
+            Scalar(connection, "SELECT median(enabled) FROM samples", deadline.Token));
+        Assert.Equal("sql_error", error.Error);
+        Assert.Equal(6L, await Scalar(connection, "SELECT count(*) FROM samples", deadline.Token));
         Assert.NotEmpty(_protocols);
         Assert.All(_protocols, observed => Assert.Equal(protocol == "rest" ? "HTTP/1.1" : "HTTP/2", observed));
     }

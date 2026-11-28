@@ -1,4 +1,5 @@
 using System.Text;
+using SonnetDB.Model;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -27,6 +28,8 @@ internal static class SqlSpillRowCodec
         Guid,
         Char,
         Duration,
+        Vector,
+        GeoPoint,
     }
 
     internal static long EstimateRowBytes(IReadOnlyList<object?> row)
@@ -40,6 +43,8 @@ internal static class SqlSpillRowCodec
                 null => 1,
                 string text => 24L + (text.Length * 2L),
                 byte[] data => 24L + data.Length,
+                float[] vector => 24L + ((long)vector.Length * sizeof(float)),
+                GeoPoint => 32L,
                 _ => 24L,
             }));
         }
@@ -154,6 +159,17 @@ internal static class SqlSpillRowCodec
                 writer.Write((byte)ValueKind.Duration);
                 writer.Write(item.Ticks);
                 break;
+            case float[] item:
+                writer.Write((byte)ValueKind.Vector);
+                writer.Write(item.Length);
+                foreach (float component in item)
+                    writer.Write(component);
+                break;
+            case GeoPoint item:
+                writer.Write((byte)ValueKind.GeoPoint);
+                writer.Write(item.Lat);
+                writer.Write(item.Lon);
+                break;
             default:
                 throw new NotSupportedException(
                     $"SQL spill 不支持标量类型 '{value.GetType().FullName}'；查询已中止且未截断结果。");
@@ -184,6 +200,8 @@ internal static class SqlSpillRowCodec
             ValueKind.Guid => new Guid(ReadExactBytes(reader, 16)),
             ValueKind.Char => reader.ReadChar(),
             ValueKind.Duration => TimeSpan.FromTicks(reader.ReadInt64()),
+            ValueKind.Vector => ReadVector(reader),
+            ValueKind.GeoPoint => new GeoPoint(reader.ReadDouble(), reader.ReadDouble()),
             var kind => throw new InvalidDataException($"SQL spill 标量标记 {(byte)kind} 非法。"),
         };
 
@@ -193,6 +211,20 @@ internal static class SqlSpillRowCodec
         if (length < 0)
             throw new InvalidDataException("SQL spill 字节数组长度非法。");
         return ReadExactBytes(reader, length);
+    }
+
+    private static float[] ReadVector(BinaryReader reader)
+    {
+        int length = reader.ReadInt32();
+        if (length < 0)
+            throw new InvalidDataException("SQL spill 向量长度非法。");
+        if ((long)length * sizeof(float) > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new EndOfStreamException("SQL spill 文件在向量中间结束。");
+
+        var vector = new float[length];
+        for (int i = 0; i < length; i++)
+            vector[i] = reader.ReadSingle();
+        return vector;
     }
 
     private static byte[] ReadExactBytes(BinaryReader reader, int length)
