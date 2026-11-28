@@ -86,11 +86,11 @@ public sealed class ObservabilityBootstrapTests : IAsyncLifetime
     }
 
     [Fact]
-    public void BasicPrometheus_ReportsFirstFlushFaultAndProcessMemory()
+    public async Task BasicPrometheus_ReportsFirstFlushFaultAndProcessMemory()
     {
         var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
         Assert.True(registry.TryCreate("basic_flush_probe", out var db));
-        FlushFaultFixture.FailFlush(db);
+        await FlushFaultFixture.FailFlushAsync(db);
         string exposition = Hosting.PrometheusFormatter.Render(
             _app.Services.GetRequiredService<Hosting.ServerMetrics>(), registry);
 
@@ -175,7 +175,7 @@ public sealed class PrometheusEndpointTests : IAsyncLifetime
     {
         var registry = _app!.Services.GetRequiredService<Hosting.TsdbRegistry>();
         Assert.True(registry.TryCreate("otel_flush_probe", out var db));
-        FlushFaultFixture.FailFlush(db);
+        await FlushFaultFixture.FailFlushAsync(db);
 
         using var client = new HttpClient { BaseAddress = new Uri(_baseUrl!), Timeout = TimeSpan.FromSeconds(10) };
         string exposition = await client.GetStringAsync("/metrics");
@@ -226,8 +226,14 @@ public sealed class PrometheusEndpointTests : IAsyncLifetime
 
 internal static class FlushFaultFixture
 {
-    internal static void FailFlush(Tsdb database)
+    internal static async Task FailFlushAsync(Tsdb database)
     {
+        var reported = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        database.DiagnosticEvent += (_, diagnostic) =>
+        {
+            if (diagnostic.Operation == "FlushPump.Flush")
+                reported.TrySetResult();
+        };
         database.Write(Model.Point.Create(
             "metric", 1_700_000_000_000L, new Dictionary<string, string>(),
             new Dictionary<string, Model.FieldValue> { ["value"] = Model.FieldValue.FromDouble(1) }));
@@ -238,6 +244,8 @@ internal static class FlushFaultFixture
         File.WriteAllText(segmentPath + ".tmp", "private_flush_fixture");
         Assert.ThrowsAny<IOException>(() => database.FlushNow());
         Assert.Throws<TimeSeriesWriteRecoveryRequiredException>(() => database.FlushNow());
+        // FlushNow 的等待者在诊断发布前释放。等待指标订阅者处理同一事件。
+        await reported.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     internal static void AssertFlushMetrics(string exposition)

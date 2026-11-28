@@ -21,6 +21,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     private Tsdb? _tsdb;
     private SqlSessionContext? _session;
     private ConnectionState _state = ConnectionState.Closed;
+    private bool _closing;
 
     public EmbeddedConnectionImpl(SndbConnectionStringBuilder builder)
     {
@@ -75,28 +76,34 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         {
             if (_state == ConnectionState.Closed)
                 return;
+            if (_closing)
+                throw new InvalidOperationException("连接正在关闭。");
             database = _tsdb;
             session = _session;
-            _tsdb = null;
-            _session = null;
-            _state = ConnectionState.Closed;
             streams = _streams.ToArray();
-            _streams.Clear();
+            _closing = true;
         }
 
         try
         {
             foreach (var stream in streams)
                 stream.Dispose();
+
+            // 会话清理失败时保留引用，使调用方可以重试 Close。
+            session?.Dispose();
+            lock (_streamSync)
+            {
+                _tsdb = null;
+                _session = null;
+                _state = ConnectionState.Closed;
+            }
+            if (database is not null)
+                SharedSndbRegistry.Release(database);
         }
         finally
         {
-            try { session?.Dispose(); }
-            finally
-            {
-                if (database is not null)
-                    SharedSndbRegistry.Release(database);
-            }
+            lock (_streamSync)
+                _closing = false;
         }
     }
 
@@ -181,7 +188,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         {
             lock (_streamSync)
             {
-                if (_state != ConnectionState.Open || session is null || !ReferenceEquals(_session, session))
+                if (_closing || _state != ConnectionState.Open || session is null || !ReferenceEquals(_session, session))
                     throw new InvalidOperationException("连接已经关闭。");
                 var result = new StreamingExecutionResult(stream, ReleaseStreamingResult);
                 _streams.Add(result);

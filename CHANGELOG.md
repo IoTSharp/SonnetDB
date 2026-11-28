@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### CI
+
+- 自动 CI 执行 Linux 构建、默认引擎全量测试和格式检查。Windows 测试、Core LSM、EF 迁移进程恢复和三平台 NativeAOT 由手动 CI 执行，候选发布仍要求同一提交的完整手动 CI。
+- 连接器候选构建和生态压测按需运行。修复 Dependabot NuGet 忽略规则格式、Frame 刷新测试挂起及首次 flush 指标断言的竞态。
+- ADO.NET 嵌入式连接关闭时，临时会话清理失败后仍可重试同一个连接的 `Close()`。
+
 ### 大结果 ORDER BY
 
 - 直接 measurement 的 `ORDER BY time` 在单条语句读视图中合并多个序列和字段，时间并列时按该视图的原序列顺序返回。高扇入时使用已有稳定 Top-N 或外部归并。

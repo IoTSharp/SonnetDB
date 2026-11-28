@@ -73,7 +73,7 @@ permalink: /benchmarks/ecosystem-soak/
 
 ## 自动化
 
-`Ecosystem Soak` workflow 每周运行 quick 档，也支持手动选择 quick、ci 或 soak 并归档报告。它不调度四个默认 #125 容量档，也不能生成固定目标硬件 PASS。
+`Ecosystem Soak` 在 GitHub Actions 手动选择 quick、ci 或 soak 并归档报告。四个默认 #125 容量档和固定目标硬件验收使用 `M19 Capacity Evidence`。
 
 `M19 Capacity Evidence` workflow 默认以 `target=github-hosted` 运行 **GitHub-hosted capacity validation**：在 `ubuntu-latest` 执行四种缩规模 specialized profile 的真实写入、恢复、强杀重开、备份扫描和维护行为，以及严格 verifier 的正负合同回归。原始 JSON/Markdown、工作数据和实际 runner 硬件/规模保留在 artifact；汇总状态为 `HOSTED_VALIDATION_ONLY`，原始固定硬件声明保持 `NOT_READY`。软件发布就绪检查要求候选 SHA 的托管 job 成功。
 

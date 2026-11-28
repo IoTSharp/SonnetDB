@@ -59,8 +59,10 @@ public sealed class FramePipeReaderLifetimeTests
     /// <summary>
     /// 验证跨两个 rows 块的 SQL 查询只在首块后中途刷新，第二块与 end 保持在最终刷新中。
     /// </summary>
-    [Fact]
-    public async Task Unary_SqlMultipleChunks_FlushesOnlyBeforeFollowingChunk()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Unary_SqlMultipleChunks_FlushesRowsAndEnd(bool streaming)
     {
         using var dependencies = new HandlerDependencies();
         const string databaseName = "multiple-flushes";
@@ -77,25 +79,31 @@ public sealed class FramePipeReaderLifetimeTests
         IReadOnlyList<byte[]> batches = await ExecuteSqlQueryAsync(
             dependencies,
             databaseName,
-            $"SELECT id FROM {tableName} ORDER BY id",
+            streaming ? $"SELECT id FROM {tableName} ORDER BY id" : $"SELECT id FROM {tableName}",
             streamId: 42);
 
-        Assert.Equal(2, batches.Count);
-        List<(FrameHeader Header, byte[] Payload)> firstBatch = DecodeFrames(batches[0]);
-        List<(FrameHeader Header, byte[] Payload)> finalBatch = DecodeFrames(batches[1]);
-        Assert.Equal(
-            [SqlQueryChunkKind.Meta, SqlQueryChunkKind.Rows],
-            firstBatch.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
+        Assert.Equal(streaming ? 3 : 2, batches.Count);
+        if (streaming)
+        {
+            var metadata = Assert.Single(DecodeFrames(batches[0]));
+            Assert.Equal(SqlQueryChunkKind.Meta, SqlFrameCodec.PeekChunkKind(metadata.Payload));
+        }
+        List<(FrameHeader Header, byte[] Payload)> firstBatch = DecodeFrames(batches[^2]);
+        List<(FrameHeader Header, byte[] Payload)> finalBatch = DecodeFrames(batches[^1]);
+        SqlQueryChunkKind[] firstKinds = streaming
+            ? [SqlQueryChunkKind.Rows]
+            : [SqlQueryChunkKind.Meta, SqlQueryChunkKind.Rows];
+        Assert.Equal(firstKinds, firstBatch.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
         Assert.Equal(
             [SqlQueryChunkKind.Rows, SqlQueryChunkKind.End],
             finalBatch.Select(static frame => SqlFrameCodec.PeekChunkKind(frame.Payload)).ToArray());
 
-        object?[][] firstRows = SqlFrameCodec.DecodeQueryRowsFrame(firstBatch[1].Payload);
+        object?[][] firstRows = SqlFrameCodec.DecodeQueryRowsFrame(firstBatch[^1].Payload);
         object?[][] finalRows = SqlFrameCodec.DecodeQueryRowsFrame(finalBatch[0].Payload);
         Assert.Equal(SqlFrameCodec.DefaultMaxChunkRows, firstRows.Length);
         Assert.Single(finalRows);
-        Assert.Equal(0L, firstRows[0][0]);
-        Assert.Equal((long)rowCount - 1, finalRows[0][0]);
+        var ids = firstRows.Concat(finalRows).Select(static row => Assert.IsType<long>(row[0]));
+        Assert.Equal(Enumerable.Range(0, rowCount).Select(static id => (long)id), streaming ? ids : ids.Order());
         (long encodedRowCount, _) = SqlFrameCodec.DecodeQueryEndFrame(finalBatch[1].Payload);
         Assert.Equal(rowCount, encodedRowCount);
     }
@@ -253,6 +261,7 @@ public sealed class FramePipeReaderLifetimeTests
         var encodedRequest = new ArrayBufferWriter<byte>();
         SqlFrameCodec.EncodeQueryRequest(encodedRequest, streamId, database, sql);
 
+        using var requestAborted = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var requestPipe = new Pipe();
         var responsePipe = new Pipe(new PipeOptions(
             pauseWriterThreshold: 16 * 1024 * 1024,
@@ -262,7 +271,10 @@ public sealed class FramePipeReaderLifetimeTests
         // 每次刷新后立即消费完整缓冲，因此批次内容精确对应一次 FlushAsync。
         async ValueTask<FlushResult> RecordFlushAsync(CancellationToken cancellationToken)
         {
+            bool hasData = responsePipe.Writer.UnflushedBytes != 0;
             FlushResult flush = await responsePipe.Writer.FlushAsync(cancellationToken);
+            if (!hasData)
+                return flush;
             ReadResult read = await responsePipe.Reader.ReadAsync(cancellationToken);
             batches.Add(read.Buffer.ToArray());
             responsePipe.Reader.AdvanceTo(read.Buffer.End);
@@ -273,7 +285,7 @@ public sealed class FramePipeReaderLifetimeTests
         DefaultHttpContext context = CreateContext(
             requestPipe.Reader,
             responseWriter,
-            CancellationToken.None,
+            requestAborted.Token,
             "HTTP/2",
             dependencies.Services,
             ServerRoles.Admin);

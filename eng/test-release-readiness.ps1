@@ -47,6 +47,15 @@ $ci.run.path = '.github/workflows/ci.yml'
 $ci.jobs = @($ciPolicy.Jobs | ForEach-Object { @{ name = $_; status = 'completed'; conclusion = 'success'; steps = @(Get-RequiredReleaseSteps $_ | ForEach-Object { @{ name = $_; conclusion = 'success' } }) } })
 $ci.artifacts = @($ciPolicy.Artifacts | ForEach-Object { @{ name = $_; expired = $false; size_in_bytes = 42; created_at = '2026-09-01T00:10:00Z' } })
 if (!(Test-ReleaseWorkflowEvidence $ciPolicy $ci $sha $repository).ready) { throw 'Complete CI shards must satisfy readiness.' }
+$pushCI = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+$pushCI.run.event = 'push'
+if ((Test-ReleaseWorkflowEvidence $ciPolicy $pushCI $sha $repository).ready) { throw 'Automatic CI must not substitute for dispatch preflight.' }
+foreach ($stepName in @('Test Core on the LSM KV engine', 'Verify EF migration process recovery')) {
+    $skippedStep = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
+    $linuxJob = @($skippedStep.jobs | Where-Object name -CEQ 'Build & Test (ubuntu-latest)')[0]
+    @($linuxJob.steps | Where-Object name -CEQ $stepName)[0].conclusion = 'skipped'
+    if ((Test-ReleaseWorkflowEvidence $ciPolicy $skippedStep $sha $repository).ready) { throw "Skipped Linux step '$stepName' must block release." }
+}
 foreach ($shard in @('core', 'rest')) {
     $missingJob = $ci | ConvertTo-Json -Depth 12 | ConvertFrom-Json
     $missingJob.jobs = @($missingJob.jobs | Where-Object name -CNE "Build & Test (windows-latest, $shard)")
