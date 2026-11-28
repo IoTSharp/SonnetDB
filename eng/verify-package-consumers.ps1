@@ -81,7 +81,7 @@ try
 }
 finally
 {
-    await scheduler.Shutdown(CancellationToken.None);
+    await scheduler.Shutdown(waitForJobsToComplete: true, cancellationToken: CancellationToken.None);
 }
 
 scheduler = await BuildScheduler();
@@ -95,7 +95,7 @@ try
 }
 finally
 {
-    await scheduler.Shutdown(CancellationToken.None);
+    await scheduler.Shutdown(waitForJobsToComplete: true, cancellationToken: CancellationToken.None);
 }
 Console.WriteLine("PASS packaged Quartz JobStoreTX persisted and reopened a paused trigger and job data.");
 
